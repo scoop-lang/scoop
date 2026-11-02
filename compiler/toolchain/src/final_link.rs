@@ -20,6 +20,7 @@ fn selected_final_link(
 mod cache;
 mod darwin;
 mod dependencies;
+mod elf;
 mod linux;
 mod output;
 #[cfg(all(
@@ -205,7 +206,7 @@ impl ValidatedFinalLinkProfile {
     pub fn linker_args(&self) -> Vec<&'static str> {
         match self {
             Self::Darwin(profile) => profile.linker_args(),
-            Self::Linux(profile) => profile.linker_args().to_vec(),
+            Self::Linux(profile) => profile.linker_args(),
             Self::Windows(profile) => profile.linker_args(),
         }
     }

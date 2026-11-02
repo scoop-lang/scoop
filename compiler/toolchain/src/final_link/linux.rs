@@ -1,3 +1,4 @@
+use super::elf::GnuElfLinkPlan;
 use super::*;
 use crate::linux_target::{LinuxLibc, LinuxTarget};
 use scoop_process::CommandExt;
@@ -8,14 +9,7 @@ mod runtime;
 use runtime::RuntimeLibraries;
 mod wire;
 
-const OPTIONS: &[&str] = &[
-    "-pthread",
-    "-Wl,--eh-frame-hdr",
-    "-Wl,--enable-new-dtags",
-    "-Wl,--build-id=sha1",
-    "-Wl,-z,relro,-z,now,-z,noexecstack,-z,text",
-    "-Wl,--no-undefined",
-];
+const LINUX_DRIVER_OPTIONS: &[&str] = &["-pthread"];
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 struct SystemInput {
@@ -136,8 +130,12 @@ impl LinuxFinalLinkProfile {
     pub fn linker_driver(&self) -> &Path {
         &self.data.linker
     }
-    pub fn linker_args(&self) -> &'static [&'static str] {
-        OPTIONS
+    pub fn linker_args(&self) -> Vec<&'static str> {
+        LINUX_DRIVER_OPTIONS
+            .iter()
+            .copied()
+            .chain(self.elf_plan().linker_args())
+            .collect()
     }
     pub fn unwind_prefix(&self) -> Option<&Path> {
         self.data.runtime.unwind_prefix()
@@ -160,37 +158,13 @@ impl LinuxFinalLinkProfile {
     }
 
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {
-        std::fs::create_dir_all(scratch).map_err(error)?;
-        let script = scratch.join("scoop-metadata.ld");
-        std::fs::write(&script, self.metadata_script()).map_err(error)?;
         let mut command = self.data.runtime.command(&self.startup);
         if !self.cxx() {
             command.arg("-nodefaultlibs");
         }
-        command
-            .env("TMPDIR", scratch)
-            .args(OPTIONS)
-            .args(self.mode_flags())
-            .arg("-o")
-            .arg(output)
-            .args(["-Xlinker", "-T", "-Xlinker"])
-            .arg(script);
-        if self.data.output.kind() == FinalOutputKind::SharedLibrary {
-            let exports = scratch.join("native-app.exports");
-            std::fs::write(
-                &exports,
-                format!(
-                    "{{ global: {}; local: *; }};\n",
-                    super::output::NATIVE_APP_ENTRY
-                ),
-            )
-            .map_err(error)?;
-            command
-                .args(["-Xlinker", "--version-script", "-Xlinker"])
-                .arg(exports)
-                .args(["-Xlinker", "-soname", "-Xlinker"])
-                .arg(self.data.output.loader_name(output, "")?);
-        }
+        command.env("TMPDIR", scratch).args(LINUX_DRIVER_OPTIONS);
+        self.elf_plan()
+            .configure_command(&mut command, scratch, output)?;
         Ok(command)
     }
 
@@ -204,21 +178,8 @@ impl LinuxFinalLinkProfile {
         }
     }
 
-    fn metadata_script(&self) -> &'static str {
-        match self.data.mode {
-            LinkMode::Static => include_str!("../elf/static.ld"),
-            LinkMode::Dynamic => include_str!("../elf/dynamic.ld"),
-        }
-    }
-
-    fn mode_flags(&self) -> &'static [&'static str] {
-        if self.data.output.kind() == FinalOutputKind::SharedLibrary {
-            return &["-shared"];
-        }
-        match self.data.mode {
-            LinkMode::Static => &["-static", "-no-pie"],
-            LinkMode::Dynamic => &["-pie"],
-        }
+    fn elf_plan(&self) -> GnuElfLinkPlan<'_> {
+        GnuElfLinkPlan::new(&self.data.output, self.data.mode)
     }
 }
 

@@ -21,7 +21,7 @@
 | [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
 | [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
 | [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
-| [final link](../../compiler/toolchain/src/final_link.rs) | target 目录显式绑定当前 Darwin／Linux／Windows profile，不再由 native environment 或对象格式推导 | ELF 编排仍位于 Linux 模块，需继续拆出纯格式 helper |
+| [final link](../../compiler/toolchain/src/final_link.rs) | target 目录显式绑定当前 Darwin／Linux／Windows profile；Linux 将已选输出形态与模式交给无 target／OS 知识的 GNU ELF plan，libc／CRT／unwind／系统库和工具发现仍由 Linux profile 拥有 | —（目录选择与 ELF／Linux 环境边界已完成） |
 | Windows 工具链 | MSVC／LLVM-MinGW triple、SDK slice、include／lib 路径和 probe 固定 x86_64 | Windows ARM64 无法复用 Windows 工作流，只能侵入全部工具入口 |
 | runtime 源文件 | frame recovery、ManagedEntry 对象语法和 Scoop ABI 返回 shim 已作为独立 source set 选择 | —（原先随 `darwin_aarch64.c` 同组选取的边界已拆开） |
 | 准备／发行脚本 | LLVM build list 和个别 recipe 固定 AArch64／X86、`-march=`、x86_64 triple 或架构 include 目录 | 编译器支持的 ISA、host ISA 和资源 target 混为一谈 |
@@ -447,6 +447,8 @@ NativeToolchainSelection
 最终选择由 target 直接引用 `FinalLinkProfile`，不能由 ELF 或 `TargetOs` 单独推导。这样同一 OS 的不同 native environment 可以有不同 CRT／driver，而同为 ELF 的不同 OS 不会误入 Linux 默认库和 loader。
 
 当前 target 目录已经为现有七个 target 显式绑定 `FinalLinkProfile::{Darwin,Linux,Windows}`；`ValidatedFinalLinkProfile` 只消费该投影，`NativeEnvironment` 继续负责各 profile 内部的 SDK／CRT／libc 分支。该选择进入 final-tool 发现缓存键，没有为未实现平台增加 profile。
+
+当前 Linux profile 已把选定的 `OutputConfiguration` 与 `LinkMode` 交给 `GnuElfLinkPlan`：helper 只生成 GNU ELF 固有参数、metadata linker script、shared／PIE／ET_EXEC 输出形态和 SONAME，不读取 target、OS、libc 或 toolchain。Linux profile 继续独占 `-pthread`、glibc／musl 缺省与限制、GNU ld 探测、CRT／unwind／系统库和搜索路径。它是当前 Linux 的实际调用边界，不构造 FreeBSD／OpenHarmony profile，也不把整条 Linux 流程改名为 ELF。
 
 ### 7.3 Windows 工作流先参数化 machine
 
