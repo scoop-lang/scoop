@@ -1,0 +1,187 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.fluent.fluentTheme
+import scoop.window.*
+
+internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
+    when (probe.phase) {
+        case 0 -> {
+            assertEquals(Size(200.0, 120.0), probe.outer.viewport)
+            assertEquals(Size(400.0, 600.0), probe.outer.content)
+            assertEquals(Point(200.0, 480.0), probe.outer.maximum)
+            assertEquals(Point(0.0, 180.0), probe.inner.maximum)
+            probe.baselineRenders = probe.renders
+            probe.baselineContent = probe.contentRenders
+            probe.input(active) { probe.click(80.0, 65.0) }
+        }
+        case 1 -> {
+            assertTrue(probe.innerFocus.hasFocus)
+            probe.input(active) { assertTrue(sendSurfaceScroll(probe.window!!, 80.0, 65.0, 0, -3)) }
+        }
+        case 2 -> {
+            assertEquals(Point(0.0, 30.0), probe.inner.offset)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 80.0, 65.0, -2, -20))
+            }
+        }
+        case 3 -> {
+            assertEquals(Point(0.0, 180.0), probe.inner.offset)
+            assertEquals(Point(40.0, 100.0), probe.outer.offset)
+            assertEquals(probe.baselineRenders, probe.renders)
+            assertEquals(probe.baselineContent, probe.contentRenders)
+            assertTrue(probe.innerFocus.hasFocus)
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.generation.value = 1
+            probe.phase += 1
+        }
+        case 4 -> probe.input(active) {
+            assertTrue(sendSurfaceScroll(probe.window!!, 80.0, 65.0, -2, -3))
+        }
+        case 5 -> {
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertEquals(Point(0.0, 180.0), probe.inner.offset)
+            probe.generation.value = 2
+            probe.preventWheel = true
+            probe.phase += 1
+        }
+        case 6 -> probe.input(active) {
+            assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, -3))
+        }
+        case 7 -> {
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            probe.preventWheel = false
+            assertTrue(probe.outerFocus.requestFocus())
+            probe.input(active) { probe.key(121) }
+        }
+        case 8 -> {
+            assertEquals(Point(0.0, 120.0), probe.outer.offset)
+            probe.input(active) { probe.key(119) }
+        }
+        case 9 -> {
+            assertEquals(Point(200.0, 480.0), probe.outer.offset)
+            probe.input(active) { probe.key(115) }
+        }
+        case 10 -> {
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertTrue(probe.innerFocus.requestFocus())
+            probe.input(active) { probe.key(121) }
+        }
+        case 11 -> {
+            assertEquals(1, probe.childKeys)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertEquals(Point(0.0, 180.0), probe.inner.offset)
+            val bar = probe.bar()
+            val start = probe.at(bar.thumb.bounds)
+            val finish =
+                Point(start.x, 20.0 + bar.travelStart.y + bar.travel / 2.0 + bar.thumbLength / 2.0)
+            probe.input(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, start.x, start.y))
+                assertTrue(probe.view!!.button(start.x, start.y, true))
+                assertTrue(moveSurfacePointer(probe.window!!, finish.x, finish.y))
+            }
+        }
+        case 12 -> {
+            assertTrue(probe.outer.offset.y > 239.99 && probe.outer.offset.y < 240.01)
+            assertTrue(probe.innerFocus.hasFocus)
+            probe.previousOffset = probe.outer.offset
+            probe.preventRelease = true
+            probe.input(active) { assertTrue(probe.view!!.button(215.0, 75.0, false)) }
+        }
+        case 13 -> {
+            probe.preventRelease = false
+            probe.input(active) { assertTrue(moveSurfacePointer(probe.window!!, 215.0, 30.0)) }
+        }
+        case 14 -> {
+            assertEquals(probe.previousOffset, probe.outer.offset)
+            val track = probe.bar().track.bounds
+            probe.input(active) {
+                probe.click(20.0 + track.x + track.width / 2.0, 20.0 + track.y + track.height - 2.0)
+            }
+        }
+        case 15 -> {
+            assertTrue(probe.outer.offset.y > 359.99 && probe.outer.offset.y < 360.01)
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            probe.theme.current.value = fluentTheme()
+            probe.phase += 1
+        }
+        case 16 -> {
+            val button = probe.at(probe.bar().increment!!.outline.bounds)
+            probe.input(active) { probe.click(button.x, button.y) }
+        }
+        case 17 -> {
+            assertEquals(Point(0.0, 20.0), probe.outer.offset)
+            val button = probe.at(probe.bar().decrement!!.outline.bounds)
+            probe.input(active) { probe.click(button.x, button.y) }
+        }
+        case 18 -> {
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertTrue(probe.innerFocus.hasFocus)
+            probe.outer.reveal(Rect(240.0, 400.0, 50.0, 30.0))
+            probe.phase += 1
+        }
+        case 19 -> {
+            assertEquals(Point(90.0, 310.0), probe.outer.offset)
+            assertEquals(Some(Rect(170.0, 110.0, 50.0, 30.0)), probe.leafArea!!.visibleBounds)
+            probe.input(active) { probe.click(180.0, 120.0) }
+        }
+        case 20 -> {
+            assertTrue(probe.leafFocus.hasFocus)
+            assertEquals(1, probe.leafClicks)
+            assertEquals(16777215L, probe.outsidePixel)
+            probe.input(active) { probe.click(250.0, 120.0) }
+        }
+        case 21 -> {
+            assertEquals(1, probe.leafClicks)
+            probe.outer.animateTo(Point(0.0, 0.0), AnimationSpec.Tween(Duration.seconds(3L)))
+            probe.input(active) { assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, -1)) }
+        }
+        case 22 -> {
+            assertFalse(probe.outer.isAnimating)
+            assertEquals(Point(90.0, 330.0), probe.outer.offset)
+            probe.outer.animateTo(Point(0.0, 0.0), AnimationSpec.Tween(Duration.seconds(3L)))
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 128))
+            }
+        }
+        case 23 -> {
+            assertFalse(probe.outer.isAnimating)
+            assertEquals(Point(90.0, 330.0), probe.outer.offset)
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 4))
+            }
+        }
+        case 24 -> {
+            probe.outer.animateTo(Point(200.0, 480.0), AnimationSpec.Tween(Duration.seconds(3L)))
+            probe.generation.value = 3
+            probe.phase += 1
+        }
+        case 25 -> {
+            assertFalse(probe.outer.isAnimating)
+            assertEquals(Point(0.0, 0.0), probe.outer.maximum)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertEquals(1, probe.mounts)
+            probe.generation.value = 4
+            probe.phase += 1
+        }
+        case 26 -> {
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.inner.isAttached)
+            assertEquals(1, probe.unmounts)
+            assertTrue(probe.frames!!.snapshot().paused)
+            probe.phase = 28
+        }
+        case 28 -> {}
+        else -> fail(Some("unexpected scroll area phase"))
+    }
+    if (probe.phase == 28) {
+        probe.ui!!.close()
+        probe.window!!.requestDestroy()
+    }
+}

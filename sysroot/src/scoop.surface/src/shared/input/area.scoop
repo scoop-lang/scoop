@@ -1,6 +1,7 @@
 package scoop.surface
 
 import scoop.graphics.Rect
+import scoop.graphics.Point
 
 /** Stable input identity; geometry is supplied by each successfully submitted frame. */
 public class InputArea internal constructor(
@@ -41,6 +42,17 @@ public class InputArea internal constructor(
             return None
         val placement = owner.scene.find(this) ?: return None
         return Some(placement.geometry.bounds)
+    }
+    /** Latest observed window pointer mapped through the currently committed geometry. */
+    public val pointerPosition: Point? get() {
+        owner.checkThread()
+        if (closed || !owner.inside)
+            return None
+        val pointer = owner.pointer ?: return None
+        val placement = owner.scene.find(this) ?: return None
+        return placement.geometry.toLocal(
+            Point(pointer.logicalPosition.x, pointer.logicalPosition.y)
+        )
     }
     public val visibleBounds: Rect? get() {
         owner.checkThread()

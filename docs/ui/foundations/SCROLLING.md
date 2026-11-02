@@ -32,6 +32,20 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 首批用现有原生 wheel／触控板动量，程序平滑滚动复用 Animatable；不同时实现一套自制触摸惯性与手势竞争。显式平滑滚动在新用户滚动开始时取消，动画终点按最新范围收敛，停止后撤销帧需求。
 
+### 2.1 普通滚动容器的公开合同
+
+`scoop.ui` 提供 `ScrollState(initialOffset)`、`ScrollSnapshot(offset, viewport, content)`、`ScrollAlignment` 和随 ComponentScope 管理的 `ScrollViewport`。State 的 snapshot／offset／viewport／content／maximum／isAttached／isAnimating 可在 render 中观察；只在相应值改变时通知。普通滚动不要求内容 render 读取 State，因此不会仅因 offset 改变重建子树。State 使用创建线程，所有公开写操作与 State 一样禁止在 render／measure／scene／draw 中调用。
+
+初次布局前范围和可见 offset 为零，构造位置、scrollTo 和 reveal 保留意图，在首个成功布局后收敛；尚未确定范围时 scrollBy 在已有的位置意图上累加。reveal 使用内容局部坐标，支持每轴 Nearest／Start／Center／End；已经包含视口的超大目标在 Nearest 下不跳动。脱离视口后 State 保留最后结果，可供重新挂载恢复位置。
+
+`scope.scrollViewport(state)` 绑定一个实际视口，同一 State 不能同时绑定两个视口。登记的 state 可以整体替换，先检查新绑定是否合法，失败保留旧绑定；关闭立即解绑并停止动画。自定义容器在 measure 调用 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`。layout 不发布可观察状态；只有 Accepted 提交范围与位置，Discarded 不更新。迟到的旧绑定回调无效，布局之后的新滚动请求优先于旧帧位置，并按新范围请求必要的下一帧。
+
+`animateTo(offset, spec)` 要求已绑定视口，允许在其首次布局前排队；未绑定时报错。它复用该 Surface 的 Animatable，不另建时钟。新 wheel（包括零位移 MayBegin）、滚动条操作、scrollTo／scrollBy／reveal 或 cancelAnimation 会在最后发布的 offset 停止旧动画。动画采样只在 Accepted 后发布；范围缩小时目标重新收敛，没有剩余移动时结束。isAnimating 包括等待首个布局的显式动画。
+
+`scoop.ui.component.ScrollArea` 接受一个显式 content View、可选外部 State、Vertical／Horizontal／Both、width／height、lineStep、Chain／Contain、Auto／Always／Hidden 滚动条、ScrollbarOptions、FocusOptions 和主题。滚动轴需要有界父约束或明确尺寸；非滚动轴有界时填满，无界时采用一次子测量结果。内容每帧只测量一次，在滚动轴使用无界约束；同一视口 clip 约束像素和命中，内容以负 offset 平移。
+
+首批滚动条覆盖在视口边缘，不改变内容约束；双轴条在角落互相让出厚度。拖动按主题给出的实际 thumb travel 映射范围，轨道按一页、可选箭头按 lineStep 移动。输入使用最后 Accepted 的几何，禁止用被丢弃帧的条位置处理拖动；释放被 preventDefault 时仍清除拖动状态。点击滚动条消费默认聚焦，保留子编辑器的焦点。范围为零时 Auto 隐藏，Always 显示禁用状态。键盘 PageUp／PageDown／Home／End 只在事件 target 就是滚动视口且无修饰键时执行，子项导航由子项处理。
+
 ## 3. 真正的按需子项协议
 
 现有 `element(children: Array<View>)` 保持 eager 语义。不能先创建全部 View／Component，再通过 clip 宣称 virtual。框架增加与普通元素并列的 `lazyElement` 描述和受控的 `LazyMeasureContext`，供独立库编写列表、树列表等实际容器。

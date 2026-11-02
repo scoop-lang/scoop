@@ -1,6 +1,6 @@
 # UI 基础交互实施记录
 
-日期：2026-11-02。范围按 [总设计](DESIGN.md)，本期实施 macOS；Windows 后续。各批只验证 aarch64，全部功能完成后再统一执行 macOS x86_64 验证。沿用现有普通 Scoop Cone、单一宿主事件循环和按需呈现。
+日期：2026-11-03。范围按 [总设计](DESIGN.md)，本期实施 macOS；Windows 后续。各批只验证 aarch64，全部功能完成后再统一执行 macOS x86_64 验证。沿用现有普通 Scoop Cone、单一宿主事件循环和按需呈现。
 
 ## 批次状态
 
@@ -18,7 +18,7 @@
 | C3b：同窗口模态、关闭与焦点恢复 | 已完成 aarch64 实施和定向验证 |
 | C3c：宿主快捷键 | 已完成 aarch64 实施和定向验证 |
 | D1a：滚轮残量与连续手势路由 | 已完成 aarch64 实施和定向验证 |
-| D1b：ScrollArea、滚动条与显式平滑滚动 | 待实施 |
+| D1b：ScrollArea、滚动条与显式平滑滚动 | 已完成 aarch64 实施和定向验证 |
 | D2：按需子项、虚拟列表与实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -148,3 +148,13 @@ RoutedEventContext.scrollRemaining 与 consumeScroll 在同一默认阶段共享
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过；新增原生注入辅助通过 arm64 Clang 的警告检查。58 项定向 scoop.test 通过：Surface 输入 55 项、原生滚动 1 项、UI drawing／modal 回归各 1 项。覆盖不同容器行高、缩放与旋转、事件内发布新几何、借用与非法消费、零位移、模态与目标退休、按钮并行、取消异常，以及真实 AppKit 行／像素／动量传递。原生测试首轮将无关联 NSWindow 的 CG 事件按屏幕坐标注入，修正为直接 view 投递所需的窗口坐标后通过；测试关闭不再用附带断言遮住原始失败。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。已闭合的一次性桌面报告与被替代的 C3c Surface／modal 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。
+
+## D1b：ScrollArea、滚动条与显式平滑滚动
+
+UI 提供可观察 ScrollState、ScrollSnapshot、ScrollAlignment 和随挂载管理的 ScrollViewport。布局只生成本帧快照，Accepted 才发布范围和采样；较新的定位意图、绑定替换及关闭不会被旧帧覆盖。初始位置和 reveal 等待首个范围，外部 State 在解绑后保留位置。显式 animateTo 复用 Surface 时间轴，可在首布局前排队，取消停在最后发布的 offset，范围收敛后停止帧需求。
+
+ScrollArea 支持单轴／双轴、一次内容测量、同一像素与命中裁剪、嵌套残量及 Contain；纯偏移不重建内容描述。覆盖式滚动条复用三套主题的几何与绘图，支持 thumb 拖动、轨道翻页和可选箭头；无可拖动距离时保持位置，释放被拦截仍结束拖动。条的点击保留子项焦点，视口键盘翻页只处理自身目标。Surface 增加 pointerPosition，以已提交几何更新未移动指针的局部位置，供条在容器移动后刷新 hover。
+
+修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过；桌面启动辅助通过 Ruff 格式化与检查。13 项定向 scoop.test 通过：Surface 指针查询 1 项、UI ScrollState 5 项、Component 滚动布局与三主题几何 4 项、UI 视口窗口 1 项、ScrollArea 原生交互 1 项、已有 drawing 回归 1 项。窗口覆盖真实 Discarded、同一绑定往返替换、布局后的新请求、首布局前动画、范围缩小与停帧、不同 lineStep 的双轴交接、Contain、默认取消、键盘／焦点、拖动与被阻止的释放、主题切换、reveal 和内容挂载计数。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告、启动脚本及被替代的 C3c UI／D1a Surface／drawing 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。普通容器已交付；按需子项、虚拟列表、实例保留及绘制缓存继续按后续批次实施。

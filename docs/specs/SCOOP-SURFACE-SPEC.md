@@ -126,6 +126,8 @@ requestFocus 只对已发布、可交互、具有非空可见几何且允许焦�
 
 InputArea.windowBounds／visibleBounds 返回最近成功帧的窗口逻辑坐标 Rect 值，分别表示未裁剪形状的包围盒和与显式 clip、窗口视口相交后的包围盒。没有已发布几何或区域已关闭时返回 None；空可见交集或不可逆变换的 visibleBounds 为 None。查询不返回可关闭的几何借用，也不认为后绘制的普通兄弟自动遮断前方焦点目标。InputScope.isEnabledInHierarchy 只查询逻辑祖先的关闭／禁用状态，不假定已有几何。
 
+InputArea.pointerPosition 把窗口内最后观测的指针位置通过最近成功帧的几何映射为局部 Point。它不要求指针命中该区域；窗口尚无指针、指针已离开窗口、区域关闭／未放置或变换不可逆时返回 None。它供成功提交后刷新 hover 子部件等状态使用，不产生输入事件，不替代 RoutedEventContext.localPosition 固定的本次事件坐标，也不再次进行 DPI 换算。
+
 graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需的几何值；形状与任意 path clip 的相交复用 Skia PathOps，不以若干采样点或矩形重叠猜测。快照内部按需复用一次可见交集计算，新的帧使用新的快照。bounds 保留裁剪前的位置，便于后续滚动显露；此查询不更改画布或绘制内容。
 
 SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。reserveFocusRequest() 推进并返回同一个窗口序号，但不改变当前焦点，供上层登记尚未有可用几何的请求或记录被当前域拒绝的显式请求；不能为这些请求另设一套不可比较的版本。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。

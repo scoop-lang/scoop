@@ -8,6 +8,50 @@ import scoop.window.*
 @Test
 private class InputAreaTest {
     @Test
+    fun `pointer query follows accepted geometry without requiring a new move event`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("moving")
+            assertEquals(None, area.pointerPosition)
+            rig.move(20.0, 20.0)
+            assertEquals(None, area.pointerPosition)
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(5.0, 10.0)
+                canvas.scale(2.0, 2.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 100.0))
+            }
+            assertEquals(Some(Point(7.5, 5.0)), area.pointerPosition)
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(10.0, 0.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 100.0))
+            }
+            assertEquals(Some(Point(10.0, 20.0)), area.pointerPosition)
+            rig.router.beginFrame().use {
+                frame -> rig.surface.draw {
+                    canvas ->
+                    canvas.translate(100.0, 100.0)
+                    frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 100.0))
+                }
+            }
+            assertEquals(Some(Point(10.0, 20.0)), area.pointerPosition)
+            rig.pointer(PointerEvent.Left(inputPointer(310.0, 20.0)))
+            assertEquals(None, area.pointerPosition)
+            rig.move(200.0, 100.0)
+            assertEquals(Some(Point(190.0, 100.0)), area.pointerPosition)
+            rig.frame {
+                frame, canvas ->
+                canvas.scale(0.0, 1.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 100.0))
+            }
+            assertEquals(None, area.pointerPosition)
+            area.close()
+            assertEquals(None, area.pointerPosition)
+        }
+    }
+
+    @Test
     fun `path holes remain precise after the path wrapper closes`() {
         InputRig().use {
             rig ->

@@ -1,0 +1,110 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+/** Resolves definite viewport axes before the single content measurement. */
+internal class ScrollMeasure(
+    private val parent: Constraints,
+    axes: ScrollAxes,
+    width: Double?,
+    height: Double?
+) {
+    private val minimum = parent.constrain(Size(0.0, 0.0))
+    private val x = scrollExtent(width, minimum.width, parent.maxWidth, axes.horizontal)
+    private val y = scrollExtent(height, minimum.height, parent.maxHeight, axes.vertical)
+    val contentConstraints =
+        Constraints(
+            if (axes.horizontal)
+                0.0
+            else
+                x ?: minimum.width,
+            if (axes.horizontal)
+                None
+            else
+                x,
+            if (axes.vertical)
+                0.0
+            else
+                y ?: minimum.height,
+            if (axes.vertical)
+                None
+            else
+                y
+        )
+    fun size(content: Size): Size = parent.constrain(Size(x ?: content.width, y ?: content.height))
+}
+
+private fun scrollExtent(
+    explicit: Double?,
+    minimum: Double,
+    maximum: Double?,
+    scrollable: Boolean
+): Double? {
+    val candidate =
+        when (explicit) {
+            case Some(value) -> {
+                nonnegative(value, "invalid scroll viewport extent");
+                Some(value)
+            }
+            case None -> maximum
+        }
+    return when (candidate) {
+        case Some(value) -> {
+            val lower = lowerBound(value, minimum)
+            Some(upperBound(lower, maximum ?: lower))
+        }
+        case None -> {
+            requireComponent(
+                !scrollable,
+                "scroll axis requires a bounded parent or an explicit extent"
+            )
+            None
+        }
+    }
+}
+
+internal fun showScrollbar(mode: ScrollbarVisibility, range: Double): Boolean =
+    when (mode) {
+        case Hidden -> false
+        case Always -> true
+        case Auto -> range > 0.0
+    }
+
+internal fun scrollbarPart(geometry: ScrollbarGeometry, point: Point): ScrollbarRegion? {
+    if (!geometry.bounds.contains(point))
+        return None
+    if (geometry.thumb.bounds.contains(point))
+        return Some(ScrollbarRegion.Thumb)
+    if (geometry.decrement?.outline?.bounds?.contains(point) ?: false)
+        return Some(ScrollbarRegion.Decrement)
+    if (geometry.increment?.outline?.bounds?.contains(point) ?: false)
+        return Some(ScrollbarRegion.Increment)
+    return Some(ScrollbarRegion.Track)
+}
+
+internal fun scrollbarAxis(orientation: Orientation, point: Point): Double =
+    if (orientation == Orientation.Horizontal)
+        point.x
+    else
+        point.y
+
+internal fun scrollbarThumbOffset(
+    geometry: ScrollbarGeometry,
+    point: Point,
+    grab: Double,
+    maximum: Double
+): Double {
+    if (geometry.travel <= 0.0)
+        return geometry.position * maximum
+    val position =
+        (
+            scrollbarAxis(geometry.orientation, point) -
+                scrollbarAxis(geometry.orientation, geometry.travelStart) -
+                grab *
+                geometry.thumbLength
+        ) /
+            geometry.travel
+    return upperBound(lowerBound(position, 0.0), 1.0) * maximum
+}

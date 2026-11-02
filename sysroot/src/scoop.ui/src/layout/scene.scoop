@@ -42,6 +42,10 @@ public class SceneContext internal constructor(
         checkActive()
         node.root.addCompletion(node, action)
     }
+    internal fun checkOwner(owner: MountedNode) {
+        checkActive()
+        requireUi(node === owner, "scene registration belongs to a different mount")
+    }
     private fun checkActive() {
         node.root.checkThread()
         if (!active)

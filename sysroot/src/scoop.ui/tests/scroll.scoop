@@ -1,0 +1,89 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class ScrollStateTest {
+    @Test
+    fun `pending position waits for a range and later layouts clamp without publishing early`() {
+        val state = ScrollState(Point(30.0, 160.0))
+        state.scrollBy(Point(-10.0, 60.0))
+        assertEquals(Point(0.0, 0.0), state.offset)
+        assertEquals(Size(0.0, 0.0), state.viewport)
+        val layout = state.plan(Size(100.0, 80.0), Size(150.0, 250.0))
+        assertEquals(Point(20.0, 170.0), layout.offset)
+        assertEquals(Point(50.0, 170.0), layout.maximum)
+        assertEquals(Point(0.0, 0.0), state.offset)
+        state.publish(layout, true)
+        state.scrollBy(Point(100.0, -40.0))
+        assertEquals(Point(50.0, 130.0), state.offset)
+        state.publish(state.plan(layout.viewport, layout.content), true)
+        val smaller = state.plan(Size(100.0, 100.0), Size(50.0, 140.0))
+        assertEquals(Point(0.0, 40.0), smaller.offset)
+        assertEquals(Point(50.0, 130.0), state.offset)
+        state.publish(smaller, true)
+        assertEquals(Point(0.0, 40.0), state.offset)
+        assertEquals(Point(0.0, 40.0), state.maximum)
+    }
+
+    @Test
+    fun `reveal aligns each axis and nearest leaves covering rectangles in place`() {
+        val state = ScrollState(Point(100.0, 100.0))
+        state.publish(state.plan(Size(100.0, 80.0), Size(600.0, 600.0)), true)
+        state.reveal(Rect(110.0, 110.0, 10.0, 10.0))
+        assertEquals(Point(100.0, 100.0), state.offset)
+        state.reveal(Rect(50.0, 50.0, 200.0, 200.0))
+        assertEquals(Point(100.0, 100.0), state.offset)
+        state.reveal(Rect(230.0, 240.0, 10.0, 20.0))
+        assertEquals(Point(140.0, 180.0), state.offset)
+        state.reveal(Rect(220.0, 260.0, 40.0, 40.0), ScrollAlignment.Center, ScrollAlignment.Start)
+        assertEquals(Point(190.0, 260.0), state.offset)
+        state.reveal(Rect(220.0, 260.0, 40.0, 40.0), ScrollAlignment.End, ScrollAlignment.Center)
+        assertEquals(Point(160.0, 240.0), state.offset)
+        state.reveal(Rect(-30.0, 900.0, 10.0, 10.0), ScrollAlignment.Start, ScrollAlignment.End)
+        assertEquals(Point(0.0, 520.0), state.offset)
+    }
+
+    @Test
+    fun `deferred reveal uses the first actual viewport instead of a zero extent`() {
+        val state = ScrollState()
+        state.reveal(Rect(200.0, 300.0, 20.0, 20.0), ScrollAlignment.Center, ScrollAlignment.End)
+        assertEquals(Point(0.0, 0.0), state.offset)
+        state.publish(state.plan(Size(100.0, 80.0), Size(500.0, 600.0)), true)
+        assertEquals(Point(160.0, 240.0), state.offset)
+        state.publish(state.plan(Size(200.0, 100.0), Size(500.0, 600.0)), true)
+        assertEquals(Point(160.0, 240.0), state.offset)
+    }
+
+    @Test
+    fun `scroll requests reject invalid geometry without changing the last position`() {
+        val state = ScrollState(Point(20.0, 30.0))
+        state.publish(state.plan(Size(40.0, 50.0), Size(100.0, 100.0)), true)
+        assertFailsWith<IllegalArgumentException> { state.scrollTo(Point(1.0e308 * 2.0, 0.0)) }
+        assertFailsWith<IllegalArgumentException> { state.reveal(Rect(0.0, 0.0, -1.0, 5.0)) }
+        assertFailsWith<IllegalArgumentException> { state.reveal(Rect(1.0e308, 0.0, 1.0e308, 0.0)) }
+        assertFailsWith<IllegalArgumentException> { state.plan(Size(-1.0, 0.0), Size(10.0, 20.0)) }
+        assertEquals(Point(20.0, 30.0), state.offset)
+        assertFailsWith<IllegalStateException> { state.animateTo(Point(0.0, 0.0)) }
+        assertFalse(state.isAttached)
+        assertFalse(state.isAnimating)
+    }
+
+    @Test
+    fun `scroll storage enforces owner thread and pure evaluation boundaries`() {
+        val state = ScrollState()
+        Thread.start {
+            assertFailsWith<IllegalStateException> { state.snapshot }
+            assertFailsWith<IllegalStateException> { state.isAttached }
+            assertFailsWith<IllegalStateException> { state.scrollBy(Point(0.0, 5.0)) }
+        }.use { thread -> thread.join() }
+        evaluateUi<Unit>(None) {
+            assertFailsWith<IllegalStateException> { state.scrollTo(Point(0.0, 10.0)) }
+            assertFailsWith<IllegalStateException> { state.reveal(Rect(0.0, 0.0, 10.0, 20.0)) }
+            assertFailsWith<IllegalStateException> { state.cancelAnimation() }
+        }
+        assertEquals(Point(0.0, 0.0), state.offset)
+    }
+}
