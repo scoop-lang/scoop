@@ -2,7 +2,10 @@ use scoop_identity::ConeIdentity;
 use scoop_lir::{RuntimeAbiSymbolV1, TargetEhSupportV1};
 
 use super::super::native_requirements::tests::{dependency_closure, native_surface};
-use super::super::strong_relocation_closure::tests::verified_member_with_undefined_form;
+use super::super::strong_relocation_closure::tests::{
+    AARCH64_BRANCH26, AARCH64_TLVP_PAGE_OFFSET12, AARCH64_TLVP_PAGE21,
+    verified_member_with_undefined_form,
+};
 use super::super::symbol_verification::tests::fixture_for_producer;
 use super::*;
 use crate::verify_source_external_requirements_v1;
@@ -31,54 +34,35 @@ fn classifies_only_exact_runtime_contract_symbols() {
 
 #[test]
 fn requires_tlvp_forms_only_for_the_runtime_tls_contract() {
-    let poll = classify_with_form(
-        b"_scoop_rt_poll_state",
-        VerifiedObjectRelocationFormV1::TlvpLoadPage21,
-    )
-    .unwrap();
+    let poll = classify_with_form(b"_scoop_rt_poll_state", AARCH64_TLVP_PAGE21).unwrap();
     assert_eq!(
         poll.runtime_requirements()[0].contract().symbol(),
         RuntimeAbiSymbolV1::PollState
     );
-    assert!(
-        classify_with_form(
-            b"_scoop_rt_poll_state",
-            VerifiedObjectRelocationFormV1::Branch26,
-        )
-        .is_err()
-    );
+    assert!(classify_with_form(b"_scoop_rt_poll_state", AARCH64_BRANCH26,).is_err());
     assert!(matches!(
-        classify_with_form(
-            b"_scoop_rt_allocation_context",
-            VerifiedObjectRelocationFormV1::Branch26,
-        ),
+        classify_with_form(b"_scoop_rt_allocation_context", AARCH64_BRANCH26,),
         Err(
             RuntimeAndEhRequirementValidationError::RuntimeRelocationFormMismatch {
                 symbol: RuntimeAbiSymbolV1::AllocationContext,
-                form: VerifiedObjectRelocationFormV1::Branch26,
+                form: AARCH64_BRANCH26,
             }
         )
     ));
     assert!(matches!(
-        classify_with_form(
-            b"_scoop_runtime_alloc_slow",
-            VerifiedObjectRelocationFormV1::TlvpLoadPage21,
-        ),
+        classify_with_form(b"_scoop_runtime_alloc_slow", AARCH64_TLVP_PAGE21,),
         Err(
             RuntimeAndEhRequirementValidationError::RuntimeRelocationFormMismatch {
                 symbol: RuntimeAbiSymbolV1::AllocateSlow,
-                form: VerifiedObjectRelocationFormV1::TlvpLoadPage21,
+                form: AARCH64_TLVP_PAGE21,
             }
         )
     ));
     assert!(matches!(
-        classify_with_form(
-            b"__Unwind_Resume",
-            VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12,
-        ),
+        classify_with_form(b"__Unwind_Resume", AARCH64_TLVP_PAGE_OFFSET12,),
         Err(
             RuntimeAndEhRequirementValidationError::TlsRelocationRequiresTlsContract {
-                form: VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12,
+                form: AARCH64_TLVP_PAGE_OFFSET12,
                 ..
             }
         )
@@ -110,9 +94,9 @@ fn classifies_only_the_closed_target_eh_symbols() {
 
 pub(in crate::link_object) fn classify(symbol: &[u8]) -> VerifiedRuntimeAndEhRequirementClosureV1 {
     let form = if symbol == b"_scoop_rt_allocation_context" {
-        VerifiedObjectRelocationFormV1::TlvpLoadPage21
+        AARCH64_TLVP_PAGE21
     } else {
-        VerifiedObjectRelocationFormV1::Branch26
+        AARCH64_BRANCH26
     };
     classify_with_form(symbol, form).unwrap()
 }

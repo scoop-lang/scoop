@@ -95,21 +95,14 @@ pub fn verify_runtime_and_eh_requirements_v1(
         let eh = eh_registry.requirement_for_object_symbol(binding.symbol());
         match (runtime, eh) {
             (Some(contract), None) => {
-                validate_runtime_relocation(
-                    contract,
-                    binding.relocation_form(),
-                    selection.target(),
-                )?;
+                validate_runtime_relocation(contract, binding.relocation_form())?;
                 runtime_requirements.push(RuntimeAbiRequirementUseV1 {
                     use_site: CanonicalUndefinedRelocationUseV1::from(binding),
                     contract: contract.clone(),
                 });
             }
             (None, Some(requirement)) => {
-                if binding
-                    .relocation_form()
-                    .is_tls_reference(selection.target())
-                {
+                if binding.relocation_form().is_tls_reference() {
                     return Err(
                         RuntimeAndEhRequirementValidationError::TlsRelocationRequiresTlsContract {
                             symbol: binding.symbol().to_vec(),
@@ -145,7 +138,6 @@ pub fn verify_runtime_and_eh_requirements_v1(
 fn validate_runtime_relocation(
     contract: &RuntimeSymbolContractV1,
     form: VerifiedObjectRelocationFormV1,
-    target: scoop_lir::LirTargetProfile,
 ) -> Result<(), RuntimeAndEhRequirementValidationError> {
     let is_thread_local = matches!(
         contract.symbol().machine_contract(),
@@ -154,7 +146,7 @@ fn validate_runtime_relocation(
             ..
         }
     );
-    if form.is_tls_reference(target) != is_thread_local {
+    if form.is_tls_reference() != is_thread_local {
         return Err(
             RuntimeAndEhRequirementValidationError::RuntimeRelocationFormMismatch {
                 symbol: contract.symbol(),

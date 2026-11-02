@@ -199,7 +199,8 @@ fn coff_preserves_sections_symbols_comdats_and_implicit_addends() {
             .filter(|r| {
                 matches!(
                     r.shape(),
-                    ObjectRelocationShapeV1::CoffAmd64 {
+                    ObjectRelocationShapeV1::Coff {
+                        machine: scoop_lir::ObjectMachineV1::X86_64,
                         kind: pe::IMAGE_REL_AMD64_ADDR64,
                         ..
                     }
@@ -211,17 +212,19 @@ fn coff_preserves_sections_symbols_comdats_and_implicit_addends() {
         assert!(absolute.contains(&(-17i64 as u64)));
         assert!(envelope.relocations().iter().any(|r| matches!(
             r.shape(),
-            ObjectRelocationShapeV1::CoffAmd64 {
+            ObjectRelocationShapeV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: pe::IMAGE_REL_AMD64_REL32,
-                width: 4,
+                storage_width: 4,
                 ..
             }
         )));
         assert!(envelope.relocations().iter().any(|r| matches!(
             r.shape(),
-            ObjectRelocationShapeV1::CoffAmd64 {
+            ObjectRelocationShapeV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: pe::IMAGE_REL_AMD64_ADDR32NB,
-                width: 4,
+                storage_width: 4,
                 ..
             }
         )));

@@ -101,7 +101,7 @@ fn admits_tlvp_relocations_only_for_typed_tls_contracts() {
     let member = verified_member_with_undefined_form(
         &object,
         b"_native_tls",
-        VerifiedObjectRelocationFormV1::TlvpLoadPage21,
+        super::super::strong_relocation_closure::tests::AARCH64_TLVP_PAGE21,
     );
     let verified = verify_source_external_requirements_v1(
         dependency_closure(member),
@@ -119,7 +119,7 @@ fn admits_tlvp_relocations_only_for_typed_tls_contracts() {
     let member = verified_member_with_undefined_form(
         &object,
         b"_native_data",
-        VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12,
+        super::super::strong_relocation_closure::tests::AARCH64_TLVP_PAGE_OFFSET12,
     );
     assert_eq!(
         verify_source_external_requirements_v1(
@@ -129,7 +129,7 @@ fn admits_tlvp_relocations_only_for_typed_tls_contracts() {
         Err(
             SourceExternalRequirementValidationError::TlsRelocationContractMismatch {
                 contract: fingerprint,
-                form: VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12,
+                form: super::super::strong_relocation_closure::tests::AARCH64_TLVP_PAGE_OFFSET12,
             }
         )
     );

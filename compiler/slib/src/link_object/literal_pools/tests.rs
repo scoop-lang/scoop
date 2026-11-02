@@ -15,10 +15,13 @@ fn distinct_referenced_tables_in_one_section_keep_their_own_bytes() {
     second.value = 12;
     sections.envelope.symbols.push(second);
     let mut relocation = sections.envelope.relocations[0];
-    relocation.shape = ObjectRelocationShapeV1::MachO(MachORelocationShapeV1::PageOffset12 {
-        target: ObjectRelocationTargetV1::SymbolTableIndex(1),
-        explicit_addend: None,
-    });
+    relocation.shape = ObjectRelocationShapeV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        shape: MachORelocationShapeV1::PageOffset12 {
+            target: ObjectRelocationTargetV1::SymbolTableIndex(1),
+            explicit_addend: None,
+        },
+    };
     sections.envelope.relocations.push(relocation);
     let pools = LiteralPools::read(&bytes, &sections, &[]).unwrap();
     let ordinal = NonZeroU32::new(2).unwrap();
@@ -123,10 +126,13 @@ fn add_table(sections: &mut ValidatedBuiltinObjectSectionInventoryV1, address: u
     symbol.value = address;
     sections.envelope.symbols.push(symbol);
     let mut relocation = sections.envelope.relocations[0];
-    relocation.shape = ObjectRelocationShapeV1::MachO(MachORelocationShapeV1::Page21 {
-        target: ObjectRelocationTargetV1::SymbolTableIndex(index),
-        explicit_addend: None,
-    });
+    relocation.shape = ObjectRelocationShapeV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        shape: MachORelocationShapeV1::Page21 {
+            target: ObjectRelocationTargetV1::SymbolTableIndex(index),
+            explicit_addend: None,
+        },
+    };
     sections.envelope.relocations.push(relocation);
 }
 
@@ -155,9 +161,10 @@ fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
     let envelope = ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
         content_digest: scoop_wire::sha256(&bytes),
-        format: ObjectEnvelopeFormatV1::MachO64 {
-            target: scoop_target_data::DARWIN_AARCH64_ID,
-        },
+        format: ObjectEnvelopeFormatV1::new(
+            scoop_target_data::DARWIN_AARCH64_ID,
+            scoop_lir::ObjectTargetProfileV1::MachOAarch64,
+        ),
         sections,
         symbols: vec![ObservedObjectSymbolV1 {
             table_index: 0,
@@ -174,10 +181,13 @@ fn table() -> (Vec<u8>, ValidatedBuiltinObjectSectionInventoryV1) {
             containing_section_ordinal: NonZeroU32::new(1).unwrap(),
             offset: 0,
             encoded_value: 0,
-            shape: ObjectRelocationShapeV1::MachO(MachORelocationShapeV1::Page21 {
-                target: ObjectRelocationTargetV1::SymbolTableIndex(0),
-                explicit_addend: None,
-            }),
+            shape: ObjectRelocationShapeV1::MachO {
+                machine: scoop_lir::ObjectMachineV1::Aarch64,
+                shape: MachORelocationShapeV1::Page21 {
+                    target: ObjectRelocationTargetV1::SymbolTableIndex(0),
+                    explicit_addend: None,
+                },
+            },
         }],
     };
     (

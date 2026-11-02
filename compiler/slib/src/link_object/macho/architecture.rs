@@ -2,7 +2,7 @@
 
 use object::{Architecture, macho};
 use scoop_identity::TargetProfileId;
-use scoop_lir::{NativeObjectFormat, TargetArchitecture};
+use scoop_lir::ObjectTargetProfileV1;
 
 use super::ObjectEnvelopeValidationError;
 
@@ -16,9 +16,9 @@ impl MachOArchitecture {
     pub fn for_target(target: TargetProfileId) -> Result<Self, ObjectEnvelopeValidationError> {
         let profile = scoop_target_data::layout(target)
             .ok_or(ObjectEnvelopeValidationError::UnsupportedTarget)?;
-        match (profile.native_object_format(), profile.architecture()) {
-            (NativeObjectFormat::MachO64, TargetArchitecture::Aarch64) => Ok(Self::Aarch64),
-            (NativeObjectFormat::MachO64, TargetArchitecture::X86_64) => Ok(Self::X86_64),
+        match profile.object_target() {
+            ObjectTargetProfileV1::MachOAarch64 => Ok(Self::Aarch64),
+            ObjectTargetProfileV1::MachOX86_64 => Ok(Self::X86_64),
             _ => Err(ObjectEnvelopeValidationError::UnsupportedTarget),
         }
     }
@@ -41,6 +41,13 @@ impl MachOArchitecture {
         match self {
             Self::Aarch64 => Architecture::Aarch64,
             Self::X86_64 => Architecture::X86_64,
+        }
+    }
+
+    pub const fn object_machine(self) -> scoop_lir::ObjectMachineV1 {
+        match self {
+            Self::Aarch64 => scoop_lir::ObjectMachineV1::Aarch64,
+            Self::X86_64 => scoop_lir::ObjectMachineV1::X86_64,
         }
     }
 

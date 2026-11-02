@@ -7,9 +7,9 @@ use crate::link_object::{
     CanonicalObjectDefinitionRequirementV1, CanonicalUndefinedRelocationUseV1,
     DefinitionAtomRangeV1, FinalUndefinedSymbolRequirementV1, LinkDefinitionOwnerV1,
     RelocationTargetSlotV1, StrongDefinitionOwnerV1, StrongRelocationResolutionV1,
-    VerifiedCurrentConeStrongRelocationClosureV1, VerifiedMemberObjectRelocationIndexV1,
-    VerifiedObjectDefinitionRequirementSetV1, VerifiedObjectRelocationFormV1,
-    VerifiedObjectRelocationShapeV1, VerifiedRelocationTargetV1,
+    VerifiedCurrentConeStrongRelocationClosureV1, VerifiedMachORelocationFormV1,
+    VerifiedMemberObjectRelocationIndexV1, VerifiedObjectDefinitionRequirementSetV1,
+    VerifiedObjectRelocationFormV1, VerifiedObjectRelocationShapeV1, VerifiedRelocationTargetV1,
 };
 
 const PRIMARY_ATOM_ROLE: u32 = 1;
@@ -56,9 +56,15 @@ pub(in crate::link_object) struct CanonicalDigestInputV1 {
 #[derive(Clone)]
 pub(in crate::link_object) struct CanonicalObjectRelocationV1 {
     offset_within_atom: u64,
-    form: VerifiedObjectRelocationFormV1,
+    form: CanonicalObjectRelocationFormV1,
     canonical_value: u64,
     targets: Vec<CanonicalRelocationTargetV1>,
+}
+
+#[derive(Clone, Copy)]
+enum CanonicalObjectRelocationFormV1 {
+    Absolute64,
+    Object(VerifiedObjectRelocationFormV1),
 }
 
 impl CanonicalObjectRelocationV1 {
@@ -84,7 +90,7 @@ impl CanonicalObjectRelocationV1 {
     ) -> Self {
         Self {
             offset_within_atom,
-            form: VerifiedObjectRelocationFormV1::Unsigned64,
+            form: CanonicalObjectRelocationFormV1::Absolute64,
             canonical_value: 0,
             targets: vec![CanonicalRelocationTargetV1 {
                 slot: RelocationTargetSlotV1::Single,
@@ -119,7 +125,7 @@ impl CanonicalObjectRelocationV1 {
     ) -> Self {
         Self {
             offset_within_atom,
-            form: VerifiedObjectRelocationFormV1::Unsigned64,
+            form: CanonicalObjectRelocationFormV1::Absolute64,
             canonical_value: 0,
             targets: vec![CanonicalRelocationTargetV1 {
                 slot: RelocationTargetSlotV1::Single,
@@ -138,7 +144,7 @@ impl CanonicalObjectRelocationV1 {
     ) -> Self {
         Self {
             offset_within_atom,
-            form: VerifiedObjectRelocationFormV1::Unsigned64,
+            form: CanonicalObjectRelocationFormV1::Absolute64,
             canonical_value: 0,
             targets: vec![CanonicalRelocationTargetV1 {
                 slot: RelocationTargetSlotV1::Single,
@@ -158,46 +164,74 @@ impl CanonicalObjectRelocationV1 {
         let start = usize::try_from(self.offset_within_atom)
             .map_err(|_| ObjectDefinitionRelocationFailureV1::Range)?;
         match self.form {
-            VerifiedObjectRelocationFormV1::CoffAmd64 {
-                kind: object::pe::IMAGE_REL_AMD64_SECREL7,
-                width: 1,
-            } => {
-                let byte = bytes
-                    .get_mut(start)
-                    .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
-                *byte &= 0x80;
-            }
-            VerifiedObjectRelocationFormV1::ElfX86_64Rela { width, .. }
-            | VerifiedObjectRelocationFormV1::CoffAmd64 { width, .. } => {
-                let slot = bytes
-                    .get_mut(start..start + usize::from(width))
-                    .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
-                slot.fill(0);
-            }
-            VerifiedObjectRelocationFormV1::Unsigned64
-            | VerifiedObjectRelocationFormV1::Subtractor64 => {
+            CanonicalObjectRelocationFormV1::Absolute64 => {
                 let slot = bytes
                     .get_mut(start..start + 8)
                     .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
                 slot.fill(0);
             }
-            VerifiedObjectRelocationFormV1::Branch26 => {
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::Coff {
+                kind: object::pe::IMAGE_REL_AMD64_SECREL7,
+                storage_width: 1,
+                ..
+            }) => {
+                let byte = bytes
+                    .get_mut(start)
+                    .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
+                *byte &= 0x80;
+            }
+            CanonicalObjectRelocationFormV1::Object(
+                VerifiedObjectRelocationFormV1::ElfRela { storage_width, .. }
+                | VerifiedObjectRelocationFormV1::Coff { storage_width, .. },
+            ) => {
+                let slot = bytes
+                    .get_mut(start..start + usize::from(storage_width))
+                    .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
+                slot.fill(0);
+            }
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::MachO {
+                form:
+                    VerifiedMachORelocationFormV1::Unsigned64
+                    | VerifiedMachORelocationFormV1::Subtractor64,
+                ..
+            }) => {
+                let slot = bytes
+                    .get_mut(start..start + 8)
+                    .ok_or(ObjectDefinitionRelocationFailureV1::Range)?;
+                slot.fill(0);
+            }
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::MachO {
+                form: VerifiedMachORelocationFormV1::Branch26,
+                ..
+            }) => {
                 normalize_u32(bytes, start, 0xfc00_0000)?;
             }
-            VerifiedObjectRelocationFormV1::Page21 { .. }
-            | VerifiedObjectRelocationFormV1::GotLoadPage21
-            | VerifiedObjectRelocationFormV1::TlvpLoadPage21 => {
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::MachO {
+                form:
+                    VerifiedMachORelocationFormV1::Page21 { .. }
+                    | VerifiedMachORelocationFormV1::GotLoadPage21
+                    | VerifiedMachORelocationFormV1::TlvpLoadPage21,
+                ..
+            }) => {
                 normalize_u32(bytes, start, 0x9f00_001f)?;
             }
-            VerifiedObjectRelocationFormV1::PageOffset12 { .. }
-            | VerifiedObjectRelocationFormV1::GotLoadPageOffset12
-            | VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12 => {
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::MachO {
+                form:
+                    VerifiedMachORelocationFormV1::PageOffset12 { .. }
+                    | VerifiedMachORelocationFormV1::GotLoadPageOffset12
+                    | VerifiedMachORelocationFormV1::TlvpLoadPageOffset12,
+                ..
+            }) => {
                 normalize_u32(bytes, start, 0xffc0_03ff)?;
             }
-            VerifiedObjectRelocationFormV1::Unsigned32
-            | VerifiedObjectRelocationFormV1::Subtractor32
-            | VerifiedObjectRelocationFormV1::X86_64PcRelative32 { .. }
-            | VerifiedObjectRelocationFormV1::PointerToGot32 => {
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::MachO {
+                form:
+                    VerifiedMachORelocationFormV1::Unsigned32
+                    | VerifiedMachORelocationFormV1::Subtractor32
+                    | VerifiedMachORelocationFormV1::X86_64PcRelative32 { .. }
+                    | VerifiedMachORelocationFormV1::PointerToGot32,
+                ..
+            }) => {
                 normalize_u32(bytes, start, 0)?;
             }
         }

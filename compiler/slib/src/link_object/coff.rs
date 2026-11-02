@@ -20,12 +20,7 @@ pub fn validate_windows_coff_object_envelope_v1(
 ) -> Result<ValidatedObjectEnvelopeV1, CoffObjectError> {
     let profile =
         scoop_target_data::layout(target).ok_or_else(|| error("unsupported COFF target"))?;
-    if (profile.native_object_format(), profile.architecture())
-        != (
-            scoop_lir::NativeObjectFormat::Coff64,
-            scoop_lir::TargetArchitecture::X86_64,
-        )
-    {
+    if profile.object_target() != scoop_lir::ObjectTargetProfileV1::CoffAmd64 {
         return Err(error("expected a registered COFF x64 target"));
     }
     match FileKind::parse(bytes).map_err(error)? {
@@ -72,7 +67,7 @@ fn envelope<'data, H: CoffHeader>(
     Ok(ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
         content_digest: scoop_wire::sha256(bytes),
-        format: ObjectEnvelopeFormatV1::Coff64 { target },
+        format: ObjectEnvelopeFormatV1::new(target, scoop_lir::ObjectTargetProfileV1::CoffAmd64),
         sections,
         symbols,
         relocations,

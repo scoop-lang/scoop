@@ -5,6 +5,13 @@ use crate::{
     validate_scoop_lir_llvm_22_1_object_envelope_v1,
 };
 
+fn branch(target: VerifiedRelocationTargetV1) -> VerifiedObjectRelocationShapeV1 {
+    VerifiedObjectRelocationShapeV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        shape: VerifiedMachORelocationShapeV1::Branch26 { target },
+    }
+}
+
 #[test]
 fn assigns_relocations_to_exact_atoms_and_resolves_primary_targets() {
     let fixture = fixture();
@@ -39,15 +46,16 @@ fn assigns_relocations_to_exact_atoms_and_resolves_primary_targets() {
     assert_eq!(relocation.encoded_value(), 0xddcc_bbaa);
     assert_eq!(
         relocation.shape().form(),
-        VerifiedObjectRelocationFormV1::Branch26
+        VerifiedObjectRelocationFormV1::MachO {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            form: VerifiedMachORelocationFormV1::Branch26,
+        }
     );
     assert_eq!(
         relocation.shape(),
-        &VerifiedObjectRelocationShapeV1::Branch26 {
-            target: VerifiedRelocationTargetV1::StrongDefinition {
-                definition: fixture.plan,
-            },
-        }
+        &branch(VerifiedRelocationTargetV1::StrongDefinition {
+            definition: fixture.plan,
+        })
     );
 }
 
@@ -76,12 +84,15 @@ fn accepts_owned_start_boundaries_but_rejects_end_boundaries_and_padding() {
     let verified = verify_member_object_relocations_v1(definitions).unwrap();
     assert!(matches!(
         verified.relocations()[0].shape(),
-        VerifiedObjectRelocationShapeV1::Branch26 {
-            target: VerifiedRelocationTargetV1::LocalDefinition {
-                owner_atom: Some(atom),
-                value: 0,
-                ..
-            }
+        VerifiedObjectRelocationShapeV1::MachO {
+            machine: scoop_lir::ObjectMachineV1::Aarch64,
+            shape: VerifiedMachORelocationShapeV1::Branch26 {
+                target: VerifiedRelocationTargetV1::LocalDefinition {
+                    owner_atom: Some(atom),
+                    value: 0,
+                    ..
+                }
+            },
         } if *atom == fixture.atom
     ));
 
@@ -155,12 +166,10 @@ fn classifies_actual_undefined_references() {
     let verified = verify_member_object_relocations_v1(definitions).unwrap();
     assert_eq!(
         verified.relocations()[0].shape(),
-        &VerifiedObjectRelocationShapeV1::Branch26 {
-            target: VerifiedRelocationTargetV1::ExternalUndefined {
-                table_index: 3,
-                name: b"_external".to_vec(),
-            },
-        }
+        &branch(VerifiedRelocationTargetV1::ExternalUndefined {
+            table_index: 3,
+            name: b"_external".to_vec(),
+        })
     );
 
     let unused_bytes = add_undefined_symbols(object.bytes, false, &[b"_external"]);
@@ -195,15 +204,13 @@ fn assigns_local_machine_symbols_to_atom_owners() {
     let verified = verify_member_object_relocations_v1(definitions).unwrap();
     assert_eq!(
         verified.relocations()[0].shape(),
-        &VerifiedObjectRelocationShapeV1::Branch26 {
-            target: VerifiedRelocationTargetV1::LocalDefinition {
-                table_index: 0,
-                name: b"ltmp0".to_vec(),
-                owner_atom: Some(fixture.atom),
-                section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
-                value: 2,
-            },
-        }
+        &branch(VerifiedRelocationTargetV1::LocalDefinition {
+            table_index: 0,
+            name: b"ltmp0".to_vec(),
+            owner_atom: Some(fixture.atom),
+            section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
+            value: 2,
+        })
     );
 
     let unowned_bytes = add_local_symbol(object.bytes, 6);
@@ -218,15 +225,13 @@ fn assigns_local_machine_symbols_to_atom_owners() {
     let verified = verify_member_object_relocations_v1(definitions).unwrap();
     assert_eq!(
         verified.relocations()[0].shape(),
-        &VerifiedObjectRelocationShapeV1::Branch26 {
-            target: VerifiedRelocationTargetV1::LocalDefinition {
-                table_index: 0,
-                name: b"ltmp0".to_vec(),
-                owner_atom: None,
-                section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
-                value: 6,
-            },
-        }
+        &branch(VerifiedRelocationTargetV1::LocalDefinition {
+            table_index: 0,
+            name: b"ltmp0".to_vec(),
+            owner_atom: None,
+            section_ordinal: std::num::NonZeroU32::new(1).unwrap(),
+            value: 6,
+        })
     );
 }
 

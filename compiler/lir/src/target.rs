@@ -149,7 +149,7 @@ pub enum NativeObjectFormat {
     Coff64,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum ObjectMachineV1 {
     Aarch64,
     X86_64,

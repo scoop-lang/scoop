@@ -4,9 +4,26 @@ use super::super::symbol_verification::tests::{
 };
 use super::*;
 use crate::{
-    PlannedStrongObjectSymbolRoleV1, read_member_object_definitions_v1,
-    validate_scoop_lir_llvm_22_1_object_envelope_v1, verify_member_object_relocations_v1,
+    PlannedStrongObjectSymbolRoleV1, VerifiedMachORelocationFormV1,
+    read_member_object_definitions_v1, validate_scoop_lir_llvm_22_1_object_envelope_v1,
+    verify_member_object_relocations_v1,
 };
+
+pub(in crate::link_object) const AARCH64_BRANCH26: VerifiedObjectRelocationFormV1 =
+    VerifiedObjectRelocationFormV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        form: VerifiedMachORelocationFormV1::Branch26,
+    };
+pub(in crate::link_object) const AARCH64_TLVP_PAGE21: VerifiedObjectRelocationFormV1 =
+    VerifiedObjectRelocationFormV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        form: VerifiedMachORelocationFormV1::TlvpLoadPage21,
+    };
+pub(in crate::link_object) const AARCH64_TLVP_PAGE_OFFSET12: VerifiedObjectRelocationFormV1 =
+    VerifiedObjectRelocationFormV1::MachO {
+        machine: scoop_lir::ObjectMachineV1::Aarch64,
+        form: VerifiedMachORelocationFormV1::TlvpLoadPageOffset12,
+    };
 
 #[test]
 fn resolves_cross_member_strong_uses_and_keeps_true_externals_explicit() {
@@ -30,10 +47,7 @@ fn resolves_cross_member_strong_uses_and_keeps_true_externals_explicit() {
         scoop_identity::DefinitionAtomRole::Primary
     );
     assert_eq!(binding.offset_within_atom(), 0);
-    assert_eq!(
-        binding.relocation_form(),
-        VerifiedObjectRelocationFormV1::Branch26
-    );
+    assert_eq!(binding.relocation_form(), AARCH64_BRANCH26);
     assert_eq!(binding.encoded_value(), 0xddcc_bbaa);
     assert_eq!(binding.target_slot(), RelocationTargetSlotV1::Single);
     assert_eq!(binding.symbol(), target_primary_name);
@@ -165,11 +179,7 @@ pub(in crate::link_object) fn verified_member_with_undefined(
     fixture: &Fixture,
     undefined_name: &[u8],
 ) -> VerifiedMemberObjectRelocationIndexV1 {
-    verified_member_with_undefined_form(
-        fixture,
-        undefined_name,
-        VerifiedObjectRelocationFormV1::Branch26,
-    )
+    verified_member_with_undefined_form(fixture, undefined_name, AARCH64_BRANCH26)
 }
 
 pub(in crate::link_object) fn verified_member_with_undefined_form(
@@ -184,11 +194,11 @@ pub(in crate::link_object) fn verified_member_with_undefined_form(
     );
     let bytes = add_undefined_symbols(object.bytes, true, &[undefined_name]);
     let bytes = match form {
-        VerifiedObjectRelocationFormV1::Branch26 => bytes,
-        VerifiedObjectRelocationFormV1::TlvpLoadPage21 => {
+        AARCH64_BRANCH26 => bytes,
+        AARCH64_TLVP_PAGE21 => {
             retag_only_relocation(bytes, true, object::macho::ARM64_RELOC_TLVP_LOAD_PAGE21)
         }
-        VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12 => {
+        AARCH64_TLVP_PAGE_OFFSET12 => {
             retag_only_relocation(bytes, false, object::macho::ARM64_RELOC_TLVP_LOAD_PAGEOFF12)
         }
         _ => panic!("unsupported test relocation form: {form:?}"),
