@@ -1,0 +1,190 @@
+package scoop.graphics.text
+
+import scoop.graphics.*
+
+/** Owns UTF-8 text, run settings and font sources. Each layout is an independent result. */
+public class Paragraph public constructor(
+    fonts: FontCollection,
+    public val content: StyledText,
+    settings: ParagraphStyle = ParagraphStyle()
+): Closeable {
+    public val text: String get() = content.text
+    private val resource = makeParagraph(fonts, content, settings)
+    public val isClosed: Boolean get() = resource.isClosed
+
+    public constructor(
+        fonts: FontCollection,
+        text: String,
+        style: TextStyle = TextStyle(),
+        settings: ParagraphStyle = ParagraphStyle()
+    )
+    : this(fonts, StyledText([TextSpan.text(text)], style), settings) {}
+
+    /** Lays out in finite logical width, preserving prior results. */
+    public fun layout(width: Double, inlines: Array<InlineMetrics> = []): TextLayout {
+        checkTextScalar(width)
+        requireText(width >= 0.0, "negative paragraph width")
+        return createLayout(width, true, inlines)
+    }
+    /** Uses natural width; explicit line breaks are preserved. */
+    public fun layoutUnwrapped(inlines: Array<InlineMetrics> = []): TextLayout =
+        createLayout(0.0, false, inlines)
+    private fun createLayout(
+        width: Double,
+        wrap: Boolean,
+        inlines: Array<InlineMetrics>
+    ): TextLayout {
+        val pointer = resource.get()
+        val metrics = resolveInlineMetrics(content, inlines)
+        @Unsafe
+        {
+            val native =
+                metrics.withDataPointer {
+                    data,
+                    count -> @Unsafe
+                    {
+                        return@withDataPointer ownedText(
+                            textLayout(pointer, width, wrap, data, count),
+                            "layout paragraph"
+                        )
+                    }
+                }
+            try {
+                return TextLayout(native, content)
+            }
+            catch (error: Throwable) {
+                native.close();
+                throw error
+            }
+        }
+    }
+    public override fun close() {
+        resource.close()
+    }
+}
+
+private fun makeParagraph(
+    fonts: FontCollection,
+    content: StyledText,
+    settings: ParagraphStyle
+): TextResource {
+    val maxLines = settings.maxLines ?: -1L
+    when (settings.maxLines) {
+        case Some(value) -> requireText(
+            value > 0L && value <= 2147483647L,
+            "invalid maximum line count"
+        )
+        case None -> {}
+    }
+    val alignment =
+        when (settings.alignment) {
+            case Left -> 0;
+            case Right -> 1;
+            case Center -> 2;
+            case Justify -> 3;
+            case Start -> 4;
+            case End -> 5
+        }
+    val direction =
+        if (settings.direction == TextDirection.Ltr)
+            1
+        else
+            0
+    val source = fonts.resource.get()
+    val builder =
+        content.style.withNative {
+            style -> beginParagraph(
+                source,
+                style,
+                alignment,
+                direction,
+                maxLines,
+                settings.ellipsis
+            )
+        }
+    return builder.use {
+        current ->
+        val pointer = current.get()
+        for (run in content.runs) {
+            when (run) {
+                case Text(text, value) -> value.withNative {
+                    style -> @Unsafe
+                    {
+                        text.withUtf8Bytes {
+                            bytes,
+                            count -> @Unsafe
+                            {
+                                textResult(
+                                    paragraphRun(pointer, style, bytes, count),
+                                    "append paragraph run"
+                                )
+                            }
+                        }
+                    }
+                }
+                case Object(value) -> value.withNative {
+                    style -> @Unsafe
+                    {
+                        textResult(paragraphInline(pointer, style), "append inline object")
+                    }
+                }
+            }
+        }
+        @Unsafe
+        {
+            return@use ownedText(paragraphFinish(pointer), "build paragraph")
+        }
+    }
+}
+
+private fun beginParagraph(
+    fonts: Ptr<Unit>,
+    style: Ptr<Unit>,
+    alignment: Int,
+    direction: Int,
+    maxLines: Long,
+    ellipsis: String
+): TextResource {
+    @Unsafe
+    {
+        return ellipsis.withUtf8Bytes {
+            bytes,
+            count -> @Unsafe
+            {
+                return@withUtf8Bytes ownedText(
+                    paragraphBegin(fonts, style, alignment, direction, maxLines, bytes, count),
+                    "create paragraph builder"
+                )
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_text_paragraph_begin")
+private fun paragraphBegin(
+    fonts: Ptr<Unit>,
+    style: Ptr<Unit>,
+    alignment: Int,
+    direction: Int,
+    maxLines: Long,
+    ellipsis: Ptr<UInt8>,
+    length: Long
+): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_text_paragraph_run")
+private fun paragraphRun(builder: Ptr<Unit>, style: Ptr<Unit>, text: Ptr<UInt8>, length: Long): Int
+
+@Extern(name = "scoop_graphics_text_paragraph_finish")
+private fun paragraphFinish(builder: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_text_paragraph_inline")
+private fun paragraphInline(builder: Ptr<Unit>, style: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_text_layout")
+private fun textLayout(
+    paragraph: Ptr<Unit>,
+    width: Double,
+    wrap: Boolean,
+    metrics: Ptr<NativeInlineMetrics>,
+    count: Long
+): Ptr<Unit>?

@@ -808,12 +808,42 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 - Linux 新后端以 6.1 为支持基线并实际探测能力；明确取消请求与原生完成的区别、迟到资源处理、宿主回调注销和不支持环境的启动错误。
 - 共享层、Darwin、Linux、调用方与发行资源已分批交付；三目标公共行为、Linux 6.1 基线、宿主接入与定向移动 GC 验收通过，见[实施记录](asyncio-backends/PROGRESS.md)。同机对照及实测回退见[性能记录](asyncio-backends/PERFORMANCE.md)；具体窗口系统的接入仍由后续 GUI 库验证。
 
-### GUI 基础层与 macOS renderer（已实现）
+### Surface 呈现基础层与 macOS renderer（已实现）
 
-- [架构与 macOS 设计](gui/DESIGN.md)及 [GUI 规范](specs/SCOOP-GUI-SPEC.md)将第一期划分为普通 `scoop.graphics` 与 `scoop.gui` Cone：Skia 绘图／Path、SkParagraph + HarfBuzz 文本布局、动画与 InputArea，为后续 component 提供基础。
+- [架构与 macOS 设计](surface/DESIGN.md)及 [Surface 规范](specs/SCOOP-SURFACE-SPEC.md)将第一期划分为普通 `scoop.graphics` 与 `scoop.surface` Cone：Skia 绘图／Path、SkParagraph + HarfBuzz 文本布局、动画与 InputArea，为后续 component 提供基础。
 - 帧调度、动画、文本和事件路由共用平台无关实现；surface、原生帧通知、呈现及系统字体适配由各平台独立完成。本轮实施 Darwin 两目标的 Ganesh Metal／CAMetalDisplayLink 接入，不以其他平台 renderer 完成作为交付条件。
-- window 已先行补齐鼠标序列取消和有来源标记的单调输入时间，见[窗口规范第 11 节](specs/SCOOP-WINDOW-SPEC.md#11-gui-基础层所需输入扩展)。沿用现有 Application／asyncio 宿主、native lease、普通 FFI 和构建合同；全部功能与验证使用普通 Cone 和 scoop.test，实际交付范围见[实施记录](gui/PROGRESS.md)。
-- 基础 API 与 [组合示例](../sysroot/src/scoop.gui/examples/basics/README.md)已交付；Darwin ARM64 和 Rosetta x86_64 的绘图／文本、动画、区域输入、宿主呈现、主循环组合、异常收尾及原生 IME 会话测试通过。两架构示例均验证简体拼音组合与提交；窗口缩放后的重排及应用失焦／恢复已观察。跨屏混合 DPI 缺少多显示器硬件条件，具体桌面验证范围见实施记录。
+- window 已先行补齐鼠标序列取消和有来源标记的单调输入时间，见[窗口规范第 11 节](specs/SCOOP-WINDOW-SPEC.md#11-surface-基础层所需输入扩展)。沿用现有 Application／asyncio 宿主、native lease、普通 FFI 和构建合同；全部功能与验证使用普通 Cone 和 scoop.test，实际交付范围见[实施记录](surface/PROGRESS.md)。
+- 基础 API 与 [组合示例](../sysroot/src/scoop.surface/examples/basics/README.md)已交付；Darwin ARM64 和 Rosetta x86_64 的绘图／文本、动画、区域输入、宿主呈现、主循环组合、异常收尾及原生 IME 会话测试通过。两架构示例均验证简体拼音组合与提交；窗口缩放后的重排及应用失焦／恢复已观察。跨屏混合 DPI 缺少多显示器硬件条件，具体桌面验证范围见实施记录。
+
+### scoop.graphics.text 公共文本排版（macOS aarch64 已实现）
+
+- [设计](graphics/text/DESIGN.md)与[文本排版规范](specs/SCOOP-GRAPHICS-TEXT-SPEC.md)将字体、Paragraph／TextLayout 从 graphics 独立为 `scoop.graphics.text`，通过普通 graphics native 画布接入保持 `scoop.graphics.text → scoop.graphics`；基础 API、native 所有权、统一 StyledText／SpanStyle、行内对象及位置查询已交付，Skia 基线问题已在底层修复。aarch64 定向验证见 [UI 实施记录](ui/PROGRESS.md)，x86_64 最后统一补验。
+- StyledText／SpanStyle 表达多字体、字号及局部样式继承；行内图片和控件以稳定 key、尺寸与基线参与同一段落排版，结果明确保留被截断对象及其可见性。UTF-8 位置、caret／selection、替代文字和资源所有权共用公共合同。
+- 继续使用当前 SkParagraph／HarfBuzz／ICU；先验收独立 graphics.text／graphics 的图文排版和跨 Cone 绘制，再接入 UI 子项，不增加语言／runtime 通道或完整文档编辑系统。
+
+### scoop.ui 自绘框架与独立控件库（macOS 分批实施中）
+
+- 本期按[实施记录](ui/PROGRESS.md)先补底层缺口和公共文本，再交付框架及简单组件；只实现并定向验证 macOS，Windows 后续接入。普通行为采用 scoop.test，每批验证后提交、推送并合并 origin/main。
+- [设计](ui/DESIGN.md)与 [UI 规范](specs/SCOOP-UI-SPEC.md)将 `scoop.ui` 定位为不含现成控件的自绘框架：保留持久 class Component、成员 State 和返回 View 的 render，通过公开 Element 协议提供测量、子项布局、绘制及输入接入。
+- macOS aarch64 已交付独立框架、外部自绘示例及状态／绘制／异常定向测试；公共 ParagraphHost／InlineView、graphics 基础效果、公共 Style 和三套主题绘图也已交付；基础控件、展示与宿主组合继续分批接入，全部 aarch64 功能完成后再统一补验 x86_64。
+- 独立的 `scoop.ui.component` 使用与第三方控件相同的公开能力实现 Label／Button／Checkbox、Row／Column／Stack、Frame 和样式，见[控件库规范](specs/SCOOP-UI-COMPONENT-SPEC.md)。框架不依赖该库；`scoop.ui.text` 提供公共 ParagraphHost 和行内 View 适配，控件复用它并决定外观与点击语义。
+- 新增独立 [scoop.ui.style](specs/SCOOP-UI-STYLE-SPEC.md)，先补 [graphics 滤镜／图层](specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)，再交付背景／边框／圆角、外框阴影、有序内容 drop shadow／glow／Gaussian blur。Style 无调用方需关闭的资源，稳定包装保留内容身份；效果不增大测量或命中，动画复用 Surface，静态效果停止全部帧需求。控件专用样式消费公共能力，SkSL 不作前置。
+- [公共主题绘图与几何](specs/SCOOP-UI-THEME-SPEC.md)同属 style：表面、Checkbox 三态标记、Radio 标记和 Scrollbar 提供独立 metrics／geometry／Canvas 绘图；macOS／Material／Fluent 三组风格与 Light／Dark 可整体切换。控件消费公共协议，不按主题分支；ThemeSource 通过 State／Context 更新实际订阅者，局部覆盖保留其余主题属性，保持组件身份／焦点。展示示例同时覆盖公共部件和真实控件，完整 Radio 分组及 ScrollView 行为维持原范围。
+- Props／Binding、完整类型身份与父级内 key 保留实例；scope 统一管理资源、InputArea 和 Surface Animatable，应用不逐组件 use。逻辑更新及卸载独立于 drawable，动画沿同一帧进入布局和绘制，命中几何只在 surface 成功提交后发布。
+- [静止时停止渲染](specs/SCOOP-UI-SPEC.md#61-静止时停止渲染工作)属于首期硬性要求：无更新／绘制失效／活动动画时，UI 不遍历树或投递空任务，Surface 撤销原生帧需求，不获取目标或提交 GPU 工作。覆盖单次唤醒后再停止、动画收尾、多窗口需求隔离、隐藏／Deferred 及两种 run；同步观察逻辑入口、原生唤醒与 GPU 提交，不推迟到移动端或局部重绘优化阶段。
+- 自有 State 与委托外部 State 共用依赖追踪；普通业务 Store 集中持有状态，通过语言 Context 在实际挂载入口取得。首期采用挂载时绑定，不增加 UiLocal／Provider 或字符串 Store；共享状态不随某个观察组件卸载而重置。Checkbox.checked 通过 Binding 接入，Button.enabled 在 render 中派生。
+- 复用 runWithAsyncio 和同一 owner 的 EventLoop，以既有 HTTP 下载进度驱动 State；真实跨线程结果通过 proxy／session 投递。任务按组件或业务作用域取消和收尾，高频进度合并、迟到结果过滤与隐藏／关闭行为在独立集成示例中验收，不增加 UI 调度器或 HTTP 核心依赖。
+- LayoutMetrics 返回尺寸与可选基线；已测量子项允许不放置，被段落截断时保留挂载和 State，成功呈现后退出输入与焦点，恢复显示不重新构造。
+- window 已支持多窗口和装饰／缩放开关，UI 采用每窗口独立根；原生模态的窗口归属、输入范围与焦点恢复，以及自绘窗框的系统拖移／缩放仍须先补 window 能力，见[窗口规范第 4.1～4.3 节](specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。这些能力单独接入，不作为普通自绘组件的交付前置。
+- 现有基础库已直接改名为 `scoop.surface`，公开类型、原生符号、测试和示例同步迁移。SurfaceContent 已持有并安全关闭真实内容根，接入组合示例并完成 aarch64 验证；框架独立自绘闭环、公共段落接入与控件库、布局及生命周期组合继续实施，不增加 UI 专用编译器或 runtime 通道。
+
+### UI 与图形后续增强（调研结论，未实施）
+
+- [高级文本排版](graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)：在内容／样式／InlineKey 基础上增加矩形区域续排、分栏及图文绕排，保留全局文本位置和真实行片段。固定宽度 SkParagraph 不能直接完成任意区域排版；后端增强与公共 UI 适配按实际场景推进，跨栏保留子组件身份。
+- [GPU 与 3D 互操作](ui/DESIGN.md#13-后续增强gpu-互操作3d-与视频)：先补充外部 GPU 图像导入和生产／采样的同步及资源合同，再分别推进 UI 纹理宿主和组件内 3D 合成。复用现有 Metal／D3D12 目标基础；GL／GLES／Vulkan 按实际需求增加后端，离屏 UI 另须接入帧、输入映射和根所有权。
+- [视频展示](ui/DESIGN.md#135-视频播放)：复用帧图像接入，媒体库负责解码、音频与播放时钟，UI 适配负责展示和状态通知；区分业务 State 与连续帧，补齐按呈现时间选帧、YUV／SDR 转换、跨线程交付、seek 迟到帧及共享播放器生命周期。
+- [SkSL 与组件效果](graphics/sksl/DESIGN.md)：在 graphics 接入 SkRuntimeEffect、uniform／输入 shader 与 Paint，自绘 Element 通过 Surface 动画驱动参数；程序复用、参数独立，静止不产生帧需求。本期先完成基础 Skia 滤镜与 style，后续 SkSL 先完成填充和已有图像效果，再复用图层接入自定义子树滤镜。Backdrop blur 的背后采样另行设计。
+- 上述方向列在首期自绘框架、富文本和基础控件之后，不扩充当前交付前置。文本和基础 SkSL 效果可独立推进，3D 元素和视频共享图像接入但互不依赖；先完成代表性闭环，再决定后续平台与高级能力范围。
 
 ### `scoop example` 外部子命令（首批 24 个主题已实现）
 

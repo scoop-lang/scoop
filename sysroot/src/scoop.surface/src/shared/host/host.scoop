@@ -1,0 +1,160 @@
+package scoop.surface
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.window.*
+
+/** ApplicationHandler wrapper shared by Application.run and runWithAsyncio. */
+public class SurfaceHost public constructor(
+    private val handler: (SurfaceHost, ActiveApplication, ApplicationEvent) -> Unit
+): ApplicationHandler, Closeable {
+    private val thread = currentThreadId()
+    private var closing = false
+    private var callbackDepth = 0
+    private var pendingRetirement = false
+    private var proxy: ApplicationProxy? = None
+    private var renderer: RendererHost? = None
+    private val windows = ArrayList<SurfaceWindow>()
+    public val isClosed: Boolean get() = closing && windows.size == 0L
+    internal val callbackActive: Boolean get() = callbackDepth != 0
+
+    /** Attaches one painter to an open window without replacing its input view. */
+    public fun attach(window: Window, painter: (FrameContext) -> Unit): SurfaceWindow {
+        return attach(window, PainterContent(painter))
+    }
+
+    /** Takes ownership after the thread check, including on attachment failure. */
+    public fun attach(window: Window, content: SurfaceContent): SurfaceWindow {
+        checkThread()
+        var target: WindowRenderer? = None
+        var attached: SurfaceWindow? = None
+        try {
+            if (closing || window.state != WindowState.Open)
+                throw IllegalStateException(Some("Surface host or window is not open"))
+            when (find(window.id)) {
+                case Some(_) -> throw IllegalStateException(Some("window is already attached"))
+                case None -> {}
+            }
+            val mailbox =
+                proxy ?: throw IllegalStateException(Some("attach requires a running Surface host"))
+            val device =
+                when (renderer) {
+                    case Some(value) -> value
+                    case None -> {
+                        val value = createRendererHost()
+                        renderer = Some(value)
+                        value
+                    }
+                }
+            val created = device.create(window, mailbox)
+            target = Some(created)
+            val result = SurfaceWindow(this, window, content, created)
+            attached = Some(result)
+            windows.add(result)
+            result.refresh()
+            return result
+        } catch (error: Throwable) {
+            var failure: Throwable? = Some(error)
+            when (attached) {
+                case Some(value) -> failure = cleanupFailure(failure) { value.rollbackAttach() }
+                case None -> {
+                    failure = cleanupFailure(failure) { content.close() }
+                    when (target) {
+                        case Some(value) -> failure = cleanupFailure(failure) { value.close() }
+                        case None -> {}
+                    }
+                }
+            }
+            throwFailure(cleanupFailure(failure) { releaseUnusedRenderer() })
+            throw error
+        }
+    }
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        checkThread()
+        when (proxy) {
+            case None -> proxy = Some(application.proxy())
+            case Some(_) -> {}
+        }
+        callbackDepth += 1
+        var failure: Throwable? = None
+        try {
+            when (event) {
+                case Window(id, _event) -> {
+                    when (find(id)) {
+                        case Some(window) -> window.event(_event);
+                        case None -> {}
+                    }
+                }
+                case AboutToWait -> {
+                    for (window in windows.toArray())
+                        window.refresh()
+                }
+                case Exiting -> close()
+                else -> {}
+            }
+            handler(this, application, event)
+        } catch (error: Throwable) {
+            failure = Some(error)
+        }
+        callbackDepth -= 1
+        when (failure) {
+            case Some(_) -> failure = cleanupFailure(failure) { close() }
+            case None -> {}
+        }
+        if (callbackDepth == 0 && pendingRetirement) {
+            pendingRetirement = false
+            for (window in windows.toArray())
+                failure = cleanupFailure(failure) { window.finishClosing() }
+            when (failure) {
+                case Some(_) -> failure = cleanupFailure(failure) { close() }
+                case None -> {}
+            }
+        }
+        throwFailure(failure)
+    }
+    internal fun requestRetirement() {
+        if (callbackActive)
+            pendingRetirement = true
+    }
+    internal fun checkThread() {
+        if (thread != currentThreadId())
+            throw IllegalStateException(Some("Surface requires its owner thread"))
+    }
+    private fun find(id: WindowId): SurfaceWindow? {
+        for (window in windows)
+            if (window.nativeWindow.id == id)
+                return Some(window)
+        return None
+    }
+    internal fun detached(window: SurfaceWindow) {
+        var index = 0L
+        while (index < windows.size) {
+            if (windows[index] === window) {
+                windows.removeAt(index);
+                break
+            }
+            index += 1L
+        }
+        releaseUnusedRenderer()
+    }
+    private fun releaseUnusedRenderer() {
+        if (windows.size != 0L)
+            return
+        when (renderer) {
+            case Some(value) -> {
+                renderer = None;
+                value.close()
+            }
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        checkThread()
+        closing = true
+        var failure: Throwable? = None
+        for (window in windows.toArray())
+            failure = cleanupFailure(failure) { window.close() }
+        failure = cleanupFailure(failure) { releaseUnusedRenderer() }
+        throwFailure(failure)
+    }
+}
