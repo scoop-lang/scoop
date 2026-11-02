@@ -6,11 +6,14 @@ import scoop.window.*
 internal fun InputRouter.pointerEvent(event: PointerEvent) {
     when (event) {
         case Cancelled(reason, time) -> {
-            cancelPress(InputCancelReason.Window(reason), time, true)
+            cancelPointerInput(InputCancelReason.Window(reason), time)
             return
         }
+        case Wheel(state, _, phase, momentum) -> prepareScroll(phase, momentum, state.time)
         else -> {}
     }
+    if (closed)
+        return
     val state = eventState(event)
     pointer = Some(state)
     inside = true
@@ -25,6 +28,11 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
         when (event) {
             case Button(_, _, ElementState.Pressed, _) -> buttons.size == 0L
             else -> false
+        }
+    val scroll =
+        when (event) {
+            case Wheel(_, _, phase, momentum) -> selectScroll(fallback, phase, momentum)
+            else -> None
         }
     val selected =
         when (event) {
@@ -49,6 +57,10 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
             case Left(_) -> {
                 inside = false
                 []
+            }
+            case Wheel(_, _, _, _) -> when (scroll) {
+                case Some(route) -> scrollPath(route)
+                case None -> fallback
             }
             else -> pressed ?: fallback
         }
@@ -82,11 +94,17 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
                         InputScrollDelta.Pixels(x / state.scaleFactor, y / state.scaleFactor)
                     }
                 }
-            route(
-                chain,
-                InputEvent.Pointer(InputPointerEvent.Wheel(value, logical, phase, momentum)),
-                state.time
-            )
+            checkedScrollPoint(scrollVector(logical))
+            try {
+                route(
+                    chain,
+                    InputEvent.Pointer(InputPointerEvent.Wheel(value, logical, phase, momentum)),
+                    state.time,
+                    scroll
+                )
+            } finally {
+                finishScroll(scroll, phase, momentum)
+            }
         }
         else -> {}
     }

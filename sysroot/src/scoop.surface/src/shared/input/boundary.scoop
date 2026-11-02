@@ -51,6 +51,7 @@ internal fun InputRouter.installBoundary(value: InputBoundary) {
     for (current in boundaries)
         requireInput(current.input !== value.input, "input scope already has a boundary")
     boundaries.add(value)
+    boundaryRevision += 1uL
     pendingBoundaryChange = true
     changed()
 }
@@ -61,6 +62,7 @@ internal fun InputRouter.removeBoundary(value: InputBoundary) {
         if (boundaries[index] === value) {
             boundaries.removeAt(index)
             if (!sameBoundary(previous, currentBoundary)) {
+                boundaryRevision += 1uL
                 pendingBoundaryChange = true
                 changed()
             }

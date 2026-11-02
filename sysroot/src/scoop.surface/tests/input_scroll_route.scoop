@@ -1,0 +1,299 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+private class ScrollRouteTrace {
+    var wheels = ""
+    var cancels = ""
+    var downs = 0
+    var ups = 0
+    var pressCancels = 0
+    val reasons = ArrayList<InputCancelReason>()
+}
+
+private fun observeScroll(
+    scope: InputScope,
+    name: String,
+    trace: ScrollRouteTrace,
+    defaults: Boolean = true
+) {
+    scope.handler =
+        {
+            context,
+            event -> when (event) {
+                case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                    assertEquals(RoutedPhase.Notification, context.phase)
+                    assertFalse(context.cancelable)
+                    context.consume()
+                    trace.cancels += name
+                    trace.reasons.add(reason)
+                }
+                else -> {}
+            }
+        }
+    if (defaults)
+        scope.defaultAction =
+            {
+                _,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> trace.wheels += name
+                    else -> {}
+                }
+            }
+}
+
+@Test
+private class InputScrollRouteTest {
+    @Test
+    fun `contact and momentum keep the initial target while discrete scroll rechecks the pointer`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val b = rig.area("b")
+            val trace = ScrollRouteTrace()
+            observeScroll(a.scope, "a", trace)
+            observeScroll(b.scope, "b", trace)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, b, Rect(60.0, 0.0, 50.0, 50.0))
+            }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.MayBegin)
+            assertTrue(rig.router.scrollRoute!!.active)
+            rig.wheel(70.0, 10.0, phase = ScrollPhase.Began)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(150.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, b, Rect(0.0, 0.0, 50.0, 50.0))
+            }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            assertFalse(rig.router.scrollRoute!!.active)
+            rig.move(10.0, 10.0)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Began)
+            assertTrue(rig.router.scrollRoute!!.active)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Ended)
+            when (rig.router.scrollRoute) {
+                case Some(_) -> fail();
+                case None -> {}
+            }
+            rig.wheel(10.0, 10.0)
+            assertEquals("aaaaaaab", trace.wheels)
+            assertEquals("", trace.cancels)
+        }
+    }
+
+    @Test
+    fun `retiring the source cancels its full route and discards the remaining gesture and momentum`() {
+        InputRig().use {
+            rig ->
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val a = rig.area("a", parent = Some(group))
+            val b = rig.area("b")
+            val trace = ScrollRouteTrace()
+            observeScroll(a.scope, "a", trace)
+            observeScroll(group, "g", trace, false)
+            observeScroll(rig.router.rootScope, "r", trace, false)
+            observeScroll(b.scope, "b", trace)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, b, Rect(0.0, 0.0, 80.0, 80.0))
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
+            }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            rig.frame { frame, canvas -> frame.place(canvas, b, Rect(0.0, 0.0, 80.0, 80.0)) }
+            assertEquals("agr", trace.cancels)
+            for (reason in trace.reasons) {
+                assertEquals(InputCancelReason.AreaChanged, reason)
+            }
+            a.close()
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Began)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, momentum = ScrollPhase.Ended)
+            assertEquals("a", trace.wheels)
+            assertEquals("agr", trace.cancels)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("ab", trace.wheels)
+            b.scope.parent = Some(group)
+            assertEquals("agrbr", trace.cancels)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Changed)
+            assertEquals("ab", trace.wheels)
+        }
+    }
+
+    @Test
+    fun `opening a modal in a wheel callback stops old defaults before deferred cancellation`() {
+        InputRig().use {
+            rig ->
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val a = rig.area("a", parent = Some(group))
+            val modal = rig.router.createScope(None) { _, _ -> Unit }
+            val trace = ScrollRouteTrace()
+            val boundaries = ArrayList<InputBoundary>()
+            observeScroll(group, "g", trace)
+            observeScroll(rig.router.rootScope, "r", trace)
+            observeScroll(modal, "m", trace)
+            a.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+                            boundaries.add(InputBoundary(modal))
+                            assertEquals("", trace.cancels)
+                        }
+                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                            assertEquals(InputCancelReason.BoundaryChanged, reason)
+                            trace.cancels += "a"
+                        }
+                        else -> {}
+                    }
+                }
+            a.scope.defaultAction =
+                {
+                    _,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> fail(
+                            Some("retired source received a default")
+                        )
+                        else -> {}
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0)) }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("", trace.wheels)
+            assertEquals("agr", trace.cancels)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            assertEquals("", trace.wheels)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("m", trace.wheels)
+            boundaries[0L].close()
+            assertEquals("agrm", trace.cancels)
+        }
+    }
+
+    @Test
+    fun `a transient boundary still ends a scroll whose final logical path is unchanged`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val trace = ScrollRouteTrace()
+            observeScroll(root, "r", trace)
+            root.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> InputBoundary(
+                            root
+                        ).close()
+                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                            assertEquals(InputCancelReason.BoundaryChanged, reason)
+                            trace.cancels += "r"
+                        }
+                        else -> {}
+                    }
+                }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("", trace.wheels)
+            assertEquals("r", trace.cancels)
+            root.handler = { _, _ -> Unit }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Changed)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            assertEquals("", trace.wheels)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("r", trace.wheels)
+        }
+    }
+
+    @Test
+    fun `scroll targeting and cancellation stay independent of the held mouse buttons`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val b = rig.area("b")
+            val trace = ScrollRouteTrace()
+            observeScroll(a.scope, "a", trace)
+            observeScroll(b.scope, "b", trace)
+            a.scope.handler =
+                {
+                    context,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.Button(_, _, state, _)) -> {
+                            assertEquals(RoutedPhase.Target, context.phase)
+                            if (state == ElementState.Pressed)
+                                trace.downs += 1
+                            else
+                                trace.ups += 1
+                        }
+                        case Pointer(InputPointerEvent.Cancelled(_, _)) -> trace.pressCancels += 1
+                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                            trace.cancels += "a";
+                            trace.reasons.add(reason)
+                        }
+                        else -> {}
+                    }
+                }
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, b, Rect(60.0, 0.0, 50.0, 50.0))
+            }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.wheel(70.0, 10.0, phase = ScrollPhase.Began)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertEquals("ba", trace.wheels)
+            assertEquals("b", trace.cancels)
+            assertEquals(InputCancelReason.ScrollInterrupted, trace.reasons[0L])
+            assertEquals(0, trace.pressCancels)
+            rig.button(70.0, 10.0, ElementState.Released)
+            assertEquals(1, trace.ups)
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.router.event(WindowEvent.Focused(false))
+            assertEquals(2, trace.downs)
+            assertEquals(1, trace.pressCancels)
+            assertEquals("ba", trace.cancels)
+            assertEquals(InputCancelReason.Window(PointerCancelReason.FocusLost), trace.reasons[1L])
+            rig.pointer(PointerEvent.Cancelled(PointerCancelReason.FocusLost, inputObservation()))
+            rig.button(70.0, 10.0, ElementState.Released)
+            assertEquals(1, trace.ups)
+            assertEquals(1, trace.pressCancels)
+            assertEquals("ba", trace.cancels)
+        }
+    }
+
+    @Test
+    fun `a throwing scroll cancellation still notifies every ancestor and releases the router`() {
+        InputRig().use {
+            rig ->
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val a = rig.area("a", parent = Some(group))
+            val trace = ScrollRouteTrace()
+            observeScroll(group, "g", trace, false)
+            observeScroll(rig.router.rootScope, "r", trace, false)
+            a.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> {
+                            assertEquals(InputCancelReason.Closed, reason)
+                            trace.cancels += "a"
+                            throw IllegalStateException(Some("scroll cancellation failure"))
+                        }
+                        else -> {}
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0)) }
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            assertFailsWith<IllegalStateException> { rig.router.close() }
+            assertEquals("agr", trace.cancels)
+            assertTrue(a.isClosed)
+            assertTrue(group.isClosed)
+            assertTrue(rig.router.rootScope.isClosed)
+        }
+    }
+}

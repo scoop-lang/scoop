@@ -6,7 +6,7 @@ import scoop.window.*
 public struct InputPointer(val state: PointerState, val time: InputTime)
 
 public enum InputCancelReason {
-    Window(PointerCancelReason), AreaChanged, BoundaryChanged, Closed
+    Window(PointerCancelReason), AreaChanged, BoundaryChanged, ScrollInterrupted, Closed
 }
 
 /** Pixel distances are logical; line distances retain their native unit. */
@@ -18,7 +18,7 @@ public enum InputPointerEvent {
     Entered(InputPointer), Left(InputTime), Moved(InputPointer),
     Button(InputPointer, MouseButton, ElementState, Int),
     Wheel(InputPointer, InputScrollDelta, ScrollPhase, ScrollPhase),
-    Cancelled(InputCancelReason, InputTime)
+    Cancelled(InputCancelReason, InputTime), ScrollCancelled(InputCancelReason, InputTime)
 }
 
 /** Snapshot for the current input domain's first-button decision, before route delivery. */

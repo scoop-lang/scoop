@@ -17,7 +17,9 @@
 | C3a：输入边界与按下预处理 | 已完成 aarch64 实施和定向验证 |
 | C3b：同窗口模态、关闭与焦点恢复 | 已完成 aarch64 实施和定向验证 |
 | C3c：宿主快捷键 | 已完成 aarch64 实施和定向验证 |
-| D：普通／虚拟滚动、实例保留 | 待实施 |
+| D1a：滚轮残量与连续手势路由 | 已完成 aarch64 实施和定向验证 |
+| D1b：ScrollArea、滚动条与显式平滑滚动 | 待实施 |
+| D2：按需子项、虚拟列表与实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
@@ -136,3 +138,13 @@ UiHost.shortcutScope 返回其 SurfaceHost 的登记，UiHost.close 在停止组
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。48 项定向 scoop.test 通过：Surface 输入 45 项、UiHost 登记生命周期 1 项、宿主双窗口原生测试 1 项、已有 UI 模态回归 1 项。双窗口测试覆盖预先登记、局部优先、默认取消、根边界隔离、启停／更新、关闭首窗后附着另一窗口、重新登记，以及动作内关闭宿主后的资源恢复。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 C3b Surface／UI／modal 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。
+
+## D1a：滚轮残量与连续手势路由
+
+RoutedEventContext.scrollRemaining 与 consumeScroll 在同一默认阶段共享残量，保持原 InputEvent 不变。每层使用自己的 lineStep 和事件开始时固定的区域几何，将实际消费位移换回原 Lines／Pixels 再扣除；Pixel delta 只做一次 DPI 归一。传播取消与默认取消继续独立，Contain 可在本层后阻止剩余默认工作。
+
+连续 phase 和随后的 momentum 使用同一个逻辑路由，离散 Wheel 独立命中，不跟随鼠标按钮捕获。接触结束后保留可能进入动量的路径而不请求帧；源退休、边界切换及窗口关闭用独立 ScrollCancelled 结束旧滚动，剩余 Changed／momentum 不改投背景。边界切换的内部序号覆盖同一回调内打开又关闭的情况；终结通知按旧路径完整清理，即使一个处理器抛错也继续通知祖先。
+
+修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过；新增原生注入辅助通过 arm64 Clang 的警告检查。58 项定向 scoop.test 通过：Surface 输入 55 项、原生滚动 1 项、UI drawing／modal 回归各 1 项。覆盖不同容器行高、缩放与旋转、事件内发布新几何、借用与非法消费、零位移、模态与目标退休、按钮并行、取消异常，以及真实 AppKit 行／像素／动量传递。原生测试首轮将无关联 NSWindow 的 CG 事件按屏幕坐标注入，修正为直接 view 投递所需的窗口坐标后通过；测试关闭不再用附带断言遮住原始失败。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。已闭合的一次性桌面报告与被替代的 C3c Surface／modal 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。

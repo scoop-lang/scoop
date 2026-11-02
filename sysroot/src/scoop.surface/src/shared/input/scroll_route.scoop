@@ -1,0 +1,155 @@
+package scoop.surface
+
+import scoop.window.*
+
+/** A contact route may remain available for momentum after the fingers have lifted. */
+internal class InputScrollRoute(var scopes: Array<InputScope>, val boundaryRevision: ULong) {
+    var contact = ScrollPhase.None
+    var momentum = ScrollPhase.None
+    var cancelled = false
+    val active: Boolean get() = !cancelled && (scrollOngoing(contact) || scrollOngoing(momentum))
+}
+
+private fun scrollOngoing(phase: ScrollPhase): Boolean =
+    when (phase) {
+        case MayBegin -> true
+        case Began -> true
+        case Stationary -> true
+        case Changed -> true
+        else -> false
+    }
+
+internal fun InputRouter.prepareScroll(phase: ScrollPhase, momentum: ScrollPhase, time: InputTime) {
+    val current = scrollRoute ?: return
+    val discrete = phase == ScrollPhase.None && momentum == ScrollPhase.None
+    val startsContact =
+        (phase == ScrollPhase.MayBegin || phase == ScrollPhase.Began) &&
+            current.contact !=
+            ScrollPhase.MayBegin
+    val startsMomentum = momentum == ScrollPhase.Began && current.momentum != ScrollPhase.None
+    if (discrete || startsContact || startsMomentum)
+        cancelScroll(InputCancelReason.ScrollInterrupted, time, true)
+}
+
+internal fun InputRouter.selectScroll(
+    fallback: Array<InputScope>,
+    phase: ScrollPhase,
+    momentum: ScrollPhase
+): InputScrollRoute? {
+    if (phase == ScrollPhase.None && momentum == ScrollPhase.None)
+        return None
+    val route =
+        when (scrollRoute) {
+            case Some(current) -> current
+            case None -> {
+                val created = InputScrollRoute(fallback, boundaryRevision)
+                scrollRoute = Some(created)
+                created
+            }
+        }
+    if (phase != ScrollPhase.None)
+        route.contact = phase
+    if (momentum != ScrollPhase.None)
+        route.momentum = momentum
+    return Some(route)
+}
+
+internal fun InputRouter.scrollPath(route: InputScrollRoute): Array<InputScope> =
+    if (scrollRouteAllowed(route))
+        route.scopes
+    else
+        []
+
+private fun InputRouter.scrollRouteAllowed(route: InputScrollRoute): Boolean =
+    !route.cancelled &&
+        route.boundaryRevision ==
+        boundaryRevision &&
+        route.scopes.size >
+        0L &&
+        samePath(route.scopes, path(route.scopes[0L]))
+
+internal fun InputRouter.scrollDeliveryAllowed(consumption: ScrollConsumption?): Boolean =
+    when (consumption) {
+        case Some(value) -> when (value.route) {
+            case Some(route) -> scrollRouteAllowed(route)
+            case None -> true
+        }
+        case None -> true
+    }
+
+internal fun InputRouter.finishScroll(
+    route: InputScrollRoute?,
+    phase: ScrollPhase,
+    momentum: ScrollPhase
+) {
+    val ending = route ?: return
+    if (
+        phase !=
+            ScrollPhase.Cancelled &&
+            momentum !=
+            ScrollPhase.Ended &&
+            momentum !=
+            ScrollPhase.Cancelled
+    )
+        return
+    when (scrollRoute) {
+        case Some(current) -> if (current === ending) {
+            scrollRoute = None
+        }
+        case None -> {}
+    }
+}
+
+internal fun InputRouter.reconcileScroll() {
+    when (scrollRoute) {
+        case Some(route) -> if (
+            route.scopes.size >
+                0L &&
+                (
+                    route.boundaryRevision !=
+                        boundaryRevision ||
+                        !samePath(route.scopes, path(route.scopes[0L]))
+                )
+        ) {
+            cancelScroll(
+                if (route.boundaryRevision != boundaryRevision)
+                    InputCancelReason.BoundaryChanged
+                else
+                    InputCancelReason.AreaChanged,
+                inputObservation(),
+                false
+            )
+        }
+        case None -> {}
+    }
+}
+
+internal fun InputRouter.cancelScroll(reason: InputCancelReason, time: InputTime, reset: Boolean) {
+    val route = scrollRoute ?: return
+    if (reset)
+        scrollRoute = None
+    val old = route.scopes
+    val active = route.active
+    route.cancelled = true
+    route.scopes = []
+    if (!active)
+        return
+    var failure: Throwable? = None
+    for (scope in old)
+        failure =
+            cleanupFailure(failure) {
+                notify(
+                    scope,
+                    InputEvent.Pointer(InputPointerEvent.ScrollCancelled(reason, time)),
+                    time,
+                    Some(old[0L]),
+                    terminal = true
+                )
+            }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.cancelPointerInput(reason: InputCancelReason, time: InputTime) {
+    val failure = cleanupFailure(None) { cancelPress(reason, time, true) }
+    throwFailure(cleanupFailure(failure) { cancelScroll(reason, time, true) })
+}

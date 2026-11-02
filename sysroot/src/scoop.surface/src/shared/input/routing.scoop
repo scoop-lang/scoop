@@ -1,9 +1,14 @@
 package scoop.surface
 
 import scoop.graphics.Point
+import scoop.graphics.native.CanvasGeometry
 import scoop.window.*
 
-internal struct RouteDelivery(val scope: InputScope, val position: Point?)
+internal struct RouteDelivery(
+    val scope: InputScope,
+    val position: Point?,
+    val geometry: CanvasGeometry? = None
+)
 
 internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = None): Array<
     RouteDelivery
@@ -11,9 +16,11 @@ internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = N
     val result = ArrayList<RouteDelivery>()
     for (scope in scopes) {
         var local: Point? = None
+        var geometry: CanvasGeometry? = None
         when ((scope.area, point)) {
             case(Some(area), Some(position)) -> {
                 val placement = scene.find(area) ?: return []
+                geometry = Some(placement.geometry)
                 local = placement.geometry.toLocal(position)
                 if (local == None) {
                     pending = true
@@ -22,7 +29,7 @@ internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = N
             }
             else -> {}
         }
-        result.add(RouteDelivery(scope, local))
+        result.add(RouteDelivery(scope, local, geometry))
     }
     return result.toArray()
 }
@@ -41,7 +48,19 @@ private fun InputRouter.invoke(
     val scope = delivery.scope
     if (!terminal && (closed || scope.closed || (!inactive && path(scope).size == 0L)))
         return
-    val context = RoutedEventContext(this, target, scope, phase, time, delivery.position, flags)
+    if (!terminal && !scrollDeliveryAllowed(flags.scroll))
+        return
+    val context =
+        RoutedEventContext(
+            this,
+            target,
+            scope,
+            phase,
+            time,
+            delivery.position,
+            delivery.geometry,
+            flags
+        )
     try {
         when (callback) {
             case Some(action) -> action(context, event)
@@ -56,8 +75,13 @@ private fun InputRouter.invoke(
     }
 }
 
-internal fun InputRouter.route(chain: Array<RouteDelivery>, event: InputEvent, time: InputTime) {
-    var failure = cleanupFailure(None) { routeStages(chain, event, time) }
+internal fun InputRouter.route(
+    chain: Array<RouteDelivery>,
+    event: InputEvent,
+    time: InputTime,
+    scroll: InputScrollRoute? = None
+) {
+    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll) }
     for (delivery in chain) {
         val scope = delivery.scope
         if (!closed && !scope.closed && path(scope).size > 0L)
@@ -69,12 +93,13 @@ internal fun InputRouter.route(chain: Array<RouteDelivery>, event: InputEvent, t
 private fun InputRouter.routeStages(
     chain: Array<RouteDelivery>,
     event: InputEvent,
-    time: InputTime
+    time: InputTime,
+    scroll: InputScrollRoute?
 ) {
     if (chain.size == 0L)
         return
     val target = chain[0L].scope
-    val flags = RouteFlags(true)
+    val flags = RouteFlags(true, scrollConsumption(event, scroll))
     var index = chain.size
     while (index > 1L && !flags.stopped) {
         index -= 1L

@@ -294,6 +294,13 @@ private class InputAreaTest {
                 else -> fail(Some("expected wheel"))
             }
             when (rig.log.events[1L].event) {
+                case Pointer(InputPointerEvent.ScrollCancelled(reason, _)) -> assertEquals(
+                    InputCancelReason.ScrollInterrupted,
+                    reason
+                )
+                else -> fail(Some("expected the old phased scroll to end"))
+            }
+            when (rig.log.events[2L].event) {
                 case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> assertEquals(
                     InputScrollDelta.Lines(2.0, -1.0),
                     delta

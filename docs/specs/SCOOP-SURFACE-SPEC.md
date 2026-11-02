@@ -176,6 +176,18 @@ ShortcutBinding 使用 ShortcutKey.Logical(LogicalKey) 或 Physical(PhysicalKey)
 
 快捷键只处理 Window 实际交付的 Keyboard，不插入文字，也不在 interpretKeyEvents 之前截取 IME。没有焦点区域时可在活动窗口根工作；模态域的路由截断同样约束快捷键。系统未交付的组合不在本库控制范围内。本批提供 macOS 接入，Windows 后续补充。
 
+### 6.4 滚轮残量与连续手势
+
+Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines 不换成固定像素，Pixels 已按事件 scale 完成一次逻辑像素换算。每次派发另保存一份可消费残量；`RoutedEventContext.scrollRemaining: InputScrollDelta?` 读取它，非 Wheel 为 None。传播阶段读取的是尚未消费的值，默认阶段由内向外读取前面节点留下的部分，原 InputEvent 不被改写。stopPropagation 不消费滚动量；preventDefault／consume 停止后续默认行为，Contain 策略可在处理本层后用 preventDefault 截断剩余量。
+
+`context.consumeScroll(lineStep: Double, apply: (graphics.Point) -> graphics.Point)` 只允许在 Wheel 的 Default 阶段调用。lineStep 为调用方明确提供的有限正逻辑步长；Lines 先按它换成窗口逻辑距离，再按接收区域的变换换到局部坐标，Pixels 不再应用 scale。无几何 scope 使用窗口逻辑坐标。apply 接收局部有符号位移，返回本容器实际消费的同向、未超量位移；零残量不调用 apply。返回值须有限，各轴允许正常浮点舍入误差，非法结果报告参数错误。消费量换回原单位后从残量扣除，下一容器使用自己的变换及 lineStep；旋转／剪切下仍按同一坐标变换保留向量残量。
+
+同一次 Wheel 的位置和几何变换在传播前固定，与 localPosition 使用同一 placement。apply 中的布局更新不更换本次换算依据。上下文及 apply 为同步借用，不允许在同一个 apply 内递归消费；回调结束后上下文失效。默认动作已被取消时不再调用 apply。
+
+无 phase、无 momentum 的离散 Wheel 按当次命中选择路由，与鼠标按钮捕获独立。连续 Wheel 从首个非 None phase 固定逻辑目标与路径，MayBegin 到 Began 沿用该路径；同一手势及其动量后续事件只用新的已提交几何换算位置，不因内容滚动或指针经过兄弟区域而改投。接触 Ended 后保存这条路径以接收随后的 momentum Began；等待动量不请求帧，也不算仍在进行的交互。新的接触手势或离散 Wheel 重新命中，结束前一条仍活动的滚动；正常 momentum Ended／Cancelled 释放路由。
+
+`InputPointerEvent.ScrollCancelled(InputCancelReason, InputTime)` 是独立的 Notification，向完整旧滚动路径交付，不取消鼠标按钮捕获；`InputCancelReason.ScrollInterrupted` 表示另一段滚动开始。区域缺席／关闭／禁用／重挂、模态边界切换、窗口失焦和关闭分别沿用 AreaChanged／BoundaryChanged／Window／Closed。处理器内发生这些变化时，立即停止旧滚动的后续普通交付，退出当前派发后再完整通知旧路径；一段已取消的 phase／momentum 保持空路径到结束，不在后续 Changed 或惯性阶段改投背景兄弟。原生 Wheel 自带 Ended／Cancelled 仍按原事件交付，onEventFinished 保证其收尾不会被传播或默认取消吞掉。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。

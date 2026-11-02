@@ -70,6 +70,10 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 
 `InputArea.focusRevision` 返回该区域最近一次成功聚焦的窗口序号；未曾聚焦或关闭后为 None。它与 SurfaceWindow.focusRevision 共用顺序，鼠标、重复成功请求及直接程序请求一致，失败和 OS 激活变化不重写成功历史，供上层导航恢复最近使用的成员。
 
+滚轮默认行为可读取 `context.scrollRemaining`，并调用 `context.consumeScroll(lineStep) { localDelta -> ... }`，返回该容器实际消费的局部位移。lineStep 由容器提供；Surface 按本次事件固定的区域几何换算，消费后将残量还原到 Lines／Pixels，父容器再使用自己的步长和变换。Pixels 已完成一次 DPI 归一。原事件始终保留完整 delta，stopPropagation 不取消默认滚动；Contain 可在处理本层后调用 preventDefault。
+
+连续 phase 和其后的 momentum 固定起始路由，接触结束后仍可沿原路径进入动量；普通离散 Wheel 按当次命中。源区域退休或模态切换用 ScrollCancelled 完整通知旧路径，后续动量保持空路径直到结束；它与鼠标按钮 Cancelled 分开，不会误结束另一段拖动。等待可能的动量不维持帧需求。
+
 验证使用以下普通测试 Cone：
 
 - 本 Cone 的 tests：动画的确定性采样；实际 Skia 离屏几何上的区域命中、传播、拖动、焦点、IME 会话和关闭；两个真实窗口的按需重绘、空闲、隐藏／最小化恢复、resize、输入宿主保留及重新 attach。`--filter Animation` 和 `--filter Input` 可分别运行不需要桌面的测试；`--filter SurfaceHostTest` 运行真实窗口测试。
@@ -78,6 +82,8 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 - `tests-cones/errors`：paint 与多个 content.close 同时抛错、失败附着的回滚及全部 surface／lease 释放。
 - `tests-cones/input`：在真实输入宿主上组合动画帧、区域鼠标事件、平台 preedit／commit、候选窗坐标、IME 切换和回调内关闭。Windows 的协议注入复用 window 测试 Cone 的 UTF-16 边界；该测试与安装的真实 IME 桌面操作分别记录。
 - `tests-cones/shortcuts`：macOS 原生 Command、修饰键精确匹配、重复抑制、禁用与默认动作取消；窗口没有区域焦点时仍可执行绑定。独立进程遵守每进程一个 Application 的合同。
+- `tests-cones/host-shortcuts`：macOS 的共享宿主登记、窗口本地优先、根模态边界、关闭首窗后附着第二窗口，以及动作内关闭宿主。
+- `tests-cones/scroll`：macOS 原生行／像素滚动、嵌套残量、区域移动后的连续 phase／momentum、源失效后抑制背景滚动与正常收尾。
 - `tests-cones/presentation`：Windows 桌面上用两个重叠的真实窗口，采样透明区域和半透明绘图的最终合成像素。
 
 可通过 `scoop test <Cone路径> --release --target <目标> --sysroot <sysroot>` 分别运行；Windows 安装后的命令名为 `sco`，仓库开发构建为 `scoop.exe`。真实显示测试需要已解锁、显示开启的桌面；显示休眠或锁屏时 AppKit 将窗口报告为遮挡，生产代码按合同停帧。当前交付状态与验证限制见 [实施记录](../../../docs/surface/PROGRESS.md)。

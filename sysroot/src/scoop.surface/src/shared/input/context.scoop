@@ -1,9 +1,10 @@
 package scoop.surface
 
 import scoop.graphics.Point
+import scoop.graphics.native.CanvasGeometry
 import scoop.window.InputTime
 
-internal class RouteFlags(val cancelable: Boolean) {
+internal class RouteFlags(val cancelable: Boolean, val scroll: ScrollConsumption? = None) {
     var stopped = false
     var prevented = false
 }
@@ -16,6 +17,7 @@ public class RoutedEventContext internal constructor(
     private val stage: RoutedPhase,
     private val stamp: InputTime,
     private val position: Point?,
+    private val geometry: CanvasGeometry?,
     private val flags: RouteFlags
 ) {
     private var active = true
@@ -50,6 +52,23 @@ public class RoutedEventContext internal constructor(
     public val defaultPrevented: Boolean get() {
         checkActive()
         return flags.prevented
+    }
+    /** Remaining source-unit displacement; the event itself keeps its original delta. */
+    public val scrollRemaining: InputScrollDelta? get() {
+        checkActive()
+        return when (flags.scroll) {
+            case Some(scroll) -> Some(scroll.remaining)
+            case None -> None
+        }
+    }
+    /** Applies a local portion, then returns the unconsumed displacement to source units. */
+    public fun consumeScroll(lineStep: Double, apply: (Point) -> Point) {
+        checkActive()
+        if (stage != RoutedPhase.Default)
+            throw IllegalStateException(Some("scroll consumption requires the default phase"))
+        val scroll = flags.scroll ?: throw IllegalStateException(Some("event is not a wheel"))
+        if (!flags.prevented)
+            scroll.consume(lineStep, geometry, position, apply)
     }
     public fun stopPropagation() {
         checkActive()

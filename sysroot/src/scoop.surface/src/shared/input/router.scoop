@@ -29,12 +29,14 @@ internal class InputRouter(
     internal var inside = false
     internal var hover: Array<InputScope> = []
     internal var pressed: Array<InputScope>? = None
+    internal var scrollRoute: InputScrollRoute? = None
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
     internal var focusRevision = 0uL
     internal val boundaries = ArrayList<InputBoundary>()
     internal var pendingBoundaryChange = false
+    internal var boundaryRevision = 0uL
     internal var ime = ImeSession.Off
     internal var imeCaret: Rect? = None
 
@@ -143,10 +145,9 @@ internal class InputRouter(
                     osFocused = value
                     pending = true
                     if (!value)
-                        cancelPress(
+                        cancelPointerInput(
                             InputCancelReason.Window(PointerCancelReason.FocusLost),
-                            inputObservation(),
-                            true
+                            inputObservation()
                         )
                 }
                 case Keyboard(value) -> routeFocused(InputEvent.Keyboard(value))
@@ -187,6 +188,9 @@ internal class InputRouter(
                 reconcilePress(boundaryChange)
                 if (closed)
                     continue
+                reconcileScroll()
+                if (closed)
+                    continue
                 reconcileFocus()
                 if (closed)
                     continue
@@ -203,7 +207,7 @@ internal class InputRouter(
     }
     private fun finishClose() {
         val time = inputObservation()
-        var failure = cleanupFailure(None) { cancelPress(InputCancelReason.Closed, time, true) }
+        var failure = cleanupFailure(None) { cancelPointerInput(InputCancelReason.Closed, time) }
         failure = cleanupFailure(failure) { replaceHover([], time) }
         val previous = activeFocus
         logicalFocus = None

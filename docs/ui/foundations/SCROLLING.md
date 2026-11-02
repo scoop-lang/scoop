@@ -26,6 +26,8 @@
 
 Wheel 的默认动作从目标向祖先逐个消费：子项在一个轴到边界时仅交接该轴残量；可配置 `Contain` 在该区域停止链式滚动。`preventDefault` 取消整次默认滚动，普通 `stopPropagation` 不隐式消费位移。残量始终保留 Lines／Pixels 的原始单位及方向，每个容器按自身变换与 lineStep 换算消费比例，不能把子容器的像素结果直接当成父容器的行数。
 
+Surface 接口为 `RoutedEventContext.scrollRemaining` 与默认阶段的 `consumeScroll(lineStep, apply)`。后者使用当前接收区域在本次事件开始时固定的几何，把残量交给 apply；容器返回实际使用的局部位移，Surface 换回原单位再扣除。每层分别提供 lineStep；ScrollArea 将滚轮的内容位移取反后更新 offset，并返回实际移动量。Contain 在本层后调用 preventDefault。ScrollCancelled 与按钮 Cancelled 分开，结束滚动不会误终结仍在进行的 thumb／其他鼠标拖动。
+
 Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing scale。保留 phase 和 momentum；带 phase 的序列固定起始滚动路由直至正常结束／取消，避免内容移动后误切到另一个兄弟滚动区；无 phase 的离散 wheel 按当次命中。源路径退休时停止向其已关闭节点交付，并完成取消，不重新寻找背后的兄弟目标。
 
 首批用现有原生 wheel／触控板动量，程序平滑滚动复用 Animatable；不同时实现一套自制触摸惯性与手势竞争。显式平滑滚动在新用户滚动开始时取消，动画终点按最新范围收敛，停止后撤销帧需求。

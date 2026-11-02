@@ -66,6 +66,16 @@ internal class InputRig(val log: InputLog = InputLog()): Closeable {
     fun button(x: Double, y: Double, state: ElementState, button: MouseButton = MouseButton.Left) {
         pointer(PointerEvent.Button(inputPointer(x, y), button, state, 1))
     }
+    fun wheel(
+        x: Double,
+        y: Double,
+        delta: ScrollDelta = ScrollDelta.LineDelta(0.0, 1.0),
+        phase: ScrollPhase = ScrollPhase.None,
+        momentum: ScrollPhase = ScrollPhase.None,
+        scale: Double = 1.0
+    ) {
+        pointer(PointerEvent.Wheel(inputPointer(x, y, scale), delta, phase, momentum))
+    }
     public override fun close() {
         val failure = cleanupFailure(None) { router.close() }
         throwFailure(cleanupFailure(failure) { surface.close() })
@@ -116,6 +126,7 @@ internal fun inputKind(event: InputEvent): String =
         case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> "up"
         case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> "wheel"
         case Pointer(InputPointerEvent.Cancelled(_, _)) -> "cancel"
+        case Pointer(InputPointerEvent.ScrollCancelled(_, _)) -> "scroll-cancel"
         case Keyboard(_) -> "key"
         case ModifiersChanged(_) -> "modifiers"
         case TextInput(TextInputEvent.Enabled) -> "enabled"
