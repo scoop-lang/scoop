@@ -2,6 +2,8 @@ package scoop.ui
 
 import scoop.platform.concurrent.currentThreadId
 import scoop.surface.SurfaceHost
+import scoop.surface.HostShortcutScope
+import scoop.surface.ShortcutBinding
 import scoop.window.*
 
 /** Runs logical updates and Surface frames on the existing application owner. */
@@ -18,6 +20,7 @@ public class UiHost public constructor(
     private var nativeDepth = 0
     private var pendingRetirement = false
     private var closing = false
+    private var hostShortcuts: HostShortcutScope? = None
     private val surfaces =
         SurfaceHost { _, application, event -> handler(this, application, event) }
 
@@ -27,6 +30,15 @@ public class UiHost public constructor(
     }
     internal fun checkThread() {
         checkUiThread(thread)
+    }
+
+    public fun shortcutScope(bindings: Array<ShortcutBinding> = []): HostShortcutScope {
+        checkThread()
+        if (closing)
+            throw IllegalStateException(Some("UI host is closed"))
+        val scope = HostShortcutScope(surfaces, bindings)
+        hostShortcuts = Some(scope)
+        return scope
     }
 
     public fun <C: Component> attach(window: Window, create: () -> C): UiWindow {
@@ -153,6 +165,8 @@ public class UiHost public constructor(
         if (closing)
             return
         closing = true
+        hostShortcuts?.close()
+        hostShortcuts = None
         queued = false
         pending.clear()
         for (root in roots) {

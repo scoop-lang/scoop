@@ -40,43 +40,8 @@ public class ShortcutScope public constructor(
             throw IllegalStateException(Some("shortcut scope is closed"))
     }
     private fun handle(context: RoutedEventContext, event: InputEvent) {
-        if (closed || !accepts)
-            return
-        val key =
-            when (event) {
-                case Keyboard(value) -> value
-                else -> return
-            }
-        if (key.state != ElementState.Pressed || key.synthetic || !shortcutAllowed(context, key))
-            return
-        val bindings = entries
-        var chosen: ShortcutBinding? = None
-        for (binding in bindings) {
-            if (closed || !accepts || input.isClosed)
-                return
-            if (
-                binding.enabled &&
-                    (!key.isRepeat || binding.allowRepeat) &&
-                    binding.modifiers.matches(key.modifiers) &&
-                    binding.key.matches(key) &&
-                    binding.canExecute()
-            ) {
-                when (chosen) {
-                    case Some(_) -> throw IllegalArgumentException(
-                        Some("multiple shortcut bindings match this key event")
-                    )
-                    case None -> chosen = Some(binding)
-                }
-            }
-        }
-        when (chosen) {
-            case Some(binding) -> {
-                if (!closed && accepts && !input.isClosed && input.owner.path(input).size > 0L) {
-                    context.consume()
-                    binding.action()
-                }
-            }
-            case None -> {}
+        runShortcutBindings(context, event, entries) {
+            !closed && accepts && !input.isClosed && input.owner.path(input).size > 0L
         }
     }
     public override fun close() {

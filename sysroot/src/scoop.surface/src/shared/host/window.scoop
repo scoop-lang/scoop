@@ -21,6 +21,9 @@ public class SurfaceWindow internal constructor(
     private val scheduler = FrameScheduler()
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
     private val inputs = windowInputs(nativeWindow)
+    init {
+        host.bindShortcuts(inputs.rootScope)
+    }
     public val input: InputScope get() {
         host.checkThread()
         return inputs.rootScope

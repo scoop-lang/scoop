@@ -142,7 +142,7 @@ InputArea.focusRevision 保存该区域最近一次成功聚焦请求的窗口�
 
 ### 6.1 组合默认行为
 
-InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返回随 scope 生命周期退休的 Closeable；关闭登记后不会再调用它。每个节点先调用 defaultAction，再按登记顺序调用额外行为，最后匹配该节点的 ShortcutScope；消费后停止。这个顺序服务焦点导航、弹层关闭和快捷键，不暴露任意优先级整数。
+InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返回随 scope 生命周期退休的 Closeable；关闭登记后不会再调用它。每个节点先调用 defaultAction，再按登记顺序调用额外行为，然后匹配该节点的 ShortcutScope；窗口根最后执行所属 SurfaceHost 的快捷键回退。消费后停止。这个固定顺序服务焦点导航、弹层关闭和快捷键，不暴露任意优先级整数。
 
 进入节点的默认阶段时取得登记快照；中途新增的登记从后续事件开始，已取消的登记跳过。每次回调都有单独的 RoutedEventContext 借用，前一个回调返回后其上下文即失效。作用域关闭、禁用和原路径快照继续遵守本节路由规则。
 
@@ -163,6 +163,10 @@ InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在�
 ### 6.3 作用域快捷键（macOS）
 
 ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
+
+HostShortcutScope(host: SurfaceHost, bindings: Array<ShortcutBinding> = []) 提供同一宿主各窗口共用的最后回退。每个宿主至多一个活动登记，关闭后可重新创建；可在 attach 窗口之前登记，后续附着窗口自动接入，关闭单个窗口不关闭宿主绑定。它提供与 ShortcutScope 相同的 enabled、bindings、isClosed 和 close；配置只在登记／整体更新时检查一次，不为每个窗口复制或重验集合。SurfaceHost.close 立即停用该登记，已进入 canExecute 的动作在执行前再次确认其仍有效。
+
+宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary 都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
 
 ShortcutBinding 使用 ShortcutKey.Logical(LogicalKey) 或 Physical(PhysicalKey)，并保存 ShortcutModifiers、enabled、allowRepeat、canExecute 和 action。logical 的 Character 由 Window.matchesShortcut 比较；Dead 和空 Character 不可登记。物理键只匹配位置及其原生 fallback。macOS 的 Primary 展开为 Super/Command；Shift、Control、Alt、Super 和 Function 按展开后的完整组合匹配，锁定状态及左右侧不参与普通组合。
 

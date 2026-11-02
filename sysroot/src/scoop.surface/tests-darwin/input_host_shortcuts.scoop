@@ -1,0 +1,193 @@
+package scoop.surface
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputHostShortcutTest {
+    @Test
+    fun `host fallback follows local defaults and honors independent event cancellation`() {
+        SurfaceHost { _, _, _ -> Unit }.use {
+            host -> InputRig().use {
+                rig ->
+                val log = ShortcutLog()
+                val root = rig.router.rootScope
+                HostShortcutScope(host, [commandBinding("s", { log.add("host") })]).use {
+                    shared ->
+                    host.bindShortcuts(root)
+                    ShortcutScope(root, [commandBinding("s", { log.add("window") })]).use {
+                        local ->
+                        root.defaultAction = { _, _ -> log.add("base") }
+                        root.addDefaultAction { _, _ -> log.add("extra") }
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("base,extra,window", log.trace)
+                        log.trace = ""
+                        local.enabled = false
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("base,extra,host", log.trace)
+                        log.trace = ""
+                        root.handler = { context, _ -> context.preventDefault() }
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("", log.trace)
+                        root.handler = { context, _ -> context.stopPropagation() }
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("base,extra,host", log.trace)
+                        log.trace = ""
+                        shared.enabled = false
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("base,extra", log.trace)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `a window root boundary blocks only the host fallback`() {
+        SurfaceHost { _, _, _ -> Unit }.use {
+            host -> InputRig().use {
+                rig ->
+                val log = ShortcutLog()
+                val root = rig.router.rootScope
+                host.bindShortcuts(root)
+                HostShortcutScope(host, [commandBinding("s", { log.add("host") })]).use {
+                    _ -> ShortcutScope(root, [commandBinding("s", { log.add("window") })]).use {
+                        local ->
+                        InputBoundary(root).use {
+                            _ ->
+                            rig.key(shortcutKey(command = true))
+                            assertEquals("window", log.trace)
+                            local.enabled = false
+                            rig.key(shortcutKey(command = true))
+                            assertEquals("window", log.trace)
+                        }
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("window,host", log.trace)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `host binding updates are atomic and outlive individual input roots`() {
+        val host = SurfaceHost { _, _, _ -> Unit }
+        val log = ShortcutLog()
+        val original = commandBinding("s", { log.add("original") })
+        val duplicate = commandBinding("S", { fail() })
+        try {
+            assertFailsWith<IllegalArgumentException> {
+                HostShortcutScope(host, [original, duplicate])
+            }
+            val shared = HostShortcutScope(host, [original])
+            assertFailsWith<IllegalArgumentException> { HostShortcutScope(host) }
+            assertFailsWith<IllegalArgumentException> { shared.bindings = [original, duplicate] }
+            InputRig().use {
+                first ->
+                host.bindShortcuts(first.router.rootScope)
+                first.key(shortcutKey(command = true))
+                assertEquals("original", log.trace)
+                first.router.close()
+                assertFalse(shared.isClosed)
+            }
+            InputRig().use {
+                second ->
+                host.bindShortcuts(second.router.rootScope)
+                shared.bindings = [commandBinding("s", { log.add("updated") })]
+                second.key(shortcutKey(command = true))
+                assertEquals("original,updated", log.trace)
+                shared.close()
+                assertTrue(shared.isClosed)
+                val replacement = HostShortcutScope(host, [commandBinding("s", { log.add("new") })])
+                shared.close()
+                second.key(shortcutKey(command = true))
+                assertEquals("original,updated,new", log.trace)
+                host.close()
+                assertTrue(replacement.isClosed)
+                second.key(shortcutKey(command = true))
+                assertEquals("original,updated,new", log.trace)
+                assertFailsWith<IllegalStateException> { replacement.enabled = false }
+                assertFailsWith<IllegalStateException> { replacement.bindings = [] }
+                assertFailsWith<IllegalStateException> { HostShortcutScope(host) }
+                replacement.close()
+            }
+        } finally {
+            host.close()
+        }
+    }
+
+    @Test
+    fun `canExecute cannot cross a new boundary or replace its own closed registration`() {
+        SurfaceHost { _, _, _ -> Unit }.use {
+            host -> InputRig().use {
+                rig ->
+                val log = ShortcutLog()
+                val boundaries = ArrayList<InputBoundary>()
+                val replacements = ArrayList<HostShortcutScope>()
+                host.bindShortcuts(rig.router.rootScope)
+                HostShortcutScope(host).use {
+                    shared ->
+                    shared.bindings =
+                        [
+                            ShortcutBinding(
+                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutModifiers(primary = true),
+                                canExecute =
+                                    {
+                                        boundaries.add(InputBoundary(rig.router.rootScope));
+                                        true
+                                    },
+                                action = { fail(Some("crossed the newly installed boundary")) }
+                            )
+                        ]
+                    rig.key(shortcutKey(command = true))
+                    assertEquals(1L, boundaries.size)
+                    rig.key(shortcutKey(command = true))
+                    assertEquals(1L, boundaries.size)
+                    boundaries[0L].close()
+                    shared.bindings =
+                        [
+                            ShortcutBinding(
+                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutModifiers(primary = true),
+                                canExecute =
+                                    {
+                                        shared.close()
+                                        replacements.add(
+                                            HostShortcutScope(
+                                                host,
+                                                [commandBinding("s", { log.add("new") })]
+                                            )
+                                        )
+                                        true
+                                    },
+                                action = { fail(Some("executed a closed registration")) }
+                            )
+                        ]
+                    rig.key(shortcutKey(command = true))
+                    assertTrue(shared.isClosed)
+                    assertEquals("", log.trace)
+                    rig.key(shortcutKey(command = true))
+                    assertEquals("new", log.trace)
+                    replacements[0L].bindings =
+                        [
+                            ShortcutBinding(
+                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutModifiers(primary = true),
+                                canExecute =
+                                    {
+                                        host.close();
+                                        true
+                                    },
+                                action = { fail(Some("executed after host closure")) }
+                            )
+                        ]
+                    rig.key(shortcutKey(command = true))
+                    assertTrue(replacements[0L].isClosed)
+                    assertEquals("new", log.trace)
+                    replacements[0L].close()
+                }
+            }
+        }
+    }
+}

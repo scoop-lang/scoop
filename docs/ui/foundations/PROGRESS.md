@@ -16,7 +16,7 @@
 | C2：portal 与 anchor 定位 | 已完成 aarch64 实施和定向验证 |
 | C3a：输入边界与按下预处理 | 已完成 aarch64 实施和定向验证 |
 | C3b：同窗口模态、关闭与焦点恢复 | 已完成 aarch64 实施和定向验证 |
-| C3c：宿主快捷键 | 待实施 |
+| C3c：宿主快捷键 | 已完成 aarch64 实施和定向验证 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -126,3 +126,13 @@ PortalOptions 接入 ModalOptions 与 OverlayDismiss。模态会话复用 InputB
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。16 项定向 scoop.test 通过：Surface InputFocusTest 7 项、UI OverlayPlacementTest 5 项，以及 modal、既有 focus／portal／errors 窗口回归各 1 项。真实窗口覆盖背景捕获取消、Tab 循环、默认根聚焦、子菜单归属、关闭策略更新、普通弹层消费／继续、背景快捷键隔离、两种帧失效、完成回调内关闭、焦点原目标失效、嵌套与不同关闭顺序、立即关闭回调及静止停帧；错误回归增加模态子内容挂载失败和关闭回调失败。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 C2／C3a 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。
+
+## C3c：宿主级快捷键
+
+HostShortcutScope 在 SurfaceHost 的各窗口根提供同一次默认阶段的最后回退，复用本地 ShortcutScope 的匹配算法。登记可早于窗口附着，新增窗口读取同一份绑定；普通默认行为、本地快捷键、宿主回退采用固定顺序。任意活动 InputBoundary 都截断宿主回退，窗口根本身作为边界时也一样。配置整体更新只校验一次，关闭单窗不取消共享登记，宿主关闭立即停用；canExecute 内关闭或替换登记、打开模态后不会执行旧动作。
+
+UiHost.shortcutScope 返回其 SurfaceHost 的登记，UiHost.close 在停止组件和延迟释放绘制资源之前停用它。多个调用不得同时保留活动登记，旧登记的幂等关闭不会移除后来创建的新登记。
+
+修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。48 项定向 scoop.test 通过：Surface 输入 45 项、UiHost 登记生命周期 1 项、宿主双窗口原生测试 1 项、已有 UI 模态回归 1 项。双窗口测试覆盖预先登记、局部优先、默认取消、根边界隔离、启停／更新、关闭首窗后附着另一窗口、重新登记，以及动作内关闭宿主后的资源恢复。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 C3b Surface／UI／modal 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。

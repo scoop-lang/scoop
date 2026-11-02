@@ -510,6 +510,8 @@ ComponentScope 同步发出取消，异步 finally 和实际 I/O 收尾由既有
 
 `UiHost` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create)` 返回管理根组件的 UiWindow。`runUiApplication(title, create)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；复杂窗口策略使用显式 UiHost。
 
+macOS 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
+
 底层 scoop.window 已支持同一 Application 的多个独立非模态窗口，见[窗口规范第 4.1 节](SCOOP-WINDOW-SPEC.md#41-多窗口)。一个 UiHost 可对不同 Window 分别 attach，每个窗口拥有独立根、挂载树、布局与区域场景；单窗口便利入口不限制框架只能管理一个窗口。普通关闭只卸载相应窗口的根，显式应用退出或宿主失败继续沿既有整体收尾；同一 owner 上可共享业务 State，不能共享组件实例、InputArea 或跨窗口转移挂载。
 
 原生模态对话框与完整自绘窗框依赖[窗口规范第 4.3 节](SCOOP-WINDOW-SPEC.md#43-模态与自绘窗框的待补能力)的待补接口。窗口归属、窗口模态／应用模态、输入限制、关闭与焦点恢复、系统拖移／缩放属于 window；UI 负责内容、控件和结果交付。当前设计不把置顶或临时屏蔽组件事件当成原生模态，也不因装饰开关已实现就声称已具备完整自绘窗框操作。

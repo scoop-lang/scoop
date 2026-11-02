@@ -36,9 +36,11 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 
 相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐。
 
-锚点不可见时默认在成功帧后关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑会关闭从属层。OverlayHandle 提供关闭与状态查询，onClose 每个会话只通知一次当前回调。已关闭会话不会因普通 Props 更新自动重开，调用方移除后重新挂载或更换 key；Escape、外部点击及模态行为在后续批次接入。
+锚点不可见时默认在成功帧后关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑会关闭从属层。OverlayHandle 提供关闭与状态查询，onClose 每个会话只通知一次当前回调。已关闭会话不会因普通 Props 更新自动重开，调用方移除后重新挂载或更换 key。
 
 最外层用 `UiHost.use` 包住 Application.run，或使用 `runUiApplication(title, create)`。SurfaceContent 拥有 UI 根，原生窗口关闭、异常和显式关闭都释放挂载树。UiWindow.close 只关闭所附着的 UI／Surface 内容，原生 Window 的归属仍由调用者决定。绘制或逻辑回调内请求关闭时，先停止新工作，回调结束后再释放资源。
+
+`UiHost.shortcutScope(bindings)` 返回宿主拥有的 Surface HostShortcutScope，可在窗口创建前登记应用绑定；窗口内的控件行为及 ShortcutScope 优先，模态会截断宿主回退。每个 UiHost 至多一个活动登记，关闭单个 UiWindow 不会取消共享绑定，关闭 UiHost 立即停用当前登记。
 
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。
 

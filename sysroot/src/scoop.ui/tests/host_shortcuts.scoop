@@ -1,0 +1,24 @@
+package scoop.ui
+
+import scoop.test.*
+
+@Test
+private class UiHostShortcutTest {
+    @Test
+    fun `host owns the current shortcut registration before any window is attached`() {
+        UiHost().use {
+            host ->
+            val first = host.shortcutScope()
+            assertFailsWith<IllegalArgumentException> { host.shortcutScope() }
+            first.close()
+            val second = host.shortcutScope()
+            first.close()
+            assertFalse(second.isClosed)
+            host.close()
+            assertTrue(second.isClosed)
+            assertFailsWith<IllegalStateException> { second.enabled = true }
+            assertFailsWith<IllegalStateException> { host.shortcutScope() }
+            second.close()
+        }
+    }
+}

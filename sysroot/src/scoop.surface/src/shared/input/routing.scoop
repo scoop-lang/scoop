@@ -105,11 +105,17 @@ private fun InputRouter.routeStages(
         val actions = delivery.scope.defaultActions
         invoke(delivery, target, event, RoutedPhase.Default, time, flags)
         var pass = 0
-        while (pass < 2) {
+        while (pass < 3) {
+            val kind =
+                when (pass) {
+                    case 0 -> InputDefaultKind.Ordinary
+                    case 1 -> InputDefaultKind.Shortcut
+                    else -> InputDefaultKind.HostShortcut
+                }
             for (action in actions) {
                 if (flags.prevented || closed)
                     break
-                if (!action.closed && action.shortcut == (pass == 1))
+                if (!action.closed && action.kind == kind)
                     invoke(
                         delivery,
                         target,

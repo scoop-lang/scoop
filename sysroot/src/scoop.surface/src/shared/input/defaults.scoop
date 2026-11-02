@@ -1,9 +1,13 @@
 package scoop.surface
 
+internal enum InputDefaultKind {
+    Ordinary, Shortcut, HostShortcut
+}
+
 internal class InputDefaultAction(
     val scope: InputScope,
     val handler: (RoutedEventContext, InputEvent) -> Unit,
-    val shortcut: Boolean
+    val kind: InputDefaultKind
 ): Closeable {
     var closed = false
     public override fun close() {
@@ -37,7 +41,7 @@ public fun InputScope.addDefaultAction(
     handler: (RoutedEventContext, InputEvent) -> Unit
 ): Closeable {
     checkOpen()
-    val value = InputDefaultAction(this, handler, false)
+    val value = InputDefaultAction(this, handler, InputDefaultKind.Ordinary)
     appendDefaultAction(value)
     return value
 }
@@ -47,10 +51,24 @@ internal fun InputScope.addShortcutAction(
 ): Closeable {
     checkOpen()
     for (action in defaultActions)
-        requireInput(!action.shortcut, "input scope already has a shortcut scope")
-    val value = InputDefaultAction(this, handler, true)
+        requireInput(
+            action.kind != InputDefaultKind.Shortcut,
+            "input scope already has a shortcut scope"
+        )
+    val value = InputDefaultAction(this, handler, InputDefaultKind.Shortcut)
     appendDefaultAction(value)
     return value
+}
+
+internal fun InputScope.addHostShortcutAction(handler: (RoutedEventContext, InputEvent) -> Unit) {
+    checkOpen()
+    requireInput(this === owner.rootScope, "host shortcuts require the window root")
+    for (action in defaultActions)
+        requireInput(
+            action.kind != InputDefaultKind.HostShortcut,
+            "window already has host shortcuts"
+        )
+    appendDefaultAction(InputDefaultAction(this, handler, InputDefaultKind.HostShortcut))
 }
 
 private fun InputScope.appendDefaultAction(value: InputDefaultAction) {
