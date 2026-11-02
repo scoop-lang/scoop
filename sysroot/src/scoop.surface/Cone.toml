@@ -31,6 +31,10 @@ when = { os = "windows" }
 path = "tests"
 when = { os = ["darwin", "windows"] }
 
+[[test.sources]]
+path = "tests-darwin"
+when = { os = "darwin" }
+
 [native]
 cxx = true
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter"]

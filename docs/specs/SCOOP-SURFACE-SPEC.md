@@ -130,6 +130,24 @@ requestFocus 只对已发布、可交互且允许焦点的区域成功；文本�
 
 文本接收区域的 caret 经 TextLayout、区域变换转换为窗口逻辑矩形后调用 setImeCursorArea；使用轴对齐包围矩形，随布局、变换或窗口配置变化更新。编辑器仍拥有文字、selection 和 marked 状态。
 
+### 6.1 组合默认行为
+
+InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返回随 scope 生命周期退休的 Closeable；关闭登记后不会再调用它。每个节点先调用 defaultAction，再按登记顺序调用额外行为，最后匹配该节点的 ShortcutScope；消费后停止。这个顺序服务焦点导航、弹层关闭和快捷键，不暴露任意优先级整数。
+
+进入节点的默认阶段时取得登记快照；中途新增的登记从后续事件开始，已取消的登记跳过。每次回调都有单独的 RoutedEventContext 借用，前一个回调返回后其上下文即失效。作用域关闭、禁用和原路径快照继续遵守本节路由规则。
+
+### 6.2 作用域快捷键（macOS）
+
+ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
+
+ShortcutBinding 使用 ShortcutKey.Logical(LogicalKey) 或 Physical(PhysicalKey)，并保存 ShortcutModifiers、enabled、allowRepeat、canExecute 和 action。logical 的 Character 由 Window.matchesShortcut 比较；Dead 和空 Character 不可登记。物理键只匹配位置及其原生 fallback。macOS 的 Primary 展开为 Super/Command；Shift、Control、Alt、Super 和 Function 按展开后的完整组合匹配，锁定状态及左右侧不参与普通组合。
+
+默认只响应真实 key-down；key-up 和 synthetic 不执行，repeat 必须显式允许。enabled=false 或 canExecute=false 继续向外层寻找。同一 scope 内同时启用的相同规范化组合在配置时报告参数错误，失败更新保留原集合；logical 与 physical 在实际布局下同时匹配且均可执行时报告歧义，不依赖登记顺序任选一个。成功执行前 consume，随后调用一次 action。
+
+控件 defaultAction 及额外行为先于本节点快捷键，内层先于外层。文本焦点下，祖先的普通快捷键要求明确 Command／Control 组合或非文本 NamedKey；裸字符、Space、Dead、未知文本键和可能用于 AltGr 的 Control+Alt 字符不能被祖先抢走。明确的 Command 组合仍可匹配，输入目标自身可定义本地快捷键。识别出的编辑命令由编辑目标认领；canExecute=false 的一般快捷键不等于已经被编辑目标消费的命令。
+
+快捷键只处理 Window 实际交付的 Keyboard，不插入文字，也不在 interpretKeyEvents 之前截取 IME。没有焦点区域时可在活动窗口根工作；模态域的路由截断同样约束快捷键。系统未交付的组合不在本库控制范围内。本批提供 macOS 接入，Windows 后续补充。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。

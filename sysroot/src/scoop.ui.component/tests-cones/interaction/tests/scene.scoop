@@ -9,6 +9,8 @@ import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
+import scoop.window.KeyCode
+import scoop.window.PhysicalKey
 
 internal class ControlScene(private val probe: ControlProbe): Component {
     var count: Int by state(7)
@@ -17,6 +19,21 @@ internal class ControlScene(private val probe: ControlProbe): Component {
     public override fun onMount(scope: ComponentScope) {
         mounts += 1
         probe.scene = Some(this)
+        probe.shortcuts =
+            Some(
+                scope.resource {
+                    ShortcutScope(
+                        scope.input,
+                        [
+                            ShortcutBinding(
+                                ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyN)),
+                                ShortcutModifiers(primary = true),
+                                action = { probe.shortcutCalls += 1 }
+                            )
+                        ]
+                    )
+                }
+            )
         scope.input.captureHandler =
             {
                 context,

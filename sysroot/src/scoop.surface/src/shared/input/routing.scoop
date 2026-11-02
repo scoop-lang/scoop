@@ -35,17 +35,21 @@ private fun InputRouter.invoke(
     time: InputTime,
     flags: RouteFlags,
     terminal: Boolean = false,
-    inactive: Boolean = false
+    inactive: Boolean = false,
+    callback: ((RoutedEventContext, InputEvent) -> Unit)? = None
 ) {
     val scope = delivery.scope
     if (!terminal && (closed || scope.closed || (!inactive && path(scope).size == 0L)))
         return
     val context = RoutedEventContext(this, target, scope, phase, time, delivery.position, flags)
     try {
-        when (phase) {
-            case Capture -> scope.captureHandler(context, event)
-            case Default -> scope.defaultAction(context, event)
-            else -> scope.handler(context, event)
+        when (callback) {
+            case Some(action) -> action(context, event)
+            case None -> when (phase) {
+                case Capture -> scope.captureHandler(context, event)
+                case Default -> scope.defaultAction(context, event)
+                else -> scope.handler(context, event)
+            }
         }
     } finally {
         context.end()
@@ -98,7 +102,26 @@ private fun InputRouter.routeStages(
                 case None -> {}
             }
         }
+        val actions = delivery.scope.defaultActions
         invoke(delivery, target, event, RoutedPhase.Default, time, flags)
+        var pass = 0
+        while (pass < 2) {
+            for (action in actions) {
+                if (flags.prevented || closed)
+                    break
+                if (!action.closed && action.shortcut == (pass == 1))
+                    invoke(
+                        delivery,
+                        target,
+                        event,
+                        RoutedPhase.Default,
+                        time,
+                        flags,
+                        callback = Some(action.handler)
+                    )
+            }
+            pass += 1
+        }
     }
 }
 

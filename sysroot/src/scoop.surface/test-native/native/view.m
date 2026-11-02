@@ -151,7 +151,7 @@ bool scoop_surface_test_pointer_move(void *pointer, double x, double y) {
 }
 
 bool scoop_surface_test_key(void *pointer, int32_t code, bool pressed,
-                            bool repeat) {
+                            bool repeat, bool command, bool shift) {
   @autoreleasepool {
     @try {
       if (code < 0 || code > UINT16_MAX)
@@ -162,8 +162,11 @@ bool scoop_surface_test_key(void *pointer, int32_t code, bool pressed,
           [NSEvent keyEventWithType:pressed ? NSEventTypeKeyDown
                                             : NSEventTypeKeyUp
                                  location:NSZeroPoint
-                            modifierFlags:0
-                                timestamp:NSProcessInfo.processInfo.systemUptime
+                            modifierFlags:(command ? NSEventModifierFlagCommand
+                                                   : 0) |
+                                          (shift ? NSEventModifierFlagShift
+                                                 : 0)timestamp
+                                         :NSProcessInfo.processInfo.systemUptime
                              windowNumber:view.window.windowNumber
                                   context:nil
                                characters:text

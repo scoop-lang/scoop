@@ -237,8 +237,10 @@ internal class InputRouter(
             return
         dispatch {
             closed = true
-            for (scope in owned)
+            for (scope in owned) {
                 scope.closed = true
+                scope.retireDefaultActions()
+            }
             pending = true
         }
     }

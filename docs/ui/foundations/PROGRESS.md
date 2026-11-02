@@ -9,7 +9,8 @@
 | A1：场景几何与纯绘图块分离 | 已完成 aarch64 实施和定向验证 |
 | A2：帧完成通知 | 已完成 aarch64 实施和定向验证 |
 | A3：输入作用域与路由阶段 | 已完成 aarch64 实施和定向验证 |
-| B：焦点作用域、导航、快捷键 | 待实施 |
+| B1：作用域快捷键 | 已完成 aarch64 实施和定向验证 |
+| B2：焦点作用域与键盘导航 | 待实施 |
 | C：Absolute、portal、同窗口模态 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -50,3 +51,15 @@ Surface 增加独立 InputScope，InputArea.scope 复用同一逻辑路由节点
 变更文件格式化通过，相关七个库完成生产类型检查和 aarch64 release 构建；两个示例的生产类型检查通过。37 项定向 scoop.test 通过：Surface 输入 21 项、原生 IME 输入 1 项、UI 核心／绘制／错误／公共文本 12 项、Style UI 1 项、Component 交互／布局 2 项。新增覆盖精确阶段顺序、取消标记独立、无几何作用域、空白按下不改投、parent 与绘制次序独立、环与跨窗口错误、最新 callback、关闭／禁用后的完整 Cancel、借用失效及异常后的收尾。真实控件回归覆盖父级取消点击、单独取消鼠标／Space 释放、状态恢复和后续正常激活。
 
 没有修改编译器或 core／std／test，没有 fixture、全量或 x86_64 验证。一次性报告已由 runner 清理，后续仍需使用的 sysroot 和构建缓存保留。
+
+## B1：作用域快捷键
+
+macOS 提供 ShortcutScope、ShortcutBinding、ShortcutKey 和 ShortcutModifiers。绑定随 InputScope 的默认阶段执行；同节点普通默认行为先执行，随后匹配快捷键，未执行则继续祖先。InputScope.addDefaultAction 提供可注销的行为登记，登记快照和独立上下文借用复用现有路由。UI 使用 ComponentScope.resource 管理 ShortcutScope，自绘 Counter 已接入 ⌘I。
+
+logical Character 的无 locale 大小写及规范等价比较由 Window 调用 CoreFoundation 完成，保留重音区别，不在 Surface 手写 Unicode 表。完整修饰组合、logical／physical、repeat／synthetic、disabled／canExecute、配置冲突和编辑目标优先级均有覆盖。绑定整体更新；更新冲突保留旧配置，同一真实键事件匹配多条可执行规则时报歧义。
+
+本批交付输入节点和窗口级快捷键；应用宿主 fallback 与模态截断在模态批次接入，文本编辑命令在公共编辑批次接入。
+
+修改的 Scoop／Objective-C 文件格式化通过，相关八个库完成生产类型检查和 aarch64 release 构建，自绘示例类型检查通过。32 项定向 scoop.test 通过：Window Unicode 比较 1 项、Surface 输入 28 项、原生 IME 1 项、原生快捷键 1 项、Component 交互 1 项。独立 consumer 检查发现的公开构造器遗漏已修复；capture 回归使用真实子焦点目标，原生窗口用例按每进程一个 Application 分置测试 Cone。
+
+Component 首帧正常但后台 activate 被 macOS 拒绝，准备期保留一次首帧后的原生聚焦请求；最终按仓库既有桌面测试说明通过临时应用包从前台运行同一 aarch64 测试程序。scoop.test 报告记录无失败并完整结束，未伪造焦点或放宽断言。没有修改编译器或 core／std／test，没有 fixture、全量或 x86_64 验证。一次性报告清理，独立 sysroot、构建缓存和后续桌面验收仍需使用的应用入口保留在仓库外。

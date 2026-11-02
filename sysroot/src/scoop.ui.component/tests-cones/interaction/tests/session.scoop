@@ -3,6 +3,7 @@ package scoop.tests.ui.controls
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.ShortcutScope
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
@@ -46,6 +47,9 @@ private class ControlUiTest {
             assertFalse(probe.fonts.isClosed)
             assertTrue(probe.view!!.restored())
             assertFalse(probe.frames!!.snapshot().attached)
+            assertEquals(1, probe.shortcutCalls)
+            assertTrue(probe.shortcuts!!.isClosed)
+            assertEquals(0L, probe.shortcuts!!.bindings.size)
         } catch (error: Throwable) {
             println(
                 f"control UI phase=${probe.phase}, theme=${probe.paintedTheme}, generation=${
@@ -143,6 +147,8 @@ internal class ControlProbe {
     var phase = 0
     var blockDefaults = false
     var blockedBubbles = 0
+    var shortcuts: ShortcutScope? = None
+    var shortcutCalls = 0
     var buttonCreates = 0
     var checkCreates = 0
     var labelCreates = 0
@@ -171,6 +177,7 @@ internal class ControlProbe {
     private var themeIndex = 0
     private var quietFrames: FrameSnapshot? = None
     private var quietCounters: Array<Int> = []
+    private var focusedAfterFirstPaint = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -214,9 +221,17 @@ internal class ControlProbe {
         assertTrue(active.proxy().post(action))
     }
     private fun advance(active: ActiveApplication) {
+        if (
+            phase == 0 && paintedGeneration == 0 && !window!!.isFocused && !focusedAfterFirstPaint
+        ) {
+            focusedAfterFirstPaint = true
+            window!!.requestFocus()
+        }
         when (phase) {
             case 0 -> if (paintedGeneration == 0 && window!!.isFocused) {
                 assertFalse(buttonVisual.enabled)
+                assertTrue(sendSurfaceKey(window!!, 45, true, command = true))
+                assertTrue(sendSurfaceKey(window!!, 45, false, command = true))
                 click(buttonBounds)
                 click(checkBounds)
                 afterInput(active) {

@@ -1,0 +1,71 @@
+package scoop.surface
+
+internal class InputDefaultAction(
+    val scope: InputScope,
+    val handler: (RoutedEventContext, InputEvent) -> Unit,
+    val shortcut: Boolean
+): Closeable {
+    var closed = false
+    public override fun close() {
+        scope.owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        val actions = scope.defaultActions
+        var index = 0L
+        while (index < actions.size) {
+            if (actions[index] === this) {
+                val removed = index
+                scope.defaultActions =
+                    Array<InputDefaultAction>(actions.size - 1L) {
+                        position -> actions[
+                            if (position < removed)
+                                position
+                            else
+                                position + 1L
+                        ]
+                    }
+                return
+            }
+            index += 1L
+        }
+    }
+}
+
+/** Adds ordinary node behavior before the node's shortcut bindings. */
+public fun InputScope.addDefaultAction(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    checkOpen()
+    val value = InputDefaultAction(this, handler, false)
+    appendDefaultAction(value)
+    return value
+}
+
+internal fun InputScope.addShortcutAction(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    checkOpen()
+    for (action in defaultActions)
+        requireInput(!action.shortcut, "input scope already has a shortcut scope")
+    val value = InputDefaultAction(this, handler, true)
+    appendDefaultAction(value)
+    return value
+}
+
+private fun InputScope.appendDefaultAction(value: InputDefaultAction) {
+    val previous = defaultActions
+    defaultActions =
+        Array<InputDefaultAction>(previous.size + 1L) {
+            index -> if (index == previous.size)
+                value
+            else
+                previous[index]
+        }
+}
+
+internal fun InputScope.retireDefaultActions() {
+    for (action in defaultActions)
+        action.closed = true
+    defaultActions = []
+}

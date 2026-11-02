@@ -1,0 +1,303 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputShortcutTest {
+    @Test
+    fun `window shortcuts keep exact modifiers physical positions and explicit repeat policy`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            ShortcutScope(
+                rig.router.rootScope,
+                [
+                    commandBinding("s", { log.add("save") }),
+                    commandBinding("é", { log.add("accent") }),
+                    ShortcutBinding(
+                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                        ShortcutModifiers(primary = true),
+                        action = { log.add("physical") }
+                    ),
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
+                        action = { log.add("help") }
+                    )
+                ]
+            ).use {
+                shortcuts ->
+                rig.key(shortcutKey(command = true))
+                rig.key(shortcutKey(LogicalKey.Character("S"), command = true, capsLock = true))
+                rig.key(shortcutKey(LogicalKey.Character("S"), command = true, shift = true))
+                rig.key(shortcutKey(control = true))
+                rig.key(shortcutKey(command = true, alt = true))
+                rig.key(shortcutKey(command = true, repeat = true))
+                rig.key(shortcutKey(command = true, synthetic = true))
+                rig.key(shortcutKey(command = true, state = ElementState.Released))
+                rig.key(shortcutKey(LogicalKey.Character("z"), KeyCode.KeyY, command = true))
+                rig.key(shortcutKey(LogicalKey.Character("É"), KeyCode.KeyE, command = true))
+                rig.key(shortcutKey(LogicalKey.Named(NamedKey.F1), KeyCode.F1, function = true))
+                rig.key(shortcutKey(LogicalKey.Named(NamedKey.F1), KeyCode.F1))
+                assertEquals("save,save,physical,accent,help", log.trace)
+                shortcuts.bindings =
+                    [
+                        ShortcutBinding(
+                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutModifiers(primary = true),
+                            allowRepeat = true,
+                            action = { log.add("repeat") }
+                        )
+                    ]
+                rig.key(shortcutKey(command = true, repeat = true))
+                assertEquals("save,save,physical,accent,help,repeat", log.trace)
+            }
+        }
+    }
+
+    @Test
+    fun `local editing wins and unavailable shortcuts fall back without stealing typing`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val area = rig.area("editor", text = true, parent = Some(group))
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
+            assertTrue(area.requestFocus())
+            area.scope.defaultAction =
+                {
+                    context,
+                    event -> when (event) {
+                        case Keyboard(key) -> {
+                            if (
+                                key.modifiers.superKey &&
+                                    key.logicalKey ==
+                                    LogicalKey.Character("c")
+                            ) {
+                                log.add("copy")
+                                context.consume()
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+            ShortcutScope(
+                rig.router.rootScope,
+                [
+                    commandBinding("c", { log.add("outer-copy") }),
+                    commandBinding("s", { log.add("outer-save") }),
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Character("x")),
+                        action = { log.add("typed-x") }
+                    ),
+                    ShortcutBinding(
+                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                        ShortcutModifiers(control = true, alt = true),
+                        action = { log.add("altgr") }
+                    ),
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)),
+                        action = { log.add("space") }
+                    ),
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
+                        action = { log.add("help") }
+                    )
+                ]
+            ).use {
+                _ -> ShortcutScope(
+                    group,
+                    [
+                        ShortcutBinding(
+                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutModifiers(primary = true),
+                            canExecute = { log.ready },
+                            action = { log.add("inner-save") }
+                        )
+                    ]
+                ).use {
+                    inner ->
+                    rig.key(shortcutKey(LogicalKey.Character("c"), KeyCode.KeyC, command = true))
+                    rig.key(shortcutKey(command = true))
+                    log.ready = true
+                    rig.key(shortcutKey(command = true))
+                    inner.enabled = false
+                    rig.key(shortcutKey(command = true))
+                    rig.key(shortcutKey(LogicalKey.Character("x"), KeyCode.KeyX))
+                    rig.key(
+                        shortcutKey(
+                            LogicalKey.Character("y"),
+                            KeyCode.KeyY,
+                            control = true,
+                            alt = true
+                        )
+                    )
+                    rig.key(
+                        shortcutKey(
+                            LogicalKey.Dead(Some("´")),
+                            KeyCode.KeyY,
+                            control = true,
+                            alt = true
+                        )
+                    )
+                    rig.key(shortcutKey(LogicalKey.Named(NamedKey.Space), KeyCode.Space))
+                    rig.key(shortcutKey(LogicalKey.Named(NamedKey.F1), KeyCode.F1))
+                    assertEquals("copy,outer-save,inner-save,outer-save,help", log.trace)
+                    ShortcutScope(
+                        area.scope,
+                        [
+                            ShortcutBinding(
+                                ShortcutKey.Logical(LogicalKey.Character("x")),
+                                action = { log.add("local-x") }
+                            )
+                        ]
+                    ).use { _ -> rig.key(shortcutKey(LogicalKey.Character("x"), KeyCode.KeyX)) }
+                    assertEquals("copy,outer-save,inner-save,outer-save,help,local-x", log.trace)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `configuration conflicts preserve old bindings and closing releases the input node`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            assertFailsWith<IllegalArgumentException> {
+                ShortcutBinding(ShortcutKey.Logical(LogicalKey.Dead(None)), action = {})
+            }
+            assertFailsWith<IllegalArgumentException> {
+                ShortcutBinding(ShortcutKey.Logical(LogicalKey.Character("")), action = {})
+            }
+            val original = commandBinding("s", { log.add("original") })
+            val duplicate =
+                ShortcutBinding(
+                    ShortcutKey.Logical(LogicalKey.Character("S")),
+                    ShortcutModifiers(superKey = true),
+                    action = {}
+                )
+            assertFailsWith<IllegalArgumentException> {
+                ShortcutScope(rig.router.rootScope, [original, duplicate])
+            }
+            val scope = ShortcutScope(rig.router.rootScope, [original])
+            try {
+                assertFailsWith<IllegalArgumentException> { ShortcutScope(rig.router.rootScope) }
+                assertFailsWith<IllegalArgumentException> { scope.bindings = [original, duplicate] }
+                rig.key(shortcutKey(command = true))
+                assertEquals("original", log.trace)
+                scope.enabled = false
+                rig.key(shortcutKey(command = true))
+                assertEquals("original", log.trace)
+                scope.enabled = true
+                scope.bindings =
+                    [
+                        original,
+                        ShortcutBinding(
+                            duplicate.key,
+                            duplicate.modifiers,
+                            enabled = false,
+                            action = {}
+                        )
+                    ]
+                rig.key(shortcutKey(command = true))
+                scope.close()
+                assertTrue(scope.isClosed)
+                rig.key(shortcutKey(command = true))
+                assertEquals("original,original", log.trace)
+                assertFailsWith<IllegalStateException> { scope.bindings = [] }
+                ShortcutScope(rig.router.rootScope, [commandBinding("s", { log.add("new") })]).use {
+                    _ -> rig.key(shortcutKey(command = true))
+                }
+                assertEquals("original,original,new", log.trace)
+            } finally {
+                scope.close()
+            }
+        }
+    }
+
+    @Test
+    fun `layout dependent ambiguity never chooses by registration order and capture sees latest bindings`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            val target = rig.area("target", true)
+            rig.frame { frame, canvas -> frame.place(canvas, target, Rect(0.0, 0.0, 30.0, 30.0)) }
+            assertTrue(target.requestFocus())
+            ShortcutScope(
+                rig.router.rootScope,
+                [
+                    commandBinding("s", { log.add("logical") }),
+                    ShortcutBinding(
+                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                        ShortcutModifiers(primary = true),
+                        action = { log.add("physical") }
+                    )
+                ]
+            ).use {
+                shortcuts ->
+                assertFailsWith<IllegalArgumentException> { rig.key(shortcutKey(command = true)) }
+                assertEquals("", log.trace)
+                shortcuts.bindings = [commandBinding("s", { log.add("old") })]
+                rig.router.rootScope.captureHandler =
+                    { _, _ -> shortcuts.bindings = [commandBinding("s", { log.add("latest") })] }
+                rig.key(shortcutKey(command = true))
+                assertEquals("latest", log.trace)
+                rig.router.rootScope.captureHandler = { _, _ -> shortcuts.close() }
+                rig.key(shortcutKey(command = true))
+                assertEquals("latest", log.trace)
+            }
+        }
+    }
+
+    @Test
+    fun `ordinary default behaviors run before shortcuts even when registered later`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            ShortcutScope(
+                rig.router.rootScope,
+                [commandBinding("s", { log.add("shortcut") })]
+            ).use {
+                _ ->
+                val ordinary =
+                    rig.router.rootScope.addDefaultAction {
+                        context, _ ->
+                        log.add("ordinary")
+                        context.consume()
+                    }
+                rig.key(shortcutKey(command = true))
+                ordinary.close()
+                rig.key(shortcutKey(command = true))
+                assertEquals("ordinary,shortcut", log.trace)
+            }
+        }
+    }
+
+    @Test
+    fun `retiring input in canExecute cancels the action before invocation`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            ShortcutScope(
+                rig.router.rootScope,
+                [
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Character("s")),
+                        ShortcutModifiers(primary = true),
+                        canExecute =
+                            {
+                                rig.router.rootScope.enabled = false;
+                                true
+                            },
+                        action = { log.add("unexpected") }
+                    )
+                ]
+            ).use {
+                _ ->
+                rig.key(shortcutKey(command = true))
+                assertEquals("", log.trace)
+            }
+        }
+    }
+}

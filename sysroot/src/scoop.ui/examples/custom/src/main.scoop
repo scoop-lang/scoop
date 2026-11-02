@@ -8,6 +8,20 @@ import scoop.window.*
 /** A complete self-drawn control without importing the standard component library. */
 internal class Counter: Component {
     private var count: Int by state(0)
+    public override fun onMount(scope: ComponentScope) {
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Character("i")),
+                        ShortcutModifiers(primary = true),
+                        action = { count += 1 }
+                    )
+                ]
+            )
+        }
+    }
     public override fun render(): View =
         element(CounterInput(count, { count += 1 }), { props -> CounterDrawing(props) })
 }

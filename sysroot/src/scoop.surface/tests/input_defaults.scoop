@@ -1,0 +1,55 @@
+package scoop.surface
+
+import scoop.test.*
+import scoop.window.*
+
+private class DefaultTestState {
+    var trace = ""
+    var previous: RoutedEventContext? = None
+    var late: Closeable? = None
+    var cancelled: Closeable? = None
+}
+
+@Test
+private class InputDefaultsTest {
+    @Test
+    fun `default registrations freeze membership keep separate borrows and cancel immediately`() {
+        InputRig().use {
+            rig ->
+            val state = DefaultTestState()
+            val scope = rig.router.rootScope
+            scope.defaultAction =
+                {
+                    context, _ ->
+                    state.trace += "base,";
+                    state.previous = Some(context)
+                }
+            val first =
+                scope.addDefaultAction {
+                    _, _ ->
+                    assertFailsWith<IllegalStateException> { state.previous!!.consume() }
+                    state.cancelled!!.close()
+                    when (state.late) {
+                        case None -> state.late =
+                            Some(scope.addDefaultAction { _, _ -> state.trace += "late," })
+                        case Some(_) -> {}
+                    }
+                    state.trace += "first,"
+                }
+            state.cancelled = Some(scope.addDefaultAction { _, _ -> state.trace += "cancelled," })
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("base,first,", state.trace)
+            state.trace = ""
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("base,first,late,", state.trace)
+            first.close()
+            state.late!!.close()
+            state.trace = ""
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("base,", state.trace)
+            scope.close()
+            first.close()
+            assertFailsWith<IllegalStateException> { scope.addDefaultAction { _, _ -> Unit } }
+        }
+    }
+}

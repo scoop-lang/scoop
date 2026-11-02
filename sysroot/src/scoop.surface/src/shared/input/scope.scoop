@@ -9,6 +9,7 @@ public class InputScope internal constructor(
 ): Closeable {
     internal var closed = false
     internal var accepts = true
+    internal var defaultActions: Array<InputDefaultAction> = []
     private var receive = handler
     private var capture: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     private var action: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
@@ -85,6 +86,7 @@ public class InputScope internal constructor(
         if (closed)
             return
         closed = true
+        retireDefaultActions()
         owner.detached(this)
     }
 }
