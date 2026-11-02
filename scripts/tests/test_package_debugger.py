@@ -1,8 +1,10 @@
 """Check debugger support files and launcher relocation with ordinary inputs."""
 
 import os
+import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,9 +13,32 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import package_debugger
+import package_native
 
 
 class DebuggerPackageTests(unittest.TestCase):
+    @unittest.skipUnless(
+        sys.platform == "darwin" and sysconfig.get_config_var("PYTHONFRAMEWORK"),
+        "Darwin framework Python",
+    )
+    def test_framework_python_runs_after_relocation(self):
+        paths = package_debugger.python_paths(sys.executable)
+        executable = Path(paths["executable"])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary) / "relocated python"
+            (root / "bin").mkdir(parents=True)
+            installed = root / "bin" / executable.name
+            shutil.copy2(executable, installed)
+            package_native.darwin(root, [executable], Path(paths["prefix"]))
+            result = subprocess.run(
+                [installed, "-c", "print('relocated Python works')"],
+                env=dict(os.environ, PYTHONHOME=paths["prefix"]),
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout, "relocated Python works\n")
+
     @unittest.skipIf(os.name == "nt", "POSIX shell launchers")
     def test_python_native_module_helpers_and_relocated_launchers(self):
         for layout in ("lib/python3.14/site-packages", "local/lib/python3.14/dist-packages"):

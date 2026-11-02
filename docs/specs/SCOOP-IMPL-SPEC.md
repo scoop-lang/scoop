@@ -2150,7 +2150,7 @@ generated-C 桥没有用户源码映射，继续使用 `-g0`，通过实际符�
 
 最终结果缓存同时记录程序及请求的调试结果。请求外置文件时，最终 executable basename 进入结果键并用于内部生成文件名，保证换输出目录可复用、换 basename 时重新生成匹配的 debuglink／dSYM；上游 Cone 不因此重编译。命中只检查输入更新与所需结果存在，不读取／哈希调试文件内容，不启动调试工具或重新准备链接输入。dSYM 目录按普通暂存、复制及 rename 发布；工具失败不发布部分新结果。UUID／debuglink 仅承担平台文件关联。
 
-编辑器复用官方 lldb-dap，scoop-lsp 保持语言服务职责。VS Code 提供源码 breakpoints、构建到 executable 的启动配置、attach、参数／cwd／环境／终端及 sourceMap，按需导入只读 Python formatter。发行包包含匹配平台的 lldb、lldb-dap、LLDB library、Python 支持及实际所需附加文件。Darwin 的开发安装与发行加工完成后重新签名 debugserver，保留其原生调试 entitlements，避免安装时调整加载路径使签名失效。不得把 C 兼容 evaluator、通用异常筛选或硬件 watchpoint 宣称为完整 Scoop 求值、Scoop 异常过滤或 GC 感知数据断点。
+编辑器复用官方 lldb-dap，scoop-lsp 保持语言服务职责。VS Code 提供源码 breakpoints、构建到 executable 的启动配置、attach、参数／cwd／环境／终端及 sourceMap，按需导入只读 Python formatter。发行包包含匹配平台的 lldb、lldb-dap、LLDB library、Python 支持及实际所需附加文件。Darwin framework Python 复制 `Resources/Python.app/Contents/MacOS/Python` 中的解释器，沿普通动态依赖收集和相对路径加工交付，避免复制依赖原 framework 目录的 `bin/python` 启动包装程序。Darwin 的开发安装与发行加工完成后重新签名 debugserver，保留其原生调试 entitlements，避免安装时调整加载路径使签名失效。不得把 C 兼容 evaluator、通用异常筛选或硬件 watchpoint 宣称为完整 Scoop 求值、Scoop 异常过滤或 GC 感知数据断点。
 
 VS Code 在顶层普通 `main` 及测试容器直接声明的 `@Test` 方法上提供 Run／Debug CodeLens。标记复用当前文档的 Tree-sitter 语法树，支持限定注解名和 import alias；入口签名与测试合法性仍由普通编译检查。单击时自动创建本次启动配置，无需预先编写 `launch.json`。从源文件向父目录查找最近的 `Cone.toml` 作为构建输入与默认 cwd，没有 manifest 时 `main` 使用单文件模式；测试要求 manifest Cone。保存失败、编译失败、取消或测试目录选择失败均不启动程序。Debug 默认使用 debug profile 和 full 调试信息，成功后把本次 executable 交给 lldb-dap；Run 复用同一构建与启动配置并设置 `noDebug`。测试选择消费上述完整目录，精确运行所点方法及其正常生命周期，显式点击忽略用例也选择该用例，不使用名称子串代替单用例选择。仅提供标记不触发构建，编译缓存继续遵守 2.7、2.8。
 

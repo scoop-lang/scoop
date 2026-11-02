@@ -22,9 +22,13 @@ LLVM_TOOLS = (
 def python_paths(executable):
     script = """
 import json, sys, sysconfig
+from pathlib import Path
+executable = sys._base_executable
+if sys.platform == 'darwin' and sysconfig.get_config_var('PYTHONFRAMEWORK'):
+    executable = str(Path(sys.base_prefix) / 'Resources/Python.app/Contents/MacOS/Python')
 print(json.dumps({
   'version': f'{sys.version_info.major}.{sys.version_info.minor}',
-  'executable': sys._base_executable,
+  'executable': executable,
   'stdlib': sysconfig.get_path('stdlib'),
   'prefix': sys.base_prefix,
 }))
