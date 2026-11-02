@@ -150,6 +150,81 @@ pub enum NativeObjectFormat {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectMachineV1 {
+    Aarch64,
+    X86_64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectHeaderAbiV1 {
+    MachO64,
+    ElfX86_64FlagsZero,
+    CoffAmd64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectRelocationProfileV1 {
+    MachOAarch64,
+    MachOX86_64,
+    ElfX86_64Rela,
+    CoffAmd64,
+}
+
+/// A closed, complete object-file contract implemented by the current
+/// readers and writers. This is object semantics, not an OS target registry.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectTargetProfileV1 {
+    MachOAarch64,
+    MachOX86_64,
+    ElfX86_64,
+    CoffAmd64,
+}
+
+impl ObjectTargetProfileV1 {
+    pub const fn format(self) -> NativeObjectFormat {
+        match self {
+            Self::MachOAarch64 | Self::MachOX86_64 => NativeObjectFormat::MachO64,
+            Self::ElfX86_64 => NativeObjectFormat::Elf64,
+            Self::CoffAmd64 => NativeObjectFormat::Coff64,
+        }
+    }
+
+    pub const fn machine(self) -> ObjectMachineV1 {
+        match self {
+            Self::MachOAarch64 => ObjectMachineV1::Aarch64,
+            Self::MachOX86_64 | Self::ElfX86_64 | Self::CoffAmd64 => ObjectMachineV1::X86_64,
+        }
+    }
+
+    pub const fn header_abi(self) -> ObjectHeaderAbiV1 {
+        match self {
+            Self::MachOAarch64 | Self::MachOX86_64 => ObjectHeaderAbiV1::MachO64,
+            Self::ElfX86_64 => ObjectHeaderAbiV1::ElfX86_64FlagsZero,
+            Self::CoffAmd64 => ObjectHeaderAbiV1::CoffAmd64,
+        }
+    }
+
+    pub const fn relocation_profile(self) -> ObjectRelocationProfileV1 {
+        match self {
+            Self::MachOAarch64 => ObjectRelocationProfileV1::MachOAarch64,
+            Self::MachOX86_64 => ObjectRelocationProfileV1::MachOX86_64,
+            Self::ElfX86_64 => ObjectRelocationProfileV1::ElfX86_64Rela,
+            Self::CoffAmd64 => ObjectRelocationProfileV1::CoffAmd64,
+        }
+    }
+
+    pub const fn symbol_normalization(self) -> NativeSymbolNormalization {
+        match self {
+            Self::MachOAarch64 | Self::MachOX86_64 => {
+                NativeSymbolNormalization::MachOExternalUnderscore
+            }
+            Self::ElfX86_64 => NativeSymbolNormalization::ElfIdentity,
+            Self::CoffAmd64 => NativeSymbolNormalization::CoffIdentity,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum TargetArchitecture {
     Aarch64,
     X86_64,
@@ -172,12 +247,11 @@ pub enum TargetExceptionHandling {
 pub struct TargetLayoutDescription {
     pub canonical_triple: &'static str,
     pub llvm_data_layout: &'static str,
-    pub object_format: NativeObjectFormat,
+    pub object_target: ObjectTargetProfileV1,
     pub architecture: TargetArchitecture,
     pub procedure_abi: ProcedureAbi,
     pub scoop_abi_classifier: ScoopAbiClassifier,
     pub exception_handling: TargetExceptionHandling,
-    pub native_symbol_normalization: NativeSymbolNormalization,
     pub byte_order: ByteOrder,
     pub scalar_layouts: [ScalarLayout; 7],
     pub managed_pointer: ScalarLayout,
@@ -213,7 +287,10 @@ impl LirTargetProfile {
         self.description
     }
     pub const fn native_object_format(self) -> NativeObjectFormat {
-        self.description.object_format
+        self.description.object_target.format()
+    }
+    pub const fn object_target(self) -> ObjectTargetProfileV1 {
+        self.description.object_target
     }
     pub const fn architecture(self) -> TargetArchitecture {
         self.description.architecture

@@ -28,6 +28,25 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
             "{}",
             target.canonical()
         );
+        assert_eq!(
+            target.selection.target().object_target(),
+            target.selection.backend().contract().artifact_inspection,
+            "{}",
+            target.canonical()
+        );
+        assert!(matches!(
+            (
+                target.architecture,
+                target.selection.target().object_target().machine()
+            ),
+            (
+                scoop_lir::TargetArchitecture::Aarch64,
+                scoop_lir::ObjectMachineV1::Aarch64
+            ) | (
+                scoop_lir::TargetArchitecture::X86_64,
+                scoop_lir::ObjectMachineV1::X86_64
+            )
+        ));
         for alias in target.aliases {
             assert_eq!(crate::named_target(alias), Some(target));
         }

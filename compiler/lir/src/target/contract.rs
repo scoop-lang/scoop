@@ -103,13 +103,17 @@ impl TargetProfileContract {
     }
 
     pub const fn native_symbol_normalization(self) -> NativeSymbolNormalization {
-        self.profile.description().native_symbol_normalization
+        self.profile.object_target().symbol_normalization()
+    }
+
+    pub const fn object_target(self) -> super::ObjectTargetProfileV1 {
+        self.profile.object_target()
     }
 }
 
 impl WireEncode for TargetProfileContract {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(18)?;
+        encoder.map(21)?;
         encoder.field(1)?;
         encoder.text(self.canonical_triple())?;
         encoder.field(2)?;
@@ -158,6 +162,24 @@ impl WireEncode for TargetProfileContract {
         encoder.unsigned(match self.profile.exception_handling() {
             super::TargetExceptionHandling::Dwarf => 1,
             super::TargetExceptionHandling::WindowsSeh => 2,
+        })?;
+        encoder.field(19)?;
+        encoder.unsigned(match self.object_target().machine() {
+            super::ObjectMachineV1::Aarch64 => 1,
+            super::ObjectMachineV1::X86_64 => 2,
+        })?;
+        encoder.field(20)?;
+        encoder.unsigned(match self.object_target().header_abi() {
+            super::ObjectHeaderAbiV1::MachO64 => 1,
+            super::ObjectHeaderAbiV1::ElfX86_64FlagsZero => 2,
+            super::ObjectHeaderAbiV1::CoffAmd64 => 3,
+        })?;
+        encoder.field(21)?;
+        encoder.unsigned(match self.object_target().relocation_profile() {
+            super::ObjectRelocationProfileV1::MachOAarch64 => 1,
+            super::ObjectRelocationProfileV1::MachOX86_64 => 2,
+            super::ObjectRelocationProfileV1::ElfX86_64Rela => 3,
+            super::ObjectRelocationProfileV1::CoffAmd64 => 4,
         })
     }
 }

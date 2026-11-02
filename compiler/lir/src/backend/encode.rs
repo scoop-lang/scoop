@@ -53,9 +53,10 @@ impl WireEncode for BackendProfileContract {
             encoder,
             25,
             match self.artifact_inspection {
-                crate::NativeObjectFormat::MachO64 => 1,
-                crate::NativeObjectFormat::Elf64 => 2,
-                crate::NativeObjectFormat::Coff64 => 3,
+                crate::ObjectTargetProfileV1::MachOAarch64 => 1,
+                crate::ObjectTargetProfileV1::MachOX86_64 => 2,
+                crate::ObjectTargetProfileV1::ElfX86_64 => 3,
+                crate::ObjectTargetProfileV1::CoffAmd64 => 4,
             },
         )?;
         let (tag, record) = match self.machine_frame {

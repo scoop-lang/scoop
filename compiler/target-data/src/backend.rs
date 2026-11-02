@@ -1,7 +1,7 @@
 use scoop_identity::BackendProfileId;
 use scoop_lir::{
     BackendLsdaEncodingsV1, BackendMachineFrameV1, BackendProfile, BackendProfileContract,
-    NativeObjectFormat,
+    ObjectTargetProfileV1,
 };
 
 const fn id(name: &str) -> BackendProfileId {
@@ -20,7 +20,7 @@ pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
         features: "",
         llvm_architecture: scoop_lir::LlvmArchitecture::Aarch64,
         unwind_provider: 1,
-        artifact_inspection: NativeObjectFormat::MachO64,
+        artifact_inspection: ObjectTargetProfileV1::MachOAarch64,
         lsda: BackendLsdaEncodingsV1 {
             lp_start: 0xff,
             type_table: 0x9b,
@@ -41,7 +41,7 @@ pub const LLVM_22_1_DARWIN_X86_64: BackendProfile = BackendProfile::new(
         features: "",
         llvm_architecture: scoop_lir::LlvmArchitecture::X86,
         unwind_provider: 1,
-        artifact_inspection: NativeObjectFormat::MachO64,
+        artifact_inspection: ObjectTargetProfileV1::MachOX86_64,
         lsda: BackendLsdaEncodingsV1 {
             lp_start: 0xff,
             type_table: 0x9b,
@@ -62,7 +62,7 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
         features: "",
         llvm_architecture: scoop_lir::LlvmArchitecture::X86,
         unwind_provider: 2,
-        artifact_inspection: NativeObjectFormat::Elf64,
+        artifact_inspection: ObjectTargetProfileV1::ElfX86_64,
         lsda: BackendLsdaEncodingsV1 {
             lp_start: 0xff,
             type_table: 0x9b,
@@ -83,7 +83,7 @@ pub const LLVM_22_1_WINDOWS_X86_64: BackendProfile = BackendProfile::new(
         features: "",
         llvm_architecture: scoop_lir::LlvmArchitecture::X86,
         unwind_provider: 3,
-        artifact_inspection: NativeObjectFormat::Coff64,
+        artifact_inspection: ObjectTargetProfileV1::CoffAmd64,
         lsda: BackendLsdaEncodingsV1 {
             lp_start: 0xff,
             type_table: 0x00,

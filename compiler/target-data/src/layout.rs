@@ -18,9 +18,8 @@ const SCALARS: [ScalarLayout; 7] = [
 
 pub(crate) struct LayoutFacts {
     pub llvm_data_layout: &'static str,
-    pub object_format: NativeObjectFormat,
+    pub object_target: ObjectTargetProfileV1,
     pub architecture: TargetArchitecture,
-    pub native_symbol_normalization: NativeSymbolNormalization,
 }
 
 pub(crate) const fn describe(
@@ -33,12 +32,11 @@ pub(crate) const fn describe(
     TargetLayoutDescription {
         canonical_triple: triple,
         llvm_data_layout: facts.llvm_data_layout,
-        object_format: facts.object_format,
+        object_target: facts.object_target,
         architecture: facts.architecture,
         procedure_abi,
         scoop_abi_classifier,
         exception_handling,
-        native_symbol_normalization: facts.native_symbol_normalization,
         byte_order: ByteOrder::Little,
         scalar_layouts: SCALARS,
         managed_pointer: POINTER,

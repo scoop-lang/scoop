@@ -25,8 +25,7 @@ struct Target {
     env: String,
     llvm_triple: String,
     llvm_data_layout: String,
-    object_format: String,
-    native_symbol_normalization: String,
+    object_target: String,
     backend: String,
     procedure_abi: String,
     scoop_abi: String,
@@ -75,6 +74,14 @@ fn target_architecture(value: &str) -> &'static str {
     }
 }
 
+fn object_target_architecture(value: &str) -> &'static str {
+    match value {
+        "MachOAarch64" => "aarch64",
+        "MachOX86_64" | "ElfX86_64" | "CoffAmd64" => "x86_64",
+        _ => panic!("unsupported object target {value:?}"),
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=targets.toml");
     let catalog: Catalog = toml::from_str(&fs::read_to_string("targets.toml").unwrap()).unwrap();
@@ -95,8 +102,7 @@ fn main() {
         assert!(symbols.insert(&target.symbol), "duplicate target symbol");
         for name in [
             &target.symbol,
-            &target.object_format,
-            &target.native_symbol_normalization,
+            &target.object_target,
             &target.backend,
             &target.native_environment,
             &target.procedure_abi,
@@ -112,8 +118,7 @@ fn main() {
             profile,
             version,
             llvm_data_layout,
-            object_format,
-            native_symbol_normalization,
+            object_target,
             backend,
             procedure_abi,
             scoop_abi,
@@ -121,12 +126,17 @@ fn main() {
             ..
         } = target;
         let architecture = target_architecture(&target.arch);
+        assert_eq!(
+            target.arch,
+            object_target_architecture(object_target),
+            "target architecture and object machine differ for {canonical}"
+        );
         writeln!(
             output,
             "pub const {symbol}_ID: TargetProfileId = target_id({profile:?}, {version});"
         )
         .unwrap();
-        writeln!(output, "pub const {symbol}: LirTargetProfile = LirTargetProfile::new(&{symbol}_ID, &crate::layout::describe({canonical:?}, crate::layout::LayoutFacts {{ llvm_data_layout: {llvm_data_layout:?}, object_format: scoop_lir::NativeObjectFormat::{object_format}, architecture: scoop_lir::TargetArchitecture::{architecture}, native_symbol_normalization: scoop_lir::NativeSymbolNormalization::{native_symbol_normalization} }}, scoop_lir::ProcedureAbi::{procedure_abi}, scoop_lir::ScoopAbiClassifier::{scoop_abi}, scoop_lir::TargetExceptionHandling::{exception_handling}));").unwrap();
+        writeln!(output, "pub const {symbol}: LirTargetProfile = LirTargetProfile::new(&{symbol}_ID, &crate::layout::describe({canonical:?}, crate::layout::LayoutFacts {{ llvm_data_layout: {llvm_data_layout:?}, object_target: scoop_lir::ObjectTargetProfileV1::{object_target}, architecture: scoop_lir::TargetArchitecture::{architecture} }}, scoop_lir::ProcedureAbi::{procedure_abi}, scoop_lir::ScoopAbiClassifier::{scoop_abi}, scoop_lir::TargetExceptionHandling::{exception_handling}));").unwrap();
         writeln!(output, "pub const {symbol}_LLVM_22_1: ValidatedLirTargetSelection = ValidatedLirTargetSelection::new({symbol}, crate::{backend});").unwrap();
         writeln!(
             source_key,

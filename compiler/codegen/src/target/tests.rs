@@ -171,7 +171,6 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
     for backend in [
         BackendProfile::new(&UNKNOWN_ID, &ORIGINAL),
         BackendProfile::new(&KNOWN_ID, &DIFFERENT_CPU),
-        scoop_target_data::LLVM_22_1_LINUX_X86_64,
     ] {
         let selection =
             ValidatedLirTargetSelection::new(scoop_target_data::DARWIN_AARCH64, backend);
@@ -182,6 +181,16 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
                 .contains("unsupported target/backend contract")
         );
     }
+    assert!(
+        std::panic::catch_unwind(|| {
+            ValidatedLirTargetSelection::new(
+                scoop_target_data::DARWIN_AARCH64,
+                scoop_target_data::LLVM_22_1_LINUX_X86_64,
+            )
+        })
+        .is_err(),
+        "an incompatible target/backend composition must not become a validated selection"
+    );
 }
 
 #[test]

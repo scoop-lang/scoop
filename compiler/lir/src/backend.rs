@@ -40,7 +40,7 @@ pub struct BackendProfileContract {
     pub features: &'static str,
     pub llvm_architecture: LlvmArchitecture,
     pub unwind_provider: u32,
-    pub artifact_inspection: crate::NativeObjectFormat,
+    pub artifact_inspection: crate::ObjectTargetProfileV1,
     pub lsda: BackendLsdaEncodingsV1,
     pub machine_frame: BackendMachineFrameV1,
     pub red_zone: BackendRedZoneV1,
