@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.collections.HashMap
 import scoop.collections.HashSet
+import scoop.collections.contains
 import scoop.collections.sortedBy
 import scoop.time.TimeMark
 
@@ -29,6 +30,20 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private var entries: Array<LazyItemEntry> = []
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
     val count: Long get() = total
+
+    fun entry(key: ViewKey): LazyItemEntry? = keyed[key]
+    fun indexOf(key: ViewKey): Long? {
+        when (keyed[key]) {
+            case Some(entry) -> return Some(entry.index)
+            case None -> {}
+        }
+        return evaluateUi<Long?>(None) {
+            val index = source.indexOfKey(key) ?: return@evaluateUi None
+            requireUi(index >= 0L && index < total, "item reverse index is out of range")
+            requireUi(source.keyAt(index) == key, "item key mapping is inconsistent")
+            Some(index)
+        }
+    }
 
     fun mount(node: MountedNode) {
         node.scope.resource {
@@ -70,6 +85,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         retain(node, keep.toArray())
         source = next
         total = nextCount
+        node.lazyFocus?.sourceChanged()
         trim(node)
         if (!node.root.isOpen)
             return
@@ -107,14 +123,32 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
             throw UiLayoutEnded()
         return entry
     }
-    fun pinnedItems(): Array<Long> {
+    fun pinnedItems(node: MountedNode): Array<Long> {
         val result = ArrayList<Long>()
         for (entry in entries)
             if (entry.pinned)
                 result.add(entry.index)
+        when (node.lazyFocus) {
+            case Some(focus) -> when (focus.pendingIndex()) {
+                case Some(index) -> if (!result.contains(index))
+                    result.add(index)
+                case None -> {}
+            }
+            case None -> {}
+        }
         return result.toArray()
     }
     fun finish(node: MountedNode, measured: HashMap<Long, LazyItemMeasure>) {
+        when (node.lazyFocus) {
+            case Some(focus) -> when (focus.pendingIndex()) {
+                case Some(index) -> if (!measured.containsKey(index))
+                    throw IllegalStateException(
+                        Some("a pending focus item must be measured and placed")
+                    )
+                case None -> {}
+            }
+            case None -> {}
+        }
         for (entry in entries) {
             val selection = measured[entry.index]
             val placed = selection?.placed ?: false

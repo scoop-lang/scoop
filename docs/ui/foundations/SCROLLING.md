@@ -76,6 +76,8 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 具体公开入口采用 ItemExtent.Fixed／Variable、VirtualListAnchor.KeepVisible／FollowEnd 和可选 VirtualListHandle。ScrollState 仍是唯一位置状态，handle 只保存一次按 key 的定位意图。尺寸前缀使用已访问项的稀疏索引；布局通过 ScrollAdjustment 携带所依据的 requestRevision，确保较新的滚动请求优先，成功提交才发布修正和阅读锚点。
 
+超长内容使用 ScrollViewport.present 的 contentOrigin 表达附近原点。VirtualList 先在 Double 中计算条目前缀与本帧 offset 的差，再呈现局部位置；前缀索引、ScrollState 与阅读锚点仍保留完整逻辑坐标。视口边界在内容平移之前采集，焦点显露继续把窗口位置映回完整内容坐标，不要求图形后端相消两个巨大的平移。
+
 ## 5. 实例保留策略
 
 公开接口为 `ItemRetention.Dispose` 与 `KeepAlive(maxOffscreenItems)`，由 lazyElement 和 VirtualList 的 retention 参数接收。后者保留同 key、同 shape 的实例，按最近一次测量的时间优先淘汰最久未使用的非活动离屏项；同帧使用次序不承诺。容量须非负，零与 Dispose 相同；上限不包含本次必须实现的 viewport／overscan。不能把 key A 的 Component 改装成 key B 来节约构造，不依赖控件自己清空旧状态。

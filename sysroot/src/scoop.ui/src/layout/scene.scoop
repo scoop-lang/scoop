@@ -80,6 +80,7 @@ public class SceneContext internal constructor(
     internal fun scrollContent(
         viewport: ScrollViewport,
         layout: ScrollLayout,
+        origin: Point,
         block: (SceneContext) -> Unit
     ) {
         checkActive()
@@ -95,7 +96,7 @@ public class SceneContext internal constructor(
             child ->
             val snapshot = layout.snapshot
             child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
-            child.translate(-snapshot.offset.x, -snapshot.offset.y)
+            child.translate(origin.x - snapshot.offset.x, origin.y - snapshot.offset.y)
             block(child)
         }
     }

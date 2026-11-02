@@ -25,7 +25,7 @@ internal class ScrollControl(
     private val props: () -> ScrollControlProps
 ) {
     private val painters = scope.resource { ThemePainterCache() }
-    private val viewport = scope.scrollViewport(props().state)
+    val viewport = scope.scrollViewport(props().state)
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
     private val focus = scope.focusTarget(area, props().focus)
@@ -54,12 +54,16 @@ internal class ScrollControl(
         contentSize: Size,
         adjustment: ScrollAdjustment? = None
     ): ScrollSnapshot = viewport.layout(viewportSize, contentSize, adjustment)
-    fun scene(context: SceneContext, snapshot: ScrollSnapshot) {
+    fun scene(
+        context: SceneContext,
+        snapshot: ScrollSnapshot,
+        contentOrigin: Point = Point(0.0, 0.0)
+    ) {
         val value = props()
         val size = snapshot.viewport
         val bounds = Rect(0.0, 0.0, size.width, size.height)
         context.place(area, bounds)
-        viewport.present(context, Some { content -> content.children() })
+        viewport.present(context, Some { content -> content.children() }, contentOrigin)
         val painter = painters.get(value.theme)
         val input = value
         val thickness = value.theme.scrollbarMetrics(input.scrollbar).thickness

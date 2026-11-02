@@ -61,6 +61,10 @@ LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMea
 
 `context.pinnedItems` 给出焦点、待聚焦请求、按钮／滚动路由、文本会话及模态输入边界所属的已实现项，容器也须测量、放置这些项，再以统一 clip 控制可见性；交互结束及待聚焦请求结束后触发必要布局以恢复淘汰。每个列表为同一滚动候选至多额外保留一项，不产生持续帧。实际 VirtualList 由独立控件库实现；协议、隐藏删除、重排、失败清理和挂载中关闭分别由 `tests-cones/lazy`、`tests-cones/errors` 覆盖。
 
+LazyElement 可用 `scope.lazyFocus(viewport)` 登记按 key 聚焦，viewport 必须属于同一挂载。`requestFocus(key, ItemFocusEdge.First)` 或 Last 请求该项首／末个可用 Tab 目标；待实现项的索引会加入 pinnedItems，外层缓存条目也会因这个请求重新参与布局。容器读取 `pendingItem`，按自己的 extent 配合 ScrollAdjustment 初次定位；选择具体目标后该属性变为 None，后续显露交给框架。isPending 查询整个请求，cancelRequest 只取消等待。数据删除、新焦点／位置意图、换绑和关闭取消旧请求，不预建全量 FocusHandle。
+
+`ScrollViewport.present` 的 contentOrigin 默认是零。超长内容可先在 Double 中减去附近原点，再用这个原点呈现；框架一次平移 contentOrigin − offset，使绘制和输入几何保留局部精度，完整滚动范围与显露坐标不变。
+
 未选中的缓存子树关闭帧需求，逻辑更新照常执行。`scope.animation` 和视口动画通过同一 Surface AnimationGroup 管理；有限动画可离屏完成，无限动画不会周期唤醒窗口。恢复只重新启用子树的帧资格，保留动画自身的 isFrameEnabled 选择，也不会唤醒嵌套列表中仍未选中的缓存项。`scope.requestFrame()` 在该子树内同样不要求绘制。
 
 ## 公共文本适配

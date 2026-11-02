@@ -19,6 +19,7 @@ internal class MountedNode(
     val focusTargets = ArrayList<FocusTarget>()
     var focusScope: FocusScope? = None
     var navigation: KeyNavigation? = None
+    var lazyFocus: LazyFocus? = None
     var children: Array<MountedNode> = []
     var active = true
     var mounted = false

@@ -5,7 +5,7 @@ import scoop.surface.*
 import scoop.window.*
 
 private enum FocusDestination {
-    Target(FocusTarget), Group(FocusScope)
+    Target(FocusTarget), Group(FocusScope), Item(LazyFocus, ViewKey, ItemFocusEdge)
 }
 
 private class TabContinuation(
@@ -87,6 +87,49 @@ internal class FocusController(private val root: UiRoot): Closeable {
         return when (value.destination) {
             case Target(target) -> target.available && withinFocusScope(target.node, node)
             case Group(scope) -> scope.available && withinFocusScope(scope.node, node)
+            case Item(owner, key, _) -> owner.available &&
+                (
+                    withinFocusScope(owner.node, node) ||
+                        when (owner.entry(key)) {
+                            case Some(entry) -> withinFocusScope(entry.node, node)
+                            case None -> false
+                        }
+                )
+        }
+    }
+    fun isPending(owner: LazyFocus): Boolean {
+        val value = pending ?: return false
+        if (value.revision != root.surface.focusRevision || !value.reveal.isCurrent)
+            return false
+        return when (value.destination) {
+            case Item(current, _, _) -> current === owner
+            else -> false
+        }
+    }
+    fun itemKey(owner: LazyFocus): ViewKey? {
+        if (!isPending(owner))
+            return None
+        return when (pending!!.destination) {
+            case Item(_, key, _) -> Some(key)
+            else -> None
+        }
+    }
+    fun itemToPrepare(owner: LazyFocus): ViewKey? {
+        val value = pending ?: return None
+        when (value.selected) {
+            case Some(_) -> return None
+            case None -> {}
+        }
+        return itemKey(owner)
+    }
+    fun cancel(owner: LazyFocus) {
+        val value = pending ?: return
+        when (value.destination) {
+            case Item(current, _, _) -> {
+                if (current === owner)
+                    clearPending()
+            }
+            else -> {}
         }
     }
     fun isPending(scope: FocusScope): Boolean {
@@ -126,6 +169,29 @@ internal class FocusController(private val root: UiRoot): Closeable {
         }
     }
     fun request(target: FocusTarget): Boolean = request(target, None)
+    fun request(owner: LazyFocus, key: ViewKey, edge: ItemFocusEdge): Boolean {
+        clearPending()
+        if (!root.isOpen)
+            return false
+        if (!owner.available) {
+            root.surface.reserveFocusRequest()
+            return false
+        }
+        val reveal = RevealAttempt()
+        reveal.positionItem(owner.viewport)
+        pending =
+            Some(
+                PendingFocus(
+                    FocusDestination.Item(owner, key, edge),
+                    root.surface.reserveFocusRequest(),
+                    None,
+                    reveal,
+                    None
+                )
+            )
+        root.requestFrame()
+        return true
+    }
     private fun request(target: FocusTarget, continuation: TabContinuation?): Boolean {
         clearPending()
         if (!root.isOpen)
@@ -226,6 +292,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
                         select(scope)
                     else
                         None
+                    case Item(owner, key, edge) -> owner.select(key, edge)
                 }
             }
         when (target) {

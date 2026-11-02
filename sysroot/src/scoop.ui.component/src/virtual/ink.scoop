@@ -6,6 +6,7 @@ import scoop.ui.*
 internal class VirtualListInk(private val props: Props<VirtualListInkProps>): LazyElement {
     private var scope: ComponentScope? = None
     private var control: ScrollControl? = None
+    private var focus: LazyFocus? = None
     private var handle: VirtualListHandle? = None
     private var state: ScrollState? = None
     private val measurements = VirtualMeasurements()
@@ -16,6 +17,13 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
     val active: Boolean get() = scope?.isMounted ?: false
     val scrollPending: Boolean get() =
         active && pending?.revision == Some(props.value.controls.state.requestRevision)
+    val focusPending: Boolean get() = focus?.isPending ?: false
+    fun focusItem(key: ViewKey, edge: ItemFocusEdge): Boolean {
+        if (!active)
+            return false
+        pending = None
+        return focus!!.requestFocus(key, edge)
+    }
     fun requestItem(key: ViewKey, alignment: ScrollAlignment): Boolean {
         if (!active)
             return false
@@ -28,12 +36,15 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         control = Some(ScrollControl(scope) { props.value.controls })
+        focus = Some(scope.lazyFocus(control!!.viewport))
     }
     public override fun update() {
         val input = props.value
         itemEstimate(input.input.itemExtent)
         nonnegative(input.input.overscan, "invalid virtual overscan")
         control!!.update()
+        if (!input.input.enabled)
+            focus!!.cancelRequest()
         val sameHandle =
             when ((handle, input.input.handle)) {
                 case(Some(old), Some(next)) -> old === next
@@ -45,6 +56,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
             handle?.unbind(this)
             handle = input.input.handle
             pending = None
+            focus!!.cancelRequest()
         }
         val sameState =
             when (state) {
@@ -55,12 +67,24 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
             state = Some(input.controls.state)
             committed = None
             pending = None
+            focus!!.cancelRequest()
         }
     }
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
     ): LayoutMetrics {
+        val item =
+            when (focus!!.pendingItem) {
+                case Some(key) -> Some(
+                    ItemScrollRequest(
+                        key,
+                        ScrollAlignment.Nearest,
+                        props.value.controls.state.requestRevision
+                    )
+                )
+                case None -> pending
+            }
         val frame =
             VirtualListLayout(
                 context,
@@ -69,14 +93,14 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
                 control!!,
                 measurements,
                 committed,
-                pending
+                item
             ).measure()
         drawing = Some(frame)
         return LayoutMetrics(frame.snapshot.viewport)
     }
     public override fun scene(context: SceneContext) {
         val frame = drawing!!
-        control!!.scene(context, frame.snapshot)
+        control!!.scene(context, frame.snapshot, frame.snapshot.offset)
         context.onFrameComplete {
             result -> if (
                 result.submission ==

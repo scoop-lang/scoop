@@ -25,7 +25,8 @@
 | D2c2：动画帧需求与离屏完成 | 已完成 aarch64 实施和定向验证 |
 | D2c3：有限实例保留与子树帧需求 | 已完成 aarch64 实施和定向验证 |
 | D2d1：已挂载目标的焦点显露 | 已完成 aarch64 实施和定向验证 |
-| D2d2：虚拟焦点导航 | 待实施 |
+| D2d2a：未挂载项的按 key 聚焦 | 已完成 aarch64 实施和定向验证 |
+| D2d2b：虚拟 Tab 与 roving 导航 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
@@ -222,3 +223,13 @@ FocusHandle、FocusScope 和有限 KeyNavigation 复用同一显露过程；Tab 
 Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查与六个 UI 库 aarch64 release 构建通过。10 项定向 scoop.test 通过：真实图形变换与不可逆几何 2 项，新增嵌套焦点显露 1 项，以及原有 focus／navigation／modal／ScrollViewport／ScrollArea／可变 VirtualList／KeepAlive 原生回归各 1 项。新增窗口组合覆盖作用域默认目标、内外显露顺序、Discarded、方向键与 Tab、永久裁剪的失败续行、Portal 与视口自身焦点、新位置意图、零视口、隐藏取消和带焦点关闭；停止后的 display link 无额外帧需求。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被本批替代的旧测试产物清理；当前测试入口、独立 sysroot、命令和共享构建缓存保留。未挂载项的按 key 聚焦和虚拟导航继续按下一批实施。
+
+## D2d2a：未挂载项的按 key 聚焦
+
+LazyElement 通过同挂载 ScrollViewport 的 LazyFocus 解析稳定 key，VirtualListHandle.focusItem 复用这一入口。目标索引按请求加入 pinnedItems，列表位于外层 KeepAlive 项中时也固定相应祖先。首／末目标使用真实 FocusTarget，不分配全量句柄；选定目标后停止整项定位，继续普通内外层显露。根上的唯一 pending、Surface.focusRevision 和实际滚动意图共同处理新焦点、滚动、绑定替换及关闭，数据删除在隐藏状态下也取消等待。
+
+一亿项列表末端的原生验证发现，大数正负平移在图形后端相消时丢失局部精度。ScrollViewport.present 新增 contentOrigin；VirtualList 在 Double 中先计算前缀与本帧 offset 的差，再呈现附近坐标，完整范围及阅读锚点保持逻辑内容坐标。视口的显露边界仍在内容平移之前采集。
+
+Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查与六个 UI 库 aarch64 release 构建通过。4 项定向 scoop.test 通过：新增按 key 聚焦，以及 UI lazy、可变 VirtualList 和嵌套焦点显露原生回归各 1 项。新增用例覆盖一亿项末端的实际窗口坐标和首／末目标、有限构建数、Discarded、未知／空／禁用／零高度项、新焦点及滚动抢占、外层缓存恢复、隐藏删除与重排、超高条目内的精确显露、句柄替换、卸载和停帧。首次坐标断言失败经内容原点修复闭合，其余回归通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。5 份一次性桌面报告与 3 个被替代的旧测试输出清理；本批入口、当前产物和共享缓存保留。虚拟 Tab 与 roving 导航继续按下一批实施。

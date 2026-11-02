@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.collections.HashSet
+import scoop.graphics.Point
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
@@ -111,7 +112,8 @@ internal class VirtualListLayout(
             pinned.add(at)
         var recheck = false
         for (at in measured) {
-            context.placeItem(at, geometry.origin(at))
+            val origin = geometry.origin(at)
+            context.placeItem(at, Point(origin.x - final.offset.x, origin.y - final.offset.y))
             if ((at < range.start || at >= range.end) && !pinned.contains(at))
                 recheck = true
         }

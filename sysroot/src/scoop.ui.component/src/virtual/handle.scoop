@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.platform.concurrent.currentThreadId
 import scoop.ui.ScrollAlignment
+import scoop.ui.ItemFocusEdge
 import scoop.ui.ViewKey
 
 /** A stable reference to one mounted list; the associated ScrollState owns its position. */
@@ -19,7 +20,7 @@ public class VirtualListHandle public constructor() {
     }
     public val isPending: Boolean get() {
         checkThread()
-        return target?.scrollPending ?: false
+        return (target?.scrollPending ?: false) || (target?.focusPending ?: false)
     }
     public fun scrollToItem(
         key: ViewKey,
@@ -31,6 +32,11 @@ public class VirtualListHandle public constructor() {
             "virtual item positioning requires an explicit key"
         )
         return target?.requestItem(key, alignment) ?: false
+    }
+    public fun focusItem(key: ViewKey, edge: ItemFocusEdge = ItemFocusEdge.First): Boolean {
+        checkThread()
+        requireComponent(key != ViewKey.Position, "virtual item focus requires an explicit key")
+        return target?.focusItem(key, edge) ?: false
     }
     internal fun bind(value: VirtualListInk) {
         checkThread()

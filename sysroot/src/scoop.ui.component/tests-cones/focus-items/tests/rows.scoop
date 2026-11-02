@@ -1,0 +1,77 @@
+package scoop.tests.ui.itemfocus
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+
+internal class FocusRowInput(val id: Long, val index: Long, val height: Double)
+
+internal class FocusRowRecord(val id: Long) {
+    val handles = Array<FocusHandle>(2L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(2L) { _ -> None }
+    var index = -1L
+    var mounts = 0
+    var unmounts = 0
+    var disposals = 0
+}
+
+internal class FocusRow(probe: ItemFocusProbe, private val props: Props<FocusRowInput>): Component {
+    private val record = FocusRowRecord(props.value.id)
+    init {
+        probe.rows.add(record)
+    }
+    public override fun onMount(scope: ComponentScope) {
+        record.mounts += 1
+        scope.onDispose { record.disposals += 1 }
+        if (record.id != 5L)
+            for (index in 0L ..< record.handles.size) {
+                val area = scope.createArea(focusable = true)
+                record.areas[index] = Some(area)
+                scope.focusTarget(area, FocusOptions(Some(record.handles[index])))
+                area.scope.enabled = record.id != 6L
+            }
+    }
+    public override fun render(): View {
+        record.index = props.value.index
+        return element(props.value.height, { height -> FocusRowInk(record, height) })
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+        for (area in record.areas)
+            when (area) {
+                case Some(value) -> assertTrue(value.isClosed)
+                case None -> {}
+            }
+    }
+}
+
+private class FocusRowInk(
+    private val record: FocusRowRecord,
+    private val height: Props<Double>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(160.0, height.value)))
+    public override fun scene(context: SceneContext) {
+        val extent =
+            if (height.value <= 4.0)
+                0.0
+            else
+                20.0
+        val bottom =
+            if (height.value > 24.0)
+                height.value - 22.0
+            else
+                2.0
+        val rectangles = [Rect(2.0, 2.0, 50.0, extent), Rect(90.0, bottom, 50.0, extent)]
+        for (index in 0L ..< record.areas.size)
+            when (record.areas[index]) {
+                case Some(area) -> context.place(area, rectangles[index])
+                case None -> {}
+            }
+        context.draw {
+            paint -> for (rect in rectangles)
+                paint.canvas.drawRect(rect, Paint(Color.Black))
+        }
+    }
+}

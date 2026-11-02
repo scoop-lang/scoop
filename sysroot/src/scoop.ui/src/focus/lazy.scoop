@@ -1,0 +1,84 @@
+package scoop.ui
+
+public enum ItemFocusEdge {
+    First, Last
+}
+
+/** Resolves one keyed item through its ordinary mounted focus targets. */
+public class LazyFocus internal constructor(
+    internal val node: MountedNode,
+    internal val viewport: ScrollViewport,
+    private val items: LazyChildren
+): Closeable {
+    private var closed = false
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && viewport.active
+    internal val available: Boolean get() = active && node.scope.forChildren().isInputAllowed
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || !viewport.active
+    }
+    public val isPending: Boolean get() {
+        node.root.checkThread()
+        return active && node.root.focus.isPending(this)
+    }
+    /** The item still requiring preparation; exact target reveal continues after this becomes None. */
+    public val pendingItem: ViewKey? get() {
+        node.root.checkThread()
+        return if (active)
+            node.root.focus.itemToPrepare(this)
+        else
+            None
+    }
+    public fun requestFocus(key: ViewKey, edge: ItemFocusEdge = ItemFocusEdge.First): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        requireUi(key != ViewKey.Position, "item focus requires an explicit key")
+        return node.root.focus.request(this, key, edge)
+    }
+    public fun cancelRequest() {
+        node.root.checkThread()
+        checkFocusMutation()
+        node.root.focus.cancel(this)
+    }
+    internal fun pendingIndex(): Long? {
+        val key = pendingItem ?: return None
+        return items.indexOf(key)
+    }
+    internal fun entry(key: ViewKey): LazyItemEntry? = items.entry(key)
+    internal fun select(key: ViewKey, edge: ItemFocusEdge): FocusTarget? {
+        if (!available)
+            return None
+        val item = items.entry(key) ?: return None
+        val targets = focusOrder(item.node)
+        var index =
+            if (edge == ItemFocusEdge.First)
+                0L
+            else
+                targets.size - 1L
+        while (index >= 0L && index < targets.size) {
+            val target = targets[index]
+            if (target.acceptsTab)
+                return Some(target)
+            index += if (edge == ItemFocusEdge.First)
+                1L
+            else
+                -1L
+        }
+        return None
+    }
+    internal fun sourceChanged() {
+        val key = node.root.focus.itemKey(this) ?: return
+        if (items.indexOf(key) == None)
+            node.root.focus.cancel(this)
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        node.root.focus.cancel(this)
+        node.lazyFocus = None
+    }
+}

@@ -29,7 +29,7 @@ public class LazyMeasureContext internal constructor(
     }
     public val pinnedItems: Array<Long> get() {
         checkActive()
-        return items.pinnedItems()
+        return items.pinnedItems(node)
     }
     private fun checkActive() {
         node.root.checkThread()

@@ -28,7 +28,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
-    private fun forChildren(): InputScope = childRoute ?: input
+    internal fun forChildren(): InputScope = childRoute ?: input
     internal val hasInputActivity: Boolean get() =
         when (route) {
             case Some(value) -> !value.activity.isEmpty
@@ -148,6 +148,24 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         state.checkBinding()
         val value = ScrollViewport(node, state, animations().value(Point(0.0, 0.0)))
+        managed.add(value)
+        return value
+    }
+    public fun lazyFocus(viewport: ScrollViewport): LazyFocus {
+        checkMounted()
+        checkFocusMutation()
+        requireUi(viewport.belongsTo(node), "item focus viewport must belong to this mount")
+        when (node.lazyFocus) {
+            case Some(_) -> throw IllegalStateException(Some("mount already has item focus"))
+            case None -> {}
+        }
+        val items =
+            when (node.body) {
+                case Lazy(_, value) -> value
+                else -> throw IllegalArgumentException(Some("item focus requires a lazy element"))
+            }
+        val value = LazyFocus(node, viewport, items)
+        node.lazyFocus = Some(value)
         managed.add(value)
         return value
     }

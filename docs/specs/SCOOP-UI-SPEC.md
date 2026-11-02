@@ -483,7 +483,7 @@ ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模�
 
 `ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先，按新范围收敛并请求必要的下一帧，旧位置不得覆盖它。
 
-present 可接收可选的 `content: ((SceneContext) -> Unit)?`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与负 offset 平移，并登记该内容的滚动显露边界；调用方在其中正常呈现 children，不重复施加偏移。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
+present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
 边界几何、snapshot 和内容内区域的所属路径仅在 Accepted 后一起生效；输入区域的位置仍复用 Surface 已提交的几何，不复制输入状态。焦点请求把目标的窗口包围盒映回最近视口的内容坐标，以 Nearest 调整；一次只改变最近一个尚需滚动的视口，再等下一 Accepted 后继续外层。已满足的内层将目标区域限制在自己的视口后交给外层；任意变换使用实际场景几何，已可见时容忍图形后端的浮点误差，不因亚像素差异持续排帧。无法反变换、零视口、未放置或不能通过滚动显露的目标不能靠周期重试变为有效。
 
@@ -507,13 +507,25 @@ measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再
 
 缺省 Dispose 下，离开本次选择范围且无活动交互的条目正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由、文本输入会话或输入边界所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
 
-框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；虚拟焦点显露与绘制缓存按后续批次扩展。
+框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；未挂载项按 key 聚焦见第 7.8.1 节，虚拟键盘导航与绘制缓存按后续批次扩展。
 
 ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零等同 Dispose；它只计算未选中且无活动交互的离屏条目。超出时淘汰最久未测量的条目，同一帧内的先后不作承诺。保留同 key 的普通挂载子树，不跨 key 复用实例；形状变化仍替换实际子内容。策略收紧、数据删除及 Props／State 更新在正常逻辑阶段处理，即使没有 drawable 也不延期清理。
 
 缓存条目继续 mounted、订阅和执行逻辑更新，本帧未选择时不测量或呈现场景。框架对 lazy 容器明确未放置的子树关闭继承的帧资格，不按布局 bounds 推测阴影、文字 overhang 或 Portal 的可见性。局部 State 更新和 scope.requestFrame 不单独唤醒绘制；影响已参与节点的更新仍请求帧。每帧沿 Surface 时间轴采样当前动画，条目测量完成后按实际放置结果恢复资格；只测量而未放置不会短暂重新启用帧。嵌套 lazy 子树保留自身未参与状态。每个作用域通过 Surface AnimationGroup 管理这个开关，保留单个动画的显式 isFrameEnabled 设置；有限离屏动画仍能完成，无限重复不产生离屏周期唤醒。输入边界变化等窗口级交互工作继续使用其必要的全局请求。
 
 待聚焦请求完成、取消或被新请求替换时，即使没有产生实际的 Surface 焦点变化，也撤销其固定需求并请求必要的后续帧；不可见目标的失败请求不能使离屏条目一直留在实现集合中。根关闭时直接清理，不再请求帧。
+
+### 7.8.1 未挂载项的按 key 聚焦
+
+LazyElement 可通过 `ComponentScope.lazyFocus(viewport)` 登记一个由挂载管理的 LazyFocus。viewport 必须属于同一挂载；普通 Element／Component 或第二个同时活动的登记被拒绝。它使用该 lazy 节点已有的 ItemSource 和真实子树，不为全部数据创建 FocusHandle 或 InputArea。准入沿 routeChildren 后的实际输入作用域判断。
+
+LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelRequest()`、isPending、isClosed 和 `pendingItem: ViewKey?`。edge 的 First／Last 选择该项按逻辑顺序的首／末个可用 Tab 目标；不会把整个条目伪造成另一个区域焦点。key 必须显式。未活动或输入被禁用／模态阻挡时返回 false；true 表示接收异步请求，未知 key、没有可用目标或不能显露时结束，保留原来有效的焦点。cancelRequest 只取消该登记当前的待处理请求，不清除已持有的区域焦点。
+
+请求与普通 FocusHandle 共用 UiRoot 的唯一 pending 及 Surface.focusRevision，并通过该 viewport 的 ScrollState 登记一次新位置意图，取消旧动画。pendingItem 仅在尚需实现／初次定位条目时返回 key；容器据此使用自身 extent 和 ScrollAdjustment 显露整项。选出具体 FocusTarget 后 pendingItem 变为 None，isPending 可以继续为 true，后续目标显露复用第 7.7 节，避免整项定位反复覆盖行内目标的精确显露。
+
+LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
+
+较新的焦点、该 viewport 上较新的滚动、动画、换绑或关闭取消旧请求。source 替换按 key 跟随存活项；目标 key 被删除时在逻辑更新中取消，即使窗口隐藏也不继续保留旧请求。登记关闭和 owner 退休同样取消。隐藏／遮挡沿普通按需帧机制等待恢复，不轮询。按 key 请求本身不改变普通 Tab 顺序，虚拟顺序／roving 策略在后续导航批次接入。
 
 ## 8. 挂载与资源生命周期
 

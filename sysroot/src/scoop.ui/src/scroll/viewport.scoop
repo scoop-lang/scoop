@@ -27,6 +27,8 @@ public class ScrollViewport internal constructor(
     }
 
     internal val active: Boolean get() = !closed && node.active && node.root.isOpen
+    internal val bindingRevision: ULong get() = binding
+    internal fun belongsTo(owner: MountedNode): Boolean = active && node === owner
     internal val moving: Boolean get() = active && (motion?.started != None)
     internal fun matches(value: ScrollState, generation: ULong): Boolean =
         active && current === value && binding == generation
@@ -86,9 +88,14 @@ public class ScrollViewport internal constructor(
         staged = Some(ScrollLayout(binding, current.revision, result))
         return result
     }
-    public fun present(context: SceneContext, content: ((SceneContext) -> Unit)? = None) {
+    public fun present(
+        context: SceneContext,
+        content: ((SceneContext) -> Unit)? = None,
+        contentOrigin: Point = Point(0.0, 0.0)
+    ) {
         checkOpen()
         context.checkOwner(node)
+        checkScrollPoint(contentOrigin)
         val layout =
             staged ?: throw IllegalStateException(Some("scroll viewport has not been laid out"))
         staged = None
@@ -99,7 +106,7 @@ public class ScrollViewport internal constructor(
                 complete(layout)
         }
         when (content) {
-            case Some(block) -> context.scrollContent(this, layout, block)
+            case Some(block) -> context.scrollContent(this, layout, contentOrigin, block)
             case None -> {}
         }
     }
