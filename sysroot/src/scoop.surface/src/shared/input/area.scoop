@@ -11,6 +11,7 @@ public class InputArea internal constructor(
     handler: (RoutedEventContext, InputEvent) -> Unit
 ): Closeable {
     internal var caret = Rect(0.0, 0.0, 0.0, 0.0)
+    internal var lastFocusRequest: ULong? = None
     public val scope: InputScope = InputScope(owner, Some(this), Some(parent), handler)
     internal val closed: Boolean get() = scope.closed
     private var ignored = false
@@ -25,6 +26,14 @@ public class InputArea internal constructor(
     public val isFocusActive: Boolean get() {
         owner.checkThread();
         return sameArea(owner.activeFocus, Some(this))
+    }
+    /** Window sequence of the last successful focus request, including pointer focus. */
+    public val focusRevision: ULong? get() {
+        owner.checkThread()
+        return if (closed)
+            None
+        else
+            lastFocusRequest
     }
     public val windowBounds: Rect? get() {
         owner.checkThread()

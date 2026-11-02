@@ -17,6 +17,7 @@ internal class MountedNode(
     val scope = ComponentScope(this)
     val focusTargets = ArrayList<FocusTarget>()
     var focusScope: FocusScope? = None
+    var navigation: KeyNavigation? = None
     var children: Array<MountedNode> = []
     var active = true
     var mounted = false

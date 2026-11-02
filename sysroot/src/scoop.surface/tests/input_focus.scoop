@@ -9,6 +9,46 @@ import scoop.window.*
 @Test
 private class InputFocusTest {
     @Test
+    fun `successful focus history follows pointer and direct requests across window sequence wrap`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", true)
+            val b = rig.area("b", true)
+            assertEquals(None, a.focusRevision)
+            assertFalse(a.requestFocus())
+            assertEquals(None, a.focusRevision)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            rig.router.focusRevision = 18446744073709551614uL
+            assertTrue(a.requestFocus())
+            assertEquals(Some(18446744073709551615uL), a.focusRevision)
+            rig.move(60.0, 10.0)
+            rig.button(60.0, 10.0, ElementState.Pressed)
+            rig.button(60.0, 10.0, ElementState.Released)
+            assertEquals(Some(0uL), b.focusRevision)
+            assertTrue(b.hasFocus)
+            assertTrue(
+                rig.router.focusRevision -
+                    b.focusRevision!! <
+                    rig.router.focusRevision -
+                    a.focusRevision!!
+            )
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.Focused(true))
+            b.clearFocus()
+            assertEquals(Some(0uL), b.focusRevision)
+            a.scope.enabled = false
+            assertFalse(a.requestFocus())
+            assertEquals(Some(18446744073709551615uL), a.focusRevision)
+            b.close()
+            assertEquals(None, b.focusRevision)
+        }
+    }
+
+    @Test
     fun `clipping keeps an existing text session but blocks new focus requests`() {
         InputRig().use {
             rig ->

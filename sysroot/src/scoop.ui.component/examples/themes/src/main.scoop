@@ -12,6 +12,16 @@ internal class Showcase(
     private val fonts: FontCollection
 ): Component {
     private var count: Int by state(0)
+    private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
+    public override fun onMount(scope: ComponentScope) {
+        scope.keyNavigation(
+            NavigationOptions(
+                Array<NavigationItem>(choices.size) { index -> NavigationItem(choices[index]) },
+                layout = NavigationLayout.Horizontal,
+                loop = true
+            )
+        )
+    }
     public override fun render(): View {
         val theme = model.source.current.value
         val effects = ArrayList<ContentEffect>()
@@ -82,13 +92,13 @@ internal class Showcase(
                     ),
                     row(
                         [
-                            choiceButton("macOS", ThemeChoice.MacOS),
-                            choiceButton("Material", ThemeChoice.Material),
-                            choiceButton("Fluent", ThemeChoice.Fluent),
+                            choiceButton("macOS", ThemeChoice.MacOS, 0L),
+                            choiceButton("Material", ThemeChoice.Material, 1L),
+                            choiceButton("Fluent", ThemeChoice.Fluent, 2L),
                             label("/", fonts = Some(fonts)),
-                            modeButton("Light", ModeChoice.Light),
-                            modeButton("Dark", ModeChoice.Dark),
-                            modeButton("Follow system", ModeChoice.System),
+                            modeButton("Light", ModeChoice.Light, 3L),
+                            modeButton("Dark", ModeChoice.Dark, 4L),
+                            modeButton("Follow system", ModeChoice.System, 5L),
                             label(
                                 if (theme.tokens.mode == ThemeMode.Dark)
                                     "Dark palette"
@@ -122,7 +132,7 @@ internal class Showcase(
                         alignment = AxisAlignment.Center
                     ),
                     label(
-                        "Hover, press, or focus the live controls. Effect order: drop shadow → glow → blur.",
+                        "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur.",
                         style = Some(SpanStyle(fontSize = Some(12.0))),
                         fonts = Some(fonts)
                     )
@@ -138,7 +148,7 @@ internal class Showcase(
                 )
         )
     }
-    private fun choiceButton(text: String, value: ThemeChoice): View =
+    private fun choiceButton(text: String, value: ThemeChoice, index: Long): View =
         button(
             text,
             { model.select(value) },
@@ -150,9 +160,10 @@ internal class Showcase(
                         else
                             SurfaceKind.Plain
                 ),
-            fonts = Some(fonts)
+            fonts = Some(fonts),
+            focus = FocusOptions(Some(choices[index]))
         )
-    private fun modeButton(text: String, value: ModeChoice): View =
+    private fun modeButton(text: String, value: ModeChoice, index: Long): View =
         button(
             text,
             { model.selectMode(value) },
@@ -164,7 +175,8 @@ internal class Showcase(
                         else
                             SurfaceKind.Plain
                 ),
-            fonts = Some(fonts)
+            fonts = Some(fonts),
+            focus = FocusOptions(Some(choices[index]))
         )
     private fun option(value: Binding<Boolean>, text: String): View =
         row(

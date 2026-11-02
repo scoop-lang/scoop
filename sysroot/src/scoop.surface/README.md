@@ -62,6 +62,8 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 
 [组合示例](examples/basics/README.md)演示旋转 Path、hover、拖动 spring、文本布局及 IME 接收。它是普通 executable Cone，编辑状态由示例管理，未依赖 component。
 
+`InputArea.focusRevision` 返回该区域最近一次成功聚焦的窗口序号；未曾聚焦或关闭后为 None。它与 SurfaceWindow.focusRevision 共用顺序，鼠标、重复成功请求及直接程序请求一致，失败和 OS 激活变化不重写成功历史，供上层导航恢复最近使用的成员。
+
 验证使用以下普通测试 Cone：
 
 - 本 Cone 的 tests：动画的确定性采样；实际 Skia 离屏几何上的区域命中、传播、拖动、焦点、IME 会话和关闭；两个真实窗口的按需重绘、空闲、隐藏／最小化恢复、resize、输入宿主保留及重新 attach。`--filter Animation` 和 `--filter Input` 可分别运行不需要桌面的测试；`--filter SurfaceHostTest` 运行真实窗口测试。
@@ -75,3 +77,5 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 可通过 `scoop test <Cone路径> --release --target <目标> --sysroot <sysroot>` 分别运行；Windows 安装后的命令名为 `sco`，仓库开发构建为 `scoop.exe`。真实显示测试需要已解锁、显示开启的桌面；显示休眠或锁屏时 AppKit 将窗口报告为遮挡，生产代码按合同停帧。当前交付状态与验证限制见 [实施记录](../../../docs/surface/PROGRESS.md)。
 
 桌面测试须串行执行。`tests-cones/input` 还需要真实窗口焦点；macOS 可以拒绝后台进程的 activate 请求，此时在准备期将“Scoop region input”置于前台。测试给帧／焦点准备 30 秒，确认真实焦点后用独立的 5 秒期限验证输入会话，不用强制激活或伪造焦点绕过系统行为。超时会报告阶段、帧数、焦点和输入计数。需要桌面应用入口时，可将 `scoop test --no-run` 的测试可执行文件放入普通 `.app` 包装后从访达启动；无参数直接运行仍执行 scoop.test 的非 ignored 用例，设置 `SCOOP_TEST_RUN_DIR` 可记录原有结构化结果。
+
+复用临时测试应用时，用新文件替换其中的可执行文件，并执行 `codesign --force --sign - /path/Test.app` 更新整个测试应用的本地签名。命令行前台启动可用 `open -n -W ... --args --scoop-test-filter TestClassName` 选择相关用例；以 scoop.test 报告中的实际 case 结束和 complete 为结果，单独的 open 返回成功不表示测试通过。

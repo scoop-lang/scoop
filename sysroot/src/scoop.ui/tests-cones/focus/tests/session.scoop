@@ -77,7 +77,7 @@ internal class FocusProbe {
                 )
             }
             case AboutToWait -> {
-                if (frames > 0 && !window!!.isFocused && !requestedAfterPaint) {
+                if (!finished && frames > 0 && !window!!.isFocused && !requestedAfterPaint) {
                     requestedAfterPaint = true
                     window!!.requestFocus()
                 }

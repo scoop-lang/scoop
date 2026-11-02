@@ -57,7 +57,7 @@ Wheel 在默认阶段携带尚未消费的两个轴。ScrollArea 回报实际消
 
 Surface 继续持有每窗口唯一逻辑焦点和 OS 活动状态。UI 的 `FocusHandle` 是对目标的稳定引用，能表达立即聚焦或等待显露／首次提交的请求；它不复制 Surface 的焦点状态。控件公开一个可选 handle 属性，用户不必获得 Button／Input 的内部 InputArea 才能聚焦。
 
-每个 focus target 登记 `enabled`、`tabStop` 和作用域内的 `order: Int = 0`。按 order 升序、同值按逻辑挂载顺序遍历，不影响布局和绘制；负 order 只表示排在更前，不暗含退出 Tab 的语义。`tabStop=false` 才退出 Tab 序列，仍允许合法的程序化聚焦；disabled／卸载／模态外目标不可聚焦。
+每个 focus target 登记 `tabStop` 和作用域内的 `order: Int = 0`，启用状态直接取自 InputArea／InputScope 的逻辑祖先。按 order 升序、同值按逻辑挂载顺序遍历，不影响布局和绘制；负 order 只表示排在更前，不暗含退出 Tab 的语义。`tabStop=false` 才退出 Tab 序列，仍允许合法的程序化聚焦；disabled／卸载／模态外目标不可聚焦。
 
 普通隐藏／未实现目标不直接接收焦点。ScrollArea 中尚需显露的已挂载目标和虚拟项，先通过公开 reveal 接口滚动／实现，再等成功帧兑现请求。focus target 的“可保持当前输入会话”和“可作为新的 Tab 目标”分开；当前焦点不会仅因滚动裁剪而丢失。组合输入期间另外保持 caret 可见，规则见 SCROLLING，候选窗位置只能来自有效几何。
 
@@ -77,6 +77,8 @@ Tab／Shift+Tab 在内层控件未消费时执行遍历，跳过禁用和不能�
 `KeyNavigation` 是公共的无样式导航助手，使用控件提供的有序成员／行列位置和 FocusHandle，提供方向、Home／End、可选循环和禁用跳过；焦点策略不等于选择策略。Tabs 可以 focus 后自动激活，也可以 Enter／Space 才激活；RadioGroup、Menu 等由组件 spec 明确选择语义。
 
 组默认使用 roving tab stop：组中只有活动成员加入 Tab，箭头在组内移动；不会让一个菜单的几十项都变成独立 Tab 停靠点。横向导航按 writing direction 映射左右，纵向不因 RTL 反转。列表／网格由逻辑邻接关系决定下一项，不用画面最近距离猜测下一目标。typeahead 是菜单／列表基于文本和一次性超时的导航策略，不是系统快捷键。
+
+已实现的 KeyNavigation 通过 NavigationOptions 整体配置不可变成员数组，Grid 成员使用显式 row／column；同行／同列查找跳过缺失和禁用项，Home／End 使用当前行的逻辑首末。返回组时优先当前有效焦点，再按 Surface 成功聚焦历史选择，未使用过的组选择首项；不覆盖原有输入处理器记录第二份焦点。具体 API 与配置冲突规则见 UI spec §7.3.2。
 
 虚拟列表提供按 key 访问的导航代理。移动到未挂载项时先定位 key、实现并 reveal，再聚焦；列表是否采用一个 roving Tab stop 或顺序访问行内编辑控件由组件明确选择。顺序访问模式在需要越过一行时准备下一项并寻找其首／末个目标，遇到无可用目标的行继续推进到有限数据结束，不预挂载全列表建立 Tab 表。
 

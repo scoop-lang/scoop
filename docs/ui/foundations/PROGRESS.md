@@ -11,7 +11,7 @@
 | A3：输入作用域与路由阶段 | 已完成 aarch64 实施和定向验证 |
 | B1：作用域快捷键 | 已完成 aarch64 实施和定向验证 |
 | B2a：可见几何、焦点作用域与 Tab | 已完成 aarch64 实施和定向验证 |
-| B2b：组内键盘导航与 roving | 待实施 |
+| B2b：组内键盘导航与 roving | 已完成 aarch64 实施和定向验证 |
 | C：Absolute、portal、同窗口模态 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -74,3 +74,13 @@ UI 增加随挂载管理的 FocusTarget、FocusHandle 和 FocusScope。Tab 使�
 Scoop／C++ 格式化、Python Ruff 格式化与 lint、相关库生产类型检查和 aarch64 release 构建通过，自绘与主题示例类型检查通过。47 项定向 scoop.test 通过：Graphics 几何 3 项、Surface 输入 29 项、UI 核心 9 项，以及 UI focus／drawing／errors、Component interaction／layout、原生 IME 各 1 项。窗口用例通过前台应用入口串行运行原 scoop.test 程序，报告无失败并完整结束。
 
 新增覆盖任意路径孔洞、变换与视口可见性；裁剪后的焦点和 IME 保持；负 order、keyed 重排、嵌套循环、Tab 取消／重复、禁用／隐藏跳过；首次提交聚焦、后续同区域请求取消旧意图、句柄替换、区域提前关闭后重新绑定和卸载收尾。没有修改编译器或 core／std／test，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，后续所需的独立 sysroot、构建缓存、Skia 构建目录及前台应用入口保留在仓库外。
+
+## B2b：组内键盘导航与 roving
+
+KeyNavigation 按公开 NavigationOptions 的成员数组或 Grid 行列配置处理方向键、Home／End、循环和禁用跳过，横向映射复用 TextDirection。roving 默认只让一个有效成员进入 Tab；显式 tabStop=false 仍有效。组内默认动作沿既有路由执行，内层消费优先，到达边界也消费已认领的方向键，不修改选择状态或触发 Enter／Space。
+
+Surface 在成功聚焦时记录 InputArea.focusRevision；组内历史直接使用这个记录，涵盖鼠标和直接区域请求，无额外观察处理器。成员配置在变更时检查重复句柄、跨组归属和网格冲突，先登记的未挂载句柄在绑定时检查逻辑归属；更新失败保留旧配置，关闭解除成员关系。主题展示的主题／明暗按钮使用同一导航助手，箭头只聚焦，Enter／Space 才应用选择。
+
+Scoop 格式化、相关库与主题示例生产类型检查、aarch64 release 构建通过。10 项定向 scoop.test 通过：Surface InputFocusTest 7 项，UI navigation、既有 UI focus 和 ShowcaseWindowTest 各 1 项。导航回归覆盖稀疏网格、RTL、Home／End、循环、边界消费、不可见／禁用跳过、鼠标和直接请求的历史、tabStop／roving、配置失败、成员更换及关闭；示例实际执行 Tab／方向键／Enter，随后完成主题切换与停帧检查。主题 Cone 通过测试程序的 filter 只运行窗口组合用例。
+
+桌面入口曾因临时应用替换后的签名失配未能启动，改为新文件替换并重新签名整个测试应用后重跑通过。示例的关闭回归发现准备期焦点重试查询已销毁窗口，已限制到准备阶段；相关焦点／导航测试也在关闭后停止重试，三个窗口用例重跑全部通过。没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，后续所需构建缓存和测试应用入口保留。

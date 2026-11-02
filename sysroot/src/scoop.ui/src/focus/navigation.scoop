@@ -1,0 +1,198 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+/** Composes focus-only member navigation with the existing routed defaults. */
+public class KeyNavigation internal constructor(
+    internal val node: MountedNode,
+    initial: NavigationOptions
+): Closeable {
+    private val input = node.scope.input
+    private var current = initial
+    private var closed = false
+    private var registration: Closeable? = None
+
+    init {
+        validate(initial)
+        bind()
+        registration = Some(input.addDefaultAction { context, event -> navigate(context, event) })
+    }
+
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && !input.isClosed
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || input.isClosed
+    }
+    public var options: NavigationOptions
+    get() {
+        node.root.checkThread()
+        return current
+    }
+    set(value) {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (!active)
+            throw IllegalStateException(Some("key navigation is no longer mounted"))
+        validate(value)
+        unbind()
+        current = value
+        bind()
+    }
+
+    internal fun checkMember(member: MountedNode) {
+        if (active)
+            requireUi(withinFocusScope(member, node), "navigation member belongs to another scope")
+    }
+    private fun validate(value: NavigationOptions) {
+        for (index in 0L ..< value.items.size) {
+            val item = value.items[index]
+            item.handle.checkThread()
+            when (item.handle.navigation) {
+                case Some(group) -> requireUi(
+                    group === this || !group.active,
+                    "focus handle already belongs to a navigation group"
+                )
+                case None -> {}
+            }
+            when (item.handle.target) {
+                case Some(target) -> if (target.active)
+                    checkMember(target.node)
+                case None -> {}
+            }
+            for (previous in 0L ..< index) {
+                val other = value.items[previous]
+                requireUi(other.handle !== item.handle, "duplicate navigation handle")
+                requireUi(
+                    value.layout !=
+                        NavigationLayout.Grid ||
+                        other.row !=
+                        item.row ||
+                        other.column !=
+                        item.column,
+                    "duplicate navigation grid position"
+                )
+            }
+        }
+    }
+    private fun bind() {
+        for (item in current.items)
+            item.handle.navigation = Some(this)
+    }
+    private fun unbind() {
+        for (item in current.items) {
+            when (item.handle.navigation) {
+                case Some(group) -> if (group === this)
+                    item.handle.navigation = None
+                case None -> {}
+            }
+        }
+    }
+
+    internal fun acceptsTab(target: FocusTarget): Boolean {
+        if (!active || !current.roving || !input.isEnabledInHierarchy)
+            return true
+        val member = preferredTab() ?: return false
+        return member === target
+    }
+    private fun preferredTab(): FocusTarget? {
+        var first: FocusTarget? = None
+        var recent: FocusTarget? = None
+        var distance: ULong? = None
+        val now = node.root.surface.focusRevision
+        for (item in current.items) {
+            val target = item.handle.target ?: continue
+            if (!target.tabCandidate)
+                continue
+            if (target.area.hasFocus)
+                return Some(target)
+            when (first) {
+                case None -> first = Some(target)
+                case Some(_) -> {}
+            }
+            when (target.area.focusRevision) {
+                case Some(revision) -> {
+                    val age = now - revision
+                    val newer =
+                        when (distance) {
+                            case Some(previous) -> age < previous
+                            case None -> true
+                        }
+                    if (newer) {
+                        recent = Some(target)
+                        distance = Some(age)
+                    }
+                }
+                case None -> {}
+            }
+        }
+        return when (recent) {
+            case Some(_) -> recent
+            case None -> first
+        }
+    }
+    private fun member(index: Long): FocusTarget? {
+        val target = current.items[index].handle.target ?: return None
+        return if (target.available && target.area.canFocus)
+            Some(target)
+        else
+            None
+    }
+    private fun focusedIndex(): Long? {
+        for (index in 0L ..< current.items.size) {
+            when (current.items[index].handle.target) {
+                case Some(target) -> if (target.active && target.area.hasFocus)
+                    return Some(index)
+                case None -> {}
+            }
+        }
+        return None
+    }
+    private fun navigate(context: RoutedEventContext, event: InputEvent) {
+        if (!active || !input.isEnabledInHierarchy)
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value
+                else -> return
+            }
+        val modifiers = key.modifiers
+        if (
+            key.state !=
+                ElementState.Pressed ||
+                key.synthetic ||
+                modifiers.control ||
+                modifiers.alt ||
+                modifiers.shift ||
+                modifiers.superKey ||
+                modifiers.function
+        )
+            return
+        val step = navigationStep(current, key.logicalKey) ?: return
+        val index = focusedIndex() ?: return
+        val next =
+            navigationDestination(current.items, index, step, current.loop) {
+                candidate -> when (member(candidate)) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+            }
+        context.consume()
+        when (next) {
+            case Some(position) -> member(position)?.handle?.requestFocus()
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        unbind()
+        registration?.close()
+        registration = None
+        node.navigation = None
+    }
+}

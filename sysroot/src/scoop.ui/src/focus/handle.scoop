@@ -6,6 +6,7 @@ import scoop.platform.concurrent.currentThreadId
 public class FocusHandle public constructor() {
     private val thread = currentThreadId()
     internal var target: FocusTarget? = None
+    internal var navigation: KeyNavigation? = None
 
     public val isAttached: Boolean get() {
         checkUiThread(thread)
@@ -42,6 +43,7 @@ public class FocusHandle public constructor() {
     }
     internal fun checkBinding(value: FocusTarget) {
         checkUiThread(thread)
+        navigation?.checkMember(value.node)
         when (target) {
             case Some(current) -> requireUi(
                 current === value || !current.active,
@@ -49,6 +51,9 @@ public class FocusHandle public constructor() {
             )
             case None -> {}
         }
+    }
+    internal fun checkThread() {
+        checkUiThread(thread)
     }
     internal fun bind(value: FocusTarget) {
         checkBinding(value)

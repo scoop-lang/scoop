@@ -42,12 +42,16 @@ ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。�
 
 ## 示例与定向测试
 
+`scope.keyNavigation(NavigationOptions(items, ...))` 将一组 FocusHandle 接入方向键与 Home／End。Horizontal／Vertical 按成员数组顺序，Grid 按 NavigationItem 的 row／column；横向映射复用 TextDirection。默认 roving 让组中仅一个有效成员进入 Tab，返回组时根据 Surface 的真实聚焦历史选择，鼠标和直接程序请求保持一致。配置可整体更新，重复成员、跨组句柄及重复网格位置报告错误。该助手只移动焦点，Enter／Space 和选择语义仍由控件处理；主题示例的主题／明暗按钮提供了实际接入。
+
 [自绘 Counter](examples/custom/README.md) 只使用框架及下层公开接口，实现点击、Path 绘制、状态和宽度动画，不依赖控件库。
 
 ```sh
 scoop test sysroot/src/scoop.ui --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/drawing --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/errors --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
+scoop test sysroot/src/scoop.ui/tests-cones/focus --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
+scoop test sysroot/src/scoop.ui/tests-cones/navigation --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/text --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 ```
 

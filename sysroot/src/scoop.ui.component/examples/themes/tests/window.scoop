@@ -76,7 +76,7 @@ private class ShowcaseProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var finished = false
-    var phase = 0
+    var phase = -5
     var creates = 0
     var measures = 0
     var paints = 0
@@ -85,6 +85,8 @@ private class ShowcaseProbe {
     private var quiet: FrameSnapshot? = None
     private var quietPaints = 0
     private var quietMeasures = 0
+    private var waitingKey = false
+    private var retriedFocus = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -99,6 +101,7 @@ private class ShowcaseProbe {
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
                 model.systemTheme(native.observedTheme)
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
@@ -106,7 +109,13 @@ private class ShowcaseProbe {
                 waitFor(active, 25000L)
             }
             case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)
-            case AboutToWait -> advance(active)
+            case AboutToWait -> {
+                if (phase < 0 && paints > 0 && !window!!.isFocused && !retriedFocus) {
+                    retriedFocus = true
+                    window!!.requestFocus()
+                }
+                advance(active)
+            }
             case NewEvents(StartCause.Deadline) -> deadline(active)
             case Window(_, WindowEvent.Destroyed) -> {
                 finished = phase == 90;
@@ -129,11 +138,26 @@ private class ShowcaseProbe {
         return true
     }
     private fun advance(active: ActiveApplication) {
-        if (phase >= 9 || !ready())
+        if (phase >= 9 || waitingKey || (phase < 0 && !window!!.isFocused) || !ready())
             return
         afterPaint = paints
         when (phase) {
+            case - 5 -> navigationKey(active, 48)
+            case - 4 -> navigationKey(active, 124)
+            case - 3 -> {
+                assertEquals(ThemeChoice.MacOS, model.choice.value)
+                navigationKey(active, 36)
+            }
+            case - 2 -> {
+                assertEquals(ThemeChoice.Material, model.choice.value)
+                navigationKey(active, 123)
+            }
+            case - 1 -> {
+                assertEquals(ThemeChoice.Material, model.choice.value)
+                navigationKey(active, 36)
+            }
             case 0 -> {
+                assertEquals(ThemeChoice.MacOS, model.choice.value)
                 window!!.requestTheme(Some(WindowTheme.Dark));
                 phase = 1
             }
@@ -177,6 +201,18 @@ private class ShowcaseProbe {
             }
             else -> {}
         }
+    }
+    private fun navigationKey(active: ActiveApplication, code: Int) {
+        waitingKey = true
+        assertTrue(sendSurfaceKey(window!!, code, true))
+        assertTrue(sendSurfaceKey(window!!, code, false))
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                phase += 1;
+                waitingKey = false
+            }
+        )
     }
     private fun deadline(active: ActiveApplication) {
         when (phase) {

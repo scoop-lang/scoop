@@ -1,0 +1,339 @@
+package scoop.tests.ui.navigation
+
+import scoop.graphics.text.TextDirection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiNavigationTest {
+    @Test
+    fun `real keys navigate lists grids and roving groups without replacing focus or selection`() {
+        val probe = NavigationProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.group!!.isClosed)
+            for (handle in probe.handles)
+                assertFalse(handle.isAttached)
+            assertFalse(probe.replacement.isAttached)
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal class NavigationProbe {
+    val handles = Array<FocusHandle>(8L) { _ -> FocusHandle() }
+    val replacement = FocusHandle()
+    val areas = MutableArray<InputArea?>(8L) { _ -> None }
+    val targets = MutableArray<FocusTarget?>(8L) { _ -> None }
+    val scopes = MutableArray<ComponentScope?>(8L) { _ -> None }
+    val revision = state(0)
+    var group: KeyNavigation? = None
+    var groupScope: ComponentScope? = None
+    var view: ViewProbe? = None
+    var frames = 0
+    var committed = -1
+    var showLast = false
+    var prevent = false
+    var local = false
+    var outerKeys = 0
+    var finished = false
+    private var replaced = false
+    private var phase = 0
+    private var waiting = false
+    private var retryFocus = false
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+
+    fun configuration(
+        layout: NavigationLayout = NavigationLayout.Horizontal,
+        rtl: Boolean = false,
+        loop: Boolean = false,
+        roving: Boolean = true
+    ): NavigationOptions =
+        NavigationOptions(
+            [
+                NavigationItem(handles[1L], 0, 0),
+                NavigationItem(handles[2L], 0, 2),
+                NavigationItem(handles[3L], 1, 0),
+                NavigationItem(handles[4L], 1, 1),
+                NavigationItem(handles[5L], 2, 0)
+            ],
+            layout,
+            if (rtl)
+                TextDirection.Rtl
+            else
+                TextDirection.Ltr,
+            loop,
+            roving
+        )
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop key navigation", LogicalSize(340.0, 100.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { NavigationScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (!finished && frames > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (!waiting && window!!.isFocused && committed == revision.value)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"navigation timeout phase=${phase}, frames=${frames}, focused=${
+                        window!!.isFocused
+                    }"
+                )
+            )
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    private fun assertFocus(index: Long) {
+        for (position in 0L ..< handles.size) {
+            val handle =
+                if (position == 2L && replaced)
+                    replacement
+                else
+                    handles[position]
+            assertEquals(
+                position == index,
+                handle.hasFocus,
+                Some(f"phase=${phase}, target=${position}")
+            )
+        }
+    }
+    private fun key(
+        active: ActiveApplication,
+        code: Int,
+        target: Long,
+        shift: Boolean = false,
+        command: Boolean = false,
+        repeat: Boolean = false,
+        outerDelta: Int? = None
+    ) {
+        val before = outerKeys
+        waiting = true
+        assertTrue(
+            sendSurfaceKey(window!!, code, true, repeat = repeat, command = command, shift = shift)
+        )
+        assertTrue(sendSurfaceKey(window!!, code, false, command = command, shift = shift))
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                assertFocus(target)
+                when (outerDelta) {
+                    case Some(delta) -> assertEquals(before + delta, outerKeys)
+                    case None -> {}
+                }
+                phase += 1
+                waiting = false
+            }
+        )
+    }
+    private fun checkConfiguration() {
+        val previous = group!!.options
+        assertFailsWith<IllegalArgumentException> {
+            group!!.options =
+                NavigationOptions([NavigationItem(handles[1L]), NavigationItem(handles[1L])])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            group!!.options =
+                NavigationOptions(
+                    [NavigationItem(handles[1L]), NavigationItem(handles[2L])],
+                    NavigationLayout.Grid
+                )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            group!!.options = NavigationOptions([NavigationItem(handles[0L])])
+        }
+        assertEquals(previous.items.size, group!!.options.items.size)
+        assertFailsWith<IllegalStateException> { groupScope!!.keyNavigation(previous) }
+        assertFailsWith<IllegalArgumentException> { scopes[0L]!!.keyNavigation(previous) }
+        val unbound = FocusHandle()
+        group!!.options = NavigationOptions([NavigationItem(unbound)])
+        assertFailsWith<IllegalArgumentException> {
+            targets[0L]!!.options = FocusOptions(Some(unbound))
+        }
+        assertTrue(handles[0L].isAttached)
+        assertFalse(unbound.isAttached)
+        group!!.options = previous
+    }
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertFocus(0L)
+                checkConfiguration()
+                key(active, 48, 1L)
+            }
+            case 1 -> key(active, 124, 2L)
+            case 2 -> key(active, 124, 4L)
+            case 3 -> key(active, 124, 4L, outerDelta = Some(0))
+            case 4 -> key(active, 48, 6L)
+            case 5 -> key(active, 48, 4L, shift = true)
+            case 6 -> key(active, 115, 1L)
+            case 7 -> key(active, 119, 4L)
+            case 8 -> {
+                group!!.options = configuration(rtl = true, loop = true)
+                assertTrue(handles[1L].requestFocus())
+                key(active, 123, 2L)
+            }
+            case 9 -> key(active, 124, 1L)
+            case 10 -> key(active, 124, 4L)
+            case 11 -> key(active, 125, 4L, outerDelta = Some(1))
+            case 12 -> {
+                showLast = true
+                revision.value += 1
+                phase += 1
+            }
+            case 13 -> {
+                group!!.options = configuration(NavigationLayout.Vertical, rtl = true)
+                assertTrue(handles[1L].requestFocus())
+                key(active, 125, 2L)
+            }
+            case 14 -> key(active, 125, 4L)
+            case 15 -> key(active, 119, 5L)
+            case 16 -> key(active, 115, 1L)
+            case 17 -> {
+                group!!.options = configuration(NavigationLayout.Grid)
+                key(active, 125, 5L)
+            }
+            case 18 -> key(active, 124, 5L, outerDelta = Some(0))
+            case 19 -> key(active, 126, 1L)
+            case 20 -> key(active, 124, 2L)
+            case 21 -> key(active, 125, 2L, outerDelta = Some(0))
+            case 22 -> key(active, 115, 1L)
+            case 23 -> key(active, 119, 2L)
+            case 24 -> {
+                group!!.options = configuration(NavigationLayout.Grid, rtl = true, loop = true)
+                assertTrue(handles[1L].requestFocus())
+                key(active, 123, 2L)
+            }
+            case 25 -> key(active, 124, 1L)
+            case 26 -> key(active, 124, 2L)
+            case 27 -> {
+                assertTrue(handles[4L].requestFocus())
+                key(active, 125, 4L)
+            }
+            case 28 -> {
+                assertTrue(handles[0L].requestFocus())
+                waiting = true
+                assertTrue(moveSurfacePointer(window!!, 90.0, 10.0))
+                assertTrue(view!!.button(90.0, 10.0, true))
+                assertTrue(view!!.button(90.0, 10.0, false))
+                assertTrue(
+                    active.proxy().post {
+                        _ ->
+                        assertFocus(2L);
+                        phase += 1;
+                        waiting = false
+                    }
+                )
+            }
+            case 29 -> {
+                assertTrue(areas[6L]!!.requestFocus())
+                key(active, 48, 2L, shift = true)
+            }
+            case 30 -> {
+                assertTrue(areas[1L]!!.requestFocus())
+                assertTrue(areas[6L]!!.requestFocus())
+                key(active, 48, 1L, shift = true)
+            }
+            case 31 -> {
+                local = true
+                assertTrue(handles[2L].requestFocus())
+                key(active, 123, 2L, outerDelta = Some(0))
+            }
+            case 32 -> {
+                local = false
+                prevent = true
+                key(active, 123, 2L, outerDelta = Some(0))
+            }
+            case 33 -> {
+                prevent = false
+                key(active, 123, 2L, command = true)
+            }
+            case 34 -> key(active, 123, 2L, shift = true)
+            case 35 -> key(active, 123, 1L, repeat = true)
+            case 36 -> {
+                assertTrue(handles[7L].requestFocus())
+                key(active, 123, 7L, outerDelta = Some(1))
+            }
+            case 37 -> {
+                group!!.options = configuration(roving = false)
+                assertTrue(handles[1L].requestFocus())
+                key(active, 48, 2L)
+            }
+            case 38 -> {
+                targets[1L]!!.options = FocusOptions(Some(handles[1L]), tabStop = false)
+                group!!.options = configuration()
+                assertTrue(handles[1L].requestFocus())
+                key(active, 48, 2L)
+            }
+            case 39 -> {
+                group!!.options =
+                    NavigationOptions(
+                        [
+                            NavigationItem(handles[4L]),
+                            NavigationItem(handles[2L]),
+                            NavigationItem(handles[1L]),
+                            NavigationItem(handles[3L]),
+                            NavigationItem(handles[5L])
+                        ],
+                        NavigationLayout.Horizontal
+                    )
+                assertTrue(handles[1L].requestFocus())
+                key(active, 124, 5L)
+            }
+            case 40 -> {
+                targets[2L]!!.options = FocusOptions(Some(replacement))
+                replaced = true
+                assertFalse(handles[2L].isAttached)
+                group!!.options =
+                    NavigationOptions(
+                        [NavigationItem(replacement), NavigationItem(handles[1L])],
+                        NavigationLayout.Horizontal
+                    )
+                assertTrue(replacement.requestFocus())
+                key(active, 124, 1L)
+            }
+            case 41 -> {
+                val old = group!!
+                old.close()
+                group = Some(groupScope!!.keyNavigation(configuration()))
+                old.close()
+                assertFailsWith<IllegalStateException> {
+                    groupScope!!.keyNavigation(configuration())
+                }
+                finished = true
+                waiting = true
+                ui!!.close()
+                window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected navigation phase"))
+        }
+    }
+}

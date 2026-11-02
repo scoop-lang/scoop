@@ -118,6 +118,18 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    public fun keyNavigation(options: NavigationOptions): KeyNavigation {
+        checkMounted()
+        checkFocusMutation()
+        when (node.navigation) {
+            case Some(_) -> throw IllegalStateException(Some("mount already has key navigation"))
+            case None -> {}
+        }
+        val value = KeyNavigation(node, options)
+        node.navigation = Some(value)
+        managed.add(value)
+        return value
+    }
     public fun animation(initial: Double): Animatable<Double> =
         animation(initial, AnimationConverters.DoubleValue)
     public fun animation(initial: Point): Animatable<Point> =

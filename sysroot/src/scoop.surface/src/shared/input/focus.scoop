@@ -8,6 +8,7 @@ internal fun InputRouter.focus(area: InputArea): Boolean {
     focusRevision += 1uL
     if (!area.canFocus)
         return false
+    area.lastFocusRequest = Some(focusRevision)
     if (!sameArea(logicalFocus, Some(area))) {
         logicalFocus = Some(area)
         changed()

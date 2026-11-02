@@ -376,6 +376,18 @@ FocusScope.requestFocus 按有效 defaultFocus、首个可用 Tab 目标、有�
 
 UiRoot 在 Surface 的 Accepted 完成边界先兑现当前待处理焦点，再执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。Discarded／Deferred 不兑现或轮询；Accepted 后仍不可用的普通目标结束请求。滚动显露与虚拟目标接入由后续滚动批次补充。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
 
+#### 7.3.2 KeyNavigation 与组内导航
+
+ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有的无样式导航组，返回随挂载退休的 KeyNavigation；每个挂载至多一个活动组。NavigationOptions 包含不可变 items: Array<NavigationItem>、layout: NavigationLayout = Vertical、direction: graphics.text.TextDirection = Ltr、loop=false、roving=true。NavigationItem 包含稳定 FocusHandle 及 row=0、column=0；Horizontal／Vertical 使用数组顺序，Grid 使用显式行列位置。
+
+options 在逻辑阶段整体更新；重复 handle、同一个 handle 属于两个活动导航组、Grid 重复行列坐标均报告配置错误，并保留旧配置。允许先配置尚未挂载的 handle，但它随后只能绑定到该导航组的逻辑子树。关闭组解除成员关系；替换目标的外部 handle 后，旧 handle 不会继续控制新引用。enabled 和可聚焦性仍来自原区域与逻辑祖先，没有另一份成员禁用状态。
+
+roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab 条件的成员，然后选择最近成功聚焦的有效成员，未有历史则选数组中首个。历史使用 Surface 的聚焦请求记录，包含鼠标及直接 InputArea 请求；当前持有焦点不等于必须有 OS 活动焦点。显式 tabStop=false 始终退出 Tab，但仍可通过箭头聚焦。roving=false 恢复成员各自的普通 Tab 条件，组内导航仍有效。未挂载、禁用或不可见的成员不作为新的导航目标。
+
+组的默认行为仅在当前 focusedArea 就是成员区域时处理方向键和 Home／End，不替代成员内部另一个编辑目标的按键行为。Horizontal 左右按 direction 映射，Vertical 上下不因 RTL 反转；列表 Home／End 到首末有效成员。Grid 的左右只在同一行、上下只在同一列按逻辑坐标查找，越过缺失／禁用项；Home／End 到当前行的逻辑首末。loop 只在当前导航轴循环，不依据像素距离寻找邻居。
+
+仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space 或改变选择状态。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；虚拟成员的 reveal 在滚动批次扩展。
+
 ### 7.4 Surface 动画接入
 
 `scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它调用所属 SurfaceWindow 的 animations.value，并登记所得 `Animatable<T>` 随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。
@@ -403,7 +415,7 @@ ParagraphHost.scene(context): Unit
 
 measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。所有子项仍只测量一次，包括本次最终被截掉的对象。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 draw 使用同一 TextLayout 先画文字，再调用 children 呈现已放置对象；parent 与 children 的可选父区域规则相同，省略时继承当前输入父区域。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 draw 使用同一 TextLayout 先画文字，再调用 children 呈现已放置对象；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 
