@@ -7,6 +7,8 @@ static void enter_managed(const void *managed_stack_boundary, ScoopThreadMode mo
         state->managed_depth != 0) {
         scoop_thread_fatal("invalid managed entry transition");
     }
+    state->native_float_environment.control =
+        scoop_runtime_float_enter(&state->native_float_environment.environment);
     uintptr_t boundary = (uintptr_t)managed_stack_boundary;
     scoop_thread_registry_lock();
     scoop_thread_wait_for_running_world();
@@ -42,6 +44,8 @@ void scoop_thread_leave_managed(void) {
     atomic_store_explicit(&state->poll.mode, SCOOP_THREAD_NATIVE_SAFE, memory_order_release);
     scoop_thread_notify_quiescence();
     scoop_thread_registry_unlock();
+    scoop_runtime_float_leave(&state->native_float_environment.environment,
+                              state->native_float_environment.control);
 }
 
 void scoop_thread_enter_callback(ScoopCallbackThreadEntry *entry,
@@ -52,6 +56,8 @@ void scoop_thread_enter_callback(ScoopCallbackThreadEntry *entry,
         (previous != SCOOP_THREAD_NATIVE_SAFE && previous != SCOOP_THREAD_NATIVE_BORROWED)) {
         scoop_thread_fatal("invalid managed callback entry transition");
     }
+    entry->native_float_environment.control =
+        scoop_runtime_float_enter(&entry->native_float_environment.environment);
     uintptr_t boundary = (uintptr_t)managed_stack_boundary;
 
     scoop_thread_registry_lock();
@@ -106,6 +112,8 @@ void scoop_thread_leave_callback(ScoopCallbackThreadEntry *entry) {
         scoop_thread_notify_quiescence();
     }
     scoop_thread_registry_unlock();
+    scoop_runtime_float_leave(&entry->native_float_environment.environment,
+                              entry->native_float_environment.control);
 }
 
 static void enter_native(ScoopThreadTransition *transition, uintptr_t managed_stack_low,
@@ -195,6 +203,9 @@ static void leave_native(ScoopThreadTransition *transition, ScoopThreadMode expe
         transition->native_mode != (uint32_t)expected_mode ||
         transition->previous_mode != (uint32_t)SCOOP_THREAD_MANAGED) {
         scoop_thread_fatal("native transitions must be left in LIFO order");
+    }
+    if (!scoop_float_init_environment()) {
+        scoop_thread_fatal("failed to restore the managed floating-point environment");
     }
 
     if (expected_mode == SCOOP_THREAD_NATIVE_SAFE) {

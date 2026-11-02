@@ -285,6 +285,8 @@ NoGC 正文检查同时检查 callee effect 与实际 native 边界：NativeSafe
 
 默认值／泛型模板的原生指针调用使用表达式 tag 80，field 1–4 分别保存 callee、完整函数签名、实际实参和调用模式，对应 `cross-cone-interface/90`。旧产物沿正常版本边界重建；MIR／LIR metadata 和 runtime ABI 不变。
 
+原生边界浮点环境遵守运行时规范 6.1。静态 NoGC callback 的 generated-C trampoline 在调用 storage bridge 前保存环境并建立 Scoop 环境，调用后先恢复环境再返回结果；只增加闭合 runtime symbol 目录中的两个 C ABI leaf（FloatEnter／FloatLeave），不创建 managed frame 或 safepoint。`fenv_t` 由配套目标 CRT 定义，只用于该 C trampoline 的自动存储，不进入语言类型或 `.slib` 布局。runtime ABI contract 升至 31，metadata ABI 保持 9，既有更新规则使旧机器产物配套重建。
+
 source parameter interface 同时保存已解析的可选 receiver 和源码值参数。无正文的 extension intrinsic 从该声明接口取得 receiver，不访问不存在的正文参数 local；导入 intrinsic 的完整参数序列只包含一次 receiver。`asFunPtr` 的绑定函数引用与未绑定 adapter 保留普通函数引用语义，执行时下降为相同的 pointer cast；unsafe 的 `asGCLeaf` 遵守语言既有的 managed 函数引用限制。
 
 C extern 的结果适配明确区分普通返回与 errno 捕获。前端检查 `captureErrno` 的常量、适用位置，以及透明 alias 展开后的精确二元 tuple `(R, Int)`，将第一项 `R` 投影为 native 返回类型；`Unit` 投影为 `void`，其他类型按既有 C-FFI-safe 规则检查。合法捕获分支完整保存 native `R`、Scoop tuple 结果与捕获行为，不以可缺失字段或后续重新猜测 tuple 形状代替。调用、函数引用及泛型消费保持固定的 Scoop 返回类型，不因结果被忽略而关闭捕获。release 调用对完整 Scoop 参数和结果应用既有 `ReleaseValue` 检查。
@@ -1522,7 +1524,7 @@ OdrMemberKey 为 `{1=group, 2=role, 3=typed discriminator}`，`OdrMemberId = H("
 
 ### 2.14 Runtime image 与初始化
 
-runtime metadata ABI 9、runtime ABI contract 30 的字段与启动协议由运行时规范 2.7、2.8、9.2 定义。RootEntry 的物理大小为 128 bytes，旧版 ABI 不可混用。每个 `.slib` 的机器对象保存完整候选 registration，metadata 保存链接所需的 identity 与物理归属；最终 image 表只包含选中的 producer records。
+runtime metadata ABI 9、runtime ABI contract 31 的字段与启动协议由运行时规范 2.7、2.8、9.2 定义。RootEntry 的物理大小为 128 bytes，旧版 ABI 不可混用。每个 `.slib` 的机器对象保存完整候选 registration，metadata 保存链接所需的 identity 与物理归属；最终 image 表只包含选中的 producer records。
 
 image、root entry、main body、root gateway、initializer、ensure、startup gateway 和 release hook 使用各自身份。根、cell、storage 和失败状态完整关联，不以可空函数指针或命名约定推断 unit kind。
 

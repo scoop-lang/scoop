@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。其余阶段仍待按实施顺序写入规范。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway；根入口、持久生命周期与共享库产物仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -217,13 +217,15 @@ generated gateway 负责入口 poll、root/Context、typed Scoop ABI 调用、ca
 
 当前“首次 attach 时重设一次浮点环境”会永久改写 host 线程，且不能处理嵌套 native 往返。改为边界 guard：
 
-- host → bootstrap、host → callback 及 NativeSafe callee 返回 managed 的每次外层进入都保存当前平台浮点控制状态，再建立 Scoop 的 round-to-nearest-ties-to-even、无 trap、保留 subnormal 环境；
-- managed → 普通 native call 返回时重新建立 Scoop 环境，callee 对环境的修改不能泄漏进 Scoop 代码；
+- host → bootstrap、host → callback 的每层进入都保存当前平台浮点控制与异常状态，再建立 Scoop 的 round-to-nearest-ties-to-even、无 trap、保留 subnormal 环境；attach／detach 本身不改写浮点环境；
+- managed → 普通 NativeSafe／NativeBorrowed call 返回时只重新建立 Scoop 环境，callee 对环境的修改不能泄漏进 Scoop 代码；
 - callback 返回 native caller、bootstrap 正常或异常返回 host 时恢复该层保存的环境；嵌套 guard 严格 LIFO；
 - Scoop 自己创建并完全拥有的线程可在线程入口建立 Scoop 环境，不需要恢复不存在的 host 状态；
 - GCLeaf callee 不经过 guard，因此其 unsafe 契约增加“不得改变浮点控制环境，或必须在返回前完整恢复”。
 
-Darwin AArch64 保存/恢复 `fenv` 与 FPCR，x86-64 保存/恢复 `fenv` 与 MXCSR；所有错误出口使用同一 guard 清理，不能只覆盖正常返回。
+Darwin AArch64 保存/恢复 `fenv` 与 FPCR，x86-64 保存/恢复 `fenv` 与 MXCSR；所有错误出口使用同一 guard 清理，不能只覆盖正常返回。静态 `::name` NoGC callback 的 C trampoline 也建立浮点 guard，保持其原有无 GC transition 的同步调用合同。
+
+这一前置已实现于现有 executable gateway、ForeignCallback、静态 callback 和 NativeSafe／NativeBorrowed 返回路径。Darwin AArch64 与 Linux x86-64 GNU 的真实 debug／release C 往返覆盖非默认舍入、subnormal、trap 控制、异常标志、嵌套与外来线程 callback，以及异常返回；runtime 测试另覆盖 attachment 不改写环境、成功／失败 gateway 和两档 outbound 返回。runtime ABI contract 为 31，metadata ABI 保持 9。native-app bootstrap 尚待接入同一 gateway 机制，Windows 原生验收仍随对应平台阶段完成。
 
 ## 6. `FunPtr` 间接调用
 

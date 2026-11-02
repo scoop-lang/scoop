@@ -782,6 +782,8 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 4. **Linux x86-64 GNU**：完成 `.so`、SONAME、version script、ELF metadata/RELRO 与动态 libc/unwind；使用独立 Linux host 目录验收阻塞 NativeSafe、callback、GC 与 native 依赖。
 5. **其余现有桌面 target**：复用 Darwin x86-64，分别闭合 Windows MSVC／LLVM-MinGW 的 DLL、CRT、SEH/PDB 与 import library，再验证匹配动态环境的 musl。只有真实 host 持续调用通过后才声明该 target 支持。
 
+浮点边界前置已在现有 gateway、两类 callback 和普通 native 返回路径落地：attach／detach 不改写宿主环境，嵌套调用按层保存和恢复，NativeSafe／NativeBorrowed 返回重建 Scoop 环境。Darwin AArch64 与 Linux x86-64 GNU 已通过定向 runtime 测试与真实 debug／release ABI 往返；这不表示 native-app 共享库生命周期已完成。
+
 iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
 
 ### 独立 Regex 库（已完成，[设计](regex/INVESTIGATION.md)、[规范](specs/SCOOP-REGEX-SPEC.md)、[实施记录](regex/PROGRESS.md)）

@@ -88,7 +88,7 @@ impl WireEncode for RuntimeAbiContract {
         for field in 1..=3 {
             encoder.field(field)?;
             encoder.unsigned(match field {
-                1 => 30,
+                1 => 31,
                 3 => 2,
                 _ => INITIAL_SCHEMA,
             })?;
@@ -133,12 +133,14 @@ pub enum RuntimeAbiSymbolV1 {
     CallbackFailure,
     CallbackState,
     CallbackInvoke,
+    FloatEnter,
+    FloatLeave,
     PushPinFrame,
     PopPinFrame,
 }
 
 impl RuntimeAbiSymbolV1 {
-    pub const ALL: [Self; 62] = [
+    pub const ALL: [Self; 64] = [
         Self::ContextSlot,
         Self::PollState,
         Self::WorldPhase,
@@ -223,6 +225,8 @@ impl RuntimeAbiSymbolV1 {
         Self::CallbackFailure,
         Self::CallbackState,
         Self::CallbackInvoke,
+        Self::FloatEnter,
+        Self::FloatLeave,
     ];
 
     pub const fn logical_symbol(self) -> &'static str {
@@ -343,6 +347,8 @@ impl RuntimeAbiSymbolV1 {
             Self::CallbackFailure => "scoop_runtime_callback_failure",
             Self::CallbackState => "scoop_runtime_callback_state",
             Self::CallbackInvoke => "scoop_runtime_callback_invoke",
+            Self::FloatEnter => "scoop_runtime_float_enter",
+            Self::FloatLeave => "scoop_runtime_float_leave",
         }
     }
 
@@ -380,6 +386,8 @@ impl RuntimeAbiSymbolV1 {
             Self::PollState => 29,
             Self::WorldPhase => 30,
             Self::GcEpoch => 31,
+            Self::FloatEnter => 35,
+            Self::FloatLeave => 36,
         }
     }
 }
@@ -801,11 +809,11 @@ mod tests {
     fn runtime_abi_contract_versions_current_metadata_layout() {
         assert_eq!(
             hex(&encode(&RuntimeAbiContract).unwrap()),
-            "a301181e02010302"
+            "a301181f02010302"
         );
         assert_eq!(
             RuntimeAbiContract.fingerprint().unwrap().to_string(),
-            "e6c1d11d523b5c055f7ccc0b8101b292795be07da2c83263357e8f598a2f5f12"
+            "1efa13edbbe71a160acbc2cad20e5736ca8213a115b71e9135448814fa62524a"
         );
     }
 
@@ -896,7 +904,7 @@ mod tests {
         assert_eq!(allocation.symbol(), RuntimeAbiSymbolV1::AllocationContext);
         assert_eq!(
             allocation.id().to_string(),
-            "ad1909254cb088a6c9d3e6b33c38a80e3ce0049479e2746771e7e05b330de35f"
+            "f90e21c1bad2d78c6e21324c0d86141108a9d1ebbd4b0d8a7a94be574c670de5"
         );
         assert!(
             registry
@@ -952,7 +960,7 @@ mod tests {
                 .unwrap()
                 .id()
                 .to_string(),
-            "89e7ac26031ad00b7f834d8e1ea931db4b69e6611873aaedb2adcbfd80f907db"
+            "9b29f2a1b7a049b98fda6bc3345c1570c370024dc7314796abdba31b4f84f2fb"
         );
     }
 
