@@ -71,7 +71,12 @@ pub(super) fn profiles(kind: FinalOutputKind, sysroot: &Path) -> Vec<WindowsFina
             linker,
             ..Default::default()
         };
-        profiles.push(WindowsFinalLinkProfile::resolve(startup, &options, cxx).unwrap());
+        profiles.push(
+            match crate::ValidatedFinalLinkProfile::from_tools(startup, &options, cxx).unwrap() {
+                crate::ValidatedFinalLinkProfile::Windows(profile) => profile,
+                profile => panic!("Windows target selected {profile:?}"),
+            },
+        );
     }
     profiles
 }
