@@ -1,0 +1,68 @@
+package scoop.window
+
+import scoop.time.TimeMark
+
+/** A reschedulable one-shot callback, independent of redraws and application waiting policy. */
+public class WindowDeadline internal constructor(
+    internal val window: WindowOwner,
+    callback: () -> Unit
+): Closeable {
+    internal var scheduled: TimeMark? = None
+    internal var revision = 0UL
+    private var closed = false
+    private var handler: (() -> Unit)? = Some(callback)
+
+    public val isClosed: Boolean get() {
+        window.application.checkThread()
+        return closed
+    }
+    public val isScheduled: Boolean get() {
+        window.application.checkThread()
+        return scheduled != None
+    }
+    public fun schedule(time: TimeMark) {
+        window.requireOpen()
+        if (closed)
+            throw WindowException("schedule deadline", WindowErrorKind.InvalidState)
+        checkDeadlineTime(time)
+        revision += 1UL
+        scheduled = Some(time)
+        window.application.refreshDeadline()
+    }
+    public fun cancel() {
+        window.application.checkThread()
+        if (closed)
+            return
+        revision += 1UL
+        scheduled = None
+        window.application.refreshDeadline()
+    }
+    internal fun deliver(expected: ULong) {
+        if (closed || revision != expected)
+            return
+        val callback = handler ?: return
+        callback()
+    }
+    internal fun retire() {
+        closed = true
+        revision += 1UL
+        scheduled = None
+        handler = None
+    }
+    public override fun close() {
+        val application = window.application
+        application.checkThread()
+        if (closed)
+            return
+        retire()
+        var index = 0L
+        while (index < application.deadlines.size) {
+            if (application.deadlines[index] === this) {
+                application.deadlines.removeAt(index)
+                break
+            }
+            index += 1L
+        }
+        application.refreshDeadline()
+    }
+}

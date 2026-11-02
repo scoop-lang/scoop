@@ -27,6 +27,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 能力 | 接口与行为 |
 | --- | --- |
 | 主循环 | Wait、Poll、单调 WaitUntil；跨线程 `ApplicationProxy.post`／`requestExit`；回调串行交付 |
+| 定时回调 | `Window.createDeadline` 创建窗口所属的一次性回调；共用主循环最近期限，关闭窗口即撤销 |
 | 窗口 | 多个独立非模态窗口；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、装饰及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
 | macOS | activation policy、titlebar 属性、bundle identifier 查询 |
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
@@ -35,6 +36,8 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 绘制 | 合并重绘请求；隐藏／遮挡／零尺寸时保留 dirty；显式 native lease |
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
+
+`window.createDeadline { ... }` 返回可反复 `schedule(time)`、`cancel()` 的 `WindowDeadline`，time 使用 MonotonicTimeSource。已经到期的时间也在后续主循环批次交付；重排、取消或关闭使旧的排队回调失效。回调在窗口隐藏时仍能执行，但不会隐式请求重绘。内部定时与应用的 WaitUntil 独立，只有后者实际到期才发出 StartCause.Deadline；不需要为每个组件另建线程或改写应用的控制流。
 
 内容区坐标以左上为原点。`LogicalPosition`／`LogicalSize` 使用窗口逻辑单位，`PhysicalPosition`／`PhysicalSize` 使用像素。使用同一次 `WindowMetrics` 或输入事件的 scale 换算；桌面坐标不能乘某个窗口的 scale。未知的原生信息保留为 `None`。
 
@@ -82,6 +85,7 @@ renderer 在 owner 上通过 `scoop.window.native` 的 Unsafe `acquireNativeWind
 
 ```sh
 target/debug/scoop test sysroot/src/scoop.window --release
+target/debug/scoop test sysroot/src/scoop.window/tests-cones/deadlines --release
 target/debug/scoop test sysroot/src/scoop.window.asyncio --release
 target/debug/scoop test sysroot/src/scoop.window/examples/metal/app --release
 ```

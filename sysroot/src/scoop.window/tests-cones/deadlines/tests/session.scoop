@@ -1,0 +1,137 @@
+package scoop.tests.window.deadlines
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.*
+import scoop.window.*
+
+private class DeadlineContext(val value: Int)
+
+context(value: DeadlineContext)
+private fun deadlineContext(): Int = value.value
+
+internal class ExpectedDeadlineFailure: Exception(Some("deadline callback failure"))
+
+@Test
+private class WindowDeadlineTest {
+    @Test
+    fun `window deadlines share the native loop without consuming application deadlines or retaining closed owners`() {
+        val probe = DeadlineProbe()
+        val application = Application()
+        try {
+            context(DeadlineContext(42)) {
+                application.run(probe)
+            }
+            fail(Some("deadline callback failure was lost"))
+        } catch (failure: ExpectedDeadlineFailure) {
+            assertTrue(failure === probe.failure)
+        }
+        assertTrue(probe.completed)
+        assertEquals(2, probe.repeats)
+        assertEquals(1, probe.rescheduledCalls)
+        assertEquals(1, probe.userDeadlines)
+        assertEquals(2, probe.closing)
+        assertEquals(2, probe.destroyed)
+        assertEquals(0, probe.redraws)
+        for (deadline in probe.owned) {
+            assertTrue(deadline.isClosed)
+            assertFalse(deadline.isScheduled)
+            deadline.close()
+        }
+        assertFalse(application.proxy().post { _ -> fail() })
+    }
+}
+
+internal class DeadlineProbe: ApplicationHandler {
+    val failure = ExpectedDeadlineFailure()
+    val owner = currentThreadId()
+    val owned = ArrayList<WindowDeadline>()
+    var first: Window? = None
+    var second: Window? = None
+    var repeater: WindowDeadline? = None
+    var cancelled: WindowDeadline? = None
+    var rescheduled: WindowDeadline? = None
+    var killer: WindowDeadline? = None
+    var closingVictim: WindowDeadline? = None
+    var signal: WindowDeadline? = None
+    var finish: WindowDeadline? = None
+    var application: ActiveApplication? = None
+    var userTime: TimeMark? = None
+    var depth = 0
+    var batches = 0
+    var firstBatch = 0
+    var repeats = 0
+    var rescheduledCalls = 0
+    var userDeadlines = 0
+    var internalFired = false
+    var closingStarted = false
+    var completed = false
+    var closing = 0
+    var destroyed = 0
+    var redraws = 0
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        invoke {
+            when (event) {
+                case Resumed -> {
+                    this.application = Some(application)
+                    installDeadlines(this, application)
+                }
+                case NewEvents(cause) -> {
+                    batches += 1
+                    if (cause == StartCause.Deadline) {
+                        val expected =
+                            userTime ?:
+                                throw IllegalStateException(
+                                    Some("internal timer consumed the application deadline")
+                                )
+                        assertEquals(0, userDeadlines)
+                        assertTrue(MonotonicTimeSource.markNow() >= expected)
+                        userDeadlines += 1
+                        application.setControlFlow(
+                            ControlFlow.WaitUntil(
+                                MonotonicTimeSource.markNow() + Duration.seconds(5L)
+                            )
+                        )
+                        closeAfterBoth(this)
+                    }
+                }
+                case Window(_, WindowEvent.RedrawRequested) -> redraws += 1
+                case Window(_, WindowEvent.Closing) -> closing += 1
+                case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+                else -> {}
+            }
+        }
+    }
+    fun invoke(block: () -> Unit) {
+        assertEquals(owner, currentThreadId())
+        assertEquals(42, deadlineContext())
+        assertEquals(0, depth)
+        depth += 1
+        try {
+            block()
+        } finally {
+            depth -= 1
+        }
+    }
+    fun make(window: Window, callback: () -> Unit): WindowDeadline {
+        val result = window.createDeadline { invoke(callback) }
+        owned.add(result)
+        return result
+    }
+    fun checkOwner(deadline: WindowDeadline) {
+        Thread.start {
+            assertFailsWith<IllegalStateException> { deadline.isScheduled }
+            assertFailsWith<IllegalStateException> {
+                deadline.schedule(MonotonicTimeSource.markNow())
+            }
+            assertFailsWith<IllegalStateException> { deadline.close() }
+        }.use { thread -> thread.join() }
+    }
+}
+
+internal object OtherClock: TimeSource {
+    public override fun markNow(): TimeMark = TimeMark(this, Duration.ZERO)
+}

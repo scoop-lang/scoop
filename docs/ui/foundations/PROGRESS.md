@@ -21,7 +21,8 @@
 | D1b：ScrollArea、滚动条与显式平滑滚动 | 已完成 aarch64 实施和定向验证 |
 | D2a：按需子项与固定 extent 虚拟列表 | 已完成 aarch64 实施和定向验证 |
 | D2b：可变 extent、阅读锚点与按 key 定位 | 已完成 aarch64 实施和定向验证 |
-| D2c：有限实例保留与离屏帧需求 | 待实施 |
+| D2c1：窗口所属的一次性定时回调 | 已完成 aarch64 实施和定向验证 |
+| D2c2：有限实例保留与离屏帧需求 | 待实施 |
 | D2d：虚拟焦点导航与滚动显露 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -183,3 +184,11 @@ KeepVisible 用最近 Accepted 的首个可见 key 与项内偏移保持阅读�
 Scoop 格式检查、相关六个 UI 库生产类型检查和 aarch64 release 构建通过。17 项定向 scoop.test 通过：UI ScrollState 6 项、Component 固定／可变尺寸与句柄 8 项，以及 ScrollViewport、固定 VirtualList、可变 VirtualList 原生用例各 1 项。可变窗口覆盖一亿项估计、零高度、overscan 中的高度变化、前插／重排／删除、三种显式对齐、末端跟随与向上阅读、未知 key、新请求优先、窄宽度重测、Discarded、完成回调中的新滚动、句柄替换和带 pending 的卸载。视口回归另外验证过期修正和活动动画忽略静态调整。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被替代的 D1b 视口、D2a UI／Component／固定列表测试输出清理；独立 sysroot、共享构建缓存和当前测试入口保留。
+
+## D2c1：窗口所属的一次性定时回调
+
+WindowDeadline 复用窗口事件循环已有的单次原生定时器，与应用 WaitUntil 共同选择最近期限。schedule／cancel／close 按窗口 owner 线程执行；到期先退出计划，再排队交付，取消、重排和关闭会废弃旧的排队回调。同期限按登记顺序交付，内部到期只产生 Wake，应用自己的到期才产生 Deadline。隐藏窗口可以执行回调，但不隐式重绘；关闭窗口立即撤销所属回调，不延长 native lease 生命周期。回调沿现有业务 Context 和异常收尾路径执行。
+
+修改的 Scoop 文件格式检查、Window 生产类型检查和 aarch64 release 构建通过。2 项原生 scoop.test 通过：新增 WindowDeadlineTest 与既有 AppKitApplicationTest。覆盖同批取消／重排、过期时间异步交付、线程与时钟拒绝且保留旧计划、用户与内部期限交错、隐藏停帧、窗口关闭、回调异常后的完整收尾及现有输入／IME 回归。该能力供下一批离屏有限动画完成和公共文本 caret 定时使用；本批尚未交付 KeepAlive。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，独立 sysroot、共享构建缓存及当前测试入口保留。

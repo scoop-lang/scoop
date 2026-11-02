@@ -22,6 +22,16 @@ ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必�
 
 run Context 在业务回调中恢复，外线程 post 不替换该 Context。用户异常终止业务派发并开始有序收尾；native bridge 捕获异常，不跨 C／ObjC 栈展开。最终清理通知继续执行，异常记录后继续关闭其他资源。
 
+### 2.1 窗口所属的一次性定时回调
+
+`Window.createDeadline(callback: () -> Unit)` 创建尚未排期的 WindowDeadline，提供 schedule(TimeMark)、cancel()、close()、isScheduled 和 isClosed。创建、查询、排期与取消使用窗口 owner 线程，时间必须来自 MonotonicTimeSource；非法时间不改变原排期。schedule 替换之前的排期，已到期的时间也异步进入后续批次，不内联 callback。cancel 与 close 幂等，close 后不能再次 schedule。
+
+每个排期至多调用一次。进入到期批次时先清除本次排期，再按到期时间、同时间按登记顺序交付；callback 可以重新排期自己、取消别的登记或关闭窗口。已经进入当前快照但尚未调用的旧回调，在 cancel、重新 schedule 或 close 后跳过，不重放错过的次数。隐藏、遮挡或零 drawable 不阻止业务回调；回调本身不自动请求重绘。
+
+WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只安排最近的实际期限，不建立周期轮询、另一个事件循环或计时线程。内部期限唤醒使用 NewEvents(Wake)，只有应用当前 WaitUntil 真正到期才产生 NewEvents(Deadline) 并恢复 Wait；内部回调不能取消或提前触发应用期限。普通事件到来时也可消费已经到期的登记。
+
+回调沿同一业务派发入口恢复 run／附着 I/O Context，异常按普通 handler 失败开始完整关闭。窗口进入 Closing 时立即关闭其登记，取消未调用的快照；应用退出同样撤销全部排期。登记不取得 native window lease，不延迟窗口销毁。首批用于 UI 基础交互中的离屏动画完成和后续编辑定时工作，按该批次先验证 macOS aarch64，其余目标留到对应验收。
+
 ## 3. 事件模型
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。

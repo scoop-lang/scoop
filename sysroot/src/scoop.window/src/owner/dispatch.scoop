@@ -1,5 +1,7 @@
 package scoop.window
 
+import scoop.platform.time.MonotonicTimeSource
+
 internal fun ApplicationOwner.pump(stage: Int) {
     if (pumping) {
         mailbox.wake();
@@ -53,10 +55,25 @@ internal fun ApplicationOwner.pump(stage: Int) {
         }
         val initial = !initialized
         initialized = true
+        var flowDeadline = false
+        var timed: Array<DeadlineDelivery> = []
+        when (armedDeadline) {
+            case Some(time) -> {
+                val now = MonotonicTimeSource.markNow()
+                if (time <= now) {
+                    flowDeadline = consumeFlowDeadline(now)
+                    timed = takeDeadlines(now)
+                }
+            }
+            case None -> {}
+        }
+        if (flowDeadline || timed.size > 0L || stage == 1)
+            refreshDeadline(stage == 1)
         val hasBatch =
             initial ||
-                stage ==
-                1 ||
+                flowDeadline ||
+                timed.size >
+                0L ||
                 events.size >
                 0L ||
                 business.size >
@@ -70,15 +87,13 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 if (initial)
                     StartCause.Init
                 else
-                    if (stage == 1)
+                    if (flowDeadline)
                         StartCause.Deadline
                     else
                         if (flow == ControlFlow.Poll)
                             StartCause.Poll
                         else
                             StartCause.Wake
-            if (stage == 1)
-                flow = ControlFlow.Wait
             deliver(ApplicationEvent.NewEvents(cause))
             if (initial)
                 deliver(ApplicationEvent.Resumed)
@@ -86,6 +101,8 @@ internal fun ApplicationOwner.pump(stage: Int) {
                 dispatchNative(event)
             for (block in business)
                 deliverBusiness(block)
+            for (delivery in timed)
+                deliverBusiness { delivery.deliver() }
             for (window in redraw)
                 deliverWindow(window, WindowEvent.RedrawRequested)
             deliver(ApplicationEvent.AboutToWait)
