@@ -44,9 +44,9 @@ pub trait MirTypeBridgeTypeLookupV1: sealed::Sealed {
                 Ok(gc)
             }
             ExactTypeKey::Function { .. } => Ok(MirGcKindV1::ContainsManagedReferences),
-            ExactTypeKey::RawPointer(_) | ExactTypeKey::NativeFunctionPointer { .. } => {
-                Ok(MirGcKindV1::GcFree)
-            }
+            ExactTypeKey::RawPointer(_)
+            | ExactTypeKey::NativeFunctionPointer { .. }
+            | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => Ok(MirGcKindV1::GcFree),
         }
     }
 }

@@ -374,7 +374,7 @@ impl fmt::Display for ManifestParseErrorKind {
             }
             Self::InvalidConeKind(kind) => write!(
                 formatter,
-                "invalid Cone kind {kind:?}; expected \"library\" or \"executable\""
+                "invalid Cone kind {kind:?}; expected \"library\", \"executable\", or \"native-app\""
             ),
             Self::InvalidDependencyKey(key) => write!(
                 formatter,

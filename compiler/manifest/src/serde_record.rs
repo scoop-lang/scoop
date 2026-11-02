@@ -15,6 +15,8 @@ use crate::DependencyCoordinateKey;
 pub(crate) enum RequestedKind {
     Library,
     Executable,
+    #[serde(rename = "native-app")]
+    NativeApp,
 }
 
 #[derive(Serialize, Deserialize)]

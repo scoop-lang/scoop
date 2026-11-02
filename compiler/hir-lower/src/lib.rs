@@ -842,6 +842,7 @@ pub(crate) struct Lowerer {
     /// then normalize while pass 2/2.5 resolves fields and signatures.
     pub(crate) ffi_ptr: Option<StructId>,
     pub(crate) ffi_fun_ptr: Option<StructId>,
+    pub(crate) ffi_gc_leaf_fun_ptr: Option<StructId>,
     pub(crate) ffi_pinned_ptr: Option<StructId>,
     pub(crate) ffi_gc_handle: Option<StructId>,
     pub(crate) ffi_foreign_callback: Option<StructId>,
@@ -852,6 +853,7 @@ pub(crate) struct Lowerer {
     pub(crate) nominal_type_uses: Vec<(TypeId, usize, Span)>,
     pub(crate) pointer_type_uses: Vec<(TypeId, usize, Span)>,
     pub(crate) fun_ptr_type_uses: Vec<(TypeId, usize, Span)>,
+    pub(crate) gc_leaf_fun_ptr_type_uses: Vec<(TypeId, usize, Span)>,
     /// Interface member functions in declaration order. Class/struct/enum
     /// declarations carry their member ids directly in export HIR.
     pub(crate) interface_methods: HashMap<InterfaceId, Vec<FunctionId>>,

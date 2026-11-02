@@ -39,12 +39,19 @@ typedef struct ScoopContextCell {
     uint64_t encoded_slot;
 } ScoopContextCell;
 
+/* Common relations normalized once after reading either root descriptor. */
+typedef struct ScoopRootEntryView {
+    ScoopDigest256V1 owner_cone_identity;
+    ScoopDigest256V1 callable_id;
+    const ScoopStaticStorageDescriptorV1 *failure_root;
+} ScoopRootEntryView;
+
 typedef struct ScoopImageRegistry {
     const ScoopPlatformMetadataImages *loaded;
     const ScoopImageDescriptorV1 **images;
     const ScoopImageDescriptorV1 **image_order;
     size_t image_count;
-    const ScoopRootEntryDescriptorV1 *root;
+    ScoopRootEntryView root;
     ScoopRecordTable tables[SCOOP_RECORD_KIND_COUNT];
     ScoopRecordAddress *type_addresses;
     ScoopRecordAddress *callable_addresses;
@@ -68,6 +75,10 @@ ScoopImageRegistry *scoop_image_collect(const ScoopPlatformMetadataImages *loade
                                         const ScoopImageDescriptorV1 *const *images,
                                         uint64_t image_count,
                                         const ScoopRootEntryDescriptorV1 *root);
+ScoopImageRegistry *scoop_image_collect_native_app(const ScoopPlatformMetadataImages *loaded,
+                                                   const ScoopImageDescriptorV1 *const *images,
+                                                   uint64_t image_count,
+                                                   const ScoopNativeAppEntryDescriptorV1 *root);
 void scoop_image_registry_dispose(ScoopImageRegistry *registry);
 void scoop_image_validate_code_and_types(ScoopImageRegistry *registry);
 #if defined(SCOOP_ENABLE_STARTUP_STATS) && SCOOP_ENABLE_STARTUP_STATS

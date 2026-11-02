@@ -41,7 +41,7 @@ pub fn build_all(requests: Vec<BuildRequest>) -> BuildResult<Vec<BuildOutcome>> 
 }
 
 fn prepare(
-    request: BuildRequest,
+    mut request: BuildRequest,
 ) -> BuildResult<(
     PreparedBuildGraph,
     impl FnOnce(crate::BuildGraphOutcome) -> BuildResult<BuildOutcome>,
@@ -60,12 +60,24 @@ fn prepare(
         .graph
         .single_file_source()
         .map(|source| sanitized_stem(source.display_path()));
+    request.final_link.output_kind = if request.graph.root_kind() == RequestedConeKind::NativeApp {
+        scoop_toolchain::FinalOutputKind::SharedLibrary
+    } else {
+        scoop_toolchain::FinalOutputKind::Executable
+    };
     let graph = request.graph;
     if request.require_executable && graph.root_kind() == RequestedConeKind::Library {
         return Err(BuildFailure::tool(
             "SCOOP_RUN_LIBRARY",
             BuildFailurePhase::Request,
             "run requires an executable Cone; the root is a library",
+        ));
+    }
+    if request.require_executable && graph.root_kind() == RequestedConeKind::NativeApp {
+        return Err(BuildFailure::tool(
+            "SCOOP_RUN_NATIVE_APP",
+            BuildFailurePhase::Request,
+            "native-app requires a native host; run accepts executable Cones",
         ));
     }
     let mut prepared = graph.prepare().map_err(BuildFailure::preparation)?;
@@ -129,6 +141,17 @@ fn prepare(
                     .publish(&file.path, Some(&linked.result_key))
                     .map_err(output_error)?;
             }
+            if let Some(library) = &linked.import_library {
+                let destination = output
+                    .path()
+                    .parent()
+                    .expect("output has a parent")
+                    .join(library.file_name().expect("import library has a basename"));
+                OutputLocation::new(&destination)
+                    .map_err(output_error)?
+                    .publish(library, Some(&linked.result_key))
+                    .map_err(output_error)?;
+            }
             output
                 .publish(&linked.path, Some(&linked.result_key))
                 .map_err(output_error)?;
@@ -142,9 +165,19 @@ fn prepare(
             graph,
             sources,
         };
+        let native_app = build.graph.root().artifact().summary().cone().kind()
+            == scoop_slib::ConeKind::NativeApp;
         Ok(match executable {
             None if request.emit_slib => BuildOutcome::Artifact(build),
             None => BuildOutcome::Library(build),
+            Some((runtime_index, link_plan_fingerprint, library)) if native_app => {
+                BuildOutcome::NativeApp {
+                    build,
+                    library,
+                    runtime_index,
+                    link_plan_fingerprint,
+                }
+            }
             Some((runtime_index, link_plan_fingerprint, executable)) => BuildOutcome::Executable {
                 build,
                 executable,
@@ -273,6 +306,12 @@ fn output_path(
     };
     if emit_slib || graph.root_kind() == RequestedConeKind::Library {
         name.push_str(".slib");
+    } else if graph.root_kind() == RequestedConeKind::NativeApp {
+        name = match target.lir_target().native_object_format() {
+            scoop_lir::NativeObjectFormat::MachO64 => format!("lib{name}.dylib"),
+            scoop_lir::NativeObjectFormat::Elf64 => format!("lib{name}.so"),
+            scoop_lir::NativeObjectFormat::Coff64 => format!("{name}.dll"),
+        };
     } else if target.lir_target().native_object_format() == scoop_lir::NativeObjectFormat::Coff64 {
         name.push_str(".exe");
     }

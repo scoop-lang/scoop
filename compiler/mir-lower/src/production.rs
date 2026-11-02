@@ -65,6 +65,14 @@ fn lower_entry_bridge(
 ) -> Result<scoop_mir::EntryMirBridgeBranchV1, scoop_mir::MirProductionBuildError> {
     match output {
         scoop_hir::HirOutputContractV1::Library => Ok(scoop_mir::EntryMirBridgeBranchV1::Library),
+        scoop_hir::HirOutputContractV1::NativeApp(source) => {
+            scoop_mir::NativeAppEntryMirBridgeV1::new(
+                source.as_ref().clone(),
+                CallableOwner::Function(source.declaration()),
+            )
+            .map(Box::new)
+            .map(scoop_mir::EntryMirBridgeBranchV1::NativeApp)
+        }
         scoop_hir::HirOutputContractV1::Executable(source) => {
             let implementation = source.declaration().owner();
             scoop_mir::EntryMirBridgeV1::new(source.as_ref().clone(), implementation)

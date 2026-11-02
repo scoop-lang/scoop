@@ -10,9 +10,14 @@ impl Projection<'_> {
                 let receiver = Source::Receiver(hir::SourceAnnotationReceiver::Callable(
                     Callable::Function(id),
                 ));
-                self.declarations
-                    .contains_key(&receiver.into())
-                    .then(|| self.export.functions[id].params[0].ty)
+                self.declarations.get(&receiver.into()).map(|receiver| {
+                    let [hir::DocumentationSignaturePart::SourceType { ty, .. }] =
+                        receiver.signature.as_slice()
+                    else {
+                        unreachable!("an extension receiver retains its complete source type")
+                    };
+                    *ty
+                })
             }
             Target::Declaration(Source::Property(id)) => match self.export.properties[id].owner {
                 hir::PropertyOwner::Extension(id) => {

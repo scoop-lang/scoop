@@ -68,7 +68,7 @@ impl Lowerer {
                     }));
                 }
             }
-            Type::FunPtr(_) => {}
+            Type::FunPtr(_) | Type::GcLeafFunPtr(_) => {}
             Type::Enum(application) => {
                 let application_value = self.enum_applications[application].clone();
                 declared.extend(

@@ -3,6 +3,7 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(super) enum PreparedCallee<'ctx> {
     Direct(inkwell::values::FunctionValue<'ctx>),
+    NativePointer(Value),
     Dispatch {
         table: Value,
         slot: scoop_lir::DispatchSlotId,
@@ -18,6 +19,9 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         apply_scoop_abi_attributes: bool,
     ) -> Result<PreparedCallee<'ctx>, CodegenError> {
         let symbol = match destination {
+            scoop_lir::CallDestination::NativePointer { callee, .. } => {
+                return Ok(PreparedCallee::NativePointer(callee));
+            }
             scoop_lir::CallDestination::Local(id) => {
                 let symbol = self
                     .functions
@@ -102,6 +106,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         callee: PreparedCallee<'ctx>,
     ) -> Result<PointerValue<'ctx>, CodegenError> {
         match callee {
+            PreparedCallee::NativePointer(value) => Ok(self.value(value)?.into_pointer_value()),
             PreparedCallee::Direct(function) => Ok(function.as_global_value().as_pointer_value()),
             PreparedCallee::Dispatch { table, slot } => self.dispatch_function_pointer(table, slot),
         }

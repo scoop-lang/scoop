@@ -192,6 +192,8 @@ pub enum Type {
     Ptr(Box<Type>),
     /// Typed C function pointer; identity includes its exact signature.
     FunPtr(FunctionTypeId),
+    /// Typed C function pointer using the GC-leaf caller protocol.
+    GcLeafFunPtr(FunctionTypeId),
     /// An instantiated enum type (including `Option<T>` since M4).
     Enum(EnumId, Vec<Type>),
 }

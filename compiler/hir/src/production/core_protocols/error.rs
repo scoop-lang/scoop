@@ -14,9 +14,6 @@ pub enum CoreProtocolCallableBuildError {
     TypeParameterCountMismatch {
         definition: CoreProtocolCallableDefinitionV1,
     },
-    MissingReceiver {
-        definition: CoreProtocolCallableDefinitionV1,
-    },
     MissingSourceParameterInterface {
         definition: CoreProtocolCallableDefinitionV1,
     },

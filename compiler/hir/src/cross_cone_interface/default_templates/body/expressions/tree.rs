@@ -168,6 +168,10 @@ pub enum DefaultExpressionKindV1 {
     CharCode(Box<DefaultExpressionV1>),
     CharFromCodeUnchecked(Box<DefaultExpressionV1>),
     PtrCast(Box<DefaultExpressionV1>),
+    NativeFunctionPointerCast {
+        operand: Box<DefaultExpressionV1>,
+        target_mode: crate::CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<DefaultExpressionV1>,
         offset: OptionalDefaultExpressionV1,
@@ -257,6 +261,12 @@ pub enum DefaultExpressionKindV1 {
         callee: Box<DefaultExpressionV1>,
         function_type: SignatureTypeKey,
         arguments: Vec<DefaultExpressionV1>,
+    },
+    NativePointerCall {
+        callee: Box<DefaultExpressionV1>,
+        function_type: SignatureTypeKey,
+        arguments: Vec<DefaultExpressionV1>,
+        call_mode: crate::CAbiCallMode,
     },
     PrimitiveBinary {
         kind: DefaultPrimitiveBinaryKindV1,
@@ -447,7 +457,8 @@ fn validate_kind(kind: &DefaultExpressionKindV1) -> Result<(), DefaultExpression
         DefaultExpressionKindV1::VariantConstruct { arguments, .. }
         | DefaultExpressionKindV1::MethodCall { arguments, .. }
         | DefaultExpressionKindV1::DirectSuperMethodCall { arguments, .. }
-        | DefaultExpressionKindV1::CallableCall { arguments, .. } => {
+        | DefaultExpressionKindV1::CallableCall { arguments, .. }
+        | DefaultExpressionKindV1::NativePointerCall { arguments, .. } => {
             require_arguments(arguments)?;
         }
         DefaultExpressionKindV1::Call {
@@ -505,6 +516,7 @@ fn validate_kind(kind: &DefaultExpressionKindV1) -> Result<(), DefaultExpression
         | DefaultExpressionKindV1::CharFromCodeUnchecked(_)
         | DefaultExpressionKindV1::PtrToULong(_)
         | DefaultExpressionKindV1::PtrCast(_)
+        | DefaultExpressionKindV1::NativeFunctionPointerCast { .. }
         | DefaultExpressionKindV1::PtrLoad { .. }
         | DefaultExpressionKindV1::PtrStore { .. }
         | DefaultExpressionKindV1::PtrOffset { .. }

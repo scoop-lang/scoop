@@ -83,8 +83,8 @@ fn signature_tree_round_trips_then_resolves_typed_references() {
 
 #[test]
 fn signature_decoder_rejects_unknown_tags_and_empty_required_sequences() {
-    let unknown = decode_canonical::<DecodedSignatureTypeKey>(b"\xa1\x00\x09").unwrap_err();
-    assert_eq!(unknown.kind(), &WireErrorKind::UnknownTag { tag: 9 });
+    let unknown = decode_canonical::<DecodedSignatureTypeKey>(b"\xa1\x00\x0a").unwrap_err();
+    assert_eq!(unknown.kind(), &WireErrorKind::UnknownTag { tag: 10 });
 
     let nominal = PersistentGenericTypeId(ConeIdentity::CORE.0);
     let mut empty_application = vec![0xa3, 0x00, 0x02, 0x01, 0x58, 0x20];
@@ -97,6 +97,26 @@ fn signature_decoder_rejects_unknown_tags_and_empty_required_sequences() {
             expected: 1,
             actual: 0,
         }
+    );
+}
+
+#[test]
+fn gc_leaf_function_pointer_signature_round_trips() {
+    let nominal = PersistentTypeId(ConeIdentity::CORE.0);
+    let key = SignatureTypeKey::GcLeafNativeFunctionPointer {
+        calling_convention: crate::CallingConvention::C,
+        parameters: vec![SignatureTypeKey::Nominal(nominal)],
+        result: Box::new(SignatureTypeKey::Nominal(nominal)),
+    };
+    let decoded = decode_canonical::<DecodedSignatureTypeKey>(&encode(&key).unwrap()).unwrap();
+    assert_eq!(
+        decoded
+            .resolve(&mut TestResolver {
+                nominal,
+                generic: PersistentGenericTypeId(ConeIdentity::SINGLE_FILE.0),
+            })
+            .unwrap(),
+        key
     );
 }
 

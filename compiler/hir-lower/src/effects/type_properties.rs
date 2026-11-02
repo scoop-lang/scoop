@@ -55,7 +55,8 @@ impl Lowerer {
             | hir::Type::Integer(_)
             | hir::Type::Boolean
             | hir::Type::Ptr(_)
-            | hir::Type::FunPtr(_) => Some(HashSet::new()),
+            | hir::Type::FunPtr(_)
+            | hir::Type::GcLeafFunPtr(_) => Some(HashSet::new()),
             hir::Type::Companion(_)
             | hir::Type::String
             | hir::Type::Class(..)

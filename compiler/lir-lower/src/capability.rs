@@ -142,6 +142,7 @@ fn validate_call(
             )?;
         }
         mir::CallTarget::FunctionBridge { .. }
+        | mir::CallTarget::NativePointer { .. }
         | mir::CallTarget::Direct(_)
         | mir::CallTarget::Virtual { .. }
         | mir::CallTarget::Closure { .. } => {}
@@ -289,6 +290,7 @@ fn expression_requirement(
         | mir::ExprKind::CharFromCodeUnchecked(_)
         | mir::ExprKind::PtrToULong(_)
         | mir::ExprKind::PtrCast { .. }
+        | mir::ExprKind::NativeFunctionPointerCast { .. }
         | mir::ExprKind::PtrLoad { .. }
         | mir::ExprKind::PtrStore { .. }
         | mir::ExprKind::PtrOffset { .. }
@@ -358,7 +360,8 @@ fn unavailable_descriptor(
         | mir::Type::Boolean
         | mir::Type::Unit
         | mir::Type::Ptr(_)
-        | mir::Type::FunPtr(_) => module.meta.boxed_types.iter().any(|boxed| {
+        | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_) => module.meta.boxed_types.iter().any(|boxed| {
             boxed.payload() == ty
                 && (roots.materializes_type(&mir::Type::Class(boxed.class()))
                     || dependencies.contains(&mir::Type::Class(boxed.class())))

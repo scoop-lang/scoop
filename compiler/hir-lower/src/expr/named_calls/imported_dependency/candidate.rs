@@ -105,6 +105,17 @@ impl ImportedCallableCandidate {
         }
     }
 
+    pub(in crate::expr) fn native_function_pointer_intrinsic(
+        &self,
+    ) -> Option<hir::NativeFunctionPointerIntrinsic> {
+        match self.interface().effects().implementation() {
+            hir::CallableImplementationV1::Intrinsic(
+                hir::IntrinsicFunctionKind::NativeFunctionPointer(kind),
+            ) => Some(kind),
+            _ => None,
+        }
+    }
+
     pub(super) fn atomic_intrinsic(&self) -> Option<hir::AtomicIntrinsic> {
         match self.interface().effects().implementation() {
             hir::CallableImplementationV1::Intrinsic(hir::IntrinsicFunctionKind::Atomic(kind)) => {
@@ -148,6 +159,7 @@ impl ImportedCallableCandidate {
         self.capability().is_some()
             || self.normalized_intrinsic().is_some()
             || self.pointer_intrinsic().is_some()
+            || self.native_function_pointer_intrinsic().is_some()
             || self.array_intrinsic().is_some()
             || self.atomic_intrinsic().is_some()
             || self.maybe_uninit_intrinsic().is_some()

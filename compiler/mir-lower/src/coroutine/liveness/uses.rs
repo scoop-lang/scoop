@@ -205,6 +205,7 @@ pub(super) fn expr_uses(expr: &mir::Expr, uses: &mut HashSet<mir::LocalId>) {
         | mir::ExprKind::CharFromCodeUnchecked(operand)
         | mir::ExprKind::PtrToULong(operand)
         | mir::ExprKind::PtrCast { operand, .. }
+        | mir::ExprKind::NativeFunctionPointerCast { operand, .. }
         | mir::ExprKind::Unary { operand, .. }
         | mir::ExprKind::IntegerUnary { operand, .. }
         | mir::ExprKind::IntegerConversion { operand, .. }

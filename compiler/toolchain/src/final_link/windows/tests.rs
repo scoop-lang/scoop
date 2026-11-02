@@ -8,12 +8,7 @@ fn tool(name: &str) -> PathBuf {
         .unwrap_or_else(|| panic!("{name} is required for Windows link validation"))
 }
 
-#[test]
-fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
-    let directory = tempfile::Builder::new()
-        .prefix("scoop PE 链接 , ")
-        .tempdir()
-        .unwrap();
+pub(super) fn profiles(kind: FinalOutputKind, sysroot: &Path) -> Vec<WindowsFinalLinkProfile> {
     let clang = tool("SCOOP_TEST_CLANG");
     let msvcrt = tool("SCOOP_TEST_MINGW_MSVCRT");
     let ucrt = tool("SCOOP_TEST_MINGW_UCRT");
@@ -56,7 +51,8 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
             None,
         ),
     ];
-    for (index, (target, prefix, unwind, cxx, linker)) in cases.into_iter().enumerate() {
+    let mut profiles = Vec::new();
+    for (target, prefix, unwind, cxx, linker) in cases {
         let prefix = prefix.map(|root| std::fs::canonicalize(root).unwrap());
         let startup =
             crate::resolve_windows_c_toolchain(target, &clang, prefix.as_deref()).unwrap();
@@ -69,12 +65,27 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
             ValidatedCxxToolchain::resolve_with(&startup, Some(&driver)).unwrap()
         });
         let options = FinalLinkOptions {
-            sysroot: Some(directory.path().to_owned()),
+            output_kind: kind,
+            sysroot: Some(sysroot.to_owned()),
             unwind_prefix: Some(tool(unwind)),
             linker,
             ..Default::default()
         };
-        let profile = WindowsFinalLinkProfile::resolve(startup, &options, cxx).unwrap();
+        profiles.push(WindowsFinalLinkProfile::resolve(startup, &options, cxx).unwrap());
+    }
+    profiles
+}
+
+#[test]
+fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
+    let directory = tempfile::Builder::new()
+        .prefix("scoop PE 链接 , ")
+        .tempdir()
+        .unwrap();
+    for (index, profile) in profiles(FinalOutputKind::Executable, directory.path())
+        .into_iter()
+        .enumerate()
+    {
         let crt_name = if profile.microsoft() {
             "ucrt.lib"
         } else {
@@ -92,7 +103,16 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
             profile
                 .input_paths()
                 .iter()
-                .any(|path| path.file_name().is_some_and(|name| name == "unwind.h"))
+                .any(|path| path.file_name().is_some_and(|name| name == "unwind.h")),
+            "case {index}: unwind header absent from {:?}",
+            profile
+                .input_paths()
+                .iter()
+                .filter(|path| path
+                    .to_string_lossy()
+                    .to_ascii_lowercase()
+                    .contains("unwind"))
+                .collect::<Vec<_>>()
         );
         let scratch = directory.path().join(index.to_string());
         std::fs::create_dir_all(&scratch).unwrap();
@@ -160,7 +180,12 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
                 binary.display()
             )
         });
-        probe::check_image(&bytes, target.id()).unwrap();
+        probe::check_image(
+            &bytes,
+            profile.startup.target().id(),
+            FinalOutputKind::Executable,
+        )
+        .unwrap();
         let pe = object::read::pe::PeFile64::parse(bytes.as_slice()).unwrap();
         let header = pe.nt_headers().optional_header();
         assert_eq!(

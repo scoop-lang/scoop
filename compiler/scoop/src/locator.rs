@@ -239,7 +239,7 @@ fn validate_artifact_shape(
         });
     }
     if summary.cone().kind() != ConeKind::Library {
-        return Err(DependencyLocatorError::ExecutableDependency {
+        return Err(DependencyLocatorError::NonLibraryDependency {
             coordinate: expected.clone(),
             path: path.to_path_buf(),
         });

@@ -9,6 +9,10 @@ use properties::dump_property;
 /// Indented text dump for golden tests (`scoopc build --emit=hir`).
 pub fn dump(output: &ExportHirOutput) -> String {
     dump_with(output.module(), |module, out| match output.output_kind() {
+        ConeOutputKind::NativeApp { local_entry } => out.push_str(&format!(
+            "  output native-app {}\n",
+            module.functions[local_entry.local_function().function()].name
+        )),
         ConeOutputKind::Library => out.push_str("  output library\n"),
         ConeOutputKind::Executable { local_entry } => out.push_str(&format!(
             "  output executable {}\n",

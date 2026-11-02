@@ -20,9 +20,11 @@ pub(super) fn read<'a>(
     };
     let root = decode(root)?;
     let root_identity = root.identity();
-    if root.kind() != ConeKind::Executable {
-        return Err(error("program root must be an executable Cone")
-            .at(root_identity, "manifest:cone.kind"));
+    if !matches!(root.kind(), ConeKind::Executable | ConeKind::NativeApp) {
+        return Err(
+            error("program root must be an executable or native-app Cone")
+                .at(root_identity, "manifest:cone.kind"),
+        );
     }
     let mut by_identity = BTreeMap::new();
     for bytes in dependencies {

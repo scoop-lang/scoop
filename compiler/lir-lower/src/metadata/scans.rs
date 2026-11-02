@@ -128,7 +128,8 @@ pub(crate) fn ref_scan(
         | mir::Type::MachineScalar(_)
         | mir::Type::Boolean
         | mir::Type::Ptr(_)
-        | mir::Type::FunPtr(_) => lir::RefScan::None,
+        | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_) => lir::RefScan::None,
     })
 }
 

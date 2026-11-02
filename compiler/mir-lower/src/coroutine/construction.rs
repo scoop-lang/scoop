@@ -432,6 +432,11 @@ pub(super) fn callee_return_type(lowerer: &Lowerer, target: &mir::CallTarget) ->
                 })
                 .expect("the suspend result has its provider-defined CoroutineStep");
         }
+        mir::CallTarget::NativePointer { function_type, .. } => {
+            return lowerer.shell.function_types[*function_type]
+                .return_type
+                .clone();
+        }
         mir::CallTarget::Closure { function_type, .. }
         | mir::CallTarget::FunctionBridge { function_type, .. } => {
             let signature = &lowerer.shell.function_types[*function_type];

@@ -9,7 +9,7 @@ use scoop_identity::{
 };
 use scoop_wire::HashError;
 
-use super::ExecutableEntryPlanV1;
+use super::{ExecutableEntryPlanV1, NativeAppEntryPlanV1};
 use crate::{ConeLirFoundation, DigestFinalizationPlanV1, RegistrationIdentitySurfaceV1};
 
 pub(super) fn build_executable(
@@ -36,9 +36,100 @@ pub(super) fn build_executable(
         &StaticStorageKey::root_entry_failure_root(root_cone, main),
     )
     .map_err(EntryProductionPlanBuildError::Hash)?;
+    let (root_descriptor_symbol, root_descriptor_definition) = validate_artifacts(
+        RootArtifactKeys {
+            body: main.body(),
+            descriptor: PersistentSymbolKey::RootEntryDescriptor(root_cone),
+            entity: StrongDefinitionEntity::root_entry(root_cone),
+            role: StrongDefinitionRole::RootEntryDescriptor,
+        },
+        gateway,
+        failure_root,
+        foundation,
+        registrations,
+        digests,
+    )?;
+    Ok(ExecutableEntryPlanV1 {
+        root_cone,
+        declaration,
+        source_signature,
+        source_signature_fingerprint,
+        main,
+        failure_root,
+        gateway,
+        root_descriptor_symbol,
+        root_descriptor_definition,
+    })
+}
+
+pub(super) fn build_native_app(
+    source: scoop_identity::NativeAppEntryIdentity,
+    foundation: &ConeLirFoundation,
+    registrations: &RegistrationIdentitySurfaceV1,
+    digests: &DigestFinalizationPlanV1,
+) -> Result<NativeAppEntryPlanV1, EntryProductionPlanBuildError> {
+    let root_cone = source.root_cone();
+    if root_cone != foundation.producer() {
+        return Err(EntryProductionPlanBuildError::ProducerMismatch {
+            source: root_cone,
+            foundation: foundation.producer(),
+        });
+    }
+    let declaration = source.declaration();
+    let source_signature = source.source_signature().clone();
+    let source_signature_fingerprint = source.source_signature_fingerprint();
+    let app_init = source.app_init();
+    let gateway = PersistentCallableBodyId::from_key(&CallableBodyKey::native_app_gateway(
+        root_cone, app_init,
+    ))
+    .map_err(EntryProductionPlanBuildError::Hash)?;
+    let failure_root = PersistentStaticStorageId::from_key(
+        &StaticStorageKey::native_app_entry_failure_root(root_cone, app_init),
+    )
+    .map_err(EntryProductionPlanBuildError::Hash)?;
+    let (root_descriptor_symbol, root_descriptor_definition) = validate_artifacts(
+        RootArtifactKeys {
+            body: app_init.body(),
+            descriptor: PersistentSymbolKey::NativeAppEntryDescriptor(root_cone),
+            entity: StrongDefinitionEntity::native_app_entry(root_cone),
+            role: StrongDefinitionRole::NativeAppEntryDescriptor,
+        },
+        gateway,
+        failure_root,
+        foundation,
+        registrations,
+        digests,
+    )?;
+    Ok(NativeAppEntryPlanV1 {
+        root_cone,
+        declaration,
+        source_signature,
+        source_signature_fingerprint,
+        app_init,
+        failure_root,
+        gateway,
+        root_descriptor_symbol,
+        root_descriptor_definition,
+    })
+}
+
+struct RootArtifactKeys {
+    body: PersistentCallableBodyId,
+    descriptor: PersistentSymbolKey,
+    entity: StrongDefinitionEntity,
+    role: StrongDefinitionRole,
+}
+fn validate_artifacts(
+    keys: RootArtifactKeys,
+    gateway: PersistentCallableBodyId,
+    failure_root: PersistentStaticStorageId,
+    foundation: &ConeLirFoundation,
+    registrations: &RegistrationIdentitySurfaceV1,
+    digests: &DigestFinalizationPlanV1,
+) -> Result<(PersistentSymbolRequest, ObjectDefinitionPlanId), EntryProductionPlanBuildError> {
     validate_root_only_entities(foundation, gateway, failure_root)?;
 
-    for body in [main.body(), gateway] {
+    for body in [keys.body, gateway] {
         if !foundation.contains_callable_body(body) {
             return Err(EntryProductionPlanBuildError::MissingCallableBody(body));
         }
@@ -78,15 +169,8 @@ pub(super) fn build_executable(
         StrongDefinitionRole::RootRegistration,
     )?;
 
-    let root_descriptor_symbol = require_symbol(
-        foundation,
-        PersistentSymbolKey::RootEntryDescriptor(root_cone),
-    )?;
-    let root_descriptor_definition = require_definition(
-        foundation,
-        StrongDefinitionEntity::root_entry(root_cone),
-        StrongDefinitionRole::RootEntryDescriptor,
-    )?;
+    let root_descriptor_symbol = require_symbol(foundation, keys.descriptor)?;
+    let root_descriptor_definition = require_definition(foundation, keys.entity, keys.role)?;
     require_primary_atom(foundation, root_descriptor_definition)?;
     let gateway_definition = require_definition(
         foundation,
@@ -95,21 +179,11 @@ pub(super) fn build_executable(
     )?;
     let gateway_atom = require_primary_atom(foundation, gateway_definition)?;
 
-    require_digest_node(digests, DigestNodeKey::source_signature(main.body()))?;
+    require_digest_node(digests, DigestNodeKey::source_signature(keys.body))?;
 
     require_digest_node(digests, DigestNodeKey::object_definition(gateway_atom))?;
 
-    Ok(ExecutableEntryPlanV1 {
-        root_cone,
-        declaration,
-        source_signature,
-        source_signature_fingerprint,
-        main,
-        failure_root,
-        gateway,
-        root_descriptor_symbol,
-        root_descriptor_definition,
-    })
+    Ok((root_descriptor_symbol, root_descriptor_definition))
 }
 
 pub(super) fn validate_library_foundation(
@@ -123,7 +197,13 @@ pub(super) fn validate_library_foundation(
     let descriptor_symbols = foundation
         .symbol_requests()
         .iter()
-        .filter(|request| matches!(request.key(), PersistentSymbolKey::RootEntryDescriptor(_)))
+        .filter(|request| {
+            matches!(
+                request.key(),
+                PersistentSymbolKey::RootEntryDescriptor(_)
+                    | PersistentSymbolKey::NativeAppEntryDescriptor(_)
+            )
+        })
         .count();
     let descriptor_definitions = root_descriptor_definitions(foundation).len();
     if gateway_count + failure_root_count + descriptor_symbols + descriptor_definitions != 0 {
@@ -161,7 +241,13 @@ fn validate_root_only_entities(
     let descriptor_symbols = foundation
         .symbol_requests()
         .iter()
-        .filter(|request| matches!(request.key(), PersistentSymbolKey::RootEntryDescriptor(_)))
+        .filter(|request| {
+            matches!(
+                request.key(),
+                PersistentSymbolKey::RootEntryDescriptor(_)
+                    | PersistentSymbolKey::NativeAppEntryDescriptor(_)
+            )
+        })
         .count();
     let descriptor_definitions = root_descriptor_definitions(foundation);
     if descriptor_symbols != 1 || descriptor_definitions.len() != 1 {
@@ -185,8 +271,8 @@ fn root_descriptor_definitions(foundation: &ConeLirFoundation) -> Vec<ObjectDefi
                         entity,
                         ..
                     },
-                    ObjectDefinitionPlanRole::Strong(StrongDefinitionRole::RootEntryDescriptor)
-                ) if matches!(entity.kind(), StrongDefinitionEntityKind::RootEntry(_))
+                    ObjectDefinitionPlanRole::Strong(StrongDefinitionRole::RootEntryDescriptor | StrongDefinitionRole::NativeAppEntryDescriptor)
+                ) if matches!(entity.kind(), StrongDefinitionEntityKind::RootEntry(_) | StrongDefinitionEntityKind::NativeAppEntry(_))
             )
             .then_some(record.id())
         })

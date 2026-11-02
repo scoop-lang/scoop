@@ -1,0 +1,11 @@
+package dev.nativeapp.eager
+
+val broken: Int = fail()
+
+private fun fail(): Int {
+    throw IllegalArgumentException()
+}
+
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
+    throw IllegalStateException()
+}

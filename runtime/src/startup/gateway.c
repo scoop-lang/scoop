@@ -22,3 +22,13 @@ __attribute__((noinline)) uint32_t scoop_startup_call_root(ScoopRootEntryGateway
     }
     return status;
 }
+
+__attribute__((noinline)) uint32_t scoop_startup_call_native_app(
+    ScoopNativeAppEntryGatewayFnV1 gateway, const void *host_api, void *out_app_api) {
+    scoop_thread_enter_gateway(__builtin_frame_address(0));
+    uint32_t status = gateway(host_api, out_app_api);
+    scoop_thread_leave_managed();
+    if (status > 1)
+        scoop_startup_fatal("gateway returned an invalid status");
+    return status;
+}

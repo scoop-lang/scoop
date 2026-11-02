@@ -58,7 +58,8 @@ impl MirTypeBridgeAuthority<'_> {
                     ),
                     ExactTypeKey::Tuple(_)
                     | ExactTypeKey::RawPointer(_)
-                    | ExactTypeKey::NativeFunctionPointer { .. } => true,
+                    | ExactTypeKey::NativeFunctionPointer { .. }
+                    | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => true,
                     ExactTypeKey::Function { .. } => false,
                 };
                 if !value {

@@ -317,6 +317,7 @@ pub(crate) struct RuntimeMetadataV1Types<'ctx> {
     initialization_unit_descriptor: StructType<'ctx>,
     safepoint_registration_descriptor: StructType<'ctx>,
     root_entry_descriptor: StructType<'ctx>,
+    native_app_entry_descriptor: StructType<'ctx>,
     image_descriptor: StructType<'ctx>,
 }
 
@@ -510,6 +511,7 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
             initialization_unit_descriptor,
             safepoint_registration_descriptor,
             root_entry_descriptor,
+            native_app_entry_descriptor: root_entry_descriptor,
             image_descriptor,
         }
     }
@@ -545,6 +547,13 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
                 self.safepoint_registration_descriptor,
             ),
             (ROOT_ENTRY_DESCRIPTOR, self.root_entry_descriptor),
+            (
+                ExpectedStruct {
+                    name: "ScoopNativeAppEntryDescriptorV1",
+                    ..ROOT_ENTRY_DESCRIPTOR
+                },
+                self.native_app_entry_descriptor,
+            ),
             (IMAGE_DESCRIPTOR, self.image_descriptor),
         ] {
             validate_struct_layout(target_data, expected, actual)?;

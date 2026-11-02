@@ -60,6 +60,14 @@ impl Lowerer {
                     span,
                 ))
             }
+            ImportedIntrinsicCall::NativeFunctionPointer(intrinsic) => {
+                Some(self.normalize_native_function_pointer_conversion(
+                    intrinsic,
+                    receiver.expect("a function pointer conversion has a receiver"),
+                    result_type,
+                    span,
+                ))
+            }
             ImportedIntrinsicCall::ArrayConversion(intrinsic) => self
                 .normalize_array_intrinsic_call(
                     hir::IntrinsicFunctionKind::Array(intrinsic),

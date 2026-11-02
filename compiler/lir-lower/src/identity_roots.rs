@@ -204,6 +204,7 @@ fn generated_location(ty: &mir::Type) -> Option<mir::GeneratedExactTypeLocation>
         | mir::Type::Function(_)
         | mir::Type::Ptr(_)
         | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_)
         | mir::Type::Any => None,
     }
 }

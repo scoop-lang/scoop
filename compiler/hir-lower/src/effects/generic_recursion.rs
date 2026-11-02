@@ -29,6 +29,10 @@ enum SymbolicType {
         parameters: Vec<SymbolicType>,
         result: Box<SymbolicType>,
     },
+    GcLeafFunPtr {
+        parameters: Vec<SymbolicType>,
+        result: Box<SymbolicType>,
+    },
     Enum(hir::SourceNominalId, Vec<SymbolicType>),
     Parameter(hir::TypeParamId),
     Companion(Box<SymbolicType>),
@@ -234,6 +238,17 @@ impl Lowerer {
             hir::Type::FunPtr(function) => {
                 let function = &self.function_types[*function];
                 SymbolicType::FunPtr {
+                    parameters: function
+                        .parameter_types
+                        .iter()
+                        .map(|parameter| self.symbolic_type(*parameter, bindings))
+                        .collect(),
+                    result: Box::new(self.symbolic_type(function.return_type, bindings)),
+                }
+            }
+            hir::Type::GcLeafFunPtr(function) => {
+                let function = &self.function_types[*function];
+                SymbolicType::GcLeafFunPtr {
                     parameters: function
                         .parameter_types
                         .iter()

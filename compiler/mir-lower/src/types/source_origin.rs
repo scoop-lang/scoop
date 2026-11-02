@@ -79,7 +79,8 @@ fn lower(module: &hir::Module, ty: hir::TypeId) -> SourceExactTypeOrigin {
         ExactTypeKey::Tuple(_)
         | ExactTypeKey::Function { .. }
         | ExactTypeKey::RawPointer(_)
-        | ExactTypeKey::NativeFunctionPointer { .. } => SourceExactTypeOrigin::Structural,
+        | ExactTypeKey::NativeFunctionPointer { .. }
+        | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => SourceExactTypeOrigin::Structural,
     }
 }
 
@@ -129,7 +130,8 @@ fn provider(module: &hir::Module, ty: hir::TypeId) -> ConeIdentity {
         hir::TypeKind::Tuple(_)
         | hir::TypeKind::Function(_)
         | hir::TypeKind::Ptr(_)
-        | hir::TypeKind::FunPtr(_) => {
+        | hir::TypeKind::FunPtr(_)
+        | hir::TypeKind::GcLeafFunPtr(_) => {
             unreachable!("structural exact types have no nominal provider")
         }
     };

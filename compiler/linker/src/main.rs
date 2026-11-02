@@ -8,7 +8,7 @@ use scoop_linker::ArtifactLinkRequest;
 #[command(
     name = "scoop-link",
     version = scoop_toolchain::VERSION,
-    about = "Link Scoop artifacts into a native executable"
+    about = "Link Scoop artifacts into an executable or native-app shared library"
 )]
 struct Cli {
     /// Link a runtime that allows GC stress to be controlled by environment variables.
@@ -44,7 +44,13 @@ struct Cli {
     unwind_prefix: Option<PathBuf>,
     #[arg(long, value_enum)]
     link_mode: Option<LinkMode>,
-    /// Keep the ordinary symbol table in the final executable.
+    /// Darwin native-app install name.
+    #[arg(long)]
+    install_name: Option<String>,
+    /// ELF native-app SONAME.
+    #[arg(long)]
+    soname: Option<String>,
+    /// Keep the ordinary symbol table in the final product.
     #[arg(long)]
     keep_symbols: bool,
     /// Produce a .dSYM bundle or .debug file from existing object debug information.
@@ -100,12 +106,15 @@ fn main() -> ExitCode {
             sysroot: cli.sysroot,
             keep_symbols: cli.keep_symbols,
             emit_debug_file: cli.emit_debug_file,
+            install_name: cli.install_name,
+            soname: cli.soname,
             enable_stack_trace: cli.enable_stack_trace,
             unwind_prefix: cli.unwind_prefix,
             mode: cli.link_mode.map(|mode| match mode {
                 LinkMode::Static => scoop_toolchain::LinkMode::Static,
                 LinkMode::Dynamic => scoop_toolchain::LinkMode::Dynamic,
             }),
+            ..Default::default()
         },
         library_paths: cli.library_paths,
         output: cli.output,

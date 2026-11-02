@@ -77,6 +77,7 @@ impl Fixture {
             mutable_array: crate::ClassId::from_raw(2_u32.into()),
             ptr: crate::StructId::from_raw(9_u32.into()),
             fun_ptr: crate::StructId::from_raw(10_u32.into()),
+            gc_leaf_fun_ptr: crate::StructId::from_raw(15_u32.into()),
         };
         let type_inputs = HirTypeIdentityInputs {
             types: &types,

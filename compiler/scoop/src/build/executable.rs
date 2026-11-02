@@ -38,13 +38,14 @@ impl Request<'_> {
 pub(super) struct Executable {
     pub path: PathBuf,
     pub debug_file: Option<scoop_linker::DebugFile>,
+    pub import_library: Option<PathBuf>,
     pub fingerprint: ResolvedLinkPlanFingerprint,
     pub result_key: [u8; 32],
 }
 
 pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let key = key::of(&request)?;
-    let namespace = request.cache.join("executables-v4");
+    let namespace = request.cache.join("final-products-v1");
     let entry = namespace.join(format!("{key}.json"));
     if let Some(executable) = record::load(&entry)? {
         return Ok(executable);
@@ -80,18 +81,22 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
             enable_stack_trace: request.enable_stack_trace(),
         },
         request.libraries,
-        &directory.path().join(if request.emit_debug_file() {
-            request
-                .output
-                .file_name()
-                .ok_or_else(|| failure("executable has no basename"))?
-        } else if request.target.lir_target().native_object_format()
-            == scoop_lir::NativeObjectFormat::Coff64
-        {
-            std::ffi::OsStr::new("program.exe")
-        } else {
-            std::ffi::OsStr::new("program")
-        }),
+        &directory.path().join(
+            if request.emit_debug_file()
+                || request.options.output_kind == scoop_toolchain::FinalOutputKind::SharedLibrary
+            {
+                request
+                    .output
+                    .file_name()
+                    .ok_or_else(|| failure("executable has no basename"))?
+            } else if request.target.lir_target().native_object_format()
+                == scoop_lir::NativeObjectFormat::Coff64
+            {
+                std::ffi::OsStr::new("program.exe")
+            } else {
+                std::ffi::OsStr::new("program")
+            },
+        ),
         request.cache,
     )
     .map_err(failure)?;
@@ -110,6 +115,7 @@ pub(super) fn get(request: Request<'_>) -> BuildResult<Executable> {
     let executable = Executable {
         path: linked.path,
         debug_file: linked.debug_file,
+        import_library: linked.import_library,
         fingerprint: linked.fingerprint,
         result_key,
     };

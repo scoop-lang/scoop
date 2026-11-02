@@ -237,6 +237,13 @@ impl DecodedDefaultExpressionKindV1 {
             Self::CharFromCodeUnchecked(operand) => DefaultExpressionKindV1::CharFromCodeUnchecked(
                 resolve_child(operand, resolver, locals, 65, 1)?,
             ),
+            Self::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => DefaultExpressionKindV1::NativeFunctionPointerCast {
+                operand: resolve_child(operand, resolver, locals, 79, 1)?,
+                target_mode,
+            },
             Self::PtrCast(operand) => {
                 DefaultExpressionKindV1::PtrCast(resolve_child(operand, resolver, locals, 21, 1)?)
             }
@@ -441,6 +448,17 @@ impl DecodedDefaultExpressionKindV1 {
                 callee: resolve_child(callee, resolver, locals, 46, 1)?,
                 function_type: resolve_type(function_type, resolver, 46, 2)?,
                 arguments: resolve_sequence(arguments, resolver, locals, 46, 3)?,
+            },
+            Self::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => DefaultExpressionKindV1::NativePointerCall {
+                call_mode,
+                callee: resolve_child(callee, resolver, locals, 80, 1)?,
+                function_type: resolve_type(function_type, resolver, 80, 2)?,
+                arguments: resolve_sequence(arguments, resolver, locals, 80, 3)?,
             },
             Self::PrimitiveBinary { kind, lhs, rhs } => DefaultExpressionKindV1::PrimitiveBinary {
                 kind,

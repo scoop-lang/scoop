@@ -77,6 +77,7 @@ impl std::error::Error for ProducerRecordError {}
 pub enum ConeKind {
     Library,
     Executable,
+    NativeApp,
 }
 
 impl WireEncode for ConeKind {
@@ -84,6 +85,7 @@ impl WireEncode for ConeKind {
         encoder.unsigned(match self {
             Self::Library => 1,
             Self::Executable => 2,
+            Self::NativeApp => 3,
         })
     }
 }

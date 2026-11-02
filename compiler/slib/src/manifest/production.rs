@@ -3,7 +3,7 @@
 use std::fmt;
 
 use scoop_identity::{
-    MainCallableBodyId, PersistentCallableBodyId, PersistentStaticStorageId,
+    AppInitCallableBodyId, MainCallableBodyId, PersistentCallableBodyId, PersistentStaticStorageId,
     SourceSignatureFingerprint,
 };
 use scoop_lir::{ConeProductionSectionV1, RegistrationIdentitySurfaceV1};
@@ -90,10 +90,65 @@ impl WireEncode for ExecutableRootProjectionV1 {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct NativeAppRootProjectionV1 {
+    app_init: AppInitCallableBodyId,
+    source_signature_fingerprint: SourceSignatureFingerprint,
+    gateway: PersistentCallableBodyId,
+    gateway_definition_fingerprint: ObjectDefinitionFingerprintV1,
+    failure_root: PersistentStaticStorageId,
+    entry_owner_member: SlibMemberId,
+}
+
+impl NativeAppRootProjectionV1 {
+    pub const fn app_init(self) -> AppInitCallableBodyId {
+        self.app_init
+    }
+
+    pub const fn source_signature_fingerprint(self) -> SourceSignatureFingerprint {
+        self.source_signature_fingerprint
+    }
+
+    pub const fn gateway(self) -> PersistentCallableBodyId {
+        self.gateway
+    }
+
+    pub const fn gateway_definition_fingerprint(self) -> ObjectDefinitionFingerprintV1 {
+        self.gateway_definition_fingerprint
+    }
+
+    pub const fn failure_root(self) -> PersistentStaticStorageId {
+        self.failure_root
+    }
+
+    pub const fn entry_owner_member(self) -> SlibMemberId {
+        self.entry_owner_member
+    }
+}
+
+impl WireEncode for NativeAppRootProjectionV1 {
+    fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
+        encoder.map(6)?;
+        encoder.field(1)?;
+        self.app_init.encode(encoder)?;
+        encoder.field(2)?;
+        self.source_signature_fingerprint.encode(encoder)?;
+        encoder.field(3)?;
+        self.gateway.encode(encoder)?;
+        encoder.field(4)?;
+        self.gateway_definition_fingerprint.encode(encoder)?;
+        encoder.field(5)?;
+        self.failure_root.encode(encoder)?;
+        encoder.field(6)?;
+        self.entry_owner_member.encode(encoder)
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum SingleConeProductionOutputV1 {
     Library,
     Executable(Box<ExecutableRootProjectionV1>),
+    NativeApp(Box<NativeAppRootProjectionV1>),
 }
 
 impl WireEncode for SingleConeProductionOutputV1 {
@@ -104,6 +159,13 @@ impl WireEncode for SingleConeProductionOutputV1 {
                 encoder.map(2)?;
                 encoder.field(0)?;
                 encoder.unsigned(2)?;
+                encoder.field(1)?;
+                root.encode(encoder)
+            }
+            Self::NativeApp(root) => {
+                encoder.map(2)?;
+                encoder.field(0)?;
+                encoder.unsigned(3)?;
                 encoder.field(1)?;
                 root.encode(encoder)
             }

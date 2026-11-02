@@ -144,6 +144,20 @@ fn type_name(lowerer: &Lowerer, type_params: &[hir::TypeParamDecl], ty: TypeId) 
                 parameters.join(", ")
             )
         }
+        Type::GcLeafFunPtr(id) => {
+            let function = &function_types[*id];
+            let parameters: Vec<_> = function
+                .parameter_types
+                .iter()
+                .map(|ty| type_name(lowerer, type_params, *ty))
+                .collect();
+            let return_type = type_name(lowerer, type_params, function.return_type);
+            let suspend = if function.is_suspend { "suspend " } else { "" };
+            format!(
+                "GCLeafFunPtr<{suspend}({}) -> {return_type}>",
+                parameters.join(", ")
+            )
+        }
         Type::Enum(application) => {
             let application = &lowerer.enum_applications[*application];
             let name = match lowerer.nominal_owners.get(&application.template) {

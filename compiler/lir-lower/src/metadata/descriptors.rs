@@ -79,7 +79,8 @@ impl TypeDescriptorRefs {
             | mir::Type::Boolean
             | mir::Type::Unit
             | mir::Type::Ptr(_)
-            | mir::Type::FunPtr(_) => self
+            | mir::Type::FunPtr(_)
+            | mir::Type::GcLeafFunPtr(_) => self
                 .boxed
                 .iter()
                 .find_map(|(payload, descriptor)| {

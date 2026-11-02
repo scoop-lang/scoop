@@ -44,6 +44,18 @@ impl Loaded {
                     .collect(),
                 result: self.register_signature(result),
             },
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: *calling_convention,
+                parameters: parameters
+                    .iter()
+                    .map(|parameter| self.register_signature(parameter))
+                    .collect(),
+                result: self.register_signature(result),
+            },
             SignatureTypeKey::Binder { .. }
             | SignatureTypeKey::NominalApplication { .. }
             | SignatureTypeKey::Companion(_) => {

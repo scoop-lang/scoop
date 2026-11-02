@@ -370,6 +370,7 @@ fn encode_requested_kind(
     encoder.unsigned(match kind {
         RequestedConeKind::Library => 1,
         RequestedConeKind::Executable => 2,
+        RequestedConeKind::NativeApp => 3,
     })
 }
 

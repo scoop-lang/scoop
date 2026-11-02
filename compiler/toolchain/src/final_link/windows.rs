@@ -10,6 +10,8 @@ mod probe;
 mod wire;
 
 #[cfg(all(test, windows, target_arch = "x86_64"))]
+mod shared_tests;
+#[cfg(all(test, windows, target_arch = "x86_64"))]
 mod tests;
 
 const MSVC_OPTIONS: &[&str] = &[
@@ -49,6 +51,7 @@ pub struct WindowsFinalLinkProfile {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(super) struct Discovery {
+    pub(super) output: OutputConfiguration,
     #[serde(with = "crate::build_record::values::paths")]
     pub(super) native_roots: Vec<PathBuf>,
     #[serde(with = "crate::build_record::values::path")]
@@ -94,6 +97,7 @@ impl WindowsFinalLinkProfile {
         options: &FinalLinkOptions,
         cxx: Option<ValidatedCxxToolchain>,
     ) -> Result<Self, ToolchainError> {
+        let output = OutputConfiguration::resolve(startup.target(), options)?;
         let environment = startup.windows_environment().map_err(error)?;
         if options.mode == Some(LinkMode::Static) {
             return Err(error(
@@ -193,6 +197,7 @@ impl WindowsFinalLinkProfile {
         let linker_digest = crate::build_record::fingerprint(&Input::read(&linker)?)?;
         let mut profile = Self {
             data: Discovery {
+                output,
                 native_roots: options.native_roots(startup.target())?,
                 driver,
                 linker,

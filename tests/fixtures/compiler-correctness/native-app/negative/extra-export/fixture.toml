@@ -1,0 +1,40 @@
+schema = 1
+name = "native-app-reject-extra-export"
+inputs = ["cone", "extra.c"]
+tools = ["scoop", "scoopc", "cc", "ar", "python"]
+targets = ["x86_64-pc-windows-msvc-ucrt", "x86_64-w64-windows-llvm-mingw-msvcrt", "x86_64-w64-windows-llvm-mingw-ucrt"]
+tags = ["native-app", "negative", "native-link", "compiler-correctness"]
+
+[[steps]]
+name = "prepare"
+files = [{write = {path = "${work}/product.dll", data = "previous-product\n"}}]
+
+[[steps]]
+name = "compile-native"
+argv = ["${cc}", {each = "${cc_args}"}, "-Wall", "-Wextra", "-Werror", "-c", "${fixture}/extra.c", "-o", "${work}/extra-native.obj"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "archive"
+argv = ["${ar}", "rcs", "${work}/extra.lib", "${work}/extra-native.obj"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${fixture}/cone", "--lockfile", "${work}/cone.lock", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--library-path", "${work}", "-o", "${work}/product.dll", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = [{code = "SCOOP_LINK_FAILED", phase = "FinalLink", severity = "error", message = "native-app DLL must export only scoop_app_init; remove explicit native exports", origin = {kind = "none"}, notes = []}]
+
+[[steps]]
+name = "preserve-product"
+argv = ["${python}", "-c", "from pathlib import Path; import sys; assert Path(sys.argv[1]).read_bytes() == b'previous-product\\n'", "${work}/product.dll"]
+exit = 0
+stdout = ""
+stderr = ""

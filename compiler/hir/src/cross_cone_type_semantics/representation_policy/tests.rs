@@ -61,6 +61,7 @@ fn intrinsic_family_keeps_integer_width_and_signedness_and_generic_family_distin
             IntrinsicTypeKind::MutableArray,
             IntrinsicTypeKind::Ptr,
             IntrinsicTypeKind::FunPtr,
+            IntrinsicTypeKind::GcLeafFunPtr,
         ])
     {
         let representation = NominalIntrinsicRepresentationV1::new(family);
@@ -73,7 +74,7 @@ fn intrinsic_family_keeps_integer_width_and_signedness_and_generic_family_distin
             family
         );
     }
-    assert_eq!(encodings.len(), 17);
+    assert_eq!(encodings.len(), 18);
 }
 
 #[test]

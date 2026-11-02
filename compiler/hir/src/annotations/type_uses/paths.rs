@@ -67,7 +67,11 @@ pub fn type_annotation_path_exists(
     let mut path = path;
     while let Some(step) = path.first() {
         if *step == TypeUseStep::FunctionPointee {
-            if !matches!(ty, SignatureTypeKey::NativeFunctionPointer { .. }) {
+            if !matches!(
+                ty,
+                SignatureTypeKey::NativeFunctionPointer { .. }
+                    | SignatureTypeKey::GcLeafNativeFunctionPointer { .. }
+            ) {
                 return false;
             }
             path = &path[1..];
@@ -136,6 +140,9 @@ fn children(ty: &SignatureTypeKey) -> Vec<(Vec<TypeUseStep>, &SignatureTypeKey)>
             result_nodes
         }
         SignatureTypeKey::NativeFunctionPointer {
+            parameters, result, ..
+        }
+        | SignatureTypeKey::GcLeafNativeFunctionPointer {
             parameters, result, ..
         } => {
             let mut nodes = vec![(

@@ -51,6 +51,10 @@ impl Lowerer {
             hir::IntrinsicTypeKind::Ptr
         } else if declaration.persistent() == core.fundamental_types().fun_ptr().persistent() {
             hir::IntrinsicTypeKind::FunPtr
+        } else if declaration.persistent()
+            == core.fundamental_types().gc_leaf_fun_ptr().persistent()
+        {
+            hir::IntrinsicTypeKind::GcLeafFunPtr
         } else {
             return self.resolve_imported_nominal_type_arguments(binding, name, arguments);
         };
@@ -71,7 +75,7 @@ impl Lowerer {
             self.pointer_type_uses
                 .push((ty, self.current_file, name.span));
             ty
-        } else {
+        } else if role == hir::IntrinsicTypeKind::FunPtr {
             let hir::Type::Function(function) = self.types[argument] else {
                 self.error(
                     name.span,
@@ -79,11 +83,35 @@ impl Lowerer {
                 );
                 return None;
             };
-            if !self.validate_fun_ptr_signature(function, name.span) {
+            if !self.validate_native_function_pointer_signature(
+                function,
+                hir::CAbiCallMode::NativeSafe,
+                name.span,
+            ) {
                 return None;
             }
             let ty = self.intern_type(hir::Type::FunPtr(function));
             self.fun_ptr_type_uses
+                .push((ty, self.current_file, name.span));
+            ty
+        } else {
+            let hir::Type::Function(function) = self.types[argument] else {
+                self.error(
+                    name.span,
+                    "`GCLeafFunPtr` type argument must be an ordinary concrete function type"
+                        .into(),
+                );
+                return None;
+            };
+            if !self.validate_native_function_pointer_signature(
+                function,
+                hir::CAbiCallMode::GcLeaf,
+                name.span,
+            ) {
+                return None;
+            }
+            let ty = self.intern_type(hir::Type::GcLeafFunPtr(function));
+            self.gc_leaf_fun_ptr_type_uses
                 .push((ty, self.current_file, name.span));
             ty
         };

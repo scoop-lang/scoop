@@ -138,6 +138,10 @@ fn every_structurally_valid_static_storage_shape_round_trips() {
         StaticStorageKey::singleton_application_root(exact_type()),
         StaticStorageKey::initialization_failure_root(initialization_unit_id()),
         StaticStorageKey::root_entry_failure_root(cone(), main),
+        StaticStorageKey::native_app_entry_failure_root(
+            cone(),
+            crate::AppInitCallableBodyId::from_body(callable_body()),
+        ),
         StaticStorageKey::delegated_application_backing(&delegated).unwrap(),
         StaticStorageKey::delegated_application_delegate(&delegated).unwrap(),
         StaticStorageKey::static_place_for_delegated_application(&delegated).unwrap(),
@@ -202,7 +206,7 @@ fn every_immortal_object_owner_round_trips_and_resolves() {
 fn runtime_identity_roles_reject_unknown_tags() {
     assert_unknown::<RepresentationRole>(b"\x05", 5);
     assert_unknown::<ScanRole>(b"\x04", 4);
-    assert_unknown::<StorageRole>(b"\x07", 7);
+    assert_unknown::<StorageRole>(b"\x18\xff", 255);
     assert_unknown::<crate::ImmortalObjectRole>(b"\x03", 3);
 }
 

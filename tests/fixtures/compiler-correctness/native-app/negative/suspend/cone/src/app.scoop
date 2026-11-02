@@ -1,0 +1,3 @@
+package dev.nativeapp
+
+suspend fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {}

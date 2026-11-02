@@ -218,6 +218,13 @@ pub(super) fn dump_expr(
             out.push_str(&format!("{pad}PtrCast {}\n", type_name(module, pointee)));
             dump_expr(module, locals, operand, indent + 1, out);
         }
+        ExprKind::NativeFunctionPointerCast {
+            operand,
+            target_mode,
+        } => {
+            out.push_str(&format!("{pad}NativeFunctionPointerCast {target_mode:?}\n"));
+            dump_expr(module, locals, operand, indent + 1, out);
+        }
         ExprKind::PtrLoad {
             pointer,
             pointee,

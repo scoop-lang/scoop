@@ -47,6 +47,15 @@ impl<'a> ShapeDump<'a, '_> {
                 self.type_list(arguments, parameters),
                 self.type_name(result, parameters)
             ),
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters: arguments,
+                result,
+                ..
+            } => format!(
+                "GCLeafFunPtr<({}) -> {}>",
+                self.type_list(arguments, parameters),
+                self.type_name(result, parameters)
+            ),
             SignatureTypeKey::Binder { depth, index } => {
                 assert_eq!(*depth, 0, "a nominal source shape has one parameter frame");
                 parameters[*index as usize].name.clone()

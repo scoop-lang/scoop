@@ -17,6 +17,13 @@ impl Lowerer {
             );
             return None;
         }
+        if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
+            self.error(
+                call.span,
+                "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
+            );
+            return None;
+        }
         debug_assert_eq!(Some(struct_id), self.ffi_ptr);
         let parameters = self.structs[struct_id].type_params.clone();
         let diagnostics_before = self.diagnostics.len();

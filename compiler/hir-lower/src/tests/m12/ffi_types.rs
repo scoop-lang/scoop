@@ -724,6 +724,11 @@ fn fun_ptr_has_no_source_constructor_and_requires_a_function_argument() {
                 Some(ty_generic("FunPtr", vec![ty_named("Int")])),
                 unit_lit(),
             ),
+            val_ty(
+                "invalidGcLeaf",
+                Some(ty_generic("GCLeafFunPtr", vec![ty_named("Int")])),
+                unit_lit(),
+            ),
         ],
     )]);
     assert_eq!(
@@ -740,4 +745,39 @@ fn fun_ptr_has_no_source_constructor_and_requires_a_function_argument() {
             && message.contains("FunPtr")
             && message.contains("function")
     }));
+    assert!(errors.iter().any(|message| {
+        message.contains("type argument")
+            && message.contains("GCLeafFunPtr")
+            && message.contains("function")
+    }));
+}
+
+#[test]
+fn native_function_pointer_signature_errors_name_the_actual_family() {
+    for name in ["FunPtr", "GCLeafFunPtr"] {
+        for signature in ["suspend () -> Unit", "(T) -> Unit", "Int.() -> Unit"] {
+            let source = format!("fun <T> reject(value: {name}<{signature}>) {{}} fun main() {{}}");
+            let errors = messages(scoop_parser::parse(&source).unwrap().declarations);
+            let expected = if signature == "Int.() -> Unit" {
+                format!("`{name}` requires a function type without a receiver")
+            } else {
+                format!("`{name}` type argument must be an ordinary concrete function type")
+            };
+            assert!(errors.contains(&expected), "{source}\n{errors:#?}");
+        }
+    }
+}
+
+#[test]
+fn native_function_pointer_modes_do_not_implicitly_convert() {
+    for (source, target) in [("FunPtr", "GCLeafFunPtr"), ("GCLeafFunPtr", "FunPtr")] {
+        let program = format!(
+            "fun reject(value: {source}<() -> Unit>): {target}<() -> Unit> = value\nfun main() {{}}"
+        );
+        let errors = messages(scoop_parser::parse(&program).unwrap().declarations);
+        let expected = format!(
+            "body of `reject` must be of type {target}<() -> Unit>, found {source}<() -> Unit>"
+        );
+        assert!(errors.contains(&expected), "{program}\n{errors:#?}");
+    }
 }

@@ -19,6 +19,7 @@ pub struct CoreFundamentalTypeProtocolV1 {
     pub(crate) mutable_array: PersistentGenericTypeId,
     pub(crate) ptr: PersistentGenericTypeId,
     pub(crate) fun_ptr: PersistentGenericTypeId,
+    pub(crate) gc_leaf_fun_ptr: PersistentGenericTypeId,
     pub(crate) character: PersistentTypeId,
     pub(crate) float: PersistentTypeId,
     pub(crate) double: PersistentTypeId,
@@ -83,6 +84,7 @@ pub struct CoreCoroutineProtocolV1 {
 pub struct CoreFfiProtocolV1 {
     pub(crate) ptr: PersistentGenericTypeId,
     pub(crate) fun_ptr: PersistentGenericTypeId,
+    pub(crate) gc_leaf_fun_ptr: PersistentGenericTypeId,
     pub(crate) pinned_ptr: PersistentGenericTypeId,
     pub(crate) gc_handle: PersistentGenericTypeId,
     pub(crate) ptr_to_ulong: CoreProtocolCallableV1,
@@ -100,6 +102,8 @@ pub struct CoreFfiProtocolV1 {
     pub(crate) gc_unpin_raw: CoreProtocolCallableV1,
     pub(crate) gc_get_handle_raw: CoreProtocolCallableV1,
     pub(crate) gc_release_handle_raw: CoreProtocolCallableV1,
+    pub(crate) gc_leaf_fun_ptr_as_fun_ptr: CoreProtocolCallableV1,
+    pub(crate) fun_ptr_as_gc_leaf: CoreProtocolCallableV1,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

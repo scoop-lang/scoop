@@ -119,6 +119,7 @@ impl ExactValueLayoutV1 {
                 if !matches!(
                     identity.exact_key(),
                     ExactTypeKey::NativeFunctionPointer { .. }
+                        | ExactTypeKey::GcLeafNativeFunctionPointer { .. }
                 ) {
                     return Err(ExactLayoutReplayError::IdentityKind);
                 }

@@ -419,6 +419,13 @@ impl Lowerer {
                 }
                 self.mark_type_params(function.return_type, bound);
             }
+            Type::GcLeafFunPtr(id) => {
+                let function = &self.function_types[*id];
+                for parameter in &function.parameter_types {
+                    self.mark_type_params(*parameter, bound);
+                }
+                self.mark_type_params(function.return_type, bound);
+            }
             _ => {}
         }
     }

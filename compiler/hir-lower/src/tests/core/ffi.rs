@@ -107,6 +107,13 @@ pub(super) fn ffi_core_declarations() -> Vec<Decl> {
     fun_ptr_decl.annotations = vec![intrinsic("core_fun_ptr")];
     fun_ptr_decl.fields = ast::StructRepresentationDecl::Omitted;
 
+    let mut gc_leaf_fun_ptr = generic_struct_decl("GCLeafFunPtr", vec!["F"], Vec::new());
+    let Decl::Struct(gc_leaf_fun_ptr_decl) = &mut gc_leaf_fun_ptr else {
+        unreachable!()
+    };
+    gc_leaf_fun_ptr_decl.annotations = vec![intrinsic("core_gc_leaf_fun_ptr")];
+    gc_leaf_fun_ptr_decl.fields = ast::StructRepresentationDecl::Omitted;
+
     let ref_bound = |mut decl: Decl| {
         let type_params = match &mut decl {
             Decl::Struct(decl) => &mut decl.type_params,
@@ -161,9 +168,43 @@ pub(super) fn ffi_core_declarations() -> Vec<Decl> {
             decl
         };
 
+    let native_pointer_conversion = |name, intrinsic_name, source, target, safety| {
+        let mut declaration = intrinsic_generic_fun(
+            name,
+            intrinsic_name,
+            vec!["F"],
+            vec![],
+            Some(ty_generic(target, vec![ty_named("F")])),
+        );
+        let Decl::Function(function) = &mut declaration else {
+            unreachable!()
+        };
+        function.receiver_ty = Some(ty_generic(source, vec![ty_named("F")]));
+        function.annotations = vec![marker("NoGC"), intrinsic(intrinsic_name)];
+        if safety {
+            function.annotations.push(marker("Unsafe"));
+        }
+        declaration
+    };
+
     vec![
         ptr,
         fun_ptr,
+        gc_leaf_fun_ptr,
+        native_pointer_conversion(
+            "asFunPtr",
+            "gc_leaf_fun_ptr_as_fun_ptr",
+            "GCLeafFunPtr",
+            "FunPtr",
+            false,
+        ),
+        native_pointer_conversion(
+            "asGCLeaf",
+            "fun_ptr_as_gc_leaf",
+            "FunPtr",
+            "GCLeafFunPtr",
+            true,
+        ),
         enum_decl(
             "ForeignCallbackMode",
             vec![],

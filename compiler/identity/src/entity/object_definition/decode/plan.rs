@@ -25,6 +25,7 @@ pub enum DecodedStrongDefinitionEntity {
     ConeImage(DecodedPersistentId<ConeIdentity>),
     GeneratedBridgeAtom(DecodedPersistentId<GeneratedBridgeAtomId>),
     RootEntry(DecodedPersistentId<ConeIdentity>),
+    NativeAppEntry(DecodedPersistentId<ConeIdentity>),
 }
 
 impl DecodedStrongDefinitionEntity {
@@ -91,6 +92,10 @@ impl DecodedStrongDefinitionEntity {
                 .resolve(id)
                 .map(StrongDefinitionEntity::root_entry)
                 .map_err(ObjectDefinitionResolutionError::Reference),
+            Self::NativeAppEntry(id) => resolver
+                .resolve(id)
+                .map(StrongDefinitionEntity::native_app_entry)
+                .map_err(ObjectDefinitionResolutionError::Reference),
         }
     }
 }
@@ -111,6 +116,7 @@ impl WireEncode for DecodedStrongDefinitionEntity {
             Self::ConeImage(id) => encode_value_sum(encoder, 11, id),
             Self::GeneratedBridgeAtom(id) => encode_value_sum(encoder, 12, id),
             Self::RootEntry(id) => encode_value_sum(encoder, 13, id),
+            Self::NativeAppEntry(id) => encode_value_sum(encoder, 14, id),
         }
     }
 }
@@ -132,6 +138,7 @@ impl WireDecode for DecodedStrongDefinitionEntity {
             11 => decode_id_variant(decoder, fields, Self::ConeImage),
             12 => decode_id_variant(decoder, fields, Self::GeneratedBridgeAtom),
             13 => decode_id_variant(decoder, fields, Self::RootEntry),
+            14 => decode_id_variant(decoder, fields, Self::NativeAppEntry),
             tag => Err(unknown_tag(decoder, tag)),
         }
     }
@@ -230,6 +237,7 @@ impl WireDecode for StrongDefinitionRole {
             17 => Ok(Self::ImageDescriptor),
             18 => Ok(Self::GeneratedBridge),
             19 => Ok(Self::RootEntryDescriptor),
+            20 => Ok(Self::NativeAppEntryDescriptor),
             tag => Err(unknown_tag(decoder, tag)),
         }
     }

@@ -82,6 +82,8 @@ impl CoreCompilerProtocolSurfaceV1 {
                 (16, &self.ffi_protocol.gc_unpin_raw),
                 (17, &self.ffi_protocol.gc_get_handle_raw),
                 (18, &self.ffi_protocol.gc_release_handle_raw),
+                (20, &self.ffi_protocol.gc_leaf_fun_ptr_as_fun_ptr),
+                (21, &self.ffi_protocol.fun_ptr_as_gc_leaf),
             ],
         )?;
         require_source_callables(
@@ -116,7 +118,7 @@ impl CoreCompilerProtocolSurfaceV1 {
 
     pub(super) fn fixed_intrinsic_callables(
         &self,
-    ) -> [(IntrinsicFunctionKind, &CoreProtocolCallableV1); 23] {
+    ) -> [(IntrinsicFunctionKind, &CoreProtocolCallableV1); 25] {
         let coroutine = &self.coroutine_protocol;
         let ffi = &self.ffi_protocol;
         let callback = &self.foreign_callback_protocol;
@@ -183,6 +185,18 @@ impl CoreCompilerProtocolSurfaceV1 {
             (
                 IntrinsicFunctionKind::GcReleaseHandleRaw,
                 &ffi.gc_release_handle_raw,
+            ),
+            (
+                IntrinsicFunctionKind::NativeFunctionPointer(
+                    crate::NativeFunctionPointerIntrinsic::AsFunPtr,
+                ),
+                &ffi.gc_leaf_fun_ptr_as_fun_ptr,
+            ),
+            (
+                IntrinsicFunctionKind::NativeFunctionPointer(
+                    crate::NativeFunctionPointerIntrinsic::AsGcLeaf,
+                ),
+                &ffi.fun_ptr_as_gc_leaf,
             ),
             (
                 IntrinsicFunctionKind::ForeignCallbackRegister,

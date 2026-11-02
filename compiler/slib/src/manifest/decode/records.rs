@@ -42,6 +42,7 @@ impl DecodedConeRecord {
         let kind = match self.kind {
             1 => ConeKind::Library,
             2 => ConeKind::Executable,
+            3 => ConeKind::NativeApp,
             actual => return Err(ConeRecordValidationError::UnknownKind { actual }),
         };
         let source_form = match self.source_form {

@@ -100,6 +100,9 @@ impl Graph<'_> {
             }
             | SignatureTypeKey::NativeFunctionPointer {
                 parameters, result, ..
+            }
+            | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
             } => {
                 for parameter in parameters {
                     self.signature(parameter, kind)?;

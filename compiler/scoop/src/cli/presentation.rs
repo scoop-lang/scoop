@@ -128,9 +128,18 @@ impl Reporter {
             runtime_index,
             link_plan_fingerprint,
             ..
+        }
+        | BuildOutcome::NativeApp {
+            runtime_index,
+            link_plan_fingerprint,
+            ..
         } = outcome
         {
-            record["kind"] = json!("executable");
+            record["kind"] = json!(if matches!(outcome, BuildOutcome::NativeApp { .. }) {
+                "native-app"
+            } else {
+                "executable"
+            });
             record["runtime_index"] = path_value(runtime_index);
             record["link_plan_fingerprint"] = json!(link_plan_fingerprint.to_string());
             if let Some(directory) = root.artifact().summary().test_directory() {

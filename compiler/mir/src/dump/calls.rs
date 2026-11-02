@@ -38,6 +38,20 @@ pub(super) fn dump_call(
                 function_type.into_raw().into_u32()
             ),
         ),
+        CallTarget::NativePointer {
+            function_type,
+            call_mode,
+            ..
+        } => (
+            format!(
+                "<native_pointer:{call_mode:?}:function_type{}>",
+                function_type.into_raw().into_u32()
+            ),
+            format!(
+                "native_pointer[{call_mode:?},function_type{}]",
+                function_type.into_raw().into_u32()
+            ),
+        ),
         CallTarget::FunctionBridge { function_type, .. } => (
             format!(
                 "<function_bridge:function_type{}>",

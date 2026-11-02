@@ -147,6 +147,7 @@ mod ffi_types;
 mod gc_free_pointees;
 mod generic_bounds;
 mod interior_mutability;
+mod native_function_pointers;
 mod no_gc;
 mod no_gc_generics;
 mod safety;

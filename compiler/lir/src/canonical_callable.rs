@@ -168,6 +168,7 @@ fn body_odr_member(
         }
         CallableBodyKeyKind::Strong(_)
         | CallableBodyKeyKind::RootGateway { .. }
+        | CallableBodyKeyKind::NativeAppGateway { .. }
         | CallableBodyKeyKind::InitializationStartupGateway(_) => None,
     }
 }

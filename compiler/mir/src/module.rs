@@ -51,6 +51,9 @@ pub struct Module {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum MirOutput {
     Library,
+    NativeApp {
+        entry: FunctionId,
+    },
     Executable {
         entry: FunctionId,
         arguments: ProgramArguments,
@@ -68,7 +71,7 @@ pub enum ProgramArguments {
 impl MirOutput {
     pub const fn executable_entry(self) -> Option<FunctionId> {
         match self {
-            Self::Library => None,
+            Self::Library | Self::NativeApp { .. } => None,
             Self::Executable { entry, .. } => Some(entry),
         }
     }

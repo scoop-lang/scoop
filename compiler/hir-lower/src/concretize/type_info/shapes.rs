@@ -75,7 +75,7 @@ impl Concretizer<'_> {
                 T::Interface(_) => "Interface",
                 T::Tuple(_) => "Tuple",
                 T::Function(_) => "Function",
-                T::Ptr(_) | T::FunPtr(_) => "Pointer",
+                T::Ptr(_) | T::FunPtr(_) | T::GcLeafFunPtr(_) => "Pointer",
                 T::Integer(_) | T::Boolean | T::String | T::Any => {
                     unreachable!("primitive types selected their intrinsic kind")
                 }
@@ -107,6 +107,11 @@ impl Concretizer<'_> {
                     let payload = self.metadata_variant(fields[0], "FunPtr").1[0];
                     let function = self.metadata_function_type(signature, payload, origin);
                     Some(self.metadata_case(fields[0], "FunPtr", vec![function], origin))
+                }
+                T::GcLeafFunPtr(signature) => {
+                    let payload = self.metadata_variant(fields[0], "GCLeafFunPtr").1[0];
+                    let function = self.metadata_function_type(signature, payload, origin);
+                    Some(self.metadata_case(fields[0], "GCLeafFunPtr", vec![function], origin))
                 }
                 _ => unreachable!("intrinsic metadata has been generated above"),
             }

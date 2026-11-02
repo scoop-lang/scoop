@@ -327,6 +327,11 @@ pub(crate) fn lower_intrinsic_type_representation(
                 signature: compiler_function_type(module, *signature),
             }
         }
+        mir::IntrinsicStructRepresentation::GcLeafFunPtr { signature } => {
+            lir::IntrinsicTypeRepresentation::GcLeafFunPtr {
+                signature: compiler_function_type(module, *signature),
+            }
+        }
     })
 }
 
@@ -358,6 +363,7 @@ pub(crate) fn lir_type(module: &mir::Module, ty: &mir::Type) -> lir::LirType {
         }
         mir::Type::Ptr(_) => lir::LirType::Ptr(lir::PointerKind::Raw),
         mir::Type::FunPtr(_) => lir::LirType::Ptr(lir::PointerKind::Code),
+        mir::Type::GcLeafFunPtr(_) => lir::LirType::Ptr(lir::PointerKind::Code),
         mir::Type::Struct(id) => match module.structs[*id].representation {
             mir::StructRepresentation::Intrinsic(mir::IntrinsicStructRepresentation::Char) => {
                 lir::LirType::I32

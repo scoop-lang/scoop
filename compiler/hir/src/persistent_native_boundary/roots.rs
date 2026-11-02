@@ -201,7 +201,8 @@ fn collect_exact_type(
         ExactTypeKey::Tuple(_)
         | ExactTypeKey::Function { .. }
         | ExactTypeKey::RawPointer(_)
-        | ExactTypeKey::NativeFunctionPointer { .. } => {}
+        | ExactTypeKey::NativeFunctionPointer { .. }
+        | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => {}
     }
     for dependency in record.key().exact_type_dependencies() {
         collect_exact_type(dependency, local, required, visited)?;
@@ -270,6 +271,9 @@ pub(super) fn collect_signature_type(
             parameters, result, ..
         }
         | SignatureTypeKey::NativeFunctionPointer {
+            parameters, result, ..
+        }
+        | SignatureTypeKey::GcLeafNativeFunctionPointer {
             parameters, result, ..
         } => {
             for parameter in parameters {

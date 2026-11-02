@@ -107,6 +107,7 @@ pub fn parse_cone_manifest(
     let requested_kind = match kind.as_str() {
         "library" => RequestedConeKind::Library,
         "executable" => RequestedConeKind::Executable,
+        "native-app" => RequestedConeKind::NativeApp,
         _ => {
             return Err(ManifestParseError::new(
                 ManifestParseErrorKind::InvalidConeKind(kind),

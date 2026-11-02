@@ -111,10 +111,11 @@ impl Lowerer {
                 hir::StructApplicationRepresentation::Intrinsic(intrinsic.application(&arguments))
             },
         );
-        let deferred_fun_ptr = matches!(
+        let deferred_function_pointer = matches!(
             &representation,
             hir::StructApplicationRepresentation::Intrinsic(
                 hir::IntrinsicTypeRepresentation::FunPtr { function }
+                    | hir::IntrinsicTypeRepresentation::GcLeafFunPtr { function }
             ) if matches!(self.types[*function], Type::Param(_))
         );
         let canonical_type = match &representation {
@@ -137,6 +138,13 @@ impl Lowerer {
                 Type::Param(_) => hir::TypeId::from_raw((self.types.len() as u32).into()),
                 _ => unreachable!("a concrete FunPtr argument is a function type"),
             },
+            hir::StructApplicationRepresentation::Intrinsic(
+                hir::IntrinsicTypeRepresentation::GcLeafFunPtr { function },
+            ) => match self.types[*function] {
+                Type::Function(signature) => self.intern_type(Type::GcLeafFunPtr(signature)),
+                Type::Param(_) => hir::TypeId::from_raw((self.types.len() as u32).into()),
+                _ => unreachable!("a concrete GCLeafFunPtr argument is a function type"),
+            },
             hir::StructApplicationRepresentation::Declared
             | hir::StructApplicationRepresentation::Intrinsic(
                 hir::IntrinsicTypeRepresentation::Char
@@ -153,7 +161,7 @@ impl Lowerer {
             canonical_type,
             representation,
         });
-        if deferred_fun_ptr
+        if deferred_function_pointer
             || matches!(
                 self.struct_applications[application].representation,
                 hir::StructApplicationRepresentation::Declared

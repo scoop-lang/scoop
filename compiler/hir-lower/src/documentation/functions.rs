@@ -50,7 +50,10 @@ impl Lowerer {
                 "receiver",
                 receiver.span,
                 hir::DeclaredVisibility::Public,
-                vec![Part::Source(receiver.span)],
+                vec![Part::SourceType {
+                    span: receiver.span,
+                    ty: self.extension_receivers[&id],
+                }],
                 false,
             );
         }

@@ -128,6 +128,10 @@ impl WireEncode for IndexedDefaultExpressionKindV1<'_> {
             Self::CharCode(operand) => encode_one(encoder, 64, operand.as_ref()),
             Self::CharFromCodeUnchecked(operand) => encode_one(encoder, 65, operand.as_ref()),
             Self::PtrCast(operand) => encode_one(encoder, 21, operand.as_ref()),
+            Self::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => encode_two(encoder, 79, operand.as_ref(), target_mode),
             Self::PtrLoad { pointer, offset } => encode_two(encoder, 22, pointer.as_ref(), offset),
             Self::PtrStore {
                 pointer,
@@ -248,6 +252,19 @@ impl WireEncode for IndexedDefaultExpressionKindV1<'_> {
                 callee.as_ref(),
                 *function_type,
                 &WireSequence(arguments),
+            ),
+            Self::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => encode_four(
+                encoder,
+                80,
+                callee.as_ref(),
+                *function_type,
+                &WireSequence(arguments),
+                call_mode,
             ),
             Self::PrimitiveBinary { kind, lhs, rhs } => {
                 encode_three(encoder, 47, kind, lhs.as_ref(), rhs.as_ref())

@@ -249,7 +249,7 @@ def main():
     publish_files(
         args.runtime_root / "include",
         args.sysroot / "include",
-        [Path("scoop_rt.h"), Path("scoop_runtime_metadata_v1.h")],
+        [Path("scoop_rt.h"), Path("scoop_runtime_metadata_v1.h"), Path("scoop_app.h")],
         work / "headers.json",
     )
     if not args.runtime_only:

@@ -15,6 +15,7 @@ pub struct CallTargets {
     pub managed_targets: ProtocolCallTargets<ManagedCallDestination>,
     pub no_gc_targets: ProtocolCallTargets<NoGcCallDestination>,
     pub c_targets: ProtocolCallTargets<CCallDestination>,
+    pub native_pointer_signatures: Arena<DirectCSignature>,
     pub native_borrowed_targets: ProtocolCallTargets<NativeBorrowedCallDestination>,
     pub dispatch_slots: DispatchSlots,
     /// Function-local recursive scan programs passed to runtime entries that
@@ -236,7 +237,14 @@ pub enum CallDestination {
     External(ExternalCallableId),
     Runtime(RuntimeFunction),
     Extern(ExternFunctionId),
-    Dispatch { table: Value, slot: DispatchSlotId },
+    Dispatch {
+        table: Value,
+        slot: DispatchSlotId,
+    },
+    NativePointer {
+        callee: Value,
+        signature: NativePointerSignatureId,
+    },
 }
 
 /// Effect-refined identities into `Module::functions`. The registry is the
@@ -390,15 +398,28 @@ impl NoGcCallDestination {
 
 /// Complete C-ABI destinations shared by NativeSafe, GCLeaf and release calls.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CCallDestination(CExternFunctionRef);
+pub enum CCallDestination {
+    Extern(CExternFunctionRef),
+    Pointer {
+        callee: Value,
+        signature: NativePointerSignatureId,
+    },
+}
+
+pub type NativePointerSignatureId = la_arena::Idx<DirectCSignature>;
 
 impl CCallDestination {
     pub fn extern_function(function: CExternFunctionRef) -> Self {
-        Self(function)
+        Self::Extern(function)
     }
 
     pub fn view(self) -> CallDestination {
-        CallDestination::Extern(self.0.declaration())
+        match self {
+            Self::Extern(function) => CallDestination::Extern(function.declaration()),
+            Self::Pointer { callee, signature } => {
+                CallDestination::NativePointer { callee, signature }
+            }
+        }
     }
 }
 

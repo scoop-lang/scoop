@@ -1,6 +1,40 @@
 use super::*;
 
 impl FunctionLowerer<'_> {
+    pub(super) fn lower_native_pointer_call(
+        &mut self,
+        function_type: mir::FunctionTypeId,
+        receiver: &mir::Expr,
+        call_mode: scoop_identity::CAbiCallMode,
+        arguments: &[mir::Expr],
+    ) -> StorageResult<lir::Value> {
+        let callee = self.lower_expr(receiver)?;
+        let native_type = &self.module.function_types[function_type];
+        let mut args = Vec::with_capacity(arguments.len());
+        for (argument, ty) in arguments.iter().zip(native_type.parameters()) {
+            let value = self.lower_expr(argument)?;
+            args.push(self.project_c_value(ty, value));
+        }
+        let plan = self
+            .signatures
+            .plans
+            .c(self.signatures.requests.native_pointers[&function_type]);
+        let signature = plan.abi_signature();
+        let plan = self
+            .call_targets
+            .native_pointer_signatures
+            .alloc(plan.clone());
+        let destination = NativeCallDestination::C(
+            lir::CCallDestination::Pointer {
+                callee,
+                signature: plan,
+            },
+            call_mode,
+        );
+        let result = self.emit_native_call_with_signature(destination, &signature, args)?;
+        Ok(self.restore_c_value(&native_type.return_type, result))
+    }
+
     pub(super) fn lower_c_call(
         &mut self,
         function: lir::CExternFunctionRef,

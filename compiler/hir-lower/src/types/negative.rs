@@ -102,7 +102,9 @@ impl Lowerer {
             }
             (Type::Tuple(a), Type::Tuple(b)) => self.open_type_lists_may_equal(a, b),
             (Type::Ptr(a), Type::Ptr(b)) => self.open_types_may_equal(*a, *b),
-            (Type::Function(a), Type::Function(b)) | (Type::FunPtr(a), Type::FunPtr(b)) => {
+            (Type::Function(a), Type::Function(b))
+            | (Type::FunPtr(a), Type::FunPtr(b))
+            | (Type::GcLeafFunPtr(a), Type::GcLeafFunPtr(b)) => {
                 let (a, b) = (&self.function_types[*a], &self.function_types[*b]);
                 a.is_suspend == b.is_suspend
                     && a.arity() == b.arity()

@@ -1,0 +1,26 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
+    "notes": [
+      {
+        "message": "`fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit` is not eligible because it must be internal or public",
+        "origin": {
+          "cone": "20cfe703c0671dcab624ab4a818ed61cca2d4e056368bfab8ff5c01669b8dc38",
+          "end": 87,
+          "kind": "source",
+          "path": "src/app.scoop",
+          "start": 23
+        }
+      }
+    ],
+    "origin": {
+      "cone": "20cfe703c0671dcab624ab4a818ed61cca2d4e056368bfab8ff5c01669b8dc38",
+      "end": 0,
+      "kind": "source",
+      "path": "src/app.scoop",
+      "start": 0
+    },
+    "severity": "error"
+  }
+]

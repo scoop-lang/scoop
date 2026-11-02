@@ -96,6 +96,7 @@ fn cone(value: Spanned<RawCone>) -> Result<ConeDeclaration, ManifestParseError> 
     let kind = match raw.kind.get_ref().as_str() {
         "library" => RequestedConeKind::Library,
         "executable" => RequestedConeKind::Executable,
+        "native-app" => RequestedConeKind::NativeApp,
         value => {
             return Err(ManifestParseError::new(
                 ManifestParseErrorKind::InvalidConeKind(value.to_owned()),

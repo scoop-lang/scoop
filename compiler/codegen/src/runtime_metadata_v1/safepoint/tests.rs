@@ -45,7 +45,7 @@ fn emits_strong_record_with_owner_and_root_count() {
         constant_u64(prefix, 0),
         SAFEPOINT_REGISTRATION_DESCRIPTOR_MAGIC
     );
-    assert_eq!(constant_u64(prefix, 1), 9);
+    assert_eq!(constant_u64(prefix, 1), 10);
     assert_eq!(
         constant_u64(prefix, 2),
         SAFEPOINT_REGISTRATION_DESCRIPTOR_SIZE

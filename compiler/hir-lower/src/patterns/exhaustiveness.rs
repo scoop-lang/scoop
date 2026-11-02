@@ -266,6 +266,7 @@ impl Lowerer {
             | Type::Function(_)
             | Type::Ptr(_)
             | Type::FunPtr(_)
+            | Type::GcLeafFunPtr(_)
             | Type::Param(_)
             | Type::Companion(_) => ConstructorSpace::Open {
                 prefix: Vec::new(),

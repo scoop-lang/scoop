@@ -1,0 +1,9 @@
+package dev.nativeapp
+
+@Extern(lib = "extra", name = "extra_export")
+fun extraExport(): Unit
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
+    extraExport()
+}

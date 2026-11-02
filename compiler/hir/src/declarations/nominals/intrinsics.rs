@@ -14,6 +14,7 @@ pub enum IntrinsicTypeKind {
     MutableArray,
     Ptr,
     FunPtr,
+    GcLeafFunPtr,
     Any,
     Nothing,
     Atomic(AtomicValueKind),
@@ -34,6 +35,7 @@ impl IntrinsicTypeKind {
             Self::MutableArray => "core_mutable_array",
             Self::Ptr => "core_ptr",
             Self::FunPtr => "core_fun_ptr",
+            Self::GcLeafFunPtr => "core_gc_leaf_fun_ptr",
             Self::Any => "core_any",
             Self::Nothing => "core_nothing",
             Self::Atomic(AtomicValueKind::Int) => "core_atomic_int",
@@ -57,6 +59,7 @@ impl IntrinsicTypeKind {
             Self::MutableArray => "MutableArray",
             Self::Ptr => "Ptr",
             Self::FunPtr => "FunPtr",
+            Self::GcLeafFunPtr => "GCLeafFunPtr",
             Self::Any => "Any",
             Self::Nothing => "Nothing",
             Self::Atomic(kind) => kind.source_name(),
@@ -73,7 +76,8 @@ impl IntrinsicTypeKind {
             | Self::Char
             | Self::Ptr
             | Self::MaybeUninit
-            | Self::FunPtr => IntrinsicTypeTarget::Struct,
+            | Self::FunPtr
+            | Self::GcLeafFunPtr => IntrinsicTypeTarget::Struct,
             Self::String
             | Self::Throwable
             | Self::Array
@@ -103,7 +107,7 @@ impl IntrinsicTypeKind {
                 IntrinsicTypeParameters::OneInvariantUnconstrained
             }
             Self::Ptr => IntrinsicTypeParameters::OneInvariantValue,
-            Self::FunPtr => IntrinsicTypeParameters::OneInvariantUnconstrained,
+            Self::FunPtr | Self::GcLeafFunPtr => IntrinsicTypeParameters::OneInvariantUnconstrained,
         }
     }
 
@@ -141,6 +145,9 @@ impl IntrinsicTypeKind {
             (Self::FunPtr, [function]) => IntrinsicTypeRepresentation::FunPtr {
                 function: *function,
             },
+            (Self::GcLeafFunPtr, [function]) => IntrinsicTypeRepresentation::GcLeafFunPtr {
+                function: *function,
+            },
             _ => unreachable!("HIR validates the intrinsic declaration contract before use"),
         }
     }
@@ -163,6 +170,7 @@ pub enum IntrinsicTypeRepresentation {
     MutableArray { element: TypeId },
     Ptr { pointee: TypeId },
     FunPtr { function: TypeId },
+    GcLeafFunPtr { function: TypeId },
     Any,
     Nothing,
 }

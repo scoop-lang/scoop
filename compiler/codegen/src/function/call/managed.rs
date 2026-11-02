@@ -193,7 +193,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 self.extern_functions[id].kind,
                 ExternFunctionKind::Scoop { .. }
             ),
-            scoop_lir::CallDestination::Runtime(_) => false,
+            scoop_lir::CallDestination::Runtime(_)
+            | scoop_lir::CallDestination::NativePointer { .. } => false,
         };
         let callee =
             self.prepare_callee(destination, fn_ty, &signature, apply_scoop_abi_attributes)?;
@@ -256,8 +257,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             }
         } else {
             let call = match callee {
-                PreparedCallee::Dispatch { table, slot } => {
-                    let pointer = self.dispatch_function_pointer(table, slot)?;
+                PreparedCallee::Dispatch { .. } | PreparedCallee::NativePointer(_) => {
+                    let pointer = self.prepared_callee_pointer(callee)?;
                     let arguments = call_args
                         .iter()
                         .copied()

@@ -52,10 +52,22 @@ fn structural_signatures_retain_order_effects_and_pointer_kinds() {
         (
             SignatureTypeKey::NativeFunctionPointer {
                 calling_convention: CallingConvention::C,
+                parameters: vec![unit.clone()],
+                result: Box::new(any.clone()),
+            },
+            ExactTypeKey::NativeFunctionPointer {
+                calling_convention: CallingConvention::C,
+                parameters: vec![unit_exact],
+                result: any_exact,
+            },
+        ),
+        (
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: CallingConvention::C,
                 parameters: vec![unit],
                 result: Box::new(any),
             },
-            ExactTypeKey::NativeFunctionPointer {
+            ExactTypeKey::GcLeafNativeFunctionPointer {
                 calling_convention: CallingConvention::C,
                 parameters: vec![unit_exact],
                 result: any_exact,
@@ -70,7 +82,7 @@ fn structural_signatures_retain_order_effects_and_pointer_kinds() {
     }
     actual.sort_unstable();
     actual.dedup();
-    assert_eq!(actual.len(), 6);
+    assert_eq!(actual.len(), 7);
 }
 
 #[test]

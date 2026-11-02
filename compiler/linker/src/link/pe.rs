@@ -28,9 +28,12 @@ pub(super) fn link(
         paths.push(path);
     }
     response::write_pe_objects(directory, &paths, profile.microsoft())?;
-    let mut command = profile
-        .command_with_subsystem(directory, candidate, inputs.windows_subsystem)
-        .map_err(error)?;
+    let mut command = if profile.import_library_path(candidate).is_some() {
+        profile.command(directory, candidate)
+    } else {
+        profile.command_with_subsystem(directory, candidate, inputs.windows_subsystem)
+    }
+    .map_err(error)?;
     profile.append_system_libraries(&mut command);
     profile.configure_outputs(&mut command, pdb, keep_symbols);
     if profile.microsoft() {
@@ -68,6 +71,17 @@ pub(super) fn link(
             String::from_utf8_lossy(&output.stdout),
             String::from_utf8_lossy(&output.stderr)
         )));
+    }
+    if profile.import_library_path(candidate).is_some() {
+        use object::Object;
+        let bytes = std::fs::read(candidate).map_err(error)?;
+        let image = object::File::parse(bytes.as_slice()).map_err(error)?;
+        let exports = image.exports().map_err(error)?;
+        if exports.len() != 1 || exports[0].name() != b"scoop_app_init" {
+            return Err(error(
+                "native-app DLL must export only scoop_app_init; remove explicit native exports",
+            ));
+        }
     }
     Ok(profile.traced_inputs(&output, directory))
 }

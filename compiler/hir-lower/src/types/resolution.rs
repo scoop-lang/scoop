@@ -174,11 +174,41 @@ impl Lowerer {
                             );
                             return None;
                         };
-                        if !self.validate_fun_ptr_signature(function_type, name.span) {
+                        if !self.validate_native_function_pointer_signature(
+                            function_type,
+                            hir::CAbiCallMode::NativeSafe,
+                            name.span,
+                        ) {
                             return None;
                         }
                         let ty = self.intern_type(Type::FunPtr(function_type));
                         self.fun_ptr_type_uses
+                            .push((ty, self.current_file, name.span));
+                        return Some(ty);
+                    }
+                    if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
+                        if self.allow_deferred_fun_ptr
+                            && matches!(self.types[resolved[0]], Type::Param(_))
+                        {
+                            return Some(self.struct_application(struct_id, resolved));
+                        }
+                        let Type::Function(function_type) = self.types[resolved[0]] else {
+                            self.error(
+                                name.span,
+                                "`GCLeafFunPtr` type argument must be an ordinary concrete function type"
+                                    .to_string(),
+                            );
+                            return None;
+                        };
+                        if !self.validate_native_function_pointer_signature(
+                            function_type,
+                            hir::CAbiCallMode::GcLeaf,
+                            name.span,
+                        ) {
+                            return None;
+                        }
+                        let ty = self.intern_type(Type::GcLeafFunPtr(function_type));
+                        self.gc_leaf_fun_ptr_type_uses
                             .push((ty, self.current_file, name.span));
                         return Some(ty);
                     }

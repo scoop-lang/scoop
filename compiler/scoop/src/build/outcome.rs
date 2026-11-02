@@ -16,6 +16,12 @@ pub struct BuiltArtifacts {
 pub enum BuildOutcome {
     Artifact(BuiltArtifacts),
     Library(BuiltArtifacts),
+    NativeApp {
+        build: BuiltArtifacts,
+        library: PathBuf,
+        runtime_index: PathBuf,
+        link_plan_fingerprint: ResolvedLinkPlanFingerprint,
+    },
     Executable {
         build: BuiltArtifacts,
         executable: PathBuf,
@@ -27,7 +33,10 @@ pub enum BuildOutcome {
 impl BuildOutcome {
     pub fn artifacts(&self) -> &BuiltArtifacts {
         match self {
-            Self::Artifact(build) | Self::Library(build) | Self::Executable { build, .. } => build,
+            Self::Artifact(build)
+            | Self::Library(build)
+            | Self::Executable { build, .. }
+            | Self::NativeApp { build, .. } => build,
         }
     }
 }

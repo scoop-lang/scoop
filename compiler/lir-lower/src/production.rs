@@ -16,6 +16,9 @@ pub fn lower_entry_production_source(
 ) -> scoop_lir::EntryProductionSourceV1 {
     match entry {
         scoop_mir::EntryMirBridgeBranchV1::Library => scoop_lir::EntryProductionSourceV1::Library,
+        scoop_mir::EntryMirBridgeBranchV1::NativeApp(bridge) => {
+            scoop_lir::EntryProductionSourceV1::NativeApp(Box::new(bridge.source().clone()))
+        }
         scoop_mir::EntryMirBridgeBranchV1::Executable(bridge) => {
             scoop_lir::EntryProductionSourceV1::executable(bridge.source().clone())
         }
@@ -47,6 +50,40 @@ pub(super) fn lower_root_artifacts(
     });
 
     root_gateway(producer, source.main(), main, failure_root, signatures)
+}
+
+pub(super) fn lower_native_app_artifacts(
+    producer: scoop_identity::ConeIdentity,
+    source: &scoop_identity::NativeAppEntryIdentity,
+    main: RootMain<'_>,
+    layout: scoop_lir::StaticStorageLayout,
+    globals: &mut Arena<scoop_lir::Global>,
+    signatures: &crate::abi::plans::Signatures,
+) -> LoweredFunction {
+    let failure_root = globals.alloc(scoop_lir::Global {
+        address_kind: scoop_lir::PointerKind::Raw,
+        scan: scoop_lir::RefScan::References(vec![0]),
+        init: scoop_lir::GlobalInit::Storage {
+            identity: scoop_lir::StaticStorageIdentity::native_app_entry_failure_root(
+                producer,
+                source.app_init(),
+                scoop_lir::MaterializationRoot::cone_owned(),
+            )
+            .expect("a validated root entry derives one failure-storage identity"),
+            layout,
+            ty: scoop_lir::MANAGED_PTR,
+            initial_state: scoop_lir::LirStaticInitialState::ZeroedForRuntimeUnit,
+        },
+    });
+
+    root::native_app_gateway(
+        producer,
+        source.app_init(),
+        main.target,
+        main.signature,
+        failure_root,
+        signatures,
+    )
 }
 
 pub(super) fn lower_initialization_startup_gateway(

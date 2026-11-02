@@ -82,6 +82,11 @@ impl Lowerer {
                                 signature: remap_idx(*signature),
                             }
                         }
+                        hir::IntrinsicTypeRepresentation::GcLeafFunPtr { signature } => {
+                            mir::IntrinsicStructRepresentation::GcLeafFunPtr {
+                                signature: remap_idx(*signature),
+                            }
+                        }
                         hir::IntrinsicTypeRepresentation::String
                         | hir::IntrinsicTypeRepresentation::Throwable
                         | hir::IntrinsicTypeRepresentation::Atomic(_)

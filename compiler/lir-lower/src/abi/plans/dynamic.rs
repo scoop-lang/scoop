@@ -72,16 +72,20 @@ impl FunctionExecution {
 type DynamicRequests = (
     HashMap<InterfaceCallable, lir::ScoopAbiRequestId>,
     HashMap<FunctionExecution, lir::ScoopAbiRequestId>,
+    HashMap<mir::FunctionTypeId, lir::CAbiRequestId>,
 );
 
 pub(super) fn prepare(
     builder: &mut SignatureBuilder<'_>,
     module: &mir::Module,
+    structs: &lir::StructDefs,
+    enums: &lir::EnumDefs,
     external: &la_arena::Arena<lir::ExternalCallable>,
     external_map: &HashMap<mir::ExternalCallableUseId, lir::ExternalCallableId>,
 ) -> StorageResult<DynamicRequests> {
     let mut interfaces = HashMap::new();
     let mut executions = HashMap::new();
+    let mut native_pointers = HashMap::new();
     for function in module
         .functions
         .iter()
@@ -100,6 +104,20 @@ pub(super) fn prepare(
                     }
                 };
                 let (dispatch, function_type) = match call.target {
+                    mir::CallTarget::NativePointer { function_type, .. } => {
+                        if let std::collections::hash_map::Entry::Vacant(entry) =
+                            native_pointers.entry(function_type)
+                        {
+                            let signature = crate::externs::c_function_type(
+                                module,
+                                structs,
+                                enums,
+                                function_type,
+                            );
+                            entry.insert(builder.c(&signature)?);
+                        }
+                        continue;
+                    }
                     mir::CallTarget::Interface { callee, .. } => {
                         let key = InterfaceCallable::new(module, callee);
                         if let std::collections::hash_map::Entry::Vacant(entry) =
@@ -161,5 +179,5 @@ pub(super) fn prepare(
             }
         }
     }
-    Ok((interfaces, executions))
+    Ok((interfaces, executions, native_pointers))
 }

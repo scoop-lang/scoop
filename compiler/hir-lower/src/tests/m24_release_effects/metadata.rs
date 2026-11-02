@@ -6,12 +6,12 @@ fn dependency_effects_keep_generic_substitutions_without_reanalyzing_bodies() {
     with_provider_consumer(r#"
         @NoGC public fun <T> identity(value: T): T = value
         @NoGC public fun plain(value: Int): Int = value
-        @Extern(name = "m24_native") public fun native(value: Int): Int
-        @NoGC @Unsafe public fun transition(value: Int): Int = native(value)
+        @GCLeaf @Extern(name = "m24_native") public fun native(value: Int): Int
+        @NoGC @Unsafe public fun nativeHelper(value: Int): Int = native(value)
     "#, r#"
         @NoGC public fun <T> forward(value: T): T = identity(value)
         @NoGC public fun concrete(value: Int): Int = identity(plain(value))
-        @NoGC @Unsafe public fun indirect(value: Int): Int = transition(value)
+        @NoGC @Unsafe public fun indirect(value: Int): Int = nativeHelper(value)
     "#, |output, _, _, interface, _| {
         let export = output.output().export.module();
         available(export, "forward", &["T"]);

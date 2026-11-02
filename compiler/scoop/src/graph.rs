@@ -308,8 +308,8 @@ fn validate_nodes(
             });
         }
         validate_reserved_node(*identity, node)?;
-        if *identity != root && node_kind(node) == RequestedConeKind::Executable {
-            return Err(ResolveBuildGraphError::ExecutableDependency {
+        if *identity != root && node_kind(node) != RequestedConeKind::Library {
+            return Err(ResolveBuildGraphError::NonLibraryDependency {
                 coordinate: node.coordinate().clone(),
             });
         }
@@ -458,7 +458,7 @@ fn validate_edges(
         if node_kind(dependency) != RequestedConeKind::Library
             || matches!(dependency, GraphNode::SingleFile(_))
         {
-            return Err(ResolveBuildGraphError::ExecutableDependency {
+            return Err(ResolveBuildGraphError::NonLibraryDependency {
                 coordinate: dependency.coordinate().clone(),
             });
         }
@@ -835,6 +835,7 @@ fn node_kind(node: &GraphNode) -> RequestedConeKind {
         GraphNode::Prebuilt(prebuilt) => match prebuilt.first_candidate().summary().cone().kind() {
             ConeKind::Library => RequestedConeKind::Library,
             ConeKind::Executable => RequestedConeKind::Executable,
+            ConeKind::NativeApp => RequestedConeKind::NativeApp,
         },
         GraphNode::SingleFile(_) => RequestedConeKind::Executable,
     }

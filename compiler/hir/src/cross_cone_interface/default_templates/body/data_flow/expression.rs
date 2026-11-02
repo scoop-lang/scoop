@@ -148,6 +148,7 @@ impl Validator<'_> {
             | DefaultExpressionKindV1::CharFromCodeUnchecked(operand)
             | DefaultExpressionKindV1::PtrToULong(operand)
             | DefaultExpressionKindV1::PtrCast(operand)
+            | DefaultExpressionKindV1::NativeFunctionPointerCast { operand, .. }
             | DefaultExpressionKindV1::ForeignCallbackRegister {
                 closure: operand, ..
             }
@@ -294,6 +295,9 @@ impl Validator<'_> {
                 self.push_expressions(pending, captures)
             }
             DefaultExpressionKindV1::CallableCall {
+                callee, arguments, ..
+            }
+            | DefaultExpressionKindV1::NativePointerCall {
                 callee, arguments, ..
             } => {
                 self.push_expressions(pending, arguments)?;

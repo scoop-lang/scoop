@@ -96,7 +96,10 @@ impl Lowerer {
             | hir::IntrinsicTypeKind::Array
             | hir::IntrinsicTypeKind::MutableArray
             | hir::IntrinsicTypeKind::Ptr
-            | hir::IntrinsicTypeKind::FunPtr => return Err(ImportedSignatureTypeError::Generic),
+            | hir::IntrinsicTypeKind::FunPtr
+            | hir::IntrinsicTypeKind::GcLeafFunPtr => {
+                return Err(ImportedSignatureTypeError::Generic);
+            }
         };
         let declaration = self
             .dependencies

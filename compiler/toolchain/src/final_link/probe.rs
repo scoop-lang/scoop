@@ -17,7 +17,7 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
     let object = directory.path().join("main.o");
     std::fs::write(
         &source,
-        b"#include <stdio.h>\nint main(void) { return puts(\"scoop\") < 0; }\n",
+        b"#include <stdio.h>\nint main(void) { return puts(\"scoop\") < 0; }\nint scoop_app_init(const void *host, void *app, void *error) { (void)host; (void)app; (void)error; return main(); }\n",
     )
     .map_err(error)?;
     let dependencies = directory.path().join("probe.d");
@@ -39,7 +39,7 @@ pub(super) fn check(profile: &DarwinFinalLinkProfile) -> Result<Vec<PathBuf>, To
     let stub = sdk.join(profile.data.system.root_stub());
     let executable = directory.path().join("program");
     let output = profile
-        .command(sdk, &executable)?
+        .command(sdk, directory.path(), &executable)?
         .arg(&object)
         .arg(stub)
         .scoop_output()

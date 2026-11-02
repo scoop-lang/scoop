@@ -56,7 +56,7 @@ impl Lowerer {
                 }
                 Type::Tuple(elements) => pending.extend(elements),
                 Type::Ptr(pointee) => pending.push(*pointee),
-                Type::Function(id) | Type::FunPtr(id) => {
+                Type::Function(id) | Type::FunPtr(id) | Type::GcLeafFunPtr(id) => {
                     let signature = &self.function_types[*id];
                     pending.extend(signature.parameters());
                     pending.push(signature.return_type);

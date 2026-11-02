@@ -224,6 +224,11 @@ fn render_static_callback(
         CBridgeTypeSurface::for_signature_parts(module, &callback.params, &callback.return_type)?;
     let renderer = CTypeRenderer::new(surface.function_types());
     let mut out = render_c_layout_assertions(module, &surface)?;
+    let float_enter = scoop_lir::RuntimeAbiSymbolV1::FloatEnter.logical_symbol();
+    let float_leave = scoop_lir::RuntimeAbiSymbolV1::FloatLeave.logical_symbol();
+    out.push_str(&format!(
+        "#include <fenv.h>\nextern uint64_t {float_enter}(fenv_t *saved);\nextern void {float_leave}(const fenv_t *saved, uint64_t control);\n"
+    ));
     let bridge_symbol = match callback.bridge {
         scoop_lir::StaticCallbackTarget::Local(bridge) => module.functions
             [bridge.declaration().into_u32() as usize]
@@ -268,6 +273,9 @@ fn render_static_callback(
     );
     out.push_str(&renderer.return_declaration(&callback.return_type, &declarator)?);
     out.push_str(" {\n");
+    out.push_str(&format!(
+        "  fenv_t saved_environment;\n  uint64_t saved_control = {float_enter}(&saved_environment);\n"
+    ));
     if has_result {
         let declaration = renderer.return_declaration(&callback.return_type, "result")?;
         out.push_str(&format!("  {declaration};\n"));
@@ -280,6 +288,9 @@ fn render_static_callback(
     out.push_str(&format!(
         "  scoop_callback_storage_bridge({});\n",
         storage_arguments.join(", ")
+    ));
+    out.push_str(&format!(
+        "  {float_leave}(&saved_environment, saved_control);\n"
     ));
     if has_result {
         out.push_str("  return result;\n");

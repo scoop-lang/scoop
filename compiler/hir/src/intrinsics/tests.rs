@@ -42,6 +42,13 @@ fn intrinsic_function_roles_have_a_closed_canonical_wire_identity() {
         encode(&IntrinsicFunctionKind::Pointer(PointerIntrinsic::AlignOf)).unwrap(),
         vec![0xa2, 0x00, 0x14, 0x01, 0x0b]
     );
+    assert_eq!(
+        encode(&IntrinsicFunctionKind::NativeFunctionPointer(
+            NativeFunctionPointerIntrinsic::AsGcLeaf,
+        ))
+        .unwrap(),
+        vec![0xa2, 0x00, 0x18, 0x23, 0x01, 0x02]
+    );
 }
 
 #[test]
@@ -50,6 +57,7 @@ fn intrinsic_function_role_reader_rejects_open_or_invalid_values() {
         vec![0xa1, 0x00, 0x15],
         vec![0xa2, 0x00, 0x10, 0x01, 0x02],
         vec![0xa2, 0x00, 0x14, 0x01, 0x0c],
+        vec![0xa2, 0x00, 0x18, 0x23, 0x01, 0x03],
         vec![0xa1, 0x00, 0x17],
         vec![0xa2, 0x00, 0x17, 0x01, 0x04],
         vec![0xa2, 0x00, 0x18, 0x18, 0x01, 0xa2, 0x00, 0x02, 0x01, 0x05],
@@ -106,6 +114,22 @@ fn pointer_intrinsic_families_are_registered_with_distinct_contracts() {
         function_pointer.kind.parameters(),
         IntrinsicTypeParameters::OneInvariantUnconstrained
     );
+
+    let gc_leaf_function_pointer =
+        intrinsic_type_spec("core_gc_leaf_fun_ptr").expect("GCLeafFunPtr family is registered");
+    assert_eq!(
+        gc_leaf_function_pointer.kind,
+        IntrinsicTypeKind::GcLeafFunPtr
+    );
+    assert_eq!(
+        gc_leaf_function_pointer.kind.target(),
+        IntrinsicTypeTarget::Struct
+    );
+    assert_eq!(
+        gc_leaf_function_pointer.kind.parameters(),
+        IntrinsicTypeParameters::OneInvariantUnconstrained
+    );
+    assert_ne!(function_pointer.kind, gc_leaf_function_pointer.kind);
 }
 
 #[test]

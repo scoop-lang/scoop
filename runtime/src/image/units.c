@@ -2,43 +2,35 @@
 
 #include "internal.h"
 
-static const ScoopRegisteredRecord *
-claim_storage(const ScoopImageRegistry *registry,
-              const ScoopMetadataCheck *check,
-              const ScoopStaticStorageDescriptorV1 *storage,
-              const ScoopRegisteredRecord *owner, bool *claimed, bool failure) {
+static const ScoopRegisteredRecord *claim_storage(const ScoopImageRegistry *registry,
+                                                  const ScoopMetadataCheck *check,
+                                                  const ScoopStaticStorageDescriptorV1 *storage,
+                                                  const ScoopRegisteredRecord *owner, bool *claimed,
+                                                  bool failure) {
     const ScoopRegisteredRecord *entry =
         scoop_record_by_address(registry, SCOOP_RECORD_STORAGE, storage);
     if (entry == NULL) {
         scoop_metadata_fatal(check, "unregistered storage");
     }
-    size_t index =
-        (size_t)(entry - registry->tables[SCOOP_RECORD_STORAGE].entries);
+    size_t index = (size_t)(entry - registry->tables[SCOOP_RECORD_STORAGE].entries);
     if (claimed[index] ||
-        storage->initial_state_kind !=
-            SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1 ||
+        storage->initial_state_kind != SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1 ||
         (owner != NULL && !scoop_records_same_owner(owner, entry))) {
-        scoop_metadata_fatal(check,
-                             "shared storage role, initial state or producer");
+        scoop_metadata_fatal(check, "shared storage role, initial state or producer");
     }
     claimed[index] = true;
     if (failure &&
         (storage->byte_size != 8 || storage->allocation_extent != 8 ||
-         storage->required_alignment != 8 ||
-         storage->scan_kind != SCOOP_STATIC_SCAN_RECURSIVE_V1 ||
+         storage->required_alignment != 8 || storage->scan_kind != SCOOP_STATIC_SCAN_RECURSIVE_V1 ||
          storage->scan_program[0] != 1 || storage->scan_program[1] != 0)) {
-        scoop_metadata_fatal(check,
-                             "failure root must be a dedicated reference slot");
+        scoop_metadata_fatal(check, "failure root must be a dedicated reference slot");
     }
     return entry;
 }
 
-static void check_unit(const ScoopImageRegistry *registry, size_t index,
-                       bool *claimed) {
-    const ScoopRegisteredRecord *entry =
-        &registry->tables[SCOOP_RECORD_UNIT].entries[index];
-    ScoopMetadataCheck check =
-        scoop_record_check(registry, SCOOP_RECORD_UNIT, index);
+static void check_unit(const ScoopImageRegistry *registry, size_t index, bool *claimed) {
+    const ScoopRegisteredRecord *entry = &registry->tables[SCOOP_RECORD_UNIT].entries[index];
+    ScoopMetadataCheck check = scoop_record_check(registry, SCOOP_RECORD_UNIT, index);
     const ScoopInitializationUnitDescriptorV1 *unit = entry->record;
     if (unit->reserved_zero != 0 || unit->diagnostic_path.length == 0) {
         scoop_metadata_fatal(&check, "reserved field or empty diagnostic");
@@ -48,10 +40,8 @@ static void check_unit(const ScoopImageRegistry *registry, size_t index,
     claim_storage(registry, &check, unit->storage, entry, claimed, false);
     claim_storage(registry, &check, unit->failure_root, entry, claimed, true);
     if (unit->schedule_kind == SCOOP_INITIALIZATION_EAGER_STARTUP_V1) {
-        if (entry->identity->linkage_kind !=
-            SCOOP_REGISTRATION_LINKAGE_STRONG_V1) {
-            scoop_metadata_fatal(&check,
-                                 "eager unit must have a defining Cone");
+        if (entry->identity->linkage_kind != SCOOP_REGISTRATION_LINKAGE_STRONG_V1) {
+            scoop_metadata_fatal(&check, "eager unit must have a defining Cone");
         }
     } else if (unit->schedule_kind == SCOOP_INITIALIZATION_LAZY_ACCESS_V1) {
         if (unit->startup_gateway != NULL) {
@@ -63,14 +53,12 @@ static void check_unit(const ScoopImageRegistry *registry, size_t index,
 }
 
 static void check_root(const ScoopImageRegistry *registry, bool *claimed) {
-    const ScoopRootEntryDescriptorV1 *root = registry->root;
+    const ScoopRootEntryView *root = &registry->root;
     ScoopMetadataCheck check = {.loaded = registry->loaded, .kind = "root"};
     const ScoopRegisteredRecord *body =
         scoop_record_by_id(registry, SCOOP_RECORD_CALLABLE, &root->callable_id);
-    if (body == NULL ||
-        body->identity->linkage_kind != SCOOP_REGISTRATION_LINKAGE_STRONG_V1 ||
-        !scoop_digest_equal(&body->producer->cone.identity,
-                            &root->owner_cone_identity)) {
+    if (body == NULL || body->identity->linkage_kind != SCOOP_REGISTRATION_LINKAGE_STRONG_V1 ||
+        !scoop_digest_equal(&body->producer->cone.identity, &root->owner_cone_identity)) {
         scoop_metadata_fatal(&check, "source callable owner");
     }
     claim_storage(registry, &check, root->failure_root, body, claimed, true);
@@ -85,27 +73,20 @@ void scoop_image_units(ScoopImageRegistry *registry) {
     }
     check_root(registry, claimed);
     for (size_t index = 0; index < storages->count; index++) {
-        const ScoopStaticStorageDescriptorV1 *storage =
-            storages->entries[index].record;
-        if (storage->initial_state_kind ==
-                SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1 &&
+        const ScoopStaticStorageDescriptorV1 *storage = storages->entries[index].record;
+        if (storage->initial_state_kind == SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1 &&
             !claimed[index]) {
-            ScoopMetadataCheck check =
-                scoop_record_check(registry, SCOOP_RECORD_STORAGE, index);
-            scoop_metadata_fatal(
-                &check, "zeroed storage has no initialization or failure role");
+            ScoopMetadataCheck check = scoop_record_check(registry, SCOOP_RECORD_STORAGE, index);
+            scoop_metadata_fatal(&check, "zeroed storage has no initialization or failure role");
         }
     }
     free(claimed);
-    registry->eager_units =
-        scoop_metadata_allocate(units->count, sizeof *registry->eager_units);
+    registry->eager_units = scoop_metadata_allocate(units->count, sizeof *registry->eager_units);
     for (size_t image = 0; image < registry->image_count; image++) {
         for (size_t unit = 0; unit < units->count; unit++) {
-            const ScoopInitializationUnitDescriptorV1 *record =
-                units->entries[unit].record;
+            const ScoopInitializationUnitDescriptorV1 *record = units->entries[unit].record;
             if (units->entries[unit].producer == registry->image_order[image] &&
-                record->schedule_kind ==
-                    SCOOP_INITIALIZATION_EAGER_STARTUP_V1) {
+                record->schedule_kind == SCOOP_INITIALIZATION_EAGER_STARTUP_V1) {
                 registry->eager_units[registry->eager_unit_count++] = record;
             }
         }

@@ -35,20 +35,53 @@ impl CAbiError {
 }
 
 impl Lowerer {
-    pub(crate) fn validate_fun_ptr_signature(
+    pub(crate) fn native_function_pointer_signature(
+        &self,
+        ty: hir::TypeId,
+    ) -> Option<(hir::CAbiCallMode, hir::TypeId)> {
+        match self.types[ty] {
+            hir::Type::FunPtr(signature) => Some((
+                hir::CAbiCallMode::NativeSafe,
+                self.function_types[signature].canonical_type,
+            )),
+            hir::Type::GcLeafFunPtr(signature) => Some((
+                hir::CAbiCallMode::GcLeaf,
+                self.function_types[signature].canonical_type,
+            )),
+            hir::Type::Struct(application) => {
+                match self.struct_applications[application].representation {
+                    hir::StructApplicationRepresentation::Intrinsic(
+                        hir::IntrinsicTypeRepresentation::FunPtr { function },
+                    ) => Some((hir::CAbiCallMode::NativeSafe, function)),
+                    hir::StructApplicationRepresentation::Intrinsic(
+                        hir::IntrinsicTypeRepresentation::GcLeafFunPtr { function },
+                    ) => Some((hir::CAbiCallMode::GcLeaf, function)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn validate_native_function_pointer_signature(
         &mut self,
         signature: hir::FunctionTypeId,
+        mode: hir::CAbiCallMode,
         span: scoop_ast::Span,
     ) -> bool {
         let function = &self.function_types[signature];
+        let name = match mode {
+            hir::CAbiCallMode::NativeSafe => "FunPtr",
+            hir::CAbiCallMode::GcLeaf => "GCLeafFunPtr",
+        };
         let message = if function.receiver.is_some() {
-            "`FunPtr` requires a function type without a receiver"
+            format!("`{name}` requires a function type without a receiver")
         } else if function.is_suspend || self.function_type_contains_param(signature) {
-            "`FunPtr` type argument must be an ordinary concrete function type"
+            format!("`{name}` type argument must be an ordinary concrete function type")
         } else {
             return true;
         };
-        self.error(span, message.to_owned());
+        self.error(span, message);
         false
     }
 
@@ -366,6 +399,16 @@ impl Lowerer {
                 self.error(
                     span,
                     format!("`FunPtr` signature is not C-FFI-safe: {error}"),
+                );
+            }
+        }
+        let gc_leaf_fun_ptr_uses = self.gc_leaf_fun_ptr_type_uses.clone();
+        for (ty, file, span) in gc_leaf_fun_ptr_uses {
+            self.current_file = file;
+            if let Some(error) = self.c_ffi_type_error(ty) {
+                self.error(
+                    span,
+                    format!("`GCLeafFunPtr` signature is not C-FFI-safe: {error}"),
                 );
             }
         }

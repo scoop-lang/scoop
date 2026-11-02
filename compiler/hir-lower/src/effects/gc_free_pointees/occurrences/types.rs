@@ -262,6 +262,9 @@ pub(in super::super) fn collect_expr_types(
         | ExprKind::CharFromCodeUnchecked(source)
         | ExprKind::PtrToULong(source)
         | ExprKind::PtrCast(source)
+        | ExprKind::NativeFunctionPointerCast {
+            operand: source, ..
+        }
         | ExprKind::Box(source)
         | ExprKind::Unbox(source)
         | ExprKind::Upcast(source)
@@ -383,6 +386,12 @@ pub(in super::super) fn collect_expr_types(
             callee,
             function_type,
             args,
+        }
+        | ExprKind::NativePointerCall {
+            callee,
+            function_type,
+            args,
+            ..
         } => {
             collect_function_type_types(lowerer, *function_type, out);
             collect_expr_types(lowerer, callee, out);

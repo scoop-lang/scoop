@@ -47,12 +47,12 @@ fn no_transition_uses_static_call_graph_and_recursive_components() {
             return first(value - 1)
         }
         public fun managed(value: Int): Int = increment(value)
-        @Extern(name = "m24_native") public fun native(value: Int): Int
-        @NoGC @Unsafe public fun transition(value: Int): Int = native(value)
-        @NoGC @Unsafe public fun indirect(value: Int): Int = transition(value)
+        @GCLeaf @Extern(name = "m24_native") public fun native(value: Int): Int
+        @NoGC @Unsafe public fun nativeHelper(value: Int): Int = native(value)
+        @NoGC @Unsafe public fun indirect(value: Int): Int = nativeHelper(value)
         @NoGC @Unsafe public fun poisonedA(value: Int): Int {
             if (value == 0) { return poisonedB(value) }
-            return transition(value)
+            return nativeHelper(value)
         }
         @NoGC @Unsafe public fun poisonedB(value: Int): Int = poisonedA(value)
     "#,
@@ -63,7 +63,7 @@ fn no_transition_uses_static_call_graph_and_recursive_components() {
             for name in [
                 "managed",
                 "native",
-                "transition",
+                "nativeHelper",
                 "indirect",
                 "poisonedA",
                 "poisonedB",

@@ -12,7 +12,9 @@ impl Lowerer {
             Type::Param(_) | Type::Companion(_) => true,
             Type::Ptr(element) => self.type_contains_param(*element),
             Type::Tuple(args) => args.iter().any(|ty| self.type_contains_param(*ty)),
-            Type::Function(id) | Type::FunPtr(id) => self.function_type_contains_param(*id),
+            Type::Function(id) | Type::FunPtr(id) | Type::GcLeafFunPtr(id) => {
+                self.function_type_contains_param(*id)
+            }
             _ => false,
         }
     }
@@ -73,6 +75,14 @@ impl Lowerer {
                     })
                     .expect("complete function pointer substitution");
                 self.intern_type(Type::FunPtr(function))
+            }
+            Type::GcLeafFunPtr(id) => {
+                let function = self
+                    .instantiate_function_type(id, |this, ty| {
+                        Some(this.instantiate_ty(ty, type_args))
+                    })
+                    .expect("complete GC leaf function pointer substitution");
+                self.intern_type(Type::GcLeafFunPtr(function))
             }
             _ => ty,
         }
@@ -136,6 +146,14 @@ impl Lowerer {
                     .expect("complete function pointer owner substitution");
                 self.intern_type(Type::FunPtr(function))
             }
+            Type::GcLeafFunPtr(id) => {
+                let function = self
+                    .instantiate_function_type(id, |this, ty| {
+                        Some(this.instantiate_method_ty(ty, bindings))
+                    })
+                    .expect("complete GC leaf function pointer owner substitution");
+                self.intern_type(Type::GcLeafFunPtr(function))
+            }
             _ => ty,
         }
     }
@@ -183,6 +201,11 @@ impl Lowerer {
                 let function = self
                     .instantiate_function_type(id, |this, ty| this.try_substitute(ty, bindings))?;
                 Some(self.intern_type(Type::FunPtr(function)))
+            }
+            Type::GcLeafFunPtr(id) => {
+                let function = self
+                    .instantiate_function_type(id, |this, ty| this.try_substitute(ty, bindings))?;
+                Some(self.intern_type(Type::GcLeafFunPtr(function)))
             }
             _ => Some(ty),
         }

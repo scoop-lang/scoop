@@ -7,6 +7,7 @@ use std::io::{BufReader, BufWriter, Write};
 struct Record {
     inputs: Vec<NativeInputMetadata>,
     executable: HostPathCarrier,
+    import_library: Option<HostPathCarrier>,
     debug_file: Option<(scoop_toolchain::DebugFileKind, HostPathCarrier)>,
     fingerprint: [u8; 32],
     result_key: [u8; 32],
@@ -41,9 +42,19 @@ pub(super) fn load(path: &Path) -> BuildResult<Option<Executable>> {
     {
         return Ok(None);
     }
+    let import_library = record
+        .import_library
+        .map(|path| path.to_path_buf().map_err(failure))
+        .transpose()?;
+    if let Some(path) = &import_library
+        && !path.try_exists().map_err(failure)?
+    {
+        return Ok(None);
+    }
     Ok(Some(Executable {
         path,
         debug_file,
+        import_library,
         fingerprint: ResolvedLinkPlanFingerprint::from_array(record.fingerprint),
         result_key: record.result_key,
     }))
@@ -56,6 +67,12 @@ pub(super) fn save(
 ) -> BuildResult<()> {
     let record = Record {
         inputs,
+        import_library: executable
+            .import_library
+            .as_deref()
+            .map(HostPathCarrier::from_path)
+            .transpose()
+            .map_err(failure)?,
         executable: HostPathCarrier::from_path(&executable.path).map_err(failure)?,
         fingerprint: *executable.fingerprint.as_array(),
         debug_file: executable

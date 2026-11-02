@@ -79,7 +79,7 @@ impl Lowerer {
     ) -> Result<CallCandidates, EditingCancelled> {
         if matches!(
             self.types[value.ty],
-            hir::Type::Function(_) | hir::Type::FunPtr(_)
+            hir::Type::Function(_) | hir::Type::FunPtr(_) | hir::Type::GcLeafFunPtr(_)
         ) {
             return Ok(V::Known(Vec::new()));
         }

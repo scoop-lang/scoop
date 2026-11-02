@@ -73,6 +73,15 @@ pub struct ProgramLinkClosure {
 }
 
 impl ProgramLinkClosure {
+    pub fn root_kind(&self) -> crate::ConeKind {
+        self.artifacts
+            .iter()
+            .find(|artifact| artifact.identity() == self.root)
+            .expect("the validated closure contains its root")
+            .manifest()
+            .cone()
+            .kind()
+    }
     pub fn root(&self) -> ConeIdentity {
         self.root
     }

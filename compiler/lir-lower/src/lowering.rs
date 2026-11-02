@@ -117,7 +117,7 @@ pub(super) fn lower_graph(
     )?;
     let root_gateway_ref = match input.production().entry_bridge() {
         mir::EntryMirBridgeBranchV1::Library => None,
-        mir::EntryMirBridgeBranchV1::Executable(_) => {
+        mir::EntryMirBridgeBranchV1::Executable(_) | mir::EntryMirBridgeBranchV1::NativeApp(_) => {
             Some(local_function_identities.alloc_managed())
         }
     };
@@ -141,6 +141,30 @@ pub(super) fn lower_graph(
         .collect::<Vec<_>>();
     let root_artifacts = match input.production().entry_bridge() {
         mir::EntryMirBridgeBranchV1::Library => None,
+        mir::EntryMirBridgeBranchV1::NativeApp(bridge) => {
+            let mir::MirOutput::NativeApp { entry } = module.output else {
+                unreachable!("the sealed MIR native-app entry remains aligned")
+            };
+            Some(production::lower_native_app_artifacts(
+                module.cone,
+                bridge.source(),
+                production::RootMain {
+                    target: local_function_map[&entry],
+                    signature: &function_signatures[&entry],
+                    arguments: production::RootArguments::NativePointers,
+                },
+                globals::static_storage_layout(
+                    &context,
+                    &identity_roots,
+                    module,
+                    &mir::Type::Any,
+                    selected_layout,
+                )?,
+                &mut globals,
+                &signatures,
+            ))
+        }
+
         mir::EntryMirBridgeBranchV1::Executable(bridge) => {
             let mir::MirOutput::Executable { entry, arguments } = module.output else {
                 unreachable!("the sealed MIR input keeps output and entry proof aligned")
@@ -365,6 +389,9 @@ pub(super) fn lower_graph(
         foreign_callback_bridges,
         output: match module.output {
             mir::MirOutput::Library => lir::LirOutput::Library,
+            mir::MirOutput::NativeApp { entry } => lir::LirOutput::NativeApp {
+                entry: local_function_map[&entry],
+            },
             mir::MirOutput::Executable { entry, .. } => lir::LirOutput::Executable {
                 entry: local_function_map[&entry],
             },

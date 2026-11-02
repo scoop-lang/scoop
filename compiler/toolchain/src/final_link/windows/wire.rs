@@ -2,7 +2,7 @@ use super::*;
 
 impl WireEncode for WindowsFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.array(8)?;
+        e.array(9)?;
         self.startup.target().wire_id().encode(e)?;
         self.startup.profile().contract().encode(e)?;
         self.data.compiler_digest.encode(e)?;
@@ -36,6 +36,7 @@ impl WireEncode for WindowsFinalLinkProfile {
                 cxx.fingerprint().encode(e)
             }
             None => e.array(0),
-        }
+        }?;
+        self.data.output.encode(e)
     }
 }

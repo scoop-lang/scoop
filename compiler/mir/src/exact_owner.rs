@@ -48,7 +48,8 @@ impl ExactOwnerRoot {
             ExactTypeKey::Tuple(_)
             | ExactTypeKey::Function { .. }
             | ExactTypeKey::RawPointer(_)
-            | ExactTypeKey::NativeFunctionPointer { .. } => {
+            | ExactTypeKey::NativeFunctionPointer { .. }
+            | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => {
                 if nominal_group.is_some() {
                     return Err(ExactOwnerRootError::UnexpectedNominalGroup);
                 }

@@ -58,6 +58,7 @@ impl FunctionLowerer<'_> {
                 );
                 self.lower_expr(operand)?
             }
+            mir::ExprKind::NativeFunctionPointerCast { operand, .. } => self.lower_expr(operand)?,
             mir::ExprKind::PtrLoad {
                 pointer,
                 pointee,

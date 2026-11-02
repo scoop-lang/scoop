@@ -11,12 +11,15 @@ use crate::{ConeLirFoundation, DigestFinalizationPlanV1, RegistrationIdentitySur
 mod link;
 mod validation;
 pub use validation::EntryProductionPlanBuildError;
-use validation::{build_executable, validate_library_foundation};
+use validation::{build_executable, build_native_app, validate_library_foundation};
+mod native_app;
+pub use native_app::{DecodedNativeAppEntryPlanV1, NativeAppEntryPlanV1};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryProductionSourceV1 {
     Library,
     Executable(Box<ExecutableEntryIdentity>),
+    NativeApp(Box<scoop_identity::NativeAppEntryIdentity>),
 }
 
 impl EntryProductionSourceV1 {
@@ -120,6 +123,7 @@ impl WireEncode for ExecutableEntryPlanV1 {
 pub enum EntryProductionPlanV1 {
     Library,
     Executable(Box<ExecutableEntryPlanV1>),
+    NativeApp(Box<NativeAppEntryPlanV1>),
 }
 
 impl EntryProductionPlanV1 {
@@ -133,6 +137,11 @@ impl EntryProductionPlanV1 {
             EntryProductionSourceV1::Library => {
                 validate_library_foundation(foundation)?;
                 Ok(Self::Library)
+            }
+            EntryProductionSourceV1::NativeApp(entry) => {
+                build_native_app(*entry, foundation, registrations, digests)
+                    .map(Box::new)
+                    .map(Self::NativeApp)
             }
             EntryProductionSourceV1::Executable(entry) => {
                 build_executable(*entry, foundation, registrations, digests)
@@ -148,6 +157,7 @@ impl WireEncode for EntryProductionPlanV1 {
         match self {
             Self::Library => encode_empty_sum(encoder, 1),
             Self::Executable(plan) => encode_value_sum(encoder, 2, plan.as_ref()),
+            Self::NativeApp(plan) => encode_value_sum(encoder, 3, plan.as_ref()),
         }
     }
 }
@@ -211,6 +221,7 @@ impl WireDecode for DecodedExecutableEntryPlanV1 {
 pub enum DecodedEntryProductionPlanV1 {
     Library,
     Executable(Box<DecodedExecutableEntryPlanV1>),
+    NativeApp(Box<DecodedNativeAppEntryPlanV1>),
 }
 
 impl WireEncode for DecodedEntryProductionPlanV1 {
@@ -218,6 +229,7 @@ impl WireEncode for DecodedEntryProductionPlanV1 {
         match self {
             Self::Library => encode_empty_sum(encoder, 1),
             Self::Executable(plan) => encode_value_sum(encoder, 2, plan.as_ref()),
+            Self::NativeApp(plan) => encode_value_sum(encoder, 3, plan.as_ref()),
         }
     }
 }
@@ -229,6 +241,9 @@ impl WireDecode for DecodedEntryProductionPlanV1 {
             2 => DecodedExecutableEntryPlanV1::decode(decoder)
                 .map(Box::new)
                 .map(Self::Executable),
+            3 => DecodedNativeAppEntryPlanV1::decode(decoder)
+                .map(Box::new)
+                .map(Self::NativeApp),
             tag => Err(unknown_tag(decoder, tag)),
         })
     }
@@ -242,8 +257,8 @@ fn decode_sum<T>(
     let tag = decoder.field(0, Decoder::unsigned)?;
     match (tag, fields) {
         (1, 1) => decode(tag, decoder),
-        (2, 2) => decoder.field(1, |decoder| decode(tag, decoder)),
-        _ if tag > 2 => Err(unknown_tag(decoder, tag)),
+        (2 | 3, 2) => decoder.field(1, |decoder| decode(tag, decoder)),
+        _ if tag > 3 => Err(unknown_tag(decoder, tag)),
         _ => Err(WireError::new(
             scoop_wire::WireErrorKind::InvalidLength {
                 expected: if tag == 1 { 1 } else { 2 },

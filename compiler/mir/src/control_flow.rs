@@ -764,6 +764,10 @@ pub enum ExprKind {
         pointee: Box<Type>,
     },
     PtrToULong(Box<Expr>),
+    NativeFunctionPointerCast {
+        operand: Box<Expr>,
+        target_mode: CAbiCallMode,
+    },
     PtrCast {
         operand: Box<Expr>,
         pointee: Box<Type>,

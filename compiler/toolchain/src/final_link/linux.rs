@@ -34,6 +34,7 @@ pub struct LinuxFinalLinkProfile {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(super) struct Discovery {
+    pub(super) output: OutputConfiguration,
     #[serde(with = "crate::build_record::values::paths")]
     pub(super) native_roots: Vec<PathBuf>,
     mode: LinkMode,
@@ -72,11 +73,20 @@ impl LinuxFinalLinkProfile {
         native_roots: Vec<PathBuf>,
     ) -> Result<Self, ToolchainError> {
         let target = startup.profile().contract().target().id();
+        let output = OutputConfiguration::resolve(startup.target(), options)?;
         let selected = LinuxTarget::select(target)?;
-        let mode = options.mode.unwrap_or(match selected.libc {
-            LinuxLibc::Musl => LinkMode::Static,
-            LinuxLibc::Gnu => LinkMode::Dynamic,
-        });
+        let mode = options
+            .mode
+            .unwrap_or(match (output.kind(), selected.libc) {
+                (FinalOutputKind::SharedLibrary, _) => LinkMode::Dynamic,
+                (_, LinuxLibc::Musl) => LinkMode::Static,
+                (_, LinuxLibc::Gnu) => LinkMode::Dynamic,
+            });
+        if output.kind() == FinalOutputKind::SharedLibrary && mode == LinkMode::Static {
+            return Err(error(
+                "Linux shared library output requires dynamic system libraries",
+            ));
+        }
         if selected.libc == LinuxLibc::Gnu && mode == LinkMode::Static {
             return Err(error(
                 "M28 supports glibc dynamic PIE; glibc static linking is outside its target matrix",
@@ -97,6 +107,7 @@ impl LinuxFinalLinkProfile {
             startup,
             target: selected,
             data: Discovery {
+                output,
                 native_roots,
                 mode,
                 linker,
@@ -164,6 +175,22 @@ impl LinuxFinalLinkProfile {
             .arg(output)
             .args(["-Xlinker", "-T", "-Xlinker"])
             .arg(script);
+        if self.data.output.kind() == FinalOutputKind::SharedLibrary {
+            let exports = scratch.join("native-app.exports");
+            std::fs::write(
+                &exports,
+                format!(
+                    "{{ global: {}; local: *; }};\n",
+                    super::output::NATIVE_APP_ENTRY
+                ),
+            )
+            .map_err(error)?;
+            command
+                .args(["-Xlinker", "--version-script", "-Xlinker"])
+                .arg(exports)
+                .args(["-Xlinker", "-soname", "-Xlinker"])
+                .arg(self.data.output.loader_name(output, "")?);
+        }
         Ok(command)
     }
 
@@ -185,6 +212,9 @@ impl LinuxFinalLinkProfile {
     }
 
     fn mode_flags(&self) -> &'static [&'static str] {
+        if self.data.output.kind() == FinalOutputKind::SharedLibrary {
+            return &["-shared"];
+        }
         match self.data.mode {
             LinkMode::Static => &["-static", "-no-pie"],
             LinkMode::Dynamic => &["-pie"],

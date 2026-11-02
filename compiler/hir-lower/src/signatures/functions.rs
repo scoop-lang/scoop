@@ -75,6 +75,13 @@ impl Lowerer {
             self.register_generic(id, type_params.clone());
         }
         self.type_params_in_scope = type_params.clone();
+        self.allow_deferred_fun_ptr = matches!(
+            self.functions[id].kind,
+            FunctionKind::Intrinsic(hir::IntrinsicFunction {
+                kind: hir::IntrinsicFunctionKind::NativeFunctionPointer(_),
+                ..
+            })
+        );
 
         if let Some(receiver) = &decl.receiver_ty
             && let Some(receiver_ty) = self.resolve_type_ref(receiver)
@@ -97,6 +104,7 @@ impl Lowerer {
             return_ty,
         );
         self.type_params_in_scope.clear();
+        self.allow_deferred_fun_ptr = false;
 
         self.functions[id].return_ty = return_ty;
         self.functions[id].modifiers = modifiers;

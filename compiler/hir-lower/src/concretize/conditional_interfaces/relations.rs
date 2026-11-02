@@ -65,7 +65,8 @@ impl Concretizer<'_> {
             concrete::TypeKind::Any
             | concrete::TypeKind::Tuple(_)
             | concrete::TypeKind::Function(_)
-            | concrete::TypeKind::FunPtr(_) => false,
+            | concrete::TypeKind::FunPtr(_)
+            | concrete::TypeKind::GcLeafFunPtr(_) => false,
             _ => self
                 .concrete_bound_conformances(source)
                 .iter()

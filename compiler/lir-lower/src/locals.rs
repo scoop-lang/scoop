@@ -104,6 +104,7 @@ pub(super) fn address_taken(function: &mir::Function) -> HashSet<mir::LocalId> {
             | mir::ExprKind::CharCode(operand)
             | mir::ExprKind::CharFromCodeUnchecked(operand)
             | mir::ExprKind::PtrToULong(operand)
+            | mir::ExprKind::NativeFunctionPointerCast { operand, .. }
             | mir::ExprKind::PtrCast { operand, .. } => collect_expr(operand, out),
             mir::ExprKind::ClassAlloc { .. } => {}
             mir::ExprKind::AtomicFieldCompareExchange {

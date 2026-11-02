@@ -189,6 +189,19 @@ impl RelationReducer<'_> {
             );
             return Ok(());
         }
+        if let (Some((left_mode, left_signature)), Some((right_mode, right_signature))) = (
+            self.lowerer.native_function_pointer_signature(left_ty),
+            self.lowerer.native_function_pointer_signature(right_ty),
+        ) {
+            if left_mode != right_mode {
+                return Err(self.relation_failure(RelationKind::Equal, left, right, origin));
+            }
+            return self.equal(
+                nested_term(left, left_signature),
+                nested_term(right, right_signature),
+                origin,
+            );
+        }
         if let (Some(left_application), Some(right_application)) = (
             self.lowerer.nominal_application(left_ty),
             self.lowerer.nominal_application(right_ty),
@@ -220,8 +233,7 @@ impl RelationReducer<'_> {
                         )
                     })
             }
-            (Type::Function(left_id), Type::Function(right_id))
-            | (Type::FunPtr(left_id), Type::FunPtr(right_id)) => {
+            (Type::Function(left_id), Type::Function(right_id)) => {
                 let left_signature = self.lowerer.function_types[left_id].clone();
                 let right_signature = self.lowerer.function_types[right_id].clone();
                 if left_signature.is_suspend != right_signature.is_suspend
@@ -328,6 +340,17 @@ impl RelationReducer<'_> {
         {
             return Ok(());
         }
+        if self
+            .lowerer
+            .native_function_pointer_signature(left_ty)
+            .is_some()
+            && self
+                .lowerer
+                .native_function_pointer_signature(right_ty)
+                .is_some()
+        {
+            return self.equal_types(left, left_ty, right, right_ty, origin);
+        }
         if let Some(target) = self.lowerer.nominal_application(right_ty) {
             let mut pending = vec![left_ty];
             let mut seen = std::collections::HashSet::new();
@@ -375,31 +398,6 @@ impl RelationReducer<'_> {
                     )?;
                 }
                 self.subtype(
-                    nested_term(left, left_signature.return_type),
-                    nested_term(right, right_signature.return_type),
-                    origin,
-                )
-            }
-            (Type::FunPtr(left_id), Type::FunPtr(right_id)) => {
-                let left_signature = self.lowerer.function_types[left_id].clone();
-                let right_signature = self.lowerer.function_types[right_id].clone();
-                if left_signature.is_suspend != right_signature.is_suspend
-                    || left_signature.arity() != right_signature.arity()
-                {
-                    return Err(self.relation_failure(RelationKind::Subtype, left, right, origin));
-                }
-                for (left_parameter, right_parameter) in left_signature
-                    .parameters()
-                    .copied()
-                    .zip(right_signature.parameters().copied())
-                {
-                    self.equal(
-                        nested_term(left, left_parameter),
-                        nested_term(right, right_parameter),
-                        origin,
-                    )?;
-                }
-                self.equal(
                     nested_term(left, left_signature.return_type),
                     nested_term(right, right_signature.return_type),
                     origin,
@@ -599,7 +597,7 @@ pub(crate) fn type_contains_session_parameter(
             .clone(),
         Type::Enum(application) => lowerer.enum_applications[*application].arguments.clone(),
         Type::Tuple(elements) => elements.clone(),
-        Type::Function(signature) | Type::FunPtr(signature) => {
+        Type::Function(signature) | Type::FunPtr(signature) | Type::GcLeafFunPtr(signature) => {
             let signature = &lowerer.function_types[*signature];
             let mut children = signature.parameters().copied().collect::<Vec<_>>();
             children.push(signature.return_type);

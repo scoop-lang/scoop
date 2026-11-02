@@ -66,6 +66,9 @@ impl Builder {
                     mir::IntrinsicStructRepresentation::FunPtr { signature } => {
                         mir::Type::FunPtr(*signature)
                     }
+                    mir::IntrinsicStructRepresentation::GcLeafFunPtr { signature } => {
+                        mir::Type::GcLeafFunPtr(*signature)
+                    }
                 },
             };
             test_exact_type_at(provider, &self.function_types, &ty, &mut exact_types);

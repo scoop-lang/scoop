@@ -26,6 +26,11 @@ pub enum DecodedSignatureTypeKey {
         parameters: Vec<DecodedSignatureTypeKey>,
         result: Box<DecodedSignatureTypeKey>,
     },
+    GcLeafNativeFunctionPointer {
+        calling_convention: CallingConvention,
+        parameters: Vec<DecodedSignatureTypeKey>,
+        result: Box<DecodedSignatureTypeKey>,
+    },
     Binder {
         depth: u32,
         index: u32,
@@ -73,6 +78,15 @@ impl DecodedSignatureTypeKey {
                 parameters,
                 result,
             } => Ok(SignatureTypeKey::NativeFunctionPointer {
+                calling_convention,
+                parameters: resolve_sequence(parameters, resolver)?,
+                result: Box::new(result.resolve(resolver)?),
+            }),
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => Ok(SignatureTypeKey::GcLeafNativeFunctionPointer {
                 calling_convention,
                 parameters: resolve_sequence(parameters, resolver)?,
                 result: Box::new(result.resolve(resolver)?),
@@ -129,6 +143,20 @@ impl WireEncode for DecodedSignatureTypeKey {
             } => {
                 encoder.map(4)?;
                 encode_tag(encoder, 6)?;
+                encoder.field(1)?;
+                calling_convention.encode(encoder)?;
+                encoder.field(2)?;
+                encode_sequence(encoder, parameters)?;
+                encoder.field(3)?;
+                result.encode(encoder)
+            }
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => {
+                encoder.map(4)?;
+                encode_tag(encoder, 9)?;
                 encoder.field(1)?;
                 calling_convention.encode(encoder)?;
                 encoder.field(2)?;
@@ -219,6 +247,16 @@ impl WireDecode for DecodedSignatureTypeKey {
                     .field(1, DecodedSignatureTypeKey::decode)
                     .map(Box::new)
                     .map(Self::Companion)
+            }
+            9 => {
+                expect_sum_length(decoder, fields, 4)?;
+                Ok(Self::GcLeafNativeFunctionPointer {
+                    calling_convention: decoder.field(1, decode_calling_convention)?,
+                    parameters: decoder.field(2, decode_signatures)?,
+                    result: decoder.field(3, |decoder| {
+                        DecodedSignatureTypeKey::decode(decoder).map(Box::new)
+                    })?,
+                })
             }
             tag => Err(wire_error(decoder, WireErrorKind::UnknownTag { tag })),
         }

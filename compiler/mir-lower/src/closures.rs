@@ -1,8 +1,8 @@
 use super::*;
 
 mod anonymous;
+mod intrinsics;
 mod lambdas;
-mod maybe_uninit;
 pub(crate) mod primitive;
 mod references;
 mod reuse;

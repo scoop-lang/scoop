@@ -107,7 +107,10 @@ impl Lowerer {
                 self.imported_struct_type(declaration, arguments)
             }
             hir::NominalSourceShapeV1::Intrinsic(representation)
-                if representation.family() == hir::IntrinsicTypeKind::FunPtr =>
+                if matches!(
+                    representation.family(),
+                    hir::IntrinsicTypeKind::FunPtr | hir::IntrinsicTypeKind::GcLeafFunPtr
+                ) =>
             {
                 if !matches!(
                     self.types[arguments[0]],

@@ -121,6 +121,23 @@ fn option_of_code_pointer_records_code_niche_provenance() {
             test_variant("None".to_string(), true, Vec::new()),
         ],
     });
+    let leaf_option = builder.enums.alloc(mir::EnumDef {
+        representation: mir::EnumRepresentation::Algebraic,
+        name: "Option<GCLeafFunPtr>".to_string(),
+        type_arguments: Vec::new(),
+        gc_free: true,
+        variants: vec![
+            test_variant(
+                "Some".to_string(),
+                true,
+                vec![mir::Field {
+                    name: "_1".to_string(),
+                    ty: mir::Type::GcLeafFunPtr(signature),
+                }],
+            ),
+            test_variant("None".to_string(), true, Vec::new()),
+        ],
+    });
     let main = builder.main(Arena::new(), Vec::new());
     let mir_module = builder.finish(main);
 
@@ -128,6 +145,13 @@ fn option_of_code_pointer_records_code_niche_provenance() {
 
     assert!(matches!(
         edef(&module, option).repr,
+        lir::EnumRepr::Niche {
+            kind: lir::NullNicheKind::Code,
+            payload_variant: 0,
+        }
+    ));
+    assert!(matches!(
+        edef(&module, leaf_option).repr,
         lir::EnumRepr::Niche {
             kind: lir::NullNicheKind::Code,
             payload_variant: 0,

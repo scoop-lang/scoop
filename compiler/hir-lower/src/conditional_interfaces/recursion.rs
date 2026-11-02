@@ -173,6 +173,9 @@ impl Lowerer {
                 (Type::Function(a), Type::Function(b)) | (Type::FunPtr(a), Type::FunPtr(b)) => {
                     self.function_types[*a].is_suspend == self.function_types[*b].is_suspend
                 }
+                (Type::GcLeafFunPtr(a), Type::GcLeafFunPtr(b)) => {
+                    self.function_types[*a].is_suspend == self.function_types[*b].is_suspend
+                }
                 _ => false,
             },
             _ => false,
@@ -193,7 +196,7 @@ impl Lowerer {
         match &self.types[ty] {
             Type::Tuple(children) => children.clone(),
             Type::Ptr(element) => vec![*element],
-            Type::Function(signature) | Type::FunPtr(signature) => {
+            Type::Function(signature) | Type::FunPtr(signature) | Type::GcLeafFunPtr(signature) => {
                 let signature = &self.function_types[*signature];
                 signature
                     .parameters()

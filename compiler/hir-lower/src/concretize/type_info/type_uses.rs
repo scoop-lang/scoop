@@ -93,6 +93,10 @@ impl Concretizer<'_> {
                 Step::FunctionPointee,
                 self.function_types[*signature].canonical_type,
             )],
+            concrete::TypeKind::GcLeafFunPtr(signature) => vec![(
+                Step::FunctionPointee,
+                self.function_types[*signature].canonical_type,
+            )],
             _ => self
                 .type_arguments(target)
                 .into_iter()

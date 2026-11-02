@@ -400,6 +400,9 @@ pub(in super::super) fn collect_expr_type_occurrences(
         | ExprKind::CharFromCodeUnchecked(source)
         | ExprKind::PtrToULong(source)
         | ExprKind::PtrCast(source)
+        | ExprKind::NativeFunctionPointerCast {
+            operand: source, ..
+        }
         | ExprKind::Box(source)
         | ExprKind::Unbox(source)
         | ExprKind::Upcast(source)
@@ -581,7 +584,8 @@ pub(in super::super) fn collect_expr_type_occurrences(
                 collect_expr_type_occurrences(lowerer, argument, out);
             }
         }
-        ExprKind::CallableCall { callee, args, .. } => {
+        ExprKind::CallableCall { callee, args, .. }
+        | ExprKind::NativePointerCall { callee, args, .. } => {
             collect_expr_type_occurrences(lowerer, callee, out);
             for argument in args {
                 collect_expr_type_occurrences(lowerer, argument, out);

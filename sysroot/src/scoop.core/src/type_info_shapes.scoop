@@ -225,5 +225,9 @@ public enum PointerTypeInfo {
     /**
      * A native function pointer with its complete function signature.
      */
-    FunPtr(FunctionTypeInfo)
+    FunPtr(FunctionTypeInfo),
+    /**
+     * A native function pointer with its complete function signature and GC-leaf call mode.
+     */
+    GCLeafFunPtr(FunctionTypeInfo)
 }

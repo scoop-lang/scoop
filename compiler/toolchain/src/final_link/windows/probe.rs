@@ -47,7 +47,13 @@ pub(super) fn check(
         run(&mut compile)?;
         objects.push(object);
     }
-    let output = directory.path().join("probe.exe");
+    let output = directory.path().join(
+        if profile.data.output.kind() == FinalOutputKind::SharedLibrary {
+            "probe.dll"
+        } else {
+            "probe.exe"
+        },
+    );
     let mut command = profile.command(directory.path(), &output)?;
     for object in objects {
         crate::windows_native::input(
@@ -75,7 +81,11 @@ pub(super) fn check(
         .collect();
     inputs.insert(profile.data.unwind_prefix.join("lib/libunwind.a"));
     let bytes = std::fs::read(&output).map_err(error)?;
-    check_image(&bytes, profile.startup.target().id())?;
+    check_image(
+        &bytes,
+        profile.startup.target().id(),
+        profile.data.output.kind(),
+    )?;
     inputs
         .into_iter()
         .map(|path| {
@@ -90,16 +100,29 @@ pub(super) fn check(
 pub(super) fn check_image(
     bytes: &[u8],
     target: scoop_lir::TargetProfileId,
+    kind: FinalOutputKind,
 ) -> Result<(), ToolchainError> {
     let file = object::File::parse(bytes).map_err(error)?;
+    let expected = match kind {
+        FinalOutputKind::Executable => object::ObjectKind::Executable,
+        FinalOutputKind::SharedLibrary => object::ObjectKind::Dynamic,
+    };
     if file.format() != object::BinaryFormat::Pe
         || file.architecture() != object::Architecture::X86_64
-        || file.kind() != object::ObjectKind::Executable
+        || file.kind() != expected
         || !file.is_64()
     {
         return Err(error(
-            "Windows link probe did not produce a PE32+ AMD64 executable",
+            "Windows link probe did not produce the selected PE32+ AMD64 output kind",
         ));
+    }
+    if kind == FinalOutputKind::SharedLibrary {
+        let exports = file.exports().map_err(error)?;
+        if exports.len() != 1
+            || exports[0].name() != super::super::output::NATIVE_APP_ENTRY.as_bytes()
+        {
+            return Err(error("DLL probe must export only scoop_app_init"));
+        }
     }
     if file
         .section_by_name(".pdata")
@@ -155,19 +178,11 @@ int wmain(int argc, uint16_t **argv) {
     _Unwind_Backtrace(trace, &count);
     return count < 2 || argc < 1 || argv[0][0] == 0 || puts("PE CRT and LLVM unwind passed") < 0;
 }
-"#;
-
-pub(super) const CPP_SOURCE: &str = r#"
-#include <string>
-#include <stdexcept>
-struct Base { virtual ~Base() = default; };
-struct Derived : Base { std::string value = "native C++"; };
-extern "C" int scoop_cpp_probe(int n) {
-    Derived derived;
-    Base *base = &derived;
-    try {
-        if (n) throw std::runtime_error(derived.value);
-        return dynamic_cast<Derived *>(base)->value.size();
-    } catch (const std::exception &error) { return std::string(error.what()).size(); }
+int scoop_app_init(const void *host, void *app, void *error) {
+    (void)host; (void)app; (void)error;
+    uint16_t name[] = {'s', 0}; uint16_t *argv[] = {name, 0};
+    return wmain(1, argv);
 }
 "#;
+
+pub(super) const CPP_SOURCE: &str = include_str!("../shared/library.cpp");

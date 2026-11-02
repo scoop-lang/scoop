@@ -1,0 +1,15 @@
+schema = 1
+name = "ffi-errors-no-gc-native-transition"
+root = "../../errors/no-gc-native-transition.scoop"
+inputs = ["../../errors/no-gc-native-transition.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["ffi", "no-gc", "negative", "language"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "no-gc-native-transition.diagnostics.json"}

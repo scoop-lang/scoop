@@ -30,6 +30,7 @@ pub(super) fn operands(expression: &hir::Expr) -> Vec<&hir::Expr> {
         | E::PtrFromNonZeroULong(operand)
         | E::PtrToULong(operand)
         | E::PtrCast(operand)
+        | E::NativeFunctionPointerCast { operand, .. }
         | E::Box(operand)
         | E::Unbox(operand)
         | E::Upcast(operand)
@@ -52,6 +53,11 @@ pub(super) fn operands(expression: &hir::Expr) -> Vec<&hir::Expr> {
         E::MethodCall { receiver, args, .. }
         | E::DirectSuperMethodCall { receiver, args, .. }
         | E::CallableCall {
+            callee: receiver,
+            args,
+            ..
+        }
+        | E::NativePointerCall {
             callee: receiver,
             args,
             ..
@@ -129,6 +135,7 @@ pub(super) fn may_throw(expression: &hir::Expr) -> bool {
             | E::MethodCall { .. }
             | E::DirectSuperMethodCall { .. }
             | E::CallableCall { .. }
+            | E::NativePointerCall { .. }
             | E::ClassInit { .. }
             | E::StructInit { .. }
             | E::Box(_)

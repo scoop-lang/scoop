@@ -110,15 +110,15 @@ fn release_checks_expanded_values_and_helper_effects() {
         "val value = text",
         "val value = handle / 2",
         "val value = ordinary(handle)",
-        "val value = transitions(handle)",
+        "val value = nativeHelper(handle)",
         "withDefault()",
     ] {
         rejected(
             &format!(
                 r#"
-            @Extern(name = "m24_read") fun native(value: Int): Int
+            @GCLeaf @Extern(name = "m24_read") fun native(value: Int): Int
             fun ordinary(value: Int): Int = value
-            @NoGC @Unsafe fun transitions(value: Int): Int = native(value)
+            @NoGC @Unsafe fun nativeHelper(value: Int): Int = native(value)
             @NoGC fun withDefault(value: Int = ordinary(3)): Int = value
             class Owner(private val handle: Int, private val text: String) {{
                 release {{ @Unsafe {{ {body} }} }}

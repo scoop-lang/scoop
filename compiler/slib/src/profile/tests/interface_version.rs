@@ -1,50 +1,50 @@
 use super::*;
 
 #[test]
-fn source_interface_v87_preserves_compiler_inputs_and_debug_metadata() {
+fn source_interface_v90_carries_native_function_pointer_calls() {
     assert_retired_version(
         hir_cross_cone_interface_capability(),
-        87,
+        90,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
 }
 
 #[test]
-fn type_semantics_v31_preserves_debug_field_origins() {
+fn type_semantics_v32_describes_gc_leaf_function_pointer_shapes() {
     assert_retired_version(
         hir_cross_cone_type_semantics_capability(),
-        31,
+        32,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
 }
 
 #[test]
-fn mir_type_bridge_v20_preserves_debug_field_origins() {
+fn mir_type_bridge_v21_carries_gc_leaf_function_pointer_types() {
     assert_retired_version(
         mir_cross_cone_type_bridge_capability(),
-        20,
+        21,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
 }
 
 #[test]
-fn mir_foundation_v8_preserves_annotation_description_owners() {
+fn mir_foundation_v9_encodes_gc_leaf_function_pointer_identity() {
     assert_retired_version(
         mir_identity_foundation_capability(),
-        8,
+        9,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
 }
 
 #[test]
-fn lir_layout_abi_v18_preserves_debug_type_layouts() {
+fn lir_layout_abi_v19_describes_gc_leaf_function_pointer_layouts() {
     assert_retired_version(
         lir_cross_cone_layout_abi_capability(),
-        18,
+        19,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -61,10 +61,10 @@ fn lir_param_free_v3_retains_target_coercions() {
 }
 
 #[test]
-fn compiler_protocol_v17_preserves_throwable_stack_traces() {
+fn compiler_protocol_v20_exposes_native_app_entry() {
     assert_retired_version(
         hir_core_bootstrap_interface_capability(),
-        17,
+        20,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -114,20 +114,20 @@ fn assert_retired_version(
 }
 
 #[test]
-fn hir_foundation_v10_preserves_annotation_description_owners() {
+fn hir_foundation_v11_encodes_gc_leaf_function_pointer_identity() {
     assert_retired_version(
         hir_identity_foundation_capability(),
-        10,
+        11,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
 }
 
 #[test]
-fn lir_foundation_v11_preserves_static_directory_objects() {
+fn lir_foundation_v13_encodes_native_app_entry_identity() {
     assert_retired_version(
         lir_identity_foundation_capability(),
-        11,
+        13,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

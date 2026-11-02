@@ -63,26 +63,41 @@ impl StartupObject {
         enable_stack_trace: bool,
         directory: &Path,
     ) -> Result<Self, LinkError> {
-        source.push_str(&format!(
-            "extern const ScoopRootEntryDescriptorV1 root_entry __asm__(\"{}\") __attribute__((visibility(\"hidden\")));\n",
-            root
-        ));
+        let shared = profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary;
+        let descriptor = if shared {
+            "ScoopNativeAppEntryDescriptorV1"
+        } else {
+            "ScoopRootEntryDescriptorV1"
+        };
+        source.push_str(&format!("extern const {descriptor} root_entry __asm__(\"{root}\") __attribute__((visibility(\"hidden\")));\n"));
         let section = match profile {
             ValidatedFinalLinkProfile::Darwin(_) => "__DATA_CONST,__const",
             ValidatedFinalLinkProfile::Linux(_) => ".data.rel.ro.scoop.startup",
             ValidatedFinalLinkProfile::Windows(_) => ".rdata$scoop_startup",
         };
         let windows = matches!(profile, ValidatedFinalLinkProfile::Windows(_));
-        let (entry, runtime, argument_type) = if windows {
+        let (entry, runtime, argument_type) = if shared {
+            ("scoop_app_init", "scoop_rt_init_native_app", "void")
+        } else if windows {
             ("wmain", "scoop_rt_run_program_utf16", "uint16_t")
         } else {
             ("main", "scoop_rt_run_program", "char")
         };
-        source.push_str(&format!("extern int {runtime}(const ScoopImageDescriptorV1 *const *, uint64_t, const ScoopRootEntryDescriptorV1 *, int32_t, const {argument_type} *const *, uint32_t);\n\n__attribute__((used, section(\"{section}\")))\nstatic const ScoopImageDescriptorV1 *const scoop_program_images[] = {{\n"));
+        if shared {
+            source.push_str(&format!("extern int32_t {runtime}(const ScoopImageDescriptorV1 *const *, uint64_t, const {descriptor} *, const void *, void *, ScoopAppError *, uint32_t);\n"));
+        } else {
+            source.push_str(&format!("extern int {runtime}(const ScoopImageDescriptorV1 *const *, uint64_t, const {descriptor} *, int32_t, const {argument_type} *const *, uint32_t);\n"));
+        }
+        source.push_str(&format!("\n__attribute__((used, section(\"{section}\")))\nstatic const ScoopImageDescriptorV1 *const scoop_program_images[] = {{\n"));
         for index in 0..image_count {
             source.push_str(&format!("    &image_{index},\n"));
         }
-        source.push_str(&format!("}};\n\nint {entry}(int argc, {argument_type} **argv) {{\n    return {runtime}(scoop_program_images, sizeof(scoop_program_images) / sizeof(scoop_program_images[0]), &root_entry, argc, (const {argument_type} *const *)argv, {});\n}}\n", u32::from(enable_stack_trace)));
+        source.push_str("};\n\n");
+        if shared {
+            source.push_str(&format!("__attribute__((visibility(\"default\"))) int32_t {entry}(const void *host_api, void *out_app_api, ScoopAppError *out_error) {{\n    return {runtime}(scoop_program_images, sizeof(scoop_program_images) / sizeof(scoop_program_images[0]), &root_entry, host_api, out_app_api, out_error, {});\n}}\n", u32::from(enable_stack_trace)));
+        } else {
+            source.push_str(&format!("int {entry}(int argc, {argument_type} **argv) {{\n    return {runtime}(scoop_program_images, sizeof(scoop_program_images) / sizeof(scoop_program_images[0]), &root_entry, argc, (const {argument_type} *const *)argv, {});\n}}\n", u32::from(enable_stack_trace)));
+        }
         let source_path = directory.join("startup.c");
         let object = directory.join("startup-compiled.o");
         std::fs::write(&source_path, &source).map_err(error)?;

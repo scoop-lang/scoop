@@ -38,6 +38,13 @@ impl Lowerer {
                 })?;
         }
         let kind = match expression.kind() {
+            Kind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => hir::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.materialize_imported_default_expression(operand, context)?),
+                target_mode: *target_mode,
+            },
             Kind::AnnotationKey(annotation) => {
                 self.prepare_type_reference_factory()
                     .map_err(ImportedDefaultMaterializationError::Plan)?;
@@ -149,6 +156,23 @@ impl Lowerer {
                 let function_type =
                     self.materialize_imported_function_type(function_type, context)?;
                 hir::ExprKind::CallableCall {
+                    callee: Box::new(
+                        self.materialize_imported_default_expression(callee, context)?,
+                    ),
+                    function_type,
+                    args: self.materialize_imported_default_expressions(arguments, context)?,
+                }
+            }
+            Kind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => {
+                let function_type =
+                    self.materialize_imported_function_type(function_type, context)?;
+                hir::ExprKind::NativePointerCall {
+                    call_mode: *call_mode,
                     callee: Box::new(
                         self.materialize_imported_default_expression(callee, context)?,
                     ),

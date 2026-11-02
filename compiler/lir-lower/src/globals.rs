@@ -247,7 +247,9 @@ pub(super) fn static_storage_layout(
         {
             RepresentationRole::CValue
         }
-        mir::Type::FunPtr(_) => RepresentationRole::NativeFunctionPointer,
+        mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
+            RepresentationRole::NativeFunctionPointer
+        }
         _ => RepresentationRole::ManagedValue,
     };
     if let Some(source) = module.meta.source_exact_types.get(ty)

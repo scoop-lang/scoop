@@ -152,7 +152,8 @@ impl ReleaseValueFacts {
             | hir::Type::Interface(_)
             | hir::Type::Any
             | hir::Type::Function(_)
-            | hir::Type::FunPtr(_) => None,
+            | hir::Type::FunPtr(_)
+            | hir::Type::GcLeafFunPtr(_) => None,
         }
     }
 

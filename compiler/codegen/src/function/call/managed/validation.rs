@@ -67,6 +67,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             )
         });
         let is_c_extern = match destination {
+            scoop_lir::CallDestination::NativePointer { .. } => true,
             scoop_lir::CallDestination::Extern(id) => matches!(
                 &self.extern_functions[id].kind,
                 ExternFunctionKind::C { .. }
@@ -200,7 +201,8 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
                 }
             }
             scoop_lir::CallDestination::Runtime(_)
-            | scoop_lir::CallDestination::Dispatch { .. } => {}
+            | scoop_lir::CallDestination::Dispatch { .. }
+            | scoop_lir::CallDestination::NativePointer { .. } => {}
         }
 
         if let scoop_lir::CallDestination::Runtime(runtime) = destination {

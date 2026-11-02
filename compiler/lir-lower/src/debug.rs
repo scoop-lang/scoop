@@ -194,6 +194,10 @@ impl Types<'_> {
                 "FunPtr".into(),
                 DebugTypeKind::Pointer(inline(self.signature(*signature)?)),
             ),
+            mir::Type::GcLeafFunPtr(signature) => (
+                "GCLeafFunPtr".into(),
+                DebugTypeKind::Pointer(inline(self.signature(*signature)?)),
+            ),
             mir::Type::Function(signature) => {
                 let (offset, layout) = self.context.closure_prefix();
                 let mut fields = self.header_fields();
@@ -268,6 +272,9 @@ impl Types<'_> {
                             DebugTypeKind::Pointer(self.source(pointee)?)
                         }
                         mir::IntrinsicStructRepresentation::FunPtr { signature } => {
+                            DebugTypeKind::Pointer(inline(self.signature(*signature)?))
+                        }
+                        mir::IntrinsicStructRepresentation::GcLeafFunPtr { signature } => {
                             DebugTypeKind::Pointer(inline(self.signature(*signature)?))
                         }
                     },

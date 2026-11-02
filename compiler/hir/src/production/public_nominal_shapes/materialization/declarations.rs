@@ -68,6 +68,9 @@ impl Graph {
             }
             | SignatureTypeKey::NativeFunctionPointer {
                 parameters, result, ..
+            }
+            | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
             } => {
                 for parameter in parameters {
                     self.require(owner, parameter)?;

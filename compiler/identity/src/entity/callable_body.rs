@@ -64,6 +64,10 @@ pub enum CallableBodyKeyKind {
         root_cone: ConeIdentity,
         main: MainCallableBodyId,
     },
+    NativeAppGateway {
+        root_cone: ConeIdentity,
+        app_init: AppInitCallableBodyId,
+    },
     InitializationStartupGateway(PersistentInitializationUnitId),
     ReleaseHook {
         owner: PersistentExactTypeId,
@@ -84,6 +88,16 @@ impl CallableBodyKey {
 
     pub const fn root_gateway(root_cone: ConeIdentity, main: MainCallableBodyId) -> Self {
         Self(CallableBodyKeyKind::RootGateway { root_cone, main })
+    }
+
+    pub const fn native_app_gateway(
+        root_cone: ConeIdentity,
+        app_init: AppInitCallableBodyId,
+    ) -> Self {
+        Self(CallableBodyKeyKind::NativeAppGateway {
+            root_cone,
+            app_init,
+        })
     }
 
     pub const fn initialization_startup_gateway(unit: PersistentInitializationUnitId) -> Self {
@@ -117,6 +131,14 @@ impl RuntimeEncode for CallableBodyKey {
                 encoder.fixed(unit.as_array())
             }
             CallableBodyKeyKind::ReleaseHook { owner } => encode_runtime_sum(encoder, 5, &owner),
+            CallableBodyKeyKind::NativeAppGateway {
+                root_cone,
+                app_init,
+            } => {
+                encoder.u32(6)?;
+                encoder.fixed(root_cone.as_array())?;
+                encoder.fixed(app_init.body().as_array())
+            }
         }
     }
 }
@@ -226,6 +248,10 @@ pub enum DecodedCallableBodyKeyKind {
         root_cone: DecodedPersistentId<ConeIdentity>,
         main: DecodedPersistentId<PersistentCallableBodyId>,
     },
+    NativeAppGateway {
+        root_cone: DecodedPersistentId<ConeIdentity>,
+        app_init: DecodedPersistentId<PersistentCallableBodyId>,
+    },
     InitializationStartupGateway(DecodedPersistentId<PersistentInitializationUnitId>),
     ReleaseHook {
         owner: DecodedPersistentId<PersistentExactTypeId>,
@@ -280,6 +306,19 @@ impl DecodedCallableBodyKey {
                     .map_err(CallableBodyResolutionError::Reference)?;
                 Ok(CallableBodyKey::root_gateway(root_cone, main))
             }
+            DecodedCallableBodyKeyKind::NativeAppGateway {
+                root_cone,
+                app_init,
+            } => {
+                let root_cone = resolver
+                    .resolve(root_cone)
+                    .map_err(CallableBodyResolutionError::Reference)?;
+                let app_init = resolver
+                    .resolve(app_init)
+                    .map(AppInitCallableBodyId::from_body)
+                    .map_err(CallableBodyResolutionError::Reference)?;
+                Ok(CallableBodyKey::native_app_gateway(root_cone, app_init))
+            }
             DecodedCallableBodyKeyKind::InitializationStartupGateway(unit) => resolver
                 .resolve(unit)
                 .map(CallableBodyKey::initialization_startup_gateway)
@@ -324,6 +363,10 @@ impl RuntimeDecode for DecodedCallableBodyKey {
             5 => DecodedCallableBodyKeyKind::ReleaseHook {
                 owner: decode_persistent_id(decoder)?,
             },
+            6 => DecodedCallableBodyKeyKind::NativeAppGateway {
+                root_cone: decode_persistent_id(decoder)?,
+                app_init: decode_persistent_id(decoder)?,
+            },
             tag => return Err(decoder.error(RuntimeDecodeErrorKind::UnknownTag { tag })),
         };
         Ok(Self(kind))
@@ -339,6 +382,14 @@ impl RuntimeEncode for DecodedCallableBodyKey {
                 encoder.u32(3)?;
                 root_cone.runtime_encode(encoder)?;
                 main.runtime_encode(encoder)
+            }
+            DecodedCallableBodyKeyKind::NativeAppGateway {
+                root_cone,
+                app_init,
+            } => {
+                encoder.u32(6)?;
+                root_cone.runtime_encode(encoder)?;
+                app_init.runtime_encode(encoder)
             }
             DecodedCallableBodyKeyKind::InitializationStartupGateway(unit) => {
                 encode_runtime_sum(encoder, 4, &unit)
@@ -370,6 +421,34 @@ impl RuntimeEncode for MainCallableBodyId {
 }
 
 impl WireEncode for MainCallableBodyId {
+    fn encode(
+        &self,
+        encoder: &mut scoop_wire::Encoder,
+    ) -> Result<(), scoop_wire::cbor::EncodeError> {
+        self.0.encode(encoder)
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct AppInitCallableBodyId(PersistentCallableBodyId);
+
+impl AppInitCallableBodyId {
+    pub(crate) const fn from_body(body: PersistentCallableBodyId) -> Self {
+        Self(body)
+    }
+
+    pub const fn body(self) -> PersistentCallableBodyId {
+        self.0
+    }
+}
+
+impl RuntimeEncode for AppInitCallableBodyId {
+    fn runtime_encode(&self, encoder: &mut RuntimeEncoder) -> Result<(), RuntimeEncodeError> {
+        encoder.fixed(self.0.as_array())
+    }
+}
+
+impl WireEncode for AppInitCallableBodyId {
     fn encode(
         &self,
         encoder: &mut scoop_wire::Encoder,

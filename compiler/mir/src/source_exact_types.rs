@@ -59,7 +59,8 @@ impl SourceExactTypeIdentity {
                 ExactTypeKey::Tuple(_)
                 | ExactTypeKey::Function { .. }
                 | ExactTypeKey::RawPointer(_)
-                | ExactTypeKey::NativeFunctionPointer { .. },
+                | ExactTypeKey::NativeFunctionPointer { .. }
+                | ExactTypeKey::GcLeafNativeFunctionPointer { .. },
                 SourceExactTypeOrigin::Structural,
             ) => {}
             _ => return Err(SourceExactTypeIdentityError::OriginKindMismatch),

@@ -52,6 +52,7 @@ enum ImportedIntrinsicCall {
     Atomic(hir::AtomicIntrinsic),
     Expression(hir::Expr),
     PointerMember(hir::PointerIntrinsic),
+    NativeFunctionPointer(hir::NativeFunctionPointerIntrinsic),
     ArrayConversion(hir::ArrayIntrinsic),
     ArrayAccess(hir::ArrayAccessKind),
     ForeignCallback {

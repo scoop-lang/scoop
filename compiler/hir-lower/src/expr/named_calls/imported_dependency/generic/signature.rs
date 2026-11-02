@@ -21,6 +21,7 @@ impl ImportedGenericTarget {
             declaration.interface().effects().implementation(),
             hir::CallableImplementationV1::Intrinsic(
                 hir::IntrinsicFunctionKind::Pointer(_)
+                    | hir::IntrinsicFunctionKind::NativeFunctionPointer(_)
                     | hir::IntrinsicFunctionKind::Array(_)
                     | hir::IntrinsicFunctionKind::ArrayAccess(_)
                     | hir::IntrinsicFunctionKind::ForeignCallbackRegister
