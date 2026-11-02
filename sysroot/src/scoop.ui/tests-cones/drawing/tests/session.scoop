@@ -224,7 +224,7 @@ internal class DrawingProbe {
                     assertTrue(
                         application.proxy().post {
                             active ->
-                            assertFalse(leaf!!.area!!.enabled)
+                            assertFalse(leaf!!.area!!.scope.enabled)
                             assertTrue(leaf!!.scope!!.isMounted)
                             val before = paints
                             closeOnUpdate.value = true

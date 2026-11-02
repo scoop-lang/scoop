@@ -164,7 +164,7 @@ Label 与第三方自绘 Element 使用相同宿主。文字光标、selection �
 
 ## 6. 输入和动画使用 Surface 的现有能力
 
-Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件继续使用 AreaEvent／InputResult，焦点、caret、指针捕获序列及取消语义沿用 Surface。
+Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
 
 scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas 当时的变换和 clip。容器可将自己的已放置区域传给 children，成为子区域的输入父级。布局树本身不等于输入区域树，没有交互的 Label 和 Row 可以不创建区域。
 

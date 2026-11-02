@@ -92,7 +92,7 @@ internal class FailureLeaf(
         record.leafMounts += 1
         this.scope = Some(scope)
         resource = Some(scope.resource { FailureImage(record, "leaf") })
-        area = Some(scope.createArea { _, _ -> InputResult.Ignored })
+        area = Some(scope.createArea { _, _ -> Unit })
         motion = Some(scope.animation(0.0))
     }
     public override fun update() {

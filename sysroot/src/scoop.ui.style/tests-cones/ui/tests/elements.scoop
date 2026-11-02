@@ -110,16 +110,16 @@ internal class CounterInk(
                     current,
                     event -> when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                         ) -> {
-                            current.requestFocus();
-                            InputResult.Handled
+                            current.currentTarget.area!!.requestFocus();
+                            current.consume()
                         }
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> {
                             props.value.activate();
-                            InputResult.Handled
+                            current.consume()
                         }
                         case Keyboard(value) -> {
                             if (value.state == ElementState.Released && !value.synthetic) {
@@ -128,9 +128,9 @@ internal class CounterInk(
                                     else -> {}
                                 }
                             }
-                            InputResult.Handled
+                            current.consume()
                         }
-                        else -> InputResult.Ignored
+                        else -> {}
                     }
                 }
             )

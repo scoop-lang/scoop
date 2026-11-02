@@ -159,10 +159,8 @@ private class HostProbe {
                     )
                 )
             )
-        resizedArea =
-            Some(firstSurface!!.createArea(focusable = true) { _, _ -> InputResult.Ignored })
-        acceptedArea =
-            Some(firstSurface!!.createArea(focusable = true) { _, _ -> InputResult.Ignored })
+        resizedArea = Some(firstSurface!!.createArea(focusable = true) { _, _ -> Unit })
+        acceptedArea = Some(firstSurface!!.createArea(focusable = true) { _, _ -> Unit })
         secondSurface = Some(host.attach(b) { frame -> paintSecond(frame) })
         assertFailsWith<IllegalStateException> { host.attach(a) { _ -> fail() } }
         waitFor(application, 5000L)

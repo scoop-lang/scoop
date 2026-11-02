@@ -159,14 +159,15 @@ private class InputSession: Closeable {
         assertFailsWith<IllegalStateException> { ended.canvas.save() }
     }
 
-    private fun receive(area: InputArea, event: AreaEvent, isFirst: Boolean): InputResult {
+    private fun receive(context: RoutedEventContext, event: InputEvent, isFirst: Boolean) {
+        val area = context.currentTarget.area!!
         when (event) {
-            case Pointer(AreaPointerEvent.Button(pointer, _, ElementState.Pressed, _)) -> {
+            case Pointer(InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)) -> {
                 downs += 1
-                assertEquals(Point(10.0, 10.0), pointer.localPosition)
+                assertEquals(Point(10.0, 10.0), context.localPosition!!)
                 assertTrue(area.requestFocus())
             }
-            case Pointer(AreaPointerEvent.Button(_, _, ElementState.Released, _)) -> ups += 1
+            case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> ups += 1
             case TextInput(TextInputEvent.Enabled) -> {
                 if (isFirst) {
                     assertEquals(InputPhase.FirstEnabled, phase)
@@ -209,7 +210,7 @@ private class InputSession: Closeable {
             }
             else -> {}
         }
-        return InputResult.Ignored
+        return
     }
 
     public override fun close() {

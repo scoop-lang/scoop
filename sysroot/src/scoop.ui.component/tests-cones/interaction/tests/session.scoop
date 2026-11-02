@@ -141,6 +141,8 @@ internal class ControlProbe {
     var frames: FrameProbe? = None
     var finished = false
     var phase = 0
+    var blockDefaults = false
+    var blockedBubbles = 0
     var buttonCreates = 0
     var checkCreates = 0
     var labelCreates = 0
@@ -243,6 +245,48 @@ internal class ControlProbe {
                 }
             }
             case 2 -> if (ownedVisual.mark == CheckMark.On && buttonVisual.enabled) {
+                blockDefaults = true
+                click(buttonBounds)
+                afterInput(active) {
+                    _ ->
+                    assertEquals(7, scene!!.count)
+                    assertEquals(2, blockedBubbles)
+                    blockDefaults = false
+                    phase = 12
+                }
+            }
+            case 12 -> if (ownedVisual.mark == CheckMark.On && buttonVisual.enabled) {
+                val x = buttonBounds.x + 8.0
+                val y = buttonBounds.y + 8.0
+                assertTrue(moveSurfacePointer(window!!, x, y))
+                assertTrue(view!!.button(x, y, true))
+                afterInput(active) { _ -> phase = 13 }
+            }
+            case 13 -> if (buttonVisual.pressed) {
+                blockDefaults = true
+                assertTrue(view!!.button(buttonBounds.x + 8.0, buttonBounds.y + 8.0, false))
+                afterInput(active) {
+                    _ ->
+                    assertEquals(7, scene!!.count)
+                    blockDefaults = false
+                    phase = 14
+                }
+            }
+            case 14 -> if (!buttonVisual.pressed) {
+                assertTrue(sendSurfaceKey(window!!, 49, true))
+                afterInput(active) { _ -> phase = 15 }
+            }
+            case 15 -> if (buttonVisual.pressed) {
+                blockDefaults = true
+                assertTrue(sendSurfaceKey(window!!, 49, false))
+                afterInput(active) {
+                    _ ->
+                    assertEquals(7, scene!!.count)
+                    blockDefaults = false
+                    phase = 16
+                }
+            }
+            case 16 -> if (!buttonVisual.pressed) {
                 click(buttonBounds)
                 val x = buttonBounds.x + 8.0
                 val y = buttonBounds.y + 8.0

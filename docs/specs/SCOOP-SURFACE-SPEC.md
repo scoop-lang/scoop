@@ -100,15 +100,23 @@ SurfaceWindow 不可绘制时停止请求无效帧，但默认时间轴继续推
 
 ## 6. 区域、输入与焦点
 
-InputArea 是 SurfaceWindow 内的稳定对象，持有事件处理器、启用状态和焦点能力。每帧放置时提供命中 shape 与可选父区域，记录 Canvas 当前变换、有效 clip 及放置顺序；同一区域一帧最多放置一次，父区域须先放置。placement 随成功提交整体发布。
+InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
 
-父子关系用于事件路径与局部坐标，不隐式裁剪子区域；裁剪只由已记录的 clip 决定。enabled = false 使该区域及后代退出交互；忽略自身命中仍允许子区域。命中按可接收输入区域的逆放置顺序选择目标；不可逆变换不命中。shape 可以独立于可见颜色或 alpha，不做像素颜色拾取。
+parent 是稳定的逻辑关系，不由 FrameContext.place 决定。设置 parent 时检查同窗口、活动父节点和无祖先环；窗口根不能重新挂到其他节点。None 表示普通节点重新连接窗口根。更新立即影响后续事件和资格收尾，不等待下一帧。每帧 place 只提供区域及 shape，记录 Canvas 当前变换、有效 clip 及放置顺序；同一区域一帧至多放置一次，逻辑父区域不必先绘制。placement 随成功提交整体发布。
 
-事件先给目标，再沿固定父路径冒泡，Handled 停止传播；不会因此交给下方重叠兄弟。忽略自身命中不等于禁止子区域。回调可改变应用状态，但当前派发路径不因变化重算；已注销处理器不继续接收业务事件，取消／离开通知在安全的派发边界处理。
+enabled = false 使节点及其后代退出交互；ignoreSelf 只忽略区域自身命中，仍允许子区域。命中按可接收区域的逆放置顺序选择唯一目标；不可逆变换不命中。路径中的区域须有有效已发布几何，独立 scope 不需要几何。父关系不隐式裁剪，shape 可以独立于可见颜色或 alpha，不做像素颜色拾取。
 
-Pointer 的普通事件以及 Keyboard／ModifiersChanged 使用上述冒泡规则。Enter／Leave、FocusChanged 和 TextInput 直接交付所属区域；Cancel 是序列终结通知，交付整条旧路径，不因 Handled 遗漏祖先的收尾。close 或禁用发生在处理器内时，当前业务派发跳过已关闭／禁用的接收者，退出派发后再交付必要的 Cancel／Leave／失焦通知。Leave 与 Cancel 只有时间及终结原因，不伪造已经失效的局部坐标。
+处理器使用 `(RoutedEventContext, InputEvent) -> Unit`。上下文的 target／currentTarget 是 InputScope，phase 为 Capture／Target／Bubble／Default／Notification；time 保留输入或观察时间。指针事件中，有几何区域的 localPosition 是 Some(局部 Point)，无几何作用域为 None；窗口位置从 InputPointer.state 读取，不伪造 scope 的局部坐标。上下文只能在当前同步回调中使用，处理器返回后失效。
 
-第一期沿用 window 的鼠标与滚轮模型，不虚构 touch contact。首次按钮按下固定该次鼠标按钮序列的目标与路径，未命中则固定空路径，直到最后一个已按按钮释放或收到取消；中途移动／抬起继续送到该路径，使用最新有效 placement 换算局部坐标。区域移除／禁用、窗口失焦或捕获丢失结束序列，交付 Cancel，不能合成可能触发点击的正常 Up。
+可路由的 Move、Button、Wheel 和 Keyboard 先固定目标、路径及各节点坐标，再按 capture（根到目标父）、target、bubble（父到根）、default（目标到根）派发。captureHandler 接收 capture，handler 接收 target／bubble，defaultAction 接收默认阶段。stopPropagation 只停止后续传播；preventDefault 只取消默认阶段；consume 同时执行两者。默认阶段不因单独 stopPropagation 而取消，也不会重新寻找下方重叠兄弟。每次实际调用读取最新处理器，跳过已关闭／禁用的节点；回调中的 parent 修改不改写当前快照。
+
+每条可路由输入完成后，沿原路径由内向外调用仍有效节点的 `onEventFinished(InputEvent)`。这是不可拦截的同步收尾通知，无路由上下文；传播被停止、默认行为被取消或处理器抛错时也执行，原异常与收尾异常按现有清理错误规则传播。关闭／禁用节点由 Cancel 等终结通知收尾。控件可据此清除已结束的按压或按键序列，不能在这里重新执行被取消的激活。
+
+主按钮按下的默认阶段先在当前 hover 路径中最内层可聚焦区域请求焦点，再执行该节点的 defaultAction，仍未消费时继续祖先；拖出后追加按键不会将焦点送到已离开的捕获目标。传播处理器可用 preventDefault 取消这次默认焦点变化；控件自己的按压、释放和激活由其默认行为实现。窗口活动但没有焦点区域时，Keyboard 从窗口根 scope 开始；窗口未获 OS 焦点时不执行键盘默认动作。指针没有命中区域时也向窗口根交付普通事件，根的 localPosition 为 None，供窗口级观察与默认动作使用。
+
+Entered／Left、FocusChanged、ModifiersChanged、Cancelled 和 TextInput 使用 Notification 阶段，不可取消。此时三个取消方法均不改变派发或状态收尾。Entered／Left 按 hover 路径差异通知；FocusChanged 与 TextInput 只交付所属区域；ModifiersChanged 完整通知当前焦点路径，缺省为活动窗口根。Cancel 向整条旧路径交付，不因中途节点消费或退休遗漏祖先收尾。close 或禁用发生在处理器内时，退出派发后再交付必要的 Cancel／Left／失焦通知。Left 与 Cancel 只有时间及终结原因，没有局部位置。
+
+第一期沿用 window 的鼠标与滚轮模型，不虚构 touch contact。首次按钮按下固定该次鼠标按钮序列的目标与路径，未命中区域时固定窗口根路径，直到最后一个已按按钮释放或收到取消；中途移动／抬起继续送到该路径，使用最新有效 placement 换算局部坐标。区域移除／禁用、窗口失焦或捕获丢失结束序列，交付 Cancel，不能合成可能触发点击的正常 Up。
 
 hover 根据当前位置和已发布几何单独计算；鼠标不动而区域随动画移动时也须更新。窗口 PointerEvent.Left 不等于拖动取消。PixelDelta 按该次输入携带的 scale 转为逻辑距离，LineDelta 保留单位，不能假定固定行高。
 

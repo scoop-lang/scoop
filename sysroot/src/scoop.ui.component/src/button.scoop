@@ -3,6 +3,8 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.InputArea
+import scoop.surface.InputEvent
+import scoop.surface.RoutedEventContext
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.InlineView
@@ -136,19 +138,21 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
-        area =
-            Some(
-                scope.createArea(focusable = true) {
-                    current, event ->
-                    val value = props.value
-                    value.interaction.handle(current, event, value.input.onClick)
-                }
-            )
+        val handle: (RoutedEventContext, InputEvent) -> Unit =
+            {
+                current, event ->
+                val value = props.value
+                value.interaction.handle(area!!, current, event, value.input.onClick)
+            }
+        area = Some(scope.createArea(focusable = true, handler = handle))
+        area!!.scope.defaultAction = handle
+        area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
+        scope.routeChildren(area!!)
     }
     public override fun update() {
         val value = props.value
         value.interaction.update(value.input.enabled)
-        area!!.enabled = value.input.enabled
+        area!!.scope.enabled = value.input.enabled
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
@@ -201,7 +205,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         }
         context.place(area!!, geometry.bounds)
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {
-            children -> children.children(Some(area!!))
+            children -> children.children()
         }
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)

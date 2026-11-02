@@ -80,17 +80,19 @@ Label 本身不创建 InputArea，其行内控件可以拥有并放置自己的�
 
 ## 4. Button
 
-Button 的输入至少包括文字、onClick、enabled 及样式。它用普通状态保存 hover、pressed 和 focus 等交互表现，render 将这些值传给自己的 Element；文字可以组合 Label。绘制元素在 onMount 时取得 ComponentScope，创建一个允许焦点的 InputArea，在 paint 中使用实际布局矩形或明确的 Path 放置区域。
+Button 的输入至少包括文字、onClick、enabled 及样式。它用普通状态保存 hover、pressed 和 focus 等交互表现，render 将这些值传给自己的 Element；文字可以组合 Label。绘制元素在 onMount 时取得 ComponentScope，创建一个允许焦点的 InputArea，在 scene 中使用实际布局矩形或明确的 Path 放置区域。
 
 显式组件接收 `Props<ButtonProps>`，其中 label 是 LabelProps，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String 和 StyledText 入口，后者同样允许行内绑定。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
 
-Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，先放置自己的区域，再调用 children(parent = area)。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
+Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，在 onMount 中调用 scope.routeChildren(area) 建立逻辑关系；scene 放置自己的区域并调用 children() 呈现子项。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
 
 Button 的 LayoutMetrics 将标签基线加上实际垂直放置偏移，使整个按钮可以和周围文字按基线对齐。没有对应标签基线时返回 None，不根据字号估算另一条基线。
 
-Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存由最终 bounds 得到的 SurfaceGeometry 和同次视觉输入，paint 直接消费这份结果；不在 paint 另算一份可能不同的内容内缩。Checkbox 同样在 measure 保存本帧标记几何，paint 仅绘制并放置输入。采样不读取另一套时钟，普通几何快照无需关闭，输入仍在成功提交后发布。
+Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存由最终 bounds 得到的 SurfaceGeometry 和同次视觉输入，scene 直接消费这份结果；不在 scene 另算一份可能不同的内容内缩。Checkbox 同样在 measure 保存本帧标记几何，scene 放置输入并在 draw 中绘制。采样不读取另一套时钟，普通几何快照无需关闭，输入仍在成功提交后发布。
+
+控件的普通传播处理器只观察事件，按压、释放和键盘激活登记在所属 InputScope.defaultAction。父级 preventDefault 可取消本次默认行为而不截断冒泡；Enter／Leave、FocusChanged 和 Cancelled 通过不可取消的 Notification 维护表现与清理。Surface 在默认阶段执行指针聚焦，控件不提前在传播阶段聚焦。onEventFinished 在释放的默认行为被取消时仍清除按下／按键状态，不产生点击。
 
 指针激活采用以下规则：
 
@@ -101,7 +103,7 @@ Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存�
 
 获得活动键盘焦点时，Enter／Space 的完整按下与释放激活一次；自动重复按键不产生额外激活。失焦、禁用或卸载取消键盘激活。指针和键盘激活状态须避免同一次交互重复调用回调。
 
-指针进入／离开按 Surface 最近提交的命中路径维护，包含祖先 clip 和遮挡；不能只用本次测量矩形判断释放是否仍有效。键盘释放须匹配先前的物理键，synthetic 释放仅取消。一次激活序列只由指针或键盘其中一方持有；另一输入源不能在原序列中额外激活。控件不把滚轮或无关按键标为 Handled。
+指针进入／离开按 Surface 最近提交的命中路径维护，包含祖先 clip 和遮挡；不能只用本次测量矩形判断释放是否仍有效。键盘释放须匹配先前的物理键，synthetic 释放仅取消。一次激活序列只由指针或键盘其中一方持有；另一输入源不能在原序列中额外激活。控件不消费滚轮或无关按键。
 
 enabled 和最新回调在 Element.update 的逻辑阶段生效。禁用不等待下一帧，隐藏时也立即退出交互；区域几何继续对应最近成功提交的画面。触发时调用当前 Props 中的 onClick，不延长旧闭包的生命周期。
 

@@ -20,10 +20,14 @@ public class SurfaceWindow internal constructor(
     private var configured: WindowMetrics? = None
     private val scheduler = FrameScheduler()
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
-    private val input = windowInputs(nativeWindow)
+    private val inputs = windowInputs(nativeWindow)
+    public val input: InputScope get() {
+        host.checkThread()
+        return inputs.rootScope
+    }
     public val focusedArea: InputArea? get() {
         host.checkThread();
-        return input.logicalFocus
+        return inputs.logicalFocus
     }
     public val state: SurfaceWindowState get() {
         host.checkThread();
@@ -33,10 +37,15 @@ public class SurfaceWindow internal constructor(
     public fun createArea(
         focusable: Boolean = false,
         textInput: Boolean = false,
-        handler: (InputArea, AreaEvent) -> InputResult
-    ): InputArea = input.createArea(focusable, textInput, handler)
+        parent: InputScope? = None,
+        handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    ): InputArea = inputs.createArea(focusable, textInput, parent, handler)
+    public fun createScope(
+        parent: InputScope? = None,
+        handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    ): InputScope = inputs.createScope(parent, handler)
     public fun clearFocus() {
-        input.clearFocus()
+        inputs.clearFocus()
     }
 
     public fun requestFrame() {
@@ -60,7 +69,7 @@ public class SurfaceWindow internal constructor(
                     renderer.configure(metrics)
                     configured = Some(metrics)
                     scheduler.request()
-                    input.geometryChanged()
+                    inputs.geometryChanged()
                 }
                 if (phase != SurfaceWindowState.Open)
                     return
@@ -92,7 +101,7 @@ public class SurfaceWindow internal constructor(
                     refresh()
                 }
                 case ThemeChanged(_) -> requestFrame()
-                else -> input.event(event)
+                else -> inputs.event(event)
             }
         }
     }
@@ -113,7 +122,7 @@ public class SurfaceWindow internal constructor(
                 val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
                     frame.use {
-                        current -> input.beginFrame().use {
+                        current -> inputs.beginFrame().use {
                             placements ->
                             scheduler.begin()
                             animations.withFrame<Unit>(time) {
@@ -140,7 +149,7 @@ public class SurfaceWindow internal constructor(
                                 else
                                     current.submit()
                             if (accepted)
-                                input.publish(placements)
+                                inputs.publish(placements)
                             accepted
                         }
                     }
@@ -184,7 +193,7 @@ public class SurfaceWindow internal constructor(
         phase = SurfaceWindowState.Closing
         host.requestRetirement()
         var failure = cleanupFailure(None) { renderer.setFrameDemand(false) }
-        failure = cleanupFailure(failure) { input.close() }
+        failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }
         throwFailure(cleanupFailure(failure) { finishClosing() })
     }

@@ -4,10 +4,57 @@ import scoop.graphics.*
 import scoop.surface.*
 
 /** Owns the resources of one mount; applications do not close individual components. */
-public class ComponentScope internal constructor(private val root: UiRoot) {
+public class ComponentScope internal constructor(private val node: MountedNode) {
+    private val root: UiRoot get() = node.root
     private var active = true
     private val managed = ArrayList<Closeable>()
     private val cleanup = ArrayList<() -> Unit>()
+    private var route: InputScope? = None
+    private var childRoute: InputScope? = None
+
+    public val input: InputScope get() {
+        checkMounted()
+        when (route) {
+            case Some(value) -> return value
+            case None -> {}
+        }
+        val value =
+            when (node.parent) {
+                case Some(parent) -> root.surface.createScope(Some(parent.scope.forChildren()))
+                case None -> root.surface.input
+            }
+        route = Some(value)
+        managed.add(value)
+        return value
+    }
+    private fun forChildren(): InputScope = childRoute ?: input
+    /** Routes logical descendants through an area directly attached to this mount's scope. */
+    public fun routeChildren(area: InputArea) {
+        checkMounted()
+        if (area.isClosed)
+            throw IllegalStateException(Some("child input parent is closed"))
+        val local = input
+        val parent = area.scope.parent
+        val belongs =
+            when (parent) {
+                case Some(value) -> value === local
+                case None -> false
+            }
+        if (!belongs)
+            throw IllegalArgumentException(
+                Some("child input parent must belong directly to this mount")
+            )
+        for (child in node.children)
+            child.scope.reparentInput(area.scope)
+        childRoute = Some(area.scope)
+    }
+    private fun reparentInput(parent: InputScope) {
+        when (route) {
+            case Some(value) -> if (!value.isClosed)
+                value.parent = Some(parent)
+            case None -> {}
+        }
+    }
 
     public val isMounted: Boolean get() {
         root.checkThread()
@@ -34,10 +81,10 @@ public class ComponentScope internal constructor(private val root: UiRoot) {
     public fun createArea(
         focusable: Boolean = false,
         textInput: Boolean = false,
-        handler: (InputArea, AreaEvent) -> InputResult
+        handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     ): InputArea {
         checkMounted()
-        val area = root.surface.createArea(focusable, textInput, handler)
+        val area = root.surface.createArea(focusable, textInput, Some(input), handler)
         managed.add(area)
         return area
     }
@@ -57,6 +104,11 @@ public class ComponentScope internal constructor(private val root: UiRoot) {
     }
     internal fun deactivate() {
         active = false
+        when (route) {
+            case Some(value) -> if (!value.isClosed)
+                value.enabled = false
+            case None -> {}
+        }
     }
     internal fun retireInteraction(): Throwable? {
         val values = managed.toArray()

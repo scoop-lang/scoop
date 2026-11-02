@@ -1,0 +1,300 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputRoutingTest {
+    @Test
+    fun `geometry free ancestors participate in all phases with frozen target coordinates`() {
+        InputRig().use {
+            rig ->
+            val log = RouteLog()
+            val group =
+                rig.router.createScope(None) {
+                    context,
+                    event -> log.record("group", context, event)
+                }
+            val area =
+                rig.router.createArea(false, false, Some(group)) {
+                    context,
+                    event -> log.record("area", context, event)
+                }
+            val root = rig.router.rootScope
+            root.handler = { context, event -> log.record("root", context, event) }
+            root.captureHandler = root.handler
+            root.defaultAction = root.handler
+            group.captureHandler = group.handler
+            group.defaultAction = group.handler
+            area.scope.defaultAction = area.scope.handler
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(10.0, 20.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0))
+            }
+            rig.move(16.0, 28.0)
+            assertEquals(
+                "root/capture,group/capture,area/target,group/bubble,root/bubble,area/default,group/default,root/default",
+                log.trace
+            )
+            for (record in log.events) {
+                assertTrue(record.target === area.scope)
+                assertEquals(
+                    if (record.name == "area")
+                        Some(Point(6.0, 8.0))
+                    else
+                        None,
+                    record.position
+                )
+            }
+            assertFailsWith<IllegalStateException> { log.last!!.preventDefault() }
+            assertFailsWith<IllegalStateException> { log.last!!.currentTarget }
+        }
+    }
+
+    @Test
+    fun `propagation cancellation leaves defaults while default cancellation still bubbles`() {
+        InputRig().use {
+            rig ->
+            val log = RouteLog()
+            val area = rig.area("area", true)
+            val root = rig.router.rootScope
+            root.handler = { context, event -> log.record("root", context, event) }
+            root.defaultAction = root.handler
+            area.scope.defaultAction = { context, event -> log.record("area", context, event) }
+            area.scope.handler =
+                {
+                    context, event ->
+                    log.record("area", context, event)
+                    context.preventDefault()
+                    if (context.cancelable) {
+                        assertTrue(context.defaultPrevented)
+                        assertFalse(context.propagationStopped)
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertEquals("area/target,root/bubble", log.trace)
+            assertFalse(area.hasFocus)
+            rig.button(10.0, 10.0, ElementState.Released)
+            log.clear()
+            root.captureHandler =
+                {
+                    context, event ->
+                    log.record("root", context, event)
+                    context.stopPropagation()
+                    assertTrue(context.propagationStopped)
+                    assertFalse(context.defaultPrevented)
+                }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertEquals("root/capture,area/default,root/default", log.trace)
+            assertTrue(area.isFocusActive)
+            rig.button(10.0, 10.0, ElementState.Released)
+            log.clear()
+            root.captureHandler =
+                {
+                    context, event ->
+                    log.record("root", context, event);
+                    context.consume()
+                }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertEquals("root/capture", log.trace)
+        }
+    }
+
+    @Test
+    fun `window root receives keyboard and empty presses without targeting a later hit`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            root.handler = { context, event -> rig.log.record("root", context, event) }
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            rig.router.event(WindowEvent.ModifiersChanged(inputModifiers()))
+            assertEquals("root/key,root/modifiers", rig.log.trace())
+            val area = rig.area("area")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0)) }
+            rig.button(100.0, 100.0, ElementState.Pressed)
+            rig.move(10.0, 10.0)
+            rig.log.events.clear()
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("root/up", rig.log.trace())
+            assertTrue(rig.log.events[0L].target === root)
+            assertEquals(None, rig.log.events[0L].position)
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            rig.router.event(WindowEvent.ModifiersChanged(inputModifiers()))
+            assertEquals("", rig.log.trace())
+        }
+    }
+
+    @Test
+    fun `modifiers and terminal cancellation cannot be swallowed by descendants`() {
+        InputRig().use {
+            rig ->
+            val group =
+                rig.router.createScope(None) {
+                    context,
+                    event -> rig.log.record("group", context, event)
+                }
+            val area = rig.area("area", true, parent = Some(group))
+            val root = rig.router.rootScope
+            root.handler = { context, event -> rig.log.record("root", context, event) }
+            area.scope.handler =
+                {
+                    context, event ->
+                    rig.log.record("area", context, event)
+                    if (context.phase == RoutedPhase.Notification) {
+                        assertFalse(context.cancelable)
+                        context.consume()
+                        assertFalse(context.propagationStopped || context.defaultPrevented)
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0)) }
+            assertTrue(area.requestFocus())
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.ModifiersChanged(inputModifiers()))
+            assertEquals("area/modifiers,group/modifiers,root/modifiers", rig.log.trace())
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.log.events.clear()
+            group.enabled = false
+            assertEquals(
+                "area/cancel,group/cancel,root/cancel,area/blur,area/leave,group/leave,root/leave",
+                rig.log.trace()
+            )
+            assertFalse(area.hasFocus)
+            rig.log.events.clear()
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("", rig.log.trace())
+        }
+    }
+
+    @Test
+    fun `routing uses the latest callback and skips a scope retired during capture`() {
+        InputRig().use {
+            rig ->
+            val log = RouteLog()
+            val group =
+                rig.router.createScope(None) { context, event -> log.record("old", context, event) }
+            val area =
+                rig.router.createArea(false, false, Some(group)) {
+                    context,
+                    event -> log.record("area", context, event)
+                }
+            val root = rig.router.rootScope
+            root.captureHandler =
+                {
+                    context, event ->
+                    log.record("root", context, event)
+                    group.handler = { current, value -> log.record("new", current, value) }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0)) }
+            rig.move(10.0, 10.0)
+            assertEquals("root/capture,area/target,new/bubble", log.trace)
+            log.clear()
+            root.captureHandler =
+                {
+                    context, event ->
+                    log.record("root", context, event)
+                    area.close()
+                }
+            rig.move(10.0, 10.0)
+            assertEquals("root/capture,new/bubble", log.trace)
+        }
+    }
+
+    @Test
+    fun `prevented releases and throwing handlers still finish the original route`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area", true)
+            val ends = ArrayList<InputEvent>()
+            val rootEnds = ArrayList<InputEvent>()
+            area.scope.onEventFinished = { event -> ends.add(event) }
+            rig.router.rootScope.onEventFinished = { event -> rootEnds.add(event) }
+            rig.router.rootScope.captureHandler = { context, _ -> context.consume() }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 30.0, 30.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals(2L, ends.size)
+            assertEquals(2L, rootEnds.size)
+            assertTrue(area.requestFocus())
+            rig.router.rootScope.captureHandler = { _, _ -> Unit }
+            area.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Keyboard(_) -> throw IllegalArgumentException(Some("handler failed"))
+                        else -> {}
+                    }
+                }
+            assertFailsWith<IllegalArgumentException> {
+                rig.router.event(WindowEvent.Keyboard(inputKey()))
+            }
+            assertEquals(3L, ends.size)
+            assertEquals(3L, rootEnds.size)
+        }
+    }
+
+    @Test
+    fun `logical parents are independent of paint order and reject cycles or foreign scopes`() {
+        InputRig().use {
+            rig -> InputRig().use {
+                other ->
+                val parent = rig.area("parent")
+                parent.ignoreSelf = true
+                val group = rig.router.createScope(Some(parent.scope)) { _, _ -> Unit }
+                val child = rig.area("child", parent = Some(group))
+                assertFailsWith<IllegalArgumentException> {
+                    parent.scope.parent = Some(child.scope)
+                }
+                assertFailsWith<IllegalArgumentException> { group.parent = Some(group) }
+                assertFailsWith<IllegalArgumentException> {
+                    group.parent = Some(other.router.rootScope)
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    rig.router.rootScope.parent = Some(group)
+                }
+                rig.frame {
+                    frame, canvas ->
+                    frame.place(canvas, child, Rect(10.0, 10.0, 30.0, 30.0))
+                    frame.place(canvas, parent, Rect(0.0, 0.0, 5.0, 5.0))
+                }
+                rig.move(20.0, 20.0)
+                assertEquals("parent/enter,child/enter,child/move,parent/move", rig.log.trace())
+                group.close()
+                assertFailsWith<IllegalStateException> { child.scope.parent = Some(group) }
+                child.scope.parent = None
+                assertTrue(child.scope.parent!! === rig.router.rootScope)
+            }
+        }
+    }
+}
+
+private class RouteLog {
+    var trace = ""
+    val events = ArrayList<InputRecord>()
+    var last: RoutedEventContext? = None
+    fun record(name: String, context: RoutedEventContext, event: InputEvent) {
+        if (context.phase == RoutedPhase.Notification)
+            return
+        if (trace.byteLength > 0L)
+            trace += ","
+        val phase =
+            when (context.phase) {
+                case Capture -> "capture"
+                case Target -> "target"
+                case Bubble -> "bubble"
+                case Default -> "default"
+                case Notification -> "notification"
+            }
+        trace += name + "/" + phase
+        events.add(InputRecord(name, event, context.target, context.localPosition, context.phase))
+        last = Some(context)
+    }
+    fun clear() {
+        trace = ""
+        events.clear()
+    }
+}

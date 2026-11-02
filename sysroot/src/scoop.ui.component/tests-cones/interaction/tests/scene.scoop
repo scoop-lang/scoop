@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.native.withSkiaCanvas
 import scoop.graphics.text.*
 import scoop.test.*
+import scoop.surface.*
 import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.ui.component.*
@@ -16,6 +17,32 @@ internal class ControlScene(private val probe: ControlProbe): Component {
     public override fun onMount(scope: ComponentScope) {
         mounts += 1
         probe.scene = Some(this)
+        scope.input.captureHandler =
+            {
+                context,
+                event -> if (probe.blockDefaults) {
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(_, _, _, _)
+                        ) -> context.preventDefault()
+                        case Keyboard(_) -> context.preventDefault()
+                        else -> {}
+                    }
+                }
+            }
+        scope.input.handler =
+            {
+                context,
+                event -> if (probe.blockDefaults && context.phase == RoutedPhase.Bubble) {
+                    when (event) {
+                        case Pointer(InputPointerEvent.Button(_, _, _, _)) -> {
+                            assertTrue(context.defaultPrevented)
+                            probe.blockedBubbles += 1
+                        }
+                        else -> {}
+                    }
+                }
+            }
     }
     public override fun onUnmount() {
         unmounts += 1

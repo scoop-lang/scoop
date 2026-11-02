@@ -15,7 +15,6 @@ public class SceneContext internal constructor(
     private val node: MountedNode,
     private val frame: FrameContext,
     private val extent: Size,
-    private val inheritedParent: InputArea?,
     private val pass: ScenePass = ScenePass()
 ) {
     private var active = true
@@ -65,7 +64,7 @@ public class SceneContext internal constructor(
         try {
             return frame.withState {
                 childFrame ->
-                val child = SceneContext(node, childFrame, extent, inheritedParent, pass)
+                val child = SceneContext(node, childFrame, extent, pass)
                 try {
                     block(child)
                 } finally {
@@ -116,24 +115,23 @@ public class SceneContext internal constructor(
         checkActive()
         frame.canvas.restore()
     }
-    public fun place(area: InputArea, shape: Rect, parent: InputArea? = None) {
+    public fun place(area: InputArea, shape: Rect) {
         checkActive()
-        frame.place(area, shape, chooseParent(parent, inheritedParent))
+        frame.place(area, shape)
     }
-    public fun place(area: InputArea, shape: Path, parent: InputArea? = None) {
+    public fun place(area: InputArea, shape: Path) {
         checkActive()
-        frame.place(area, shape, chooseParent(parent, inheritedParent))
+        frame.place(area, shape)
     }
-    public fun children(parent: InputArea? = None) {
+    public fun children() {
         checkActive()
         if (pass.presentedChildren)
             throw IllegalStateException(Some("children were already presented"))
         pass.presentedChildren = true
-        val inputParent = chooseParent(parent, inheritedParent)
         var index = 0L
         for (child in node.children) {
             when (node.placements[index]) {
-                case Some(origin) -> child.scene(frame, origin, inputParent)
+                case Some(origin) -> child.scene(frame, origin)
                 case None -> {}
             }
             index += 1L
@@ -151,24 +149,18 @@ public class SceneContext internal constructor(
     }
 }
 
-private fun chooseParent(requested: InputArea?, inherited: InputArea?): InputArea? =
-    when (requested) {
-        case Some(value) -> Some(value)
-        case None -> inherited
-    }
-
-internal fun MountedNode.scene(frame: FrameContext, origin: Point, parent: InputArea?) {
+internal fun MountedNode.scene(frame: FrameContext, origin: Point) {
     if (!active || !root.isOpen)
         return
     when (body) {
         case Empty -> {}
-        case Component(_) -> children[0L].scene(frame, origin, parent)
+        case Component(_) -> children[0L].scene(frame, origin)
         case Element(instance) -> frame.withState {
             childFrame ->
             childFrame.canvas.translate(origin.x, origin.y)
             val result =
                 metrics ?: throw IllegalStateException(Some("element has not been measured"))
-            val context = SceneContext(this, childFrame, result.size, parent)
+            val context = SceneContext(this, childFrame, result.size)
             try {
                 evaluateUi<Unit>(None) { instance.value.scene(context) }
                 if (active && root.isOpen)

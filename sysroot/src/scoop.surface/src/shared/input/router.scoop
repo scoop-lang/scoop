@@ -19,30 +19,74 @@ internal class InputRouter(
     private val thread = currentThreadId()
     internal var closed = false
     internal var scene = AreaScene([])
-    private val owned = ArrayList<InputArea>()
+    private val owned = ArrayList<InputScope>()
+    internal val rootScope = InputScope(this, None, None, { _, _ -> Unit })
     private val retired = ArrayList<AreaScene>()
     private var depth = 0
     private var draining = false
     internal var pending = false
     internal var pointer: PointerState? = None
     internal var inside = false
-    internal var hover: Array<InputArea> = []
-    internal var pressed: Array<InputArea>? = None
+    internal var hover: Array<InputScope> = []
+    internal var pressed: Array<InputScope>? = None
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
     internal var ime = ImeSession.Off
     internal var imeCaret: Rect? = None
 
+    init {
+        owned.add(rootScope)
+    }
+
     fun createArea(
         focusable: Boolean,
         textInput: Boolean,
-        handler: (InputArea, AreaEvent) -> InputResult
+        parent: InputScope?,
+        handler: (RoutedEventContext, InputEvent) -> Unit
     ): InputArea {
         checkOpen()
-        val result = InputArea(this, focusable || textInput, textInput, handler)
+        val result =
+            InputArea(this, focusable || textInput, textInput, acceptParent(parent), handler)
+        owned.add(result.scope)
+        return result
+    }
+    fun createScope(
+        parent: InputScope?,
+        handler: (RoutedEventContext, InputEvent) -> Unit
+    ): InputScope {
+        checkOpen()
+        val result = InputScope(this, None, Some(acceptParent(parent)), handler)
         owned.add(result)
         return result
+    }
+    private fun acceptParent(parent: InputScope?): InputScope {
+        val result = parent ?: rootScope
+        requireInput(result.owner === this, "input parent belongs to another window")
+        result.checkOpen()
+        return result
+    }
+    fun reparent(scope: InputScope, parent: InputScope?) {
+        if (scope === rootScope) {
+            when (parent) {
+                case Some(_) -> throw IllegalArgumentException(
+                    Some("window input root cannot be reparented")
+                )
+                case None -> {}
+            }
+            return
+        }
+        val next = acceptParent(parent)
+        var cursor: InputScope? = Some(next)
+        while (true) {
+            val current = cursor ?: break
+            requireInput(current !== scope, "input parent would create a cycle")
+            cursor = current.ancestor
+        }
+        if (!sameScope(scope.ancestor, Some(next))) {
+            scope.ancestor = Some(next)
+            changed()
+        }
     }
     fun beginFrame(): InputFrame {
         checkOpen();
@@ -74,10 +118,10 @@ internal class InputRouter(
         imeCaret = None;
         changed()
     }
-    fun detached(area: InputArea) {
+    fun detached(scope: InputScope) {
         var index = 0L
         while (index < owned.size) {
-            if (owned[index] === area) {
+            if (owned[index] === scope) {
                 owned.removeAt(index);
                 break
             }
@@ -97,27 +141,17 @@ internal class InputRouter(
                     pending = true
                     if (!value)
                         cancelPress(
-                            AreaCancelReason.Window(PointerCancelReason.FocusLost),
+                            InputCancelReason.Window(PointerCancelReason.FocusLost),
                             inputObservation(),
                             true
                         )
                 }
-                case Keyboard(value) -> routeFocused(AreaEvent.Keyboard(value))
-                case ModifiersChanged(value) -> routeFocused(AreaEvent.ModifiersChanged(value))
+                case Keyboard(value) -> routeFocused(InputEvent.Keyboard(value))
+                case ModifiersChanged(value) -> notifyFocused(InputEvent.ModifiersChanged(value))
                 case TextInput(value) -> textEvent(value)
                 else -> {}
             }
         }
-    }
-    internal fun deliver(
-        area: InputArea,
-        event: AreaEvent,
-        terminal: Boolean = false,
-        inactive: Boolean = false
-    ): InputResult {
-        if (!terminal && (closed || area.closed || (!inactive && scene.path(area).size == 0L)))
-            return InputResult.Ignored
-        return area.handler(area, event)
     }
     internal fun dispatch(block: () -> Unit) {
         checkThread()
@@ -164,14 +198,16 @@ internal class InputRouter(
     }
     private fun finishClose() {
         val time = inputObservation()
-        var failure = cleanupFailure(None) { cancelPress(AreaCancelReason.Closed, time, true) }
+        var failure = cleanupFailure(None) { cancelPress(InputCancelReason.Closed, time, true) }
         failure = cleanupFailure(failure) { replaceHover([], time) }
         val previous = activeFocus
         logicalFocus = None
         activeFocus = None
         when (previous) {
             case Some(area) -> failure =
-                cleanupFailure(failure) { deliver(area, AreaEvent.FocusChanged(false), true) };
+                cleanupFailure(failure) {
+                    notify(area.scope, InputEvent.FocusChanged(false), terminal = true)
+                };
             case None -> {}
         }
         val session = ime
@@ -201,8 +237,8 @@ internal class InputRouter(
             return
         dispatch {
             closed = true
-            for (area in owned)
-                area.closed = true
+            for (scope in owned)
+                scope.closed = true
             pending = true
         }
     }

@@ -58,7 +58,7 @@
 | 操作概念 | 合同 |
 | --- | --- |
 | transform／clip／layer | 为本作用域的画面与输入保存同一份几何；组透明度、滤镜顺序仍沿用 graphics 合同 |
-| `place(area, shape)`／输入作用域 | 登记区域及逻辑路由；不依赖是否执行实际光栅绘制 |
+| `place(area, shape)` | 登记区域几何；逻辑路由由挂载 InputScope 维护，不依赖是否执行实际光栅绘制 |
 | `draw(callback)`；缓存批次补充绘制范围 | 登记只负责画图的同步块。callback 获得只有 Canvas／size／time 的 PaintContext，不能登记区域、产生子项或修改 State |
 | `children(order)` | 按指定显示顺序装配已放置子项，每项至多一次；缺省为描述顺序 |
 | anchor／portal | 登记锚点或把已归属的子项放到根部指定显示层 |

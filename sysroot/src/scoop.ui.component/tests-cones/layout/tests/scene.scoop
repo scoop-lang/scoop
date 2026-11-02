@@ -239,14 +239,14 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
                     current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                        ) -> current.requestFocus()
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                        ) -> current.currentTarget.area!!.requestFocus()
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> props.value.click()
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.consume()
                 }
             )
     }
@@ -290,10 +290,10 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
         area =
             Some(
                 scope.createArea {
-                    _, event ->
+                    current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> {
                             if (props.value == "front")
                                 probe.frontClicks += 1
@@ -302,7 +302,7 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
                         }
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.consume()
                 }
             )
     }

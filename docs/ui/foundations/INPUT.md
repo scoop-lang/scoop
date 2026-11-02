@@ -8,7 +8,7 @@ InputArea 继续表示可命中的目标，Surface 增加可以没有命中形�
 
 建立父关系时检查同窗口、仍活动和无祖先环，沿用普通对象关系的局部检查；不因输入事件频繁就每次重新校验整棵路由树。关闭父 scope 时退休相应路由资格，UI 挂载生命周期仍负责资源和子组件收尾。
 
-路由父关系与显示场景独立：portal 子菜单可以画在窗口根层，仍向触发控件所在逻辑作用域冒泡。没有焦点时，键盘从活动窗口的根 scope 开始；不能像当前 `routeFocused` 那样直接丢掉所有事件。
+路由父关系与显示场景独立：portal 子菜单可以画在窗口根层，仍向触发控件所在逻辑作用域冒泡。没有焦点时，键盘从活动窗口的根 scope 开始；不丢弃没有区域焦点的窗口级输入。
 
 命中仍以最近成功帧的 transform／clip 和反向绘制顺序决定唯一目标。父路由节点不必先画一个矩形才能接收事件；没有局部几何的 scope 使用窗口位置，有几何的 area 可查询自身局部位置。不得为无几何 scope 编造 localPosition。
 
@@ -26,7 +26,7 @@ InputArea 继续表示可命中的目标，Surface 增加可以没有命中形�
 | `preventDefault()` | 取消这次事件的默认动作，仍允许观察者收到传播 |
 | `consume()` | 同时停止传播和取消默认动作，方便普通按钮／菜单使用 |
 
-当前 `InputResult.Handled` 同时承担“已处理”和“停止向上”，不能表达上述差异。实施时直接演进处理器签名并迁移 Button／Checkbox／Surface 示例，不保留第二条兼容派发链。普通默认动作不在中途向父节点重新派发一次相同事件。
+处理器统一采用 `(RoutedEventContext, InputEvent) -> Unit`；InputScope 提供 captureHandler、handler 和 defaultAction。InputArea.scope 是带几何的作用域，InputScope.area 可查询关联区域；旧 InputResult 不再作为结果类型。Button／Checkbox／Surface 示例使用同一条派发链。普通默认动作不在中途向父节点重新派发一次相同事件。
 
 默认动作沿原路径由内向外尝试。每个节点先执行该控件的默认行为，再匹配这个节点的快捷键；一个动作明确消费事件后停止。这样文本框可以消费 Ctrl/Cmd+C，未消费的保存快捷键仍可到达外层 scope。Tab 遍历、最上层弹层 Escape、滚动和组内导航都登记在其实际作用域，不用一张跨控件的全局优先级表。
 
@@ -40,6 +40,8 @@ InputArea 继续表示可命中的目标，Surface 增加可以没有命中形�
 | Entered／Left、FocusChanged、ModifiersChanged | 状态通知，不因某个处理器取消而破坏其他节点的状态收尾 |
 | Pointer Cancelled | 向旧路径必要节点完整交付，不被中途的消费截断，也不产生 click |
 | TextInputBatch、IME Enabled／Disabled | 交付对应输入会话；不冒泡给祖先任意再次修改文档 |
+
+InputScope.onEventFinished 在一次可路由输入结束后完成不可拦截的清理；被阻止传播或取消默认行为的释放仍须清除旧按下状态，不能重新触发激活。
 
 默认焦点变化是 pointer down 的默认行为，可被 preventDefault 取消；这使点击菜单项等行为不必先错误聚焦背景再补救。具体按钮的按压／释放／点击状态仍由控件定义。
 

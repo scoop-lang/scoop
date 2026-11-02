@@ -4,7 +4,13 @@ import scoop.graphics.*
 import scoop.platform.time.MonotonicTimeSource
 import scoop.window.*
 
-internal class InputRecord(val name: String, val event: AreaEvent)
+internal class InputRecord(
+    val name: String,
+    val event: InputEvent,
+    val target: InputScope,
+    val position: Point?,
+    val phase: RoutedPhase
+)
 
 internal class InputLog {
     val events = ArrayList<InputRecord>()
@@ -20,9 +26,8 @@ internal class InputLog {
         }
         return result
     }
-    fun record(name: String, event: AreaEvent): InputResult {
-        events.add(InputRecord(name, event));
-        return InputResult.Ignored
+    fun record(name: String, context: RoutedEventContext, event: InputEvent) {
+        events.add(InputRecord(name, event, context.target, context.localPosition, context.phase))
     }
 }
 
@@ -35,8 +40,16 @@ internal class InputRig(val log: InputLog = InputLog()): Closeable {
             { rect -> log.carets.add(rect) }
         )
     val surface = RasterSurface(300, 200)
-    fun area(name: String, focusable: Boolean = false, text: Boolean = false): InputArea =
-        router.createArea(focusable, text) { _, event -> log.record(name, event) }
+    fun area(
+        name: String,
+        focusable: Boolean = false,
+        text: Boolean = false,
+        parent: InputScope? = None
+    ): InputArea =
+        router.createArea(focusable, text, parent) {
+            context,
+            event -> log.record(name, context, event)
+        }
     fun frame(block: (InputFrame, Canvas) -> Unit) {
         router.beginFrame().use {
             frame ->
@@ -94,15 +107,15 @@ internal fun inputKey(): KeyEvent =
         inputObservation()
     )
 
-internal fun inputKind(event: AreaEvent): String =
+internal fun inputKind(event: InputEvent): String =
     when (event) {
-        case Pointer(AreaPointerEvent.Entered(_)) -> "enter"
-        case Pointer(AreaPointerEvent.Left(_)) -> "leave"
-        case Pointer(AreaPointerEvent.Moved(_)) -> "move"
-        case Pointer(AreaPointerEvent.Button(_, _, ElementState.Pressed, _)) -> "down"
-        case Pointer(AreaPointerEvent.Button(_, _, ElementState.Released, _)) -> "up"
-        case Pointer(AreaPointerEvent.Wheel(_, _, _, _)) -> "wheel"
-        case Pointer(AreaPointerEvent.Cancelled(_, _)) -> "cancel"
+        case Pointer(InputPointerEvent.Entered(_)) -> "enter"
+        case Pointer(InputPointerEvent.Left(_)) -> "leave"
+        case Pointer(InputPointerEvent.Moved(_)) -> "move"
+        case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> "down"
+        case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> "up"
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> "wheel"
+        case Pointer(InputPointerEvent.Cancelled(_, _)) -> "cancel"
         case Keyboard(_) -> "key"
         case ModifiersChanged(_) -> "modifiers"
         case TextInput(TextInputEvent.Enabled) -> "enabled"

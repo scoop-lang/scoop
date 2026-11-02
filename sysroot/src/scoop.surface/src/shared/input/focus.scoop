@@ -5,7 +5,7 @@ import scoop.window.*
 internal fun InputRouter.focus(area: InputArea): Boolean {
     checkOpen()
     requireInput(area.owner === this, "input area belongs to another window")
-    if (!area.focusable || scene.path(area).size == 0L)
+    if (!area.focusable || path(area.scope).size == 0L)
         return false
     if (!sameArea(logicalFocus, Some(area))) {
         logicalFocus = Some(area)
@@ -23,7 +23,7 @@ internal fun InputRouter.clearFocus() {
 internal fun InputRouter.reconcileFocus() {
     when (logicalFocus) {
         case Some(area) -> {
-            if (scene.path(area).size == 0L)
+            if (path(area.scope).size == 0L)
                 logicalFocus = None
         }
         case None -> {}
@@ -37,11 +37,11 @@ internal fun InputRouter.reconcileFocus() {
         val previous = activeFocus
         activeFocus = next
         when (previous) {
-            case Some(area) -> deliver(area, AreaEvent.FocusChanged(false), true);
+            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(false), terminal = true);
             case None -> {}
         }
         when (next) {
-            case Some(area) -> deliver(area, AreaEvent.FocusChanged(true));
+            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(true));
             case None -> {}
         }
     }
@@ -49,12 +49,31 @@ internal fun InputRouter.reconcileFocus() {
         reconcileIme()
 }
 
-internal fun InputRouter.routeFocused(event: AreaEvent) {
-    val area = activeFocus ?: return
-    val path = scene.path(area)
-    for (receiver in path)
-        if (deliver(receiver, event) == InputResult.Handled)
-            break
+internal fun InputRouter.routeFocused(event: InputEvent) {
+    if (!osFocused)
+        return
+    val chain = focusedPath()
+    when (event) {
+        case Keyboard(key) -> route(deliveries(chain), event, key.time)
+        else -> throw IllegalArgumentException(Some("only keyboard input uses focused routing"))
+    }
+}
+
+private fun InputRouter.focusedPath(): Array<InputScope> =
+    when (activeFocus) {
+        case Some(area) -> path(area.scope)
+        case None -> path(rootScope)
+    }
+
+internal fun InputRouter.notifyFocused(event: InputEvent) {
+    if (!osFocused)
+        return
+    val chain = focusedPath()
+    val time = inputObservation()
+    var failure: Throwable? = None
+    for (scope in chain)
+        failure = cleanupFailure(failure) { notify(scope, event, time, Some(chain[0L])) }
+    throwFailure(failure)
 }
 
 internal fun InputRouter.textEvent(event: TextInputEvent) {
@@ -74,7 +93,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
         case Edit(_) -> {}
     }
     when (previous) {
-        case Some(area) -> deliver(area, AreaEvent.TextInput(event), inactive = true)
+        case Some(area) -> notify(area.scope, InputEvent.TextInput(event), inactive = true)
         case None -> {}
     }
 }
@@ -82,7 +101,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
 private fun InputRouter.reconcileIme() {
     val desired =
         when (activeFocus) {
-            case Some(area) -> if (area.textInput && !area.closed && scene.path(area).size > 0L)
+            case Some(area) -> if (area.textInput && !area.closed && path(area.scope).size > 0L)
                 Some(area)
             else
                 None

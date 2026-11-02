@@ -30,7 +30,7 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 `scoop.ui.text` 用 `InlineView(key, view, size, alignment)` 连接 graphics.text 内容中的 InlineKey 与普通 UI 子项。size 为 None 时采用自然尺寸，可指定固定 Size；对齐默认采用子项的 alphabetic baseline，缺失时取底边，也可以选择 ideographic baseline 或显式 InlineAlignment。
 
-描述阶段把 `inlineChildren(content, inlines)` 作为 Element 的 children，Element 在 onMount 中登记 `scope.resource { ParagraphHost() }`。measure 调用 `host.measure(context, constraints, fonts, content, settings, inlines)`，scene 调用 `host.scene(context, parent)`。这组接口完成子项测量、段落布局、可见对象放置、文字绘制和子项绘制；图片同样使用普通 Element 包装。
+描述阶段把 `inlineChildren(content, inlines)` 作为 Element 的 children，Element 在 onMount 中登记 `scope.resource { ParagraphHost() }`。measure 调用 `host.measure(context, constraints, fonts, content, settings, inlines)`，scene 调用 `host.scene(context)`。这组接口完成子项测量、段落布局、可见对象放置、文字绘制和子项绘制；图片同样使用普通 Element 包装。
 
 ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。它按同一内容对象、字体身份及 revision、段落设置和实际宽度／metrics 复用缓存。布局动画改变 metrics 时重排，纯子项换色可复用布局；新内容描述可以触发重建。`host.layout` 借出最近成功测量的结果，供 hitTest／caret／selection 查询，调用方不关闭它。缓存替换或宿主关闭后旧布局资源失效。
 

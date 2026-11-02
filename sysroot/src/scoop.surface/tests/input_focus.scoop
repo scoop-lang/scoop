@@ -13,12 +13,12 @@ private class InputFocusTest {
         InputRig().use {
             rig ->
             val parent = rig.area("parent")
-            val child = rig.area("child", true)
+            val child = rig.area("child", true, parent = Some(parent.scope))
             assertFalse(child.requestFocus())
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 100.0), None)
-                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 100.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
             }
             assertTrue(child.requestFocus())
             assertTrue(child.hasFocus && child.isFocusActive)
@@ -35,11 +35,11 @@ private class InputFocusTest {
             rig.router.event(WindowEvent.Focused(true))
             assertTrue(child.isFocusActive)
             rig.log.events.clear()
-            parent.enabled = false
+            parent.scope.enabled = false
             assertEquals("child/blur", rig.log.trace())
             assertFalse(child.hasFocus)
             assertFalse(child.requestFocus())
-            parent.enabled = true
+            parent.scope.enabled = true
             assertFalse(child.hasFocus)
             assertTrue(child.requestFocus())
             child.clearFocus()
@@ -53,20 +53,20 @@ private class InputFocusTest {
         InputRig().use {
             rig ->
             val parent = rig.area("parent")
-            val a = rig.area("a", text = true)
-            val b = rig.area("b", text = true)
+            val a = rig.area("a", text = true, parent = Some(parent.scope))
+            val b = rig.area("b", text = true, parent = Some(parent.scope))
             a.setCaret(Rect(1.0, 2.0, 1.0, 10.0))
             b.setCaret(Rect(3.0, 4.0, 1.0, 12.0))
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0), None)
+                frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0))
                 canvas.save()
                 canvas.translate(10.0, 20.0)
                 canvas.scale(2.0, 2.0)
-                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
                 canvas.restore()
                 canvas.translate(150.0, 0.0)
-                frame.place(canvas, b, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, b, Rect(0.0, 0.0, 50.0, 50.0))
             }
             assertTrue(a.requestFocus())
             assertEquals(1L, rig.log.ime.size)
@@ -109,9 +109,9 @@ private class InputFocusTest {
             val c = rig.area("c", text = true)
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0), None)
-                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0), None)
-                frame.place(canvas, c, Rect(100.0, 0.0, 30.0, 30.0), None)
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, c, Rect(100.0, 0.0, 30.0, 30.0))
             }
             assertTrue(a.requestFocus())
             assertTrue(b.requestFocus())
@@ -156,7 +156,7 @@ private class InputFocusTest {
                 frame, canvas ->
                 canvas.translate(30.0, 40.0)
                 canvas.scale(2.0, 2.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0), None)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
             }
             assertTrue(area.requestFocus())
             val caret = carets[0L]
@@ -171,7 +171,7 @@ private class InputFocusTest {
             rig.frame {
                 frame, canvas ->
                 canvas.translate(50.0, 60.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0), None)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
             }
             assertEquals(2L, rig.log.carets.size)
             assertTrue(abs(rig.log.carets[1L].x - (50.0 + caret.x)) < 0.001)
@@ -184,23 +184,20 @@ private class InputFocusTest {
         InputRig().use {
             rig ->
             val area = rig.area("area", text = true)
-            rig.frame {
-                frame,
-                canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0), None)
-            }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
             assertTrue(area.requestFocus())
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
             rig.move(10.0, 10.0)
             rig.button(10.0, 10.0, ElementState.Pressed)
-            area.handler =
+            area.scope.handler =
                 {
-                    _, event ->
-                    rig.log.record("area", event)
+                    context, event ->
+                    rig.log.record("area", context, event)
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Cancelled(_, _)
+                            InputPointerEvent.Cancelled(_, _)
                         ) -> throw IllegalArgumentException(Some("cancel failure"))
-                        else -> InputResult.Ignored
+                        else -> {}
                     }
                 }
             rig.log.events.clear()

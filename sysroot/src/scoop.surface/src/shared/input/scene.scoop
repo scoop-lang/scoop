@@ -3,11 +3,7 @@ package scoop.surface
 import scoop.graphics.*
 import scoop.graphics.native.*
 
-internal class AreaPlacement(
-    val area: InputArea,
-    val geometry: CanvasGeometry,
-    val parent: InputArea?
-)
+internal class AreaPlacement(val area: InputArea, val geometry: CanvasGeometry)
 
 /** Owns one published set of independent native geometry snapshots. */
 internal class AreaScene(val placements: Array<AreaPlacement>): Closeable {
@@ -16,37 +12,6 @@ internal class AreaScene(val placements: Array<AreaPlacement>): Closeable {
             if (placement.area === area)
                 return Some(placement)
         return None
-    }
-    fun path(area: InputArea): Array<InputArea> {
-        val result = ArrayList<InputArea>()
-        var next: InputArea? = Some(area)
-        while (true) {
-            val current = next ?: return result.toArray()
-            if (current.closed || !current.enabled)
-                return []
-            val placement = find(current) ?: return []
-            if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
-                return []
-            result.add(current)
-            next = placement.parent
-        }
-    }
-    fun hit(point: Point): Array<InputArea> {
-        var index = placements.size
-        while (index > 0L) {
-            index -= 1L
-            val placement = placements[index]
-            if (
-                !placement.area.closed &&
-                    !placement.area.ignoreSelf &&
-                    placement.geometry.hitTest(point)
-            ) {
-                val result = path(placement.area)
-                if (result.size > 0L)
-                    return result
-            }
-        }
-        return []
     }
     public override fun close() {
         var failure: Throwable? = None
@@ -60,46 +25,33 @@ internal class AreaScene(val placements: Array<AreaPlacement>): Closeable {
 internal class InputFrame(val owner: InputRouter): Closeable {
     private val placements = ArrayList<AreaPlacement>()
     private var ended = false
-    fun place(canvas: Canvas, area: InputArea, shape: Rect, parent: InputArea?) {
-        check(area, parent)
+    fun place(canvas: Canvas, area: InputArea, shape: Rect) {
+        check(area)
         @Unsafe
         {
-            append(area, captureGeometry(canvas, shape), parent)
+            append(area, captureGeometry(canvas, shape))
         }
     }
-    fun place(canvas: Canvas, area: InputArea, shape: Path, parent: InputArea?) {
-        check(area, parent)
+    fun place(canvas: Canvas, area: InputArea, shape: Path) {
+        check(area)
         @Unsafe
         {
-            append(area, captureGeometry(canvas, shape), parent)
+            append(area, captureGeometry(canvas, shape))
         }
     }
-    private fun check(area: InputArea, parent: InputArea?) {
+    private fun check(area: InputArea) {
         owner.checkOpen()
         if (ended)
             throw IllegalStateException(Some("input frame has ended"))
         requireInput(area.owner === owner, "input area belongs to another window")
         area.checkOpen()
-        var foundParent = false
         for (placement in placements) {
             requireInput(placement.area !== area, "area placed twice in one frame")
-            if (sameArea(Some(placement.area), parent))
-                foundParent = true
-        }
-        when (parent) {
-            case Some(value) -> {
-                value.checkOpen();
-                requireInput(
-                    value.owner === owner && foundParent,
-                    "parent must be placed first in the same window"
-                )
-            }
-            case None -> {}
         }
     }
-    private fun append(area: InputArea, geometry: CanvasGeometry, parent: InputArea?) {
+    private fun append(area: InputArea, geometry: CanvasGeometry) {
         try {
-            placements.add(AreaPlacement(area, geometry, parent))
+            placements.add(AreaPlacement(area, geometry))
         }
         catch (error: Throwable) {
             throwFailure(cleanupFailure(Some(error)) { geometry.close() });
@@ -128,18 +80,40 @@ internal class InputFrame(val owner: InputRouter): Closeable {
     }
 }
 
-internal fun containsArea(path: Array<InputArea>, area: InputArea): Boolean {
-    for (candidate in path)
-        if (candidate === area)
-            return true
-    return false
+internal fun InputRouter.path(scope: InputScope): Array<InputScope> {
+    val result = ArrayList<InputScope>()
+    var next: InputScope? = Some(scope)
+    while (true) {
+        val current = next ?: return result.toArray()
+        if (current.closed || !current.accepts)
+            return []
+        when (current.area) {
+            case Some(area) -> {
+                val placement = scene.find(area) ?: return []
+                if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
+                    return []
+            }
+            case None -> {}
+        }
+        result.add(current)
+        next = current.ancestor
+    }
 }
 
-internal fun samePath(left: Array<InputArea>, right: Array<InputArea>): Boolean {
-    if (left.size != right.size)
-        return false
-    for (index in 0L ..< left.size)
-        if (left[index] !== right[index])
-            return false
-    return true
+internal fun InputRouter.hit(point: Point): Array<InputScope> {
+    var index = scene.placements.size
+    while (index > 0L) {
+        index -= 1L
+        val placement = scene.placements[index]
+        if (
+            !placement.area.closed &&
+                !placement.area.ignoreSelf &&
+                placement.geometry.hitTest(point)
+        ) {
+            val result = path(placement.area.scope)
+            if (result.size > 0L)
+                return result
+        }
+    }
+    return []
 }

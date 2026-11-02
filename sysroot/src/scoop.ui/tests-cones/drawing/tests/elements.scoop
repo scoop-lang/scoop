@@ -63,19 +63,20 @@ internal class DrawingPanel(
         area =
             Some(
                 scope.createArea {
-                    _, event ->
+                    current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(pointer, _, ElementState.Pressed, _)
+                            InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)
                         ) -> {
                             probe.parentDowns += 1
-                            assertTrue(pointer.localPosition.x >= 0.0)
+                            assertTrue(current.localPosition!!.x >= 0.0)
                         }
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.stopPropagation()
                 }
             )
+        scope.routeChildren(area!!)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         probe.measures += 1
@@ -143,7 +144,7 @@ internal class DrawingPanel(
                 assertFailsWith<IllegalStateException> {
                     context.place(area!!, Rect(0.0, 0.0, 1.0, 1.0))
                 }
-                child.withState { nested -> nested.children(area) }
+                child.withState { nested -> nested.children() }
                 assertFailsWith<IllegalStateException> { child.children() }
                 child
             }
@@ -205,23 +206,23 @@ internal class DrawingLeaf(
                     current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(
+                            InputPointerEvent.Button(
                                 pointer,
                                 MouseButton.Left,
                                 ElementState.Pressed,
                                 _
                             )
                         ) -> {
-                            assertEquals(Point(9.0, 9.0), pointer.localPosition)
-                            assertTrue(current.requestFocus())
+                            assertEquals(Point(9.0, 9.0), current.localPosition!!)
+                            assertTrue(current.currentTarget.area!!.requestFocus())
                             probe.downs += 1
                         }
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> probe.count.value += 1
                         else -> {}
                     }
-                    InputResult.Ignored
+                    Unit
                 }
             )
     }
@@ -229,7 +230,7 @@ internal class DrawingLeaf(
         updates += 1
         val input = props.value
         observed = input.count
-        area!!.enabled = input.enabled
+        area!!.scope.enabled = input.enabled
         val target = 60.0 + input.count.toDouble() * 10.0
         if (width!!.target != target)
             width!!.animateTo(

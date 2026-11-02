@@ -3,6 +3,8 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.surface.Animatable
 import scoop.surface.InputArea
+import scoop.surface.InputEvent
+import scoop.surface.RoutedEventContext
 import scoop.ui.*
 import scoop.ui.style.*
 
@@ -108,19 +110,20 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
                         0.0
                 )
             )
-        area =
-            Some(
-                scope.createArea(focusable = true) {
-                    current, event ->
-                    val value = props.value
-                    value.interaction.handle(current, event, value.activate)
-                }
-            )
+        val handle: (RoutedEventContext, InputEvent) -> Unit =
+            {
+                current, event ->
+                val value = props.value
+                value.interaction.handle(area!!, current, event, value.activate)
+            }
+        area = Some(scope.createArea(focusable = true, handler = handle))
+        area!!.scope.defaultAction = handle
+        area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
     }
     public override fun update() {
         val value = props.value
         value.interaction.update(value.input.enabled)
-        area!!.enabled = value.input.enabled
+        area!!.scope.enabled = value.input.enabled
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,

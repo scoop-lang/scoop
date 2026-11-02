@@ -168,13 +168,13 @@ internal class CounterInk(
                     current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                         ) -> {
                             down = true
-                            current.requestFocus()
+                            current.currentTarget.area!!.requestFocus()
                         }
                         case Pointer(
-                            AreaPointerEvent.Button(
+                            InputPointerEvent.Button(
                                 pointer,
                                 MouseButton.Left,
                                 ElementState.Released,
@@ -184,20 +184,20 @@ internal class CounterInk(
                             val activate =
                                 down &&
                                     Rect(0.0, 0.0, size.width, size.height).contains(
-                                        pointer.localPosition
+                                        current.localPosition!!
                                     )
                             down = false
                             if (activate)
                                 props.value.click()
                         }
-                        case Pointer(AreaPointerEvent.Cancelled(_, _)) -> down = false
+                        case Pointer(InputPointerEvent.Cancelled(_, _)) -> down = false
                         case FocusChanged(focused) -> {
                             if (!focused)
                                 down = false
                         }
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.consume()
                 }
             )
     }

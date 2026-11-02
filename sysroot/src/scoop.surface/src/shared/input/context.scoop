@@ -1,0 +1,79 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.window.InputTime
+
+internal class RouteFlags(val cancelable: Boolean) {
+    var stopped = false
+    var prevented = false
+}
+
+/** A synchronous delivery borrow; propagation and default cancellation are independent. */
+public class RoutedEventContext internal constructor(
+    private val owner: InputRouter,
+    private val destination: InputScope,
+    private val receiver: InputScope,
+    private val stage: RoutedPhase,
+    private val stamp: InputTime,
+    private val position: Point?,
+    private val flags: RouteFlags
+) {
+    private var active = true
+    public val target: InputScope get() {
+        checkActive()
+        return destination
+    }
+    public val currentTarget: InputScope get() {
+        checkActive()
+        return receiver
+    }
+    public val phase: RoutedPhase get() {
+        checkActive()
+        return stage
+    }
+    public val time: InputTime get() {
+        checkActive()
+        return stamp
+    }
+    public val localPosition: Point? get() {
+        checkActive()
+        return position
+    }
+    public val cancelable: Boolean get() {
+        checkActive()
+        return flags.cancelable
+    }
+    public val propagationStopped: Boolean get() {
+        checkActive()
+        return flags.stopped
+    }
+    public val defaultPrevented: Boolean get() {
+        checkActive()
+        return flags.prevented
+    }
+    public fun stopPropagation() {
+        checkActive()
+        if (flags.cancelable)
+            flags.stopped = true
+    }
+    public fun preventDefault() {
+        checkActive()
+        if (flags.cancelable)
+            flags.prevented = true
+    }
+    public fun consume() {
+        checkActive()
+        if (flags.cancelable) {
+            flags.stopped = true
+            flags.prevented = true
+        }
+    }
+    private fun checkActive() {
+        owner.checkThread()
+        if (!active)
+            throw IllegalStateException(Some("routed event context has ended"))
+    }
+    internal fun end() {
+        active = false
+    }
+}

@@ -14,7 +14,7 @@ internal class MountedNode(
     var view: View,
     val body: NodeBody
 ) {
-    val scope = ComponentScope(root)
+    val scope = ComponentScope(this)
     var children: Array<MountedNode> = []
     var active = true
     var mounted = false

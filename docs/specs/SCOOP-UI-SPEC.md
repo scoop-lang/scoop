@@ -320,7 +320,7 @@ public struct LayoutMetrics(
 
 MeasureContext 提供本帧 time、子项数量、`measureChild(index, constraints): LayoutMetrics` 和 `placeChild(index, origin: Point)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。首期每个直接子项测量一次，随后可以放置零次或一次；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。
 
-子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 paint，也不放置 InputArea。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
+子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
 
 根约束的最小值和最大值均为当前 FrameContext.size，使根填满窗口内容区。Component 将约束原样传给 render 返回的描述，并透明转交绘制；它本身不增加 padding 或对齐策略。子项数量和索引使用 Long，位置为有限 Point，允许显式负偏移。越界、遗漏或重复测量、未测量就放置、重复放置按状态／参数错误报告；测量后不放置是合法结果。
 
@@ -334,9 +334,9 @@ Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入�
 
 场景操作在同一个实际帧内流式提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。真正的跨帧绘制记录／图像缓存另按其拥有关系持有资源。当前还不承诺自动跳过未失效绘图块。
 
-`SceneContext.children(parent)` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪。
+`SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
 
-`SceneContext.withState<T>(block: (SceneContext) -> T): T` 继承 size、time、输入父区域及同一子项呈现计数，隔离变换／clip／图层状态；子作用域内拒绝使用父 context。draw 回调期间同样不能使用外层 SceneContext，即使通过闭包取得引用也会报状态错误。正常或异常退出均恢复 Canvas 保存层级，结束子 context，未配对的内部 save／saveLayer 不会污染调用方。
+`SceneContext.withState<T>(block: (SceneContext) -> T): T` 继承 size、time 及同一子项呈现计数，隔离变换／clip／图层状态；子作用域内拒绝使用父 context。draw 回调期间同样不能使用外层 SceneContext，即使通过闭包取得引用也会报状态错误。正常或异常退出均恢复 Canvas 保存层级，结束子 context，未配对的内部 save／saveLayer 不会污染调用方。
 
 `PaintContext.withState<T>(block: (PaintContext) -> T): T` 只隔离纯绘图块内的 Canvas；没有区域或子项接口。SceneContext、PaintContext、Canvas、MeasureContext 都只在对应同步借用内有效，不能跨帧、跨线程或跨挂起保存。用户场景／绘图异常按第 9 节关闭，失败帧不发布几何。输入的变换、裁剪和 layer 顺序均使用实际 graphics 状态，不以视觉滤镜的像素扩展扩大区域。
 
@@ -346,11 +346,17 @@ Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入�
 
 ### 7.3 输入与焦点接入
 
-Element 在 onMount 中通过 `scope.createArea(focusable, textInput, handler)` 创建稳定的 Surface InputArea。作用域登记其生命周期，处理器使用既有 AreaEvent／InputResult；enabled、ignoreSelf、requestFocus 和 caret 继续使用 Surface 的公开合同。框架不将原始事件解释为 Button 的 onClick。
+Element 在 onMount 中通过 `scope.createArea(focusable, textInput, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
 
-SceneContext 提供 `place(area, rect或path, parent)`，转交本帧 FrameContext.place；未指定 parent 时继承绘制上下文的最近输入父区域。`children(parent)` 可指定已放置的本元素区域作为子项的输入父区域；省略时继续继承原父区域。框架不为每个布局节点自动创建 InputArea。显式区域须来自同一窗口，父区域先放置，同一区域每帧至多放置一次。
+ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 默认连接本挂载的 input。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
-update 在逻辑阶段修改处理器和 enabled 等属性，不等 paint 才应用禁用。保留区域使用最新处理器与最近提交的几何；新区域等待首次成功放置。指针序列、取消、冒泡、局部坐标、hover、逻辑焦点及 IME 路由沿用 Surface，点击／拖动等控件行为由上层实现。
+容器可以用 `scope.routeChildren(area)` 将自己创建、且直接连接自身 input 的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。方法先检查区域归属及其直接父关系，因此不能借此把后代节点变成本挂载子项的共同父节点。
+
+UI 管理的 scope.parent 由挂载和 routeChildren 维护，调用方通过这两个入口改变关系，不在框架外手工重接这些 scope。
+
+SceneContext.place(area, rect或path) 只登记当前几何；children() 只呈现子项，不改变路由。框架不为每个布局节点自动创建 InputArea。显式区域须来自同一窗口，同一区域每帧至多放置一次，绘制顺序可以与逻辑父子顺序不同。
+
+update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应用禁用。保留区域使用最新处理器与最近提交的几何；新区域等待首次成功放置。指针序列、取消、冒泡、局部坐标、hover、逻辑焦点及 IME 路由沿用 Surface，点击／拖动等控件行为由上层实现。
 
 由于行内截断等布局原因不再放置的区域，在该帧成功提交后按 Surface 的区域缺席规则退出命中、取消指针序列并清除焦点；组件本身仍挂载。失败／中止帧保留此前已提交的几何，不能提前使用未提交的可见性。恢复放置不重新创建组件，也不自动恢复已经清除的逻辑焦点。布局可见性不替代逻辑 enabled 或卸载。
 
@@ -378,7 +384,7 @@ ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在 onM
 
 ```text
 ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): LayoutMetrics
-ParagraphHost.scene(context, parent): Unit
+ParagraphHost.scene(context): Unit
 ```
 
 measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。所有子项仍只测量一次，包括本次最终被截掉的对象。

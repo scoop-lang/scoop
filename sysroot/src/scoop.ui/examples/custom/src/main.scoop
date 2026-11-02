@@ -40,43 +40,70 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
         area =
             Some(
                 scope.createArea(focusable = true) {
-                    current, event ->
-                    when (event) {
-                        case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                        ) -> {
-                            pressed = true
-                            current.requestFocus()
-                            scope.requestFrame()
-                        }
-                        case Pointer(
-                            AreaPointerEvent.Button(
-                                pointer,
-                                MouseButton.Left,
-                                ElementState.Released,
-                                _
-                            )
-                        ) -> {
-                            val activate = pressed && bounds.contains(pointer.localPosition)
-                            pressed = false
-                            if (activate)
-                                props.value.increment()
-                            scope.requestFrame()
-                        }
-                        case Pointer(AreaPointerEvent.Cancelled(_, _)) -> {
-                            pressed = false
-                            if (scope.isMounted)
+                    current,
+                    event -> if (
+                        current.phase ==
+                            RoutedPhase.Default ||
+                            current.phase ==
+                            RoutedPhase.Notification
+                    ) {
+                        when (event) {
+                            case Pointer(
+                                InputPointerEvent.Button(
+                                    _,
+                                    MouseButton.Left,
+                                    ElementState.Pressed,
+                                    _
+                                )
+                            ) -> {
+                                pressed = true
+                                current.currentTarget.area!!.requestFocus()
                                 scope.requestFrame()
-                        }
-                        case FocusChanged(_) -> {
-                            if (scope.isMounted)
+                            }
+                            case Pointer(
+                                InputPointerEvent.Button(
+                                    pointer,
+                                    MouseButton.Left,
+                                    ElementState.Released,
+                                    _
+                                )
+                            ) -> {
+                                val activate = pressed && bounds.contains(current.localPosition!!)
+                                pressed = false
+                                if (activate)
+                                    props.value.increment()
                                 scope.requestFrame()
+                            }
+                            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                                pressed = false
+                                if (scope.isMounted)
+                                    scope.requestFrame()
+                            }
+                            case FocusChanged(_) -> {
+                                if (scope.isMounted)
+                                    scope.requestFrame()
+                            }
+                            else -> {}
                         }
-                        else -> {}
+                        current.consume()
                     }
-                    InputResult.Handled
                 }
             )
+        area!!.scope.defaultAction = area!!.scope.handler
+        area!!.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (pressed) {
+                            pressed = false
+                            scope.requestFrame()
+                        }
+                    }
+                    else -> {}
+                }
+            }
     }
     public override fun update() {
         val next = 84.0 + (props.value.count % 5).toDouble() * 16.0

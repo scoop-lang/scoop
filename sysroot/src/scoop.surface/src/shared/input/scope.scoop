@@ -1,0 +1,118 @@
+package scoop.surface
+
+/** A logical route node, with optional area geometry and independently replaceable handlers. */
+public class InputScope internal constructor(
+    internal val owner: InputRouter,
+    public val area: InputArea?,
+    internal var ancestor: InputScope?,
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    internal var closed = false
+    internal var accepts = true
+    private var receive = handler
+    private var capture: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    private var action: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    private var finished: (InputEvent) -> Unit = { _ -> Unit }
+    public val isClosed: Boolean get() {
+        owner.checkThread()
+        return closed
+    }
+    public var parent: InputScope?
+    get() {
+        owner.checkThread()
+        return ancestor
+    }
+    set(value) {
+        checkOpen()
+        owner.reparent(this, value)
+    }
+    public var enabled: Boolean
+    get() {
+        owner.checkThread()
+        return accepts
+    }
+    set(value) {
+        checkOpen()
+        if (accepts != value) {
+            accepts = value
+            owner.changed()
+        }
+    }
+    public var handler: (RoutedEventContext, InputEvent) -> Unit
+    get() {
+        owner.checkThread();
+        return receive
+    }
+    set(value) {
+        checkOpen();
+        receive = value
+    }
+    public var captureHandler: (RoutedEventContext, InputEvent) -> Unit
+    get() {
+        owner.checkThread();
+        return capture
+    }
+    set(value) {
+        checkOpen();
+        capture = value
+    }
+    public var defaultAction: (RoutedEventContext, InputEvent) -> Unit
+    get() {
+        owner.checkThread();
+        return action
+    }
+    set(value) {
+        checkOpen();
+        action = value
+    }
+    /** Uncancellable cleanup after a routed event, including a prevented release. */
+    public var onEventFinished: (InputEvent) -> Unit
+    get() {
+        owner.checkThread()
+        return finished
+    }
+    set(value) {
+        checkOpen()
+        finished = value
+    }
+    internal fun checkOpen() {
+        owner.checkOpen()
+        if (closed)
+            throw IllegalStateException(Some("input scope is closed"))
+    }
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        owner.detached(this)
+    }
+}
+
+internal fun sameScope(left: InputScope?, right: InputScope?): Boolean =
+    when (left) {
+        case Some(a) -> when (right) {
+            case Some(b) -> a === b
+            case None -> false
+        }
+        case None -> when (right) {
+            case Some(_) -> false
+            case None -> true
+        }
+    }
+
+internal fun containsScope(path: Array<InputScope>, scope: InputScope): Boolean {
+    for (candidate in path)
+        if (candidate === scope)
+            return true
+    return false
+}
+
+internal fun samePath(left: Array<InputScope>, right: Array<InputScope>): Boolean {
+    if (left.size != right.size)
+        return false
+    for (index in 0L ..< left.size)
+        if (left[index] !== right[index])
+            return false
+    return true
+}

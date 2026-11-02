@@ -7,12 +7,12 @@ public class InputArea internal constructor(
     internal val owner: InputRouter,
     public val focusable: Boolean,
     public val textInput: Boolean,
-    handler: (InputArea, AreaEvent) -> InputResult
+    parent: InputScope,
+    handler: (RoutedEventContext, InputEvent) -> Unit
 ): Closeable {
-    internal var closed = false
     internal var caret = Rect(0.0, 0.0, 0.0, 0.0)
-    private var receive = handler
-    private var accepts = true
+    public val scope: InputScope = InputScope(owner, Some(this), Some(parent), handler)
+    internal val closed: Boolean get() = scope.closed
     private var ignored = false
     public val isClosed: Boolean get() {
         owner.checkThread();
@@ -26,18 +26,6 @@ public class InputArea internal constructor(
         owner.checkThread();
         return sameArea(owner.activeFocus, Some(this))
     }
-    public var enabled: Boolean
-    get() {
-        owner.checkThread();
-        return accepts
-    }
-    set(value) {
-        checkOpen();
-        if (accepts != value) {
-            accepts = value;
-            owner.changed()
-        }
-    }
     public var ignoreSelf: Boolean
     get() {
         owner.checkThread();
@@ -49,15 +37,6 @@ public class InputArea internal constructor(
             ignored = value;
             owner.changed()
         }
-    }
-    public var handler: (InputArea, AreaEvent) -> InputResult
-    get() {
-        owner.checkThread();
-        return receive
-    }
-    set(value) {
-        checkOpen();
-        receive = value
     }
     /** Returns false when this area has no active placement or does not accept focus. */
     public fun requestFocus(): Boolean {
@@ -91,16 +70,10 @@ public class InputArea internal constructor(
         }
     }
     internal fun checkOpen() {
-        owner.checkOpen()
-        if (closed)
-            throw IllegalStateException(Some("input area is closed"))
+        scope.checkOpen()
     }
     public override fun close() {
-        owner.checkThread()
-        if (closed)
-            return
-        closed = true
-        owner.detached(this)
+        scope.close()
     }
 }
 
