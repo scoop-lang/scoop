@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway，第 8.1 节 Mach-O self-image 已实现；根入口、持久生命周期与共享库产物仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway，第 8.1 节 Mach-O self-image 已实现。第 7～8 节的共享库工具链前置已完成三平台验证；根入口、持久生命周期与最终产品 CLI／发布仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -336,6 +336,8 @@ LinkMode        = Static | Dynamic
 
 `FinalOutputKind` 决定 PIE/共享库、CRT 入口、导出和调试产物；`LinkMode` 只描述目标工具链允许的系统依赖方式。首版 `native-app` 的 Linux GNU／musl 只接受 Dynamic 系统模式，不能把完整静态 libc 链入任意 host；runtime 与选中的普通 static archive 仍作为模块内部对象链接。
 
+工具链前置已实现：输出类别、显式 loader name 和固定 bootstrap 导出参与 profile 指纹及发现缓存；默认 loader name 在命令生成时取实际输出 basename。Darwin 的 export list、ELF 的 version script／SONAME／metadata RELRO，以及 Windows 的 DLL CRT、`.def`、import library 和 PDB 已通过真实 C host 验证。此时 `scoop`／`scoop-link` 仍只接通 executable；共享库产品还需根入口、bootstrap object、发布与结果缓存的接入。
+
 ### 7.2 命令行为
 
 - `scoop build`：library 仍只交付 `.slib`，executable 交付程序，native-app 交付共享库；
@@ -356,6 +358,8 @@ Darwin native-app 增加最终链接选项 `--install-name`，缺省为 `@rpath/
 - Mach-O 使用 export list；
 - ELF 使用 version script，将其他符号局部化；
 - PE/COFF 使用 `.def` 或等价显式 export，并生成 host 链接需要的 import library。
+
+PE 输入里的 `dllexport`／`.drectve` 仍可能额外请求导出，`.def` 不能单独保证最终集合。接入最终产品时，在新链接成功、发布前检查实际导出；存在额外导出时给出普通链接诊断。缓存命中不重读产物。
 
 Scoop/runtime/generated-C/native helper 的内部定义使用 hidden/local linkage，避免被 host 同名符号抢占；不要求 `RTLD_GLOBAL`、deep bind 或 host 提供 runtime symbol。`ForeignCallback.function` 和应用表中的函数地址通过 pointer 值传递，不需要进入动态符号表。
 
@@ -462,6 +466,8 @@ native C/C++ 异常必须在各自边界内捕获；Scoop 异常不得穿越 C�
 每个平台只有在真实 host 装载和持续调用通过后才声明支持。移动 target 与 framework/JNI/Node-API 适配在桌面合同稳定后独立设计，不反向扩张首版 bootstrap。
 
 第一组已完成 Darwin AArch64 与 Linux x86-64 GNU 的真实 C 函数表验收：debug／release 下覆盖整数／Boolean／浮点、混合与大 aggregate、可空函数指针、Unit 返回、求值顺序、参数异常、callback 重入和 GC 后引用保活；跨 Cone 默认值与泛型保留调用模式。Rust 后端回归覆盖现有目标，当前 macOS LLVM 缺少 Windows statepoint 返回 PC 补丁的既有用例仍单独排除；Windows 原生执行随对应平台阶段补验。此验收只覆盖原生函数指针，不表示 native-app 共享库产品已完成。
+
+共享库工具链验收覆盖 Darwin AArch64／x86-64（本机 Rosetta）、Linux x86-64 GNU（GCC／Clang）与动态 musl、Windows Microsoft UCRT 和 LLVM-MinGW MSVCRT／UCRT。真实装载与 import-library host 检查隐藏函数表、同名 helper 绑定、装载前已创建线程的 C11 TLS、CRT／unwind；适用环境同时检查 C++ 静态初始化与异常。Darwin／Linux 检查默认和显式 loader name、唯一导出及发现缓存复用，ELF metadata 必须位于 RELRO；Windows 的五组 C/C++／linker 组合检查 DLL、唯一导出、import library 与 PDB。相关 toolchain Rust 回归为 Darwin 59、Linux 63、Windows 58 项；Windows 资源用例在补齐已安装 `llvm-windres` 的搜索路径后通过。Darwin 另通过 linker 14 项 Rust 回归、36 个程序链接 fixture 和 5 个 native fixture。验收过程中修复了 Windows Clang depfile 的反斜杠路径解析，并更新 native discovery 缓存版本；未改变语言、产物 metadata 或 runtime ABI。
 
 ## 12. 规范修改清单
 

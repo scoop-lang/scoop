@@ -1155,6 +1155,14 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 ### 2.8 程序链接与最终结果复用
 
+最终 native 工具链区分 `FinalOutputKind::Executable` 与 `FinalOutputKind::SharedLibrary`，与系统依赖的 `LinkMode::Static`／`Dynamic` 正交。共享库沿用同一目标、对象、native 依赖与 unwind 选择，Linux GNU／musl 的共享库只使用 Dynamic；musl 的默认 Static 仅适用于 executable。共享库不使用 executable 的 PIE、main／wmain CRT 入口或 Windows subsystem 配置。
+
+native-app 的共享库只动态导出 `scoop_app_init`。Darwin 使用 `-dylib` 与显式导出表，install name 默认 `@rpath/<最终输出 basename>`；ELF 使用 `-shared` 与将其余定义局部化的 version script，SONAME 默认最终输出 basename；PE 使用普通 DLL CRT 初始化、显式 `.def` 导出，并产生 Microsoft `.lib` 或 LLVM-MinGW `.dll.a` import library。实际函数表中的内部函数地址不要求导出。Darwin install name 与 ELF SONAME 可由各自的最终链接选项覆盖，不能用于 executable 或其他对象格式；名称不能来自临时 candidate 目录。
+
+输出类别、显式 loader name 与固定导出配置进入 final-link 配置及发现缓存；工具 probe 按实际输出类别链接。最终结果复用仍在源码读取、工具发现与链接准备之前判断输入更新；仅新增这些真实链接输入及所需 import library，不读取命中产物复核内容。格式、语言实体与 runtime ABI 不因这组 native 链接选项改变。
+
+PE 的 native 输入可能通过 `dllexport`／`.drectve` 追加导出；最终共享库的新链接结果在发布前检查固定导出集合，额外导出为普通链接错误，不发布 candidate。该检查不进入缓存命中路径。
+
 Windows executable 的 subsystem 由根 Cone 的 `[windows].subsystem` 决定，默认 console；单文件与测试 executable 使用 console。manifest 的 Cone record 可带 field 5 的 Windows subsystem（Console=1、Gui=2），仅 executable 使用；无该字段的现有产物按 console 解释，library 与非 Windows producer 不写该字段。此配置不改变 Cone／实体 identity 或语言 ABI，保存在 executable `.slib` 供 artifact-only 链接读取，并作为最终链接的实际输入参与更新与链接指纹。GUI 链接使用 PE Windows subsystem；Microsoft 显式选择 Unicode `wmainCRTStartup`，MinGW 使用配套 Unicode CRT startup。两者均由生成的 `wmain` 进入同一 Scoop startup，保持 CRT 初始化／终止与 argv 处理。
 
 Windows 资源使用配套或外部发现的 LLVM `llvm-windres`（LLVM RC 的 windres 入口）和 `llvm-cvtres`。资源工具只在实际选择 RC 且更新记录未命中后发现／调用，预处理器显式使用已选 target 的 Clang 与环境。RC 编译生成 `.res`，再转换为 AMD64 COFF，按 RC 的归一化 native source 路径作为 `NativeLinkObject` 保存在 executable `.slib`；资源内容进入 Code 与最终链接更新键，不另增加 runtime ABI。现有 native 对象通道同时传递 C/C++ 对象与资源对象，资源对象排在已排序的 C/C++ 对象之后。artifact-only 链接直接消费该对象，不需要 RC 源码或资源工具。

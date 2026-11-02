@@ -48,7 +48,7 @@ mod unwind;
 
 pub use cxx::ValidatedCxxToolchain;
 pub use final_link::{
-    FinalLinkOptions, LinkMode, LinuxFinalLinkProfile, ValidatedFinalLinkProfile,
+    FinalLinkOptions, FinalOutputKind, LinkMode, LinuxFinalLinkProfile, ValidatedFinalLinkProfile,
     WindowsFinalLinkProfile,
 };
 pub use linux_c::resolve_linux_c_toolchain;

@@ -786,6 +786,8 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 
 Darwin self-image 前置已完成：按 runtime 内部地址定位自身 Mach-O，共用 executable／dylib 的段与 stackmap 解析，排除 host 地址。C host 装载测试覆盖 AArch64 和通过 Rosetta 执行的 x86-64 产物；AArch64 的启动、移动 GC 与 callback 回归通过。
 
+共享库工具链前置已完成：`FinalOutputKind` 与系统 `LinkMode` 分离，按目标生成导出控制、install name／SONAME、DLL import library 与 PDB。Darwin 双架构、Linux GNU／动态 musl、Windows 三环境均已通过真实 C host 装载、隐藏函数表、既有线程 TLS 与 CRT／unwind 验证，适用环境覆盖 C++ 初始化与异常；现有 executable 链接回归通过。根 kind、Scoop entry、持久 runtime、最终发布和 linked-product 缓存仍按上述阶段继续接入。
+
 iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
 
 ### 独立 Regex 库（已完成，[设计](regex/INVESTIGATION.md)、[规范](specs/SCOOP-REGEX-SPEC.md)、[实施记录](regex/PROGRESS.md)）

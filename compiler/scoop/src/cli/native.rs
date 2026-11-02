@@ -33,6 +33,7 @@ impl NativeOptions {
                 keep_symbols: self.keep_symbols,
                 emit_debug_file: self.emit_debug_file,
                 enable_stack_trace: self.enable_stack_trace,
+                ..Default::default()
             },
         ))
     }

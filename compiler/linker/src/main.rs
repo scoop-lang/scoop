@@ -106,6 +106,7 @@ fn main() -> ExitCode {
                 LinkMode::Static => scoop_toolchain::LinkMode::Static,
                 LinkMode::Dynamic => scoop_toolchain::LinkMode::Dynamic,
             }),
+            ..Default::default()
         },
         library_paths: cli.library_paths,
         output: cli.output,

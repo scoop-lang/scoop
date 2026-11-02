@@ -164,4 +164,6 @@ static _Unwind_Reason_Code trace(struct _Unwind_Context *context, void *data) {\
 static __attribute__((noinline)) int count_frames(void) {\n\
     int frames = 0; _Unwind_Backtrace(trace, &frames); return frames;\n}\n\
 int main(void) { return count_frames() < 2 ||\n\
-    puts(\"LLVM unwinder and target libc passed\") < 0; }\n";
+    puts(\"LLVM unwinder and target libc passed\") < 0; }\n\
+int scoop_app_init(const void *host, void *app, void *error) {\n\
+    (void)host; (void)app; (void)error; return main(); }\n";
