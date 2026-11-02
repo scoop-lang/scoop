@@ -372,17 +372,17 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应
 
 #### 7.3.1 FocusHandle、FocusScope 与 Tab
 
-FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点状态。isAttached 表示当前仍登记到活动挂载且区域未关闭；hasFocus／isFocusActive 查询所属 Surface 区域；isPending 表示等待提交的当前请求。requestFocus 返回是否接受请求：可见目标立即聚焦，已登记但等待首次／恢复放置的目标请求一帧并等待成功提交；未登记、已退休或逻辑禁用的目标返回 false。clearFocus 取消该 handle 的待处理请求，并在它是当前焦点时清除焦点。提前关闭 InputArea 使其旧句柄失效；随后可将同一句柄登记到新的活动目标，旧登记的晚到清理不能解除新绑定。
+FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点状态。isAttached 表示当前仍登记到活动挂载且区域未关闭；hasFocus／isFocusActive 查询所属 Surface 区域；isPending 表示等待提交的当前请求。requestFocus 返回是否接受请求：已显露目标立即聚焦，滚动内容中的目标先按第 7.7 节显露，再在成功帧聚焦；已登记但等待首次／恢复放置的目标请求一帧并等待成功提交。未登记、已退休或逻辑禁用的目标返回 false。clearFocus 取消该 handle 的待处理请求，并在它是当前焦点时清除焦点。提前关闭 InputArea 使其旧句柄失效；随后可将同一句柄登记到新的活动目标，旧登记的晚到清理不能解除新绑定。
 
 ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
 
 每个 ComponentScope 可登记一个 focusScope(options: FocusScopeOptions)，返回 FocusScope。options 包含 loop=false、order=0、defaultFocus 与 fallback。scope 内目标按 order 升序、同值按当前逻辑挂载顺序排列；嵌套 FocusScope 是父序列中按自身 order 排列的一个连续分组，组内独立排序。keyed 子项重排后使用新逻辑顺序，不使用原注册时间或绘制顺序。负 order 只改变排序，tabStop=false 才退出 Tab，仍允许程序化请求。
 
-Tab／Shift+Tab 在内层默认行为未消费后导航。默认跳过禁用、未放置和完全不可见的目标；普通 scope 到边界后让父继续，loop scope 在组内循环，窗口根始终在本窗口循环。没有已登记的当前焦点时，从首／末个可用停靠点开始。真实按下和重复按下可导航，合成按键或带 Command／Control／Alt／Function 的组合不作为普通 Tab。键盘导航不激活 OS 窗口，也不修改控件选择状态。
+Tab／Shift+Tab 在内层默认行为未消费后导航。跳过禁用、未放置及不能显露的目标，已放置的滚动内容可以先显露再聚焦。普通 scope 到边界后让父继续，loop scope 在组内循环，窗口根始终在本窗口循环。没有已登记的当前焦点时，从首／末个可用停靠点开始。真实按下和重复按下可导航，合成按键或带 Command／Control／Alt／Function 的组合不作为普通 Tab。键盘导航不激活 OS 窗口，也不修改控件选择状态。
 
 FocusScope.requestFocus 按有效 defaultFocus、首个可用 Tab 目标、有效 fallback 依次选择；fallback 可是 tabStop=false 的区域代理。子项尚未挂载／放置时可等待下一成功帧后选择。域外或失效的引用不作为目标，无可用目标时请求结束。
 
-UiRoot 在 Surface 的 Accepted 完成边界先处理层的移除、模态恢复与首次聚焦，再兑现当前待处理焦点，最后执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；UI 接受的待处理请求、已知窗口内被域拒绝的显式请求通过 reserveFocusRequest 推进同一个序号，立即聚焦仍由 InputArea 推进一次。期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。未绑定的 handle 没有所属窗口，不能改变其他窗口的请求。Discarded／Deferred 不兑现或轮询；Accepted 后仍不可用的普通目标结束请求。滚动显露与虚拟目标接入由后续滚动批次补充。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
+UiRoot 在 Surface 的 Accepted 完成边界先发布本帧的滚动内容路径，再处理层的移除、模态恢复与首次聚焦，随后兑现当前待处理焦点，最后执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；UI 接受的待处理请求、已知窗口内被域拒绝的显式请求通过 reserveFocusRequest 推进同一个序号，立即聚焦仍由 InputArea 推进一次。期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。未绑定的 handle 没有所属窗口，不能改变其他窗口的请求。Discarded／Deferred 不兑现或轮询；Accepted 后没有可进行的显露且仍不可用的普通目标结束请求。Tab 显露失败时继续当前遍历中尚未尝试的目标，不在同次按键中无限循环；真正的目标退休或新的显式意图取消旧遍历。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
 
 #### 7.3.2 KeyNavigation 与组内导航
 
@@ -390,7 +390,7 @@ ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有�
 
 options 在逻辑阶段整体更新；重复 handle、同一个 handle 属于两个活动导航组、Grid 重复行列坐标均报告配置错误，并保留旧配置。允许先配置尚未挂载的 handle，但它随后只能绑定到该导航组的逻辑子树。关闭组解除成员关系；替换目标的外部 handle 后，旧 handle 不会继续控制新引用。enabled 和可聚焦性仍来自原区域与逻辑祖先，没有另一份成员禁用状态。
 
-roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab 条件的成员，然后选择最近成功聚焦的有效成员，未有历史则选数组中首个。历史使用 Surface 的聚焦请求记录，包含鼠标及直接 InputArea 请求；当前持有焦点不等于必须有 OS 活动焦点。显式 tabStop=false 始终退出 Tab，但仍可通过箭头聚焦。roving=false 恢复成员各自的普通 Tab 条件，组内导航仍有效。未挂载、禁用或不可见的成员不作为新的导航目标。
+roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab 条件的成员，然后选择最近成功聚焦的有效成员，未有历史则选数组中首个。历史使用 Surface 的聚焦请求记录，包含鼠标及直接 InputArea 请求；当前持有焦点不等于必须有 OS 活动焦点。显式 tabStop=false 始终退出 Tab，但仍可通过箭头聚焦。roving=false 恢复成员各自的普通 Tab 条件，组内导航仍有效。已放置的滚动内容可以通过相同显露流程成为目标；未挂载、禁用或不能显露的成员不作为新的导航目标。
 
 组的默认行为仅在当前 focusedArea 就是成员区域时处理方向键和 Home／End，不替代成员内部另一个编辑目标的按键行为。Horizontal 左右按 direction 映射，Vertical 上下不因 RTL 反转；列表 Home／End 到首末有效成员。Grid 的左右只在同一行、上下只在同一列按逻辑坐标查找，越过缺失／禁用项；Home／End 到当前行的逻辑首末。loop 只在当前导航轴循环，不依据像素距离寻找邻居。
 
@@ -400,7 +400,7 @@ FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：
 
 ### 7.4 Surface 动画接入
 
-`scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它调用所属 SurfaceWindow 的 animations.value，并登记所得 `Animatable<T>` 随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。
+`scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它使用本作用域按需创建的 Surface AnimationGroup.value，并登记组随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。
 
 元素在 update 或输入处理中调用 animateTo／snapTo／pause 等现有操作，在 measure／scene／draw 中读取已采样的 value。Surface 的统一时间轴负责请求帧、同帧采样、完成回调及隐藏后的时间推进；UI 不另建 timer 或每组件帧循环。框架保证本次测量和绘制使用同一采样时点。需要动画结束后改变组件结构时，由完成回调写 State，排入下一轮逻辑更新。
 
@@ -483,11 +483,17 @@ ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模�
 
 `ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先，按新范围收敛并请求必要的下一帧，旧位置不得覆盖它。
 
+present 可接收可选的 `content: ((SceneContext) -> Unit)?`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与负 offset 平移，并登记该内容的滚动显露边界；调用方在其中正常呈现 children，不重复施加偏移。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
+
+边界几何、snapshot 和内容内区域的所属路径仅在 Accepted 后一起生效；输入区域的位置仍复用 Surface 已提交的几何，不复制输入状态。焦点请求把目标的窗口包围盒映回最近视口的内容坐标，以 Nearest 调整；一次只改变最近一个尚需滚动的视口，再等下一 Accepted 后继续外层。已满足的内层将目标区域限制在自己的视口后交给外层；任意变换使用实际场景几何，已可见时容忍图形后端的浮点误差，不因亚像素差异持续排帧。无法反变换、零视口、未放置或不能通过滚动显露的目标不能靠周期重试变为有效。
+
+显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
+
 `animateTo(Point, AnimationSpec)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
 布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、动画定位及取消活动动画推进序号，范围发布不推进。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
 
-上述公开写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项见第 7.8 节，自动焦点显露及绘制／实例缓存按后续滚动批次扩展。
+上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航与绘制缓存按后续滚动批次扩展。
 
 ### 7.8 按需子项与 LazyElement
 

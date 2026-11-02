@@ -134,7 +134,7 @@ public class KeyNavigation internal constructor(
     }
     private fun member(index: Long): FocusTarget? {
         val target = current.items[index].handle.target ?: return None
-        return if (target.available && target.area.canFocus)
+        return if (target.reachable)
             Some(target)
         else
             None

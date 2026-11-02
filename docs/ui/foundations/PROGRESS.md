@@ -24,7 +24,8 @@
 | D2c1：窗口所属的一次性定时回调 | 已完成 aarch64 实施和定向验证 |
 | D2c2：动画帧需求与离屏完成 | 已完成 aarch64 实施和定向验证 |
 | D2c3：有限实例保留与子树帧需求 | 已完成 aarch64 实施和定向验证 |
-| D2d：虚拟焦点导航与滚动显露 | 待实施 |
+| D2d1：已挂载目标的焦点显露 | 已完成 aarch64 实施和定向验证 |
+| D2d2：虚拟焦点导航 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
@@ -211,3 +212,13 @@ ComponentScope 通过 Surface AnimationGroup 管理子树的帧资格，保留�
 Scoop 格式检查、Surface／UI／Component 生产类型检查、新增组合测试的测试源码类型检查和相关库 aarch64 release 构建通过。81 项定向 scoop.test 通过：Surface 动画 12 项、输入 61 项、UI source 规则 2 项，以及 UI lazy／errors／scroll、固定／可变 VirtualList、KeepAlive 原生组合各 1 项。原生组合覆盖一亿项 source 的有限构建、实例与资源复用／淘汰、隐藏清理、局部状态与 shape 更新、嵌套缓存、只测量未放置、真实 display link／present 计数、有限完成回调、弹层保留及带焦点关闭。验证中修正了测试绘图借用与异常诊断的用法，并闭合帧资格切换和关闭通知中的帧请求问题，最终全部通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被本批替代的旧测试产物清理，当前测试入口、独立 sysroot、命令和共享构建缓存保留。
+
+## D2d1：已挂载目标的焦点显露
+
+ScrollViewport.present 的可选内容回调统一施加视口 clip 和负 offset，登记真实场景中的滚动路径；ScrollArea 和 VirtualList 使用这条路径，固定装饰与 Portal 按各自场景处理。Accepted 先发布边界几何，再执行焦点显露，保留 ScrollState 与用户完成动作原有的登记顺序。每次只调整最近一个尚需滚动的视口，等待成功帧后继续外层；已经可见的局部范围容忍图形变换的浮点误差，避免亚像素差异持续请求帧。
+
+FocusHandle、FocusScope 和有限 KeyNavigation 复用同一显露过程；Tab 可在异步显露失败后继续本次有限遍历。新焦点意图、已调整视口上的新滚动／动画、换绑或关闭取消旧请求；隐藏时等待正常恢复，不启动轮询。待聚焦项继续通过现有归属机制固定，完成／取消后恢复普通淘汰。
+
+Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查与六个 UI 库 aarch64 release 构建通过。10 项定向 scoop.test 通过：真实图形变换与不可逆几何 2 项，新增嵌套焦点显露 1 项，以及原有 focus／navigation／modal／ScrollViewport／ScrollArea／可变 VirtualList／KeepAlive 原生回归各 1 项。新增窗口组合覆盖作用域默认目标、内外显露顺序、Discarded、方向键与 Tab、永久裁剪的失败续行、Portal 与视口自身焦点、新位置意图、零视口、隐藏取消和带焦点关闭；停止后的 display link 无额外帧需求。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被本批替代的旧测试产物清理；当前测试入口、独立 sysroot、命令和共享构建缓存保留。未挂载项的按 key 聚焦和虚拟导航继续按下一批实施。

@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.graphics.*
 import scoop.surface.*
 
-private class ScrollLayout(val binding: ULong, val revision: ULong, val snapshot: ScrollSnapshot)
+internal class ScrollLayout(val binding: ULong, val revision: ULong, val snapshot: ScrollSnapshot)
 
 private class ScrollMotion(val target: Point, val spec: AnimationSpec) {
     var started = false
@@ -28,6 +28,8 @@ public class ScrollViewport internal constructor(
 
     internal val active: Boolean get() = !closed && node.active && node.root.isOpen
     internal val moving: Boolean get() = active && (motion?.started != None)
+    internal fun matches(value: ScrollState, generation: ULong): Boolean =
+        active && current === value && binding == generation
     public val isClosed: Boolean get() {
         node.root.checkThread();
         return closed
@@ -84,7 +86,7 @@ public class ScrollViewport internal constructor(
         staged = Some(ScrollLayout(binding, current.revision, result))
         return result
     }
-    public fun present(context: SceneContext) {
+    public fun present(context: SceneContext, content: ((SceneContext) -> Unit)? = None) {
         checkOpen()
         context.checkOwner(node)
         val layout =
@@ -95,6 +97,10 @@ public class ScrollViewport internal constructor(
                 frame.submission == FrameSubmission.Accepted && active && layout.binding == binding
             )
                 complete(layout)
+        }
+        when (content) {
+            case Some(block) -> context.scrollContent(this, layout, block)
+            case None -> {}
         }
     }
     private fun sample(viewport: Size, content: Size): ScrollSnapshot {

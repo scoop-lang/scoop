@@ -16,7 +16,8 @@ public class SceneContext internal constructor(
     private val frame: FrameContext,
     private val extent: Size,
     private val overlay: OverlayLayout? = None,
-    private val pass: ScenePass = ScenePass()
+    private val pass: ScenePass = ScenePass(),
+    private val scrollPath: Array<ScrollReveal> = []
 ) {
     private var active = true
     private var borrowed = false
@@ -74,11 +75,36 @@ public class SceneContext internal constructor(
     /** Shares the one child presentation pass while isolating scene state. */
     public fun <T> withState(block: (SceneContext) -> T): T {
         checkActive()
+        return withPath(scrollPath, block)
+    }
+    internal fun scrollContent(
+        viewport: ScrollViewport,
+        layout: ScrollLayout,
+        block: (SceneContext) -> Unit
+    ) {
+        checkActive()
+        val boundary = node.root.focus.captureScroll(viewport, layout, frame.canvas)
+        val path =
+            Array<ScrollReveal>(scrollPath.size + 1L) {
+                index -> if (index < scrollPath.size)
+                    scrollPath[index]
+                else
+                    boundary
+            }
+        withPath<Unit>(path) {
+            child ->
+            val snapshot = layout.snapshot
+            child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
+            child.translate(-snapshot.offset.x, -snapshot.offset.y)
+            block(child)
+        }
+    }
+    private fun <T> withPath(path: Array<ScrollReveal>, block: (SceneContext) -> T): T {
         borrowed = true
         try {
             return frame.withState {
                 childFrame ->
-                val child = SceneContext(node, childFrame, extent, overlay, pass)
+                val child = SceneContext(node, childFrame, extent, overlay, pass, path)
                 try {
                     block(child)
                 } finally {
@@ -132,10 +158,12 @@ public class SceneContext internal constructor(
     public fun place(area: InputArea, shape: Rect) {
         checkActive()
         frame.place(area, shape)
+        node.root.focus.place(area, scrollPath)
     }
     public fun place(area: InputArea, shape: Path) {
         checkActive()
         frame.place(area, shape)
+        node.root.focus.place(area, scrollPath)
     }
     public fun children() {
         checkActive()
@@ -166,7 +194,7 @@ public class SceneContext internal constructor(
     }
     private fun presentChild(index: Long) {
         when (node.placements[index]) {
-            case Some(origin) -> node.children[index].scene(frame, origin, overlay)
+            case Some(origin) -> node.children[index].scene(frame, origin, overlay, scrollPath)
             case None -> {}
         }
     }
@@ -182,17 +210,22 @@ public class SceneContext internal constructor(
     }
 }
 
-internal fun MountedNode.scene(frame: FrameContext, origin: Point, overlay: OverlayLayout? = None) {
+internal fun MountedNode.scene(
+    frame: FrameContext,
+    origin: Point,
+    overlay: OverlayLayout? = None,
+    scrollPath: Array<ScrollReveal> = []
+) {
     if (!active || !root.isOpen)
         return
     when (body) {
         case Empty -> {}
-        case Component(_) -> children[0L].scene(frame, origin, overlay)
+        case Component(_) -> children[0L].scene(frame, origin, overlay, scrollPath)
         case Portal(instance) -> root.overlays.include(instance)
-        case Element(instance) -> sceneElement(frame, origin, overlay) {
+        case Element(instance) -> sceneElement(frame, origin, overlay, scrollPath) {
             context -> instance.value.scene(context)
         }
-        case Lazy(instance, _) -> sceneElement(frame, origin, overlay) {
+        case Lazy(instance, _) -> sceneElement(frame, origin, overlay, scrollPath) {
             context -> instance.value.scene(context)
         }
     }
@@ -202,13 +235,14 @@ private fun MountedNode.sceneElement(
     frame: FrameContext,
     origin: Point,
     overlay: OverlayLayout?,
+    scrollPath: Array<ScrollReveal>,
     draw: (SceneContext) -> Unit
 ) {
     frame.withState {
         childFrame ->
         childFrame.canvas.translate(origin.x, origin.y)
         val result = metrics ?: throw IllegalStateException(Some("element has not been measured"))
-        val context = SceneContext(this, childFrame, result.size, overlay)
+        val context = SceneContext(this, childFrame, result.size, overlay, scrollPath = scrollPath)
         try {
             evaluateUi<Unit>(None) { draw(context) }
             if (active && root.isOpen)

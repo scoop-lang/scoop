@@ -1,0 +1,124 @@
+package scoop.tests.ui.reveal
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun advanceReveal(probe: RevealProbe) {
+    when (probe.phase) {
+        case 0 -> {
+            probe.assertFocus(0L)
+            assertFalse(probe.areas[1L]!!.canFocus)
+            probe.next {
+                assertTrue(probe.group!!.requestFocus())
+                assertEquals(Point(288.0, 302.0), probe.inner.offset)
+                assertEquals(Point(0.0, 0.0), probe.outer.offset)
+                assertTrue(probe.handles[1L].isPending)
+                assertTrue(probe.group!!.isPending)
+                probe.assertFocus(0L)
+            }
+        }
+        case 1 -> {
+            probe.assertFocus(1L)
+            assertFalse(probe.group!!.isPending)
+            assertEquals(Point(288.0, 302.0), probe.inner.offset)
+            assertEquals(Point(200.0, 340.0), probe.outer.offset)
+            assertTrue(probe.areas[1L]!!.canFocus)
+            probe.next {
+                probe.discardNext = true
+                assertTrue(probe.handles[5L].requestFocus())
+            }
+        }
+        case 2 -> {
+            probe.assertFocus(5L)
+            assertEquals(1, probe.discarded)
+            probe.next { probe.key(125) }
+        }
+        case 3 -> {
+            probe.assertFocus(1L)
+            probe.next {
+                probe.showPortal = true
+                probe.revision.value += 1
+            }
+        }
+        case 4 -> {
+            assertTrue(probe.handles[3L].isAttached)
+            val inner = probe.inner.offset
+            val outer = probe.outer.offset
+            probe.next {
+                assertTrue(probe.handles[3L].requestFocus())
+                assertEquals(inner, probe.inner.offset)
+                assertEquals(outer, probe.outer.offset)
+            }
+        }
+        case 5 -> {
+            probe.assertFocus(3L)
+            val outer = probe.outer.offset
+            probe.next {
+                assertTrue(probe.outerFocus.requestFocus())
+                assertEquals(outer, probe.outer.offset)
+            }
+        }
+        case 6 -> {
+            assertTrue(probe.outerFocus.hasFocus)
+            probe.next {
+                probe.targets[4L]!!.options = FocusOptions(Some(probe.handles[4L]))
+                probe.reset()
+            }
+        }
+        case 7 -> {
+            probe.assertFocus(0L)
+            probe.next { probe.key(48) }
+        }
+        case 8 -> {
+            probe.assertFocus(1L)
+            assertTrue(probe.clippedAttempted)
+            probe.next { probe.reset() }
+        }
+        case 9 -> {
+            probe.assertFocus(0L)
+            probe.next {
+                probe.lateScroll = true
+                assertTrue(probe.handles[1L].requestFocus())
+            }
+        }
+        case 10 -> {
+            probe.assertFocus(0L)
+            assertTrue(probe.lateApplied)
+            assertEquals(Point(3.0, 4.0), probe.inner.offset)
+            probe.next {
+                probe.innerHeight = 0.0
+                probe.revision.value += 1
+            }
+        }
+        case 11 -> probe.next { assertTrue(probe.handles[1L].requestFocus()) }
+        case 12 -> {
+            probe.assertFocus(0L)
+            probe.phase += 1
+            probe.waiting = true
+            probe.window!!.setVisible(false)
+            probe.innerHeight = 80.0
+            probe.revision.value += 1
+            probe.reset()
+            assertTrue(probe.handles[1L].requestFocus())
+            probe.checkpointAction =
+                {
+                    assertTrue(probe.handles[1L].isPending)
+                    assertFalse(probe.frames!!.snapshot().required)
+                    assertTrue(probe.handles[0L].requestFocus())
+                    assertFalse(probe.handles[1L].isPending)
+                    probe.window!!.setVisible(true)
+                    probe.window!!.requestFocus()
+                    probe.waiting = false
+                }
+            probe.checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        }
+        case 13 -> {
+            probe.assertFocus(0L)
+            probe.next { probe.window!!.requestDestroy() }
+        }
+        else -> fail(Some("unexpected focus reveal phase"))
+    }
+}

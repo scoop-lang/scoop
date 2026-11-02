@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.graphics.Canvas
 import scoop.surface.*
 import scoop.window.*
 
@@ -7,11 +8,51 @@ private enum FocusDestination {
     Target(FocusTarget), Group(FocusScope)
 }
 
-private class PendingFocus(val destination: FocusDestination, val revision: ULong)
+private class TabContinuation(
+    val node: MountedNode,
+    val after: FocusTarget,
+    val reverse: Boolean,
+    val loop: Boolean,
+    val remaining: Long
+)
+
+private class PendingFocus(
+    val destination: FocusDestination,
+    val revision: ULong,
+    var selected: FocusTarget?,
+    val reveal: RevealAttempt,
+    val continuation: TabContinuation?
+)
 
 internal class FocusController(private val root: UiRoot): Closeable {
     private var pending: PendingFocus? = None
     private var registration: Closeable? = None
+    private var scene = FocusScene()
+    private var drawing: FocusScene? = None
+
+    fun beginFrame() {
+        drawing?.close()
+        drawing = Some(FocusScene())
+    }
+    fun place(area: InputArea, path: Array<ScrollReveal>) {
+        drawing!!.place(area, path)
+    }
+    fun captureScroll(
+        viewport: ScrollViewport,
+        layout: ScrollLayout,
+        canvas: Canvas
+    ): ScrollReveal = drawing!!.capture(viewport, layout, canvas)
+    fun publishScene(frame: FrameCompletion) {
+        val current = drawing ?: return
+        drawing = None
+        if (frame.submission == FrameSubmission.Accepted) {
+            val previous = scene
+            scene = current
+            previous.close()
+        } else
+            current.close()
+    }
+    fun canReveal(target: FocusTarget): Boolean = target.available && scene.canReveal(target.area)
 
     fun start() {
         registration =
@@ -28,17 +69,21 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     fun isPending(target: FocusTarget): Boolean {
         val value = pending ?: return false
-        if (value.revision != root.surface.focusRevision)
+        if (value.revision != root.surface.focusRevision || !value.reveal.isCurrent)
             return false
-        return when (value.destination) {
-            case Target(current) -> current === target
-            else -> false
+        return when (value.selected) {
+            case Some(current) -> current === target
+            case None -> false
         }
     }
     fun hasPendingIn(node: MountedNode): Boolean {
         val value = pending ?: return false
-        if (value.revision != root.surface.focusRevision)
+        if (value.revision != root.surface.focusRevision || !value.reveal.isCurrent)
             return false
+        when (value.selected) {
+            case Some(target) -> return target.available && withinFocusScope(target.node, node)
+            case None -> {}
+        }
         return when (value.destination) {
             case Target(target) -> target.available && withinFocusScope(target.node, node)
             case Group(scope) -> scope.available && withinFocusScope(scope.node, node)
@@ -46,7 +91,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     fun isPending(scope: FocusScope): Boolean {
         val value = pending ?: return false
-        if (value.revision != root.surface.focusRevision)
+        if (value.revision != root.surface.focusRevision || !value.reveal.isCurrent)
             return false
         return when (value.destination) {
             case Group(current) -> current === scope
@@ -55,6 +100,13 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     fun cancel(target: FocusTarget) {
         val value = pending ?: return
+        when (value.selected) {
+            case Some(current) -> if (current === target) {
+                clearPending()
+                return
+            }
+            case None -> {}
+        }
         when (value.destination) {
             case Target(current) -> {
                 if (current === target)
@@ -73,7 +125,8 @@ internal class FocusController(private val root: UiRoot): Closeable {
             else -> {}
         }
     }
-    fun request(target: FocusTarget): Boolean {
+    fun request(target: FocusTarget): Boolean = request(target, None)
+    private fun request(target: FocusTarget, continuation: TabContinuation?): Boolean {
         clearPending()
         if (!root.isOpen)
             return false
@@ -81,12 +134,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
             root.surface.reserveFocusRequest()
             return false
         }
-        if (target.area.canFocus)
-            return target.area.requestFocus()
-        pending =
-            Some(PendingFocus(FocusDestination.Target(target), root.surface.reserveFocusRequest()))
-        root.requestFrame()
-        return true
+        return begin(FocusDestination.Target(target), Some(target), continuation)
     }
     fun request(scope: FocusScope): Boolean {
         clearPending()
@@ -96,12 +144,29 @@ internal class FocusController(private val root: UiRoot): Closeable {
             root.surface.reserveFocusRequest()
             return false
         }
-        when (select(scope)) {
-            case Some(target) -> return request(target)
+        return begin(FocusDestination.Group(scope), select(scope), None)
+    }
+    private fun begin(
+        destination: FocusDestination,
+        selected: FocusTarget?,
+        continuation: TabContinuation?
+    ): Boolean {
+        val reveal = RevealAttempt()
+        when (selected) {
+            case Some(target) -> if (reveal.advance(scene, target.area) == RevealProgress.Ready)
+                return target.area.requestFocus()
             case None -> {}
         }
         pending =
-            Some(PendingFocus(FocusDestination.Group(scope), root.surface.reserveFocusRequest()))
+            Some(
+                PendingFocus(
+                    destination,
+                    root.surface.reserveFocusRequest(),
+                    selected,
+                    reveal,
+                    continuation
+                )
+            )
         root.requestFrame()
         return true
     }
@@ -117,7 +182,12 @@ internal class FocusController(private val root: UiRoot): Closeable {
         for (handle in handles) {
             when (handle.target) {
                 case Some(target) -> {
-                    if (target.node.root === root && target.available && target.area.canFocus)
+                    if (
+                        target.node.root ===
+                            root &&
+                            target.available &&
+                            (target.area.canFocus || canReveal(target))
+                    )
                         return request(target)
                 }
                 case None -> {}
@@ -143,26 +213,66 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (frame.submission != FrameSubmission.Accepted)
             return
         val value = pending ?: return
-        clearPending()
-        if (value.revision != root.surface.focusRevision)
+        if (value.revision != root.surface.focusRevision) {
+            clearPending()
             return
+        }
         val target =
-            when (value.destination) {
-                case Target(current) -> Some(current)
-                case Group(scope) -> if (scope.available)
-                    select(scope)
-                else
-                    None
-            } ?:
-                return
-        if (target.available && target.area.canFocus)
-            target.area.requestFocus()
+            when (value.selected) {
+                case Some(current) -> Some(current)
+                case None -> when (value.destination) {
+                    case Target(current) -> Some(current)
+                    case Group(scope) -> if (scope.available)
+                        select(scope)
+                    else
+                        None
+                }
+            }
+        when (target) {
+            case Some(current) -> {
+                value.selected = Some(current)
+                val progress =
+                    if (current.available)
+                        value.reveal.advance(scene, current.area)
+                    else
+                        RevealProgress.Unavailable
+                when (progress) {
+                    case Moved -> {
+                        root.requestFrame();
+                        return
+                    }
+                    case Waiting -> {
+                        root.requestFrame();
+                        return
+                    }
+                    case Ready -> {
+                        clearPending()
+                        if (current.available && current.area.canFocus)
+                            current.area.requestFocus()
+                        return
+                    }
+                    case Cancelled -> {
+                        clearPending();
+                        return
+                    }
+                    case Unavailable -> {}
+                }
+            }
+            case None -> {}
+        }
+        clearPending()
+        when (value.continuation) {
+            case Some(plan) -> continueTab(plan)
+            case None -> {}
+        }
     }
     private fun explicit(scope: FocusScope, handle: FocusHandle?): FocusTarget? {
         val reference = handle ?: return None
         val target = reference.target ?: return None
         return if (
-            target.available && withinFocusScope(target.node, scope.node) && target.area.canFocus
+            target.available &&
+                withinFocusScope(target.node, scope.node) &&
+                (target.area.canFocus || canReveal(target))
         )
             Some(target)
         else
@@ -198,18 +308,36 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (move(node, modifiers.shift, loop))
             context.consume()
     }
-    private fun move(node: MountedNode, reverse: Boolean, loop: Boolean): Boolean {
+    private fun move(
+        node: MountedNode,
+        reverse: Boolean,
+        loop: Boolean,
+        after: FocusTarget? = None,
+        remaining: Long? = None
+    ): Boolean {
         val targets = focusOrder(node)
         if (targets.size == 0L)
             return false
         var index = -1L
-        for (position in 0L ..< targets.size)
-            if (targets[position].area.hasFocus)
+        for (position in 0L ..< targets.size) {
+            val matches =
+                when (after) {
+                    case Some(target) -> targets[position] === target
+                    case None -> targets[position].area.hasFocus
+                }
+            if (matches)
                 index = position
+        }
+        when (after) {
+            case Some(_) -> if (index < 0L)
+                return false
+            case None -> {}
+        }
         if (index < 0L && reverse)
             index = targets.size
         var visited = 0L
-        while (visited < targets.size) {
+        val count = remaining ?: targets.size
+        while (visited < count) {
             index += if (reverse)
                 -1L
             else
@@ -224,11 +352,48 @@ internal class FocusController(private val root: UiRoot): Closeable {
                         0L
             }
             val target = targets[index]
-            if (target.acceptsTab)
-                return request(target)
+            if (target.acceptsTab) {
+                val continuation =
+                    TabContinuation(node, target, reverse, loop, count - visited - 1L)
+                return request(target, Some(continuation))
+            }
             visited += 1L
         }
         return false
+    }
+    private fun continueTab(plan: TabContinuation) {
+        if (!root.isOpen || !plan.node.active || !plan.node.scope.input.isInputAllowed)
+            return
+        if (move(plan.node, plan.reverse, plan.loop, Some(plan.after), Some(plan.remaining)))
+            return
+        var cursor = plan.node.parent
+        while (true) {
+            val node = cursor ?: return
+            if (!node.active || !node.scope.input.isInputAllowed)
+                return
+            when (node.focusScope) {
+                case Some(scope) -> {
+                    val atRoot =
+                        when (node.parent) {
+                            case None -> true;
+                            case Some(_) -> false
+                        }
+                    if (
+                        scope.available &&
+                            move(node, plan.reverse, scope.options.loop || atRoot, Some(plan.after))
+                    )
+                        return
+                }
+                case None -> when (node.parent) {
+                    case None -> {
+                        move(node, plan.reverse, true, Some(plan.after));
+                        return
+                    }
+                    case Some(_) -> {}
+                }
+            }
+            cursor = node.parent
+        }
     }
     private fun clearPending() {
         val previous = pending
@@ -243,5 +408,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
         clearPending()
         registration?.close()
         registration = None
+        val previous = drawing
+        drawing = None
+        var failure = cleanupUi(None) { previous?.close() }
+        failure = cleanupUi(failure) { scene.close() }
+        throwUi(failure)
     }
 }

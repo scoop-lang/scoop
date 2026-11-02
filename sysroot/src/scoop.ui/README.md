@@ -23,9 +23,9 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 在 onMount 中使用 ComponentScope.resource 登记 Path、Image 或缓存，使用 createArea 和 animation 登记稳定的输入区域与 Surface Animatable。应用不为每个组件 use；作用域按子先父的顺序退休输入／动画、调用 onUnmount，再逆序关闭资源。可替换缓存应自行及时关闭旧值，不能每帧登记一个新资源。
 
-自绘 Element 可用 `scope.focusTarget(area, FocusOptions(Some(handle)))` 登记可聚焦区域。FocusHandle 提供 hasFocus、isFocusActive、isAttached、isPending 和 requestFocus；它查询 Surface 的现有焦点状态。可见目标立即聚焦，等待首次或恢复放置的目标在 Accepted 后兑现；新的焦点请求会取消旧请求。关闭或更换外部 handle 会解除登记，不能在 render／measure／scene／draw 中请求焦点。
+自绘 Element 可用 `scope.focusTarget(area, FocusOptions(Some(handle)))` 登记可聚焦区域。FocusHandle 提供 hasFocus、isFocusActive、isAttached、isPending 和 requestFocus；它查询 Surface 的现有焦点状态。已经显露的目标立即聚焦，滚动内容中的目标先逐层显露，等待首次或恢复放置的目标在 Accepted 后兑现；新的焦点请求会取消旧请求。关闭或更换外部 handle 会解除登记，不能在 render／measure／scene／draw 中请求焦点。
 
-FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。禁用、未放置和完全裁剪的目标不作为新的 Tab 停靠点；已聚焦目标仅被滚动裁剪时保持当前会话。
+FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。Tab 和 KeyNavigation 可以选择滚动内容内尚需显露的已放置目标；禁用、未放置或不能显露的目标被跳过，Tab 的异步显露失败会继续本次有限遍历。已聚焦目标仅被滚动裁剪时保持当前会话。
 
 FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域外请求立即失败，也不会作为等待首次放置的 pending 留到边界关闭后执行。已知窗口的 pending 和被拒绝的显式请求同样推进 Surface.focusRevision，新的请求会取消旧的自动聚焦或恢复意图。
 
@@ -46,6 +46,8 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。
 
 `ScrollState` 保存可观察的 offset、viewport、content 和 maximum，支持 scrollTo／scrollBy／reveal。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`；成功提交才发布范围，被丢弃帧不覆盖旧结果。一个 State 同时只能绑定一个视口，登记可以整体替换 state，关闭立即解绑，业务 State 保留最后位置。
+
+呈现滚动内容时使用 `viewport.present(context, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 offset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
 
 `state.animateTo(offset, spec)` 使用视口所属 Surface 的时间轴，要求已绑定，可在首布局前排队；`cancelAnimation()` 在最后发布的位置停止。直接定位和 reveal 同样停止旧动画。实际 ScrollArea 和滚动条属于独立控件库，自绘容器可通过这组公开接口实现自己的布局，不需观察 offset 来重建内容树。滚动纯状态测试在本 Cone，成功／丢弃帧、动画、绑定替换和停帧在 `tests-cones/scroll` 验证。
 

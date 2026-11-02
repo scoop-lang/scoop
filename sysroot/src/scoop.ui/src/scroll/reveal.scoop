@@ -1,0 +1,160 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.graphics.native.CanvasGeometry
+import scoop.math.abs
+import scoop.math.max
+import scoop.math.min
+import scoop.surface.InputArea
+
+internal class ScrollReveal(
+    val viewport: ScrollViewport,
+    val state: ScrollState,
+    val layout: ScrollLayout,
+    val geometry: CanvasGeometry
+) {
+    val active: Boolean get() =
+        viewport.matches(state, layout.binding) &&
+            layout.snapshot.viewport.width >
+            0.0 &&
+            layout.snapshot.viewport.height >
+            0.0
+    val current: Boolean get() = active && state.requestRevision == layout.revision
+
+    fun local(window: Rect): Rect? {
+        val rect = localReveal(geometry, window) ?: return None
+        val offset = layout.snapshot.offset
+        return Some(Rect(rect.x + offset.x, rect.y + offset.y, rect.width, rect.height))
+    }
+    fun needsMove(rect: Rect): Boolean {
+        val snapshot = layout.snapshot
+        val wanted = snapshot.revealedOffset(rect)
+        val visible =
+            when (
+                intersectReveal(
+                    rect,
+                    Rect(
+                        snapshot.offset.x,
+                        snapshot.offset.y,
+                        snapshot.viewport.width,
+                        snapshot.viewport.height
+                    )
+                )
+            ) {
+                case Some(_) -> true
+                case None -> false
+            }
+        if (!visible)
+            return wanted != snapshot.offset
+        // Bounds come from the renderer's floating-point transforms.
+        val tolerance = max(1.0, max(snapshot.viewport.width, snapshot.viewport.height)) * 0.000001
+        return abs(wanted.x - snapshot.offset.x) >
+            tolerance ||
+            abs(wanted.y - snapshot.offset.y) >
+            tolerance
+    }
+}
+
+internal enum RevealProgress {
+    Ready, Moved, Waiting, Unavailable, Cancelled
+}
+
+private class RevealMove(
+    val viewport: ScrollViewport,
+    val state: ScrollState,
+    val binding: ULong,
+    var revision: ULong
+)
+
+/** Tracks only the actual position intents issued by this focus request. */
+internal class RevealAttempt {
+    private val moves = ArrayList<RevealMove>()
+    val isCurrent: Boolean get() {
+        for (move in moves)
+            if (
+                !move.viewport.matches(move.state, move.binding) ||
+                    move.state.requestRevision !=
+                    move.revision
+            )
+                return false
+        return true
+    }
+    fun advance(scene: FocusScene, area: InputArea): RevealProgress {
+        if (!isCurrent)
+            return RevealProgress.Cancelled
+        var rect = area.windowBounds ?: return RevealProgress.Unavailable
+        if (rect.width <= 0.0 || rect.height <= 0.0)
+            return RevealProgress.Unavailable
+        val route = scene.path(area)
+        var index = route.size
+        while (index > 0L) {
+            index -= 1L
+            val boundary = route[index]
+            if (!boundary.active)
+                return RevealProgress.Unavailable
+            val local = boundary.local(rect) ?: return RevealProgress.Unavailable
+            if (!boundary.current)
+                return RevealProgress.Waiting
+            if (boundary.needsMove(local)) {
+                boundary.state.scrollTo(boundary.layout.snapshot.revealedOffset(local))
+                remember(boundary)
+                return RevealProgress.Moved
+            }
+            rect =
+                intersectReveal(rect, boundary.geometry.bounds) ?: return RevealProgress.Unavailable
+        }
+        return if (area.canFocus)
+            RevealProgress.Ready
+        else
+            RevealProgress.Unavailable
+    }
+    private fun remember(boundary: ScrollReveal) {
+        for (move in moves)
+            if (move.viewport === boundary.viewport) {
+                move.revision = boundary.state.requestRevision
+                return
+            }
+        moves.add(
+            RevealMove(
+                boundary.viewport,
+                boundary.state,
+                boundary.layout.binding,
+                boundary.state.requestRevision
+            )
+        )
+    }
+}
+
+internal fun localReveal(geometry: CanvasGeometry, rect: Rect): Rect? {
+    val points =
+        [
+            Point(rect.x, rect.y),
+            Point(rect.x + rect.width, rect.y),
+            Point(rect.x, rect.y + rect.height),
+            Point(rect.x + rect.width, rect.y + rect.height)
+        ]
+    val first = geometry.toLocal(points[0L]) ?: return None
+    var left = first.x
+    var right = first.x
+    var top = first.y
+    var bottom = first.y
+    for (index in 1L ..< points.size) {
+        val point = geometry.toLocal(points[index]) ?: return None
+        left = min(left, point.x)
+        right = max(right, point.x)
+        top = min(top, point.y)
+        bottom = max(bottom, point.y)
+    }
+    return Some(Rect(left, top, right - left, bottom - top))
+}
+
+internal fun intersectReveal(a: Rect, b: Rect): Rect? {
+    val left = max(a.x, b.x)
+    val top = max(a.y, b.y)
+    val right = min(a.x + a.width, b.x + b.width)
+    val bottom = min(a.y + a.height, b.y + b.height)
+    return if (right > left && bottom > top)
+        Some(Rect(left, top, right - left, bottom - top))
+    else
+        None
+}
