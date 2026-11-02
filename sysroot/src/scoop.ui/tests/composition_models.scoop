@@ -208,9 +208,9 @@ internal class CompositionLayout(private val probe: CompositionProbe): Element {
         }
         return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.paints += 1
-        context.paintChildren()
+        context.children()
     }
 }
 

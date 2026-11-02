@@ -1,6 +1,6 @@
 # Scoop 自绘 UI 框架规范
 
-日期：2026-11-02。状态：自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已在 macOS aarch64 实现并完成 x86_64 补验；x86_64 运行环境为 Apple Silicon 上的 Rosetta，详见 [UI 实施记录](../ui/PROGRESS.md)。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
+日期：2026-11-02。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
 
 ## 1. 定位与依赖
 
@@ -16,7 +16,7 @@
 
 SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../graphics/sksl/DESIGN.md)及 [UI 设计第 14 节](../ui/DESIGN.md#14-后续增强sksl-与组件效果)。组件通过普通 Element 使用效果，Surface Animatable 驱动 uniform；持有 shader 或声明时间参数不产生隐式帧需求，继续遵守第 6.1 节的停帧要求。
 
-弹层／模态、滚动及绘制／实例缓存、虚拟子项、键盘导航、快捷键、路由扩展与公共编辑的后续方案见[基础交互能力设计](../ui/foundations/DESIGN.md)。该方案尚未实施；拟议 scene／按需子项协议不替代本文件当前的 Element、测量和绘制合同，实施时按批次修订。
+弹层／模态、滚动及绘制／实例缓存、虚拟子项、键盘导航、快捷键、路由扩展与公共编辑的后续方案见[基础交互能力设计](../ui/foundations/DESIGN.md)。该方案分批实施；场景与纯绘制协议见第 7.2 节，其他能力进入相应批次时再修订当前合同。
 
 | Cone | 职责 |
 | --- | --- |
@@ -77,18 +77,18 @@ Component 负责组合描述。完全自绘及自定义子项布局通过普通�
 ```kotlin
 public interface Element {
     fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics
-    fun paint(context: PaintContext): Unit
+    fun scene(context: SceneContext): Unit
     fun onMount(scope: ComponentScope): Unit = Unit
     fun update(): Unit = Unit
     fun onUnmount(): Unit = Unit
 }
 ```
 
-Element 同样采用持久 class。measure／paint 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及每次 Props 或子描述更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
+Element 同样采用持久 class。measure／scene 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及每次 Props 或子描述更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
 
 同一描述值可被使用多次；每个出现位置分别挂载，不能按描述对象引用相等而合并挂载。描述不可变指保存的属性槽及子序列不可修改，不承诺其所引用的业务模型深度不可变。子序列以不可变 Array<View> 保存，允许复用该数组，不因重建描述而强制复制。
 
-`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／paint 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／paint 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component 与 Element 的构造器只初始化托管状态和保存输入；资源取得放在挂载回调或元素所属的测量缓存中，归属见第 8 节。
+`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／scene／draw 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／scene／draw 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component 与 Element 的构造器只初始化托管状态和保存输入；资源取得放在挂载回调或元素所属的测量缓存中，归属见第 8 节。
 
 ## 3. State、变化通知与依赖
 
@@ -111,7 +111,7 @@ State 的持有者与 UI 订阅者分别确定。一个 State 可以在任何组
 
 同一同步业务操作中的多次写入分别立即生效，UI 工作在既有安全边界合并；这不提供跨挂起点的事务或状态快照。直接订阅粒度是实际读取的 State；父组件生成新的子描述时仍沿第 4 节更新子项，不承诺只执行直接订阅者的 render。
 
-普通 getter／函数调用中的间接 State 读取，同样归当前活动 render。render 之外的读取只是取值，不产生永久订阅。首期不自动建立 update／measure／paint 阶段的独立依赖图；声明式自绘组件在 render 中读取 State，再通过 Element 的 Props 传入本次绘制数据。Element 自己在输入处理中修改的普通交互字段，通过 scope.requestFrame 显式请求呈现。Surface Animatable 的采样走第 7 节的帧通路，不需要先转换成 State。
+普通 getter／函数调用中的间接 State 读取，同样归当前活动 render。render 之外的读取只是取值，不产生永久订阅。首期不自动建立 update／measure／scene／draw 阶段的独立依赖图；声明式自绘组件在 render 中读取 State，再通过 Element 的 Props 传入本次绘制数据。Element 自己在输入处理中修改的普通交互字段，通过 scope.requestFrame 显式请求呈现。Surface Animatable 的采样走第 7 节的帧通路，不需要先转换成 State。
 
 普通 class 字段不是可观察属性。对 `modelState.value.name` 赋值不会经过 `modelState.value` 的 setter；`name` 应有自己的可观察属性，或调用方显式赋回状态值。默认 setter 不按引用相等跳过通知。对普通可变集合的原地修改也遵循此规则。
 
@@ -270,7 +270,7 @@ State 变化合并到 owner 上的 UI 工作队列。事件／业务回调退出
 UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 - 逻辑更新执行 render、匹配节点、Props 替换、Element.update、挂载／卸载及订阅更换。隐藏、遮挡、零尺寸或暂时没有 drawable 不能阻止这一过程及资源清理。
-- 需要显示的变化向 SurfaceWindow 请求帧。在真实绘制机会中，Surface 先采样动画，再由 UI 遍历挂载树执行测量／布局、绘制和 InputArea 放置。
+- 需要显示的变化向 SurfaceWindow 请求帧。在真实绘制机会中，Surface 先采样动画，再由 UI 遍历挂载树执行测量／布局、场景装配、纯绘图块执行和 InputArea 放置。
 - 只有 surface 成功接受提交后，才按 Surface 规范发布命中几何；失败或 Deferred 不发布新几何，不回滚已经生效的业务状态。
 
 首期在 owner 上同步完成一轮逻辑更新，不提供并发、暂停恢复或丢弃后重放 render 的机制。所有更新使用当前可变状态；不承诺 React 式的不可变状态快照。用户 render／构造／挂载回调失败时走第 9 节的关闭路径，不试图回滚用户修改过的任意对象。
@@ -326,23 +326,25 @@ MeasureContext 提供本帧 time、子项数量、`measureChild(index, constrain
 
 测量允许更新由本 Element 拥有的缓存，例如按宽度替换 TextLayout。创建、替换和失败清理必须由同一个所有者完成；不得把待关闭资源存入临时 View。文字 shaping 与断行由 graphics.text 完成，通用段落缓存及行内子项接入见第 7.5 节；Label 选择自己的输入、外观和裁剪策略。
 
-### 7.2 绘制及子项呈现
+### 7.2 场景装配与纯绘制
 
-PaintContext 提供本帧 time、元素最终 size 和借用的 `scoop.graphics.Canvas`。原点为元素左上角，单位为逻辑尺寸；框架通过 FrameContext.withState 建立独立借用，再施加布局偏移，退出时恢复。DPI 转换由渲染目标根部执行一次。元素自己增加的 save／restore 正常应配对，不能弹出调用方的绘制状态；异常退出也恢复全部子级保存状态，已结束的子 Canvas 不再可用。
+Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入区域放置和子项呈现。它不暴露 Canvas。`concat／translate／scale／rotate`、`clipRect／clipPath`、`save／saveLayer／restore` 是影响本场景画面与输入的共同操作，交由 graphics 的同一 Canvas 状态维护，不另建坐标计算实现。原点为元素左上角，DPI 仍只由渲染目标根部施加一次。
 
-`paintChildren()` 按描述顺序绘制本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次，均不产生子项绘制。重复调用报告状态错误。元素可以在此调用前后绘制背景和前景，并通过 Canvas 的 transform／clip／组透明度包裹子项。子项获得独立的绘制状态作用域；子项的变换不会污染后续兄弟。
+`SceneContext.draw(block: (PaintContext) -> Unit)` 提交一个纯绘图块。当前实现同步执行，后续绘制缓存可复用其结果；块只负责像素和自身绘制缓存，不登记 InputArea、呈现子项或修改 State。PaintContext 提供 size、time 和隔离借用的 Canvas；块中增加的 transform／clip 仅影响该块的画面，退出后不影响场景中后续区域或子项。场景几何与绘制块的调用分开，省略一个绘图块不会省略已声明的区域。
 
-父子关系不隐式裁剪。边界裁剪或 Path 裁剪由 Element 显式使用 Canvas 设置，绘制与输入使用同一份几何状态。框架不附加默认背景、边框、字体、尺寸、颜色、点击行为或主题。
+场景操作在同一个实际帧内流式提交和消费。它们不持有跨帧借用，Path／滤镜在同步调用时按 graphics 合同使用；不要求元素为装配另外复制原生资源。真正的跨帧绘制记录／图像缓存另按其拥有关系持有资源。当前还不承诺自动跳过未失效绘图块。
 
-`PaintContext.withState<T>(block: (PaintContext) -> T): T` 提供通用嵌套绘制作用域，继承 size、time、输入父区域与子项放置。它复用 FrameContext.withState，子作用域期间拒绝父上下文绘制／放置操作，退出后子 context 失效并恢复 Canvas。子项是否已经绘制在同一元素的全部作用域间共享：可以在子作用域 paintChildren，但不能在父／兄弟作用域再次绘制。正常与异常退出都结束借用，不新增挂载节点或样式专用分支。
+`SceneContext.children(parent)` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪。
 
-Canvas、MeasureContext 与 PaintContext 只在对应同步回调中有效，不能保存到下一帧、跨线程使用或跨挂起借用。用户绘制抛错时仍恢复当前绘制作用域，帧中止且不发布区域几何，随后按第 9 节关闭。
+`SceneContext.withState<T>(block: (SceneContext) -> T): T` 继承 size、time、输入父区域及同一子项呈现计数，隔离变换／clip／图层状态；子作用域内拒绝使用父 context。draw 回调期间同样不能使用外层 SceneContext，即使通过闭包取得引用也会报状态错误。正常或异常退出均恢复 Canvas 保存层级，结束子 context，未配对的内部 save／saveLayer 不会污染调用方。
+
+`PaintContext.withState<T>(block: (PaintContext) -> T): T` 只隔离纯绘图块内的 Canvas；没有区域或子项接口。SceneContext、PaintContext、Canvas、MeasureContext 都只在对应同步借用内有效，不能跨帧、跨线程或跨挂起保存。用户场景／绘图异常按第 9 节关闭，失败帧不发布几何。输入的变换、裁剪和 layer 顺序均使用实际 graphics 状态，不以视觉滤镜的像素扩展扩大区域。
 
 ### 7.3 输入与焦点接入
 
 Element 在 onMount 中通过 `scope.createArea(focusable, textInput, handler)` 创建稳定的 Surface InputArea。作用域登记其生命周期，处理器使用既有 AreaEvent／InputResult；enabled、ignoreSelf、requestFocus 和 caret 继续使用 Surface 的公开合同。框架不将原始事件解释为 Button 的 onClick。
 
-PaintContext 提供 `place(area, rect或path, parent)`，转交本帧 FrameContext.place；未指定 parent 时继承绘制上下文的最近输入父区域。`paintChildren(parent)` 可指定已放置的本元素区域作为子项的输入父区域；省略时继续继承原父区域。框架不为每个布局节点自动创建 InputArea。显式区域须来自同一窗口，父区域先放置，同一区域每帧至多放置一次。
+SceneContext 提供 `place(area, rect或path, parent)`，转交本帧 FrameContext.place；未指定 parent 时继承绘制上下文的最近输入父区域。`children(parent)` 可指定已放置的本元素区域作为子项的输入父区域；省略时继续继承原父区域。框架不为每个布局节点自动创建 InputArea。显式区域须来自同一窗口，父区域先放置，同一区域每帧至多放置一次。
 
 update 在逻辑阶段修改处理器和 enabled 等属性，不等 paint 才应用禁用。保留区域使用最新处理器与最近提交的几何；新区域等待首次成功放置。指针序列、取消、冒泡、局部坐标、hover、逻辑焦点及 IME 路由沿用 Surface，点击／拖动等控件行为由上层实现。
 
@@ -354,7 +356,7 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 paint 才应
 
 `scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它调用所属 SurfaceWindow 的 animations.value，并登记所得 `Animatable<T>` 随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。
 
-元素在 update 或输入处理中调用 animateTo／snapTo／pause 等现有操作，在 measure／paint 中读取已采样的 value。Surface 的统一时间轴负责请求帧、同帧采样、完成回调及隐藏后的时间推进；UI 不另建 timer 或每组件帧循环。框架保证本次测量和绘制使用同一采样时点。需要动画结束后改变组件结构时，由完成回调写 State，排入下一轮逻辑更新。
+元素在 update 或输入处理中调用 animateTo／snapTo／pause 等现有操作，在 measure／scene／draw 中读取已采样的 value。Surface 的统一时间轴负责请求帧、同帧采样、完成回调及隐藏后的时间推进；UI 不另建 timer 或每组件帧循环。框架保证本次测量和绘制使用同一采样时点。需要动画结束后改变组件结构时，由完成回调写 State，排入下一轮逻辑更新。
 
 退出挂载时退休登记动画，停止其后续业务完成回调，并在资源清理阶段关闭。完成回调的挂载有效性遵守与输入相同的规则。Element 普通字段的变化若未经过 State 或 Animatable，应调用 scope.requestFrame；同一轮请求由 Surface 合并。
 
@@ -368,16 +370,16 @@ InlineView 是不拥有资源的描述，保存 InlineKey、View、自然或固�
 
 `inlineChildren(content, inlines): Array<View>` 按 StyledText 中对象的逻辑顺序生成普通 keyed 子描述。它根据 InlineKey 建立对应，不根据文字偏移、视觉顺序或数组下标推断身份；缺失、重复或多余绑定报告参数错误。每个对象用普通 keyed 包装节点保存其出现身份，传入 View 自己的 key 继续作用于包装节点内的子位置。包装只使用普通 Component／Props；Span 不生成挂载节点，同段落的全部对象共享该 Element 的直接父级。
 
-ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在 onMount 中通过 scope.resource 登记。它不拥有子组件，也不自行调用工厂或创建输入区域。创建 Element 描述的 Component 或普通组合函数把 inlineChildren 的结果传入 element.children，并通过 Props 传入同一份内容和绑定；Element 的 measure／paint 分别委托给宿主：
+ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在 onMount 中通过 scope.resource 登记。它不拥有子组件，也不自行调用工厂或创建输入区域。创建 Element 描述的 Component 或普通组合函数把 inlineChildren 的结果传入 element.children，并通过 Props 传入同一份内容和绑定；Element 的 measure／scene 分别委托给宿主：
 
 ```text
 ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): LayoutMetrics
-ParagraphHost.paint(context, parent): Unit
+ParagraphHost.scene(context, parent): Unit
 ```
 
 measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。所有子项仍只测量一次，包括本次最终被截掉的对象。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。paint 使用同一 TextLayout 先画文字，再调用 paintChildren 绘制已放置对象；parent 与 paintChildren 的可选父区域规则相同，省略时继承当前输入父区域。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 Canvas 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 draw 使用同一 TextLayout 先画文字，再调用 children 呈现已放置对象；parent 与 children 的可选父区域规则相同，省略时继承当前输入父区域。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 
@@ -463,10 +465,10 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 框架的普通库行为归 `scoop.ui` 的 scoop.test。框架测试及自绘示例不依赖 `scoop.ui.component`；控件行为归控件库自身。验收覆盖公开行为，至少包括：
 
 1. 只依赖框架的自绘组件连续更新复用实例和自有 State；两个挂载的自有状态各自独立，卸载后重新出现从初始值开始；同一组件同时委托外部 State，重挂载时保留 Store 中的值。
-2. 多组件共享 State、条件读取移除旧依赖、经普通模型 getter 间接读取、只读 val 委托、同轮合并，以及 render／measure／paint 内写入的错误路径；卸载一个订阅者不影响其余订阅或共享值。
+2. 多组件共享 State、条件读取移除旧依赖、经普通模型 getter 间接读取、只读 val 委托、同轮合并，以及 render／measure／scene／draw 内写入的错误路径；卸载一个订阅者不影响其余订阅或共享值。
 3. Component／Element 的 Props 更新不重跑构造器；update 在隐藏时也更新输入；Binding 修改同一原状态、切换绑定后使用新写入路径并退订旧 State；普通 class 内部变更不会被伪装为自动可观察。
 4. keyed 列表插入／删除／重排、重复 key、位置身份、组件／Props 类型替换、分支与跨父级移动。
-5. 资源取得失败、首轮 render／onMount／update 失败、measure／paint 失败、缓存替换、正常卸载、回调内关闭及清理异常下的剩余资源释放。
+5. 资源取得失败、首轮 render／onMount／update 失败、measure／scene／draw 失败、缓存替换、正常卸载、回调内关闭及清理异常下的剩余资源释放。
 6. 隐藏／零尺寸／Deferred 期间仍执行逻辑卸载；成功提交前新区域不命中，失败帧不发布几何，已卸载区域立即退出交互。
 7. 外部自绘 Element 的约束、子项测量／放置、背景／子项／前景顺序、变换与 clip、Rect／Path 输入命中和真实窗口关闭。
 8. Surface 动画直接驱动测量和绘制、同帧采样、重定目标、隐藏恢复、卸载后取消完成回调，动画不重跑未失效的 Component.render。
@@ -475,7 +477,7 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 11. 不依赖控件库的公共 ParagraphHost 自绘组合：多样式文字、图片和交互子项，一次测量、RTL 对应、截断后退出命中与焦点、恢复后保留 State、失败帧及尺寸动画重排。
 12. 同一 Application／UiHost 下两个独立窗口根，共享模型时分别更新，输入与组件身份隔离，普通关闭一个根不卸载另一根；模态与自绘窗框操作在 window 对应能力实现后单独验收。
 13. 应用 Context 在延迟组件构造和后续业务入口有效；短暂绑定不被 View／工厂隐式捕获；Context 重绑定不替换已初始化的 State 委托，缺失异常沿正常挂载失败路径清理。
-14. 首次画面及已有通知收尾后的稳定区间内，render／update／measure／paint、目标获取、GPU 提交和呈现次数不再增加，UI 不产生周期唤醒或空任务；单次状态变化／合并请求能唤醒必要更新，随后再次停止。
+14. 首次画面及已有通知收尾后的稳定区间内，render／update／measure／scene／draw、目标获取、GPU 提交和呈现次数不再增加，UI 不产生周期唤醒或空任务；单次状态变化／合并请求能唤醒必要更新，随后再次停止。
 15. 动画自然完成、暂停、取消、零时长和卸载后停帧；完成回调产生的新失效不丢失。一窗动画不带动其他静止根，隐藏／Deferred 不忙重试，恢复后正确呈现再停帧。普通 run 与 runWithAsyncio 均覆盖静止和唤醒。
 
 独立的自绘示例 Cone 通过已编译的公开 UI 接口实现交互和动画，不引入控件库作为间接依赖。随后以独立控件库的 Label／Button／Checkbox／容器实现及 Counter 实例验证同一接口足以构建常用控件；不能通过向框架增加控件类型分支补足缺失能力。

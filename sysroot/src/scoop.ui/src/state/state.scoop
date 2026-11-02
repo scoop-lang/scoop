@@ -21,7 +21,7 @@ public class State<T> internal constructor(initial: T) {
         checkUiThread(thread)
         when (currentEvaluation()) {
             case Some(_) -> throw IllegalStateException(
-                Some("State cannot change during render, measure or paint")
+                Some("State cannot change during render, measure, scene or draw")
             )
             case None -> {}
         }

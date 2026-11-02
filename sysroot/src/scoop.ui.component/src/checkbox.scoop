@@ -177,9 +177,15 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         drawing = Some(CheckboxDrawing(geometry, visual))
         return LayoutMetrics(size)
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val value = drawing!!
-        painters!!.get(props.value.theme).drawCheckbox(context.canvas, value.geometry, value.visual)
+        context.draw {
+            paint -> painters!!.get(props.value.theme).drawCheckbox(
+                paint.canvas,
+                value.geometry,
+                value.visual
+            )
+        }
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
     }
 }

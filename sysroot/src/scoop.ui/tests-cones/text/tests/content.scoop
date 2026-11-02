@@ -108,10 +108,10 @@ private class SelfDrawnParagraph(
             Some(metrics.ideographicBaseline!! + 20.0)
         )
     }
-    public override fun paint(context: PaintContext) {
-        context.canvas.clear(Color.White)
-        context.canvas.translate(20.0, 20.0)
-        host!!.paint(context)
+    public override fun scene(context: SceneContext) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.translate(20.0, 20.0)
+        host!!.scene(context)
         probe.layout = Some(host!!.layout)
         probe.paintedGeneration = props.value.generation
         probe.paints += 1
@@ -212,24 +212,27 @@ internal class CounterInk(
         size = constraints.constrain(Size(width!!.value, 32.0))
         return LayoutMetrics(size, Some(24.0), Some(29.0))
     }
-    public override fun paint(context: PaintContext) {
-        @Unsafe
-        {
-            captureGeometry(context.canvas, Rect(0.0, 0.0, size.width, size.height)).use {
-                geometry -> origin = geometry.toWindow(Point(0.0, 0.0))
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            @Unsafe
+            {
+                captureGeometry(paint.canvas, Rect(0.0, 0.0, size.width, size.height)).use {
+                    geometry -> origin = geometry.toWindow(Point(0.0, 0.0))
+                }
             }
-        }
-        context.canvas.drawRect(
-            Rect(0.0, 0.0, size.width, size.height),
-            Paint(
-                if (props.value.green)
-                    Color(0.1, 0.7, 0.2)
-                else
-                    Color(0.1, 0.3, 0.9)
+            paint.canvas.drawRect(
+                Rect(0.0, 0.0, size.width, size.height),
+                Paint(
+                    if (props.value.green)
+                        Color(0.1, 0.7, 0.2)
+                    else
+                        Color(0.1, 0.3, 0.9)
+                )
             )
-        )
+            paints += 1
+        }
         context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
-        paints += 1
     }
 }
 
@@ -254,15 +257,18 @@ internal class InlinePhoto(private val probe: TextProbe): Element {
         assertEquals(Constraints.tight(Size(22.0, 28.0)), constraints)
         return LayoutMetrics(constraints.constrain(Size(90.0, 70.0)))
     }
-    public override fun paint(context: PaintContext) {
-        @Unsafe
-        {
-            captureGeometry(
-                context.canvas,
-                Rect(0.0, 0.0, context.size.width, context.size.height)
-            ).use { geometry -> origin = geometry.toWindow(Point(0.0, 0.0)) }
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            @Unsafe
+            {
+                captureGeometry(
+                    paint.canvas,
+                    Rect(0.0, 0.0, paint.size.width, paint.size.height)
+                ).use { geometry -> origin = geometry.toWindow(Point(0.0, 0.0)) }
+            }
+            paint.canvas.drawImage(image!!, Rect(0.0, 0.0, paint.size.width, paint.size.height))
         }
-        context.canvas.drawImage(image!!, Rect(0.0, 0.0, context.size.width, context.size.height))
     }
     public override fun onUnmount() {
         unmounts += 1

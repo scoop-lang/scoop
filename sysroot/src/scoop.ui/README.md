@@ -12,11 +12,11 @@
 - key 在直接父级内生效，节点类别及组件和 Props 的完整类型参与匹配。新挂载必须返回新的 class 实例；普通更新保留实例与本地状态。
 - 业务依赖可通过语言 Context 在实际运行／挂载入口安装。临时创建 View 不捕获 Context，属性委托在组件初始化时绑定一次。
 
-State 在创建它的线程读写；render／measure／paint 不允许写入 State。后台结果通过窗口 ApplicationProxy 或现有 EventLoopSession 投递到 owner，再修改状态。逻辑更新不依赖 drawable，隐藏窗口仍可更新 Props、卸载子树及关闭资源。
+State 在创建它的线程读写；render／measure／scene／draw 不允许写入 State。后台结果通过窗口 ApplicationProxy 或现有 EventLoopSession 投递到 owner，再修改状态。逻辑更新不依赖 drawable，隐藏窗口仍可更新 Props、卸载子树及关闭资源。
 
 ## 自绘与资源
 
-Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.paint 取得局部坐标的独立 Canvas 借用，在背景与前景之间调用 paintChildren。坐标与 clip 同时用于 InputArea 放置，成功呈现后才发布命中几何。
+Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功呈现后才发布区域。
 
 在 onMount 中使用 ComponentScope.resource 登记 Path、Image 或缓存，使用 createArea 和 animation 登记稳定的输入区域与 Surface Animatable。应用不为每个组件 use；作用域按子先父的顺序退休输入／动画、调用 onUnmount，再逆序关闭资源。可替换缓存应自行及时关闭旧值，不能每帧登记一个新资源。
 
@@ -28,11 +28,11 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 `scoop.ui.text` 用 `InlineView(key, view, size, alignment)` 连接 graphics.text 内容中的 InlineKey 与普通 UI 子项。size 为 None 时采用自然尺寸，可指定固定 Size；对齐默认采用子项的 alphabetic baseline，缺失时取底边，也可以选择 ideographic baseline 或显式 InlineAlignment。
 
-描述阶段把 `inlineChildren(content, inlines)` 作为 Element 的 children，Element 在 onMount 中登记 `scope.resource { ParagraphHost() }`。measure 调用 `host.measure(context, constraints, fonts, content, settings, inlines)`，paint 调用 `host.paint(context, parent)`。这组接口完成子项测量、段落布局、可见对象放置、文字绘制和子项绘制；图片同样使用普通 Element 包装。
+描述阶段把 `inlineChildren(content, inlines)` 作为 Element 的 children，Element 在 onMount 中登记 `scope.resource { ParagraphHost() }`。measure 调用 `host.measure(context, constraints, fonts, content, settings, inlines)`，scene 调用 `host.scene(context, parent)`。这组接口完成子项测量、段落布局、可见对象放置、文字绘制和子项绘制；图片同样使用普通 Element 包装。
 
 ParagraphHost 只拥有 Paragraph／TextLayout，不拥有字体或子组件。它按同一内容对象、字体身份及 revision、段落设置和实际宽度／metrics 复用缓存。布局动画改变 metrics 时重排，纯子项换色可复用布局；新内容描述可以触发重建。`host.layout` 借出最近成功测量的结果，供 hitTest／caret／selection 查询，调用方不关闭它。缓存替换或宿主关闭后旧布局资源失效。
 
-行内出现的 key 与 View 自己的 key 分别参与普通匹配。插字、RTL 顺序或换行不丢失子组件状态；截断项保留挂载，成功帧后退出命中和焦点，恢复后继续使用原实例。宿主不隐式裁剪，调用方可用同一个 Canvas 的 clip 包住整段文字及子项。
+行内出现的 key 与 View 自己的 key 分别参与普通匹配。插字、RTL 顺序或换行不丢失子组件状态；截断项保留挂载，成功帧后退出命中和焦点，恢复后继续使用原实例。宿主不隐式裁剪，调用方可用SceneContext 的 clip 包住整段文字及子项。
 
 ## 示例与定向测试
 

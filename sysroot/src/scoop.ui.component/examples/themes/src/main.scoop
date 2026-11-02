@@ -184,8 +184,8 @@ private class Gallery(
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0)))
-    public override fun paint(context: PaintContext) {
-        painter!!.paint(context.canvas, props.value, context.size.width)
+    public override fun scene(context: SceneContext) {
+        context.draw { paint -> painter!!.paint(paint.canvas, props.value, paint.size.width) }
     }
 }
 

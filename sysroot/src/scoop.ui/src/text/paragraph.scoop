@@ -70,10 +70,10 @@ public class ParagraphHost public constructor(): Closeable {
         )
     }
 
-    public fun paint(context: PaintContext, parent: InputArea? = None) {
+    public fun scene(context: SceneContext, parent: InputArea? = None) {
         checkOpen()
-        context.canvas.drawText(cache.layout)
-        context.paintChildren(parent)
+        context.draw { paint -> paint.canvas.drawText(cache.layout) }
+        context.children(parent)
     }
 
     public override fun close() {

@@ -73,7 +73,7 @@ internal class UiRoot(
             return
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         current.measure(Constraints.tight(frame.size), frame.time)
-        current.paint(frame, Point(0.0, 0.0), None)
+        current.scene(frame, Point(0.0, 0.0), None)
     }
     fun stop() {
         if (!isOpen)

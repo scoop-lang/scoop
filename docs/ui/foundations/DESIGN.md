@@ -1,10 +1,12 @@
 # UI 基础交互能力设计
 
-日期：2026-11-02。状态：设计，尚未实施。本文承接 [UI 总体设计](../DESIGN.md)，以当前源码为基线，覆盖弹层／模态／绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由、公共文本编辑。文中的新类型和入口均为拟议 API；当前已交付合同仍以相关 spec 和 [UI 实施记录](../PROGRESS.md)为准。
+日期：2026-11-02。状态：分批实施中，完成范围见 [实施记录](PROGRESS.md)。本文承接 [UI 总体设计](../DESIGN.md)，覆盖弹层／模态／绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由、公共文本编辑。尚未进入完成批次的新类型和入口是拟议 API；当前已交付合同以相关 spec 和实施记录为准。
 
 目标是让独立控件库和第三方库用同一套公开协议实现 shadcn/ui 一类控件。Code Block、语法编辑、富文档编辑、手势竞争框架和 accessibility 树不在本次范围；因此完成本文也不等于已达到 shadcn 在浏览器中的全部可访问性能力。现有 UI 验证范围仍是 macOS aarch64 与 x86_64 Rosetta。
 
 ## 1. 缺口结论
+
+以下记录开始实施前的调研基线；后续补齐情况按批次记入 [实施记录](PROGRESS.md)，不把剩余设计当作已交付能力。
 
 | 能力 | 当前可复用的部分 | 实际缺口 | 设计 |
 | --- | --- | --- | --- |
@@ -18,7 +20,7 @@
 关键源码依据：
 
 - [MeasureContext](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)要求每个直接子项测量一次；[MountedNode](../../../sysroot/src/scoop.ui/src/runtime/node.scoop)在布局前匹配、挂载整个显式子数组。clip 或不放置不等于虚拟化。
-- [PaintContext](../../../sysroot/src/scoop.ui/src/layout/paint.scoop)在绘制时登记 InputArea；[输入场景](../../../sysroot/src/scoop.surface/src/shared/input/scene.scoop)同时保存 Canvas 几何与输入父关系。直接跳过 paint 会丢失本帧区域。
+- 原 PaintContext 在绘制时登记 InputArea，直接跳过 paint 会丢失本帧区域。A1 将区域放置迁入 [SceneContext](../../../sysroot/src/scoop.ui/src/layout/scene.scoop)，[PaintContext](../../../sysroot/src/scoop.ui/src/layout/paint.scoop)只保留纯绘制；[输入场景](../../../sysroot/src/scoop.surface/src/shared/input/scene.scoop)仍保存成功帧的 Canvas 几何与输入父关系。
 - [指针派发](../../../sysroot/src/scoop.surface/src/shared/input/pointer.scoop)已有冒泡；[焦点派发](../../../sysroot/src/scoop.surface/src/shared/input/focus.scoop)只向当前焦点路径发送键盘事件，没有 Tab 遍历和无焦点快捷键根入口。
 - [RenderTarget.snapshot](../../../sysroot/src/scoop.graphics/src/native/target.scoop)明确会把 GPU 目标读回成 CPU 图像，不能直接当作高效 GPU 滚动缓存。
 - [TextInputState](../../../sysroot/src/scoop.window/src/text/types.scoop)是纯值事务助手；[DemoEditor](../../../sysroot/src/scoop.surface/examples/basics/src/editor.scoop)是基础接入示例，没有完整编辑器行为。
@@ -49,7 +51,7 @@
 
 ### 4.1 场景装配与绘图分开
 
-当前 `paint` 同时负责画图、登记输入、施加子树几何，无法安全跳过。拟将 UI 自绘协议演进为 `measure → scene`，由 `SceneContext` 装配本帧结构，再由框架执行其中的绘图块。直接 Surface painter 仍可使用 `FrameContext.place`，不强迫所有 Canvas 使用者建立 UI 树。
+原 `paint` 同时负责画图、登记输入、施加子树几何，无法安全跳过。UI 自绘协议演进为 `measure → scene`，由 `SceneContext` 在同一帧内流式提交场景操作，框架同步执行纯绘图块或复用缓存。直接 Surface painter 仍可使用 `FrameContext.place`，不强迫所有 Canvas 使用者建立 UI 树。
 
 `SceneContext` 提供以下有限操作：
 
@@ -57,14 +59,14 @@
 | --- | --- |
 | transform／clip／layer | 为本作用域的画面与输入保存同一份几何；组透明度、滤镜顺序仍沿用 graphics 合同 |
 | `place(area, shape)`／输入作用域 | 登记区域及逻辑路由；不依赖是否执行实际光栅绘制 |
-| `draw(bounds, callback)` | 登记只负责画图的同步块。callback 获得借用 Canvas，不能登记区域、产生子项或修改 State |
+| `draw(callback)`；缓存批次补充绘制范围 | 登记只负责画图的同步块。callback 获得只有 Canvas／size／time 的 PaintContext，不能登记区域、产生子项或修改 State |
 | `children(order)` | 按指定显示顺序装配已放置子项，每项至多一次；缺省为描述顺序 |
 | anchor／portal | 登记锚点或把已归属的子项放到根部指定显示层 |
 | 显式绘制缓存边界 | 为可缓存绘制内容建立失效归属，区域与焦点元数据不进入图像缓存 |
 
-这是对当前有限自绘协议的演进，不增加通用场景查询或渲染插件。影响子项／InputArea 的 transform、clip 必须通过 SceneContext 声明；纯绘图块内仍可自由使用 Canvas，但其中变换只作用于该块的像素。由同一场景记录重放绘图并导出命中几何，不让控件手写两套坐标计算。
+这是对当前有限自绘协议的演进，不增加通用场景查询或渲染插件。影响子项／InputArea 的 transform、clip 必须通过 SceneContext 声明；纯绘图块内仍可自由使用 Canvas，但其中变换只作用于该块的像素。由同一场景操作驱动 graphics 状态与命中几何，不让控件手写两套坐标计算。
 
-`scene` 与 draw 同样禁止 State 写入和启动任务。布局缓存仍由元素所有。旧 `PaintContext.place／paintChildren` 调用方在实施批次中直接迁移，不增加长期并存的旧、新协议。场景记录在本帧内建立并消费，不保存借用 Canvas；跨帧缓存只持有明确拥有的不可变绘制内容／图像。
+`scene` 与 draw 同样禁止 State 写入和启动任务。布局缓存仍由元素所有。旧 `PaintContext.place／paintChildren` 调用方在实施批次中直接迁移，不增加长期并存的旧、新协议。场景操作在本帧内提交并消费，不保存借用 Canvas；跨帧缓存只持有明确拥有的不可变绘制内容／图像。
 
 ### 4.2 帧与输入发布
 
@@ -97,7 +99,7 @@ caret 闪烁、延迟 Tooltip 和拖选到边缘时的下一次推进需要 owne
 
 ## 5. 实施顺序与完成条件
 
-每批先修订对应公开 spec，再迁移实现、现有调用方和必要测试。本次只提交设计与文档入口，不将未实现行为写成已交付合同。
+每批先修订对应公开 spec，再迁移实现、现有调用方和必要测试。每次记录已完成子批次，不将后续未实现行为写成已交付合同。
 
 | 批次 | 范围 | 能实际交付的结果 |
 | --- | --- | --- |

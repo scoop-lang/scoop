@@ -115,16 +115,18 @@ private class ControlPanel(
         context.placeChild(3L, Point(20.0, 180.0))
         return LayoutMetrics(constraints.constrain(Size(360.0, 240.0)))
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.paints += 1
-        context.canvas.clear(props.value.background)
-        context.paintChildren()
-        @Unsafe
-        {
-            context.canvas.withSkiaCanvas {
-                native -> @Unsafe
-                {
-                    probe.buttonPixel = readNativePixel(native, 30.0, 25.0)
+        context.draw { paint -> paint.canvas.clear(props.value.background) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.buttonPixel = readNativePixel(native, 30.0, 25.0)
+                    }
                 }
             }
         }

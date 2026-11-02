@@ -1,6 +1,6 @@
 # scoop.ui.style
 
-普通 Scoop 库，提供公共主题绘图协议、几何、语义参数，以及可复用的装饰与内容效果。`scoop.ui` 不依赖本库，基础控件和第三方自绘使用同一套公开接入。公共 Style、主题绘图、三套风格、控件消费和完整展示已完成 macOS aarch64 实施与 x86_64 补验，范围见[实施记录](../../../docs/ui/PROGRESS.md)；x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续。
+普通 Scoop 库，提供公共主题绘图协议、几何、语义参数，以及可复用的装饰与内容效果。`scoop.ui` 不依赖本库，基础控件和第三方自绘使用同一套公开接入。原有功能的 macOS 验证见[实施记录](../../../docs/ui/PROGRESS.md)；新增场景协议迁移见[基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)，各批验证 aarch64，全部功能完成后统一验证 x86_64，Windows 后续。
 
 ```toml
 [dependencies]
@@ -25,7 +25,7 @@ styled 始终保留包装，包括空 Style；增加或移除效果不重建内�
 
 sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 DPI 只施加一次，图层没有按布局框添加隐式 crop，因此向外的光晕和阴影可以显示。祖先 clip 和实际目标仍限制可见范围。普通内容 Blur 不采样背后的画面，Backdrop blur 另行设计。
 
-完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 paint 中调用 `painter.paint(context, style) { content -> ... }`；回调使用提供的 PaintContext，可调用 paintChildren。也提供显式 Rect 和普通 Canvas 的入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
+完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
 
 StyleOverride 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框，其余属性继续更新。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 

@@ -10,7 +10,7 @@ public interface Component {
 /** A persistent, self-drawn leaf or container using the same public child protocol. */
 public interface Element {
     public fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics
-    public fun paint(context: PaintContext)
+    public fun scene(context: SceneContext)
     public fun onMount(scope: ComponentScope) {}
     public fun update() {}
     public fun onUnmount() {}

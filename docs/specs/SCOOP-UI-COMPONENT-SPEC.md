@@ -1,6 +1,6 @@
 # Scoop 基础控件库规范
 
-日期：2026-11-02。状态：Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已在 macOS aarch64 交付并完成 x86_64 补验；后者使用 Apple Silicon 上的 Rosetta，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
+日期：2026-11-02。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
 
 ## 1. 定位与依赖
 
@@ -68,7 +68,7 @@ Label 接受 String 加可选 SpanStyle 的便利输入，也接受公共 Styled
 
 LabelProps.baseStyle 可显式提供本轮完整 TextStyle，供 Button 等组合控件传入从当前主题解析的操作标签样式；Plain 的局部 SpanStyle 再覆盖它。显式 baseStyle 或完整 StyledText 已包含所需文字默认值时，不要求仅为排版建立环境主题来源。Button 对未明确指定子标签主题／基础样式的 Label 传入本轮 action 字体与表面文字颜色，保留标签自身 SpanStyle。
 
-Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在 onMount 中通过 ComponentScope 登记 ParagraphHost，在 measure／paint 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
+Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在 onMount 中通过 ComponentScope 登记 ParagraphHost，在 measure／scene 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
 
 父约束给出有限最大宽度时按该宽度布局，无界时使用 layoutUnwrapped。最终 LayoutMetrics 的 size 遵守 Constraints，基线来自同一 TextLayout；绘制、对象放置及查询也使用这个结果，不另行估计文字宽度。换行、对齐、maxLines、ellipsis 和 Unicode 行为采用 graphics.text 合同。默认不裁剪超出外框的绘制，需要 clip 时显式包住整个文字与子项绘制作用域。
 
@@ -86,7 +86,7 @@ Button 的输入至少包括文字、onClick、enabled 及样式。它用普通�
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
 
-Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，先放置自己的区域，再调用 paintChildren(parent = area)。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
+Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，先放置自己的区域，再调用 children(parent = area)。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
 
 Button 的 LayoutMetrics 将标签基线加上实际垂直放置偏移，使整个按钮可以和周围文字按基线对齐。没有对应标签基线时返回 None，不根据字号估算另一条基线。
 
@@ -105,7 +105,7 @@ Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存�
 
 enabled 和最新回调在 Element.update 的逻辑阶段生效。禁用不等待下一帧，隐藏时也立即退出交互；区域几何继续对应最近成功提交的画面。触发时调用当前 Props 中的 onClick，不延长旧闭包的生命周期。
 
-动画是样式实现的可选行为。实现需要颜色、位置或大小过渡时，通过 scope.animation 取得 Surface Animatable；只有实际目标变化才调用 animateTo，普通 Props 刷新不能不断重启动画。measure／paint 读取本帧已采样值，动画完成不自行触发 onClick。
+动画是样式实现的可选行为。实现需要颜色、位置或大小过渡时，通过 scope.animation 取得 Surface Animatable；只有实际目标变化才调用 animateTo，普通 Props 刷新不能不断重启动画。measure／scene 读取本帧已采样值，动画完成不自行触发 onClick。
 
 首批控制 hover／press 的 0～1 采样值，交给主题的 InteractionVisual；Checkbox 另有选择进度。主题默认动画参数来自 tokens.motion，StyleValue.Set(None) 可显式关闭过渡。局部状态覆盖是本轮明确的外观值；需要动画化这些自定义值时由应用传入动画后的 Props。禁用立即结束正在进行的交互过渡，完成、暂停、取消、隐藏和卸载继续遵守 Surface 停帧合同。
 
@@ -167,7 +167,7 @@ Checkbox 在自身 render 中读取绑定，Form 在 render 中读取 checked.va
 
 ## 6. 容器与 Frame
 
-Row／Column／Stack／Frame 全部通过普通 Element 的 MeasureContext 测量和放置子项，通过 PaintContext 绘制。框架只执行协议，不识别这些 class，也不内置它们的算法。
+Row／Column／Stack／Frame 全部通过普通 Element 的 MeasureContext 测量和放置子项，通过 SceneContext 装配场景和纯绘图块。框架只执行协议，不识别这些 class，也不内置它们的算法。
 
 Row／Column 使用共同的 LinearProps（children、spacing、交叉轴 AxisAlignment），Stack 使用 StackProps（children、Alignment）。AxisAlignment 的 Start／Center／End 分别把子项放在可用轴的起点、中点和终点；Alignment 为横／纵两轴的组合。row／column／stack 的普通 View 工厂把这些输入放入 Props，不在首次构造时捕获变化的子项。
 

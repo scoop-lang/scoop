@@ -1,0 +1,176 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.FrameContext
+import scoop.surface.InputArea
+import scoop.time.TimeMark
+
+internal class ScenePass {
+    var presentedChildren = false
+}
+
+/** Geometry, input and child presentation share one frame state, separate from pixel blocks. */
+public class SceneContext internal constructor(
+    private val node: MountedNode,
+    private val frame: FrameContext,
+    private val extent: Size,
+    private val inheritedParent: InputArea?,
+    private val pass: ScenePass = ScenePass()
+) {
+    private var active = true
+    private var borrowed = false
+    public val size: Size get() {
+        checkActive()
+        return extent
+    }
+    public val time: TimeMark get() {
+        checkActive()
+        return frame.time
+    }
+    private fun checkActive() {
+        node.root.checkThread()
+        if (!active)
+            throw IllegalStateException(Some("scene context has ended"))
+        if (borrowed)
+            throw IllegalStateException(Some("scene context has an active child scope"))
+    }
+    /** Runs a pixel-only block with an independent Canvas lifetime and save stack. */
+    public fun draw(block: (PaintContext) -> Unit) {
+        checkActive()
+        borrowed = true
+        try {
+            frame.canvas.withState {
+                canvas ->
+                val context = PaintContext(node.root, canvas, extent, frame.time)
+                try {
+                    block(context)
+                } finally {
+                    context.end()
+                }
+            }
+        } finally {
+            borrowed = false
+        }
+    }
+    /** Shares the one child presentation pass while isolating scene state. */
+    public fun <T> withState(block: (SceneContext) -> T): T {
+        checkActive()
+        borrowed = true
+        try {
+            return frame.withState {
+                childFrame ->
+                val child = SceneContext(node, childFrame, extent, inheritedParent, pass)
+                try {
+                    block(child)
+                } finally {
+                    child.end()
+                }
+            }
+        } finally {
+            borrowed = false
+        }
+    }
+    public fun concat(transform: Transform) {
+        checkActive()
+        frame.canvas.concat(transform)
+    }
+    public fun translate(x: Double, y: Double) {
+        checkActive()
+        frame.canvas.translate(x, y)
+    }
+    public fun scale(x: Double, y: Double) {
+        checkActive()
+        frame.canvas.scale(x, y)
+    }
+    public fun rotate(radians: Double) {
+        checkActive()
+        frame.canvas.rotate(radians)
+    }
+    public fun clipRect(rect: Rect) {
+        checkActive()
+        frame.canvas.clipRect(rect)
+    }
+    public fun clipPath(path: Path) {
+        checkActive()
+        frame.canvas.clipPath(path)
+    }
+    public fun save() {
+        checkActive()
+        frame.canvas.save()
+    }
+    public fun saveLayer(
+        opacity: Double = 1.0,
+        filter: ImageFilter? = None,
+        blendMode: BlendMode = BlendMode.SrcOver
+    ) {
+        checkActive()
+        frame.canvas.saveLayer(opacity, filter, blendMode)
+    }
+    public fun restore() {
+        checkActive()
+        frame.canvas.restore()
+    }
+    public fun place(area: InputArea, shape: Rect, parent: InputArea? = None) {
+        checkActive()
+        frame.place(area, shape, chooseParent(parent, inheritedParent))
+    }
+    public fun place(area: InputArea, shape: Path, parent: InputArea? = None) {
+        checkActive()
+        frame.place(area, shape, chooseParent(parent, inheritedParent))
+    }
+    public fun children(parent: InputArea? = None) {
+        checkActive()
+        if (pass.presentedChildren)
+            throw IllegalStateException(Some("children were already presented"))
+        pass.presentedChildren = true
+        val inputParent = chooseParent(parent, inheritedParent)
+        var index = 0L
+        for (child in node.children) {
+            when (node.placements[index]) {
+                case Some(origin) -> child.scene(frame, origin, inputParent)
+                case None -> {}
+            }
+            index += 1L
+        }
+    }
+    internal fun finish() {
+        if (!pass.presentedChildren) {
+            for (origin in node.placements)
+                if (origin != None)
+                    throw IllegalStateException(Some("placed children must be presented"))
+        }
+    }
+    internal fun end() {
+        active = false
+    }
+}
+
+private fun chooseParent(requested: InputArea?, inherited: InputArea?): InputArea? =
+    when (requested) {
+        case Some(value) -> Some(value)
+        case None -> inherited
+    }
+
+internal fun MountedNode.scene(frame: FrameContext, origin: Point, parent: InputArea?) {
+    if (!active || !root.isOpen)
+        return
+    when (body) {
+        case Empty -> {}
+        case Component(_) -> children[0L].scene(frame, origin, parent)
+        case Element(instance) -> frame.withState {
+            childFrame ->
+            childFrame.canvas.translate(origin.x, origin.y)
+            val result =
+                metrics ?: throw IllegalStateException(Some("element has not been measured"))
+            val context = SceneContext(this, childFrame, result.size, parent)
+            try {
+                evaluateUi<Unit>(None) { instance.value.scene(context) }
+                if (active && root.isOpen)
+                    context.finish()
+                Unit
+            } finally {
+                context.end()
+            }
+        }
+    }
+}

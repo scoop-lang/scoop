@@ -1,6 +1,6 @@
 # Scoop 公共 UI 样式规范
 
-日期：2026-11-02。状态：graphics 滤镜／图层、通用嵌套 PaintContext、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成 macOS aarch64 实施和 x86_64 补验。分批范围见 [UI 设计](../ui/DESIGN.md)与[实施记录](../ui/PROGRESS.md)；x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续。
+日期：2026-11-02。状态：graphics 滤镜／图层、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成原有 macOS 验证，见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与纯绘图分离按[基础交互实施记录](../ui/foundations/PROGRESS.md)验收；各批验证 aarch64，全部功能完成后再统一验证 x86_64，Windows 后续。分批范围见 [UI 设计](../ui/DESIGN.md)。
 
 ## 1. 分层与接入
 
@@ -10,7 +10,7 @@
 
 `styled(content, style = Style(), key = ViewKey.Position)` 始终建立相同具体类型的普通组件／元素及单个内容子项，包括空 Style。更新只替换 Props；在相同 key 和类型下，从无效果到有阴影、阴影移除、参数或效果顺序改变，都保留内容的实例和 State。调用者改变 content 自身的 key／类型时继续执行正常重挂载规则。
 
-第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 paint 中调用公共 `StylePainter.paint(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 PaintContext，可绘制自己的内容并调用 paintChildren。StylePainter 同时提供 Canvas／Rect 入口，供真实离屏组合使用。隔离复用通用 PaintContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。
+第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 scene 中调用公共 `StylePainter.scene(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 SceneContext，可提交 draw 块并调用 children。StylePainter 同时保留独立的 paint(Canvas, Rect, Style, content) 入口，供真实离屏组合使用。隔离复用通用 SceneContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。
 
 ## 2. 描述与参数
 
@@ -56,11 +56,11 @@ styled 把同样的约束传给唯一子项，原点放置，并原样返回其 
 
 StylePainter 是实际 Element 拥有的 Closeable 缓存，通过 ComponentScope 登记一次。它保留当前参数对应的滤镜和必要轮廓，参数未变复用；新结果完整构造后替换，及时关闭旧对象。失败关闭本次临时结果，旧缓存保持可清理。卸载、原生窗口关闭和异常退出沿正常 scope 路径释放，不把历代滤镜逐帧追加进 scope。
 
-StylePainter 的一个 paint 回调结束前，不能重入同一 painter 或关闭它；这些调用报告状态错误。另一个 painter 可在内容回调内正常嵌套，Canvas／PaintContext 隔离各自借用，回调抛错后恢复原状态。
+StylePainter 的一个 scene／paint 回调结束前，不能重入同一 painter 或关闭它；这些调用报告状态错误。另一个 painter 可在内容回调内正常嵌套，Canvas／SceneContext 隔离各自借用，回调抛错后恢复原状态。
 
 首批不缓存子树图像或显示列表。每个真实帧重画当帧内容，filter／轮廓缓存不代替内容更新，因此文字、透明图像替换、子项 State 和动画不会因为 Style 引用不变而滞后。未来若有实际需求增加像素缓存，失效必须包含内容、尺寸、DPI、效果参数与子项动画，不能只比较 Style。
 
-静态样式没有时钟、timer、轮询或 UI 更新任务。资源存在本身不请求帧。参数动画由所属 Element 的 Surface Animatable 驱动，在 update／输入中设置真实变化的目标，在 paint 读取已采样值交给 StylePainter；不在 paint 重启动画，不要求每帧写 State 或重建父组件。普通 styled 的外部 Style 变化通过 Props 进入。
+静态样式没有时钟、timer、轮询或 UI 更新任务。资源存在本身不请求帧。参数动画由所属 Element 的 Surface Animatable 驱动，在 update／输入中设置真实变化的目标，在 scene／draw 读取已采样值交给 StylePainter；不在 scene／draw 重启动画，不要求每帧写 State 或重建父组件。普通 styled 的外部 Style 变化通过 Props 进入。
 
 动画完成、暂停、取消、隐藏及卸载遵守既有 Surface 停帧合同。稳定区间同时停止逻辑更新、测量／绘制、平台帧需求和 GPU 提交；只检查画面相同不足以验收。替换滤镜不会引入额外驱动器。
 

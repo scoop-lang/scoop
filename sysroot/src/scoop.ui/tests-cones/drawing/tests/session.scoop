@@ -33,7 +33,7 @@ private class UiDrawingTest {
 }
 
 private enum DrawingPhase {
-    Starting, Settle, Idle, Click, AnimationIdle, Unplaced, UpdatedUnplaced, Restored, Hidden, Done
+    Starting, Settle, Idle, Click, AnimationIdle, Unplaced, UpdatedUnplaced, Restored, RestoredClick, Hidden, Done
 }
 
 internal class DrawingProbe {
@@ -49,6 +49,7 @@ internal class DrawingProbe {
     var view: ViewProbe? = None
     var lastMeasure: MeasureContext? = None
     var lastPaint: PaintContext? = None
+    var lastScene: SceneContext? = None
     var lastCanvas: Canvas? = None
     var lastChildWidth = 0.0
     var lastPlaced = true
@@ -68,6 +69,8 @@ internal class DrawingProbe {
     private var quietPaints = 0
     private var quietRenders = 0
     private var unplacedPaints = 0
+    private var drawsBeforeClick = 0
+    private var restoredPaints = 0
 
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -110,11 +113,14 @@ internal class DrawingProbe {
                 assertQuiet()
                 assertFailsWith<IllegalStateException> { lastMeasure!!.childCount }
                 assertFailsWith<IllegalStateException> { lastPaint!!.canvas }
+                assertFailsWith<IllegalStateException> { lastScene!!.size }
                 assertFailsWith<IllegalStateException> { lastCanvas!!.save() }
                 assertEquals("background", sequence[0L])
                 assertEquals("child", sequence[1L])
                 assertEquals("sibling", sequence[2L])
                 assertEquals("foreground", sequence[3L])
+                drawsBeforeClick = leaf!!.draws
+                assertTrue(drawsBeforeClick > 0)
                 phase = DrawingPhase.Click
                 waitFor(application, 5000L)
                 assertTrue(view!!.button(45.0, 58.0, true))
@@ -131,6 +137,7 @@ internal class DrawingProbe {
                 assertEquals(1, completions)
                 assertEquals(70.0, lastChildWidth)
                 assertEquals(2, renders)
+                assertEquals(drawsBeforeClick, leaf!!.draws)
                 assertTrue(leaf!!.area!!.hasFocus)
                 unplacedPaints = leaf!!.paints
                 placed.value = false
@@ -161,6 +168,7 @@ internal class DrawingProbe {
             }
             case Click -> {
                 if (lastCompleted && leaf!!.width!!.state == AnimationState.Finished) {
+                    drawsBeforeClick = leaf!!.draws
                     snapshot()
                     phase = DrawingPhase.AnimationIdle
                     waitFor(application, 150L)
@@ -192,6 +200,17 @@ internal class DrawingProbe {
                     assertEquals(1, leaf!!.mounted)
                     assertFalse(leaf!!.area!!.hasFocus)
                     assertTrue(leaf!!.area!!.requestFocus())
+                    restoredPaints = leaf!!.paints
+                    phase = DrawingPhase.RestoredClick
+                    assertTrue(view!!.button(45.0, 58.0, true))
+                    assertTrue(view!!.button(45.0, 58.0, false))
+                }
+            }
+            case RestoredClick -> {
+                if (count.value == 3 && leaf!!.paints > restoredPaints) {
+                    assertEquals(2, downs)
+                    assertEquals(3, parentDowns)
+                    assertEquals(drawsBeforeClick, leaf!!.draws)
                     window!!.setVisible(false)
                     enabled.value = false
                     phase = DrawingPhase.Hidden

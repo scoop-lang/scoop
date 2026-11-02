@@ -191,16 +191,20 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         context.placeChild(0L, origin)
         return offsetMetrics(child, size, origin.y)
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val value = props.value
         val visual = drawing!!.visual
         val geometry = drawing!!.geometry
         val painter = painters!!.get(value.theme)
-        painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Background)
-        context.place(area!!, geometry.bounds)
-        content!!.paint(context, geometry.bounds, geometry.contentStyle) {
-            children -> children.paintChildren(Some(area!!))
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
-        painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Foreground)
+        context.place(area!!, geometry.bounds)
+        content!!.scene(context, geometry.bounds, geometry.contentStyle) {
+            children -> children.children(Some(area!!))
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
+        }
     }
 }

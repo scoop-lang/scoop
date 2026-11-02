@@ -116,14 +116,17 @@ internal class FailureLeaf(
         }
         return LayoutMetrics(constraints.constrain(Size(80.0, 50.0)))
     }
-    public override fun paint(context: PaintContext) {
-        context.canvas.saveLayer(0.5)
-        context.canvas.drawImage(resource!!.image, Rect(0.0, 0.0, 40.0, 40.0))
-        if (record.mode == FailureMode.Paint)
-            throw record.primary
+    public override fun scene(context: SceneContext) {
+        context.saveLayer(0.5)
+        context.draw {
+            paint ->
+            paint.canvas.drawImage(resource!!.image, Rect(0.0, 0.0, 40.0, 40.0))
+            if (record.mode == FailureMode.Paint)
+                throw record.primary
+        }
         if (record.mode != FailureMode.MissingPaint)
-            context.paintChildren()
-        context.canvas.restore()
+            context.children()
+        context.restore()
     }
     public override fun onUnmount() {
         record.leafUnmounts += 1
