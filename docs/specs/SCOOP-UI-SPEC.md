@@ -336,6 +336,8 @@ Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入�
 
 `SceneContext.children()` 按描述顺序呈现本次已测量、放置的直接子项，跳过未放置子树。有已放置子项时必须调用一次；没有已放置子项时可不调用或调用一次。重复调用报告状态错误。元素可在调用前后提交背景和前景 draw；子项拥有独立场景作用域，不能把变换泄漏到兄弟。父子关系不隐式裁剪，输入父关系由挂载作用域确定。
 
+`SceneContext.children(order: Array<Long>)` 指定这一遍的子项呈现顺序，order 必须是全部直接子项索引的完整排列，包含本次未放置的子项；未放置项仍跳过。长度、重复或越界错误在任何子项呈现前报告参数错误，失败后仍可提供有效排列。两个重载共用一次呈现计数及 withState 的借用规则。此顺序只影响场景／绘图和重叠命中，不改变逻辑 children、挂载身份、事件父关系或 FocusScope 的 Tab 顺序。
+
 `SceneContext.withState<T>(block: (SceneContext) -> T): T` 继承 size、time 及同一子项呈现计数，隔离变换／clip／图层状态；子作用域内拒绝使用父 context。draw 回调期间同样不能使用外层 SceneContext，即使通过闭包取得引用也会报状态错误。正常或异常退出均恢复 Canvas 保存层级，结束子 context，未配对的内部 save／saveLayer 不会污染调用方。
 
 `PaintContext.withState<T>(block: (PaintContext) -> T): T` 只隔离纯绘图块内的 Canvas；没有区域或子项接口。SceneContext、PaintContext、Canvas、MeasureContext 都只在对应同步借用内有效，不能跨帧、跨线程或跨挂起保存。用户场景／绘图异常按第 9 节关闭，失败帧不发布几何。输入的变换、裁剪和 layer 顺序均使用实际 graphics 状态，不以视觉滤镜的像素扩展扩大区域。

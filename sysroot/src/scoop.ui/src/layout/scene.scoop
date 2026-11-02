@@ -128,13 +128,32 @@ public class SceneContext internal constructor(
         if (pass.presentedChildren)
             throw IllegalStateException(Some("children were already presented"))
         pass.presentedChildren = true
-        var index = 0L
-        for (child in node.children) {
-            when (node.placements[index]) {
-                case Some(origin) -> child.scene(frame, origin)
-                case None -> {}
-            }
-            index += 1L
+        for (index in 0L ..< node.children.size)
+            presentChild(index)
+    }
+    /** Presents a complete permutation without changing logical mount or input ownership. */
+    public fun children(order: Array<Long>) {
+        checkActive()
+        if (pass.presentedChildren)
+            throw IllegalStateException(Some("children were already presented"))
+        requireUi(order.size == node.children.size, "child order must include every child")
+        val visited = MutableArray<Boolean>(node.children.size) { _ -> false }
+        for (index in order) {
+            requireUi(
+                index >= 0L && index < node.children.size,
+                "child order index is out of bounds"
+            )
+            requireUi(!visited[index], "child order contains a duplicate index")
+            visited[index] = true
+        }
+        pass.presentedChildren = true
+        for (index in order)
+            presentChild(index)
+    }
+    private fun presentChild(index: Long) {
+        when (node.placements[index]) {
+            case Some(origin) -> node.children[index].scene(frame, origin)
+            case None -> {}
         }
     }
     internal fun finish() {

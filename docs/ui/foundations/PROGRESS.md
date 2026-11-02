@@ -12,7 +12,9 @@
 | B1：作用域快捷键 | 已完成 aarch64 实施和定向验证 |
 | B2a：可见几何、焦点作用域与 Tab | 已完成 aarch64 实施和定向验证 |
 | B2b：组内键盘导航与 roving | 已完成 aarch64 实施和定向验证 |
-| C：Absolute、portal、同窗口模态 | 待实施 |
+| C1：Absolute 与显式子项呈现顺序 | 已完成 aarch64 实施和定向验证 |
+| C2：portal 与 anchor 定位 | 待实施 |
+| C3：同窗口模态、关闭与宿主快捷键 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -84,3 +86,11 @@ Surface 在成功聚焦时记录 InputArea.focusRevision；组内历史直接使
 Scoop 格式化、相关库与主题示例生产类型检查、aarch64 release 构建通过。10 项定向 scoop.test 通过：Surface InputFocusTest 7 项，UI navigation、既有 UI focus 和 ShowcaseWindowTest 各 1 项。导航回归覆盖稀疏网格、RTL、Home／End、循环、边界消费、不可见／禁用跳过、鼠标和直接请求的历史、tabStop／roving、配置失败、成员更换及关闭；示例实际执行 Tab／方向键／Enter，随后完成主题切换与停帧检查。主题 Cone 通过测试程序的 filter 只运行窗口组合用例。
 
 桌面入口曾因临时应用替换后的签名失配未能启动，改为新文件替换并重新签名整个测试应用后重跑通过。示例的关闭回归发现准备期焦点重试查询已销毁窗口，已限制到准备阶段；相关焦点／导航测试也在关闭后停止重试，三个窗口用例重跑全部通过。没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，后续所需构建缓存和测试应用入口保留。
+
+## C1：Absolute 与显式子项呈现顺序
+
+SceneContext.children(order) 接受直接子项索引的完整排列，在开始呈现前检查参数，与无参入口及 withState 共用一次呈现计数。Absolute 使用普通 Element 测量协议：先确定受父约束收敛的有限容器尺寸，再按 Start／End／Center／Stretch 测量和定位每个子项；无界轴要求明确尺寸，允许负偏移，不隐式 clip。zIndex 在 Props 逻辑更新时排序，只改变实际场景和重叠命中，保留 keyed 挂载与 Tab 顺序。padding 校验所得值随 Props 复用。
+
+修改的 Scoop 文件格式化、相关六个 UI 库生产类型检查及 aarch64 release 构建通过。5 项定向 scoop.test 通过：AbsoluteLayoutTest 3 项、UI drawing 1 项、AbsoluteUiTest 1 项。纯布局覆盖有界／无界、显式尺寸收敛、四种轴策略、负偏移及非法／溢出参数；实际窗口读取叠放像素并派发鼠标／Tab，验证每项每帧只测量和呈现一次、zIndex 同值稳定、Props 更新保留实例与焦点顺序、祖先裁剪仍限制像素和命中。既有绘制回归验证无效排列不消耗呈现机会、跨 withState 仍只呈现一次。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，独立 sysroot、构建缓存和后续测试入口保留。

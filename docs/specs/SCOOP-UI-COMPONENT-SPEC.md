@@ -25,6 +25,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | Checkbox | 布尔 checked、外部 Binding 或自有状态、指针与 Space 切换及 disabled 外观 |
 | Row／Column | 子项的单轴排列、spacing 与交叉轴对齐 |
 | Stack | 子项叠放和对齐 |
+| Absolute | 有限容器内的显式轴定位、拉伸及同层 zIndex |
 | Frame | 单个子项的 padding、固定尺寸、对齐、背景和显式 clip |
 
 这些控件是普通的持久 Component class，构造器接收各自的 Props；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
@@ -186,6 +187,16 @@ FrameProps 保存 content、可选 width／height、可选 padding、Alignment�
 这两种外观配置更新同一个 Frame 及 Element 的 Props，不增删包装层。主题表面在 Background 与 Foreground 之间通过 StylePainter 绘制内容；普通装饰使用相同 StylePainter 的完整顺序。解除主题表面时清空当前 ThemePainterCache 并释放其资源，后续可再取得 painter；不会在每次切换时向作用域追加所有历史资源。
 
 各容器消费 measureChild 返回的 LayoutMetrics；Frame 把子项基线加上实际 y 偏移后返回。首期 Row／Column／Stack 未规定基线对齐策略，返回 None，不自动选取某个后代的基线。容器无截断策略时仍测量并放置所有子项，不能把父约束溢出当成隐式卸载。
+
+### 6.1 Absolute
+
+AbsoluteProps 包含 children: Array<AbsoluteChild>、可选 width／height 及 padding: Insets（默认零）。AbsoluteChild 保存 View、horizontal／vertical: AbsoluteAxis（默认 Start(0)）和 zIndex: Int = 0；absolute 工厂与 Absolute 组件消费同一 Props。子 View 的 key 及逻辑顺序直接保留，不为 zIndex 重排逻辑子树。
+
+AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size?) 从起边、终边或中心放置；Stretch(start, end) 由两端确定 tight 尺寸。offset／start／end 必须有限，允许负值；size 若提供必须有限非负。Start／End 没有 size 时用 max(0, extent - offset) 作最大测量范围，Center 使用内容轴 extent；指定 size 使用 tight 约束，可溢出容器。Stretch 的 extent - start - end 为 tight 尺寸，负值或非有限结果报参数错误。
+
+容器先用显式 width／height 或该轴的有限最大父约束确定自身尺寸，再受完整父约束收敛；无界轴必须提供显式尺寸。子项不反向撑大 Absolute。扣除 padding 得到非负内容范围，每个直接子项测量一次；测量后用实际子项尺寸计算 End／Center 位置，再加 padding 原点。Absolute 不创建输入区域，不隐式 clip，也不依赖环境主题；需要裁剪和装饰时组合 Frame。尺寸及坐标计算溢出按普通参数错误报告。
+
+同层子项按 zIndex 升序、同值按描述顺序呈现，使用 SceneContext.children(order)；排序在 Props 逻辑更新时完成，绘制与输入使用同一呈现顺序。Tab 与路由继续使用原逻辑挂载顺序。Absolute 不突破祖先裁剪，不代替 portal 或模态屏障。
 
 首期不实现 flex／weight、grid、intrinsic 多轮协商、滚动或虚拟化。增加这些布局策略时继续使用或按具体需求扩展公开布局协议，不能在框架中增加本库专用类型分支。
 

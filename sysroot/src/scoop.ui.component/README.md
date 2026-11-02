@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label、Button、Checkbox、Row／Column／Stack 和 Frame，使用公开的 Component／Element、ParagraphHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label、Button、Checkbox、Row／Column／Stack、Frame 和 Absolute，使用公开的 Component／Element、ParagraphHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -39,6 +39,8 @@ ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。In
 
 Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props 更新；Stack 按描述顺序叠放。Frame 提供明确的尺寸、padding、两轴对齐和公共装饰，也可以选择 SurfaceKind 使用主题表面。未选表面时无需主题来源；从普通 Frame 切换为主题表面或反向切换都保留内容身份。Frame 透传经实际偏移后的基线，其他容器首期没有基线对齐策略。
 
+`absolute([AbsoluteChild(view, horizontal, vertical, zIndex), ...], width, height, padding)` 在有限容器内定位。AbsoluteAxis 提供 Start／End／Center 的偏移与可选 tight 尺寸，以及 Stretch 两端定位；允许负偏移，无界父轴需要显式容器尺寸。容器不由子项撑开，每项只测量一次，不隐式裁剪。zIndex 控制同层呈现和命中，同值按描述顺序；子项 key、逻辑挂载和 Tab 顺序保留。布局错误在参数／测量边界报告，外观可组合 Frame。
+
 有限宽度的 Label 使用定宽段落排版，无界宽度使用 layoutUnwrapped。行内按钮需要限定宽度时，可用 Frame.width 明确指定；文本行内子项仍只测量一次，不能要求先得到所在行的剩余宽度。
 
 [主题展示示例](examples/themes/README.md)并列展示公共绘图部件，提供三风格、明暗、系统跟随和真实控件／效果切换。
@@ -46,3 +48,5 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 [下载与后台校验示例](examples/download/README.md)展示 UI owner 的异步 HTTP 与真实后台 Thread 如何协作，通过 ApplicationProxy 合并发布进度；覆盖共享业务 State、组件自有状态、取消／替换以及应用退出后的线程回收。
 
 规范见 [基础控件规范](../../../docs/specs/SCOOP-UI-COMPONENT-SPEC.md)和[主题绘图规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md)。普通覆盖／来源／布局测试在本 Cone，真实 Metal／输入／主题切换组合位于 `tests-cones/interaction`，容器与富文本组合位于 `tests-cones/layout`；实施范围与运行结果记录在 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
+
+`tests-cones/absolute` 验证显式子项呈现顺序、真实像素与命中、keyed 更新和 Tab。焦点、组内导航与新增基础容器的本期结果见 [基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)。

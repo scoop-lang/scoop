@@ -144,7 +144,10 @@ internal class DrawingPanel(
                 assertFailsWith<IllegalStateException> {
                     context.place(area!!, Rect(0.0, 0.0, 1.0, 1.0))
                 }
-                child.withState { nested -> nested.children() }
+                assertFailsWith<IllegalArgumentException> { child.children([0L]) }
+                assertFailsWith<IllegalArgumentException> { child.children([0L, 0L]) }
+                assertFailsWith<IllegalArgumentException> { child.children([0L, 2L]) }
+                child.withState { nested -> nested.children([0L, 1L]) }
                 assertFailsWith<IllegalStateException> { child.children() }
                 child
             }
