@@ -24,7 +24,7 @@ public class FocusScope internal constructor(
 
     internal val active: Boolean get() =
         !closed && node.active && node.root.isOpen && !input.isClosed
-    internal val available: Boolean get() = active && input.isEnabledInHierarchy
+    internal val available: Boolean get() = active && input.isInputAllowed
     public val isClosed: Boolean get() {
         node.root.checkThread()
         return closed || input.isClosed

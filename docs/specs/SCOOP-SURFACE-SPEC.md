@@ -146,7 +146,21 @@ InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返�
 
 进入节点的默认阶段时取得登记快照；中途新增的登记从后续事件开始，已取消的登记跳过。每次回调都有单独的 RoutedEventContext 借用，前一个回调返回后其上下文即失效。作用域关闭、禁用和原路径快照继续遵守本节路由规则。
 
-### 6.2 作用域快捷键（macOS）
+### 6.2 输入边界与按下预处理
+
+InputBoundary(input: InputScope) 在该窗口安装输入域，按建立顺序叠放，最新未关闭边界生效；同一 scope 同时只登记一个边界。它是显式 Closeable，提供 input、isClosed、isCurrent。SurfaceWindow.inputBoundary 返回当前边界或 None。域改变不改变逻辑 parent，也不重新发布几何；关闭非当前边界不改变现有输入域，关闭当前边界恢复前一个未关闭边界或窗口根。
+
+新域立即限制可接受目标。命中、程序化 focus、Keyboard／ModifiersChanged 的缺省目标和普通 capture／target／bubble／default 均停在当前 input；没有命中或焦点时从该域根接收输入，不能落回背景窗口根。路径中的区域只在域内要求已提交的可逆几何，域外的区域几何不再成为 portal 模态的前提；逻辑祖先的关闭／禁用仍使后代失效。InputScope.isInputAllowed 查询这种不依赖几何的逻辑准入，isEnabledInHierarchy 仍只查询关闭／启用状态。UI 的待聚焦请求也必须先满足当前域准入。
+
+域切换结束旧按下路径，退出当前派发后向完整旧路径发送 InputCancelReason.BoundaryChanged；按键仍保持按下时使用空路径，直到全部释放，不能让剩余 Move／Up 或追加按钮落向新域。已失效焦点按普通规则退出并关闭旧 IME；终结通知和旧 IME 会话的队列收尾继续遵守原归属，不把它们当作新的背景用户输入。一次输入回调内安装边界后，后续域外传播与默认处理器立即跳过；冻结路径不会扩展成另一条新路径。
+
+input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续阻止背景输入，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
+
+InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前域根（无边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
+
+预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
+
+### 6.3 作用域快捷键（macOS）
 
 ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
 

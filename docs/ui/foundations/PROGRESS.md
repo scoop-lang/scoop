@@ -14,7 +14,9 @@
 | B2b：组内键盘导航与 roving | 已完成 aarch64 实施和定向验证 |
 | C1：Absolute 与显式子项呈现顺序 | 已完成 aarch64 实施和定向验证 |
 | C2：portal 与 anchor 定位 | 已完成 aarch64 实施和定向验证 |
-| C3：同窗口模态、关闭与宿主快捷键 | 待实施 |
+| C3a：输入边界与按下预处理 | 已完成 aarch64 实施和定向验证 |
+| C3b：同窗口模态、关闭与焦点恢复 | 待实施 |
+| C3c：宿主快捷键 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -104,3 +106,13 @@ OverlayHandle 管理一次挂载会话，当前回调只收到一次关闭通知
 修改的 Scoop 文件格式化、相关六个 UI 库生产类型检查及 aarch64 release 构建通过。9 项定向 scoop.test 通过：OverlayPlacementTest 5 项，以及 overlay、UI composition、drawing、errors 各 1 项。真实窗口验证祖先变换／裁剪外的像素与命中、嵌套路由、逻辑重排与层次／Tab 顺序、resize、三种可见性策略、帧失效、当前回调、重复关闭、重新挂载和停帧；错误回归新增重复句柄及自引用下的部分树清理，绑定回归覆盖循环与跨根拒绝。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，独立 sysroot、构建缓存和后续测试入口保留。
+
+## C3a：输入边界与按下预处理
+
+Surface 提供显式 InputBoundary 登记，当前域统一限制命中、capture／bubble／default、快捷键与程序化聚焦；没有区域几何的域根仍接收键盘和空白指针输入。更换域会在当前回调退出后向完整旧路径发送 BoundaryChanged 取消，剩余按键序列不改投背景。关闭 scope 不自动释放屏障，供下一批在层移除成功后解除；嵌套登记支持非当前项先关闭。
+
+InputScope.beforePointerPress 只在当前域根处理一串鼠标按钮的第一次按下，先于 hover 和普通路由。返回值选择消费整串按钮或让冻结的原目标继续，不重新命中；异常同样结束该次捕获，避免孤立的释放事件。UI FocusTarget／FocusScope 使用独立的 isInputAllowed 查询拒绝域外 pending。回调内安装边界后重入的键盘事件回落到新域根，旧焦点的终结通知仍在正常收尾边界交付。
+
+修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。44 项定向 scoop.test 通过：Surface 输入 41 项，以及 UI focus、既有 portal、原生 IME 各 1 项。覆盖域外祖先缺少几何、所有传播阶段截断、边界嵌套与关闭顺序、旧捕获取消、旧 IME 排队事务、安装失败清理、预处理坐标冻结／消费／异常，以及真实窗口中背景直接和待聚焦请求被拒绝。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，独立 sysroot、构建缓存和后续测试入口保留。

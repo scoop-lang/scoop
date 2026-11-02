@@ -26,6 +26,8 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。禁用、未放置和完全裁剪的目标不作为新的 Tab 停靠点；已聚焦目标仅被滚动裁剪时保持当前会话。
 
+FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域外请求立即失败，也不会作为等待首次放置的 pending 留到边界关闭后执行。这里仅提供输入隔离的基础；完整模态的显示、首次聚焦和关闭恢复由后续层会话接入。
+
 `portal(content, PortalOptions(...), key)` 把一个子 View 放到当前窗口的层出口。原位置只返回约束下限的占位尺寸，内容在层约束下测量一次；它越过原祖先的 transform／clip，继续沿原挂载树路由输入并参与 Tab。相同 key 保留会话，逻辑重排不改变层的打开顺序，子 portal 位于父层之后。
 
 相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐。

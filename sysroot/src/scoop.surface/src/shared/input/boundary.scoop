@@ -1,0 +1,86 @@
+package scoop.surface
+
+/** Explicit input barrier; a retired scope stays blocking until this registration closes. */
+public class InputBoundary public constructor(public val input: InputScope): Closeable {
+    internal var closed = false
+    private val owner = input.owner
+    init {
+        input.checkOpen()
+        try {
+            owner.installBoundary(this)
+        } catch (error: Throwable) {
+            closed = true
+            throwFailure(cleanupFailure(Some(error)) { owner.removeBoundary(this) })
+            throw error
+        }
+    }
+    public val isClosed: Boolean get() {
+        owner.checkThread()
+        return closed
+    }
+    public val isCurrent: Boolean get() {
+        owner.checkThread()
+        return !closed && sameBoundary(owner.currentBoundary, Some(this))
+    }
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        owner.removeBoundary(this)
+    }
+}
+
+internal fun sameBoundary(left: InputBoundary?, right: InputBoundary?): Boolean =
+    when ((left, right)) {
+        case(Some(a), Some(b)) -> a === b
+        case(None, None) -> true
+        else -> false
+    }
+
+internal val InputRouter.currentBoundary: InputBoundary? get() =
+    if (boundaries.size == 0L)
+        None
+    else
+        Some(boundaries[boundaries.size - 1L])
+
+internal val InputRouter.inputRoot: InputScope get() = currentBoundary?.input ?: rootScope
+
+internal fun InputRouter.installBoundary(value: InputBoundary) {
+    checkOpen()
+    for (current in boundaries)
+        requireInput(current.input !== value.input, "input scope already has a boundary")
+    boundaries.add(value)
+    pendingBoundaryChange = true
+    changed()
+}
+
+internal fun InputRouter.removeBoundary(value: InputBoundary) {
+    val previous = currentBoundary
+    for (index in 0L ..< boundaries.size) {
+        if (boundaries[index] === value) {
+            boundaries.removeAt(index)
+            if (!sameBoundary(previous, currentBoundary)) {
+                pendingBoundaryChange = true
+                changed()
+            }
+            return
+        }
+    }
+}
+
+internal fun InputRouter.allows(scope: InputScope): Boolean {
+    if (closed)
+        return false
+    val boundary = inputRoot
+    var reached = false
+    var cursor: InputScope? = Some(scope)
+    while (true) {
+        val current = cursor ?: return reached
+        if (current.closed || !current.accepts)
+            return false
+        if (current === boundary)
+            reached = true
+        cursor = current.ancestor
+    }
+}

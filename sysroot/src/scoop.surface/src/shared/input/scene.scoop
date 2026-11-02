@@ -82,20 +82,31 @@ internal class InputFrame(val owner: InputRouter): Closeable {
 
 internal fun InputRouter.path(scope: InputScope): Array<InputScope> {
     val result = ArrayList<InputScope>()
+    val boundary = inputRoot
+    var reached = false
     var next: InputScope? = Some(scope)
     while (true) {
-        val current = next ?: return result.toArray()
+        val current =
+            next ?:
+                return if (reached)
+                    result.toArray()
+                else
+                    []
         if (current.closed || !current.accepts)
             return []
-        when (current.area) {
-            case Some(area) -> {
-                val placement = scene.find(area) ?: return []
-                if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
-                    return []
+        if (!reached) {
+            when (current.area) {
+                case Some(area) -> {
+                    val placement = scene.find(area) ?: return []
+                    if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
+                        return []
+                }
+                case None -> {}
             }
-            case None -> {}
+            result.add(current)
+            if (current === boundary)
+                reached = true
         }
-        result.add(current)
         next = current.ancestor
     }
 }

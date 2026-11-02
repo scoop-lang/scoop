@@ -184,6 +184,17 @@ internal class FocusProbe {
             }
             case 16 -> next(active, 3L, repeat = true)
             case 17 -> {
+                InputBoundary(scopes[2L]!!.input).use {
+                    boundary ->
+                    assertTrue(boundary.isCurrent)
+                    assertFalse(handles[0L].requestFocus())
+                    assertFalse(handles[6L].requestFocus())
+                    assertFalse(handles[6L].isPending)
+                    assertFalse(rootScope!!.requestFocus())
+                    assertFalse(group!!.requestFocus())
+                    assertTrue(handles[2L].requestFocus())
+                    assertFocus(2L)
+                }
                 assertFalse(handles[4L].requestFocus())
                 assertTrue(handles[0L].requestFocus())
                 assertTrue(handles[6L].requestFocus())

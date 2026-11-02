@@ -14,6 +14,7 @@ public class InputScope internal constructor(
     private var capture: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     private var action: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     private var finished: (InputEvent) -> Unit = { _ -> Unit }
+    private var press: (InputPress) -> Boolean = { _ -> false }
     public val isClosed: Boolean get() {
         owner.checkThread()
         return closed
@@ -28,6 +29,21 @@ public class InputScope internal constructor(
                 return false
             cursor = current.ancestor
         }
+    }
+    /** Logical admission to the current input domain, independent of area placement. */
+    public val isInputAllowed: Boolean get() {
+        owner.checkThread()
+        return owner.allows(this)
+    }
+    /** Only the current domain root receives the first press of a button sequence. */
+    public var beforePointerPress: (InputPress) -> Boolean
+    get() {
+        owner.checkThread()
+        return press
+    }
+    set(value) {
+        checkOpen()
+        press = value
     }
     public var parent: InputScope?
     get() {

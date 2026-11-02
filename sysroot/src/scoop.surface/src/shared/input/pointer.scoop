@@ -18,9 +18,14 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
     val target = hit(point)
     val fallback =
         if (target.size == 0L)
-            path(rootScope)
+            path(inputRoot)
         else
             target
+    val firstPress =
+        when (event) {
+            case Button(_, _, ElementState.Pressed, _) -> buttons.size == 0L
+            else -> false
+        }
     val selected =
         when (event) {
             case Button(_, button, ElementState.Pressed, _) -> {
@@ -49,7 +54,10 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
         }
     // Freeze all coordinates before hover callbacks can change logical or published geometry.
     val chain = deliveries(selected, Some(point))
+    val consumed = interceptPress(firstPress, chain, state, event)
     refreshHover(state.time)
+    if (consumed)
+        return
     val value = InputPointer(state, state.time)
     when (event) {
         case Moved(_) -> route(
@@ -84,11 +92,48 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
     }
 }
 
-internal fun InputRouter.reconcilePress() {
+private fun InputRouter.interceptPress(
+    first: Boolean,
+    chain: Array<RouteDelivery>,
+    state: PointerState,
+    event: PointerEvent
+): Boolean {
+    if (!first || chain.size == 0L)
+        return false
+    val(button, clicks) =
+        when (event) {
+            case Button(_, value, ElementState.Pressed, count) -> (value, count)
+            else -> return false
+        }
+    val root = inputRoot
+    if (!root.isInputAllowed)
+        return false
+    try {
+        val consumed =
+            root.beforePointerPress(
+                InputPress(chain[0L].scope, InputPointer(state, state.time), button, clicks)
+            )
+        if (consumed)
+            pressed = Some([])
+        return consumed
+    } catch (error: Throwable) {
+        pressed = Some([])
+        throw error
+    }
+}
+
+internal fun InputRouter.reconcilePress(boundaryChange: Boolean = false) {
     when (pressed) {
         case Some(route) -> {
-            if (route.size > 0L && !samePath(route, path(route[0L])))
-                cancelPress(InputCancelReason.AreaChanged, inputObservation(), false)
+            if (route.size > 0L && (boundaryChange || !samePath(route, path(route[0L]))))
+                cancelPress(
+                    if (boundaryChange)
+                        InputCancelReason.BoundaryChanged
+                    else
+                        InputCancelReason.AreaChanged,
+                    inputObservation(),
+                    false
+                )
         }
         case None -> {}
     }

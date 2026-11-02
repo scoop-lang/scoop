@@ -33,6 +33,8 @@ internal class InputRouter(
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
     internal var focusRevision = 0uL
+    internal val boundaries = ArrayList<InputBoundary>()
+    internal var pendingBoundaryChange = false
     internal var ime = ImeSession.Off
     internal var imeCaret: Rect? = None
 
@@ -180,7 +182,9 @@ internal class InputRouter(
                     finishClose();
                     break
                 }
-                reconcilePress()
+                val boundaryChange = pendingBoundaryChange
+                pendingBoundaryChange = false
+                reconcilePress(boundaryChange)
                 if (closed)
                     continue
                 reconcileFocus()
@@ -242,6 +246,9 @@ internal class InputRouter(
                 scope.closed = true
                 scope.retireDefaultActions()
             }
+            for (boundary in boundaries)
+                boundary.closed = true
+            boundaries.clear()
             pending = true
         }
     }

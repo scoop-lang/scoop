@@ -64,8 +64,14 @@ internal fun InputRouter.routeFocused(event: InputEvent) {
 
 private fun InputRouter.focusedPath(): Array<InputScope> =
     when (activeFocus) {
-        case Some(area) -> path(area.scope)
-        case None -> path(rootScope)
+        case Some(area) -> {
+            val current = path(area.scope)
+            if (current.size == 0L)
+                path(inputRoot)
+            else
+                current
+        }
+        case None -> path(inputRoot)
     }
 
 internal fun InputRouter.notifyFocused(event: InputEvent) {

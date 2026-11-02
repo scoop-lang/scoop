@@ -7,6 +7,30 @@ import scoop.window.*
 @Test
 private class InputShortcutTest {
     @Test
+    fun `a boundary blocks outside shortcuts while its geometry free root remains usable`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            val domain = rig.router.createScope(None) { _, _ -> Unit }
+            ShortcutScope(rig.router.rootScope, [commandBinding("s", { log.add("window") })]).use {
+                _ -> ShortcutScope(domain, [commandBinding("s", { log.add("dialog") })]).use {
+                    local ->
+                    InputBoundary(domain).use {
+                        _ ->
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("dialog", log.trace)
+                        local.enabled = false
+                        rig.key(shortcutKey(command = true))
+                        assertEquals("dialog", log.trace)
+                    }
+                    rig.key(shortcutKey(command = true))
+                    assertEquals("dialog,window", log.trace)
+                }
+            }
+        }
+    }
+
+    @Test
     fun `window shortcuts keep exact modifiers physical positions and explicit repeat policy`() {
         InputRig().use {
             rig ->

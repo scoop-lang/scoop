@@ -396,6 +396,8 @@ roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab
 
 仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space 或改变选择状态。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；虚拟成员的 reveal 在滚动批次扩展。
 
+FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：位于当前 InputBoundary 之外的请求直接失败，不能在模态关闭后意外兑现。逻辑 enabled 状态查询与当前输入域资格分开；已有 pending 仍受新请求、目标退休和成功帧检查约束。
+
 ### 7.4 Surface 动画接入
 
 `scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它调用所属 SurfaceWindow 的 animations.value，并登记所得 `Animatable<T>` 随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。
