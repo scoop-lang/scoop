@@ -377,5 +377,6 @@ const fn cone_kind(kind: RequestedConeKind) -> ConeKind {
     match kind {
         RequestedConeKind::Library => ConeKind::Library,
         RequestedConeKind::Executable => ConeKind::Executable,
+        RequestedConeKind::NativeApp => ConeKind::NativeApp,
     }
 }

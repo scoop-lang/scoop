@@ -31,7 +31,7 @@ Scoop 尚未发布。本次直接重定义 `Cone.toml` 的初始 schema，与仓
 
 ### 2.1 Cone 声明
 
-`schema = 1` 必需。包含 `[cone]` 的清单定义一个 Cone，`group`、`name`、`version`、`kind` 必需，kind 为 `library` 或 `executable`。坐标语法和完整 `ConeIdentity` 仍由[语言规范 12.2](SCOOP-SPEC.md#122-cone-identity与conetoml)定义；Cone 自己的 version 必须是精确 SemVer。
+`schema = 1` 必需。包含 `[cone]` 的清单定义一个 Cone，`group`、`name`、`version`、`kind` 必需，kind 为 `library`、`executable` 或 `native-app`。后两者只作最终产品根，不能成为依赖；native-app 入口与共享库合同见语言规范 12.4 和编译器规范 2.8。坐标语法和完整 `ConeIdentity` 仍由[语言规范 12.2](SCOOP-SPEC.md#122-cone-identity与conetoml)定义；Cone 自己的 version 必须是精确 SemVer。
 
 ```toml
 schema = 1
@@ -120,7 +120,7 @@ kind = "executable"
 
 default-members 必须是成员子集；省略时，有根 Cone 则选根 Cone，virtual workspace 则选全部成员。从成员内部调用默认只选该成员，从 workspace 根调用使用 default-members。`--workspace` 选全部成员，重复 `-p group:name` 选指定成员；两者互斥。显式目录或 `Cone.toml` 使用该位置；省略输入时从 cwd 向上定位最近清单，再查找显式列出该成员的最近 workspace。仅位于workspace目录树中不自动获得成员身份；未列出的Cone独立处理，要求继承时则报未加入workspace。遇到独立 workspace 边界即停止，不把不同 workspace 的配置叠加。
 
-`run` 必须最终选中唯一 executable；多个根的 build/test/check/doc 共用调度并分别报告结果。单一 `-o` 不接受多个根。成员的默认输出放在 `target/<target>/<profile>/<group>/<name>/` 下，测试位于其 `tests/` 子目录，避免不同 group 的同名 Cone 覆盖。源码依赖构建结果仍使用共享 Cone cache。
+`run` 必须最终选中唯一 executable，native-app 报告需要 native host；多个根的 build/test/check/doc 共用调度并分别报告结果。单一 `-o` 不接受多个根。成员的默认输出放在 `target/<target>/<profile>/<group>/<name>/` 下，测试位于其 `tests/` 子目录，避免不同 group 的同名 Cone 覆盖。源码依赖构建结果仍使用共享 Cone cache。
 
 文档也保留各根的实际绑定。同身份源码在不同根中绑定不同依赖时，按根建立独立页面和搜索范围，由共同首页连接；输入相容时保留共同站点。文档编译按完整输入键共享，页面范围不进入语言身份，详见编译器与产物规范 2.7 的文档合同。
 
@@ -132,7 +132,7 @@ default-members 必须是成员子集；省略时，有根 Cone 则选根 Cone�
 
 ### 3.3 解析隔离
 
-解析单位是 `(root member, purpose, target)`。每个单位产生完整依赖闭包，同一闭包中每个 `group:name` 只能有一个版本和一个实际来源。不同 executable 或独立 library 根可以使用不同版本；一次 `--workspace` 不把这些闭包强制合并。
+解析单位是 `(root member, purpose, target)`。每个单位产生完整依赖闭包，同一闭包中每个 `group:name` 只能有一个版本和一个实际来源。不同 executable、native-app 或独立 library 根可以使用不同版本；一次 `--workspace` 不把这些闭包强制合并。
 
 例如 server → json 1.x，cli → json 2.x 可以同时存在；若 server 同时依赖两个分别要求 json 1.x 和 2.x 的库，则解析失败。生产和测试根分别锁定，测试闭包必须整体满足生产与测试约束，不强制复用另一个生产闭包的版本。profile 不改变求解结果；target 作为解析键用于实际 sysroot/prebuilt 选择。
 
@@ -183,7 +183,7 @@ workspace 根（独立 Cone 即自身）的 `[overrides]` 允许按 key 指定�
 
 ## 5. 版本解析与诊断
 
-求解变量是当前解析单位内的 `group:name`，取值为一个版本及实际来源。边携带要求与清单位置。path、Git ref 和 artifact 通常只提供一个候选；registry 提供已知可用版本。最终图必须无环，全部非根节点为 library，并满足所有版本和精确产物约束。
+求解变量是当前解析单位内的 `group:name`，取值为一个版本及实际来源。边携带要求与清单位置。path、Git ref 和 artifact 通常只提供一个候选；registry 提供已知可用版本。最终图必须无环，全部非根节点为 library，并满足所有版本和精确产物约束。诊断区分被误用为依赖的 executable 和 native-app。
 
 优先级为：有效 lock 中仍可用的选择优先；需要新选时，稳定版本按 SemVer 降序尝试；显式允许的 pre-release 参与对应排序。同级候选按 2.2 确定顺序。变量选择和输出排序必须确定；求解器可使用成熟的 PubGrub 或等价冲突回溯实现，算法不进入产物 ABI。
 
@@ -286,6 +286,8 @@ driver 消费的是 lock 的精确图和本次已准备好的本地输入。port
 
 普通构建使用一个跨根 ready queue，`--jobs` 是整次调用的编译子进程上限。每个根保留自己的闭包、完成节点和诊断顺序；就绪源码按已有完整编译键及其锁复用工作，其他根遇到正在构建的同一键时让出队列，完成后消费同一结果。父进程不能阻塞在自己持有的另一个键锁上。发生失败后停止启动新节点并收完已启动的子进程，按根选择顺序和根内拓扑顺序报告失败。多根测试分别运行所生成的测试程序；`run` 在所选成员中要求唯一 executable。
 
+`build` 对 library 交付 `.slib`，对 executable 交付可执行文件，对 native-app 交付平台共享库和所需 debug／import companion；一次 workspace build 可以包含三种根。`test` 对三种被测根均合成普通 executable 测试入口，不调用生产 `main`／`appInit`。准备响应、锁定节点和产物摘要保持三种 kind；精确依赖图的 library 约束不因最终输出格式而改变。
+
 ### 7.2 自动准备与低层调用
 
 普通 manifest build/run/test/check/doc 在构建前调用配套 PM 的 prepare。`scoop build/run` 在 `Cone.lock` 不存在时自动调用 PM 解析依赖、准备来源并生成 lock，成功后继续构建／运行，无需用户先执行 resolve。已有有效 lock 时优先复用锁定选择和本地准备结果，不查询新版本。显式 `--locked` 或 `--frozen` 遇到缺少适用 lock 时失败；普通 `--offline` 仍可用足够的本地来源生成 lock。`scoop build --lockfile <file> -p group:name --locked` 是显式消费锁定图的入口；没有 `-p` 时仍按所在 workspace 的默认选择。driver 本身从不修改 lock。
@@ -350,7 +352,7 @@ archives/org.example/json/1.4.3.tar.zst
 }
 ```
 
-每个版本记录必需完整版本、kind、生产依赖、archive、sha256、yanked。依赖条目必需key、version和source；source为`{kind="registry", registry=URL}`、`{kind="git", git=URL, commit=完整ID, subdir=目录}`或`{kind="sysroot"}`对应的JSON对象，不在索引内复制所依赖版本的归档位置。隐式core在索引中展开为普通精确边。只给消费者解析生产依赖，测试依赖保留在源包清单中但不参与传递求解。executable版本可发布，但不能作为普通依赖候选。
+每个版本记录必需完整版本、kind、生产依赖、archive、sha256、yanked。依赖条目必需key、version和source；source为`{kind="registry", registry=URL}`、`{kind="git", git=URL, commit=完整ID, subdir=目录}`或`{kind="sysroot"}`对应的JSON对象，不在索引内复制所依赖版本的归档位置。隐式core在索引中展开为普通精确边。只给消费者解析生产依赖，测试依赖保留在源包清单中但不参与传递求解。executable 和 native-app 版本可发布，但不能作为普通依赖候选。
 
 `archive` 是 HTTP(S) URL 或按标准 URL 规则相对 registry base 解析的引用，不能包含内嵌凭据或 fragment；允许归档位于其他静态站点。它不相对包索引文件或重定向后的地址解析。`sha256` 是实际 tar.zst 归档字节的 64 位小写十六进制摘要，示例值需替换为真实摘要。索引的 group/name 必须匹配请求，versions 可为空，完整版本文本不得重复；数组顺序不影响求解。依赖 key 不得重复，版本要求沿用第 2 节，不另设 registry 版本语法。
 

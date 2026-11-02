@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn odr_directory_uses_lir_and_the_retired_required_manifest_is_rejected() {
     let current = lir_link_identity_closure_capability();
-    assert_eq!(current.major_version(), 21);
+    assert_eq!(current.major_version(), 22);
     let profile = ArtifactCapabilityProfile::CROSS_CONE_GENERIC;
     let descriptor = profile.descriptor();
     assert!(descriptor.required_manifest().is_empty());
@@ -86,8 +86,8 @@ fn generated_entry_formats_require_the_updated_hir_and_mir_sections() {
     for (current, version) in [
         (hir_identity_foundation_capability(), 11),
         (mir_identity_foundation_capability(), 9),
-        (hir_core_bootstrap_interface_capability(), 19),
-        (mir_core_bootstrap_bridge_capability(), 3),
+        (hir_core_bootstrap_interface_capability(), 20),
+        (mir_core_bootstrap_bridge_capability(), 4),
     ] {
         assert_eq!(current.major_version(), version);
         assert!(CapabilityContractRegistry::contract(&current).is_some());

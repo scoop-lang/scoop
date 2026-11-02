@@ -1431,6 +1431,17 @@ impl StaticStorageIdentity {
         )
     }
 
+    pub fn native_app_entry_failure_root(
+        root_cone: scoop_identity::ConeIdentity,
+        app_init: scoop_identity::AppInitCallableBodyId,
+        root: MaterializationRoot,
+    ) -> Result<Self, scoop_wire::HashError> {
+        Self::new(
+            scoop_identity::StaticStorageKey::native_app_entry_failure_root(root_cone, app_init),
+            root,
+        )
+    }
+
     pub const fn identity_record(
         &self,
     ) -> &scoop_identity::CborIdentityRecord<

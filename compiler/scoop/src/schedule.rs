@@ -99,7 +99,7 @@ impl ExecutedBuildGraph {
                 warnings,
                 observations: self.observations,
             },
-            ConeKind::Executable => BuildGraphOutcome::ExecutableArtifact {
+            ConeKind::Executable | ConeKind::NativeApp => BuildGraphOutcome::FinalArtifact {
                 root,
                 artifacts,
                 warnings,
@@ -117,7 +117,7 @@ pub enum BuildGraphOutcome {
         warnings: Vec<StructuredDiagnosticV1>,
         observations: BuildObservations,
     },
-    ExecutableArtifact {
+    FinalArtifact {
         root: CompletedNode,
         artifacts: Vec<CompletedNode>,
         warnings: Vec<StructuredDiagnosticV1>,
@@ -128,15 +128,13 @@ pub enum BuildGraphOutcome {
 impl BuildGraphOutcome {
     pub const fn root(&self) -> &CompletedNode {
         match self {
-            Self::Library { root, .. } | Self::ExecutableArtifact { root, .. } => root,
+            Self::Library { root, .. } | Self::FinalArtifact { root, .. } => root,
         }
     }
 
     pub fn artifacts(&self) -> &[CompletedNode] {
         match self {
-            Self::Library { artifacts, .. } | Self::ExecutableArtifact { artifacts, .. } => {
-                artifacts
-            }
+            Self::Library { artifacts, .. } | Self::FinalArtifact { artifacts, .. } => artifacts,
         }
     }
 
@@ -146,13 +144,13 @@ impl BuildGraphOutcome {
 
     pub fn warnings(&self) -> &[StructuredDiagnosticV1] {
         match self {
-            Self::Library { warnings, .. } | Self::ExecutableArtifact { warnings, .. } => warnings,
+            Self::Library { warnings, .. } | Self::FinalArtifact { warnings, .. } => warnings,
         }
     }
 
     pub const fn observations(&self) -> &BuildObservations {
         match self {
-            Self::Library { observations, .. } | Self::ExecutableArtifact { observations, .. } => {
+            Self::Library { observations, .. } | Self::FinalArtifact { observations, .. } => {
                 observations
             }
         }

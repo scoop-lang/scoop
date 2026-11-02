@@ -210,6 +210,9 @@ fn lower_with_dependencies(
     let shape_support = output.materialization().roots();
     let output = match output.output_kind() {
         scoop_hir::LocalConeOutputKind::Library => LoweringOutput::Library,
+        scoop_hir::LocalConeOutputKind::NativeApp { local_entry } => {
+            LoweringOutput::NativeApp(local_entry.local_function().function())
+        }
         scoop_hir::LocalConeOutputKind::Executable { local_entry } => {
             LoweringOutput::Executable(local_entry.local_function().function())
         }
@@ -409,6 +412,7 @@ struct Lowerer {
 enum LoweringOutput {
     Library,
     Executable(hir::FunctionId),
+    NativeApp(hir::FunctionId),
 }
 
 fn materialization_odr_group(

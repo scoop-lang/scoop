@@ -78,6 +78,7 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
         let requested = match cone.kind() {
             scoop_slib::ConeKind::Library => scoop_identity::RequestedConeKind::Library,
             scoop_slib::ConeKind::Executable => scoop_identity::RequestedConeKind::Executable,
+            scoop_slib::ConeKind::NativeApp => scoop_identity::RequestedConeKind::NativeApp,
         };
         let emit = self.request.emit();
         let mut dump = observation::ast_dumps(&self.sources, emit);
@@ -332,6 +333,7 @@ fn manifest_record(
         (CompilationPurpose::Test, _) => scoop_slib::ConeKind::Executable,
         (_, scoop_identity::RequestedConeKind::Library) => scoop_slib::ConeKind::Library,
         (_, scoop_identity::RequestedConeKind::Executable) => scoop_slib::ConeKind::Executable,
+        (_, scoop_identity::RequestedConeKind::NativeApp) => scoop_slib::ConeKind::NativeApp,
     };
     scoop_slib::ConeRecord::new(
         semantic.coordinate().clone(),

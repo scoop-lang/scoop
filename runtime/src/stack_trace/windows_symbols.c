@@ -9,6 +9,9 @@ static bool symbols_initialized;
 static HANDLE symbols_process;
 static uint64_t symbols_generation;
 static bool symbols_stable;
+static bool native_host;
+
+void scoop_trace_use_native_host(void) { native_host = true; }
 
 static void initialize_symbols(void) {
     symbols_initialized = true;
@@ -27,6 +30,11 @@ static void initialize_symbols(void) {
 }
 
 void scoop_trace_symbolize(uint64_t generation, uintptr_t pc, ScoopTraceSymbols *symbols) {
+    /* DbgHelp options and synchronization are shared with the host. */
+    if (native_host) {
+        symbols->unavailable = true;
+        return;
+    }
     AcquireSRWLockExclusive(&symbols_lock);
     if (!symbols_initialized)
         initialize_symbols();

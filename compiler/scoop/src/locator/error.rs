@@ -47,7 +47,7 @@ pub enum DependencyLocatorError {
         actual: Box<ConeCoordinate>,
         path: PathBuf,
     },
-    ExecutableDependency {
+    NonLibraryDependency {
         coordinate: ConeCoordinate,
         path: PathBuf,
     },
@@ -114,9 +114,9 @@ impl fmt::Display for DependencyLocatorError {
                 "dependency at {} declares {actual}, expected {expected}",
                 path.display()
             ),
-            Self::ExecutableDependency { coordinate, path } => write!(
+            Self::NonLibraryDependency { coordinate, path } => write!(
                 formatter,
-                "dependency {coordinate} at {} is executable; dependencies must be libraries",
+                "dependency {coordinate} at {} is not a library; dependencies must be libraries",
                 path.display()
             ),
             Self::InvalidArtifactSourceForm {

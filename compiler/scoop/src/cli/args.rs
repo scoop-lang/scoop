@@ -45,7 +45,7 @@ pub(super) enum Command {
     Pm(super::package_manager::PmArgs),
     /// Create a new Cone with a fixed executable or library template.
     New(super::new::NewArgs),
-    /// Build a library or executable from a Cone or one source file.
+    /// Build a library, executable, or native-app from a Cone or one source file.
     Build(BuildArgs),
     /// Remove the entire target directory, including all profiles and build caches.
     Clean(super::clean::CleanArgs),
@@ -243,6 +243,12 @@ pub(super) struct NativeOptions {
     /// Executable link mode; Linux gnu defaults to dynamic and musl to static.
     #[arg(long, value_enum)]
     pub link_mode: Option<LinkMode>,
+    /// Darwin native-app install name.
+    #[arg(long)]
+    pub install_name: Option<String>,
+    /// ELF native-app SONAME.
+    #[arg(long)]
+    pub soname: Option<String>,
     /// Keep ordinary executable symbols; debug builds already retain them.
     #[arg(long)]
     pub keep_symbols: bool,

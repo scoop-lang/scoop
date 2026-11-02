@@ -1,0 +1,14 @@
+[
+  {
+    "code": "SCOOP_PACKAGE_PREPARE",
+    "message": "${manifest.canonical}: [windows] executable configuration requires kind = \"executable\"",
+    "notes": [],
+    "origin": {
+      "end": 145,
+      "kind": "host",
+      "path": "${manifest.canonical}",
+      "start": 114
+    },
+    "severity": "error"
+  }
+]

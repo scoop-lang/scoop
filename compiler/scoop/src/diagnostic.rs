@@ -82,7 +82,7 @@ impl BuildDiagnosticCode {
 
     pub const GRAPH_RESERVED_IDENTITY: Self = Self("SCOOP_GRAPH_RESERVED_IDENTITY");
     pub const GRAPH_MULTIPLE_VERSIONS: Self = Self("SCOOP_GRAPH_MULTIPLE_VERSIONS");
-    pub const GRAPH_EXECUTABLE_DEPENDENCY: Self = Self("SCOOP_GRAPH_EXECUTABLE_DEPENDENCY");
+    pub const GRAPH_NON_LIBRARY_DEPENDENCY: Self = Self("SCOOP_GRAPH_NON_LIBRARY_DEPENDENCY");
     pub const GRAPH_SINGLE_FILE_DEPENDENCY: Self = Self("SCOOP_GRAPH_SINGLE_FILE_DEPENDENCY");
     pub const GRAPH_MISSING_CORE: Self = Self("SCOOP_GRAPH_MISSING_CORE");
     pub const GRAPH_CYCLE: Self = Self("SCOOP_GRAPH_CYCLE");
@@ -232,9 +232,9 @@ impl ClassifyBuildFailure for DependencyLocatorError {
                 BuildFailurePhase::GraphIdentity,
                 BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
             ),
-            Self::ExecutableDependency { .. } => classified(
+            Self::NonLibraryDependency { .. } => classified(
                 BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_EXECUTABLE_DEPENDENCY,
+                BuildDiagnosticCode::GRAPH_NON_LIBRARY_DEPENDENCY,
             ),
             Self::Summary { .. } => classified(
                 BuildFailurePhase::Summary,
@@ -260,9 +260,9 @@ impl ClassifyBuildFailure for ResolveBuildGraphError {
                 BuildFailurePhase::GraphIdentity,
                 BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
             ),
-            Self::ExecutableDependency { .. } => classified(
+            Self::NonLibraryDependency { .. } => classified(
                 BuildFailurePhase::GraphVersionKind,
-                BuildDiagnosticCode::GRAPH_EXECUTABLE_DEPENDENCY,
+                BuildDiagnosticCode::GRAPH_NON_LIBRARY_DEPENDENCY,
             ),
             Self::MultipleVersions(_) => classified(
                 BuildFailurePhase::GraphVersionKind,

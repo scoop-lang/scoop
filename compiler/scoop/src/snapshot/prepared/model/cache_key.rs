@@ -206,6 +206,7 @@ fn manifest_cache_inputs(
         match requested_kind {
             RequestedConeKind::Library => ConeKind::Library,
             RequestedConeKind::Executable => ConeKind::Executable,
+            RequestedConeKind::NativeApp => ConeKind::NativeApp,
         },
         ConeSourceForm::Manifest,
     )

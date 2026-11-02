@@ -104,6 +104,14 @@ pub fn resolve_program_link_profile(
     options: &FinalLinkOptions,
     cache: Option<&Path>,
 ) -> Result<ValidatedFinalLinkProfile, LinkError> {
+    let mut options = options.clone();
+    options.output_kind = match closure.root_kind() {
+        scoop_slib::ConeKind::Executable => scoop_toolchain::FinalOutputKind::Executable,
+        scoop_slib::ConeKind::NativeApp => scoop_toolchain::FinalOutputKind::SharedLibrary,
+        scoop_slib::ConeKind::Library => {
+            return Err(error("final link requires executable or native-app root"));
+        }
+    };
     let origins = closure
         .artifacts()
         .filter(|(artifact, _)| artifact.native_cxx())
@@ -116,8 +124,8 @@ pub fn resolve_program_link_profile(
         )));
     }
     let profile = match cache {
-        Some(cache) => target.final_link_with_cxx_cached(options, !origins.is_empty(), cache),
-        None => target.final_link_with_cxx(options, !origins.is_empty()),
+        Some(cache) => target.final_link_with_cxx_cached(&options, !origins.is_empty(), cache),
+        None => target.final_link_with_cxx(&options, !origins.is_empty()),
     };
     profile.map_err(|err| {
         if origins.is_empty() {

@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway，第 8.1 节 Mach-O self-image 已实现。第 7～8 节的共享库工具链前置已完成三平台验证；根入口、持久生命周期与最终产品 CLI／发布仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：已完成（2026-11-03）。原生函数指针、浮点边界、native-app 根入口、持久 runtime、共享库链接与 CLI／发布均已实现。Darwin AArch64／x86-64、Linux x86-64 GNU／动态 musl、Windows Microsoft UCRT／LLVM-MinGW UCRT／MSVCRT 均已通过真实宿主、产物重链接与移动 GC 验收；范围和测试限制见第 11 节。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -204,10 +204,10 @@ generated gateway 负责入口 poll、root/Context、typed Scoop ABI 调用、ca
 
 ### 5.5 线程、callback 与 Context
 
-线程 registry 增加 Program 与 Embedded 两种启动模式，但不增加第二套 registry 实现：
+复用现有线程 registry 与 Main／Foreign attachment kind；registry 已允许首个 attachment 为外来线程及零 attachment 的空闲期，不另加运行模式：
 
-- Program 保持现有唯一 main attachment 和 shutdown 规则；
-- Embedded 允许第一个 attachment 是 bootstrap 外来线程，也允许两次 host 调用之间没有任何 mutator attachment；不会进入 ShuttingDown；
+- executable 保持现有唯一 main attachment 和 shutdown 规则；
+- native-app 的 bootstrap 只使用 foreign attachment，返回时不进入 ShuttingDown；两次 host 调用之间可以没有任何 mutator attachment；
 - bootstrap 返回前在没有活动 managed/root/callback frame 后 detach 自己拥有的临时 attachment；调用者原本已 attach 时只恢复嵌套状态，不拆除外层 attachment；
 - 后续 `ForeignCallback` 继续使用 attach-if-needed／detach-if-owned。Reusable／OneShot token ownership 与本设计的函数指针模式无关；
 - callback 注册捕获 `appInit` 当时的 Context snapshot。后续 invocation 为该 snapshot 建立独立 TaskContext，按现有规则进入和恢复；
@@ -225,7 +225,7 @@ generated gateway 负责入口 poll、root/Context、typed Scoop ABI 调用、ca
 
 Darwin AArch64 保存/恢复 `fenv` 与 FPCR，x86-64 保存/恢复 `fenv` 与 MXCSR；所有错误出口使用同一 guard 清理，不能只覆盖正常返回。静态 `::name` NoGC callback 的 C trampoline 也建立浮点 guard，保持其原有无 GC transition 的同步调用合同。
 
-这一前置已实现于现有 executable gateway、ForeignCallback、静态 callback 和 NativeSafe／NativeBorrowed 返回路径。Darwin AArch64 与 Linux x86-64 GNU 的真实 debug／release C 往返覆盖非默认舍入、subnormal、trap 控制、异常标志、嵌套与外来线程 callback，以及异常返回；runtime 测试另覆盖 attachment 不改写环境、成功／失败 gateway 和两档 outbound 返回。runtime ABI contract 为 31，metadata ABI 保持 9。native-app bootstrap 尚待接入同一 gateway 机制，Windows 原生验收仍随对应平台阶段完成。
+这一前置已实现于现有 executable gateway、ForeignCallback、静态 callback 和 NativeSafe／NativeBorrowed 返回路径。Darwin AArch64 与 Linux x86-64 GNU 的真实 debug／release C 往返覆盖非默认舍入、subnormal、trap 控制、异常标志、嵌套与外来线程 callback，以及异常返回；runtime 测试另覆盖 attachment 不改写环境、成功／失败 gateway 和两档 outbound 返回。native-app bootstrap 已接入同一边界机制；当前 runtime ABI contract 为 32，metadata ABI 为 10。Windows 原生产品验收仍随对应平台阶段完成。
 
 ## 6. `FunPtr` 间接调用
 
@@ -336,7 +336,7 @@ LinkMode        = Static | Dynamic
 
 `FinalOutputKind` 决定 PIE/共享库、CRT 入口、导出和调试产物；`LinkMode` 只描述目标工具链允许的系统依赖方式。首版 `native-app` 的 Linux GNU／musl 只接受 Dynamic 系统模式，不能把完整静态 libc 链入任意 host；runtime 与选中的普通 static archive 仍作为模块内部对象链接。
 
-工具链前置已实现：输出类别、显式 loader name 和固定 bootstrap 导出参与 profile 指纹及发现缓存；默认 loader name 在命令生成时取实际输出 basename。Darwin 的 export list、ELF 的 version script／SONAME／metadata RELRO，以及 Windows 的 DLL CRT、`.def`、import library 和 PDB 已通过真实 C host 验证。此时 `scoop`／`scoop-link` 仍只接通 executable；共享库产品还需根入口、bootstrap object、发布与结果缓存的接入。
+工具链前置已实现：输出类别、显式 loader name 和固定 bootstrap 导出参与 profile 指纹及发现缓存；默认 loader name 在命令生成时取实际输出 basename。Darwin 的 export list、ELF 的 version script／SONAME／metadata RELRO，以及 Windows 的 DLL CRT、`.def`、import library 和 PDB 已通过真实 C host 验证。`scoop build`、`scoop link` 与独立 `scoop-link` 已从根类型推断最终输出，接通 bootstrap object、共享库及 companion 发布、结果缓存；native-app 的 `run` 拒绝和测试入口替换已有正式 CLI 覆盖。
 
 ### 7.2 命令行为
 
@@ -375,7 +375,7 @@ bootstrap 引用 native-app entry descriptor、image 数组和 runtime coordinat
 - Mach-O metadata 定位不再使用 image 0。以 runtime 内部函数地址经 `dladdr` 取得实际模块 header，并从该 header 与 `__TEXT` 首地址计算 slide；接受 `MH_DYLIB` 与 `MH_EXECUTE`，共用同一解析器，不依赖可能变化的 dyld image index；
 - 不在 constructor 中运行 managed 代码。dyld 和 C/C++ 静态初始化结束、bootstrap 被 host 显式调用后才启动 Scoop。
 
-self-image 前置已完成：真实 C host 与 `RTLD_LOCAL` dylib 分别取得自己的段、静态数据、代码和 stackmap，并排除另一模块的地址；装载前创建的线程同样可查询。该用例在 AArch64 原生和本机 Rosetta 执行的 x86-64 产物上通过；AArch64 的现有 runtime-images、移动 GC 与 native callback CLI 回归通过。此处只验收模块定位，不表示最终 native-app 链接和初始化已完成。
+self-image 前置已完成：真实 C host 与 `RTLD_LOCAL` dylib 分别取得自己的段、静态数据、代码和 stackmap，并排除另一模块的地址；装载前创建的线程同样可查询。该用例在 AArch64 原生和本机 Rosetta 执行的 x86-64 产物上通过；AArch64 的现有 runtime-images、移动 GC 与 native callback CLI 回归通过。随后两种架构的真实 native-app 均完成链接、初始化、初始化线程退出后的回调与移动 GC 验收。
 
 ### 8.2 ELF
 
@@ -391,7 +391,7 @@ self-image 前置已完成：真实 C host 与 `RTLD_LOCAL` dylib 分别取得�
 - 只导出 `scoop_app_init`，按工具链产生 `.lib` 或 `.dll.a` import library；
 - 保留 DLL 正常 CRT/TLS 初始化，但 `DllMain` 不运行 managed initializer、不开业务线程、不等待 host；
 - 沿用从 runtime 函数地址取得 `HMODULE` 的 self-image 方案，实际验证 `.smap`、Win64 EH/SEH、PDB 与 callback；
-- DbgHelp 等进程级设施必须与普通 host 共存后才能声明 Windows 支持；诊断能力的问题不能改写 GC/EH 正确性合同。
+- Windows native-app 的栈报告保留模块路径、CodeView ID 和链接／原始地址，跳过进程内 DbgHelp 符号解析；宿主可使用交付的 PDB 离线解析。DbgHelp 的选项和调用同步跨 session 生效，模块私有锁无法协调任意 host 的调用，因此不修改 host 的选项或会话，不增加跨组件锁协议。executable 保留既有 DbgHelp 行为；GC/EH 和栈采集不依赖符号解析。
 
 ### 8.4 Native 依赖
 
@@ -465,9 +465,15 @@ native C/C++ 异常必须在各自边界内捕获；Scoop 异常不得穿越 C�
 
 每个平台只有在真实 host 装载和持续调用通过后才声明支持。移动 target 与 framework/JNI/Node-API 适配在桌面合同稳定后独立设计，不反向扩张首版 bootstrap。
 
-第一组已完成 Darwin AArch64 与 Linux x86-64 GNU 的真实 C 函数表验收：debug／release 下覆盖整数／Boolean／浮点、混合与大 aggregate、可空函数指针、Unit 返回、求值顺序、参数异常、callback 重入和 GC 后引用保活；跨 Cone 默认值与泛型保留调用模式。Rust 后端回归覆盖现有目标，当前 macOS LLVM 缺少 Windows statepoint 返回 PC 补丁的既有用例仍单独排除；Windows 原生执行随对应平台阶段补验。此验收只覆盖原生函数指针，不表示 native-app 共享库产品已完成。
+第一组已完成 Darwin AArch64 与 Linux x86-64 GNU 的真实 C 函数表验收：debug／release 下覆盖整数／Boolean／浮点、混合与大 aggregate、可空函数指针、Unit 返回、求值顺序、参数异常、callback 重入和 GC 后引用保活；跨 Cone 默认值与泛型保留调用模式。Rust 后端回归覆盖现有目标，当前 macOS LLVM 缺少 Windows statepoint 返回 PC 补丁的既有用例仍单独排除；其余桌面目标已在后续平台验收中补齐这组真实执行。原生函数指针与最终共享库产品的验收范围分别记录如下。
 
 共享库工具链验收覆盖 Darwin AArch64／x86-64（本机 Rosetta）、Linux x86-64 GNU（GCC／Clang）与动态 musl、Windows Microsoft UCRT 和 LLVM-MinGW MSVCRT／UCRT。真实装载与 import-library host 检查隐藏函数表、同名 helper 绑定、装载前已创建线程的 C11 TLS、CRT／unwind；适用环境同时检查 C++ 静态初始化与异常。Darwin／Linux 检查默认和显式 loader name、唯一导出及发现缓存复用，ELF metadata 必须位于 RELRO；Windows 的五组 C/C++／linker 组合检查 DLL、唯一导出、import library 与 PDB。相关 toolchain Rust 回归为 Darwin 59、Linux 63、Windows 58 项；Windows 资源用例在补齐已安装 `llvm-windres` 的搜索路径后通过。Darwin 另通过 linker 14 项 Rust 回归、36 个程序链接 fixture 和 5 个 native fixture。验收过程中修复了 Windows Clang depfile 的反斜杠路径解析，并更新 native discovery 缓存版本；未改变语言、产物 metadata 或 runtime ABI。
+
+2026-11-03 的根入口与持久 runtime 验收覆盖 Darwin AArch64、Rosetta x86-64、Linux x86-64 GNU／动态 musl，以及 Windows Microsoft UCRT、LLVM-MinGW UCRT／MSVCRT。真实 C host 在装载前创建线程，验证重入／并发初始化、eager 与 appInit 异常、初始化线程退出后的 Context 和回调、阻塞 host 调用期间的并发移动 GC、嵌套函数表调用、浮点环境恢复，以及释放业务注册后模块继续存活。debug／release 均消费 build、scoop link 和独立 scoop-link 的产物；C++ host 直接包含公开头并链接共享库，检查独立调试文件。12 组入口／manifest／依赖 negative fixture、run 拒绝、测试入口替换及未变构建复用已通过。Windows 三环境还验证了宿主已有 DbgHelp 会话不受影响、DLL import library／PDB 可用，以及 native 对象额外导出被拒绝且原有输出保留。三个环境各自完成 debug／release 生命周期的 28 个进程步骤；定向 GC stress 与原生函数指针／浮点边界用例也均通过。
+
+受影响 Rust 回归、fixture runner 的 82 项测试（78 通过、4 项按平台跳过）与 36 项普通程序链接 fixture 已闭合。Rust 全 workspace 首轮发现的 ABI／profile 固定向量和入口诊断期望已更新并定向复验；formatter corpus 在既有 `compiler-performance/nested-arrays.scoop` 的深嵌套源码上耗尽默认测试线程栈，设置 `RUST_MIN_STACK=16777216` 后通过。macOS LLVM 缺少 Windows statepoint 返回 PC 补丁的既有测试继续单独排除，不将其记为通过。
+
+本轮 runtime ABI 升至 32，metadata ABI 升至 10；旧 `.slib` 与 runtime 必须按[准备脚本说明](../../scripts/README.md)显式重建。本机 Darwin AArch64 的 36 个系统 Cone 和四种 runtime 变体已全部重建成功，其余目标的上述验收使用显式准备的 core／cli／std／platform／test 与匹配 runtime，不代表已重新制作完整发行包。
 
 ## 12. 规范修改清单
 

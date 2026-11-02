@@ -402,6 +402,10 @@ pub fn dump(module: &Module) -> String {
     metadata::dump_metadata(module, &mut out);
     match module.output {
         LirOutput::Library => out.push_str("  output library\n"),
+        LirOutput::NativeApp { entry } => out.push_str(&format!(
+            "  output native-app @{}\n",
+            module.functions[entry.declaration().into_u32() as usize].symbol()
+        )),
         LirOutput::Executable { entry } => {
             let entry = &module.functions[entry.declaration().into_u32() as usize];
             out.push_str(&format!("  output executable @{}\n", entry.symbol()));

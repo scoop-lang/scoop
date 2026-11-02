@@ -770,23 +770,23 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 
 不包含同程序多版本、feature/variant、build scripts、通用任务DSL、二进制registry或托管账号/上传网站。既有M23对registry/求解的范围排除保持为历史记录，新增能力由本里程碑承担。
 
-### M64 `native-app` 动态库与双向函数表（实施中，[设计](dynamic-library/DESIGN.md)、[调研](dynamic-library/INVESTIGATION.md)）
+### M64 `native-app` 动态库与双向函数表（已完成，2026-11-03，[设计](dynamic-library/DESIGN.md)、[调研](dynamic-library/INVESTIGATION.md)）
 
 为非 Scoop host 增加单模块、进程生命周期的动态库产品：根 Cone、静态依赖闭包、runtime 与 GC 链接为 `.dylib`／`.so`／`.dll`，由 host 显式调用固定 C bootstrap；业务 ABI 通过应用自定义 C 函数表表达。首版不增加通用动态模块系统、跨 Scoop 动态库依赖、任意源码导出、多 runtime 实例、卸载、热更新或移动平台打包。
 
 按下列依赖顺序实施，每一阶段先更新对应权威规范，再完成格式、实现和定向验收：
 
-1. **可调用原生函数指针（已实现）**：`FunPtr<F>` 使用 NativeSafe 间接 C 调用；同表示、独立类型身份的 `GCLeafFunPtr<F>` 使用 GCLeaf，并提供显式转换。HIR→MIR→LIR→codegen 保留真实动态 callee 与完整 C ABI 计划，跨 Cone 默认值／泛型保留模式。Darwin AArch64 和 Linux x86-64 GNU 的真实函数表验证标量、浮点、aggregate、sret/byval、callback 重入与 leaf 无 transition；NoGC 正文在前端拒绝需要状态切换的 native 调用。Windows 原生执行随平台阶段补验。
-2. **`native-app` 语义与链接产品**：增加 manifest/root kind、固定 `appInit`、独立 typed entry/descriptor/gateway，以及与 `LinkMode` 正交的 `SharedLibrary` 最终输出；闭合 build/link/run/test、导出集合、可达性、debug/import 产物和 linked-product 缓存。
-3. **embedded runtime 与 Darwin AArch64**：持久 metadata registry、一次初始化状态机、异常转 native-owned 报告、临时 attachment、浮点环境 guard、自身 image 定位和 `.dylib` 固定导出；真实 C host 验证装载、返回后 GC、多线程 callback 与重入。
-4. **Linux x86-64 GNU**：完成 `.so`、SONAME、version script、ELF metadata/RELRO 与动态 libc/unwind；使用独立 Linux host 目录验收阻塞 NativeSafe、callback、GC 与 native 依赖。
-5. **其余现有桌面 target**：复用 Darwin x86-64，分别闭合 Windows MSVC／LLVM-MinGW 的 DLL、CRT、SEH/PDB 与 import library，再验证匹配动态环境的 musl。只有真实 host 持续调用通过后才声明该 target 支持。
+1. **可调用原生函数指针（已实现）**：`FunPtr<F>` 使用 NativeSafe 间接 C 调用；同表示、独立类型身份的 `GCLeafFunPtr<F>` 使用 GCLeaf，并提供显式转换。HIR→MIR→LIR→codegen 保留真实动态 callee 与完整 C ABI 计划，跨 Cone 默认值／泛型保留模式。Darwin AArch64 和 Linux x86-64 GNU 的真实函数表验证标量、浮点、aggregate、sret/byval、callback 重入与 leaf 无 transition；NoGC 正文在前端拒绝需要状态切换的 native 调用。其余现有桌面目标已在平台阶段补齐真实执行。
+2. **`native-app` 语义与链接产品（已完成）**：增加 manifest/root kind、固定 `appInit`、独立 typed entry/descriptor/gateway，以及与 `LinkMode` 正交的 `SharedLibrary` 最终输出；闭合 build/link/run/test、导出集合、可达性、debug/import 产物和 linked-product 缓存。
+3. **embedded runtime 与 Darwin AArch64（已完成）**：持久 metadata registry、一次初始化状态机、异常转 native-owned 报告、临时 attachment、浮点环境 guard、自身 image 定位和 `.dylib` 固定导出；真实 C host 验证装载、返回后 GC、多线程 callback 与重入。
+4. **Linux x86-64 GNU（已完成）**：完成 `.so`、SONAME、version script、ELF metadata/RELRO 与动态 libc/unwind；使用独立 Linux host 目录验收阻塞 NativeSafe、callback、GC 与 native 依赖。
+5. **其余现有桌面 target（已完成）**：复用 Darwin x86-64，分别闭合 Windows MSVC／LLVM-MinGW 的 DLL、CRT、SEH/PDB 与 import library，再验证匹配动态环境的 musl。只有真实 host 持续调用通过后才声明该 target 支持。
 
-浮点边界前置已在现有 gateway、两类 callback 和普通 native 返回路径落地：attach／detach 不改写宿主环境，嵌套调用按层保存和恢复，NativeSafe／NativeBorrowed 返回重建 Scoop 环境。Darwin AArch64 与 Linux x86-64 GNU 已通过定向 runtime 测试与真实 debug／release ABI 往返；这不表示 native-app 共享库生命周期已完成。
+浮点边界前置已在现有 gateway、两类 callback 和普通 native 返回路径落地：attach／detach 不改写宿主环境，嵌套调用按层保存和恢复，NativeSafe／NativeBorrowed 返回重建 Scoop 环境。Darwin AArch64 与 Linux x86-64 GNU 已通过定向 runtime 测试与真实 debug／release ABI 往返。native-app bootstrap 已复用相同边界，生命周期验收见下段。
 
 Darwin self-image 前置已完成：按 runtime 内部地址定位自身 Mach-O，共用 executable／dylib 的段与 stackmap 解析，排除 host 地址。C host 装载测试覆盖 AArch64 和通过 Rosetta 执行的 x86-64 产物；AArch64 的启动、移动 GC 与 callback 回归通过。
 
-共享库工具链前置已完成：`FinalOutputKind` 与系统 `LinkMode` 分离，按目标生成导出控制、install name／SONAME、DLL import library 与 PDB。Darwin 双架构、Linux GNU／动态 musl、Windows 三环境均已通过真实 C host 装载、隐藏函数表、既有线程 TLS 与 CRT／unwind 验证，适用环境覆盖 C++ 初始化与异常；现有 executable 链接回归通过。根 kind、Scoop entry、持久 runtime、最终发布和 linked-product 缓存仍按上述阶段继续接入。
+共享库工具链前置已完成：`FinalOutputKind` 与系统 `LinkMode` 分离，按目标生成导出控制、install name／SONAME、DLL import library 与 PDB。Darwin 双架构、Linux GNU／动态 musl、Windows 三环境均已通过真实 C host 装载、隐藏函数表、既有线程 TLS 与 CRT／unwind 验证，适用环境覆盖 C++ 初始化与异常；现有 executable 链接回归通过。根 kind、独立 Scoop entry／descriptor／gateway、持久 runtime、最终发布和 linked-product 缓存已接通。2026-11-03，Darwin AArch64／x86-64、Linux GNU／动态 musl 和 Windows 三环境完成真实源码 → `.slib` → 共享库 → host 的 debug／release 验收，覆盖重入／并发初始化、稳定错误报告、初始化线程退出后的 Context／callback／移动 GC、artifact-only／独立 scoop-link、C++ 直接链接、业务关闭、测试入口替换和 run 拒绝；Windows 另验证 DbgHelp 宿主会话共存、import library／PDB 与额外导出拒绝；阻塞 native 调用期间的并发移动 GC 在七个目标上通过。runtime ABI 32／metadata 10，开发 sysroot 须显式重建；本机 Darwin AArch64 的 36 个系统 Cone 与四种 runtime 变体已重建。Rust 全 workspace 的两项既有测试环境限制见设计第 11 节，不计为默认全量通过。
 
 iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计，不作为本里程碑桌面 bootstrap 的完成门。模块只加载不卸载，host 保留句柄至进程结束；业务资源通过应用协议显式关闭。
 

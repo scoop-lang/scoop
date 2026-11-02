@@ -65,8 +65,12 @@ pub(super) fn failure(
                     if let Some(candidates) = pool.get(&edge.key) {
                         for (choice, candidate) in candidates {
                             let mut reasons = Vec::new();
-                            if candidate.kind != RequestedConeKind::Library {
-                                reasons.push("executable; dependencies must be libraries".into());
+                            if let Some(kind) = match candidate.kind {
+                                RequestedConeKind::Library => None,
+                                RequestedConeKind::Executable => Some("executable"),
+                                RequestedConeKind::NativeApp => Some("native-app"),
+                            } {
+                                reasons.push(format!("{kind}; dependencies must be libraries"));
                             }
                             for version in &edge.versions {
                                 if !version.matches(&choice.version) {

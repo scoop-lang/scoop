@@ -1,0 +1,34 @@
+schema = 1
+name = "native-app-persistent-gc"
+inputs = ["../../../compiler-correctness/native-app/lifecycle/cone", "../../../compiler-correctness/native-app/lifecycle/provider", "../../../compiler-correctness/native-app/lifecycle/host.c", "../../../compiler-correctness/native-app/lifecycle/compile_host.py", "../../../language/callback/threading.h"]
+tools = ["scoop", "scoopc", "cc"]
+tags = ["native-app", "gc", "moving", "gc-correctness"]
+vars = {support_dir = "${fixture}/../../../compiler-correctness/native-app/lifecycle"}
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${support_dir}/cone", to = "${work}/cone"}}, {copy = {from = "${support_dir}/provider", to = "${work}/provider"}}]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", "--enable-gc-stress", {each = "${link_args}"}, "${work}/cone", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "compile-host"
+argv = ["${python}", "${support_dir}/compile_host.py", "${cc}", {each = "${cc_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${support_dir}/host.c", "-o", "${work}/host.exe"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "collect-after-bootstrap-thread-exits"
+argv = ["${work}/host.exe", "${build.result.output}", "0"]
+env = {SCOOP_GC_STRESS_MOVE = "1"}
+exit = 0
+stdout = "native-app-lifecycle-ok\n"
+stderr = ""

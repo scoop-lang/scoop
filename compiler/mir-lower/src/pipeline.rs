@@ -159,7 +159,10 @@ impl Lowerer {
         // constructors must already have typed callable locations.
         self.declare_closures(module);
         if !module.initialization_units.is_empty()
-            || matches!(self.output, LoweringOutput::Executable(_))
+            || matches!(
+                self.output,
+                LoweringOutput::Executable(_) | LoweringOutput::NativeApp(_)
+            )
         {
             self.lower_failure_root_type(module);
         }
@@ -314,6 +317,9 @@ impl Lowerer {
 
         let output = match self.output {
             LoweringOutput::Library => mir::MirOutput::Library,
+            LoweringOutput::NativeApp(entry) => mir::MirOutput::NativeApp {
+                entry: self.function_map[&entry],
+            },
             // The executable entry is a non-generic user function, hence
             // always in the map.
             LoweringOutput::Executable(entry) => mir::MirOutput::Executable {

@@ -3,12 +3,14 @@
 use std::fmt;
 use std::ops::Deref;
 
-use scoop_identity::{CallableMaterializationContext, ExecutableEntryIdentity};
+use scoop_identity::{
+    CallableMaterializationContext, ExecutableEntryIdentity, NativeAppEntryIdentity,
+};
 
 use crate::{
     ConeOutputKind, CoreProtocols, ExportHir, HirExportBindingSurfaceValidationError,
     HirNativeBoundaryTypeDefinitions, LocalConcreteHir, LocalExecutableEntry,
-    LocalExecutableEntryError, concrete,
+    LocalExecutableEntryError, LocalNativeAppEntry, LocalNativeAppEntryError, concrete,
 };
 
 mod dependencies;
@@ -53,6 +55,14 @@ impl ExportHirOutput {
             let expected =
                 LocalExecutableEntry::try_new(&module, local_entry.local_function().function())
                     .map_err(ExportHirOutputError::InvalidEntry)?;
+            if &expected != local_entry.as_ref() {
+                return Err(ExportHirOutputError::EntryMismatch);
+            }
+        }
+        if let ConeOutputKind::NativeApp { local_entry } = &output_kind {
+            let expected =
+                LocalNativeAppEntry::try_new(&module, local_entry.local_function().function())
+                    .map_err(ExportHirOutputError::InvalidNativeAppEntry)?;
             if &expected != local_entry.as_ref() {
                 return Err(ExportHirOutputError::EntryMismatch);
             }
@@ -117,22 +127,32 @@ impl ConcreteExecutableEntry {
         module: &LocalConcreteHir,
         source: &LocalExecutableEntry,
         function_id: concrete::FunctionId,
-    ) -> Result<Self, ConcreteExecutableEntryError> {
+    ) -> Result<Self, ConcreteEntryError> {
         if source.identity().root_cone() != module.cone {
-            return Err(ConcreteExecutableEntryError::NotCurrentCone);
+            return Err(ConcreteEntryError::NotCurrentCone);
         }
-        validate_concrete_entry(module, source.identity(), function_id)?;
+        validate_concrete_entry(
+            module,
+            source.declaration().template(),
+            source.source_signature(),
+            function_id,
+        )?;
         Ok(Self {
             identity: source.identity().clone(),
             local_function: CurrentConcreteFunctionId(function_id),
         })
     }
 
-    fn validate(&self, module: &LocalConcreteHir) -> Result<(), ConcreteExecutableEntryError> {
+    fn validate(&self, module: &LocalConcreteHir) -> Result<(), ConcreteEntryError> {
         if self.identity.root_cone() != module.cone {
-            return Err(ConcreteExecutableEntryError::NotCurrentCone);
+            return Err(ConcreteEntryError::NotCurrentCone);
         }
-        validate_concrete_entry(module, &self.identity, self.local_function.function())
+        validate_concrete_entry(
+            module,
+            self.declaration().template(),
+            self.identity.source_signature(),
+            self.local_function.function(),
+        )
     }
 
     pub const fn identity(&self) -> &ExecutableEntryIdentity {
@@ -148,12 +168,68 @@ impl ConcreteExecutableEntry {
     }
 }
 
+/// Local-concrete projection of the validated native-app entry.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ConcreteNativeAppEntry {
+    identity: NativeAppEntryIdentity,
+    local_function: CurrentConcreteFunctionId,
+}
+
+impl ConcreteNativeAppEntry {
+    pub fn try_new(
+        module: &LocalConcreteHir,
+        source: &LocalNativeAppEntry,
+        function_id: concrete::FunctionId,
+    ) -> Result<Self, ConcreteEntryError> {
+        if source.identity().root_cone() != module.cone {
+            return Err(ConcreteEntryError::NotCurrentCone);
+        }
+        validate_concrete_entry(
+            module,
+            scoop_identity::CallableTemplateOwner::Function(source.declaration()),
+            source.source_signature(),
+            function_id,
+        )?;
+        Ok(Self {
+            identity: source.identity().clone(),
+            local_function: CurrentConcreteFunctionId(function_id),
+        })
+    }
+
+    fn validate(&self, module: &LocalConcreteHir) -> Result<(), ConcreteEntryError> {
+        if self.identity.root_cone() != module.cone {
+            return Err(ConcreteEntryError::NotCurrentCone);
+        }
+        validate_concrete_entry(
+            module,
+            scoop_identity::CallableTemplateOwner::Function(self.declaration()),
+            self.identity.source_signature(),
+            self.local_function.function(),
+        )
+    }
+
+    pub const fn identity(&self) -> &NativeAppEntryIdentity {
+        &self.identity
+    }
+
+    pub const fn declaration(&self) -> scoop_identity::PersistentFunctionId {
+        self.identity.declaration()
+    }
+
+    pub const fn local_function(&self) -> CurrentConcreteFunctionId {
+        self.local_function
+    }
+}
+
 /// Output branch translated into the LocalConcrete HIR id domain.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum LocalConeOutputKind {
     Library,
     Executable {
         local_entry: Box<ConcreteExecutableEntry>,
+    },
+    NativeApp {
+        local_entry: Box<ConcreteNativeAppEntry>,
     },
 }
 
@@ -178,6 +254,11 @@ impl LocalConcreteHirOutput {
         materialization: LocalShapeSupportPlan,
     ) -> Result<Self, LocalConcreteHirOutputError> {
         if let LocalConeOutputKind::Executable { local_entry } = &output_kind {
+            local_entry
+                .validate(&module)
+                .map_err(LocalConcreteHirOutputError::InvalidEntry)?;
+        }
+        if let LocalConeOutputKind::NativeApp { local_entry } = &output_kind {
             local_entry
                 .validate(&module)
                 .map_err(LocalConcreteHirOutputError::InvalidEntry)?;
@@ -246,6 +327,17 @@ impl crate::Output {
                     local_entry: concrete_entry,
                 },
             ) if export_entry.identity() == concrete_entry.identity() => {}
+            (
+                ConeOutputKind::NativeApp {
+                    local_entry: export_entry,
+                },
+                LocalConeOutputKind::NativeApp {
+                    local_entry: concrete_entry,
+                },
+            ) if export_entry.identity() == concrete_entry.identity() => {}
+            (ConeOutputKind::NativeApp { .. }, LocalConeOutputKind::NativeApp { .. }) => {
+                return Err(HirOutputError::EntryMismatch);
+            }
             (ConeOutputKind::Executable { .. }, LocalConeOutputKind::Executable { .. }) => {
                 return Err(HirOutputError::EntryMismatch);
             }
@@ -267,42 +359,36 @@ impl crate::Output {
 
 fn validate_concrete_entry(
     module: &LocalConcreteHir,
-    source: &ExecutableEntryIdentity,
+    declaration: scoop_identity::CallableTemplateOwner,
+    source_signature: &scoop_identity::ExactCallableSignature,
     function_id: concrete::FunctionId,
-) -> Result<(), ConcreteExecutableEntryError> {
+) -> Result<(), ConcreteEntryError> {
     let function = module
         .functions
         .iter()
         .find_map(|(id, function)| (id == function_id).then_some(function))
-        .ok_or(ConcreteExecutableEntryError::MissingFunction)?;
+        .ok_or(ConcreteEntryError::MissingFunction)?;
     if !module.top_level.contains(&function_id) {
-        return Err(ConcreteExecutableEntryError::NotTopLevel);
-    }
-    if matches!(
-        source.declaration(),
-        scoop_identity::ExecutableEntryDeclaration::Source(_)
-    ) && function.name != "main"
-    {
-        return Err(ConcreteExecutableEntryError::NotMain);
+        return Err(ConcreteEntryError::NotTopLevel);
     }
     if function.receiver.value_type().is_some() {
-        return Err(ConcreteExecutableEntryError::HasReceiver);
+        return Err(ConcreteEntryError::HasReceiver);
     }
-    if function.materialization.template() != source.declaration().template() {
-        return Err(ConcreteExecutableEntryError::DeclarationMismatch);
+    if function.materialization.template() != declaration {
+        return Err(ConcreteEntryError::DeclarationMismatch);
     }
     if function.materialization.context() != CallableMaterializationContext::NoSubstitution {
-        return Err(ConcreteExecutableEntryError::Generic);
+        return Err(ConcreteEntryError::Generic);
     }
     if function.is_suspend {
-        return Err(ConcreteExecutableEntryError::Suspend);
+        return Err(ConcreteEntryError::Suspend);
     }
     let exact_type = |ty| {
         module
             .exact_type_identities
             .get(ty)
             .map(|identity| identity.id())
-            .ok_or(ConcreteExecutableEntryError::MissingExactType)
+            .ok_or(ConcreteEntryError::MissingExactType)
     };
     let signature = scoop_identity::ExactCallableSignature::new(
         scoop_identity::Effect::Ordinary,
@@ -314,11 +400,11 @@ fn validate_concrete_entry(
             .collect::<Result<_, _>>()?,
         exact_type(function.return_ty)?,
     );
-    if &signature != source.source_signature() {
-        return Err(ConcreteExecutableEntryError::SignatureMismatch);
+    if &signature != source_signature {
+        return Err(ConcreteEntryError::SignatureMismatch);
     }
     if !matches!(function.kind, concrete::FunctionKind::User(_)) {
-        return Err(ConcreteExecutableEntryError::NotScoopDefined);
+        return Err(ConcreteEntryError::NotScoopDefined);
     }
     Ok(())
 }
@@ -327,6 +413,7 @@ fn validate_concrete_entry(
 pub enum ExportHirOutputError {
     PublicBindings(HirExportBindingSurfaceValidationError),
     InvalidEntry(LocalExecutableEntryError),
+    InvalidNativeAppEntry(LocalNativeAppEntryError),
     EntryMismatch,
     Templates(Box<crate::GenericTemplateProductionError>),
 }
@@ -335,6 +422,7 @@ impl fmt::Display for ExportHirOutputError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::PublicBindings(error) => error.fmt(formatter),
+            Self::InvalidNativeAppEntry(error) => error.fmt(formatter),
             Self::InvalidEntry(error) => error.fmt(formatter),
             Self::Templates(error) => error.fmt(formatter),
             Self::EntryMismatch => formatter
@@ -346,10 +434,9 @@ impl fmt::Display for ExportHirOutputError {
 impl std::error::Error for ExportHirOutputError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ConcreteExecutableEntryError {
+pub enum ConcreteEntryError {
     MissingFunction,
     NotTopLevel,
-    NotMain,
     HasReceiver,
     NotCurrentCone,
     DeclarationMismatch,
@@ -360,12 +447,11 @@ pub enum ConcreteExecutableEntryError {
     SignatureMismatch,
 }
 
-impl fmt::Display for ConcreteExecutableEntryError {
+impl fmt::Display for ConcreteEntryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(match self {
             Self::MissingFunction => "the executable entry does not belong to LocalConcrete HIR",
             Self::NotTopLevel => "the executable entry is not a top-level concrete function",
-            Self::NotMain => "the executable entry is not named `main`",
             Self::HasReceiver => "the executable entry has a concrete receiver",
             Self::NotCurrentCone => "the executable entry does not belong to the current Cone",
             Self::DeclarationMismatch => {
@@ -382,11 +468,11 @@ impl fmt::Display for ConcreteExecutableEntryError {
     }
 }
 
-impl std::error::Error for ConcreteExecutableEntryError {}
+impl std::error::Error for ConcreteEntryError {}
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LocalConcreteHirOutputError {
-    InvalidEntry(ConcreteExecutableEntryError),
+    InvalidEntry(ConcreteEntryError),
 }
 
 impl fmt::Display for LocalConcreteHirOutputError {

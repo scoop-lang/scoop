@@ -116,6 +116,7 @@ impl PreparedConeV1 {
             Self::Prebuilt { summary, .. } => match summary.cone().kind() {
                 scoop_slib::ConeKind::Library => RequestedConeKind::Library,
                 scoop_slib::ConeKind::Executable => RequestedConeKind::Executable,
+                scoop_slib::ConeKind::NativeApp => RequestedConeKind::NativeApp,
             },
         }
     }

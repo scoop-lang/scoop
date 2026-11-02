@@ -27,13 +27,14 @@ extern "C" {
 #error "Scoop runtime metadata ABI v1 requires little-endian byte order"
 #endif
 
-#define SCOOP_RUNTIME_METADATA_ABI_VERSION_V1 UINT32_C(9)
+#define SCOOP_RUNTIME_METADATA_ABI_VERSION_V1 UINT32_C(10)
 
 /* Unused program/core record magic values 0x53434f4f50505247 and
  * 0x53434f4f50434f52 are retired and must not be reused. */
 
 #define SCOOP_IMAGE_DESCRIPTOR_MAGIC_V1 UINT64_C(0x53434f4f50494d47)
 #define SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1 UINT64_C(0x53434f4f50454e54)
+#define SCOOP_NATIVE_APP_ENTRY_DESCRIPTOR_MAGIC_V1 UINT64_C(0x53434f4f504e4150)
 #define SCOOP_STATIC_STORAGE_DESCRIPTOR_MAGIC_V1 UINT64_C(0x53434f4f5053544f)
 #define SCOOP_IMMORTAL_OBJECT_DESCRIPTOR_MAGIC_V1 UINT64_C(0x53434f4f50494d4d)
 #define SCOOP_INITIALIZATION_UNIT_DESCRIPTOR_MAGIC_V1                          \
@@ -238,6 +239,17 @@ typedef struct ScoopRootEntryDescriptorV1 {
   ScoopRootEntryGatewayFnV1 gateway;
 } ScoopRootEntryDescriptorV1;
 
+typedef uint32_t (*ScoopNativeAppEntryGatewayFnV1)(const void *host_api, void *out_app_api);
+
+typedef struct ScoopNativeAppEntryDescriptorV1 {
+  ScoopDescriptorPrefixV1 prefix;
+  ScoopDigest256V1 owner_cone_identity;
+  ScoopDigest256V1 callable_id;
+  ScoopDigest256V1 gateway_callable_id;
+  const ScoopStaticStorageDescriptorV1 *failure_root;
+  ScoopNativeAppEntryGatewayFnV1 gateway;
+} ScoopNativeAppEntryDescriptorV1;
+
 typedef struct ScoopImageDescriptorV1 ScoopImageDescriptorV1;
 
 struct ScoopImageDescriptorV1 {
@@ -426,6 +438,16 @@ SCOOP_METADATA_ASSERT_OFFSET(ScoopRootEntryDescriptorV1, gateway_callable_id,
                              80);
 SCOOP_METADATA_ASSERT_OFFSET(ScoopRootEntryDescriptorV1, failure_root, 112);
 SCOOP_METADATA_ASSERT_OFFSET(ScoopRootEntryDescriptorV1, gateway, 120);
+
+SCOOP_METADATA_ASSERT_LAYOUT(ScoopNativeAppEntryDescriptorV1, 128, 8);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, prefix, 0);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, owner_cone_identity,
+                             16);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, callable_id, 48);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, gateway_callable_id,
+                             80);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, failure_root, 112);
+SCOOP_METADATA_ASSERT_OFFSET(ScoopNativeAppEntryDescriptorV1, gateway, 120);
 SCOOP_METADATA_ASSERT_LAYOUT(ScoopImageDescriptorV1, 208, 8);
 SCOOP_METADATA_ASSERT_OFFSET(ScoopImageDescriptorV1, prefix, 0);
 SCOOP_METADATA_ASSERT_OFFSET(ScoopImageDescriptorV1, cone, 16);

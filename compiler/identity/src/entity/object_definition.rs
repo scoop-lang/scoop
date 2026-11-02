@@ -35,6 +35,7 @@ pub enum StrongDefinitionEntityKind {
     ConeImage(ConeIdentity),
     GeneratedBridgeAtom(GeneratedBridgeAtomId),
     RootEntry(ConeIdentity),
+    NativeAppEntry(ConeIdentity),
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -89,6 +90,10 @@ impl StrongDefinitionEntity {
         Self(StrongDefinitionEntityKind::RootEntry(id))
     }
 
+    pub const fn native_app_entry(id: ConeIdentity) -> Self {
+        Self(StrongDefinitionEntityKind::NativeAppEntry(id))
+    }
+
     pub fn generated_bridge_atom(
         key: &GeneratedBridgeAtomKey,
     ) -> Result<Self, ObjectDefinitionIdentityError> {
@@ -124,6 +129,7 @@ impl WireEncode for StrongDefinitionEntity {
                 encode_value_sum(encoder, 12, &id)
             }
             StrongDefinitionEntityKind::RootEntry(id) => encode_value_sum(encoder, 13, &id),
+            StrongDefinitionEntityKind::NativeAppEntry(id) => encode_value_sum(encoder, 14, &id),
         }
     }
 }
@@ -148,6 +154,7 @@ pub enum StrongDefinitionRole {
     ImageDescriptor,
     GeneratedBridge,
     RootEntryDescriptor,
+    NativeAppEntryDescriptor,
 }
 
 impl WireEncode for StrongDefinitionRole {
@@ -171,6 +178,7 @@ impl WireEncode for StrongDefinitionRole {
             Self::ImageDescriptor => 17,
             Self::GeneratedBridge => 18,
             Self::RootEntryDescriptor => 19,
+            Self::NativeAppEntryDescriptor => 20,
         })
     }
 }
@@ -338,6 +346,10 @@ impl StrongDefinitionEntity {
                 StrongDefinitionEntityKind::RootEntry(id),
                 StrongDefinitionRole::RootEntryDescriptor,
             ) => Some(PersistentSymbolKey::RootEntryDescriptor(id)),
+            (
+                StrongDefinitionEntityKind::NativeAppEntry(id),
+                StrongDefinitionRole::NativeAppEntryDescriptor,
+            ) => Some(PersistentSymbolKey::NativeAppEntryDescriptor(id)),
             _ => None,
         }
     }

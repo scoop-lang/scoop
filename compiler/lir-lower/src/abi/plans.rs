@@ -21,6 +21,7 @@ pub(crate) struct SignatureRequests {
     pub(crate) runtime: HashMap<lir::RuntimeFunction, lir::ScoopAbiRequestId>,
     pub(crate) release: lir::ScoopAbiRequestId,
     pub(crate) root: lir::ScoopAbiRequestId,
+    pub(crate) native_app: lir::ScoopAbiRequestId,
     pub(crate) startup: lir::ScoopAbiRequestId,
 }
 
@@ -103,6 +104,7 @@ pub(crate) fn prepare(
         [lir::LirType::I32, lir::RAW_PTR, lir::RAW_PTR],
         Some(lir::LirType::I32),
     )?;
+    let native_app = builder.scoop([lir::RAW_PTR, lir::RAW_PTR], Some(lir::LirType::I32))?;
     let startup = builder.scoop([], Some(lir::LirType::I32))?;
     Ok((
         builder.input,
@@ -117,6 +119,7 @@ pub(crate) fn prepare(
             runtime,
             release,
             root,
+            native_app,
             startup,
         },
     ))

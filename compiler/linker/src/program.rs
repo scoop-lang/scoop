@@ -64,6 +64,11 @@ impl<'a> ProgramInputs<'a> {
         profile: &ValidatedFinalLinkProfile,
         library_paths: &[std::path::PathBuf],
     ) -> Result<Self, LinkError> {
+        if (closure.root_kind() == scoop_slib::ConeKind::NativeApp)
+            != (profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
+        {
+            return Err(error("root Cone kind differs from final-link output kind"));
+        }
         if runtime.target() != profile.target() {
             return Err(error("runtime target differs from final-link target"));
         }
@@ -228,7 +233,9 @@ impl<'a> ProgramInputs<'a> {
                 .contract()
                 .native_symbol_normalization()
                 .compiler_generated_object_symbol(
-                    if profile.target().native_object_format()
+                    if profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary {
+                        "scoop_rt_init_native_app"
+                    } else if profile.target().native_object_format()
                         == scoop_lir::NativeObjectFormat::Coff64
                     {
                         "scoop_rt_run_program_utf16"

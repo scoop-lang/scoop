@@ -18,6 +18,8 @@ typedef struct ScoopImageDescriptorV1 {
 _Static_assert(sizeof(ScoopImageDescriptorV1) == 208, "image ABI size");
 _Static_assert(offsetof(ScoopImageDescriptorV1, tables) == 112, "image tables offset");
 typedef struct ScoopRootEntryDescriptorV1 ScoopRootEntryDescriptorV1;
+typedef struct ScoopNativeAppEntryDescriptorV1 ScoopNativeAppEntryDescriptorV1;
+typedef struct ScoopAppError ScoopAppError;
 "#;
 
 pub(super) fn emit(source: &mut String, images: &[SelectedImage], section: &str) {

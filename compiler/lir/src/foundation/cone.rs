@@ -274,7 +274,11 @@ impl ConeLirFoundation {
             .filter_map(|record| {
                 match decode_runtime::<DecodedCallableBodyKey>(record.key_bytes()) {
                     Ok(key)
-                        if matches!(key.kind(), DecodedCallableBodyKeyKind::RootGateway { .. }) =>
+                        if matches!(
+                            key.kind(),
+                            DecodedCallableBodyKeyKind::RootGateway { .. }
+                                | DecodedCallableBodyKeyKind::NativeAppGateway { .. }
+                        ) =>
                     {
                         Some(Ok(record.id()))
                     }
@@ -312,6 +316,9 @@ impl ConeLirFoundation {
                     (
                         DefinitionOwner::RootEntry { .. },
                         StorageRole::RootEntryFailureRoot
+                    ) | (
+                        DefinitionOwner::NativeAppEntry { .. },
+                        StorageRole::NativeAppEntryFailureRoot
                     )
                 )
                 .then_some(record.id())

@@ -1,0 +1,7 @@
+schema = 1
+
+[cone]
+group = "dev.nativeapp"
+name = "reject-extern"
+version = "0.1.0"
+kind = "native-app"

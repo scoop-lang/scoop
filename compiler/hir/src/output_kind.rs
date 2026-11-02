@@ -2,6 +2,9 @@
 
 use std::fmt;
 
+mod native_app;
+pub use native_app::{LocalNativeAppEntry, LocalNativeAppEntryError};
+
 use scoop_identity::{
     DeclarationName, DefinitionOriginSubject, ExactCallableSignature, ExecutableEntryIdentity,
     ExecutableEntryIdentityError, SourceSignatureFingerprint,
@@ -147,6 +150,9 @@ pub enum ConeOutputKind {
     Library,
     Executable {
         local_entry: Box<LocalExecutableEntry>,
+    },
+    NativeApp {
+        local_entry: Box<LocalNativeAppEntry>,
     },
 }
 

@@ -782,12 +782,12 @@ mod tests {
 
         let malformed = DecodedRuntimeIdentityRecord::<PersistentCallableBodyId> {
             id: DecodedPersistentId::from_bytes(*record.id().as_array()),
-            key_bytes: b"\x06\0\0\0".to_vec(),
+            key_bytes: b"\xff\0\0\0".to_vec(),
         };
         assert!(matches!(
             malformed.validate_key::<DecodedCallableBodyKey>(),
             Err(RuntimeIdentityRecordValidationError::Decode(error))
-                if error.kind() == (scoop_wire::RuntimeDecodeErrorKind::UnknownTag { tag: 6 })
+                if error.kind() == (scoop_wire::RuntimeDecodeErrorKind::UnknownTag { tag: 255 })
         ));
     }
 

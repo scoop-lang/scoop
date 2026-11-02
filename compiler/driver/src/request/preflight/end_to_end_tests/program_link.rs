@@ -58,5 +58,9 @@ fn program_link_reads_machine_data_from_actual_executable_artifacts() {
         scoop_slib::read_program_link_closure(&core_file, &[], target.lir_target_selection())
             .err()
             .unwrap();
-    assert!(library_root.to_string().contains("executable Cone"));
+    assert!(
+        library_root
+            .to_string()
+            .contains("executable or native-app Cone")
+    );
 }

@@ -32,6 +32,8 @@ impl NativeOptions {
                 mode: self.link_mode.map(Into::into),
                 keep_symbols: self.keep_symbols,
                 emit_debug_file: self.emit_debug_file,
+                install_name: self.install_name,
+                soname: self.soname,
                 enable_stack_trace: self.enable_stack_trace,
                 ..Default::default()
             },

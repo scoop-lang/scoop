@@ -120,6 +120,7 @@ pub(super) fn complete_function(
             .key()
             .kind(),
         scoop_identity::CallableBodyKeyKind::RootGateway { .. }
+            | scoop_identity::CallableBodyKeyKind::NativeAppGateway { .. }
             | scoop_identity::CallableBodyKeyKind::InitializationStartupGateway(_)
     ) {
         Some(lir::ManagedPollKind::Gateway)

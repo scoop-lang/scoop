@@ -61,10 +61,10 @@ fn lir_param_free_v3_retains_target_coercions() {
 }
 
 #[test]
-fn compiler_protocol_v19_exposes_native_function_pointer_conversions() {
+fn compiler_protocol_v20_exposes_native_app_entry() {
     assert_retired_version(
         hir_core_bootstrap_interface_capability(),
-        19,
+        20,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -124,10 +124,10 @@ fn hir_foundation_v11_encodes_gc_leaf_function_pointer_identity() {
 }
 
 #[test]
-fn lir_foundation_v12_encodes_gc_leaf_function_pointer_identity() {
+fn lir_foundation_v13_encodes_native_app_entry_identity() {
     assert_retired_version(
         lir_identity_foundation_capability(),
-        12,
+        13,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

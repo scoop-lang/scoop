@@ -65,6 +65,7 @@ fn cone(
                     ("callable", Some(CallableSignatureSubject::Odr(member)))
                 }
                 CallableBodyKeyKind::RootGateway { .. } => ("root-gateway", None),
+                CallableBodyKeyKind::NativeAppGateway { .. } => ("native-app-gateway", None),
                 CallableBodyKeyKind::InitializationStartupGateway(_) => {
                     ("initialization-gateway", None)
                 }

@@ -50,6 +50,24 @@ pub(crate) fn lower_output(
                 },
             )
         }
+        export::ConeOutputKind::NativeApp { local_entry } => {
+            let (module, function) = concretizer.finish(prepared, |concretizer| {
+                concretizer.intern_type(concrete::TypeKind::Any, false);
+                concretizer.function_by_key[&concretizer.function_key(
+                    FunctionSource::Local(local_entry.local_function().function()),
+                    None,
+                    Vec::new(),
+                )]
+            })?;
+            let entry = export::ConcreteNativeAppEntry::try_new(&module, local_entry, function)
+                .expect("concretization preserves the validated native-app entry");
+            (
+                module,
+                export::LocalConeOutputKind::NativeApp {
+                    local_entry: Box::new(entry),
+                },
+            )
+        }
     };
     runtime_exceptions::check_runtime_layout(&module)?;
     let materialization = export::LocalShapeSupportPlan::try_new(&module, &requirements)

@@ -2893,7 +2893,7 @@ schema = 1
 group = "dev.example"
 name = "my-lib"
 version = "0.1.0"
-kind = "library" # 或 "executable"
+kind = "library" # 或 "executable"、"native-app"
 
 [dependencies]
 "org.foo:bar" = { version = "1.2.3", path = "../bar" }
@@ -2901,7 +2901,7 @@ kind = "library" # 或 "executable"
 "org.other:log" = { version = "3.1.0", registry = "https://packages.example.org/" }
 ```
 
-- `schema`必需；普通Cone在展开workspace继承后必须具有`[cone]`的`group`、`name`、精确`version`和`kind`，kind只能是`library`或`executable`。virtual workspace只声明成员、不定义Cone。未知semantic field不能被静默忽略；
+- `schema`必需；普通Cone在展开workspace继承后必须具有`[cone]`的`group`、`name`、精确`version`和`kind`，kind只能是`library`、`executable`或`native-app`。virtual workspace只声明成员、不定义Cone。未知semantic field不能被静默忽略；
 - dependency key是exact `group:name`，version是包管理规范2.2的要求；`"1.2.3"`默认caret，`"=1.2.3"`才是精确固定。来源可为path、Git/GitHub、registry、显式artifact或默认系统库。PM按完整闭包选择版本，写入`Cone.lock`；driver与编译器只消费精确绑定；
 - 没有显式来源的普通依赖使用明确配置的registry；`group = "scoop"`继续使用显式artifact search roots及`<sysroot>/lib/<canonical-target-triple>/<name>.slib`，core另遵守12.6。系统库必须匹配key并满足版本要求，且为当前目标的普通library。显式来源失败或不兼容时直接报错，不切换来源、读取随包源码或自动重建；
 - locator及registry URL、Git commit用于依赖选择、lock与构建更新，不进入ConeIdentity、实体identity、`.slib`语言身份、初始化顺序或源码诊断identity。相对路径以声明它的manifest为基准，workspace共享值以定义处为基准。所选source/artifact必须匹配key和版本要求；同坐标不同来源不能被静默合并；
@@ -2911,7 +2911,7 @@ kind = "library" # 或 "executable"
 - 单文件依赖头部仅到首个语言 token（包括被忽略的 package）之前；允许首行 shebang、空白和普通注释穿插。只有真实行注释 `//! dep: group:name:version` 指定精确坐标；不读取块注释、文档正文或字符串中的相似文本。dep 缺少冒号/坐标、非法 coordinate/SemVer、重复显式坐标均定位到原始注释行报错；其他 `//!` 与 token 后的所有注释按普通注释处理。默认依赖始终为 `scoop:scoop.core:0.1.0` 和 `scoop:scoop.std:0.1.0`，显式相同坐标只合并边，重复源码声明仍报错；不同版本沿现有版本冲突规则处理。普通 manifest build/test/doc 不解释这些注释。依赖不隐式导入名称，core prelude 保持；
 - manifest Cone的source identity是`(ConeIdentity, normalized Cone-relative source path)`，保留从Cone根开始的完整路径，不以显式源码根为基准截短；single-file 的原始输入使用相同pair形态，第一项固定为由reserved `scoop:single-file:0.0.0`计算的`ConeIdentity`，第二项固定为`main.scoop`。生成方法体在同一 Cone 下保留自己的逻辑来源，不成为额外的输入文件或顶层声明。host绝对路径、CLI relative/absolute/symlink spelling、inode、mtime、目录枚举顺序与临时输出路径不进入语义identity；只有语言允许跨文件同名的file-private/hidden实体才把该source identity加入其declaration key。single-file构建记录另外区分实际source及其修改时间／大小、实际依赖结果、compiler/schema/target/toolchain；需要编译时源码内容参与正常语义计算，不因共用reserved identity而冒用另一输入的缓存；
 
-executable Cone 可使用 `[windows]` 节：`subsystem = "console" | "gui"`（缺省 `"console"`）选择 Windows PE 的 console／GUI subsystem；可选 `rc = "resources/app.rc"` 指定相对于 Cone 根的 RC 文件。两项属于同一节，未知字段、非法取值及 library Cone 使用该节均为 manifest 错误。配置只作用于 Windows target；其他 target 不读取 RC 文件。两种 subsystem 保留相同的 Scoop `main`、Unicode argv、CRT 初始化／终止及退出码规则，不隐式启动窗口库或消息循环。测试 executable 始终使用 console，不继承生产 executable 的 GUI 配置。资源编译与 artifact-only 链接合同见实现规范及 [Windows 设计 3.4](../windows-targets/DESIGN.md#34-windows-executable-配置与资源)。
+executable Cone 可使用 `[windows]` 节：`subsystem = "console" | "gui"`（缺省 `"console"`）选择 Windows PE 的 console／GUI subsystem；可选 `rc = "resources/app.rc"` 指定相对于 Cone 根的 RC 文件。两项属于同一节，未知字段、非法取值及非 executable Cone 使用该节均为 manifest 错误。配置只作用于 Windows target；其他 target 不读取 RC 文件。两种 subsystem 保留相同的 Scoop `main`、Unicode argv、CRT 初始化／终止及退出码规则，不隐式启动窗口库或消息循环。测试 executable 始终使用 console，不继承生产 executable 的 GUI 配置。资源编译与 artifact-only 链接合同见实现规范及 [Windows 设计 3.4](../windows-targets/DESIGN.md#34-windows-executable-配置与资源)。
 
 `windows.rc` 选择单个资源脚本，路径沿用 native source 的相对路径规则，允许引用 Cone 根外的共用文件，不递归发现资源。脚本以 UTF-8 输入，使用所选 Windows target 的 Clang 预处理器、headers 和目标宏；包含路径还包括当前 Cone 的 `native.include`，C/C++ 编译 flags 不自动应用到 RC。头文件和图标等资源由普通 RC 语法引用；实际输入缺失或编译失败按构建错误报告。测试 executable 不继承生产程序的 RC，非 Windows target 和未声明 RC 的构建不读取资源或探测资源工具。
 
@@ -3017,14 +3017,14 @@ when = { os = "linux" }
 依赖图必须在最终链接前完整确定。M63的PM按每个root/purpose/target独立求解和锁定；workspace的多个独立程序可以使用不同版本，同一程序内仍受下列单版本约束。构建、运行与产物链接命令的输入、输出和兼容性要求见编译器与产物规范 2.7～2.8。
 
 - 依赖边必须无环；同一图中同一 `group:name` 只能出现一个 version，同一 ConeIdentity 只能对应一致的产物与语义指纹。环、多个版本、同 identity 的内容冲突或 dependency coordinate 不匹配均为构建错误。
-- executable 不能作为另一个 Cone 的依赖。一次程序构建恰有一个 executable root，其余节点均为 library；library 单独构建不需要 executable root。
+- executable 与 native-app 不能作为另一个 Cone 的依赖。一次最终产物构建恰有一个 executable 或 native-app root，其余节点均为 library；library 单独构建不需要最终 root。native-app 将完整静态 Cone 闭包与一份私有 runtime 链入一个供非 Scoop host 加载的动态库，不可作为另一个 Cone 的语言依赖。
 - 除 core 自身外，每个未显式声明 core 的 Cone 都具有 12.6 的 core direct dependency；除此之外没有隐式依赖。core 可从普通 manifest 目录作为构建根，使用普通 library 规则，不加载另一份 core 或产生 self edge。sysroot 只提供默认定位位置。
 - single-file 的图包含唯一 synthetic executable root、始终直接可见的 core/std、头部显式依赖与它们的传递闭包；传递支持产物不自动获得 direct import 可见性。`@Extern` 的逻辑 native library 需求不属于 Cone dependency。
 - dependency path、manifest 枚举与输入顺序不影响初始化顺序。按 dependency-first 拓扑顺序处理 Cone；每一步从全部依赖已完成的 Cone 中，按 `(group UTF-8 bytes, name UTF-8 bytes, canonical version bytes)` 取最小者。
 - eager top-level initialization 按上述 Cone 顺序执行，同一 Cone 内按 9.1.3 的 PersistentInitializationUnitId bytes 排序。object、companion 与 generic delegated extension 等 lazy unit 不提前执行。初始化期间读取另一 unit 时，先完成目标 unit 的初始化，因此目标可以早于其通常排序位置执行。
 - 间接依赖的存在不使其声明自动成为源码候选。名称可到达性只由 12.4 的当前 Cone、direct dependency surface、re-export 与 core prelude 决定。
 - 源码或依赖变化时，缓存不得复用不相容的结果；没有源码可重建的 stale dependency 是构建错误。
-- registry下载、版本求解与lockfile只在编译前的独立PM中处理，见[包管理规范](SCOOP-PACKAGE-SPEC.md)；`.slib`已绑定的精确依赖不能按SemVer范围重新换绑。不提供shared-library ABI、`dlopen`/`dlclose`、hot reload、image卸载或运行期新增Cone。
+- registry下载、版本求解与lockfile只在编译前的独立PM中处理，见[包管理规范](SCOOP-PACKAGE-SPEC.md)；`.slib`已绑定的精确依赖不能按SemVer范围重新换绑。native-app 只提供 12.4.4 的固定 C bootstrap；允许 OS 加载整个最终模块，不提供运行期 Cone 动态链接、hot reload、image 卸载或运行期新增 Cone。
 
 ### 12.4 `package`、`import`、re-export与编译单元
 
@@ -3103,7 +3103,11 @@ import 指向原声明；经不同依赖路径或 re-export 到达同一声明�
 
 表中的参数名 `args` 不作要求；有参数时恰有一个普通参数，其类型是实际 core `Array<String>` 的 exact application，透明 alias 按普通类型规则展开。其他参数／返回形态不能充当入口；缺少入口、入口不唯一或候选签名不合法均为编译错误，诊断给出实际签名和允许的形态。
 
-测试用途为当前 Cone 合成独立的 executable entry，生产 manifest 的 library／executable kind 均可作为被测对象。合成入口使用 generated callable 身份，参数与返回值遵守上述入口 ABI；已有源码 main 保持普通声明，不参与测试入口选择，也不由测试启动自动调用。测试入口沿用既有 eager 初始化、root gateway、异常和 shutdown 语义。
+生产 `native-app` 根必须恰有一个当前 Cone 的 top-level、具名、ordinary、non-generic、non-suspend、无 receiver 的 `appInit` 候选，并具有普通 Scoop 函数体。签名固定为 `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`；参数名不作要求，两个普通参数必须是透明 alias 展开后的实际 core `Ptr<Unit>`，返回实际 core `Unit`。入口可以 internal 或 public，可以 `@Unsafe`，不能 `@Extern`、vararg 或带 receiver。缺失、多个同名 top-level 候选、签名不合法均在 HIR 入口选择时给出源码诊断；依赖中的同名声明不参与竞争。入口通过独立的 typed native-app entry 调用，不借用 main 的身份或退出码。
+
+最终动态库只导出 `scoop_app_init(const void *host_api, void *out_app_api, ScoopAppError *out_error)`。两张表均为非 null 的应用自定义 GC-free C-layout 存储；host 表在协议上只读，输出表由 host 提供且只能在首次初始化成功后读取。eager initializer 按 12.3 的顺序先执行，host 配置只在 appInit 的参数中可见。appInit 普通异常转为可返回的初始化失败，runtime 和已建立的 GC 状态保留；状态、错误文本和 host 边界见运行时规范 2.8。native-app 原始参数集合为空，argc 为 0，任意 argv 查询返回 null。单文件模式仍只合成 executable，不合成 native-app。
+
+测试用途为当前 Cone 合成独立的 executable entry，生产 manifest 的 library／executable／native-app kind 均可作为被测对象。合成入口使用 generated callable 身份，参数与返回值遵守上述入口 ABI；已有源码 main／appInit 保持普通声明，不参与测试入口选择，也不由测试启动自动调用。测试入口沿用既有 eager 初始化、root gateway、异常和 shutdown 语义。
 
 `args` 包含完整原生 argv：`args[0]` 是可执行程序自身的启动路径，后续元素才是用户传入的参数。这一点与 Java/Kotlin 的 `main(args)` **不一致**：Java/Kotlin 不在 `args` 中包含程序路径。Scoop 保留启动者传入的原生 `argv[0]` 字符串，不将其解析为绝对路径或规范化真实路径；`scoop run` 使用稳定的可执行输出路径。没有用户参数时 `args` 仍有这一项。参数按原有顺序保留，包括空字符串，不重新按空格拆分。
 

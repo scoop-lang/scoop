@@ -300,6 +300,14 @@ impl CanonicalLirFoundation {
             )?;
         }
 
+        if matches!(module.output, crate::LirOutput::NativeApp { .. }) {
+            writer.define(
+                StrongDefinitionEntity::native_app_entry(producer),
+                StrongDefinitionRole::NativeAppEntryDescriptor,
+                Vec::new(),
+            )?;
+        }
+
         self.set_odr_members(writer.members.into_values().collect())?;
         self.set_definition_plans(writer.plans.into_values().collect())?;
         self.set_definition_atoms(writer.atoms.into_values().collect())?;

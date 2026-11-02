@@ -103,6 +103,16 @@ impl CallableBodyIdentity {
         )
     }
 
+    pub fn for_native_app_gateway(
+        root_cone: scoop_identity::ConeIdentity,
+        app_init: scoop_identity::AppInitCallableBodyId,
+    ) -> Result<Self, CallableBodyIdentityBuildError> {
+        Self::from_key(
+            scoop_identity::CallableBodyKey::native_app_gateway(root_cone, app_init),
+            CallableBodyMaterialization::ConeOwned,
+        )
+    }
+
     pub const fn id(&self) -> scoop_identity::PersistentCallableBodyId {
         self.record.id()
     }

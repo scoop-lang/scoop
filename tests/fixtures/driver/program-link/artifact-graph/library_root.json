@@ -1,7 +1,7 @@
 [
   {
     "code": "SCOOP_LINK_FAILED",
-    "message": "program root must be an executable Cone",
+    "message": "program root must be an executable or native-app Cone",
     "notes": [],
     "origin": {
       "kind": "artifact",

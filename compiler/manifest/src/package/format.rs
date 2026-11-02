@@ -60,4 +60,6 @@ pub mod coordinates {
 pub enum Kind {
     Library,
     Executable,
+    #[serde(rename = "native-app")]
+    NativeApp,
 }

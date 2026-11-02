@@ -7,7 +7,7 @@ use crate::ids::derive_persistent_id;
 
 const CONE_ID_DOMAIN: &str = "scoop-cone-id-v1";
 
-/// Requested product kind before HIR has validated an executable entry.
+/// Requested product kind before HIR has validated a final-product entry.
 ///
 /// This low-level semantic value is shared by manifest parsing and HIR
 /// lowering. It deliberately carries no entry so it cannot be mistaken for a
@@ -16,6 +16,7 @@ const CONE_ID_DOMAIN: &str = "scoop-cone-id-v1";
 pub enum RequestedConeKind {
     Library,
     Executable,
+    NativeApp,
 }
 
 /// The Windows executable subsystem, independent of the program's Scoop ABI.

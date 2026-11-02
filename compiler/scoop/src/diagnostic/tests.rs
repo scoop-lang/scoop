@@ -38,7 +38,7 @@ fn stable_orchestrator_codes_are_unique() {
         BuildDiagnosticCode::LOCATOR_AMBIGUOUS_ARTIFACT,
         BuildDiagnosticCode::GRAPH_RESERVED_IDENTITY,
         BuildDiagnosticCode::GRAPH_MULTIPLE_VERSIONS,
-        BuildDiagnosticCode::GRAPH_EXECUTABLE_DEPENDENCY,
+        BuildDiagnosticCode::GRAPH_NON_LIBRARY_DEPENDENCY,
         BuildDiagnosticCode::GRAPH_SINGLE_FILE_DEPENDENCY,
         BuildDiagnosticCode::GRAPH_MISSING_CORE,
         BuildDiagnosticCode::GRAPH_CYCLE,

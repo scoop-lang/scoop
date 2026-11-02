@@ -1,0 +1,10 @@
+schema = 1
+
+[cone]
+group = "dev.nativeapp"
+name = "consumer"
+version = "0.1.0"
+kind = "library"
+
+[dependencies]
+"dev.nativeapp:provider" = { version = "0.1.0", path = "../provider" }

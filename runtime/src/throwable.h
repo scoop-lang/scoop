@@ -2,6 +2,7 @@
 #define SCOOP_THROWABLE_H
 
 #include "scoop_rt.h"
+#include "stack_trace.h"
 #include <stdio.h>
 
 /* The private prefix shared by Throwable and every source subclass. The
@@ -27,6 +28,8 @@ typedef struct ScoopThrowableReport {
 size_t scoop_throwable_report_copy(const ScoopThrowable *exception, ScoopThrowableReport *report);
 void scoop_throwable_report_reserve(ScoopThrowableReport *report, size_t required);
 void scoop_throwable_report_render(const ScoopThrowableReport *report, FILE *stream);
+void scoop_throwable_report_write_frames(const ScoopThrowableReport *report,
+                                         ScoopTraceWriter writer);
 void scoop_throwable_report_render_frames(const ScoopThrowableReport *report, FILE *stream);
 
 #endif

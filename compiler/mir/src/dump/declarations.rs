@@ -520,6 +520,9 @@ pub fn dump(module: &Module) -> String {
     }
     match module.output {
         MirOutput::Library => out.push_str("  output library\n"),
+        MirOutput::NativeApp { entry } => {
+            out.push_str(&format!("  output native-app {}\n", function_ref(entry)))
+        }
         MirOutput::Executable { entry, arguments } => {
             out.push_str(&format!("  output executable {}\n", function_ref(entry)));
             match arguments {

@@ -698,6 +698,9 @@ fn stable_callable_body_order(
             .map_err(LirFoundationBuildError::CallableBodyKey)?;
         let dependencies = match key.kind() {
             DecodedCallableBodyKeyKind::RootGateway { main, .. } => vec![*main.as_array()],
+            DecodedCallableBodyKeyKind::NativeAppGateway { app_init, .. } => {
+                vec![*app_init.as_array()]
+            }
             _ => Vec::new(),
         };
         if nodes

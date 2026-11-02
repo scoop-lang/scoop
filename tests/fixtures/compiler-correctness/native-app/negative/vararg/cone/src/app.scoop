@@ -1,0 +1,3 @@
+package dev.nativeapp
+
+fun appInit(vararg hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {}

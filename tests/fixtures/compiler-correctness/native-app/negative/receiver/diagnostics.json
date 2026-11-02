@@ -1,0 +1,26 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
+    "notes": [
+      {
+        "message": "`fun appInit(this: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit` is not eligible because it has a receiver",
+        "origin": {
+          "cone": "bc701d7cb99f3c4078ae39f90666094efd10f8d2a3cc160280ff164258ecf888",
+          "end": 69,
+          "kind": "source",
+          "path": "src/app.scoop",
+          "start": 23
+        }
+      }
+    ],
+    "origin": {
+      "cone": "bc701d7cb99f3c4078ae39f90666094efd10f8d2a3cc160280ff164258ecf888",
+      "end": 0,
+      "kind": "source",
+      "path": "src/app.scoop",
+      "start": 0
+    },
+    "severity": "error"
+  }
+]

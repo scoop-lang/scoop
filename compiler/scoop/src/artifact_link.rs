@@ -115,6 +115,13 @@ pub fn link_artifacts(request: LinkRequest) -> BuildResult<LinkOutcome> {
             .publish(&file.path, None)
             .map_err(failure)?;
     }
+    if let Some(file) = &linked.import_library {
+        let name = file.file_name().expect("import library has a basename");
+        OutputLocation::new(&output.parent().join(name))
+            .map_err(failure)?
+            .publish(file, None)
+            .map_err(failure)?;
+    }
     output.publish(&linked.path, None).map_err(failure)?;
     Ok(LinkOutcome {
         output: output.path().to_owned(),

@@ -25,6 +25,9 @@ pub(super) fn encode_strong_owner(
             encode_entity(encoder, 12, id.as_array())?
         }
         StrongDefinitionEntityKind::RootEntry(id) => encode_entity(encoder, 13, id.as_array())?,
+        StrongDefinitionEntityKind::NativeAppEntry(id) => {
+            encode_entity(encoder, 14, id.as_array())?
+        }
     }
     encoder.u32(match owner.role() {
         scoop_identity::StrongDefinitionRole::CallableBody => 1,
@@ -45,6 +48,7 @@ pub(super) fn encode_strong_owner(
         scoop_identity::StrongDefinitionRole::ImageDescriptor => 17,
         scoop_identity::StrongDefinitionRole::GeneratedBridge => 18,
         scoop_identity::StrongDefinitionRole::RootEntryDescriptor => 19,
+        scoop_identity::StrongDefinitionRole::NativeAppEntryDescriptor => 20,
     })
 }
 

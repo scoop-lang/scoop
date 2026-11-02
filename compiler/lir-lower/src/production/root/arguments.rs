@@ -10,6 +10,12 @@ pub(super) fn build_arguments(
     blocks_used: (BlockId, BlockId, BlockId),
 ) -> Vec<AbiCallArgument> {
     let (entry, normal, unwind) = blocks_used;
+    if matches!(main.arguments, RootArguments::NativePointers) {
+        return vec![
+            AbiCallArgument::Direct(Value::Param(0)),
+            AbiCallArgument::Direct(Value::Param(1)),
+        ];
+    }
     let RootArguments::Build(destination, signature) = main.arguments else {
         return Vec::new();
     };
