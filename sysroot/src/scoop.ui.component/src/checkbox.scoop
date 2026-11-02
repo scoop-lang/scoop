@@ -12,7 +12,8 @@ public class CheckboxProps public constructor(
     public val checked: Binding<Boolean>,
     public val enabled: Boolean = true,
     public val style: CheckboxStyle = CheckboxStyle(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions()
 )
 
 public class Checkbox public constructor(private val props: Props<CheckboxProps>): Component {
@@ -49,19 +50,25 @@ public fun checkbox(
     enabled: Boolean = true,
     style: CheckboxStyle = CheckboxStyle(),
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
-    component(CheckboxProps(checked, enabled, style, theme), { props -> Checkbox(props) }, key)
+    component(
+        CheckboxProps(checked, enabled, style, theme, focus),
+        { props -> Checkbox(props) },
+        key
+    )
 
 public fun checkbox(
     initialChecked: Boolean = false,
     enabled: Boolean = true,
     style: CheckboxStyle = CheckboxStyle(),
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
     component(
-        OwnedCheckboxProps(initialChecked, enabled, style, theme),
+        OwnedCheckboxProps(initialChecked, enabled, style, theme, focus),
         { props -> OwnedCheckbox(props) },
         key
     )
@@ -70,13 +77,20 @@ private class OwnedCheckboxProps(
     val initial: Boolean,
     val enabled: Boolean,
     val style: CheckboxStyle,
-    val theme: ThemeSource?
+    val theme: ThemeSource?,
+    val focus: FocusOptions
 )
 
 private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Component {
     private val checked = state(props.value.initial)
     public override fun render(): View =
-        checkbox(checked.binding(), props.value.enabled, props.value.style, props.value.theme)
+        checkbox(
+            checked.binding(),
+            props.value.enabled,
+            props.value.style,
+            props.value.theme,
+            focus = props.value.focus
+        )
 }
 
 private class CheckboxInkProps(
@@ -94,6 +108,7 @@ private class CheckboxDrawing(val geometry: CheckboxGeometry, val visual: Checkb
 
 private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
     private var area: InputArea? = None
+    private var focus: FocusTarget? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
@@ -117,6 +132,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
                 value.interaction.handle(area!!, current, event, value.activate)
             }
         area = Some(scope.createArea(focusable = true, handler = handle))
+        focus = Some(scope.focusTarget(area!!, props.value.input.focus))
         area!!.scope.defaultAction = handle
         area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
     }
@@ -124,6 +140,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         val value = props.value
         value.interaction.update(value.input.enabled)
         area!!.scope.enabled = value.input.enabled
+        focus!!.options = value.input.focus
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,

@@ -104,6 +104,7 @@ def prepare(args):
     patches = [
         vendor / "patches" / ("windows-toolchain.patch" if windows else "macos-deployment.patch"),
         vendor / "patches/text-baselines.patch",
+        vendor / "patches/graphics-pathops.patch",
     ]
     packages = (*PACKAGES, *build_skia_windows.PACKAGES) if windows else PACKAGES
     archives = [vendor / f"{name}.tar.xz" for name, _, _ in packages]

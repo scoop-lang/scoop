@@ -1,0 +1,266 @@
+package scoop.tests.ui.focus
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.sendSurfaceKey
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class UiFocusTest {
+    @Test
+    fun `logical tab order scopes pending focus and handle lifetime use real routed input`() {
+        val probe = FocusProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host ->
+            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            assertTrue(probe.finished)
+            assertTrue(probe.initialCommit)
+            for (index in 0L ..< probe.handles.size) {
+                assertFalse(probe.handles[index].isAttached)
+                assertFalse(probe.handles[index].isPending)
+                assertEquals(1, probe.mounts[index])
+                assertEquals(1, probe.unmounts[index])
+            }
+            assertFalse(probe.replacement.isAttached)
+        }
+    }
+}
+
+internal class FocusProbe {
+    val handles = Array<FocusHandle>(8L) { _ -> FocusHandle() }
+    val replacement = FocusHandle()
+    val targets = MutableArray<FocusTarget?>(8L) { _ -> None }
+    val areas = MutableArray<InputArea?>(8L) { _ -> None }
+    val scopes = MutableArray<ComponentScope?>(8L) { _ -> None }
+    val mounts = MutableArray<Int>(8L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(8L) { _ -> 0 }
+    val revision = state(0)
+    var prioritize = true
+    var reversed = false
+    var showHidden = false
+    var removeHidden = false
+    var replaceHandle = false
+    var stopAll = false
+    var preventTab = false
+    var localTab = false
+    var frames = 0
+    var committed = -1
+    var initialCommit = false
+    var finished = false
+    var rootScope: FocusScope? = None
+    var group: FocusScope? = None
+    var panelScope: ComponentScope? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var phase = 0
+    private var waiting = false
+    private var requestedAfterPaint = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                assertFalse(handles[0L].requestFocus())
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop focus navigation", LogicalSize(440.0, 140.0))
+                    )
+                window = Some(native)
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { FocusScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (frames > 0 && !window!!.isFocused && !requestedAfterPaint) {
+                    requestedAfterPaint = true
+                    window!!.requestFocus()
+                }
+                if (!waiting && initialCommit && window!!.isFocused && committed == revision.value)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"focus timeout phase=${phase}, frames=${frames}, focused=${window!!.isFocused}"
+                )
+            )
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+
+    private fun assertFocus(index: Long) {
+        for (position in 0L ..< handles.size) {
+            if (position == 0L && replaceHandle)
+                assertEquals(position == index, replacement.hasFocus)
+            else
+                assertEquals(position == index, handles[position].hasFocus)
+        }
+    }
+    private fun next(
+        active: ActiveApplication,
+        index: Long,
+        shift: Boolean = false,
+        command: Boolean = false,
+        repeat: Boolean = false
+    ) {
+        waiting = true
+        assertTrue(
+            sendSurfaceKey(window!!, 48, true, repeat = repeat, command = command, shift = shift)
+        )
+        assertTrue(sendSurfaceKey(window!!, 48, false, command = command, shift = shift))
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                assertFocus(index)
+                phase += 1
+                waiting = false
+            }
+        )
+    }
+    private fun changed() {
+        phase += 1
+        revision.value += 1
+    }
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertFocus(0L)
+                assertFailsWith<IllegalArgumentException> {
+                    targets[1L]!!.options = FocusOptions(Some(handles[0L]))
+                }
+                assertTrue(handles[1L].isAttached)
+                assertFailsWith<IllegalArgumentException> { scopes[0L]!!.focusTarget(areas[0L]!!) }
+                assertFailsWith<IllegalArgumentException> { panelScope!!.focusTarget(areas[0L]!!) }
+                next(active, 2L)
+            }
+            case 1 -> next(active, 0L, shift = true)
+            case 2 -> next(active, 1L, shift = true)
+            case 3 -> next(active, 3L, shift = true)
+            case 4 -> {
+                prioritize = false
+                assertTrue(handles[0L].requestFocus())
+                changed()
+            }
+            case 5 -> next(active, 1L)
+            case 6 -> {
+                reversed = true
+                changed()
+            }
+            case 7 -> {
+                assertTrue(handles[0L].requestFocus())
+                next(active, 2L)
+            }
+            case 8 -> next(active, 0L, shift = true)
+            case 9 -> next(active, 1L, shift = true)
+            case 10 -> {
+                assertTrue(handles[3L].requestFocus())
+                next(active, 1L)
+            }
+            case 11 -> {
+                group!!.options = FocusScopeOptions(loop = true)
+                assertTrue(handles[3L].requestFocus())
+                next(active, 2L)
+            }
+            case 12 -> next(active, 3L, shift = true)
+            case 13 -> {
+                assertTrue(handles[2L].requestFocus())
+                localTab = true
+                next(active, 2L)
+            }
+            case 14 -> {
+                localTab = false
+                preventTab = true
+                next(active, 2L)
+            }
+            case 15 -> {
+                preventTab = false
+                next(active, 2L, command = true)
+            }
+            case 16 -> next(active, 3L, repeat = true)
+            case 17 -> {
+                assertFalse(handles[4L].requestFocus())
+                assertTrue(handles[0L].requestFocus())
+                assertTrue(handles[6L].requestFocus())
+                assertTrue(handles[6L].isPending)
+                assertTrue(areas[0L]!!.requestFocus())
+                assertFalse(handles[6L].isPending)
+                showHidden = true
+                changed()
+            }
+            case 18 -> {
+                assertFocus(0L)
+                assertTrue(handles[6L].requestFocus())
+                assertFocus(6L)
+                assertTrue(handles[5L].requestFocus())
+                next(active, 6L)
+            }
+            case 19 -> {
+                assertTrue(handles[0L].requestFocus())
+                replaceHandle = true
+                changed()
+            }
+            case 20 -> {
+                assertFalse(handles[0L].isAttached)
+                assertFalse(handles[0L].requestFocus())
+                assertTrue(replacement.hasFocus)
+                assertEquals(1, mounts[0L])
+                showHidden = false
+                changed()
+            }
+            case 21 -> {
+                assertTrue(handles[6L].requestFocus())
+                assertTrue(handles[6L].isPending)
+                removeHidden = true
+                changed()
+            }
+            case 22 -> {
+                assertFalse(handles[6L].isAttached)
+                assertFalse(handles[6L].isPending)
+                assertEquals(1, unmounts[6L])
+                stopAll = true
+                changed()
+            }
+            case 23 -> {
+                rootScope!!.options =
+                    FocusScopeOptions(
+                        defaultFocus = Some(replacement),
+                        fallback = Some(handles[5L])
+                    )
+                assertTrue(rootScope!!.requestFocus())
+                assertTrue(replacement.hasFocus)
+                rootScope!!.options =
+                    FocusScopeOptions(
+                        defaultFocus = Some(handles[0L]),
+                        fallback = Some(handles[5L])
+                    )
+                assertTrue(rootScope!!.requestFocus())
+                assertFocus(5L)
+                next(active, 5L)
+            }
+            case 24 -> {
+                assertFalse(handles[7L].hasFocus)
+                areas[7L]!!.close()
+                assertFalse(handles[7L].isAttached)
+                assertTrue(targets[7L]!!.isClosed)
+                assertFalse(handles[7L].requestFocus())
+                val next = scopes[7L]!!.createArea(focusable = true)
+                scopes[7L]!!.focusTarget(next, FocusOptions(Some(handles[7L])))
+                targets[7L]!!.close()
+                assertTrue(handles[7L].isAttached)
+                assertTrue(handles[7L].requestFocus())
+                assertTrue(handles[7L].isPending)
+                finished = true
+                waiting = true
+                ui!!.close()
+                window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected focus phase"))
+        }
+    }
+}

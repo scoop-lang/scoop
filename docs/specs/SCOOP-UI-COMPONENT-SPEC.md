@@ -82,6 +82,8 @@ Label 本身不创建 InputArea，其行内控件可以拥有并放置自己的�
 
 Button 的输入至少包括文字、onClick、enabled 及样式。它用普通状态保存 hover、pressed 和 focus 等交互表现，render 将这些值传给自己的 Element；文字可以组合 Label。绘制元素在 onMount 时取得 ComponentScope，创建一个允许焦点的 InputArea，在 scene 中使用实际布局矩形或明确的 Path 放置区域。
 
+ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。内部 Element 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop 和 order。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。
+
 显式组件接收 `Props<ButtonProps>`，其中 label 是 LabelProps，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String 和 StyledText 入口，后者同样允许行内绑定。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。

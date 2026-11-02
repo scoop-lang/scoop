@@ -5,7 +5,8 @@ import scoop.window.*
 internal fun InputRouter.focus(area: InputArea): Boolean {
     checkOpen()
     requireInput(area.owner === this, "input area belongs to another window")
-    if (!area.focusable || path(area.scope).size == 0L)
+    focusRevision += 1uL
+    if (!area.canFocus)
         return false
     if (!sameArea(logicalFocus, Some(area))) {
         logicalFocus = Some(area)
@@ -15,7 +16,8 @@ internal fun InputRouter.focus(area: InputArea): Boolean {
 }
 
 internal fun InputRouter.clearFocus() {
-    checkOpen();
+    checkOpen()
+    focusRevision += 1uL
     logicalFocus = None;
     changed()
 }

@@ -1,0 +1,185 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+private enum FocusDestination {
+    Target(FocusTarget), Group(FocusScope)
+}
+
+private class PendingFocus(val destination: FocusDestination, val revision: ULong)
+
+internal class FocusController(private val root: UiRoot): Closeable {
+    private var pending: PendingFocus? = None
+    private var registration: Closeable? = None
+
+    fun start() {
+        registration =
+            Some(
+                root.surface.input.addDefaultAction {
+                    context, event ->
+                    val node = root.node ?: return@addDefaultAction
+                    when (node.focusScope) {
+                        case Some(_) -> {}
+                        case None -> tab(node, true, context, event)
+                    }
+                }
+            )
+    }
+    fun isPending(target: FocusTarget): Boolean {
+        val value = pending ?: return false
+        if (value.revision != root.surface.focusRevision)
+            return false
+        return when (value.destination) {
+            case Target(current) -> current === target
+            else -> false
+        }
+    }
+    fun isPending(scope: FocusScope): Boolean {
+        val value = pending ?: return false
+        if (value.revision != root.surface.focusRevision)
+            return false
+        return when (value.destination) {
+            case Group(current) -> current === scope
+            else -> false
+        }
+    }
+    fun cancel(target: FocusTarget) {
+        val value = pending ?: return
+        when (value.destination) {
+            case Target(current) -> {
+                if (current === target)
+                    pending = None
+            }
+            else -> {}
+        }
+    }
+    fun cancel(scope: FocusScope) {
+        val value = pending ?: return
+        when (value.destination) {
+            case Group(current) -> {
+                if (current === scope)
+                    pending = None
+            }
+            else -> {}
+        }
+    }
+    fun request(target: FocusTarget): Boolean {
+        pending = None
+        if (!target.available)
+            return false
+        if (target.area.canFocus)
+            return target.area.requestFocus()
+        pending = Some(PendingFocus(FocusDestination.Target(target), root.surface.focusRevision))
+        root.surface.requestFrame()
+        return true
+    }
+    fun request(scope: FocusScope): Boolean {
+        pending = None
+        if (!scope.available)
+            return false
+        when (select(scope)) {
+            case Some(target) -> return request(target)
+            case None -> {}
+        }
+        pending = Some(PendingFocus(FocusDestination.Group(scope), root.surface.focusRevision))
+        root.surface.requestFrame()
+        return true
+    }
+    fun complete(frame: FrameCompletion) {
+        if (frame.submission != FrameSubmission.Accepted)
+            return
+        val value = pending ?: return
+        pending = None
+        if (value.revision != root.surface.focusRevision)
+            return
+        val target =
+            when (value.destination) {
+                case Target(current) -> Some(current)
+                case Group(scope) -> if (scope.available)
+                    select(scope)
+                else
+                    None
+            } ?:
+                return
+        if (target.available && target.area.canFocus)
+            target.area.requestFocus()
+    }
+    private fun explicit(scope: FocusScope, handle: FocusHandle?): FocusTarget? {
+        val reference = handle ?: return None
+        val target = reference.target ?: return None
+        return if (
+            target.available && withinFocusScope(target.node, scope.node) && target.area.canFocus
+        )
+            Some(target)
+        else
+            None
+    }
+    private fun select(scope: FocusScope): FocusTarget? {
+        when (explicit(scope, scope.options.defaultFocus)) {
+            case Some(target) -> return Some(target)
+            case None -> {}
+        }
+        for (target in focusOrder(scope.node))
+            if (target.acceptsTab)
+                return Some(target)
+        return explicit(scope, scope.options.fallback)
+    }
+    fun tab(node: MountedNode, loop: Boolean, context: RoutedEventContext, event: InputEvent) {
+        val key =
+            when (event) {
+                case Keyboard(value) -> value
+                else -> return
+            }
+        if (
+            key.state !=
+                ElementState.Pressed ||
+                key.synthetic ||
+                key.logicalKey !=
+                LogicalKey.Named(NamedKey.Tab)
+        )
+            return
+        val modifiers = key.modifiers
+        if (modifiers.control || modifiers.alt || modifiers.superKey || modifiers.function)
+            return
+        if (move(node, modifiers.shift, loop))
+            context.consume()
+    }
+    private fun move(node: MountedNode, reverse: Boolean, loop: Boolean): Boolean {
+        val targets = focusOrder(node)
+        if (targets.size == 0L)
+            return false
+        var index = -1L
+        for (position in 0L ..< targets.size)
+            if (targets[position].area.hasFocus)
+                index = position
+        if (index < 0L && reverse)
+            index = targets.size
+        var visited = 0L
+        while (visited < targets.size) {
+            index += if (reverse)
+                -1L
+            else
+                1L
+            if (index < 0L || index >= targets.size) {
+                if (!loop)
+                    return false
+                index =
+                    if (reverse)
+                        targets.size - 1L
+                    else
+                        0L
+            }
+            val target = targets[index]
+            if (target.acceptsTab)
+                return request(target)
+            visited += 1L
+        }
+        return false
+    }
+    public override fun close() {
+        pending = None
+        registration?.close()
+        registration = None
+    }
+}

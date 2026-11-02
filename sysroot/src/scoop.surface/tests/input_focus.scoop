@@ -9,6 +9,52 @@ import scoop.window.*
 @Test
 private class InputFocusTest {
     @Test
+    fun `clipping keeps an existing text session but blocks new focus requests`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", text = true)
+            assertTrue(area.scope.isEnabledInHierarchy)
+            assertEquals(None, area.windowBounds)
+            assertFalse(area.canFocus)
+            val initial = rig.router.focusRevision
+            assertFalse(area.requestFocus())
+            assertEquals(initial + 1uL, rig.router.focusRevision)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(20.0, 20.0, 10.0, 10.0)) }
+            assertTrue(area.canFocus)
+            assertTrue(area.requestFocus())
+            assertEquals(Some(Rect(20.0, 20.0, 10.0, 10.0)), area.visibleBounds)
+            val focused = rig.router.focusRevision
+            assertTrue(area.requestFocus())
+            assertEquals(focused + 1uL, rig.router.focusRevision)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.frame {
+                frame, canvas ->
+                canvas.clipRect(Rect(0.0, 0.0, 5.0, 5.0))
+                frame.place(canvas, area, Rect(20.0, 20.0, 10.0, 10.0))
+            }
+            assertEquals(Some(Rect(20.0, 20.0, 10.0, 10.0)), area.windowBounds)
+            assertEquals(None, area.visibleBounds)
+            assertFalse(area.canFocus)
+            assertTrue(area.hasFocus && area.isFocusActive)
+            assertEquals(1L, rig.log.ime.size)
+            assertFalse(area.requestFocus())
+            assertTrue(area.hasFocus)
+            val beforeOsLoss = rig.router.focusRevision
+            rig.router.event(WindowEvent.Focused(false))
+            assertEquals(beforeOsLoss, rig.router.focusRevision)
+            rig.router.event(WindowEvent.Focused(true))
+            assertTrue(area.hasFocus)
+            rig.frame { _, _ -> Unit }
+            assertFalse(area.hasFocus)
+            assertEquals(None, area.windowBounds)
+            area.scope.enabled = false
+            assertFalse(area.scope.isEnabledInHierarchy)
+            area.close()
+            assertFalse(area.canFocus)
+        }
+    }
+
+    @Test
     fun `logical focus survives OS focus loss while keyboard routing is inactive`() {
         InputRig().use {
             rig ->

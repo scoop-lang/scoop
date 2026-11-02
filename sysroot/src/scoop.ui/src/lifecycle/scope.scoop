@@ -88,6 +88,36 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(area)
         return area
     }
+    public fun focusTarget(area: InputArea, options: FocusOptions = FocusOptions()): FocusTarget {
+        checkMounted()
+        checkFocusMutation()
+        requireUi(!area.isClosed && area.focusable, "focus target requires an open focusable area")
+        val local = input
+        val belongs =
+            when (area.scope.parent) {
+                case Some(parent) -> parent === local
+                case None -> false
+            }
+        requireUi(belongs, "focus target must belong directly to this mount")
+        for (target in node.focusTargets)
+            requireUi(target.area !== area, "area already has a focus target")
+        val value = FocusTarget(node, area, options)
+        node.focusTargets.add(value)
+        managed.add(value)
+        return value
+    }
+    public fun focusScope(options: FocusScopeOptions = FocusScopeOptions()): FocusScope {
+        checkMounted()
+        checkFocusMutation()
+        when (node.focusScope) {
+            case Some(_) -> throw IllegalStateException(Some("mount already has a focus scope"))
+            case None -> {}
+        }
+        val value = FocusScope(node, options)
+        node.focusScope = Some(value)
+        managed.add(value)
+        return value
+    }
     public fun animation(initial: Double): Animatable<Double> =
         animation(initial, AnimationConverters.DoubleValue)
     public fun animation(initial: Point): Animatable<Point> =

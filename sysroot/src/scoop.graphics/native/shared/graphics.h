@@ -30,6 +30,10 @@ struct SGSample {
   int32_t found;
   SGPoint position, tangent;
 };
+struct SGBounds {
+  int32_t found;
+  SGRect rect;
+};
 
 struct SGObject {
   virtual ~SGObject() = default;
@@ -93,6 +97,9 @@ struct SGGeometry : SGObject {
   bool invertible;
   std::vector<SkPath> clips;
   SkPath shape;
+  SkRect viewport;
+  bool visibilityKnown = false;
+  SGBounds visible = {};
 };
 
 inline SkPoint sg_point(SGPoint p) { return {(float)p.x, (float)p.y}; }

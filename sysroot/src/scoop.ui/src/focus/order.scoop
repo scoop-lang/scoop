@@ -1,0 +1,57 @@
+package scoop.ui
+
+import scoop.collections.sortedBy
+
+private enum FocusEntry {
+    Target(FocusTarget), Group(FocusScope)
+}
+
+private fun entryOrder(entry: FocusEntry): Int =
+    when (entry) {
+        case Target(value) -> value.options.order
+        case Group(value) -> value.options.order
+    }
+
+private fun collectFocus(node: MountedNode, boundary: MountedNode, entries: ArrayList<FocusEntry>) {
+    if (!node.active)
+        return
+    if (node !== boundary) {
+        when (node.focusScope) {
+            case Some(group) -> {
+                entries.add(FocusEntry.Group(group))
+                return
+            }
+            case None -> {}
+        }
+    }
+    for (target in node.focusTargets)
+        entries.add(FocusEntry.Target(target))
+    for (child in node.children)
+        collectFocus(child, boundary, entries)
+}
+
+internal fun focusOrder(node: MountedNode): Array<FocusTarget> {
+    val entries = ArrayList<FocusEntry>()
+    collectFocus(node, node, entries)
+    val result = ArrayList<FocusTarget>()
+    for (entry in entries.sortedBy<FocusEntry, Int> { value -> entryOrder(value) }) {
+        when (entry) {
+            case Target(value) -> result.add(value)
+            case Group(value) -> {
+                for (target in focusOrder(value.node))
+                    result.add(target)
+            }
+        }
+    }
+    return result.toArray()
+}
+
+internal fun withinFocusScope(node: MountedNode, boundary: MountedNode): Boolean {
+    var cursor: MountedNode? = Some(node)
+    while (true) {
+        val current = cursor ?: return false
+        if (current === boundary)
+            return true
+        cursor = current.parent
+    }
+}

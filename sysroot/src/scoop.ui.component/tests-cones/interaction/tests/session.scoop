@@ -50,6 +50,9 @@ private class ControlUiTest {
             assertEquals(1, probe.shortcutCalls)
             assertTrue(probe.shortcuts!!.isClosed)
             assertEquals(0L, probe.shortcuts!!.bindings.size)
+            assertFalse(probe.buttonFocus.isAttached)
+            assertFalse(probe.checkFocus.isAttached)
+            assertFalse(probe.ownedFocus.isAttached)
         } catch (error: Throwable) {
             println(
                 f"control UI phase=${probe.phase}, theme=${probe.paintedTheme}, generation=${
@@ -92,6 +95,9 @@ private fun reportFailure(error: Throwable) {
 }
 
 internal class ControlProbe {
+    val buttonFocus = FocusHandle()
+    val checkFocus = FocusHandle()
+    val ownedFocus = FocusHandle()
     val first = state(false)
     val second = state(false)
     var firstWrites = 0
@@ -144,7 +150,7 @@ internal class ControlProbe {
     var view: ViewProbe? = None
     var frames: FrameProbe? = None
     var finished = false
-    var phase = 0
+    var phase = -3
     var blockDefaults = false
     var blockedBubbles = 0
     var shortcuts: ShortcutScope? = None
@@ -222,12 +228,38 @@ internal class ControlProbe {
     }
     private fun advance(active: ActiveApplication) {
         if (
-            phase == 0 && paintedGeneration == 0 && !window!!.isFocused && !focusedAfterFirstPaint
+            phase <= 0 && paintedGeneration == 0 && !window!!.isFocused && !focusedAfterFirstPaint
         ) {
             focusedAfterFirstPaint = true
             window!!.requestFocus()
         }
         when (phase) {
+            case - 3 -> if (paintedGeneration == 0 && window!!.isFocused) {
+                assertFalse(buttonFocus.requestFocus())
+                key(48)
+                afterInput(active) {
+                    _ ->
+                    assertTrue(checkFocus.hasFocus)
+                    phase = -2
+                }
+            }
+            case - 2 -> {
+                key(48)
+                afterInput(active) {
+                    _ ->
+                    assertTrue(ownedFocus.hasFocus)
+                    phase = -1
+                }
+            }
+            case - 1 -> {
+                assertTrue(sendSurfaceKey(window!!, 48, true, shift = true))
+                assertTrue(sendSurfaceKey(window!!, 48, false, shift = true))
+                afterInput(active) {
+                    _ ->
+                    assertTrue(checkFocus.hasFocus)
+                    phase = 0
+                }
+            }
             case 0 -> if (paintedGeneration == 0 && window!!.isFocused) {
                 assertFalse(buttonVisual.enabled)
                 assertTrue(sendSurfaceKey(window!!, 45, true, command = true))

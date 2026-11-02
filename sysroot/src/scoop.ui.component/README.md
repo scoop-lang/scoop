@@ -29,6 +29,8 @@ fun main() {
 
 Checkbox 可接收 `State<Boolean>.binding()`，也可用 `checkbox(initialChecked = false)` 保留自己的状态。Button.enabled 是普通 Props，可在组合组件的 render 中从同一 checked State 计算。更换外部 Binding 后交互使用新绑定；initialChecked 只决定自有状态组件首次挂载的值。
 
+Button／Checkbox 默认参与 Tab／Shift+Tab 遍历。`focus = FocusOptions(Some(handle), tabStop = true, order = 0)` 可提供外部 FocusHandle、Tab 资格及作用域内顺序；handle.requestFocus() 也可聚焦退出 Tab 的控件。禁用仍由原有 enabled 控制，布局和绘制顺序不决定 Tab 顺序；更换 handle 不重建区域或重置已有焦点。
+
 Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体、字号、颜色等属性；完整 StyledText 使用公共富文本模型。Button 的标签复用 Label 与主题 action 字体，其基线来自实际文字布局。外部 FontCollection 只借用，默认字体资源由挂载作用域管理。
 
 ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。Inherit 保留本轮主题值，Set(None) 明确清除可空属性。InteractionStyles 按 hovered、pressed、focused 顺序组合，禁用时只应用 disabled。`styled(content, style)` 可以给完整控件添加有序 glow、drop shadow 或 blur；空效果与有效果使用同一个持久装饰节点。

@@ -14,7 +14,8 @@ public class ButtonProps public constructor(
     public val onClick: () -> Unit,
     public val enabled: Boolean = true,
     public val style: ButtonStyle = ButtonStyle(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions()
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
@@ -77,7 +78,8 @@ public fun button(
     style: ButtonStyle = ButtonStyle(),
     fonts: FontCollection? = None,
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
     component(
         ButtonProps(
@@ -89,7 +91,8 @@ public fun button(
             onClick,
             enabled,
             style,
-            theme
+            theme,
+            focus
         ),
         { props -> Button(props) },
         key
@@ -104,7 +107,8 @@ public fun button(
     settings: ParagraphStyle = ParagraphStyle(),
     inlines: Array<InlineView> = [],
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
     component(
         ButtonProps(
@@ -112,7 +116,8 @@ public fun button(
             onClick,
             enabled,
             style,
-            theme
+            theme,
+            focus
         ),
         { props -> Button(props) },
         key
@@ -130,6 +135,7 @@ private class ButtonDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVi
 
 private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
     private var area: InputArea? = None
+    private var focus: FocusTarget? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
@@ -145,6 +151,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
                 value.interaction.handle(area!!, current, event, value.input.onClick)
             }
         area = Some(scope.createArea(focusable = true, handler = handle))
+        focus = Some(scope.focusTarget(area!!, props.value.input.focus))
         area!!.scope.defaultAction = handle
         area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
         scope.routeChildren(area!!)
@@ -153,6 +160,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         val value = props.value
         value.interaction.update(value.input.enabled)
         area!!.scope.enabled = value.input.enabled
+        focus!!.options = value.input.focus
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,

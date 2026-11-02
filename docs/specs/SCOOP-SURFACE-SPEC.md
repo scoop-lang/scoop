@@ -122,7 +122,15 @@ hover 根据当前位置和已发布几何单独计算；鼠标不动而区域�
 
 Surface 维护逻辑 focusedArea；键盘、修饰键与 TextInputBatch 路由给当前活动焦点。OS 失焦使其暂不活动并结束按下／组合状态，重新获得焦点时可恢复仍有效的区域；移除／禁用则清除逻辑焦点。文字插入只来自 TextInputBatch，不能同时从 LogicalKey.Character 插入。
 
-requestFocus 只对已发布、可交互且允许焦点的区域成功；文本区域自动允许焦点。它只改变 Surface 内逻辑焦点，不强制抢占 OS 窗口焦点。每个区域的 caret 保存为局部 Rect 值，应用可直接传入 TextLayout.caret 的结果，不让路由层保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
+requestFocus 只对已发布、可交互、具有非空可见几何且允许焦点的区域成功；canFocus 查询同一条件，文本区域自动允许焦点。它只改变 Surface 内逻辑焦点，不强制抢占 OS 窗口焦点。已聚焦区域仅被 clip 完全裁掉时保留逻辑焦点和活动输入会话；不再放置、变换不可逆、禁用或关闭仍清除焦点。保持当前会话与接收新聚焦请求使用不同条件。
+
+InputArea.windowBounds／visibleBounds 返回最近成功帧的窗口逻辑坐标 Rect 值，分别表示未裁剪形状的包围盒和与显式 clip、窗口视口相交后的包围盒。没有已发布几何或区域已关闭时返回 None；空可见交集或不可逆变换的 visibleBounds 为 None。查询不返回可关闭的几何借用，也不认为后绘制的普通兄弟自动遮断前方焦点目标。InputScope.isEnabledInHierarchy 只查询逻辑祖先的关闭／禁用状态，不假定已有几何。
+
+graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需的几何值；形状与任意 path clip 的相交复用 Skia PathOps，不以若干采样点或矩形重叠猜测。快照内部按需复用一次可见交集计算，新的帧使用新的快照。bounds 保留裁剪前的位置，便于后续滚动显露；此查询不更改画布或绘制内容。
+
+SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。
+
+每个区域的 caret 保存为局部 Rect 值，应用可直接传入 TextLayout.caret 的结果，不让路由层保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
 
 区域本帧不再放置时，在成功发布该帧几何后按区域缺席处理，退出命中并执行所需取消／失焦；失败帧继续保留最近已提交几何。区域对象本身不因此关闭。UI 可用这条既有放置规则处理被省略号隐藏的行内控件，无需给 Surface 增加文本对象或组件生命周期。
 

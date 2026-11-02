@@ -32,6 +32,7 @@ internal class InputRouter(
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
     internal var activeFocus: InputArea? = None
+    internal var focusRevision = 0uL
     internal var ime = ImeSession.Off
     internal var imeCaret: Rect? = None
 

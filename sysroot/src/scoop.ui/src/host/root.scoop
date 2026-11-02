@@ -24,7 +24,8 @@ internal class UiRoot(
     private val initial: View
 ): SurfaceContent {
     private var attached: SurfaceWindow? = None
-    private var node: MountedNode? = None
+    internal var node: MountedNode? = None
+    val focus = FocusController(this)
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
     var pendingEnqueued = false
@@ -40,6 +41,7 @@ internal class UiRoot(
         attached = Some(value)
         val current = createNode(this, None, initial)
         node = Some(current)
+        focus.start()
         current.rebuild(UpdateTurn())
         current.mountPending()
     }
@@ -82,6 +84,8 @@ internal class UiRoot(
         completions.add(SceneCompletion(node, action))
     }
     public override fun onFrameComplete(frame: FrameCompletion) {
+        if (isOpen)
+            focus.complete(frame)
         val work = completions.toArray()
         completions.clear()
         for (completion in work) {
@@ -95,6 +99,7 @@ internal class UiRoot(
         isOpen = false
         pending.clear()
         completions.clear()
+        focus.close()
         node?.deactivate()
     }
     fun requestClose() {

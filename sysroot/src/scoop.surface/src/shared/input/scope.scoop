@@ -18,6 +18,17 @@ public class InputScope internal constructor(
         owner.checkThread()
         return closed
     }
+    /** Logical availability; an area may still be waiting for a committed placement. */
+    public val isEnabledInHierarchy: Boolean get() {
+        owner.checkThread()
+        var cursor: InputScope? = Some(this)
+        while (true) {
+            val current = cursor ?: return true
+            if (current.closed || !current.accepts)
+                return false
+            cursor = current.ancestor
+        }
+    }
     public var parent: InputScope?
     get() {
         owner.checkThread()

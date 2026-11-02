@@ -1,4 +1,5 @@
 #include "graphics.h"
+#include "include/pathops/SkPathOps.h"
 
 static int32_t clip(SGCanvas *value, const SkPath &path) {
   try {
@@ -19,6 +20,8 @@ static SGGeometry *geometry(SGCanvas *value, SkPath shape) {
     result->invertible = result->matrix.invert(&result->inverse);
     result->clips = value->clips.back();
     result->shape = std::move(shape);
+    result->viewport = SkRect::MakeWH(value->surface->width() / value->scale,
+                                      value->surface->height() / value->scale);
     return result.release();
   } catch (...) {
     return nullptr;
@@ -119,5 +122,39 @@ SGSample scoop_graphics_geometry_point(SGGeometry *value, SGPoint point,
 }
 SGRect scoop_graphics_geometry_rect_map(SGGeometry *value, SGRect rect) {
   return sg_rect(value->matrix.mapRect(sg_rect(rect)));
+}
+SGRect scoop_graphics_geometry_bounds(SGGeometry *value) {
+  return sg_rect(value->matrix.mapRect(value->shape.computeTightBounds()));
+}
+SGBounds scoop_graphics_geometry_visible(SGGeometry *value) {
+  if (value->visibilityKnown)
+    return value->visible;
+  try {
+    if (!value->invertible) {
+      value->visibilityKnown = true;
+      return {};
+    }
+    auto path = value->shape.tryMakeTransform(value->matrix);
+    if (!path)
+      return {-1, {}};
+    for (const SkPath &clip : value->clips) {
+      path = Op(*path, clip, kIntersect_SkPathOp);
+      if (!path)
+        return {-1, {}};
+    }
+    path = Op(*path, SkPathBuilder().addRect(value->viewport).detach(),
+              kIntersect_SkPathOp);
+    if (!path)
+      return {-1, {}};
+    const SkRect bounds = path->computeTightBounds();
+    if (!bounds.isFinite())
+      return {-1, {}};
+    value->visible =
+        bounds.isEmpty() ? SGBounds{} : SGBounds{1, sg_rect(bounds)};
+    value->visibilityKnown = true;
+    return value->visible;
+  } catch (...) {
+    return {-1, {}};
+  }
 }
 }

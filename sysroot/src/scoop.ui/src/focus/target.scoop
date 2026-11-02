@@ -1,0 +1,69 @@
+package scoop.ui
+
+import scoop.surface.InputArea
+
+/** One registration; its input area remains owned by ComponentScope. */
+public class FocusTarget internal constructor(
+    internal val node: MountedNode,
+    internal val area: InputArea,
+    initial: FocusOptions
+): Closeable {
+    private val localHandle = FocusHandle()
+    private var current = initial
+    private var reference = initial.handle ?: localHandle
+    private var closed = false
+
+    init {
+        reference.bind(this)
+    }
+
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && !area.isClosed
+    internal val available: Boolean get() = active && area.scope.isEnabledInHierarchy
+    internal val acceptsTab: Boolean get() = available && current.tabStop && area.canFocus
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || area.isClosed
+    }
+    public val handle: FocusHandle get() {
+        node.root.checkThread()
+        return reference
+    }
+    public var options: FocusOptions
+    get() {
+        node.root.checkThread()
+        return current
+    }
+    set(value) {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (!active)
+            throw IllegalStateException(Some("focus target is no longer mounted"))
+        val next = value.handle ?: localHandle
+        next.checkBinding(this)
+        if (next !== reference) {
+            node.root.focus.cancel(this)
+            reference.unbind(this)
+            reference = next
+            next.bind(this)
+        }
+        current = value
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        node.root.focus.cancel(this)
+        reference.unbind(this)
+        var index = 0L
+        while (index < node.focusTargets.size) {
+            if (node.focusTargets[index] === this) {
+                node.focusTargets.removeAt(index)
+                return
+            }
+            index += 1L
+        }
+    }
+}

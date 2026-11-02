@@ -58,7 +58,7 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，UI 可通过 `scope.resource { ShortcutScope(scope.input, bindings) }` 管理它。ShortcutKey 显式选择 logical 或 physical；ShortcutModifiers.primary 是 Command，完整修饰组合匹配，文字大小写比较复用 Window 的 Unicode 处理。默认忽略重复和合成输入，canExecute=false 向外层继续；无焦点时可使用窗口根。每个输入节点的普通 defaultAction 和 addDefaultAction 登记先执行，ShortcutScope 最后匹配，文本编辑命令可以先消费事件。
 
-`createArea(focusable = true)` 允许逻辑焦点，`textInput = true` 同时允许焦点和 IME。区域已成功放置后可调用 `requestFocus()`；它不抢占系统窗口焦点。`hasFocus` 表示保留的逻辑焦点，`isFocusActive` 还要求 OS 窗口当前获得焦点。文字只从 TextInputBatch 应用到编辑器自己的状态，不能再由 LogicalKey.Character 插入。用 `area.setCaret(rect)` 提交局部 caret，Surface 随已发布变换更新系统候选窗；同值设置不产生重绘。焦点切换等待旧 IME 的 Disabled 边界后再开启新接收者，已排队编辑保留原归属。
+`createArea(focusable = true)` 允许逻辑焦点，`textInput = true` 同时允许焦点和 IME。区域已成功放置且有非空可见几何时，canFocus 为 true，requestFocus() 可以聚焦；它不抢占系统窗口焦点。windowBounds／visibleBounds 查询最近成功帧的窗口逻辑包围盒，后者计入路径裁剪及视口。已聚焦区域仅被 clip 裁掉时保持会话，移除、禁用或关闭仍清除焦点。`hasFocus` 表示保留的逻辑焦点，`isFocusActive` 还要求 OS 窗口当前获得焦点。文字只从 TextInputBatch 应用到编辑器自己的状态，不能再由 LogicalKey.Character 插入。用 `area.setCaret(rect)` 提交局部 caret，Surface 随已发布变换更新系统候选窗；同值设置不产生重绘。焦点切换等待旧 IME 的 Disabled 边界后再开启新接收者，已排队编辑保留原归属。
 
 [组合示例](examples/basics/README.md)演示旋转 Path、hover、拖动 spring、文本布局及 IME 接收。它是普通 executable Cone，编辑状态由示例管理，未依赖 component。
 

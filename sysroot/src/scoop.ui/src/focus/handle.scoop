@@ -1,0 +1,87 @@
+package scoop.ui
+
+import scoop.platform.concurrent.currentThreadId
+
+/** Stable owner-thread reference to a mounted focus target. */
+public class FocusHandle public constructor() {
+    private val thread = currentThreadId()
+    internal var target: FocusTarget? = None
+
+    public val isAttached: Boolean get() {
+        checkUiThread(thread)
+        return target?.active ?: false
+    }
+    public val hasFocus: Boolean get() {
+        checkUiThread(thread)
+        val current = target ?: return false
+        return current.active && current.area.hasFocus
+    }
+    public val isFocusActive: Boolean get() {
+        checkUiThread(thread)
+        val current = target ?: return false
+        return current.active && current.area.isFocusActive
+    }
+    public val isPending: Boolean get() {
+        checkUiThread(thread)
+        val current = target ?: return false
+        return current.active && current.node.root.focus.isPending(current)
+    }
+    public fun requestFocus(): Boolean {
+        checkUiThread(thread)
+        checkFocusMutation()
+        val current = target ?: return false
+        return current.node.root.focus.request(current)
+    }
+    public fun clearFocus() {
+        checkUiThread(thread)
+        checkFocusMutation()
+        val current = target ?: return
+        current.node.root.focus.cancel(current)
+        if (current.active && current.area.hasFocus)
+            current.area.clearFocus()
+    }
+    internal fun checkBinding(value: FocusTarget) {
+        checkUiThread(thread)
+        when (target) {
+            case Some(current) -> requireUi(
+                current === value || !current.active,
+                "focus handle already has a target"
+            )
+            case None -> {}
+        }
+    }
+    internal fun bind(value: FocusTarget) {
+        checkBinding(value)
+        target = Some(value)
+    }
+    internal fun unbind(value: FocusTarget) {
+        checkUiThread(thread)
+        when (target) {
+            case Some(current) -> if (current === value)
+                target = None
+            case None -> {}
+        }
+    }
+}
+
+public struct FocusOptions(
+    val handle: FocusHandle? = None,
+    val tabStop: Boolean = true,
+    val order: Int = 0
+)
+
+public struct FocusScopeOptions(
+    val loop: Boolean = false,
+    val order: Int = 0,
+    val defaultFocus: FocusHandle? = None,
+    val fallback: FocusHandle? = None
+)
+
+internal fun checkFocusMutation() {
+    when (currentEvaluation()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("focus cannot change during render, measure, scene or draw")
+        )
+        case None -> {}
+    }
+}

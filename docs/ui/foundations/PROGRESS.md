@@ -10,7 +10,8 @@
 | A2：帧完成通知 | 已完成 aarch64 实施和定向验证 |
 | A3：输入作用域与路由阶段 | 已完成 aarch64 实施和定向验证 |
 | B1：作用域快捷键 | 已完成 aarch64 实施和定向验证 |
-| B2：焦点作用域与键盘导航 | 待实施 |
+| B2a：可见几何、焦点作用域与 Tab | 已完成 aarch64 实施和定向验证 |
+| B2b：组内键盘导航与 roving | 待实施 |
 | C：Absolute、portal、同窗口模态 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -63,3 +64,13 @@ logical Character 的无 locale 大小写及规范等价比较由 Window 调用 
 修改的 Scoop／Objective-C 文件格式化通过，相关八个库完成生产类型检查和 aarch64 release 构建，自绘示例类型检查通过。32 项定向 scoop.test 通过：Window Unicode 比较 1 项、Surface 输入 28 项、原生 IME 1 项、原生快捷键 1 项、Component 交互 1 项。独立 consumer 检查发现的公开构造器遗漏已修复；capture 回归使用真实子焦点目标，原生窗口用例按每进程一个 Application 分置测试 Cone。
 
 Component 首帧正常但后台 activate 被 macOS 拒绝，准备期保留一次首帧后的原生聚焦请求；最终按仓库既有桌面测试说明通过临时应用包从前台运行同一 aarch64 测试程序。scoop.test 报告记录无失败并完整结束，未伪造焦点或放宽断言。没有修改编译器或 core／std／test，没有 fixture、全量或 x86_64 验证。一次性报告清理，独立 sysroot、构建缓存和后续桌面验收仍需使用的应用入口保留在仓库外。
+
+## B2a：可见几何、焦点作用域与 Tab
+
+CanvasGeometry 提供窗口包围盒与经过任意 path clip、视口裁剪的可见包围盒。路径求交复用 Skia PathOps；固定版本的现有最小 Skia 构建没有链接该 source set，本批补齐其直接依赖并重建 aarch64 资源。Surface 的新聚焦请求要求非空可见几何，已持有的焦点和 IME 会话可以在仅被 clip 裁掉时继续；真正移除、禁用或不可逆变换仍按原规则清理。每窗口 focusRevision 区分更新的显式焦点意图与 OS 激活变化。
+
+UI 增加随挂载管理的 FocusTarget、FocusHandle 和 FocusScope。Tab 使用当前逻辑挂载顺序和显式 order，支持普通域向父继续、局部循环与窗口循环。待放置目标等到 Accepted 后聚焦，且先于用户帧完成动作执行；更新的请求、卸载、句柄替换和关闭取消旧意图。Button／Checkbox 公开 FocusOptions。组内箭头与 roving、滚动显露、模态限制由后续对应批次接入。
+
+Scoop／C++ 格式化、Python Ruff 格式化与 lint、相关库生产类型检查和 aarch64 release 构建通过，自绘与主题示例类型检查通过。47 项定向 scoop.test 通过：Graphics 几何 3 项、Surface 输入 29 项、UI 核心 9 项，以及 UI focus／drawing／errors、Component interaction／layout、原生 IME 各 1 项。窗口用例通过前台应用入口串行运行原 scoop.test 程序，报告无失败并完整结束。
+
+新增覆盖任意路径孔洞、变换与视口可见性；裁剪后的焦点和 IME 保持；负 order、keyed 重排、嵌套循环、Tab 取消／重复、禁用／隐藏跳过；首次提交聚焦、后续同区域请求取消旧意图、句柄替换、区域提前关闭后重新绑定和卸载收尾。没有修改编译器或 core／std／test，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，后续所需的独立 sysroot、构建缓存、Skia 构建目录及前台应用入口保留在仓库外。

@@ -362,6 +362,20 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应
 
 移除子树时，框架先使其退出业务交互并注销登记区域，完成必要的取消／离开／失焦收尾，再释放处理器和组件资源。布局尚未提交时不能为新区域强行成功请求焦点。完整文本编辑控件的文档、selection、marked range、剪贴板和撤销行为不进入框架。
 
+#### 7.3.1 FocusHandle、FocusScope 与 Tab
+
+FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点状态。isAttached 表示当前仍登记到活动挂载且区域未关闭；hasFocus／isFocusActive 查询所属 Surface 区域；isPending 表示等待提交的当前请求。requestFocus 返回是否接受请求：可见目标立即聚焦，已登记但等待首次／恢复放置的目标请求一帧并等待成功提交；未登记、已退休或逻辑禁用的目标返回 false。clearFocus 取消该 handle 的待处理请求，并在它是当前焦点时清除焦点。提前关闭 InputArea 使其旧句柄失效；随后可将同一句柄登记到新的活动目标，旧登记的晚到清理不能解除新绑定。
+
+ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
+
+每个 ComponentScope 可登记一个 focusScope(options: FocusScopeOptions)，返回 FocusScope。options 包含 loop=false、order=0、defaultFocus 与 fallback。scope 内目标按 order 升序、同值按当前逻辑挂载顺序排列；嵌套 FocusScope 是父序列中按自身 order 排列的一个连续分组，组内独立排序。keyed 子项重排后使用新逻辑顺序，不使用原注册时间或绘制顺序。负 order 只改变排序，tabStop=false 才退出 Tab，仍允许程序化请求。
+
+Tab／Shift+Tab 在内层默认行为未消费后导航。默认跳过禁用、未放置和完全不可见的目标；普通 scope 到边界后让父继续，loop scope 在组内循环，窗口根始终在本窗口循环。没有已登记的当前焦点时，从首／末个可用停靠点开始。真实按下和重复按下可导航，合成按键或带 Command／Control／Alt／Function 的组合不作为普通 Tab。键盘导航不激活 OS 窗口，也不修改控件选择状态。
+
+FocusScope.requestFocus 按有效 defaultFocus、首个可用 Tab 目标、有效 fallback 依次选择；fallback 可是 tabStop=false 的区域代理。子项尚未挂载／放置时可等待下一成功帧后选择。域外或失效的引用不作为目标，无可用目标时请求结束。
+
+UiRoot 在 Surface 的 Accepted 完成边界先兑现当前待处理焦点，再执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。Discarded／Deferred 不兑现或轮询；Accepted 后仍不可用的普通目标结束请求。滚动显露与虚拟目标接入由后续滚动批次补充。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
+
 ### 7.4 Surface 动画接入
 
 `scope.animation(initial)` 提供与 Surface 相同的 Double／Point／Size／Color 重载，也提供带 AnimationConverter 的泛型重载。它调用所属 SurfaceWindow 的 animations.value，并登记所得 `Animatable<T>` 随该挂载卸载；返回值就是 Surface Animatable，不包装另一套动画状态或时钟。

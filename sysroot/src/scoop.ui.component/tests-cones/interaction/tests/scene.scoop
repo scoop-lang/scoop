@@ -103,7 +103,8 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                             ),
                             { count += delta },
                             binding.value,
-                            buttonStyle
+                            buttonStyle,
+                            focus = FocusOptions(Some(probe.buttonFocus))
                         ),
                         {
                             props ->
@@ -114,14 +115,18 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                     effects
                 ),
                 component(
-                    CheckboxProps(binding, probe.checkEnabled.value),
+                    CheckboxProps(
+                        binding,
+                        probe.checkEnabled.value,
+                        focus = FocusOptions(Some(probe.checkFocus))
+                    ),
                     {
                         props ->
                         probe.checkCreates += 1;
                         Checkbox(props)
                     }
                 ),
-                checkbox(initialChecked = false),
+                checkbox(initialChecked = false, focus = FocusOptions(Some(probe.ownedFocus))),
                 component(
                     LabelProps(
                         LabelText.Plain("Theme body", Some(SpanStyle(weight = Some(700)))),

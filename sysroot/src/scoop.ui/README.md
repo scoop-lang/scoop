@@ -22,6 +22,10 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 在 onMount 中使用 ComponentScope.resource 登记 Path、Image 或缓存，使用 createArea 和 animation 登记稳定的输入区域与 Surface Animatable。应用不为每个组件 use；作用域按子先父的顺序退休输入／动画、调用 onUnmount，再逆序关闭资源。可替换缓存应自行及时关闭旧值，不能每帧登记一个新资源。
 
+自绘 Element 可用 `scope.focusTarget(area, FocusOptions(Some(handle)))` 登记可聚焦区域。FocusHandle 提供 hasFocus、isFocusActive、isAttached、isPending 和 requestFocus；它查询 Surface 的现有焦点状态。可见目标立即聚焦，等待首次或恢复放置的目标在 Accepted 后兑现；新的焦点请求会取消旧请求。关闭或更换外部 handle 会解除登记，不能在 render／measure／scene／draw 中请求焦点。
+
+FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。禁用、未放置和完全裁剪的目标不作为新的 Tab 停靠点；已聚焦目标仅被滚动裁剪时保持当前会话。
+
 最外层用 `UiHost.use` 包住 Application.run，或使用 `runUiApplication(title, create)`。SurfaceContent 拥有 UI 根，原生窗口关闭、异常和显式关闭都释放挂载树。UiWindow.close 只关闭所附着的 UI／Surface 内容，原生 Window 的归属仍由调用者决定。绘制或逻辑回调内请求关闭时，先停止新工作，回调结束后再释放资源。
 
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。

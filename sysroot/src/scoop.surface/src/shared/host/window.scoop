@@ -29,6 +29,10 @@ public class SurfaceWindow internal constructor(
         host.checkThread();
         return inputs.logicalFocus
     }
+    public val focusRevision: ULong get() {
+        host.checkThread()
+        return inputs.focusRevision
+    }
     public val state: SurfaceWindowState get() {
         host.checkThread();
         return phase
