@@ -187,7 +187,7 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
         });
         probe::check_image(
             &bytes,
-            profile.startup.target().id(),
+            profile.startup.target(),
             FinalOutputKind::Executable,
         )
         .unwrap();

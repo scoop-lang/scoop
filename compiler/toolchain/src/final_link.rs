@@ -206,7 +206,7 @@ impl ValidatedFinalLinkProfile {
         match self {
             Self::Darwin(profile) => profile.linker_args(),
             Self::Linux(profile) => profile.linker_args().to_vec(),
-            Self::Windows(profile) => profile.linker_args().to_vec(),
+            Self::Windows(profile) => profile.linker_args(),
         }
     }
 

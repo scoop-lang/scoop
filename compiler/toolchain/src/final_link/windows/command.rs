@@ -35,7 +35,7 @@ impl WindowsFinalLinkProfile {
         let environment = self.startup.windows_environment().map_err(error)?;
         let mut command = if self.microsoft() {
             let mut command = environment.bare_command(&self.data.driver);
-            command.args(["--target=x86_64-pc-windows-msvc", "/nologo"]);
+            command.args([environment.machine.clang_cl_target_arg(), "/nologo"]);
             if self.data.output.kind() == FinalOutputKind::SharedLibrary {
                 command.arg("/LD");
             }

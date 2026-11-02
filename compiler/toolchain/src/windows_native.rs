@@ -24,14 +24,14 @@ pub(crate) fn paired_driver(
 ) -> PathBuf {
     if let Some(driver) = selected_c {
         if language == NativeSourceLanguage::C
-            || (c.target().id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID
+            || (c.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt
                 && kind(driver).microsoft())
         {
             return driver.to_owned();
         }
         return driver.with_file_name(crate::host_executable_name("clang++"));
     }
-    let name = if c.target().id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID {
+    let name = if c.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt {
         "clang-cl"
     } else if language == NativeSourceLanguage::Cxx {
         "clang++"
@@ -80,13 +80,13 @@ pub(crate) fn command(
         let mut command = environment.bare_command(driver);
         environment.configure(
             &mut command,
-            crate::windows_c::machine_triple(c.target().id()).expect("validated Windows target"),
-            c.target().id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID,
+            crate::windows_c::target_triple(c.target().id()).expect("validated Windows target"),
+            c.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt,
             preprocessed,
         );
         if !preprocessed
             && language == NativeSourceLanguage::Cxx
-            && c.target().id() != scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID
+            && c.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
         {
             command.arg("-stdlib=libc++");
         }
@@ -102,7 +102,10 @@ pub(crate) fn command(
         "/DWINVER=0x0a00",
     ]);
     if kind == NativeDriverKind::ClangCl {
-        command.args(["--target=x86_64-pc-windows-msvc", "/clang:-march=x86-64"]);
+        command.args([
+            environment.machine.clang_cl_target_arg(),
+            environment.machine.clang_cl_arch_arg(),
+        ]);
     } else {
         command.arg("/Zc:preprocessor");
     }
@@ -137,7 +140,9 @@ pub(crate) fn discover(
     );
     let driver = crate::paths::find_program(driver.as_os_str(), &environment.search_path)?;
     let kind = kind(&driver);
-    if kind.microsoft() && c.target().id() != scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID {
+    if kind.microsoft()
+        && c.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt
+    {
         return Err(error("cl/clang-cl require the Microsoft UCRT target"));
     }
     let directory = tempfile::Builder::new()
@@ -153,7 +158,11 @@ pub(crate) fn discover(
         });
     let object = directory.path().join("probe.obj");
     let depfile = directory.path().join("dependencies");
-    std::fs::write(&source, probe::source(c.target().id(), language)).map_err(error)?;
+    std::fs::write(
+        &source,
+        probe::source(c.native_environment(), environment.machine, language),
+    )
+    .map_err(error)?;
     let mut compiler = command(c, &driver, kind, language, false);
     compiler.arg(if kind.microsoft() {
         if language == NativeSourceLanguage::Cxx {
@@ -204,11 +213,14 @@ pub(crate) fn discover(
     }
     let bytes = std::fs::read(object).map_err(error)?;
     let file = object::File::parse(bytes.as_slice()).map_err(error)?;
-    if file.architecture() != object::Architecture::X86_64
+    if file.architecture() != environment.machine.object_architecture()
         || file.format() != object::BinaryFormat::Coff
         || file.kind() != object::ObjectKind::Relocatable
     {
-        return Err(error("native compiler must emit AMD64 COFF objects"));
+        return Err(error(format!(
+            "native compiler must emit {} COFF objects",
+            environment.machine.name()
+        )));
     }
     let symbol = file
         .symbol_by_name("scoop_native_configuration")

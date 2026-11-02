@@ -54,7 +54,7 @@ fn windows_dlls_load_and_link_through_the_selected_import_library() {
         let bytes = std::fs::read(&library).unwrap();
         probe::check_image(
             &bytes,
-            profile.startup.target().id(),
+            profile.startup.target(),
             FinalOutputKind::SharedLibrary,
         )
         .unwrap();

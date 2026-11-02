@@ -8,8 +8,9 @@ impl WireEncode for WindowsFinalLinkProfile {
         self.data.compiler_digest.encode(e)?;
         self.data.linker_digest.encode(e)?;
         e.text(&self.data.linker_version)?;
-        e.array(self.linker_args().len() as u64)?;
-        for option in self.linker_args() {
+        let linker_args = self.linker_args();
+        e.array(linker_args.len() as u64)?;
+        for option in linker_args {
             e.text(option)?;
         }
         let mut inputs: Vec<_> = self

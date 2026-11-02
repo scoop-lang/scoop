@@ -169,8 +169,12 @@ fn compile(
     ));
     includes.extend(environment.includes.iter().cloned());
     if let Some(prefix) = &environment.native_sysroot {
-        if target.id() != scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID {
-            includes.push(prefix.join("x86_64-w64-mingw32/include"));
+        if invocation.native_environment() != scoop_target_data::NativeEnvironment::MicrosoftUcrt {
+            includes.push(
+                prefix
+                    .join(environment.machine.llvm_mingw_target_directory())
+                    .join("include"),
+            );
         }
     }
     for include in &includes {
@@ -201,7 +205,7 @@ fn compile(
     paths.extend(tools);
     let mut convert = environment.bare_command(&cvtres);
     convert
-        .args(["/nologo", "/machine:x64"])
+        .args(["/nologo", environment.machine.msvc_linker_machine_arg()])
         .arg(joined("/out:", dunce::simplified(&object).as_os_str()))
         .arg(dunce::simplified(&resource));
     run(&mut convert)?;

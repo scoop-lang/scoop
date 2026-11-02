@@ -458,6 +458,8 @@ Windows ARM64 要复用现有 MSVC／LLVM-MinGW 流程，当前 Windows 路径�
 
 本轮 profile 仍只包含已支持的 Windows machine。参数化后，现有行为和 tool discovery 结果应完全不变。
 
+当前实现已经用只含现有 AMD64 实现的 `WindowsToolchainMachine` 收口这些映射，并由 `WindowsCEnvironment` 携带已选 machine。generated-C、native C/C++、MSVC SDK、LLVM-MinGW、resource、PE probe 与 final-link 工作流都消费该参数；CRT／SDK 环境分支读取独立的 `NativeEnvironment`，不再通过某个现有 x86_64 target id 猜测。machine 映射之外的公共 Windows 工作流不再散落 AMD64 triple、macro、object architecture、SDK slice 或 `/machine:` 常量；未实现的 machine 在工具链入口直接报错。
+
 ### 7.4 LLVM 构建与 Python recipe 消费同一事实
 
 `scripts/build_llvm.py` 的 `LLVM_TARGETS_TO_BUILD` 不再手写 AArch64／X86 常量，而从当前 target catalog 实际引用的 LLVM architectures 去重生成；catalog reader 内的 architecture→LLVM component 映射只列当前实现。
