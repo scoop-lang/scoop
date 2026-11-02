@@ -9,17 +9,22 @@ impl Concretizer<'_> {
     }
 
     pub(super) fn is_value_representation(&self, ty: concrete::TypeId) -> bool {
-        matches!(
-            self.types[ty].kind,
+        match self.types[ty].kind {
             concrete::TypeKind::Unit
-                | concrete::TypeKind::Integer(_)
-                | concrete::TypeKind::Boolean
-                | concrete::TypeKind::Struct(_)
-                | concrete::TypeKind::Enum(_)
-                | concrete::TypeKind::Tuple(_)
-                | concrete::TypeKind::Ptr(_)
-                | concrete::TypeKind::FunPtr(_)
-        )
+            | concrete::TypeKind::Integer(_)
+            | concrete::TypeKind::Boolean
+            | concrete::TypeKind::Struct(_)
+            | concrete::TypeKind::Enum(_)
+            | concrete::TypeKind::Tuple(_)
+            | concrete::TypeKind::Ptr(_)
+            | concrete::TypeKind::FunPtr(_)
+            | concrete::TypeKind::GcLeafFunPtr(_) => true,
+            concrete::TypeKind::String
+            | concrete::TypeKind::Class(_)
+            | concrete::TypeKind::Interface(_)
+            | concrete::TypeKind::Any
+            | concrete::TypeKind::Function(_) => false,
+        }
     }
 
     pub(super) fn lower_integer_type(

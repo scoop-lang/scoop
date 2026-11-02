@@ -277,7 +277,7 @@ extern 声明产生完整 `SourceNativeExternalContract`：symbol bytes、逻辑
 
 C ABI extern 函数的声明按语言规范 13.4.1 另存非可选的调用模式 `NativeSafe` 或 `GcLeaf`：未标注时前端填入 NativeSafe，合法 `@GCLeaf` 填入 GcLeaf。此模式随声明、模板实例化和实际调用经 HIR/MIR 传递，不由参数 GC-free、`@NoGC` 或 native symbol 名称推导。它属于当前 Scoop 声明的 caller 协议，不进入目标 C symbol 的物理 ABI 合并键；同一 C symbol 的不同声明可以选择不同模式，但不得因此放宽签名等既有 native 合同检查。
 
-原生函数指针在 HIR 中统一保存为封闭结构 `NativeFunctionPointer { signature: ExactFunctionType, call_mode: NativeSafe | GcLeaf }`。call mode 进入 exact/signature type key、类型 interner、alias 展开、generic replacement、默认值／模板正文、跨 Cone interface 和 TypeInfo；不能只保留源码 nominal 后在消费处按名称恢复。C-FFI-safe projection 将两种模式映射到同一 code-pointer storage，但类型相等、赋值和调用不能忽略模式。`core_fun_ptr` 与 `core_gc_leaf_fun_ptr` 必须分别绑定到实际 core 声明，不能以 FQN、字段形状或任意同名 intrinsic 代替。
+原生函数指针在 HIR 中使用两个互斥的封闭类型分支 `FunPtr(FunctionTypeId)` 与 `GcLeafFunPtr(FunctionTypeId)`，分别固定为 NativeSafe 与 GcLeaf；每个分支均保存完整函数签名的 typed id，调用时从该分支取得非可选模式。call mode 进入 exact/signature type key、类型 interner、alias 展开、generic replacement、默认值／模板正文、跨 Cone interface 和 TypeInfo；不能只保留源码 nominal 后在消费处按名称恢复。C-FFI-safe projection 将两种模式映射到同一 code-pointer storage，但类型相等、赋值和调用不能忽略模式。两者都是值类型，提升到 `Any` 时必须装箱，不能生成 code pointer 到 managed reference 的 retype。`core_fun_ptr` 与 `core_gc_leaf_fun_ptr` 必须分别绑定到实际 core 声明，不能以 FQN、字段形状或任意同名 intrinsic 代替。
 
 HIR 的原生指针调用保存已经求值一次的 callee、完整函数签名、按源码顺序排列的实际实参和非可选调用模式；它是与 direct extern、managed closure、virtual/interface 调用互斥的 target 分支。`p(args)` 与 `p.invoke(args)` 在 HIR 选择同一分支，后者不产生普通成员引用。`asFunPtr`／`asGCLeaf` 保存实际源／目标 pointer type 与转换方向，lowering 只复制 code-pointer bits；前端已检查安全上下文和签名一致性，后续 stage 不重做名称或重载选择。
 

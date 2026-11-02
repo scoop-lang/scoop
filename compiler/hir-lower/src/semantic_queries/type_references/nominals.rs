@@ -42,7 +42,12 @@ impl Lowerer {
                 );
                 return None;
             };
-            if !self.validate_fun_ptr_signature(function, span) {
+            let mode = if intrinsic == Some(hir::IntrinsicTypeKind::FunPtr) {
+                hir::CAbiCallMode::NativeSafe
+            } else {
+                hir::CAbiCallMode::GcLeaf
+            };
+            if !self.validate_native_function_pointer_signature(function, mode, span) {
                 return None;
             }
         }

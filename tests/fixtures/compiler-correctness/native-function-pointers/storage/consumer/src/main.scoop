@@ -1,0 +1,36 @@
+package dev.nativepointers.consumer
+
+import dev.nativepointers.*
+
+fun expect(value: Boolean) {
+    if (!value) {
+        throw IllegalStateException()
+    }
+}
+
+fun main() {
+    @Unsafe
+    {
+        val functions = table()
+        expect(checkTable(preserve(functions)))
+        var leaf = preserve(functions.leaf)
+        val address = addressOf(leaf)
+        expect(checkLeaf(Some(address.load())))
+        expect(checkLeaf(optional(Some(leaf))))
+        expect(!checkLeaf(optional()))
+        expect(
+            when (functions.optional) {
+                case None -> true;
+                case Some(value) -> false
+            }
+        )
+        val boxed: Any = leaf
+        expect(boxed is Leaf)
+        expect(!(boxed is FunPtr<(Int) -> Int>))
+        expect(checkLeaf(Some(boxed as Leaf)))
+        expect(sizeOf<Leaf>() == 8uL)
+        expect(sizeOf<Leaf?>() == 8uL)
+        expect(sizeOf<FunctionTable>() == 24uL)
+    }
+    println("native-pointer-storage-ok")
+}

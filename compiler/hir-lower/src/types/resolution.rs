@@ -174,7 +174,11 @@ impl Lowerer {
                             );
                             return None;
                         };
-                        if !self.validate_fun_ptr_signature(function_type, name.span) {
+                        if !self.validate_native_function_pointer_signature(
+                            function_type,
+                            hir::CAbiCallMode::NativeSafe,
+                            name.span,
+                        ) {
                             return None;
                         }
                         let ty = self.intern_type(Type::FunPtr(function_type));
@@ -191,7 +195,11 @@ impl Lowerer {
                             );
                             return None;
                         };
-                        if !self.validate_fun_ptr_signature(function_type, name.span) {
+                        if !self.validate_native_function_pointer_signature(
+                            function_type,
+                            hir::CAbiCallMode::GcLeaf,
+                            name.span,
+                        ) {
                             return None;
                         }
                         let ty = self.intern_type(Type::GcLeafFunPtr(function_type));

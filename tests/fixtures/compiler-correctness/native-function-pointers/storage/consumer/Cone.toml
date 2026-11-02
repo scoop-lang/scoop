@@ -1,0 +1,8 @@
+schema = 1
+[cone]
+group = "dev.nativepointers"
+name = "storage-consumer"
+version = "0.1.0"
+kind = "executable"
+[dependencies]
+"dev.nativepointers:storage-provider" = { version = "=0.1.0", artifact = "../../artifacts/dev.nativepointers/storage-provider/0.1.0/cone.slib" }

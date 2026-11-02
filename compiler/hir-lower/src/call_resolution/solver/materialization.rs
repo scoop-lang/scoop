@@ -68,9 +68,10 @@ impl Lowerer {
             else {
                 return Ok(None);
             };
-            if self.nominal_intrinsic_kind(application.template)
-                == Some(hir::IntrinsicTypeKind::FunPtr)
-                && !matches!(arguments.as_slice(), [function] if matches!(self.types[*function], Type::Function(_)))
+            if matches!(
+                self.nominal_intrinsic_kind(application.template),
+                Some(hir::IntrinsicTypeKind::FunPtr | hir::IntrinsicTypeKind::GcLeafFunPtr)
+            ) && !matches!(arguments.as_slice(), [function] if matches!(self.types[*function], Type::Function(_)))
             {
                 return Ok(None);
             }

@@ -35,20 +35,25 @@ impl CAbiError {
 }
 
 impl Lowerer {
-    pub(crate) fn validate_fun_ptr_signature(
+    pub(crate) fn validate_native_function_pointer_signature(
         &mut self,
         signature: hir::FunctionTypeId,
+        mode: hir::CAbiCallMode,
         span: scoop_ast::Span,
     ) -> bool {
         let function = &self.function_types[signature];
+        let name = match mode {
+            hir::CAbiCallMode::NativeSafe => "FunPtr",
+            hir::CAbiCallMode::GcLeaf => "GCLeafFunPtr",
+        };
         let message = if function.receiver.is_some() {
-            "`FunPtr` requires a function type without a receiver"
+            format!("`{name}` requires a function type without a receiver")
         } else if function.is_suspend || self.function_type_contains_param(signature) {
-            "`FunPtr` type argument must be an ordinary concrete function type"
+            format!("`{name}` type argument must be an ordinary concrete function type")
         } else {
             return true;
         };
-        self.error(span, message.to_owned());
+        self.error(span, message);
         false
     }
 
