@@ -60,6 +60,8 @@ mod boxing;
 mod c_bridge_objects;
 mod c_layout;
 mod closures;
+#[cfg(target_os = "macos")]
+mod darwin_runtime;
 mod darwin_x86_64;
 mod debug;
 mod dependency_external;

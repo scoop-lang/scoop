@@ -1,4 +1,5 @@
-#include <mach-o/dyld.h>
+#define _DARWIN_C_SOURCE
+#include <dlfcn.h>
 #include <mach-o/loader.h>
 #include <stdlib.h>
 #include <string.h>
@@ -96,10 +97,55 @@ static void macho_dispose_images(ScoopPlatformMetadataImages *images) {
     *images = (ScoopPlatformMetadataImages){0};
 }
 
+static bool image_slide(const struct mach_header_64 *header, intptr_t *slide) {
+    const uint8_t *cursor = (const void *)(header + 1);
+    size_t remaining = header->sizeofcmds;
+    for (uint32_t index = 0; index < header->ncmds; index++) {
+        if (remaining < sizeof(struct load_command)) {
+            return false;
+        }
+        const struct load_command *command = (const void *)cursor;
+        if (command->cmdsize < sizeof *command || command->cmdsize > remaining ||
+            command->cmdsize % 8 != 0) {
+            return false;
+        }
+        if (command->cmd == LC_SEGMENT_64) {
+            if (command->cmdsize < sizeof(struct segment_command_64)) {
+                return false;
+            }
+            const struct segment_command_64 *segment = (const void *)command;
+            if (strncmp(segment->segname, "__TEXT", 16) == 0 && segment->fileoff == 0) {
+                uint64_t address = (uintptr_t)header;
+                if (address >= segment->vmaddr) {
+                    uint64_t difference = address - segment->vmaddr;
+                    if (difference > INTPTR_MAX) {
+                        return false;
+                    }
+                    *slide = (intptr_t)difference;
+                } else {
+                    uint64_t difference = segment->vmaddr - address;
+                    if (difference > (uint64_t)INTPTR_MAX + 1) {
+                        return false;
+                    }
+                    *slide = -(intptr_t)(difference - 1) - 1;
+                }
+                return true;
+            }
+        }
+        remaining -= command->cmdsize;
+        cursor += command->cmdsize;
+    }
+    return false;
+}
+
 static bool collect(ScoopPlatformMetadataImages *images) {
-    const struct mach_header_64 *header =
-        (const struct mach_header_64 *)_dyld_get_image_header(0);
-    if (header == NULL || header->magic != MH_MAGIC_64 || header->filetype != MH_EXECUTE ||
+    Dl_info module = {0};
+    if (dladdr((const void *)collect, &module) == 0) {
+        return false;
+    }
+    const struct mach_header_64 *header = module.dli_fbase;
+    if (header == NULL || header->magic != MH_MAGIC_64 ||
+        (header->filetype != MH_EXECUTE && header->filetype != MH_DYLIB) ||
         header->reserved != 0 || header->ncmds > header->sizeofcmds / sizeof(struct load_command)) {
         return false;
     }
@@ -108,7 +154,10 @@ static bool collect(ScoopPlatformMetadataImages *images) {
         return false;
     }
     uintptr_t limit = cursor + header->sizeofcmds;
-    intptr_t slide = _dyld_get_image_vmaddr_slide(0);
+    intptr_t slide;
+    if (!image_slide(header, &slide)) {
+        return false;
+    }
     ScoopStackMapImage image = {0};
     for (uint32_t index = 0; index < header->ncmds; index++) {
         if (limit - cursor < sizeof(struct load_command)) {

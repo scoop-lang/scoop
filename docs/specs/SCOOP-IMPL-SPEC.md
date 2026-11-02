@@ -88,6 +88,8 @@ Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择，目标�
 
 runtime 源码组合由目录中的 bundle 选择及明确的 OS、对象格式、架构、frame 合同组成。`platform/arch` 保存 ISA 浮点环境；`platform/frame` 保存实际过程 ABI 的 frame 恢复和对应对象格式的 anchor 汇编；`platform/os` 不以架构限制共享系统实现。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件或重复平台探测。
 
+Darwin 的 metadata image 组件按运行时规范 2.8 定位承载 runtime 的实际模块。普通 executable 与 native host 加载的 dylib 使用同一 parser；地址范围、`__TEXT,__text` 与 `__DATA_CONST,__llvm_stackmaps` 均来自该模块。runtime 源码变化沿原更新记录重建，不增加目标 profile、产物版本或独立镜像登记机制。
+
 Mach-O／ELF／COFF 的容器事实与其 machine 规则分别表达。共享对象 envelope 保存已选目标；Mach-O 符号、section、fat slice 和动态输入通过所选 machine 处理，不从 Mach-O 格式隐含 Darwin AArch64 身份。各架构 relocation 解码保留在对象所属模块，新增架构不得复用另一架构的 relocation 编码。
 
 ## 2. 编译阶段与产物契约

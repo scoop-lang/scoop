@@ -287,6 +287,8 @@ root gateway 的返回值只表示调用状态：`0` 为成功，`1` 为失败�
 
 所有 image、类型、scan、静态根、初始化单元、callable 和 safepoint 必须在首个 managed initializer 前登记。runtime 验证当前加载边界的格式、引用、实际地址范围、唯一性和 GC 契约，复用编译与链接边界已完成且未变化的语义、布局和 ODR 结果；不重新检查继承图、boxed payload 与 parent 的布局等语言规则。
 
+Darwin 从 runtime 内部函数地址经 `dladdr` 取得所属 Mach-O header，接受承载 runtime 的 `MH_EXECUTE` 或 `MH_DYLIB`。slide 由该 header 的实际地址与其 `__TEXT` 段首地址计算，不能固定读取 dyld image 0，也不把可能变化的 image index 当作镜像身份。executable 与 dylib 共用段、代码及 stackmap 解析，仅登记自身模块的地址范围，不包含 host 或其他已加载 native 库；模块在 runtime 使用期间保持加载。该 self-image 能力不改变 GC metadata ABI，也不开放运行期新增 Scoop Cone 或卸载协议。
+
 登记建立完整 typed ID 与 record/address 的对应关系。runtime type ID 与 exact type、非零 SafepointId 与完整 site identity 都必须全程序一一对应；不同完整 identity 的固定宽度碰撞必须在使用前报错。不同 body ID 不得共用 callable entry；同一共享实体不得有多个实际地址。
 
 登记时检查 TD 的 parent、函数类型关系和 itable 的接口 TD 引用。登记完成后这些描述符及其关系在 runtime 生命周期内保持不变；生成代码的 `scoop_rt_itable_find`、`scoop_rt_itable_lookup` 与 `scoop_rt_is_instance` 直接消费有效对象／静态类型携带的 TD，不逐次查询登记表。find 的缺失结果为 null，保证存在表的 lookup 缺失仍报告错误，类型判断继续遵守完整子类型关系；分配、native root 等实际输入边界保留各自必要的类型与对象检查。

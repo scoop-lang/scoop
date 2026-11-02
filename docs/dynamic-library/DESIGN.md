@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway；根入口、持久生命周期与共享库产物仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。第 5.6 节浮点环境前置已接入现有 native／callback／gateway，第 8.1 节 Mach-O self-image 已实现；根入口、持久生命周期与共享库产物仍待实施。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -368,8 +368,10 @@ bootstrap 引用 native-app entry descriptor、image 数组和 runtime coordinat
 - 使用 `-dylib`（Clang driver 对应 `-dynamiclib`），移除 `-execute`、`-pie`、`-e _main`；
 - 按 7.2 设置 install name，导出 `_scoop_app_init`，继续隐藏 `_scoop$1$*` 等内部符号；
 - 保留现有 PIC、ODR、EH、dSYM 与 `__LLVM_STACKMAPS` → `__DATA_CONST,__llvm_stackmaps` 放置；
-- Mach-O metadata 定位不再使用 image 0。以 runtime 内部函数地址遍历 dyld images，选择实际包含该地址的 `MH_DYLIB`；普通 executable 路径同样可用该算法选择 `MH_EXECUTE`，不维护两套解析器；
+- Mach-O metadata 定位不再使用 image 0。以 runtime 内部函数地址经 `dladdr` 取得实际模块 header，并从该 header 与 `__TEXT` 首地址计算 slide；接受 `MH_DYLIB` 与 `MH_EXECUTE`，共用同一解析器，不依赖可能变化的 dyld image index；
 - 不在 constructor 中运行 managed 代码。dyld 和 C/C++ 静态初始化结束、bootstrap 被 host 显式调用后才启动 Scoop。
+
+self-image 前置已完成：真实 C host 与 `RTLD_LOCAL` dylib 分别取得自己的段、静态数据、代码和 stackmap，并排除另一模块的地址；装载前创建的线程同样可查询。该用例在 AArch64 原生和本机 Rosetta 执行的 x86-64 产物上通过；AArch64 的现有 runtime-images、移动 GC 与 native callback CLI 回归通过。此处只验收模块定位，不表示最终 native-app 链接和初始化已完成。
 
 ### 8.2 ELF
 
