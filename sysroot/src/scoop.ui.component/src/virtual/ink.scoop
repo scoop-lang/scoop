@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.surface.FrameSubmission
 import scoop.ui.*
+import scoop.ui.style.Orientation
 
 internal class VirtualListInk(private val props: Props<VirtualListInkProps>): LazyElement {
     private var scope: ComponentScope? = None
@@ -43,6 +44,15 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
         itemEstimate(input.input.itemExtent)
         nonnegative(input.input.overscan, "invalid virtual overscan")
         control!!.update()
+        focus!!.options =
+            LazyFocusOptions(
+                input.input.navigation,
+                if (input.input.orientation == Orientation.Vertical)
+                    NavigationLayout.Vertical
+                else
+                    NavigationLayout.Horizontal,
+                input.input.focus.order
+            )
         if (!input.input.enabled)
             focus!!.cancelRequest()
         val sameHandle =

@@ -3,16 +3,32 @@ package scoop.ui
 import scoop.collections.sortedBy
 
 private enum FocusEntry {
-    Target(FocusTarget), Group(FocusScope)
+    Target(FocusTarget), Group(FocusScope), Items(LazyFocus)
 }
+
+internal enum FocusStop {
+    Target(FocusTarget), Items(LazyFocus)
+}
+
+internal fun focusStopNode(stop: FocusStop): MountedNode =
+    when (stop) {
+        case Target(value) -> value.node
+        case Items(value) -> value.node
+    }
 
 private fun entryOrder(entry: FocusEntry): Int =
     when (entry) {
         case Target(value) -> value.options.order
         case Group(value) -> value.options.order
+        case Items(value) -> value.options.order
     }
 
-private fun collectFocus(node: MountedNode, boundary: MountedNode, entries: ArrayList<FocusEntry>) {
+private fun collectFocus(
+    node: MountedNode,
+    boundary: MountedNode,
+    entries: ArrayList<FocusEntry>,
+    virtual: Boolean
+) {
     if (!node.active)
         return
     if (node !== boundary) {
@@ -26,13 +42,22 @@ private fun collectFocus(node: MountedNode, boundary: MountedNode, entries: Arra
     }
     for (target in node.focusTargets)
         entries.add(FocusEntry.Target(target))
+    if (virtual) {
+        when (node.lazyFocus) {
+            case Some(value) -> if (value.usesItems) {
+                entries.add(FocusEntry.Items(value))
+                return
+            }
+            case None -> {}
+        }
+    }
     for (child in node.children)
-        collectFocus(child, boundary, entries)
+        collectFocus(child, boundary, entries, virtual)
 }
 
 internal fun focusOrder(node: MountedNode): Array<FocusTarget> {
     val entries = ArrayList<FocusEntry>()
-    collectFocus(node, node, entries)
+    collectFocus(node, node, entries, false)
     val result = ArrayList<FocusTarget>()
     for (entry in entries.sortedBy<FocusEntry, Int> { value -> entryOrder(value) }) {
         when (entry) {
@@ -40,6 +65,29 @@ internal fun focusOrder(node: MountedNode): Array<FocusTarget> {
             case Group(value) -> {
                 for (target in focusOrder(value.node))
                     result.add(target)
+            }
+            case Items(value) -> {
+                for (child in value.node.children)
+                    for (target in focusOrder(child))
+                        result.add(target)
+            }
+        }
+    }
+    return result.toArray()
+}
+
+/** A lazy item sequence occupies one logical position without enumerating its data. */
+internal fun tabOrder(node: MountedNode): Array<FocusStop> {
+    val entries = ArrayList<FocusEntry>()
+    collectFocus(node, node, entries, true)
+    val result = ArrayList<FocusStop>()
+    for (entry in entries.sortedBy<FocusEntry, Int> { value -> entryOrder(value) }) {
+        when (entry) {
+            case Target(value) -> result.add(FocusStop.Target(value))
+            case Items(value) -> result.add(FocusStop.Items(value))
+            case Group(value) -> {
+                for (stop in tabOrder(value.node))
+                    result.add(stop)
             }
         }
     }

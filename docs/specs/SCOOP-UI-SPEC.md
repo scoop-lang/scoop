@@ -394,7 +394,7 @@ roving=true 时仅一个有效成员参与 Tab：优先当前聚焦且符合 Tab
 
 组的默认行为仅在当前 focusedArea 就是成员区域时处理方向键和 Home／End，不替代成员内部另一个编辑目标的按键行为。Horizontal 左右按 direction 映射，Vertical 上下不因 RTL 反转；列表 Home／End 到首末有效成员。Grid 的左右只在同一行、上下只在同一列按逻辑坐标查找，越过缺失／禁用项；Home／End 到当前行的逻辑首末。loop 只在当前导航轴循环，不依据像素距离寻找邻居。
 
-仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space 或改变选择状态。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；虚拟成员的 reveal 在滚动批次扩展。
+仅真实、无修饰键的 key-down（包括 repeat）执行；key-up、synthetic、Command／Control／Alt／Shift／Function 组合不执行。内层默认行为先取得按键；组认领的方向／Home／End 即使到边界也消费，防止祖先误作另一组的移动。组不处理不属于其方向的箭头，也不处理 Enter／Space 或改变选择状态。导航与 Tab 共用 FocusHandle 请求，仍服从成功帧和当前合法域；未挂载条目的导航与显露见第 7.8.2 节。
 
 FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：位于当前 InputBoundary 之外的请求直接失败，不能在模态关闭后意外兑现。逻辑 enabled 状态查询与当前输入域资格分开；已有 pending 仍受新请求、目标退休和成功帧检查约束。
 
@@ -493,7 +493,7 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、动画定位及取消活动动画推进序号，范围发布不推进。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
 
-上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航与绘制缓存按后续滚动批次扩展。
+上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航见第 7.8.2 节，绘制缓存按后续批次扩展。
 
 ### 7.8 按需子项与 LazyElement
 
@@ -507,7 +507,7 @@ measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再
 
 缺省 Dispose 下，离开本次选择范围且无活动交互的条目正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由、文本输入会话或输入边界所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
 
-框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；未挂载项按 key 聚焦见第 7.8.1 节，虚拟键盘导航与绘制缓存按后续批次扩展。
+框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；未挂载项按 key 聚焦和键盘导航见第 7.8.1／7.8.2 节，绘制缓存按后续批次扩展。
 
 ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零等同 Dispose；它只计算未选中且无活动交互的离屏条目。超出时淘汰最久未测量的条目，同一帧内的先后不作承诺。保留同 key 的普通挂载子树，不跨 key 复用实例；形状变化仍替换实际子内容。策略收紧、数据删除及 Props／State 更新在正常逻辑阶段处理，即使没有 drawable 也不延期清理。
 
@@ -517,7 +517,7 @@ ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零�
 
 ### 7.8.1 未挂载项的按 key 聚焦
 
-LazyElement 可通过 `ComponentScope.lazyFocus(viewport)` 登记一个由挂载管理的 LazyFocus。viewport 必须属于同一挂载；普通 Element／Component 或第二个同时活动的登记被拒绝。它使用该 lazy 节点已有的 ItemSource 和真实子树，不为全部数据创建 FocusHandle 或 InputArea。准入沿 routeChildren 后的实际输入作用域判断。
+LazyElement 可通过 `ComponentScope.lazyFocus(viewport, options = LazyFocusOptions())` 登记一个由挂载管理的 LazyFocus。viewport 必须属于同一挂载；普通 Element／Component 或第二个同时活动的登记被拒绝。它使用该 lazy 节点已有的 ItemSource 和真实子树，不为全部数据创建 FocusHandle 或 InputArea。准入沿 routeChildren 后的实际输入作用域判断。
 
 LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelRequest()`、isPending、isClosed 和 `pendingItem: ViewKey?`。edge 的 First／Last 选择该项按逻辑顺序的首／末个可用 Tab 目标；不会把整个条目伪造成另一个区域焦点。key 必须显式。未活动或输入被禁用／模态阻挡时返回 false；true 表示接收异步请求，未知 key、没有可用目标或不能显露时结束，保留原来有效的焦点。cancelRequest 只取消该登记当前的待处理请求，不清除已持有的区域焦点。
 
@@ -525,7 +525,21 @@ LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelReques
 
 LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
 
-较新的焦点、该 viewport 上较新的滚动、动画、换绑或关闭取消旧请求。source 替换按 key 跟随存活项；目标 key 被删除时在逻辑更新中取消，即使窗口隐藏也不继续保留旧请求。登记关闭和 owner 退休同样取消。隐藏／遮挡沿普通按需帧机制等待恢复，不轮询。按 key 请求本身不改变普通 Tab 顺序，虚拟顺序／roving 策略在后续导航批次接入。
+较新的焦点、该 viewport 上较新的滚动、动画、换绑或关闭取消旧请求。source 替换按 key 跟随存活项；目标 key 被删除时在逻辑更新中取消，即使窗口隐藏也不继续保留旧请求。登记关闭和 owner 退休同样取消。隐藏／遮挡沿普通按需帧机制等待恢复，不轮询。按 key 请求本身不改变普通 Tab 顺序，键盘策略由第 7.8.2 节的显式配置控制。
+
+### 7.8.2 虚拟 Tab 与条目导航
+
+LazyFocus.options 使用 `LazyFocusOptions(navigation = ItemNavigation.None, layout = NavigationLayout.Vertical, order = 0)`，在逻辑阶段整体更新；实际配置改变取消旧等待。layout 只接受 Horizontal／Vertical，条目按 ItemSource 的线性顺序导航，Grid 使用第 7.3.2 节的有限成员协议。ItemNavigation 为 None、Sequential 或 `Roving(direction = TextDirection.Ltr, loop = false)`。
+
+None 保留普通已挂载目标的 Tab 行为，仅提供按 key 聚焦。Sequential／Roving 在包含该 lazy 节点的逻辑 Tab 序列中登记一个按 order 排序的条目入口，代替枚举它的已挂载子行；节点自身的独立 FocusTarget 仍由其自身 tabStop 控制。进入条目入口后按需解析 key、测量、显露，再使用行内实际的 Tab 顺序，不创建伪区域或全量句柄。嵌套虚拟列表使用同一流程，普通 FocusScope 的默认目标、Tab 首项和 fallback 也经过这一顺序。
+
+Sequential 的 Tab 先访问本行的其余有效目标，行尾再准备下一项的首目标；Shift+Tab 使用相反方向与末目标。没有可用目标、零几何、被禁用或不能显露的行继续到数据边界，然后恢复父 Tab 序列。窗口根或显式循环 FocusScope 可环绕；每次遍历的节点和项数均有限，失败不会在同一次按键中无限重试。异步期间仍按稳定 key 跟随当前候选，真实删除取消旧请求；新插入或重排不能使一次遍历无限延长。
+
+Roving 使条目入口成为一个 Tab 停靠点，离开任一行后 Tab 继续外层。再次进入时优先当前有效焦点所属 key，其次使用最近实际聚焦的存活 key，尚无历史则从首个有效项开始；行内以首个有效 Tab 目标为该项的主目标。历史从 Surface 的真实焦点和活动通知取得，包含鼠标与程序聚焦，仅保留稳定 key，不成为第二份焦点状态，也不使离屏项常驻。
+
+Roving 的方向键和 Home／End 只在事件仍未消费且当前焦点正是行的主目标时处理。Horizontal 的左右按 direction 映射，Vertical 的上下不受 RTL 影响；Home／End 从数据首／末端寻找有效项。禁用、空项与不能显露的项按需跳过；loop 仅控制方向键越过数据边界后的环绕。接受真实无修饰 key-down 和 repeat，拒绝 synthetic、key-up 及 Command／Control／Alt／Shift／Function 组合。认领的方向即使无下一项也消费，不接管嵌套编辑器已经处理的按键，不处理 Enter／Space 或修改选择状态。
+
+所有导航候选继续使用根上的唯一焦点请求、同一 viewport 定位和成功帧协议；请求完成后释放临时固定。只保存当前遍历的实际挂载路径、有限顺序游标和少量稳定 key，不按 source.count 创建数组，不为遍历等待启动定时器。
 
 ## 8. 挂载与资源生命周期
 

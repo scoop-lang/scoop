@@ -69,9 +69,23 @@ private class RevealMove(
 /** Tracks only the actual position intents issued by this focus request. */
 internal class RevealAttempt {
     private val moves = ArrayList<RevealMove>()
+    fun retainFor(node: MountedNode) {
+        var index = 0L
+        while (index < moves.size) {
+            if (moves[index].viewport.contains(node))
+                index += 1L
+            else
+                moves.removeAt(index)
+        }
+    }
     fun positionItem(viewport: ScrollViewport) {
         val state = viewport.state
         state.scrollTo(state.offset)
+        for (move in moves)
+            if (move.viewport === viewport) {
+                move.revision = state.requestRevision
+                return
+            }
         moves.add(RevealMove(viewport, state, viewport.bindingRevision, state.requestRevision))
     }
     val isCurrent: Boolean get() {

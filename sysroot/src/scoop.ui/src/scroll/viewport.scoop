@@ -29,6 +29,7 @@ public class ScrollViewport internal constructor(
     internal val active: Boolean get() = !closed && node.active && node.root.isOpen
     internal val bindingRevision: ULong get() = binding
     internal fun belongsTo(owner: MountedNode): Boolean = active && node === owner
+    internal fun contains(owner: MountedNode): Boolean = withinFocusScope(owner, node)
     internal val moving: Boolean get() = active && (motion?.started != None)
     internal fun matches(value: ScrollState, generation: ULong): Boolean =
         active && current === value && binding == generation

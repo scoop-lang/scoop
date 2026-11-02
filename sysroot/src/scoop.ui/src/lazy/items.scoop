@@ -31,6 +31,19 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
     val count: Long get() = total
 
+    fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
+    fun focusedEntry(): LazyItemEntry? {
+        for (entry in entries)
+            if (entry.node.active && entry.node.scope.input.activity.hasFocus)
+                return Some(entry)
+        return None
+    }
+    fun entryContaining(node: MountedNode): LazyItemEntry? {
+        for (entry in entries)
+            if (withinFocusScope(node, entry.node))
+                return Some(entry)
+        return None
+    }
     fun entry(key: ViewKey): LazyItemEntry? = keyed[key]
     fun indexOf(key: ViewKey): Long? {
         when (keyed[key]) {

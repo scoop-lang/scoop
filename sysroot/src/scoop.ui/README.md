@@ -63,6 +63,8 @@ LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMea
 
 LazyElement 可用 `scope.lazyFocus(viewport)` 登记按 key 聚焦，viewport 必须属于同一挂载。`requestFocus(key, ItemFocusEdge.First)` 或 Last 请求该项首／末个可用 Tab 目标；待实现项的索引会加入 pinnedItems，外层缓存条目也会因这个请求重新参与布局。容器读取 `pendingItem`，按自己的 extent 配合 ScrollAdjustment 初次定位；选择具体目标后该属性变为 None，后续显露交给框架。isPending 查询整个请求，cancelRequest 只取消等待。数据删除、新焦点／位置意图、换绑和关闭取消旧请求，不预建全量 FocusHandle。
 
+登记可另传 `LazyFocusOptions(navigation, layout, order)` 并整体更新 options。ItemNavigation.None 保留普通已挂载目标的行为；Sequential 按数据顺序访问行内 Tab 目标；`Roving(direction, loop)` 使条目集合占一个 Tab 停靠点，方向键与 Home／End 请求实际条目。layout 使用 Horizontal／Vertical。嵌套列表和行内 FocusScope 通过同一成功帧遍历续行，空／禁用项按需跳过；roving 的返回 key 来自真实焦点活动，实例卸载后仍可重新定位该 key。
+
 `ScrollViewport.present` 的 contentOrigin 默认是零。超长内容可先在 Double 中减去附近原点，再用这个原点呈现；框架一次平移 contentOrigin − offset，使绘制和输入几何保留局部精度，完整滚动范围与显露坐标不变。
 
 未选中的缓存子树关闭帧需求，逻辑更新照常执行。`scope.animation` 和视口动画通过同一 Surface AnimationGroup 管理；有限动画可离屏完成，无限动画不会周期唤醒窗口。恢复只重新启用子树的帧资格，保留动画自身的 isFrameEnabled 选择，也不会唤醒嵌套列表中仍未选中的缓存项。`scope.requestFrame()` 在该子树内同样不要求绘制。

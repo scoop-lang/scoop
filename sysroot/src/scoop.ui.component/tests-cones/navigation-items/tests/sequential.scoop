@@ -1,0 +1,97 @@
+package scoop.tests.ui.itemnavigation
+
+import scoop.graphics.Point
+import scoop.test.*
+import scoop.ui.*
+
+internal fun sequentialNavigation(probe: ItemNavigationProbe) {
+    when (probe.phase) {
+        case 0 -> {
+            probe.assertFocus(-1L)
+            assertTrue(probe.builds < 15)
+            probe.next { probe.key(48) }
+        }
+        case 1 -> {
+            probe.assertFocus(0L, 1L)
+            probe.next { probe.key(48) }
+        }
+        case 2 -> {
+            probe.assertFocus(0L)
+            probe.next { probe.key(48) }
+        }
+        case 3 -> {
+            probe.assertFocus(4L)
+            assertTrue(probe.scroll.offset.y > 0.0)
+            probe.next { probe.key(48) }
+        }
+        case 4 -> {
+            probe.assertFocus(4L, 1L)
+            probe.next { probe.key(48) }
+        }
+        case 5 -> {
+            probe.assertFocus(501L)
+            probe.next { probe.key(48) }
+        }
+        case 6 -> {
+            probe.assertFocus(502L)
+            probe.next { probe.key(48) }
+        }
+        case 7 -> {
+            probe.assertFocus(7L)
+            probe.next { probe.key(48) }
+        }
+        case 8 -> {
+            probe.assertFocus(7L, 1L)
+            probe.next { probe.key(48) }
+        }
+        case 9 -> {
+            probe.assertFocus(-2L)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 10 -> {
+            probe.assertFocus(7L, 1L)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 11 -> {
+            probe.assertFocus(7L)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 12 -> {
+            probe.assertFocus(502L)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 13 -> {
+            probe.assertFocus(501L)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 14 -> {
+            probe.assertFocus(4L, 1L)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.replace(Some([8L, 1L]))
+            }
+        }
+        case 15 -> {
+            probe.assertFocus(-1L)
+            probe.next {
+                assertTrue(probe.group!!.requestFocus())
+                assertTrue(probe.group!!.isPending)
+            }
+        }
+        case 16 -> {
+            probe.assertFocus(-3L)
+            probe.next { probe.key(48) }
+        }
+        case 17 -> {
+            probe.assertFocus(-2L)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.largeStart = probe.builds
+                probe.navigation.value = ItemNavigation.Roving()
+                probe.replace(None)
+                probe.scroll.scrollTo(Point(0.0, 0.0))
+            }
+        }
+        else -> fail(Some("unexpected sequential navigation phase"))
+    }
+}

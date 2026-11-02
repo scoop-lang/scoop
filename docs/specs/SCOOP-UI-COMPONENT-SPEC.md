@@ -232,7 +232,9 @@ VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAt
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
 
-列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项按 retention 保留或正常卸载，同 key 的存活项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。已放置目标复用第 6.2 节的焦点显露；未实现项的虚拟导航及独立绘制缓存按后续批次扩展。
+navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺序访问行内各个有效 Tab 目标，跨过行尾才按需准备下一行；`Roving(direction = Ltr, loop = false)` 让列表只占一个条目 Tab 停靠点，方向键和 Home／End 切换实际行目标。导航轴来自 orientation，条目入口顺序来自 focus.order。两种模式均关闭视口自身独立的 Tab 停靠点，保留其显式 FocusHandle 和鼠标／程序聚焦用途；空列表没有虚拟条目停靠点。focus.tabStop 在 None 模式下仍只控制视口自身。键盘导航不选择或激活数据，具体菜单／表格语义由组合控件实现。
+
+列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项按 retention 保留或正常卸载，同 key 的存活项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。已放置目标复用第 6.2 节的焦点显露；独立绘制缓存按后续批次扩展。
 
 尚不实现 flex／weight、grid 或 intrinsic 多轮协商。增加布局策略时继续使用或按具体需求扩展公开协议，不能在框架中增加本库专用类型分支。
 

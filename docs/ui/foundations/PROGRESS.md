@@ -26,7 +26,7 @@
 | D2c3：有限实例保留与子树帧需求 | 已完成 aarch64 实施和定向验证 |
 | D2d1：已挂载目标的焦点显露 | 已完成 aarch64 实施和定向验证 |
 | D2d2a：未挂载项的按 key 聚焦 | 已完成 aarch64 实施和定向验证 |
-| D2d2b：虚拟 Tab 与 roving 导航 | 待实施 |
+| D2d2b：虚拟 Tab 与 roving 导航 | 已完成 aarch64 实施和定向验证 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
@@ -233,3 +233,14 @@ LazyElement 通过同挂载 ScrollViewport 的 LazyFocus 解析稳定 key，Virt
 Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查与六个 UI 库 aarch64 release 构建通过。4 项定向 scoop.test 通过：新增按 key 聚焦，以及 UI lazy、可变 VirtualList 和嵌套焦点显露原生回归各 1 项。新增用例覆盖一亿项末端的实际窗口坐标和首／末目标、有限构建数、Discarded、未知／空／禁用／零高度项、新焦点及滚动抢占、外层缓存恢复、隐藏删除与重排、超高条目内的精确显露、句柄替换、卸载和停帧。首次坐标断言失败经内容原点修复闭合，其余回归通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。5 份一次性桌面报告与 3 个被替代的旧测试输出清理；本批入口、当前产物和共享缓存保留。虚拟 Tab 与 roving 导航继续按下一批实施。
+
+
+## D2d2b：虚拟 Tab 与 roving 导航
+
+LazyFocusOptions 与 VirtualList.navigation 提供 None、Sequential 和 Roving。父级 Tab 顺序使用条目入口，进入后按稳定 key 准备实际行，再沿行内目标和嵌套列表遍历；roving 只保留最近真实聚焦的 key。方向键、Home／End、RTL 和循环沿原默认路由执行，不创建全量句柄或第二份焦点状态。
+
+遍历复用根上的唯一待聚焦请求和 Accepted 显露流程。有限节点游标与按项游标保存当前路径，嵌套 FocusScope 到达边界后从所属行继续外层顺序；中间的本地默认动作仍有先处理按键的机会。已放弃条目的显露路径及时释放，新的焦点、滚动和删除沿既有规则取消等待。
+
+Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查和六个 UI 库 aarch64 release 构建通过。6 项定向 scoop.test 通过：新增虚拟导航，以及有限 Tab、有限 roving／网格导航、模态恢复、按 key 聚焦和嵌套滚动显露原生回归各 1 项。新用例覆盖多目标顺序、正反向嵌套遍历、空／禁用／零高度项、fallback、实例卸载后的历史恢复、一亿项 Home／End 的有限构建、RTL、边界消费、修饰键、局部／capture 拦截、删除历史项、循环、禁用及完整资源释放。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。6 份一次性桌面报告与 5 个被替代的旧测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。后续继续绘制缓存及公共编辑能力。

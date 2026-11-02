@@ -13,8 +13,15 @@ internal struct NavigationStep(
     val edge: Boolean = false
 )
 
-internal fun navigationStep(options: NavigationOptions, key: LogicalKey): NavigationStep? {
-    val grid = options.layout == NavigationLayout.Grid
+internal fun navigationStep(options: NavigationOptions, key: LogicalKey): NavigationStep? =
+    navigationStep(options.layout, options.direction, key)
+
+internal fun navigationStep(
+    layout: NavigationLayout,
+    direction: TextDirection,
+    key: LogicalKey
+): NavigationStep? {
+    val grid = layout == NavigationLayout.Grid
     val horizontal =
         if (grid)
             NavigationAxis.Row
@@ -28,19 +35,19 @@ internal fun navigationStep(options: NavigationOptions, key: LogicalKey): Naviga
     return when (key) {
         case Named(NamedKey.Home) -> Some(NavigationStep(horizontal, false, true))
         case Named(NamedKey.End) -> Some(NavigationStep(horizontal, true, true))
-        case Named(NamedKey.ArrowLeft) -> if (options.layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, options.direction == TextDirection.Rtl))
+        case Named(NamedKey.ArrowLeft) -> if (layout != NavigationLayout.Vertical)
+            Some(NavigationStep(horizontal, direction == TextDirection.Rtl))
         else
             None
-        case Named(NamedKey.ArrowRight) -> if (options.layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, options.direction != TextDirection.Rtl))
+        case Named(NamedKey.ArrowRight) -> if (layout != NavigationLayout.Vertical)
+            Some(NavigationStep(horizontal, direction != TextDirection.Rtl))
         else
             None
-        case Named(NamedKey.ArrowUp) -> if (options.layout != NavigationLayout.Horizontal)
+        case Named(NamedKey.ArrowUp) -> if (layout != NavigationLayout.Horizontal)
             Some(NavigationStep(vertical, false))
         else
             None
-        case Named(NamedKey.ArrowDown) -> if (options.layout != NavigationLayout.Horizontal)
+        case Named(NamedKey.ArrowDown) -> if (layout != NavigationLayout.Horizontal)
             Some(NavigationStep(vertical, true))
         else
             None

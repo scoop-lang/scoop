@@ -151,7 +151,10 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
-    public fun lazyFocus(viewport: ScrollViewport): LazyFocus {
+    public fun lazyFocus(
+        viewport: ScrollViewport,
+        options: LazyFocusOptions = LazyFocusOptions()
+    ): LazyFocus {
         checkMounted()
         checkFocusMutation()
         requireUi(viewport.belongsTo(node), "item focus viewport must belong to this mount")
@@ -164,7 +167,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
                 case Lazy(_, value) -> value
                 else -> throw IllegalArgumentException(Some("item focus requires a lazy element"))
             }
-        val value = LazyFocus(node, viewport, items)
+        val value = LazyFocus(node, viewport, items, options)
         node.lazyFocus = Some(value)
         managed.add(value)
         return value

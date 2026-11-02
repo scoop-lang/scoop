@@ -92,6 +92,8 @@ Tab／Shift+Tab 在内层控件未消费时执行遍历，跳过禁用和不能�
 
 按 key 的公开基础为 LazyFocus 与 VirtualListHandle.focusItem：前者复用根上的唯一 pending、实际 ItemSource 和 viewport，后者负责 extent 定位。pinnedItems 可包含尚未实现的目标索引；若列表自身位于被缓存的外层项中，也固定相应祖先项。选出真实目标之后停止整项定位，由普通显露继续处理精确位置；新焦点／位置意图和隐藏时的真实删除均结束旧等待。
 
+显式键盘策略为 ItemNavigation.None／Sequential／Roving。LazyFocusOptions 给出策略、Horizontal／Vertical 和入口 order，VirtualList 从 orientation 与 focus.order 提供后两者。启用时父 Tab 顺序保留一个条目入口，行内再按普通目标与嵌套入口推进；行内 FocusScope 异步走到边界后沿实际所属行继续外层顺序。roving 只保留最近真实聚焦的 key，进入后选择该行主目标，不因记录历史而保留实例。None 不改变普通已挂载目标的 Tab 语义。
+
 焦点导致的滚动显露由内向外进行：先让目标进入最近滚动 viewport，再把该 viewport 中的目标区域向外层 reveal。最终以成功帧的位置判断完成，避免父子依据不同旧坐标来回滚动。
 
 已挂载目标的实际路径由 ScrollViewport.present 的内容回调登记，回调统一施加视口 clip 和负 offset；固定装饰和 Portal 不按逻辑祖先猜测滚动归属。每次只调整最近一个尚需滚动的视口，Accepted 后再继续外层。更新的焦点或本次已调整视口上的位置意图取消旧请求；隐藏时等待正常恢复。Tab 的显露失败继续当前有限序列，真实退休和新意图则终止旧遍历。

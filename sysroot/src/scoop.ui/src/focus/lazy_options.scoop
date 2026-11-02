@@ -1,0 +1,18 @@
+package scoop.ui
+
+import scoop.graphics.text.TextDirection
+
+public enum ItemNavigation {
+    None, Sequential,
+    Roving(val direction: TextDirection = TextDirection.Ltr, val loop: Boolean = false)
+}
+
+public struct LazyFocusOptions(
+    val navigation: ItemNavigation = ItemNavigation.None,
+    val layout: NavigationLayout = NavigationLayout.Vertical,
+    val order: Int = 0
+)
+
+internal fun checkLazyFocusOptions(value: LazyFocusOptions) {
+    requireUi(value.layout != NavigationLayout.Grid, "item navigation requires a linear layout")
+}

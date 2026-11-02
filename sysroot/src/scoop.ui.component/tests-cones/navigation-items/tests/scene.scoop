@@ -1,0 +1,133 @@
+package scoop.tests.ui.itemnavigation
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Orientation
+import scoop.window.*
+
+internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Component {
+    public override fun render(): View =
+        element(
+            { NavigationPanel(probe) },
+            [
+                element({ NavigationEdge(probe.lead, true) }),
+                element(
+                    { NavigationGroup(probe) },
+                    [
+                        virtualList(
+                            probe.data!!.value,
+                            if (
+                                probe.huge.value ||
+                                    probe.orientation.value ==
+                                    Orientation.Horizontal
+                            )
+                                ItemExtent.Fixed(24.0)
+                            else
+                                ItemExtent.Variable(24.0),
+                            Some(probe.scroll),
+                            orientation = probe.orientation.value,
+                            enabled = probe.enabled.value,
+                            scrollbars = ScrollbarVisibility.Hidden,
+                            theme = Some(probe.theme),
+                            handle = Some(probe.list),
+                            navigation = probe.navigation.value
+                        )
+                    ]
+                ),
+                element({ NavigationEdge(probe.tail, false) })
+            ]
+        )
+}
+
+private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (probe.capture && key.state == ElementState.Pressed) {
+                            probe.captureKeys += 1
+                            context.consume()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+        scope.input.defaultAction =
+            {
+                _,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (key.state == ElementState.Pressed) {
+                            when (key.logicalKey) {
+                                case Named(NamedKey.ArrowLeft) -> probe.outerKeys += 1
+                                case Named(NamedKey.ArrowRight) -> probe.outerKeys += 1
+                                case Named(NamedKey.ArrowUp) -> probe.outerKeys += 1
+                                case Named(NamedKey.ArrowDown) -> probe.outerKeys += 1
+                                else -> {}
+                            }
+                        }
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(40.0, 20.0)))
+        context.measureChild(1L, Constraints.tight(Size(144.0, 76.0)))
+        context.measureChild(2L, Constraints.tight(Size(40.0, 20.0)))
+        context.placeChild(0L, Point(8.0, 8.0))
+        context.placeChild(1L, Point(12.0, 40.0))
+        context.placeChild(2L, Point(8.0, 135.0))
+        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted += 1
+        }
+    }
+}
+
+private class NavigationGroup(private val probe: ItemNavigationProbe): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        area = Some(scope.createArea(focusable = true))
+        scope.focusTarget(area!!, FocusOptions(Some(probe.fallback), false, -1))
+        probe.group = Some(scope.focusScope(FocusScopeOptions(fallback = Some(probe.fallback))))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(144.0, 48.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(144.0, 76.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 56.0, 50.0, 14.0))
+        context.children()
+    }
+}
+
+private class NavigationEdge(
+    private val handle: FocusHandle,
+    private val initial: Boolean
+): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        area = Some(scope.createArea(focusable = true))
+        scope.focusTarget(area!!, FocusOptions(Some(handle)))
+        if (initial)
+            assertTrue(handle.requestFocus())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(40.0, 20.0)))
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 0.0, 40.0, 20.0))
+    }
+}
