@@ -2,6 +2,8 @@
 
 状态：完成。Windows 完成后的设计复审、目标边界重构和 macOS x86_64 已在 `codex/target-refactor-macos-x86-64` 分支完成；七个目标的受影响范围已验证，Rosetta 调试限制单列。实际范围与结果见[实施记录](PROGRESS.md)。
 
+上一轮实施后仍残留的 OS／arch／对象 machine 组合耦合及其后续收口方案见 [Target 组合解耦后续重构设计](COMPOSITION.md)。
+
 初稿：2026-10-29。复审：2026-10-30。
 
 复审基线：主线 [`09be3315a85cfa9e50f79e49785bd23e0880f1f0`](https://github.com/windoze/scoop/tree/09be3315a85cfa9e50f79e49785bd23e0880f1f0)。Windows targets 经 `b0de037002`（#70）合入，随后 `2ae2534a1c`（#71）和 `09be3315a8`（#72）加入 macOS／Windows 窗口库及其实际需要的 native 支持。以下代码链接已随重构更新，指向本分支的实现文件。
