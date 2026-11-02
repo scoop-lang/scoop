@@ -26,6 +26,7 @@ struct RuntimeComponents {
     profile: &'static str,
     os: &'static [&'static str],
     image: &'static [&'static str],
+    loaded_image: &'static [&'static str],
     arch: &'static [&'static str],
     frame: &'static [&'static str],
     managed_entry: &'static [&'static str],
@@ -57,6 +58,16 @@ impl ValidatedRuntimeBuildProfile {
             NativeObjectFormat::MachO64 => (sources::MACHO_IMAGE, &[]),
             NativeObjectFormat::Elf64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
             NativeObjectFormat::Coff64 => (sources::PE_IMAGE, &[]),
+        };
+        let loaded_image = match (definition.os, target.native_object_format()) {
+            (TargetOs::Linux, NativeObjectFormat::Elf64) => sources::LINUX_ELF_LOADED_IMAGE,
+            (TargetOs::Darwin, NativeObjectFormat::MachO64)
+            | (TargetOs::Windows, NativeObjectFormat::Coff64) => &[],
+            _ => {
+                return Err(crate::ToolchainError(
+                    "no loaded-image provider for the selected OS and object format".into(),
+                ));
+            }
         };
         let arch = match target.architecture() {
             TargetArchitecture::Aarch64 => sources::AARCH64,
@@ -129,6 +140,7 @@ impl ValidatedRuntimeBuildProfile {
             profile,
             os,
             image,
+            loaded_image,
             arch,
             frame,
             managed_entry,
@@ -155,6 +167,7 @@ impl ValidatedRuntimeBuildProfile {
             .chain([components.profile])
             .chain(components.os.iter().copied())
             .chain(components.image.iter().copied())
+            .chain(components.loaded_image.iter().copied())
             .chain(components.arch.iter().copied())
             .chain(components.frame.iter().copied())
             .chain(components.managed_entry.iter().copied())

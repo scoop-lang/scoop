@@ -8,6 +8,7 @@ struct ExpectedComponents {
     profile: &'static str,
     os: &'static str,
     image: &'static str,
+    loaded_image: Option<&'static str>,
     arch: &'static str,
     frame: &'static str,
     managed_entry: &'static str,
@@ -36,6 +37,16 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
     }
     assert!(
         expected
+            .loaded_image
+            .map(|source| unique_sources.contains(source))
+            .unwrap_or_else(|| {
+                !unique_sources.contains("runtime/src/platform/loader/linux_elf.c")
+            }),
+        "{} selects the wrong loaded-image provider",
+        profile.canonical_triple()
+    );
+    assert!(
+        expected
             .abi_shim
             .map(|source| unique_sources.contains(source))
             .unwrap_or_else(|| {
@@ -58,6 +69,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             profile: "runtime/src/platform/profiles/darwin_aarch64.c",
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
+            loaded_image: None,
             arch: "runtime/src/platform/arch/aarch64_float_environment.c",
             frame: "runtime/src/platform/frame/darwin_aarch64.c",
             managed_entry: "runtime/src/platform/frame/darwin_aarch64_macho.S",
@@ -71,6 +83,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             profile: "runtime/src/platform/profiles/darwin_x86_64.c",
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
+            loaded_image: None,
             arch: "runtime/src/platform/arch/x86_64_float_environment.c",
             frame: "runtime/src/platform/frame/sysv_amd64.c",
             managed_entry: "runtime/src/platform/frame/sysv_amd64_macho.S",
@@ -88,6 +101,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 profile: "runtime/src/platform/profiles/linux_x86_64.c",
                 os: "runtime/src/platform/os/linux.c",
                 image: "runtime/src/platform/image/elf.c",
+                loaded_image: Some("runtime/src/platform/loader/linux_elf.c"),
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/sysv_amd64.c",
                 managed_entry: "runtime/src/platform/frame/sysv_amd64_elf.S",
@@ -107,6 +121,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 profile: "runtime/src/platform/profiles/windows_x86_64.c",
                 os: "runtime/src/platform/os/windows.c",
                 image: "runtime/src/platform/image/pe.c",
+                loaded_image: None,
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/windows_amd64_virtual_unwind.c",
                 managed_entry: "runtime/src/platform/frame/windows_amd64_coff_managed_entry.S",

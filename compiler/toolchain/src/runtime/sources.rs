@@ -109,6 +109,7 @@ pub(super) const LINUX_OS: &[&str] = &[
     "runtime/src/platform/primitives/posix.c",
     "runtime/src/platform/numeric/posix.c",
 ];
+pub(super) const LINUX_ELF_LOADED_IMAGE: &[&str] = &["runtime/src/platform/loader/linux_elf.c"];
 pub(super) const MACHO_IMAGE: &[&str] = &[
     "runtime/src/platform/image/macho.c",
     "runtime/src/stack_trace/macho.c",
