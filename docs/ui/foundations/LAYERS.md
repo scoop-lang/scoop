@@ -48,11 +48,11 @@ Portal 的逻辑位置按普通 empty 的约束规则返回占位 metrics，不�
 
 外部点击按层的逻辑成员判断；portal 子菜单属于父菜单内部，不因为矩形在父菜单外就误关父菜单。一串事件只由最上层适用的 dismiss 策略处理，不能用一次 Escape 连续关掉全部祖先。
 
-模态外部点击总是被挡住，是否同时关闭由控件策略决定。非模态 Popover 可选择关闭并消费，或关闭并让当前原始事件继续到原目标；后者在第一次派发前决定，不重新合成／重投一次 pointer down。AlertDialog 默认不因外部点击关闭，显式操作按钮仍由组件组合。
+模态外部点击总是被挡住，是否同时关闭由控件策略决定。PortalOptions.dismiss 使用 OverlayDismiss(escape=false, outsidePress=Ignore) 显式配置；OutsidePress 另有 CloseAndConsume 和 CloseAndContinue，模态不能配置 CloseAndContinue。非模态 Popover 可选择关闭并消费，或关闭并让当前原始事件继续到原目标；后者在第一次派发前决定，不重新合成／重投一次 pointer down。AlertDialog 默认不因外部点击关闭，显式操作按钮仍由组件组合。Escape 只处理真实、无修饰的非重复按下，避免长按关闭多层。
 
 ## 4. 同窗口模态
 
-模态是 `InputBoundary + FocusScope + Layer` 的组合，遮罩只是外观。`ModalScope` 必须同时做到：
+模态是 `InputBoundary + FocusScope + Layer` 的组合，遮罩只是外观。公开入口为 PortalOptions.modal = Some(ModalOptions(initialFocus=None, restoreFocus=true))，一次 Portal 挂载拥有内部模态会话。循环焦点组包含一个不可命中、tabStop=false 的窗口视口区域，供无子目标时程序化聚焦；不用另一套公开 Layer 或 ModalScope 管理器。模态必须同时做到：
 
 - 指针不能命中背景，包括背景已经捕获的按下序列；激活屏障时向旧路径发送 Cancelled，不补发 click。
 - Tab／Shift+Tab 和组导航受当前域限制；背景的程序化 focus 请求也不能越过域。
@@ -71,7 +71,7 @@ Portal 的逻辑位置按普通 empty 的约束规则返回占位 metrics，不�
 | 移除层成功提交 | 恢复上一域；若原 handle 仍存在、启用且属于允许域，先滚动显露再恢复，否则选择该域的回退目标 |
 | 首帧失败／无 drawable | 不交付新焦点，保留待处理请求；调用方可取消打开。窗口关闭直接清理全部域 |
 
-InputArea 的即时关闭规则和最近成功帧几何继续有效；这里没有业务 State 回滚。焦点恢复只是请求，受用户期间主动选择和 OS 激活状态约束；新的显式焦点意图取代旧的恢复请求。
+InputArea 的即时关闭规则和最近成功帧几何继续有效；这里没有业务 State 回滚。焦点恢复只是请求，受用户期间主动选择和 OS 激活状态约束；新的显式焦点意图取代旧的恢复请求。UI 的 pending／已知窗口内被拒绝的请求通过 SurfaceWindow.reserveFocusRequest 推进同一个序号，避免只比较已成功聚焦的区域。非当前模态先关闭不移动焦点，后来关闭的当前模态沿保存的前驱关系越过已退休域。普通／模态是不同挂载形状，切换 modal 的有无直接退休旧会话；同一形状内更新策略保留会话。
 
 Dialog／AlertDialog／Sheet 共享上述机制。居中、侧边进出和遮罩样式不需要三套模态管理器。打开 Dialog 后的锁滚动属于背景域被禁用的结果，不去改写背景 ScrollState。
 

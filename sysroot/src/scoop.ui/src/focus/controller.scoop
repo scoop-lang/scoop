@@ -66,25 +66,69 @@ internal class FocusController(private val root: UiRoot): Closeable {
     }
     fun request(target: FocusTarget): Boolean {
         pending = None
-        if (!target.available)
+        if (!root.isOpen)
             return false
+        if (!target.available) {
+            root.surface.reserveFocusRequest()
+            return false
+        }
         if (target.area.canFocus)
             return target.area.requestFocus()
-        pending = Some(PendingFocus(FocusDestination.Target(target), root.surface.focusRevision))
+        pending =
+            Some(PendingFocus(FocusDestination.Target(target), root.surface.reserveFocusRequest()))
         root.surface.requestFrame()
         return true
     }
     fun request(scope: FocusScope): Boolean {
         pending = None
-        if (!scope.available)
+        if (!root.isOpen)
             return false
+        if (!scope.available) {
+            root.surface.reserveFocusRequest()
+            return false
+        }
         when (select(scope)) {
             case Some(target) -> return request(target)
             case None -> {}
         }
-        pending = Some(PendingFocus(FocusDestination.Group(scope), root.surface.focusRevision))
+        pending =
+            Some(PendingFocus(FocusDestination.Group(scope), root.surface.reserveFocusRequest()))
         root.surface.requestFrame()
         return true
+    }
+    fun capture(): FocusHandle? {
+        val current = root.surface.focusedArea ?: return None
+        val node = root.node ?: return None
+        for (target in focusOrder(node))
+            if (target.active && target.area === current)
+                return Some(target.handle)
+        return None
+    }
+    fun restore(handles: Array<FocusHandle>, fallback: FocusScope?): Boolean {
+        for (handle in handles) {
+            when (handle.target) {
+                case Some(target) -> {
+                    if (target.node.root === root && target.available && target.area.canFocus)
+                        return request(target)
+                }
+                case None -> {}
+            }
+        }
+        when (fallback) {
+            case Some(scope) -> if (scope.available)
+                return request(scope)
+            case None -> {}
+        }
+        val node = root.node ?: return false
+        when (node.focusScope) {
+            case Some(scope) -> if (scope.available)
+                return request(scope)
+            case None -> {}
+        }
+        for (target in focusOrder(node))
+            if (target.acceptsTab)
+                return request(target)
+        return false
     }
     fun complete(frame: FrameCompletion) {
         if (frame.submission != FrameSubmission.Accepted)

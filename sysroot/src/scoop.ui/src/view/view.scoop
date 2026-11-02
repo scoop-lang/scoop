@@ -58,7 +58,7 @@ internal enum ViewBody {
 }
 
 internal enum ViewShape {
-    Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef), Portal
+    Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef), Portal(Boolean)
 }
 
 internal val View.shape: ViewShape get() =
@@ -66,5 +66,5 @@ internal val View.shape: ViewShape get() =
         case Empty -> ViewShape.Empty
         case Component(value) -> value.shape
         case Element(value, _) -> value.shape
-        case Portal(_, _) -> ViewShape.Portal
+        case Portal(_, options) -> ViewShape.Portal(options.isModal)
     }

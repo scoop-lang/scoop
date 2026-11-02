@@ -128,7 +128,7 @@ InputArea.windowBounds／visibleBounds 返回最近成功帧的窗口逻辑坐�
 
 graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需的几何值；形状与任意 path clip 的相交复用 Skia PathOps，不以若干采样点或矩形重叠猜测。快照内部按需复用一次可见交集计算，新的帧使用新的快照。bounds 保留裁剪前的位置，便于后续滚动显露；此查询不更改画布或绘制内容。
 
-SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。
+SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。reserveFocusRequest() 推进并返回同一个窗口序号，但不改变当前焦点，供上层登记尚未有可用几何的请求或记录被当前域拒绝的显式请求；不能为这些请求另设一套不可比较的版本。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。
 
 InputArea.focusRevision 保存该区域最近一次成功聚焦请求的窗口序号，初始及关闭后为 None。鼠标默认聚焦与程序化请求使用同一记录；失败请求、失焦、clearFocus 和 OS 激活变化不重写该区域的成功历史。导航组据此恢复最近使用的有效成员，不安装第二套焦点处理器。比较同窗口记录时使用当前窗口序号减去记录的无符号距离，最近者距离最小。
 

@@ -56,7 +56,7 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 上下文的 target／currentTarget 是逻辑 scope，localPosition 只在带几何的区域指针事件中存在，窗口位置保留在 InputPointer.state；上下文随同步回调结束而失效。Enter／Leave、焦点、修饰键与取消是不可取消的通知，文本只给对应 IME 会话。首次按钮按下固定整次多按钮序列的路径，空白区域按下固定根路径；拖出窗口仍可继续，取消向旧路径完整交付，剩余按钮事件不会改投其他区域。滚轮区分行与逻辑像素。`onEventFinished(InputEvent)` 在每次可路由输入之后通知原路径内仍有效节点，即使传播或默认行为被取消；控件用它结束释放序列，不执行被取消的激活。
 
-`InputBoundary(scope)` 将输入限制到该 scope 的逻辑后代，命中、焦点、capture／bubble／default 和空白处的缺省目标都停在当前域。边界按建立顺序叠放，`isCurrent` 与 `SurfaceWindow.inputBoundary` 查询当前屏障；关闭恢复前一域。域改变会完整取消原来的按下路径，剩余按钮事件保持空路径。域外的区域不必有场景几何，但逻辑祖先的禁用／关闭仍然生效；`scope.isInputAllowed` 可在首次放置前判断准入。
+`InputBoundary(scope)` 将输入限制到该 scope 的逻辑后代，命中、焦点、capture／bubble／default 和空白处的缺省目标都停在当前域。边界按建立顺序叠放，`isCurrent` 与 `SurfaceWindow.inputBoundary` 查询当前屏障；关闭恢复前一域。域改变会完整取消原来的按下路径，剩余按钮事件保持空路径。域外的区域不必有场景几何，但逻辑祖先的禁用／关闭仍然生效；`scope.isInputAllowed` 可在首次放置前判断准入。上层通过 `SurfaceWindow.reserveFocusRequest()` 为待处理或被拒绝的显式焦点意图推进同一个 focusRevision，不改变当前焦点，也不改写 InputArea 的成功历史。
 
 边界所属 scope 已退休时，屏障仍持续到 InputBoundary.close，便于 UI 等待弹层移除帧成功提交。当前域根的 `beforePointerPress` 在首次按钮按下的派发前读取 InputPress，返回 true 消费整段按下序列，返回 false 沿已固定的目标和坐标继续。外部点击策略可以据此关闭最上层弹层；追加按钮不再次执行预处理，回调中改变边界也不能把旧事件投向背景。
 

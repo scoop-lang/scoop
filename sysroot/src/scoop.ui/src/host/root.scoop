@@ -26,7 +26,7 @@ internal class UiRoot(
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
     val focus = FocusController(this)
-    val overlays = OverlayController()
+    val overlays = OverlayController(this)
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
     var pendingEnqueued = false
@@ -43,6 +43,7 @@ internal class UiRoot(
         val current = createNode(this, None, initial)
         node = Some(current)
         focus.start()
+        overlays.start()
         current.rebuild(UpdateTurn())
         current.mountPending()
     }
@@ -104,8 +105,11 @@ internal class UiRoot(
         isOpen = false
         pending.clear()
         completions.clear()
-        focus.close()
-        node?.deactivate()
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { focus.close() }
+        failure = cleanupUi(failure) { node?.deactivate() }
+        failure = cleanupUi(failure) { overlays.close() }
+        throwUi(failure)
     }
     fun requestClose() {
         checkThread()

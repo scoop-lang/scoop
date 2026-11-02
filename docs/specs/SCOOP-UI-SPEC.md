@@ -382,7 +382,7 @@ Tab／Shift+Tab 在内层默认行为未消费后导航。默认跳过禁用、�
 
 FocusScope.requestFocus 按有效 defaultFocus、首个可用 Tab 目标、有效 fallback 依次选择；fallback 可是 tabStop=false 的区域代理。子项尚未挂载／放置时可等待下一成功帧后选择。域外或失效的引用不作为目标，无可用目标时请求结束。
 
-UiRoot 在 Surface 的 Accepted 完成边界先兑现当前待处理焦点，再执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。Discarded／Deferred 不兑现或轮询；Accepted 后仍不可用的普通目标结束请求。滚动显露与虚拟目标接入由后续滚动批次补充。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
+UiRoot 在 Surface 的 Accepted 完成边界先处理层的移除、模态恢复与首次聚焦，再兑现当前待处理焦点，最后执行用户登记的 SceneContext.onFrameComplete 动作。请求记录 Surface.focusRevision；UI 接受的待处理请求、已知窗口内被域拒绝的显式请求通过 reserveFocusRequest 推进同一个序号，立即聚焦仍由 InputArea 推进一次。期间另一次显式焦点意图、目标退休、外部 handle 更换或根关闭都会使旧请求失效。未绑定的 handle 没有所属窗口，不能改变其他窗口的请求。Discarded／Deferred 不兑现或轮询；Accepted 后仍不可用的普通目标结束请求。滚动显露与虚拟目标接入由后续滚动批次补充。焦点请求和登记配置变更禁止发生在 render／measure／scene／draw 中。
 
 #### 7.3.2 KeyNavigation 与组内导航
 
@@ -441,7 +441,7 @@ UiRoot 在普通内容的测量和 scene 完成后处理同窗口层出口。Por
 
 LayoutAnchor 是 owner 线程上的稳定引用，通过 ComponentScope.layoutAnchor(handle) 登记到一个挂载，返回随挂载退休的 Closeable。一个 handle 同时只绑定一个活动挂载；重新绑定后旧登记的迟到清理不解除新绑定。SceneContext.anchor(handle, rect) 只允许登记本元素拥有的 anchor，每帧至多一次。它使用 graphics 的同一变换／clip 快照得到窗口包围盒和可见性，不创建 InputArea；旋转使用轴对齐包围盒。LayoutAnchor.isAttached 查询逻辑绑定，不表示已有成功帧或可见几何。
 
-PortalOptions 保存 placement、可选外部 OverlayHandle、anchorVisibility（默认 Close）和当前 onClose 回调。缺省句柄由挂载会话内部拥有；描述重建不会隐式分配新的活动会话。参数在描述构造／更新边界检查，归属在建立实际绑定时检查；错误保留旧的有效绑定。
+PortalOptions 保存 placement、可选外部 OverlayHandle、anchorVisibility（默认 Close）、可选 modal: ModalOptions、dismiss: OverlayDismiss 和当前 onClose 回调。缺省句柄由挂载会话内部拥有；描述重建不会隐式分配新的活动会话。参数在描述构造／更新边界检查，归属在建立实际绑定时检查；错误保留旧的有效绑定。普通／模态是不同的挂载形状，改变 modal 的有无会退休旧会话并重新挂载；同一模态形状内的 initialFocus、restoreFocus 和关闭策略可正常更新。
 
 OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, viewportPadding=8)，在窗口可用矩形中对齐；Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，相对锚点定位。OverlayAlignment 包含 Start／Center／End，OverlaySide 包含 Top／Right／Bottom／Left；对齐使用物理坐标，不隐式读取控件 writing direction。gap／viewportPadding 为有限非负值。
 
@@ -449,13 +449,31 @@ OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, 
 
 SceneContext.overlayLayout 返回当前最近 Portal 的本帧 OverlayLayout，普通内容为 None。OverlayLayout 只包含只读的 bounds、available、可选 anchor 矩形和实际 side；Viewport 的后两项为 None。弹层可用该结果绘制箭头，跟随本帧最终位置，不为取得 side 再触发布局。数据不含 Canvas 借用，输入位置仍只以 Surface 成功提交的几何为准。
 
-层按打开顺序排列，逻辑上的子 Portal 在其父层之后完成测量和呈现。普通内容的 anchor 先完成登记，再定位相应层；层内 anchor 可供后续层使用。anchor 必须属于同一 UiRoot，其位置来源不能依赖当前层本身。建立或更新 Portal／anchor 绑定时沿实际依赖关系检查自引用和环，不在每帧重新审计整棵树；尚未绑定的 anchor 在随后绑定时完成同一局部检查。层顺序与已建立依赖不一致、当前没有可用位置时，本帧不使用旧坐标强行呈现。
+层先按所属模态域、再按域内打开顺序排列。普通 Portal 属于最近的逻辑模态祖先，背景域始终先呈现；模态域按打开顺序叠放，逻辑上的子 Portal 在其父层之后完成测量和呈现。后来打开的背景 Tooltip 不能覆盖已打开的模态。普通内容的 anchor 先完成登记，再定位相应层；层内 anchor 可供后续层使用。anchor 必须属于同一 UiRoot，其位置来源不能依赖当前层本身。建立或更新 Portal／anchor 绑定时沿实际依赖关系检查自引用和环，不在每帧重新审计整棵树；尚未绑定的 anchor 在随后绑定时完成同一局部检查。层顺序与已建立依赖不一致、当前没有可用位置时，本帧不使用旧坐标强行呈现。
 
 AnchorVisibility 包含 Close／Hide／KeepVisible。锚点有当前几何但完全不可见时，Close 在成功帧完成后关闭层，Hide 保留内容挂载但不呈现，KeepVisible 使用当前有效包围盒继续定位。没有本帧几何时 Hide 等待恢复，其余策略关闭；锚点解绑／所属挂载退休时所有依赖层关闭，不能继续使用旧绑定。因场景可见性产生的关闭只在 Accepted 后兑现；Discarded 不以未提交结果关闭层。回调均在 render／measure／scene／draw 退出后运行。
 
-OverlayHandle 是会话的稳定引用，提供 isAttached、isOpen、lastCloseReason 和 close()；close 接受显式关闭并停止该会话的交互，子内容在普通 UI 更新边界退休。关闭是幂等的，晚到清理不解除同一句柄的新绑定；同一个外部句柄不能绑定到两个活动挂载。当前 OverlayCloseReason 包含 Explicit、AnchorUnavailable、OwnerClosed；每个会话最多通知一次当前 onClose。关闭／配置／绑定变更禁止发生在纯渲染阶段，场景中的 anchor 登记属于正常几何装配。
+OverlayHandle 是会话的稳定引用，提供 isAttached、isOpen、lastCloseReason 和 close()；close 接受显式关闭并停止该会话的交互，子内容在普通 UI 更新边界退休。关闭是幂等的，晚到清理不解除同一句柄的新绑定；同一个外部句柄不能绑定到两个活动挂载。OverlayCloseReason 包含 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed；每个会话最多通知一次当前 onClose。关闭／配置／绑定变更禁止发生在纯渲染阶段，场景中的 anchor 登记属于正常几何装配。
 
-本节交付定位、逻辑归属及会话生命周期。Escape／外部点击、模态屏障、层域与焦点恢复在同窗口模态批次接入；普通 portal 本身不隔离背景输入或拦截快捷键。
+#### 7.6.1 关闭策略
+
+OverlayDismiss 包含 escape=false 和 outsidePress=OutsidePress.Ignore；OutsidePress 另有 CloseAndConsume、CloseAndContinue。关闭策略在当前窗口／模态域根接入已有默认阶段及 beforePointerPress，不安装第二条路由。Escape 只认领无修饰的真实非重复 key-down，内层默认行为优先；一次只关闭该域最上层允许 Escape 的会话。忽略 repeat，避免按住 Escape 连续关闭多层。
+
+外部按下按 InputScope 的逻辑归属判断，子 Portal 的目标属于父层内部，不按父层矩形判断子菜单是否越界。没有命中的模态域根视作内容外部；控件应为需要接受内部空白点击的面板登记普通区域，遮罩外观本身不创建内部命中。由最上层适用策略处理一次，CloseAndConsume 消费整串按钮，CloseAndContinue 允许已经冻结的原目标继续，不能重新命中或重投。关闭回调产生新模态时仍受新的输入域约束。
+
+模态外部按下始终被输入屏障挡住；可选 Ignore 或 CloseAndConsume，CloseAndContinue 是无效配置。普通 Portal 默认不隔离背景输入；Dialog、AlertDialog、Menu 等组合控件自行选择具体关闭策略。
+
+#### 7.6.2 同窗口模态会话
+
+ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模态 Portal 的一次挂载拥有 InputBoundary、循环 FocusScope 和不可命中的可聚焦根区域；根区域在层呈现时使用窗口视口几何，tabStop=false。输入资格、焦点历史、取消与 IME 收尾均复用 Surface；遮罩、居中或侧边布局仍由内容决定。
+
+挂载时先保存当前有效 FocusHandle 和上一输入域，再安装屏障，之后挂载子内容。首次实际呈现的 Accepted 帧按有效 initialFocus、首个 Tab stop、根区域代理依次选择；期间有更新的显式焦点请求则放弃自动选择。被遮住的外层不抢内层焦点，程序化聚焦不激活 OS 窗口。首帧 Discarded／Deferred 不兑现焦点，也不释放屏障；Hide 或尚未参与场景的模态保持待显示状态，调用方可显式关闭。
+
+关闭立即禁用该模态根及子内容，保存关闭时的焦点意图序号；屏障持续到成功提交了不含该层的帧。节点已卸载时仍保留这条待释放登记；在显示该层的完成回调中关闭，需要等待下一次移除提交。Discarded 不移除登记，窗口／根关闭立即释放全部登记，不等待帧。
+
+成功移除时从内到外释放符合条件的登记，只对原来占据当前域的关闭会话尝试一次恢复。优先仍可聚焦且属于恢复域的原 handle，否则使用恢复域的 FocusScope 或窗口有效目标。上一 UI 模态已关闭时沿保存的会话关系越过它；非当前域先关闭不移动焦点，也不使晚关闭的内层恢复到已退休目标。恢复域与保存的前驱不一致、restoreFocus=false，或关闭期间出现新的显式焦点意图时不执行恢复。滚动目标的 reveal 在滚动批次接入；本批先使用已可见目标和既有待聚焦协议。
+
+同窗口模态不隔离应用的另一个原生窗口。系统 sheet／独立原生窗口模态仍依赖 Window 的 owner／modality 能力。
 
 ## 8. 挂载与资源生命周期
 

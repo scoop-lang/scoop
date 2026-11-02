@@ -113,12 +113,21 @@ internal class MountedNode(
             return
         active = false
         queued = false
-        scope.deactivate()
+        var failure: Throwable? = None
+        failure =
+            cleanupUi(failure) {
+                when (body) {
+                    case Portal(instance) -> instance.retireInput()
+                    else -> {}
+                }
+            }
+        failure = cleanupUi(failure) { scope.deactivate() }
         for (source in dependencies)
             source.unsubscribe(this)
         dependencies = []
         for (child in children)
-            child.deactivate()
+            failure = cleanupUi(failure) { child.deactivate() }
+        throwUi(failure)
     }
     fun unmount() {
         if (retired)

@@ -15,7 +15,7 @@
 | C1：Absolute 与显式子项呈现顺序 | 已完成 aarch64 实施和定向验证 |
 | C2：portal 与 anchor 定位 | 已完成 aarch64 实施和定向验证 |
 | C3a：输入边界与按下预处理 | 已完成 aarch64 实施和定向验证 |
-| C3b：同窗口模态、关闭与焦点恢复 | 待实施 |
+| C3b：同窗口模态、关闭与焦点恢复 | 已完成 aarch64 实施和定向验证 |
 | C3c：宿主快捷键 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -116,3 +116,13 @@ InputScope.beforePointerPress 只在当前域根处理一串鼠标按钮的第�
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。44 项定向 scoop.test 通过：Surface 输入 41 项，以及 UI focus、既有 portal、原生 IME 各 1 项。覆盖域外祖先缺少几何、所有传播阶段截断、边界嵌套与关闭顺序、旧捕获取消、旧 IME 排队事务、安装失败清理、预处理坐标冻结／消费／异常，以及真实窗口中背景直接和待聚焦请求被拒绝。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，独立 sysroot、构建缓存和后续测试入口保留。
+
+## C3b：同窗口模态、关闭与焦点恢复
+
+PortalOptions 接入 ModalOptions 与 OverlayDismiss。模态会话复用 InputBoundary、循环 FocusScope 和不可命中的根焦点代理；层先按逻辑模态域、再按打开顺序呈现，后来打开的背景层不能覆盖模态。Escape 由域根默认动作处理，内层行为优先，非重复按下一次只关闭一个适用会话。外部点击按逻辑归属判断；非模态可消费整串按钮或让原目标继续，模态只能阻挡或同时关闭。
+
+关闭立即停止交互，屏障保留到实际移除层的 Accepted 帧；Discarded、首帧待显示和已卸载的待移除登记不会提前放开背景。焦点恢复使用保存的有效 handle 与域回退，支持嵌套及非当前层先关闭。Surface.reserveFocusRequest 让 UI 的 pending／被拒绝请求加入同一意图序号；挂载失焦回调、关闭回调中的新请求优先于旧自动聚焦／恢复。回调内关闭刚建立的模态也记录同一次退休，子内容未挂载或资源清理抛错时仍释放屏障。
+
+修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。16 项定向 scoop.test 通过：Surface InputFocusTest 7 项、UI OverlayPlacementTest 5 项，以及 modal、既有 focus／portal／errors 窗口回归各 1 项。真实窗口覆盖背景捕获取消、Tab 循环、默认根聚焦、子菜单归属、关闭策略更新、普通弹层消费／继续、背景快捷键隔离、两种帧失效、完成回调内关闭、焦点原目标失效、嵌套与不同关闭顺序、立即关闭回调及静止停帧；错误回归增加模态子内容挂载失败和关闭回调失败。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 C2／C3a 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。

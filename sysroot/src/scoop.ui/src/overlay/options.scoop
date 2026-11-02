@@ -15,8 +15,19 @@ public enum AnchorVisibility {
 }
 
 public enum OverlayCloseReason {
-    Explicit, AnchorUnavailable, OwnerClosed
+    Explicit, Escape, OutsidePress, AnchorUnavailable, OwnerClosed
 }
+
+public enum OutsidePress {
+    Ignore, CloseAndConsume, CloseAndContinue
+}
+
+public struct OverlayDismiss(
+    val escape: Boolean = false,
+    val outsidePress: OutsidePress = OutsidePress.Ignore
+)
+
+public struct ModalOptions(val initialFocus: FocusHandle? = None, val restoreFocus: Boolean = true)
 
 public enum OverlayPlacement {
     Viewport(
@@ -38,9 +49,15 @@ public class PortalOptions public constructor(
     public val placement: OverlayPlacement = OverlayPlacement.Viewport(),
     public val handle: OverlayHandle? = None,
     public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
+    public val modal: ModalOptions? = None,
+    public val dismiss: OverlayDismiss = OverlayDismiss(),
     public val onClose: (OverlayCloseReason) -> Unit = { _ -> Unit }
 ) {
     init {
+        requireUi(
+            !isModal || dismiss.outsidePress != OutsidePress.CloseAndContinue,
+            "modal outside presses cannot continue to the background"
+        )
         when (placement) {
             case Viewport(_, _, padding) -> checkOverlayDistance(padding)
             case Anchored(_, _, _, gap, padding, _) -> {
@@ -49,6 +66,11 @@ public class PortalOptions public constructor(
             }
         }
     }
+    internal val isModal: Boolean get() =
+        when (modal) {
+            case Some(_) -> true
+            case None -> false
+        }
 }
 
 /** Value geometry for the nearest portal in the current scene pass. */

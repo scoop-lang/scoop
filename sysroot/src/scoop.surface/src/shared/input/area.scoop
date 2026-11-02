@@ -75,7 +75,7 @@ public class InputArea internal constructor(
         if (hasFocus)
             owner.clearFocus()
         else
-            owner.focusRevision += 1uL
+            owner.reserveFocusRequest()
     }
     /** Takes a value snapshot, normally obtained from TextLayout.caret. */
     public fun setCaret(rect: Rect) {

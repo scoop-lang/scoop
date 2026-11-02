@@ -73,11 +73,12 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
                 ),
                 Some(handle),
                 visibility,
-                {
-                    reason ->
-                    probe.closed.add(CloseRecord(index, reason, generation))
-                    probe.closedState.value += 1
-                }
+                onClose =
+                    {
+                        reason ->
+                        probe.closed.add(CloseRecord(index, reason, generation))
+                        probe.closedState.value += 1
+                    }
             ),
             key
         )

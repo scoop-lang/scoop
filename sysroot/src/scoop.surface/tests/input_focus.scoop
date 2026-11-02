@@ -36,6 +36,10 @@ private class InputFocusTest {
                     rig.router.focusRevision -
                     a.focusRevision!!
             )
+            assertEquals(1uL, rig.router.reserveFocusRequest())
+            assertEquals(1uL, rig.router.focusRevision)
+            assertTrue(b.hasFocus && b.isFocusActive)
+            assertEquals(Some(0uL), b.focusRevision)
             rig.router.event(WindowEvent.Focused(false))
             rig.router.event(WindowEvent.Focused(true))
             b.clearFocus()

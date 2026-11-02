@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -61,6 +61,8 @@ internal class FailureRoot(private val record: FailureRecord): Component {
                 }
                 case MissingMeasure -> [component({ SmallComponent() })]
                 case MissingPaint -> [component({ SmallComponent() })]
+                case ModalMount -> failureModal(record)
+                case ModalClose -> failureModal(record)
                 case PortalHandle -> [
                     portal(
                         empty(),
@@ -107,6 +109,31 @@ private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
     public override fun scene(context: SceneContext) {}
+}
+
+private fun failureModal(record: FailureRecord): Array<View> =
+    [
+        portal(
+            element({ FailureModal(record) }),
+            PortalOptions(
+                handle = Some(record.overlay),
+                modal = Some(ModalOptions()),
+                onClose = { reason -> record.overlayClosed(reason) }
+            )
+        )
+    ]
+
+private class FailureModal(private val record: FailureRecord): Element {
+    public override fun onMount(scope: ComponentScope) {
+        record.modalRoot = scope.input.parent!!.area
+        if (record.mode == FailureMode.ModalMount)
+            throw record.primary
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+    public override fun scene(context: SceneContext) {
+        context.onFrameComplete { _ -> record.overlay.close() }
+    }
 }
 
 internal class FailureLeaf(

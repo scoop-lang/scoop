@@ -1,5 +1,7 @@
 package scoop.ui
 
+import scoop.surface.InputScope
+
 internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
     private val localHandle = OverlayHandle()
     private var reference = initial.handle ?: localHandle
@@ -8,12 +10,18 @@ internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
     private var disposed = false
     var closeReason: OverlayCloseReason? = None
     var included: OverlayFrame? = None
+    var modal: ModalSession? = None
+    var domain: ModalSession? = None
+    var retirementRevision: ULong? = None
+    private var route: InputScope? = None
 
     val node: MountedNode get() =
         owner ?: throw IllegalStateException(Some("portal has not mounted"))
     val active: Boolean get() = !disposed && root.isOpen && (owner?.active ?: false)
     val isOpen: Boolean get() = active && closeReason == None
     val options: PortalOptions get() = current
+    val input: InputScope get() =
+        route ?: throw IllegalStateException(Some("portal has not mounted"))
     val anchor: LayoutAnchor? get() =
         if (closeReason == None)
             current.placement.anchor
@@ -30,6 +38,7 @@ internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
         }
         reference.bind(this)
         anchor?.addDependent(this)
+        route = Some(value.scope.input)
         root.overlays.add(this)
     }
     private fun validate(value: PortalOptions) {
@@ -51,6 +60,10 @@ internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
                 }
                 current = value
                 anchor?.addDependent(this)
+                when (value.modal) {
+                    case Some(options) -> modal?.replace(options)
+                    case None -> {}
+                }
             }
             case None -> {
                 current = value
@@ -65,11 +78,17 @@ internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
         anchor?.removeDependent(this)
         closeReason = Some(reason)
         var failure: Throwable? = None
+        failure = cleanupUi(failure) { retireInput() }
         for (child in value.children)
             failure = cleanupUi(failure) { child.deactivate() }
         value.invalidate()
         failure = cleanupUi(failure) { current.onClose(reason) }
         throwUi(failure)
+    }
+    fun retireInput() {
+        val revision = retirementRevision ?: root.surface.focusRevision
+        retirementRevision = Some(revision)
+        modal?.beginClose(revision)
     }
     fun dispose() {
         if (disposed)
@@ -81,6 +100,7 @@ internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
         root.overlays.remove(this)
         included = None
         owner = None
+        route = None
         throwUi(failure)
     }
 }

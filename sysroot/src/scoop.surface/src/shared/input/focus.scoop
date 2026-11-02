@@ -2,10 +2,16 @@ package scoop.surface
 
 import scoop.window.*
 
+internal fun InputRouter.reserveFocusRequest(): ULong {
+    checkOpen()
+    focusRevision += 1uL
+    return focusRevision
+}
+
 internal fun InputRouter.focus(area: InputArea): Boolean {
     checkOpen()
     requireInput(area.owner === this, "input area belongs to another window")
-    focusRevision += 1uL
+    reserveFocusRequest()
     if (!area.canFocus)
         return false
     area.lastFocusRequest = Some(focusRevision)
@@ -17,8 +23,7 @@ internal fun InputRouter.focus(area: InputArea): Boolean {
 }
 
 internal fun InputRouter.clearFocus() {
-    checkOpen()
-    focusRevision += 1uL
+    reserveFocusRequest()
     logicalFocus = None;
     changed()
 }

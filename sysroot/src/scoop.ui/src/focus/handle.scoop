@@ -38,7 +38,7 @@ public class FocusHandle public constructor() {
         checkFocusMutation()
         val current = target ?: return
         current.node.root.focus.cancel(current)
-        if (current.active && current.area.hasFocus)
+        if (current.active)
             current.area.clearFocus()
     }
     internal fun checkBinding(value: FocusTarget) {
