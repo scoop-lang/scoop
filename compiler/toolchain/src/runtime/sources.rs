@@ -143,20 +143,19 @@ pub(super) const X86_64: &[&str] = &[
     "runtime/src/platform/arch/x86_64_floating.c",
     "runtime/src/platform/arch/x86_64_float_environment.c",
 ];
-pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/darwin_aarch64.c",
-    "runtime/src/platform/frame/darwin_aarch64_macho.S",
-    "runtime/src/platform/arch/darwin_aarch64_floating.S",
-];
-pub(super) const SYSV_AMD64_ELF_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/sysv_amd64.c",
-    "runtime/src/platform/frame/sysv_amd64_elf.S",
-];
-pub(super) const SYSV_AMD64_MACHO_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/sysv_amd64.c",
-    "runtime/src/platform/frame/sysv_amd64_macho.S",
-];
-pub(super) const WINDOWS_SEH_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/windows_seh.c",
-    "runtime/src/platform/frame/windows_seh_coff.S",
-];
+pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &["runtime/src/platform/frame/darwin_aarch64.c"];
+pub(super) const SYSV_AMD64_FRAME: &[&str] = &["runtime/src/platform/frame/sysv_amd64.c"];
+pub(super) const WINDOWS_AMD64_VIRTUAL_UNWIND: &[&str] =
+    &["runtime/src/platform/frame/windows_amd64_virtual_unwind.c"];
+
+pub(super) const DARWIN_AARCH64_MACHO_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/darwin_aarch64_macho.S"];
+pub(super) const SYSV_AMD64_ELF_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/sysv_amd64_elf.S"];
+pub(super) const SYSV_AMD64_MACHO_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/sysv_amd64_macho.S"];
+pub(super) const WIN64_COFF_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/windows_amd64_coff_managed_entry.S"];
+
+pub(super) const DARWIN_AARCH64_MACHO_ABI_SHIM: &[&str] =
+    &["runtime/src/platform/arch/darwin_aarch64_floating.S"];

@@ -54,6 +54,34 @@ impl ValidatedLirTargetSelection {
         if !object_machine_matches {
             panic!("target architecture and object machine differ");
         }
+        let exception_model = target.exception_model();
+        let unwind_image = target.object_target().unwind_image();
+        if !unwind_image.supports_exception_model(exception_model) {
+            panic!("target exception model and object unwind image differ");
+        }
+        let backend_contract = backend.contract();
+        if !backend_contract
+            .unwind_provider
+            .supports_exception_model(exception_model)
+        {
+            panic!("target exception model and backend unwind provider differ");
+        }
+        let frame_machine_matches = matches!(
+            (
+                backend_contract.machine_frame_recovery.object_machine(),
+                target.object_target().machine()
+            ),
+            (
+                crate::ObjectMachineV1::Aarch64,
+                crate::ObjectMachineV1::Aarch64
+            ) | (
+                crate::ObjectMachineV1::X86_64,
+                crate::ObjectMachineV1::X86_64
+            )
+        );
+        if !frame_machine_matches {
+            panic!("backend frame recovery and object machine differ");
+        }
         Self { target, backend }
     }
 

@@ -37,7 +37,12 @@ pub(super) fn finalize_production<'a, D, C, I>(
             counts.insert(registration.safepoint(), count);
         }
     }
-    let format = input.module().meta.target_profile.native_object_format();
+    let unwind_image = input
+        .module()
+        .meta
+        .target_profile
+        .object_target()
+        .unwind_image();
     let mut removed_atoms = BTreeSet::new();
     for definition in production
         .canonical_definitions()
@@ -62,12 +67,15 @@ pub(super) fn finalize_production<'a, D, C, I>(
         }
         if !plan.has_unwind {
             roles.push(DefinitionAtomRole::Lsda);
-            roles.extend(match format {
-                scoop_lir::NativeObjectFormat::MachO64 => Some(DefinitionAtomRole::EhFrame),
-                scoop_lir::NativeObjectFormat::Elf64 => {
+            roles.extend(match unwind_image {
+                scoop_lir::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame
+                | scoop_lir::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => {
+                    Some(DefinitionAtomRole::EhFrame)
+                }
+                scoop_lir::ObjectUnwindImageV1::ElfX86_64EhFrame => {
                     Some(DefinitionAtomRole::AddressTakenConstant)
                 }
-                scoop_lir::NativeObjectFormat::Coff64 => None,
+                scoop_lir::ObjectUnwindImageV1::CoffAmd64PdataXdata => None,
             });
         }
         for role in roles {

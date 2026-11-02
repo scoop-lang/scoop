@@ -113,7 +113,7 @@ impl TargetProfileContract {
 
 impl WireEncode for TargetProfileContract {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(21)?;
+        encoder.map(22)?;
         encoder.field(1)?;
         encoder.text(self.canonical_triple())?;
         encoder.field(2)?;
@@ -159,9 +159,9 @@ impl WireEncode for TargetProfileContract {
             super::ProcedureAbi::Win64 => 3,
         })?;
         encoder.field(18)?;
-        encoder.unsigned(match self.profile.exception_handling() {
-            super::TargetExceptionHandling::Dwarf => 1,
-            super::TargetExceptionHandling::WindowsSeh => 2,
+        encoder.unsigned(match self.profile.exception_model() {
+            super::TargetExceptionModelV1::ItaniumDwarf => 1,
+            super::TargetExceptionModelV1::ItaniumWindowsSeh => 2,
         })?;
         encoder.field(19)?;
         encoder.unsigned(match self.object_target().machine() {
@@ -180,6 +180,13 @@ impl WireEncode for TargetProfileContract {
             super::ObjectRelocationProfileV1::MachOX86_64 => 2,
             super::ObjectRelocationProfileV1::ElfX86_64Rela => 3,
             super::ObjectRelocationProfileV1::CoffAmd64 => 4,
+        })?;
+        encoder.field(22)?;
+        encoder.unsigned(match self.object_target().unwind_image() {
+            super::ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame => 1,
+            super::ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame => 2,
+            super::ObjectUnwindImageV1::ElfX86_64EhFrame => 3,
+            super::ObjectUnwindImageV1::CoffAmd64PdataXdata => 4,
         })
     }
 }

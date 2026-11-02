@@ -174,10 +174,11 @@ object_format = "MachO64"
 object_machine = "Aarch64"
 object_header_abi = "MachO64"
 relocation_profile = "MachOAarch64"
+object_unwind_image = "MachOAarch64CompactUnwindAndEhFrame"
 native_symbol_normalization = "MachOExternalUnderscore"
 procedure_abi = "DarwinAarch64"
 scoop_abi = "ScalarInterfaceAndSmallValueParts"
-exception_handling = "Dwarf"
+exception_model = "ItaniumDwarf"
 ```
 
 上例只说明字段职责，实际字段名和编码在 C0 spec 变更中冻结。它不是允许用户任意拼接的配置格式。
@@ -276,7 +277,7 @@ LLVM command-line options 在进程中只能初始化一次。当前通用 state
 
 ### 5.2 frame recovery 的机制与寄存器合同分开
 
-当前 `BackendMachineFrameV1::WindowsSeh` 内含 AMD64 DWARF register number，名字看似通用 Windows，数据却固定为一种 ISA。它应改成不能缺字段的和类型，例如：
+重构前的 `BackendMachineFrameV1::WindowsSeh` 内含 AMD64 DWARF register number，名字看似通用 Windows，数据却固定为一种 ISA。C0 先以 `MachineFrameRecoveryV1::WindowsAmd64VirtualUnwind` 准确命名现有实现；继续扩展时使用不能缺字段的和类型，例如：
 
 ```text
 MachineFrameRecoveryV1

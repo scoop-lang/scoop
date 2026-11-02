@@ -167,6 +167,10 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
         cpu: "other-cpu",
         ..scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract()
     };
+    const INCOMPATIBLE_UNWIND_PROVIDER: BackendProfileContract = BackendProfileContract {
+        unwind_provider: scoop_lir::UnwindProviderV1::LlvmLibunwindWindowsSeh,
+        ..scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract()
+    };
     const ORIGINAL: BackendProfileContract = scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract();
     for backend in [
         BackendProfile::new(&UNKNOWN_ID, &ORIGINAL),
@@ -190,6 +194,16 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
         })
         .is_err(),
         "an incompatible target/backend composition must not become a validated selection"
+    );
+    assert!(
+        std::panic::catch_unwind(|| {
+            ValidatedLirTargetSelection::new(
+                scoop_target_data::DARWIN_AARCH64,
+                BackendProfile::new(&KNOWN_ID, &INCOMPATIBLE_UNWIND_PROVIDER),
+            )
+        })
+        .is_err(),
+        "an incompatible exception model and unwind provider must be rejected"
     );
 }
 

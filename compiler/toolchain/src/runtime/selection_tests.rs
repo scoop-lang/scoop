@@ -10,6 +10,8 @@ struct ExpectedComponents {
     image: &'static str,
     arch: &'static str,
     frame: &'static str,
+    managed_entry: &'static str,
+    abi_shim: Option<&'static str>,
     no_red_zone: bool,
 }
 
@@ -24,6 +26,7 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
         expected.image,
         expected.arch,
         expected.frame,
+        expected.managed_entry,
     ] {
         assert!(
             unique_sources.contains(expected_source),
@@ -31,6 +34,16 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
             profile.canonical_triple()
         );
     }
+    assert!(
+        expected
+            .abi_shim
+            .map(|source| unique_sources.contains(source))
+            .unwrap_or_else(|| {
+                !unique_sources.contains("runtime/src/platform/arch/darwin_aarch64_floating.S")
+            }),
+        "{} selects the wrong Scoop ABI shim",
+        profile.canonical_triple()
+    );
     assert_eq!(
         profile.runtime_c_flags().contains(&"-mno-red-zone"),
         expected.no_red_zone
@@ -47,6 +60,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
             image: "runtime/src/platform/image/macho.c",
             arch: "runtime/src/platform/arch/aarch64_float_environment.c",
             frame: "runtime/src/platform/frame/darwin_aarch64.c",
+            managed_entry: "runtime/src/platform/frame/darwin_aarch64_macho.S",
+            abi_shim: Some("runtime/src/platform/arch/darwin_aarch64_floating.S"),
             no_red_zone: false,
         },
     );
@@ -58,6 +73,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
             image: "runtime/src/platform/image/macho.c",
             arch: "runtime/src/platform/arch/x86_64_float_environment.c",
             frame: "runtime/src/platform/frame/sysv_amd64.c",
+            managed_entry: "runtime/src/platform/frame/sysv_amd64_macho.S",
+            abi_shim: None,
             no_red_zone: true,
         },
     );
@@ -73,6 +90,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 image: "runtime/src/platform/image/elf.c",
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/sysv_amd64.c",
+                managed_entry: "runtime/src/platform/frame/sysv_amd64_elf.S",
+                abi_shim: None,
                 no_red_zone: true,
             },
         );
@@ -89,7 +108,9 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 os: "runtime/src/platform/os/windows.c",
                 image: "runtime/src/platform/image/pe.c",
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
-                frame: "runtime/src/platform/frame/windows_seh.c",
+                frame: "runtime/src/platform/frame/windows_amd64_virtual_unwind.c",
+                managed_entry: "runtime/src/platform/frame/windows_amd64_coff_managed_entry.S",
+                abi_shim: None,
                 no_red_zone: true,
             },
         );

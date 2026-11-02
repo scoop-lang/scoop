@@ -23,7 +23,7 @@ const DARWIN: TargetLayoutDescription = TargetLayoutDescription {
     architecture: TargetArchitecture::Aarch64,
     procedure_abi: ProcedureAbi::DarwinAarch64,
     scoop_abi_classifier: ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
-    exception_handling: TargetExceptionHandling::Dwarf,
+    exception_model: TargetExceptionModelV1::ItaniumDwarf,
     byte_order: ByteOrder::Little,
     scalar_layouts: SCALARS,
     managed_pointer: POINTER,

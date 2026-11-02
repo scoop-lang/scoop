@@ -1,5 +1,8 @@
 //! Runtime composition for the implemented targets; no linker or LLVM discovery.
-use scoop_lir::{BackendMachineFrameV1, LirTargetProfile, NativeObjectFormat, TargetArchitecture};
+use scoop_lir::{
+    BackendRedZoneV1, LirTargetProfile, MachineFrameRecoveryV1, NativeObjectFormat,
+    ObjectTargetProfileV1, ProcedureAbi, ScoopAbiClassifier, TargetArchitecture,
+};
 use scoop_target_data::TargetOs;
 
 #[cfg(all(test, target_os = "macos"))]
@@ -25,6 +28,8 @@ struct RuntimeComponents {
     image: &'static [&'static str],
     arch: &'static [&'static str],
     frame: &'static [&'static str],
+    managed_entry: &'static [&'static str],
+    abi_shim: &'static [&'static str],
     trace: &'static [&'static str],
     os_flags: &'static [&'static str],
     image_flags: &'static [&'static str],
@@ -57,27 +62,49 @@ impl ValidatedRuntimeBuildProfile {
             TargetArchitecture::Aarch64 => sources::AARCH64,
             TargetArchitecture::X86_64 => sources::X86_64,
         };
-        let (frame, frame_flags): (_, &[_]) = match (
-            definition.selection.backend().contract().machine_frame,
-            target.native_object_format(),
-        ) {
-            (BackendMachineFrameV1::DarwinAarch64, NativeObjectFormat::MachO64) => {
-                (sources::DARWIN_AARCH64_FRAME, &[])
+        let backend = definition.selection.backend().contract();
+        let frame = match backend.machine_frame_recovery {
+            MachineFrameRecoveryV1::DarwinAarch64Fixed => sources::DARWIN_AARCH64_FRAME,
+            MachineFrameRecoveryV1::SysvAmd64Fixed => sources::SYSV_AMD64_FRAME,
+            MachineFrameRecoveryV1::WindowsAmd64VirtualUnwind => {
+                sources::WINDOWS_AMD64_VIRTUAL_UNWIND
             }
-            (BackendMachineFrameV1::SysvAmd64, NativeObjectFormat::Elf64) => {
-                (sources::SYSV_AMD64_ELF_FRAME, &["-mno-red-zone"])
+        };
+        let frame_flags: &[_] = match backend.red_zone {
+            BackendRedZoneV1::Enabled => &[],
+            BackendRedZoneV1::Disabled => &["-mno-red-zone"],
+        };
+        let managed_entry = match (target.procedure_abi(), target.object_target()) {
+            (ProcedureAbi::DarwinAarch64, ObjectTargetProfileV1::MachOAarch64) => {
+                sources::DARWIN_AARCH64_MACHO_MANAGED_ENTRY
             }
-            (BackendMachineFrameV1::SysvAmd64, NativeObjectFormat::MachO64) => {
-                (sources::SYSV_AMD64_MACHO_FRAME, &["-mno-red-zone"])
+            (ProcedureAbi::SysvAmd64, ObjectTargetProfileV1::MachOX86_64) => {
+                sources::SYSV_AMD64_MACHO_MANAGED_ENTRY
             }
-            (BackendMachineFrameV1::WindowsSeh, NativeObjectFormat::Coff64) => {
-                (sources::WINDOWS_SEH_FRAME, &["-mno-red-zone"])
+            (ProcedureAbi::SysvAmd64, ObjectTargetProfileV1::ElfX86_64) => {
+                sources::SYSV_AMD64_ELF_MANAGED_ENTRY
+            }
+            (ProcedureAbi::Win64, ObjectTargetProfileV1::CoffAmd64) => {
+                sources::WIN64_COFF_MANAGED_ENTRY
             }
             _ => {
                 return Err(crate::ToolchainError(
-                    "no runtime anchor for the selected frame and object format".into(),
+                    "no runtime ManagedEntry for the selected procedure ABI and object target"
+                        .into(),
                 ));
             }
+        };
+        let abi_shim = match (
+            target.procedure_abi(),
+            target.contract().scoop_abi_classifier(),
+            target.object_target(),
+        ) {
+            (
+                ProcedureAbi::DarwinAarch64,
+                ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
+                ObjectTargetProfileV1::MachOAarch64,
+            ) => sources::DARWIN_AARCH64_MACHO_ABI_SHIM,
+            _ => &[],
         };
         let profile = match (definition.os, definition.architecture) {
             (TargetOs::Darwin, TargetArchitecture::Aarch64) => {
@@ -104,6 +131,8 @@ impl ValidatedRuntimeBuildProfile {
             image,
             arch,
             frame,
+            managed_entry,
+            abi_shim,
             trace,
             os_flags,
             image_flags,
@@ -128,6 +157,8 @@ impl ValidatedRuntimeBuildProfile {
             .chain(components.image.iter().copied())
             .chain(components.arch.iter().copied())
             .chain(components.frame.iter().copied())
+            .chain(components.managed_entry.iter().copied())
+            .chain(components.abi_shim.iter().copied())
             .collect()
     }
 

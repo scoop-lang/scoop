@@ -48,7 +48,15 @@ impl WireEncode for BackendProfileContract {
         if let Some(encoding) = self.lsda.omitted_type_table {
             encode_unsigned_field(encoder, 4, u64::from(encoding))?;
         }
-        encode_unsigned_field(encoder, 24, u64::from(self.unwind_provider))?;
+        encode_unsigned_field(
+            encoder,
+            24,
+            match self.unwind_provider {
+                UnwindProviderV1::DarwinLibSystem => 1,
+                UnwindProviderV1::LlvmLibunwindDwarf => 2,
+                UnwindProviderV1::LlvmLibunwindWindowsSeh => 3,
+            },
+        )?;
         encode_unsigned_field(
             encoder,
             25,
@@ -59,12 +67,12 @@ impl WireEncode for BackendProfileContract {
                 crate::ObjectTargetProfileV1::CoffAmd64 => 4,
             },
         )?;
-        let (tag, record) = match self.machine_frame {
-            BackendMachineFrameV1::DarwinAarch64 => (3, Some(16)),
-            BackendMachineFrameV1::SysvAmd64 => (1, Some(16)),
-            BackendMachineFrameV1::WindowsSeh => (2, None),
+        let (tag, record) = match self.machine_frame_recovery {
+            MachineFrameRecoveryV1::DarwinAarch64Fixed => (3, Some(16)),
+            MachineFrameRecoveryV1::SysvAmd64Fixed => (1, Some(16)),
+            MachineFrameRecoveryV1::WindowsAmd64VirtualUnwind => (2, None),
         };
-        let (sp, fp) = self.machine_frame.registers();
+        let (sp, fp) = self.machine_frame_recovery.registers();
         encode_unsigned_field(encoder, 26, tag)?;
         encoder.field(27)?;
         encoder.map(if record.is_some() { 4 } else { 3 })?;

@@ -39,10 +39,10 @@ pub struct BackendProfileContract {
     pub cpu: &'static str,
     pub features: &'static str,
     pub llvm_architecture: LlvmArchitecture,
-    pub unwind_provider: u32,
+    pub unwind_provider: UnwindProviderV1,
     pub artifact_inspection: crate::ObjectTargetProfileV1,
     pub lsda: BackendLsdaEncodingsV1,
-    pub machine_frame: BackendMachineFrameV1,
+    pub machine_frame_recovery: MachineFrameRecoveryV1,
     pub red_zone: BackendRedZoneV1,
 }
 
@@ -59,6 +59,28 @@ pub enum BackendRedZoneV1 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum UnwindProviderV1 {
+    DarwinLibSystem,
+    LlvmLibunwindDwarf,
+    LlvmLibunwindWindowsSeh,
+}
+
+impl UnwindProviderV1 {
+    pub const fn supports_exception_model(self, model: crate::TargetExceptionModelV1) -> bool {
+        matches!(
+            (self, model),
+            (
+                Self::DarwinLibSystem | Self::LlvmLibunwindDwarf,
+                crate::TargetExceptionModelV1::ItaniumDwarf
+            ) | (
+                Self::LlvmLibunwindWindowsSeh,
+                crate::TargetExceptionModelV1::ItaniumWindowsSeh
+            )
+        )
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct BackendLsdaEncodingsV1 {
     pub lp_start: u8,
     pub type_table: u8,
@@ -67,17 +89,26 @@ pub struct BackendLsdaEncodingsV1 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum BackendMachineFrameV1 {
-    DarwinAarch64,
-    SysvAmd64,
-    WindowsSeh,
+pub enum MachineFrameRecoveryV1 {
+    DarwinAarch64Fixed,
+    SysvAmd64Fixed,
+    WindowsAmd64VirtualUnwind,
 }
 
-impl BackendMachineFrameV1 {
+impl MachineFrameRecoveryV1 {
     pub const fn registers(self) -> (u16, u16) {
         match self {
-            Self::DarwinAarch64 => (31, 29),
-            Self::SysvAmd64 | Self::WindowsSeh => (7, 6),
+            Self::DarwinAarch64Fixed => (31, 29),
+            Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => (7, 6),
+        }
+    }
+
+    pub const fn object_machine(self) -> crate::ObjectMachineV1 {
+        match self {
+            Self::DarwinAarch64Fixed => crate::ObjectMachineV1::Aarch64,
+            Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => {
+                crate::ObjectMachineV1::X86_64
+            }
         }
     }
 }

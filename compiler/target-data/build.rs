@@ -29,7 +29,7 @@ struct Target {
     backend: String,
     procedure_abi: String,
     scoop_abi: String,
-    exception_handling: String,
+    exception_model: String,
     tuning: String,
     native_environment: String,
     c_bridge_profile: String,
@@ -107,7 +107,7 @@ fn main() {
             &target.native_environment,
             &target.procedure_abi,
             &target.scoop_abi,
-            &target.exception_handling,
+            &target.exception_model,
             &target.tuning,
         ] {
             identifier(name);
@@ -122,7 +122,7 @@ fn main() {
             backend,
             procedure_abi,
             scoop_abi,
-            exception_handling,
+            exception_model,
             ..
         } = target;
         let architecture = target_architecture(&target.arch);
@@ -136,7 +136,7 @@ fn main() {
             "pub const {symbol}_ID: TargetProfileId = target_id({profile:?}, {version});"
         )
         .unwrap();
-        writeln!(output, "pub const {symbol}: LirTargetProfile = LirTargetProfile::new(&{symbol}_ID, &crate::layout::describe({canonical:?}, crate::layout::LayoutFacts {{ llvm_data_layout: {llvm_data_layout:?}, object_target: scoop_lir::ObjectTargetProfileV1::{object_target}, architecture: scoop_lir::TargetArchitecture::{architecture} }}, scoop_lir::ProcedureAbi::{procedure_abi}, scoop_lir::ScoopAbiClassifier::{scoop_abi}, scoop_lir::TargetExceptionHandling::{exception_handling}));").unwrap();
+        writeln!(output, "pub const {symbol}: LirTargetProfile = LirTargetProfile::new(&{symbol}_ID, &crate::layout::describe({canonical:?}, crate::layout::LayoutFacts {{ llvm_data_layout: {llvm_data_layout:?}, object_target: scoop_lir::ObjectTargetProfileV1::{object_target}, architecture: scoop_lir::TargetArchitecture::{architecture} }}, scoop_lir::ProcedureAbi::{procedure_abi}, scoop_lir::ScoopAbiClassifier::{scoop_abi}, scoop_lir::TargetExceptionModelV1::{exception_model}));").unwrap();
         writeln!(output, "pub const {symbol}_LLVM_22_1: ValidatedLirTargetSelection = ValidatedLirTargetSelection::new({symbol}, crate::{backend});").unwrap();
         writeln!(
             source_key,

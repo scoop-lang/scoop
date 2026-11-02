@@ -27,7 +27,7 @@ pub(crate) const fn describe(
     facts: LayoutFacts,
     procedure_abi: ProcedureAbi,
     scoop_abi_classifier: ScoopAbiClassifier,
-    exception_handling: TargetExceptionHandling,
+    exception_model: TargetExceptionModelV1,
 ) -> TargetLayoutDescription {
     TargetLayoutDescription {
         canonical_triple: triple,
@@ -36,7 +36,7 @@ pub(crate) const fn describe(
         architecture: facts.architecture,
         procedure_abi,
         scoop_abi_classifier,
-        exception_handling,
+        exception_model,
         byte_order: ByteOrder::Little,
         scalar_layouts: SCALARS,
         managed_pointer: POINTER,

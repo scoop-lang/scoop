@@ -47,6 +47,17 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
                 scoop_lir::ObjectMachineV1::X86_64
             )
         ));
+        let exception_model = target.selection.target().exception_model();
+        let unwind_image = target.selection.target().object_target().unwind_image();
+        assert!(unwind_image.supports_exception_model(exception_model));
+        assert!(
+            target
+                .selection
+                .backend()
+                .contract()
+                .unwind_provider
+                .supports_exception_model(exception_model)
+        );
         for alias in target.aliases {
             assert_eq!(crate::named_target(alias), Some(target));
         }
@@ -144,9 +155,13 @@ fn windows_environments_keep_distinct_identity_and_seh_frame_recovery() {
             profile.contract().scoop_abi_classifier(),
             scoop_lir::ScoopAbiClassifier::Win64CallerCopyAndIndirectInterfaceResult
         );
+        assert_eq!(
+            profile.object_target().unwind_image(),
+            scoop_lir::ObjectUnwindImageV1::CoffAmd64PdataXdata
+        );
         assert!(matches!(
-            selection.backend().contract().machine_frame,
-            scoop_lir::BackendMachineFrameV1::WindowsSeh
+            selection.backend().contract().machine_frame_recovery,
+            scoop_lir::MachineFrameRecoveryV1::WindowsAmd64VirtualUnwind
         ));
         assert_eq!(
             scoop_lir::TargetEhSupportV1::ScoopPersonality.logical_symbol_for_target(profile),
@@ -176,6 +191,10 @@ fn linux_libcs_have_distinct_targets_and_share_the_x86_backend() {
         musl.target().fingerprint().unwrap()
     );
     for profile in [gnu.target(), musl.target()] {
+        assert_eq!(
+            profile.object_target().unwind_image(),
+            scoop_lir::ObjectUnwindImageV1::ElfX86_64EhFrame
+        );
         assert_eq!(
             profile.contract().native_symbol_normalization(),
             NativeSymbolNormalization::ElfIdentity

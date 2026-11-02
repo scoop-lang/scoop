@@ -590,8 +590,8 @@ impl TargetEhSupportV1 {
     pub const ALL: [Self; 2] = [Self::ScoopPersonality, Self::UnwindResume];
 
     pub const fn logical_symbol_for_target(self, target: LirTargetProfile) -> &'static str {
-        match (self, target.exception_handling()) {
-            (Self::ScoopPersonality, crate::TargetExceptionHandling::WindowsSeh) => {
+        match (self, target.exception_model()) {
+            (Self::ScoopPersonality, crate::TargetExceptionModelV1::ItaniumWindowsSeh) => {
                 "scoop_eh_personality_seh"
             }
             _ => self.logical_symbol(),
@@ -904,7 +904,7 @@ mod tests {
         assert_eq!(allocation.symbol(), RuntimeAbiSymbolV1::AllocationContext);
         assert_eq!(
             allocation.id().to_string(),
-            "fd2df0a69024b30202993123eed9895631c77048e6758a5c0ad7ae04770f2081"
+            "80c9fd19b376b8d82129718d58f50ff8cb06f05255dc2cda4452d45bab7b629c"
         );
         assert!(
             registry
@@ -960,7 +960,7 @@ mod tests {
                 .unwrap()
                 .id()
                 .to_string(),
-            "0f9ea699afb6b34316205954b2b8d72a27666418a521dcbb591aa98c8691f92a"
+            "ecec6b1ea76b9e2ce9d0dad266039f06145b5af4904155b001070735c098021b"
         );
     }
 

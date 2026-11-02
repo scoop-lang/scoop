@@ -170,6 +170,35 @@ pub enum ObjectRelocationProfileV1 {
     CoffAmd64,
 }
 
+/// Object-file unwind records emitted and consumed for one object target.
+///
+/// This describes container and machine semantics only. It does not select a
+/// language exception model, an unwind runtime, or GC frame recovery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum ObjectUnwindImageV1 {
+    MachOAarch64CompactUnwindAndEhFrame,
+    MachOX86_64CompactUnwindAndEhFrame,
+    ElfX86_64EhFrame,
+    CoffAmd64PdataXdata,
+}
+
+impl ObjectUnwindImageV1 {
+    pub const fn supports_exception_model(self, model: TargetExceptionModelV1) -> bool {
+        matches!(
+            (self, model),
+            (
+                Self::MachOAarch64CompactUnwindAndEhFrame
+                    | Self::MachOX86_64CompactUnwindAndEhFrame
+                    | Self::ElfX86_64EhFrame,
+                TargetExceptionModelV1::ItaniumDwarf
+            ) | (
+                Self::CoffAmd64PdataXdata,
+                TargetExceptionModelV1::ItaniumWindowsSeh
+            )
+        )
+    }
+}
+
 /// A closed, complete object-file contract implemented by the current
 /// readers and writers. This is object semantics, not an OS target registry.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -213,6 +242,15 @@ impl ObjectTargetProfileV1 {
         }
     }
 
+    pub const fn unwind_image(self) -> ObjectUnwindImageV1 {
+        match self {
+            Self::MachOAarch64 => ObjectUnwindImageV1::MachOAarch64CompactUnwindAndEhFrame,
+            Self::MachOX86_64 => ObjectUnwindImageV1::MachOX86_64CompactUnwindAndEhFrame,
+            Self::ElfX86_64 => ObjectUnwindImageV1::ElfX86_64EhFrame,
+            Self::CoffAmd64 => ObjectUnwindImageV1::CoffAmd64PdataXdata,
+        }
+    }
+
     pub const fn symbol_normalization(self) -> NativeSymbolNormalization {
         match self {
             Self::MachOAarch64 | Self::MachOX86_64 => {
@@ -238,9 +276,9 @@ pub enum ProcedureAbi {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum TargetExceptionHandling {
-    Dwarf,
-    WindowsSeh,
+pub enum TargetExceptionModelV1 {
+    ItaniumDwarf,
+    ItaniumWindowsSeh,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -251,7 +289,7 @@ pub struct TargetLayoutDescription {
     pub architecture: TargetArchitecture,
     pub procedure_abi: ProcedureAbi,
     pub scoop_abi_classifier: ScoopAbiClassifier,
-    pub exception_handling: TargetExceptionHandling,
+    pub exception_model: TargetExceptionModelV1,
     pub byte_order: ByteOrder,
     pub scalar_layouts: [ScalarLayout; 7],
     pub managed_pointer: ScalarLayout,
@@ -298,8 +336,8 @@ impl LirTargetProfile {
     pub const fn procedure_abi(self) -> ProcedureAbi {
         self.description.procedure_abi
     }
-    pub const fn exception_handling(self) -> TargetExceptionHandling {
-        self.description.exception_handling
+    pub const fn exception_model(self) -> TargetExceptionModelV1 {
+        self.description.exception_model
     }
     pub fn wire_id(self) -> scoop_identity::TargetProfileWireId {
         scoop_identity::TargetProfileWireId::new(*self.id)
