@@ -38,11 +38,17 @@ pub struct BackendProfileContract {
     pub inkwell_binding: [u32; 3],
     pub cpu: &'static str,
     pub features: &'static str,
-    pub llvm_target_backend: crate::TargetArchitecture,
+    pub llvm_architecture: LlvmArchitecture,
     pub unwind_provider: u32,
     pub artifact_inspection: crate::NativeObjectFormat,
     pub lsda: BackendLsdaEncodingsV1,
     pub machine_frame: BackendMachineFrameV1,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum LlvmArchitecture {
+    Aarch64,
+    X86,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]

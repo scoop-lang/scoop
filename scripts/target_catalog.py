@@ -27,6 +27,24 @@ NATIVE_TARGETS = {
     for name, target in TARGETS.items()
 }
 WINDOWS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "windows")
+_LLVM_COMPONENT_BY_ARCH = {"aarch64": "AArch64", "x86_64": "X86"}
+
+
+def llvm_target_components(targets=None):
+    """Return LLVM build components for the architectures used by current targets."""
+    targets = TARGETS.values() if targets is None else targets
+    components = []
+    for target in targets:
+        architecture = target["arch"]
+        try:
+            component = _LLVM_COMPONENT_BY_ARCH[architecture]
+        except KeyError as error:
+            raise ValueError(
+                f"no LLVM component for target architecture {architecture!r}"
+            ) from error
+        if component not in components:
+            components.append(component)
+    return tuple(components)
 
 
 def native_configuration(target):

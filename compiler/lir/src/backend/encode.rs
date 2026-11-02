@@ -28,9 +28,9 @@ impl WireEncode for BackendProfileContract {
         encode_unsigned_field(
             encoder,
             19,
-            match self.llvm_target_backend {
-                crate::TargetArchitecture::Aarch64 => 1,
-                crate::TargetArchitecture::X86_64 => 2,
+            match self.llvm_architecture {
+                LlvmArchitecture::Aarch64 => 1,
+                LlvmArchitecture::X86 => 2,
             },
         )?;
         encode_unsigned_field(encoder, 20, 1)?;

@@ -63,6 +63,44 @@ fn darwin_x86_64_machine_matches_the_registered_layout() {
 }
 
 #[test]
+fn target_machine_initialization_is_independent_of_target_order() {
+    fn machine_signature(selection: ValidatedLirTargetSelection) -> (String, String, String) {
+        let machine = ValidatedBackendProfile::for_selection(selection)
+            .unwrap()
+            .create_target_machine()
+            .unwrap();
+        (
+            machine.get_triple().as_str().to_str().unwrap().into(),
+            machine
+                .get_target_data()
+                .get_data_layout()
+                .as_str()
+                .to_str()
+                .unwrap()
+                .into(),
+            machine.get_cpu().to_str().unwrap().into(),
+        )
+    }
+
+    let aarch64 = scoop_target_data::DARWIN_AARCH64_LLVM_22_1;
+    let x86 = scoop_target_data::LINUX_X86_64_GNU_LLVM_22_1;
+    let aarch64_then_x86 = [machine_signature(aarch64), machine_signature(x86)];
+    let x86_then_aarch64 = [machine_signature(x86), machine_signature(aarch64)];
+    assert_eq!(aarch64_then_x86[0], x86_then_aarch64[1]);
+    assert_eq!(aarch64_then_x86[1], x86_then_aarch64[0]);
+    assert_eq!(
+        machine::process_option_spellings(),
+        [
+            "--disable-tail-duplicate",
+            "--tail-dup-placement=false",
+            "--hints-allow-reordering=false",
+            "--no-x86-call-frame-opt",
+            "--x86-experimental-pref-innermost-loop-alignment=5",
+        ]
+    );
+}
+
+#[test]
 fn native_c_pointer_representations_are_qualified() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()

@@ -10,9 +10,19 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import build_llvm
+from target_catalog import llvm_target_components
 
 
 class LlvmPatchTests(unittest.TestCase):
+    def test_build_components_follow_current_catalog_architectures(self):
+        self.assertEqual(llvm_target_components(), ("AArch64", "X86"))
+        self.assertEqual(
+            llvm_target_components(({"arch": "x86_64"}, {"arch": "x86_64"}, {"arch": "aarch64"})),
+            ("X86", "AArch64"),
+        )
+        with self.assertRaisesRegex(ValueError, "no LLVM component"):
+            llvm_target_components(({"arch": "unsupported"},))
+
     def test_patch_applies_below_another_repository_and_can_be_reused(self):
         with tempfile.TemporaryDirectory() as temporary:
             repository = Path(temporary) / "repository"

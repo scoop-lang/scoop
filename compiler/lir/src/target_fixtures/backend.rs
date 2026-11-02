@@ -18,7 +18,7 @@ pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
         inkwell_binding: [0, 10, 1],
         cpu: "generic",
         features: "",
-        llvm_target_backend: scoop_lir::TargetArchitecture::Aarch64,
+        llvm_architecture: scoop_lir::LlvmArchitecture::Aarch64,
         unwind_provider: 1,
         artifact_inspection: NativeObjectFormat::MachO64,
         lsda: BackendLsdaEncodingsV1 {
@@ -35,7 +35,7 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
     &id("llvm-22-1-linux-x86-64"),
     &BackendProfileContract {
         cpu: "x86-64",
-        llvm_target_backend: scoop_lir::TargetArchitecture::X86_64,
+        llvm_architecture: scoop_lir::LlvmArchitecture::X86,
         unwind_provider: 2,
         artifact_inspection: NativeObjectFormat::Elf64,
         lsda: BackendLsdaEncodingsV1 {

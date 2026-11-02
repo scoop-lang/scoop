@@ -20,7 +20,7 @@ from build_support import (
     source_metadata,
     source_patch_environment,
 )
-from target_catalog import current_host, host_definition
+from target_catalog import CATALOG_PATH, current_host, host_definition, llvm_target_components
 
 VERSION = "22.1.8"
 STATEPOINT_PATCH = (
@@ -99,7 +99,7 @@ def configure(source, build, prefix, cc, cxx, host, release):
         "CMAKE_CXX_COMPILER": cxx,
         "CMAKE_C_FLAGS": cpu,
         "CMAKE_CXX_FLAGS": cpu,
-        "LLVM_TARGETS_TO_BUILD": "AArch64;X86",
+        "LLVM_TARGETS_TO_BUILD": ";".join(llvm_target_components()),
         "LLVM_APPEND_VC_REV": "OFF",
         "LLVM_BUILD_LLVM_DYLIB": "ON",
         "LLVM_LINK_LLVM_DYLIB": "ON",
@@ -209,6 +209,8 @@ def main():
                 cxx,
                 __file__,
                 ROOT / "scripts/build_support.py",
+                ROOT / "scripts/target_catalog.py",
+                CATALOG_PATH,
                 RELEASE_CONFIG,
                 *SOURCE_PATCHES,
                 *companions,

@@ -13,6 +13,7 @@ use scoop_lir::{BackendProfile, LirTargetProfile, ValidatedLirTargetSelection};
 
 use crate::CodegenError;
 
+mod architecture;
 mod deployment;
 mod machine;
 mod qualification;
@@ -37,8 +38,6 @@ impl fmt::Display for LlvmVersion {
 }
 
 use scoop_lir::NativeObjectFormat as ObjectFormat;
-
-use scoop_lir::TargetArchitecture as CodeArchitecture;
 
 /// Closed LLVM machine pipeline whose statepoint behavior was qualified for
 /// this compiler.  The ordinary inkwell `Target::create_target_machine` API
@@ -140,7 +139,7 @@ pub struct ValidatedBackendProfile {
     writable_storage_section: &'static str,
     zero_fill_storage_section: &'static str,
     c_string_section: &'static str,
-    llvm_target_backend: CodeArchitecture,
+    llvm_architecture: scoop_lir::LlvmArchitecture,
     machine_pipeline: MachinePipeline,
     managed_address_space: ManagedAddressSpace,
     frame_pointers: FramePointerPolicy,
@@ -180,7 +179,7 @@ impl ValidatedBackendProfile {
             writable_storage_section,
             zero_fill_storage_section,
             c_string_section,
-            llvm_target_backend: selection.backend().contract().llvm_target_backend,
+            llvm_architecture: selection.backend().contract().llvm_architecture,
             machine_pipeline: MachinePipeline::Llvm22SelectionDagStandard,
             managed_address_space: ManagedAddressSpace::MOVING_GC,
             frame_pointers: FramePointerPolicy::All,
@@ -320,7 +319,7 @@ impl ValidatedBackendProfile {
     }
 
     pub(crate) fn disable_red_zone(self) -> bool {
-        self.llvm_target_backend == CodeArchitecture::X86_64
+        self.llvm_architecture == scoop_lir::LlvmArchitecture::X86
     }
 
     pub(crate) fn frame_pointer_attribute(self) -> &'static str {
@@ -374,11 +373,8 @@ impl ValidatedBackendProfile {
         self,
         optimization: OptimizationLevel,
     ) -> Result<TargetMachine, CodegenError> {
-        machine::initialize_options();
-        match self.llvm_target_backend {
-            CodeArchitecture::Aarch64 => Target::initialize_aarch64(&Default::default()),
-            CodeArchitecture::X86_64 => Target::initialize_x86(&Default::default()),
-        }
+        machine::initialize_process_options();
+        architecture::initialize(self.llvm_architecture);
         let triple = TargetTriple::create(&self.deployment.triple(self.llvm_triple()));
         let target = Target::from_triple(&triple).map_err(|error| {
             CodegenError(format!("no target for {}: {error}", self.canonical_triple))
