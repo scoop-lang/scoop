@@ -301,7 +301,7 @@ mod tests {
         );
         assert_eq!(
             record.backend_fingerprint().to_string(),
-            "897a958d3eeaa3ca6691d24e99c5b1a9f18d8c248ae62b588965c94467928023"
+            "b88f15b2900df2488f88f23c797a044ea14eb2ff404f4e0e97422b856c19ab97"
         );
         assert_eq!(
             record.artifact_profile_fingerprint(),

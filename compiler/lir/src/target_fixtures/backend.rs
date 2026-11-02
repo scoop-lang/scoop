@@ -11,8 +11,8 @@ const fn id(name: &str) -> BackendProfileId {
     }
 }
 
-pub const LLVM_22_1: BackendProfile = BackendProfile::new(
-    &id("llvm-22-1"),
+pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
+    &id("llvm-22-1-darwin-aarch64"),
     &BackendProfileContract {
         llvm_api_version: [22, 1],
         inkwell_binding: [0, 10, 1],
@@ -40,9 +40,9 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
         artifact_inspection: NativeObjectFormat::Elf64,
         lsda: BackendLsdaEncodingsV1 {
             omitted_type_table: Some(0xff),
-            ..LLVM_22_1.contract().lsda
+            ..LLVM_22_1_DARWIN_AARCH64.contract().lsda
         },
         machine_frame: BackendMachineFrameV1::SysvAmd64,
-        ..LLVM_22_1.contract()
+        ..LLVM_22_1_DARWIN_AARCH64.contract()
     },
 );

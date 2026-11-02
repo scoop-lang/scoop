@@ -124,15 +124,15 @@ mod tests {
     #[test]
     fn backend_contract_and_fingerprint_match_the_fixed_vectors() {
         assert_eq!(
-            hex(&encode(&crate::target_fixtures::LLVM_22_1.contract()).unwrap()),
+            hex(&encode(&crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64.contract(),).unwrap()),
             "b81c01a20116020102a30100020a0301036767656e657269630460050106010701080109010a010b030c010d010e010f01100111011201130114011501160217a30118ff02189b0301181801181901181a03181ba401181f02181d03080410181c01"
         );
         assert_eq!(
-            crate::target_fixtures::LLVM_22_1
+            crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64
                 .fingerprint()
                 .unwrap()
                 .to_string(),
-            "897a958d3eeaa3ca6691d24e99c5b1a9f18d8c248ae62b588965c94467928023"
+            "b88f15b2900df2488f88f23c797a044ea14eb2ff404f4e0e97422b856c19ab97"
         );
     }
 

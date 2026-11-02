@@ -11,8 +11,8 @@ const fn id(name: &str) -> BackendProfileId {
     }
 }
 
-pub const LLVM_22_1: BackendProfile = BackendProfile::new(
-    &id("llvm-22-1"),
+pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
+    &id("llvm-22-1-darwin-aarch64"),
     &BackendProfileContract {
         llvm_api_version: [22, 1],
         inkwell_binding: [0, 10, 1],

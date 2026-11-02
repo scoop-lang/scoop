@@ -184,7 +184,10 @@ mod tests {
                 profile.lir_target_selection(),
                 scoop_target_data::DARWIN_AARCH64_LLVM_22_1
             );
-            assert_eq!(profile.backend(), scoop_target_data::LLVM_22_1);
+            assert_eq!(
+                profile.backend(),
+                scoop_target_data::LLVM_22_1_DARWIN_AARCH64
+            );
             assert_eq!(
                 profile
                     .c_bridge_toolchain()

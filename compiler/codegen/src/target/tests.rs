@@ -29,7 +29,10 @@ fn selected_profile_creates_the_canonical_aarch64_machine() {
     let backend =
         ValidatedBackendProfile::for_selection(scoop_target_data::DARWIN_AARCH64_LLVM_22_1)
             .expect("qualified backend selection");
-    assert_eq!(backend.backend_profile(), scoop_target_data::LLVM_22_1);
+    assert_eq!(
+        backend.backend_profile(),
+        scoop_target_data::LLVM_22_1_DARWIN_AARCH64
+    );
     assert_eq!(backend.managed_address_space(), 1);
     let machine = backend.create_target_machine().expect("target machine");
     assert_eq!(
@@ -118,15 +121,15 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
         Ok(id) => id,
         Err(_) => panic!("canonical test identity"),
     };
-    const KNOWN_ID: BackendProfileId = match BackendProfileId::new("llvm-22-1", 1) {
+    const KNOWN_ID: BackendProfileId = match BackendProfileId::new("llvm-22-1-darwin-aarch64", 1) {
         Ok(id) => id,
         Err(_) => panic!("canonical test identity"),
     };
     const DIFFERENT_CPU: BackendProfileContract = BackendProfileContract {
         cpu: "other-cpu",
-        ..scoop_target_data::LLVM_22_1.contract()
+        ..scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract()
     };
-    const ORIGINAL: BackendProfileContract = scoop_target_data::LLVM_22_1.contract();
+    const ORIGINAL: BackendProfileContract = scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract();
     for backend in [
         BackendProfile::new(&UNKNOWN_ID, &ORIGINAL),
         BackendProfile::new(&KNOWN_ID, &DIFFERENT_CPU),
@@ -152,7 +155,8 @@ fn canonical_unknown_target_is_not_a_codegen_registration() {
         };
     let target =
         scoop_lir::LirTargetProfile::new(&UNKNOWN, scoop_target_data::DARWIN_AARCH64.description());
-    let selection = ValidatedLirTargetSelection::new(target, scoop_target_data::LLVM_22_1);
+    let selection =
+        ValidatedLirTargetSelection::new(target, scoop_target_data::LLVM_22_1_DARWIN_AARCH64);
     assert!(
         ValidatedBackendProfile::for_selection(selection)
             .unwrap_err()

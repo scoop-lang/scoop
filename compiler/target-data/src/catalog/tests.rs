@@ -125,10 +125,13 @@ fn linux_libcs_have_distinct_targets_and_share_the_x86_backend() {
     let musl = crate::selection(crate::LINUX_X86_64_MUSL_ID)
         .expect("implemented target selected by this consumer");
     assert_eq!(gnu.backend(), musl.backend());
-    assert_ne!(gnu.backend().wire_id(), crate::LLVM_22_1.wire_id());
+    assert_ne!(
+        gnu.backend().wire_id(),
+        crate::LLVM_22_1_DARWIN_AARCH64.wire_id()
+    );
     assert_ne!(
         gnu.backend().fingerprint().unwrap(),
-        crate::LLVM_22_1.fingerprint().unwrap()
+        crate::LLVM_22_1_DARWIN_AARCH64.fingerprint().unwrap()
     );
     assert_ne!(gnu.target().wire_id(), musl.target().wire_id());
     assert_ne!(
