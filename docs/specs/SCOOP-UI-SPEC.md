@@ -485,6 +485,8 @@ ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模�
 
 `animateTo(Point, AnimationSpec)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
+布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、动画定位及取消活动动画推进序号，范围发布不推进。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
+
 上述公开写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项见第 7.8 节，自动焦点显露及绘制／实例缓存按后续滚动批次扩展。
 
 ### 7.8 按需子项与 LazyElement
@@ -499,7 +501,7 @@ measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再
 
 本批离开本次选择范围且无活动交互的条目立即正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由或文本输入会话所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
 
-框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。有限实例保留、可变 extent、虚拟焦点显露与绘制缓存按后续批次扩展。
+框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；有限实例保留、虚拟焦点显露与绘制缓存按后续批次扩展。
 
 待聚焦请求完成、取消或被新请求替换时，即使没有产生实际的 Surface 焦点变化，也撤销其固定需求并请求必要的后续帧；不可见目标的失败请求不能使离屏条目一直留在实现集合中。根关闭时直接清理，不再请求帧。
 

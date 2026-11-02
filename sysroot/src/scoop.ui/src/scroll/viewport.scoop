@@ -61,9 +61,26 @@ public class ScrollViewport internal constructor(
         if (active)
             node.root.surface.requestFrame()
     }
-    public fun layout(viewport: Size, content: Size): ScrollSnapshot {
+    public fun layout(
+        viewport: Size,
+        content: Size,
+        adjustment: ScrollAdjustment? = None
+    ): ScrollSnapshot {
         checkOpen()
-        val result = sample(viewport, content)
+        var result = sample(viewport, content)
+        when (adjustment) {
+            case Some(value) -> {
+                checkScrollPoint(value.offset)
+                if (value.requestRevision == current.revision && !moving)
+                    result =
+                        ScrollSnapshot(
+                            clampScroll(value.offset, viewport, content),
+                            viewport,
+                            content
+                        )
+            }
+            case None -> {}
+        }
         staged = Some(ScrollLayout(binding, current.revision, result))
         return result
     }

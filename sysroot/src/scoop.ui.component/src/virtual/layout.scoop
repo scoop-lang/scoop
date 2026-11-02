@@ -14,26 +14,21 @@ internal fun virtualViewport(constraints: Constraints, width: Double?, height: D
     )
 }
 
-/** Constant-size arithmetic does not enumerate keys or allocate per-source-item metadata. */
-internal class FixedListGeometry(
-    private val count: Long,
-    private val extent: Double,
+internal class ListGeometry(
+    val index: ItemExtentIndex,
     private val orientation: Orientation,
     private val overscan: Double,
     private val viewport: Size
 ) {
     private val vertical = orientation == Orientation.Vertical
-    private val total = count.toDouble() * extent
+    val total: Double get() = index.total
     private val visible =
         if (vertical)
             viewport.height
         else
             viewport.width
     init {
-        requireComponent(count >= 0L, "negative item count")
-        requireComponent(extent.isFinite() && extent > 0.0, "invalid fixed item extent")
         nonnegative(overscan, "invalid virtual overscan")
-        nonnegative(total, "virtual content extent overflow")
     }
     val content: Size get() =
         if (vertical)
@@ -41,40 +36,46 @@ internal class FixedListGeometry(
         else
             Size(total, viewport.height)
     val itemConstraints: Constraints get() =
-        Constraints.tight(
-            if (vertical)
-                Size(viewport.width, extent)
+        when (index.mode) {
+            case Fixed(extent) -> Constraints.tight(
+                if (vertical)
+                    Size(viewport.width, extent)
+                else
+                    Size(extent, viewport.height)
+            )
+            case Variable(_) -> if (vertical)
+                Constraints(minWidth = viewport.width, maxWidth = Some(viewport.width))
             else
-                Size(extent, viewport.height)
-        )
+                Constraints(minHeight = viewport.height, maxHeight = Some(viewport.height))
+        }
     fun range(offset: Double): ItemRange {
         nonnegative(offset, "invalid virtual offset")
-        if (count == 0L || visible == 0.0)
+        if (index.count == 0L || visible == 0.0)
             return ItemRange(0L, 0L)
         val at = upperBound(offset, total)
-        val start = (lowerBound(at - overscan, 0.0) / extent).toLong()
+        val start = index.indexAt(lowerBound(at - overscan, 0.0))
         val endOfViewport = at + upperBound(visible, total - at)
         val endPosition = endOfViewport + upperBound(overscan, total - endOfViewport)
-        var end = (endPosition / extent).toLong()
-        if (end < count && end.toDouble() * extent < endPosition)
-            end += 1L
+        val end = index.endBefore(endPosition)
         return ItemRange(
-            if (start < count)
-                start
-            else
-                count,
-            if (end < count)
+            start,
+            if (end >= start)
                 end
             else
-                count
+                start
         )
     }
-    fun origin(index: Long): Point {
-        requireComponent(index >= 0L && index < count, "virtual item index is out of range")
-        val position = index.toDouble() * extent
-        return if (vertical)
+    fun point(position: Double): Point =
+        if (vertical)
             Point(0.0, position)
         else
             Point(position, 0.0)
+    fun origin(item: Long): Point = point(index.prefix(item))
+    fun bounds(item: Long): Rect {
+        val origin = origin(item)
+        return if (vertical)
+            Rect(origin.x, origin.y, viewport.width, index.extent(item))
+        else
+            Rect(origin.x, origin.y, index.extent(item), viewport.height)
     }
 }

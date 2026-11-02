@@ -18,7 +18,28 @@ public enum ScrollAlignment {
 public struct ScrollSnapshot(val offset: Point, val viewport: Size, val content: Size) {
     public val maximum: Point get() =
         Point(max(0.0, content.width - viewport.width), max(0.0, content.height - viewport.height))
+    public fun revealedOffset(
+        rect: Rect,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): Point {
+        checkScrollRect(rect)
+        checkScrollPoint(offset)
+        checkLayoutSize(viewport)
+        checkLayoutSize(content)
+        return clampScroll(
+            Point(
+                revealScrollAxis(offset.x, viewport.width, rect.x, rect.width, horizontal),
+                revealScrollAxis(offset.y, viewport.height, rect.y, rect.height, vertical)
+            ),
+            viewport,
+            content
+        )
+    }
 }
+
+/** A layout correction based on a particular explicit positioning intent. */
+public struct ScrollAdjustment(val requestRevision: ULong, val offset: Point)
 
 internal enum ScrollRequest {
     Position(val point: Point),
@@ -52,10 +73,8 @@ internal fun resolveScroll(
     val point =
         when (request) {
             case Position(value) -> value
-            case Reveal(rect, horizontal, vertical) -> Point(
-                revealScrollAxis(previous.x, viewport.width, rect.x, rect.width, horizontal),
-                revealScrollAxis(previous.y, viewport.height, rect.y, rect.height, vertical)
-            )
+            case Reveal(rect, horizontal, vertical) ->
+            ScrollSnapshot(previous, viewport, content).revealedOffset(rect, horizontal, vertical)
         }
     return ScrollSnapshot(clampScroll(point, viewport, content), viewport, content)
 }

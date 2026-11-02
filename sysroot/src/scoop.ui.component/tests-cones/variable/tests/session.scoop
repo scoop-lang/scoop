@@ -1,0 +1,136 @@
+package scoop.tests.ui.variable
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class VariableListTest {
+    @Test
+    fun `variable lists preserve reading keys and resolve explicit positions across data and geometry changes`() {
+        val probe = VariableProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.discarded)
+            assertFalse(probe.scroll.isAttached)
+            assertFalse(probe.handle.value.isAttached)
+            assertTrue(probe.rows.size < 100L)
+            for (row in probe.rows) {
+                assertEquals(1, row.mounts)
+                assertEquals(1, row.unmounts)
+                assertEquals(1, row.disposed)
+            }
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class VariableProbe {
+    val scroll = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val handle = state(VirtualListHandle())
+    val anchor = state(VirtualListAnchor.KeepVisible)
+    val width = state(160.0)
+    val show = state(true)
+    val rows = ArrayList<VariableRecord>()
+    var data: State<ItemSource>? = None
+    var ui: UiWindow? = None
+    var window: Window? = None
+    var scope: ComponentScope? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var phase = 0
+    var ticket = 0
+    var committed = -1
+    var passes = 0
+    var waiting = false
+    var finished = false
+    var discardNext = false
+    var discarded = 0
+    var lateRequest = false
+    var two: VariableRecord? = None
+    var oldHandle: VirtualListHandle? = None
+    var savedOffset = Point(0.0, 0.0)
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                data = Some(state<ItemSource>(VariableSource(this)))
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop variable virtual list", LogicalSize(220.0, 140.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                ui = Some(host.attach(native, { VariableScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (
+                    phase < 18 && !waiting && committed == ticket && !frames!!.snapshot().required
+                ) {
+                    waiting = true
+                    assertTrue(
+                        active.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (committed == ticket && !frames!!.snapshot().required)
+                                advanceVariable(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 18
+                active.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"variable list timeout phase=${phase}, frames=${passes}")
+            )
+            else -> {}
+        }
+    }
+    fun row(key: Long): VariableRecord {
+        var at = rows.size
+        while (at > 0L) {
+            at -= 1L
+            val row = rows[at]
+            if (row.key == key && row.unmounts == 0)
+                return row
+        }
+        throw IllegalStateException(Some("variable row is not mounted"))
+    }
+    fun changeSource(keys: Array<Long>) {
+        data!!.value = VariableSource(this, Some(keys))
+    }
+    fun next() {
+        phase += 1
+        ticket += 1
+        scope!!.requestFrame()
+    }
+    fun position(key: Long, alignment: ScrollAlignment) {
+        assertTrue(handle.value.scrollToItem(ViewKey.Number(key), alignment))
+        assertTrue(handle.value.isPending)
+        next()
+    }
+    fun assertTop(key: Long, top: Double) {
+        assertFalse(handle.value.isPending)
+        assertEquals(top, row(key).area!!.windowBounds!!.y)
+    }
+}

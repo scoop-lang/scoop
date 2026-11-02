@@ -43,6 +43,10 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
     public val viewport: Size get() = snapshot.viewport
     public val content: Size get() = snapshot.content
     public val maximum: Point get() = snapshot.maximum
+    public val requestRevision: ULong get() {
+        checkUiThread(thread)
+        return revision
+    }
     public val isAttached: Boolean get() {
         observe();
         return viewportOwner?.active ?: false

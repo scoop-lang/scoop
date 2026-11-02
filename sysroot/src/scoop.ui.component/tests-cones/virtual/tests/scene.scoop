@@ -16,7 +16,7 @@ internal class ListScene(private val probe: ListProbe): Component {
                 if (probe.show.value)
                     virtualList(
                         probe.data!!.value,
-                        20.0,
+                        ItemExtent.Fixed(20.0),
                         Some(probe.scroll),
                         probe.orientation.value,
                         overscan = 20.0,

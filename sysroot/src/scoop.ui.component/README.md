@@ -47,9 +47,9 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。当前直接绘制，绘制缓存与有限离屏实例保留在后续批次提供。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
-`virtualList(source, itemExtent = 24.0, state = Some(scroll), height = Some(240.0))` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
+`virtualList(source, itemExtent = ItemExtent.Fixed(24.0), state = Some(scroll), height = Some(240.0))` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
 
-条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。可变 extent、按 key 定位和有限 KeepAlive 策略继续在后续批次接入。
+条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。`tests-cones/variable` 覆盖可变 extent、按 key 对齐、阅读锚点、FollowEnd 与失败帧；有限 KeepAlive 策略和虚拟焦点导航继续在后续批次接入。
 
 [主题展示示例](examples/themes/README.md)并列展示公共绘图部件，提供三风格、明暗、系统跟随和真实控件／效果切换。
 
@@ -58,3 +58,7 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 规范见 [基础控件规范](../../../docs/specs/SCOOP-UI-COMPONENT-SPEC.md)和[主题绘图规范](../../../docs/specs/SCOOP-UI-THEME-SPEC.md)。普通覆盖／来源／布局测试在本 Cone，真实 Metal／输入／主题切换组合位于 `tests-cones/interaction`，容器与富文本组合位于 `tests-cones/layout`；实施范围与运行结果记录在 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
 
 `tests-cones/absolute` 验证显式子项呈现顺序、真实像素与命中、keyed 更新和 Tab。焦点、组内导航与新增基础容器的本期结果见 [基础交互实施记录](../../../docs/ui/foundations/PROGRESS.md)。
+
+`ItemExtent.Variable(estimate = 24.0)` 按视口逐项测量可变高度内容，允许实际高度为零。尺寸索引只保存访问过的 key，未知高度仍为估计；前方插入或测量变化时保留首个可见 key 和项内位置。`anchor = VirtualListAnchor.FollowEnd` 只在原先已到末端时跟随新增内容，向上阅读时保持阅读位置。
+
+把稳定的 `VirtualListHandle` 传给 `handle`，挂载后可调用 `handle.scrollToItem(key, ScrollAlignment.Center)`。列表用实际测量修正位置，`isPending` 在成功帧后清除；更新的普通 ScrollState 定位优先。handle 不另存 offset，ScrollState 继续用于观察位置、滚轮和滚动条。

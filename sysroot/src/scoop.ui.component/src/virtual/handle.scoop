@@ -1,0 +1,60 @@
+package scoop.ui.component
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.ScrollAlignment
+import scoop.ui.ViewKey
+
+/** A stable reference to one mounted list; the associated ScrollState owns its position. */
+public class VirtualListHandle public constructor() {
+    private val thread = currentThreadId()
+    private var target: VirtualListInk? = None
+
+    private fun checkThread() {
+        if (currentThreadId() != thread)
+            throw IllegalStateException(Some("virtual list handle used from another thread"))
+    }
+    public val isAttached: Boolean get() {
+        checkThread()
+        return target?.active ?: false
+    }
+    public val isPending: Boolean get() {
+        checkThread()
+        return target?.scrollPending ?: false
+    }
+    public fun scrollToItem(
+        key: ViewKey,
+        alignment: ScrollAlignment = ScrollAlignment.Nearest
+    ): Boolean {
+        checkThread()
+        requireComponent(
+            key != ViewKey.Position,
+            "virtual item positioning requires an explicit key"
+        )
+        return target?.requestItem(key, alignment) ?: false
+    }
+    internal fun bind(value: VirtualListInk) {
+        checkThread()
+        when (target) {
+            case Some(current) -> requireComponent(
+                current === value || !current.active,
+                "virtual list handle already has a target"
+            )
+            case None -> {}
+        }
+        target = Some(value)
+    }
+    internal fun unbind(value: VirtualListInk) {
+        checkThread()
+        when (target) {
+            case Some(current) -> if (current === value)
+                target = None
+            case None -> {}
+        }
+    }
+}
+
+internal class ItemScrollRequest(
+    val key: ViewKey,
+    val alignment: ScrollAlignment,
+    val revision: ULong
+)

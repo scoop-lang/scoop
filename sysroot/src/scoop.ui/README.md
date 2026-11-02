@@ -90,3 +90,5 @@ scoop test sysroot/src/scoop.ui/tests-cones/text --release --target aarch64-appl
 OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay Cone 检查真实像素与命中、嵌套层逻辑路由、Tab 与打开次序、resize、Hide／KeepVisible、Discarded、句柄替换、锚点重绑及停止渲染。自引用、依赖环、跨根和重复句柄同时覆盖正常错误处理与部分挂载清理。
 
 UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；text Cone 通过框架公开 API 验证富文本、固定尺寸图片、自然尺寸交互子项、动画重排、截断／恢复、RTL 和内部 key 更换。固定字体由 [text-fonts 测试数据 Cone](../scoop.graphics.text/tests/data/FONTS.md) 提供，不加入生产默认字体。
+
+自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。

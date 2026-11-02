@@ -1,0 +1,131 @@
+package scoop.tests.ui.variable
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun advanceVariable(probe: VariableProbe) {
+    when (probe.phase) {
+        case 0 -> {
+            assertEquals(2000000000.0, probe.scroll.content.height)
+            assertTrue(probe.rows.size < 10L)
+            assertTrue(probe.handle.value.isAttached)
+            probe.two = Some(probe.row(2L))
+            probe.position(2L, ScrollAlignment.Start)
+        }
+        case 1 -> {
+            probe.assertTop(2L, 20.0)
+            assertEquals(Point(0.0, 40.0), probe.scroll.offset)
+            probe.row(1L).growth.value = 20.0
+            probe.next()
+        }
+        case 2 -> {
+            probe.assertTop(2L, 20.0)
+            assertEquals(Point(0.0, 60.0), probe.scroll.offset)
+            probe.data!!.value = VariableSource(probe, start = -1L, length = 100000001L)
+            probe.next()
+        }
+        case 3 -> {
+            probe.assertTop(2L, 20.0)
+            assertEquals(Point(0.0, 80.0), probe.scroll.offset)
+            assertTrue(probe.row(2L) === probe.two!!)
+            assertEquals(20.0, probe.row(1L).growth.value)
+            probe.changeSource([8L, 2L, 1L, 0L, 3L, 4L, 5L, 6L, 7L])
+            probe.next()
+        }
+        case 4 -> {
+            probe.assertTop(2L, 20.0)
+            assertEquals(Point(0.0, 20.0), probe.scroll.offset)
+            assertTrue(probe.row(2L) === probe.two!!)
+            probe.changeSource([8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L])
+            probe.next()
+        }
+        case 5 -> {
+            probe.assertTop(1L, 20.0)
+            assertEquals(1, probe.two!!.unmounts)
+            probe.position(7L, ScrollAlignment.End)
+        }
+        case 6 -> {
+            probe.assertTop(7L, 60.0)
+            assertEquals(probe.scroll.maximum, probe.scroll.offset)
+            probe.anchor.value = VirtualListAnchor.FollowEnd
+            probe.changeSource([8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L])
+            probe.next()
+        }
+        case 7 -> {
+            probe.assertTop(9L, 60.0)
+            assertEquals(probe.scroll.maximum, probe.scroll.offset)
+            probe.scroll.scrollBy(Point(0.0, -30.0))
+            probe.next()
+        }
+        case 8 -> {
+            probe.savedOffset = probe.scroll.offset
+            assertTrue(probe.savedOffset.y < probe.scroll.maximum.y)
+            probe.changeSource([8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L, 10L])
+            probe.next()
+        }
+        case 9 -> {
+            assertEquals(probe.savedOffset, probe.scroll.offset)
+            probe.position(123456L, ScrollAlignment.Start)
+        }
+        case 10 -> {
+            assertFalse(probe.handle.value.isPending)
+            assertEquals(probe.savedOffset, probe.scroll.offset)
+            assertTrue(probe.handle.value.scrollToItem(ViewKey.Number(3L), ScrollAlignment.Center))
+            probe.scroll.scrollTo(Point(0.0, 0.0))
+            assertFalse(probe.handle.value.isPending)
+            probe.next()
+        }
+        case 11 -> {
+            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            probe.width.value = 80.0
+            probe.next()
+        }
+        case 12 -> {
+            probe.assertTop(8L, 20.0)
+            assertEquals(40.0, probe.row(8L).area!!.windowBounds!!.height)
+            probe.position(5L, ScrollAlignment.Center)
+        }
+        case 13 -> {
+            probe.assertTop(5L, 30.0)
+            probe.discardNext = true
+            probe.changeSource([99L, 8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L, 10L])
+            probe.next()
+        }
+        case 14 -> {
+            assertEquals(1, probe.discarded)
+            probe.assertTop(5L, 30.0)
+            probe.lateRequest = true
+            probe.changeSource([100L, 99L, 8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L, 10L])
+            probe.next()
+        }
+        case 15 -> {
+            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            probe.assertTop(100L, 20.0)
+            probe.oldHandle = Some(probe.handle.value)
+            assertTrue(probe.oldHandle!!.scrollToItem(ViewKey.Number(5L)))
+            probe.handle.value = VirtualListHandle()
+            probe.next()
+        }
+        case 16 -> {
+            assertFalse(probe.oldHandle!!.isAttached)
+            assertFalse(probe.oldHandle!!.isPending)
+            assertFalse(probe.oldHandle!!.scrollToItem(ViewKey.Number(5L)))
+            assertTrue(probe.handle.value.isAttached)
+            assertFalse(probe.handle.value.isPending)
+            assertTrue(probe.handle.value.scrollToItem(ViewKey.Number(5L)))
+            probe.show.value = false
+            probe.next()
+        }
+        case 17 -> {
+            assertFalse(probe.scroll.isAttached)
+            assertFalse(probe.handle.value.isAttached)
+            assertFalse(probe.handle.value.isPending)
+            probe.phase = 18
+            probe.ui!!.close()
+            probe.window!!.requestDestroy()
+        }
+        else -> {}
+    }
+}

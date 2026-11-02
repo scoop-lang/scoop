@@ -1,10 +1,10 @@
 # Scoop 基础控件库规范
 
-日期：2026-11-02。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
+日期：2026-11-03。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
 
 ## 1. 定位与依赖
 
-`scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
+`scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
 `scoop.ui` 的生产代码、测试和自绘示例不依赖本库。本库只调用框架及下层库的 public 接口，不使用 UI 的 internal 节点、特殊控件注册表或按控件类型分支的入口。任何应用自己的控件库都可以使用相同的 Component／Element、测量／绘制 context、输入区域和动画能力。
 
@@ -26,6 +26,8 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | Row／Column | 子项的单轴排列、spacing 与交叉轴对齐 |
 | Stack | 子项叠放和对齐 |
 | Absolute | 有限容器内的显式轴定位、拉伸及同层 zIndex |
+| ScrollArea | 单轴／双轴滚动、残量交接和主题滚动条 |
+| VirtualList | 按需子项、固定／可变 extent、阅读锚点和按 key 定位 |
 | Frame | 单个子项的 padding、固定尺寸、对齐、背景和显式 clip |
 
 这些控件是普通的持久 Component class，构造器接收各自的 Props；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
@@ -212,11 +214,17 @@ Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, 
 
 ### 6.3 VirtualList
 
-VirtualListProps／virtualList 接受 ItemSource、有限正的 itemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。本批提供固定 extent 的单主轴列表；两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。总主轴长度为 count × itemExtent，溢出报告参数错误，空 source 的总长度为零。
+VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（KeepVisible／FollowEnd，默认 KeepVisible）。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
-列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。根据本帧 offset／viewport／overscan 直接计算半开索引范围；视口主轴长度为零时不因 overscan 新建项。子项沿主轴使用 itemExtent、交叉轴使用视口长度的 tight 约束，按 source 索引放置。未实现的项没有 View 构建、Component、InputArea 或挂载资源；列表规模不会使首屏工作遍历全部 source。
+ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，沿主轴和交叉轴使用 tight 约束。ItemExtent.Variable(estimate) 同样要求有限正估计值，沿主轴使用无界约束，交叉轴 tight；实际主轴尺寸可为零，每步仍推进索引。以稀疏的已测量尺寸和前缀和索引定位范围，不为首屏遍历全部 source 或分配 count 个槽。总长与坐标必须有限；尚未测量的尺寸是估计，因此 ScrollState.content／maximum 会随新测量变化。
 
-已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项正常卸载，重新进入时重新创建，同 key 的可见项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。绘制默认直绘，有限实例保留、可变 extent、按 key 显露和虚拟导航在后续批次扩展。
+列表根据 offset／viewport／overscan 准备覆盖范围，每项每帧至多测量一次；视口主轴长度为零时不因 overscan 新建项。extent 配置、方向或交叉轴约束改变会清除旧尺寸索引；source 替换按已知稳定 key 重定位既有尺寸，作为新输入的初始估计，实际进入范围时重新测量。条目自身 State 或主题改变时，本帧所需项沿正常布局重新测量；未实现项没有 View 构建、Component、InputArea 或挂载资源。
+
+KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。
+
+VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest)。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
+
+列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项正常卸载，重新进入时重新创建，同 key 的可见项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。绘制默认直绘，有限实例保留、虚拟导航及自动焦点显露在后续批次扩展。
 
 尚不实现 flex／weight、grid 或 intrinsic 多轮协商。增加布局策略时继续使用或按具体需求扩展公开协议，不能在框架中增加本库专用类型分支。
 

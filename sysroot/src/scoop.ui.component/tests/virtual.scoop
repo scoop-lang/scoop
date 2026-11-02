@@ -10,7 +10,13 @@ private class VirtualLayoutTest {
     @Test
     fun `fixed extents select half open visible ranges and clamp symmetric overscan`() {
         val size = Size(180.0, 60.0)
-        val exact = FixedListGeometry(100000000L, 20.0, Orientation.Vertical, 0.0, size)
+        val exact =
+            ListGeometry(
+                ItemExtentIndex(100000000L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                0.0,
+                size
+            )
         assertEquals(Size(180.0, 2000000000.0), exact.content)
         assertEquals(Constraints.tight(Size(180.0, 20.0)), exact.itemConstraints)
         assertEquals(ItemRange(0L, 3L), exact.range(0.0))
@@ -18,25 +24,55 @@ private class VirtualLayoutTest {
         assertEquals(ItemRange(1L, 5L), exact.range(21.0))
         assertEquals(ItemRange(99999997L, 100000000L), exact.range(1999999940.0))
         assertEquals(Point(0.0, 24680.0), exact.origin(1234L))
-        val extra = FixedListGeometry(10L, 20.0, Orientation.Vertical, 25.0, size)
+        val extra =
+            ListGeometry(
+                ItemExtentIndex(10L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                25.0,
+                size
+            )
         assertEquals(ItemRange(0L, 5L), extra.range(0.0))
         assertEquals(ItemRange(2L, 9L), extra.range(80.0))
         assertEquals(ItemRange(5L, 10L), extra.range(140.0))
-        val large = FixedListGeometry(10L, 20.0, Orientation.Vertical, 1.0e308, size)
+        val large =
+            ListGeometry(
+                ItemExtentIndex(10L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                1.0e308,
+                size
+            )
         assertEquals(ItemRange(0L, 10L), large.range(80.0))
     }
 
     @Test
     fun `horizontal empty and zero viewports preserve finite geometry without creating rows`() {
-        val horizontal = FixedListGeometry(8L, 25.0, Orientation.Horizontal, 0.0, Size(80.0, 40.0))
+        val horizontal =
+            ListGeometry(
+                ItemExtentIndex(8L, ItemExtent.Fixed(25.0)),
+                Orientation.Horizontal,
+                0.0,
+                Size(80.0, 40.0)
+            )
         assertEquals(Size(200.0, 40.0), horizontal.content)
         assertEquals(Constraints.tight(Size(25.0, 40.0)), horizontal.itemConstraints)
         assertEquals(Point(75.0, 0.0), horizontal.origin(3L))
         assertEquals(ItemRange(2L, 6L), horizontal.range(50.0))
-        val empty = FixedListGeometry(0L, 20.0, Orientation.Vertical, 30.0, Size(80.0, 40.0))
+        val empty =
+            ListGeometry(
+                ItemExtentIndex(0L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                30.0,
+                Size(80.0, 40.0)
+            )
         assertEquals(Size(80.0, 0.0), empty.content)
         assertEquals(ItemRange(0L, 0L), empty.range(0.0))
-        val zero = FixedListGeometry(500L, 20.0, Orientation.Vertical, 300.0, Size(80.0, 0.0))
+        val zero =
+            ListGeometry(
+                ItemExtentIndex(500L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                300.0,
+                Size(80.0, 0.0)
+            )
         assertEquals(ItemRange(0L, 0L), zero.range(100.0))
     }
 
@@ -63,13 +99,28 @@ private class VirtualLayoutTest {
         }
         for (extent in [0.0, -1.0, 1.0e308 * 2.0])
             assertFailsWith<IllegalArgumentException> {
-                FixedListGeometry(1L, extent, Orientation.Vertical, 0.0, Size(40.0, 50.0))
+                ListGeometry(
+                    ItemExtentIndex(1L, ItemExtent.Fixed(extent)),
+                    Orientation.Vertical,
+                    0.0,
+                    Size(40.0, 50.0)
+                )
             }
         assertFailsWith<IllegalArgumentException> {
-            FixedListGeometry(10L, 1.0e308, Orientation.Vertical, 0.0, Size(40.0, 50.0))
+            ListGeometry(
+                ItemExtentIndex(10L, ItemExtent.Fixed(1.0e308)),
+                Orientation.Vertical,
+                0.0,
+                Size(40.0, 50.0)
+            )
         }
         assertFailsWith<IllegalArgumentException> {
-            FixedListGeometry(10L, 20.0, Orientation.Vertical, -1.0, Size(40.0, 50.0))
+            ListGeometry(
+                ItemExtentIndex(10L, ItemExtent.Fixed(20.0)),
+                Orientation.Vertical,
+                -1.0,
+                Size(40.0, 50.0)
+            )
         }
     }
 }

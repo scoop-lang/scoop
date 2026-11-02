@@ -74,6 +74,8 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 `scrollToItem(key, alignment)` 先用索引估计定位，再依据实际尺寸修正；在一次实际帧中的项测量不反复重入。尚需修正时按需继续下一轮，并在真正显露后完成焦点请求；不承诺未知高度列表第一次估计就像素精确。
 
+具体公开入口采用 ItemExtent.Fixed／Variable、VirtualListAnchor.KeepVisible／FollowEnd 和可选 VirtualListHandle。ScrollState 仍是唯一位置状态，handle 只保存一次按 key 的定位意图。尺寸前缀使用已访问项的稀疏索引；布局通过 ScrollAdjustment 携带所依据的 requestRevision，确保较新的滚动请求优先，成功提交才发布修正和阅读锚点。
+
 ## 5. 实例保留策略
 
 首批提供 `Dispose` 与 `KeepAlive(maxOffscreenItems)`。后者保留同 key、同 shape 的实例，优先淘汰最久未使用的非活动离屏项；上限不包含本次必须实现的 viewport／overscan。不能把 key A 的 Component 改装成 key B 来节约构造，不依赖控件自己清空旧状态。

@@ -134,6 +134,7 @@ private class FirstViewport(
 
 private class SecondViewport(private val probe: ScrollProbe): Element {
     private var viewport: ScrollViewport? = None
+    private var layout: ScrollSnapshot? = None
     public override fun onMount(scope: ComponentScope) {
         viewport = Some(scope.scrollViewport(probe.second))
         probe.second.animateTo(Point(0.0, 100.0), AnimationSpec.Tween(Duration.ZERO))
@@ -141,12 +142,32 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
         assertEquals(Point(0.0, 0.0), probe.second.offset)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0))
+        val moving = probe.second.isAnimating
+        val adjustment =
+            if (moving)
+                Some(ScrollAdjustment(probe.second.requestRevision, Point(99.0, 220.0)))
+            else
+                probe.adjustment
+        val snapshot = viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0), adjustment)
+        if (moving)
+            assertFalse(snapshot.offset == Point(99.0, 220.0))
+        layout = Some(snapshot)
         return LayoutMetrics(constraints.constrain(Size(100.0, 80.0)))
     }
     public override fun scene(context: SceneContext) {
         if (!probe.viewport!!.isClosed)
             assertFailsWith<IllegalArgumentException> { probe.viewport!!.present(context) }
+        val snapshot = layout!!
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && probe.secondLate) {
+                probe.secondLate = false
+                probe.second.scrollTo(Point(55.0, 200.0))
+            }
+        }
         viewport!!.present(context)
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.secondShown = snapshot.offset
+        }
     }
 }

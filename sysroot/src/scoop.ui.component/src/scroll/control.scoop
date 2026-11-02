@@ -49,8 +49,11 @@ internal class ScrollControl(
         vertical.update()
         painters.get(value.theme)
     }
-    fun layout(viewportSize: Size, contentSize: Size): ScrollSnapshot =
-        viewport.layout(viewportSize, contentSize)
+    fun layout(
+        viewportSize: Size,
+        contentSize: Size,
+        adjustment: ScrollAdjustment? = None
+    ): ScrollSnapshot = viewport.layout(viewportSize, contentSize, adjustment)
     fun scene(context: SceneContext, snapshot: ScrollSnapshot) {
         val value = props()
         val size = snapshot.viewport

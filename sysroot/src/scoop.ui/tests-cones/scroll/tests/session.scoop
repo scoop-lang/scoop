@@ -56,6 +56,9 @@ internal class ScrollProbe {
     var rebind = false
     var ignoredBinding = false
     var previousRenders = 0
+    var adjustment: ScrollAdjustment? = None
+    var secondShown = Point(0.0, 0.0)
+    var secondLate = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -78,7 +81,7 @@ internal class ScrollProbe {
                 Some(f"scroll state timeout phase=${phase}, passes=${passes}")
             )
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 8;
+                finished = phase == 11;
                 active.requestExit()
             }
             else -> {}
@@ -157,9 +160,34 @@ internal class ScrollProbe {
                 assertFalse(first.isAttached)
                 assertTrue(viewport!!.isClosed)
                 viewport!!.close()
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(35.0, 160.0)))
+                assertEquals(Point(0.0, 100.0), second.offset)
+                generation.value = 6
                 phase = 8
-                ui!!.close()
-                window!!.requestDestroy()
+            }
+            case 8 -> {
+                assertEquals(Point(35.0, 160.0), second.offset)
+                assertEquals(second.offset, secondShown)
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(0.0, 0.0)))
+                second.scrollTo(Point(40.0, 180.0))
+                generation.value = 7
+                phase = 9
+            }
+            case 9 -> {
+                assertEquals(Point(40.0, 180.0), second.offset)
+                assertEquals(second.offset, secondShown)
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(20.0, 90.0)))
+                secondLate = true
+                generation.value = 8
+                phase = 10
+            }
+            case 10 -> {
+                if (secondShown == second.offset) {
+                    assertEquals(Point(55.0, 200.0), second.offset)
+                    phase = 11
+                    ui!!.close()
+                    window!!.requestDestroy()
+                }
             }
             else -> {}
         }

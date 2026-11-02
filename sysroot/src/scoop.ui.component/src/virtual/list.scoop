@@ -5,7 +5,7 @@ import scoop.ui.style.*
 
 public class VirtualListProps public constructor(
     public val source: ItemSource,
-    public val itemExtent: Double,
+    public val itemExtent: ItemExtent,
     public val state: ScrollState? = None,
     public val orientation: Orientation = Orientation.Vertical,
     public val overscan: Double = 0.0,
@@ -17,7 +17,9 @@ public class VirtualListProps public constructor(
     public val scrollbar: ScrollbarOptions = ScrollbarOptions(),
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val handle: VirtualListHandle? = None,
+    public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */
@@ -56,7 +58,7 @@ public class VirtualList public constructor(private val props: Props<VirtualList
 
 public fun virtualList(
     source: ItemSource,
-    itemExtent: Double,
+    itemExtent: ItemExtent,
     state: ScrollState? = None,
     orientation: Orientation = Orientation.Vertical,
     overscan: Double = 0.0,
@@ -69,6 +71,8 @@ public fun virtualList(
     enabled: Boolean = true,
     focus: FocusOptions = FocusOptions(),
     theme: ThemeSource? = None,
+    handle: VirtualListHandle? = None,
+    anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
     key: ViewKey = ViewKey.Position
 ): View =
     component(
@@ -86,7 +90,9 @@ public fun virtualList(
             scrollbar,
             enabled,
             focus,
-            theme
+            theme,
+            handle,
+            anchor
         ),
         { props -> VirtualList(props) },
         key

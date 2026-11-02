@@ -20,7 +20,7 @@
 | D1a：滚轮残量与连续手势路由 | 已完成 aarch64 实施和定向验证 |
 | D1b：ScrollArea、滚动条与显式平滑滚动 | 已完成 aarch64 实施和定向验证 |
 | D2a：按需子项与固定 extent 虚拟列表 | 已完成 aarch64 实施和定向验证 |
-| D2b：可变 extent、阅读锚点与按 key 定位 | 待实施 |
+| D2b：可变 extent、阅读锚点与按 key 定位 | 已完成 aarch64 实施和定向验证 |
 | D2c：有限实例保留与离屏帧需求 | 待实施 |
 | D2d：虚拟焦点导航与滚动显露 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -173,3 +173,13 @@ VirtualList 使用固定 extent、Long 索引与有限 overscan 直接计算范�
 Scoop 格式检查、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。69 项定向 scoop.test 通过：Surface 输入 60 项、UI source 规则 2 项、Component 虚拟范围 3 项，以及 UI lazy、UI errors、VirtualList 和既有 ScrollArea 原生用例各 1 项。错误用例包含 22 种异常清理场景；原生列表覆盖一亿项 source、重排、隐藏删除、指针固定、被阻止的释放、离屏焦点、惯性候选、纵横切换、范围缩小和停帧。测试中的异步断言已按既有逻辑更新边界排队；指针保留用例在 target 阶段取消默认聚焦，单独验证按下归属，最终全部通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 D1b Surface／UI／Component／ScrollArea 和旧 errors 输出清理；独立 sysroot、共享构建缓存、当前定向测试产物及前台应用入口保留。
+
+## D2b：可变 extent、阅读锚点与按 key 定位
+
+VirtualList 使用 ItemExtent.Fixed／Variable，变量尺寸以正估计值和稀疏前缀索引定位，只记录访问过的 key；实际零高度项继续推进索引。每帧只测量一次所需条目，根据新尺寸补足范围；尺寸配置、方向或交叉约束改变时重建尺寸索引，source 替换则按稳定 key 保留初始估计。原有固定列表直接迁移到同一接口和布局路径。
+
+KeepVisible 用最近 Accepted 的首个可见 key 与项内偏移保持阅读位置；删除锚点后选原索引附近的存活项。FollowEnd 只在原先已到末端时跟随。VirtualListHandle 负责按 key 的一次定位请求，使用实际目标尺寸执行 Nearest／Start／Center／End；ScrollState 继续唯一持有位置。新增 ScrollAdjustment 与 requestRevision 把布局修正放入既有视口提交边界，较新的定位、活动动画和绑定变化优先，Discarded 不发布修正或阅读锚点。
+
+Scoop 格式检查、相关六个 UI 库生产类型检查和 aarch64 release 构建通过。17 项定向 scoop.test 通过：UI ScrollState 6 项、Component 固定／可变尺寸与句柄 8 项，以及 ScrollViewport、固定 VirtualList、可变 VirtualList 原生用例各 1 项。可变窗口覆盖一亿项估计、零高度、overscan 中的高度变化、前插／重排／删除、三种显式对齐、末端跟随与向上阅读、未知 key、新请求优先、窄宽度重测、Discarded、完成回调中的新滚动、句柄替换和带 pending 的卸载。视口回归另外验证过期修正和活动动画忽略静态调整。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被替代的 D1b 视口、D2a UI／Component／固定列表测试输出清理；独立 sysroot、共享构建缓存和当前测试入口保留。
