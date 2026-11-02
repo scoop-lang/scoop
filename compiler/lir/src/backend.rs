@@ -43,12 +43,19 @@ pub struct BackendProfileContract {
     pub artifact_inspection: crate::NativeObjectFormat,
     pub lsda: BackendLsdaEncodingsV1,
     pub machine_frame: BackendMachineFrameV1,
+    pub red_zone: BackendRedZoneV1,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum LlvmArchitecture {
     Aarch64,
     X86,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BackendRedZoneV1 {
+    Enabled,
+    Disabled,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -131,14 +138,14 @@ mod tests {
     fn backend_contract_and_fingerprint_match_the_fixed_vectors() {
         assert_eq!(
             hex(&encode(&crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64.contract(),).unwrap()),
-            "b81c01a20116020102a30100020a0301036767656e657269630460050106010701080109010a010b030c010d010e010f01100111011201130114011501160217a30118ff02189b0301181801181901181a03181ba401181f02181d03080410181c01"
+            "b81d01a20116020102a30100020a0301036767656e657269630460050106010701080109010a010b030c010d010e010f01100111011201130114011501160217a30118ff02189b0301181801181901181a03181ba401181f02181d03080410181c01181d01"
         );
         assert_eq!(
             crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64
                 .fingerprint()
                 .unwrap()
                 .to_string(),
-            "b88f15b2900df2488f88f23c797a044ea14eb2ff404f4e0e97422b856c19ab97"
+            "0e36f0102c04d3150035d4a651f09c7ce4089df1c77f2ea63a36aa2db479a0f1"
         );
     }
 

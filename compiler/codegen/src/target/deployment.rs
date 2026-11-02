@@ -15,6 +15,15 @@ impl ObjectDeployment {
         Err(_) => panic!("valid test deployment"),
     });
 
+    #[cfg(test)]
+    pub(super) const fn for_test(os: scoop_target_data::TargetOs) -> Self {
+        match os {
+            scoop_target_data::TargetOs::Darwin => Self::DARWIN_TEST,
+            scoop_target_data::TargetOs::Linux => Self::Linux,
+            scoop_target_data::TargetOs::Windows => Self::Windows,
+        }
+    }
+
     pub(super) fn from_contract(
         selection: ValidatedLirTargetSelection,
         native: &CBridgeToolchainContractV1,

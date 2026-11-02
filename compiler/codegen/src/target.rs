@@ -140,6 +140,7 @@ pub struct ValidatedBackendProfile {
     zero_fill_storage_section: &'static str,
     c_string_section: &'static str,
     llvm_architecture: scoop_lir::LlvmArchitecture,
+    red_zone: scoop_lir::BackendRedZoneV1,
     machine_pipeline: MachinePipeline,
     managed_address_space: ManagedAddressSpace,
     frame_pointers: FramePointerPolicy,
@@ -180,6 +181,7 @@ impl ValidatedBackendProfile {
             zero_fill_storage_section,
             c_string_section,
             llvm_architecture: selection.backend().contract().llvm_architecture,
+            red_zone: selection.backend().contract().red_zone,
             machine_pipeline: MachinePipeline::Llvm22SelectionDagStandard,
             managed_address_space: ManagedAddressSpace::MOVING_GC,
             frame_pointers: FramePointerPolicy::All,
@@ -199,11 +201,15 @@ impl ValidatedBackendProfile {
     pub(crate) fn for_selection(
         selection: ValidatedLirTargetSelection,
     ) -> Result<Self, CodegenError> {
-        let deployment = match selection.target().native_object_format() {
-            scoop_lir::NativeObjectFormat::MachO64 => deployment::ObjectDeployment::DARWIN_TEST,
-            scoop_lir::NativeObjectFormat::Elf64 => deployment::ObjectDeployment::Linux,
-            scoop_lir::NativeObjectFormat::Coff64 => deployment::ObjectDeployment::Windows,
-        };
+        let definition = scoop_target_data::definition(selection.target().id())
+            .filter(|definition| definition.selection == selection)
+            .ok_or_else(|| {
+                CodegenError(format!(
+                    "unsupported target/backend contract for `{}`",
+                    selection.target().contract().canonical_triple()
+                ))
+            })?;
+        let deployment = deployment::ObjectDeployment::for_test(definition.os);
         Self::select(selection, deployment)
     }
 
@@ -319,7 +325,10 @@ impl ValidatedBackendProfile {
     }
 
     pub(crate) fn disable_red_zone(self) -> bool {
-        self.llvm_architecture == scoop_lir::LlvmArchitecture::X86
+        match self.red_zone {
+            scoop_lir::BackendRedZoneV1::Enabled => false,
+            scoop_lir::BackendRedZoneV1::Disabled => true,
+        }
     }
 
     pub(crate) fn frame_pointer_attribute(self) -> &'static str {

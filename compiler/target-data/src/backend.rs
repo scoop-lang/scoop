@@ -28,6 +28,7 @@ pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
             omitted_type_table: None,
         },
         machine_frame: BackendMachineFrameV1::DarwinAarch64,
+        red_zone: scoop_lir::BackendRedZoneV1::Enabled,
     },
 );
 
@@ -48,6 +49,7 @@ pub const LLVM_22_1_DARWIN_X86_64: BackendProfile = BackendProfile::new(
             omitted_type_table: Some(0xff),
         },
         machine_frame: BackendMachineFrameV1::SysvAmd64,
+        red_zone: scoop_lir::BackendRedZoneV1::Disabled,
     },
 );
 
@@ -68,6 +70,7 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
             omitted_type_table: Some(0xff),
         },
         machine_frame: BackendMachineFrameV1::SysvAmd64,
+        red_zone: scoop_lir::BackendRedZoneV1::Disabled,
     },
 );
 
@@ -88,5 +91,6 @@ pub const LLVM_22_1_WINDOWS_X86_64: BackendProfile = BackendProfile::new(
             omitted_type_table: Some(0xff),
         },
         machine_frame: BackendMachineFrameV1::WindowsSeh,
+        red_zone: scoop_lir::BackendRedZoneV1::Disabled,
     },
 );

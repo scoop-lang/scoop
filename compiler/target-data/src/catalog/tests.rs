@@ -1,6 +1,24 @@
 use scoop_lir::NativeSymbolNormalization;
 
 #[test]
+fn backend_machine_policies_are_explicit_catalog_contracts() {
+    assert_eq!(
+        crate::LLVM_22_1_DARWIN_AARCH64.contract().red_zone,
+        scoop_lir::BackendRedZoneV1::Enabled
+    );
+    for backend in [
+        crate::LLVM_22_1_DARWIN_X86_64,
+        crate::LLVM_22_1_LINUX_X86_64,
+        crate::LLVM_22_1_WINDOWS_X86_64,
+    ] {
+        assert_eq!(
+            backend.contract().red_zone,
+            scoop_lir::BackendRedZoneV1::Disabled
+        );
+    }
+}
+
+#[test]
 fn spelling_and_host_selection_use_the_complete_catalog() {
     for target in crate::TARGETS {
         assert_eq!(crate::named_target(target.canonical()), Some(target));

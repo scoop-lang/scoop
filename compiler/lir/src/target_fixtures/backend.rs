@@ -28,6 +28,7 @@ pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
             omitted_type_table: None,
         },
         machine_frame: BackendMachineFrameV1::DarwinAarch64,
+        red_zone: scoop_lir::BackendRedZoneV1::Enabled,
     },
 );
 
@@ -43,6 +44,7 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
             ..LLVM_22_1_DARWIN_AARCH64.contract().lsda
         },
         machine_frame: BackendMachineFrameV1::SysvAmd64,
+        red_zone: scoop_lir::BackendRedZoneV1::Disabled,
         ..LLVM_22_1_DARWIN_AARCH64.contract()
     },
 );
