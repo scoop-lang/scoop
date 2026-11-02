@@ -1,0 +1,15 @@
+package scoop.ui
+
+/** Keeps original item instances independently of any drawing cache. */
+public enum ItemRetention {
+    Dispose, KeepAlive(val maxOffscreenItems: Long)
+}
+
+internal fun retentionLimit(retention: ItemRetention): Long =
+    when (retention) {
+        case Dispose -> 0L
+        case KeepAlive(count) -> {
+            requireUi(count >= 0L, "negative offscreen item capacity")
+            count
+        }
+    }

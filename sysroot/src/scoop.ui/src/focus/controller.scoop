@@ -85,7 +85,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
             return target.area.requestFocus()
         pending =
             Some(PendingFocus(FocusDestination.Target(target), root.surface.reserveFocusRequest()))
-        root.surface.requestFrame()
+        root.requestFrame()
         return true
     }
     fun request(scope: FocusScope): Boolean {
@@ -102,7 +102,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         }
         pending =
             Some(PendingFocus(FocusDestination.Group(scope), root.surface.reserveFocusRequest()))
-        root.surface.requestFrame()
+        root.requestFrame()
         return true
     }
     fun capture(): FocusHandle? {
@@ -235,7 +235,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         pending = None
         when (previous) {
             case Some(_) -> if (root.isOpen)
-                root.surface.requestFrame()
+                root.requestFrame()
             case None -> {}
         }
     }

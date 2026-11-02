@@ -38,6 +38,10 @@ internal class UiRoot(
     fun checkThread() {
         host.checkThread()
     }
+    fun requestFrame() {
+        if (isOpen && surface.state == SurfaceWindowState.Open)
+            surface.requestFrame()
+    }
     fun mount(value: SurfaceWindow) {
         attached = Some(value)
         val current = createNode(this, None, initial)
@@ -57,9 +61,12 @@ internal class UiRoot(
         val turn = UpdateTurn()
         val work = pending.toArray()
         pending.clear()
+        var repaint = false
         for (value in work) {
             value.queued = false
             value.scheduled = Some(turn)
+            if (value.active && value.frameEnabled)
+                repaint = true
         }
         for (value in work) {
             if (
@@ -72,8 +79,8 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
-        if (isOpen && work.size > 0L)
-            surface.requestFrame()
+        if (isOpen && repaint)
+            requestFrame()
     }
     public override fun paint(frame: FrameContext) {
         if (!isOpen)

@@ -52,7 +52,7 @@ public class LazyMeasureContext internal constructor(
         measured.put(index, entry)
         borrowed = true
         try {
-            val item = prepareUi<LazyItemEntry> { items.prepare(node, index) }
+            val item = prepareUi<LazyItemEntry> { items.prepare(node, index, mark) }
             val result = item.node.measure(constraints, mark)
             entry.result = Some(result)
             return result

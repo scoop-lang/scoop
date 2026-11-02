@@ -8,6 +8,45 @@ import scoop.window.*
 @Test
 private class InputActivityTest {
     @Test
+    fun `all boundary owners notify before focus and noncurrent removal releases activity`() {
+        InputRig().use {
+            rig ->
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val a = rig.router.createScope(Some(group)) { _, _ -> Unit }
+            val b = rig.router.createScope(Some(group)) { _, _ -> Unit }
+            val outer = rig.router.createScope(None) { _, _ -> Unit }
+            val changes = ArrayList<Boolean>()
+            group.observeActivity { changes.add(group.activity.hasBoundary) }
+            val first = InputBoundary(a)
+            assertTrue(group.activity.hasBoundary)
+            assertFalse(group.activity.hasFocus)
+            assertFalse(group.activity.isEmpty)
+            val second = InputBoundary(b)
+            assertEquals(2L, changes.size)
+            val outside = InputBoundary(outer)
+            assertEquals(2L, changes.size)
+            first.close()
+            assertEquals(3L, changes.size)
+            assertTrue(group.activity.hasBoundary)
+            b.parent = Some(rig.router.rootScope)
+            assertTrue(group.activity.isEmpty)
+            assertEquals(4L, changes.size)
+            outside.close()
+            second.close()
+            assertEquals(4L, changes.size)
+            val again = InputBoundary(a)
+            assertEquals(5L, changes.size)
+            a.close()
+            assertTrue(a.activity.isEmpty)
+            assertTrue(group.activity.hasBoundary)
+            assertEquals(5L, changes.size)
+            again.close()
+            assertTrue(group.activity.isEmpty)
+            assertEquals(6L, changes.size)
+        }
+    }
+
+    @Test
     fun `focus changes inside a subtree notify ownership while motion and frames stay quiet`() {
         InputRig().use {
             rig ->

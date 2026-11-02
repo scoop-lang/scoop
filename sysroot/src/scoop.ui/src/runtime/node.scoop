@@ -29,6 +29,22 @@ internal class MountedNode(
     var dependencies: Array<StateSignal> = []
     var metrics: LayoutMetrics? = None
     var placements: Array<Point?> = []
+    private var participates = true
+    var frameEnabled: Boolean = parent?.frameEnabled ?: true
+
+    fun setFrameParticipation(value: Boolean) {
+        participates = value
+        inheritFrameParticipation(parent?.frameEnabled ?: true)
+    }
+    private fun inheritFrameParticipation(parentEnabled: Boolean) {
+        val next = participates && parentEnabled
+        if (next == frameEnabled)
+            return
+        frameEnabled = next
+        scope.updateFrameParticipation()
+        for (child in children)
+            child.inheritFrameParticipation(next)
+    }
 
     fun invalidate() {
         if (active && root.isOpen && !queued) {
@@ -42,7 +58,7 @@ internal class MountedNode(
             case(Component(instance), Component(description)) -> instance.replace(description)
             case(Element(instance), Element(description, _)) -> instance.replace(description)
             case(Portal(instance), Portal(_, options)) -> instance.replace(options)
-            case(Lazy(instance, _), Lazy(description, _)) -> instance.replace(description)
+            case(Lazy(instance, _), Lazy(description, _, _)) -> instance.replace(description)
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
         view = next
@@ -89,7 +105,7 @@ internal class MountedNode(
             }
             case Lazy(instance, items) -> {
                 when (view.body) {
-                    case Lazy(_, source) -> items.replace(this, source, turn)
+                    case Lazy(_, source, capacity) -> items.replace(this, source, capacity, turn)
                     else -> throw IllegalStateException(
                         Some("lazy description was replaced by another shape")
                     )

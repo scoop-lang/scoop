@@ -1,0 +1,87 @@
+package scoop.tests.ui.retention
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal class MiniRecord(val index: Long) {
+    var motion: Animatable<Double>? = None
+    var closes = 0
+}
+
+internal class MiniSource(private val row: RowRecord): ItemSource {
+    public override val count = 3L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < 3L)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        component(index, { value -> MiniItem(row, value) })
+}
+
+internal class MiniList(private val props: Props<Long>): LazyElement {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutMetrics {
+        context.measureItem(props.value, constraints)
+        context.placeItem(props.value, Point(0.0, 0.0))
+        // A measured but unplaced item must not briefly resume frame demand on every layout.
+        context.measureItem(2L, constraints)
+        return LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class MiniItem(row: RowRecord, props: Props<Long>): Component {
+    private val record = MiniRecord(props.value)
+    init {
+        row.innerRows.add(record)
+    }
+    public override fun render(): View = element({ MiniInk() })
+    public override fun onMount(scope: ComponentScope) {
+        record.motion = Some(scope.animation(0.0))
+    }
+    public override fun onUnmount() {
+        assertEquals(AnimationState.Closed, record.motion!!.state)
+        record.closes += 1
+    }
+}
+
+private class MiniInk: Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 1.0, 1.0), Paint(Color.Black))
+        }
+    }
+}
+
+internal class ExtraInk(private val record: RowRecord): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val motion = scope.animation(0.0)
+        record.extraMotion = Some(motion)
+        motion.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(1.0, 1.0)))
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 1.0, 1.0), Paint(Color.White))
+        }
+    }
+    public override fun onUnmount() {
+        record.extraCloses += 1
+        assertEquals(AnimationState.Closed, record.extraMotion!!.state)
+    }
+}

@@ -50,6 +50,8 @@ Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-uc
 
 已知内容不参与当前场景时可设 `animation.isFrameEnabled = false`，时间仍然推进。有限动画通过窗口所属的一次性期限完成，无限重复动画不产生离屏周期唤醒；恢复 true 时直接采样当前进度并请求帧。窗口整体隐藏／遮挡时也使用相同的有限完成机制。`hasWork` 包含所有活动动画，`hasFrameWork` 只表示启用帧的工作；Surface 只按后者要求连续帧。
 
+`timeline.group(frameEnabled)` 创建同一时间轴所属的 AnimationGroup，再用 `group.value(initial)` 创建其动画。组的 isFrameEnabled 与各动画自己的标记共同决定帧需求，切换组不会覆盖动画的本地选择。关闭组会关闭全部成员，关闭时间轴也会关闭仍为空的组；组不创建独立时钟或事件循环。
+
 离屏使用 `AnimationTimeline(timeSource, invalidate)` 和 `advanceTo(time)`。同一轮全部值采样后才调用完成处理器，处理器中新启动的动画从该帧时间开始、后续帧继续。Tween 的 easing 包含线性和 cubic Bézier；spring 以质量 1 的解析解求值，不累加固定 dt。Size 和 Color 的结果限制在各自合法范围。Repeat 的次数计完整段数，Reverse 每段交换端点；零时长可以直接完成，但不能重复。
 
 `SurfaceWindow.createArea` 创建窗口持有的稳定 InputArea，`area.scope` 是它的逻辑输入节点。`createScope` 可建立没有几何的祖先，二者的 parent 缺省为 `SurfaceWindow.input`。在 painter 内调用 `frame.place(area, rect或path)`，沿 Canvas 当时的变换和 clip 记录本帧几何；只有渲染提交成功后才整体发布。parent 在挂载逻辑中设置，与绘制顺序独立，不自动裁剪子区域。区域不再放置、scope 禁用或关闭后退出交互；所属窗口关闭时关闭其全部输入节点。

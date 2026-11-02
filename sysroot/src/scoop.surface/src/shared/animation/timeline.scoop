@@ -7,7 +7,7 @@ import scoop.platform.concurrent.currentThreadId
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.*
 
-private class AnimationEntry(
+internal class AnimationEntry(
     val owner: Closeable,
     val sample: (TimeMark) -> Unit,
     val frameEnabled: () -> Boolean,
@@ -31,6 +31,7 @@ public class AnimationTimeline public constructor(
     private var previous: TimeMark? = None
     private val owned = ArrayList<AnimationEntry>()
     private val active = ArrayList<AnimationEntry>()
+    private val groups = ArrayList<AnimationGroup>()
     private val completions = ArrayList<AnimationCompletion>()
     internal var scheduleChanged: () -> Unit = {}
     public val isClosed: Boolean get() = closed
@@ -58,16 +59,30 @@ public class AnimationTimeline public constructor(
     public fun value(initial: Color): Animatable<Color> =
         value(initial, AnimationConverters.ColorValue)
     public fun <T> value(initial: T, converter: AnimationConverter<T>): Animatable<T> {
+        return createValue(initial, converter, None)
+    }
+    public fun group(frameEnabled: Boolean = true): AnimationGroup {
         checkOpen()
-        val result = Animatable(this, initial, converter)
-        owned.add(
+        val result = AnimationGroup(this, frameEnabled)
+        groups.add(result)
+        return result
+    }
+    internal fun <T> createValue(
+        initial: T,
+        converter: AnimationConverter<T>,
+        group: AnimationGroup?
+    ): Animatable<T> {
+        checkOpen()
+        val result = Animatable(this, initial, converter, group)
+        val entry =
             AnimationEntry(
                 result,
                 { time -> result.sample(time) },
-                { result.isFrameEnabled },
+                { result.requestsFrames },
                 { result.deadline }
             )
-        )
+        owned.add(entry)
+        group?.add(entry)
         return result
     }
     /** Advances all values once; completions run after the sampling pass. */
@@ -159,11 +174,19 @@ public class AnimationTimeline public constructor(
         throw IllegalStateException(Some("animation is not owned by this timeline"))
     }
     internal fun unschedule(animation: Closeable) {
-        removeDriver(active, animation)
+        removeAnimationEntry(active, animation)
     }
     internal fun detached(animation: Closeable) {
         unschedule(animation);
-        removeDriver(owned, animation)
+        removeAnimationEntry(owned, animation)
+    }
+    internal fun detachedGroup(group: AnimationGroup) {
+        for (index in 0L ..< groups.size) {
+            if (groups[index] === group) {
+                groups.removeAt(index)
+                return
+            }
+        }
     }
     internal fun finished(time: TimeMark, frameEnabled: () -> Boolean, callback: () -> Unit) {
         if (!closed)
@@ -183,7 +206,10 @@ public class AnimationTimeline public constructor(
         if (closed)
             return
         closed = true
+        scheduleChanged = {}
         completions.clear()
+        for (group in groups.toArray())
+            group.close()
         for (animation in owned.toArray())
             animation.owner.close()
         active.clear()
@@ -191,7 +217,7 @@ public class AnimationTimeline public constructor(
     }
 }
 
-private fun removeDriver(values: ArrayList<AnimationEntry>, wanted: Closeable) {
+internal fun removeAnimationEntry(values: ArrayList<AnimationEntry>, wanted: Closeable) {
     var index = 0L
     while (index < values.size) {
         if (values[index].owner === wanted) {

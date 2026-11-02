@@ -15,7 +15,8 @@ private enum AnimationPlayback {
 public class Animatable<T> internal constructor(
     private val timeline: AnimationTimeline,
     initial: T,
-    private val converter: AnimationConverter<T>
+    private val converter: AnimationConverter<T>,
+    private val group: AnimationGroup?
 ): Closeable {
     private var frameEnabled = true
     public var isFrameEnabled: Boolean
@@ -30,8 +31,9 @@ public class Animatable<T> internal constructor(
         frameEnabled = value
         if (value)
             sample(timeline.now())
-        timeline.changed(value)
+        timeline.changed(requestsFrames)
     }
+    internal val requestsFrames: Boolean get() = frameEnabled && (group?.isFrameEnabled ?: true)
     internal val deadline: TimeMark? get() =
         when (playback) {
             case Running(segment) -> segment.deadline
@@ -87,7 +89,7 @@ public class Animatable<T> internal constructor(
         callback = onFinished
         timeline.schedule(this)
         sample(now)
-        timeline.changed(frameEnabled)
+        timeline.changed(requestsFrames)
     }
     public fun snapTo(value: T) {
         checkOpen()
@@ -100,7 +102,7 @@ public class Animatable<T> internal constructor(
         vector = next
         speed = AnimationVector()
         timeline.unschedule(this)
-        timeline.changed(frameEnabled)
+        timeline.changed(requestsFrames)
     }
     public fun cancel() {
         timeline.checkThread()
@@ -111,7 +113,7 @@ public class Animatable<T> internal constructor(
         callback = None
         speed = AnimationVector()
         timeline.unschedule(this)
-        timeline.changed(frameEnabled)
+        timeline.changed(requestsFrames)
     }
     public fun pause() {
         checkOpen()
@@ -121,7 +123,7 @@ public class Animatable<T> internal constructor(
             case Running(segment) -> {
                 playback = AnimationPlayback.Paused(segment, now)
                 timeline.unschedule(this)
-                timeline.changed(frameEnabled)
+                timeline.changed(requestsFrames)
             }
             else -> {}
         }
@@ -136,7 +138,7 @@ public class Animatable<T> internal constructor(
                         AnimationSegment(segment.run, segment.start + (now - paused))
                     )
                 timeline.schedule(this)
-                timeline.changed(frameEnabled)
+                timeline.changed(requestsFrames)
             }
             else -> {}
         }
@@ -168,7 +170,7 @@ public class Animatable<T> internal constructor(
                     playback = AnimationPlayback.Finished(run)
                     timeline.unschedule(this)
                     when (callback) {
-                        case Some(handler) -> timeline.finished(time, { frameEnabled }) {
+                        case Some(handler) -> timeline.finished(time, { requestsFrames }) {
                             when (playback) {
                                 case Finished(currentRun) -> {
                                     if (currentRun === run)
@@ -193,12 +195,13 @@ public class Animatable<T> internal constructor(
         timeline.checkThread()
         if (state == AnimationState.Closed)
             return
-        val repaint = frameEnabled
+        val repaint = requestsFrames
         frameEnabled = false
         playback = AnimationPlayback.Closed
         callback = None
         speed = AnimationVector()
         timeline.detached(this)
+        group?.remove(this)
         timeline.changed(repaint)
     }
 }

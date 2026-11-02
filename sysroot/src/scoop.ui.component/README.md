@@ -45,11 +45,13 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 `scrollArea(content, state = Some(scroll), height = Some(240.0))` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。整个内容树保持挂载，offset 变化不重建其描述。
 
-滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。当前直接绘制，绘制缓存与有限离屏实例保留在后续批次提供。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
+滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。当前直接绘制，绘制缓存在后续批次提供。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
 `virtualList(source, itemExtent = ItemExtent.Fixed(24.0), state = Some(scroll), height = Some(240.0))` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
 
-条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。`tests-cones/variable` 覆盖可变 extent、按 key 对齐、阅读锚点、FollowEnd 与失败帧；有限 KeepAlive 策略和虚拟焦点导航继续在后续批次接入。
+条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。`tests-cones/variable` 覆盖可变 extent、按 key 对齐、阅读锚点、FollowEnd 与失败帧；虚拟焦点导航继续在后续批次接入。
+
+`retention = ItemRetention.KeepAlive(32L)` 额外保留最近使用的 32 个离屏实例，复用其局部 State 与资源。它不改变 viewport／overscan 和交互固定范围，也不创建绘制缓存；默认 Dispose。容量缩小和真实删除在隐藏窗口中也会处理。`tests-cones/retention` 覆盖缓存淘汰、状态及 shape 更新、嵌套缓存、动画停帧和模态输入边界的保留。
 
 [主题展示示例](examples/themes/README.md)并列展示公共绘图部件，提供三风格、明暗、系统跟随和真实控件／效果切换。
 

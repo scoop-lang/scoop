@@ -39,7 +39,7 @@ private class LazySourceTest {
                     }
                 }
             )
-        val items = LazyChildren(source)
+        val items = LazyChildren(source, 0L)
         assertEquals(100000000L, items.count)
         assertEquals(0, source.keys)
         assertEquals(ViewKey.Number(99999999L), checkedItemKey(source, items.count, 99999999L))
@@ -61,7 +61,7 @@ private class LazySourceTest {
         assertEquals(ViewKey.Text("same"), checkedItemKey(duplicate, 2L, 0L))
         assertFailsWith<IllegalArgumentException> { checkedItemKey(duplicate, 2L, 1L) }
         val negative = SourceProbe(-1L, { _ -> ViewKey.Number(0L) }, { _ -> None })
-        assertFailsWith<IllegalArgumentException> { LazyChildren(negative) }
+        assertFailsWith<IllegalArgumentException> { LazyChildren(negative, 0L) }
         val value = state(0)
         val impure =
             SourceProbe(

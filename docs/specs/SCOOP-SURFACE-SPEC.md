@@ -102,6 +102,8 @@ SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近�
 
 本期不引入可观察属性系统。应用明确更新状态／请求帧，动画仅失效实际变化所需的绘制或文本布局。
 
+`AnimationTimeline.group(frameEnabled = true)` 创建同一时间轴拥有的 AnimationGroup。group.value 与 timeline.value 支持相同值类型；组拥有这些值，close 关闭其剩余动画，时间轴关闭同时关闭组。组的 isFrameEnabled 与每个值的 isFrameEnabled 相与，不覆盖值的显式设置；恢复组时按同一个当前时间采样，完成回调仍排队。组没有独立时钟或嵌套调度器，供 UI 将一个挂载作用域的动画与平滑滚动一起退出离屏帧需求。创建、读写与关闭均使用时间轴 owner 线程。
+
 ## 6. 区域、输入与焦点
 
 InputArea 是 SurfaceWindow 内的稳定命中对象，保存焦点／文本能力、caret 和 ignoreSelf。其 `scope: InputScope` 是该区域的逻辑路由节点；独立 InputScope 的 area 为 None，区域节点的 area 为 Some(对应 InputArea)。所有路由节点共用 InputScope 的 parent、enabled、captureHandler、handler 和 defaultAction。SurfaceWindow.input 是没有几何的窗口根；createScope／createArea 的 parent 缺省为该根。关闭区域会关闭其 scope，关闭 scope 使相应路由及后代失去交互资格，但不代替调用者关闭子资源。
@@ -134,7 +136,9 @@ InputArea.pointerPosition 把窗口内最后观测的指针位置通过最近成
 
 InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
-`InputScope.observeActivity(handler: () -> Unit): Closeable` 订阅实际归属改变，在当前输入派发及路由收尾后通知，可在回调中读取新 activity。同一子树内起点 A 移到 B 也通知，即使四个布尔值没有改变；没有归属改变的移动和重绘不通知。登记时不回调，不为每个 InputScope 自动建立观察者。关闭登记或所属 scope 后停止通知，调用方可以在回调中关闭登记、变更焦点或禁用节点；后续变化仍经同一收尾通路处理，不递归交付未稳定的路由状态。UI 按需子项用它维护交互固定，不复制一套焦点／指针／IME 状态。
+InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的模态。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
+
+`InputScope.observeActivity(handler: () -> Unit): Closeable` 订阅实际归属改变，在当前输入派发及路由收尾后通知，可在回调中读取新 activity。同一子树内起点 A 移到 B 也通知，即使活动标记没有改变；没有归属改变的移动和重绘不通知。登记时不回调，不为每个 InputScope 自动建立观察者。关闭登记或所属 scope 后停止通知，调用方可以在回调中关闭登记、变更焦点或禁用节点；后续变化仍经同一收尾通路处理，不递归交付未稳定的路由状态。UI 按需子项用它维护交互固定，不复制一套焦点／指针／IME 状态。
 
 graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需的几何值；形状与任意 path clip 的相交复用 Skia PathOps，不以若干采样点或矩形重叠猜测。快照内部按需复用一次可见交集计算，新的帧使用新的快照。bounds 保留裁剪前的位置，便于后续滚动显露；此查询不更改画布或绘制内容。
 

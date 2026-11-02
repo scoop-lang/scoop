@@ -493,15 +493,19 @@ ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模�
 
 `ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
 
-`LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
+`LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
 LazyMeasureContext 公开 time、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至多测量一次，测量后可以放置零次或一次；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
 
 measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再运行其 build／render、onMount 和 update，随后恢复普通纯测量。生命周期可以沿既有规则登记资源和写 State，其产生的其他失效留到下一逻辑更新轮，不递归 flush；build／render 和父子 measure 仍禁止 State 写入。每项使用普通挂载子树保存依赖、Props 与资源，滚动复用已实现项时不重跑其 build。真实 source 替换在逻辑更新阶段通过 indexOfKey 更新已实现项、退休删除项，再更新存活项；即使没有 drawable 也完成删除和输入取消。source.build 返回描述的 shape／key 改变时按普通子树规则替换。
 
-本批离开本次选择范围且无活动交互的条目立即正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由或文本输入会话所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
+缺省 Dispose 下，离开本次选择范围且无活动交互的条目正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由、文本输入会话或输入边界所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
 
-框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；有限实例保留、虚拟焦点显露与绘制缓存按后续批次扩展。
+框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。可变 extent 与按 key 定位由控件库通过本协议和 ScrollAdjustment 实现；虚拟焦点显露与绘制缓存按后续批次扩展。
+
+ItemRetention 另提供 KeepAlive(maxOffscreenItems: Long)，上限非负，零等同 Dispose；它只计算未选中且无活动交互的离屏条目。超出时淘汰最久未测量的条目，同一帧内的先后不作承诺。保留同 key 的普通挂载子树，不跨 key 复用实例；形状变化仍替换实际子内容。策略收紧、数据删除及 Props／State 更新在正常逻辑阶段处理，即使没有 drawable 也不延期清理。
+
+缓存条目继续 mounted、订阅和执行逻辑更新，本帧未选择时不测量或呈现场景。框架对 lazy 容器明确未放置的子树关闭继承的帧资格，不按布局 bounds 推测阴影、文字 overhang 或 Portal 的可见性。局部 State 更新和 scope.requestFrame 不单独唤醒绘制；影响已参与节点的更新仍请求帧。每帧沿 Surface 时间轴采样当前动画，条目测量完成后按实际放置结果恢复资格；只测量而未放置不会短暂重新启用帧。嵌套 lazy 子树保留自身未参与状态。每个作用域通过 Surface AnimationGroup 管理这个开关，保留单个动画的显式 isFrameEnabled 设置；有限离屏动画仍能完成，无限重复不产生离屏周期唤醒。输入边界变化等窗口级交互工作继续使用其必要的全局请求。
 
 待聚焦请求完成、取消或被新请求替换时，即使没有产生实际的 Surface 焦点变化，也撤销其固定需求并请求必要的后续帧；不可见目标的失败请求不能使离屏条目一直留在实现集合中。根关闭时直接清理，不再请求帧。
 
@@ -520,6 +524,8 @@ measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再
 首轮逻辑提交建立节点和订阅后，按父先子后的顺序调用 onMount，后续 render 不再调用。Element 的首次 update 在其 onMount 成功后执行；全轮挂载完成才可能进入测量／绘制，因此元素的资源在首帧可用。onMount 或 update 中的 State 写入排到下一轮，不递归重建。外部订阅和初始资源在此建立；不提供每次 render 自动重跑的 effect API。
 
 卸载先把整棵子树标为不活动并解除依赖／排队工作，然后按子先父后的顺序处理各节点：退休登记输入和动画，调用已成功完成 onMount 的实例的 onUnmount，最后逆登记顺序执行 ComponentScope 清理及元素资源关闭。onUnmount 执行时 scope 已不再允许新增资源或请求帧；除已退休的输入外，其余待清理资源在各自释放前仍属于该实例。没有自定义 onMount 的实例同样完成默认挂载并获得 onUnmount。
+
+原生窗口或 Surface 先进入 Closing 时，仍会向尚未卸载的控件交付失焦／取消通知。UI 在这些通知中继续允许正常的控件状态收尾，但不把新的帧需求送给已经停止呈现的 Surface；根随后按同一关闭路径退休。已经卸载的 ComponentScope 仍拒绝 requestFrame，不改变 SurfaceWindow 自身的关闭后调用规则。
 
 构造器或首轮 render 失败的实例没有完成挂载，不调用 onUnmount；已经建立的节点资源仍须释放。onMount 自身失败时，其 scope 中已登记的资源同样全部清理，不要求失败的回调再自行释放它们。Element 的 update、measure 或 paint 失败时，已完成挂载的实例按通常卸载规则收尾。所有清理分支继续处理剩余资源，错误合并遵守现有 ResourceUseException。
 

@@ -58,8 +58,8 @@ public class ScrollViewport internal constructor(
             throw IllegalStateException(Some("scroll viewport is no longer mounted"))
     }
     internal fun requestFrame() {
-        if (active)
-            node.root.surface.requestFrame()
+        if (active && node.frameEnabled)
+            node.root.requestFrame()
     }
     public fun layout(
         viewport: Size,

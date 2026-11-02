@@ -216,6 +216,8 @@ Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, 
 
 VirtualListProps／virtualList 接受 ItemSource、ItemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。另可提供 VirtualListHandle 与 VirtualListAnchor（KeepVisible／FollowEnd，默认 KeepVisible）。单主轴列表的两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。
 
+retention 使用 UI 的 ItemRetention，缺省 Dispose，KeepAlive(maxOffscreenItems) 保留有限的离屏原实例；可见／overscan 选择与活动交互项不计入上限。它直接传给 lazyElement，不在控件中维护另一份挂载或回收池。绘制缓存独立，保留实例并不自动缓存像素。
+
 ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，沿主轴和交叉轴使用 tight 约束。ItemExtent.Variable(estimate) 同样要求有限正估计值，沿主轴使用无界约束，交叉轴 tight；实际主轴尺寸可为零，每步仍推进索引。以稀疏的已测量尺寸和前缀和索引定位范围，不为首屏遍历全部 source 或分配 count 个槽。总长与坐标必须有限；尚未测量的尺寸是估计，因此 ScrollState.content／maximum 会随新测量变化。
 
 列表根据 offset／viewport／overscan 准备覆盖范围，每项每帧至多测量一次；视口主轴长度为零时不因 overscan 新建项。extent 配置、方向或交叉轴约束改变会清除旧尺寸索引；source 替换按已知稳定 key 重定位既有尺寸，作为新输入的初始估计，实际进入范围时重新测量。条目自身 State 或主题改变时，本帧所需项沿正常布局重新测量；未实现项没有 View 构建、Component、InputArea 或挂载资源。

@@ -54,7 +54,7 @@ public fun <P, E: Element> element(
 
 internal enum ViewBody {
     Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>),
-    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource)
+    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource, Long)
 }
 
 internal enum ViewShape {
@@ -68,18 +68,21 @@ internal val View.shape: ViewShape get() =
         case Component(value) -> value.shape
         case Element(value, _) -> value.shape
         case Portal(_, options) -> ViewShape.Portal(options.isModal)
-        case Lazy(value, _) -> value.shape
+        case Lazy(value, _, _) -> value.shape
     }
 
 public fun <E: LazyElement> lazyElement(
     source: ItemSource,
     create: () -> E,
+    retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position
-): View = lazyElement(source, Unit, { _ -> create() }, key)
+): View = lazyElement(source, Unit, { _ -> create() }, retention, key)
 
 public fun <P, E: LazyElement> lazyElement(
     source: ItemSource,
     props: P,
     create: (Props<P>) -> E,
+    retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position
-): View = View(key, ViewBody.Lazy(LazyDescription(props, create), source))
+): View =
+    View(key, ViewBody.Lazy(LazyDescription(props, create), source, retentionLimit(retention)))

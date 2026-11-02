@@ -19,7 +19,8 @@ public class VirtualListProps public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val theme: ThemeSource? = None,
     public val handle: VirtualListHandle? = None,
-    public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible
+    public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
+    public val retention: ItemRetention = ItemRetention.Dispose
 )
 
 /** Creates item subtrees only for the viewport, overscan and existing input sessions. */
@@ -51,7 +52,8 @@ public class VirtualList public constructor(private val props: Props<VirtualList
         return lazyElement(
             input.source,
             VirtualListInkProps(input, controls),
-            { value -> VirtualListInk(value) }
+            { value -> VirtualListInk(value) },
+            retention = input.retention
         )
     }
 }
@@ -73,6 +75,7 @@ public fun virtualList(
     theme: ThemeSource? = None,
     handle: VirtualListHandle? = None,
     anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
+    retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position
 ): View =
     component(
@@ -92,7 +95,8 @@ public fun virtualList(
             focus,
             theme,
             handle,
-            anchor
+            anchor,
+            retention
         ),
         { props -> VirtualList(props) },
         key

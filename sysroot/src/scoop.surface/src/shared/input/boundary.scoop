@@ -64,8 +64,8 @@ internal fun InputRouter.removeBoundary(value: InputBoundary) {
             if (!sameBoundary(previous, currentBoundary)) {
                 boundaryRevision += 1uL
                 pendingBoundaryChange = true
-                changed()
             }
+            changed()
             return
         }
     }

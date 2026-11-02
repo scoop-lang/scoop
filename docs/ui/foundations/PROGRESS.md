@@ -23,7 +23,7 @@
 | D2b：可变 extent、阅读锚点与按 key 定位 | 已完成 aarch64 实施和定向验证 |
 | D2c1：窗口所属的一次性定时回调 | 已完成 aarch64 实施和定向验证 |
 | D2c2：动画帧需求与离屏完成 | 已完成 aarch64 实施和定向验证 |
-| D2c3：有限实例保留与子树帧需求 | 待实施 |
+| D2c3：有限实例保留与子树帧需求 | 已完成 aarch64 实施和定向验证 |
 | D2d：虚拟焦点导航与滚动显露 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -201,3 +201,13 @@ Animatable.isFrameEnabled 将是否要求帧与运行／暂停状态分开；关
 Scoop 格式检查、Surface 生产类型检查及 aarch64 release 构建通过。12 项定向 scoop.test 通过：动画 10 项、新增原生动画期限 1 项、既有 SurfaceHostTest 1 项。覆盖隐藏／恢复、有限和无限重复、spring、重排、暂停、零时长队列、非法期限与 owner 线程。真实窗口观察 display link 的 required／paused、回调和 present 计数，验证静止期间没有新增帧通知；还覆盖完成回调中关闭和既有多窗口／resize／输入宿主收尾。
 
 合并 main 后同步构建独立开发命令、运行时及 UI 依赖，不修改 main 带入的编译器代码。没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，当前测试产物、配套 sysroot、命令及共享构建缓存保留。
+
+## D2c3：有限实例保留与子树帧需求
+
+lazyElement 与 VirtualList 接受 ItemRetention，缺省 Dispose；KeepAlive 额外保留有限个最近使用的离屏实例，容量为零与 Dispose 相同，可见／overscan 和活动交互项不占容量。缓存项继续处理 Props、State 和资源生命周期，数据删除、shape 改变和容量收紧在隐藏窗口中也会清理。Surface InputActivity 包含仍登记的模态边界，从弹层创建到屏障解除持续固定其所属条目，不依赖首次自动聚焦。
+
+ComponentScope 通过 Surface AnimationGroup 管理子树的帧资格，保留各动画自己的 isFrameEnabled 设置。有限动画离屏按时完成，无限动画与缓存中的局部状态更新不维持 display link；恢复外层条目不会唤醒内层仍未放置的项。帧资格在测量结束后按实际放置结果切换，只测量而不放置也不会反复唤醒。窗口先进入 Closing 时，UI 根让失焦／取消通知完成控件状态清理，并停止向已关闭呈现入口请求新帧。
+
+Scoop 格式检查、Surface／UI／Component 生产类型检查、新增组合测试的测试源码类型检查和相关库 aarch64 release 构建通过。81 项定向 scoop.test 通过：Surface 动画 12 项、输入 61 项、UI source 规则 2 项，以及 UI lazy／errors／scroll、固定／可变 VirtualList、KeepAlive 原生组合各 1 项。原生组合覆盖一亿项 source 的有限构建、实例与资源复用／淘汰、隐藏清理、局部状态与 shape 更新、嵌套缓存、只测量未放置、真实 display link／present 计数、有限完成回调、弹层保留及带焦点关闭。验证中修正了测试绘图借用与异常诊断的用法，并闭合帧资格切换和关闭通知中的帧请求问题，最终全部通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与被本批替代的旧测试产物清理，当前测试入口、独立 sysroot、命令和共享构建缓存保留。

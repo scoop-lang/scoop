@@ -11,6 +11,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     private val cleanup = ArrayList<() -> Unit>()
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
+    private var animationGroup: AnimationGroup? = None
 
     public val input: InputScope get() {
         checkMounted()
@@ -81,7 +82,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     public fun requestFrame() {
         checkMounted()
-        root.surface.requestFrame()
+        if (node.frameEnabled)
+            root.requestFrame()
     }
     public fun createArea(
         focusable: Boolean = false,
@@ -145,7 +147,7 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     public fun scrollViewport(state: ScrollState): ScrollViewport {
         checkMounted()
         state.checkBinding()
-        val value = ScrollViewport(node, state, root.surface.animations.value(Point(0.0, 0.0)))
+        val value = ScrollViewport(node, state, animations().value(Point(0.0, 0.0)))
         managed.add(value)
         return value
     }
@@ -159,9 +161,24 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         animation(initial, AnimationConverters.ColorValue)
     public fun <T> animation(initial: T, converter: AnimationConverter<T>): Animatable<T> {
         checkMounted()
-        val value = root.surface.animations.value(initial, converter)
+        return animations().value(initial, converter)
+    }
+    private fun animations(): AnimationGroup {
+        when (animationGroup) {
+            case Some(value) -> return value
+            case None -> {}
+        }
+        val value = root.surface.animations.group(node.frameEnabled)
+        animationGroup = Some(value)
         managed.add(value)
         return value
+    }
+    internal fun updateFrameParticipation() {
+        when (animationGroup) {
+            case Some(value) -> if (!value.isClosed)
+                value.isFrameEnabled = node.frameEnabled
+            case None -> {}
+        }
     }
     internal fun deactivate() {
         active = false

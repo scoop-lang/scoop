@@ -3,6 +3,7 @@ package scoop.ui
 import scoop.collections.HashMap
 import scoop.collections.HashSet
 import scoop.collections.sortedBy
+import scoop.time.TimeMark
 
 private class LazyItemInput(val source: ItemSource, val index: Long)
 
@@ -11,12 +12,18 @@ private class LazyItem(private val props: Props<LazyItemInput>): Component {
     public override fun render(): View = props.value.source.build(props.value.index)
 }
 
-internal class LazyItemEntry(val key: ViewKey, var index: Long, val node: MountedNode) {
+internal class LazyItemEntry(
+    val key: ViewKey,
+    var index: Long,
+    val node: MountedNode,
+    var lastUsed: TimeMark
+) {
+    var selected = true
     val pinned: Boolean get() =
         node.active && (node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
 }
 
-internal class LazyChildren(initial: ItemSource) {
+internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private var source = initial
     private var total = itemCount(initial)
     private var entries: Array<LazyItemEntry> = []
@@ -31,9 +38,12 @@ internal class LazyChildren(initial: ItemSource) {
             }
         }
     }
-    fun replace(node: MountedNode, next: ItemSource, turn: UpdateTurn) {
-        if (source === next)
+    fun replace(node: MountedNode, next: ItemSource, nextCapacity: Long, turn: UpdateTurn) {
+        capacity = nextCapacity
+        if (source === next) {
+            trim(node)
             return
+        }
         val nextCount = itemCount(next)
         val positions = HashSet<Long>()
         val keep = ArrayList<LazyItemEntry>()
@@ -60,6 +70,7 @@ internal class LazyChildren(initial: ItemSource) {
         retain(node, keep.toArray())
         source = next
         total = nextCount
+        trim(node)
         if (!node.root.isOpen)
             return
         for (entry in entries) {
@@ -67,17 +78,18 @@ internal class LazyChildren(initial: ItemSource) {
             entry.node.rebuild(turn)
         }
     }
-    fun prepare(node: MountedNode, index: Long): LazyItemEntry {
+    fun prepare(node: MountedNode, index: Long, time: TimeMark): LazyItemEntry {
         val key = checkedItemKey(source, total, index)
         when (keyed[key]) {
             case Some(entry) -> {
                 requireUi(entry.index == index, "duplicate item ViewKey")
+                entry.lastUsed = time
                 return entry
             }
             case None -> {}
         }
         val child = createNode(node.root, Some(node), description(index, key))
-        val entry = LazyItemEntry(key, index, child)
+        val entry = LazyItemEntry(key, index, child, time)
         val previous = entries
         entries =
             Array<LazyItemEntry>(previous.size + 1L) {
@@ -103,20 +115,48 @@ internal class LazyChildren(initial: ItemSource) {
         return result.toArray()
     }
     fun finish(node: MountedNode, measured: HashMap<Long, LazyItemMeasure>) {
-        val keep = ArrayList<LazyItemEntry>()
         for (entry in entries) {
             val selection = measured[entry.index]
-            if (entry.pinned && !(selection?.placed ?: false))
+            val placed = selection?.placed ?: false
+            if (entry.pinned && !placed)
                 throw IllegalStateException(Some("an interaction item must be measured and placed"))
-            when (selection) {
-                case Some(_) -> keep.add(entry)
-                case None -> {}
-            }
+            entry.selected =
+                when (selection) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+            entry.node.setFrameParticipation(placed)
         }
-        prepareUi<Unit> { retain(node, keep.toArray()) }
+        prepareUi<Unit> { trim(node) }
         if (!node.root.isOpen)
             throw UiLayoutEnded()
-        node.placements = Array(entries.size) { index -> measured[entries[index].index]!!.origin }
+        node.placements =
+            Array(entries.size) {
+                index -> when (measured[entries[index].index]) {
+                    case Some(selection) -> selection.origin
+                    case None -> None
+                }
+            }
+    }
+    private fun trim(node: MountedNode) {
+        val keep = ArrayList<LazyItemEntry>()
+        val idle = ArrayList<LazyItemEntry>()
+        for (entry in entries) {
+            if (entry.selected || entry.pinned)
+                keep.add(entry)
+            else
+                idle.add(entry)
+        }
+        if (idle.size <= capacity) {
+            for (entry in idle)
+                keep.add(entry)
+        } else
+            if (capacity > 0L) {
+                val ordered = idle.sortedBy<LazyItemEntry, TimeMark> { entry -> entry.lastUsed }
+                for (index in ordered.size - capacity ..< ordered.size)
+                    keep.add(ordered[index])
+            }
+        retain(node, keep.toArray())
     }
     private fun description(index: Long, key: ViewKey): View =
         component(LazyItemInput(source, index), { props -> LazyItem(props) }, key)

@@ -78,11 +78,13 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 ## 5. 实例保留策略
 
-首批提供 `Dispose` 与 `KeepAlive(maxOffscreenItems)`。后者保留同 key、同 shape 的实例，优先淘汰最久未使用的非活动离屏项；上限不包含本次必须实现的 viewport／overscan。不能把 key A 的 Component 改装成 key B 来节约构造，不依赖控件自己清空旧状态。
+公开接口为 `ItemRetention.Dispose` 与 `KeepAlive(maxOffscreenItems)`，由 lazyElement 和 VirtualList 的 retention 参数接收。后者保留同 key、同 shape 的实例，按最近一次测量的时间优先淘汰最久未使用的非活动离屏项；同帧使用次序不承诺。容量须非负，零与 Dispose 相同；上限不包含本次必须实现的 viewport／overscan。不能把 key A 的 Component 改装成 key B 来节约构造，不依赖控件自己清空旧状态。
 
 保留项继续 mounted：Props／State／订阅和已登记资源存在，正常逻辑更新继续执行；本帧不测量／装配／绘制，不保留屏幕命中区域。这里沿用既有未放置子树语义，不新增“暂停订阅”的隐藏生命周期。资源较重或持续接收数据的项可以选择 Dispose，将需持久保存的业务状态放入列表外模型。
 
-当前键盘焦点、尚未结束的指针序列或 IME 组合所依附的项临时固定在实现集合中，避免在交互中途卸载。普通聚焦项可以被 viewport 裁掉像素，但继续有有效路由／焦点会话；焦点保持资格与新 Tab 目标资格分开。键盘导航／编辑会请求 reveal。
+未选中的缓存项显式关闭子树帧资格，内层缓存项还保留自己的资格状态；仅测量而未放置的项也不会短暂恢复帧需求。ComponentScope 的动画和 ScrollViewport 复用 Surface AnimationGroup，把子树资格与每个动画自己的 isFrameEnabled 合并，避免恢复时覆盖本地选择；有限动画使用窗口一次性期限完成，无限重复不安排离屏周期唤醒。缓存中的 State 更新和 requestFrame 不自行请求绘制，新输入边界等改变窗口交互的操作仍要求必要帧。
+
+当前键盘焦点、待聚焦请求、尚未结束的指针序列、IME 会话或仍登记的模态输入边界所依附的项临时固定在实现集合中，避免在交互中途卸载。输入边界从登记起就固定所属项，不等待首次自动聚焦；非当前边界和等待移除帧的屏障也计入。普通聚焦项可以被 viewport 裁掉像素，但继续有有效路由／焦点会话；焦点保持资格与新 Tab 目标资格分开。键盘导航／编辑会请求 reveal。
 
 活动 composition 额外保护 caret 可见性：相关滚动容器将该 caret 纳入 reveal 约束，不接受会将它完全滚出视口的偏移，直到组合结束。这避免依赖平台未提供的“保持组合但强制隐藏候选窗”能力。应用显式隐藏编辑器、删除数据或关闭窗口时，仍按正常 IME 取消流程结束组合，然后解除保护；不为保留一行而阻止真实删除。
 

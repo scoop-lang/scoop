@@ -12,9 +12,9 @@ internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): Mounted
             case Component(description) -> NodeBody.Component(description.create())
             case Element(description, _) -> NodeBody.Element(description.create())
             case Portal(_, options) -> NodeBody.Portal(PortalInstance(root, options))
-            case Lazy(description, source) -> NodeBody.Lazy(
+            case Lazy(description, source, capacity) -> NodeBody.Lazy(
                 description.create(),
-                LazyChildren(source)
+                LazyChildren(source, capacity)
             )
         }
     when (instanceIdentity(body)) {

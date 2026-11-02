@@ -5,24 +5,39 @@ public struct InputActivity(
     val hasFocus: Boolean = false,
     val hasPress: Boolean = false,
     val hasScrollRoute: Boolean = false,
-    val hasTextInput: Boolean = false
+    val hasTextInput: Boolean = false,
+    val hasBoundary: Boolean = false
 ) {
-    public val isEmpty: Boolean get() = !hasFocus && !hasPress && !hasScrollRoute && !hasTextInput
+    public val isEmpty: Boolean get() =
+        !hasFocus && !hasPress && !hasScrollRoute && !hasTextInput && !hasBoundary
 }
 
 internal class InputActivitySnapshot(
     val focus: InputScope? = None,
     val press: InputScope? = None,
     val scroll: InputScope? = None,
-    val text: InputScope? = None
+    val text: InputScope? = None,
+    val boundaries: Array<InputBoundary> = []
 ) {
     val value: InputActivity get() =
-        InputActivity(present(focus), present(press), present(scroll), present(text))
-    fun same(other: InputActivitySnapshot): Boolean =
-        sameScope(focus, other.focus) &&
+        InputActivity(
+            present(focus),
+            present(press),
+            present(scroll),
+            present(text),
+            boundaries.size > 0L
+        )
+    fun same(other: InputActivitySnapshot): Boolean {
+        if (boundaries.size != other.boundaries.size)
+            return false
+        for (index in 0L ..< boundaries.size)
+            if (boundaries[index] !== other.boundaries[index])
+                return false
+        return sameScope(focus, other.focus) &&
             sameScope(press, other.press) &&
             sameScope(scroll, other.scroll) &&
             sameScope(text, other.text)
+    }
 }
 
 private fun present(scope: InputScope?): Boolean =
@@ -69,11 +84,16 @@ internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
             case On(area) -> Some(area.scope)
             case Closing(area) -> Some(area.scope)
         }
+    val ownedBoundaries = ArrayList<InputBoundary>()
+    for (boundary in boundaries)
+        if (present(insideActivity(Some(boundary.input), scope)))
+            ownedBoundaries.add(boundary)
     return InputActivitySnapshot(
         insideActivity(logicalFocus?.scope, scope),
         insideActivity(firstActivity(pressed), scope),
         insideActivity(scroll, scope),
-        insideActivity(text, scope)
+        insideActivity(text, scope),
+        ownedBoundaries.toArray()
     )
 }
 

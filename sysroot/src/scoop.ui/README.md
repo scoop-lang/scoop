@@ -7,7 +7,7 @@
 ## 组合与状态
 
 - `component(create, key)`／`component(props, create, key)` 在挂载时创建组件；`element` 以相同方式创建自绘元素，并接收显式 children。
-- `lazyElement(source, create, key)` 及带 props 的重载创建按需容器，由 LazyElement 选择实际准备、测量和放置的条目。
+- `lazyElement(source, create, retention, key)` 及带 props 的重载创建按需容器，由 LazyElement 选择实际准备、测量和放置的条目；retention 缺省为 ItemRetention.Dispose。
 - `state(initial)` 支持成员属性委托，也可以由普通业务 Store 持有并供多个组件共享。render 中读取的 State 建立依赖；写入通知在 owner 上合并，条件读取改变时替换订阅。
 - `Props<P>.value` 提供最新父级输入；`State.binding()` 或 `binding(get, set)` 读写原状态，不创建另一份值。
 - key 在直接父级内生效，节点类别及组件和 Props 的完整类型参与匹配。新挂载必须返回新的 class 实例；普通更新保留实例与本地状态。
@@ -55,7 +55,11 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 
 LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMeasureContext。容器用 `measureItem(index, constraints)` 按需取得子项，再用 `placeItem(index, origin)` 放置；一个索引本轮只测量一次。框架在这两个步骤之间管理 build、挂载和 update，生命周期可以正常写 State，外层 measure 和子项 render 仍保持纯度。子项在 scene.children() 中按 source 索引顺序呈现。
 
-本批离开选择范围的项正常卸载。`context.pinnedItems` 给出焦点、待聚焦请求、按钮／滚动路由及文本会话所属的已实现项，容器也须测量、放置这些项，再以统一 clip 控制可见性；交互结束及待聚焦请求结束后触发必要布局以恢复淘汰。每个列表为同一滚动候选至多额外保留一项，不产生持续帧。实际 VirtualList 由独立控件库实现；协议、隐藏删除、重排、失败清理和挂载中关闭分别由 `tests-cones/lazy`、`tests-cones/errors` 覆盖。
+`ItemRetention.Dispose` 让离开选择范围的项正常卸载；`KeepAlive(maxOffscreenItems)` 额外保留有限个最近使用的离屏实例，容量为零与 Dispose 相同。缓存项继续处理 Props／State 并持有资源，本帧不测量或呈现场景；再次进入复用同 key、同 shape 的实例，真实删除或 shape 改变仍正常退休。容量不包含本轮选择和活动交互固定的项。
+
+`context.pinnedItems` 给出焦点、待聚焦请求、按钮／滚动路由、文本会话及模态输入边界所属的已实现项，容器也须测量、放置这些项，再以统一 clip 控制可见性；交互结束及待聚焦请求结束后触发必要布局以恢复淘汰。每个列表为同一滚动候选至多额外保留一项，不产生持续帧。实际 VirtualList 由独立控件库实现；协议、隐藏删除、重排、失败清理和挂载中关闭分别由 `tests-cones/lazy`、`tests-cones/errors` 覆盖。
+
+未选中的缓存子树关闭帧需求，逻辑更新照常执行。`scope.animation` 和视口动画通过同一 Surface AnimationGroup 管理；有限动画可离屏完成，无限动画不会周期唤醒窗口。恢复只重新启用子树的帧资格，保留动画自身的 isFrameEnabled 选择，也不会唤醒嵌套列表中仍未选中的缓存项。`scope.requestFrame()` 在该子树内同样不要求绘制。
 
 ## 公共文本适配
 
