@@ -141,7 +141,8 @@ impl Lowerer {
             | Type::Any
             | Type::Function(_)
             | Type::Ptr(_)
-            | Type::FunPtr(_) => {}
+            | Type::FunPtr(_)
+            | Type::GcLeafFunPtr(_) => {}
         }
     }
 }

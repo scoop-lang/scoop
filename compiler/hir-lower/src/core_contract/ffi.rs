@@ -4,13 +4,17 @@ impl Lowerer {
     pub(crate) fn validate_ffi_core(&mut self, files: &[ast::Span]) -> Option<hir::FfiCore> {
         let ptr = self.ffi_ptr;
         let fun_ptr = self.ffi_fun_ptr;
+        let gc_leaf_fun_ptr = self.ffi_gc_leaf_fun_ptr;
         let pinned_ptr = self.ffi_pinned_ptr;
         let gc_handle = self.ffi_gc_handle;
         if let Some(id) = ptr {
             self.validate_ptr_struct(id);
         }
         if let Some(id) = fun_ptr {
-            self.validate_fun_ptr_struct(id);
+            self.validate_fun_ptr_struct(id, "FunPtr");
+        }
+        if let Some(id) = gc_leaf_fun_ptr {
+            self.validate_fun_ptr_struct(id, "GCLeafFunPtr");
         }
         if let Some(id) = pinned_ptr {
             self.validate_ffi_handle_struct(id, "PinnedPtr");
@@ -110,6 +114,7 @@ impl Lowerer {
         Some(hir::FfiCore {
             ptr: ptr?,
             fun_ptr: fun_ptr?,
+            gc_leaf_fun_ptr: gc_leaf_fun_ptr?,
             pinned_ptr: pinned_ptr?,
             gc_handle: gc_handle?,
             ptr_to_ulong: ptr_to_ulong?,

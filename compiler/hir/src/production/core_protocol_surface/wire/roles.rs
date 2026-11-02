@@ -27,6 +27,7 @@ impl CoreFundamentalTypeProtocolV1 {
             CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::Type(self.double)),
             CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::Type(self.any)),
             CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::Type(self.nothing)),
+            CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::GenericType(self.gc_leaf_fun_ptr)),
         ]
     }
 }
@@ -57,6 +58,7 @@ impl DecodedCoreFundamentalTypeProtocolV1 {
             double,
             any,
             nothing,
+            gc_leaf_fun_ptr,
         ] = self.0.entries;
         Ok(CoreFundamentalTypeProtocolV1 {
             unit: read_concrete_nominal(unit, 0, foundation)?,
@@ -79,6 +81,7 @@ impl DecodedCoreFundamentalTypeProtocolV1 {
             double: read_concrete_nominal(double, 17, foundation)?,
             any: read_concrete_nominal(any, 18, foundation)?,
             nothing: read_concrete_nominal(nothing, 19, foundation)?,
+            gc_leaf_fun_ptr: read_generic_nominal(gc_leaf_fun_ptr, 20, foundation)?,
         })
     }
 }

@@ -221,7 +221,8 @@ impl RelationReducer<'_> {
                     })
             }
             (Type::Function(left_id), Type::Function(right_id))
-            | (Type::FunPtr(left_id), Type::FunPtr(right_id)) => {
+            | (Type::FunPtr(left_id), Type::FunPtr(right_id))
+            | (Type::GcLeafFunPtr(left_id), Type::GcLeafFunPtr(right_id)) => {
                 let left_signature = self.lowerer.function_types[left_id].clone();
                 let right_signature = self.lowerer.function_types[right_id].clone();
                 if left_signature.is_suspend != right_signature.is_suspend
@@ -380,7 +381,8 @@ impl RelationReducer<'_> {
                     origin,
                 )
             }
-            (Type::FunPtr(left_id), Type::FunPtr(right_id)) => {
+            (Type::FunPtr(left_id), Type::FunPtr(right_id))
+            | (Type::GcLeafFunPtr(left_id), Type::GcLeafFunPtr(right_id)) => {
                 let left_signature = self.lowerer.function_types[left_id].clone();
                 let right_signature = self.lowerer.function_types[right_id].clone();
                 if left_signature.is_suspend != right_signature.is_suspend
@@ -599,7 +601,7 @@ pub(crate) fn type_contains_session_parameter(
             .clone(),
         Type::Enum(application) => lowerer.enum_applications[*application].arguments.clone(),
         Type::Tuple(elements) => elements.clone(),
-        Type::Function(signature) | Type::FunPtr(signature) => {
+        Type::Function(signature) | Type::FunPtr(signature) | Type::GcLeafFunPtr(signature) => {
             let signature = &lowerer.function_types[*signature];
             let mut children = signature.parameters().copied().collect::<Vec<_>>();
             children.push(signature.return_type);

@@ -48,6 +48,7 @@ impl Projection<'_> {
             T::Any => self.intrinsic(hir::IntrinsicTypeKind::Any),
             T::Ptr(_) => self.intrinsic(hir::IntrinsicTypeKind::Ptr),
             T::FunPtr(_) => self.intrinsic(hir::IntrinsicTypeKind::FunPtr),
+            T::GcLeafFunPtr(_) => self.intrinsic(hir::IntrinsicTypeKind::GcLeafFunPtr),
             T::Param(parameter) => {
                 return self.declarations.keys().find(|target| {
                     matches!(target, Target::TypeParameter { parameter: candidate, .. } if candidate == parameter)
@@ -79,6 +80,7 @@ impl Projection<'_> {
                     K::MutableArray => N::GenericTemplate(core.mutable_array().persistent()),
                     K::Ptr => N::GenericTemplate(core.ptr().persistent()),
                     K::FunPtr => N::GenericTemplate(core.fun_ptr().persistent()),
+                    K::GcLeafFunPtr => N::GenericTemplate(core.gc_leaf_fun_ptr().persistent()),
                     K::Any => N::Concrete(core.any().persistent()),
                     K::Nothing => N::Concrete(core.nothing().persistent()),
                     K::Atomic(_) | K::MaybeUninit | K::Throwable => return None,
@@ -99,6 +101,7 @@ impl Projection<'_> {
                     K::MutableArray => N::Class(core.mutable_array),
                     K::Ptr => N::Struct(core.ptr),
                     K::FunPtr => N::Struct(core.fun_ptr),
+                    K::GcLeafFunPtr => N::Struct(core.gc_leaf_fun_ptr),
                     K::Any => N::Class(core.any),
                     K::Nothing => N::Class(core.nothing),
                     K::Atomic(_) | K::MaybeUninit | K::Throwable => return None,

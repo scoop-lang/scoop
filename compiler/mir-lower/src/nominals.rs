@@ -219,7 +219,8 @@ impl Lowerer {
                         | hir::IntrinsicTypeRepresentation::Char
                         | hir::IntrinsicTypeRepresentation::Boolean
                         | hir::IntrinsicTypeRepresentation::Ptr { .. }
-                        | hir::IntrinsicTypeRepresentation::FunPtr { .. } => {
+                        | hir::IntrinsicTypeRepresentation::FunPtr { .. }
+                        | hir::IntrinsicTypeRepresentation::GcLeafFunPtr { .. } => {
                             unreachable!("the registry fixes intrinsic declaration targets")
                         }
                     })

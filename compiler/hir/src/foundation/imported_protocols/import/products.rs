@@ -58,6 +58,14 @@ impl ImportedCoreFundamentalTypeProtocol {
             fun_ptr: foundation
                 .generic_nominal(protocol.fun_ptr)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::GenericType, protocol.fun_ptr))?,
+            gc_leaf_fun_ptr: foundation
+                .generic_nominal(protocol.gc_leaf_fun_ptr)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::GenericType,
+                        protocol.gc_leaf_fun_ptr,
+                    )
+                })?,
             character: foundation
                 .source_nominal(protocol.character)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::Type, protocol.character))?,
@@ -305,6 +313,14 @@ impl ImportedCoreFfiProtocol {
             fun_ptr: foundation
                 .generic_nominal(protocol.fun_ptr)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::GenericType, protocol.fun_ptr))?,
+            gc_leaf_fun_ptr: foundation
+                .generic_nominal(protocol.gc_leaf_fun_ptr)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::GenericType,
+                        protocol.gc_leaf_fun_ptr,
+                    )
+                })?,
             pinned_ptr: foundation
                 .generic_nominal(protocol.pinned_ptr)
                 .ok_or_else(|| {

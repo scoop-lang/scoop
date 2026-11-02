@@ -339,7 +339,10 @@ impl Lowerer {
                     )
                 } else if matches!(
                     &entry.payload,
-                    mir::Type::Tuple(_) | mir::Type::Ptr(_) | mir::Type::FunPtr(_)
+                    mir::Type::Tuple(_)
+                        | mir::Type::Ptr(_)
+                        | mir::Type::FunPtr(_)
+                        | mir::Type::GcLeafFunPtr(_)
                 ) {
                     mir::BoxedType::for_structural(entry.payload, entry.class, exact)
                 } else {

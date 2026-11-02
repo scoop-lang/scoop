@@ -52,6 +52,7 @@ impl BoxedValueIdentity {
             ExactTypeKey::Tuple(_)
                 | ExactTypeKey::RawPointer(_)
                 | ExactTypeKey::NativeFunctionPointer { .. }
+                | ExactTypeKey::GcLeafNativeFunctionPointer { .. }
         ) {
             return Err(BoxedValueIdentityError::ExpectedStructuralValue);
         }

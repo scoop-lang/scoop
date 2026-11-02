@@ -209,6 +209,22 @@ pub(super) fn dump_metadata(module: &Module, out: &mut String) {
                     layout.name, layout.size, layout.align, params, result
                 ));
             }
+            LayoutKind::Intrinsic(IntrinsicTypeRepresentation::GcLeafFunPtr { signature }) => {
+                let params = signature
+                    .params
+                    .iter()
+                    .map(LirType::dump)
+                    .collect::<Vec<_>>()
+                    .join(",");
+                let result = match &signature.return_type {
+                    LirReturnType::Void => "void".to_string(),
+                    LirReturnType::Value(ty) => ty.dump(),
+                };
+                out.push_str(&format!(
+                    "  layout {} size={} align={} intrinsic=gc-leaf-funptr<({})->{}> refs=[]\n",
+                    layout.name, layout.size, layout.align, params, result
+                ));
+            }
             LayoutKind::Intrinsic(IntrinsicTypeRepresentation::MaybeUninit { value, scan }) => {
                 out.push_str(&format!(
                     "  layout {} size={} align={} intrinsic=maybe-uninit<{}> scan={}\n",

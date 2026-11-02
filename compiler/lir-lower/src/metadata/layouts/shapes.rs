@@ -70,7 +70,8 @@ pub(crate) fn intrinsic_struct_shape(
         mir::IntrinsicStructRepresentation::Ptr { .. } => {
             context.pointer_layout(lir::PointerKind::Raw)
         }
-        mir::IntrinsicStructRepresentation::FunPtr { .. } => {
+        mir::IntrinsicStructRepresentation::FunPtr { .. }
+        | mir::IntrinsicStructRepresentation::GcLeafFunPtr { .. } => {
             context.pointer_layout(lir::PointerKind::Code)
         }
     };
@@ -151,7 +152,7 @@ pub(crate) fn size_align(
             let layout = context.pointer_layout(lir::PointerKind::Raw);
             (layout.size, layout.align)
         }
-        mir::Type::FunPtr(_) => {
+        mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
             let layout = context.pointer_layout(lir::PointerKind::Code);
             (layout.size, layout.align)
         }

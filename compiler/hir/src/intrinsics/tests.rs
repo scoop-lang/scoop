@@ -106,6 +106,22 @@ fn pointer_intrinsic_families_are_registered_with_distinct_contracts() {
         function_pointer.kind.parameters(),
         IntrinsicTypeParameters::OneInvariantUnconstrained
     );
+
+    let gc_leaf_function_pointer =
+        intrinsic_type_spec("core_gc_leaf_fun_ptr").expect("GCLeafFunPtr family is registered");
+    assert_eq!(
+        gc_leaf_function_pointer.kind,
+        IntrinsicTypeKind::GcLeafFunPtr
+    );
+    assert_eq!(
+        gc_leaf_function_pointer.kind.target(),
+        IntrinsicTypeTarget::Struct
+    );
+    assert_eq!(
+        gc_leaf_function_pointer.kind.parameters(),
+        IntrinsicTypeParameters::OneInvariantUnconstrained
+    );
+    assert_ne!(function_pointer.kind, gc_leaf_function_pointer.kind);
 }
 
 #[test]

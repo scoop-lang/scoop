@@ -19,11 +19,18 @@ fn type_json_preserves_structural_types_receiver_and_scoped_binders() {
         ))],
         result: Box::new(SignatureTypeKey::Tuple(NonEmptyVec::from_first(
             SignatureTypeKey::Companion(Box::new(SignatureTypeKey::Binder { depth: 0, index: 0 })),
-            [SignatureTypeKey::NativeFunctionPointer {
-                calling_convention: CallingConvention::C,
-                parameters: vec![SignatureTypeKey::Binder { depth: 1, index: 0 }],
-                result: Box::new(SignatureTypeKey::Nominal(plain)),
-            }],
+            [
+                SignatureTypeKey::NativeFunctionPointer {
+                    calling_convention: CallingConvention::C,
+                    parameters: vec![SignatureTypeKey::Binder { depth: 1, index: 0 }],
+                    result: Box::new(SignatureTypeKey::Nominal(plain)),
+                },
+                SignatureTypeKey::GcLeafNativeFunctionPointer {
+                    calling_convention: CallingConvention::C,
+                    parameters: vec![],
+                    result: Box::new(SignatureTypeKey::Nominal(plain)),
+                },
+            ],
         ))),
     };
     let value = serde_json::to_value(QueryJson(&ty)).unwrap();
@@ -59,7 +66,8 @@ fn type_json_preserves_structural_types_receiver_and_scoped_binders() {
             "parameters": [{"kind": "rawPointer", "pointee": {"kind": "nominal", "declaration": plain.to_string()}}],
             "result": {"kind": "tuple", "elements": [
                 {"kind": "companion", "host": {"kind": "binder", "depth": 0, "index": 0}},
-                {"kind": "nativeFunctionPointer", "callingConvention": "c", "parameters": [{"kind": "binder", "depth": 1, "index": 0}], "result": {"kind": "nominal", "declaration": plain.to_string()}}
+                {"kind": "nativeFunctionPointer", "callingConvention": "c", "parameters": [{"kind": "binder", "depth": 1, "index": 0}], "result": {"kind": "nominal", "declaration": plain.to_string()}},
+                {"kind": "gcLeafNativeFunctionPointer", "callingConvention": "c", "parameters": [], "result": {"kind": "nominal", "declaration": plain.to_string()}}
             ]},
         })
     );

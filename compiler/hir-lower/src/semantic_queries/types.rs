@@ -19,6 +19,9 @@ impl Lowerer {
             hir::Type::FunPtr(function) => {
                 Shape::NativeFunctionPointer(self.function_types[function].clone())
             }
+            hir::Type::GcLeafFunPtr(function) => {
+                Shape::GcLeafNativeFunctionPointer(self.function_types[function].clone())
+            }
             hir::Type::Param(parameter) => Shape::Parameter(self.query_parameter(parameter)?),
             hir::Type::Companion(parameter) => {
                 let host = self.query_parameter(parameter)?;

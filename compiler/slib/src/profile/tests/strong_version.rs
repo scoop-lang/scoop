@@ -84,10 +84,10 @@ fn shared_provider_references_reject_retired_and_cross_profile_versions_in_every
 #[test]
 fn generated_entry_formats_require_the_updated_hir_and_mir_sections() {
     for (current, version) in [
-        (hir_identity_foundation_capability(), 10),
-        (mir_identity_foundation_capability(), 8),
-        (hir_core_bootstrap_interface_capability(), 17),
-        (mir_core_bootstrap_bridge_capability(), 2),
+        (hir_identity_foundation_capability(), 11),
+        (mir_identity_foundation_capability(), 9),
+        (hir_core_bootstrap_interface_capability(), 18),
+        (mir_core_bootstrap_bridge_capability(), 3),
     ] {
         assert_eq!(current.major_version(), version);
         assert!(CapabilityContractRegistry::contract(&current).is_some());

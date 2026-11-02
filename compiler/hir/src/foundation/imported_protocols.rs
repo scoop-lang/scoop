@@ -70,6 +70,7 @@ pub struct ImportedCoreFundamentalTypeProtocol {
     mutable_array: ImportedHirNominal<PersistentGenericTypeId>,
     ptr: ImportedHirNominal<PersistentGenericTypeId>,
     fun_ptr: ImportedHirNominal<PersistentGenericTypeId>,
+    gc_leaf_fun_ptr: ImportedHirNominal<PersistentGenericTypeId>,
     character: ImportedHirNominal<PersistentTypeId>,
     float: ImportedHirNominal<PersistentTypeId>,
     double: ImportedHirNominal<PersistentTypeId>,
@@ -134,6 +135,7 @@ pub struct ImportedCoreCoroutineProtocol {
 pub struct ImportedCoreFfiProtocol {
     ptr: ImportedHirNominal<PersistentGenericTypeId>,
     fun_ptr: ImportedHirNominal<PersistentGenericTypeId>,
+    gc_leaf_fun_ptr: ImportedHirNominal<PersistentGenericTypeId>,
     pinned_ptr: ImportedHirNominal<PersistentGenericTypeId>,
     gc_handle: ImportedHirNominal<PersistentGenericTypeId>,
     ptr_to_ulong: ImportedCoreProtocolCallable,

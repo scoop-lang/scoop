@@ -40,6 +40,16 @@ fn descriptions_keep_complete_structural_types_and_actual_generic_declarations()
         };
         assert_eq!(function_type.parameter_types, [integer]);
         assert_eq!(function_type.return_type, boolean);
+        let pointer = resolve(queries, context, "GCLeafFunPtr<(Int) -> Boolean>");
+        let Shape::GcLeafNativeFunctionPointer(function_type) = queries
+            .describe_type(context.into(), pointer)
+            .unwrap()
+            .structure
+        else {
+            panic!("GC-leaf native function pointer signature")
+        };
+        assert_eq!(function_type.parameter_types, [integer]);
+        assert_eq!(function_type.return_type, boolean);
         let pointer = resolve(queries, context, "Ptr<Int>");
         assert!(
             matches!(queries.describe_type(context.into(), pointer).unwrap().structure,

@@ -100,6 +100,11 @@ pub enum SignatureTypeKey {
         parameters: Vec<SignatureTypeKey>,
         result: Box<SignatureTypeKey>,
     },
+    GcLeafNativeFunctionPointer {
+        calling_convention: CallingConvention,
+        parameters: Vec<SignatureTypeKey>,
+        result: Box<SignatureTypeKey>,
+    },
     Binder {
         depth: u32,
         index: u32,
@@ -161,6 +166,20 @@ impl WireEncode for SignatureTypeKey {
                 encoder.field(3)?;
                 result.encode(encoder)
             }
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => {
+                encoder.map(4)?;
+                encode_tag(encoder, 9)?;
+                encoder.field(1)?;
+                calling_convention.encode(encoder)?;
+                encoder.field(2)?;
+                encode_sequence(encoder, parameters)?;
+                encoder.field(3)?;
+                result.encode(encoder)
+            }
             Self::Binder { depth, index } => {
                 encoder.map(3)?;
                 encode_tag(encoder, 7)?;
@@ -198,6 +217,9 @@ impl SignatureTypeKey {
                     || result.contains_binder()
             }
             Self::NativeFunctionPointer {
+                parameters, result, ..
+            }
+            | Self::GcLeafNativeFunctionPointer {
                 parameters, result, ..
             } => parameters.iter().any(Self::contains_binder) || result.contains_binder(),
             Self::RawPointer(pointee) | Self::Companion(pointee) => pointee.contains_binder(),

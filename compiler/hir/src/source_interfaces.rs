@@ -235,6 +235,7 @@ impl Module {
             | Type::Function(_)
             | Type::Ptr(_)
             | Type::FunPtr(_)
+            | Type::GcLeafFunPtr(_)
             | Type::Param(_)
             | Type::Companion(_) => String::new(),
         }

@@ -99,6 +99,7 @@ impl<'a> Concretizer<'a> {
                 | concrete::TypeKind::Any
                 | concrete::TypeKind::Ptr(_)
                 | concrete::TypeKind::FunPtr(_)
+                | concrete::TypeKind::GcLeafFunPtr(_)
         ) {
             return None;
         }
@@ -204,6 +205,18 @@ impl<'a> Concretizer<'a> {
                 let result = self.metadata_signature_type(result, arguments);
                 let signature = self.intern_function_type(false, parameters, result);
                 self.intern_type(concrete::TypeKind::FunPtr(signature), true)
+            }
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
+            } => {
+                let parameters = parameters
+                    .as_slice()
+                    .iter()
+                    .map(|ty| self.metadata_signature_type(ty, arguments))
+                    .collect();
+                let result = self.metadata_signature_type(result, arguments);
+                let signature = self.intern_function_type(false, parameters, result);
+                self.intern_type(concrete::TypeKind::GcLeafFunPtr(signature), true)
             }
         }
     }

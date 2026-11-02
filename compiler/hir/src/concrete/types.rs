@@ -143,6 +143,7 @@ pub enum TypeKind {
     Function(FunctionTypeId),
     Ptr(TypeId),
     FunPtr(FunctionTypeId),
+    GcLeafFunPtr(FunctionTypeId),
     Enum(EnumId),
 }
 

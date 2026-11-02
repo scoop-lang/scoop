@@ -358,7 +358,8 @@ fn unavailable_descriptor(
         | mir::Type::Boolean
         | mir::Type::Unit
         | mir::Type::Ptr(_)
-        | mir::Type::FunPtr(_) => module.meta.boxed_types.iter().any(|boxed| {
+        | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_) => module.meta.boxed_types.iter().any(|boxed| {
             boxed.payload() == ty
                 && (roots.materializes_type(&mir::Type::Class(boxed.class()))
                     || dependencies.contains(&mir::Type::Class(boxed.class())))

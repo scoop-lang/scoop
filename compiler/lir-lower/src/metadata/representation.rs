@@ -20,7 +20,7 @@ fn c_nullable_option_kind(module: &mir::Module, id: mir::EnumId) -> Option<lir::
     assert!(none.fields.is_empty(), "core Option None has no fields");
     match payload.ty {
         mir::Type::Ptr(_) => Some(lir::NullNicheKind::Raw),
-        mir::Type::FunPtr(_) => Some(lir::NullNicheKind::Code),
+        mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => Some(lir::NullNicheKind::Code),
         _ => None,
     }
 }
@@ -106,6 +106,7 @@ pub(crate) fn nested_enums(module: &mir::Module, ty: &mir::Type, out: &mut Vec<m
         | mir::Type::Function(_)
         | mir::Type::Ptr(_)
         | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_)
         | mir::Type::Any => {}
     }
 }
@@ -120,6 +121,7 @@ pub(crate) fn is_niche_payload(ty: &mir::Type) -> bool {
             | mir::Type::Any
             | mir::Type::Ptr(_)
             | mir::Type::FunPtr(_)
+            | mir::Type::GcLeafFunPtr(_)
     )
 }
 
@@ -130,7 +132,7 @@ fn niche_pointer_kind(ty: &mir::Type) -> lir::NullNicheKind {
         }
         mir::Type::Interface(_) => lir::NullNicheKind::Interface,
         mir::Type::Ptr(_) => lir::NullNicheKind::Raw,
-        mir::Type::FunPtr(_) => lir::NullNicheKind::Code,
+        mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => lir::NullNicheKind::Code,
         _ => unreachable!("only pointer-like fields qualify for a niche enum"),
     }
 }
@@ -178,7 +180,7 @@ pub(crate) fn compute_repr(
     }
 
     // This is a semantic whitelist, not merely an LLVM pointer-shape
-    // check: only managed refs, Ptr and FunPtr qualify.
+    // check: only managed refs and the three pointer families qualify.
     if def.variants.len() == 2 {
         let has_unit = def.variants.iter().any(|variant| variant.fields.is_empty());
         let payload = def

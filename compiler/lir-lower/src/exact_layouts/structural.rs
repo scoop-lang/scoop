@@ -24,6 +24,7 @@ impl Projection<'_> {
             ExactTypeKey::Function { .. } => lir::NullNicheKind::Managed,
             ExactTypeKey::RawPointer(_) => lir::NullNicheKind::Raw,
             ExactTypeKey::NativeFunctionPointer { .. } => lir::NullNicheKind::Code,
+            ExactTypeKey::GcLeafNativeFunctionPointer { .. } => lir::NullNicheKind::Code,
             ExactTypeKey::Nominal(_) | ExactTypeKey::NominalApplication { .. } => {
                 return Err(ExactLayoutLoweringError::SourceRepresentation(
                     identity.exact(),

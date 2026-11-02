@@ -26,6 +26,7 @@ impl CoreFfiProtocolV1 {
             CoreProtocolEntryV1::Callable(self.gc_unpin_raw.clone()),
             CoreProtocolEntryV1::Callable(self.gc_get_handle_raw.clone()),
             CoreProtocolEntryV1::Callable(self.gc_release_handle_raw.clone()),
+            CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::GenericType(self.gc_leaf_fun_ptr)),
         ]
     }
 }
@@ -55,6 +56,7 @@ impl DecodedCoreFfiProtocolV1 {
             gc_unpin_raw,
             gc_get_handle_raw,
             gc_release_handle_raw,
+            gc_leaf_fun_ptr,
         ] = self.0.entries;
         Ok(CoreFfiProtocolV1 {
             ptr: read_generic_nominal(ptr, 0, foundation)?,
@@ -76,6 +78,7 @@ impl DecodedCoreFfiProtocolV1 {
             gc_unpin_raw: read_callable(gc_unpin_raw, 16, foundation)?,
             gc_get_handle_raw: read_callable(gc_get_handle_raw, 17, foundation)?,
             gc_release_handle_raw: read_callable(gc_release_handle_raw, 18, foundation)?,
+            gc_leaf_fun_ptr: read_generic_nominal(gc_leaf_fun_ptr, 19, foundation)?,
         })
     }
 }

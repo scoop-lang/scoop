@@ -96,6 +96,13 @@ public struct Ptr<T : value> : Equals<Ptr<T>> {
 public struct FunPtr<F>
 
 /**
+ * A native function address whose caller promises the GC-leaf contract. Its machine
+ * representation matches FunPtr, but the call mode is part of its static type.
+ */
+@Intrinsic("core_gc_leaf_fun_ptr")
+public struct GCLeafFunPtr<F>
+
+/**
  * Borrows the address of addressable value storage. The unsafe caller must not let the pointer
  * outlive that storage.
  */

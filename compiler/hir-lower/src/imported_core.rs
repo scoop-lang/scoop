@@ -69,6 +69,7 @@ impl Lowerer {
             | hir::Type::Function(_)
             | hir::Type::Ptr(_)
             | hir::Type::FunPtr(_)
+            | hir::Type::GcLeafFunPtr(_)
             | hir::Type::Enum(_)
             | hir::Type::Param(_)
             | hir::Type::Companion(_) => return None,
@@ -190,6 +191,19 @@ impl Lowerer {
                 let result = self.imported_signature_type_with_bindings(result, bindings)?;
                 let function = self.intern_function_type(false, parameters, result);
                 Ok(self.intern_type(hir::Type::FunPtr(function)))
+            }
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
+            } => {
+                let parameters = parameters
+                    .iter()
+                    .map(|parameter| {
+                        self.imported_signature_type_with_bindings(parameter, bindings)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                let result = self.imported_signature_type_with_bindings(result, bindings)?;
+                let function = self.intern_function_type(false, parameters, result);
+                Ok(self.intern_type(hir::Type::GcLeafFunPtr(function)))
             }
         }
     }

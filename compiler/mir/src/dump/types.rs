@@ -83,6 +83,18 @@ pub fn type_name(module: &Module, ty: &Type) -> String {
                 type_name(module, &function.return_type)
             )
         }
+        Type::GcLeafFunPtr(id) => {
+            let function = &module.function_types[*id];
+            let parameters: Vec<_> = function
+                .parameters()
+                .map(|ty| type_name(module, ty))
+                .collect();
+            format!(
+                "GCLeafFunPtr<({}) -> {}>",
+                parameters.join(", "),
+                type_name(module, &function.return_type)
+            )
+        }
         Type::Enum(id, args) => {
             let name = &module.enums[*id].name;
             nominal_name(module, name, args)

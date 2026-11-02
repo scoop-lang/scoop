@@ -50,7 +50,9 @@ impl Lowerer {
             }
             match &self.types[ty] {
                 hir::Type::Tuple(elements) => pending.extend(elements.iter().copied()),
-                hir::Type::Function(function) | hir::Type::FunPtr(function) => {
+                hir::Type::Function(function)
+                | hir::Type::FunPtr(function)
+                | hir::Type::GcLeafFunPtr(function) => {
                     let function = &self.function_types[*function];
                     pending.extend(function.parameters().copied());
                     pending.push(function.return_type);

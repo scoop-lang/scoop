@@ -41,6 +41,11 @@ enum Shape {
         parameters: Vec<TypeReference>,
         result: Box<TypeReference>,
     },
+    GcLeafNativeFunctionPointer {
+        calling_convention: NativeConvention,
+        parameters: Vec<TypeReference>,
+        result: Box<TypeReference>,
+    },
     Binder {
         depth: u32,
         index: u32,
@@ -98,6 +103,17 @@ impl<'de> Deserialize<'de> for TypeReference {
                 parameters,
                 result,
             } => Type::NativeFunctionPointer {
+                calling_convention: match calling_convention {
+                    NativeConvention::C => CallingConvention::C,
+                },
+                parameters: types(parameters),
+                result: Box::new(result.0),
+            },
+            Shape::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => Type::GcLeafNativeFunctionPointer {
                 calling_convention: match calling_convention {
                     NativeConvention::C => CallingConvention::C,
                 },

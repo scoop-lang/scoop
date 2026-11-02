@@ -62,6 +62,11 @@ pub fn type_description(
             shape["kind"] = json!("nativeFunctionPointer");
             shape
         }
+        Shape::GcLeafNativeFunctionPointer(_) => {
+            let mut shape = json!(QueryJson(&value_type));
+            shape["kind"] = json!("gcLeafNativeFunctionPointer");
+            shape
+        }
         Shape::Pointer(pointee) => {
             json!({"kind": "pointer", "pointee": QueryJson(&queries.type_signature(context.into(), *pointee)?)})
         }

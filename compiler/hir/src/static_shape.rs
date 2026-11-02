@@ -28,7 +28,10 @@ pub enum StaticTypeShape<'a> {
     Tuple(&'a [TypeId]),
     Function(&'a FunctionType),
     Pointer(TypeId),
-    NativeFunctionPointer(&'a FunctionType),
+    NativeFunctionPointer {
+        signature: &'a FunctionType,
+        call_mode: scoop_identity::CAbiCallMode,
+    },
     Parameter(&'a TypeParamDecl),
     Companion {
         host: &'a TypeParamDecl,
@@ -64,9 +67,14 @@ impl Module {
             Type::Any => StaticTypeShape::Any,
             Type::Tuple(elements) => StaticTypeShape::Tuple(elements),
             Type::Function(function) => StaticTypeShape::Function(&self.function_types[*function]),
-            Type::FunPtr(function) => {
-                StaticTypeShape::NativeFunctionPointer(&self.function_types[*function])
-            }
+            Type::FunPtr(function) => StaticTypeShape::NativeFunctionPointer {
+                signature: &self.function_types[*function],
+                call_mode: scoop_identity::CAbiCallMode::NativeSafe,
+            },
+            Type::GcLeafFunPtr(function) => StaticTypeShape::NativeFunctionPointer {
+                signature: &self.function_types[*function],
+                call_mode: scoop_identity::CAbiCallMode::GcLeaf,
+            },
             Type::Ptr(pointee) => StaticTypeShape::Pointer(*pointee),
             Type::Param(parameter) => StaticTypeShape::Parameter(
                 parameters

@@ -1,8 +1,8 @@
   struct Point
     field0 x: Int
     field1 y: Int
-    property9 val x: Int getter9=storage <stored struct19-field0>
-    property10 val y: Int getter10=storage <stored struct19-field1>
+    property9 val x: Int getter9=storage <stored struct20-field0>
+    property10 val y: Int getter10=storage <stored struct20-field1>
   fun main(): Unit
     val local0
       TupleLiteral : (Int, Int, Int, Int)

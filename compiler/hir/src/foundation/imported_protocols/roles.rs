@@ -61,6 +61,10 @@ impl ImportedCoreFundamentalTypeProtocol {
     pub fn fun_ptr(&self) -> ImportedHirNominal<PersistentGenericTypeId> {
         self.fun_ptr
     }
+
+    pub fn gc_leaf_fun_ptr(&self) -> ImportedHirNominal<PersistentGenericTypeId> {
+        self.gc_leaf_fun_ptr
+    }
 }
 
 impl ImportedCoreOptionProtocol {
@@ -229,6 +233,10 @@ impl ImportedCoreFfiProtocol {
 
     pub fn fun_ptr(&self) -> ImportedHirNominal<PersistentGenericTypeId> {
         self.fun_ptr
+    }
+
+    pub fn gc_leaf_fun_ptr(&self) -> ImportedHirNominal<PersistentGenericTypeId> {
+        self.gc_leaf_fun_ptr
     }
 
     pub fn pinned_ptr(&self) -> ImportedHirNominal<PersistentGenericTypeId> {

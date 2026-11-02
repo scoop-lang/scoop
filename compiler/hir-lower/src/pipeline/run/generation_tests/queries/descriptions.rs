@@ -122,6 +122,10 @@ fn type_json_retains_structure_nominal_origins_and_core_member_declarations() {
             ("(T) -> Int", "function"),
             ("Ptr<Int>", "pointer"),
             ("FunPtr<(Int) -> Boolean>", "nativeFunctionPointer"),
+            (
+                "GCLeafFunPtr<(Int) -> Boolean>",
+                "gcLeafNativeFunctionPointer",
+            ),
             ("T", "parameter"),
         ] {
             let description = describe(text);
@@ -141,7 +145,14 @@ fn type_json_retains_structure_nominal_origins_and_core_member_declarations() {
             nominal["shape"]["arguments"][0],
             json!({"kind": "binder", "depth": 0, "index": 0})
         );
-        for text in ["Unit", "Any", "Int", "Ptr<Int>", "FunPtr<(Int) -> Boolean>"] {
+        for text in [
+            "Unit",
+            "Any",
+            "Int",
+            "Ptr<Int>",
+            "FunPtr<(Int) -> Boolean>",
+            "GCLeafFunPtr<(Int) -> Boolean>",
+        ] {
             let ty = resolve(queries, context, text);
             let nominal = queries.nominal_declaration(ty).unwrap().unwrap();
             assert!(matches!(nominal.kind, hir::StaticNominalKind::Intrinsic(_)));

@@ -110,6 +110,10 @@ pub const INTRINSIC_TYPE_REGISTRY: &[IntrinsicTypeSpec] = &[
         name: "core_fun_ptr",
         kind: IntrinsicTypeKind::FunPtr,
     },
+    IntrinsicTypeSpec {
+        name: "core_gc_leaf_fun_ptr",
+        kind: IntrinsicTypeKind::GcLeafFunPtr,
+    },
 ];
 
 pub struct IntrinsicTypeSpec {

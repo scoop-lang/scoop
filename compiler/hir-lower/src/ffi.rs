@@ -369,6 +369,16 @@ impl Lowerer {
                 );
             }
         }
+        let gc_leaf_fun_ptr_uses = self.gc_leaf_fun_ptr_type_uses.clone();
+        for (ty, file, span) in gc_leaf_fun_ptr_uses {
+            self.current_file = file;
+            if let Some(error) = self.c_ffi_type_error(ty) {
+                self.error(
+                    span,
+                    format!("`GCLeafFunPtr` signature is not C-FFI-safe: {error}"),
+                );
+            }
+        }
     }
 
     pub(crate) fn c_ffi_type_error(&mut self, ty: hir::TypeId) -> Option<String> {

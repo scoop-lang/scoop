@@ -52,6 +52,14 @@ fn scalar_pointer_unit_records_have_unique_closed_kinds_and_complete_definitions
             },
             NullNicheKind::Code,
         ),
+        (
+            ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: scoop_identity::CallingConvention::C,
+                parameters: vec![],
+                result: value.identity().exact(),
+            },
+            NullNicheKind::Code,
+        ),
     ] {
         let bound = Bound::value(CborIdentityRecord::from_key(key).unwrap());
         let pointer =

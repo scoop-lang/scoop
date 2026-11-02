@@ -222,10 +222,12 @@ pub(super) fn c_ffi_type(
             pointee: c_data_pointee(module, structs, enums, pointee),
             storage: lir::CDataPointerStorage::Direct,
         },
-        mir::Type::FunPtr(signature) => lir::CType::CodePointer {
-            signature: Box::new(c_function_type(module, structs, enums, *signature)),
-            storage: lir::CCodePointerStorage::Direct,
-        },
+        mir::Type::FunPtr(signature) | mir::Type::GcLeafFunPtr(signature) => {
+            lir::CType::CodePointer {
+                signature: Box::new(c_function_type(module, structs, enums, *signature)),
+                storage: lir::CCodePointerStorage::Direct,
+            }
+        }
         mir::Type::Struct(id) => {
             if let mir::StructRepresentation::Intrinsic(
                 mir::IntrinsicStructRepresentation::Float(kind),
@@ -267,7 +269,7 @@ pub(super) fn c_ffi_type(
                         storage: lir::CDataPointerStorage::Nullable(reference),
                     }
                 }
-                mir::Type::FunPtr(signature) => {
+                mir::Type::FunPtr(signature) | mir::Type::GcLeafFunPtr(signature) => {
                     let signature = c_function_type(module, structs, enums, *signature);
                     let reference = enums
                         .nullable_code_pointer_ref(enum_def_id(*id), signature.clone())

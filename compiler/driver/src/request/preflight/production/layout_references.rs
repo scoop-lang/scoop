@@ -102,7 +102,9 @@ pub(in crate::request::preflight) fn collect_mir_references(
             {
                 scoop_identity::RepresentationRole::CValue
             }
-            mir::Type::FunPtr(_) => scoop_identity::RepresentationRole::NativeFunctionPointer,
+            mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
+                scoop_identity::RepresentationRole::NativeFunctionPointer
+            }
             _ => scoop_identity::RepresentationRole::ManagedValue,
         };
         let layout = dependencies

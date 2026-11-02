@@ -199,6 +199,7 @@ impl Types<'_> {
                 shell,
             ))),
             hir::TypeKind::FunPtr(id) => mir::Type::FunPtr(remap_idx(*id)),
+            hir::TypeKind::GcLeafFunPtr(id) => mir::Type::GcLeafFunPtr(remap_idx(*id)),
             hir::TypeKind::Enum(id) => {
                 let args = self.module.enums[*id]
                     .type_arguments
@@ -362,7 +363,8 @@ pub(super) fn mir_type_gc_free(
         | mir::Type::MachineScalar(_)
         | mir::Type::Boolean
         | mir::Type::Ptr(_)
-        | mir::Type::FunPtr(_) => true,
+        | mir::Type::FunPtr(_)
+        | mir::Type::GcLeafFunPtr(_) => true,
         mir::Type::Struct(id) => structs.defs[*id].gc_free,
         mir::Type::Enum(id, _) => enums.defs[*id].gc_free,
         mir::Type::Tuple(elements) => elements
@@ -464,6 +466,7 @@ pub(super) fn is_boxable(ty: &mir::Type) -> bool {
             | mir::Type::Unit
             | mir::Type::Ptr(_)
             | mir::Type::FunPtr(_)
+            | mir::Type::GcLeafFunPtr(_)
     )
 }
 

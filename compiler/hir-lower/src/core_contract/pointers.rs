@@ -117,7 +117,7 @@ impl Lowerer {
         }
     }
 
-    pub(crate) fn validate_fun_ptr_struct(&mut self, id: StructId) {
+    pub(crate) fn validate_fun_ptr_struct(&mut self, id: StructId, name: &str) {
         self.current_file = self.struct_files[&id];
         let declaration = &self.structs[id];
         let valid = declaration.type_params.len() == 1
@@ -131,7 +131,7 @@ impl Lowerer {
         if !valid {
             self.error(
                 declaration.span,
-                "core `FunPtr` must be a fieldless intrinsic `struct FunPtr<F>`".to_string(),
+                format!("core `{name}` must be a fieldless intrinsic `struct {name}<F>`"),
             );
         }
     }

@@ -38,6 +38,9 @@ impl Projection<'_> {
             ExactTypeKey::NativeFunctionPointer { .. } => {
                 pointer_storage(target.code_pointer().layout(), lir::RefScan::None)?
             }
+            ExactTypeKey::GcLeafNativeFunctionPointer { .. } => {
+                pointer_storage(target.code_pointer().layout(), lir::RefScan::None)?
+            }
         };
         let value = lir::ValueLayoutConstituentV1::new(
             target,
@@ -70,6 +73,7 @@ impl Projection<'_> {
                 ExactTypeKey::Function { .. } => Some(lir::NullNicheKind::Managed),
                 ExactTypeKey::RawPointer(_) => Some(lir::NullNicheKind::Raw),
                 ExactTypeKey::NativeFunctionPointer { .. } => Some(lir::NullNicheKind::Code),
+                ExactTypeKey::GcLeafNativeFunctionPointer { .. } => Some(lir::NullNicheKind::Code),
                 ExactTypeKey::Tuple(_) => None,
             },
         )

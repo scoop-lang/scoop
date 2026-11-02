@@ -22,4 +22,8 @@ impl CoreCompilerProtocolSurfaceV1 {
     pub fn function_pointer_source_type(&self) -> PersistentGenericTypeId {
         self.fundamental_types.fun_ptr
     }
+
+    pub fn gc_leaf_function_pointer_source_type(&self) -> PersistentGenericTypeId {
+        self.fundamental_types.gc_leaf_fun_ptr
+    }
 }

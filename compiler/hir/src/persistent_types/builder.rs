@@ -2,7 +2,8 @@ use std::collections::{HashMap, HashSet};
 
 use la_arena::Idx;
 use scoop_identity::{
-    CallingConvention, CborIdentityRecord, Effect, ExactTypeKey, NonEmptyVec, PersistentExactTypeId,
+    CAbiCallMode, CallingConvention, CborIdentityRecord, Effect, ExactTypeKey, NonEmptyVec,
+    PersistentExactTypeId,
 };
 
 use crate::{
@@ -151,7 +152,7 @@ impl<'a> TypeIdentityBuilder<'a> {
                     ResolvedChildren::Open(parameters) => open_identity(parameters),
                 }
             }
-            Type::Function(function) => self.function_type(ty, function, false)?,
+            Type::Function(function) => self.function_type(ty, function, None)?,
             Type::Ptr(pointee) => {
                 self.require_type(Some(ty), HirTypeRelation::ChildType, pointee)?;
                 match self.resolve(pointee)? {
@@ -161,7 +162,12 @@ impl<'a> TypeIdentityBuilder<'a> {
                     HirTypeIdentity::Open(open) => HirTypeIdentity::Open(open),
                 }
             }
-            Type::FunPtr(function) => self.function_type(ty, function, true)?,
+            Type::FunPtr(function) => {
+                self.function_type(ty, function, Some(CAbiCallMode::NativeSafe))?
+            }
+            Type::GcLeafFunPtr(function) => {
+                self.function_type(ty, function, Some(CAbiCallMode::GcLeaf))?
+            }
             Type::Param(parameter) | Type::Companion(parameter) => open_identity(vec![parameter]),
         };
         self.visiting[index] = false;
@@ -332,7 +338,7 @@ impl<'a> TypeIdentityBuilder<'a> {
         &mut self,
         ty: TypeId,
         id: crate::FunctionTypeId,
-        native: bool,
+        native: Option<CAbiCallMode>,
     ) -> Result<HirTypeIdentity, HirTypeIdentityError> {
         if local_index(id) >= self.inputs.function_types.len() {
             return self.unknown(ty, HirTypeRelation::FunctionType, id);
@@ -340,8 +346,8 @@ impl<'a> TypeIdentityBuilder<'a> {
         let function = self.inputs.function_types[id].clone();
         if local_index(function.canonical_type) >= self.inputs.types.len()
             || !matches!(self.inputs.types[function.canonical_type], Type::Function(actual) if actual == id)
-            || (!native && function.canonical_type != ty)
-            || (native && (function.is_suspend || function.receiver.is_some()))
+            || (native.is_none() && function.canonical_type != ty)
+            || (native.is_some() && (function.is_suspend || function.receiver.is_some()))
         {
             return Err(HirTypeIdentityError::InvalidFunctionType { ty: raw_index(ty) });
         }
@@ -352,14 +358,18 @@ impl<'a> TypeIdentityBuilder<'a> {
                 let result = identities
                     .pop()
                     .expect("a function signature always includes its result");
-                let key = if native {
-                    ExactTypeKey::NativeFunctionPointer {
+                let key = match native {
+                    Some(CAbiCallMode::NativeSafe) => ExactTypeKey::NativeFunctionPointer {
                         calling_convention: CallingConvention::C,
                         parameters: identities,
                         result,
-                    }
-                } else {
-                    ExactTypeKey::Function {
+                    },
+                    Some(CAbiCallMode::GcLeaf) => ExactTypeKey::GcLeafNativeFunctionPointer {
+                        calling_convention: CallingConvention::C,
+                        parameters: identities,
+                        result,
+                    },
+                    None => ExactTypeKey::Function {
                         receiver: function.receiver.map(|_| identities.remove(0)),
                         effect: if function.is_suspend {
                             Effect::Suspend
@@ -368,7 +378,7 @@ impl<'a> TypeIdentityBuilder<'a> {
                         },
                         parameters: identities,
                         result,
-                    }
+                    },
                 };
                 self.exact_record(ty, key)
             }

@@ -100,6 +100,16 @@ impl Lowerer {
                 let declaration = self.query_pointer_declaration(true);
                 return self.apply_query_nominal_type(declaration, vec![signature], span);
             }
+            Key::GcLeafNativeFunctionPointer {
+                parameters, result, ..
+            } => {
+                let parameters = self.resolve_query_type_list(parameters, binders, span)?;
+                let result = self.resolve_query_signature_type(result, binders, span)?;
+                let function = self.intern_function_type(false, parameters, result);
+                let signature = self.function_types[function].canonical_type;
+                let declaration = self.query_gc_leaf_pointer_declaration();
+                return self.apply_query_nominal_type(declaration, vec![signature], span);
+            }
             Key::Binder { depth, index } => {
                 let parameter = binders
                     .iter()

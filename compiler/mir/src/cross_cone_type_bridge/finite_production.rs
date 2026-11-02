@@ -133,7 +133,8 @@ impl CanonicalParamFreeMirTypeExportsV1 {
                 ExactTypeKey::Tuple(_)
                 | ExactTypeKey::Function { .. }
                 | ExactTypeKey::RawPointer(_)
-                | ExactTypeKey::NativeFunctionPointer { .. } => &[],
+                | ExactTypeKey::NativeFunctionPointer { .. }
+                | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => &[],
             };
             let (facts, representation, bases) =
                 representation::project(input, interfaces, root.location(), role)?;

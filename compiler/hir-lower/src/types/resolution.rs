@@ -182,6 +182,23 @@ impl Lowerer {
                             .push((ty, self.current_file, name.span));
                         return Some(ty);
                     }
+                    if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
+                        let Type::Function(function_type) = self.types[resolved[0]] else {
+                            self.error(
+                                name.span,
+                                "`GCLeafFunPtr` type argument must be an ordinary concrete function type"
+                                    .to_string(),
+                            );
+                            return None;
+                        };
+                        if !self.validate_fun_ptr_signature(function_type, name.span) {
+                            return None;
+                        }
+                        let ty = self.intern_type(Type::GcLeafFunPtr(function_type));
+                        self.gc_leaf_fun_ptr_type_uses
+                            .push((ty, self.current_file, name.span));
+                        return Some(ty);
+                    }
                     return Some(self.struct_application(struct_id, resolved));
                 }
                 if let Some((interface_id, _)) = self.top_level_interface_named(&name.text) {

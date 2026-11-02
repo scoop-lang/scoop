@@ -117,7 +117,7 @@ impl Lowerer {
                 Type::Param(id) | Type::Companion(id) => parameters.push(*id),
                 Type::Ptr(ty) => pending.push(*ty),
                 Type::Tuple(types) => pending.extend(types),
-                Type::Function(id) | Type::FunPtr(id) => {
+                Type::Function(id) | Type::FunPtr(id) | Type::GcLeafFunPtr(id) => {
                     pending.extend(self.function_types[*id].parameters());
                     pending.push(self.function_types[*id].return_type);
                 }

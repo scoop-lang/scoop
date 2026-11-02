@@ -66,7 +66,7 @@ fn shared_nominal_producer_preserves_every_intrinsic_family() {
             hir::ClassRepresentation::Declared => continue,
         }
     }
-    assert_eq!(expected.len(), 21);
+    assert_eq!(expected.len(), 22);
 
     for (owner, name, family) in expected {
         let record = public.get(owner).unwrap();
@@ -96,7 +96,10 @@ fn shared_nominal_producer_preserves_every_intrinsic_family() {
         let expected = match family {
             hir::IntrinsicTypeKind::Array
             | hir::IntrinsicTypeKind::MutableArray
-            | hir::IntrinsicTypeKind::FunPtr => vec![&hir::TypeParameterBoundsV1::Unconstrained],
+            | hir::IntrinsicTypeKind::FunPtr
+            | hir::IntrinsicTypeKind::GcLeafFunPtr => {
+                vec![&hir::TypeParameterBoundsV1::Unconstrained]
+            }
             hir::IntrinsicTypeKind::Ptr => vec![&hir::TypeParameterBoundsV1::Value],
             _ => Vec::new(),
         };

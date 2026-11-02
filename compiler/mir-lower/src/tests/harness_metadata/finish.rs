@@ -55,6 +55,8 @@ impl Harness {
                 hir::IntrinsicTypeRepresentation::Ptr { pointee: t },
             );
         let fun_ptr = self.declare_struct("FunPtr", vec![type_param("F")], vec![t], &[], &[]);
+        let gc_leaf_fun_ptr =
+            self.declare_struct("GCLeafFunPtr", vec![type_param("F")], vec![t], &[], &[]);
         let (pinned_ptr, gc_handle) = if let Some(core) = self.gc_core {
             (core.pinned_ptr, core.gc_handle)
         } else {
@@ -66,6 +68,7 @@ impl Harness {
         let ffi_core = hir::FfiCore {
             ptr,
             fun_ptr,
+            gc_leaf_fun_ptr,
             pinned_ptr,
             gc_handle,
             ptr_to_ulong: entry,
@@ -195,6 +198,7 @@ impl Harness {
             mutable_array: intrinsic_mutable_array,
             ptr,
             fun_ptr,
+            gc_leaf_fun_ptr,
         };
         let mut source_contexts = Arena::new();
         source_contexts.alloc(hir::SourceContext::new(

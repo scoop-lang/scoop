@@ -165,6 +165,22 @@ impl Lowerer {
                     self.intern_function_type(signature.is_suspend, parameters, return_type);
                 Ok(Some(self.intern_type(Type::FunPtr(function))))
             }
+            Type::GcLeafFunPtr(signature) => {
+                let signature = self.function_types[signature].clone();
+                let Some(parameters) =
+                    self.materialize_types(session, bindings, &signature.parameter_types, origin)?
+                else {
+                    return Ok(None);
+                };
+                let Some(return_type) =
+                    self.materialize_type(session, bindings, signature.return_type, origin)?
+                else {
+                    return Ok(None);
+                };
+                let function =
+                    self.intern_function_type(signature.is_suspend, parameters, return_type);
+                Ok(Some(self.intern_type(Type::GcLeafFunPtr(function))))
+            }
             _ => Ok(Some(ty)),
         }
     }
@@ -220,8 +236,10 @@ impl Lowerer {
             };
             arguments.push(argument);
         }
-        if self.nominal_intrinsic_kind(application.template) == Some(hir::IntrinsicTypeKind::FunPtr)
-            && !matches!(arguments.as_slice(), [function] if matches!(self.types[*function], Type::Function(_)))
+        if matches!(
+            self.nominal_intrinsic_kind(application.template),
+            Some(hir::IntrinsicTypeKind::FunPtr | hir::IntrinsicTypeKind::GcLeafFunPtr)
+        ) && !matches!(arguments.as_slice(), [function] if matches!(self.types[*function], Type::Function(_)))
         {
             return Err(ConstraintFailure {
                 origin,

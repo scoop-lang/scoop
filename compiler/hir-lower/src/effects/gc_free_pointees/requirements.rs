@@ -116,7 +116,9 @@ impl Lowerer {
                     self.collect_pointee_parameters(element, visiting, out);
                 }
             }
-            hir::Type::Function(function) | hir::Type::FunPtr(function) => {
+            hir::Type::Function(function)
+            | hir::Type::FunPtr(function)
+            | hir::Type::GcLeafFunPtr(function) => {
                 let function = &self.function_types[*function];
                 for &parameter in function.parameters() {
                     self.collect_pointee_parameters(parameter, visiting, out);

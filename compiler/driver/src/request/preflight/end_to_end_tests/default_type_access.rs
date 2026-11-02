@@ -69,8 +69,8 @@ fn ordinary_reader_consumes_default_type_references_from_published_bytes() {
     }
 }
 
-fn reference_kinds(templates: &[scoop_hir::ExportDefaultTemplateV1]) -> [bool; 6] {
-    let mut kinds = [false; 6];
+fn reference_kinds(templates: &[scoop_hir::ExportDefaultTemplateV1]) -> [bool; 7] {
+    let mut kinds = [false; 7];
     for reference in templates
         .iter()
         .flat_map(|template| template.references().types())
@@ -82,6 +82,7 @@ fn reference_kinds(templates: &[scoop_hir::ExportDefaultTemplateV1]) -> [bool; 6
             SignatureTypeKey::Function { .. } => 3,
             SignatureTypeKey::RawPointer(_) => 4,
             SignatureTypeKey::NativeFunctionPointer { .. } => 5,
+            SignatureTypeKey::GcLeafNativeFunctionPointer { .. } => 6,
             SignatureTypeKey::Binder { .. } | SignatureTypeKey::Companion(_) => {
                 panic!("a bare binder is not a reference")
             }

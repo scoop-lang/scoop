@@ -198,7 +198,8 @@ impl Lowerer {
             | Type::Enum(..)
             | Type::Tuple(_)
             | Type::Ptr(_)
-            | Type::FunPtr(_) => true,
+            | Type::FunPtr(_)
+            | Type::GcLeafFunPtr(_) => true,
             Type::Param(index) => self
                 .type_params_in_scope
                 .iter()

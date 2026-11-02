@@ -28,6 +28,11 @@ pub enum DecodedExactTypeKey {
         parameters: Vec<DecodedPersistentId<PersistentExactTypeId>>,
         result: DecodedPersistentId<PersistentExactTypeId>,
     },
+    GcLeafNativeFunctionPointer {
+        calling_convention: CallingConvention,
+        parameters: Vec<DecodedPersistentId<PersistentExactTypeId>>,
+        result: DecodedPersistentId<PersistentExactTypeId>,
+    },
 }
 
 impl DecodedExactTypeKey {
@@ -79,6 +84,17 @@ impl DecodedExactTypeKey {
                 parameters,
                 result,
             } => Ok(ExactTypeKey::NativeFunctionPointer {
+                calling_convention,
+                parameters: resolve_sequence(parameters, resolver)?,
+                result: resolver
+                    .resolve(result)
+                    .map_err(ExactTypeResolutionError::Reference)?,
+            }),
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => Ok(ExactTypeKey::GcLeafNativeFunctionPointer {
                 calling_convention,
                 parameters: resolve_sequence(parameters, resolver)?,
                 result: resolver
@@ -142,6 +158,20 @@ impl WireEncode for DecodedExactTypeKey {
                 encoder.field(3)?;
                 result.encode(encoder)
             }
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => {
+                encoder.map(4)?;
+                encode_tag(encoder, 7)?;
+                encoder.field(1)?;
+                calling_convention.encode(encoder)?;
+                encoder.field(2)?;
+                encode_sequence(encoder, parameters)?;
+                encoder.field(3)?;
+                result.encode(encoder)
+            }
         }
     }
 }
@@ -194,6 +224,14 @@ impl WireDecode for DecodedExactTypeKey {
             6 => {
                 expect_sum_length(decoder, fields, 4)?;
                 Ok(Self::NativeFunctionPointer {
+                    calling_convention: decoder.field(1, decode_calling_convention)?,
+                    parameters: decoder.field(2, decode_exact_ids)?,
+                    result: decoder.field(3, DecodedPersistentId::decode)?,
+                })
+            }
+            7 => {
+                expect_sum_length(decoder, fields, 4)?;
+                Ok(Self::GcLeafNativeFunctionPointer {
                     calling_convention: decoder.field(1, decode_calling_convention)?,
                     parameters: decoder.field(2, decode_exact_ids)?,
                     result: decoder.field(3, DecodedPersistentId::decode)?,
@@ -413,6 +451,11 @@ mod tests {
                 parameters: vec![exact],
                 result: exact,
             },
+            ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: crate::CallingConvention::C,
+                parameters: vec![exact],
+                result: exact,
+            },
         ];
 
         for key in keys {
@@ -478,8 +521,8 @@ mod tests {
             }
         );
 
-        let unknown = decode_canonical::<DecodedExactTypeKey>(b"\xa1\x00\x07").unwrap_err();
-        assert_eq!(unknown.kind(), &WireErrorKind::UnknownTag { tag: 7 });
+        let unknown = decode_canonical::<DecodedExactTypeKey>(b"\xa1\x00\x08").unwrap_err();
+        assert_eq!(unknown.kind(), &WireErrorKind::UnknownTag { tag: 8 });
     }
 
     #[test]

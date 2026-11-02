@@ -10,7 +10,7 @@ impl Lowerer {
     ) -> Result<CallCandidates, EditingCancelled> {
         if matches!(
             self.types[value.ty],
-            hir::Type::Function(_) | hir::Type::FunPtr(_)
+            hir::Type::Function(_) | hir::Type::FunPtr(_) | hir::Type::GcLeafFunPtr(_)
         ) {
             return self.editing_value_call_candidates(call, value.clone(), is_cancelled);
         }

@@ -104,7 +104,7 @@ fn structural_payloads_require_only_their_actual_nominal_leaves() {
             &[MirTypeBridgeTargetV1::Type(structural_leaf(&fixture))]
         );
     }
-    for exact in &exacts[2..5] {
+    for exact in &exacts[2..6] {
         let mut collector = collector::Collector::new(&graph);
         collector.exact(*exact).unwrap();
         assert!(collector.finish().unwrap().targets().is_empty());
@@ -115,7 +115,7 @@ fn structural_payloads_require_only_their_actual_nominal_leaves() {
 fn nominal_applications_require_their_own_materialized_type() {
     let fixture = Fixture::new();
     let (graph, exacts) = structural_graph(&fixture);
-    let application = exacts[5];
+    let application = exacts[6];
     let mut collector = collector::Collector::new(&graph);
     collector.exact(application).unwrap();
     assert_eq!(
@@ -148,13 +148,27 @@ fn structural_graph(fixture: &Fixture) -> (ValidatedIdentityGraph, Vec<Persisten
         result: leaf,
     })
     .unwrap();
+    let leaf_native = CborIdentityRecord::from_key(ExactTypeKey::GcLeafNativeFunctionPointer {
+        calling_convention: scoop_identity::CallingConvention::C,
+        parameters: vec![leaf],
+        result: leaf,
+    })
+    .unwrap();
     let generic = generic_nominal();
     let application = CborIdentityRecord::from_key(ExactTypeKey::NominalApplication {
         origin: generic.id(),
         arguments: NonEmptyVec::from_first(leaf, []),
     })
     .unwrap();
-    let records = vec![inner, outer, pointer, function, native, application];
+    let records = vec![
+        inner,
+        outer,
+        pointer,
+        function,
+        native,
+        leaf_native,
+        application,
+    ];
     let ids = records.iter().map(CborIdentityRecord::id).collect();
     let mut hir = scoop_hir::CanonicalHirFoundation::empty();
     hir.set_generic_types(vec![generic]).unwrap();

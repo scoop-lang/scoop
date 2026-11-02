@@ -42,7 +42,17 @@ fn intrinsic_type_contract_is_complete_in_export_and_local_hir() {
         fun_sig(
             "takeFunPtr",
             Vec::new(),
-            vec![("callback", ty_generic("FunPtr", vec![callback]))],
+            vec![("callback", ty_generic("FunPtr", vec![callback.clone()]))],
+            None,
+            Vec::new(),
+        ),
+        fun_sig(
+            "takeGcLeafFunPtr",
+            Vec::new(),
+            vec![(
+                "callback",
+                ty_generic("GCLeafFunPtr", vec![callback.clone()]),
+            )],
             None,
             Vec::new(),
         ),
@@ -113,6 +123,7 @@ fn intrinsic_type_contract_is_complete_in_export_and_local_hir() {
     for (id, kind) in [
         (core.ptr, hir::IntrinsicTypeKind::Ptr),
         (core.fun_ptr, hir::IntrinsicTypeKind::FunPtr),
+        (core.gc_leaf_fun_ptr, hir::IntrinsicTypeKind::GcLeafFunPtr),
     ] {
         let hir::StructRepresentation::Intrinsic(declaration) = export.structs[id].representation
         else {
@@ -134,6 +145,12 @@ fn intrinsic_type_contract_is_complete_in_export_and_local_hir() {
                 ),
                 hir::IntrinsicTypeKind::FunPtr,
             ) => assert!(matches!(export.types[*function], hir::Type::Param(_))),
+            (
+                hir::StructApplicationRepresentation::Intrinsic(
+                    hir::IntrinsicTypeRepresentation::GcLeafFunPtr { function },
+                ),
+                hir::IntrinsicTypeKind::GcLeafFunPtr,
+            ) => assert!(matches!(export.types[*function], hir::Type::Param(_))),
             _ => panic!("pointer family self application must preserve its deferred argument"),
         }
     }
@@ -147,6 +164,11 @@ fn intrinsic_type_contract_is_complete_in_export_and_local_hir() {
     );
     assert!(
         export.structs[core.fun_ptr]
+            .gc_free_pointee_requirements
+            .is_empty()
+    );
+    assert!(
+        export.structs[core.gc_leaf_fun_ptr]
             .gc_free_pointee_requirements
             .is_empty()
     );
@@ -183,6 +205,12 @@ fn intrinsic_type_contract_is_complete_in_export_and_local_hir() {
             .types
             .iter()
             .any(|(_, ty)| matches!(ty.kind, hir::concrete::TypeKind::FunPtr(_)))
+    );
+    assert!(
+        local
+            .types
+            .iter()
+            .any(|(_, ty)| matches!(ty.kind, hir::concrete::TypeKind::GcLeafFunPtr(_)))
     );
 }
 

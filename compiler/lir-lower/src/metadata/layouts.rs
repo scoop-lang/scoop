@@ -257,9 +257,10 @@ fn struct_layout_identity(
         mir::StructRepresentation::Declared(mir::DeclaredStruct {
             c_layout: Some(_), ..
         }) => lir::LayoutIdentity::c_value(exact_type, target_profile, root),
-        mir::StructRepresentation::Intrinsic(mir::IntrinsicStructRepresentation::FunPtr {
-            ..
-        }) => lir::LayoutIdentity::native_function_pointer(exact_type, target_profile, root),
+        mir::StructRepresentation::Intrinsic(
+            mir::IntrinsicStructRepresentation::FunPtr { .. }
+            | mir::IntrinsicStructRepresentation::GcLeafFunPtr { .. },
+        ) => lir::LayoutIdentity::native_function_pointer(exact_type, target_profile, root),
         mir::StructRepresentation::Declared(mir::DeclaredStruct { c_layout: None, .. })
         | mir::StructRepresentation::Intrinsic(_) => {
             lir::LayoutIdentity::managed_value(exact_type, target_profile, root)

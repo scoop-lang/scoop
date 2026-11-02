@@ -84,6 +84,9 @@ impl Lowerer {
             hir::Type::FunPtr(_) => self
                 .ffi_fun_ptr
                 .map(|owner| self.structs[owner].access.lookup.0.clone()),
+            hir::Type::GcLeafFunPtr(_) => self
+                .ffi_gc_leaf_fun_ptr
+                .map(|owner| self.structs[owner].access.lookup.0.clone()),
             hir::Type::Unit
             | hir::Type::Any
             | hir::Type::Tuple(_)
@@ -123,7 +126,9 @@ impl Lowerer {
                     self.collect_type_dependencies(element, dependencies);
                 }
             }
-            hir::Type::Function(function) | hir::Type::FunPtr(function) => {
+            hir::Type::Function(function)
+            | hir::Type::FunPtr(function)
+            | hir::Type::GcLeafFunPtr(function) => {
                 let function = self.function_types[function].clone();
                 for parameter in function.parameters().copied() {
                     self.collect_type_dependencies(parameter, dependencies);

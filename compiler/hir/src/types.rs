@@ -33,6 +33,10 @@ pub enum Type {
     /// A GC-free native C function pointer. Its signature reuses M11's
     /// canonical function-type identity but is not a managed function value.
     FunPtr(FunctionTypeId),
+    /// A GC-free native C function pointer called with the GC-leaf protocol.
+    /// Its physical representation matches `FunPtr`, but its type identity is
+    /// distinct so the caller protocol cannot be lost through substitution.
+    GcLeafFunPtr(FunctionTypeId),
     /// An enum type with resolved type arguments (empty for
     /// non-generic enums). `Option<T>` is one of these since M4
     /// (defined in `scoop.core`).
@@ -108,6 +112,7 @@ pub fn types_equal(module: &Module, a: TypeId, b: TypeId) -> bool {
         (Type::Function(x), Type::Function(y)) => x == y,
         (Type::Ptr(x), Type::Ptr(y)) => types_equal(module, *x, *y),
         (Type::FunPtr(x), Type::FunPtr(y)) => x == y,
+        (Type::GcLeafFunPtr(x), Type::GcLeafFunPtr(y)) => x == y,
         (Type::Enum(x), Type::Enum(y)) => x == y,
         (Type::Param(x), Type::Param(y)) | (Type::Companion(x), Type::Companion(y)) => x == y,
         _ => false,
@@ -246,6 +251,19 @@ pub fn type_name_with_params(module: &Module, ty: TypeId, params: &[TypeParamDec
                 .join(", ");
             format!(
                 "FunPtr<({parameters}) -> {}>",
+                type_name_with_params(module, function.return_type, params)
+            )
+        }
+        Type::GcLeafFunPtr(id) => {
+            let function = &module.function_types[*id];
+            let parameters = function
+                .parameter_types
+                .iter()
+                .map(|ty| type_name_with_params(module, *ty, params))
+                .collect::<Vec<_>>()
+                .join(", ");
+            format!(
+                "GCLeafFunPtr<({parameters}) -> {}>",
                 type_name_with_params(module, function.return_type, params)
             )
         }

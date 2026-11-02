@@ -635,6 +635,7 @@ pub enum IntrinsicTypeRepresentation {
     String,
     Ptr { pointee: LirDataPointee },
     FunPtr { signature: LirFunctionType },
+    GcLeafFunPtr { signature: LirFunctionType },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -1156,7 +1157,7 @@ pub enum EnumRepr {
         values: Vec<u64>,
     },
     /// Niche optimization (spec 7.4): only an enum structurally isomorphic to
-    /// `Option<ref/Ptr/FunPtr>` may use it — exactly one empty variant and one
+    /// `Option<ref/Ptr/FunPtr/GCLeafFunPtr>` may use it — exactly one empty variant and one
     /// single pointer-represented payload variant. Names and order do not
     /// matter. The exact pointer provenance is carried atomically with the
     /// representation and cannot be reconstructed from a scan program.

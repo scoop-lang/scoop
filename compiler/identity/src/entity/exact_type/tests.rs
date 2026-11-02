@@ -139,10 +139,37 @@ fn all_six_exact_type_variants_have_fixed_wire_shapes() {
             },
             format!("a40006010102815820{child}035820{child}"),
         ),
+        (
+            ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: crate::CallingConvention::C,
+                parameters: vec![child],
+                result: child,
+            },
+            format!("a40007010102815820{child}035820{child}"),
+        ),
     ];
     for (key, expected) in vectors {
         assert_eq!(hex(&encode(&key).unwrap()), expected);
     }
+}
+
+#[test]
+fn native_safe_and_gc_leaf_function_pointers_have_distinct_identities() {
+    let child = PersistentExactTypeId([42; 32]);
+    let native_safe = ExactTypeKey::NativeFunctionPointer {
+        calling_convention: crate::CallingConvention::C,
+        parameters: vec![child],
+        result: child,
+    };
+    let gc_leaf = ExactTypeKey::GcLeafNativeFunctionPointer {
+        calling_convention: crate::CallingConvention::C,
+        parameters: vec![child],
+        result: child,
+    };
+    assert_ne!(
+        PersistentExactTypeId::from_key(&native_safe).unwrap(),
+        PersistentExactTypeId::from_key(&gc_leaf).unwrap()
+    );
 }
 
 #[test]

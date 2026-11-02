@@ -98,16 +98,23 @@ fn c_projection_composes_with_c_layout_fields_pointers_and_function_pointer_sign
     });
     let pointer = mir::Type::Ptr(Box::new(handle.clone()));
     let callback = mir::Type::FunPtr(signature);
+    let leaf_callback = mir::Type::GcLeafFunPtr(signature);
     builder.c_extern(
         "exchange",
         "exchange",
-        vec![mir::Type::Struct(packet), pointer.clone(), callback.clone()],
+        vec![
+            mir::Type::Struct(packet),
+            pointer.clone(),
+            callback.clone(),
+            leaf_callback.clone(),
+        ],
         handle,
     );
     let main = builder.main(Arena::new(), Vec::new());
     let mut source = builder.finish(main);
     register_test_source_exact_type(&mut source, pointer);
     register_test_source_exact_type(&mut source, callback);
+    register_test_source_exact_type(&mut source, leaf_callback);
     let module = lower(source);
     let definition = &module.structs[struct_def_id(packet)];
     assert_eq!((definition.size, definition.align), (16, 8));
@@ -124,6 +131,9 @@ fn c_projection_composes_with_c_layout_fields_pointers_and_function_pointer_sign
     );
     assert!(
         matches!(&signature.params[2], lir::CType::CodePointer { signature, .. } if signature.params == [lir::CType::Integer(lir::IntegerKind::UNSIGNED_64)])
+    );
+    assert!(
+        matches!(&signature.params[3], lir::CType::CodePointer { signature, .. } if signature.params == [lir::CType::Integer(lir::IntegerKind::UNSIGNED_64)])
     );
     let dump = format!(
         "handle: Scoop=aggregate(8,8) C=uint64\npacket: size={} align={} handle-offset={}\npointer: uint64*\ncallback: uint64 -> uint64\n",

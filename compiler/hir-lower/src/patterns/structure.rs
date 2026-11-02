@@ -100,7 +100,7 @@ impl Lowerer {
                 );
                 None
             }
-            Type::Ptr(_) | Type::FunPtr(_) => {
+            Type::Ptr(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_) => {
                 self.error(
                     span,
                     format!(

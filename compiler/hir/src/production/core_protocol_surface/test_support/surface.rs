@@ -25,6 +25,7 @@ pub(super) fn install_with_intrinsics_at(
     let mutable_array = builder.generic_nominal(SourceNominalKind::Class);
     let ptr = builder.generic_nominal(SourceNominalKind::Struct);
     let fun_ptr = builder.generic_nominal(SourceNominalKind::Struct);
+    let gc_leaf_fun_ptr = builder.generic_nominal(SourceNominalKind::Struct);
     let fundamental_types = CoreFundamentalTypeProtocolV1 {
         unit: CoreBuiltinNominal::Unit.identity_record().id(),
         int8: integers[0],
@@ -41,6 +42,7 @@ pub(super) fn install_with_intrinsics_at(
         mutable_array,
         ptr,
         fun_ptr,
+        gc_leaf_fun_ptr,
         character: builder.concrete_nominal(SourceNominalKind::Struct),
         float: builder.concrete_nominal(SourceNominalKind::Struct),
         double: builder.concrete_nominal(SourceNominalKind::Struct),
@@ -185,6 +187,7 @@ pub(super) fn install_with_intrinsics_at(
     let mut ffi_protocol = CoreFfiProtocolV1 {
         ptr,
         fun_ptr,
+        gc_leaf_fun_ptr,
         pinned_ptr: pinned,
         gc_handle: handle,
         ptr_to_ulong: ffi_callables[0].clone(),

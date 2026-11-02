@@ -107,6 +107,13 @@ pub(super) fn ffi_core_declarations() -> Vec<Decl> {
     fun_ptr_decl.annotations = vec![intrinsic("core_fun_ptr")];
     fun_ptr_decl.fields = ast::StructRepresentationDecl::Omitted;
 
+    let mut gc_leaf_fun_ptr = generic_struct_decl("GCLeafFunPtr", vec!["F"], Vec::new());
+    let Decl::Struct(gc_leaf_fun_ptr_decl) = &mut gc_leaf_fun_ptr else {
+        unreachable!()
+    };
+    gc_leaf_fun_ptr_decl.annotations = vec![intrinsic("core_gc_leaf_fun_ptr")];
+    gc_leaf_fun_ptr_decl.fields = ast::StructRepresentationDecl::Omitted;
+
     let ref_bound = |mut decl: Decl| {
         let type_params = match &mut decl {
             Decl::Struct(decl) => &mut decl.type_params,
@@ -164,6 +171,7 @@ pub(super) fn ffi_core_declarations() -> Vec<Decl> {
     vec![
         ptr,
         fun_ptr,
+        gc_leaf_fun_ptr,
         enum_decl(
             "ForeignCallbackMode",
             vec![],

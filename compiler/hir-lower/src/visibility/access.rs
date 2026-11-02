@@ -235,6 +235,9 @@ impl Lowerer {
             hir::Type::FunPtr(_) => self
                 .ffi_fun_ptr
                 .map(|owner| self.structs[owner].access.lookup.0.clone()),
+            hir::Type::GcLeafFunPtr(_) => self
+                .ffi_gc_leaf_fun_ptr
+                .map(|owner| self.structs[owner].access.lookup.0.clone()),
             hir::Type::Unit
             | hir::Type::Any
             | hir::Type::Tuple(_)

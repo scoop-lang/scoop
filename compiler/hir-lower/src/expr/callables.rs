@@ -202,7 +202,10 @@ impl Lowerer {
                     args: &call.args,
                     span: call.span,
                 };
-                if Some(struct_id) == self.ffi_ptr || Some(struct_id) == self.ffi_fun_ptr {
+                if Some(struct_id) == self.ffi_ptr
+                    || Some(struct_id) == self.ffi_fun_ptr
+                    || Some(struct_id) == self.ffi_gc_leaf_fun_ptr
+                {
                     self.lower_ffi_struct_init(struct_id, site, sink, expected)
                 } else {
                     self.lower_struct_init(struct_id, ty, site, sink, expected)

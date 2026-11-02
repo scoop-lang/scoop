@@ -330,6 +330,21 @@ impl<'a> ExactTypeIdentityBuilder<'a> {
                 ExactTypeKey::RawPointer(self.resolve(pointee)?.id())
             }
             TypeKind::FunPtr(function) => self.function_key(ty, function, true)?,
+            TypeKind::GcLeafFunPtr(function) => {
+                let key = self.function_key(ty, function, true)?;
+                match key {
+                    ExactTypeKey::NativeFunctionPointer {
+                        calling_convention,
+                        parameters,
+                        result,
+                    } => ExactTypeKey::GcLeafNativeFunctionPointer {
+                        calling_convention,
+                        parameters,
+                        result,
+                    },
+                    _ => unreachable!("native function type produces a native pointer key"),
+                }
+            }
         };
         let identity = CborIdentityRecord::from_key(key).map_err(|error| {
             ExactTypeIdentityError::InvalidIdentity {

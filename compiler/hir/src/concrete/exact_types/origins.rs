@@ -41,7 +41,11 @@ impl ExactTypeIdentityInputs<'_> {
             TypeKind::Enum(id) => &self.enums[id].origin,
             TypeKind::Class(id) => &self.classes[id].origin,
             TypeKind::Interface(id) => &self.interfaces[id].origin,
-            TypeKind::Tuple(_) | TypeKind::Function(_) | TypeKind::Ptr(_) | TypeKind::FunPtr(_) => {
+            TypeKind::Tuple(_)
+            | TypeKind::Function(_)
+            | TypeKind::Ptr(_)
+            | TypeKind::FunPtr(_)
+            | TypeKind::GcLeafFunPtr(_) => {
                 return None;
             }
         };

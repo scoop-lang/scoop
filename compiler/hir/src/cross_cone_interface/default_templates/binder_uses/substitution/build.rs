@@ -44,6 +44,18 @@ impl Substitution<'_, '_> {
                     result,
                 }
             }
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                ..
+            } => {
+                let result = self.boxed()?;
+                SignatureTypeKey::GcLeafNativeFunctionPointer {
+                    calling_convention: *calling_convention,
+                    parameters: self.take(parameters.len())?,
+                    result,
+                }
+            }
             SignatureTypeKey::RawPointer(_) => SignatureTypeKey::RawPointer(self.boxed()?),
             SignatureTypeKey::Companion(_) => SignatureTypeKey::Companion(self.boxed()?),
             SignatureTypeKey::Nominal(_) | SignatureTypeKey::Binder { .. } => {

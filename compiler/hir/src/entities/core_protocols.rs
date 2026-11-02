@@ -41,6 +41,7 @@ pub struct DefinedCoreProtocols {
 pub struct FfiCore {
     pub ptr: StructId,
     pub fun_ptr: StructId,
+    pub gc_leaf_fun_ptr: StructId,
     pub pinned_ptr: StructId,
     pub gc_handle: StructId,
     pub ptr_to_ulong: FunctionId,
@@ -300,6 +301,7 @@ pub struct IntrinsicTypeCore {
     pub mutable_array: ClassId,
     pub ptr: StructId,
     pub fun_ptr: StructId,
+    pub gc_leaf_fun_ptr: StructId,
 }
 
 #[derive(Debug, Clone, Copy)]

@@ -66,7 +66,7 @@ impl Roots {
             Type::Class(id) => export.class_applications[*id].arguments.as_slice(),
             Type::Interface(id) => export.interface_applications[*id].arguments.as_slice(),
             Type::Tuple(elements) => elements.as_slice(),
-            Type::Function(id) | Type::FunPtr(id) => {
+            Type::Function(id) | Type::FunPtr(id) | Type::GcLeafFunPtr(id) => {
                 let signature = &export.function_types[*id];
                 self.require_field_type(export, index, signature.return_type)?;
                 if let Some(receiver) = signature.receiver {

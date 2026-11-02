@@ -31,9 +31,9 @@ impl<'a> ConcreteTypeRelations<'a> {
         match &self.types[ty].kind {
             TypeKind::Tuple(elements) => visit_types(elements.iter().copied(), visit),
             TypeKind::Ptr(pointee) => visit(*pointee),
-            TypeKind::Function(signature) | TypeKind::FunPtr(signature) => {
-                self.visit_function(*signature, visit)
-            }
+            TypeKind::Function(signature)
+            | TypeKind::FunPtr(signature)
+            | TypeKind::GcLeafFunPtr(signature) => self.visit_function(*signature, visit),
             TypeKind::Struct(id) => {
                 let declaration = &self.structs[*id];
                 visit_types(declaration.type_arguments.iter().copied(), visit)?;
@@ -112,7 +112,8 @@ impl<'a> ConcreteTypeRelations<'a> {
             | IntrinsicTypeRepresentation::MaybeUninit { value: element }
             | IntrinsicTypeRepresentation::MutableArray { element }
             | IntrinsicTypeRepresentation::Ptr { pointee: element } => visit(*element),
-            IntrinsicTypeRepresentation::FunPtr { signature } => {
+            IntrinsicTypeRepresentation::FunPtr { signature }
+            | IntrinsicTypeRepresentation::GcLeafFunPtr { signature } => {
                 self.visit_function(*signature, visit)
             }
             IntrinsicTypeRepresentation::Unit

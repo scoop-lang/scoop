@@ -724,6 +724,11 @@ fn fun_ptr_has_no_source_constructor_and_requires_a_function_argument() {
                 Some(ty_generic("FunPtr", vec![ty_named("Int")])),
                 unit_lit(),
             ),
+            val_ty(
+                "invalidGcLeaf",
+                Some(ty_generic("GCLeafFunPtr", vec![ty_named("Int")])),
+                unit_lit(),
+            ),
         ],
     )]);
     assert_eq!(
@@ -738,6 +743,11 @@ fn fun_ptr_has_no_source_constructor_and_requires_a_function_argument() {
     assert!(errors.iter().any(|message| {
         message.contains("type argument")
             && message.contains("FunPtr")
+            && message.contains("function")
+    }));
+    assert!(errors.iter().any(|message| {
+        message.contains("type argument")
+            && message.contains("GCLeafFunPtr")
             && message.contains("function")
     }));
 }
