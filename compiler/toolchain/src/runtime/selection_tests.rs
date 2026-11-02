@@ -9,6 +9,7 @@ struct ExpectedComponents {
     os: &'static str,
     image: &'static str,
     loaded_image: Option<&'static str>,
+    trace_loader: Option<&'static str>,
     arch: &'static str,
     frame: &'static str,
     managed_entry: &'static str,
@@ -35,6 +36,14 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
             profile.canonical_triple()
         );
     }
+    assert!(
+        expected
+            .trace_loader
+            .map(|source| unique_sources.contains(source))
+            .unwrap_or_else(|| { !unique_sources.contains("runtime/src/stack_trace/linux.c") }),
+        "{} selects the wrong trace loader",
+        profile.canonical_triple()
+    );
     assert!(
         expected
             .loaded_image
@@ -70,6 +79,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
             loaded_image: None,
+            trace_loader: None,
             arch: "runtime/src/platform/arch/aarch64_float_environment.c",
             frame: "runtime/src/platform/frame/darwin_aarch64.c",
             managed_entry: "runtime/src/platform/frame/darwin_aarch64_macho.S",
@@ -84,6 +94,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
             loaded_image: None,
+            trace_loader: None,
             arch: "runtime/src/platform/arch/x86_64_float_environment.c",
             frame: "runtime/src/platform/frame/sysv_amd64.c",
             managed_entry: "runtime/src/platform/frame/sysv_amd64_macho.S",
@@ -102,6 +113,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 os: "runtime/src/platform/os/linux.c",
                 image: "runtime/src/platform/image/elf.c",
                 loaded_image: Some("runtime/src/platform/loader/linux_elf.c"),
+                trace_loader: Some("runtime/src/stack_trace/linux.c"),
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/sysv_amd64.c",
                 managed_entry: "runtime/src/platform/frame/sysv_amd64_elf.S",
@@ -122,6 +134,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 os: "runtime/src/platform/os/windows.c",
                 image: "runtime/src/platform/image/pe.c",
                 loaded_image: None,
+                trace_loader: None,
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/windows_amd64_virtual_unwind.c",
                 managed_entry: "runtime/src/platform/frame/windows_amd64_coff_managed_entry.S",

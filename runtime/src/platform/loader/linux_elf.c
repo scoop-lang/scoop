@@ -27,8 +27,6 @@ static ScoopElfLoadedImageView loaded_image_view(const struct dl_phdr_info *info
         .load_bias = (uintptr_t)info->dlpi_addr,
         .program_headers = (const Elf64_Phdr *)info->dlpi_phdr,
         .program_header_count = info->dlpi_phnum,
-        .stackmaps_start = __scoop_stackmaps_start,
-        .stackmaps_end = __scoop_stackmaps_end,
     };
 }
 
@@ -43,7 +41,8 @@ static int collect_runtime_image(struct dl_phdr_info *info, size_t size, void *d
         if (header->p_type == PT_LOAD &&
             scoop_elf_loaded_segment_range(&view, header, &start, &end) && own_code >= start &&
             own_code < end) {
-            query->loaded = scoop_elf_metadata_images_from_view(&view, query->images);
+            query->loaded = scoop_elf_metadata_images_from_view(
+                &view, __scoop_stackmaps_start, __scoop_stackmaps_end, query->images);
             return 1;
         }
     }

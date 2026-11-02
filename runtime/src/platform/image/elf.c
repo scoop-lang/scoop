@@ -16,21 +16,6 @@ static bool append_range(ScoopPlatformImageRange **ranges, size_t *count, uintpt
     return true;
 }
 
-bool scoop_elf_loaded_segment_range(const ScoopElfLoadedImageView *view,
-                                    const Elf64_Phdr *header, uintptr_t *start,
-                                    uintptr_t *end) {
-    if (view == NULL || header == NULL || start == NULL || end == NULL ||
-        header->p_vaddr > UINTPTR_MAX - view->load_bias) {
-        return false;
-    }
-    *start = view->load_bias + (uintptr_t)header->p_vaddr;
-    if (header->p_memsz > UINTPTR_MAX - *start) {
-        return false;
-    }
-    *end = *start + (uintptr_t)header->p_memsz;
-    return true;
-}
-
 static int compare_range(const void *left, const void *right) {
     uintptr_t a = ((const ScoopPlatformImageRange *)left)->start;
     uintptr_t b = ((const ScoopPlatformImageRange *)right)->start;
@@ -90,17 +75,17 @@ static bool validate_ranges(ScoopPlatformMetadataImages *images,
                                       stackmaps->text_end - stackmaps->text_start, 1);
 }
 
-static bool attach_stackmaps(const ScoopElfLoadedImageView *view,
+static bool attach_stackmaps(const uint8_t *stackmaps_start, const uint8_t *stackmaps_end,
                              ScoopPlatformMetadataImages *images, ScoopStackMapImage stackmaps) {
-    uintptr_t start = (uintptr_t)view->stackmaps_start;
-    uintptr_t end = (uintptr_t)view->stackmaps_end;
+    uintptr_t start = (uintptr_t)stackmaps_start;
+    uintptr_t end = (uintptr_t)stackmaps_end;
     if (start > end) {
         return false;
     }
     if (start == end) {
         return true;
     }
-    stackmaps.section = view->stackmaps_start;
+    stackmaps.section = stackmaps_start;
     stackmaps.section_size = end - start;
     if (!scoop_image_range_contains(images, stackmaps.section, stackmaps.section_size, 8)) {
         return false;
@@ -116,6 +101,8 @@ static bool attach_stackmaps(const ScoopElfLoadedImageView *view,
 }
 
 bool scoop_elf_metadata_images_from_view(const ScoopElfLoadedImageView *view,
+                                         const uint8_t *stackmaps_start,
+                                         const uint8_t *stackmaps_end,
                                          ScoopPlatformMetadataImages *images) {
     if (view == NULL || images == NULL ||
         (view->program_header_count != 0 && view->program_headers == NULL)) {
@@ -124,7 +111,7 @@ bool scoop_elf_metadata_images_from_view(const ScoopElfLoadedImageView *view,
     *images = (ScoopPlatformMetadataImages){0};
     ScoopStackMapImage stackmaps = {0};
     if (!collect_ranges(view, images, &stackmaps) || !validate_ranges(images, &stackmaps) ||
-        !attach_stackmaps(view, images, stackmaps)) {
+        !attach_stackmaps(stackmaps_start, stackmaps_end, images, stackmaps)) {
         scoop_elf_dispose_metadata_images(images);
         return false;
     }

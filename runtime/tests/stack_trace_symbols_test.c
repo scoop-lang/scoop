@@ -19,6 +19,13 @@ int main(int argc, char **argv) {
     };
     ScoopTraceBuffer trace = scoop_trace_complete(&frames);
     ScoopTraceHeader *header = trace.bytes;
+#if defined(__linux__)
+    const ScoopTraceFrame *captured_frames = (const void *)(header + 1);
+    const ScoopTraceModule *captured_modules =
+        (const void *)(captured_frames + header->frame_count);
+    assert(header->module_count == 1);
+    assert(captured_modules[0].id_kind == 2 && captured_modules[0].id_length != 0);
+#endif
     void *original = scoop_trace_allocate(trace.length);
     memcpy(original, trace.bytes, trace.length);
     ScoopTraceSymbols symbols = {0};

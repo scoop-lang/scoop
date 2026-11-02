@@ -22,8 +22,6 @@ static ScoopElfLoadedImageView valid_view(Elf64_Phdr headers[2]) {
         .load_bias = (uintptr_t)image_storage,
         .program_headers = headers,
         .program_header_count = 2,
-        .stackmaps_start = image_storage + 128,
-        .stackmaps_end = image_storage + 144,
     };
 }
 
@@ -35,7 +33,8 @@ static void parses_explicit_image_view(void) {
     assert(start == (uintptr_t)image_storage && end == (uintptr_t)image_storage + 128);
 
     ScoopPlatformMetadataImages images;
-    assert(scoop_elf_metadata_images_from_view(&view, &images));
+    assert(scoop_elf_metadata_images_from_view(&view, image_storage + 128,
+                                               image_storage + 144, &images));
     assert(images.range_count == 2 && images.count == 1);
     assert(images.ranges[0].start == (uintptr_t)image_storage);
     assert(images.ranges[0].end == (uintptr_t)image_storage + 128);
@@ -55,25 +54,27 @@ static void rejects_invalid_views(void) {
     ScoopPlatformMetadataImages images = {0};
 
     headers[0].p_vaddr = 64;
-    assert(!scoop_elf_metadata_images_from_view(&view, &images));
+    assert(!scoop_elf_metadata_images_from_view(&view, image_storage + 128,
+                                                image_storage + 144, &images));
     assert(images.ranges == NULL && images.images == NULL);
 
     view = valid_view(headers);
     headers[1].p_flags = PF_R;
-    assert(!scoop_elf_metadata_images_from_view(&view, &images));
+    assert(!scoop_elf_metadata_images_from_view(&view, image_storage + 128,
+                                                image_storage + 144, &images));
 
     view = valid_view(headers);
-    view.stackmaps_start = image_storage + 248;
-    view.stackmaps_end = (const uint8_t *)((uintptr_t)image_storage + 264);
-    assert(!scoop_elf_metadata_images_from_view(&view, &images));
+    assert(!scoop_elf_metadata_images_from_view(
+        &view, image_storage + 248, (const uint8_t *)((uintptr_t)image_storage + 264), &images));
 
     view = valid_view(headers);
     view.load_bias = UINTPTR_MAX - 3;
     headers[1].p_vaddr = 4;
-    assert(!scoop_elf_metadata_images_from_view(&view, &images));
+    assert(!scoop_elf_metadata_images_from_view(&view, image_storage + 128,
+                                                image_storage + 144, &images));
 
     view = (ScoopElfLoadedImageView){.program_header_count = 1};
-    assert(!scoop_elf_metadata_images_from_view(&view, &images));
+    assert(!scoop_elf_metadata_images_from_view(&view, NULL, NULL, &images));
 }
 
 int main(void) {

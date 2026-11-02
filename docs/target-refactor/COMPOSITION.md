@@ -19,7 +19,7 @@
 | [LLVM process options](../../compiler/codegen/src/target/machine.rs) | 一次性全局参数同时包含通用 statepoint 约束和 X86 专用选项 | 新 ISA 不能依赖调用顺序获得另一套进程全局配置 |
 | codegen deployment | 测试入口按 Mach-O／ELF／COFF 推导 Darwin／Linux／Windows | OpenHarmony 与 FreeBSD 同为 ELF，却不是 Linux deployment |
 | [runtime composition](../../compiler/toolchain/src/runtime.rs) | OS 从 `NativeEnvironment` 选择；x86_64 同时推导 `-mno-red-zone`；frame 再与对象格式配对 | SDK／CRT 环境被当成 OS，ISA、过程 ABI、frame 和汇编容器语法边界不清楚 |
-| [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata image 已拆成显式 ELF image view parser 与 Linux provider；stack trace 仍在一个 ELF/Linux 模块中 | trace 的对象符号解析和 OS module enumeration 仍需分层 |
+| [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
 | [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
 | [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
 | [final link](../../compiler/toolchain/src/final_link.rs) | profile 只有 Darwin／Linux／Windows，ELF 编排位于 Linux 模块 | FreeBSD／OpenHarmony 需要复用 ELF 规则，但必须拥有自己的 CRT、loader、系统库与链接合同 |
@@ -334,7 +334,7 @@ ValidatedRuntimeBuildProfile
 
 当前 metadata image 路径已经完成该边界：`platform/image/elf.c` 只消费 `ScoopElfLoadedImageView`，`platform/loader/linux_elf.c` 独立调用 `dl_iterate_phdr`、取得 linker symbols 并导出 Linux ops。runtime source composition 分别选择 parser 与 provider；没有为尚未实现的 OS 保存 provider 数据。
 
-同样，stack trace 中的对象符号解析和 OS 级 module enumeration 不应继续放在一个 `ELF/Linux` 模块中。
+stack trace 也采用相同边界：`stack_trace/elf.c` 只解析显式 image view 中的 ELF build-id note，`stack_trace/linux.c` 才负责 `dl_iterate_phdr`、`/proc/self/exe` 与 loader generation；libbacktrace 的 ELF/DWARF reader 继续属于对象解析 source set。
 
 ### 5.5 ISA helper、ManagedEntry 与 ABI shim 分开
 

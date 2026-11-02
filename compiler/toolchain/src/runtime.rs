@@ -32,6 +32,7 @@ struct RuntimeComponents {
     managed_entry: &'static [&'static str],
     abi_shim: &'static [&'static str],
     trace: &'static [&'static str],
+    trace_loader: &'static [&'static str],
     os_flags: &'static [&'static str],
     image_flags: &'static [&'static str],
     frame_flags: &'static [&'static str],
@@ -59,16 +60,20 @@ impl ValidatedRuntimeBuildProfile {
             NativeObjectFormat::Elf64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
             NativeObjectFormat::Coff64 => (sources::PE_IMAGE, &[]),
         };
-        let loaded_image = match (definition.os, target.native_object_format()) {
-            (TargetOs::Linux, NativeObjectFormat::Elf64) => sources::LINUX_ELF_LOADED_IMAGE,
-            (TargetOs::Darwin, NativeObjectFormat::MachO64)
-            | (TargetOs::Windows, NativeObjectFormat::Coff64) => &[],
-            _ => {
-                return Err(crate::ToolchainError(
-                    "no loaded-image provider for the selected OS and object format".into(),
-                ));
-            }
-        };
+        let (loaded_image, trace_loader): (&[&str], &[&str]) =
+            match (definition.os, target.native_object_format()) {
+                (TargetOs::Linux, NativeObjectFormat::Elf64) => (
+                    sources::LINUX_ELF_LOADED_IMAGE,
+                    sources::LINUX_ELF_TRACE_LOADER,
+                ),
+                (TargetOs::Darwin, NativeObjectFormat::MachO64)
+                | (TargetOs::Windows, NativeObjectFormat::Coff64) => (&[], &[]),
+                _ => {
+                    return Err(crate::ToolchainError(
+                        "no runtime loader adapters for the selected OS and object format".into(),
+                    ));
+                }
+            };
         let arch = match target.architecture() {
             TargetArchitecture::Aarch64 => sources::AARCH64,
             TargetArchitecture::X86_64 => sources::X86_64,
@@ -146,6 +151,7 @@ impl ValidatedRuntimeBuildProfile {
             managed_entry,
             abi_shim,
             trace,
+            trace_loader,
             os_flags,
             image_flags,
             frame_flags,
@@ -164,6 +170,7 @@ impl ValidatedRuntimeBuildProfile {
             .iter()
             .copied()
             .chain(components.trace.iter().copied())
+            .chain(components.trace_loader.iter().copied())
             .chain([components.profile])
             .chain(components.os.iter().copied())
             .chain(components.image.iter().copied())
