@@ -21,7 +21,7 @@
 | [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
 | [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
 | [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
-| [final link](../../compiler/toolchain/src/final_link.rs) | profile 只有 Darwin／Linux／Windows，ELF 编排位于 Linux 模块 | FreeBSD／OpenHarmony 需要复用 ELF 规则，但必须拥有自己的 CRT、loader、系统库与链接合同 |
+| [final link](../../compiler/toolchain/src/final_link.rs) | target 目录显式绑定当前 Darwin／Linux／Windows profile，不再由 native environment 或对象格式推导 | ELF 编排仍位于 Linux 模块，需继续拆出纯格式 helper |
 | Windows 工具链 | MSVC／LLVM-MinGW triple、SDK slice、include／lib 路径和 probe 固定 x86_64 | Windows ARM64 无法复用 Windows 工作流，只能侵入全部工具入口 |
 | runtime 源文件 | frame recovery、ManagedEntry 对象语法和 Scoop ABI 返回 shim 已作为独立 source set 选择 | —（原先随 `darwin_aarch64.c` 同组选取的边界已拆开） |
 | 准备／发行脚本 | LLVM build list 和个别 recipe 固定 AArch64／X86、`-march=`、x86_64 triple 或架构 include 目录 | 编译器支持的 ISA、host ISA 和资源 target 混为一谈 |
@@ -443,6 +443,8 @@ NativeToolchainSelection
 已有 Linux profile 作为实际调用方使用提取出的 ELF helper；FreeBSD／OpenHarmony 不在本轮建立 profile。未来只有在其 linker 语义逐项相同时才复用该 helper，不能把整个 Linux final-link 流程改名为 ELF。
 
 最终选择由 target 直接引用 `FinalLinkProfile`，不能由 ELF 或 `TargetOs` 单独推导。这样同一 OS 的不同 native environment 可以有不同 CRT／driver，而同为 ELF 的不同 OS 不会误入 Linux 默认库和 loader。
+
+当前 target 目录已经为现有七个 target 显式绑定 `FinalLinkProfile::{Darwin,Linux,Windows}`；`ValidatedFinalLinkProfile` 只消费该投影，`NativeEnvironment` 继续负责各 profile 内部的 SDK／CRT／libc 分支。该选择进入 final-tool 发现缓存键，没有为未实现平台增加 profile。
 
 ### 7.3 Windows 工作流先参数化 machine
 

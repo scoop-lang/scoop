@@ -8,6 +8,15 @@ use scoop_wire::{Digest256, Encoder, WireEncode, domain_separated_cbor_hash};
 
 use crate::{CToolchainOptions, ResolvedTargetProfile, SystemProvider, ToolchainError};
 
+fn selected_final_link(
+    target: LirTargetProfile,
+) -> Result<scoop_target_data::FinalLinkProfile, ToolchainError> {
+    scoop_target_data::definition(target.id())
+        .filter(|definition| definition.selection.target() == target)
+        .map(|definition| definition.final_link)
+        .ok_or_else(|| error("the selected target has no final-link profile"))
+}
+
 mod cache;
 mod darwin;
 mod dependencies;
@@ -109,12 +118,13 @@ impl ValidatedFinalLinkProfile {
         options: &FinalLinkOptions,
         cxx: Option<crate::ValidatedCxxToolchain>,
     ) -> Result<Self, ToolchainError> {
-        if options.linker.is_some() && !startup.native_environment().is_windows() {
+        let final_link = selected_final_link(startup.target())?;
+        if options.linker.is_some() && !final_link.is_windows() {
             return Err(error("--linker currently selects a Windows final linker"));
         }
         let native_roots = options.native_roots(startup.target())?;
-        match startup.native_environment() {
-            scoop_target_data::NativeEnvironment::Darwin => {
+        match final_link {
+            scoop_target_data::FinalLinkProfile::Darwin => {
                 if options.mode == Some(LinkMode::Static) || options.unwind_prefix.is_some() {
                     return Err(error(
                         "Darwin uses dynamic libSystem unwinding; static mode and an unwind prefix are not applicable",
@@ -123,13 +133,10 @@ impl ValidatedFinalLinkProfile {
                 DarwinFinalLinkProfile::from_startup(startup, options, cxx, native_roots)
                     .map(Self::Darwin)
             }
-            scoop_target_data::NativeEnvironment::LinuxGnu
-            | scoop_target_data::NativeEnvironment::LinuxMusl => {
+            scoop_target_data::FinalLinkProfile::Linux => {
                 LinuxFinalLinkProfile::resolve(startup, options, cxx, native_roots).map(Self::Linux)
             }
-            scoop_target_data::NativeEnvironment::MicrosoftUcrt
-            | scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt
-            | scoop_target_data::NativeEnvironment::LlvmMingwUcrt => {
+            scoop_target_data::FinalLinkProfile::Windows => {
                 WindowsFinalLinkProfile::resolve(startup, options, cxx).map(Self::Windows)
             }
         }
@@ -273,6 +280,38 @@ mod tests {
             options.enable_stack_trace = Some(enabled);
             assert_eq!(options.stack_trace_enabled(Debug), enabled);
             assert_eq!(options.stack_trace_enabled(Release), enabled);
+        }
+    }
+
+    #[test]
+    fn current_targets_select_final_link_from_the_catalog() {
+        for (targets, expected) in [
+            (
+                &[
+                    scoop_target_data::DARWIN_AARCH64,
+                    scoop_target_data::DARWIN_X86_64,
+                ][..],
+                scoop_target_data::FinalLinkProfile::Darwin,
+            ),
+            (
+                &[
+                    scoop_target_data::LINUX_X86_64_GNU,
+                    scoop_target_data::LINUX_X86_64_MUSL,
+                ][..],
+                scoop_target_data::FinalLinkProfile::Linux,
+            ),
+            (
+                &[
+                    scoop_target_data::WINDOWS_X86_64_MSVC_UCRT,
+                    scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT,
+                    scoop_target_data::WINDOWS_X86_64_MINGW_UCRT,
+                ][..],
+                scoop_target_data::FinalLinkProfile::Windows,
+            ),
+        ] {
+            for target in targets {
+                assert_eq!(selected_final_link(*target).unwrap(), expected);
+            }
         }
     }
 }

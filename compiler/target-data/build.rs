@@ -32,6 +32,7 @@ struct Target {
     exception_model: String,
     tuning: String,
     native_environment: String,
+    final_link: String,
     c_bridge_profile: String,
     native_rust_target: String,
 }
@@ -82,6 +83,15 @@ fn object_target_architecture(value: &str) -> &'static str {
     }
 }
 
+fn final_link_os(value: &str) -> &'static str {
+    match value {
+        "Darwin" => "darwin",
+        "Linux" => "linux",
+        "Windows" => "windows",
+        _ => panic!("unsupported final-link profile {value:?}"),
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=targets.toml");
     let catalog: Catalog = toml::from_str(&fs::read_to_string("targets.toml").unwrap()).unwrap();
@@ -105,6 +115,7 @@ fn main() {
             &target.object_target,
             &target.backend,
             &target.native_environment,
+            &target.final_link,
             &target.procedure_abi,
             &target.scoop_abi,
             &target.exception_model,
@@ -130,6 +141,11 @@ fn main() {
             target.arch,
             object_target_architecture(object_target),
             "target architecture and object machine differ for {canonical}"
+        );
+        assert_eq!(
+            target.os,
+            final_link_os(&target.final_link),
+            "target OS and final-link profile differ for {canonical}"
         );
         writeln!(
             output,
@@ -166,6 +182,7 @@ fn main() {
             env,
             llvm_triple,
             native_environment,
+            final_link,
             c_bridge_profile,
             native_rust_target,
             tuning,
@@ -173,7 +190,7 @@ fn main() {
         } = target;
         let target_os = target_os(os);
         let architecture = target_architecture(arch);
-        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, native_environment: NativeEnvironment::{native_environment}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning} }},").unwrap();
+        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, native_environment: NativeEnvironment::{native_environment}, final_link: FinalLinkProfile::{final_link}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning} }},").unwrap();
     }
     output.push_str("];\npub const fn definition(id: TargetProfileId) -> Option<TargetDefinition> { match id {\n");
     for (index, target) in catalog.targets.iter().enumerate() {

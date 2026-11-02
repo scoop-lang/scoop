@@ -28,6 +28,27 @@ pub enum NativeEnvironment {
     LlvmMingwUcrt,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FinalLinkProfile {
+    Darwin,
+    Linux,
+    Windows,
+}
+
+impl FinalLinkProfile {
+    pub const fn source_name(self) -> &'static str {
+        match self {
+            Self::Darwin => "darwin",
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+        }
+    }
+
+    pub const fn is_windows(self) -> bool {
+        matches!(self, Self::Windows)
+    }
+}
+
 impl NativeEnvironment {
     pub const fn is_windows(self) -> bool {
         matches!(
@@ -65,6 +86,7 @@ pub struct TargetDefinition {
     pub env: &'static str,
     pub llvm_triple: &'static str,
     pub native_environment: NativeEnvironment,
+    pub final_link: FinalLinkProfile,
     pub c_bridge_profile: &'static str,
     pub native_rust_target: &'static str,
     pub tuning: CodegenTuning,
