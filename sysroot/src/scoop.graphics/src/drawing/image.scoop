@@ -4,7 +4,7 @@ public enum ImageSampling {
     Nearest, Linear
 }
 
-/** Owned immutable sRGB image pixels. Decoding copies input data and eagerly verifies it. */
+/** Immutable sRGB pixels; compatible offscreen snapshots may retain their GPU context. */
 public class Image internal constructor(internal val resource: GraphicsResource): Closeable {
     public val width: Int get() {
         @Unsafe

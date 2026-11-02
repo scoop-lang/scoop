@@ -151,6 +151,8 @@ struct STTextLayout : STObject {
   std::vector<STTextLine> lines;
   std::vector<STInlineBox> inlines;
   STLayoutInfo info;
+  bool paint_bounds_known = false;
+  SkRect paint_bounds = SkRect::MakeEmpty();
   STTextLayout(const STParagraph &source, double width, bool wrap,
                const STInlineMetrics *metrics, size_t count);
   void place_inlines();

@@ -38,6 +38,12 @@ ImageFilter、Path、PathBuilder、PathMeasure、Image、RasterSurface 与底层
 
 颜色采用 sRGB，绘制内部为预乘 alpha；RGBA8 输入和 `readPixels()` 返回值采用紧密排列的直通 alpha 字节。PNG／JPEG decode 会复制输入并实际解码；surface snapshot 保留独立图像内容，后续绘制不会修改旧快照。
 
+`canvas.recordDrawing(bounds) { record -> ... }` 返回不可变 Drawing，使用独立局部坐标、明确的 bounds 裁剪和正常 Canvas 借用规则；`canvas.drawDrawing(drawing)` 在当前坐标下重放。记录保留绘图资源而不保留用户回调，来源 Path／Image／TextLayout 包装关闭后仍可使用；重放仍会光栅化，不是像素缓存。
+
+`canvas.createSurface(pixelWidth, pixelHeight, scale)` 返回与当前真实目标兼容的 OffscreenSurface。其 `snapshot()` 保留 GPU 图像，不等待或读回 CPU；旧快照不随之后的 draw 改变。`canvas.isCompatible(image)`／`isCompatible(drawing)` 可在复用前判断实际 context 是否相同，不兼容的 GPU 资源拒绝绘制。普通 RenderTarget／RasterSurface 的 snapshot 仍返回 CPU 图像，readPixels 保持显式同步。
+
+`pixelTransform` 包含目标 DPI；`localClipBounds` 只是局部裁剪的保守矩形，精确命中仍使用 CanvasGeometry。分块绘图可用 `drawImageRegion(image, source, destination)` 合成扩展图像的核心区域；Linear 允许从相邻源像素采样，应按滤镜范围及插值需要保留扩展边缘。新能力本期先验证 macOS aarch64，x86_64 统一留到 UI 基础交互功能全部完成后，Windows 验收后续进行。
+
 GUI renderer 通过 `scoop.graphics.native` 的 RenderTarget 和 geometry 捕获接入。macOS 的 Unsafe `scoop.graphics.native.macos.MetalContext` 接受所属 device／queue 和 BGRA8 texture；Windows 的 Unsafe `scoop.graphics.native.windows.D3DContext` 接受 adapter／device／direct queue，以及同设备的单采样 BGRA8 render target。D3D12 resource 在包装前须处于 PRESENT／COMMON 状态，submit 和读回结束后恢复 PRESENT。绑定保留所需 COM 引用，原生对象仍由调用方按 GPU 使用顺序管理。
 
 DPI 缩放由目标根部施加一次，geometry 快照仍使用逻辑坐标。普通 submit 不等待 GPU；显式读回、drain 和 context 关闭是同步点。字体、样式、Paragraph／TextLayout 和 Canvas.drawText 由独立 [scoop.graphics.text](../scoop.graphics.text/README.md) 提供；使用文本时声明该 Cone 依赖并导入其 package。

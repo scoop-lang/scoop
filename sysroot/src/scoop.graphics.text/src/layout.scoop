@@ -43,6 +43,15 @@ public class TextLayout internal constructor(
     public val graphemeBoundaries: Array<Long> = readGraphemes(resource.get(), info.graphemes)
     public val inlineObjects: Array<InlinePlacement> = readInlinePlacements(resource.get(), content)
     public val isClosed: Boolean get() = resource.isClosed
+    /** Conservative bounds of the actual text ink, excluding externally drawn inline objects. */
+    public val paintBounds: Rect get() {
+        @Unsafe
+        {
+            val value = textPaintBounds(resource.get())
+            textResult(value.status, "query text paint bounds")
+            return value.rect
+        }
+    }
 
     public fun hitTest(point: Point): TextPosition {
         checkTextPoint(point)
@@ -126,6 +135,9 @@ private fun readLayoutInfo(pointer: Ptr<Unit>): NativeLayoutInfo {
         return textInfo(pointer)
     }
 }
+
+@Extern(name = "scoop_graphics_text_paint_bounds")
+private fun textPaintBounds(layout: Ptr<Unit>): NativeCaret
 
 private fun readLines(pointer: Ptr<Unit>, count: Long): Array<TextLine> =
     Array<TextLine>(count) {

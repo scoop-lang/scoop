@@ -124,6 +124,8 @@ selection 返回可见文字和已选中对象的 TextBox；完全覆盖对象�
 
 定义在 `scoop.graphics.text` 的 Canvas.drawText 绘制 TextLayout 中的文字，行内对象留给调用方按 inlineObjects 绘制或放置。调用方使用同一个结果提供对象位置、文字选择及输入几何，不能分别测量两份段落。对象的绘制不触发文本引擎回调，也不在排版中调用组件 render／paint。
 
+`TextLayout.paintBounds: Rect` 是该文字绘制在段落局部坐标中的保守边界，包含真实字形 overhang、装饰和文本效果，不包含由调用方绘制的行内对象。空绘图返回空矩形；它独立于布局 size，不能据此改变行高、命中或排版裁剪。边界由同一 Skia 文字绘制的记录和后端边界计算取得，并在不可变 TextLayout 内按需复用，不按字号、字符数量或布局盒子估算。光栅缓存仍须给抗锯齿及采样保留像素边缘；查询关闭对象报状态错误。
+
 跨 Cone 绘制通过 `scoop.graphics.native` 提供的同步、受限 Unsafe 画布借用接入；有效期沿用原 Canvas。适配经不透明 C ABI 句柄连接同一固定版本的 Skia，不复制 SGCanvas／SGObject 的私有布局，不把 C++ 类型暴露为 Scoop API。graphics.text 自己持有并释放段落／字体对象；graphics 不按文本类型分派或为 graphics.text 建立资源注册表。借用不允许保存画布、跨线程／挂起使用，文字绘制结束后恢复调用方几何状态。
 
 具体入口为 `Canvas.withSkiaCanvas`，签名及原生借用约束见 [Surface 规范第 2 节](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。Canvas.drawText 在这段借用内绘制同一 TextLayout，只使用公开的 Point／Rect／Color 值布局及 Skia 头文件，不包含 graphics 的私有 native 头文件。

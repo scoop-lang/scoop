@@ -27,7 +27,8 @@
 | D2d1：已挂载目标的焦点显露 | 已完成 aarch64 实施和定向验证 |
 | D2d2a：未挂载项的按 key 聚焦 | 已完成 aarch64 实施和定向验证 |
 | D2d2b：虚拟 Tab 与 roving 导航 | 已完成 aarch64 实施和定向验证 |
-| E：绘制记录与分块像素缓存 | 待实施 |
+| E1：绘制记录、兼容离屏图像与文字绘制边界 | 已完成 aarch64 实施和定向验证 |
+| E2：滚动容器分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
@@ -244,3 +245,16 @@ LazyFocusOptions 与 VirtualList.navigation 提供 None、Sequential 和 Roving�
 Scoop 格式检查、UI／Component 生产类型检查、相关测试源码类型检查和六个 UI 库 aarch64 release 构建通过。6 项定向 scoop.test 通过：新增虚拟导航，以及有限 Tab、有限 roving／网格导航、模态恢复、按 key 聚焦和嵌套滚动显露原生回归各 1 项。新用例覆盖多目标顺序、正反向嵌套遍历、空／禁用／零高度项、fallback、实例卸载后的历史恢复、一亿项 Home／End 的有限构建、RTL、边界消费、修饰键、局部／capture 拦截、删除历史项、循环、禁用及完整资源释放。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。6 份一次性桌面报告与 5 个被替代的旧测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。后续继续绘制缓存及公共编辑能力。
+
+
+## E1：绘制记录、兼容离屏图像与文字绘制边界
+
+Graphics 提供 Canvas.recordDrawing 与不可变 Drawing、兼容的 OffscreenSurface、GPU 合成快照、图像区域绘制及像素变换／局部裁剪查询。记录使用独立坐标与显式 bounds，保留实际绘图资源，不持有 Scoop 回调或整张内容 bitmap。合成快照在原 GPU context 内保持不可变像素，来源关闭和后续写入不改变其内容；不兼容的绘制直接拒绝，既有 CPU snapshot／显式读回保持原合同。
+
+TextLayout.paintBounds 通过同一文字绘图的 Skia 记录与边界计算取得真实字形范围，按不可变布局复用，包含 overhang 并排除外部行内对象。它不改变排版 size、caret 或输入几何，供下一批正文缓存明确绘制范围。
+
+Scoop 格式检查、两库生产／测试源码类型检查、修改的 C++ arm64 警告检查和 UI 依赖闭包 aarch64 release 构建通过。66 项定向 scoop.test 通过：Graphics 33 项、Graphics.Text 32 项、UI 真实窗口绘制 1 项。新增覆盖记录借用与异常收尾、资源关闭后重放、快照写时独立、实际 context 兼容性、CPU 读回合同、DPI、图像子区域，以及 Raster／Metal 模糊和阴影分块像素；文字覆盖紧行高越界、组合字符、双向文本、ellipsis、空／行内对象段落和 GPU 合成。
+
+首轮 Metal 分块测试仅留 1 像素插值边缘，完整离屏对照通过但分块 alpha 最大差 5；按滤镜范围保留扩展区域后，原 Raster／Metal 容差 2／3 均通过。文字截断用例最初没有产生足够行数，补足真实长文本后通过。最终产物上的全部用例与窗口回归通过，没有降低验证条件。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。9 份一次性报告与 3 个被替代的旧测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。此批交付缓存所需底层能力，滚动容器的 Tiles 策略继续按 E2 实施。

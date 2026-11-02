@@ -1,0 +1,205 @@
+package scoop.graphics
+
+import scoop.graphics.native.macos.MetalContext
+import scoop.tests.graphics.TestMetalSurface
+import scoop.test.*
+
+@Test
+private class MetalOffscreenTest {
+    @Test
+    fun `GPU snapshots retain their context and pixels across writes and source closure`() {
+        TestMetalSurface.create(48, 32).use {
+            objects -> @Unsafe
+            {
+                MetalContext.create(objects.device(), objects.queue()).use {
+                    context -> @Unsafe
+                    {
+                        context.target(objects.texture(), 48, 32, 2.0).use {
+                            destination ->
+                            val images = ArrayList<Image>()
+                            try {
+                                val drawing =
+                                    destination.draw {
+                                        canvas ->
+                                        assertEquals(
+                                            Transform.scale(2.0, 2.0),
+                                            canvas.pixelTransform
+                                        )
+                                        canvas.createSurface(16, 16, 2.0).use {
+                                            surface ->
+                                            surface.draw {
+                                                offscreen -> offscreen.clear(Color(1.0, 0.0, 0.0))
+                                            }
+                                            images.add(surface.snapshot())
+                                            surface.draw {
+                                                offscreen -> offscreen.clear(Color(0.0, 1.0, 0.0))
+                                            }
+                                            images.add(surface.snapshot())
+                                        }
+                                        canvas.recordDrawing(Rect(0.0, 0.0, 8.0, 8.0)) {
+                                            record ->
+                                            assertEquals(Transform(), record.pixelTransform)
+                                            record.drawImage(images[0L], Rect(0.0, 0.0, 8.0, 8.0))
+                                        }
+                                    }
+                                drawing.use {
+                                    record ->
+                                    RasterSurface(8, 8).use {
+                                        raster -> raster.draw {
+                                            canvas ->
+                                            assertFalse(canvas.isCompatible(images[0L]))
+                                            assertFalse(canvas.isCompatible(record))
+                                            assertFailsWith<IllegalArgumentException> {
+                                                canvas.drawImage(
+                                                    images[0L],
+                                                    Rect(0.0, 0.0, 8.0, 8.0)
+                                                )
+                                            }
+                                            assertFailsWith<IllegalArgumentException> {
+                                                canvas.drawDrawing(record)
+                                            }
+                                        }
+                                    }
+                                    @Unsafe
+                                    {
+                                        MetalContext.create(objects.device(), objects.queue()).use {
+                                            other -> @Unsafe
+                                            {
+                                                other.target(objects.texture(), 48, 32, 1.0).use {
+                                                    target -> target.draw {
+                                                        canvas ->
+                                                        assertFalse(canvas.isCompatible(images[0L]))
+                                                        assertFalse(canvas.isCompatible(record))
+                                                        assertFailsWith<IllegalArgumentException> {
+                                                            canvas.drawDrawing(record)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    images[0L].close()
+                                    context.close()
+                                    destination.draw {
+                                        canvas ->
+                                        canvas.clear(Color.Transparent)
+                                        assertTrue(canvas.isCompatible(record))
+                                        assertTrue(canvas.isCompatible(images[1L]))
+                                        canvas.drawDrawing(record)
+                                        canvas.drawImage(images[1L], Rect(12.0, 0.0, 8.0, 8.0))
+                                    }
+                                    destination.submit()
+                                    val pixels = destination.readPixels()
+                                    assertEquals(255, channel(pixels, 48, 6, 6, 0))
+                                    assertEquals(255, channel(pixels, 48, 30, 6, 1))
+                                    assertEquals(0, channel(pixels, 48, 20, 6, 3))
+                                    destination.snapshot().use {
+                                        cpu -> RasterSurface(48, 32).use {
+                                            raster ->
+                                            raster.draw {
+                                                canvas ->
+                                                assertTrue(canvas.isCompatible(cpu))
+                                                canvas.drawImage(cpu, Rect(0.0, 0.0, 48.0, 32.0))
+                                            }
+                                            assertEquals(
+                                                255,
+                                                channel(raster.readPixels(), 48, 6, 6, 0)
+                                            )
+                                        }
+                                    }
+                                }
+                            } finally {
+                                for (image in images)
+                                    image.close()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `Metal tiles reuse recorded filters with compatible images and no edge discontinuity`() {
+        TestMetalSurface.create(192, 128).use {
+            objects -> @Unsafe
+            {
+                MetalContext.create(objects.device(), objects.queue()).use {
+                    context -> @Unsafe
+                    {
+                        context.target(objects.texture(), 192, 128, 2.0).use {
+                            target -> ImageFilter.blur(3.0, 3.0).use {
+                                filter ->
+                                val scene: (Canvas) -> Unit =
+                                    {
+                                        canvas ->
+                                        canvas.saveLayer(filter = Some(filter))
+                                        canvas.drawRect(
+                                            Rect(17.0, 15.0, 44.0, 27.0),
+                                            Paint(Color(1.0, 0.0, 0.0))
+                                        )
+                                        canvas.restore()
+                                    }
+                                target.draw {
+                                    canvas ->
+                                    canvas.clear(Color.Transparent);
+                                    scene(canvas)
+                                }
+                                val reference = target.readPixels()
+                                val record =
+                                    target.draw {
+                                        canvas -> canvas.recordDrawing(
+                                            Rect(0.0, 0.0, 96.0, 64.0),
+                                            scene
+                                        )
+                                    }
+                                record.use {
+                                    drawing ->
+                                    filter.close()
+                                    target.draw {
+                                        canvas ->
+                                        canvas.clear(Color.Transparent)
+                                        canvas.createSurface(192, 128, 2.0).use {
+                                            surface ->
+                                            surface.draw {
+                                                inner ->
+                                                inner.clear(Color.Transparent)
+                                                inner.drawDrawing(drawing)
+                                            }
+                                            surface.snapshot().use {
+                                                image -> canvas.drawImage(
+                                                    image,
+                                                    Rect(0.0, 0.0, 96.0, 64.0)
+                                                )
+                                            }
+                                        }
+                                    }
+                                    assertPremultipliedPixels(
+                                        reference,
+                                        target.readPixels(),
+                                        192,
+                                        128,
+                                        3,
+                                        "whole offscreen"
+                                    )
+                                    target.draw {
+                                        canvas ->
+                                        canvas.clear(Color.Transparent)
+                                        drawRasterTiles(canvas, drawing, 2.0, 10.0)
+                                    }
+                                    assertPremultipliedPixels(
+                                        reference,
+                                        target.readPixels(),
+                                        192,
+                                        128,
+                                        3
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,43 @@
+package scoop.graphics
+
+/** Immutable native drawing commands; replay is not a pixel cache. */
+public class Drawing internal constructor(
+    internal val resource: GraphicsResource,
+    public val bounds: Rect
+): Closeable {
+    public val isClosed: Boolean get() = resource.isClosed
+    public override fun close() {
+        resource.close()
+    }
+}
+
+internal fun recordGraphics(source: Ptr<Unit>, bounds: Rect, block: (Canvas) -> Unit): Drawing {
+    @Unsafe
+    {
+        val recording = ownedGraphics(recordingCreate(source, bounds), "create drawing recorder")
+        try {
+            val canvas =
+                Canvas(ownedGraphics(recordingCanvas(recording.get()), "borrow recording canvas"))
+            try {
+                block(canvas)
+            } finally {
+                canvas.resource.close()
+            }
+            return Drawing(
+                ownedGraphics(recordingFinish(recording.get()), "finish drawing record"),
+                bounds
+            )
+        } finally {
+            recording.close()
+        }
+    }
+}
+
+@Extern(name = "scoop_graphics_recording_create")
+private fun recordingCreate(canvas: Ptr<Unit>, bounds: Rect): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_recording_canvas")
+private fun recordingCanvas(recording: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_recording_finish")
+private fun recordingFinish(recording: Ptr<Unit>): Ptr<Unit>?

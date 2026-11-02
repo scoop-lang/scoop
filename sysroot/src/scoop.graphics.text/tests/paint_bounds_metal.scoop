@@ -1,0 +1,67 @@
+package scoop.graphics.text
+
+import scoop.graphics.*
+import scoop.graphics.native.macos.MetalContext
+import scoop.tests.graphics.TestMetalSurface
+import scoop.test.*
+
+@Test
+private class MetalRecordedTextTest {
+    @Test
+    fun `text records and GPU snapshots preserve ink and one DPI transform`() {
+        testFonts().use {
+            fonts -> Paragraph(fonts, "jé是", TextStyle(["Test Sans", "Test CJK"], 28.0)).use {
+                paragraph -> paragraph.layout(80.0).use {
+                    layout ->
+                    val bounds = expandTextBounds(layout.paintBounds)
+                    TestMetalSurface.create(192, 96).use {
+                        objects -> @Unsafe
+                        {
+                            MetalContext.create(objects.device(), objects.queue()).use {
+                                context -> @Unsafe
+                                {
+                                    context.target(objects.texture(), 192, 96, 2.0).use {
+                                        target ->
+                                        target.draw {
+                                            canvas ->
+                                            canvas.clear(Color.Transparent)
+                                            canvas.translate(8.0, 4.0)
+                                            canvas.drawText(layout)
+                                        }
+                                        val reference = target.readPixels()
+                                        target.draw {
+                                            canvas ->
+                                            canvas.clear(Color.Transparent)
+                                            canvas.recordDrawing(bounds) {
+                                                record -> record.drawText(layout)
+                                            }.use {
+                                                drawing ->
+                                                layout.close()
+                                                canvas.createSurface(192, 96, 2.0).use {
+                                                    offscreen ->
+                                                    offscreen.draw {
+                                                        inner ->
+                                                        inner.clear(Color.Transparent)
+                                                        inner.translate(8.0, 4.0)
+                                                        inner.drawDrawing(drawing)
+                                                    }
+                                                    offscreen.snapshot().use {
+                                                        image -> canvas.drawImage(
+                                                            image,
+                                                            Rect(0.0, 0.0, 96.0, 48.0)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        assertTextPixels(reference, target.readPixels(), 2)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

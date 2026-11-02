@@ -34,6 +34,22 @@ Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其�
 
 SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL 设计](../graphics/sksl/DESIGN.md)。本期先按[图像滤镜与图层规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md)补齐 Skia Gaussian blur、alpha 阴影、混合与图层滤镜，供离屏和公共 UI style 消费；这批已在 macOS aarch64 实现并通过 Raster／Metal 定向验证，x86_64 的 Rosetta 补验也已通过，详见 [UI 实施记录](../ui/PROGRESS.md)。RuntimeEffect／shader 填充仍未接入，不作为基础效果前置。后续实现通过既有 Skia 后端与普通 FFI 扩展，不隐式创建时间驱动器，也不改变 Canvas 借用或第 4.1 节的按需停帧规则。
 
+### 2.1 绘制记录与兼容离屏图像
+
+`Canvas.recordDrawing(bounds, block)` 在独立局部坐标中记录不可变 Drawing。bounds 必须有限，作为该记录的明确裁剪范围；不继承来源 Canvas 的变换、clip 或 DPI，记录原点为 (0, 0)，一个单位为一个逻辑单位。来源 Canvas 在回调期间处于借用状态，只有回调取得的记录 Canvas 可用；正常或异常退出均结束借用，未配对的 save／saveLayer 正常收尾。记录不修改来源像素，不保存 Scoop 回调，也不分配覆盖 bounds 的 bitmap。
+
+Drawing 公开 bounds、isClosed 和 close；`Canvas.drawDrawing(drawing)` 在当前变换与 clip 下重放命令。它保留 Path、Image、字体和滤镜等实际原生依赖，来源包装或绘图回调结束不会使其失效。重放仍可能重新光栅化，不能替代像素缓存。记录与直接绘图使用相同混合语义；需要隔离的调用方显式使用 saveLayer。
+
+`Canvas.createSurface(pixelWidth, pixelHeight, scale = 1.0)` 创建与来源真实绘图目标兼容的 OffscreenSurface，采用相同颜色空间、像素格式和 GPU context，独立拥有像素与画布状态，不继承来源变换或 clip。尺寸为正整数，scale 为可表示的正数，只在离屏 draw 根部施加一次。OffscreenSurface 提供 draw、snapshot、readPixels、isClosed 和 close，Canvas 有效期与普通目标一致，借用期间拒绝关闭目标。
+
+OffscreenSurface.snapshot 返回不可变合成 Image；GPU 路径保留 GPU 图像和所需 context，后续离屏写入不改变旧图像，不做 CPU 读回或等待。GPU 绘制与采样使用同一 context 的命令顺序；外部呈现目标的提交仍恢复其外部使用状态，普通离屏提交不要求呈现。现有 RenderTarget.snapshot／RasterSurface.snapshot 的独立 CPU 图像合同保持，readPixels 仍是显式同步点。
+
+`Canvas.isCompatible(image)`／`isCompatible(drawing)` 检查实际后端资源能否在该画布使用。CPU 资源可被各后端消费；GPU 合成 Image 和 GPU 来源的 Drawing 只在同一实际 context 中使用，不自动读回、复制到其他 context 或重建资源。不兼容的绘制报参数错误，关闭及跨线程查询沿普通资源错误处理。资源持有引用不会延长 Canvas 借用，已排入 GPU 的使用由 Skia 保留至完成。
+
+`Canvas.pixelTransform` 返回包含目标 DPI 的当前仿射变换；`localClipBounds` 返回当前 clip 在局部坐标中的保守包围盒，空裁剪为 None，路径孔洞不能仅凭此矩形判断命中。这两个只读查询用于像素网格与绘制区域选择，不替代 CanvasGeometry 的精确输入几何。`drawImageRegion(image, source, destination, sampling, opacity)` 绘制图像子区域，source 必须位于图像像素范围内；Linear 可采样相邻源像素，供有边缘扩展的缓存块拼接，来源图像外仍按图像边缘处理。
+
+以上资源使用实际 Skia 记录器、兼容 surface 和图像快照，沿既有 owner 线程与 close／use 规则释放。本期在 macOS 实施；新增 x86_64 验证在全部 UI 基础交互功能完成后统一进行，Windows 验收留待后续。
+
 ## 3. 字体与文本布局
 
 字体、Paragraph／TextLayout、多样式 run、位置查询和绘制的合同统一见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)。公共类型及 Canvas.drawText 扩展位于 scoop.graphics.text；graphics 本身不引用 TextLayout，也不负责其原生释放。

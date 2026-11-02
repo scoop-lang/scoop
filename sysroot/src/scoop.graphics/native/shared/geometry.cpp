@@ -20,8 +20,7 @@ static SGGeometry *geometry(SGCanvas *value, SkPath shape) {
     result->invertible = result->matrix.invert(&result->inverse);
     result->clips = value->clips.back();
     result->shape = std::move(shape);
-    result->viewport = SkRect::MakeWH(value->surface->width() / value->scale,
-                                      value->surface->height() / value->scale);
+    result->viewport = value->viewport;
     return result.release();
   } catch (...) {
     return nullptr;
@@ -29,6 +28,17 @@ static SGGeometry *geometry(SGCanvas *value, SkPath shape) {
 }
 
 extern "C" {
+SGTransform scoop_graphics_canvas_pixel_transform(SGCanvas *value) {
+  const auto matrix = value->canvas->getLocalToDeviceAs3x3();
+  return {matrix.getScaleX(), matrix.getSkewY(),      matrix.getSkewX(),
+          matrix.getScaleY(), matrix.getTranslateX(), matrix.getTranslateY()};
+}
+SGBounds scoop_graphics_canvas_clip_bounds(SGCanvas *value) {
+  SkRect result;
+  if (!value->canvas->getLocalClipBounds(&result))
+    return {};
+  return {1, sg_rect(result)};
+}
 int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
                                    SGFilter *filter, int32_t blend) {
   SkBlendMode mode;

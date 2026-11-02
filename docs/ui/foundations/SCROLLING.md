@@ -100,7 +100,7 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 不为整个超长内容分配一张 bitmap。Tiles 只保留 viewport 附近的有限内容坐标块，大小和 overscan 是本容器的参数；不在每次滚动时栅格化完整文档。离开缓存范围的图像正常释放。对于简单列表，None 仍是合理选择。
 
-graphics 需要补充绘制记录器和与当前 render target 兼容的离屏目标／只读合成快照。GPU 缓存保持在兼容 device／context 内，提交和采样顺序由现有后端协调；禁止把当前 `RenderTarget.snapshot()` 的隐式 CPU 读回放入滚动热路径。CPU Raster 路径用同一可观察行为验证。关闭／目标重建／GPU 尚在使用时，资源沿 graphics 引用与完成规则释放。
+graphics 的基础入口采用 `Canvas.recordDrawing(bounds, block)`、`createSurface(pixelWidth, pixelHeight, scale)` 与 OffscreenSurface.snapshot；记录明确裁剪到有限 bounds，来源 Canvas 的 transform／clip 不带入记录坐标。GPU 快照保持在同一实际 context 内，提交和采样顺序由现有后端协调，isCompatible 可用于拒绝过期后端资源；不把现有 RenderTarget.snapshot 的 CPU 读回放入滚动热路径。CPU Raster 路径使用同一可观察行为。关闭／目标重建／GPU 尚在使用时，资源沿 graphics 引用与完成规则释放；容器 Tiles 策略在基础接口之后接入。
 
 ### 6.2 有效性与几何
 
@@ -108,7 +108,7 @@ graphics 需要补充绘制记录器和与当前 render target 兼容的离屏�
 
 场景装配照常登记 InputArea、anchor、子项顺序和 caret，命中缓存只跳过绘图块／光栅步骤。公开 `draw` 块只有在提供可靠的绘制范围并满足缓存合成条件时才进入缓存；无界自绘或直接依赖目标背景的混合可以继续直绘，不能错误缓存后改变视觉。
 
-布局 bounds 不是绘制 bounds。字形 overhang、阴影、模糊和光晕可能越界：缓存范围必须包含实际绘制及滤镜采样扩展，相邻块用扩展范围绘制后只合成核心区，避免边缘接缝。无法确定有限范围时回退该内容的直接绘制；不以 viewport 小矩形裁断本来可见的效果。原本的 Style／Canvas clip 与滤镜顺序保持不变。
+布局 bounds 不是绘制 bounds。TextLayout.paintBounds 提供后端实际文字绘图的保守边界，包含字形 overhang，不包含外部行内对象。阴影、模糊和光晕也可能越界：缓存范围必须包含实际绘制及滤镜采样扩展，相邻块用扩展范围绘制后以 drawImageRegion 只合成核心区，避免边缘接缝。无法确定有限范围时回退该内容的直接绘制；不以 viewport 小矩形裁断本来可见的效果。原本的 Style／Canvas clip 与滤镜顺序保持不变。
 
 一个控件 hover 或 caret 闪烁只使包含它的相关内容缓存失效；纯滚动不使静态正文图像失效。缓存边界宜把频繁变化的选择／caret 与稳定正文分开，具体拆分由编辑适配完成，不让通用缓存识别“编辑器”类型。
 

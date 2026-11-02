@@ -62,6 +62,7 @@ int32_t scoop_graphics_paint_gradient(SGPaint *value, int32_t kind,
 SGTarget *scoop_graphics_raster_create(int32_t width, int32_t height) {
   try {
     auto result = std::make_unique<SGTarget>();
+    result->external = false;
     result->surface = SkSurfaces::Raster(sg_info(width, height));
     return result->surface ? result.release() : nullptr;
   } catch (...) {
@@ -70,7 +71,7 @@ SGTarget *scoop_graphics_raster_create(int32_t width, int32_t height) {
 }
 SGCanvas *scoop_graphics_target_canvas(SGTarget *target, double scale) {
   try {
-    return new SGCanvas(target->surface, (float)scale);
+    return new SGCanvas(target->surface, target->context, (float)scale);
   } catch (...) {
     return nullptr;
   }
@@ -79,8 +80,10 @@ int32_t scoop_graphics_target_submit(SGTarget *target, bool wait) {
   try {
     if (!target->context)
       return 1;
-    auto flushed = target->context->flush(
-        target->surface.get(), SkSurfaces::BackendSurfaceAccess::kPresent, {});
+    auto access = target->external
+                      ? SkSurfaces::BackendSurfaceAccess::kPresent
+                      : SkSurfaces::BackendSurfaceAccess::kNoAccess;
+    auto flushed = target->context->flush(target->surface.get(), access, {});
     return flushed.fSuccess &&
            target->context->submit(wait ? GrSyncCpu::kYes : GrSyncCpu::kNo);
   } catch (...) {
@@ -192,6 +195,8 @@ int32_t scoop_graphics_canvas_image(SGCanvas *value, SGImage *image,
                                     SGRect rect, int32_t sampling,
                                     double opacity) {
   try {
+    if (!sg_compatible(value, image->context))
+      return -1;
     SkPaint paint;
     paint.setAlphaf((float)opacity);
     value->canvas->drawImageRect(
@@ -203,5 +208,26 @@ int32_t scoop_graphics_canvas_image(SGCanvas *value, SGImage *image,
   } catch (...) {
     return 0;
   }
+}
+int32_t scoop_graphics_canvas_image_region(SGCanvas *value, SGImage *image,
+                                           SGRect source, SGRect destination,
+                                           int32_t sampling, double opacity) {
+  try {
+    if (!sg_compatible(value, image->context))
+      return -1;
+    SkPaint paint;
+    paint.setAlphaf((float)opacity);
+    value->canvas->drawImageRect(
+        image->image, sg_rect(source), sg_rect(destination),
+        SkSamplingOptions(sampling ? SkFilterMode::kLinear
+                                   : SkFilterMode::kNearest),
+        &paint, SkCanvas::kFast_SrcRectConstraint);
+    return 1;
+  } catch (...) {
+    return 0;
+  }
+}
+bool scoop_graphics_image_compatible(SGCanvas *value, SGImage *image) {
+  return sg_compatible(value, image->context);
 }
 }

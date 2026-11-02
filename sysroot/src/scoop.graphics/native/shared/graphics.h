@@ -7,6 +7,8 @@
 #include "include/core/SkImage.h"
 #include "include/core/SkImageFilter.h"
 #include "include/core/SkPathBuilder.h"
+#include "include/core/SkPicture.h"
+#include "include/core/SkPictureRecorder.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include <cmath>
@@ -55,8 +57,16 @@ struct SGPaint : SGObject {
   std::vector<float> positions;
 };
 struct SGImage : SGObject {
+  sk_sp<GrDirectContext> context;
   sk_sp<SkImage> image;
-  explicit SGImage(sk_sp<SkImage> i) : image(std::move(i)) {}
+  explicit SGImage(sk_sp<SkImage> i, sk_sp<GrDirectContext> c = nullptr)
+      : context(std::move(c)), image(std::move(i)) {}
+};
+struct SGDrawing : SGObject {
+  sk_sp<GrDirectContext> context;
+  sk_sp<SkPicture> picture;
+  SGDrawing(sk_sp<SkPicture> p, sk_sp<GrDirectContext> c)
+      : context(std::move(c)), picture(std::move(p)) {}
 };
 struct SGFilter : SGObject {
   sk_sp<SkImageFilter> filter;
@@ -68,23 +78,40 @@ struct SGContext : SGObject {
 struct SGTarget : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
+  bool external = true;
 };
 struct SGCanvas : SGObject {
   sk_sp<SkSurface> surface;
+  sk_sp<GrDirectContext> context;
+  std::shared_ptr<SkPictureRecorder> recording;
   SkCanvas *canvas;
   float scale;
+  SkRect viewport;
   int base;
   std::vector<std::vector<SkPath>> clips;
-  SGCanvas(sk_sp<SkSurface> s, float dpi)
-      : surface(std::move(s)), canvas(surface->getCanvas()), scale(dpi),
+  SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c, float dpi)
+      : surface(std::move(s)), context(std::move(c)),
+        canvas(surface->getCanvas()), scale(dpi),
+        viewport(
+            SkRect::MakeWH(surface->width() / dpi, surface->height() / dpi)),
         base(canvas->getSaveCount()), clips(1) {
     canvas->save();
     canvas->scale(dpi, dpi);
   }
   explicit SGCanvas(const SGCanvas &parent)
-      : surface(parent.surface), canvas(parent.canvas), scale(parent.scale),
-        base(canvas->getSaveCount()), clips(1, parent.clips.back()) {
+      : surface(parent.surface), context(parent.context),
+        recording(parent.recording), canvas(parent.canvas), scale(parent.scale),
+        viewport(parent.viewport), base(canvas->getSaveCount()),
+        clips(1, parent.clips.back()) {
     canvas->save();
+  }
+  SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c,
+           std::shared_ptr<SkPictureRecorder> r, SkRect bounds)
+      : surface(std::move(s)), context(std::move(c)), recording(std::move(r)),
+        canvas(recording->getRecordingCanvas()), scale(1), viewport(bounds),
+        base(canvas->getSaveCount()), clips(1) {
+    canvas->save();
+    canvas->clipRect(bounds);
   }
   ~SGCanvas() override { canvas->restoreToCount(base); }
   SkMatrix logical() const {
@@ -92,6 +119,11 @@ struct SGCanvas : SGObject {
                             canvas->getLocalToDeviceAs3x3());
   }
 };
+
+inline bool sg_compatible(const SGCanvas *canvas,
+                          const sk_sp<GrDirectContext> &context) {
+  return !context || canvas->context == context;
+}
 struct SGGeometry : SGObject {
   SkMatrix matrix, inverse;
   bool invertible;

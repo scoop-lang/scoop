@@ -1,0 +1,146 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class DrawingRecordTest {
+    @Test
+    fun `records use local clipped coordinates and retain immutable sources after their owners close`() {
+        val expired = ArrayList<Canvas>()
+        val geometries = ArrayList<CanvasGeometry>()
+        try {
+            val drawing =
+                RasterSurface(32, 32).use {
+                    source ->
+                    val result =
+                        source.draw {
+                            canvas ->
+                            canvas.clear(Color.White)
+                            canvas.translate(20.0, 20.0)
+                            canvas.clipRect(Rect(0.0, 0.0, 2.0, 2.0))
+                            PathBuilder().use {
+                                builder ->
+                                builder.addRect(Rect(2.0, 2.0, 6.0, 6.0))
+                                builder.build().use {
+                                    path -> Image.fromRgba(
+                                        1,
+                                        1,
+                                        [0, 255.toByte(), 0, 255.toByte()]
+                                    ).use {
+                                        image -> canvas.recordDrawing(Rect(0.0, 0.0, 20.0, 20.0)) {
+                                            record ->
+                                            expired.add(record)
+                                            assertEquals(Transform(), record.pixelTransform)
+                                            assertFailsWith<IllegalStateException> {
+                                                canvas.clear(Color.Black)
+                                            }
+                                            assertFailsWith<IllegalStateException> {
+                                                canvas.localClipBounds
+                                            }
+                                            record.drawPath(path, Paint(Color(1.0, 0.0, 0.0)))
+                                            record.drawImage(image, Rect(10.0, 2.0, 6.0, 6.0))
+                                            record.drawRect(
+                                                Rect(-4.0, 14.0, 8.0, 10.0),
+                                                Paint(Color.Black)
+                                            )
+                                            @Unsafe
+                                            {
+                                                geometries.add(
+                                                    captureGeometry(
+                                                        record,
+                                                        Rect(-4.0, 14.0, 8.0, 10.0)
+                                                    )
+                                                )
+                                            }
+                                            record.saveLayer(opacity = 0.5)
+                                            record.drawRect(
+                                                Rect(10.0, 10.0, 6.0, 6.0),
+                                                Paint(Color(0.0, 0.0, 1.0))
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    assertEquals(255, channel(source.readPixels(), 32, 4, 4, 0))
+                    assertEquals(255, channel(source.readPixels(), 32, 4, 4, 1))
+                    result
+                }
+            drawing.use {
+                record ->
+                assertEquals(Rect(0.0, 0.0, 20.0, 20.0), record.bounds)
+                assertEquals(Some(Rect(0.0, 14.0, 4.0, 6.0)), geometries[0L].visibleBounds)
+                assertFailsWith<IllegalStateException> { expired[0L].drawDrawing(record) }
+                RasterSurface(32, 32).use {
+                    target ->
+                    target.draw {
+                        canvas ->
+                        canvas.clear(Color.Transparent)
+                        assertTrue(canvas.isCompatible(record))
+                        canvas.translate(3.0, 4.0)
+                        canvas.drawDrawing(record)
+                    }
+                    val pixels = target.readPixels()
+                    assertEquals(255, channel(pixels, 32, 7, 8, 0))
+                    assertEquals(255, channel(pixels, 32, 15, 8, 1))
+                    assertEquals(128, channel(pixels, 32, 15, 16, 3))
+                    assertEquals(255, channel(pixels, 32, 3, 20, 3))
+                    assertEquals(0, channel(pixels, 32, 2, 20, 3))
+                    assertEquals(0, channel(pixels, 32, 3, 25, 3))
+                }
+            }
+        } finally {
+            for (geometry in geometries)
+                geometry.close()
+        }
+    }
+
+    @Test
+    fun `failed recording restores borrowing without publishing pixels or retaining a canvas`() {
+        val expired = ArrayList<Canvas>()
+        RasterSurface(16, 16).use {
+            surface ->
+            surface.draw {
+                canvas ->
+                canvas.clear(Color.White)
+                assertFailsWith<IllegalArgumentException> {
+                    canvas.recordDrawing(Rect(0.0, 0.0, -1.0, 2.0)) {
+                        _ -> fail(Some("invalid record ran"))
+                    }
+                }
+                assertFailsWith<IllegalArgumentException> {
+                    canvas.recordDrawing(Rect(0.0, 0.0, 8.0, 8.0)) {
+                        record ->
+                        expired.add(record)
+                        record.saveLayer()
+                        record.translate(4.0, 2.0)
+                        record.drawRect(Rect(0.0, 0.0, 8.0, 8.0), Paint(Color.Black))
+                        throw IllegalArgumentException(Some("recording failure"))
+                    }
+                }
+                assertEquals(Transform(), canvas.pixelTransform)
+                Thread.start {
+                    assertFailsWith<IllegalStateException> {
+                        canvas.recordDrawing(Rect(0.0, 0.0, 1.0, 1.0)) {
+                            _ -> fail(Some("foreign record ran"))
+                        }
+                    }
+                }.use { thread -> thread.join() }
+                canvas.recordDrawing(Rect(0.0, 0.0, 0.0, 0.0)) {
+                    record -> record.clear(Color.Black)
+                }.use {
+                    record ->
+                    canvas.drawDrawing(record)
+                    record.close()
+                    assertFailsWith<IllegalStateException> { canvas.isCompatible(record) }
+                }
+                canvas.drawRect(Rect(0.0, 0.0, 2.0, 2.0), Paint(Color(1.0, 0.0, 0.0)))
+            }
+            assertEquals(255, channel(surface.readPixels(), 16, 1, 1, 0))
+            assertEquals(255, channel(surface.readPixels(), 16, 6, 4, 1))
+        }
+        assertFailsWith<IllegalStateException> { expired[0L].pixelTransform }
+    }
+}
