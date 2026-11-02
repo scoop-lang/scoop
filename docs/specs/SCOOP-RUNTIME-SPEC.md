@@ -84,7 +84,7 @@ inline storage tag 为 `None=0, Inline=1, ZeroSized=2`。FixedObject 与 Abstrac
 
 target profile 的 `maximum_managed_alignment` 与 `maximum_managed_object_size` 均非零；布局超过前者时拒绝，分配超过后者时失败，不得截断或降低对齐。
 
-`object_scan` 的 offset 相对对象起点，`inline_scan` 相对 value payload 或数组元素起点。BoxedValue 的 object scan 等于 inline scan 按 payload offset 平移；含引用数组的 scan 使用 length offset 16，first-element offset 与 shape 相同。GC-free 或 ZST payload／元素的这两种 scan 均为 null。Ptr、FunPtr 和整数不是 managed root。
+`object_scan` 的 offset 相对对象起点，`inline_scan` 相对 value payload 或数组元素起点。BoxedValue 的 object scan 等于 inline scan 按 payload offset 平移；含引用数组的 scan 使用 length offset 16，first-element offset 与 shape 相同。GC-free 或 ZST payload／元素的这两种 scan 均为 null。Ptr、FunPtr、GCLeafFunPtr 和整数不是 managed root。
 
 tagged enum 的 managed 引用槽由各 variant 独占，inactive variant 的引用槽必须为 null；扫描无需读取 enum tag。scan 只能访问实际表示内对齐的 managed pointer 槽。
 
@@ -133,7 +133,7 @@ scan fingerprint 为 `SHA-256(ByteSpan("scoop-scan-v1") || canonical_scan_bytes)
 
 ### 2.3 值类型与装箱
 
-struct、enum、tuple、数值、Ptr、FunPtr 依其静态类型按值存储。提升到 Any 或 interface 时，值存入带原 exact TypeDescriptor 的 managed box；值类型 receiver 使用独立的方法局部副本，不能取得调用方 place 或 box payload 的别名。
+struct、enum、tuple、数值、Ptr、FunPtr、GCLeafFunPtr 依其静态类型按值存储。提升到 Any 或 interface 时，值存入带原 exact TypeDescriptor 的 managed box；值类型 receiver 使用独立的方法局部副本，不能取得调用方 place 或 box payload 的别名。
 
 runtime 动态拆箱后备对源对象的检查在同一 heap lock 区间内只定位一次：exact size 查询同时确认对象起点，随后复用所得尺寸检查实际 TD 和动态 shape。读取对象头前必须完成对象边界检查；定位结果不得跨 safepoint 保留，类型匹配、整数枚举父类型关系及动态 length／实际分配尺寸检查不变。
 
@@ -189,7 +189,7 @@ ArrayList、StringBuilder 等普通库类型使用其声明的 class/value 表�
 
 ### 2.5 Option 的 niche 表示
 
-普通单字引用的零指针表示 None；interface 的 None 为 `{null, null}`，Some 为完整双字值，两者只按 object 分量区分。Ptr/FunPtr 的内部 data/code-pointer carrier 为全零时，也只表示对应 Option 的 None。裸 reference、Ptr 与 FunPtr 保持非零不变量，Some(payload) 不与 None 碰撞。GC 不追踪 null；`MaybeUninit<T>` 不继承 T 的 niche，其余 Option 表示遵守语言规范 7.4。
+普通单字引用的零指针表示 None；interface 的 None 为 `{null, null}`，Some 为完整双字值，两者只按 object 分量区分。Ptr及两种原生函数指针的内部 data/code-pointer carrier 为全零时，也只表示对应 Option 的 None。裸 reference、Ptr 与原生函数指针保持非零不变量，Some(payload) 不与 None 碰撞。GC 不追踪 null；`MaybeUninit<T>` 不继承 T 的 niche，其余 Option 表示遵守语言规范 7.4。
 
 语言规范 11.19 的编译期 `env` 直接产生普通 Option<String> 常量；None 为零引用，Some 为已有静态 String 引用，包括非 null 的空 String。没有独立 Option 对象、运行期环境查询或初始化分配；该能力已实现，不改变 niche 或 GC ABI。
 
@@ -201,7 +201,7 @@ closure 是普通 managed 对象，捕获值在创建点按语言规定取得并
 
 函数类型的 exact identity 保留源码 receiver 形状；函数关系中的参数按 receiver 在首位展平，函数类型转换按语言规范 8.1 的结构化关系判断，允许 receiver 与普通首参数双向适配。容器的 exact identity 不因这种函数值适配而合并。closure 的 TD、动态 invoke 和签名由自身 identity 决定，不随消费方的目标签名变化；适配结果与来源不保证引用身份相同。
 
-closure 不能直接作为 FunPtr 交给 native。静态 FunPtr 与 4.3 的 managed callback 分别遵守各自边界。
+closure 不能直接作为原生函数指针交给 native。静态 FunPtr 与 4.3 的 managed callback 分别遵守各自边界；managed callback trampoline 的函数地址始终使用 NativeSafe FunPtr，不能作为 GCLeafFunPtr 调用。
 
 ### 2.7 Initialization unit 与 singleton 发布
 
@@ -444,7 +444,7 @@ SSA 接口在 safepoint 后由更新的 AS1 object 与原 AS0 metadata 分量重
 
 接口聚合及其 object 分量若经相同输入与前驱得到同一个值，可以共享物理根；编译器在 RS4GC 之前完成这种标量合流归并，逻辑恢复和实际后继使用统一取得更新后的引用。不同路径的输入、重赋前的快照与独立对象仍各自保活。注册的 root-pair count 必须继续与最终机器 stackmap 精确一致，不能忽略数量差异或截断根记录。
 
-native 实际调用不得 unwind 穿越边界。静态 FunPtr 的同步 NoGC 调用不隐式 poll；可能进入 runtime 或 managed callback 的路径遵守线程转换规则。语言规范 13.4.1 的 `@GCLeaf` C 调用不构成 safepoint，也不建立 native transition 或专用于该调用的 caller roots；实参求值和调用前后的真实 safepoint 继续遵守正常根规则。
+native 实际调用不得 unwind 穿越边界。通过 `FunPtr` 的间接调用与普通 C ABI extern 一样进入 NativeSafe，发布 caller roots 并在返回时完成握手；callee 可经合法 token 同步进入 managed callback。通过 `GCLeafFunPtr` 的间接调用与语言规范 13.4.1 的 `@GCLeaf` C 调用一样不构成 safepoint，也不建立 native transition 或专用于该调用的 caller roots；实参求值和调用前后的真实 safepoint 继续遵守正常根规则。静态 FunPtr 指向 Scoop NoGC callback 时，native 对它的同步调用仍走已登记线程上的 callback 入口，不因 callback 正文本身 NoGC 而成为 leaf outbound 调用。
 
 core 的 Long／ULong hash、Boolean hash／equals 使用普通标量正文，执行固定次数的计算，无分配、阻塞或回调。当前 word hash 在 ULong 上依次 xor 右移 30 位、乘 `0xbf58476d1ce4e5b9`、xor 右移 27 位、乘 `0x94d049bb133111eb`、xor 右移 31 位，按原 64 位结果转换为 Long；Boolean hash 为 false→0、true→1，equals 保持逻辑相等。Boolean.toString 选择 provider 的 immortal 字符串，不新增托管 root 或对象。已有 C 后备符号及调用合同保留供实际外部引用使用，新 core 不再为这些操作声明 native wrapper；不将任意同名 extern 特化，也不改变公开方法签名。String hash／equals／字符计数会随输入增长，继续遵守各自 managed／native 边界，不能沿用这项有界标量选择。
 
@@ -538,7 +538,7 @@ native transition 的边界、必要根和 LIFO 检查在所有构建中保留�
 
 runtime 私有的 managed 入口检查同时取得当前线程状态，并在确认 attachment、`MANAGED` mode 与非零 managed depth 后返回该状态。需要操作线程状态的入口复用这个结果，不先后为取址和相同入口检查重复读取 TLS。复用仅覆盖该次同步入口中已经取得的 thread state 地址；mode、epoch、根链和 managed boundary 仍按原协议读写，不跨实际操作省略状态检查。生成代码的 runtime 入口签名、线程状态布局、native 握手及全部精确根契约保持。
 
-`@GCLeaf` 是编译期 C 调用模式，不是新增线程 mode。其实际调用保持 caller 的原状态；从活动 `MANAGED` 调用时，collector 必须继续等待该线程在后续真实 safepoint park，不能提前扫描其栈或移动对象。调用链不得执行 safepoint、park、转换线程状态、回调 Scoop 或进入需要这些动作的 runtime API，且不得阻塞等待其他线程推进。此模式不改变既有 pin、root、指针有效期及用户数据同步契约，也不自动授予其他 runtime 入口的调用资格。
+`@GCLeaf` 与 `GCLeafFunPtr` 是编译期 C 调用模式，不是新增线程 mode。其实际调用保持 caller 的原状态；从活动 `MANAGED` 调用时，collector 必须继续等待该线程在后续真实 safepoint park，不能提前扫描其栈或移动对象。调用链不得执行 safepoint、park、转换线程状态、回调 Scoop 或进入需要这些动作的 runtime API，且不得阻塞等待其他线程推进。此模式不改变既有 pin、root、指针有效期及用户数据同步契约，也不自动授予其他 runtime 入口的调用资格。
 
 ### 3.6 写屏障
 
@@ -802,7 +802,7 @@ invocation 执行 attach-if-needed、enter managed、保活 closure/snapshot、�
 
 adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable 并结束 native catch；token 以 first-wins 保存失败，trampoline 按真实 C 返回类型返回全零值。observer 可在 API 同步点之后重新抛出。invalid/stale cookie、签名不匹配、OneShot 重复调用和 shutdown 后调用均 fatal。
 
-任意 closure 导出要求 native API 有显式 context/user-data 槽。没有该槽时只允许语言规范规定的静态 FunPtr。
+任意 closure 导出要求 native API 有显式 context/user-data 槽。没有该槽时只允许语言规范规定的静态 FunPtr。trampoline 会进入 managed、分配或触发 GC，因此其 code pointer 不满足 GCLeafFunPtr 合同。
 
 ### 4.4 错误处理
 
@@ -812,7 +812,7 @@ adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable �
 
 普通 C ABI outbound 默认使用 NativeSafe，Scoop ABI outbound 使用 NativeBorrowed；NoGC 声明不取消 caller 的协调与保活义务。NativeSafe 的常见进入/返回使用 3.5 的无锁协议，实际 C 调用期间不持有 world lock。foreign callback attach 后通过独立 boundary 进入 managed；返回 managed 与 callback 进入均不能绕过当前 GC 的协调。
 
-显式 `@GCLeaf` C ABI outbound 按 3.5 保持原线程状态，不执行 NativeSafe/RETURNING 握手，不额外发布或撤销 caller roots。只有语言规范 13.4.1 的完整调用契约允许这种模式；GC-free 参数或 `@NoGC` 本身不能推导它。编译器按实现规范 2.4～2.5 选择直接 C ABI 调用或 storage bridge，两者保持相同的 native 签名和 GC 契约；NativeSafe 复用直接调用时仍须完成原有协调与保活。ABI 路径选择不增加 runtime 状态或运行时判断。release hook 的 raw leaf 调用仍按 3.8 单独检查，`@GCLeaf` 不放宽 release-safe 限制。
+显式 `@GCLeaf` C ABI outbound 与 `GCLeafFunPtr` 间接调用按 3.5 保持原线程状态，不执行 NativeSafe/RETURNING 握手，不额外发布或撤销 caller roots。只有语言规范 13.4.1、13.10 的完整调用契约允许这种模式；GC-free 参数或 `@NoGC` 本身不能推导它。编译器按实现规范 2.4～2.5 选择直接 C ABI 调用或 storage bridge，两者保持相同的 native 签名和 GC 契约；NativeSafe 复用直接调用时仍须完成原有协调与保活。ABI 路径选择不增加 runtime 状态或运行时判断。release hook 的 raw leaf 调用仍按 3.8 单独检查，`@GCLeaf` 不放宽 release-safe 限制。
 
 errno 捕获遵守语言规范 13.4.2 和实现规范 2.4～2.5：bridge 在实际 C 调用前清零目标 libc errno，返回后立即复制到 native 局部整数，再完成结果传递。NativeSafe 的捕获发生在返回握手之前；GcLeaf 和 release 的捕获保持各自原状态。结果使用本次调用独立且地址稳定的 GC-free storage 和整数返回，不修改冻结根或增加 GC 扫描记录。后续状态切换、GC、其他捕获调用及协程迁移不覆盖已经取得的值；runtime 不提供 `lastErrno` 槽位、捕获 setter/getter 或为此增加全局锁、attachment 和 collector 保存/恢复协议。libc 的 errno 本身在之后仍可变化。
 
@@ -944,7 +944,7 @@ toBits/fromBits 的整数载体分别为同宽 Int／Long；这些方法通过�
 
 默认比较将所有 NaN 视为相等且排在正无穷之后，正负零相等；显式 IEEE 比较沿用 NaN 无序规则。比较不修改位型，不增加 runtime 比较入口；编译器 intrinsic 与普通 core body 实现语言规范 11.2.2 的契约。
 
-C FFI 使用目标真实 float/double ABI。数值操作遵守语言规范 11.2.2 的 rounding、NaN、无穷、signed zero 和转换规则，不能启用改变这些语义的 fast-math。线程的浮点环境采用 round-to-nearest ties-to-even、无 trap、保留 subnormal。
+C FFI 使用目标真实 float/double ABI。数值操作遵守语言规范 11.2.2 的 rounding、NaN、无穷、signed zero 和转换规则，不能启用改变这些语义的 fast-math。线程的浮点环境采用 round-to-nearest ties-to-even、无 trap、保留 subnormal。NativeSafe extern／FunPtr 返回 managed 后必须重新建立该环境；`@GCLeaf`／`GCLeafFunPtr` 不建立边界 guard，callee 必须不改变控制环境或在返回前完整恢复。
 
 文本转换不依赖进程 locale。解析按声明精度正确舍入；非法输入和溢出返回 None，合法下溢仍返回相应浮点值。格式化遵守语言规定的可往返文本、特殊值与 signed zero 形式。
 
