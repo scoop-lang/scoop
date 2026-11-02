@@ -289,6 +289,7 @@ fn expression_requirement(
         | mir::ExprKind::CharFromCodeUnchecked(_)
         | mir::ExprKind::PtrToULong(_)
         | mir::ExprKind::PtrCast { .. }
+        | mir::ExprKind::NativeFunctionPointerCast { .. }
         | mir::ExprKind::PtrLoad { .. }
         | mir::ExprKind::PtrStore { .. }
         | mir::ExprKind::PtrOffset { .. }

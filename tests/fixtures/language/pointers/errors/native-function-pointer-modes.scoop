@@ -1,0 +1,12 @@
+fun implicitLeaf(value: FunPtr<() -> Unit>): GCLeafFunPtr<() -> Unit> = value
+
+fun implicitSafe(value: GCLeafFunPtr<() -> Unit>): FunPtr<() -> Unit> = value
+
+fun unsafeLeaf(value: FunPtr<() -> Unit>): GCLeafFunPtr<() -> Unit> = value.asGCLeaf()
+
+fun wrongSignature(value: GCLeafFunPtr<() -> Int>): FunPtr<() -> Long> = value.asFunPtr()
+
+@Unsafe
+fun unsafeReference(value: FunPtr<() -> Unit>): () -> GCLeafFunPtr<() -> Unit> = value::asGCLeaf
+
+fun main() {}

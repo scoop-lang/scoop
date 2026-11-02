@@ -75,6 +75,7 @@ pub fn walk_expr(expr: &Expr, visitor: &mut impl FnMut(&Expr)) {
         | ExprKind::CharFromCodeUnchecked(operand)
         | ExprKind::PtrToULong(operand)
         | ExprKind::PtrCast { operand, .. }
+        | ExprKind::NativeFunctionPointerCast { operand, .. }
         | ExprKind::ForeignCallbackRegister {
             closure: operand, ..
         }
@@ -254,6 +255,7 @@ pub fn walk_expr_mut(expr: &mut Expr, visitor: &mut impl FnMut(&mut Expr)) {
         | ExprKind::CharFromCodeUnchecked(operand)
         | ExprKind::PtrToULong(operand)
         | ExprKind::PtrCast { operand, .. }
+        | ExprKind::NativeFunctionPointerCast { operand, .. }
         | ExprKind::ForeignCallbackRegister {
             closure: operand, ..
         }

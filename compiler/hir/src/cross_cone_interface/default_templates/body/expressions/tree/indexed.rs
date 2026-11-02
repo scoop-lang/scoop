@@ -104,6 +104,10 @@ enum IndexedDefaultExpressionKindV1<'a> {
     CharCode(Box<IndexedDefaultExpressionV1<'a>>),
     CharFromCodeUnchecked(Box<IndexedDefaultExpressionV1<'a>>),
     PtrCast(Box<IndexedDefaultExpressionV1<'a>>),
+    NativeFunctionPointerCast {
+        operand: Box<IndexedDefaultExpressionV1<'a>>,
+        target_mode: crate::CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<IndexedDefaultExpressionV1<'a>>,
         offset: IndexedOptionalDefaultExpressionV1<'a>,
@@ -441,6 +445,13 @@ impl DefaultExpressionV1 {
             DefaultExpressionKindV1::CharCode(operand) => {
                 IndexedDefaultExpressionKindV1::CharCode(index_child(operand, resolver, 64, 1)?)
             }
+            DefaultExpressionKindV1::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => IndexedDefaultExpressionKindV1::NativeFunctionPointerCast {
+                operand: index_child(operand, resolver, 79, 1)?,
+                target_mode: *target_mode,
+            },
             DefaultExpressionKindV1::PtrCast(operand) => {
                 IndexedDefaultExpressionKindV1::PtrCast(index_child(operand, resolver, 21, 1)?)
             }

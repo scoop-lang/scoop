@@ -30,6 +30,7 @@ pub(super) fn operands(expression: &hir::Expr) -> Vec<&hir::Expr> {
         | E::PtrFromNonZeroULong(operand)
         | E::PtrToULong(operand)
         | E::PtrCast(operand)
+        | E::NativeFunctionPointerCast { operand, .. }
         | E::Box(operand)
         | E::Unbox(operand)
         | E::Upcast(operand)

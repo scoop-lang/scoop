@@ -266,9 +266,13 @@ fn every_expression_variant_keeps_its_frozen_wire_tag() {
                 bytes: vec![].into(),
             },
         ]),
+        DefaultExpressionKindV1::NativeFunctionPointerCast {
+            operand: Box::new(unit(&fixture)),
+            target_mode: crate::CAbiCallMode::NativeSafe,
+        },
     ];
 
-    assert_eq!(cases.len(), 63);
+    assert_eq!(cases.len(), 64);
     for (index, kind) in cases.into_iter().enumerate() {
         let expected_tag = match index {
             43 => 57,
@@ -279,6 +283,7 @@ fn every_expression_variant_keeps_its_frozen_wire_tag() {
             60 => 75,
             61 => 77,
             62 => 78,
+            63 => 79,
             _ => u64::try_from(index + 1).unwrap(),
         };
         let expression = expression(kind, &fixture);
@@ -311,7 +316,27 @@ fn leaf_and_recursive_expressions_have_fixed_tags_and_round_trip() {
     );
 
     let cases = [
-        (4, unit),
+        (4, unit.clone()),
+        (
+            79,
+            expression(
+                DefaultExpressionKindV1::NativeFunctionPointerCast {
+                    operand: Box::new(unit.clone()),
+                    target_mode: crate::CAbiCallMode::NativeSafe,
+                },
+                &fixture,
+            ),
+        ),
+        (
+            79,
+            expression(
+                DefaultExpressionKindV1::NativeFunctionPointerCast {
+                    operand: Box::new(unit),
+                    target_mode: crate::CAbiCallMode::GcLeaf,
+                },
+                &fixture,
+            ),
+        ),
         (
             75,
             expression(

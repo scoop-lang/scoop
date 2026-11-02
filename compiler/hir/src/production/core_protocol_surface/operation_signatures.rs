@@ -327,8 +327,29 @@ pub(super) fn expected_operation_signature(
             (Effect::Ordinary, vec![source, callback], result)
         }
         IntrinsicFunctionKind::Pointer(kind) => expected_pointer_signature(fundamental, kind),
+        IntrinsicFunctionKind::NativeFunctionPointer(kind) => (
+            Effect::Ordinary,
+            Vec::new(),
+            signature_application(
+                match kind {
+                    crate::NativeFunctionPointerIntrinsic::AsFunPtr => fundamental.fun_ptr,
+                    crate::NativeFunctionPointerIntrinsic::AsGcLeaf => fundamental.gc_leaf_fun_ptr,
+                },
+                binder,
+            ),
+        ),
     };
-    SignatureCallableShape::new(effect, None, parameters, result)
+    let receiver = match kind {
+        IntrinsicFunctionKind::NativeFunctionPointer(kind) => Some(signature_application(
+            match kind {
+                crate::NativeFunctionPointerIntrinsic::AsFunPtr => fundamental.gc_leaf_fun_ptr,
+                crate::NativeFunctionPointerIntrinsic::AsGcLeaf => fundamental.fun_ptr,
+            },
+            SignatureTypeKey::Binder { depth: 0, index: 0 },
+        )),
+        _ => None,
+    };
+    SignatureCallableShape::new(effect, receiver, parameters, result)
 }
 
 fn expected_integer_signature(
@@ -423,6 +444,7 @@ pub(super) fn operation_own_type_parameter_count(kind: IntrinsicFunctionKind) ->
         | IntrinsicFunctionKind::ForeignCallbackRelease
         | IntrinsicFunctionKind::ForeignCallbackState
         | IntrinsicFunctionKind::ForeignCallbackFailure
+        | IntrinsicFunctionKind::NativeFunctionPointer(_)
         | IntrinsicFunctionKind::Pointer(
             crate::PointerIntrinsic::Cast
             | crate::PointerIntrinsic::AddressOf

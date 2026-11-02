@@ -153,6 +153,8 @@ pub struct ImportedCoreFfiProtocol {
     gc_unpin_raw: ImportedCoreProtocolCallable,
     gc_get_handle_raw: ImportedCoreProtocolCallable,
     gc_release_handle_raw: ImportedCoreProtocolCallable,
+    gc_leaf_fun_ptr_as_fun_ptr: ImportedCoreProtocolCallable,
+    fun_ptr_as_gc_leaf: ImportedCoreProtocolCallable,
 }
 
 #[derive(Clone, Debug)]

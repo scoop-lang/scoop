@@ -182,7 +182,7 @@ pub(super) fn install_with_intrinsics_at(
 
     let pinned = builder.generic_nominal(SourceNominalKind::Struct);
     let handle = builder.generic_nominal(SourceNominalKind::Struct);
-    let ffi_callables: [CoreProtocolCallableV1; 15] =
+    let ffi_callables: [CoreProtocolCallableV1; 17] =
         std::array::from_fn(|_| builder.function(scoop_identity::Effect::Ordinary).0);
     let mut ffi_protocol = CoreFfiProtocolV1 {
         ptr,
@@ -205,6 +205,8 @@ pub(super) fn install_with_intrinsics_at(
         gc_unpin_raw: ffi_callables[12].clone(),
         gc_get_handle_raw: ffi_callables[13].clone(),
         gc_release_handle_raw: ffi_callables[14].clone(),
+        gc_leaf_fun_ptr_as_fun_ptr: ffi_callables[15].clone(),
+        fun_ptr_as_gc_leaf: ffi_callables[16].clone(),
     };
 
     let callback = builder.generic_nominal(SourceNominalKind::Struct);
@@ -365,6 +367,18 @@ pub(super) fn install_with_intrinsics_at(
         (
             &mut ffi_protocol.gc_release_handle_raw,
             IntrinsicFunctionKind::GcReleaseHandleRaw,
+        ),
+        (
+            &mut ffi_protocol.gc_leaf_fun_ptr_as_fun_ptr,
+            IntrinsicFunctionKind::NativeFunctionPointer(
+                crate::NativeFunctionPointerIntrinsic::AsFunPtr,
+            ),
+        ),
+        (
+            &mut ffi_protocol.fun_ptr_as_gc_leaf,
+            IntrinsicFunctionKind::NativeFunctionPointer(
+                crate::NativeFunctionPointerIntrinsic::AsGcLeaf,
+            ),
         ),
     ] {
         *callable = operation_entry(&operations, kind);

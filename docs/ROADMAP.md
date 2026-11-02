@@ -776,7 +776,7 @@ M23-6a 的共同 HIR 前置条件已经验收；本阶段的实际机器定义�
 
 按下列依赖顺序实施，每一阶段先更新对应权威规范，再完成格式、实现和定向验收：
 
-1. **可调用原生函数指针**：`FunPtr<F>` 使用 NativeSafe 间接 C 调用；新增同表示、独立类型身份的 `GCLeafFunPtr<F>`、显式升降级转换以及 HIR→MIR→LIR→codegen 动态 callee。覆盖跨 Cone／泛型／alias／TypeInfo／`.slib`，并用真实 C 函数表验证标量、浮点、aggregate、sret/byval、callback 重入与 leaf 无 transition。本阶段权威规范已写入，生产实现待完成。
+1. **可调用原生函数指针**：`FunPtr<F>` 使用 NativeSafe 间接 C 调用；新增同表示、独立类型身份的 `GCLeafFunPtr<F>`、显式升降级转换以及 HIR→MIR→LIR→codegen 动态 callee。覆盖跨 Cone／泛型／alias／TypeInfo／`.slib`，并用真实 C 函数表验证标量、浮点、aggregate、sret/byval、callback 重入与 leaf 无 transition。当前已实现两种指针类型及显式转换，覆盖装箱、函数引用、跨 Cone 默认值和泛型；间接调用尚待完成。
 2. **`native-app` 语义与链接产品**：增加 manifest/root kind、固定 `appInit`、独立 typed entry/descriptor/gateway，以及与 `LinkMode` 正交的 `SharedLibrary` 最终输出；闭合 build/link/run/test、导出集合、可达性、debug/import 产物和 linked-product 缓存。
 3. **embedded runtime 与 Darwin AArch64**：持久 metadata registry、一次初始化状态机、异常转 native-owned 报告、临时 attachment、浮点环境 guard、自身 image 定位和 `.dylib` 固定导出；真实 C host 验证装载、返回后 GC、多线程 callback 与重入。
 4. **Linux x86-64 GNU**：完成 `.so`、SONAME、version script、ELF metadata/RELRO 与动态 libc/unwind；使用独立 Linux host 目录验收阻塞 NativeSafe、callback、GC 与 native 依赖。

@@ -3568,6 +3568,8 @@ public fun <F> FunPtr<F>.asGCLeaf(): GCLeafFunPtr<F>
 
 `asFunPtr` 是 safe 的显式降级：物理地址不变，后续调用使用较强的 NativeSafe 边界。`asGCLeaf` 必须位于 unsafe context，调用者承担目标及整个同步调用链的 GCLeaf 合同。两者不建立一般 effect subtyping、隐式 conversion 或运行期模式标记。
 
+这两个 core intrinsic 的声明允许 `F` 作为 deferred signature；每次实际调用仍必须由 receiver 确定完全具体化的合法 native 函数签名。此声明规则与 `ForeignCallback<F>` 的 deferred signature 一样，不开放用户声明中任意未约束的 `FunPtr<F>`／`GCLeafFunPtr<F>`。
+
 ```
 // C 侧：int64_t compare_int(int64_t a, int64_t b,
 //                         int64_t (*cmp)(int64_t, int64_t))

@@ -103,6 +103,22 @@ public struct FunPtr<F>
 public struct GCLeafFunPtr<F>
 
 /**
+ * Returns the same native function address with the NativeSafe calling boundary.
+ */
+@NoGC
+@Intrinsic("gc_leaf_fun_ptr_as_fun_ptr")
+public fun <F> GCLeafFunPtr<F>.asFunPtr(): FunPtr<F>
+
+/**
+ * Treats the same native function address as a GC-leaf call target. The caller must ensure that
+ * every invocation satisfies the GC-leaf contract.
+ */
+@NoGC
+@Unsafe
+@Intrinsic("fun_ptr_as_gc_leaf")
+public fun <F> FunPtr<F>.asGCLeaf(): GCLeafFunPtr<F>
+
+/**
  * Borrows the address of addressable value storage. The unsafe caller must not let the pointer
  * outlive that storage.
  */

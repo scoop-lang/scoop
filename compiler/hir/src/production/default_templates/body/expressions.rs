@@ -221,6 +221,13 @@ impl BodyProjection<'_, '_> {
             ExprKind::PtrToULong(value) => {
                 DefaultExpressionKindV1::PtrToULong(Box::new(self.expression(value)?))
             }
+            ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => DefaultExpressionKindV1::NativeFunctionPointerCast {
+                operand: Box::new(self.expression(operand)?),
+                target_mode: *target_mode,
+            },
             ExprKind::PtrCast(value) => {
                 DefaultExpressionKindV1::PtrCast(Box::new(self.expression(value)?))
             }

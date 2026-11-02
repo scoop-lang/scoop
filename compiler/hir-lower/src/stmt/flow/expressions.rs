@@ -53,6 +53,7 @@ impl Flow<'_> {
             | E::PtrFromNonZeroULong(operand)
             | E::PtrToULong(operand)
             | E::PtrCast(operand)
+            | E::NativeFunctionPointerCast { operand, .. }
             | E::Box(operand)
             | E::Unbox(operand)
             | E::Upcast(operand)

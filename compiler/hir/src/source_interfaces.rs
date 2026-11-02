@@ -356,6 +356,7 @@ pub enum ExportParameterOwner {
 #[derive(Debug, Clone)]
 pub struct ExportParameterInterface {
     pub owner: ExportParameterOwner,
+    pub receiver: Option<TypeId>,
     pub parameters: Vec<ExportValueParameter>,
 }
 

@@ -424,6 +424,13 @@ impl BodyLowerer<'_> {
             hir::ExprKind::PtrToULong(operand) => {
                 smir::ExprKind::PtrToULong(Box::new(self.lower_expr(operand)))
             }
+            hir::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => smir::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.lower_expr(operand)),
+                target_mode: *target_mode,
+            },
             hir::ExprKind::PtrCast(operand) => {
                 let mir::Type::Ptr(pointee) = self.lower_type(expr.ty) else {
                     unreachable!("PtrCast has a pointer type")

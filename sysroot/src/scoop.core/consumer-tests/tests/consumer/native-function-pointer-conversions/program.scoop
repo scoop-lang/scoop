@@ -1,0 +1,41 @@
+package test.core.tests.consumer.native_function_pointer_conversions
+
+import scoop.test.*
+
+@NoGC
+private fun nativeValue(): Int = 42
+
+@Test
+private class NativeFunctionPointerConversions {
+    @Test
+    fun preservesSignatureAndChangesRuntimeType() {
+        val original: FunPtr<() -> Int> = ::nativeValue
+        @Unsafe
+        {
+            val leaf = original.asGCLeaf()
+            val leafBox: Any = leaf
+            assertTrue(leafBox is GCLeafFunPtr<() -> Int>)
+            assertFalse(leafBox is FunPtr<() -> Int>)
+            assertFalse(leafBox is GCLeafFunPtr<() -> Long>)
+            val widened: Any = leaf.asFunPtr()
+            assertTrue(widened is FunPtr<() -> Int>)
+            assertFalse(widened is GCLeafFunPtr<() -> Int>)
+        }
+    }
+
+    @Test
+    fun supportsBoundAndUnboundConversionReferences() {
+        val original: FunPtr<() -> Int> = ::nativeValue
+        @Unsafe
+        {
+            val leaf = original.asGCLeaf()
+            val widen: () -> FunPtr<() -> Int> = leaf::asFunPtr
+            val plain: Any = widen()
+            assertTrue(plain is FunPtr<() -> Int>)
+            val unboundWiden: (GCLeafFunPtr<() -> Int>) -> FunPtr<() -> Int> =
+                GCLeafFunPtr<() -> Int>::asFunPtr
+            val roundTrip: Any = unboundWiden(leaf)
+            assertTrue(roundTrip is FunPtr<() -> Int>)
+        }
+    }
+}

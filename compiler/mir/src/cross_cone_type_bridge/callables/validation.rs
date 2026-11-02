@@ -334,10 +334,14 @@ impl MirCallableBridgeAuthority<'_> {
             .ok_or(MirCallableBridgeError::MissingType { exact })
     }
     fn is_unit(&self, exact: PersistentExactTypeId) -> Result<bool, MirCallableBridgeError> {
-        Ok(matches!(
-            self.type_export(exact)?.representation(),
-            MirTypeRepresentationV1::Intrinsic(MirParamFreeIntrinsicV1::Unit)
-        ))
+        let key = self.identities.canonical_key::<_, ExactTypeKey>(exact)?;
+        match key.as_ref() {
+            ExactTypeKey::Nominal(_) => Ok(matches!(
+                self.type_export(exact)?.representation(),
+                MirTypeRepresentationV1::Intrinsic(MirParamFreeIntrinsicV1::Unit)
+            )),
+            _ => Ok(false),
+        }
     }
     fn foundation_signature(
         &self,

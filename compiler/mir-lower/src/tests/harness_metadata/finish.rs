@@ -86,6 +86,8 @@ impl Harness {
             gc_unpin_raw: entry,
             gc_get_handle_raw: entry,
             gc_release_handle_raw: entry,
+            gc_leaf_fun_ptr_as_fun_ptr: entry,
+            fun_ptr_as_gc_leaf: entry,
         };
         let unit_variants = |variants: &[&str]| {
             variants

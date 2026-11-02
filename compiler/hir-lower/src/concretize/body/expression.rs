@@ -282,6 +282,13 @@ impl Concretizer<'_> {
             export::ExprKind::PtrCast(value) => {
                 concrete::ExprKind::PtrCast(Box::new(self.lower_expr(value, substitution, locals)))
             }
+            export::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => concrete::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.lower_expr(operand, substitution, locals)),
+                target_mode: *target_mode,
+            },
             export::ExprKind::PtrLoad { pointer, offset } => concrete::ExprKind::PtrLoad {
                 pointer: Box::new(self.lower_expr(pointer, substitution, locals)),
                 offset: offset

@@ -8,7 +8,7 @@ use crate::{FloatBinaryOperator, FloatKind, FloatUnaryOperator, HirFloatConversi
 pub use when::*;
 
 mod type_uses;
-use crate::{ArrayAccessKind, PrimitiveBinaryKind, PrimitiveUnaryKind};
+use crate::{ArrayAccessKind, CAbiCallMode, PrimitiveBinaryKind, PrimitiveUnaryKind};
 
 #[derive(Debug, Clone)]
 pub struct Statement {
@@ -231,6 +231,10 @@ pub enum ExprKind {
     PtrFromNonZeroULong(Box<Expr>),
     PtrToULong(Box<Expr>),
     PtrCast(Box<Expr>),
+    NativeFunctionPointerCast {
+        operand: Box<Expr>,
+        target_mode: CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<Expr>,
         offset: Option<Box<Expr>>,

@@ -168,6 +168,10 @@ pub enum DefaultExpressionKindV1 {
     CharCode(Box<DefaultExpressionV1>),
     CharFromCodeUnchecked(Box<DefaultExpressionV1>),
     PtrCast(Box<DefaultExpressionV1>),
+    NativeFunctionPointerCast {
+        operand: Box<DefaultExpressionV1>,
+        target_mode: crate::CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<DefaultExpressionV1>,
         offset: OptionalDefaultExpressionV1,
@@ -505,6 +509,7 @@ fn validate_kind(kind: &DefaultExpressionKindV1) -> Result<(), DefaultExpression
         | DefaultExpressionKindV1::CharFromCodeUnchecked(_)
         | DefaultExpressionKindV1::PtrToULong(_)
         | DefaultExpressionKindV1::PtrCast(_)
+        | DefaultExpressionKindV1::NativeFunctionPointerCast { .. }
         | DefaultExpressionKindV1::PtrLoad { .. }
         | DefaultExpressionKindV1::PtrStore { .. }
         | DefaultExpressionKindV1::PtrOffset { .. }

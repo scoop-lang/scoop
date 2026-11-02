@@ -11,7 +11,7 @@ impl Lowerer {
         for (id, reference) in module.callable_references.iter() {
             let function_type = self.lower_function_type_id(module, reference.function_type);
             let callable = reference.target.callee();
-            let maybe_intrinsic = maybe_uninit::reference_intrinsic(module, callable);
+            let intrinsic = intrinsics::reference_definition(module, callable);
             let receiver = match &reference.target {
                 hir::CallableReferenceTarget::BoundMember { receiver, .. }
                 | hir::CallableReferenceTarget::BoundExtension { receiver, .. }
@@ -89,8 +89,8 @@ impl Lowerer {
             )
             .expect("LocalConcrete callable-reference fields have persistent identities");
             let capture_fields = order_closure_fields(&identity, semantic_fields);
-            let definition = match (maybe_intrinsic, &reference.target) {
-                (Some(kind), _) => ReferenceDefinition::MaybeUninit(kind),
+            let definition = match (intrinsic, &reference.target) {
+                (Some(definition), _) => definition,
                 (None, hir::CallableReferenceTarget::BoundIntrinsic { intrinsic, .. }) => {
                     ReferenceDefinition::Primitive(PrimitiveReference::classify(*intrinsic))
                 }
@@ -260,6 +260,16 @@ impl Lowerer {
                         .collect::<Vec<_>>();
                     (call, statements)
                 }
+                ReferenceDefinition::NativeFunctionPointer(target_mode) => (
+                    smir::Expr::new(
+                        signature.return_type.clone(),
+                        smir::ExprKind::NativeFunctionPointerCast {
+                            operand: Box::new(load_receiver()),
+                            target_mode,
+                        },
+                    ),
+                    Vec::new(),
+                ),
                 ReferenceDefinition::MaybeUninit(kind) => {
                     let operation = match kind {
                         hir::MaybeUninitIntrinsic::Uninit => mir::MaybeUninitOperation::Uninit,

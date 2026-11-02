@@ -59,6 +59,8 @@ pub struct FfiCore {
     pub gc_unpin_raw: FunctionId,
     pub gc_get_handle_raw: FunctionId,
     pub gc_release_handle_raw: FunctionId,
+    pub gc_leaf_fun_ptr_as_fun_ptr: FunctionId,
+    pub fun_ptr_as_gc_leaf: FunctionId,
 }
 
 #[derive(Debug, Clone, Copy)]

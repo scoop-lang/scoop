@@ -346,6 +346,11 @@ impl ImportedCoreFfiProtocol {
             gc_unpin_raw: import_callable(foundation, &protocol.gc_unpin_raw)?,
             gc_get_handle_raw: import_callable(foundation, &protocol.gc_get_handle_raw)?,
             gc_release_handle_raw: import_callable(foundation, &protocol.gc_release_handle_raw)?,
+            gc_leaf_fun_ptr_as_fun_ptr: import_callable(
+                foundation,
+                &protocol.gc_leaf_fun_ptr_as_fun_ptr,
+            )?,
+            fun_ptr_as_gc_leaf: import_callable(foundation, &protocol.fun_ptr_as_gc_leaf)?,
         })
     }
 }

@@ -212,6 +212,9 @@ impl ReferenceCollector<'_> {
             | hir::ExprKind::CharFromCodeUnchecked(source)
             | hir::ExprKind::PtrToULong(source)
             | hir::ExprKind::PtrCast(source)
+            | hir::ExprKind::NativeFunctionPointerCast {
+                operand: source, ..
+            }
             | hir::ExprKind::Box(source)
             | hir::ExprKind::Unbox(source)
             | hir::ExprKind::Upcast(source)

@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：设计完成；第 6 节原生函数指针合同已写入权威规范，生产实现尚未完成；其余阶段仍待按实施顺序写入规范。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：实施中。第 6 节原生函数指针合同已写入权威规范；两种指针类型和显式转换已实现，间接调用尚待完成。其余阶段仍待按实施顺序写入规范。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -297,16 +297,14 @@ fun useHost(api: HostApi, callback: ForeignCallback<(Ptr<Unit>) -> Unit>): Long 
 
 ### 6.4 类型与 IR 贯通
 
-两种源码 family 在语义层规范化为同一封闭结构：
+两种源码 family 在 HIR 中保存为互斥的 typed 分支，分别确定完整签名与固定模式：
 
 ```text
-NativeFunctionPointer {
-    signature: ExactFunctionType,
-    call_mode: NativeSafe | GcLeaf,
-}
+FunPtr(FunctionTypeId)       -> NativeSafe
+GcLeafFunPtr(FunctionTypeId) -> GcLeaf
 ```
 
-`call_mode` 进入 exact/signature type key、类型 interner、alias 展开、generic replacement、default/template body、跨 Cone interface、MIR type、TypeInfo 和 `.slib` 指纹。C-FFI classifier 将两种模式映射到相同机器 code-pointer 类型，但类型相等和赋值不能忽略模式。
+模式进入 exact/signature type key、类型 interner、alias 展开、generic replacement、default/template body、跨 Cone interface、MIR type、TypeInfo 和 `.slib` 指纹。C-FFI classifier 将两种模式映射到相同机器 code-pointer 类型，但类型相等和赋值不能忽略模式。显式转换在 HIR/MIR 中保存 operand 与目标模式，源／目标类型由各表达式的完整类型给出；LIR 直接复用 code-pointer operand。
 
 MIR 增加真正的动态 C callee：
 

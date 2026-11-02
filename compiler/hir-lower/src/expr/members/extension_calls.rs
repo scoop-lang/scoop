@@ -164,16 +164,31 @@ impl Lowerer {
                 );
                 let callee = state.materialize_resolved_callee(&resolved);
                 state.check_call_effects(callee, call.span);
-                let expression = hir::Expr {
-                    kind: hir::ExprKind::Call {
-                        binding: None,
-                        callee: callee.into(),
-                        receiver: resolved.source_receiver,
-                        args: resolved.args,
+                let expression = match state.functions[resolved.function()].kind {
+                    hir::FunctionKind::Intrinsic(hir::IntrinsicFunction {
+                        kind: hir::IntrinsicFunctionKind::NativeFunctionPointer(kind),
+                        ..
+                    }) => state.normalize_native_function_pointer_conversion(
+                        kind,
+                        resolved
+                            .args
+                            .into_iter()
+                            .next()
+                            .expect("a function pointer conversion has an extension receiver"),
+                        resolved.return_ty,
+                        call.span,
+                    ),
+                    _ => hir::Expr {
+                        kind: hir::ExprKind::Call {
+                            binding: None,
+                            callee: callee.into(),
+                            receiver: resolved.source_receiver,
+                            args: resolved.args,
+                        },
+                        ty: resolved.return_ty,
+                        span: call.span,
+                        origin: state.expression_origin(call.span),
                     },
-                    ty: resolved.return_ty,
-                    span: call.span,
-                    origin: state.expression_origin(call.span),
                 };
                 PropertyExtensionInvokeOutcome::Resolved(SuccessfulExprLayer {
                     state: Box::new(state),

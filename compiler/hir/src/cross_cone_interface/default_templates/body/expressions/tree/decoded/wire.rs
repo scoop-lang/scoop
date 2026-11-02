@@ -146,6 +146,10 @@ impl WireEncode for DecodedDefaultExpressionKindV1 {
             Self::CharCode(operand) => encode_one(encoder, 64, operand.as_ref()),
             Self::CharFromCodeUnchecked(operand) => encode_one(encoder, 65, operand.as_ref()),
             Self::PtrCast(operand) => encode_one(encoder, 21, operand.as_ref()),
+            Self::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => encode_two(encoder, 79, operand.as_ref(), target_mode),
             Self::PtrLoad { pointer, offset } => encode_two(encoder, 22, pointer.as_ref(), offset),
             Self::PtrStore {
                 pointer,
@@ -459,6 +463,13 @@ impl WireDecode for DecodedDefaultExpressionKindV1 {
             64 => decode_boxed_expression(decoder, fields).map(Self::CharCode),
             65 => decode_boxed_expression(decoder, fields).map(Self::CharFromCodeUnchecked),
             21 => decode_boxed_expression(decoder, fields).map(Self::PtrCast),
+            79 => {
+                expect_sum_length(decoder, fields, 3)?;
+                Ok(Self::NativeFunctionPointerCast {
+                    operand: decode_boxed_expression_field(decoder, 1)?,
+                    target_mode: decoder.field(2, crate::CAbiCallMode::decode)?,
+                })
+            }
             22 => {
                 expect_sum_length(decoder, fields, 3)?;
                 Ok(Self::PtrLoad {

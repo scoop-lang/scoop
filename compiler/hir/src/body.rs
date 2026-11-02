@@ -283,6 +283,10 @@ pub enum ExprKind {
     PtrFromNonZeroULong(Box<Expr>),
     PtrToULong(Box<Expr>),
     PtrCast(Box<Expr>),
+    NativeFunctionPointerCast {
+        operand: Box<Expr>,
+        target_mode: CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<Expr>,
         offset: Option<Box<Expr>>,

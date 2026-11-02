@@ -478,6 +478,24 @@ pub const INTRINSIC_REGISTRY: &[IntrinsicSpec] = &[
         effects: IntrinsicEffects::NO_GC_UNSAFE,
     },
     IntrinsicSpec {
+        name: "gc_leaf_fun_ptr_as_fun_ptr",
+        stage: IntrinsicStage::Hir,
+        kind: IntrinsicFunctionKind::NativeFunctionPointer(
+            NativeFunctionPointerIntrinsic::AsFunPtr,
+        ),
+        target: IntrinsicTarget::TopLevel,
+        effects: IntrinsicEffects::NO_GC,
+    },
+    IntrinsicSpec {
+        name: "fun_ptr_as_gc_leaf",
+        stage: IntrinsicStage::Hir,
+        kind: IntrinsicFunctionKind::NativeFunctionPointer(
+            NativeFunctionPointerIntrinsic::AsGcLeaf,
+        ),
+        target: IntrinsicTarget::TopLevel,
+        effects: IntrinsicEffects::NO_GC_UNSAFE,
+    },
+    IntrinsicSpec {
         name: "ptr_load",
         stage: IntrinsicStage::Hir,
         kind: IntrinsicFunctionKind::Pointer(PointerIntrinsic::Load),

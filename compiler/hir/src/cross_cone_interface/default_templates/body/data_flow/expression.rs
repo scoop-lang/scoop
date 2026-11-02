@@ -148,6 +148,7 @@ impl Validator<'_> {
             | DefaultExpressionKindV1::CharFromCodeUnchecked(operand)
             | DefaultExpressionKindV1::PtrToULong(operand)
             | DefaultExpressionKindV1::PtrCast(operand)
+            | DefaultExpressionKindV1::NativeFunctionPointerCast { operand, .. }
             | DefaultExpressionKindV1::ForeignCallbackRegister {
                 closure: operand, ..
             }

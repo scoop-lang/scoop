@@ -192,6 +192,9 @@ impl Lowerer {
             | ExprKind::CharFromCodeUnchecked(source)
             | ExprKind::PtrToULong(source)
             | ExprKind::PtrCast(source)
+            | ExprKind::NativeFunctionPointerCast {
+                operand: source, ..
+            }
             | ExprKind::Box(source)
             | ExprKind::Unbox(source)
             | ExprKind::Upcast(source)

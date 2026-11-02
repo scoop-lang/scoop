@@ -297,6 +297,15 @@ pub(super) fn dump_expr(
             out.push_str(&format!("{pad}PtrToULong : {ty}\n"));
             dump_expr(module, locals, operand, indent + 1, out);
         }
+        ExprKind::NativeFunctionPointerCast {
+            operand,
+            target_mode,
+        } => {
+            out.push_str(&format!(
+                "{pad}NativeFunctionPointerCast {target_mode:?} : {ty}\n"
+            ));
+            dump_expr(module, locals, operand, indent + 1, out);
+        }
         ExprKind::PtrCast(operand) => {
             out.push_str(&format!("{pad}PtrCast : {ty}\n"));
             dump_expr(module, locals, operand, indent + 1, out);

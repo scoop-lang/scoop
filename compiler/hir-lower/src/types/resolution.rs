@@ -187,6 +187,11 @@ impl Lowerer {
                         return Some(ty);
                     }
                     if Some(struct_id) == self.ffi_gc_leaf_fun_ptr {
+                        if self.allow_deferred_fun_ptr
+                            && matches!(self.types[resolved[0]], Type::Param(_))
+                        {
+                            return Some(self.struct_application(struct_id, resolved));
+                        }
                         let Type::Function(function_type) = self.types[resolved[0]] else {
                             self.error(
                                 name.span,

@@ -155,6 +155,7 @@ impl<'a> FunctionLowerer<'a> {
                 lir::Value::InitializationUnit(lir::InitializationUnitId::from_raw(unit.into_raw()))
             }
             mir::ExprKind::PtrFromNonZeroULong { .. }
+            | mir::ExprKind::NativeFunctionPointerCast { .. }
             | mir::ExprKind::PtrToULong(_)
             | mir::ExprKind::PtrCast { .. }
             | mir::ExprKind::PtrLoad { .. }

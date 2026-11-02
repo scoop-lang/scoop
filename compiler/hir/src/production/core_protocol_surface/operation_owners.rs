@@ -93,6 +93,7 @@ pub(super) fn expected_operation_owner(
         | IntrinsicFunctionKind::ForeignCallbackFailure
         | IntrinsicFunctionKind::DataBorrow(_)
         | IntrinsicFunctionKind::String(_)
+        | IntrinsicFunctionKind::NativeFunctionPointer(_)
         | IntrinsicFunctionKind::Pointer(_) => None,
     }
 }

@@ -35,6 +35,34 @@ impl CAbiError {
 }
 
 impl Lowerer {
+    pub(crate) fn native_function_pointer_signature(
+        &self,
+        ty: hir::TypeId,
+    ) -> Option<(hir::CAbiCallMode, hir::TypeId)> {
+        match self.types[ty] {
+            hir::Type::FunPtr(signature) => Some((
+                hir::CAbiCallMode::NativeSafe,
+                self.function_types[signature].canonical_type,
+            )),
+            hir::Type::GcLeafFunPtr(signature) => Some((
+                hir::CAbiCallMode::GcLeaf,
+                self.function_types[signature].canonical_type,
+            )),
+            hir::Type::Struct(application) => {
+                match self.struct_applications[application].representation {
+                    hir::StructApplicationRepresentation::Intrinsic(
+                        hir::IntrinsicTypeRepresentation::FunPtr { function },
+                    ) => Some((hir::CAbiCallMode::NativeSafe, function)),
+                    hir::StructApplicationRepresentation::Intrinsic(
+                        hir::IntrinsicTypeRepresentation::GcLeafFunPtr { function },
+                    ) => Some((hir::CAbiCallMode::GcLeaf, function)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
     pub(crate) fn validate_native_function_pointer_signature(
         &mut self,
         signature: hir::FunctionTypeId,

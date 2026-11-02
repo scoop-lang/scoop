@@ -306,6 +306,14 @@ impl ImportedCoreFfiProtocol {
     pub fn gc_release_handle_raw(&self) -> &ImportedCoreProtocolCallable {
         &self.gc_release_handle_raw
     }
+
+    pub fn gc_leaf_fun_ptr_as_fun_ptr(&self) -> &ImportedCoreProtocolCallable {
+        &self.gc_leaf_fun_ptr_as_fun_ptr
+    }
+
+    pub fn fun_ptr_as_gc_leaf(&self) -> &ImportedCoreProtocolCallable {
+        &self.fun_ptr_as_gc_leaf
+    }
 }
 
 impl ImportedCoreForeignCallbackProtocol {

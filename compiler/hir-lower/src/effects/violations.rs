@@ -444,7 +444,8 @@ impl Lowerer {
             | ExprKind::CharCode(operand)
             | ExprKind::CharFromCodeUnchecked(operand)
             | ExprKind::PtrToULong(operand)
-            | ExprKind::PtrCast(operand) => {
+            | ExprKind::PtrCast(operand)
+            | ExprKind::NativeFunctionPointerCast { operand, .. } => {
                 self.collect_no_gc_expr_violations(operand, out, requirements)
             }
             ExprKind::PtrLoad { pointer, offset } => {

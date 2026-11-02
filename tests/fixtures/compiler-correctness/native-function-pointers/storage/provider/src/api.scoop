@@ -14,6 +14,22 @@ public fun checkTable(value: FunctionTable): Boolean
 @Extern(lib = "fixture_native", name = "pointer_check_leaf")
 public fun checkLeaf(value: Leaf?): Boolean
 
+@Extern(lib = "fixture_native", name = "pointer_check_plain")
+public fun checkPlain(value: FunPtr<(Int) -> Int>): Boolean
+
+@NoGC
+public fun widen(value: Leaf): FunPtr<(Int) -> Int> = value.asFunPtr()
+
+@NoGC
+@Unsafe
+public fun narrow(value: FunPtr<(Int) -> Int>): Leaf = value.asGCLeaf()
+
+public fun defaultPointer(leaf: Leaf, value: FunPtr<(Int) -> Int> = leaf.asFunPtr()): FunPtr<
+    (Int) -> Int
+> = value
+
+public fun <T> converted(leaf: Leaf, unused: T): FunPtr<(Int) -> Int> = leaf.asFunPtr()
+
 public fun <T: value> preserve(value: T): T = value
 
 public fun optional(value: Leaf? = None): Leaf? = value

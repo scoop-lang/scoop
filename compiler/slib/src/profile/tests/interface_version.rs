@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn source_interface_v88_carries_gc_leaf_function_pointer_types() {
+fn source_interface_v89_carries_native_function_pointer_conversions() {
     assert_retired_version(
         hir_cross_cone_interface_capability(),
-        88,
+        89,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -61,10 +61,10 @@ fn lir_param_free_v3_retains_target_coercions() {
 }
 
 #[test]
-fn compiler_protocol_v18_exposes_gc_leaf_function_pointer_core_type() {
+fn compiler_protocol_v19_exposes_native_function_pointer_conversions() {
     assert_retired_version(
         hir_core_bootstrap_interface_capability(),
-        18,
+        19,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

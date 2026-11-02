@@ -95,6 +95,7 @@ impl Lowerer {
             | E::CharFromCodeUnchecked(operand)
             | E::PtrToULong(operand)
             | E::PtrCast(operand)
+            | E::NativeFunctionPointerCast { operand, .. }
             | E::IntegerConversion { operand, .. }
             | E::FloatUnary { operand, .. }
             | E::FloatConversion { operand, .. }

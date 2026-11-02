@@ -117,6 +117,10 @@ enum DecodedDefaultExpressionKindV1 {
     CharCode(Box<DecodedDefaultExpressionV1>),
     CharFromCodeUnchecked(Box<DecodedDefaultExpressionV1>),
     PtrCast(Box<DecodedDefaultExpressionV1>),
+    NativeFunctionPointerCast {
+        operand: Box<DecodedDefaultExpressionV1>,
+        target_mode: crate::CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<DecodedDefaultExpressionV1>,
         offset: DecodedOptionalDefaultExpressionV1,

@@ -22,3 +22,4 @@ bool pointer_check_table(FunctionTable value) {
 }
 
 bool pointer_check_leaf(Callback value) { return value == add_two; }
+bool pointer_check_plain(Callback value) { return value == add_two; }

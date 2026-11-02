@@ -115,7 +115,10 @@ pub(crate) fn walk(
         | hir::ExprKind::CharCode(receiver)
         | hir::ExprKind::CharFromCodeUnchecked(receiver)
         | hir::ExprKind::PtrToULong(receiver)
-        | hir::ExprKind::PtrCast(receiver) => visitor.expression(lowerer, receiver),
+        | hir::ExprKind::PtrCast(receiver)
+        | hir::ExprKind::NativeFunctionPointerCast {
+            operand: receiver, ..
+        } => visitor.expression(lowerer, receiver),
         hir::ExprKind::MethodCall { receiver, args, .. }
         | hir::ExprKind::DirectSuperMethodCall { receiver, args, .. }
         | hir::ExprKind::CallableCall {

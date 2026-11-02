@@ -220,12 +220,14 @@ impl Harness {
                 .collect();
             interfaces.push(hir::ExportParameterInterface {
                 owner: hir::ExportParameterOwner::Function(id),
+                receiver: function.method.map(|method| method.owner),
                 parameters,
             });
         }
         for (id, constructor) in self.struct_constructors.iter() {
             interfaces.push(hir::ExportParameterInterface {
                 owner: hir::ExportParameterOwner::StructConstructor(id),
+                receiver: None,
                 parameters: constructor
                     .parameters
                     .iter()
@@ -236,6 +238,7 @@ impl Harness {
         for (id, constructor) in self.class_constructors.iter() {
             interfaces.push(hir::ExportParameterInterface {
                 owner: hir::ExportParameterOwner::ClassConstructor(id),
+                receiver: None,
                 parameters: constructor
                     .parameters
                     .iter()
@@ -250,6 +253,7 @@ impl Harness {
                         .unwrap();
                 interfaces.push(hir::ExportParameterInterface {
                     owner: hir::ExportParameterOwner::VariantConstructor(variant_id),
+                    receiver: None,
                     parameters: variant
                         .fields
                         .iter()

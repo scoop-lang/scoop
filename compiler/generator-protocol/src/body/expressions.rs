@@ -142,6 +142,16 @@ impl Serialize for BodyJson<'_, hir::DefaultExpressionKindV1> {
             CharCode(value) => self.unary(serializer, "charCode", value),
             CharFromCodeUnchecked(value) => self.unary(serializer, "charFromCodeUnchecked", value),
             PtrCast(value) => self.unary(serializer, "ptrCast", value),
+            NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => {
+                let mode = match target_mode {
+                    hir::CAbiCallMode::NativeSafe => "nativeSafe",
+                    hir::CAbiCallMode::GcLeaf => "gcLeaf",
+                };
+                object!(serializer, {"kind": "nativeFunctionPointerCast", "operand": self.child(operand), "targetMode": mode})
+            }
             PtrLoad { pointer, offset } => {
                 object!(serializer, {"kind": "ptrLoad", "pointer": self.child(pointer), "offset": self.child(offset)})
             }

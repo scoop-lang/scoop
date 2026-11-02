@@ -73,6 +73,18 @@ impl Lowerer {
             self.require_intrinsic(hir::IntrinsicFunctionKind::GcGetHandleRaw, files);
         let gc_release_handle_raw =
             self.require_intrinsic(hir::IntrinsicFunctionKind::GcReleaseHandleRaw, files);
+        let gc_leaf_fun_ptr_as_fun_ptr = self.require_intrinsic(
+            hir::IntrinsicFunctionKind::NativeFunctionPointer(
+                hir::NativeFunctionPointerIntrinsic::AsFunPtr,
+            ),
+            files,
+        );
+        let fun_ptr_as_gc_leaf = self.require_intrinsic(
+            hir::IntrinsicFunctionKind::NativeFunctionPointer(
+                hir::NativeFunctionPointerIntrinsic::AsGcLeaf,
+            ),
+            files,
+        );
 
         for (id, kind) in [
             (gc_pin_raw, GcIntrinsic::Pin),
@@ -110,6 +122,20 @@ impl Lowerer {
         if let Some(id) = align_of {
             self.validate_pointer_top_level_intrinsic(id, hir::PointerIntrinsic::AlignOf);
         }
+        for (id, kind) in [
+            (
+                gc_leaf_fun_ptr_as_fun_ptr,
+                hir::NativeFunctionPointerIntrinsic::AsFunPtr,
+            ),
+            (
+                fun_ptr_as_gc_leaf,
+                hir::NativeFunctionPointerIntrinsic::AsGcLeaf,
+            ),
+        ] {
+            if let Some(id) = id {
+                self.validate_native_function_pointer_conversion_intrinsic(id, kind);
+            }
+        }
 
         Some(hir::FfiCore {
             ptr: ptr?,
@@ -132,6 +158,8 @@ impl Lowerer {
             gc_unpin_raw: gc_unpin_raw?,
             gc_get_handle_raw: gc_get_handle_raw?,
             gc_release_handle_raw: gc_release_handle_raw?,
+            gc_leaf_fun_ptr_as_fun_ptr: gc_leaf_fun_ptr_as_fun_ptr?,
+            fun_ptr_as_gc_leaf: fun_ptr_as_gc_leaf?,
         })
     }
 }

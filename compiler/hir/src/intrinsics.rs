@@ -51,6 +51,7 @@ pub enum IntrinsicFunctionKind {
     Char(CharIntrinsic),
     Float(FloatIntrinsicKind),
     Pointer(PointerIntrinsic),
+    NativeFunctionPointer(NativeFunctionPointerIntrinsic),
     DataBorrow(DataBorrowIntrinsic),
     Atomic(AtomicIntrinsic),
     MaybeUninit(MaybeUninitIntrinsic),
@@ -124,6 +125,7 @@ impl IntrinsicFunctionKind {
             Self::Char(kind) => kind.name().to_string(),
             Self::Float(kind) => kind.name(),
             Self::Pointer(kind) => kind.name().to_string(),
+            Self::NativeFunctionPointer(kind) => kind.name().to_string(),
             Self::DataBorrow(kind) => kind.name().to_string(),
             Self::Atomic(kind) => kind.name(),
             Self::MaybeUninit(kind) => kind.name().to_owned(),
@@ -333,6 +335,23 @@ impl PointerIntrinsic {
             Self::AddressOf => "address_of",
             Self::SizeOf => "size_of",
             Self::AlignOf => "align_of",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum NativeFunctionPointerIntrinsic {
+    AsFunPtr,
+    AsGcLeaf,
+}
+
+impl NativeFunctionPointerIntrinsic {
+    pub const ALL: [Self; 2] = [Self::AsFunPtr, Self::AsGcLeaf];
+
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::AsFunPtr => "gc_leaf_fun_ptr_as_fun_ptr",
+            Self::AsGcLeaf => "fun_ptr_as_gc_leaf",
         }
     }
 }

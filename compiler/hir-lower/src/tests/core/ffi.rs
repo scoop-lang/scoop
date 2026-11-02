@@ -168,10 +168,43 @@ pub(super) fn ffi_core_declarations() -> Vec<Decl> {
             decl
         };
 
+    let native_pointer_conversion = |name, intrinsic_name, source, target, safety| {
+        let mut declaration = intrinsic_generic_fun(
+            name,
+            intrinsic_name,
+            vec!["F"],
+            vec![],
+            Some(ty_generic(target, vec![ty_named("F")])),
+        );
+        let Decl::Function(function) = &mut declaration else {
+            unreachable!()
+        };
+        function.receiver_ty = Some(ty_generic(source, vec![ty_named("F")]));
+        function.annotations = vec![marker("NoGC"), intrinsic(intrinsic_name)];
+        if safety {
+            function.annotations.push(marker("Unsafe"));
+        }
+        declaration
+    };
+
     vec![
         ptr,
         fun_ptr,
         gc_leaf_fun_ptr,
+        native_pointer_conversion(
+            "asFunPtr",
+            "gc_leaf_fun_ptr_as_fun_ptr",
+            "GCLeafFunPtr",
+            "FunPtr",
+            false,
+        ),
+        native_pointer_conversion(
+            "asGCLeaf",
+            "fun_ptr_as_gc_leaf",
+            "FunPtr",
+            "GCLeafFunPtr",
+            true,
+        ),
         enum_decl(
             "ForeignCallbackMode",
             vec![],

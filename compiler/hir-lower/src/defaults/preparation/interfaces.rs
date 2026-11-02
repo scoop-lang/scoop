@@ -89,7 +89,11 @@ impl Lowerer {
             }
             if complete {
                 self.source_parameter_interfaces
-                    .push(hir::ExportParameterInterface { owner, parameters });
+                    .push(hir::ExportParameterInterface {
+                        owner,
+                        receiver: recipe.context.receiver.map(|(ty, _)| ty),
+                        parameters,
+                    });
             }
         }
         self.current_file = outer_file;

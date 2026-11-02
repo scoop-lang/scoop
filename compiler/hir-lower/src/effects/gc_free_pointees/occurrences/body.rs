@@ -400,6 +400,9 @@ pub(in super::super) fn collect_expr_type_occurrences(
         | ExprKind::CharFromCodeUnchecked(source)
         | ExprKind::PtrToULong(source)
         | ExprKind::PtrCast(source)
+        | ExprKind::NativeFunctionPointerCast {
+            operand: source, ..
+        }
         | ExprKind::Box(source)
         | ExprKind::Unbox(source)
         | ExprKind::Upcast(source)

@@ -17,6 +17,10 @@ fun main() {
         val address = addressOf(leaf)
         expect(checkLeaf(Some(address.load())))
         expect(checkLeaf(optional(Some(leaf))))
+        expect(checkPlain(defaultPointer(leaf)))
+        expect(checkPlain(converted(leaf, 1)))
+        expect(checkLeaf(Some(narrow(widen(leaf)))))
+        expect(checkLeaf(Some(leaf.asFunPtr().asGCLeaf())))
         expect(!checkLeaf(optional()))
         expect(
             when (functions.optional) {
