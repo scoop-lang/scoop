@@ -111,4 +111,20 @@ fn linux_final_profiles_reject_missing_unwind_and_unsupported_link_modes() {
         })
         .unwrap_err();
     assert!(error.to_string().contains("glibc static"), "{error}");
+    for triple in ["x86_64-unknown-linux-gnu", "x86_64-unknown-linux-musl"] {
+        let target = ResolvedTargetProfile::resolve(triple).unwrap();
+        let error = target
+            .final_link_with(&FinalLinkOptions {
+                output_kind: FinalOutputKind::SharedLibrary,
+                mode: Some(LinkMode::Static),
+                ..Default::default()
+            })
+            .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("shared library output requires dynamic system libraries"),
+            "{error}"
+        );
+    }
 }

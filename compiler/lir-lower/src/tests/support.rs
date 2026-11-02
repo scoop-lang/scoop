@@ -253,7 +253,9 @@ pub(super) fn call_symbol(module: &lir::Module, destination: lir::CallDestinatio
             .to_string(),
         lir::CallDestination::Runtime(runtime) => runtime.symbol().to_string(),
         lir::CallDestination::Extern(id) => module.extern_functions[id].native_symbol.clone(),
-        lir::CallDestination::Dispatch { .. } => panic!("dispatch calls have no symbol"),
+        lir::CallDestination::Dispatch { .. } | lir::CallDestination::NativePointer { .. } => {
+            panic!("indirect calls have no symbol")
+        }
     }
 }
 

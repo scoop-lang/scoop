@@ -80,5 +80,29 @@ where
                 },
             )))
         }
+        EntryProductionBranchV1::NativeApp(entry) => {
+            let plan = entry.plan();
+            let gateway = final_objects
+                .runtime_image()
+                .registrations()
+                .callables()
+                .fingerprints()
+                .iter()
+                .find(|fingerprint| fingerprint.body() == plan.gateway())
+                .copied()
+                .ok_or(ProductionCodeProjectionError::MissingGatewayFingerprint(
+                    plan.gateway(),
+                ))?;
+            Ok(SingleConeProductionOutputV1::NativeApp(Box::new(
+                NativeAppRootProjectionV1 {
+                    app_init: plan.app_init(),
+                    source_signature_fingerprint: plan.source_signature_fingerprint(),
+                    gateway: plan.gateway(),
+                    gateway_definition_fingerprint: gateway.body_definition(),
+                    failure_root: plan.failure_root(),
+                    entry_owner_member: entry.member(),
+                },
+            )))
+        }
     }
 }

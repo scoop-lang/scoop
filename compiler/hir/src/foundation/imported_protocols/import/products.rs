@@ -58,6 +58,14 @@ impl ImportedCoreFundamentalTypeProtocol {
             fun_ptr: foundation
                 .generic_nominal(protocol.fun_ptr)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::GenericType, protocol.fun_ptr))?,
+            gc_leaf_fun_ptr: foundation
+                .generic_nominal(protocol.gc_leaf_fun_ptr)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::GenericType,
+                        protocol.gc_leaf_fun_ptr,
+                    )
+                })?,
             character: foundation
                 .source_nominal(protocol.character)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::Type, protocol.character))?,
@@ -305,6 +313,14 @@ impl ImportedCoreFfiProtocol {
             fun_ptr: foundation
                 .generic_nominal(protocol.fun_ptr)
                 .ok_or_else(|| missing(CoreProtocolIdentityKind::GenericType, protocol.fun_ptr))?,
+            gc_leaf_fun_ptr: foundation
+                .generic_nominal(protocol.gc_leaf_fun_ptr)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::GenericType,
+                        protocol.gc_leaf_fun_ptr,
+                    )
+                })?,
             pinned_ptr: foundation
                 .generic_nominal(protocol.pinned_ptr)
                 .ok_or_else(|| {
@@ -330,6 +346,11 @@ impl ImportedCoreFfiProtocol {
             gc_unpin_raw: import_callable(foundation, &protocol.gc_unpin_raw)?,
             gc_get_handle_raw: import_callable(foundation, &protocol.gc_get_handle_raw)?,
             gc_release_handle_raw: import_callable(foundation, &protocol.gc_release_handle_raw)?,
+            gc_leaf_fun_ptr_as_fun_ptr: import_callable(
+                foundation,
+                &protocol.gc_leaf_fun_ptr_as_fun_ptr,
+            )?,
+            fun_ptr_as_gc_leaf: import_callable(foundation, &protocol.fun_ptr_as_gc_leaf)?,
         })
     }
 }

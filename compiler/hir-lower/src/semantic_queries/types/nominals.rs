@@ -15,6 +15,9 @@ impl Lowerer {
         let arguments = application.map_or_else(
             || match self.types[ty] {
                 hir::Type::FunPtr(function) => vec![self.function_types[function].canonical_type],
+                hir::Type::GcLeafFunPtr(function) => {
+                    vec![self.function_types[function].canonical_type]
+                }
                 _ => self.imported_owner_arguments(ty).to_vec(),
             },
             |application| application.arguments,

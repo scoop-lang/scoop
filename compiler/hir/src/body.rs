@@ -283,6 +283,10 @@ pub enum ExprKind {
     PtrFromNonZeroULong(Box<Expr>),
     PtrToULong(Box<Expr>),
     PtrCast(Box<Expr>),
+    NativeFunctionPointerCast {
+        operand: Box<Expr>,
+        target_mode: CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<Expr>,
         offset: Option<Box<Expr>>,
@@ -409,6 +413,12 @@ pub enum ExprKind {
         callee: Box<Expr>,
         function_type: FunctionTypeId,
         args: Vec<Expr>,
+    },
+    NativePointerCall {
+        callee: Box<Expr>,
+        function_type: FunctionTypeId,
+        args: Vec<Expr>,
+        call_mode: CAbiCallMode,
     },
     PrimitiveBinary {
         kind: PrimitiveBinaryKind,

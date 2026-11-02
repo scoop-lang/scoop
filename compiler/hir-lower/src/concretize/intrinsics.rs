@@ -32,7 +32,12 @@ impl Concretizer<'_> {
         };
         if !matches!(
             intrinsic,
-            I::Integer(_) | I::Float(_) | I::Char(_) | I::PrimitiveUnary(_) | I::PrimitiveBinary(_)
+            I::Integer(_)
+                | I::Float(_)
+                | I::Char(_)
+                | I::PrimitiveUnary(_)
+                | I::PrimitiveBinary(_)
+                | I::NativeFunctionPointer(_)
         ) {
             return expression;
         }
@@ -55,6 +60,17 @@ impl Concretizer<'_> {
             )
         };
         expression.kind = match intrinsic {
+            I::NativeFunctionPointer(kind) => E::NativeFunctionPointerCast {
+                operand: lhs,
+                target_mode: match kind {
+                    export::NativeFunctionPointerIntrinsic::AsFunPtr => {
+                        export::CAbiCallMode::NativeSafe
+                    }
+                    export::NativeFunctionPointerIntrinsic::AsGcLeaf => {
+                        export::CAbiCallMode::GcLeaf
+                    }
+                },
+            },
             I::Integer(export::IntegerIntrinsicKind::Conversion {
                 source,
                 target_kind,

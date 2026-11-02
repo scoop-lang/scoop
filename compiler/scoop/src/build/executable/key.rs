@@ -35,17 +35,24 @@ pub(super) fn of(request: &Request<'_>) -> BuildResult<Digest256> {
         request.enable_stack_trace(),
         (
             request.emit_debug_file(),
-            request.emit_debug_file().then(|| {
-                request
-                    .output
-                    .file_name()
-                    .map(std::ffi::OsStr::as_encoded_bytes)
-            }),
+            (request.emit_debug_file()
+                || options.output_kind == scoop_toolchain::FinalOutputKind::SharedLibrary)
+                .then(|| {
+                    request
+                        .output
+                        .file_name()
+                        .map(std::ffi::OsStr::as_encoded_bytes)
+                }),
             request
                 .emit_debug_file()
                 .then(scoop_toolchain::debug_tool_configuration),
         ),
-        mode,
+        (
+            mode,
+            options.output_kind == scoop_toolchain::FinalOutputKind::SharedLibrary,
+            &options.install_name,
+            &options.soname,
+        ),
         options.sysroot.as_deref().map(path).transpose()?,
         options.unwind_prefix.as_deref().map(path).transpose()?,
         options.linker.as_deref().map(path).transpose()?,

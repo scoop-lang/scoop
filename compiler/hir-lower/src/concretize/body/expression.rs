@@ -282,6 +282,13 @@ impl Concretizer<'_> {
             export::ExprKind::PtrCast(value) => {
                 concrete::ExprKind::PtrCast(Box::new(self.lower_expr(value, substitution, locals)))
             }
+            export::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => concrete::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.lower_expr(operand, substitution, locals)),
+                target_mode: *target_mode,
+            },
             export::ExprKind::PtrLoad { pointer, offset } => concrete::ExprKind::PtrLoad {
                 pointer: Box::new(self.lower_expr(pointer, substitution, locals)),
                 offset: offset
@@ -587,6 +594,20 @@ impl Concretizer<'_> {
                 function_type,
                 args,
             } => concrete::ExprKind::CallableCall {
+                callee: Box::new(self.lower_expr(callee, substitution, locals)),
+                function_type: self.lower_function_type(*function_type, substitution),
+                args: args
+                    .iter()
+                    .map(|argument| self.lower_expr(argument, substitution, locals))
+                    .collect(),
+            },
+            export::ExprKind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                args,
+            } => concrete::ExprKind::NativePointerCall {
+                call_mode: *call_mode,
                 callee: Box::new(self.lower_expr(callee, substitution, locals)),
                 function_type: self.lower_function_type(*function_type, substitution),
                 args: args

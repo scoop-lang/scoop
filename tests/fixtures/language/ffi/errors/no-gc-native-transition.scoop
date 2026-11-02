@@ -1,0 +1,23 @@
+@Extern(name = "native_safe")
+fun nativeSafe(): Int
+
+@NoGC
+@Extern(abi = "scoop", name = "native_borrowed")
+fun nativeBorrowed(): Int
+
+@GCLeaf
+@Extern(name = "native_leaf")
+fun nativeLeaf(): Int
+
+@NoGC
+@Unsafe
+fun rejectSafe(): Int = nativeSafe()
+
+@NoGC
+fun rejectBorrowed(): Int = nativeBorrowed()
+
+@NoGC
+@Unsafe
+fun acceptLeaf(): Int = nativeLeaf()
+
+fun main() {}

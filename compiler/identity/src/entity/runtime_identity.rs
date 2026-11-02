@@ -3,8 +3,9 @@ use std::fmt;
 use scoop_wire::{Encoder, HashError, WireEncode};
 
 use super::{
-    CallableMaterialization, CallableOwner, InitializationUnitKey, MainCallableBodyId,
-    NominalDeclarationOwner, NominalOwner, PropertyOwner, StructuralDefinitionPath,
+    AppInitCallableBodyId, CallableMaterialization, CallableOwner, InitializationUnitKey,
+    MainCallableBodyId, NominalDeclarationOwner, NominalOwner, PropertyOwner,
+    StructuralDefinitionPath,
 };
 use crate::ids::derive_persistent_id;
 use crate::{
@@ -155,6 +156,10 @@ pub enum DefinitionOwner {
         root_cone: ConeIdentity,
         main: MainCallableBodyId,
     },
+    NativeAppEntry {
+        root_cone: ConeIdentity,
+        app_init: AppInitCallableBodyId,
+    },
 }
 
 impl WireEncode for DefinitionOwner {
@@ -174,6 +179,17 @@ impl WireEncode for DefinitionOwner {
                 encoder.field(2)?;
                 main.encode(encoder)
             }
+            Self::NativeAppEntry {
+                root_cone,
+                app_init,
+            } => {
+                encoder.map(3)?;
+                encode_tag(encoder, 8)?;
+                encoder.field(1)?;
+                root_cone.encode(encoder)?;
+                encoder.field(2)?;
+                app_init.encode(encoder)
+            }
         }
     }
 }
@@ -185,6 +201,7 @@ pub enum StorageRole {
     SingletonPublishedRoot,
     InitializationFailureRoot,
     RootEntryFailureRoot,
+    NativeAppEntryFailureRoot,
     StaticPlaceToken,
 }
 
@@ -197,6 +214,7 @@ impl WireEncode for StorageRole {
             Self::InitializationFailureRoot => 4,
             Self::RootEntryFailureRoot => 5,
             Self::StaticPlaceToken => 6,
+            Self::NativeAppEntryFailureRoot => 7,
         })
     }
 }
@@ -264,6 +282,19 @@ impl StaticStorageKey {
         Self::new(
             DefinitionOwner::RootEntry { root_cone, main },
             StorageRole::RootEntryFailureRoot,
+        )
+    }
+
+    pub const fn native_app_entry_failure_root(
+        root_cone: ConeIdentity,
+        app_init: AppInitCallableBodyId,
+    ) -> Self {
+        Self::new(
+            DefinitionOwner::NativeAppEntry {
+                root_cone,
+                app_init,
+            },
+            StorageRole::NativeAppEntryFailureRoot,
         )
     }
 

@@ -84,7 +84,7 @@ inline storage tag 为 `None=0, Inline=1, ZeroSized=2`。FixedObject 与 Abstrac
 
 target profile 的 `maximum_managed_alignment` 与 `maximum_managed_object_size` 均非零；布局超过前者时拒绝，分配超过后者时失败，不得截断或降低对齐。
 
-`object_scan` 的 offset 相对对象起点，`inline_scan` 相对 value payload 或数组元素起点。BoxedValue 的 object scan 等于 inline scan 按 payload offset 平移；含引用数组的 scan 使用 length offset 16，first-element offset 与 shape 相同。GC-free 或 ZST payload／元素的这两种 scan 均为 null。Ptr、FunPtr 和整数不是 managed root。
+`object_scan` 的 offset 相对对象起点，`inline_scan` 相对 value payload 或数组元素起点。BoxedValue 的 object scan 等于 inline scan 按 payload offset 平移；含引用数组的 scan 使用 length offset 16，first-element offset 与 shape 相同。GC-free 或 ZST payload／元素的这两种 scan 均为 null。Ptr、FunPtr、GCLeafFunPtr 和整数不是 managed root。
 
 tagged enum 的 managed 引用槽由各 variant 独占，inactive variant 的引用槽必须为 null；扫描无需读取 enum tag。scan 只能访问实际表示内对齐的 managed pointer 槽。
 
@@ -133,7 +133,7 @@ scan fingerprint 为 `SHA-256(ByteSpan("scoop-scan-v1") || canonical_scan_bytes)
 
 ### 2.3 值类型与装箱
 
-struct、enum、tuple、数值、Ptr、FunPtr 依其静态类型按值存储。提升到 Any 或 interface 时，值存入带原 exact TypeDescriptor 的 managed box；值类型 receiver 使用独立的方法局部副本，不能取得调用方 place 或 box payload 的别名。
+struct、enum、tuple、数值、Ptr、FunPtr、GCLeafFunPtr 依其静态类型按值存储。提升到 Any 或 interface 时，值存入带原 exact TypeDescriptor 的 managed box；值类型 receiver 使用独立的方法局部副本，不能取得调用方 place 或 box payload 的别名。
 
 runtime 动态拆箱后备对源对象的检查在同一 heap lock 区间内只定位一次：exact size 查询同时确认对象起点，随后复用所得尺寸检查实际 TD 和动态 shape。读取对象头前必须完成对象边界检查；定位结果不得跨 safepoint 保留，类型匹配、整数枚举父类型关系及动态 length／实际分配尺寸检查不变。
 
@@ -189,7 +189,7 @@ ArrayList、StringBuilder 等普通库类型使用其声明的 class/value 表�
 
 ### 2.5 Option 的 niche 表示
 
-普通单字引用的零指针表示 None；interface 的 None 为 `{null, null}`，Some 为完整双字值，两者只按 object 分量区分。Ptr/FunPtr 的内部 data/code-pointer carrier 为全零时，也只表示对应 Option 的 None。裸 reference、Ptr 与 FunPtr 保持非零不变量，Some(payload) 不与 None 碰撞。GC 不追踪 null；`MaybeUninit<T>` 不继承 T 的 niche，其余 Option 表示遵守语言规范 7.4。
+普通单字引用的零指针表示 None；interface 的 None 为 `{null, null}`，Some 为完整双字值，两者只按 object 分量区分。Ptr及两种原生函数指针的内部 data/code-pointer carrier 为全零时，也只表示对应 Option 的 None。裸 reference、Ptr 与原生函数指针保持非零不变量，Some(payload) 不与 None 碰撞。GC 不追踪 null；`MaybeUninit<T>` 不继承 T 的 niche，其余 Option 表示遵守语言规范 7.4。
 
 语言规范 11.19 的编译期 `env` 直接产生普通 Option<String> 常量；None 为零引用，Some 为已有静态 String 引用，包括非 null 的空 String。没有独立 Option 对象、运行期环境查询或初始化分配；该能力已实现，不改变 niche 或 GC ABI。
 
@@ -201,7 +201,7 @@ closure 是普通 managed 对象，捕获值在创建点按语言规定取得并
 
 函数类型的 exact identity 保留源码 receiver 形状；函数关系中的参数按 receiver 在首位展平，函数类型转换按语言规范 8.1 的结构化关系判断，允许 receiver 与普通首参数双向适配。容器的 exact identity 不因这种函数值适配而合并。closure 的 TD、动态 invoke 和签名由自身 identity 决定，不随消费方的目标签名变化；适配结果与来源不保证引用身份相同。
 
-closure 不能直接作为 FunPtr 交给 native。静态 FunPtr 与 4.3 的 managed callback 分别遵守各自边界。
+closure 不能直接作为原生函数指针交给 native。静态 FunPtr 与 4.3 的 managed callback 分别遵守各自边界；managed callback trampoline 的函数地址始终使用 NativeSafe FunPtr，不能作为 GCLeafFunPtr 调用。
 
 ### 2.7 Initialization unit 与 singleton 发布
 
@@ -223,12 +223,13 @@ unit 由 `PersistentInitializationUnitId` 标识；diagnostic path 只用于显�
 
 ### 2.8 多 image 登记与启动 ABI
 
-runtime ABI contract 为 **30**，metadata ABI 为 **9**。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 9`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
+runtime ABI contract 为 **32**，metadata ABI 为 **10**。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 9`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
 
 | descriptor | magic | size（bytes） |
 | --- | --- | --- |
 | Image | `0x53434f4f50494d47` | 208 |
 | RootEntry | `0x53434f4f50454e54` | 128 |
+| NativeAppEntry | `0x53434f4f504e4150` | 128 |
 | StaticStorage | `0x53434f4f5053544f` | 200 |
 | ImmortalObject | `0x53434f4f50494d4d` | 152 |
 | InitializationUnit | `0x53434f4f50494e49` | 288 |
@@ -286,6 +287,8 @@ root gateway 的返回值只表示调用状态：`0` 为成功，`1` 为失败�
 正常调用及 shutdown 完成后，`scoop_rt_run_program` 将该完整退出码返回生成的 C main，由 C main 返回给目标进程退出机制；当前 target 的 C `int` 为 32-bit，不作额外的低 8 位截断或范围拒绝。POSIX 向父进程呈现的正常退出状态仍遵守其低 8 位规则。启动或 main 的未捕获异常使用第 7 章的诊断与退出码 `1` 路径，不将异常展开到 C，也不把 gateway status 直接当作用户返回值。
 
 所有 image、类型、scan、静态根、初始化单元、callable 和 safepoint 必须在首个 managed initializer 前登记。runtime 验证当前加载边界的格式、引用、实际地址范围、唯一性和 GC 契约，复用编译与链接边界已完成且未变化的语义、布局和 ODR 结果；不重新检查继承图、boxed payload 与 parent 的布局等语言规则。
+
+Darwin 从 runtime 内部函数地址经 `dladdr` 取得所属 Mach-O header，接受承载 runtime 的 `MH_EXECUTE` 或 `MH_DYLIB`。slide 由该 header 的实际地址与其 `__TEXT` 段首地址计算，不能固定读取 dyld image 0，也不把可能变化的 image index 当作镜像身份。executable 与 dylib 共用段、代码及 stackmap 解析，仅登记自身模块的地址范围，不包含 host 或其他已加载 native 库；模块在 runtime 使用期间保持加载。该 self-image 能力不改变 GC metadata ABI，也不开放运行期新增 Scoop Cone 或卸载协议。
 
 登记建立完整 typed ID 与 record/address 的对应关系。runtime type ID 与 exact type、非零 SafepointId 与完整 site identity 都必须全程序一一对应；不同完整 identity 的固定宽度碰撞必须在使用前报错。不同 body ID 不得共用 callable entry；同一共享实体不得有多个实际地址。
 
@@ -351,6 +354,20 @@ stackmap 范围可以包含多个完整 v3 blob，必须解析到范围末尾。
 启动收集 site 时检查 ID、role、root count 并建立唯一的 site 索引；owner callable 的身份与归属只在该 site 的首条 raw record 合并时解析一次，同时检查 entry、root count 和目标 frame 布局。后续同一 ODR site 的 raw record 与已验证记录比较完整地址及规范化 payload，复用其 owner 与 frame 验证结果。所有 site 必须有 raw record，全部对应关系仍在任何 managed 执行前验证完毕；不增加持久的 owner 缓存或新的登记字段。此规则对全部 profile、预编译 Cone 和启动测量配置一致。
 
 不可变 metadata 与 stackmap 的段放置、relocation 和 RELRO 由目标工具链与 loader 处理，runtime 直接使用装载结果。native DSO 不构成 Scoop logical image。String 使用实际声明的唯一 TD，`scoop_td_String` 与其地址相同。运行期不新增或卸载 Cone，Scoop runtime 也不执行 managed global destructor；native C／C++ 初始化／析构边界见第 7 章。
+
+#### 2.8.1 native-app 的可返回启动
+
+本合同使用 runtime ABI contract 32、metadata ABI 10；native-app descriptor 的新增函数签名与 executable descriptor 不可混用，旧 runtime 与机器产物重建。
+
+native-app 使用独立 `ScoopNativeAppEntryDescriptorV1`，magic 为 `0x53434f4f504e4150`，物理大小 128 bytes；字段按顺序为 magic、ABI version、size、root Cone identity、source callable identity、gateway callable identity、failure-root descriptor 指针、gateway 指针。其 gateway 类型为 `uint32_t (*)(const void *host_api, void *out_app_api)`。reader 在 descriptor 边界验证一次，并将共用的 owner、callable 和失败根关系规范化为 registry 的 root view；后续 storage/unit 验证复用该 view。失败根与 executable 采用相同的 managed Throwable 根布局，但使用独立 storage role。generated gateway 建立入口 poll、typed Scoop ABI 调用和 catch，正常与异常出口均恢复 Context，状态 0 表示成功，非 0 表示异常已发布到失败根。
+
+公共 `scoop_app.h` 定义 `ScoopAppError { const uint8_t *bytes; uint64_t length; }` 及 `int32_t scoop_app_init(const void *, void *, ScoopAppError *)`。状态为 `SCOOP_APP_INIT_OK=0`、`ALREADY_INITIALIZED=1`、`IN_PROGRESS=2`、`FAILED=3`、`INVALID_ARGUMENT=4`。每次调用先清空可选 out_error；两枚表指针必须非 null，非法参数在触碰启动状态前返回 INVALID_ARGUMENT。模块私有原子状态从 Uninitialized 经 CAS 到 Initializing；并发与同线程重入立即返回 IN_PROGRESS，不等待。首次成功以 release 发布 Ready 并返回 OK，后续 acquire 观察 Ready 后返回 ALREADY_INITIALIZED，不重写应用表。首次普通异常复制 native-owned UTF-8 报告，以 release 发布 Failed；后续返回 FAILED 与同一份报告，不重试。报告未必以 NUL 结尾，在模块保持装载时有效至进程结束，host 不得释放或修改。
+
+Windows native-app 在进入 managed 代码前关闭进程内 DbgHelp 符号解析，栈报告仍保留模块路径、CodeView ID、链接地址和原始地址，可由 host 配合 PDB 离线解析；不能调用 SymSetOptions、建立 DbgHelp session 或假设模块私有锁能够协调宿主的 DbgHelp 调用。executable 保持既有符号解析行为，GC/EH 和栈帧采集不受此限制。依据为 [DbgHelp 同步和选项合同](https://learn.microsoft.com/en-us/windows/win32/api/dbghelp/nf-dbghelp-symsetoptions)。
+
+`scoop_rt_init_native_app` 与 executable 共用 self-image 收集、code/type、storage/unit、stackmap 登记及 GC 初始化。loaded ranges 由模块生命周期的 coordinator 持有，不借用已返回的启动栈。复用已有线程 registry：executable 保持 main attachment／shutdown，native-app 只使用 foreign attachment；registry 允许第一个 attachment 来自 host，也允许所有临时 attachment 已解除的空闲期，不增加额外运行模式。bootstrap 临时 attach 当前线程，复用浮点 guard、managed boundary、root TaskContext 和 dependency-first eager gateway，再调用 native-app gateway。成功或普通异常均先离开所有 managed/root/Context frame、恢复 host 浮点环境，再 detach 本次拥有的 attachment。后续 callback 继续 attach-if-needed／detach-if-owned。registry、GC、线程及 callback 状态在返回后继续存活，不进入 shutdown，不注册卸载或进程退出 destructor。
+
+普通初始化异常在 catch 内按现有异常类型、初始化路径与栈快照复制报告，不调用用户 toString，不向 C 返回 Throwable 地址或 unwind record；失败不是业务副作用回滚。fatal metadata／GC 不变量、OOM、trap 和显式 exit 仍保持进程级合同。原始参数固定为空。显式启用 startup stats 时只对首次初始化报告既有阶段统计，截止 eager 完成、调用 appInit 前；未启用时不编入计时代码。共享库只加载不卸载，每进程只使用一份 Scoop native-app runtime。
 
 ## 3. GC 契约
 
@@ -444,7 +461,7 @@ SSA 接口在 safepoint 后由更新的 AS1 object 与原 AS0 metadata 分量重
 
 接口聚合及其 object 分量若经相同输入与前驱得到同一个值，可以共享物理根；编译器在 RS4GC 之前完成这种标量合流归并，逻辑恢复和实际后继使用统一取得更新后的引用。不同路径的输入、重赋前的快照与独立对象仍各自保活。注册的 root-pair count 必须继续与最终机器 stackmap 精确一致，不能忽略数量差异或截断根记录。
 
-native 实际调用不得 unwind 穿越边界。静态 FunPtr 的同步 NoGC 调用不隐式 poll；可能进入 runtime 或 managed callback 的路径遵守线程转换规则。语言规范 13.4.1 的 `@GCLeaf` C 调用不构成 safepoint，也不建立 native transition 或专用于该调用的 caller roots；实参求值和调用前后的真实 safepoint 继续遵守正常根规则。
+native 实际调用不得 unwind 穿越边界。通过 `FunPtr` 的间接调用与普通 C ABI extern 一样进入 NativeSafe，发布 caller roots 并在返回时完成握手；callee 可经合法 token 同步进入 managed callback。通过 `GCLeafFunPtr` 的间接调用与语言规范 13.4.1 的 `@GCLeaf` C 调用一样不构成 safepoint，也不建立 native transition 或专用于该调用的 caller roots；实参求值和调用前后的真实 safepoint 继续遵守正常根规则。静态 FunPtr 指向 Scoop NoGC callback 时，native 对它的同步调用只经过 C trampoline 的 ABI 与浮点环境适配，不建立 managed transition；该调用仍限于发起 native 调用的同一已登记线程，不因 callback 正文本身 NoGC 而成为 leaf outbound 调用。
 
 core 的 Long／ULong hash、Boolean hash／equals 使用普通标量正文，执行固定次数的计算，无分配、阻塞或回调。当前 word hash 在 ULong 上依次 xor 右移 30 位、乘 `0xbf58476d1ce4e5b9`、xor 右移 27 位、乘 `0x94d049bb133111eb`、xor 右移 31 位，按原 64 位结果转换为 Long；Boolean hash 为 false→0、true→1，equals 保持逻辑相等。Boolean.toString 选择 provider 的 immortal 字符串，不新增托管 root 或对象。已有 C 后备符号及调用合同保留供实际外部引用使用，新 core 不再为这些操作声明 native wrapper；不将任意同名 extern 特化，也不改变公开方法签名。String hash／equals／字符计数会随输入增长，继续遵守各自 managed／native 边界，不能沿用这项有界标量选择。
 
@@ -538,7 +555,7 @@ native transition 的边界、必要根和 LIFO 检查在所有构建中保留�
 
 runtime 私有的 managed 入口检查同时取得当前线程状态，并在确认 attachment、`MANAGED` mode 与非零 managed depth 后返回该状态。需要操作线程状态的入口复用这个结果，不先后为取址和相同入口检查重复读取 TLS。复用仅覆盖该次同步入口中已经取得的 thread state 地址；mode、epoch、根链和 managed boundary 仍按原协议读写，不跨实际操作省略状态检查。生成代码的 runtime 入口签名、线程状态布局、native 握手及全部精确根契约保持。
 
-`@GCLeaf` 是编译期 C 调用模式，不是新增线程 mode。其实际调用保持 caller 的原状态；从活动 `MANAGED` 调用时，collector 必须继续等待该线程在后续真实 safepoint park，不能提前扫描其栈或移动对象。调用链不得执行 safepoint、park、转换线程状态、回调 Scoop 或进入需要这些动作的 runtime API，且不得阻塞等待其他线程推进。此模式不改变既有 pin、root、指针有效期及用户数据同步契约，也不自动授予其他 runtime 入口的调用资格。
+`@GCLeaf` 与 `GCLeafFunPtr` 是编译期 C 调用模式，不是新增线程 mode。其实际调用保持 caller 的原状态；从活动 `MANAGED` 调用时，collector 必须继续等待该线程在后续真实 safepoint park，不能提前扫描其栈或移动对象。调用链不得执行 safepoint、park、转换线程状态、回调 Scoop 或进入需要这些动作的 runtime API，且不得阻塞等待其他线程推进。此模式不改变既有 pin、root、指针有效期及用户数据同步契约，也不自动授予其他 runtime 入口的调用资格。
 
 ### 3.6 写屏障
 
@@ -802,7 +819,7 @@ invocation 执行 attach-if-needed、enter managed、保活 closure/snapshot、�
 
 adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable 并结束 native catch；token 以 first-wins 保存失败，trampoline 按真实 C 返回类型返回全零值。observer 可在 API 同步点之后重新抛出。invalid/stale cookie、签名不匹配、OneShot 重复调用和 shutdown 后调用均 fatal。
 
-任意 closure 导出要求 native API 有显式 context/user-data 槽。没有该槽时只允许语言规范规定的静态 FunPtr。
+任意 closure 导出要求 native API 有显式 context/user-data 槽。没有该槽时只允许语言规范规定的静态 FunPtr。trampoline 会进入 managed、分配或触发 GC，因此其 code pointer 不满足 GCLeafFunPtr 合同。
 
 ### 4.4 错误处理
 
@@ -812,7 +829,7 @@ adapter 在返回 C 前捕获全部 Scoop 异常、保存原 managed Throwable �
 
 普通 C ABI outbound 默认使用 NativeSafe，Scoop ABI outbound 使用 NativeBorrowed；NoGC 声明不取消 caller 的协调与保活义务。NativeSafe 的常见进入/返回使用 3.5 的无锁协议，实际 C 调用期间不持有 world lock。foreign callback attach 后通过独立 boundary 进入 managed；返回 managed 与 callback 进入均不能绕过当前 GC 的协调。
 
-显式 `@GCLeaf` C ABI outbound 按 3.5 保持原线程状态，不执行 NativeSafe/RETURNING 握手，不额外发布或撤销 caller roots。只有语言规范 13.4.1 的完整调用契约允许这种模式；GC-free 参数或 `@NoGC` 本身不能推导它。编译器按实现规范 2.4～2.5 选择直接 C ABI 调用或 storage bridge，两者保持相同的 native 签名和 GC 契约；NativeSafe 复用直接调用时仍须完成原有协调与保活。ABI 路径选择不增加 runtime 状态或运行时判断。release hook 的 raw leaf 调用仍按 3.8 单独检查，`@GCLeaf` 不放宽 release-safe 限制。
+显式 `@GCLeaf` C ABI outbound 与 `GCLeafFunPtr` 间接调用按 3.5 保持原线程状态，不执行 NativeSafe/RETURNING 握手，不额外发布或撤销 caller roots。只有语言规范 13.4.1、13.10 的完整调用契约允许这种模式；GC-free 参数或 `@NoGC` 本身不能推导它。编译器按实现规范 2.4～2.5 选择直接 C ABI 调用或 storage bridge，两者保持相同的 native 签名和 GC 契约；NativeSafe 复用直接调用时仍须完成原有协调与保活。ABI 路径选择不增加 runtime 状态或运行时判断。release hook 的 raw leaf 调用仍按 3.8 单独检查，`@GCLeaf` 不放宽 release-safe 限制。
 
 errno 捕获遵守语言规范 13.4.2 和实现规范 2.4～2.5：bridge 在实际 C 调用前清零目标 libc errno，返回后立即复制到 native 局部整数，再完成结果传递。NativeSafe 的捕获发生在返回握手之前；GcLeaf 和 release 的捕获保持各自原状态。结果使用本次调用独立且地址稳定的 GC-free storage 和整数返回，不修改冻结根或增加 GC 扫描记录。后续状态切换、GC、其他捕获调用及协程迁移不覆盖已经取得的值；runtime 不提供 `lastErrno` 槽位、捕获 setter/getter 或为此增加全局锁、attachment 和 collector 保存/恢复协议。libc 的 errno 本身在之后仍可变化。
 
@@ -902,7 +919,7 @@ native exception record 不能跨线程共享或跨挂起保存；可以保存�
 
 `printStackTrace()` 及未捕获异常报告消费已有快照；语言 trap 则在进入终止路径之前采集当前栈，不分配 Throwable、不建立 exception record。文件查询、符号化与 stdio 等可能阻塞的工作在 NativeSafe 执行；此前对所需快照 bytes 使用现有 pin／借用协议，或复制为 native 数据。进入 NativeSafe 后不能继续跟随未经固定的 managed 引用，不能持有 GC／线程 registry 锁进行符号解析或 I/O。已经在 NativeSafe 的 startup failure 路径，经现有协调读取 rooted failure 并取得稳定输出数据，不回调 managed 打印方法。
 
-符号化延迟到打印，复用同一版本 executable、dSYM、ELF 分离调试文件或 Windows PDB。Unix 复用一个进程生命周期的线程安全 libbacktrace state；Windows 复用 DbgHelp session，串行执行全部 DbgHelp 调用，并立即复制返回的符号和行号数据。Windows 模块快照复制 UTF-16 路径、PE preferred image base 和可用 CodeView GUID／age，输出路径使用 UTF-8；模块查询期间持有 loader 模块引用。快照同时保存 native loader 的变更序号；Unix 只有采集、state 初始化和查询前后的模块集合一致时使用该 state 的符号结果。Windows 通过 loader notification 记录卸载序号，回调只递增原子计数；纯新增模块不改变已有模块的地址归属，符号查询遇到尚未登记的模块时刷新 DbgHelp 的模块索引，DbgHelp 自身初始化加载 DLL 也遵守此规则。无法取得变更通知时保留地址诊断。Unix 的模块集合变化或 Windows 的模块卸载之后，保守保留地址与已复制的模块事实，并明确提示符号缓存不可用，避免将旧地址归给复用地址的新模块。这项序号只服务诊断缓存，不改变 native loader 或 Scoop image 语义。调试文件不可用时输出模块、可用 UUID／build-id／CodeView ID、链接地址和原始地址；不能只输出无法事后定位的 `<unknown>`。这项读取属于诊断，不加入构建缓存命中校验。普通符号／文件／输出错误不替换原异常；栈或堆已损坏、内存耗尽等 fatal 情况不承诺完整诊断，仍遵守原终止合同。本节不安装信号处理器，不把外部 SIGSEGV／SIGILL 等转换成 Scoop 异常。
+符号化延迟到打印，复用同一版本 executable、dSYM、ELF 分离调试文件或 Windows PDB。Unix 复用一个进程生命周期的线程安全 libbacktrace state；Windows executable 复用 DbgHelp session（native-app 使用 §2.8.1 的地址诊断），串行执行全部 DbgHelp 调用，并立即复制返回的符号和行号数据。Windows 模块快照复制 UTF-16 路径、PE preferred image base 和可用 CodeView GUID／age，输出路径使用 UTF-8；模块查询期间持有 loader 模块引用。快照同时保存 native loader 的变更序号；Unix 只有采集、state 初始化和查询前后的模块集合一致时使用该 state 的符号结果。Windows 通过 loader notification 记录卸载序号，回调只递增原子计数；纯新增模块不改变已有模块的地址归属，符号查询遇到尚未登记的模块时刷新 DbgHelp 的模块索引，DbgHelp 自身初始化加载 DLL 也遵守此规则。无法取得变更通知时保留地址诊断。Unix 的模块集合变化或 Windows 的模块卸载之后，保守保留地址与已复制的模块事实，并明确提示符号缓存不可用，避免将旧地址归给复用地址的新模块。这项序号只服务诊断缓存，不改变 native loader 或 Scoop image 语义。调试文件不可用时输出模块、可用 UUID／build-id／CodeView ID、链接地址和原始地址；不能只输出无法事后定位的 `<unknown>`。这项读取属于诊断，不加入构建缓存命中校验。普通符号／文件／输出错误不替换原异常；栈或堆已损坏、内存耗尽等 fatal 情况不承诺完整诊断，仍遵守原终止合同。本节不安装信号处理器，不把外部 SIGSEGV／SIGILL 等转换成 Scoop 异常。
 
 ## 6. 核心类型的运行时后备
 
@@ -944,7 +961,11 @@ toBits/fromBits 的整数载体分别为同宽 Int／Long；这些方法通过�
 
 默认比较将所有 NaN 视为相等且排在正无穷之后，正负零相等；显式 IEEE 比较沿用 NaN 无序规则。比较不修改位型，不增加 runtime 比较入口；编译器 intrinsic 与普通 core body 实现语言规范 11.2.2 的契约。
 
-C FFI 使用目标真实 float/double ABI。数值操作遵守语言规范 11.2.2 的 rounding、NaN、无穷、signed zero 和转换规则，不能启用改变这些语义的 fast-math。线程的浮点环境采用 round-to-nearest ties-to-even、无 trap、保留 subnormal。
+C FFI 使用目标真实 float/double ABI。数值操作遵守语言规范 11.2.2 的 rounding、NaN、无穷、signed zero 和转换规则，不能启用改变这些语义的 fast-math。Scoop 浮点环境采用 round-to-nearest ties-to-even、无 trap、保留 subnormal。NativeSafe／NativeBorrowed 调用返回 managed 前必须重新建立该环境；`@GCLeaf`／`GCLeafFunPtr` 不建立边界 guard，callee 必须不改变控制环境或在返回前完整恢复。
+
+thread attach／detach 本身不改变调用线程的浮点环境。最外层 managed gateway 和每层 ForeignCallback 入口先保存 native 调用者的环境，再建立 Scoop 环境；正常返回与捕获异常后的返回使用同一出口，恢复该层保存的控制位与异常状态位。嵌套 callback 各自保存，按 LIFO 恢复；native callee 返回 managed 时只重建 Scoop 环境，无需为该返回另存一份不会再恢复的 native 状态。Scoop 不向源码暴露浮点异常状态位，也不承诺其跨 native 调用累积。
+
+`::name` 产生的静态 NoGC callback trampoline 同样保存、建立和恢复浮点环境，但不增加 thread attachment、managed transition 或 safepoint；其既有同步、同线程约束不变。编译器生成的 C trampoline 使用目标 CRT 的 `fenv_t` 栈存储及两个私有 C ABI leaf：`uint64_t scoop_runtime_float_enter(fenv_t *saved)` 保存环境、建立 Scoop 环境并返回原平台控制字；`void scoop_runtime_float_leave(const fenv_t *saved, uint64_t control)` 恢复环境。AArch64 额外保存完整 FPCR，x86-64 额外保存完整 MXCSR（包括状态位），避免 CRT 只处理标准舍入／异常掩码的子集。两者不分配、不访问 managed 引用、不握手；不能因其属于内部 leaf 而向普通 GCLeaf callee 开放改变浮点环境的权限。
 
 文本转换不依赖进程 locale。解析按声明精度正确舍入；非法输入和溢出返回 None，合法下溢仍返回相应浮点值。格式化遵守语言规定的可往返文本、特殊值与 signed zero 形式。
 

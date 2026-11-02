@@ -228,6 +228,13 @@ impl<'a> CfgLowerer<'a> {
                 operand: Box::new(self.lower_expr(operand, span)?),
                 pointee: pointee.clone(),
             },
+            smir::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => mir::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.lower_expr(operand, span)?),
+                target_mode: *target_mode,
+            },
             smir::ExprKind::PtrLoad {
                 pointer,
                 pointee,

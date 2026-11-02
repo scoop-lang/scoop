@@ -233,6 +233,7 @@ pub(crate) fn suspend_effect(
             callee: mir::DispatchCallee::Monomorphized(instance),
             ..
         } => lowerer.instances.meta[*instance].function,
+        mir::CallTarget::NativePointer { .. } => return None,
         mir::CallTarget::Closure { function_type, .. }
         | mir::CallTarget::FunctionBridge { function_type, .. } => {
             let signature = &lowerer.shell.function_types[*function_type];

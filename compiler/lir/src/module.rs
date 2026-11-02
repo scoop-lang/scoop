@@ -41,6 +41,7 @@ pub struct Module {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum LirOutput {
     Library,
+    NativeApp { entry: LocalFunctionRef },
     Executable { entry: LocalFunctionRef },
 }
 
@@ -54,7 +55,7 @@ impl Module {
 
     pub const fn executable_entry(&self) -> Option<LocalFunctionRef> {
         match self.output {
-            LirOutput::Library => None,
+            LirOutput::Library | LirOutput::NativeApp { .. } => None,
             LirOutput::Executable { entry } => Some(entry),
         }
     }

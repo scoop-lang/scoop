@@ -32,6 +32,11 @@ pub enum ExactTypeKey {
         parameters: Vec<PersistentExactTypeId>,
         result: PersistentExactTypeId,
     },
+    GcLeafNativeFunctionPointer {
+        calling_convention: CallingConvention,
+        parameters: Vec<PersistentExactTypeId>,
+        result: PersistentExactTypeId,
+    },
 }
 
 impl ExactTypeKey {
@@ -53,6 +58,9 @@ impl ExactTypeKey {
                 .copied()
                 .collect(),
             Self::NativeFunctionPointer {
+                parameters, result, ..
+            }
+            | Self::GcLeafNativeFunctionPointer {
                 parameters, result, ..
             } => {
                 let mut dependencies = parameters.clone();
@@ -110,6 +118,20 @@ impl WireEncode for ExactTypeKey {
             } => {
                 encoder.map(4)?;
                 encode_tag(encoder, 6)?;
+                encoder.field(1)?;
+                calling_convention.encode(encoder)?;
+                encoder.field(2)?;
+                encode_ids(encoder, parameters)?;
+                encoder.field(3)?;
+                result.encode(encoder)
+            }
+            Self::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => {
+                encoder.map(4)?;
+                encode_tag(encoder, 7)?;
                 encoder.field(1)?;
                 calling_convention.encode(encoder)?;
                 encoder.field(2)?;

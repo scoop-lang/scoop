@@ -123,6 +123,7 @@ fn emits_cfg(expr: &smir::Expr) -> bool {
         | ExprKind::PtrFromNonZeroULong { operand, .. }
         | ExprKind::PtrToULong(operand)
         | ExprKind::PtrCast { operand, .. }
+        | ExprKind::NativeFunctionPointerCast { operand, .. }
         | ExprKind::CharCode(operand)
         | ExprKind::CharFromCodeUnchecked(operand)
         | ExprKind::FloatUnary { operand, .. }

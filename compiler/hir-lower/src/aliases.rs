@@ -400,6 +400,7 @@ impl Lowerer {
                 .map(NominalTarget::Interface),
             Type::Ptr(_) => self.ffi_ptr.map(NominalTarget::Struct),
             Type::FunPtr(_) => self.ffi_fun_ptr.map(NominalTarget::Struct),
+            Type::GcLeafFunPtr(_) => self.ffi_gc_leaf_fun_ptr.map(NominalTarget::Struct),
             Type::Any
             | Type::Tuple(_)
             | Type::Function(_)

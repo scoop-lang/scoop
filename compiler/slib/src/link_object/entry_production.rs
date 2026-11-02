@@ -2,7 +2,7 @@
 
 use super::{MissingObjectDefinitionMemberV1, VerifiedBuiltinObjectStrongRelocationSetV1};
 use crate::SlibMemberId;
-use scoop_lir::{EntryProductionPlanV1, ExecutableEntryPlanV1};
+use scoop_lir::{EntryProductionPlanV1, ExecutableEntryPlanV1, NativeAppEntryPlanV1};
 
 mod finalization;
 pub use finalization::*;
@@ -22,9 +22,24 @@ impl ExecutableEntryDataV1 {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NativeAppEntryDataV1 {
+    plan: NativeAppEntryPlanV1,
+    member: SlibMemberId,
+}
+impl NativeAppEntryDataV1 {
+    pub const fn plan(&self) -> &NativeAppEntryPlanV1 {
+        &self.plan
+    }
+    pub const fn member(&self) -> SlibMemberId {
+        self.member
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryProductionBranchV1 {
     Library,
     Executable(Box<ExecutableEntryDataV1>),
+    NativeApp(Box<NativeAppEntryDataV1>),
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -54,6 +69,17 @@ pub fn bind_entry_production_v1(
                 .member_for_definition(definition)
                 .ok_or(MissingObjectDefinitionMemberV1(definition))?;
             EntryProductionBranchV1::Executable(Box::new(ExecutableEntryDataV1 {
+                plan: *plan,
+                member,
+            }))
+        }
+        EntryProductionPlanV1::NativeApp(plan) => {
+            let definition = plan.root_descriptor_definition();
+            let member = builtins
+                .member_plan()
+                .member_for_definition(definition)
+                .ok_or(MissingObjectDefinitionMemberV1(definition))?;
+            EntryProductionBranchV1::NativeApp(Box::new(NativeAppEntryDataV1 {
                 plan: *plan,
                 member,
             }))

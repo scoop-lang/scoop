@@ -156,7 +156,9 @@ fn runtime_global_atoms<'ctx, D, C, I>(
         ]);
     }
 
-    if let EmittedEntryProductionV1::Executable(emitted) = entry {
+    if let EmittedEntryProductionV1::Executable(emitted)
+    | EmittedEntryProductionV1::NativeApp(emitted) = entry
+    {
         let definition = production
             .canonical_definitions()
             .plan(emitted.definition())

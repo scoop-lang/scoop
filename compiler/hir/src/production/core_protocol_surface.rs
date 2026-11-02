@@ -34,12 +34,12 @@ pub(crate) mod test_support;
 #[cfg(test)]
 mod tests;
 
-pub(crate) const FUNDAMENTAL_TYPE_COUNT: usize = 20;
+pub(crate) const FUNDAMENTAL_TYPE_COUNT: usize = 21;
 pub(crate) const OPTION_PROTOCOL_COUNT: usize = 4;
 pub(crate) const ITERATION_PROTOCOL_COUNT: usize = 3;
 pub(crate) const EXCEPTION_PROTOCOL_COUNT: usize = 17;
 pub(crate) const COROUTINE_PROTOCOL_COUNT: usize = 13;
-pub(crate) const FFI_PROTOCOL_COUNT: usize = 19;
+pub(crate) const FFI_PROTOCOL_COUNT: usize = 22;
 pub(crate) const FOREIGN_CALLBACK_PROTOCOL_COUNT: usize = 15;
 pub(crate) const SOURCE_LOCATION_PROTOCOL_COUNT: usize = 2;
 

@@ -96,6 +96,12 @@ fn m60_documentation_projects_real_core_sources_and_canonical_annotations() {
             .any(|item| item.key == integer.key)
     );
     assert!(input.sources.iter().all(|source| !source.text.is_empty()));
+    for (name, receiver) in [("asFunPtr", "GCLeafFunPtr<F>"), ("asGCLeaf", "FunPtr<F>")] {
+        let function = input.items.iter().find(|item| item.name == name).unwrap();
+        let actual = function.receiver.as_ref().unwrap();
+        assert_eq!(actual.text, receiver);
+        assert!(actual.link.is_some());
+    }
     for (function, nominal) in [
         ("documentationInferredInteger", "Int"),
         ("documentationInferredBoolean", "Boolean"),

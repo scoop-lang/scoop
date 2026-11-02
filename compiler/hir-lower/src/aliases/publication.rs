@@ -266,7 +266,7 @@ impl Lowerer {
             Type::Tuple(elements) => {
                 self.validate_type_alias_arguments(elements, span, description, visited);
             }
-            Type::Function(function) | Type::FunPtr(function) => {
+            Type::Function(function) | Type::FunPtr(function) | Type::GcLeafFunPtr(function) => {
                 let function = self.function_types[function].clone();
                 self.validate_type_alias_arguments(
                     function.parameters().copied().collect(),

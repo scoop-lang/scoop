@@ -37,6 +37,14 @@ impl Serialize for QueryJson<'_, SignatureTypeKey> {
                 "kind": "nativeFunctionPointer", "callingConvention": QueryJson(calling_convention),
                 "parameters": QueryJson(parameters.as_slice()), "result": QueryJson(result.as_ref()),
             }),
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => object!(serializer, {
+                "kind": "gcLeafNativeFunctionPointer", "callingConvention": QueryJson(calling_convention),
+                "parameters": QueryJson(parameters.as_slice()), "result": QueryJson(result.as_ref()),
+            }),
             SignatureTypeKey::Binder { depth, index } => object!(serializer, {
                 "kind": "binder", "depth": depth, "index": index,
             }),

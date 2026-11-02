@@ -42,7 +42,7 @@ impl Concretizer<'_> {
             K::Nothing => ("Nothing", Vec::new()),
             K::Throwable => ("Throwable", Vec::new()),
             K::MaybeUninit => ("MaybeUninit", Vec::new()),
-            K::Unit | K::Ptr | K::FunPtr => {
+            K::Unit | K::Ptr | K::FunPtr | K::GcLeafFunPtr => {
                 unreachable!("Unit and pointer representations have their own shapes")
             }
         };

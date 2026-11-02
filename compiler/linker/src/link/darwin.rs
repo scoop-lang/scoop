@@ -20,7 +20,7 @@ pub(super) fn link(
     let ValidatedFinalLinkProfile::Darwin(darwin) = profile else {
         return Err(error("Darwin linking requires its selected target profile"));
     };
-    let mut command = darwin.command(&sdk, candidate).map_err(error)?;
+    let mut command = darwin.command(&sdk, directory, candidate).map_err(error)?;
     if !keep_symbols {
         darwin.linker_argument(&mut command, "-x");
         darwin.linker_argument(&mut command, "-S");

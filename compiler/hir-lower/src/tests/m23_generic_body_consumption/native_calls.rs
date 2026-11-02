@@ -1,6 +1,37 @@
 use super::*;
 
 #[test]
+fn imported_native_calls_check_the_boundary_in_no_gc_bodies() {
+    let provider = r#"
+        @Extern(name = "native_safe") public fun nativeSafe(): Int
+        @NoGC @Extern(abi = "scoop", name = "native_borrowed") public fun borrowed(): Int
+        @GCLeaf @Extern(name = "native_leaf") public fun leaf(): Int
+    "#;
+    with_provider_consumer(
+        provider,
+        "@NoGC @Unsafe public fun good(): Int = leaf()",
+        |_, _, _, _, _| {},
+    )
+    .unwrap();
+    let errors = with_provider_consumer(
+        provider,
+        r#"
+        @NoGC @Unsafe public fun badSafe(): Int = nativeSafe()
+        @NoGC public fun badBorrowed(): Int = borrowed()
+    "#,
+        |_, _, _, _, _| {},
+    )
+    .unwrap_err();
+    assert_eq!(errors.len(), 2, "{errors:#?}");
+    assert!(
+        errors
+            .iter()
+            .all(|error| error.message.contains("state transition")),
+        "{errors:#?}"
+    );
+}
+
+#[test]
 fn ordinary_dependency_calls_share_contextual_arguments() {
     check_fixture("context");
 }

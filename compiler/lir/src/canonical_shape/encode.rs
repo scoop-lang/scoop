@@ -211,6 +211,22 @@ impl ShapeProjection<'_> {
                             }
                         }
                     }
+                    IntrinsicTypeRepresentation::GcLeafFunPtr { signature } => {
+                        tagged(e, 12, 3)?;
+                        e.field(1)?;
+                        e.array(signature.params.len() as u64)?;
+                        for ty in &signature.params {
+                            crate::canonical_type::encode_type(self.module, ty, e)?;
+                        }
+                        e.field(2)?;
+                        match &signature.return_type {
+                            LirReturnType::Void => e.array(0),
+                            LirReturnType::Value(ty) => {
+                                e.array(1)?;
+                                crate::canonical_type::encode_type(self.module, ty, e)
+                            }
+                        }
+                    }
                 }
             }
         }

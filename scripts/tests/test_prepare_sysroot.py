@@ -76,7 +76,7 @@ class SysrootSelectionTests(unittest.TestCase):
             root = Path(temporary)
             include = root / "runtime/include"
             include.mkdir(parents=True)
-            for name in ("scoop_rt.h", "scoop_runtime_metadata_v1.h"):
+            for name in ("scoop_rt.h", "scoop_runtime_metadata_v1.h", "scoop_app.h"):
                 (include / name).write_text("/* Runtime header. */\n")
             arguments = [
                 "prepare_sysroot.py",
@@ -103,3 +103,4 @@ class SysrootSelectionTests(unittest.TestCase):
                 prepare_sysroot.main()
             self.assertEqual(runtime.call_count, 4)
             self.assertTrue((root / "sysroot/include/scoop_rt.h").is_file())
+            self.assertTrue((root / "sysroot/include/scoop_app.h").is_file())

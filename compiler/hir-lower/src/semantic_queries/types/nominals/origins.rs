@@ -29,6 +29,11 @@ impl Lowerer {
                         core.fundamental_types().fun_ptr().persistent(),
                     ))
                 }
+                (hir::Type::GcLeafFunPtr(_), CoreLoweringAuthority::Imported(core)) => {
+                    Some(hir::SourceNominalId::GenericTemplate(
+                        core.fundamental_types().gc_leaf_fun_ptr().persistent(),
+                    ))
+                }
                 _ => None,
             })
     }

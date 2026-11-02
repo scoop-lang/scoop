@@ -1,4 +1,4 @@
-//! Managed function-value calls preserve callee and source argument evaluation.
+//! Function-value calls preserve callee and source argument evaluation.
 
 use super::*;
 
@@ -21,14 +21,22 @@ impl Lowerer {
         span: Span,
         sink: &mut Vec<hir::Statement>,
     ) -> Option<hir::Expr> {
-        let Type::Function(function_type) = self.types[callee.ty] else {
-            let found = self.type_name(callee.ty);
-            self.error(
-                callee.span,
-                format!("value of type {found} is not callable"),
-            );
-            return None;
+        let (function_type, native_mode) = match self.types[callee.ty] {
+            Type::Function(id) => (id, None),
+            Type::FunPtr(id) => (id, Some(hir::CAbiCallMode::NativeSafe)),
+            Type::GcLeafFunPtr(id) => (id, Some(hir::CAbiCallMode::GcLeaf)),
+            _ => {
+                let found = self.type_name(callee.ty);
+                self.error(
+                    callee.span,
+                    format!("value of type {found} is not callable"),
+                );
+                return None;
+            }
         };
+        if native_mode.is_some() {
+            self.require_unsafe_operation(span, "calling a native function pointer");
+        }
         let signature = self.function_types[function_type].clone();
         if let Some(argument) = args
             .iter()
@@ -143,12 +151,21 @@ impl Lowerer {
             span,
             signature.parameters().copied().skip(bound_receiver_count),
         );
-        Some(hir::Expr {
-            kind: ExprKind::CallableCall {
+        let kind = match native_mode {
+            Some(call_mode) => ExprKind::NativePointerCall {
+                callee: Box::new(callee),
+                function_type,
+                args: lowered,
+                call_mode,
+            },
+            None => ExprKind::CallableCall {
                 callee: Box::new(callee),
                 function_type,
                 args: lowered,
             },
+        };
+        Some(hir::Expr {
+            kind,
             ty: signature.return_type,
             span,
             origin: self.expression_origin(span),

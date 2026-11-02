@@ -171,7 +171,7 @@ fn locator_location(error: &DependencyLocatorError) -> BuildFailureLocation {
         Error::Io { path, .. }
         | Error::SysrootArtifactNotFound { path, .. }
         | Error::CoordinateMismatch { path, .. }
-        | Error::ExecutableDependency { path, .. }
+        | Error::NonLibraryDependency { path, .. }
         | Error::SelfSourceLocator { root: path, .. } => BuildFailureLocation::Host {
             path: path.clone(),
             span: None,

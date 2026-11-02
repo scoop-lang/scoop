@@ -84,6 +84,16 @@ pub(crate) fn struct_layout(
                         },
                     )
                 }
+                mir::IntrinsicStructRepresentation::GcLeafFunPtr { signature } => {
+                    let layout = context.pointer_layout(lir::PointerKind::Code);
+                    (
+                        layout.size,
+                        layout.align,
+                        lir::IntrinsicTypeRepresentation::GcLeafFunPtr {
+                            signature: compiler_function_type(module, *signature),
+                        },
+                    )
+                }
             };
             return Ok(lir::Layout {
                 identity,

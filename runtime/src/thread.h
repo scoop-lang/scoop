@@ -7,6 +7,7 @@
 #include <stdint.h>
 
 #include "generated_entries.h"
+#include "floating.h"
 #include "platform/platform.h"
 
 typedef enum ScoopThreadMode {
@@ -58,6 +59,7 @@ typedef struct ScoopThreadState {
     uint64_t managed_depth;
     uint64_t callback_depth;
     ScoopThreadAttachmentKind attachment_kind;
+    ScoopFloatEnvironment native_float_environment;
     ScoopNativeRootFrame *native_roots;
     ScoopNativeRegionRootFrame *native_region_roots;
     ScoopCallerRootFrame *caller_roots;
@@ -78,6 +80,7 @@ typedef struct ScoopThreadState {
 } ScoopThreadState;
 
 typedef struct ScoopCallbackThreadEntry {
+    ScoopFloatEnvironment native_float_environment;
     ScoopThreadMode previous_mode;
     const char *previous_managed_stack_boundary;
     uint64_t previous_managed_depth;

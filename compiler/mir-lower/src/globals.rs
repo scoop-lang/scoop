@@ -110,7 +110,7 @@ pub(super) fn lower_global_constant(
         }
         (
             hir::HirConstantImage::NullPointer(hir::HirPointerNullKind::Code),
-            mir::Type::FunPtr(_),
+            mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_),
         ) => mir::MirConstantImage::PointerNull(mir::MirPointerNull::Code),
         (hir::HirConstantImage::Enum { variant, fields }, mir::Type::Enum(enum_id, _)) => {
             let variant = enums.lower_variant_ref(*variant);

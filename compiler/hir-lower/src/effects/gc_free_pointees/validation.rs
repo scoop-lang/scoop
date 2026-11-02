@@ -190,7 +190,9 @@ impl Lowerer {
             hir::Type::Tuple(elements) => elements
                 .iter()
                 .all(|element| self.pointee_type_is_valid(*element, visiting)),
-            hir::Type::Function(function) | hir::Type::FunPtr(function) => {
+            hir::Type::Function(function)
+            | hir::Type::FunPtr(function)
+            | hir::Type::GcLeafFunPtr(function) => {
                 let function = &self.function_types[*function];
                 function
                     .parameters()

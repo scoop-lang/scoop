@@ -1,0 +1,3 @@
+package dev.nativeapp
+
+fun Ptr<Unit>.appInit(outAppApi: Ptr<Unit>) {}

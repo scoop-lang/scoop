@@ -317,6 +317,10 @@ pub(crate) enum ExprKind {
         pointee: Box<mir::Type>,
     },
     PtrToULong(Box<Expr>),
+    NativeFunctionPointerCast {
+        operand: Box<Expr>,
+        target_mode: mir::CAbiCallMode,
+    },
     PtrCast {
         operand: Box<Expr>,
         pointee: Box<mir::Type>,

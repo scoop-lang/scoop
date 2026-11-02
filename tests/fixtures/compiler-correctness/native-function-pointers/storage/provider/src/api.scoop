@@ -1,0 +1,46 @@
+package dev.nativepointers
+
+public typealias Leaf = GCLeafFunPtr<(Int) -> Int>
+
+@CLayout
+public struct FunctionTable(val plain: FunPtr<(Int) -> Int>, val leaf: Leaf, val optional: Leaf?)
+
+@Extern(lib = "fixture_native", name = "pointer_table")
+public fun table(): FunctionTable
+
+@Extern(lib = "fixture_native", name = "pointer_check_table")
+public fun checkTable(value: FunctionTable): Boolean
+
+@Extern(lib = "fixture_native", name = "pointer_check_leaf")
+public fun checkLeaf(value: Leaf?): Boolean
+
+@Extern(lib = "fixture_native", name = "pointer_check_plain")
+public fun checkPlain(value: FunPtr<(Int) -> Int>): Boolean
+
+@NoGC
+public fun widen(value: Leaf): FunPtr<(Int) -> Int> = value.asFunPtr()
+
+@NoGC
+@Unsafe
+public fun narrow(value: FunPtr<(Int) -> Int>): Leaf = value.asGCLeaf()
+
+public fun defaultPointer(leaf: Leaf, value: FunPtr<(Int) -> Int> = leaf.asFunPtr()): FunPtr<
+    (Int) -> Int
+> = value
+
+public fun <T> converted(leaf: Leaf, unused: T): FunPtr<(Int) -> Int> = leaf.asFunPtr()
+
+public fun <T: value> preserve(value: T): T = value
+
+public fun optional(value: Leaf? = None): Leaf? = value
+
+@Unsafe
+public fun <T> invokeGeneric(pointer: Leaf, value: Int, unused: T): Int = pointer(value)
+
+@Unsafe
+public fun invokeDefault(pointer: FunPtr<(Int) -> Int>, value: Int = pointer.invoke(40)): Int =
+    value
+
+@NoGC
+@Unsafe
+public fun invokeNoGc(pointer: Leaf, value: Int): Int = pointer(value)

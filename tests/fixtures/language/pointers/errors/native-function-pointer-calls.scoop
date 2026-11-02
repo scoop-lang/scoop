@@ -1,0 +1,27 @@
+fun safeCall(pointer: FunPtr<(Int) -> Int>): Int = pointer(1)
+
+fun leafCall(pointer: GCLeafFunPtr<(Int) -> Int>): Int = pointer.invoke(1)
+
+@Unsafe
+fun named(pointer: FunPtr<(Int) -> Int>): Int = pointer(value = 1)
+
+@Unsafe
+fun spread(pointer: GCLeafFunPtr<(Int) -> Int>, values: Array<Int>): Int = pointer(*values)
+
+@Unsafe
+fun missing(pointer: FunPtr<(Int) -> Int>): Int = pointer()
+
+@Unsafe
+fun extra(pointer: GCLeafFunPtr<(Int) -> Int>): Int = pointer(1, 2)
+
+@Unsafe
+fun wrong(pointer: FunPtr<(Int) -> Int>, value: Long): Int = pointer(value)
+
+@Unsafe
+fun generic(pointer: GCLeafFunPtr<(Int) -> Int>): Int = pointer.invoke<Int>(1)
+
+fun main() {}
+
+@NoGC
+@Unsafe
+fun noGc(pointer: FunPtr<() -> Int>): Int = pointer()

@@ -1,0 +1,13 @@
+package dev.nativeapp
+
+import dev.nativeapp.provider.initialized
+import scoop.test.*
+
+@Test
+private class Entry {
+    @Test
+    fun usesGeneratedTestEntry() {
+        // Production appInit requires a live host table and must not run here.
+        assertEquals(24, initialized)
+    }
+}

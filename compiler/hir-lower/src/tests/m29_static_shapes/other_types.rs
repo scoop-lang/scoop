@@ -45,8 +45,10 @@ fn static_shapes_distinguish_intrinsics_structural_types_and_pointers() {
                 panic!("pointer shape")
             };
             assert_eq!(pointee, elements[6]);
-            let hir::StaticTypeShape::NativeFunctionPointer(function) =
-                module.static_type_shape(elements[15], &[]).unwrap()
+            let hir::StaticTypeShape::NativeFunctionPointer {
+                signature: function,
+                call_mode: _,
+            } = module.static_type_shape(elements[15], &[]).unwrap()
             else {
                 panic!("native function pointer")
             };

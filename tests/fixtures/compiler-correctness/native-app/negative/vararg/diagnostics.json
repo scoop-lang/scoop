@@ -1,0 +1,26 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "missing native-app entry: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
+    "notes": [
+      {
+        "message": "`fun appInit(hostApi: Array<Ptr<Unit>>, outAppApi: Ptr<Unit>): Unit` is not eligible because its parameters must be two ordinary `Ptr<Unit>` values, it has a vararg parameter",
+        "origin": {
+          "cone": "6cdc72aa41be9e1e7a905a4e966d3263a17fd57d99bdad6d279bc56d4c72aae8",
+          "end": 86,
+          "kind": "source",
+          "path": "src/app.scoop",
+          "start": 23
+        }
+      }
+    ],
+    "origin": {
+      "cone": "6cdc72aa41be9e1e7a905a4e966d3263a17fd57d99bdad6d279bc56d4c72aae8",
+      "end": 0,
+      "kind": "source",
+      "path": "src/app.scoop",
+      "start": 0
+    },
+    "severity": "error"
+  }
+]

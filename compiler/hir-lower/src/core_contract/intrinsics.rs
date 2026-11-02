@@ -150,6 +150,7 @@ impl Lowerer {
         let mutable_array = require(self, hir::IntrinsicTypeKind::MutableArray)?;
         let ptr = require(self, hir::IntrinsicTypeKind::Ptr)?;
         let fun_ptr = require(self, hir::IntrinsicTypeKind::FunPtr)?;
+        let gc_leaf_fun_ptr = require(self, hir::IntrinsicTypeKind::GcLeafFunPtr)?;
         if integer_owners.len() != hir::IntegerKind::COUNT {
             return None;
         }
@@ -166,6 +167,7 @@ impl Lowerer {
             IntrinsicTypeOwner::Class(mutable_array),
             IntrinsicTypeOwner::Struct(ptr),
             IntrinsicTypeOwner::Struct(fun_ptr),
+            IntrinsicTypeOwner::Struct(gc_leaf_fun_ptr),
         ) = (
             any,
             nothing,
@@ -179,6 +181,7 @@ impl Lowerer {
             mutable_array,
             ptr,
             fun_ptr,
+            gc_leaf_fun_ptr,
         )
         else {
             unreachable!("the intrinsic registry fixes every declaration target")
@@ -203,6 +206,7 @@ impl Lowerer {
             mutable_array,
             ptr,
             fun_ptr,
+            gc_leaf_fun_ptr,
         })
     }
 }

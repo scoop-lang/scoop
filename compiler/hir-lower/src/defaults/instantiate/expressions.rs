@@ -193,6 +193,13 @@ impl Lowerer {
             hir::ExprKind::PtrCast(value) => {
                 hir::ExprKind::PtrCast(Box::new(self.instantiate_default_expr(value, context)))
             }
+            hir::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => hir::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.instantiate_default_expr(operand, context)),
+                target_mode: *target_mode,
+            },
             hir::ExprKind::PtrLoad { pointer, offset } => hir::ExprKind::PtrLoad {
                 pointer: Box::new(self.instantiate_default_expr(pointer, context)),
                 offset: offset
@@ -382,6 +389,17 @@ impl Lowerer {
                 function_type,
                 args,
             } => hir::ExprKind::CallableCall {
+                callee: Box::new(self.instantiate_default_expr(callee, context)),
+                function_type: self.instantiate_default_function_type(*function_type, context),
+                args: self.instantiate_default_exprs(args, context),
+            },
+            hir::ExprKind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                args,
+            } => hir::ExprKind::NativePointerCall {
+                call_mode: *call_mode,
                 callee: Box::new(self.instantiate_default_expr(callee, context)),
                 function_type: self.instantiate_default_function_type(*function_type, context),
                 args: self.instantiate_default_exprs(args, context),

@@ -74,6 +74,7 @@ impl Catalog<'_> {
             kind: match summary.cone().kind() {
                 ConeKind::Library => RequestedConeKind::Library,
                 ConeKind::Executable => RequestedConeKind::Executable,
+                ConeKind::NativeApp => RequestedConeKind::NativeApp,
             },
             source,
             dependencies,

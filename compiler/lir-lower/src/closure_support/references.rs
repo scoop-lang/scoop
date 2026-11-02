@@ -9,6 +9,9 @@ pub(super) fn roots(module: &mir::Module, retain: &mut impl FnMut(mir::FunctionI
             retain(builder);
         }
     }
+    if let mir::MirOutput::NativeApp { entry } = module.output {
+        retain(entry);
+    }
     for (_, unit) in module.initialization_units.iter() {
         retain(unit.initializer);
         retain(unit.ensure);

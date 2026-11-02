@@ -111,6 +111,7 @@ fn type_value_equal(types: &Arena<Type>, a: TypeId, b: TypeId) -> bool {
         (Type::Function(x), Type::Function(y)) => x == y,
         (Type::Ptr(x), Type::Ptr(y)) => type_value_equal(types, *x, *y),
         (Type::FunPtr(x), Type::FunPtr(y)) => x == y,
+        (Type::GcLeafFunPtr(x), Type::GcLeafFunPtr(y)) => x == y,
         _ => false,
     }
 }

@@ -255,3 +255,8 @@ pub use validation::{
 
 #[cfg(test)]
 mod test_targets;
+
+pub use entity::{
+    AppInitCallableBodyId, DecodedNativeAppEntryIdentity, NativeAppEntryIdentity,
+    NativeAppEntryIdentityError,
+};

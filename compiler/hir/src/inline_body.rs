@@ -89,6 +89,7 @@ fn expression(value: &Expr) -> bool {
         | E::CharCode(operand)
         | E::CharFromCodeUnchecked(operand)
         | E::PtrCast(operand)
+        | E::NativeFunctionPointerCast { operand, .. }
         | E::PtrToULong(operand)
         | E::PtrFromNonZeroULong(operand)
         | E::SomeWrap(operand)

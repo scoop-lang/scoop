@@ -218,6 +218,17 @@ impl<'a> HirSignatureTypeMapper<'a> {
                     result: Box::new(self.map_inner(function.return_type, binders, visiting)?),
                 }
             }
+            Type::GcLeafFunPtr(function) => {
+                let function = self.function(ty, *function, true)?;
+                if function.is_suspend {
+                    return Err(HirSignatureTypeMappingError::SuspendNativeFunctionPointer);
+                }
+                SignatureTypeKey::GcLeafNativeFunctionPointer {
+                    calling_convention: CallingConvention::C,
+                    parameters: self.map_all(&function.parameter_types, binders, visiting)?,
+                    result: Box::new(self.map_inner(function.return_type, binders, visiting)?),
+                }
+            }
             Type::Enum(application) => {
                 if local_index(*application) >= self.inputs.enum_applications.len() {
                     return Err(HirSignatureTypeMappingError::UnknownApplication(raw_index(

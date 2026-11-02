@@ -58,6 +58,41 @@ impl Lowerer {
         span: Span,
         out: &mut Vec<(Span, String)>,
     ) {
+        let native_transition = match callee {
+            hir::CallableTarget::Local(callable) => {
+                match self.functions[self.callable_function_id(callable)].kind {
+                    hir::FunctionKind::Extern(id) => !matches!(
+                        self.extern_functions[id].abi,
+                        hir::ExternAbi::C(hir::CAbiCallMode::GcLeaf)
+                    ),
+                    _ => false,
+                }
+            }
+            hir::CallableTarget::Dependency(id) => {
+                let selected = self
+                    .dependencies
+                    .as_ref()
+                    .expect("a dependency call retains its declarations")
+                    .resolve_callable(self.imported_dependency_callables[id].reference())
+                    .expect("a call retains its selected declaration");
+                matches!(
+                    selected.interface().effects().implementation(),
+                    hir::CallableImplementationV1::SourceExternScoop
+                        | hir::CallableImplementationV1::SourceExternC(
+                            hir::CAbiCallMode::NativeSafe,
+                            _
+                        )
+                )
+            }
+            hir::CallableTarget::Application(_) => false,
+        };
+        if native_transition {
+            out.push((
+                span,
+                "native calls requiring a state transition are not allowed in `@NoGC` code".into(),
+            ));
+            return;
+        }
         if self.callable_target_is_no_gc(callee) {
             return;
         }

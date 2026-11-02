@@ -347,6 +347,11 @@ impl Lowerer {
                 template,
                 operation: ImportedIntrinsicCall::Atomic(kind),
             }
+        } else if let Some(kind) = candidate.native_function_pointer_intrinsic() {
+            ImportedCallImplementation::Intrinsic {
+                template,
+                operation: ImportedIntrinsicCall::NativeFunctionPointer(kind),
+            }
         } else if let Some(operation) = candidate.array_intrinsic() {
             ImportedCallImplementation::Intrinsic {
                 template,

@@ -95,6 +95,7 @@ impl Lowerer {
             | E::CharFromCodeUnchecked(operand)
             | E::PtrToULong(operand)
             | E::PtrCast(operand)
+            | E::NativeFunctionPointerCast { operand, .. }
             | E::IntegerConversion { operand, .. }
             | E::FloatUnary { operand, .. }
             | E::FloatConversion { operand, .. }
@@ -197,7 +198,8 @@ impl Lowerer {
             | E::ArrayClone(_)
             | E::AtomicNew(_)
             | E::Atomic(_)
-            | E::CallableCall { .. } => facts.requirements = None,
+            | E::CallableCall { .. }
+            | E::NativePointerCall { .. } => facts.requirements = None,
         }
         if facts.requirements.is_none() {
             facts.violation.get_or_insert(expression.span);

@@ -117,6 +117,10 @@ enum DecodedDefaultExpressionKindV1 {
     CharCode(Box<DecodedDefaultExpressionV1>),
     CharFromCodeUnchecked(Box<DecodedDefaultExpressionV1>),
     PtrCast(Box<DecodedDefaultExpressionV1>),
+    NativeFunctionPointerCast {
+        operand: Box<DecodedDefaultExpressionV1>,
+        target_mode: crate::CAbiCallMode,
+    },
     PtrLoad {
         pointer: Box<DecodedDefaultExpressionV1>,
         offset: DecodedOptionalDefaultExpressionV1,
@@ -210,6 +214,12 @@ enum DecodedDefaultExpressionKindV1 {
         callee: Box<DecodedDefaultExpressionV1>,
         function_type: DecodedSignatureTypeKey,
         arguments: Vec<DecodedDefaultExpressionV1>,
+    },
+    NativePointerCall {
+        callee: Box<DecodedDefaultExpressionV1>,
+        function_type: DecodedSignatureTypeKey,
+        arguments: Vec<DecodedDefaultExpressionV1>,
+        call_mode: crate::CAbiCallMode,
     },
     PrimitiveBinary {
         kind: DefaultPrimitiveBinaryKindV1,

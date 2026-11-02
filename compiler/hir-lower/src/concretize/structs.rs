@@ -88,6 +88,9 @@ impl Concretizer<'_> {
                     concrete::IntrinsicTypeRepresentation::FunPtr { signature } => {
                         concrete::TypeKind::FunPtr(*signature)
                     }
+                    concrete::IntrinsicTypeRepresentation::GcLeafFunPtr { signature } => {
+                        concrete::TypeKind::GcLeafFunPtr(*signature)
+                    }
                     _ => unreachable!("the registry fixes intrinsic struct representations"),
                 };
                 let gc_free = match application {

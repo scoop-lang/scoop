@@ -50,6 +50,7 @@ impl Lowerer {
                     let step = match self.types[ty] {
                         hir::Type::Ptr(_) => Step::PointerPointee,
                         hir::Type::FunPtr(_) => Step::FunctionPointee,
+                        hir::Type::GcLeafFunPtr(_) => Step::FunctionPointee,
                         _ => Step::Argument((offset + index) as u32),
                     };
                     push(argument, vec![step], Vec::new());

@@ -188,8 +188,10 @@ fn seal_strong_input(mut module: mir::Module) -> mir::ConeMirInput {
     {
         module.output = mir::MirOutput::Library;
     }
-    if matches!(module.output, mir::MirOutput::Executable { .. })
-        || !module.initialization_units.is_empty()
+    if matches!(
+        module.output,
+        mir::MirOutput::Executable { .. } | mir::MirOutput::NativeApp { .. }
+    ) || !module.initialization_units.is_empty()
     {
         let mut types = module.meta.source_exact_types.iter().cloned().collect();
         test_exact_type(&module.function_types, &mir::Type::Any, &mut types);
@@ -202,6 +204,59 @@ fn seal_strong_input(mut module: mir::Module) -> mir::ConeMirInput {
     let strong_callable_bridges = mir::StrongCallableBridgeSurfaceV1::from_foundation(foundation);
     let entry_bridge = match module.output {
         mir::MirOutput::Library => mir::EntryMirBridgeBranchV1::Library,
+        mir::MirOutput::NativeApp { entry } => {
+            let unit_key = scoop_identity::SignatureTypeKey::Nominal(
+                scoop_identity::CoreBuiltinNominal::Unit
+                    .identity_record()
+                    .id(),
+            );
+            let pointer_key = scoop_identity::SignatureTypeKey::RawPointer(Box::new(unit_key));
+            let declaration = CborIdentityRecord::from_key(SourceDeclarationKey::function(
+                SourceDeclarationSite::new(
+                    module.cone,
+                    PackagePath::root(),
+                    DefinitionOwnerChain::top_level(),
+                    DeclarationScope::ConeWide,
+                )
+                .unwrap(),
+                CanonicalIdentifier::new("appInit").unwrap(),
+                0,
+                None,
+                vec![pointer_key; 2],
+            ))
+            .unwrap();
+            let exact = |ty: &mir::Type| {
+                module
+                    .meta
+                    .source_exact_types
+                    .get(ty)
+                    .expect("fixture has an exact type")
+                    .identity_record()
+                    .id()
+            };
+            let function = &module.functions[entry];
+            let signature = ExactCallableSignature::new(
+                scoop_identity::Effect::Ordinary,
+                None,
+                function
+                    .params
+                    .iter()
+                    .map(|parameter| exact(&parameter.ty))
+                    .collect(),
+                exact(&function.return_ty),
+            );
+            let source =
+                scoop_identity::NativeAppEntryIdentity::try_new(&declaration, signature).unwrap();
+            let mir::CallableSignatureSubject::Strong(implementation) =
+                module.meta.callable_signature_subject(entry).unwrap()
+            else {
+                panic!("native-app fixture entry is Strong")
+            };
+            mir::EntryMirBridgeBranchV1::NativeApp(Box::new(
+                mir::NativeAppEntryMirBridgeV1::new(source, implementation).unwrap(),
+            ))
+        }
+
         mir::MirOutput::Executable { entry, .. } => {
             assert!(module.top_level.contains(&entry), "test entry is emitted");
             let declaration = CborIdentityRecord::from_key(SourceDeclarationKey::function(

@@ -3,7 +3,9 @@ use std::ffi::{OsStr, OsString};
 
 impl WindowsFinalLinkProfile {
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {
-        self.command_with_subsystem(scratch, output, scoop_identity::WindowsSubsystem::Console)
+        let subsystem = (self.data.output.kind() == FinalOutputKind::Executable)
+            .then_some(scoop_identity::WindowsSubsystem::Console);
+        self.build_command(scratch, output, subsystem)
     }
 
     pub fn command_with_subsystem(
@@ -12,11 +14,32 @@ impl WindowsFinalLinkProfile {
         output: &Path,
         subsystem: scoop_identity::WindowsSubsystem,
     ) -> Result<Command, ToolchainError> {
+        if self.data.output.kind() != FinalOutputKind::Executable {
+            return Err(error("Windows subsystem requires executable output"));
+        }
+        self.build_command(scratch, output, Some(subsystem))
+    }
+
+    pub fn import_library_path(&self, output: &Path) -> Option<PathBuf> {
+        (self.data.output.kind() == FinalOutputKind::SharedLibrary)
+            .then(|| output.with_extension(if self.microsoft() { "lib" } else { "dll.a" }))
+    }
+
+    fn build_command(
+        &self,
+        scratch: &Path,
+        output: &Path,
+        subsystem: Option<scoop_identity::WindowsSubsystem>,
+    ) -> Result<Command, ToolchainError> {
         std::fs::create_dir_all(scratch).map_err(error)?;
         let environment = self.startup.windows_environment().map_err(error)?;
         let mut command = if self.microsoft() {
             let mut command = environment.bare_command(&self.data.driver);
-            command.args(["--target=x86_64-pc-windows-msvc", "/nologo", "/MD"]);
+            command.args(["--target=x86_64-pc-windows-msvc", "/nologo"]);
+            if self.data.output.kind() == FinalOutputKind::SharedLibrary {
+                command.arg("/LD");
+            }
+            command.arg("/MD");
             // LLVM's MSVC driver resolves -fuse-ld by basename. -B gives the
             // exact selected directory priority, including on cross hosts.
             command.arg(joined(
@@ -61,8 +84,14 @@ impl WindowsFinalLinkProfile {
                 "-rtlib=compiler-rt",
                 "-unwindlib=none",
                 "-static",
-                "-municode",
             ]);
+            command.arg(
+                if self.data.output.kind() == FinalOutputKind::SharedLibrary {
+                    "-shared"
+                } else {
+                    "-municode"
+                },
+            );
             command.arg(joined(
                 "--ld-path=",
                 dunce::simplified(&self.data.linker).as_os_str(),
@@ -85,21 +114,53 @@ impl WindowsFinalLinkProfile {
         for option in self.linker_args() {
             self.linker_arg(&mut command, option);
         }
-        if self.microsoft() {
-            self.linker_arg(
-                &mut command,
-                match subsystem {
-                    scoop_identity::WindowsSubsystem::Console => "/subsystem:console,10.0",
-                    scoop_identity::WindowsSubsystem::Gui => "/subsystem:windows,10.0",
-                },
-            );
-            // Both PE subsystems enter the Unicode console-style C function.
-            self.linker_arg(&mut command, "/entry:wmainCRTStartup");
-        } else {
-            command.arg(match subsystem {
-                scoop_identity::WindowsSubsystem::Console => "-mconsole",
-                scoop_identity::WindowsSubsystem::Gui => "-mwindows",
-            });
+        if let Some(import_library) = self.import_library_path(output) {
+            if import_library == output {
+                return Err(error("DLL and import library output paths must differ"));
+            }
+            let exports = scratch.join("native-app.def");
+            std::fs::write(
+                &exports,
+                format!("EXPORTS\n{}\n", super::super::output::NATIVE_APP_ENTRY),
+            )
+            .map_err(error)?;
+            if self.microsoft() {
+                self.linker_arg(
+                    &mut command,
+                    joined("/def:", dunce::simplified(&exports).as_os_str()),
+                );
+                self.linker_arg(
+                    &mut command,
+                    joined("/implib:", dunce::simplified(&import_library).as_os_str()),
+                );
+            } else {
+                crate::windows_native::input(
+                    &mut command,
+                    crate::windows_native::kind(&self.data.driver),
+                    &exports,
+                );
+                self.linker_arg(&mut command, "--exclude-all-symbols");
+                self.linker_arg(&mut command, "--out-implib");
+                self.linker_arg(&mut command, dunce::simplified(&import_library));
+            }
+        }
+        if let Some(subsystem) = subsystem {
+            if self.microsoft() {
+                self.linker_arg(
+                    &mut command,
+                    match subsystem {
+                        scoop_identity::WindowsSubsystem::Console => "/subsystem:console,10.0",
+                        scoop_identity::WindowsSubsystem::Gui => "/subsystem:windows,10.0",
+                    },
+                );
+                // Both PE subsystems enter the Unicode console-style C function.
+                self.linker_arg(&mut command, "/entry:wmainCRTStartup");
+            } else {
+                command.arg(match subsystem {
+                    scoop_identity::WindowsSubsystem::Console => "-mconsole",
+                    scoop_identity::WindowsSubsystem::Gui => "-mwindows",
+                });
+            }
         }
         Ok(command)
     }

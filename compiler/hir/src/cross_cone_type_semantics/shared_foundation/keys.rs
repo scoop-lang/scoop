@@ -84,6 +84,15 @@ impl<'a> SharedTypeMetadataV1<'a> {
                 parameters: self.exacts(parameters, bindings, nominal_source)?,
                 result: self.exact_with_sources(result, bindings, nominal_source)?,
             },
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: *calling_convention,
+                parameters: self.exacts(parameters, bindings, nominal_source)?,
+                result: self.exact_with_sources(result, bindings, nominal_source)?,
+            },
         };
         self.exact_key(key)
     }
@@ -109,13 +118,21 @@ impl<'a> SharedTypeMetadataV1<'a> {
     ) -> Result<ExactTypeKey, Error> {
         let owner = crate::SourceNominalId::GenericTemplate(origin);
         let declaration = self.public.nominal_interfaces().declaration(owner);
-        if declaration.is_some_and(|record| {
-            matches!(record.source_shape(),
+        let function_pointer_family = declaration.and_then(|record| match record.source_shape() {
             crate::NominalSourceShapeV1::Intrinsic(representation)
-                if representation.family() == crate::IntrinsicTypeKind::FunPtr)
-        }) {
+                if matches!(
+                    representation.family(),
+                    crate::IntrinsicTypeKind::FunPtr | crate::IntrinsicTypeKind::GcLeafFunPtr
+                ) =>
+            {
+                Some(representation.family())
+            }
+            _ => None,
+        });
+        if let Some(family) = function_pointer_family {
+            let name = family.source_name();
             let [function] = arguments.as_slice() else {
-                return Err(Error::Key("FunPtr requires one function type".into()));
+                return Err(Error::Key(format!("{name} requires one function type")));
             };
             let function = self.key(*function)?;
             let ExactTypeKey::Function {
@@ -125,14 +142,24 @@ impl<'a> SharedTypeMetadataV1<'a> {
                 result,
             } = function.as_ref()
             else {
-                return Err(Error::Key(
-                    "FunPtr requires an ordinary function type".into(),
-                ));
+                return Err(Error::Key(format!(
+                    "{name} requires an ordinary function type"
+                )));
             };
-            return Ok(ExactTypeKey::NativeFunctionPointer {
-                calling_convention: scoop_identity::CallingConvention::C,
-                parameters: parameters.clone(),
-                result: *result,
+            return Ok(match family {
+                crate::IntrinsicTypeKind::FunPtr => ExactTypeKey::NativeFunctionPointer {
+                    calling_convention: scoop_identity::CallingConvention::C,
+                    parameters: parameters.clone(),
+                    result: *result,
+                },
+                crate::IntrinsicTypeKind::GcLeafFunPtr => {
+                    ExactTypeKey::GcLeafNativeFunctionPointer {
+                        calling_convention: scoop_identity::CallingConvention::C,
+                        parameters: parameters.clone(),
+                        result: *result,
+                    }
+                }
+                _ => unreachable!("function pointer families were filtered above"),
             });
         }
         Ok(ExactTypeKey::NominalApplication {

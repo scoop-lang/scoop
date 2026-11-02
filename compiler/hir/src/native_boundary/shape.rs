@@ -240,6 +240,9 @@ fn validate_signature_binders(
         }
         | SignatureTypeKey::NativeFunctionPointer {
             parameters, result, ..
+        }
+        | SignatureTypeKey::GcLeafNativeFunctionPointer {
+            parameters, result, ..
         } => {
             for parameter in parameters {
                 validate_signature_binders(parameter, binder_parameter_counts)?;

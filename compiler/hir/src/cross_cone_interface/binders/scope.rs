@@ -71,6 +71,9 @@ impl SignatureBinderScopeV1 {
             }
             | SignatureTypeKey::NativeFunctionPointer {
                 parameters, result, ..
+            }
+            | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
             } => {
                 self.validate_sequence(parameters)?;
                 self.validate(result)

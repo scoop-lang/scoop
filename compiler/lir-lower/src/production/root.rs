@@ -5,6 +5,7 @@ mod invoke;
 
 pub(crate) enum RootArguments<'a> {
     Unused,
+    NativePointers,
     Build(
         scoop_lir::ManagedCallDestination,
         &'a scoop_lir::ScoopAbiSignature,
@@ -26,6 +27,50 @@ pub(super) fn root_gateway(
 ) -> LoweredFunction {
     let callable_body = scoop_lir::CallableBodyIdentity::for_root_gateway(producer, main_body)
         .expect("a validated executable entry derives one root-gateway identity");
+    gateway(
+        callable_body,
+        main,
+        failure_root,
+        signatures.plans.scoop(signatures.requests.root),
+        RootResult::ExitCode,
+    )
+}
+
+pub(super) fn native_app_gateway(
+    producer: scoop_identity::ConeIdentity,
+    app_init: scoop_identity::AppInitCallableBodyId,
+    target: scoop_lir::LocalFunctionRef,
+    signature: &scoop_lir::ScoopAbiSignature,
+    failure_root: scoop_lir::GlobalId,
+    signatures: &crate::abi::plans::Signatures,
+) -> LoweredFunction {
+    let identity = scoop_lir::CallableBodyIdentity::for_native_app_gateway(producer, app_init)
+        .expect("a validated native-app entry derives one gateway identity");
+    gateway(
+        identity,
+        RootMain {
+            target,
+            signature,
+            arguments: RootArguments::NativePointers,
+        },
+        failure_root,
+        signatures.plans.scoop(signatures.requests.native_app),
+        RootResult::Initialization,
+    )
+}
+
+enum RootResult {
+    ExitCode,
+    Initialization,
+}
+
+fn gateway(
+    callable_body: scoop_lir::CallableBodyIdentity,
+    main: RootMain<'_>,
+    failure_root: scoop_lir::GlobalId,
+    gateway_signature: &scoop_lir::ScoopAbiSignature,
+    result: RootResult,
+) -> LoweredFunction {
     let mut call_targets = scoop_lir::CallTargets::default();
     let mut pending_safepoints = PendingSafepointSites::default();
 
@@ -36,7 +81,10 @@ pub(super) fn root_gateway(
         instructions: Default::default(),
         terminator: scoop_lir::Terminator::Unreachable,
     });
-    let call_main = if matches!(main.arguments, RootArguments::Unused) {
+    let call_main = if matches!(
+        main.arguments,
+        RootArguments::Unused | RootArguments::NativePointers
+    ) {
         entry
     } else {
         blocks.alloc(scoop_lir::BasicBlock {
@@ -114,17 +162,18 @@ pub(super) fn root_gateway(
         scoop_lir::Instruction::EndCatch,
     ]);
 
-    let gateway_signature = signatures.plans.scoop(signatures.requests.root);
-    let scoop_lir::AbiReturn::Direct(result) = gateway_signature.result() else {
-        unreachable!("root gateway returns an exit status")
-    };
-    blocks[success]
-        .instructions
-        .push(scoop_lir::Instruction::RawStore {
-            pointer: scoop_lir::Value::Param(2),
-            value: exit_code,
-            pointee: result.value().clone(),
-        });
+    if matches!(result, RootResult::ExitCode) {
+        let scoop_lir::AbiReturn::Direct(result) = gateway_signature.result() else {
+            unreachable!("root gateway returns an exit status")
+        };
+        blocks[success]
+            .instructions
+            .push(scoop_lir::Instruction::RawStore {
+                pointer: scoop_lir::Value::Param(2),
+                value: exit_code,
+                pointee: result.value().clone(),
+            });
+    }
     LoweredFunction {
         function: scoop_lir::Function {
             debug_name: Default::default(),

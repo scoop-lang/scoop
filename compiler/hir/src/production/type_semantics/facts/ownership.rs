@@ -24,7 +24,8 @@ impl FactProjector<'_> {
             | concrete::TypeKind::Tuple(_)
             | concrete::TypeKind::Function(_)
             | concrete::TypeKind::Ptr(_)
-            | concrete::TypeKind::FunPtr(_) => false,
+            | concrete::TypeKind::FunPtr(_)
+            | concrete::TypeKind::GcLeafFunPtr(_) => false,
         }
     }
 
@@ -39,6 +40,7 @@ impl FactProjector<'_> {
                     | concrete::TypeKind::Function(_)
                     | concrete::TypeKind::Ptr(_)
                     | concrete::TypeKind::FunPtr(_)
+                    | concrete::TypeKind::GcLeafFunPtr(_)
             ))
     }
 

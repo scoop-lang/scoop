@@ -140,7 +140,8 @@ fn is_root(role: StrongDefinitionRole) -> bool {
         | InitializationCell
         | InitializationRegistration
         | GeneratedBridge
-        | RootEntryDescriptor => true,
+        | RootEntryDescriptor
+        | NativeAppEntryDescriptor => true,
         CallableBody
         | CallableRegistration
         | SafepointRegistration

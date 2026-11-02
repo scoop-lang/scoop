@@ -297,6 +297,15 @@ pub(super) fn dump_expr(
             out.push_str(&format!("{pad}PtrToULong : {ty}\n"));
             dump_expr(module, locals, operand, indent + 1, out);
         }
+        ExprKind::NativeFunctionPointerCast {
+            operand,
+            target_mode,
+        } => {
+            out.push_str(&format!(
+                "{pad}NativeFunctionPointerCast {target_mode:?} : {ty}\n"
+            ));
+            dump_expr(module, locals, operand, indent + 1, out);
+        }
         ExprKind::PtrCast(operand) => {
             out.push_str(&format!("{pad}PtrCast : {ty}\n"));
             dump_expr(module, locals, operand, indent + 1, out);
@@ -409,6 +418,21 @@ pub(super) fn dump_expr(
         } => {
             out.push_str(&format!(
                 "{pad}CallableCall function_type{} : {ty}\n",
+                function_type.into_raw()
+            ));
+            dump_expr(module, locals, callee, indent + 1, out);
+            for arg in args {
+                dump_expr(module, locals, arg, indent + 1, out);
+            }
+        }
+        ExprKind::NativePointerCall {
+            call_mode,
+            callee,
+            function_type,
+            args,
+        } => {
+            out.push_str(&format!(
+                "{pad}NativePointerCall {call_mode:?} function_type{} : {ty}\n",
                 function_type.into_raw()
             ));
             dump_expr(module, locals, callee, indent + 1, out);

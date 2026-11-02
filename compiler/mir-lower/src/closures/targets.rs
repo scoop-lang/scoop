@@ -5,6 +5,7 @@ use super::*;
 pub(super) enum ReferenceDefinition {
     Primitive(PrimitiveReference),
     MaybeUninit(hir::MaybeUninitIntrinsic),
+    NativeFunctionPointer(mir::CAbiCallMode),
     Direct(mir::Callee),
     Bound(BoundReferenceTarget),
 }

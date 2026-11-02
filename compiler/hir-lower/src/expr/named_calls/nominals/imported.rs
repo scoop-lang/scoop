@@ -44,6 +44,14 @@ impl Lowerer {
                 failures.push(Box::new(self));
                 return;
             }
+            if representation.family() == hir::IntrinsicTypeKind::GcLeafFunPtr {
+                self.error(
+                    call.span,
+                    "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
+                );
+                failures.push(Box::new(self));
+                return;
+            }
         }
         if declaration.interface.declaration_details().modality()
             == hir::NominalInheritanceModalityV1::Abstract

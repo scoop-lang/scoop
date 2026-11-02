@@ -41,6 +41,7 @@ impl Lowerer {
         if defines_core {
             self.ffi_ptr = self.require_core_struct("Ptr", files);
             self.ffi_fun_ptr = self.require_core_struct("FunPtr", files);
+            self.ffi_gc_leaf_fun_ptr = self.require_core_struct("GCLeafFunPtr", files);
             self.ffi_pinned_ptr = self.require_core_struct("PinnedPtr", files);
             self.ffi_gc_handle = self.require_core_struct("GcHandle", files);
             self.ffi_foreign_callback = self.require_core_struct("ForeignCallback", files);
@@ -81,6 +82,14 @@ impl Lowerer {
                 self.error(
                     files[core_diagnostic_file],
                     "the `FunPtr` FFI core owner must be the `core_fun_ptr` intrinsic type"
+                        .to_string(),
+                );
+            }
+            if self.ffi_gc_leaf_fun_ptr != Some(core.gc_leaf_fun_ptr) {
+                self.current_file = primary_output_file;
+                self.error(
+                    files[core_diagnostic_file],
+                    "the `GCLeafFunPtr` FFI core owner must be the `core_gc_leaf_fun_ptr` intrinsic type"
                         .to_string(),
                 );
             }

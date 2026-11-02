@@ -9,6 +9,7 @@ mod extensions;
 mod imported_calls;
 pub(in crate::expr) use imported_calls::ImportedMemberSelectionFailure;
 mod interface_super;
+mod native_function_pointers;
 mod pointers;
 mod primitives;
 mod property_invoke;

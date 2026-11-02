@@ -43,7 +43,8 @@ impl CanonicalHirFoundation {
                 | ExactTypeKey::Tuple(_)
                 | ExactTypeKey::Function { .. }
                 | ExactTypeKey::RawPointer(_)
-                | ExactTypeKey::NativeFunctionPointer { .. } => {}
+                | ExactTypeKey::NativeFunctionPointer { .. }
+                | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => {}
             }
         }
         for record in &self.native_boundary_types {

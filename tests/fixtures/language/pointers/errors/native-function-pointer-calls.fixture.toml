@@ -1,0 +1,15 @@
+schema = 1
+name = "pointers-errors-native-function-pointer-calls"
+root = "native-function-pointer-calls.scoop"
+inputs = ["native-function-pointer-calls.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["ffi", "negative", "language"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "native-function-pointer-calls.diagnostics.json"}

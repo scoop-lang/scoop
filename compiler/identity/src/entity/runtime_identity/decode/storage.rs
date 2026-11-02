@@ -4,11 +4,12 @@ use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError};
 
 use super::{decode_id_variant, decode_sum_header, decode_value_variant, encode_tag, unknown_tag};
 use crate::{
-    ConeIdentity, DecodedCallableOwner, DecodedNominalDeclarationOwner, DecodedNominalOwner,
-    DecodedPersistentId, DecodedPropertyOwner, InitializationUnitKey, MainCallableBodyId,
-    PersistentCallableBodyId, PersistentEnumVariantId, PersistentExtensionPropertyId,
-    PersistentFieldId, PersistentIdResolver, PersistentInitializationUnitId, PersistentKeyResolver,
-    PersistentPropertyId, PersistentTypeId, RuntimeIdentityError, StaticStorageKey, StorageRole,
+    AppInitCallableBodyId, ConeIdentity, DecodedCallableOwner, DecodedNominalDeclarationOwner,
+    DecodedNominalOwner, DecodedPersistentId, DecodedPropertyOwner, InitializationUnitKey,
+    MainCallableBodyId, PersistentCallableBodyId, PersistentEnumVariantId,
+    PersistentExtensionPropertyId, PersistentFieldId, PersistentIdResolver,
+    PersistentInitializationUnitId, PersistentKeyResolver, PersistentPropertyId, PersistentTypeId,
+    RuntimeIdentityError, StaticStorageKey, StorageRole,
 };
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
@@ -22,6 +23,10 @@ enum DecodedDefinitionOwner {
     RootEntry {
         root_cone: DecodedPersistentId<ConeIdentity>,
         main: DecodedPersistentId<PersistentCallableBodyId>,
+    },
+    NativeAppEntry {
+        root_cone: DecodedPersistentId<ConeIdentity>,
+        app_init: DecodedPersistentId<PersistentCallableBodyId>,
     },
 }
 
@@ -41,6 +46,17 @@ impl WireEncode for DecodedDefinitionOwner {
                 root_cone.encode(encoder)?;
                 encoder.field(2)?;
                 main.encode(encoder)
+            }
+            Self::NativeAppEntry {
+                root_cone,
+                app_init,
+            } => {
+                encoder.map(3)?;
+                encode_tag(encoder, 8)?;
+                encoder.field(1)?;
+                root_cone.encode(encoder)?;
+                encoder.field(2)?;
+                app_init.encode(encoder)
             }
         }
     }
@@ -71,6 +87,13 @@ impl WireDecode for DecodedDefinitionOwner {
                 Ok(Self::RootEntry {
                     root_cone: decoder.field(1, DecodedPersistentId::decode)?,
                     main: decoder.field(2, DecodedPersistentId::decode)?,
+                })
+            }
+            8 => {
+                super::expect_sum_length(decoder, fields, 3)?;
+                Ok(Self::NativeAppEntry {
+                    root_cone: decoder.field(1, DecodedPersistentId::decode)?,
+                    app_init: decoder.field(2, DecodedPersistentId::decode)?,
                 })
             }
             tag => Err(unknown_tag(decoder, tag)),
@@ -148,6 +171,24 @@ impl DecodedStaticStorageKey {
                     .map_err(StaticStorageResolutionError::Reference)?;
                 Ok(StaticStorageKey::root_entry_failure_root(root_cone, main))
             }
+            (
+                DecodedDefinitionOwner::NativeAppEntry {
+                    root_cone,
+                    app_init,
+                },
+                StorageRole::NativeAppEntryFailureRoot,
+            ) => {
+                let root_cone = resolver
+                    .resolve(root_cone)
+                    .map_err(StaticStorageResolutionError::Reference)?;
+                let app_init = resolver
+                    .resolve(app_init)
+                    .map(AppInitCallableBodyId::from_body)
+                    .map_err(StaticStorageResolutionError::Reference)?;
+                Ok(StaticStorageKey::native_app_entry_failure_root(
+                    root_cone, app_init,
+                ))
+            }
             (DecodedDefinitionOwner::InitializationUnit(unit), StorageRole::PropertyBacking) => {
                 let unit = resolver
                     .resolve_key(unit)
@@ -203,6 +244,7 @@ impl WireDecode for StorageRole {
             4 => Ok(Self::InitializationFailureRoot),
             5 => Ok(Self::RootEntryFailureRoot),
             6 => Ok(Self::StaticPlaceToken),
+            7 => Ok(Self::NativeAppEntryFailureRoot),
             tag => Err(unknown_tag(decoder, tag)),
         }
     }

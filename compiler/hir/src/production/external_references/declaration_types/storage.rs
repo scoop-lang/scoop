@@ -83,7 +83,8 @@ pub(super) fn collect<E>(
             | TypeKind::Tuple(_)
             | TypeKind::Ptr(_)
             | TypeKind::Function(_)
-            | TypeKind::FunPtr(_) => continue,
+            | TypeKind::FunPtr(_)
+            | TypeKind::GcLeafFunPtr(_) => continue,
         }
     }
     for (_, unit) in module.initialization_units.iter() {

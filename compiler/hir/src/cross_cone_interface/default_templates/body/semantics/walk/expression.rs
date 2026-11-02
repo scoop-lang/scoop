@@ -179,6 +179,7 @@ where
             | DefaultExpressionKindV1::CharFromCodeUnchecked(operand)
             | DefaultExpressionKindV1::PtrToULong(operand)
             | DefaultExpressionKindV1::PtrCast(operand)
+            | DefaultExpressionKindV1::NativeFunctionPointerCast { operand, .. }
             | DefaultExpressionKindV1::Box(operand)
             | DefaultExpressionKindV1::Unbox(operand)
             | DefaultExpressionKindV1::Upcast(operand)
@@ -346,6 +347,12 @@ where
                 callee,
                 function_type,
                 arguments,
+            }
+            | DefaultExpressionKindV1::NativePointerCall {
+                callee,
+                function_type,
+                arguments,
+                ..
             } => {
                 self.push_expressions(pending, arguments)?;
                 self.push_type(

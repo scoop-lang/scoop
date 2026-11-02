@@ -42,6 +42,9 @@ impl WireEncode for IntrinsicFunctionKind {
             Self::Array(kind) => encode_unsigned_value_sum(encoder, 19, array_tag(*kind)),
             Self::Char(kind) => encode_unsigned_value_sum(encoder, 21, kind.wire_tag()),
             Self::Pointer(kind) => encode_unsigned_value_sum(encoder, 20, pointer_tag(*kind)),
+            Self::NativeFunctionPointer(kind) => {
+                encode_unsigned_value_sum(encoder, 35, native_function_pointer_tag(*kind))
+            }
             Self::DataBorrow(kind) => encode_unsigned_value_sum(encoder, 23, kind.wire_tag()),
             Self::Atomic(kind) => encode_value_sum(encoder, 24, kind),
             Self::MaybeUninit(kind) => encode_unsigned_value_sum(encoder, 25, kind.wire_tag()),
@@ -121,6 +124,8 @@ impl WireDecode for IntrinsicFunctionKind {
                 .map(Self::ArrayAccess),
             19 => decode_unsigned_intrinsic(decoder, fields, decode_array).map(Self::Array),
             20 => decode_unsigned_intrinsic(decoder, fields, decode_pointer).map(Self::Pointer),
+            35 => decode_unsigned_intrinsic(decoder, fields, decode_native_function_pointer)
+                .map(Self::NativeFunctionPointer),
             23 => decode_unsigned_intrinsic(decoder, fields, |decoder, tag| {
                 DataBorrowIntrinsic::ALL
                     .into_iter()
@@ -475,6 +480,27 @@ fn decode_pointer(decoder: &Decoder<'_>, tag: u64) -> Result<PointerIntrinsic, W
         9 => Ok(PointerIntrinsic::AddressOf),
         10 => Ok(PointerIntrinsic::SizeOf),
         11 => Ok(PointerIntrinsic::AlignOf),
+        tag => Err(intrinsic_wire_error(
+            decoder,
+            WireErrorKind::UnknownTag { tag },
+        )),
+    }
+}
+
+const fn native_function_pointer_tag(kind: NativeFunctionPointerIntrinsic) -> u64 {
+    match kind {
+        NativeFunctionPointerIntrinsic::AsFunPtr => 1,
+        NativeFunctionPointerIntrinsic::AsGcLeaf => 2,
+    }
+}
+
+fn decode_native_function_pointer(
+    decoder: &Decoder<'_>,
+    tag: u64,
+) -> Result<NativeFunctionPointerIntrinsic, WireError> {
+    match tag {
+        1 => Ok(NativeFunctionPointerIntrinsic::AsFunPtr),
+        2 => Ok(NativeFunctionPointerIntrinsic::AsGcLeaf),
         tag => Err(intrinsic_wire_error(
             decoder,
             WireErrorKind::UnknownTag { tag },

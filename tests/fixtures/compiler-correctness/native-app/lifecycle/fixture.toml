@@ -1,0 +1,125 @@
+schema = 1
+name = "native-app-lifecycle"
+inputs = ["cone", "provider", "eager", "host.c", "header_host.cpp", "compile_host.py", "check_outputs.py", "../../../language/callback/threading.h"]
+tools = ["scoop", "scoopc", "scoop-link", "cc"]
+tags = ["native-app", "ffi", "abi", "compiler-correctness"]
+variants = [{name = "debug", vars = {profile = "debug"}}, {name = "release", vars = {profile = "release"}}]
+vars = { relinked = "${work}/relinked.native" }
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/cone", to = "${work}/cone"}}, {copy = {from = "${fixture}/provider", to = "${work}/provider"}}, {copy = {from = "${fixture}/eager", to = "${work}/eager"}}]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/cone", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{actual = "${build.result.kind}", equals = "native-app"}]
+
+[[steps]]
+name = "warm"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/cone", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{actual = "${warm.result.observations.child_invocations.length}", equals = 0}, {actual = "${warm.result.link_plan_fingerprint}", equals = "${build.result.link_plan_fingerprint}"}]
+
+[[steps]]
+name = "compile-host"
+argv = ["${python}", "${fixture}/compile_host.py", "${cc}", {each = "${cc_args}"}, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-I", "${sysroot}/include", "-I", "${fixture}/../../../language/callback", "${fixture}/host.c", "-o", "${work}/host.exe"]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "success"
+argv = ["${work}/host.exe", "${build.result.output}", "0"]
+exit = 0
+stdout = "native-app-lifecycle-ok\n"
+stderr = ""
+
+[[steps]]
+name = "failure"
+argv = ["${work}/host.exe", "${build.result.output}", "1", "${profile}"]
+exit = 0
+stdout = "native-app-failure-ok\n"
+stderr = ""
+
+[[steps]]
+name = "artifact-link"
+argv = ["${scoop}", "link", {each = "${link_args}"}, "--root-slib", "${build.result.root.path}", "--dependency-slib", "${build.result.dependencies.0.path}", "--dependency-slib", "${build.result.dependencies.1.path}", "--dependency-slib", "${build.result.dependencies.2.path}", "--dependency-slib", "${build.result.dependencies.3.path}", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "-o", "${work}/relinked.native", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+checks = [{actual = "${artifact-link.result.output}", equals = "${relinked.canonical}"}]
+
+[[steps]]
+name = "artifact-host"
+argv = ["${work}/host.exe", "${artifact-link.result.output}", "0"]
+exit = 0
+stdout = "native-app-lifecycle-ok\n"
+stderr = ""
+
+[[steps]]
+name = "standalone-link"
+argv = ["${scoop-link}", {each = "${link_args}"}, "--root-slib", "${build.result.root.path}", "--dep-slib", "${build.result.dependencies.0.path}", "--dep-slib", "${build.result.dependencies.1.path}", "--dep-slib", "${build.result.dependencies.2.path}", "--dep-slib", "${build.result.dependencies.3.path}", "--runtime-objects", "${build.result.runtime_index}", "--sysroot", "${sysroot}", "--cache-dir", "${cache}", "-o", "${work}/standalone.native"]
+exit = 0
+stdout = {regex = "link-plan [0-9a-f]{64}\\n"}
+stderr = ""
+
+[[steps]]
+name = "standalone-host"
+argv = ["${work}/host.exe", "${work}/standalone.native", "0"]
+exit = 0
+stdout = "native-app-lifecycle-ok\n"
+stderr = ""
+
+[[steps]]
+name = "published-companions"
+argv = ["${python}", "${fixture}/check_outputs.py", "${build.result.output}", "${artifact-link.result.output}", "${target}", "${profile}", "${fixture}/header_host.cpp", "${work}", "${sysroot}/include", "${cc}", {each = "${cc_args}"}]
+exit = 0
+stdout = ""
+stderr = ""
+
+[[steps]]
+name = "reject-run"
+argv = ["${scoop}", "run", {each = "${link_args}"}, "${work}/cone", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = [{code = "SCOOP_RUN_NATIVE_APP", phase = "Request", severity = "error", message = "native-app requires a native host; run accepts executable Cones", origin = {kind = "none"}, notes = []}]
+
+[[steps]]
+name = "test-entry"
+argv = ["${scoop}", "test", {each = "${link_args}"}, "${work}/cone", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "test-stderr"
+diagnostics = []
+checks = [{actual = "${test-entry.result.kind}", equals = "executable"}, {actual = "${test-entry.test_result.counts.passed}", equals = 1}]
+
+[[steps]]
+name = "eager-build"
+argv = ["${scoop}", "build", {each = "${link_args}"}, "${work}/eager", "--profile", "${profile}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/eager-target", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "eager-failure"
+argv = ["${work}/host.exe", "${eager-build.result.output}", "2", "${profile}"]
+exit = 0
+stdout = "native-app-eager-failure-ok\n"
+stderr = ""

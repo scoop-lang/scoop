@@ -1,0 +1,14 @@
+schema = 1
+name = "native-app-reject-missing"
+inputs = ["cone"]
+tools = ["scoop", "scoopc"]
+tags = ["native-app", "negative", "compiler-correctness"]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${fixture}/cone", "--lockfile", "${work}/cone.lock", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "diagnostics.json"}

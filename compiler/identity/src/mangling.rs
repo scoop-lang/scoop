@@ -60,6 +60,7 @@ pub enum PersistentSymbolKind {
     DefinitionBoundaryStart,
     DefinitionBoundaryEnd,
     RootEntryDescriptor,
+    NativeAppEntryDescriptor,
 }
 
 impl PersistentSymbolKind {
@@ -86,6 +87,7 @@ impl PersistentSymbolKind {
             Self::DefinitionBoundaryStart => 20,
             Self::DefinitionBoundaryEnd => 21,
             Self::RootEntryDescriptor => 22,
+            Self::NativeAppEntryDescriptor => 23,
         }
     }
 
@@ -112,6 +114,7 @@ impl PersistentSymbolKind {
             Self::DefinitionBoundaryStart => "bs",
             Self::DefinitionBoundaryEnd => "be",
             Self::RootEntryDescriptor => "re",
+            Self::NativeAppEntryDescriptor => "na",
         }
     }
 }
@@ -139,6 +142,7 @@ pub enum PersistentSymbolKey {
     DefinitionBoundaryStart(ObjectDefinitionAtomId),
     DefinitionBoundaryEnd(ObjectDefinitionAtomId),
     RootEntryDescriptor(ConeIdentity),
+    NativeAppEntryDescriptor(ConeIdentity),
 }
 
 impl PersistentSymbolKey {
@@ -165,6 +169,7 @@ impl PersistentSymbolKey {
             Self::DefinitionBoundaryStart(_) => PersistentSymbolKind::DefinitionBoundaryStart,
             Self::DefinitionBoundaryEnd(_) => PersistentSymbolKind::DefinitionBoundaryEnd,
             Self::RootEntryDescriptor(_) => PersistentSymbolKind::RootEntryDescriptor,
+            Self::NativeAppEntryDescriptor(_) => PersistentSymbolKind::NativeAppEntryDescriptor,
         }
     }
 
@@ -185,6 +190,7 @@ impl PersistentSymbolKey {
             Self::OdrMember(id) => id.as_array(),
             Self::DefinitionBoundaryStart(id) | Self::DefinitionBoundaryEnd(id) => id.as_array(),
             Self::RootEntryDescriptor(id) => id.as_array(),
+            Self::NativeAppEntryDescriptor(id) => id.as_array(),
         }
     }
 }
@@ -387,7 +393,8 @@ fn linkage_allowed_by_kind(kind: PersistentSymbolKind, linkage: LinkageClass) ->
         PersistentSymbolKind::OdrMember => linkage == LinkageClass::OdrWeak,
         PersistentSymbolKind::ImageDescriptor
         | PersistentSymbolKind::GeneratedBridge
-        | PersistentSymbolKind::RootEntryDescriptor => linkage == LinkageClass::ConeStrong,
+        | PersistentSymbolKind::RootEntryDescriptor
+        | PersistentSymbolKind::NativeAppEntryDescriptor => linkage == LinkageClass::ConeStrong,
         PersistentSymbolKind::DispatchSlot => matches!(
             linkage,
             LinkageClass::ConeStrong | LinkageClass::TemplateSupportHidden

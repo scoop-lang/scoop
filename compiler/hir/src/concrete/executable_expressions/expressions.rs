@@ -32,6 +32,11 @@ impl<'a> Traversal<'a> {
                 callee: receiver,
                 args,
                 ..
+            }
+            | ExprKind::NativePointerCall {
+                callee: receiver,
+                args,
+                ..
             } => {
                 self.expressions(args)?;
                 self.push(Item::Expression(receiver))
@@ -46,6 +51,7 @@ impl<'a> Traversal<'a> {
             | ExprKind::CharFromCodeUnchecked(operand)
             | ExprKind::PtrToULong(operand)
             | ExprKind::PtrCast(operand)
+            | ExprKind::NativeFunctionPointerCast { operand, .. }
             | ExprKind::Box(operand)
             | ExprKind::Unbox(operand)
             | ExprKind::Upcast(operand)

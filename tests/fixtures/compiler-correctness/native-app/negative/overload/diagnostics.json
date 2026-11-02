@@ -1,0 +1,26 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "multiple native-app entries: declare exactly one ordinary `fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit`",
+    "notes": [
+      {
+        "message": "another native-app entry candidate is declared here",
+        "origin": {
+          "cone": "c122077ea44e3ec0ac2067a8502b5c9655cd5cd46c943c7923a6762d817fe622",
+          "end": 97,
+          "kind": "source",
+          "path": "src/app.scoop",
+          "start": 81
+        }
+      }
+    ],
+    "origin": {
+      "cone": "c122077ea44e3ec0ac2067a8502b5c9655cd5cd46c943c7923a6762d817fe622",
+      "end": 79,
+      "kind": "source",
+      "path": "src/app.scoop",
+      "start": 23
+    },
+    "severity": "error"
+  }
+]

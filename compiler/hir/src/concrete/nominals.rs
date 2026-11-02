@@ -292,6 +292,7 @@ pub enum IntrinsicTypeRepresentation {
     MutableArray { element: TypeId },
     Ptr { pointee: TypeId },
     FunPtr { signature: FunctionTypeId },
+    GcLeafFunPtr { signature: FunctionTypeId },
     Any,
     Nothing,
 }

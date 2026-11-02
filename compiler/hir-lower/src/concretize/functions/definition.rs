@@ -53,13 +53,27 @@ impl<'input> Concretizer<'input> {
                         dispatch: self.declared_method_dispatch(method.dispatch),
                     },
                     None if self.source_function_has_extension_receiver(id) => {
-                        DefinitionReceiver::Extension(
+                        let receiver = if matches!(source.kind, export::FunctionKind::Intrinsic(_))
+                        {
+                            self.source
+                                .source_parameter_interfaces
+                                .iter()
+                                .find(|interface| {
+                                    interface.owner == export::ExportParameterOwner::Function(id)
+                                })
+                                .expect(
+                                    "a source intrinsic retains its resolved parameter interface",
+                                )
+                                .receiver
+                                .expect("an extension intrinsic retains its receiver type")
+                        } else {
                             source
                                 .params
                                 .first()
                                 .expect("an extension has its receiver")
-                                .ty,
-                        )
+                                .ty
+                        };
+                        DefinitionReceiver::Extension(receiver)
                     }
                     None => DefinitionReceiver::None,
                 };

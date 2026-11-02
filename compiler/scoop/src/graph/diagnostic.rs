@@ -137,7 +137,7 @@ pub enum ResolveBuildGraphError {
         identity: ConeIdentity,
         representation: ResolvedNodeRepresentation,
     },
-    ExecutableDependency {
+    NonLibraryDependency {
         coordinate: ConeCoordinate,
     },
     MultipleVersions(Vec<MultipleVersionConflict>),
@@ -212,8 +212,8 @@ impl fmt::Display for ResolveBuildGraphError {
                 formatter,
                 "build root {identity} has invalid representation {representation:?}"
             ),
-            Self::ExecutableDependency { coordinate } => {
-                write!(formatter, "non-root Cone {coordinate} is executable")
+            Self::NonLibraryDependency { coordinate } => {
+                write!(formatter, "non-root Cone {coordinate} must be a library")
             }
             Self::MultipleVersions(conflicts) => {
                 formatter.write_str("resolved graph contains multiple exact versions")?;

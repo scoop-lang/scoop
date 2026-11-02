@@ -14,6 +14,11 @@ impl DecodedEntryProductionPlanV1 {
                 .resolve(identities)
                 .map(Some)
                 .map_err(link_error),
+            Self::NativeApp(entry) => entry
+                .root_descriptor_symbol
+                .resolve(identities)
+                .map(Some)
+                .map_err(link_error),
         }
     }
 }

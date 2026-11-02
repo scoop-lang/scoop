@@ -192,7 +192,8 @@ impl Lowerer {
                 self.signature_type_lists_equal(left, right, parameter_pairs)
             }
             (Type::Function(left), Type::Function(right))
-            | (Type::FunPtr(left), Type::FunPtr(right)) => {
+            | (Type::FunPtr(left), Type::FunPtr(right))
+            | (Type::GcLeafFunPtr(left), Type::GcLeafFunPtr(right)) => {
                 let left = &self.function_types[*left];
                 let right = &self.function_types[*right];
                 left.is_suspend == right.is_suspend

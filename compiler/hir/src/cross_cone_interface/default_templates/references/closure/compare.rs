@@ -342,6 +342,33 @@ fn compare_type_tasks<'a>(
                         )?;
                     }
                     (
+                        SignatureTypeKey::GcLeafNativeFunctionPointer {
+                            calling_convention: left_calling_convention,
+                            parameters: left_parameters,
+                            result: left_result,
+                        },
+                        SignatureTypeKey::GcLeafNativeFunctionPointer {
+                            calling_convention: right_calling_convention,
+                            parameters: right_parameters,
+                            result: right_result,
+                        },
+                    ) => {
+                        let ordering = left_calling_convention.cmp(right_calling_convention);
+                        if ordering != Ordering::Equal {
+                            return Ok(ordering);
+                        }
+                        push_task(
+                            &mut pending,
+                            TypeComparison::Type(left_result, right_result),
+                            path,
+                        )?;
+                        push_task(
+                            &mut pending,
+                            TypeComparison::Sequence(left_parameters, right_parameters),
+                            path,
+                        )?;
+                    }
+                    (
                         SignatureTypeKey::Binder {
                             depth: left_depth,
                             index: left_index,
@@ -636,8 +663,9 @@ const fn signature_tag(value: &SignatureTypeKey) -> u8 {
         SignatureTypeKey::Function { .. } => 4,
         SignatureTypeKey::RawPointer(_) => 5,
         SignatureTypeKey::NativeFunctionPointer { .. } => 6,
-        SignatureTypeKey::Binder { .. } => 7,
-        SignatureTypeKey::Companion(_) => 8,
+        SignatureTypeKey::GcLeafNativeFunctionPointer { .. } => 7,
+        SignatureTypeKey::Binder { .. } => 8,
+        SignatureTypeKey::Companion(_) => 9,
     }
 }
 
@@ -666,6 +694,11 @@ mod tests {
                 calling_convention: CallingConvention::C,
                 parameters: vec![binder(0)],
                 result: Box::new(nominal),
+            },
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: CallingConvention::C,
+                parameters: vec![binder(0)],
+                result: Box::new(binder(1)),
             },
             binder(0),
             binder(1),

@@ -142,6 +142,16 @@ impl Serialize for BodyJson<'_, hir::DefaultExpressionKindV1> {
             CharCode(value) => self.unary(serializer, "charCode", value),
             CharFromCodeUnchecked(value) => self.unary(serializer, "charFromCodeUnchecked", value),
             PtrCast(value) => self.unary(serializer, "ptrCast", value),
+            NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => {
+                let mode = match target_mode {
+                    hir::CAbiCallMode::NativeSafe => "nativeSafe",
+                    hir::CAbiCallMode::GcLeaf => "gcLeaf",
+                };
+                object!(serializer, {"kind": "nativeFunctionPointerCast", "operand": self.child(operand), "targetMode": mode})
+            }
             PtrLoad { pointer, offset } => {
                 object!(serializer, {"kind": "ptrLoad", "pointer": self.child(pointer), "offset": self.child(offset)})
             }
@@ -270,6 +280,18 @@ impl Serialize for BodyJson<'_, hir::DefaultExpressionKindV1> {
                 arguments,
             } => {
                 object!(serializer, {"kind": "callableCall", "callee": self.child(callee), "functionType": self.child(function_type), "arguments": self.child(arguments)})
+            }
+            NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => {
+                let mode = match call_mode {
+                    hir::CAbiCallMode::NativeSafe => "nativeSafe",
+                    hir::CAbiCallMode::GcLeaf => "gcLeaf",
+                };
+                object!(serializer, {"kind": "nativePointerCall", "callMode": mode, "callee": self.child(callee), "functionType": self.child(function_type), "arguments": self.child(arguments)})
             }
             PrimitiveBinary { kind, lhs, rhs } => {
                 object!(serializer, {"kind": "primitiveBinary", "operator": QueryJson(kind), "lhs": self.child(lhs), "rhs": self.child(rhs)})

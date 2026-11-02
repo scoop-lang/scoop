@@ -52,6 +52,9 @@ impl Concretizer<'_> {
             concrete::TypeKind::FunPtr(signature) => {
                 vec![self.function_types[signature].canonical_type]
             }
+            concrete::TypeKind::GcLeafFunPtr(signature) => {
+                vec![self.function_types[signature].canonical_type]
+            }
             _ => Vec::new(),
         }
     }
@@ -77,49 +80,57 @@ impl Concretizer<'_> {
                 .unwrap_or_else(|| self.classes[id].origin.declaration_id()),
             T::Interface(id) => self.interfaces[id].origin.declaration_id(),
             T::Tuple(_) | T::Function(_) => return None,
-            T::Integer(_) | T::Boolean | T::String | T::Any | T::Ptr(_) | T::FunPtr(_) => {
-                match self.core {
-                    export::CoreProtocols::Defined(core) => match self.types[ty].kind {
-                        T::Integer(kind) => self.source.nominal_identities
-                            [core.fundamental_types.integers.owner(kind)]
+            T::Integer(_)
+            | T::Boolean
+            | T::String
+            | T::Any
+            | T::Ptr(_)
+            | T::FunPtr(_)
+            | T::GcLeafFunPtr(_) => match self.core {
+                export::CoreProtocols::Defined(core) => match self.types[ty].kind {
+                    T::Integer(kind) => self.source.nominal_identities
+                        [core.fundamental_types.integers.owner(kind)]
+                    .declaration_id(),
+                    T::Boolean => self.source.nominal_identities[core.fundamental_types.boolean]
                         .declaration_id(),
-                        T::Boolean => self.source.nominal_identities
-                            [core.fundamental_types.boolean]
-                            .declaration_id(),
-                        T::String => self.source.nominal_identities[core.fundamental_types.string]
-                            .declaration_id(),
-                        T::Any => self.source.nominal_identities[core.fundamental_types.any]
-                            .declaration_id(),
-                        T::Ptr(_) => self.source.nominal_identities[core.ffi.ptr].declaration_id(),
+                    T::String => self.source.nominal_identities[core.fundamental_types.string]
+                        .declaration_id(),
+                    T::Any => {
+                        self.source.nominal_identities[core.fundamental_types.any].declaration_id()
+                    }
+                    T::Ptr(_) => self.source.nominal_identities[core.ffi.ptr].declaration_id(),
+                    T::FunPtr(_) => {
+                        self.source.nominal_identities[core.ffi.fun_ptr].declaration_id()
+                    }
+                    T::GcLeafFunPtr(_) => {
+                        self.source.nominal_identities[core.ffi.gc_leaf_fun_ptr].declaration_id()
+                    }
+                    _ => unreachable!("primitive branch selects a core nominal"),
+                },
+                export::CoreProtocols::Imported(core) => {
+                    let core = core.fundamental_types();
+                    match self.types[ty].kind {
+                        T::Integer(kind) => {
+                            export::SourceNominalId::Concrete(core.integer(kind).persistent())
+                        }
+                        T::Boolean => {
+                            export::SourceNominalId::Concrete(core.boolean().persistent())
+                        }
+                        T::String => export::SourceNominalId::Concrete(core.string().persistent()),
+                        T::Any => export::SourceNominalId::Concrete(core.any().persistent()),
+                        T::Ptr(_) => {
+                            export::SourceNominalId::GenericTemplate(core.ptr().persistent())
+                        }
                         T::FunPtr(_) => {
-                            self.source.nominal_identities[core.ffi.fun_ptr].declaration_id()
+                            export::SourceNominalId::GenericTemplate(core.fun_ptr().persistent())
                         }
+                        T::GcLeafFunPtr(_) => export::SourceNominalId::GenericTemplate(
+                            core.gc_leaf_fun_ptr().persistent(),
+                        ),
                         _ => unreachable!("primitive branch selects a core nominal"),
-                    },
-                    export::CoreProtocols::Imported(core) => {
-                        let core = core.fundamental_types();
-                        match self.types[ty].kind {
-                            T::Integer(kind) => {
-                                export::SourceNominalId::Concrete(core.integer(kind).persistent())
-                            }
-                            T::Boolean => {
-                                export::SourceNominalId::Concrete(core.boolean().persistent())
-                            }
-                            T::String => {
-                                export::SourceNominalId::Concrete(core.string().persistent())
-                            }
-                            T::Any => export::SourceNominalId::Concrete(core.any().persistent()),
-                            T::Ptr(_) => {
-                                export::SourceNominalId::GenericTemplate(core.ptr().persistent())
-                            }
-                            T::FunPtr(_) => export::SourceNominalId::GenericTemplate(
-                                core.fun_ptr().persistent(),
-                            ),
-                            _ => unreachable!("primitive branch selects a core nominal"),
-                        }
                     }
                 }
-            }
+            },
         };
         Some(nominal)
     }
@@ -138,6 +149,7 @@ impl Concretizer<'_> {
             T::Interface(id) => self.interfaces[*id].name.clone(),
             T::Ptr(_) => "Ptr".into(),
             T::FunPtr(_) => "FunPtr".into(),
+            T::GcLeafFunPtr(_) => "GCLeafFunPtr".into(),
             T::Tuple(elements) => {
                 return format!(
                     "({})",

@@ -40,6 +40,9 @@ impl<'signature> SignatureNominalWalker<'signature> {
                 }
                 | SignatureTypeKey::NativeFunctionPointer {
                     parameters, result, ..
+                }
+                | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                    parameters, result, ..
                 } => {
                     let child_count = parameters
                         .len()

@@ -48,7 +48,7 @@ pub fn dump_static_shapes<'a>(module: &'a Module, world: &ImportedSemanticWorld<
             StaticTypeShape::Any => dump.out.push_str("any Any\n"),
             StaticTypeShape::Function(_) => writeln!(dump.out, "function {name}").unwrap(),
             StaticTypeShape::Pointer(_) => writeln!(dump.out, "pointer {name}").unwrap(),
-            StaticTypeShape::NativeFunctionPointer(_) => {
+            StaticTypeShape::NativeFunctionPointer { .. } => {
                 writeln!(dump.out, "native-function-pointer {name}").unwrap()
             }
             StaticTypeShape::Parameter(_) | StaticTypeShape::Companion { .. } => {

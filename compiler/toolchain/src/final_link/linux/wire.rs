@@ -2,7 +2,7 @@ use super::*;
 
 impl WireEncode for LinuxFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(9)?;
+        e.map(10)?;
         e.field(1)?;
         self.startup.profile().contract().target().encode(e)?;
         e.field(2)?;
@@ -51,6 +51,8 @@ impl WireEncode for LinuxFinalLinkProfile {
                 e.array(1)?;
                 cxx.fingerprint().encode(e)
             }
-        }
+        }?;
+        e.field(10)?;
+        self.data.output.encode(e)
     }
 }

@@ -6,8 +6,9 @@ pub use annotations::AnnotationProductionError;
 use std::fmt;
 
 use scoop_identity::{
-    ConeIdentity, DecodedExecutableEntryIdentity, DecodedPersistentId, ExecutableEntryIdentity,
-    ExecutableEntryIdentityError, PersistentExportBindingId,
+    ConeIdentity, DecodedExecutableEntryIdentity, DecodedNativeAppEntryIdentity,
+    DecodedPersistentId, ExecutableEntryIdentity, ExecutableEntryIdentityError,
+    NativeAppEntryIdentity, NativeAppEntryIdentityError, PersistentExportBindingId,
 };
 use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError, WireErrorKind};
 
@@ -62,12 +63,16 @@ pub use type_semantics::*;
 pub enum HirOutputContractV1 {
     Library,
     Executable(Box<ExecutableEntryIdentity>),
+    NativeApp(Box<NativeAppEntryIdentity>),
 }
 
 impl HirOutputContractV1 {
     pub fn from_output_kind(output: &ConeOutputKind) -> Self {
         match output {
             ConeOutputKind::Library => Self::Library,
+            ConeOutputKind::NativeApp { local_entry } => {
+                Self::NativeApp(Box::new(local_entry.identity().clone()))
+            }
             ConeOutputKind::Executable { local_entry } => {
                 Self::Executable(Box::new(local_entry.identity().clone()))
             }
@@ -90,6 +95,13 @@ impl WireEncode for HirOutputContractV1 {
                 encoder.field(1)?;
                 entry.as_ref().encode(encoder)
             }
+            Self::NativeApp(entry) => {
+                encoder.map(2)?;
+                encoder.field(0)?;
+                encoder.unsigned(3)?;
+                encoder.field(1)?;
+                entry.as_ref().encode(encoder)
+            }
         }
     }
 }
@@ -98,6 +110,7 @@ impl WireEncode for HirOutputContractV1 {
 pub enum DecodedHirOutputContractV1 {
     Library,
     Executable(Box<DecodedExecutableEntryIdentity>),
+    NativeApp(Box<DecodedNativeAppEntryIdentity>),
 }
 
 impl DecodedHirOutputContractV1 {
@@ -115,6 +128,28 @@ impl DecodedHirOutputContractV1 {
     ) -> Result<HirOutputContractV1, HirOutputContractValidationError> {
         match self {
             Self::Library => Ok(HirOutputContractV1::Library),
+            Self::NativeApp(decoded) => {
+                let signature = decoded
+                    .source_signature()
+                    .clone()
+                    .resolve(&mut &*foundation)
+                    .map_err(|_| HirOutputContractValidationError::InvalidSignature)?;
+                let record = foundation
+                    .function_record_by_bytes(decoded.declaration().as_array())
+                    .ok_or(HirOutputContractValidationError::UnknownEntry(
+                        *decoded.declaration().as_array(),
+                    ))?;
+                let expected = NativeAppEntryIdentity::try_new(record, signature)
+                    .map_err(HirOutputContractValidationError::InvalidNativeAppEntry)?;
+                if expected.root_cone() != artifact {
+                    return Err(HirOutputContractValidationError::ForeignEntry {
+                        artifact,
+                        entry: expected.root_cone(),
+                    });
+                }
+                Ok(HirOutputContractV1::NativeApp(Box::new(expected)))
+            }
+
             Self::Executable(decoded) => {
                 let signature = decoded
                     .source_signature()
@@ -168,6 +203,13 @@ impl WireEncode for DecodedHirOutputContractV1 {
                 encoder.field(1)?;
                 entry.as_ref().encode(encoder)
             }
+            Self::NativeApp(entry) => {
+                encoder.map(2)?;
+                encoder.field(0)?;
+                encoder.unsigned(3)?;
+                encoder.field(1)?;
+                entry.as_ref().encode(encoder)
+            }
         }
     }
 }
@@ -194,6 +236,13 @@ impl WireDecode for DecodedHirOutputContractV1 {
                     .map(Box::new)
                     .map(Self::Executable)
             }
+            3 => {
+                require_sum_length(decoder, fields, 2)?;
+                decoder
+                    .field(1, DecodedNativeAppEntryIdentity::decode)
+                    .map(Box::new)
+                    .map(Self::NativeApp)
+            }
             tag => Err(wire_error(decoder, WireErrorKind::UnknownTag { tag })),
         }
     }
@@ -204,6 +253,7 @@ pub enum HirOutputContractValidationError {
     UnknownEntry([u8; 32]),
     InvalidSignature,
     InvalidEntry(ExecutableEntryIdentityError),
+    InvalidNativeAppEntry(NativeAppEntryIdentityError),
     ForeignEntry {
         artifact: ConeIdentity,
         entry: ConeIdentity,
@@ -222,6 +272,7 @@ impl fmt::Display for HirOutputContractValidationError {
                 formatter.write_str("HIR executable signature contains an unresolved exact type")
             }
             Self::InvalidEntry(error) => error.fmt(formatter),
+            Self::InvalidNativeAppEntry(error) => error.fmt(formatter),
             Self::ForeignEntry { artifact, entry } => write!(
                 formatter,
                 "HIR executable entry belongs to Cone {entry}, not artifact Cone {artifact}"

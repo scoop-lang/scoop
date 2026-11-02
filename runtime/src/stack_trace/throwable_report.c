@@ -1,8 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
-#include "internal.h"
-#include "stream.h"
 #include "../throwable.h"
 #include "../value_shape.h"
+#include "internal.h"
+#include "stream.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -47,12 +47,24 @@ void scoop_throwable_report_render(const ScoopThrowableReport *report, FILE *str
     scoop_trace_unlock_stream(stream);
 }
 
+void scoop_throwable_report_write_frames(const ScoopThrowableReport *report,
+                                         ScoopTraceWriter writer) {
+    const char *message;
+    if (!scoop_stack_trace_enabled)
+        message = SCOOP_TRACE_DISABLED_MESSAGE;
+    else if (report->captured) {
+        scoop_trace_write((const char *)report->bytes + report->trace_offset, writer);
+        return;
+    } else
+        message = "  <stack not captured: this object has not been thrown>\n";
+    writer.write(writer.context, message, strlen(message));
+}
+
+static void write_stream(void *context, const void *bytes, size_t length) {
+    fwrite(bytes, 1, length, context);
+}
 void scoop_throwable_report_render_frames(const ScoopThrowableReport *report, FILE *stream) {
-    if (!scoop_stack_trace_enabled) {
-        fputs(SCOOP_TRACE_DISABLED_MESSAGE, stream);
-    } else if (report->captured) {
-        scoop_trace_render((const char *)report->bytes + report->trace_offset, stream);
-    } else {
-        fputs("  <stack not captured: this object has not been thrown>\n", stream);
-    }
+    scoop_trace_lock_stream(stream);
+    scoop_throwable_report_write_frames(report, (ScoopTraceWriter){stream, write_stream});
+    scoop_trace_unlock_stream(stream);
 }

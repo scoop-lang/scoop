@@ -87,7 +87,11 @@ impl Lowerer {
             Type::Boolean => self.intrinsic_type_interfaces(hir::IntrinsicTypeKind::Boolean),
             Type::String => self.intrinsic_type_interfaces(hir::IntrinsicTypeKind::String),
             Type::Ptr(pointee) => self.pointer_interfaces(pointee),
-            Type::Any | Type::Tuple(_) | Type::Function(_) | Type::FunPtr(_) => Vec::new(),
+            Type::Any
+            | Type::Tuple(_)
+            | Type::Function(_)
+            | Type::FunPtr(_)
+            | Type::GcLeafFunPtr(_) => Vec::new(),
         }
     }
 

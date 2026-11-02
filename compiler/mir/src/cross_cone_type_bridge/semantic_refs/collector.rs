@@ -90,7 +90,8 @@ impl<'a> Collector<'a> {
             // pointee/signature identities do not require a physical type export.
             ExactTypeKey::Function { .. }
             | ExactTypeKey::RawPointer(_)
-            | ExactTypeKey::NativeFunctionPointer { .. } => Ok(()),
+            | ExactTypeKey::NativeFunctionPointer { .. }
+            | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => Ok(()),
         }
     }
     pub fn nominal(

@@ -11,6 +11,7 @@ pub enum SemanticTypeStructure {
     Function(FunctionType),
     Pointer(TypeId),
     NativeFunctionPointer(FunctionType),
+    GcLeafNativeFunctionPointer(FunctionType),
     Parameter(TypeParamDecl),
     Companion {
         host: TypeParamDecl,

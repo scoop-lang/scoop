@@ -96,9 +96,81 @@ impl WireDecode for DecodedEntryMirBridgeV1 {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
+pub struct NativeAppEntryMirBridgeV1 {
+    source: scoop_identity::NativeAppEntryIdentity,
+    implementation: CallableOwner,
+}
+
+impl NativeAppEntryMirBridgeV1 {
+    pub fn new(
+        source: scoop_identity::NativeAppEntryIdentity,
+        implementation: CallableOwner,
+    ) -> Result<Self, MirProductionBuildError> {
+        let source_entry = source.declaration();
+        if implementation != CallableOwner::Function(source_entry) {
+            return Err(
+                MirProductionBuildError::NativeAppEntryImplementationMismatch {
+                    source_entry,
+                    implementation,
+                },
+            );
+        }
+        Ok(Self {
+            source,
+            implementation,
+        })
+    }
+
+    pub const fn source(&self) -> &scoop_identity::NativeAppEntryIdentity {
+        &self.source
+    }
+
+    pub const fn implementation(&self) -> CallableOwner {
+        self.implementation
+    }
+}
+
+impl WireEncode for NativeAppEntryMirBridgeV1 {
+    fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
+        encoder.map(2)?;
+        encoder.field(1)?;
+        self.source.encode(encoder)?;
+        encoder.field(2)?;
+        self.implementation.encode(encoder)
+    }
+}
+
+#[derive(Debug)]
+struct DecodedNativeAppEntryMirBridgeV1 {
+    source: scoop_identity::DecodedNativeAppEntryIdentity,
+    implementation: DecodedCallableOwner,
+}
+
+impl WireEncode for DecodedNativeAppEntryMirBridgeV1 {
+    fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
+        encoder.map(2)?;
+        encoder.field(1)?;
+        self.source.encode(encoder)?;
+        encoder.field(2)?;
+        self.implementation.encode(encoder)
+    }
+}
+
+impl WireDecode for DecodedNativeAppEntryMirBridgeV1 {
+    fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
+        decoder.expect_map(2)?;
+        Ok(Self {
+            source: decoder.field(1, scoop_identity::DecodedNativeAppEntryIdentity::decode)?,
+            implementation: decoder.field(2, DecodedCallableOwner::decode)?,
+        })
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum EntryMirBridgeBranchV1 {
     Library,
     Executable(Box<EntryMirBridgeV1>),
+    NativeApp(Box<NativeAppEntryMirBridgeV1>),
 }
 
 impl WireEncode for EntryMirBridgeBranchV1 {
@@ -106,6 +178,7 @@ impl WireEncode for EntryMirBridgeBranchV1 {
         match self {
             Self::Library => encode_empty_sum(encoder, 1),
             Self::Executable(bridge) => encode_value_sum(encoder, 2, bridge.as_ref()),
+            Self::NativeApp(bridge) => encode_value_sum(encoder, 3, bridge.as_ref()),
         }
     }
 }
@@ -114,6 +187,7 @@ impl WireEncode for EntryMirBridgeBranchV1 {
 enum DecodedEntryMirBridgeBranchV1 {
     Library,
     Executable(Box<DecodedEntryMirBridgeV1>),
+    NativeApp(Box<DecodedNativeAppEntryMirBridgeV1>),
 }
 
 impl WireEncode for DecodedEntryMirBridgeBranchV1 {
@@ -121,6 +195,7 @@ impl WireEncode for DecodedEntryMirBridgeBranchV1 {
         match self {
             Self::Library => encode_empty_sum(encoder, 1),
             Self::Executable(bridge) => encode_value_sum(encoder, 2, bridge.as_ref()),
+            Self::NativeApp(bridge) => encode_value_sum(encoder, 3, bridge.as_ref()),
         }
     }
 }
@@ -132,6 +207,9 @@ impl WireDecode for DecodedEntryMirBridgeBranchV1 {
             2 => DecodedEntryMirBridgeV1::decode(decoder)
                 .map(Box::new)
                 .map(Self::Executable),
+            3 => DecodedNativeAppEntryMirBridgeV1::decode(decoder)
+                .map(Box::new)
+                .map(Self::NativeApp),
             tag => Err(wire_error(decoder, WireErrorKind::UnknownTag { tag })),
         })
     }
@@ -202,6 +280,31 @@ impl DecodedCoreBootstrapBridgeSectionV1 {
             .validate(identities, foundation)?;
         let entry_bridge = match self.entry_bridge {
             DecodedEntryMirBridgeBranchV1::Library => EntryMirBridgeBranchV1::Library,
+            DecodedEntryMirBridgeBranchV1::NativeApp(bridge) => {
+                let signature = bridge
+                    .source
+                    .source_signature()
+                    .clone()
+                    .resolve(identities)
+                    .map_err(MirProductionValidationError::Signature)?;
+                let key: std::sync::Arc<SourceDeclarationKey> = identities
+                    .resolve_key(bridge.source.declaration())
+                    .map_err(MirProductionValidationError::Identity)?;
+                let declaration = CborIdentityRecord::from_key((*key).clone())
+                    .map_err(MirProductionValidationError::EntrySourceRecord)?;
+                let source =
+                    scoop_identity::NativeAppEntryIdentity::try_new(&declaration, signature)
+                        .map_err(MirProductionValidationError::InvalidNativeAppEntrySource)?;
+                let implementation = bridge
+                    .implementation
+                    .resolve(identities)
+                    .map_err(MirProductionValidationError::Identity)?;
+                EntryMirBridgeBranchV1::NativeApp(Box::new(
+                    NativeAppEntryMirBridgeV1::new(source, implementation)
+                        .map_err(MirProductionValidationError::Relation)?,
+                ))
+            }
+
             DecodedEntryMirBridgeBranchV1::Executable(bridge) => {
                 let source = resolve_entry_source(bridge.source, artifact, identities)?;
                 let source_entry = source.declaration();
@@ -309,12 +412,31 @@ fn validate_section_relations(
             entry.implementation,
         ));
     }
+    if let EntryMirBridgeBranchV1::NativeApp(entry) = entry_bridge
+        && entry.source().root_cone() != artifact
+    {
+        return Err(MirProductionBuildError::ForeignEntrySource {
+            artifact,
+            entry: entry.source().root_cone(),
+        });
+    }
+    if let EntryMirBridgeBranchV1::NativeApp(entry) = entry_bridge
+        && strong_callable_bridges.get(entry.implementation).is_none()
+    {
+        return Err(MirProductionBuildError::MissingStrongEntryImplementation(
+            entry.implementation,
+        ));
+    }
     Ok(())
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum MirProductionBuildError {
     DuplicateStrongCallable(CallableOwner),
+    NativeAppEntryImplementationMismatch {
+        source_entry: scoop_identity::PersistentFunctionId,
+        implementation: CallableOwner,
+    },
     EntryImplementationMismatch {
         source_entry: scoop_identity::ExecutableEntryDeclaration,
         implementation: CallableOwner,
@@ -344,6 +466,7 @@ pub enum MirProductionValidationError {
     EntrySourceRecord(scoop_identity::SourceDeclarationIdentityError),
     EntryUnitRecord(scoop_wire::HashError),
     InvalidEntrySource(ExecutableEntryIdentityError),
+    InvalidNativeAppEntrySource(scoop_identity::NativeAppEntryIdentityError),
     ForeignEntrySource {
         artifact: scoop_identity::ConeIdentity,
         entry: scoop_identity::ConeIdentity,
@@ -400,7 +523,7 @@ fn decode_sum<T>(
         ));
     }
     let tag = decoder.field(0, Decoder::unsigned)?;
-    if !matches!(tag, 1 | 2) {
+    if !matches!(tag, 1..=3) {
         return Err(wire_error(decoder, WireErrorKind::UnknownTag { tag }));
     }
     let expected = if tag == 1 { 1 } else { 2 };

@@ -1,0 +1,83 @@
+package dev.nativeapp
+
+import dev.nativeapp.provider.initialized
+import dev.nativeapp.provider.initializationCount
+import scoop.platform.env.arguments
+
+@CLayout
+struct HostApi(val mode: Int, val service: FunPtr<(Int) -> Int>)
+
+@CLayout
+struct AppApi(
+    val run: FunPtr<(Int, Ptr<Unit>) -> Int>,
+    val context: Ptr<Unit>,
+    val close: FunPtr<(Ptr<Unit>) -> Unit>,
+    val closeContext: Ptr<Unit>
+)
+
+class Request(val marker: String)
+
+context(request: Request)
+fun currentMarker(): String = request.marker
+
+@Unsafe
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>): Unit {
+    val host = hostApi.cast<HostApi>().load()
+    if (host.service(10) != initialized || initializationCount() != 1 || arguments().size != 0L) {
+        throw IllegalArgumentException()
+    }
+    val marker = "native-state-" + initialized.toString()
+    val callback =
+        context(Request(marker)) {
+            foreignCallback<(Int, Ptr<Unit>) -> Int>(
+                {
+                    value: Int ->
+                    gcCollect()
+                    if (
+                        marker !=
+                            "native-state-24" ||
+                            currentMarker() !=
+                            marker ||
+                            initializationCount() !=
+                            1
+                    ) {
+                        -100
+                    } else
+                        if (value == 1 || value == 3) {
+                            var result = 0
+                            @Unsafe
+                            {
+                                result = host.service(value)
+                            }
+                            if (currentMarker() == marker) {
+                                result + 1
+                            } else {
+                                -200
+                            }
+                        } else {
+                            value + initialized
+                        }
+                },
+                1L,
+                ForeignCallbackMode.Reusable
+            )
+        }
+    val close =
+        foreignCallback<(Ptr<Unit>) -> Unit>(
+            {
+                @Unsafe
+                {
+                    releaseForeignCallback(callback)
+                }
+                gcCollect()
+            },
+            0L,
+            ForeignCallbackMode.OneShot
+        )
+    outAppApi.cast<AppApi>().store(
+        AppApi(callback.function, callback.context, close.function, close.context)
+    )
+    if (host.mode == 1) {
+        throw IllegalStateException()
+    }
+}

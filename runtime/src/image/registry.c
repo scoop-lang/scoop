@@ -3,26 +3,50 @@
 
 #include "internal.h"
 
-ScoopImageRegistry *scoop_image_collect(const ScoopPlatformMetadataImages *loaded,
-                                        const ScoopImageDescriptorV1 *const *images,
-                                        uint64_t image_count,
-                                        const ScoopRootEntryDescriptorV1 *root) {
-    ScoopMetadataCheck check = {.loaded = loaded, .kind = "root"};
-    if (loaded == NULL || loaded->ranges == NULL || loaded->range_count == 0) {
-        scoop_metadata_fatal(&check, "loaded image ranges are absent");
-    }
-    scoop_metadata_prefix(&check, root, SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1,
-                          sizeof *root);
-    if (scoop_digest_zero(&root->owner_cone_identity) || scoop_digest_zero(&root->callable_id) ||
-        scoop_digest_zero(&root->gateway_callable_id)) {
-        scoop_metadata_fatal(&check, "missing identity");
-    }
+static ScoopImageRegistry *collect(const ScoopPlatformMetadataImages *loaded,
+                                   const ScoopImageDescriptorV1 *const *images,
+                                   uint64_t image_count, ScoopRootEntryView root) {
     ScoopImageRegistry *registry = scoop_metadata_allocate(1, sizeof *registry);
     registry->loaded = loaded;
     registry->root = root;
     scoop_image_order(registry, images, image_count);
     scoop_image_records(registry);
     return registry;
+}
+
+static ScoopMetadataCheck root_check(const ScoopPlatformMetadataImages *loaded) {
+    ScoopMetadataCheck check = {.loaded = loaded, .kind = "root"};
+    if (loaded == NULL || loaded->ranges == NULL || loaded->range_count == 0)
+        scoop_metadata_fatal(&check, "loaded image ranges are absent");
+    return check;
+}
+
+ScoopImageRegistry *scoop_image_collect(const ScoopPlatformMetadataImages *loaded,
+                                        const ScoopImageDescriptorV1 *const *images,
+                                        uint64_t image_count,
+                                        const ScoopRootEntryDescriptorV1 *root) {
+    ScoopMetadataCheck check = root_check(loaded);
+    scoop_metadata_prefix(&check, root, SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof *root);
+    if (scoop_digest_zero(&root->owner_cone_identity) || scoop_digest_zero(&root->callable_id) ||
+        scoop_digest_zero(&root->gateway_callable_id))
+        scoop_metadata_fatal(&check, "missing identity");
+    return collect(
+        loaded, images, image_count,
+        (ScoopRootEntryView){root->owner_cone_identity, root->callable_id, root->failure_root});
+}
+
+ScoopImageRegistry *scoop_image_collect_native_app(const ScoopPlatformMetadataImages *loaded,
+                                                   const ScoopImageDescriptorV1 *const *images,
+                                                   uint64_t image_count,
+                                                   const ScoopNativeAppEntryDescriptorV1 *root) {
+    ScoopMetadataCheck check = root_check(loaded);
+    scoop_metadata_prefix(&check, root, SCOOP_NATIVE_APP_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof *root);
+    if (scoop_digest_zero(&root->owner_cone_identity) || scoop_digest_zero(&root->callable_id) ||
+        scoop_digest_zero(&root->gateway_callable_id))
+        scoop_metadata_fatal(&check, "missing identity");
+    return collect(
+        loaded, images, image_count,
+        (ScoopRootEntryView){root->owner_cone_identity, root->callable_id, root->failure_root});
 }
 
 void scoop_image_registry_dispose(ScoopImageRegistry *registry) {
@@ -55,6 +79,5 @@ bool scoop_records_same_owner(const ScoopRegisteredRecord *left,
     if (left->identity->linkage_kind == SCOOP_REGISTRATION_LINKAGE_STRONG_V1) {
         return left->producer == right->producer;
     }
-    return scoop_digest_equal(&left->identity->odr_group_id,
-                              &right->identity->odr_group_id);
+    return scoop_digest_equal(&left->identity->odr_group_id, &right->identity->odr_group_id);
 }

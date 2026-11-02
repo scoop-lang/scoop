@@ -1,0 +1,15 @@
+package dev.nativeapp.provider
+
+private var calls = 0
+
+public val initialized = initialize()
+
+private fun initialize(): Int {
+    calls += 1
+    return 24
+}
+
+public fun initializationCount(): Int = calls
+
+// Dependency declarations do not compete with the root entry.
+public fun appInit(): Int = 99

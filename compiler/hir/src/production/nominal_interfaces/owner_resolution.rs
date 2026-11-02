@@ -45,6 +45,9 @@ pub(in crate::production) fn from_type(
         crate::Type::FunPtr(_) => {
             return intrinsic_generic_owner(export, IntrinsicGenericType::FunctionPointer);
         }
+        crate::Type::GcLeafFunPtr(_) => {
+            return intrinsic_generic_owner(export, IntrinsicGenericType::GcLeafFunctionPointer);
+        }
         crate::Type::Tuple(_)
         | crate::Type::Function(_)
         | crate::Type::Param(_)
@@ -87,6 +90,7 @@ fn class_or_object_identity(
 enum IntrinsicGenericType {
     Pointer,
     FunctionPointer,
+    GcLeafFunctionPointer,
 }
 
 fn intrinsic_generic_owner(
@@ -98,6 +102,9 @@ fn intrinsic_generic_owner(
             let owner = match intrinsic {
                 IntrinsicGenericType::Pointer => protocols.fundamental_types.ptr,
                 IntrinsicGenericType::FunctionPointer => protocols.fundamental_types.fun_ptr,
+                IntrinsicGenericType::GcLeafFunctionPointer => {
+                    protocols.fundamental_types.gc_leaf_fun_ptr
+                }
             };
             export
                 .nominal_identities
@@ -109,6 +116,9 @@ fn intrinsic_generic_owner(
             IntrinsicGenericType::Pointer => protocols.fundamental_types().ptr().persistent(),
             IntrinsicGenericType::FunctionPointer => {
                 protocols.fundamental_types().fun_ptr().persistent()
+            }
+            IntrinsicGenericType::GcLeafFunctionPointer => {
+                protocols.fundamental_types().gc_leaf_fun_ptr().persistent()
             }
         },
     };

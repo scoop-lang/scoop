@@ -5,7 +5,7 @@ use scoop_protocol::HostPathCarrier;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-const CACHE_DIRECTORY: &str = "final-tools-v6";
+pub(super) const CACHE_DIRECTORY: &str = "final-tools-v7";
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;
@@ -23,6 +23,9 @@ pub(super) fn resolve(
     cxx: bool,
     cache: &Path,
 ) -> Result<ValidatedFinalLinkProfile, ToolchainError> {
+    let output = OutputConfiguration::resolve(target.lir_target(), options)?;
+    let export = (options.output_kind == FinalOutputKind::SharedLibrary)
+        .then_some(super::output::NATIVE_APP_ENTRY);
     let path = |value: &Path| {
         HostPathCarrier::from_path(&std::path::absolute(value).map_err(error)?).map_err(error)
     };
@@ -47,6 +50,8 @@ pub(super) fn resolve(
     let key = build_record::fingerprint(&(
         crate::native_record::ResolvedRecord::cache_configuration(target)?,
         options.mode,
+        output,
+        export,
         options.sysroot.as_deref().map(path).transpose()?,
         options.unwind_prefix.as_deref().map(path).transpose()?,
         options.linker.as_deref().map(path).transpose()?,

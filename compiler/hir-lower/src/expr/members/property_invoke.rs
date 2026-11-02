@@ -48,7 +48,10 @@ impl Lowerer {
         expected: Option<TypeId>,
         require_infix: bool,
     ) -> PropertyExtensionInvokeOutcome {
-        if matches!(self.types[property.ty], Type::Function(_)) {
+        if matches!(
+            self.types[property.ty],
+            Type::Function(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_)
+        ) {
             if require_infix {
                 return PropertyExtensionInvokeOutcome::NoApplicable(None);
             }

@@ -118,6 +118,55 @@ fn root_gateway_keeps_root_and_main_as_separate_typed_fields() {
 }
 
 #[test]
+fn native_app_entry_has_an_independent_source_and_gateway_identity() {
+    let pointer = crate::SignatureTypeKey::Nominal(crate::PersistentTypeId([8; 32]));
+    let declaration = source_function("appInit", None, vec![pointer.clone(), pointer]);
+    let signature = ExactCallableSignature::new(
+        crate::Effect::Ordinary,
+        None,
+        vec![PersistentExactTypeId([8; 32]); 2],
+        PersistentExactTypeId([7; 32]),
+    );
+    let entry = crate::NativeAppEntryIdentity::try_new(&declaration, signature.clone()).unwrap();
+    assert_eq!(entry.declaration(), declaration.id());
+    assert_eq!(entry.source_signature(), &signature);
+    let encoded = encode(&entry).unwrap();
+    let decoded: crate::DecodedNativeAppEntryIdentity = decode_canonical(&encoded).unwrap();
+    assert_eq!(encode(&decoded).unwrap(), encoded);
+    assert_eq!(
+        decoded.declaration().as_array(),
+        declaration.id().as_array()
+    );
+    let gateway = CallableBodyKey::native_app_gateway(entry.root_cone(), entry.app_init());
+    let bytes = encode_runtime(&gateway).unwrap();
+    assert_eq!(&bytes[..4], b"\x06\0\0\0");
+    assert_eq!(&bytes[4..36], entry.root_cone().as_array());
+    assert_eq!(&bytes[36..], entry.app_init().body().as_array());
+    let executable = CallableBodyKey::root_gateway(
+        entry.root_cone(),
+        MainCallableBodyId::from_body(entry.app_init().body()),
+    );
+    assert_ne!(
+        PersistentCallableBodyId::from_key(&gateway).unwrap(),
+        PersistentCallableBodyId::from_key(&executable).unwrap()
+    );
+    assert_eq!(
+        crate::NativeAppEntryIdentity::try_new(
+            &source_function("main", None, vec![]),
+            signature.clone()
+        ),
+        Err(crate::NativeAppEntryIdentityError::NotAppInit)
+    );
+    assert_eq!(
+        crate::NativeAppEntryIdentity::try_new(
+            &source_function("appInit", None, vec![]),
+            signature
+        ),
+        Err(crate::NativeAppEntryIdentityError::InvalidDeclarationShape)
+    );
+}
+
+#[test]
 fn decoded_body_keys_round_trip_every_runtime_variant() {
     let bytes = ConeIdentity::CORE.0;
     let encoded = [
@@ -134,6 +183,12 @@ fn decoded_body_keys_round_trip_every_runtime_variant() {
         .concat(),
         [b"\x04\0\0\0".as_slice(), bytes.as_slice()].concat(),
         [b"\x05\0\0\0".as_slice(), bytes.as_slice()].concat(),
+        [
+            b"\x06\0\0\0".as_slice(),
+            ConeIdentity::SINGLE_FILE.as_array(),
+            bytes.as_slice(),
+        ]
+        .concat(),
     ];
 
     for bytes in encoded {
@@ -211,10 +266,10 @@ fn source_function(
 
 #[test]
 fn decoded_body_key_rejects_unknown_and_incomplete_variants() {
-    let unknown = decode_runtime::<DecodedCallableBodyKey>(b"\x06\0\0\0").unwrap_err();
+    let unknown = decode_runtime::<DecodedCallableBodyKey>(b"\xff\0\0\0").unwrap_err();
     assert_eq!(
         unknown.kind(),
-        RuntimeDecodeErrorKind::UnknownTag { tag: 6 }
+        RuntimeDecodeErrorKind::UnknownTag { tag: 255 }
     );
 
     let unknown_owner =

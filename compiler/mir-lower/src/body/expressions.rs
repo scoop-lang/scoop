@@ -424,6 +424,13 @@ impl BodyLowerer<'_> {
             hir::ExprKind::PtrToULong(operand) => {
                 smir::ExprKind::PtrToULong(Box::new(self.lower_expr(operand)))
             }
+            hir::ExprKind::NativeFunctionPointerCast {
+                operand,
+                target_mode,
+            } => smir::ExprKind::NativeFunctionPointerCast {
+                operand: Box::new(self.lower_expr(operand)),
+                target_mode: *target_mode,
+            },
             hir::ExprKind::PtrCast(operand) => {
                 let mir::Type::Ptr(pointee) = self.lower_type(expr.ty) else {
                     unreachable!("PtrCast has a pointer type")
@@ -629,6 +636,25 @@ impl BodyLowerer<'_> {
                         self.lower_imported_call(*callee, args, expr.ty)
                     }
                 };
+            }
+            hir::ExprKind::NativePointerCall {
+                callee,
+                function_type,
+                args,
+                call_mode,
+            } => {
+                let function_type = self.lower_function_type_id(*function_type);
+                let receiver = Box::new(self.lower_expr(callee));
+                let args = args.iter().map(|arg| self.lower_expr(arg)).collect();
+                smir::ExprKind::Call(smir::Call {
+                    target: mir::CallTarget::NativePointer {
+                        function_type,
+                        receiver,
+                        call_mode: *call_mode,
+                    },
+                    args,
+                    return_ty: self.lower_type(expr.ty),
+                })
             }
             hir::ExprKind::CallableCall {
                 callee,

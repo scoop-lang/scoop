@@ -1,0 +1,96 @@
+@GCLeaf
+@Extern(lib = "fixture_float", name = "fp_expect_managed")
+fun expectManaged()
+
+@Extern(lib = "fixture_float", name = "fp_pollute")
+fun pollute()
+
+@Extern(lib = "fixture_float", name = "fp_polluter")
+fun polluter(): FunPtr<() -> Unit>
+
+@Extern(lib = "fixture_float", name = "fp_static")
+fun invokeStatic(callback: FunPtr<(Double, Double) -> Double>)
+
+@Extern(lib = "fixture_float", name = "fp_call")
+fun invoke(
+    callback: FunPtr<(Double, Double, Ptr<Unit>) -> Double>,
+    context: Ptr<Unit>,
+    flavor: Int,
+    fails: Int
+): Double
+
+@Extern(lib = "fixture_float", name = "fp_foreign")
+fun invokeForeign(
+    callback: FunPtr<(Double, Double, Ptr<Unit>) -> Double>,
+    context: Ptr<Unit>,
+    fails: Int
+)
+
+@NoGC
+fun add(left: Double, right: Double): Double {
+    @Unsafe
+    {
+        expectManaged()
+    }
+    return left + right
+}
+
+@Unsafe
+fun main() {
+    expectManaged()
+    pollute()
+    expectManaged()
+    val native = polluter()
+    native()
+    expectManaged()
+    invokeStatic(::add)
+    expectManaged()
+    val inner =
+        foreignCallback<(Double, Double, Ptr<Unit>) -> Double>(
+            { left: Double, right: Double -> add(left, right) },
+            2,
+            ForeignCallbackMode.Reusable
+        )
+    val outer =
+        foreignCallback<(Double, Double, Ptr<Unit>) -> Double>(
+            {
+                left: Double,
+                right: Double ->
+                @Unsafe
+                {
+                    expectManaged();
+                    invoke(inner.function, inner.context, 1, 0);
+                    gcCollect()
+                }
+                add(left, right)
+            },
+            2,
+            ForeignCallbackMode.Reusable
+        )
+    invoke(outer.function, outer.context, 0, 0)
+    expectManaged()
+    invokeForeign(outer.function, outer.context, 0)
+    expectManaged()
+    val failure =
+        foreignCallback<(Double, Double, Ptr<Unit>) -> Double>(
+            {
+                left: Double, right: Double ->
+                add(left, right);
+                throw IllegalStateException()
+            },
+            2,
+            ForeignCallbackMode.Reusable
+        )
+    invoke(failure.function, failure.context, 0, 1)
+    expectManaged()
+    invokeForeign(failure.function, failure.context, 1)
+    expectManaged()
+    when (foreignCallbackFailure(failure)) {
+        case None -> throw IllegalStateException();
+        case Some(_) -> {}
+    }
+    releaseForeignCallback(failure)
+    releaseForeignCallback(outer)
+    releaseForeignCallback(inner)
+    println("native-float-environment-ok")
+}

@@ -76,8 +76,11 @@ pub(in crate::request::preflight) fn collect_mir_references(
         .filter(|(_, global)| matches!(global.storage, mir::GlobalStorage::Managed { .. }))
         .map(|(_, global)| &global.ty)
         .chain(
-            matches!(input.module().output, mir::MirOutput::Executable { .. })
-                .then_some(&mir::Type::Any),
+            matches!(
+                input.module().output,
+                mir::MirOutput::Executable { .. } | mir::MirOutput::NativeApp { .. }
+            )
+            .then_some(&mir::Type::Any),
         )
     {
         let Some(source) = input.module().meta.source_exact_types.get(ty) else {
@@ -102,7 +105,9 @@ pub(in crate::request::preflight) fn collect_mir_references(
             {
                 scoop_identity::RepresentationRole::CValue
             }
-            mir::Type::FunPtr(_) => scoop_identity::RepresentationRole::NativeFunctionPointer,
+            mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
+                scoop_identity::RepresentationRole::NativeFunctionPointer
+            }
             _ => scoop_identity::RepresentationRole::ManagedValue,
         };
         let layout = dependencies

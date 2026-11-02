@@ -375,6 +375,20 @@ impl Lowerer {
                 }
             }
 
+            ExprKind::NativePointerCall {
+                callee,
+                args,
+                call_mode,
+                ..
+            } => {
+                if *call_mode == hir::CAbiCallMode::NativeSafe {
+                    out.push((expr.span, "NativeSafe function pointer calls are not allowed in `@NoGC` code; use a GCLeafFunPtr with a valid leaf contract".into()));
+                }
+                self.collect_no_gc_expr_violations(callee, out, requirements);
+                for arg in args {
+                    self.collect_no_gc_expr_violations(arg, out, requirements);
+                }
+            }
             ExprKind::CallableCall { callee, args, .. } => {
                 out.push((
                     expr.span,
@@ -444,7 +458,8 @@ impl Lowerer {
             | ExprKind::CharCode(operand)
             | ExprKind::CharFromCodeUnchecked(operand)
             | ExprKind::PtrToULong(operand)
-            | ExprKind::PtrCast(operand) => {
+            | ExprKind::PtrCast(operand)
+            | ExprKind::NativeFunctionPointerCast { operand, .. } => {
                 self.collect_no_gc_expr_violations(operand, out, requirements)
             }
             ExprKind::PtrLoad { pointer, offset } => {

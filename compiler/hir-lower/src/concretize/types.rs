@@ -9,17 +9,22 @@ impl Concretizer<'_> {
     }
 
     pub(super) fn is_value_representation(&self, ty: concrete::TypeId) -> bool {
-        matches!(
-            self.types[ty].kind,
+        match self.types[ty].kind {
             concrete::TypeKind::Unit
-                | concrete::TypeKind::Integer(_)
-                | concrete::TypeKind::Boolean
-                | concrete::TypeKind::Struct(_)
-                | concrete::TypeKind::Enum(_)
-                | concrete::TypeKind::Tuple(_)
-                | concrete::TypeKind::Ptr(_)
-                | concrete::TypeKind::FunPtr(_)
-        )
+            | concrete::TypeKind::Integer(_)
+            | concrete::TypeKind::Boolean
+            | concrete::TypeKind::Struct(_)
+            | concrete::TypeKind::Enum(_)
+            | concrete::TypeKind::Tuple(_)
+            | concrete::TypeKind::Ptr(_)
+            | concrete::TypeKind::FunPtr(_)
+            | concrete::TypeKind::GcLeafFunPtr(_) => true,
+            concrete::TypeKind::String
+            | concrete::TypeKind::Class(_)
+            | concrete::TypeKind::Interface(_)
+            | concrete::TypeKind::Any
+            | concrete::TypeKind::Function(_) => false,
+        }
     }
 
     pub(super) fn lower_integer_type(
@@ -166,6 +171,15 @@ impl Concretizer<'_> {
                 };
                 concrete::IntrinsicTypeRepresentation::FunPtr { signature }
             }
+            export::IntrinsicTypeRepresentation::GcLeafFunPtr { function } => {
+                let function = self.lower_type(function, substitution);
+                let concrete::TypeKind::Function(signature) = self.types[function].kind else {
+                    panic!(
+                        "validated GCLeafFunPtr arguments remain function types after substitution"
+                    )
+                };
+                concrete::IntrinsicTypeRepresentation::GcLeafFunPtr { signature }
+            }
         }
     }
 
@@ -211,6 +225,20 @@ impl Concretizer<'_> {
                     };
                     return self.intern_type(concrete::TypeKind::FunPtr(function), true);
                 }
+                if matches!(
+                    self.core,
+                    export::CoreProtocols::Defined(protocols)
+                        if value.template == self.source.nominal_identities[protocols.ffi.gc_leaf_fun_ptr].declaration_id()
+                ) {
+                    let [function] = value.arguments.as_slice() else {
+                        panic!("validated deferred GCLeafFunPtr has one argument")
+                    };
+                    let function = self.lower_type(*function, substitution);
+                    let concrete::TypeKind::Function(function) = self.types[function].kind else {
+                        panic!("deferred GCLeafFunPtr resolves to a concrete function type")
+                    };
+                    return self.intern_type(concrete::TypeKind::GcLeafFunPtr(function), true);
+                }
                 let id = self.lower_struct_application(application, substitution);
                 self.struct_type[&id]
             }
@@ -245,6 +273,11 @@ impl Concretizer<'_> {
                 let id = self.lower_function_type(id, substitution);
                 self.prepare_callback_storage_types(id);
                 self.intern_type(concrete::TypeKind::FunPtr(id), true)
+            }
+            export::Type::GcLeafFunPtr(id) => {
+                let id = self.lower_function_type(id, substitution);
+                self.prepare_callback_storage_types(id);
+                self.intern_type(concrete::TypeKind::GcLeafFunPtr(id), true)
             }
             export::Type::Enum(application) => {
                 let id = self.lower_enum_application(application, substitution);

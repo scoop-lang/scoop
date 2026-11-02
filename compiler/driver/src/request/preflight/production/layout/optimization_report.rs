@@ -121,6 +121,17 @@ fn target_info(module: &mir::Module, target: &mir::CallTarget<()>) -> Value {
         mir::CallTarget::Closure { function_type, .. } => json!({
             "kind": "closure", "type": type_info(module, &mir::Type::Function(function_type)),
         }),
+        mir::CallTarget::NativePointer {
+            function_type,
+            call_mode,
+            ..
+        } => json!({
+            "kind": "native-pointer", "type": type_info(module, &mir::Type::Function(function_type)),
+            "mode": match call_mode {
+                scoop_identity::CAbiCallMode::NativeSafe => "native-safe",
+                scoop_identity::CAbiCallMode::GcLeaf => "gc-leaf",
+            },
+        }),
         mir::CallTarget::FunctionBridge { function_type, .. } => json!({
             "kind": "function-bridge", "type": type_info(module, &mir::Type::Function(function_type)),
         }),

@@ -69,6 +69,9 @@ impl<'a> Substitution<'a, '_> {
             }
             SignatureTypeKey::NativeFunctionPointer {
                 parameters, result, ..
+            }
+            | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                parameters, result, ..
             } => {
                 self.children(value, parameters, Some(result), substitute)?;
             }

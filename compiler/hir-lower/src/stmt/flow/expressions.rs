@@ -53,6 +53,7 @@ impl Flow<'_> {
             | E::PtrFromNonZeroULong(operand)
             | E::PtrToULong(operand)
             | E::PtrCast(operand)
+            | E::NativeFunctionPointerCast { operand, .. }
             | E::Box(operand)
             | E::Unbox(operand)
             | E::Upcast(operand)
@@ -75,6 +76,11 @@ impl Flow<'_> {
             E::MethodCall { receiver, args, .. }
             | E::DirectSuperMethodCall { receiver, args, .. }
             | E::CallableCall {
+                callee: receiver,
+                args,
+                ..
+            }
+            | E::NativePointerCall {
                 callee: receiver,
                 args,
                 ..

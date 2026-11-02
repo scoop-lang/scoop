@@ -89,6 +89,22 @@ impl NominalExactLeafClassifierV1 {
                     result,
                 }
             }
+            SignatureTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention,
+                parameters,
+                result,
+            } => {
+                let (Some(parameters), Some(result)) =
+                    (self.classify_elements(parameters)?, self.classify(result)?)
+                else {
+                    return Ok(None);
+                };
+                ExactTypeKey::GcLeafNativeFunctionPointer {
+                    calling_convention: *calling_convention,
+                    parameters,
+                    result,
+                }
+            }
         };
         PersistentExactTypeId::from_key(&key)
             .map(Some)

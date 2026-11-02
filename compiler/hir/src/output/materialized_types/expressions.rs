@@ -13,7 +13,9 @@ impl Collector<'_> {
         {
             self.add(*static_type)?;
         }
-        if let ExprKind::CallableCall { function_type, .. } = &expression.kind {
+        if let ExprKind::CallableCall { function_type, .. }
+        | ExprKind::NativePointerCall { function_type, .. } = &expression.kind
+        {
             self.function_type(*function_type)?;
         }
         Ok(())

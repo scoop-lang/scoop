@@ -107,7 +107,9 @@ impl Concretizer<'_> {
             }
             export::Type::Tuple(elements) => elements.iter().all(|ty| self.automatic_type(*ty)),
             export::Type::Ptr(pointee) => self.automatic_type(*pointee),
-            export::Type::Function(function) | export::Type::FunPtr(function) => {
+            export::Type::Function(function)
+            | export::Type::FunPtr(function)
+            | export::Type::GcLeafFunPtr(function) => {
                 let function = &self.source.function_types[*function];
                 function.parameters().all(|ty| self.automatic_type(*ty))
                     && self.automatic_type(function.return_type)

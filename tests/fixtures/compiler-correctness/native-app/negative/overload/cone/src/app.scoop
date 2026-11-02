@@ -1,0 +1,5 @@
+package dev.nativeapp
+
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>) {}
+
+fun appInit() {}

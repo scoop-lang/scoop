@@ -1,0 +1,19 @@
+schema = 1
+name = "native-app-reject-dependency"
+inputs = ["cone", "provider"]
+tools = ["scoop", "scoopc"]
+tags = ["native-app", "negative", "compiler-correctness"]
+vars = { manifest = "${work}/cone/Cone.toml", provider = "${work}/provider" }
+
+[[steps]]
+name = "prepare"
+files = [{copy = {from = "${fixture}/cone", to = "${work}/cone"}}, {copy = {from = "${fixture}/provider", to = "${work}/provider"}}]
+
+[[steps]]
+name = "reject"
+argv = ["${scoop}", "build", "--release", {each = "${link_args}"}, "${work}/cone", "--lockfile", "${work}/cone/Cone.lock", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "diagnostics.json"}

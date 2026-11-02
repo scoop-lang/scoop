@@ -17,6 +17,7 @@ fn families() -> impl Iterator<Item = IntrinsicTypeKind> {
             IntrinsicTypeKind::MutableArray,
             IntrinsicTypeKind::Ptr,
             IntrinsicTypeKind::FunPtr,
+            IntrinsicTypeKind::GcLeafFunPtr,
         ])
         .chain(
             crate::AtomicValueKind::ALL
@@ -57,7 +58,7 @@ fn intrinsic_source_shapes_keep_every_family_and_fixed_tag_through_both_readers(
             shape
         );
     }
-    assert_eq!(encodings.len(), 21);
+    assert_eq!(encodings.len(), 22);
 }
 
 #[test]

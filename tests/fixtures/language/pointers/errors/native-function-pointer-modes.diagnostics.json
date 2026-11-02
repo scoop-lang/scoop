@@ -1,0 +1,67 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "body of `implicitLeaf` must be of type GCLeafFunPtr<() -> Unit>, found FunPtr<() -> Unit>",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 77,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 72
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "body of `implicitSafe` must be of type FunPtr<() -> Unit>, found GCLeafFunPtr<() -> Unit>",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 156,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 151
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "calling an unsafe dependency function requires an unsafe context",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 244,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 228
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "body of `wrongSignature` must be of type FunPtr<() -> Long>, found FunPtr<() -> Int>",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 335,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 319
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "no applicable candidate for bound callable reference `receiver::asGCLeaf` in extension candidate layer:\n  - fun FunPtr<F>.asGCLeaf<F>(): GCLeafFunPtr<F> — unsafe functions cannot be stored in a managed function type because safety is not part of function-type identity",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 441,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 426
+    },
+    "severity": "error"
+  }
+]

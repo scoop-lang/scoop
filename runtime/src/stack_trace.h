@@ -14,6 +14,10 @@
 
 /* Set once by program startup, before managed code or worker threads run. */
 extern bool scoop_stack_trace_enabled;
+#ifdef _WIN32
+/* Called once before native-app initialization can run managed code. */
+void scoop_trace_use_native_host(void);
+#endif
 
 enum {
     SCOOP_TRACE_TRUNCATED = 1,
@@ -44,6 +48,11 @@ typedef struct ScoopTraceBuffer {
  * only consume native data and may acquire loader/file/stdio locks. */
 void scoop_trace_capture_frames(ScoopTraceFrames *frames, uintptr_t caller_pc);
 ScoopTraceBuffer scoop_trace_complete(ScoopTraceFrames *frames);
+typedef struct ScoopTraceWriter {
+    void *context;
+    void (*write)(void *context, const void *bytes, size_t length);
+} ScoopTraceWriter;
+void scoop_trace_write(const void *bytes, ScoopTraceWriter writer);
 void scoop_trace_render(const void *bytes, FILE *stream);
 void *scoop_trace_allocate(size_t bytes);
 

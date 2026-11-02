@@ -49,6 +49,9 @@ impl StructDef {
                     Type::Ptr(Box::new(pointee.clone()))
                 }
                 IntrinsicStructRepresentation::FunPtr { signature } => Type::FunPtr(*signature),
+                IntrinsicStructRepresentation::GcLeafFunPtr { signature } => {
+                    Type::GcLeafFunPtr(*signature)
+                }
             },
         }
     }
@@ -176,6 +179,7 @@ pub enum IntrinsicStructRepresentation {
     Float(crate::FloatKind),
     Ptr { pointee: Type },
     FunPtr { signature: FunctionTypeId },
+    GcLeafFunPtr { signature: FunctionTypeId },
 }
 
 /// Intrinsic representations whose declarations are reference classes.

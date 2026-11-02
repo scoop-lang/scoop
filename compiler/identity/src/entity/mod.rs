@@ -16,6 +16,10 @@ mod enum_variant;
 mod exact_signature;
 mod exact_type;
 mod executable_entry;
+mod native_app_entry;
+pub use native_app_entry::{
+    DecodedNativeAppEntryIdentity, NativeAppEntryIdentity, NativeAppEntryIdentityError,
+};
 mod field;
 mod generated_callable;
 mod generated_nominal;
@@ -69,9 +73,9 @@ pub use callable::{
     DecodedCallableTemplateOwner, DecodedPropertyAccessorKey, PropertyAccessorKey,
 };
 pub use callable_body::{
-    CallableBodyKey, CallableBodyKeyKind, CallableBodyResolutionError, DecodedCallableBodyKey,
-    DecodedCallableBodyKeyKind, DecodedStrongCallableDefinitionOwner, MainCallableBodyId,
-    StrongCallableDefinitionOwner,
+    AppInitCallableBodyId, CallableBodyKey, CallableBodyKeyKind, CallableBodyResolutionError,
+    DecodedCallableBodyKey, DecodedCallableBodyKeyKind, DecodedStrongCallableDefinitionOwner,
+    MainCallableBodyId, StrongCallableDefinitionOwner,
 };
 pub use executable_entry::{
     DecodedExecutableEntryDeclaration, DecodedExecutableEntryIdentity, ExecutableEntryDeclaration,

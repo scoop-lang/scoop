@@ -42,6 +42,7 @@ def decode_streams(stdout, stderr, mode):
                 "artifact",
                 "library",
                 "executable",
+                "native-app",
                 "link",
                 "documentation",
                 "check",

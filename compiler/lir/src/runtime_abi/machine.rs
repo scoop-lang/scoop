@@ -121,6 +121,8 @@ impl RuntimeAbiSymbolV1 {
             Self::CallbackRegister => leaf(&[P, P, P, I(32)], P),
             Self::CallbackState => leaf(&[P], I(32)),
             Self::CallbackInvoke => managed(&[P, P, P, P], I(32)),
+            Self::FloatEnter => leaf(&[P], I(64)),
+            Self::FloatLeave => leaf(&[P, I(64)], V),
         }
     }
 }

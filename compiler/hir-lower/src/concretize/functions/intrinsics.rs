@@ -43,6 +43,11 @@ impl Concretizer<'_> {
                     self.source.imported_generic_templates[template]
                         .params
                         .iter()
+                        .skip(usize::from(
+                            self.source.imported_generic_templates[template]
+                                .receiver
+                                .is_some(),
+                        ))
                         .map(|param| param.ty),
                 );
             }

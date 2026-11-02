@@ -127,6 +127,13 @@ impl Lowerer {
                     );
                     return Err(());
                 }
+                if Some(id) == self.ffi_gc_leaf_fun_ptr {
+                    self.error(
+                        call.span,
+                        "intrinsic struct `GCLeafFunPtr` has no source constructor".to_string(),
+                    );
+                    return Err(());
+                }
                 if Some(id) == self.ffi_ptr {
                     return Ok(PreparedNominalPlans::Nominal(
                         Vec::new(),

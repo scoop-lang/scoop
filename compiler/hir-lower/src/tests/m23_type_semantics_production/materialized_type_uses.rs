@@ -30,9 +30,11 @@ fn names(output: &hir::LocalConcreteHirOutput) -> BTreeSet<String> {
             TypeKind::Class(id) => Some(module.classes[*id].name.clone()),
             TypeKind::Enum(id) => Some(module.enums[*id].name.clone()),
             TypeKind::Interface(id) => Some(module.interfaces[*id].name.clone()),
-            TypeKind::Tuple(_) | TypeKind::Function(_) | TypeKind::Ptr(_) | TypeKind::FunPtr(_) => {
-                None
-            }
+            TypeKind::Tuple(_)
+            | TypeKind::Function(_)
+            | TypeKind::Ptr(_)
+            | TypeKind::FunPtr(_)
+            | TypeKind::GcLeafFunPtr(_) => None,
         })
         .collect()
 }

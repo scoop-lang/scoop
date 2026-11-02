@@ -74,6 +74,7 @@ impl Lowerer {
             }
             let ffi_kind = match self.types[ty] {
                 hir::Type::FunPtr(_) => Some("`FunPtr` signature"),
+                hir::Type::GcLeafFunPtr(_) => Some("`GCLeafFunPtr` signature"),
                 hir::Type::Struct(application)
                     if self
                         .struct_c_layout(self.struct_applications[application].template)
@@ -168,7 +169,9 @@ impl Lowerer {
                 }
             }
             hir::Type::Ptr(pointee) => self.record_nominal_type_sites(*pointee, file, span, sites),
-            hir::Type::Function(function) | hir::Type::FunPtr(function) => {
+            hir::Type::Function(function)
+            | hir::Type::FunPtr(function)
+            | hir::Type::GcLeafFunPtr(function) => {
                 let function = &self.function_types[*function];
                 for &parameter in function.parameters() {
                     self.record_nominal_type_sites(parameter, file, span, sites);

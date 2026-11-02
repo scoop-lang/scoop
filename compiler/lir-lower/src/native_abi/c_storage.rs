@@ -32,10 +32,12 @@ impl CanonicalCAbiBuilder<'_> {
                 pointee: self.data_pointee(pointee),
                 storage: identity::CPointerStorage::Direct,
             },
-            mir::Type::FunPtr(_) => identity::CanonicalCStorageType::CodePointer {
-                exact_type: self.exact_type(ty),
-                storage: identity::CPointerStorage::Direct,
-            },
+            mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
+                identity::CanonicalCStorageType::CodePointer {
+                    exact_type: self.exact_type(ty),
+                    storage: identity::CPointerStorage::Direct,
+                }
+            }
             mir::Type::Struct(id) => {
                 if let mir::StructRepresentation::Intrinsic(
                     mir::IntrinsicStructRepresentation::Float(kind),
@@ -83,10 +85,12 @@ impl CanonicalCAbiBuilder<'_> {
                         pointee: self.data_pointee(pointee),
                         storage: identity::CPointerStorage::NullableWrapper(exact_type),
                     },
-                    mir::Type::FunPtr(_) => identity::CanonicalCStorageType::CodePointer {
-                        exact_type,
-                        storage: identity::CPointerStorage::NullableWrapper(exact_type),
-                    },
+                    mir::Type::FunPtr(_) | mir::Type::GcLeafFunPtr(_) => {
+                        identity::CanonicalCStorageType::CodePointer {
+                            exact_type,
+                            storage: identity::CPointerStorage::NullableWrapper(exact_type),
+                        }
+                    }
                     _ => {
                         return Err(StorageLoweringError::InvalidRepresentation(
                             "a C-nullable option must wrap a pointer",

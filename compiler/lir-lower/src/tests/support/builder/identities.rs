@@ -142,6 +142,25 @@ pub(super) fn test_exact_type_at(
                 ),
             }
         }
+        mir::Type::GcLeafFunPtr(id) => {
+            let signature = function_types[*id].clone();
+            ExactTypeKey::GcLeafNativeFunctionPointer {
+                calling_convention: scoop_identity::CallingConvention::C,
+                parameters: signature
+                    .parameter_types
+                    .iter()
+                    .map(|parameter| {
+                        test_exact_type_at(provider, function_types, parameter, entries)
+                    })
+                    .collect(),
+                result: test_exact_type_at(
+                    provider,
+                    function_types,
+                    &signature.return_type,
+                    entries,
+                ),
+            }
+        }
     };
     let origin = match &key {
         ExactTypeKey::Nominal(_) => {
@@ -157,7 +176,10 @@ pub(super) fn test_exact_type_at(
         ExactTypeKey::Tuple(_)
         | ExactTypeKey::Function { .. }
         | ExactTypeKey::RawPointer(_)
-        | ExactTypeKey::NativeFunctionPointer { .. } => mir::SourceExactTypeOrigin::Structural,
+        | ExactTypeKey::NativeFunctionPointer { .. }
+        | ExactTypeKey::GcLeafNativeFunctionPointer { .. } => {
+            mir::SourceExactTypeOrigin::Structural
+        }
     };
     let record = CborIdentityRecord::from_key(key).unwrap();
     let id = record.id();

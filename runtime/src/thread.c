@@ -1,5 +1,4 @@
 #define _POSIX_C_SOURCE 200809L
-#include "floating.h"
 #include "gc/mutator.h"
 #include "thread/internal.h"
 #include <errno.h>
@@ -90,9 +89,6 @@ void scoop_thread_ensure_stack_range(ScoopThreadState *state, uintptr_t low, uin
 
 static ScoopThreadState *new_thread_state(ScoopThreadAttachmentKind kind, ScoopThreadMode mode,
                                           uint64_t managed_depth) {
-    if (!scoop_float_init_environment()) {
-        scoop_thread_fatal("failed to initialize the floating-point environment");
-    }
     void *storage = scoop_runtime_platform_aligned_allocate(_Alignof(ScoopThreadState),
                                                             sizeof(ScoopThreadState));
     if (storage == NULL) {

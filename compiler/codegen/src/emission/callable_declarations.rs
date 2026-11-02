@@ -135,6 +135,7 @@ impl References {
                     self.external.insert(id);
                 }
                 CallDestination::Runtime(_)
+                | CallDestination::NativePointer { .. }
                 | CallDestination::Extern(_)
                 | CallDestination::Dispatch { .. } => {}
             }

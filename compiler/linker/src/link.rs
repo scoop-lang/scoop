@@ -47,6 +47,7 @@ pub struct ProgramLinkOptions {
 pub struct ProgramLinkOutput {
     pub path: PathBuf,
     pub debug_file: Option<DebugFile>,
+    pub import_library: Option<PathBuf>,
     pub fingerprint: ResolvedLinkPlanFingerprint,
     pub plan_dump: String,
     /// Actual native files and lookup candidates used by this link.
@@ -78,7 +79,7 @@ fn link_inputs(
     let output = std::path::absolute(output).map_err(error)?;
     let parent = output
         .parent()
-        .ok_or_else(|| error("executable output has no parent directory"))?;
+        .ok_or_else(|| error("final output has no parent directory"))?;
     std::fs::create_dir_all(parent).map_err(error)?;
     let directory = tempfile::Builder::new()
         .prefix(".scoop-link-")
@@ -99,7 +100,7 @@ fn link_inputs(
     }
     let basename = output
         .file_name()
-        .ok_or_else(|| error("executable has no basename"))?;
+        .ok_or_else(|| error("final output has no basename"))?;
     let candidate = directory.path().join(basename);
     let debug_tools = options
         .emit_debug_file
@@ -153,12 +154,27 @@ fn link_inputs(
                 startup: &startup,
                 profile: profile_fingerprint,
                 keep_symbols: options.keep_symbols,
-                debug_basename: options.emit_debug_file.then_some(basename),
+                debug_basename: (options.emit_debug_file
+                    || profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary)
+                    .then_some(basename),
             },
         )
         .map_err(error)?,
     );
     let plan_dump = dump(closure, runtime, inputs, &startup, options.keep_symbols);
+    let import_library = match profile {
+        ValidatedFinalLinkProfile::Windows(windows) => windows
+            .import_library_path(&candidate)
+            .map(|candidate_library| {
+                let destination = windows
+                    .import_library_path(&output)
+                    .expect("DLL profile has an import library");
+                std::fs::rename(&candidate_library, &destination).map_err(error)?;
+                Ok::<_, LinkError>(destination)
+            })
+            .transpose()?,
+        _ => None,
+    };
     let debug_file = debug_file
         .map(|file| {
             let path = file.kind.output_path(&output);
@@ -177,13 +193,14 @@ fn link_inputs(
         .transpose()?;
     std::fs::rename(candidate, &output).map_err(|err| {
         error(format!(
-            "cannot publish executable {}: {err}",
+            "cannot publish final output {}: {err}",
             output.display()
         ))
     })?;
     Ok(ProgramLinkOutput {
         path: output,
         debug_file,
+        import_library,
         fingerprint,
         plan_dump,
         input_paths: inputs

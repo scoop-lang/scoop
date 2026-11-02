@@ -1,4 +1,4 @@
-//! Native executable toolchains; artifact consumers do not load LLVM.
+//! Native final-link toolchains; artifact consumers do not load LLVM.
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -12,9 +12,17 @@ mod cache;
 mod darwin;
 mod dependencies;
 mod linux;
+mod output;
+#[cfg(all(
+    test,
+    any(target_os = "macos", all(target_os = "linux", target_arch = "x86_64"))
+))]
+mod shared_tests;
 mod windows;
 pub use darwin::DarwinFinalLinkProfile;
 pub use linux::LinuxFinalLinkProfile;
+pub use output::FinalOutputKind;
+use output::OutputConfiguration;
 pub use windows::WindowsFinalLinkProfile;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -25,12 +33,18 @@ pub enum LinkMode {
 
 #[derive(Clone, Debug, Default)]
 pub struct FinalLinkOptions {
+    /// Final native product selected by the root entry kind.
+    pub output_kind: FinalOutputKind,
+    /// Override the install name of a Darwin shared library.
+    pub install_name: Option<String>,
+    /// Override the SONAME of an ELF shared library.
+    pub soname: Option<String>,
     /// Actual Windows linker executable, independently of the native C/C++ producer.
     pub linker: Option<PathBuf>,
     pub sysroot: Option<PathBuf>,
     pub unwind_prefix: Option<PathBuf>,
     pub mode: Option<LinkMode>,
-    /// Retain the ordinary symbol table in the final executable.
+    /// Retain the ordinary symbol table in the final native output.
     pub keep_symbols: bool,
     /// Extract existing object debug information into a platform debug file.
     pub emit_debug_file: bool,
@@ -106,7 +120,8 @@ impl ValidatedFinalLinkProfile {
                         "Darwin uses dynamic libSystem unwinding; static mode and an unwind prefix are not applicable",
                     ));
                 }
-                DarwinFinalLinkProfile::from_startup(startup, cxx, native_roots).map(Self::Darwin)
+                DarwinFinalLinkProfile::from_startup(startup, options, cxx, native_roots)
+                    .map(Self::Darwin)
             }
             scoop_target_data::NativeEnvironment::LinuxGnu
             | scoop_target_data::NativeEnvironment::LinuxMusl => {
@@ -122,6 +137,14 @@ impl ValidatedFinalLinkProfile {
 
     pub fn id(&self) -> TargetProfileId {
         self.startup_toolchain().profile().contract().target().id()
+    }
+
+    pub fn output_kind(&self) -> FinalOutputKind {
+        match self {
+            Self::Darwin(profile) => profile.data.output.kind(),
+            Self::Linux(profile) => profile.data.output.kind(),
+            Self::Windows(profile) => profile.data.output.kind(),
+        }
     }
 
     pub fn default_library_roots(&self) -> &[PathBuf] {
@@ -198,13 +221,17 @@ impl ValidatedFinalLinkProfile {
 
     pub fn command(&self, scratch: &Path, output: &Path) -> Result<Command, ToolchainError> {
         match self {
-            Self::Darwin(profile) => profile.command(scratch, output),
+            Self::Darwin(profile) => profile.command(
+                profile.startup_toolchain().sdk_root().map_err(error)?,
+                scratch,
+                output,
+            ),
             Self::Linux(profile) => profile.command(scratch, output),
             Self::Windows(profile) => profile.command(scratch, output),
         }
     }
 
-    /// Inputs observed by executable update records, including system search directories.
+    /// Inputs observed by final-link update records, including system search directories.
     pub fn input_paths(&self) -> Result<Vec<PathBuf>, ToolchainError> {
         match self {
             Self::Darwin(profile) => profile.input_paths(),

@@ -1,4 +1,5 @@
-//! Explicit Darwin executable toolchain; independent of the Scoop backend.
+//! Explicit Darwin final-link toolchain; independent of the Scoop backend.
+use super::{FinalLinkOptions, FinalOutputKind, OutputConfiguration, output::NATIVE_APP_ENTRY};
 use scoop_process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -13,18 +14,10 @@ use crate::{SystemProvider, ToolchainError, c_bridge};
 mod probe;
 
 const OPTIONS: &[&str] = &[
-    "-execute",
-    "-pie",
-    "-e",
-    "_main",
     "-no_deduplicate",
     "-no_fixup_chains",
     "-no_implicit_dylibs",
     "-adhoc_codesign",
-    // Persistent Scoop definitions are resolved within the executable's
-    // static Cone closure, including ODR selection and callback addresses.
-    "-unexported_symbol",
-    "_scoop$1$*",
     "-rename_section",
     "__LLVM_STACKMAPS",
     "__llvm_stackmaps",
@@ -40,6 +33,7 @@ pub struct DarwinFinalLinkProfile {
 
 #[derive(Clone, Debug, Eq, PartialEq, serde::Serialize, serde::Deserialize)]
 pub(super) struct Discovery {
+    pub(super) output: OutputConfiguration,
     #[serde(with = "crate::build_record::values::paths")]
     pub(super) native_roots: Vec<PathBuf>,
     #[serde(with = "crate::build_record::values::path")]
@@ -71,9 +65,11 @@ impl DarwinFinalLinkProfile {
 
     pub(crate) fn from_startup(
         startup: ValidatedCBridgeToolchainInvocation,
+        options: &FinalLinkOptions,
         cxx: Option<crate::ValidatedCxxToolchain>,
         native_roots: Vec<PathBuf>,
     ) -> Result<Self, ToolchainError> {
+        let output = OutputConfiguration::resolve(startup.target(), options)?;
         let path =
             c_bridge::command_text_from_path(Path::new("/usr/bin/xcrun"), &["--find", "ld"])?;
         let linker = std::fs::canonicalize(path.trim()).map_err(error)?;
@@ -99,6 +95,7 @@ impl DarwinFinalLinkProfile {
         let mut profile = Self {
             startup,
             data: Discovery {
+                output,
                 native_roots,
                 linker,
                 linker_locator,
@@ -131,8 +128,20 @@ impl DarwinFinalLinkProfile {
             scoop_lir::TargetArchitecture::Aarch64 => "arm64",
             scoop_lir::TargetArchitecture::X86_64 => "x86_64",
         };
+        let output_options: &[&str] = match self.data.output.kind() {
+            FinalOutputKind::Executable => &[
+                "-execute",
+                "-pie",
+                "-e",
+                "_main",
+                "-unexported_symbol",
+                "_scoop$1$*",
+            ],
+            FinalOutputKind::SharedLibrary => &["-dylib"],
+        };
         ["-arch", architecture]
             .into_iter()
+            .chain(output_options.iter().copied())
             .chain(OPTIONS.iter().copied())
             .collect()
     }
@@ -186,7 +195,12 @@ impl DarwinFinalLinkProfile {
     }
 
     /// Callers append the ordered objects, aliases and selected system stubs.
-    pub fn command(&self, sdk_root: &Path, output: &Path) -> Result<Command, ToolchainError> {
+    pub fn command(
+        &self,
+        sdk_root: &Path,
+        scratch: &Path,
+        output: &Path,
+    ) -> Result<Command, ToolchainError> {
         let deployment = self
             .startup
             .profile()
@@ -213,6 +227,18 @@ impl DarwinFinalLinkProfile {
         for argument in self.linker_args() {
             self.linker_argument(&mut command, argument);
         }
+        if self.data.output.kind() == FinalOutputKind::SharedLibrary {
+            std::fs::create_dir_all(scratch).map_err(error)?;
+            let exports = scratch.join("native-app.exports");
+            std::fs::write(&exports, format!("_{NATIVE_APP_ENTRY}\n")).map_err(error)?;
+            self.linker_argument(&mut command, "-exported_symbols_list");
+            self.linker_argument(&mut command, exports);
+            self.linker_argument(&mut command, "-install_name");
+            self.linker_argument(
+                &mut command,
+                self.data.output.loader_name(output, "@rpath/")?,
+            );
+        }
         for argument in [
             "-platform_version".into(),
             "macos".into(),
@@ -231,7 +257,7 @@ impl DarwinFinalLinkProfile {
 
 impl WireEncode for DarwinFinalLinkProfile {
     fn encode(&self, e: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        e.map(10)?;
+        e.map(11)?;
         e.field(1)?;
         self.target().wire_id().encode(e)?;
         e.field(2)?;
@@ -269,7 +295,8 @@ impl WireEncode for DarwinFinalLinkProfile {
         if let Some(cxx) = &self.data.cxx {
             cxx.fingerprint().encode(e)?;
         }
-        Ok(())
+        e.field(11)?;
+        self.data.output.encode(e)
     }
 }
 

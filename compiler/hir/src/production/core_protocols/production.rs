@@ -57,29 +57,16 @@ impl CoreProtocolCallableV1 {
                 definition: source,
             });
         }
-        let receiver = if source_key.duplicate_signature().receiver_is_present() {
-            Some(
-                declaration
-                    .params
-                    .first()
-                    .ok_or(CoreProtocolCallableBuildError::MissingReceiver { definition: source })?
-                    .ty,
-            )
-        } else {
-            None
+        let receiver_shape = match source_key.duplicate_signature() {
+            scoop_identity::DuplicateSignatureKey::Function {
+                receiver: scoop_identity::OptionalSignatureType::Present(receiver),
+                ..
+            } => Some((**receiver).clone()),
+            _ => None,
         };
         let parameter_types =
             source_parameter_types(export, ExportParameterOwner::Function(function), source)?;
         let mapper = HirSignatureTypeMapper::new(type_inputs(export, protocols));
-        let receiver_shape = receiver
-            .map(|ty| mapper.map(ty, &binders))
-            .transpose()
-            .map_err(
-                |error| CoreProtocolCallableBuildError::InvalidSignatureType {
-                    definition: source,
-                    error,
-                },
-            )?;
         let parameter_shapes = map_types(&mapper, &parameter_types, &binders, source)?;
         validate_function_duplicate(
             source_key.duplicate_signature(),

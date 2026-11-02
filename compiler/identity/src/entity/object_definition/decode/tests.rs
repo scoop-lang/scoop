@@ -204,9 +204,9 @@ fn atom_resolution_rejects_an_unknown_plan_reference() {
 
 #[test]
 fn object_definition_decoders_reject_unknown_tags() {
-    assert_unknown::<DecodedStrongDefinitionEntity>(b"\xa1\x00\x0e", 14);
+    assert_unknown::<DecodedStrongDefinitionEntity>(b"\xa1\x00\x18\xff", 255);
     assert_unknown::<DecodedObjectDefinitionPlanOwner>(b"\xa1\x00\x03", 3);
-    assert_unknown::<StrongDefinitionRole>(b"\x14", 20);
+    assert_unknown::<StrongDefinitionRole>(b"\x18\xff", 255);
     assert_unknown::<StrongDefinitionRole>(b"\x0a", 10);
     assert_unknown::<ObjectDefinitionPlanRole>(b"\xa1\x00\x03", 3);
     assert_unknown::<DefinitionAtomRole>(b"\x0c", 12);
@@ -291,6 +291,10 @@ fn strong_plan_cases(
         (
             StrongDefinitionEntity::root_entry(producer()),
             R::RootEntryDescriptor,
+        ),
+        (
+            StrongDefinitionEntity::native_app_entry(producer()),
+            R::NativeAppEntryDescriptor,
         ),
     ]
 }

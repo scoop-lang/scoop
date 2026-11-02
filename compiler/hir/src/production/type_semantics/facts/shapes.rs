@@ -33,7 +33,9 @@ impl FactProjector<'_> {
             | TypeKind::Class(_)
             | TypeKind::Interface(_)
             | TypeKind::Function(_) => FactShape::Reference,
-            TypeKind::Ptr(_) | TypeKind::FunPtr(_) => FactShape::Pointer,
+            TypeKind::Ptr(_) | TypeKind::FunPtr(_) | TypeKind::GcLeafFunPtr(_) => {
+                FactShape::Pointer
+            }
             TypeKind::Tuple(elements) => FactShape::Tuple {
                 elements: exacts(self.local, elements)?,
             },
@@ -68,7 +70,8 @@ impl FactProjector<'_> {
                             | concrete::IntrinsicTypeRepresentation::Char
                             | concrete::IntrinsicTypeRepresentation::Boolean => FactShape::Scalar,
                             concrete::IntrinsicTypeRepresentation::Ptr { .. }
-                            | concrete::IntrinsicTypeRepresentation::FunPtr { .. } => {
+                            | concrete::IntrinsicTypeRepresentation::FunPtr { .. }
+                            | concrete::IntrinsicTypeRepresentation::GcLeafFunPtr { .. } => {
                                 FactShape::Pointer
                             }
                             concrete::IntrinsicTypeRepresentation::Throwable

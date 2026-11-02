@@ -34,6 +34,7 @@ fn all_intrinsic_families_roundtrip_with_their_actual_declaration_owner() {
             IntrinsicTypeKind::MutableArray,
             IntrinsicTypeKind::Ptr,
             IntrinsicTypeKind::FunPtr,
+            IntrinsicTypeKind::GcLeafFunPtr,
         ]);
     for family in families {
         let count = match family.parameters() {

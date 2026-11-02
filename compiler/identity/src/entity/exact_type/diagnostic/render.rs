@@ -95,6 +95,17 @@ pub(super) fn write_exact_type(
                         pending.push(Part::Text("]->"));
                         pending.push(Part::Sequence(parameters));
                     }
+                    ExactTypeKey::GcLeafNativeFunctionPointer {
+                        calling_convention: CallingConvention::C,
+                        parameters,
+                        result,
+                    } => {
+                        output.push_str("y(c;[")?;
+                        pending.push(Part::Text(")"));
+                        pending.push(Part::Type(*result));
+                        pending.push(Part::Text("]->"));
+                        pending.push(Part::Sequence(parameters));
+                    }
                 }
             }
         }

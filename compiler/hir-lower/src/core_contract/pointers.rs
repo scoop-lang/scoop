@@ -117,7 +117,7 @@ impl Lowerer {
         }
     }
 
-    pub(crate) fn validate_fun_ptr_struct(&mut self, id: StructId) {
+    pub(crate) fn validate_fun_ptr_struct(&mut self, id: StructId, name: &str) {
         self.current_file = self.struct_files[&id];
         let declaration = &self.structs[id];
         let valid = declaration.type_params.len() == 1
@@ -131,9 +131,67 @@ impl Lowerer {
         if !valid {
             self.error(
                 declaration.span,
-                "core `FunPtr` must be a fieldless intrinsic `struct FunPtr<F>`".to_string(),
+                format!("core `{name}` must be a fieldless intrinsic `struct {name}<F>`"),
             );
         }
+    }
+
+    pub(crate) fn validate_native_function_pointer_conversion_intrinsic(
+        &mut self,
+        id: FunctionId,
+        kind: hir::NativeFunctionPointerIntrinsic,
+    ) {
+        self.current_file = self.function_files[&id];
+        let function = &self.functions[id];
+        let signature = &self.signatures[&id];
+        let receiver = self.extension_receivers.get(&id).copied();
+        let (source, target, name, safety) = match kind {
+            hir::NativeFunctionPointerIntrinsic::AsFunPtr => (
+                hir::CAbiCallMode::GcLeaf,
+                hir::CAbiCallMode::NativeSafe,
+                "asFunPtr",
+                hir::Safety::Safe,
+            ),
+            hir::NativeFunctionPointerIntrinsic::AsGcLeaf => (
+                hir::CAbiCallMode::NativeSafe,
+                hir::CAbiCallMode::GcLeaf,
+                "asGCLeaf",
+                hir::Safety::Unsafe,
+            ),
+        };
+        let valid = !signature.is_suspend
+            && signature.owner_type_param_count == 0
+            && signature.type_params.len() == 1
+            && signature.type_params[0].kind() == hir::TypeParamKind::Any
+            && signature.params.is_empty()
+            && function.method.is_none()
+            && !self.function_owner.contains_key(&id)
+            && function.name == name
+            && function.attributes.safety == safety
+            && function.attributes.gc_effect == hir::GcEffect::NoGc
+            && receiver.is_some_and(|ty| self.is_deferred_native_function_pointer(ty, 0, source))
+            && self.is_deferred_native_function_pointer(signature.return_ty, 0, target);
+        if !valid {
+            self.error(
+                function.span,
+                format!(
+                    "malformed core native function pointer intrinsic `{}`",
+                    kind.name()
+                ),
+            );
+        }
+    }
+
+    fn is_deferred_native_function_pointer(
+        &self,
+        ty: TypeId,
+        parameter: u32,
+        mode: hir::CAbiCallMode,
+    ) -> bool {
+        self.native_function_pointer_signature(ty)
+            .is_some_and(|(actual_mode, function)| {
+                actual_mode == mode && self.is_type_param(function, parameter)
+            })
     }
 
     pub(crate) fn validate_ptr_method_intrinsic(

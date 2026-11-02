@@ -14,7 +14,10 @@ impl Lowerer {
         expected: Option<TypeId>,
         require_infix: bool,
     ) -> Option<hir::Expr> {
-        if matches!(self.types[callee.ty], Type::Function(_)) {
+        if matches!(
+            self.types[callee.ty],
+            Type::Function(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_)
+        ) {
             if require_infix {
                 let found = self.type_name(callee.ty);
                 self.error(
@@ -32,13 +35,7 @@ impl Lowerer {
             }
             return self.lower_callable_call(callee, call.args, call.span, sink);
         }
-        if matches!(self.types[callee.ty], Type::FunPtr(_)) {
-            self.error(
-                call.span,
-                "FunPtr values are not callable in Scoop".to_string(),
-            );
-            return None;
-        }
+
         if !self
             .smart_cast_receiver_views(&callee)
             .iter()
@@ -71,7 +68,10 @@ impl Lowerer {
     }
 
     pub(super) fn type_exposes_invoke(&mut self, ty: TypeId, require_infix: bool) -> bool {
-        if matches!(self.types[ty], Type::Function(_)) {
+        if matches!(
+            self.types[ty],
+            Type::Function(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_)
+        ) {
             return !require_infix;
         }
         let required = RequiredCallableModifiers {
@@ -168,9 +168,10 @@ impl Lowerer {
                 .get(&binding)
                 .map_or(declared, |plan| plan.property_ty);
             let views = self.smart_casts.get(&binding).cloned().unwrap_or_default();
-            views.into_iter().chain([declared]).find(|&ty| {
-                self.type_exposes_invoke(ty, false) || matches!(self.types[ty], Type::FunPtr(_))
-            })
+            views
+                .into_iter()
+                .chain([declared])
+                .find(|&ty| self.type_exposes_invoke(ty, false))
         })
     }
 
@@ -202,7 +203,10 @@ impl Lowerer {
                     args: &call.args,
                     span: call.span,
                 };
-                if Some(struct_id) == self.ffi_ptr || Some(struct_id) == self.ffi_fun_ptr {
+                if Some(struct_id) == self.ffi_ptr
+                    || Some(struct_id) == self.ffi_fun_ptr
+                    || Some(struct_id) == self.ffi_gc_leaf_fun_ptr
+                {
                     self.lower_ffi_struct_init(struct_id, site, sink, expected)
                 } else {
                     self.lower_struct_init(struct_id, ty, site, sink, expected)

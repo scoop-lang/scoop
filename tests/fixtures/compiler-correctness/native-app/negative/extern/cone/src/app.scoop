@@ -1,0 +1,4 @@
+package dev.nativeapp
+
+@Extern(name = "host_init")
+fun appInit(hostApi: Ptr<Unit>, outAppApi: Ptr<Unit>)

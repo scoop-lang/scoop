@@ -74,7 +74,7 @@ impl Lowerer {
             hir::Type::Ptr(pointee) => {
                 self.classify_c_pointer_pointee(pointee, substitution, path, visiting, signatures)
             }
-            hir::Type::FunPtr(signature) => {
+            hir::Type::FunPtr(signature) | hir::Type::GcLeafFunPtr(signature) => {
                 if signatures.safe.contains(&signature) || !signatures.visiting.insert(signature) {
                     return Ok(Classification::Safe);
                 }
@@ -147,7 +147,9 @@ impl Lowerer {
                     });
                 };
                 match self.types[argument] {
-                    hir::Type::Ptr(_) | hir::Type::FunPtr(_) => self.classify_c_ffi_type_inner(
+                    hir::Type::Ptr(_)
+                    | hir::Type::FunPtr(_)
+                    | hir::Type::GcLeafFunPtr(_) => self.classify_c_ffi_type_inner(
                         argument,
                         substitution,
                         false,
@@ -157,7 +159,7 @@ impl Lowerer {
                     ),
                     _ => Err(CAbiError {
                         path,
-                        reason: "only `Option<Ptr<T>>` and `Option<FunPtr<F>>` have a C ABI representation"
+                        reason: "only `Option<Ptr<T>>`, `Option<FunPtr<F>>`, and `Option<GCLeafFunPtr<F>>` have a C ABI representation"
                             .to_string(),
                     }),
                 }
@@ -283,6 +285,7 @@ impl Lowerer {
             | hir::Type::Function(_)
             | hir::Type::Ptr(_)
             | hir::Type::FunPtr(_)
+            | hir::Type::GcLeafFunPtr(_)
             | hir::Type::Enum(_) => Some(false),
             hir::Type::Param(_) => None,
             hir::Type::Tuple(elements) => {
@@ -347,6 +350,7 @@ impl Lowerer {
             | hir::Type::Function(_)
             | hir::Type::Ptr(_)
             | hir::Type::FunPtr(_)
+            | hir::Type::GcLeafFunPtr(_)
             | hir::Type::Struct(_)
             | hir::Type::Enum(_)
             | hir::Type::Tuple(_) => Ok(()),

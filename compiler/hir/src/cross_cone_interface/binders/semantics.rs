@@ -78,6 +78,9 @@ impl SignatureBinderScopeV1 {
                 }
                 | SignatureTypeKey::NativeFunctionPointer {
                     parameters, result, ..
+                }
+                | SignatureTypeKey::GcLeafNativeFunctionPointer {
+                    parameters, result, ..
                 } => {
                     try_reserve(&mut pending, 1, path)
                         .map_err(SignatureTypeSemanticError::Allocation)?;
@@ -295,6 +298,7 @@ pub enum SignatureTypeFormV1 {
     Function,
     RawPointer,
     NativeFunctionPointer,
+    GcLeafNativeFunctionPointer,
     Binder,
     Companion,
 }
@@ -308,6 +312,9 @@ impl SignatureTypeFormV1 {
             SignatureTypeKey::Function { .. } => Self::Function,
             SignatureTypeKey::RawPointer(_) => Self::RawPointer,
             SignatureTypeKey::NativeFunctionPointer { .. } => Self::NativeFunctionPointer,
+            SignatureTypeKey::GcLeafNativeFunctionPointer { .. } => {
+                Self::GcLeafNativeFunctionPointer
+            }
             SignatureTypeKey::Binder { .. } => Self::Binder,
             SignatureTypeKey::Companion(_) => Self::Companion,
         }

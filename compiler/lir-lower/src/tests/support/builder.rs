@@ -78,7 +78,8 @@ impl Builder {
             | mir::Type::MachineScalar(_)
             | mir::Type::Boolean
             | mir::Type::Ptr(_)
-            | mir::Type::FunPtr(_) => true,
+            | mir::Type::FunPtr(_)
+            | mir::Type::GcLeafFunPtr(_) => true,
             mir::Type::String
             | mir::Type::Class(_)
             | mir::Type::Interface(_)
