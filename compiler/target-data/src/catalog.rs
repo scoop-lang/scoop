@@ -1,5 +1,22 @@
 use scoop_identity::TargetProfileId;
-use scoop_lir::{LirTargetProfile, ValidatedLirTargetSelection};
+use scoop_lir::{LirTargetProfile, TargetArchitecture, ValidatedLirTargetSelection};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetOs {
+    Darwin,
+    Linux,
+    Windows,
+}
+
+impl TargetOs {
+    pub const fn source_name(self) -> &'static str {
+        match self {
+            Self::Darwin => "darwin",
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeEnvironment {
@@ -43,8 +60,8 @@ pub struct TargetDefinition {
     pub selection: ValidatedLirTargetSelection,
     pub aliases: &'static [&'static str],
     pub versioned_aliases: &'static [&'static str],
-    pub os: &'static str,
-    pub arch: &'static str,
+    pub os: TargetOs,
+    pub architecture: TargetArchitecture,
     pub env: &'static str,
     pub llvm_triple: &'static str,
     pub native_environment: NativeEnvironment,
@@ -57,6 +74,17 @@ pub struct TargetDefinition {
 impl TargetDefinition {
     pub const fn canonical(self) -> &'static str {
         self.selection.target().contract().canonical_triple()
+    }
+
+    pub const fn source_os(self) -> &'static str {
+        self.os.source_name()
+    }
+
+    pub const fn source_arch(self) -> &'static str {
+        match self.architecture {
+            TargetArchitecture::Aarch64 => "aarch64",
+            TargetArchitecture::X86_64 => "x86_64",
+        }
     }
 }
 

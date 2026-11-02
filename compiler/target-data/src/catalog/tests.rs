@@ -4,6 +4,12 @@ use scoop_lir::NativeSymbolNormalization;
 fn spelling_and_host_selection_use_the_complete_catalog() {
     for target in crate::TARGETS {
         assert_eq!(crate::named_target(target.canonical()), Some(target));
+        assert_eq!(
+            target.architecture,
+            target.selection.target().architecture(),
+            "{}",
+            target.canonical()
+        );
         for alias in target.aliases {
             assert_eq!(crate::named_target(alias), Some(target));
         }
@@ -51,6 +57,24 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
         crate::host("macos", "aarch64", "").unwrap().default_target,
         "aarch64-apple-darwin"
     );
+
+    let darwin = crate::named_target("aarch64-apple-darwin").unwrap();
+    assert_eq!(darwin.os, crate::TargetOs::Darwin);
+    assert_eq!(darwin.source_os(), "darwin");
+    assert_eq!(darwin.architecture, scoop_lir::TargetArchitecture::Aarch64);
+    assert_eq!(darwin.source_arch(), "aarch64");
+
+    let linux = crate::named_target("x86_64-unknown-linux-gnu").unwrap();
+    assert_eq!(linux.os, crate::TargetOs::Linux);
+    assert_eq!(linux.source_os(), "linux");
+    assert_eq!(linux.architecture, scoop_lir::TargetArchitecture::X86_64);
+    assert_eq!(linux.source_arch(), "x86_64");
+
+    let windows = crate::named_target("x86_64-pc-windows-msvc-ucrt").unwrap();
+    assert_eq!(windows.os, crate::TargetOs::Windows);
+    assert_eq!(windows.source_os(), "windows");
+    assert_eq!(windows.architecture, scoop_lir::TargetArchitecture::X86_64);
+    assert_eq!(windows.source_arch(), "x86_64");
 }
 
 #[test]
