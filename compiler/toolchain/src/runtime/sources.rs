@@ -84,6 +84,26 @@ pub(super) const COMMON: &[&str] = &[
     "runtime/src/platform/common.c",
 ];
 
+pub(super) const PLATFORM_BUNDLE: &str = "runtime/src/platform/bundle.c";
+pub(super) const DARWIN_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops";
+pub(super) const LINUX_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_linux_thread_vm_ops";
+pub(super) const WINDOWS_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_windows_thread_vm_ops";
+pub(super) const MACHO_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops";
+pub(super) const LINUX_ELF_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_linux_elf_metadata_image_ops";
+pub(super) const PE_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_pe_metadata_image_ops";
+pub(super) const DARWIN_AARCH64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops";
+pub(super) const SYSV_AMD64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops";
+pub(super) const WINDOWS_AMD64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_windows_amd64_managed_frame_ops";
+
 pub(super) const UNIX_TRACE: &[&str] = &[
     "runtime/src/stack_trace/symbolize.c",
     "vendor/libbacktrace/dwarf.c",

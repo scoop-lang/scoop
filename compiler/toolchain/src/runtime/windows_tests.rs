@@ -1,4 +1,7 @@
-use crate::{FinalLinkOptions, WindowsFinalLinkProfile, resolve_windows_c_toolchain};
+use crate::{
+    FinalLinkOptions, ValidatedRuntimeBuildProfile, WindowsFinalLinkProfile,
+    resolve_windows_c_toolchain,
+};
 use scoop_process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -81,7 +84,7 @@ fn windows_seh_frames_relocate_real_roots_through_entry_anchors() {
         "tests/windows_frames_test.c",
         &[],
         &[
-            "src/platform/profiles/windows_x86_64.c",
+            "src/platform/bundle.c",
             "src/platform/frame/windows_amd64_virtual_unwind.c",
             "src/platform/frame/windows_amd64_coff_managed_entry.S",
             "src/platform/primitives/windows.c",
@@ -137,6 +140,7 @@ fn run_windows_runtime_test_with_optimizations(
     .enumerate()
     {
         let startup = resolve_windows_c_toolchain(target, &clang, prefix).unwrap();
+        let runtime_profile = ValidatedRuntimeBuildProfile::for_target(target).unwrap();
         for (part, source) in compile_sources.iter().enumerate() {
             checked(
                 startup
@@ -149,10 +153,9 @@ fn run_windows_runtime_test_with_optimizations(
                         "-Wextra",
                         "-Werror",
                         "-O2",
-                        "-D__SEH__",
-                        "-D_CRT_SECURE_NO_WARNINGS",
                         "-DSCOOP_ENABLE_STARTUP_STATS=1",
                     ])
+                    .args(runtime_profile.runtime_c_flags())
                     .arg("-I")
                     .arg(runtime.join("include"))
                     .arg("-I")
@@ -193,8 +196,8 @@ fn run_windows_runtime_test_with_optimizations(
                                     "-Werror",
                                     "-fno-omit-frame-pointer",
                                     "-fno-optimize-sibling-calls",
-                                    "-D_CRT_SECURE_NO_WARNINGS",
                                 ])
+                                .args(runtime_profile.runtime_c_flags())
                                 .arg("-I")
                                 .arg(runtime.join("include"))
                                 .arg("-I")

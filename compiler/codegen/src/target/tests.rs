@@ -107,16 +107,18 @@ fn native_c_pointer_representations_are_qualified() {
         .and_then(Path::parent)
         .expect("codegen crate is nested below the workspace root");
 
-    let profile_source = workspace.join(crate::tests::platform_support::native_profile_source());
-    let profile = std::process::Command::new("cc")
+    let bundle_source =
+        workspace.join(crate::tests::platform_support::native_platform_bundle_source());
+    let bundle = std::process::Command::new("cc")
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only"])
-        .arg(&profile_source)
+        .args(crate::tests::platform_support::native_runtime_c_flags())
+        .arg(&bundle_source)
         .output()
-        .expect("compile native runtime profile qualification");
+        .expect("compile native runtime platform bundle qualification");
     assert!(
-        profile.status.success(),
+        bundle.status.success(),
         "native runtime target assertions must compile cleanly:\n{}",
-        String::from_utf8_lossy(&profile.stderr)
+        String::from_utf8_lossy(&bundle.stderr)
     );
 
     let binary =

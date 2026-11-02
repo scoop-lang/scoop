@@ -302,10 +302,10 @@ runtime/src/platform/
   arch/          ISA 浮点环境及真正只依赖架构的实现
   frame/         ABI / backend 的 anchor、精确根和逐帧恢复
   image/         Mach-O / ELF / PE 映像
-  profiles/      实际受支持目标的现有组件组合
+  bundle.c       所选 image / OS / frame ops 的唯一静态组合入口
 ```
 
-这是源码职责划分，不为每层增加动态分发。继续使用现有 `ScoopManagedFrameOps` 等接口；源码组合和 flags 由工具链选择。已有 `aarch64.c` 的 Darwin frame 部分与通用 AArch64 浮点部分分开，Windows frame 迁移时保持实现。
+这是源码职责划分，不为每层增加动态分发。继续使用现有 `ScoopManagedFrameOps` 等接口；源码组合和 flags 由工具链分别依据对象格式／loader、OS、frame 合同和目标 C 数据模型选择，`bundle.c` 本身不枚举完整 target。已有 `aarch64.c` 的 Darwin frame 部分与通用 AArch64 浮点部分分开，Windows frame 迁移时保持实现。
 
 汇编至少按 ABI＋对象格式选择。Darwin 的前导下划线／Mach-O directives、ELF 的 `.type`／CFI、Windows 的 SEH directives 和 Win64 寄存器约定不能只用 `arch = x86_64` 或 `aarch64` 选择一份文件。
 

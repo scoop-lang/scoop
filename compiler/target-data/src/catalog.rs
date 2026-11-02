@@ -39,6 +39,14 @@ impl NativeEnvironment {
     pub const fn is_linux(self) -> bool {
         matches!(self, Self::LinuxGnu | Self::LinuxMusl)
     }
+
+    /// Width of the target C ABI's `long` type in bytes.
+    pub const fn c_long_size_bytes(self) -> u8 {
+        match self {
+            Self::Darwin | Self::LinuxGnu | Self::LinuxMusl => 8,
+            Self::MicrosoftUcrt | Self::LlvmMingwMsvcrt | Self::LlvmMingwUcrt => 4,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

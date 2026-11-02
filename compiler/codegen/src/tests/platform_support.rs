@@ -9,12 +9,16 @@ pub(crate) fn native_os_source() -> &'static str {
     }
 }
 
-pub(crate) fn native_profile_source() -> &'static str {
+pub(crate) fn native_platform_bundle_source() -> &'static str {
     native_runtime_profile()
         .runtime_sources()
         .into_iter()
-        .find(|source| source.starts_with("runtime/src/platform/profiles/"))
-        .expect("the native runtime has a platform profile")
+        .find(|source| *source == "runtime/src/platform/bundle.c")
+        .expect("the native runtime has a platform bundle")
+}
+
+pub(crate) fn native_runtime_c_flags() -> Vec<&'static str> {
+    native_runtime_profile().runtime_c_flags()
 }
 
 #[cfg(unix)]

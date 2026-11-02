@@ -5,7 +5,7 @@ use scoop_lir::LirTargetProfile;
 use super::ValidatedRuntimeBuildProfile;
 
 struct ExpectedComponents {
-    profile: &'static str,
+    bundle: &'static str,
     os: &'static str,
     image: &'static str,
     loaded_image: Option<&'static str>,
@@ -14,6 +14,10 @@ struct ExpectedComponents {
     frame: &'static str,
     managed_entry: &'static str,
     abi_shim: Option<&'static str>,
+    metadata_image_ops: &'static str,
+    thread_vm_ops: &'static str,
+    managed_frame_ops: &'static str,
+    c_long_size: &'static str,
     no_red_zone: bool,
 }
 
@@ -23,7 +27,7 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
     let unique_sources: BTreeSet<_> = sources.iter().copied().collect();
     assert_eq!(unique_sources.len(), sources.len());
     for expected_source in [
-        expected.profile,
+        expected.bundle,
         expected.os,
         expected.image,
         expected.arch,
@@ -68,6 +72,19 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
         profile.runtime_c_flags().contains(&"-mno-red-zone"),
         expected.no_red_zone
     );
+    let flags = profile.runtime_c_flags();
+    for expected_flag in [
+        expected.metadata_image_ops,
+        expected.thread_vm_ops,
+        expected.managed_frame_ops,
+        expected.c_long_size,
+    ] {
+        assert!(
+            flags.contains(&expected_flag),
+            "{} does not select {expected_flag}",
+            profile.canonical_triple()
+        );
+    }
 }
 
 #[test]
@@ -75,7 +92,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
     assert_components(
         scoop_target_data::DARWIN_AARCH64,
         ExpectedComponents {
-            profile: "runtime/src/platform/profiles/darwin_aarch64.c",
+            bundle: "runtime/src/platform/bundle.c",
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
             loaded_image: None,
@@ -84,13 +101,17 @@ fn current_targets_compose_runtime_from_independent_facts() {
             frame: "runtime/src/platform/frame/darwin_aarch64.c",
             managed_entry: "runtime/src/platform/frame/darwin_aarch64_macho.S",
             abi_shim: Some("runtime/src/platform/arch/darwin_aarch64_floating.S"),
+            metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
+            thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
+            managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
+            c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
             no_red_zone: false,
         },
     );
     assert_components(
         scoop_target_data::DARWIN_X86_64,
         ExpectedComponents {
-            profile: "runtime/src/platform/profiles/darwin_x86_64.c",
+            bundle: "runtime/src/platform/bundle.c",
             os: "runtime/src/platform/os/darwin.c",
             image: "runtime/src/platform/image/macho.c",
             loaded_image: None,
@@ -99,6 +120,10 @@ fn current_targets_compose_runtime_from_independent_facts() {
             frame: "runtime/src/platform/frame/sysv_amd64.c",
             managed_entry: "runtime/src/platform/frame/sysv_amd64_macho.S",
             abi_shim: None,
+            metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
+            thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
+            managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
+            c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
             no_red_zone: true,
         },
     );
@@ -109,7 +134,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
         assert_components(
             target,
             ExpectedComponents {
-                profile: "runtime/src/platform/profiles/linux_x86_64.c",
+                bundle: "runtime/src/platform/bundle.c",
                 os: "runtime/src/platform/os/linux.c",
                 image: "runtime/src/platform/image/elf.c",
                 loaded_image: Some("runtime/src/platform/loader/linux_elf.c"),
@@ -118,6 +143,10 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 frame: "runtime/src/platform/frame/sysv_amd64.c",
                 managed_entry: "runtime/src/platform/frame/sysv_amd64_elf.S",
                 abi_shim: None,
+                metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_linux_elf_metadata_image_ops",
+                thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_linux_thread_vm_ops",
+                managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
+                c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
                 no_red_zone: true,
             },
         );
@@ -130,7 +159,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
         assert_components(
             target,
             ExpectedComponents {
-                profile: "runtime/src/platform/profiles/windows_x86_64.c",
+                bundle: "runtime/src/platform/bundle.c",
                 os: "runtime/src/platform/os/windows.c",
                 image: "runtime/src/platform/image/pe.c",
                 loaded_image: None,
@@ -139,6 +168,10 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 frame: "runtime/src/platform/frame/windows_amd64_virtual_unwind.c",
                 managed_entry: "runtime/src/platform/frame/windows_amd64_coff_managed_entry.S",
                 abi_shim: None,
+                metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_pe_metadata_image_ops",
+                thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_windows_thread_vm_ops",
+                managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_windows_amd64_managed_frame_ops",
+                c_long_size: "-DSCOOP_TARGET_LONG_SIZE=4",
                 no_red_zone: true,
             },
         );

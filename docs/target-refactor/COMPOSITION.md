@@ -13,18 +13,17 @@
 | 位置 | 当前表达 | 残留耦合 |
 | --- | --- | --- |
 | [target layout](../../compiler/target-data/src/layout.rs) | `LayoutKind::{DarwinAarch64, DarwinX86_64, LinuxX86_64, WindowsX86_64}` | data layout、ISA、对象格式、符号规则被一个 OS＋arch 名称绑定 |
-| [target catalog](../../compiler/target-data/src/catalog.rs) | `RuntimeProfile::{DarwinAarch64, ...}` | runtime 已按 OS／image／arch／frame 选源，最后仍需增加完整组合枚举 |
+| [runtime composition](../../compiler/toolchain/src/runtime.rs) | `ValidatedRuntimeBuildProfile` 分别投影 OS／image／loader／arch／frame／entry／shim，统一由 `bundle.c` 引用所选具名 ops | —（完整 OS＋arch runtime profile 与对应 C 文件已删除） |
 | [backend](../../compiler/target-data/src/backend.rs) | 首个 AArch64 backend 常量简称 `LLVM_22_1` | 名称隐藏 Darwin／Mach-O／frame 等实际合同，容易把整份 backend profile 当作通用 AArch64 支持 |
 | [codegen target](../../compiler/codegen/src/target.rs) | LLVM backend 初始化只列 AArch64／X86；red-zone 由 x86_64 推导 | ISA、过程 ABI 和 frame policy 没有分开 |
 | [LLVM process options](../../compiler/codegen/src/target/machine.rs) | 一次性全局参数同时包含通用 statepoint 约束和 X86 专用选项 | 新 ISA 不能依赖调用顺序获得另一套进程全局配置 |
 | codegen deployment | 测试入口按 Mach-O／ELF／COFF 推导 Darwin／Linux／Windows | OpenHarmony 与 FreeBSD 同为 ELF，却不是 Linux deployment |
-| [runtime composition](../../compiler/toolchain/src/runtime.rs) | OS 从 `NativeEnvironment` 选择；x86_64 同时推导 `-mno-red-zone`；frame 再与对象格式配对 | SDK／CRT 环境被当成 OS，ISA、过程 ABI、frame 和汇编容器语法边界不清楚 |
 | [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
 | [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
 | [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
 | [final link](../../compiler/toolchain/src/final_link.rs) | profile 只有 Darwin／Linux／Windows，ELF 编排位于 Linux 模块 | FreeBSD／OpenHarmony 需要复用 ELF 规则，但必须拥有自己的 CRT、loader、系统库与链接合同 |
 | Windows 工具链 | MSVC／LLVM-MinGW triple、SDK slice、include／lib 路径和 probe 固定 x86_64 | Windows ARM64 无法复用 Windows 工作流，只能侵入全部工具入口 |
-| runtime 源文件 | `darwin_aarch64.c`、`darwin_aarch64_macho.S`、`darwin_aarch64_floating.S` 同组 | frame recovery、ManagedEntry 对象语法和 Scoop ABI 返回 shim 被视作一个组件 |
+| runtime 源文件 | frame recovery、ManagedEntry 对象语法和 Scoop ABI 返回 shim 已作为独立 source set 选择 | —（原先随 `darwin_aarch64.c` 同组选取的边界已拆开） |
 | 准备／发行脚本 | LLVM build list 和个别 recipe 固定 AArch64／X86、`-march=`、x86_64 triple 或架构 include 目录 | 编译器支持的 ISA、host ISA 和资源 target 混为一谈 |
 
 上一轮设计已经要求拆开 `ElfX86_64Rela` 等命名；当前代码说明这一部分只完成了选择入口的收口，还没有完成数据模型和消费者迁移。本文只处理这些剩余边界，不重做已经稳定的 target 目录、ABI planner、linker 或 runtime 架构。
@@ -344,11 +343,11 @@ stack trace 也采用相同边界：`stack_trace/elf.c` 只解析显式 image vi
 
 ### 5.6 runtime bundle 只有一个组合入口
 
-四个 `runtime/src/platform/profiles/<os>_<arch>.c` 目前只负责把 image、VM 和 frame ops 指针放入 `ScoopPlatformBundle`。这部分不应成为每个新组合都复制的目标文件。
+重构前的四个 `runtime/src/platform/profiles/<os>_<arch>.c` 只负责把 image、VM 和 frame ops 指针放入 `ScoopPlatformBundle`，会迫使每个新组合复制一个目标文件；这些完整组合文件已经删除。
 
-runtime builder 根据 `ValidatedRuntimeBuildProfile` 生成一份很小的 bundle translation unit，引用所选模块导出的具名 ops。生成内容、source set 和 flags 一起进入现有 runtime 更新记录。它只做静态 C 组合，不增加运行时插件、函数注册表或动态分发。
+当前 runtime builder 始终编译同一份 `runtime/src/platform/bundle.c`，并由 `ValidatedRuntimeBuildProfile` 分别选择 metadata image、thread／VM、managed frame 的具名 ops 以及目标 C `long` 宽度。选择 flags、source set 和其他构建参数一起进入现有 runtime 更新记录。它只做静态 C 组合，不增加生成器、运行时插件、函数注册表或动态分发，也不保存任何未来 target 信息。
 
-各具体 image／VM／frame ops 保留具名符号，便于模块级 C 测试直接调用；生成 bundle 是唯一使用完整 target 组合的 runtime 源。
+各具体 image／VM／frame ops 保留具名符号，便于模块级 C 测试直接调用；公共 bundle translation unit 是唯一汇合这些投影的 runtime 源，但其源码本身不知道完整 target 名称。
 
 ## 6. 对象格式、relocation 与 unwind
 

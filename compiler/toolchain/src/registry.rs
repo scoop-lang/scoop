@@ -202,6 +202,10 @@ mod tests {
                     "-pthread",
                     "-fno-omit-frame-pointer",
                     "-fno-optimize-sibling-calls",
+                    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
+                    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
+                    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
+                    "-DSCOOP_TARGET_LONG_SIZE=8",
                 ]
             );
             assert!(profile.final_link().unwrap().linker_driver().is_absolute());
