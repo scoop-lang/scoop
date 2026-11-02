@@ -281,6 +281,10 @@ C ABI extern 函数的声明按语言规范 13.4.1 另存非可选的调用模�
 
 HIR 的原生指针调用保存已经求值一次的 callee、完整函数签名、按源码顺序排列的实际实参和非可选调用模式；它是与 direct extern、managed closure、virtual/interface 调用互斥的 target 分支。`p(args)` 与 `p.invoke(args)` 在 HIR 选择同一分支，后者不产生普通成员引用。`asFunPtr`／`asGCLeaf` 保存实际源／目标 pointer type 与转换方向，lowering 只复制 code-pointer bits；前端已检查安全上下文和签名一致性，后续 stage 不重做名称或重载选择。
 
+NoGC 正文检查同时检查 callee effect 与实际 native 边界：NativeSafe／NativeBorrowed 不能出现在 NoGc callable 中；GCLeaf 继续检查 callee 和实参表达式。当前与导入 extern 都从已解析 ABI／调用模式判断，不能只检查 C extern 的 GC-free 签名或 callee 的 NoGc 标记。release hook 的直接 C 调用仍使用其独立 raw leaf 规则。LIR 的动态 C destination 保存实际 code-pointer operand 与完整 DirectC ABI 计划的 typed 引用；callee operand 与参数一样参与求值、活跃度和 operand rewrite，完整计划用于 LLVM 间接函数签名及调用点的 sret、byval、alignment、signext／zeroext 属性。
+
+默认值／泛型模板的原生指针调用使用表达式 tag 80，field 1–4 分别保存 callee、完整函数签名、实际实参和调用模式，对应 `cross-cone-interface/90`。旧产物沿正常版本边界重建；MIR／LIR metadata 和 runtime ABI 不变。
+
 source parameter interface 同时保存已解析的可选 receiver 和源码值参数。无正文的 extension intrinsic 从该声明接口取得 receiver，不访问不存在的正文参数 local；导入 intrinsic 的完整参数序列只包含一次 receiver。`asFunPtr` 的绑定函数引用与未绑定 adapter 保留普通函数引用语义，执行时下降为相同的 pointer cast；unsafe 的 `asGCLeaf` 遵守语言既有的 managed 函数引用限制。
 
 C extern 的结果适配明确区分普通返回与 errno 捕获。前端检查 `captureErrno` 的常量、适用位置，以及透明 alias 展开后的精确二元 tuple `(R, Int)`，将第一项 `R` 投影为 native 返回类型；`Unit` 投影为 `void`，其他类型按既有 C-FFI-safe 规则检查。合法捕获分支完整保存 native `R`、Scoop tuple 结果与捕获行为，不以可缺失字段或后续重新猜测 tuple 形状代替。调用、函数引用及泛型消费保持固定的 Scoop 返回类型，不因结果被忽略而关闭捕获。release 调用对完整 Scoop 参数和结果应用既有 `ReleaseValue` 检查。
@@ -731,7 +735,7 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/19`、`cross-cone-interface/89`、`cross-cone-type-semantics/32` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/19`、`cross-cone-interface/90`、`cross-cone-type-semantics/32` |
 | MIR / `org.scoop-lang.mir` | `identity-foundation/9`、`core-bootstrap-bridge/3`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
 | LIR / `org.scoop-lang.lir` | `identity-foundation/12`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/16`、`link-identity-closure/21`、`link-support/1` |
 

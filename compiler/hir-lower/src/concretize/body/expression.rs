@@ -601,6 +601,20 @@ impl Concretizer<'_> {
                     .map(|argument| self.lower_expr(argument, substitution, locals))
                     .collect(),
             },
+            export::ExprKind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                args,
+            } => concrete::ExprKind::NativePointerCall {
+                call_mode: *call_mode,
+                callee: Box::new(self.lower_expr(callee, substitution, locals)),
+                function_type: self.lower_function_type(*function_type, substitution),
+                args: args
+                    .iter()
+                    .map(|argument| self.lower_expr(argument, substitution, locals))
+                    .collect(),
+            },
             export::ExprKind::PrimitiveBinary { kind, lhs, rhs } => {
                 concrete::ExprKind::PrimitiveBinary {
                     kind: *kind,

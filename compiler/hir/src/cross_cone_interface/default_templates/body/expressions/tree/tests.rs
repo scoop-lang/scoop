@@ -270,9 +270,15 @@ fn every_expression_variant_keeps_its_frozen_wire_tag() {
             operand: Box::new(unit(&fixture)),
             target_mode: crate::CAbiCallMode::NativeSafe,
         },
+        DefaultExpressionKindV1::NativePointerCall {
+            callee: Box::new(unit(&fixture)),
+            function_type: value_type.clone(),
+            arguments: vec![unit(&fixture)],
+            call_mode: crate::CAbiCallMode::GcLeaf,
+        },
     ];
 
-    assert_eq!(cases.len(), 64);
+    assert_eq!(cases.len(), 65);
     for (index, kind) in cases.into_iter().enumerate() {
         let expected_tag = match index {
             43 => 57,
@@ -284,6 +290,7 @@ fn every_expression_variant_keeps_its_frozen_wire_tag() {
             61 => 77,
             62 => 78,
             63 => 79,
+            64 => 80,
             _ => u64::try_from(index + 1).unwrap(),
         };
         let expression = expression(kind, &fixture);
@@ -356,6 +363,29 @@ fn leaf_and_recursive_expressions_have_fixed_tags_and_round_trip() {
         let bytes = encode(&expected.index_locals(&mut locals).unwrap()).unwrap();
         assert_eq!(expression_tag(&bytes), expected_tag);
 
+        let decoded: DecodedDefaultExpressionV1 = decode_canonical(&bytes).unwrap();
+        assert_eq!(encode(&decoded).unwrap(), bytes);
+        assert_eq!(
+            decoded.resolve(&mut fixture.resolver(), &mut fixture.locals()),
+            Ok(expected)
+        );
+    }
+}
+
+#[test]
+fn native_pointer_calls_round_trip_both_modes_with_resolved_operands() {
+    let fixture = Fixture::new();
+    for call_mode in [crate::CAbiCallMode::NativeSafe, crate::CAbiCallMode::GcLeaf] {
+        let expected = expression(
+            DefaultExpressionKindV1::NativePointerCall {
+                callee: Box::new(unit(&fixture)),
+                function_type: fixture.value_type(),
+                arguments: vec![unit(&fixture)],
+                call_mode,
+            },
+            &fixture,
+        );
+        let bytes = encode(&expected.index_locals(&mut fixture.locals()).unwrap()).unwrap();
         let decoded: DecodedDefaultExpressionV1 = decode_canonical(&bytes).unwrap();
         assert_eq!(encode(&decoded).unwrap(), bytes);
         assert_eq!(

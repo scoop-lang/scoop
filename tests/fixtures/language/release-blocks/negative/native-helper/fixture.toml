@@ -1,5 +1,5 @@
 schema = 1
-name = "release-blocks-reject-native-transition-helper"
+name = "release-blocks-reject-native-helper"
 root = "program.scoop"
 inputs = ["program.scoop"]
 tools = ["scoop", "scoopc"]

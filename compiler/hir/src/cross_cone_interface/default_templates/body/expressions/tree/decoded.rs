@@ -215,6 +215,12 @@ enum DecodedDefaultExpressionKindV1 {
         function_type: DecodedSignatureTypeKey,
         arguments: Vec<DecodedDefaultExpressionV1>,
     },
+    NativePointerCall {
+        callee: Box<DecodedDefaultExpressionV1>,
+        function_type: DecodedSignatureTypeKey,
+        arguments: Vec<DecodedDefaultExpressionV1>,
+        call_mode: crate::CAbiCallMode,
+    },
     PrimitiveBinary {
         kind: DefaultPrimitiveBinaryKindV1,
         lhs: Box<DecodedDefaultExpressionV1>,

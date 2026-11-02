@@ -18,6 +18,11 @@ impl<'a> FunctionLowerer<'a> {
         result_ty: &mir::Type,
     ) -> StorageResult<lir::Value> {
         match &call.target {
+            mir::CallTarget::NativePointer {
+                function_type,
+                receiver,
+                call_mode,
+            } => self.lower_native_pointer_call(*function_type, receiver, *call_mode, &call.args),
             mir::CallTarget::Direct(callee) => match *callee {
                 mir::Callee::User(id) => self.lower_local_call(id, &call.args),
                 mir::Callee::Monomorphized(id) => {

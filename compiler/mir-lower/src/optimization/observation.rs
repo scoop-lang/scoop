@@ -63,6 +63,15 @@ pub(super) fn call_target(target: &mir::CallTarget) -> mir::CallTarget<()> {
             slot,
             receiver: Box::new(()),
         },
+        mir::CallTarget::NativePointer {
+            function_type,
+            call_mode,
+            ..
+        } => mir::CallTarget::NativePointer {
+            function_type,
+            call_mode,
+            receiver: Box::new(()),
+        },
         mir::CallTarget::Closure { function_type, .. } => mir::CallTarget::Closure {
             function_type,
             receiver: Box::new(()),

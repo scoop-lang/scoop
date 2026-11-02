@@ -142,6 +142,7 @@ fn validate_call(
             )?;
         }
         mir::CallTarget::FunctionBridge { .. }
+        | mir::CallTarget::NativePointer { .. }
         | mir::CallTarget::Direct(_)
         | mir::CallTarget::Virtual { .. }
         | mir::CallTarget::Closure { .. } => {}

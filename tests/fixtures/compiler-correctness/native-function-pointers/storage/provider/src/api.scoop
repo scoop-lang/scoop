@@ -33,3 +33,14 @@ public fun <T> converted(leaf: Leaf, unused: T): FunPtr<(Int) -> Int> = leaf.asF
 public fun <T: value> preserve(value: T): T = value
 
 public fun optional(value: Leaf? = None): Leaf? = value
+
+@Unsafe
+public fun <T> invokeGeneric(pointer: Leaf, value: Int, unused: T): Int = pointer(value)
+
+@Unsafe
+public fun invokeDefault(pointer: FunPtr<(Int) -> Int>, value: Int = pointer.invoke(40)): Int =
+    value
+
+@NoGC
+@Unsafe
+public fun invokeNoGc(pointer: Leaf, value: Int): Int = pointer(value)

@@ -449,6 +449,17 @@ impl DecodedDefaultExpressionKindV1 {
                 function_type: resolve_type(function_type, resolver, 46, 2)?,
                 arguments: resolve_sequence(arguments, resolver, locals, 46, 3)?,
             },
+            Self::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => DefaultExpressionKindV1::NativePointerCall {
+                call_mode,
+                callee: resolve_child(callee, resolver, locals, 80, 1)?,
+                function_type: resolve_type(function_type, resolver, 80, 2)?,
+                arguments: resolve_sequence(arguments, resolver, locals, 80, 3)?,
+            },
             Self::PrimitiveBinary { kind, lhs, rhs } => DefaultExpressionKindV1::PrimitiveBinary {
                 kind,
                 lhs: resolve_child(lhs, resolver, locals, 47, 2)?,

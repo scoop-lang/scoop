@@ -271,6 +271,19 @@ impl WireEncode for DecodedDefaultExpressionKindV1 {
                 function_type,
                 &WireSequence(arguments),
             ),
+            Self::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => encode_four(
+                encoder,
+                80,
+                callee.as_ref(),
+                function_type,
+                &WireSequence(arguments),
+                call_mode,
+            ),
             Self::PrimitiveBinary { kind, lhs, rhs } => {
                 encode_three(encoder, 47, kind, lhs.as_ref(), rhs.as_ref())
             }
@@ -604,6 +617,15 @@ impl WireDecode for DecodedDefaultExpressionKindV1 {
                     callee: decode_boxed_expression_field(decoder, 1)?,
                     function_type: decoder.field(2, DecodedSignatureTypeKey::decode)?,
                     arguments: decoder.field(3, decode_expression_array)?,
+                })
+            }
+            80 => {
+                expect_sum_length(decoder, fields, 5)?;
+                Ok(Self::NativePointerCall {
+                    callee: decode_boxed_expression_field(decoder, 1)?,
+                    function_type: decoder.field(2, DecodedSignatureTypeKey::decode)?,
+                    arguments: decoder.field(3, decode_expression_array)?,
+                    call_mode: decoder.field(4, crate::CAbiCallMode::decode)?,
                 })
             }
             47 => {

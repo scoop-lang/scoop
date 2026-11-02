@@ -386,6 +386,12 @@ pub(in super::super) fn collect_expr_types(
             callee,
             function_type,
             args,
+        }
+        | ExprKind::NativePointerCall {
+            callee,
+            function_type,
+            args,
+            ..
         } => {
             collect_function_type_types(lowerer, *function_type, out);
             collect_expr_types(lowerer, callee, out);

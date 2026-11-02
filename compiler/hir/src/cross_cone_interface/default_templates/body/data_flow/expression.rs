@@ -296,6 +296,9 @@ impl Validator<'_> {
             }
             DefaultExpressionKindV1::CallableCall {
                 callee, arguments, ..
+            }
+            | DefaultExpressionKindV1::NativePointerCall {
+                callee, arguments, ..
             } => {
                 self.push_expressions(pending, arguments)?;
                 self.push_expression(pending, callee)

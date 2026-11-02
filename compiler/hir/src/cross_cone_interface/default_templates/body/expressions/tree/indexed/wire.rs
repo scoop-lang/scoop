@@ -253,6 +253,19 @@ impl WireEncode for IndexedDefaultExpressionKindV1<'_> {
                 *function_type,
                 &WireSequence(arguments),
             ),
+            Self::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => encode_four(
+                encoder,
+                80,
+                callee.as_ref(),
+                *function_type,
+                &WireSequence(arguments),
+                call_mode,
+            ),
             Self::PrimitiveBinary { kind, lhs, rhs } => {
                 encode_three(encoder, 47, kind, lhs.as_ref(), rhs.as_ref())
             }

@@ -281,6 +281,18 @@ impl Serialize for BodyJson<'_, hir::DefaultExpressionKindV1> {
             } => {
                 object!(serializer, {"kind": "callableCall", "callee": self.child(callee), "functionType": self.child(function_type), "arguments": self.child(arguments)})
             }
+            NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => {
+                let mode = match call_mode {
+                    hir::CAbiCallMode::NativeSafe => "nativeSafe",
+                    hir::CAbiCallMode::GcLeaf => "gcLeaf",
+                };
+                object!(serializer, {"kind": "nativePointerCall", "callMode": mode, "callee": self.child(callee), "functionType": self.child(function_type), "arguments": self.child(arguments)})
+            }
             PrimitiveBinary { kind, lhs, rhs } => {
                 object!(serializer, {"kind": "primitiveBinary", "operator": QueryJson(kind), "lhs": self.child(lhs), "rhs": self.child(rhs)})
             }

@@ -425,6 +425,21 @@ pub(super) fn dump_expr(
                 dump_expr(module, locals, arg, indent + 1, out);
             }
         }
+        ExprKind::NativePointerCall {
+            call_mode,
+            callee,
+            function_type,
+            args,
+        } => {
+            out.push_str(&format!(
+                "{pad}NativePointerCall {call_mode:?} function_type{} : {ty}\n",
+                function_type.into_raw()
+            ));
+            dump_expr(module, locals, callee, indent + 1, out);
+            for arg in args {
+                dump_expr(module, locals, arg, indent + 1, out);
+            }
+        }
         ExprKind::PrimitiveBinary { kind, lhs, rhs } => {
             out.push_str(&format!("{pad}PrimitiveBinary {kind:?} : {ty}\n"));
             dump_expr(module, locals, lhs, indent + 1, out);

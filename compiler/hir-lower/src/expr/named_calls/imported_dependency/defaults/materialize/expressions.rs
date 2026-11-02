@@ -163,6 +163,23 @@ impl Lowerer {
                     args: self.materialize_imported_default_expressions(arguments, context)?,
                 }
             }
+            Kind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => {
+                let function_type =
+                    self.materialize_imported_function_type(function_type, context)?;
+                hir::ExprKind::NativePointerCall {
+                    call_mode: *call_mode,
+                    callee: Box::new(
+                        self.materialize_imported_default_expression(callee, context)?,
+                    ),
+                    function_type,
+                    args: self.materialize_imported_default_expressions(arguments, context)?,
+                }
+            }
             kind @ (Kind::PtrFromNonZeroULong(_)
             | Kind::CharCode(_)
             | Kind::CharFromCodeUnchecked(_)

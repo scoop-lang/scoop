@@ -119,6 +119,9 @@ pub(super) fn call_destination_name(function: &Function, destination: CallDestin
         }
         CallDestination::Runtime(runtime) => format!("runtime @{}", runtime.symbol()),
         CallDestination::Extern(id) => format!("extern{}", id.into_raw()),
+        CallDestination::NativePointer { callee, .. } => {
+            format!("native_pointer {}", value_name(callee))
+        }
         CallDestination::Dispatch { table, slot } => {
             let slot = function.call_targets.dispatch_slots[slot];
             format!(

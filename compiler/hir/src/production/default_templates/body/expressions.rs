@@ -412,6 +412,17 @@ impl BodyProjection<'_, '_> {
                 function_type: self.function_type(*function_type)?,
                 arguments: self.expressions(args)?,
             },
+            ExprKind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                args,
+            } => DefaultExpressionKindV1::NativePointerCall {
+                call_mode: *call_mode,
+                callee: Box::new(self.expression(callee)?),
+                function_type: self.function_type(*function_type)?,
+                arguments: self.expressions(args)?,
+            },
             ExprKind::PrimitiveBinary { kind, lhs, rhs } => {
                 DefaultExpressionKindV1::PrimitiveBinary {
                     kind: (*kind).into(),

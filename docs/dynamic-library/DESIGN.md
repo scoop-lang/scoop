@@ -1,6 +1,6 @@
 # Scoop `native-app` 动态库设计
 
-状态：实施中。第 6 节原生函数指针合同已写入权威规范；两种指针类型和显式转换已实现，间接调用尚待完成。其余阶段仍待按实施顺序写入规范。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
+状态：实施中。第 6 节原生函数指针的类型、显式转换和间接 C 调用已实现；已闭合跨 Cone 默认值／泛型正文与调用边界。其余阶段仍待按实施顺序写入规范。调研依据见 [INVESTIGATION.md](INVESTIGATION.md)。设计基线为 `d2058c129e88`，日期为 2026-11-02。
 
 ## 1. 目标与边界
 
@@ -266,6 +266,7 @@ public fun <F> FunPtr<F>.asGCLeaf(): GCLeafFunPtr<F>
 - `FunPtr` 调用发布必要 roots、进入 NativeSafe，返回时握手并重读 relocation 后引用；callee 可以阻塞，也可以经合法 `ForeignCallback` 同步重入 Scoop；
 - `GCLeafFunPtr` 调用保持 Managed 状态，不建立本次 transition、safepoint 或 caller-root frame；callee 必须短时、非阻塞，不能进入 Scoop runtime／GC／safepoint、不能回调 Scoop；
 - 两者继续把语言层 `GcEffect` 与 C ABI 边界模式分开。调用模式由 pointer type 决定，不能从 `@NoGC`、GC-free 参数或调用目标名称推导。
+- `@NoGC` 正文只允许 GCLeaf 原生调用；NativeSafe／NativeBorrowed 的状态切换在源码层拒绝，不能放宽产物的 NoGc safepoint 限制或省略调用边界。直接 extern 与导入 extern 遵守同一规则。
 
 示例：
 
@@ -455,6 +456,8 @@ native C/C++ 异常必须在各自边界内捕获；Scoop 异常不得穿越 C�
    - musl 使用匹配的动态环境，不能因现有 static executable 默认而宣称已支持。
 
 每个平台只有在真实 host 装载和持续调用通过后才声明支持。移动 target 与 framework/JNI/Node-API 适配在桌面合同稳定后独立设计，不反向扩张首版 bootstrap。
+
+第一组已完成 Darwin AArch64 与 Linux x86-64 GNU 的真实 C 函数表验收：debug／release 下覆盖整数／Boolean／浮点、混合与大 aggregate、可空函数指针、Unit 返回、求值顺序、参数异常、callback 重入和 GC 后引用保活；跨 Cone 默认值与泛型保留调用模式。Rust 后端回归覆盖现有目标，当前 macOS LLVM 缺少 Windows statepoint 返回 PC 补丁的既有用例仍单独排除；Windows 原生执行随对应平台阶段补验。此验收只覆盖原生函数指针，不表示 native-app 共享库产品已完成。
 
 ## 12. 规范修改清单
 

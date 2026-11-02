@@ -56,6 +56,11 @@ pub(super) fn operands(expression: &hir::Expr) -> Vec<&hir::Expr> {
             callee: receiver,
             args,
             ..
+        }
+        | E::NativePointerCall {
+            callee: receiver,
+            args,
+            ..
         } => std::iter::once(receiver.as_ref())
             .chain(args.iter())
             .collect(),
@@ -130,6 +135,7 @@ pub(super) fn may_throw(expression: &hir::Expr) -> bool {
             | E::MethodCall { .. }
             | E::DirectSuperMethodCall { .. }
             | E::CallableCall { .. }
+            | E::NativePointerCall { .. }
             | E::ClassInit { .. }
             | E::StructInit { .. }
             | E::Box(_)

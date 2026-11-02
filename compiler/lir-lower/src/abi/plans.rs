@@ -17,6 +17,7 @@ pub(crate) struct SignatureRequests {
     pub(crate) bridges: HashMap<mir::ExternFunctionId, lir::ScoopAbiRequestId>,
     pub(crate) interfaces: HashMap<InterfaceCallable, lir::ScoopAbiRequestId>,
     pub(crate) function_values: HashMap<FunctionExecution, lir::ScoopAbiRequestId>,
+    pub(crate) native_pointers: HashMap<mir::FunctionTypeId, lir::CAbiRequestId>,
     pub(crate) runtime: HashMap<lir::RuntimeFunction, lir::ScoopAbiRequestId>,
     pub(crate) release: lir::ScoopAbiRequestId,
     pub(crate) root: lir::ScoopAbiRequestId,
@@ -95,8 +96,8 @@ pub(crate) fn prepare(
             runtime.insert(function, signature);
         }
     }
-    let (interfaces, function_values) =
-        dynamic::prepare(&mut builder, module, external, external_map)?;
+    let (interfaces, function_values, native_pointers) =
+        dynamic::prepare(&mut builder, module, structs, enums, external, external_map)?;
     let release = builder.scoop([lir::RAW_PTR], None)?;
     let root = builder.scoop(
         [lir::LirType::I32, lir::RAW_PTR, lir::RAW_PTR],
@@ -112,6 +113,7 @@ pub(crate) fn prepare(
             bridges,
             interfaces,
             function_values,
+            native_pointers,
             runtime,
             release,
             root,

@@ -637,6 +637,25 @@ impl BodyLowerer<'_> {
                     }
                 };
             }
+            hir::ExprKind::NativePointerCall {
+                callee,
+                function_type,
+                args,
+                call_mode,
+            } => {
+                let function_type = self.lower_function_type_id(*function_type);
+                let receiver = Box::new(self.lower_expr(callee));
+                let args = args.iter().map(|arg| self.lower_expr(arg)).collect();
+                smir::ExprKind::Call(smir::Call {
+                    target: mir::CallTarget::NativePointer {
+                        function_type,
+                        receiver,
+                        call_mode: *call_mode,
+                    },
+                    args,
+                    return_ty: self.lower_type(expr.ty),
+                })
+            }
             hir::ExprKind::CallableCall {
                 callee,
                 function_type,

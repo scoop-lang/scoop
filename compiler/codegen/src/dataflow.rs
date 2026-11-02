@@ -198,7 +198,9 @@ fn call_uses(
         .iter()
         .map(|argument| argument.logical_value())
         .collect::<Vec<_>>();
-    if let scoop_lir::CallDestination::Dispatch { table, .. } = destination {
+    if let scoop_lir::CallDestination::Dispatch { table, .. }
+    | scoop_lir::CallDestination::NativePointer { callee: table, .. } = destination
+    {
         values.push(table);
     }
     values

@@ -351,6 +351,12 @@ impl ReferenceCollector<'_> {
                 callee,
                 function_type,
                 args,
+            }
+            | hir::ExprKind::NativePointerCall {
+                callee,
+                function_type,
+                args,
+                ..
             } => {
                 let function_type = self.lowerer.function_types[*function_type].canonical_type;
                 self.expression(callee);

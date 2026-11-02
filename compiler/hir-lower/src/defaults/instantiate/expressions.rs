@@ -393,6 +393,17 @@ impl Lowerer {
                 function_type: self.instantiate_default_function_type(*function_type, context),
                 args: self.instantiate_default_exprs(args, context),
             },
+            hir::ExprKind::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                args,
+            } => hir::ExprKind::NativePointerCall {
+                call_mode: *call_mode,
+                callee: Box::new(self.instantiate_default_expr(callee, context)),
+                function_type: self.instantiate_default_function_type(*function_type, context),
+                args: self.instantiate_default_exprs(args, context),
+            },
             hir::ExprKind::PrimitiveBinary { kind, lhs, rhs } => hir::ExprKind::PrimitiveBinary {
                 kind: *kind,
                 lhs: Box::new(self.instantiate_default_expr(lhs, context)),

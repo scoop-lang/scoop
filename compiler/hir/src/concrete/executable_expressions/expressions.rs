@@ -32,6 +32,11 @@ impl<'a> Traversal<'a> {
                 callee: receiver,
                 args,
                 ..
+            }
+            | ExprKind::NativePointerCall {
+                callee: receiver,
+                args,
+                ..
             } => {
                 self.expressions(args)?;
                 self.push(Item::Expression(receiver))

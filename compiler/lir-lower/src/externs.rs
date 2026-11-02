@@ -129,7 +129,7 @@ fn c_data_pointee(
     }
 }
 
-fn c_function_type(
+pub(crate) fn c_function_type(
     module: &mir::Module,
     structs: &lir::StructDefs,
     enums: &lir::EnumDefs,

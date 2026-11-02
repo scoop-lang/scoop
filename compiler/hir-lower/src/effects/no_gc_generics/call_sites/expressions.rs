@@ -311,7 +311,8 @@ impl Lowerer {
                     self.collect_generic_calls_in_expr(arg, out);
                 }
             }
-            ExprKind::CallableCall { callee, args, .. } => {
+            ExprKind::CallableCall { callee, args, .. }
+            | ExprKind::NativePointerCall { callee, args, .. } => {
                 self.collect_generic_calls_in_expr(callee, out);
                 for arg in args {
                     self.collect_generic_calls_in_expr(arg, out);

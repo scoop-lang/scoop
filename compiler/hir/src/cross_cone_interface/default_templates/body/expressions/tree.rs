@@ -262,6 +262,12 @@ pub enum DefaultExpressionKindV1 {
         function_type: SignatureTypeKey,
         arguments: Vec<DefaultExpressionV1>,
     },
+    NativePointerCall {
+        callee: Box<DefaultExpressionV1>,
+        function_type: SignatureTypeKey,
+        arguments: Vec<DefaultExpressionV1>,
+        call_mode: crate::CAbiCallMode,
+    },
     PrimitiveBinary {
         kind: DefaultPrimitiveBinaryKindV1,
         lhs: Box<DefaultExpressionV1>,
@@ -451,7 +457,8 @@ fn validate_kind(kind: &DefaultExpressionKindV1) -> Result<(), DefaultExpression
         DefaultExpressionKindV1::VariantConstruct { arguments, .. }
         | DefaultExpressionKindV1::MethodCall { arguments, .. }
         | DefaultExpressionKindV1::DirectSuperMethodCall { arguments, .. }
-        | DefaultExpressionKindV1::CallableCall { arguments, .. } => {
+        | DefaultExpressionKindV1::CallableCall { arguments, .. }
+        | DefaultExpressionKindV1::NativePointerCall { arguments, .. } => {
             require_arguments(arguments)?;
         }
         DefaultExpressionKindV1::Call {

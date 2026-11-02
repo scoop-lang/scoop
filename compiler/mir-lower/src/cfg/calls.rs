@@ -29,6 +29,15 @@ impl CfgLowerer<'_> {
                 slot: *slot,
                 receiver: self.lower_call_receiver(receiver, &call.args, span)?,
             },
+            mir::CallTarget::NativePointer {
+                function_type,
+                receiver,
+                call_mode,
+            } => mir::CallTarget::NativePointer {
+                function_type: *function_type,
+                receiver: self.lower_call_receiver(receiver, &call.args, span)?,
+                call_mode: *call_mode,
+            },
             mir::CallTarget::Closure {
                 function_type,
                 receiver,

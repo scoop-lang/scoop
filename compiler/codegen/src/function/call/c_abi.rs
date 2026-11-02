@@ -7,8 +7,12 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
         &self,
         destination: scoop_lir::CallDestination,
     ) -> Option<&DirectCSignature> {
-        let scoop_lir::CallDestination::Extern(id) = destination else {
-            return None;
+        let id = match destination {
+            scoop_lir::CallDestination::NativePointer { signature, .. } => {
+                return Some(&self.function.call_targets.native_pointer_signatures[signature]);
+            }
+            scoop_lir::CallDestination::Extern(id) => id,
+            _ => return None,
         };
         match &self.extern_functions[id].kind {
             ExternFunctionKind::C {

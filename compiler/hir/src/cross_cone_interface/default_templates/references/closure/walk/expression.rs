@@ -364,6 +364,12 @@ impl<'body, V: DefaultBodyReferenceVisitorV1<'body>> ReferenceWalker<'_, 'body, 
                 callee,
                 function_type,
                 arguments,
+            }
+            | DefaultExpressionKindV1::NativePointerCall {
+                callee,
+                function_type,
+                arguments,
+                ..
             } => {
                 self.push_expressions(pending, arguments)?;
                 self.push_type(

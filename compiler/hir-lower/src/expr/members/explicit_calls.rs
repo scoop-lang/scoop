@@ -10,7 +10,12 @@ impl Lowerer {
         expected: Option<TypeId>,
         direct_required: RequiredCallableModifiers,
     ) -> Option<hir::Expr> {
-        if name.text == "invoke" && matches!(self.types[receiver.ty], Type::Function(_)) {
+        if name.text == "invoke"
+            && matches!(
+                self.types[receiver.ty],
+                Type::Function(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_)
+            )
+        {
             return self.lower_named_call_on_receiver(
                 receiver,
                 name,
@@ -20,13 +25,7 @@ impl Lowerer {
                 direct_required,
             );
         }
-        if name.text == "invoke" && matches!(self.types[receiver.ty], Type::FunPtr(_)) {
-            self.error(
-                call.span,
-                "FunPtr values are not callable in Scoop".to_string(),
-            );
-            return None;
-        }
+
         let mut first_failure = None;
         let member_property = self
             .find_accessible_nominal_property(receiver.ty, &name.text)

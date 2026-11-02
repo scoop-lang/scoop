@@ -79,6 +79,11 @@ impl Flow<'_> {
                 callee: receiver,
                 args,
                 ..
+            }
+            | E::NativePointerCall {
+                callee: receiver,
+                args,
+                ..
             } => complete(receiver) && args.iter().all(complete),
             E::PtrLoad { pointer, offset } => {
                 complete(pointer) && offset.as_deref().is_none_or(complete)

@@ -324,6 +324,12 @@ pub enum ExprKind {
         function_type: FunctionTypeId,
         args: Vec<Expr>,
     },
+    NativePointerCall {
+        callee: Box<Expr>,
+        function_type: FunctionTypeId,
+        args: Vec<Expr>,
+        call_mode: CAbiCallMode,
+    },
     PrimitiveBinary {
         kind: PrimitiveBinaryKind,
         lhs: Box<Expr>,

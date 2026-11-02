@@ -12,6 +12,11 @@ fun main() {
     @Unsafe
     {
         val functions = table()
+        expect(functions.plain(40) == 41)
+        expect(functions.leaf.invoke(40) == 42)
+        expect(invokeGeneric(functions.leaf, 40, "generic") == 42)
+        expect(invokeDefault(functions.plain) == 41)
+        expect(invokeNoGc(functions.leaf, 40) == 42)
         expect(checkTable(preserve(functions)))
         var leaf = preserve(functions.leaf)
         val address = addressOf(leaf)

@@ -68,7 +68,7 @@ impl<'ctx> FnEmitter<'_, 'ctx> {
             )?,
             CallProtocol::NoGc => {
                 let call = match callee {
-                    PreparedCallee::Dispatch { .. } => self
+                    PreparedCallee::Dispatch { .. } | PreparedCallee::NativePointer(_) => self
                         .builder
                         .build_indirect_invoke(
                             fn_type,

@@ -3258,7 +3258,8 @@ annotation class NoGC
 - 该约束也意味着 `@NoGC` 的成员函数只能属于 value type：class method 有隐含的 `this` 参数，而 `this` 是 ref value。
 - value type 的 `@NoGC` 成员可以实现未标注 NoGC 的普通接口方法，这是对实现体 GC effect 的收紧，其参数、结果、receiver 和 body 仍须满足全部 NoGC 约束。经具体类型直接选中该实现时保留 NoGC 合同；经 interface 或只有该 interface bound 的静态类型调用时，仍使用接口的 Managed 合同，不能因为某个实现是 NoGC 就把所有实现视为 NoGC。装箱／接口表入口按实现规范 2.9 适配；基本类型显式提供的 NoGC operator equals 因此可实现普通 `Equals<T>`；已知具体类型的直接比较继续使用 NoGC intrinsic，整数／浮点比较不增加 GC 操作。
 - 8.3 的 contextual declaration 不得标注 `@NoGC`；`context(value) { ... }` 也不是 NoGC 操作。runtime 的无分配 lookup/restore leaf 不等于源码 `@NoGC`，它们仍读取或写入 managed ref。
-- 9.1.6 的 release block 不是普通 callable 或 `@NoGC` target。定义方在已有 NoGc 检查上推导更窄的 release-call effect 与 `ReleaseValue` 条件，并通过普通 callable 接口供依赖使用；`@NoGC` 本身不保证没有 native transition、TLS 或 GC capability 操作。
+- `@NoGC` 正文不能发起带线程状态切换的 native 调用：C extern 必须显式为 `@GCLeaf`，原生函数指针必须为 `GCLeafFunPtr`；Scoop ABI extern 的 NativeBorrowed 调用也不允许，callee 自身的 `@NoGC` 不消除 caller 的边界操作。调用前后的表达式仍按普通 NoGC 规则检查；编译器不得省略 NativeSafe／NativeBorrowed 边界来满足 NoGC。
+- 9.1.6 的 release block 不是普通 callable 或 `@NoGC` target。定义方在已有 NoGc 检查上推导更窄的 release-call effect 与 `ReleaseValue` 条件，并通过普通 callable 接口供依赖使用；`@NoGC` 本身不保证满足 release 的 TLS、值类型与 GC capability 限制。
 
 ```
 @NoGC
@@ -3549,7 +3550,7 @@ public struct GCLeafFunPtr<F>
 - native-address resolution 的目标必须是带 `@NoGC` 的普通顶层命名函数，且**不能是 generic、挂起、extern、成员或扩展函数**。lambda、匿名函数、局部函数、任何绑定引用以及已存在的 managed 函数值都不能作为非 null `FunPtr` 的来源。违反这些约束是编译错误：FFI 回调不得与 GC 交互，generic 函数没有单一具体符号，挂起函数只有编译器内部的 hidden continuation ABI，而 closure 还需要原生 ABI 中不存在的 managed 环境参数。编译器不自动生成 closure 或挂起 callback wrapper。
 - 跨包 native callback 先 import 后使用无 receiver 的 `::name` 或 alias，沿同一 native-address resolution；本次不扩展前置声明引用语法。
 - native extern 返回值、`@CLayout` 字段及 `Ptr` load 可以按声明产生任一模式；FFI 作者负责实际地址满足声明的调用合同。lambda、local function、绑定引用与 managed function value 仍不能直接构造任一原生函数指针。
-- `p(args...)` 与 `p.invoke(args...)` 对两种 pointer 都执行内建的 unsafe C ABI 间接调用，必须位于 unsafe context。这不是普通成员或 extension 决议，也不创建 managed 函数值。callee 表达式先求值且只求值一次，随后实参按普通从左到右规则各求值一次；签名不具有默认参数、named metadata、spread 或 C varargs。参数与结果使用 `F` 的完整目标 C ABI 分类；native C/C++ 异常不得穿越边界，裸 pointer 返回 null 等现有 FFI 契约违例保持。
+- `p(args...)` 与 `p.invoke(args...)` 对两种 pointer 都执行内建的 unsafe C ABI 间接调用，必须位于 unsafe context。这不是普通成员或 extension 决议，也不创建 managed 函数值。callee 表达式先求值且只求值一次，随后实参按普通从左到右规则各求值一次；签名不具有默认参数、named metadata、spread 或 C varargs。参数与结果使用 `F` 的完整目标 C ABI 分类；native C/C++ 异常不得穿越边界，裸 pointer 返回 null 等现有 FFI 契约违例保持。`@NoGC` 正文只允许 GCLeaf 模式；callee 和实参表达式仍按普通规则检查。`@NoGC` 不改变 NativeSafe 的运行时边界，也不推导 GCLeaf。
 - `FunPtr` 调用发布跨调用所需 roots、进入 `NativeSafe`，返回时完成握手并重读 relocation 后引用；callee 可以阻塞，并可通过合法的 `ForeignCallback.function + context` 同步重入 Scoop。由`::name`得到的静态 callback 被 native 方调用时仍只允许发起 extern 调用的同一已注册线程同步进入，保存后异步、跨线程或在 Scoop 程序退出后调用不隐式获得安全性。
 - `GCLeafFunPtr` 调用保持当前 `MANAGED` 状态，不建立本次 transition、safepoint 或 caller-root frame。callee 及其同步调用链必须满足 13.4.1 的短时、非阻塞、无 Scoop runtime／GC／safepoint／callback 与浮点控制环境不泄漏合同；违反是 unsafe FFI 契约违例。调用模式只由静态 pointer type 决定，不能从 `@NoGC`、参数 GC-free 或地址来源推导。
 

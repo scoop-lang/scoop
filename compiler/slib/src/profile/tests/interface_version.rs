@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn source_interface_v89_carries_native_function_pointer_conversions() {
+fn source_interface_v90_carries_native_function_pointer_calls() {
     assert_retired_version(
         hir_cross_cone_interface_capability(),
-        89,
+        90,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

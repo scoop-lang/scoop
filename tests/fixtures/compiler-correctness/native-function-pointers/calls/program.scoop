@@ -1,0 +1,189 @@
+@CLayout
+struct Pair(val number: Int, val fraction: Double)
+
+@CLayout
+struct Big(val a: Long, val b: Long, val c: Long, val pointer: Ptr<Int>)
+
+@CLayout
+struct Floats(val a: Float, val b: Float, val c: Float, val d: Float)
+
+enum Code: UInt8 {
+    High = UInt8.MAX_VALUE
+}
+
+typealias Unary = FunPtr<(Int) -> Int>
+
+typealias Binary = FunPtr<(Int, Int) -> Int>
+
+@CLayout
+struct Table(
+    val scalars: FunPtr<
+        (Int8, UInt8, Int16, UInt16, Int, UInt, Long, ULong, Float, Double, Boolean) -> Int
+    >,
+    val pair: FunPtr<(Pair) -> Pair>,
+    val big: FunPtr<(Big) -> Big>,
+    val floats: FunPtr<(Floats) -> Floats>,
+    val enumeration: FunPtr<(Code) -> Code>,
+    val store: FunPtr<(Ptr<Int>, Int) -> Unit>,
+    val pick: FunPtr<(Boolean) -> Unary?>,
+    val observe: Binary,
+    val combine: Binary,
+    val reenter: FunPtr<(FunPtr<(Int, Ptr<Unit>) -> Int>, Ptr<Unit>, Int) -> Int>,
+    val calls: FunPtr<() -> Int>,
+    val narrow: FunPtr<(Int8) -> Int8>,
+    val fraction: FunPtr<(Double) -> Float>,
+    val boolean: FunPtr<(Boolean) -> Boolean>
+)
+
+@Extern(lib = "fixture_native", name = "native_pointer_table")
+fun table(): Table
+
+fun expect(value: Boolean) {
+    if (!value) {
+        throw IllegalStateException()
+    }
+}
+
+class Cell(val value: Int)
+
+var order = 0
+
+fun callee(value: Binary): Binary {
+    order = order * 10 + 1;
+    return value
+}
+
+fun argument(value: Int): Int {
+    order = order * 10 + value;
+    return value
+}
+
+fun failArgument(): Int {
+    throw IllegalArgumentException()
+}
+
+@Unsafe
+fun replacePointer(address: Ptr<Binary>, value: Binary): Int {
+    address.store(value);
+    return 3
+}
+
+@NoGC
+@Unsafe
+fun noGcCaller(value: GCLeafFunPtr<(Int, Int) -> Int>): Int = value(1, 9)
+
+@NoGC
+fun staticCallback(value: Int): Int = value + 3
+
+@Unsafe
+fun main() {
+    val t = table()
+    expect(t.narrow.asGCLeaf()(t.narrow(Int8.MIN_VALUE)) == Int8.MIN_VALUE)
+    expect(t.fraction(1.0) == 1.25f && t.fraction.asGCLeaf()(1.5) == 1.75f)
+    expect(t.boolean(false) && !t.boolean.asGCLeaf()(true))
+    expect(
+        t.scalars(
+            Int8.MIN_VALUE,
+            UInt8.MAX_VALUE,
+            Int16.MIN_VALUE,
+            UInt16.MAX_VALUE,
+            Int.MIN_VALUE,
+            UInt.MAX_VALUE,
+            Long.MIN_VALUE,
+            ULong.MAX_VALUE,
+            1.25f,
+            2.5,
+            true
+        ) ==
+            1
+    )
+    expect(
+        t.scalars.asGCLeaf()(
+            Int8.MIN_VALUE,
+            UInt8.MAX_VALUE,
+            Int16.MIN_VALUE,
+            UInt16.MAX_VALUE,
+            Int.MIN_VALUE,
+            UInt.MAX_VALUE,
+            Long.MIN_VALUE,
+            ULong.MAX_VALUE,
+            1.25f,
+            2.5,
+            true
+        ) ==
+            1
+    )
+    val p = t.pair(Pair(9, 1.25))
+    val q = t.pair.asGCLeaf().invoke(Pair(9, 1.25))
+    expect(p.number == 19 && p.fraction == 1.75 && q.number == p.number && q.fraction == p.fraction)
+    var number = 7
+    val b = t.big(Big(1L, 2L, 3L, addressOf(number)))
+    val c = t.big.asGCLeaf()(b)
+    expect(b.a == 8L && b.b == 4L && b.c == 6L && c.a == 15L && c.b == 6L && c.c == 9L)
+    expect(c.pointer.load() == 7)
+    val f = t.floats.asGCLeaf()(t.floats(Floats(1.0f, 2.0f, 3.0f, 4.0f)))
+    expect(f.a == 3.0f && f.b == 6.0f && f.c == 9.0f && f.d == 12.0f)
+    expect(t.enumeration.asGCLeaf()(t.enumeration(Code.High)) == Code.High)
+    t.store(addressOf(number), 10)
+    expect(number == 10)
+    t.store.asGCLeaf()(addressOf(number), 11)
+    expect(number == 11)
+    expect(
+        when (t.pick(false)) {
+            case None -> true;
+            case Some(_) -> false
+        }
+    )
+    expect(
+        when (t.pick.asGCLeaf()(true)) {
+            case None -> false;
+            case Some(pointer) -> pointer(41) == 42
+        }
+    )
+    expect(t.observe(0, 5) == 5)
+    expect(t.observe.asGCLeaf()(1, 6) == 6)
+    expect(t.observe.asGCLeaf().asFunPtr()(0, 7) == 7)
+    expect(noGcCaller(t.observe.asGCLeaf()) == 9)
+    expect(callee(t.combine)(argument(2), argument(3)) == 23)
+    expect(order == 123)
+    var selected = t.combine
+    val selectedAddress = addressOf(selected)
+    val saved =
+        selected(
+            2,
+            if (true) {
+                selectedAddress.store(t.observe);
+                3
+            } else {
+                0
+            }
+        )
+    expect(saved == 23)
+    selected = t.combine
+    expect(selected(2, replacePointer(selectedAddress, t.observe)) == 23)
+    val calls = t.calls()
+    var caught = false
+    try {
+        t.combine(1, failArgument())
+    } catch (error: IllegalArgumentException) {
+        caught = true
+    }
+    expect(caught && t.calls() == calls)
+    val staticPointer: Unary = ::staticCallback
+    expect(staticPointer(39) == 42)
+    val roots: Array<Cell> = [Cell(number), Cell(42)]
+    val callback =
+        foreignCallback<(Int, Ptr<Unit>) -> Int>(
+            {
+                value: Int ->
+                gcCollect();
+                value + 40
+            },
+            1,
+            ForeignCallbackMode.Reusable
+        )
+    expect(t.reenter(callback.function, callback.context, 2) == 42)
+    expect(roots[0].value == 11 && roots[1].value == 42)
+    releaseForeignCallback(callback)
+    println("native-pointer-calls-ok")
+}

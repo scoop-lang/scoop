@@ -202,6 +202,12 @@ enum IndexedDefaultExpressionKindV1<'a> {
         function_type: &'a SignatureTypeKey,
         arguments: Vec<IndexedDefaultExpressionV1<'a>>,
     },
+    NativePointerCall {
+        callee: Box<IndexedDefaultExpressionV1<'a>>,
+        function_type: &'a SignatureTypeKey,
+        arguments: Vec<IndexedDefaultExpressionV1<'a>>,
+        call_mode: crate::CAbiCallMode,
+    },
     PrimitiveBinary {
         kind: DefaultPrimitiveBinaryKindV1,
         lhs: Box<IndexedDefaultExpressionV1<'a>>,
@@ -647,6 +653,17 @@ impl DefaultExpressionV1 {
                 callee: index_child(callee, resolver, 46, 1)?,
                 function_type,
                 arguments: index_sequence(arguments, resolver, 46, 3)?,
+            },
+            DefaultExpressionKindV1::NativePointerCall {
+                call_mode,
+                callee,
+                function_type,
+                arguments,
+            } => IndexedDefaultExpressionKindV1::NativePointerCall {
+                call_mode: *call_mode,
+                callee: index_child(callee, resolver, 80, 1)?,
+                function_type,
+                arguments: index_sequence(arguments, resolver, 80, 3)?,
             },
             DefaultExpressionKindV1::PrimitiveBinary { kind, lhs, rhs } => {
                 IndexedDefaultExpressionKindV1::PrimitiveBinary {

@@ -29,6 +29,11 @@ pub enum CallTarget<E = Expr> {
         function_type: FunctionTypeId,
         receiver: Box<E>,
     },
+    NativePointer {
+        function_type: FunctionTypeId,
+        receiver: Box<E>,
+        call_mode: scoop_identity::CAbiCallMode,
+    },
     FunctionBridge {
         function_type: FunctionTypeId,
         receiver: Box<E>,
@@ -42,6 +47,7 @@ impl<E> CallTarget<E> {
             Self::Virtual { receiver, .. }
             | Self::Interface { receiver, .. }
             | Self::Closure { receiver, .. }
+            | Self::NativePointer { receiver, .. }
             | Self::FunctionBridge { receiver, .. } => Some(receiver),
         }
     }
@@ -52,6 +58,7 @@ impl<E> CallTarget<E> {
             Self::Virtual { receiver, .. }
             | Self::Interface { receiver, .. }
             | Self::Closure { receiver, .. }
+            | Self::NativePointer { receiver, .. }
             | Self::FunctionBridge { receiver, .. } => Some(receiver),
         }
     }

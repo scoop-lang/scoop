@@ -10,7 +10,12 @@ impl Lowerer {
         expected: Option<TypeId>,
         required: RequiredCallableModifiers,
     ) -> Option<hir::Expr> {
-        if name.text == "invoke" && matches!(self.types[receiver.ty], Type::Function(_)) {
+        if name.text == "invoke"
+            && matches!(
+                self.types[receiver.ty],
+                Type::Function(_) | Type::FunPtr(_) | Type::GcLeafFunPtr(_)
+            )
+        {
             if required.operator.is_some()
                 || required.property_delegate_operator.is_some()
                 || required.infix

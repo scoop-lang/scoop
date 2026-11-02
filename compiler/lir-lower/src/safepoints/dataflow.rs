@@ -172,7 +172,9 @@ pub(super) fn call_uses(
         .iter()
         .map(|argument| argument.logical_value())
         .collect::<Vec<_>>();
-    if let lir::CallDestination::Dispatch { table, .. } = destination {
+    if let lir::CallDestination::Dispatch { table, .. }
+    | lir::CallDestination::NativePointer { callee: table, .. } = destination
+    {
         values.push(table);
     }
     values

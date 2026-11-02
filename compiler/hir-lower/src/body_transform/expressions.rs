@@ -125,6 +125,11 @@ pub(crate) fn walk(
             callee: receiver,
             args,
             ..
+        }
+        | hir::ExprKind::NativePointerCall {
+            callee: receiver,
+            args,
+            ..
         } => {
             visitor.expression(lowerer, receiver);
             for arg in args {
