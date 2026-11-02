@@ -46,7 +46,9 @@ Windows 保留原 HWND、窗口过程、子窗口和 IME context，以 BGRA8／s
 
 Windows 支持 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt` 和 `x86_64-w64-windows-llvm-mingw-msvcrt`，分别使用相容的 Skia／CRT 资源。应用消费已准备的 sysroot；维护者按[准备说明](../../../scripts/README.md)构建 native 依赖。设备或呈现错误以 GraphicsException 报告 operation 和可得的 HRESULT；不自动重建 device 或更换 renderer。
 
-`SurfaceWindow.animations.value(initial)` 创建由窗口持有的 Animatable，支持 Double、Point、Size、Color，也可传入 AnimationConverter。`animateTo` 接受 Tween 或 Spring，可指定 Repeat；pause／resume、cancel、reverse 和 snapTo 明确控制生命周期。spring 改目标保留速度，隐藏期间不采样，恢复显示后按实际经过时间继续。窗口关闭会关闭其所有动画，并取消尚未交付的完成回调。
+`SurfaceWindow.animations.value(initial)` 创建由窗口持有的 Animatable，支持 Double、Point、Size、Color，也可传入 AnimationConverter。`animateTo` 接受 Tween 或 Spring，可指定 Repeat；pause／resume、cancel、reverse 和 snapTo 明确控制生命周期。spring 改目标保留速度，恢复显示后按实际经过时间继续。窗口关闭会关闭其所有动画，并取消尚未交付的完成回调。
+
+已知内容不参与当前场景时可设 `animation.isFrameEnabled = false`，时间仍然推进。有限动画通过窗口所属的一次性期限完成，无限重复动画不产生离屏周期唤醒；恢复 true 时直接采样当前进度并请求帧。窗口整体隐藏／遮挡时也使用相同的有限完成机制。`hasWork` 包含所有活动动画，`hasFrameWork` 只表示启用帧的工作；Surface 只按后者要求连续帧。
 
 离屏使用 `AnimationTimeline(timeSource, invalidate)` 和 `advanceTo(time)`。同一轮全部值采样后才调用完成处理器，处理器中新启动的动画从该帧时间开始、后续帧继续。Tween 的 easing 包含线性和 cubic Bézier；spring 以质量 1 的解析解求值，不累加固定 dt。Size 和 Color 的结果限制在各自合法范围。Repeat 的次数计完整段数，Reverse 每段交换端点；零时长可以直接完成，但不能重复。
 
@@ -77,6 +79,7 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 验证使用以下普通测试 Cone：
 
 - 本 Cone 的 tests：动画的确定性采样；实际 Skia 离屏几何上的区域命中、传播、拖动、焦点、IME 会话和关闭；两个真实窗口的按需重绘、空闲、隐藏／最小化恢复、resize、输入宿主保留及重新 attach。`--filter Animation` 和 `--filter Input` 可分别运行不需要桌面的测试；`--filter SurfaceHostTest` 运行真实窗口测试。
+- `tests-cones/animation-deadlines`：隐藏窗口的有限完成、可见窗口中关闭动画帧需求、真实 display link 停止、恢复采样，以及完成回调内关闭 Surface；只运行 macOS 定向用例。
 - `tests-cones/asyncio`：原生 modal／menu 循环下的帧与 I/O，Windows 还覆盖系统移动／缩放循环，以及根取消后的 Surface 收尾。
 - `tests-cones/content`：附着失败及错误线程的所有权边界、回调内关闭、原生关闭、重新附着、从未绘制的隐藏内容和退出收尾。
 - `tests-cones/errors`：paint 与多个 content.close 同时抛错、失败附着的回滚及全部 surface／lease 释放。

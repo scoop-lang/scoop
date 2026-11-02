@@ -2,6 +2,7 @@ package scoop.surface
 
 import scoop.graphics.Size
 import scoop.platform.time.MonotonicTimeSource
+import scoop.time.TimeMark
 import scoop.window.*
 
 public enum SurfaceWindowState {
@@ -19,10 +20,13 @@ public class SurfaceWindow internal constructor(
     private var depth = 0
     private var configured: WindowMetrics? = None
     private val scheduler = FrameScheduler()
+    private var animationDeadline: WindowDeadline? = None
+    private var scheduledAnimationTime: TimeMark? = None
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
     private val inputs = windowInputs(nativeWindow)
     init {
         host.bindShortcuts(inputs.rootScope)
+        animations.scheduleChanged = { refresh() }
     }
     public val input: InputScope get() {
         host.checkThread()
@@ -76,6 +80,7 @@ public class SurfaceWindow internal constructor(
             close();
             return
         }
+        var drawable = false
         when (nativeWindow.metrics) {
             case Some(metrics) -> {
                 if (configured != Some(metrics)) {
@@ -86,14 +91,36 @@ public class SurfaceWindow internal constructor(
                 }
                 if (phase != SurfaceWindowState.Open)
                     return
-                renderer.setFrameDemand(
-                    (scheduler.dirty || animations.hasWork) &&
-                        metrics.physicalSize.isDrawable &&
+                drawable =
+                    metrics.physicalSize.isDrawable &&
                         nativeWindow.isVisible &&
                         !nativeWindow.isOccluded
-                )
+                renderer.setFrameDemand((scheduler.dirty || animations.hasFrameWork) && drawable)
             }
             case None -> renderer.setFrameDemand(false)
+        }
+        refreshAnimationDeadline(drawable)
+    }
+    private fun refreshAnimationDeadline(drawable: Boolean) {
+        val next = animations.nextDeadline(!drawable)
+        if (next == scheduledAnimationTime)
+            return
+        scheduledAnimationTime = next
+        when (next) {
+            case None -> animationDeadline?.cancel()
+            case Some(time) -> {
+                val deadline =
+                    animationDeadline ?:
+                        nativeWindow.createDeadline {
+                            scheduledAnimationTime = None
+                            callback {
+                                animations.advanceTo(MonotonicTimeSource.markNow())
+                                refresh()
+                            }
+                        }
+                animationDeadline = Some(deadline)
+                deadline.schedule(time)
+            }
         }
     }
     internal fun event(event: WindowEvent) {
@@ -206,6 +233,7 @@ public class SurfaceWindow internal constructor(
         phase = SurfaceWindowState.Closing
         host.requestRetirement()
         var failure = cleanupFailure(None) { renderer.setFrameDemand(false) }
+        failure = cleanupFailure(failure) { animationDeadline?.close() }
         failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }
         throwFailure(cleanupFailure(failure) { finishClosing() })

@@ -255,9 +255,11 @@ private class AnimationTest {
             }
             timeline.advanceTo(clock.at(100L))
             assertFailsWith<IllegalArgumentException> { timeline.advanceTo(clock.at(99L)) }
-            Thread.start { assertFailsWith<IllegalStateException> { value.snapTo(2.0) } }.use {
-                thread -> thread.join()
-            }
+            Thread.start {
+                assertFailsWith<IllegalStateException> { value.snapTo(2.0) }
+                assertFailsWith<IllegalStateException> { value.isFrameEnabled }
+                assertFailsWith<IllegalStateException> { value.isFrameEnabled = false }
+            }.use { thread -> thread.join() }
             value.close()
             assertFailsWith<IllegalStateException> { value.animateTo(1.0) }
             assertFailsWith<IllegalStateException> { value.reverse() }

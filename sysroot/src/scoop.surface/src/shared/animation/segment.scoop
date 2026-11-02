@@ -1,0 +1,27 @@
+package scoop.surface
+
+import scoop.math.ceil
+import scoop.time.*
+
+/** A fixed origin and optional finite end; hiding never changes either. */
+internal class AnimationSegment(val run: MotionRun, val start: TimeMark) {
+    val deadline: TimeMark? =
+        when (run.duration) {
+            case Some(seconds) -> Some(start + animationDuration(seconds))
+            case None -> None
+        }
+}
+
+private fun animationDuration(seconds: Double): Duration {
+    requireAnimation(
+        seconds.isFinite() && seconds >= 0.0 && seconds < 9223372036854775808.0,
+        "animation deadline overflow"
+    )
+    val whole = seconds.toLong()
+    val nanos = ceil((seconds - whole.toDouble()) * 1000000000.0).toLong()
+    val result = Duration.seconds(whole, nanos)
+    return if (durationSeconds(result) < seconds)
+        result + Duration.nanoseconds(1L)
+    else
+        result
+}

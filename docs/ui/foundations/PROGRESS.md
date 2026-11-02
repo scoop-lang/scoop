@@ -22,7 +22,8 @@
 | D2a：按需子项与固定 extent 虚拟列表 | 已完成 aarch64 实施和定向验证 |
 | D2b：可变 extent、阅读锚点与按 key 定位 | 已完成 aarch64 实施和定向验证 |
 | D2c1：窗口所属的一次性定时回调 | 已完成 aarch64 实施和定向验证 |
-| D2c2：有限实例保留与离屏帧需求 | 待实施 |
+| D2c2：动画帧需求与离屏完成 | 已完成 aarch64 实施和定向验证 |
+| D2c3：有限实例保留与子树帧需求 | 待实施 |
 | D2d：虚拟焦点导航与滚动显露 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
@@ -192,3 +193,11 @@ WindowDeadline 复用窗口事件循环已有的单次原生定时器，与应�
 修改的 Scoop 文件格式检查、Window 生产类型检查和 aarch64 release 构建通过。2 项原生 scoop.test 通过：新增 WindowDeadlineTest 与既有 AppKitApplicationTest。覆盖同批取消／重排、过期时间异步交付、线程与时钟拒绝且保留旧计划、用户与内部期限交错、隐藏停帧、窗口关闭、回调异常后的完整收尾及现有输入／IME 回归。该能力供下一批离屏有限动画完成和公共文本 caret 定时使用；本批尚未交付 KeepAlive。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，独立 sysroot、共享构建缓存及当前测试入口保留。
+
+## D2c2：动画帧需求与离屏完成
+
+Animatable.isFrameEnabled 将是否要求帧与运行／暂停状态分开；关闭帧需求不改起始时间，恢复时直接采样当前进度。Surface 按 hasFrameWork 调度可见帧，通过 WindowDeadline 安排离屏或整个窗口不可绘制时的有限完成。无限重复不安排离屏周期唤醒；有限重复与解析 spring 复用原计划，结束时间向上取整到可表示的纳秒。完成队列、重新启动、暂停与取消仍沿同一时间轴工作，回调中新建的完成留到下一轮；回调内关闭保留原有延迟释放边界。
+
+Scoop 格式检查、Surface 生产类型检查及 aarch64 release 构建通过。12 项定向 scoop.test 通过：动画 10 项、新增原生动画期限 1 项、既有 SurfaceHostTest 1 项。覆盖隐藏／恢复、有限和无限重复、spring、重排、暂停、零时长队列、非法期限与 owner 线程。真实窗口观察 display link 的 required／paused、回调和 present 计数，验证静止期间没有新增帧通知；还覆盖完成回调中关闭和既有多窗口／resize／输入宿主收尾。
+
+合并 main 后同步构建独立开发命令、运行时及 UI 依赖，不修改 main 带入的编译器代码。没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，当前测试产物、配套 sysroot、命令及共享构建缓存保留。

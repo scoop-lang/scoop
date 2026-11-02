@@ -7,7 +7,18 @@ import scoop.platform.concurrent.currentThreadId
 import scoop.platform.time.MonotonicTimeSource
 import scoop.time.*
 
-private class AnimationEntry(val owner: Closeable, val sample: (TimeMark) -> Unit)
+private class AnimationEntry(
+    val owner: Closeable,
+    val sample: (TimeMark) -> Unit,
+    val frameEnabled: () -> Boolean,
+    val deadline: () -> TimeMark?
+)
+
+private class AnimationCompletion(
+    val time: TimeMark,
+    val frameEnabled: () -> Boolean,
+    val callback: () -> Unit
+)
 
 /** Shared owner-thread animation clock, driven by Surface frames or explicit offline sampling. */
 public class AnimationTimeline public constructor(
@@ -20,11 +31,22 @@ public class AnimationTimeline public constructor(
     private var previous: TimeMark? = None
     private val owned = ArrayList<AnimationEntry>()
     private val active = ArrayList<AnimationEntry>()
-    private val completions = ArrayList<() -> Unit>()
+    private val completions = ArrayList<AnimationCompletion>()
+    internal var scheduleChanged: () -> Unit = {}
     public val isClosed: Boolean get() = closed
     public val hasWork: Boolean get() {
         checkThread();
         return active.size > 0L || completions.size > 0L
+    }
+    public val hasFrameWork: Boolean get() {
+        checkThread()
+        for (entry in active)
+            if (entry.frameEnabled())
+                return true
+        for (entry in completions)
+            if (entry.frameEnabled())
+                return true
+        return false
     }
 
     public fun value(initial: Double): Animatable<Double> =
@@ -38,13 +60,21 @@ public class AnimationTimeline public constructor(
     public fun <T> value(initial: T, converter: AnimationConverter<T>): Animatable<T> {
         checkOpen()
         val result = Animatable(this, initial, converter)
-        owned.add(AnimationEntry(result, { time -> result.sample(time) }))
+        owned.add(
+            AnimationEntry(
+                result,
+                { time -> result.sample(time) },
+                { result.isFrameEnabled },
+                { result.deadline }
+            )
+        )
         return result
     }
     /** Advances all values once; completions run after the sampling pass. */
     public fun advanceTo(time: TimeMark) {
+        val repaint = hasFrameWork
         withFrame(time) {}
-        if (!closed)
+        if (!closed && repaint)
             invalidate()
     }
     internal fun <T> withFrame(time: TimeMark, block: () -> T): T {
@@ -61,15 +91,34 @@ public class AnimationTimeline public constructor(
             }
             val callbacks = completions.toArray()
             completions.clear()
-            for (callback in callbacks) {
+            for (completion in callbacks) {
                 if (closed)
                     break
-                callback()
+                completion.callback()
             }
             return block()
         } finally {
             frame = None
+            if (!closed)
+                scheduleChanged()
         }
+    }
+    internal fun nextDeadline(includeFrameWork: Boolean): TimeMark? {
+        checkThread()
+        var next: TimeMark? = None
+        for (completion in completions)
+            if (next == None || completion.time < next!!)
+                next = Some(completion.time)
+        for (entry in active) {
+            if (includeFrameWork || !entry.frameEnabled()) {
+                when (entry.deadline()) {
+                    case Some(time) -> if (next == None || time < next!!)
+                        next = Some(time)
+                    case None -> {}
+                }
+            }
+        }
+        return next
     }
     internal fun now(): TimeMark {
         checkOpen()
@@ -89,9 +138,12 @@ public class AnimationTimeline public constructor(
         }
         previous = Some(time)
     }
-    internal fun changed() {
-        if (!closed)
-            invalidate()
+    internal fun changed(frameEnabled: Boolean) {
+        if (!closed) {
+            if (frameEnabled)
+                invalidate()
+            scheduleChanged()
+        }
     }
     internal fun schedule(animation: Closeable) {
         checkOpen()
@@ -113,9 +165,9 @@ public class AnimationTimeline public constructor(
         unschedule(animation);
         removeDriver(owned, animation)
     }
-    internal fun finished(callback: () -> Unit) {
+    internal fun finished(time: TimeMark, frameEnabled: () -> Boolean, callback: () -> Unit) {
         if (!closed)
-            completions.add(callback)
+            completions.add(AnimationCompletion(time, frameEnabled, callback))
     }
     internal fun checkThread() {
         if (thread != currentThreadId())

@@ -7,7 +7,7 @@ public enum AnimationState {
 }
 
 private enum AnimationPlayback {
-    Idle, Running(MotionRun, TimeMark), Paused(MotionRun, TimeMark, TimeMark),
+    Idle, Running(AnimationSegment), Paused(AnimationSegment, TimeMark),
     Finished(MotionRun), Cancelled, Closed
 }
 
@@ -17,6 +17,26 @@ public class Animatable<T> internal constructor(
     initial: T,
     private val converter: AnimationConverter<T>
 ): Closeable {
+    private var frameEnabled = true
+    public var isFrameEnabled: Boolean
+    get() {
+        timeline.checkThread()
+        return frameEnabled
+    }
+    set(value) {
+        checkOpen()
+        if (frameEnabled == value)
+            return
+        frameEnabled = value
+        if (value)
+            sample(timeline.now())
+        timeline.changed(value)
+    }
+    internal val deadline: TimeMark? get() =
+        when (playback) {
+            case Running(segment) -> segment.deadline
+            else -> None
+        }
     private var current: T = initial
     private var goal: T = initial
     private var vector: AnimationVector = converter.toVector(initial)
@@ -42,8 +62,8 @@ public class Animatable<T> internal constructor(
         timeline.checkThread()
         return when (playback) {
             case Idle -> AnimationState.Idle
-            case Running(_, _) -> AnimationState.Running
-            case Paused(_, _, _) -> AnimationState.Paused
+            case Running(_) -> AnimationState.Running
+            case Paused(_, _) -> AnimationState.Paused
             case Finished(_) -> AnimationState.Finished
             case Cancelled -> AnimationState.Cancelled
             case Closed -> AnimationState.Closed
@@ -62,12 +82,12 @@ public class Animatable<T> internal constructor(
         val now = timeline.now()
         sample(now)
         val run = MotionRun(vector, destination, speed, spec, repeat)
-        playback = AnimationPlayback.Running(run, now)
+        playback = AnimationPlayback.Running(AnimationSegment(run, now))
         goal = target
         callback = onFinished
         timeline.schedule(this)
         sample(now)
-        timeline.changed()
+        timeline.changed(frameEnabled)
     }
     public fun snapTo(value: T) {
         checkOpen()
@@ -80,7 +100,7 @@ public class Animatable<T> internal constructor(
         vector = next
         speed = AnimationVector()
         timeline.unschedule(this)
-        timeline.changed()
+        timeline.changed(frameEnabled)
     }
     public fun cancel() {
         timeline.checkThread()
@@ -91,17 +111,17 @@ public class Animatable<T> internal constructor(
         callback = None
         speed = AnimationVector()
         timeline.unschedule(this)
-        timeline.changed()
+        timeline.changed(frameEnabled)
     }
     public fun pause() {
         checkOpen()
         val now = timeline.now()
         sample(now)
         when (playback) {
-            case Running(run, start) -> {
-                playback = AnimationPlayback.Paused(run, start, now)
+            case Running(segment) -> {
+                playback = AnimationPlayback.Paused(segment, now)
                 timeline.unschedule(this)
-                timeline.changed()
+                timeline.changed(frameEnabled)
             }
             else -> {}
         }
@@ -109,11 +129,14 @@ public class Animatable<T> internal constructor(
     public fun resume() {
         checkOpen()
         when (playback) {
-            case Paused(run, start, paused) -> {
+            case Paused(segment, paused) -> {
                 val now = timeline.now()
-                playback = AnimationPlayback.Running(run, start + (now - paused))
+                playback =
+                    AnimationPlayback.Running(
+                        AnimationSegment(segment.run, segment.start + (now - paused))
+                    )
                 timeline.schedule(this)
-                timeline.changed()
+                timeline.changed(frameEnabled)
             }
             else -> {}
         }
@@ -123,8 +146,8 @@ public class Animatable<T> internal constructor(
         checkOpen()
         val run =
             when (playback) {
-                case Running(value, _) -> value
-                case Paused(value, _, _) -> value
+                case Running(segment) -> segment.run
+                case Paused(segment, _) -> segment.run
                 case Finished(value) -> value
                 else -> throw IllegalStateException(Some("no animation segment to reverse"))
             }
@@ -132,8 +155,9 @@ public class Animatable<T> internal constructor(
     }
     internal fun sample(time: TimeMark) {
         when (playback) {
-            case Running(run, start) -> {
-                val sampled = run.sample(durationSeconds(time - start))
+            case Running(segment) -> {
+                val run = segment.run
+                val sampled = run.sample(durationSeconds(time - segment.start))
                 sampled.value.check()
                 sampled.velocity.check()
                 current = converter.fromVector(sampled.value)
@@ -144,7 +168,7 @@ public class Animatable<T> internal constructor(
                     playback = AnimationPlayback.Finished(run)
                     timeline.unschedule(this)
                     when (callback) {
-                        case Some(handler) -> timeline.finished {
+                        case Some(handler) -> timeline.finished(time, { frameEnabled }) {
                             when (playback) {
                                 case Finished(currentRun) -> {
                                     if (currentRun === run)
@@ -169,10 +193,12 @@ public class Animatable<T> internal constructor(
         timeline.checkThread()
         if (state == AnimationState.Closed)
             return
+        val repaint = frameEnabled
+        frameEnabled = false
         playback = AnimationPlayback.Closed
         callback = None
         speed = AnimationVector()
         timeline.detached(this)
-        timeline.changed()
+        timeline.changed(repaint)
     }
 }
