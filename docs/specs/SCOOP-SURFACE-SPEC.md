@@ -128,6 +128,10 @@ InputArea.windowBounds／visibleBounds 返回最近成功帧的窗口逻辑坐�
 
 InputArea.pointerPosition 把窗口内最后观测的指针位置通过最近成功帧的几何映射为局部 Point。它不要求指针命中该区域；窗口尚无指针、指针已离开窗口、区域关闭／未放置或变换不可逆时返回 None。它供成功提交后刷新 hover 子部件等状态使用，不产生输入事件，不替代 RoutedEventContext.localPosition 固定的本次事件坐标，也不再次进行 DPI 换算。
 
+InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
+
+`InputScope.observeActivity(handler: () -> Unit): Closeable` 订阅实际归属改变，在当前输入派发及路由收尾后通知，可在回调中读取新 activity。同一子树内起点 A 移到 B 也通知，即使四个布尔值没有改变；没有归属改变的移动和重绘不通知。登记时不回调，不为每个 InputScope 自动建立观察者。关闭登记或所属 scope 后停止通知，调用方可以在回调中关闭登记、变更焦点或禁用节点；后续变化仍经同一收尾通路处理，不递归交付未稳定的路由状态。UI 按需子项用它维护交互固定，不复制一套焦点／指针／IME 状态。
+
 graphics.native.CanvasGeometry.bounds／visibleBounds 提供上述查询所需的几何值；形状与任意 path clip 的相交复用 Skia PathOps，不以若干采样点或矩形重叠猜测。快照内部按需复用一次可见交集计算，新的帧使用新的快照。bounds 保留裁剪前的位置，便于后续滚动显露；此查询不更改画布或绘制内容。
 
 SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显式 requestFocus（包括不能兑现和重复请求同一区域）及 clearFocus 都推进序号；OS 激活变化、自动清理失效目标不构成新的用户焦点请求。reserveFocusRequest() 推进并返回同一个窗口序号，但不改变当前焦点，供上层登记尚未有可用几何的请求或记录被当前域拒绝的显式请求；不能为这些请求另设一套不可比较的版本。上层待处理请求记录序号，后续请求到来后取消旧意图，不用反复比较 focusedArea 猜测用户是否选择了同一控件。

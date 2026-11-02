@@ -210,7 +210,15 @@ Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, 
 
 条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和 onEventFinished 清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab 并显示主题焦点轮廓，PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
 
-尚不实现 flex／weight、grid、intrinsic 多轮协商或虚拟化。增加这些布局策略时继续使用或按具体需求扩展公开布局协议，不能在框架中增加本库专用类型分支。
+### 6.3 VirtualList
+
+VirtualListProps／virtualList 接受 ItemSource、有限正的 itemExtent、可选 ScrollState、Orientation（默认 Vertical）、以逻辑长度计的非负 overscan（默认 0），以及 ScrollArea 相同的 width／height、lineStep、chain、scrollbars、scrollbar、enabled、focus 和 theme。本批提供固定 extent 的单主轴列表；两轴视口均须有界或有显式尺寸，不为测量交叉轴的 intrinsic 大小创建全部条目。总主轴长度为 count × itemExtent，溢出报告参数错误，空 source 的总长度为零。
+
+列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。根据本帧 offset／viewport／overscan 直接计算半开索引范围；视口主轴长度为零时不因 overscan 新建项。子项沿主轴使用 itemExtent、交叉轴使用视口长度的 tight 约束，按 source 索引放置。未实现的项没有 View 构建、Component、InputArea 或挂载资源；列表规模不会使首屏工作遍历全部 source。
+
+已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项正常卸载，重新进入时重新创建，同 key 的可见项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。绘制默认直绘，有限实例保留、可变 extent、按 key 显露和虚拟导航在后续批次扩展。
+
+尚不实现 flex／weight、grid 或 intrinsic 多轮协商。增加布局策略时继续使用或按具体需求扩展公开协议，不能在框架中增加本库专用类型分支。
 
 ## 7. 样式与资源归属
 

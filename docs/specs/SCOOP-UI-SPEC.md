@@ -1,6 +1,6 @@
 # Scoop 自绘 UI 框架规范
 
-日期：2026-11-02。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
+日期：2026-11-03。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
 
 ## 1. 定位与依赖
 
@@ -24,10 +24,10 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 | `scoop.graphics` | 几何、Canvas、Path、Image、绘图目标、图像滤镜与图层合成 |
 | `scoop.graphics.text` | 字体、富文本内容与样式、Paragraph／TextLayout、行内对象排版、文字绘制与查询 |
 | `scoop.surface` | SurfaceHost／SurfaceWindow、窗口呈现、帧机会、动画、InputArea 和区域焦点 |
-| `scoop.ui` | Component／Element、State／Props／Binding、挂载树、测量与绘制接入、输入／动画的挂载归属；text 子包提供公共段落适配 |
+| `scoop.ui` | Component／Element／LazyElement、State／Props／Binding、挂载树、测量与绘制接入、输入／动画的挂载归属；text 子包提供公共段落适配 |
 | `scoop.ui.style` | 公共主题绘图／几何、视觉状态及语义参数；通用 Style、外框装饰与内容效果 |
 | `scoop.ui.style.macos／material／fluent` | 三套公共协议实现与各自 Light／Dark |
-| `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame、Absolute、ScrollArea、控件专用样式及交互外观 |
+| `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame、Absolute、ScrollArea、VirtualList、控件专用样式及交互外观 |
 
 表中是目标分层；字体与 Paragraph／TextLayout 已迁入 graphics.text，富文本／行内对象、独立自绘框架及公共适配 `scoop.ui.text` 已完成。适配直接依赖 graphics.text，只连接文本排版与正常子项，不提供 Label 或默认样式，也不改变 View 的基础形状。
 
@@ -35,7 +35,7 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 
 主题来源复用 State／Context，见[主题规范](SCOOP-UI-THEME-SPEC.md)。主题更新作为普通 Props 和布局输入进入原节点，不改变框架描述形状；局部主题通过显式参数传递，临时 Context 不成为挂载树环境。主题绘图不读取 State，也不注册输入。
 
-本期交付目标先是独立自绘控件的完整闭环，再用独立控件库完成 Counter、条件组件和可重排列表。完整文本编辑器、虚拟列表、手势竞争、原生控件封装、accessibility 树、并发／可中断渲染和自动 memoization 不进入首期 API。
+原有独立自绘控件、Counter、条件组件和可重排列表已经交付；当前按基础交互设计增补虚拟列表和公共文本编辑。完整富文本编辑器、手势竞争、原生控件封装、accessibility 树、并发／可中断渲染和自动 memoization 不进入本期 API。
 
 ## 2. 组件与描述
 
@@ -70,7 +70,7 @@ fun main() {
 
 无状态组合可以写成普通的返回 View 的函数；这种调用不创建独立的挂载身份，其间的 State 读取归调用者当前的 render。需要独立本地状态和生命周期时使用 Component 及第 5 节的 component 入口。
 
-`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其基础形状只有空内容、Component 描述和 Element 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
+`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其形状包括空内容、Component、Element、LazyElement 和 Portal 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
 
 Component 负责组合描述。完全自绘及自定义子项布局通过普通公开接口 Element 实现，外部库不需要继承内部挂载节点或修改 View 的分支：
 
@@ -88,7 +88,7 @@ Element 同样采用持久 class。measure／scene 是必需操作；叶子元�
 
 同一描述值可被使用多次；每个出现位置分别挂载，不能按描述对象引用相等而合并挂载。描述不可变指保存的属性槽及子序列不可修改，不承诺其所引用的业务模型深度不可变。子序列以不可变 Array<View> 保存，允许复用该数组，不因重建描述而强制复制。
 
-`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／scene／draw 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／scene／draw 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component 与 Element 的构造器只初始化托管状态和保存输入；资源取得放在挂载回调或元素所属的测量缓存中，归属见第 8 节。
+`render` 只读取当前输入／状态并产生描述。它不得写 State、操作窗口、取得需要关闭的原生资源、启动任务或登记订阅。measure／scene／draw 允许维护元素自己的测量和绘制缓存，但不得修改 State 或启动动画。State 写入口在活动 render／measure／scene／draw 期间报告状态错误；其他副作用遵循普通 API 的使用约定，不新增编译器纯度检查。Component、Element 与 LazyElement 的构造器只初始化托管状态和保存输入；资源取得放在挂载回调或元素所属的测量缓存中，归属见第 8 节。
 
 ## 3. State、变化通知与依赖
 
@@ -246,13 +246,13 @@ fun portal(
 
 `component`／`element` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
 
-节点形状包含 Component／Element 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+节点形状包含 Component／Element／LazyElement 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 options 和唯一子描述；子内容仍按普通规则匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。已关闭会话不会因普通 Props 更新自动重新打开；重新呈现需在旧描述退休后再次挂载，或显式选择新的 key。
 
 C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒绝接口、object 或值类型作为具体实例类型，不要求新的编译器诊断。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责初次创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
-同一个 Component 或 Element 实例只能属于一个挂载位置。工厂必须为新挂载创建新实例，不能返回某个已挂载的单例。框架检查当前活动实例的重复挂载，不为已经退休的对象保留全局历史表；为新挂载返回新实例是 create 的使用合同。共享业务状态应通过普通模型／Props／Binding 表达。
+同一个 Component、Element 或 LazyElement 实例只能属于一个挂载位置。工厂必须为新挂载创建新实例，不能返回某个已挂载的单例。框架检查当前活动实例的重复挂载，不为已经退休的对象保留全局历史表；为新挂载返回新实例是 create 的使用合同。共享业务状态应通过普通模型／Props／Binding 表达。
 
 匹配规则如下：
 
@@ -283,9 +283,9 @@ UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 新描述中的事件处理器随逻辑更新替换。尚未提交新的画面时，保留最近已提交的几何与节点身份，派发使用节点最新的处理器。新节点在首次成功放置前不能命中；已卸载节点立即退出交互，不能为了等下一帧而继续接收事件。这里承诺几何对应最近提交的帧，不承诺处理器保留旧帧捕获的输入值。
 
-首期每次实际呈现都遍历当前挂载树进行测量和布局；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
+普通元素在每次实际呈现中测量其直接子项，LazyElement 则按第 7.8 节只准备和测量所需项；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
 
-所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。子序列使用显式 `Array<View>`；不把普通 lambda 的未使用表达式冒充 result builder。
+所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。普通元素的子序列使用显式 `Array<View>`，按需元素使用 ItemSource；不把普通 lambda 的未使用表达式冒充 result builder。
 
 ### 6.1 静止时停止渲染工作
 
@@ -485,11 +485,27 @@ ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模�
 
 `animateTo(Point, AnimationSpec)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
-上述公开写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项、自动焦点显露及绘制／实例缓存按后续滚动批次扩展。
+上述公开写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项见第 7.8 节，自动焦点显露及绘制／实例缓存按后续滚动批次扩展。
+
+### 7.8 按需子项与 LazyElement
+
+`ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
+
+`LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
+
+LazyMeasureContext 公开 time、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至多测量一次，测量后可以放置零次或一次；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
+
+measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再运行其 build／render、onMount 和 update，随后恢复普通纯测量。生命周期可以沿既有规则登记资源和写 State，其产生的其他失效留到下一逻辑更新轮，不递归 flush；build／render 和父子 measure 仍禁止 State 写入。每项使用普通挂载子树保存依赖、Props 与资源，滚动复用已实现项时不重跑其 build。真实 source 替换在逻辑更新阶段通过 indexOfKey 更新已实现项、退休删除项，再更新存活项；即使没有 drawable 也完成删除和输入取消。source.build 返回描述的 shape／key 改变时按普通子树规则替换。
+
+本批离开本次选择范围且无活动交互的条目立即正常卸载。pinnedItems 包含已有逻辑焦点、待处理的 UI 焦点请求、按钮序列、保留滚动路由或文本输入会话所属的条目；容器必须测量并放置这些项，可用同一视口 clip 裁掉其像素。此查询复用 Surface 的实际路由归属，不另存输入状态。滚动路由包含接触 Ended 后等待可能的 momentum 的候选；每窗口至多一个，惯性结束／取消、下一段滚动或原路径失效后释放，不因此请求连续帧。真实删除和 owner 关闭优先于固定。
+
+框架在活动归属改变后请求必要的新布局，使失去固定资格的离屏条目恢复淘汰；同一大子树内焦点从条目 A 移到 B 也算归属改变。条目准备期间显式关闭根会终止当前 UI 布局，仍沿原安全关闭路径释放已经取得的资源，不以未完成的子测量继续装配场景。失败仍按第 9 节关闭，不保留半挂载的输入树。有限实例保留、可变 extent、虚拟焦点显露与绘制缓存按后续批次扩展。
+
+待聚焦请求完成、取消或被新请求替换时，即使没有产生实际的 Surface 焦点变化，也撤销其固定需求并请求必要的后续帧；不可见目标的失败请求不能使离屏条目一直留在实现集合中。根关闭时直接清理，不再请求帧。
 
 ## 8. 挂载与资源生命周期
 
-`ComponentScope` 是框架为每个 Component／Element 分别创建和关闭的引用对象，提供：
+`ComponentScope` 是框架为每个 Component／Element／LazyElement 分别创建和关闭的引用对象，提供：
 
 - `resource<R : Closeable>(create: () -> R): R`：成功取得后立即登记为本组件拥有的资源。
 - `onDispose(action: () -> Unit)`：登记卸载时同步执行的清理动作，例如解除外部订阅或发出任务取消。

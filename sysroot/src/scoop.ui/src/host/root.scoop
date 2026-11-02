@@ -80,7 +80,13 @@ internal class UiRoot(
             return
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         overlays.beginFrame()
-        current.measure(Constraints.tight(frame.size), frame.time)
+        try {
+            current.measure(Constraints.tight(frame.size), frame.time)
+        } catch (error: UiLayoutEnded) {
+            if (isOpen)
+                throw error
+            return
+        }
         current.scene(frame, Point(0.0, 0.0))
         overlays.paint(frame)
     }

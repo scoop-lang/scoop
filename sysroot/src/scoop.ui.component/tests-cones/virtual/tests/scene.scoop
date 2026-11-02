@@ -1,0 +1,153 @@
+package scoop.tests.ui.virtual
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class ListScene(private val probe: ListProbe): Component {
+    public override fun render(): View {
+        probe.renders += 1
+        return element(
+            { ListPanel(probe) },
+            [
+                if (probe.show.value)
+                    virtualList(
+                        probe.data!!.value,
+                        20.0,
+                        Some(probe.scroll),
+                        probe.orientation.value,
+                        overscan = 20.0,
+                        lineStep = 10.0,
+                        theme = Some(probe.theme)
+                    )
+                else
+                    empty()
+            ]
+        )
+    }
+}
+
+private class ListPanel(private val probe: ListProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> {
+                        if (probe.preventRelease)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(160.0, 60.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(220.0, 120.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        probe.passes += 1
+        val ticket = probe.ticket
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = ticket
+        }
+    }
+}
+
+internal class ListSource(
+    private val probe: ListProbe,
+    public override val count: Long
+): ItemSource {
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        probe.builds += 1
+        return component(index, { props -> ListRow(probe, props) })
+    }
+}
+
+internal class ListRowRecord(val id: Long) {
+    val local = state(0)
+    var observed = -1
+    var area: InputArea? = None
+    var mounts = 0
+    var unmounts = 0
+    var disposals = 0
+    var releases = 0
+}
+
+private class ListRow(probe: ListProbe, private val props: Props<Long>): Component {
+    private val record = ListRowRecord(props.value)
+    init {
+        probe.rows.add(record)
+    }
+    public override fun render(): View {
+        record.observed = record.local.value
+        return element({ ListRowInk(record) })
+    }
+    public override fun onMount(scope: ComponentScope) {
+        record.mounts += 1
+        scope.onDispose { record.disposals += 1 }
+        val area = scope.createArea(focusable = true)
+        record.area = Some(area)
+        // Keep this press separate from keyboard focus to exercise pointer-only retention.
+        area.scope.handler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, _, ElementState.Pressed, _)
+                    ) -> context.preventDefault()
+                    else -> {}
+                }
+            }
+        area.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, _, ElementState.Released, _)
+                    ) -> record.releases += 1
+                    else -> {}
+                }
+            }
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+        assertTrue(record.area!!.isClosed)
+    }
+}
+
+private class ListRowInk(private val record: ListRowRecord): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(record.area!!, bounds)
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (record.id % 2L == 0L)
+                        Color(0.2, 0.5, 0.8)
+                    else
+                        Color(0.4, 0.7, 0.9)
+                )
+            )
+        }
+    }
+}

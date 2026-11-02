@@ -35,6 +35,14 @@ public class InputScope internal constructor(
         owner.checkThread()
         return owner.allows(this)
     }
+    public val activity: InputActivity get() = owner.activityFor(this).value
+    /** Notifies changes of the actual owners, including moves within this subtree. */
+    public fun observeActivity(handler: () -> Unit): Closeable {
+        checkOpen()
+        val value = InputActivityObserver(this, handler)
+        owner.activityObservers.add(value)
+        return value
+    }
     /** Only the current domain root receives the first press of a button sequence. */
     public var beforePointerPress: (InputPress) -> Boolean
     get() {
@@ -114,6 +122,7 @@ public class InputScope internal constructor(
             return
         closed = true
         retireDefaultActions()
+        owner.retireActivity(this)
         owner.detached(this)
     }
 }

@@ -1,0 +1,167 @@
+package scoop.tests.ui.virtual
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class VirtualListTest {
+    @Test
+    fun `fixed virtual lists realize only needed keys and retain actual pointer focus and momentum owners`() {
+        val probe = ListProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.scroll.isAttached)
+            assertTrue(probe.rows.size < 100L)
+            assertEquals(probe.rows.size, probe.builds.toLong())
+            for (row in probe.rows) {
+                assertEquals(1, row.mounts)
+                assertEquals(1, row.unmounts)
+                assertEquals(1, row.disposals)
+                assertTrue(row.area!!.isClosed)
+            }
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class ListProbe {
+    val scroll = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val show = state(true)
+    val orientation = state(Orientation.Vertical)
+    val rows = ArrayList<ListRowRecord>()
+    var data: State<ItemSource>? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var scope: ComponentScope? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var builds = 0
+    var renders = 0
+    var passes = 0
+    var ticket = 0
+    var committed = -1
+    var phase = 0
+    var waiting = false
+    var finished = false
+    var retryFocus = false
+    var preventRelease = false
+    var first: ListRowRecord? = None
+    var candidate: ListRowRecord? = None
+    var focused: ListRowRecord? = None
+    var six: ListRowRecord? = None
+    var initialRenders = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                data = Some(state<ItemSource>(ListSource(this, 100000000L)))
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop virtual list", LogicalSize(220.0, 120.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { ListScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (
+                    phase <
+                        15 &&
+                        !waiting &&
+                        committed ==
+                        ticket &&
+                        window!!.isFocused &&
+                        !frames!!.snapshot().required
+                ) {
+                    waiting = true
+                    assertTrue(
+                        active.proxy().post {
+                            owner ->
+                            waiting = false
+                            if (
+                                committed ==
+                                    ticket &&
+                                    !frames!!.snapshot().required &&
+                                    window!!.isFocused
+                            )
+                                advanceList(this, owner)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 15;
+                active.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"virtual list timeout phase=${phase}, frames=${passes}")
+            )
+            else -> {}
+        }
+    }
+    fun row(id: Long): ListRowRecord {
+        var index = rows.size
+        while (index > 0L) {
+            index -= 1L
+            val value = rows[index]
+            if (value.id == id && value.unmounts == 0)
+                return value
+        }
+        throw IllegalStateException(Some("virtual test row is not mounted"))
+    }
+    fun assertLive(expected: Array<Long>) {
+        val live = HashSet<Long>()
+        for (row in rows)
+            if (row.unmounts == 0)
+                assertTrue(live.add(row.id))
+        assertEquals(expected.size, live.size)
+        for (id in expected)
+            assertTrue(live.contains(id), Some("missing item " + id.toString()))
+    }
+    fun input(active: ActiveApplication, action: () -> Unit) {
+        waiting = true
+        action()
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                phase += 1;
+                waiting = false
+            }
+        )
+    }
+    fun scrollTo(offset: Point) {
+        phase += 1
+        ticket += 1
+        scroll.scrollTo(offset)
+    }
+    fun refresh() {
+        phase += 1
+        ticket += 1
+        scope!!.requestFrame()
+    }
+}

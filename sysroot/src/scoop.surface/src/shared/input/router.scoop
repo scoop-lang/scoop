@@ -39,6 +39,8 @@ internal class InputRouter(
     internal var boundaryRevision = 0uL
     internal var ime = ImeSession.Off
     internal var imeCaret: Rect? = None
+    internal val activityObservers = ArrayList<InputActivityObserver>()
+    private var activityDirty = false
 
     init {
         owned.add(rootScope)
@@ -110,6 +112,7 @@ internal class InputRouter(
         }
         scene = next
         pending = true
+        activityDirty = true
         drain()
     }
     fun changed() {
@@ -160,6 +163,7 @@ internal class InputRouter(
     internal fun dispatch(block: () -> Unit) {
         checkThread()
         depth += 1
+        activityDirty = true
         var failure: Throwable? = None
         try {
             block()
@@ -177,24 +181,30 @@ internal class InputRouter(
         draining = true
         var failure: Throwable? = None
         try {
-            while (pending) {
-                pending = false
+            while (pending || activityDirty) {
                 if (closed) {
                     finishClose();
                     break
                 }
-                val boundaryChange = pendingBoundaryChange
-                pendingBoundaryChange = false
-                reconcilePress(boundaryChange)
-                if (closed)
-                    continue
-                reconcileScroll()
-                if (closed)
-                    continue
-                reconcileFocus()
-                if (closed)
-                    continue
-                refreshHover(inputObservation())
+                if (pending) {
+                    pending = false
+                    val boundaryChange = pendingBoundaryChange
+                    pendingBoundaryChange = false
+                    reconcilePress(boundaryChange)
+                    if (closed)
+                        continue
+                    reconcileScroll()
+                    if (closed)
+                        continue
+                    reconcileFocus()
+                    if (closed)
+                        continue
+                    refreshHover(inputObservation())
+                }
+                if (!pending) {
+                    activityDirty = false
+                    notifyActivity()
+                }
             }
         } catch (error: Throwable) {
             failure = Some(error)
@@ -250,6 +260,9 @@ internal class InputRouter(
                 scope.closed = true
                 scope.retireDefaultActions()
             }
+            for (observer in activityObservers)
+                observer.closed = true
+            activityObservers.clear()
             for (boundary in boundaries)
                 boundary.closed = true
             boundaries.clear()

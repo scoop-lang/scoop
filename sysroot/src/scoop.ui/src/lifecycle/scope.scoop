@@ -28,6 +28,11 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         return value
     }
     private fun forChildren(): InputScope = childRoute ?: input
+    internal val hasInputActivity: Boolean get() =
+        when (route) {
+            case Some(value) -> !value.activity.isEmpty
+            case None -> false
+        }
     /** Routes logical descendants through an area directly attached to this mount's scope. */
     public fun routeChildren(area: InputArea) {
         checkMounted()

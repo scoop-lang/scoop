@@ -20,6 +20,38 @@ internal interface ElementInstance {
     fun replace(description: ElementDescriptionBase)
 }
 
+internal interface LazyDescriptionBase {
+    val shape: ViewShape
+    fun create(): LazyInstance
+}
+
+internal interface LazyInstance {
+    val value: LazyElement
+    fun replace(description: LazyDescriptionBase)
+}
+
+internal class LazyDescription<P, E: LazyElement>(
+    val input: P,
+    private val factory: (Props<P>) -> E
+): LazyDescriptionBase {
+    override val shape = ViewShape.Lazy(typeInfo<E>().type, typeInfo<P>().type)
+    override fun create(): LazyInstance {
+        requireClassInstance<E>()
+        val props = Props(input)
+        return TypedLazyInstance<P, E>(props, factory(props))
+    }
+}
+
+private class TypedLazyInstance<P, E: LazyElement>(
+    private val props: Props<P>,
+    private val instance: E
+): LazyInstance {
+    override val value: LazyElement get() = instance
+    override fun replace(description: LazyDescriptionBase) {
+        props.replace((description as LazyDescription<P, E>).input)
+    }
+}
+
 internal class ComponentDescription<P, C: Component>(
     val input: P,
     private val factory: (Props<P>) -> C

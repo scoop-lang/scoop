@@ -19,7 +19,10 @@
 | C3c：宿主快捷键 | 已完成 aarch64 实施和定向验证 |
 | D1a：滚轮残量与连续手势路由 | 已完成 aarch64 实施和定向验证 |
 | D1b：ScrollArea、滚动条与显式平滑滚动 | 已完成 aarch64 实施和定向验证 |
-| D2：按需子项、虚拟列表与实例保留 | 待实施 |
+| D2a：按需子项与固定 extent 虚拟列表 | 已完成 aarch64 实施和定向验证 |
+| D2b：可变 extent、阅读锚点与按 key 定位 | 待实施 |
+| D2c：有限实例保留与离屏帧需求 | 待实施 |
+| D2d：虚拟焦点导航与滚动显露 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
@@ -158,3 +161,15 @@ ScrollArea 支持单轴／双轴、一次内容测量、同一像素与命中裁
 修改的 Scoop 文件格式化、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过；桌面启动辅助通过 Ruff 格式化与检查。13 项定向 scoop.test 通过：Surface 指针查询 1 项、UI ScrollState 5 项、Component 滚动布局与三主题几何 4 项、UI 视口窗口 1 项、ScrollArea 原生交互 1 项、已有 drawing 回归 1 项。窗口覆盖真实 Discarded、同一绑定往返替换、布局后的新请求、首布局前动画、范围缩小与停帧、不同 lineStep 的双轴交接、Contain、默认取消、键盘／焦点、拖动与被阻止的释放、主题切换、reveal 和内容挂载计数。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告、启动脚本及被替代的 C3c UI／D1a Surface／drawing 测试输出清理，独立 sysroot、共享构建缓存和当前测试入口保留。普通容器已交付；按需子项、虚拟列表、实例保留及绘制缓存继续按后续批次实施。
+
+## D2a：按需子项与固定 extent 虚拟列表
+
+UI 提供 ItemSource、LazyElement 与 LazyMeasureContext，只有实际请求的 key 才创建条目子树。条目复用普通 Component 的依赖、Props 和资源清理；受控准备边界允许挂载回调写 State，其他逻辑失效留到下一轮，父子测量继续保持纯度。source 替换按已实现 key 更新索引、退休删除项和改变形状的内容；没有 drawable 时也执行逻辑清理。布局期间显式关闭根会终止装配并完整释放已取得的资源。
+
+Surface 的 InputScope.activity／observeActivity 提供实际输入归属。焦点、按下、文本输入、滚动路径及 UI 待聚焦请求所属的条目临时保留并继续放置；普通离屏条目直接卸载。接触结束到 momentum 之间保留滚动候选，不产生连续帧；归属改变或待聚焦失败会请求必要的新布局释放条目。
+
+VirtualList 使用固定 extent、Long 索引与有限 overscan 直接计算范围，首屏不枚举整个 source。纵横轴共用 ScrollArea 的视口输入、滚动条和三套主题；已实现范围相交的 key 保留本地 State，真正退出后重新进入则创建新实例。可变尺寸、实例保留、虚拟导航和绘制缓存继续按后续批次实施。
+
+Scoop 格式检查、Surface 与相关六个 UI 库生产类型检查和 aarch64 release 构建通过。69 项定向 scoop.test 通过：Surface 输入 60 项、UI source 规则 2 项、Component 虚拟范围 3 项，以及 UI lazy、UI errors、VirtualList 和既有 ScrollArea 原生用例各 1 项。错误用例包含 22 种异常清理场景；原生列表覆盖一亿项 source、重排、隐藏删除、指针固定、被阻止的释放、离屏焦点、惯性候选、纵横切换、范围缩小和停帧。测试中的异步断言已按既有逻辑更新边界排队；指针保留用例在 target 阶段取消默认聚焦，单独验证按下归属，最终全部通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告与已被替代的 D1b Surface／UI／Component／ScrollArea 和旧 errors 输出清理；独立 sysroot、共享构建缓存、当前定向测试产物及前台应用入口保留。

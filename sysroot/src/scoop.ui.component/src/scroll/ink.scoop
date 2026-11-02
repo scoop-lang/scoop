@@ -1,213 +1,28 @@
 package scoop.ui.component
 
 import scoop.graphics.*
-import scoop.surface.*
 import scoop.ui.*
-import scoop.ui.style.*
-import scoop.window.*
 
 internal class ScrollAreaInk(private val props: Props<ScrollAreaInkProps>): Element {
-    private var area: InputArea? = None
-    private var focus: FocusTarget? = None
-    private var viewport: ScrollViewport? = None
-    private var painters: ThemePainterCache? = None
-    private var horizontal: ScrollBarControl? = None
-    private var vertical: ScrollBarControl? = None
+    private var control: ScrollControl? = None
     private var drawing: ScrollSnapshot? = None
-    private var owner: ComponentScope? = None
 
     public override fun onMount(scope: ComponentScope) {
-        owner = Some(scope)
-        painters = Some(scope.resource { ThemePainterCache() })
-        viewport = Some(scope.scrollViewport(props.value.state))
-        val input = scope.createArea(focusable = true) { context, event -> handle(context, event) }
-        area = Some(input)
-        input.scope.defaultAction = { context, event -> handle(context, event) }
-        focus = Some(scope.focusTarget(input, props.value.input.focus))
-        scope.routeChildren(input)
-        horizontal = Some(ScrollBarControl(scope, props, input, Orientation.Horizontal))
-        vertical = Some(ScrollBarControl(scope, props, input, Orientation.Vertical))
+        control = Some(ScrollControl(scope) { props.value.controls })
     }
     public override fun update() {
-        val value = props.value
-        requireComponent(
-            value.input.lineStep.isFinite() && value.input.lineStep > 0.0,
-            "invalid scroll line step"
-        )
-        viewport!!.state = value.state
-        focus!!.options = value.input.focus
-        area!!.scope.enabled = value.input.enabled
-        horizontal!!.update()
-        vertical!!.update()
-        painters!!.get(value.theme)
+        control!!.update()
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val input = props.value.input
         val measure = ScrollMeasure(constraints, input.axes, input.width, input.height)
         val child = context.measureChild(0L, measure.contentConstraints)
         val size = measure.size(child.size)
-        drawing = Some(viewport!!.layout(size, child.size))
+        drawing = Some(control!!.layout(size, child.size))
         context.placeChild(0L, Point(0.0, 0.0))
         return LayoutMetrics(size)
     }
     public override fun scene(context: SceneContext) {
-        val value = props.value
-        val snapshot = drawing!!
-        val size = snapshot.viewport
-        val bounds = Rect(0.0, 0.0, size.width, size.height)
-        viewport!!.present(context)
-        context.place(area!!, bounds)
-        context.withState {
-            content ->
-            content.clipRect(bounds)
-            content.translate(-snapshot.offset.x, -snapshot.offset.y)
-            content.children()
-        }
-        val painter = painters!!.get(value.theme)
-        val input = value.input
-        val thickness = value.theme.scrollbarMetrics(input.scrollbar).thickness
-        val barWidth = upperBound(thickness, size.width)
-        val barHeight = upperBound(thickness, size.height)
-        val hasX =
-            input.axes.horizontal &&
-                showScrollbar(input.scrollbars, snapshot.maximum.x) &&
-                barHeight >
-                0.0 &&
-                size.width >
-                0.0
-        val hasY =
-            input.axes.vertical &&
-                showScrollbar(input.scrollbars, snapshot.maximum.y) &&
-                barWidth >
-                0.0 &&
-                size.height >
-                0.0
-        horizontal!!.scene(
-            context,
-            snapshot,
-            if (hasX)
-                Some(
-                    Rect(
-                        0.0,
-                        size.height - barHeight,
-                        size.width -
-                            (
-                                if (hasY)
-                                    barWidth
-                                else
-                                    0.0
-                            ),
-                        barHeight
-                    )
-                )
-            else
-                None,
-            painter
-        )
-        vertical!!.scene(
-            context,
-            snapshot,
-            if (hasY)
-                Some(
-                    Rect(
-                        size.width - barWidth,
-                        0.0,
-                        barWidth,
-                        size.height -
-                            (
-                                if (hasX)
-                                    barHeight
-                                else
-                                    0.0
-                            )
-                    )
-                )
-            else
-                None,
-            painter
-        )
-        if (area!!.isFocusActive && size.width > 2.0 && size.height > 2.0) {
-            context.draw {
-                paint -> paint.canvas.drawRect(
-                    Rect(1.0, 1.0, size.width - 2.0, size.height - 2.0),
-                    Paint(value.theme.tokens.palette.focus, PaintingStyle.Stroke, 2.0)
-                )
-            }
-        }
+        control!!.scene(context, drawing!!)
     }
-    private fun handle(context: RoutedEventContext, event: InputEvent) {
-        if (context.phase == RoutedPhase.Notification) {
-            when (event) {
-                case FocusChanged(_) -> {
-                    if (owner!!.isMounted)
-                        owner!!.requestFrame()
-                }
-                else -> {}
-            }
-            return
-        }
-        if (context.phase != RoutedPhase.Default || !props.value.input.enabled)
-            return
-        val input = props.value.input
-        val state = props.value.state
-        when (event) {
-            case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
-                state.cancelAnimation()
-                context.consumeScroll(input.lineStep) {
-                    amount ->
-                    val before = state.offset
-                    state.scrollBy(
-                        Point(
-                            if (input.axes.horizontal)
-                                -amount.x
-                            else
-                                0.0,
-                            if (input.axes.vertical)
-                                -amount.y
-                            else
-                                0.0
-                        )
-                    )
-                    val after = state.offset
-                    Point(before.x - after.x, before.y - after.y)
-                }
-                if (input.chain == ScrollChain.Contain)
-                    context.preventDefault()
-            }
-            case Keyboard(key) -> {
-                if (context.target === area!!.scope && scrollKey(state, input.axes, key))
-                    context.consume()
-            }
-            else -> {}
-        }
-    }
-}
-
-private fun scrollKey(state: ScrollState, axes: ScrollAxes, key: KeyEvent): Boolean {
-    val modifiers = key.modifiers
-    if (
-        key.state !=
-            ElementState.Pressed ||
-            key.synthetic ||
-            modifiers.control ||
-            modifiers.alt ||
-            modifiers.shift ||
-            modifiers.superKey ||
-            modifiers.function
-    )
-        return false
-    val current = state.snapshot
-    val step =
-        if (axes.vertical)
-            Point(0.0, current.viewport.height)
-        else
-            Point(current.viewport.width, 0.0)
-    when (key.logicalKey) {
-        case Named(NamedKey.PageUp) -> state.scrollBy(Point(-step.x, -step.y))
-        case Named(NamedKey.PageDown) -> state.scrollBy(step)
-        case Named(NamedKey.Home) -> state.scrollTo(Point(0.0, 0.0))
-        case Named(NamedKey.End) -> state.scrollTo(current.maximum)
-        else -> return false
-    }
-    return true
 }

@@ -3,7 +3,8 @@ package scoop.ui
 import scoop.graphics.Point
 
 internal enum NodeBody {
-    Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance)
+    Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance),
+    Lazy(LazyInstance, LazyChildren)
 }
 
 internal class UpdateTurn
@@ -41,6 +42,7 @@ internal class MountedNode(
             case(Component(instance), Component(description)) -> instance.replace(description)
             case(Element(instance), Element(description, _)) -> instance.replace(description)
             case(Portal(instance), Portal(_, options)) -> instance.replace(options)
+            case(Lazy(instance, _), Lazy(description, _)) -> instance.replace(description)
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
         view = next
@@ -85,6 +87,16 @@ internal class MountedNode(
                 if (active && root.isOpen && mounted)
                     instance.value.update()
             }
+            case Lazy(instance, items) -> {
+                when (view.body) {
+                    case Lazy(_, source) -> items.replace(this, source, turn)
+                    else -> throw IllegalStateException(
+                        Some("lazy description was replaced by another shape")
+                    )
+                }
+                if (active && root.isOpen && mounted)
+                    instance.value.update()
+            }
         }
     }
     fun mountPending() {
@@ -96,11 +108,16 @@ internal class MountedNode(
                 case Component(instance) -> instance.value.onMount(scope)
                 case Element(instance) -> instance.value.onMount(scope)
                 case Portal(instance) -> instance.mount(this)
+                case Lazy(instance, _) -> instance.value.onMount(scope)
             }
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
                     case Element(instance) -> instance.value.update()
+                    case Lazy(instance, items) -> {
+                        items.mount(this)
+                        instance.value.update()
+                    }
                     else -> {}
                 }
             }
@@ -147,6 +164,7 @@ internal class MountedNode(
                         case Component(instance) -> instance.value.onUnmount()
                         case Element(instance) -> instance.value.onUnmount()
                         case Portal(_) -> {}
+                        case Lazy(instance, _) -> instance.value.onUnmount()
                     }
                 }
         }

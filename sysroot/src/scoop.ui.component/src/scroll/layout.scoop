@@ -36,7 +36,7 @@ internal class ScrollMeasure(
     fun size(content: Size): Size = parent.constrain(Size(x ?: content.width, y ?: content.height))
 }
 
-private fun scrollExtent(
+internal fun scrollExtent(
     explicit: Double?,
     minimum: Double,
     maximum: Double?,

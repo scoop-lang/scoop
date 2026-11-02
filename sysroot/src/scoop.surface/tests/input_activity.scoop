@@ -1,0 +1,171 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputActivityTest {
+    @Test
+    fun `focus changes inside a subtree notify ownership while motion and frames stay quiet`() {
+        InputRig().use {
+            rig ->
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val a = rig.area("a", true, parent = Some(group))
+            val b = rig.area("b", true, parent = Some(group))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            val owners = ArrayList<Boolean>()
+            val observer = group.observeActivity { owners.add(a.hasFocus) }
+            assertEquals(0L, owners.size)
+            assertTrue(group.activity.isEmpty)
+            assertTrue(a.requestFocus())
+            assertTrue(group.activity.hasFocus)
+            assertEquals(1L, owners.size)
+            assertTrue(owners[0L])
+            assertTrue(b.requestFocus())
+            assertEquals(2L, owners.size)
+            assertFalse(owners[1L])
+            assertTrue(b.requestFocus())
+            rig.move(60.0, 10.0)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            assertEquals(2L, owners.size)
+            b.scope.parent = Some(rig.router.rootScope)
+            assertTrue(group.activity.isEmpty)
+            assertEquals(3L, owners.size)
+            observer.close()
+            a.requestFocus()
+            assertEquals(3L, owners.size)
+            Thread.start {
+                assertFailsWith<IllegalStateException> { group.activity }
+                assertFailsWith<IllegalStateException> { group.observeActivity {} }
+            }.use { thread -> thread.join() }
+        }
+    }
+
+    @Test
+    fun `button and momentum owners remain stable through clipping and prevented release`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a")
+            val b = rig.area("b")
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            val changes = ArrayList<InputActivity>()
+            a.scope.observeActivity { changes.add(a.scope.activity) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertTrue(a.scope.activity.hasPress)
+            rig.router.rootScope.captureHandler =
+                {
+                    context,
+                    event -> when (event) {
+                        case Pointer(
+                            InputPointerEvent.Button(_, _, ElementState.Released, _)
+                        ) -> context.preventDefault()
+                        else -> {}
+                    }
+                }
+            rig.move(60.0, 10.0)
+            rig.button(60.0, 10.0, ElementState.Released)
+            assertTrue(a.scope.activity.isEmpty)
+            assertEquals(2L, changes.size)
+
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            assertTrue(a.scope.activity.hasScrollRoute)
+            assertEquals(3L, changes.size)
+            rig.frame {
+                frame, canvas ->
+                canvas.clipRect(Rect(50.0, 0.0, 50.0, 50.0))
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            assertTrue(a.scope.activity.hasScrollRoute)
+            rig.wheel(60.0, 10.0, momentum = ScrollPhase.Began)
+            assertTrue(a.scope.activity.hasScrollRoute)
+            assertFalse(b.scope.activity.hasScrollRoute)
+            rig.wheel(60.0, 10.0, momentum = ScrollPhase.Ended)
+            assertTrue(a.scope.activity.isEmpty)
+            assertEquals(4L, changes.size)
+        }
+    }
+
+    @Test
+    fun `text ownership lasts through the disabled acknowledgement and closed scopes retire observers`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("text", text = true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
+            val changes = ArrayList<InputActivity>()
+            val observer = area.scope.observeActivity { changes.add(area.scope.activity) }
+            area.requestFocus()
+            assertTrue(area.scope.activity.hasFocus && area.scope.activity.hasTextInput)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            assertEquals(1L, changes.size)
+            area.clearFocus()
+            assertFalse(area.scope.activity.hasFocus)
+            assertTrue(area.scope.activity.hasTextInput)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            assertTrue(area.scope.activity.isEmpty)
+            assertEquals(3L, changes.size)
+            area.close()
+            observer.close()
+            assertEquals(0L, rig.router.activityObservers.size)
+            assertTrue(area.scope.activity.isEmpty)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            assertEquals(3L, changes.size)
+        }
+    }
+
+    @Test
+    fun `activity callbacks can change focus without nested delivery and new scrolls release candidates`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", true)
+            val b = rig.area("b", true)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            val trace = ArrayList<String>()
+            val observer =
+                rig.router.rootScope.observeActivity {
+                    trace.add("begin")
+                    if (a.hasFocus)
+                        b.requestFocus()
+                    trace.add("end")
+                }
+            a.requestFocus()
+            assertEquals(4L, trace.size)
+            for (index in 0L ..< trace.size)
+                assertEquals(
+                    if (index % 2L == 0L)
+                        "begin"
+                    else
+                        "end",
+                    trace[index]
+                )
+            observer.close()
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Ended)
+            assertTrue(a.scope.activity.hasScrollRoute)
+            rig.wheel(60.0, 10.0)
+            assertFalse(a.scope.activity.hasScrollRoute)
+            rig.wheel(10.0, 10.0, phase = ScrollPhase.Began)
+            a.scope.enabled = false
+            assertFalse(a.scope.activity.hasScrollRoute)
+        }
+    }
+}

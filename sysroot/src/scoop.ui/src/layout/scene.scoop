@@ -189,20 +189,33 @@ internal fun MountedNode.scene(frame: FrameContext, origin: Point, overlay: Over
         case Empty -> {}
         case Component(_) -> children[0L].scene(frame, origin, overlay)
         case Portal(instance) -> root.overlays.include(instance)
-        case Element(instance) -> frame.withState {
-            childFrame ->
-            childFrame.canvas.translate(origin.x, origin.y)
-            val result =
-                metrics ?: throw IllegalStateException(Some("element has not been measured"))
-            val context = SceneContext(this, childFrame, result.size, overlay)
-            try {
-                evaluateUi<Unit>(None) { instance.value.scene(context) }
-                if (active && root.isOpen)
-                    context.finish()
-                Unit
-            } finally {
-                context.end()
-            }
+        case Element(instance) -> sceneElement(frame, origin, overlay) {
+            context -> instance.value.scene(context)
+        }
+        case Lazy(instance, _) -> sceneElement(frame, origin, overlay) {
+            context -> instance.value.scene(context)
+        }
+    }
+}
+
+private fun MountedNode.sceneElement(
+    frame: FrameContext,
+    origin: Point,
+    overlay: OverlayLayout?,
+    draw: (SceneContext) -> Unit
+) {
+    frame.withState {
+        childFrame ->
+        childFrame.canvas.translate(origin.x, origin.y)
+        val result = metrics ?: throw IllegalStateException(Some("element has not been measured"))
+        val context = SceneContext(this, childFrame, result.size, overlay)
+        try {
+            evaluateUi<Unit>(None) { draw(context) }
+            if (active && root.isOpen)
+                context.finish()
+            Unit
+        } finally {
+            context.end()
         }
     }
 }

@@ -15,3 +15,20 @@ public interface Element {
     public fun update() {}
     public fun onUnmount() {}
 }
+
+/** A persistent container that asks the framework for only the items it needs. */
+public interface LazyElement {
+    public fun measure(context: LazyMeasureContext, constraints: Constraints): LayoutMetrics
+    public fun scene(context: SceneContext)
+    public fun onMount(scope: ComponentScope) {}
+    public fun update() {}
+    public fun onUnmount() {}
+}
+
+/** Replace this snapshot when its key mapping or item inputs change. */
+public interface ItemSource {
+    public val count: Long
+    public fun keyAt(index: Long): ViewKey
+    public fun indexOfKey(key: ViewKey): Long?
+    public fun build(index: Long): View
+}

@@ -1,0 +1,53 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+internal class VirtualListInk(private val props: Props<VirtualListInkProps>): LazyElement {
+    private var control: ScrollControl? = None
+    private var drawing: ScrollSnapshot? = None
+    public override fun onMount(scope: ComponentScope) {
+        control = Some(ScrollControl(scope) { props.value.controls })
+    }
+    public override fun update() {
+        control!!.update()
+        val input = props.value.input
+        requireComponent(
+            input.itemExtent.isFinite() && input.itemExtent > 0.0,
+            "invalid fixed item extent"
+        )
+        nonnegative(input.overscan, "invalid virtual overscan")
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutMetrics {
+        val input = props.value.input
+        val size = virtualViewport(constraints, input.width, input.height)
+        val geometry =
+            FixedListGeometry(
+                context.itemCount,
+                input.itemExtent,
+                input.orientation,
+                input.overscan,
+                size
+            )
+        val snapshot = control!!.layout(size, geometry.content)
+        val range = geometry.range(scrollbarAxis(input.orientation, snapshot.offset))
+        for (index in range.start ..< range.end) {
+            context.measureItem(index, geometry.itemConstraints)
+            context.placeItem(index, geometry.origin(index))
+        }
+        // Preparing visible items may have changed focus. Read the ownership after preparation.
+        for (index in context.pinnedItems) {
+            if (index < range.start || index >= range.end) {
+                context.measureItem(index, geometry.itemConstraints)
+                context.placeItem(index, geometry.origin(index))
+            }
+        }
+        drawing = Some(snapshot)
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        control!!.scene(context, drawing!!)
+    }
+}

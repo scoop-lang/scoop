@@ -9,12 +9,12 @@ import scoop.window.*
 /** Pointer state uses only the geometry of an accepted frame. */
 internal class ScrollBarControl(
     private val scope: ComponentScope,
-    private val props: Props<ScrollAreaInkProps>,
+    private val props: () -> ScrollControlProps,
     parent: InputArea,
     private val orientation: Orientation
 ) {
     private val area = scope.createArea { context, event -> handle(context, event) }
-    private var currentState = props.value.state
+    private var currentState = props().state
     private var geometry: ScrollbarGeometry? = None
     private var pointer: Point? = None
     private var hovered = false
@@ -35,13 +35,13 @@ internal class ScrollBarControl(
             }
     }
     fun update() {
-        val value = props.value
+        val value = props()
         if (value.state !== currentState) {
             release()
             geometry = None
             currentState = value.state
         }
-        area.scope.enabled = value.input.enabled
+        area.scope.enabled = value.enabled
     }
     fun scene(
         context: SceneContext,
@@ -49,7 +49,7 @@ internal class ScrollBarControl(
         bounds: Rect?,
         painter: ThemePainter
     ) {
-        val value = props.value
+        val value = props()
         val range = scrollbarAxis(orientation, snapshot.maximum)
         val extent =
             if (orientation == Orientation.Horizontal)
@@ -72,14 +72,14 @@ internal class ScrollBarControl(
                     upperBound(visible / extent, 1.0)
                 else
                     1.0,
-                value.input.enabled && range > 0.0,
+                value.enabled && range > 0.0,
                 hover,
                 pressed
             )
         val next =
             when (bounds) {
                 case Some(rect) -> if (rect.width > 0.0 && rect.height > 0.0) {
-                    val shape = value.theme.scrollbarGeometry(rect, visual, value.input.scrollbar)
+                    val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
                     if (visual.enabled)
                         context.place(area, rect)
                     context.draw { paint -> painter.drawScrollbar(paint.canvas, shape, visual) }
@@ -146,7 +146,7 @@ internal class ScrollBarControl(
             pointer = context.localPosition
             refreshHover()
         }
-        if (context.phase != RoutedPhase.Default || !props.value.input.enabled)
+        if (context.phase != RoutedPhase.Default || !props().enabled)
             return
         val shape = geometry ?: return
         val point = context.localPosition ?: return
@@ -187,8 +187,8 @@ internal class ScrollBarControl(
                                 distance
                         )
                     }
-                    case Decrement -> moveBy(-props.value.input.lineStep)
-                    case Increment -> moveBy(props.value.input.lineStep)
+                    case Decrement -> moveBy(-props().lineStep)
+                    case Increment -> moveBy(props().lineStep)
                 }
                 changed()
                 context.consume()

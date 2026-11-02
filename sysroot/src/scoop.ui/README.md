@@ -7,6 +7,7 @@
 ## 组合与状态
 
 - `component(create, key)`／`component(props, create, key)` 在挂载时创建组件；`element` 以相同方式创建自绘元素，并接收显式 children。
+- `lazyElement(source, create, key)` 及带 props 的重载创建按需容器，由 LazyElement 选择实际准备、测量和放置的条目。
 - `state(initial)` 支持成员属性委托，也可以由普通业务 Store 持有并供多个组件共享。render 中读取的 State 建立依赖；写入通知在 owner 上合并，条件读取改变时替换订阅。
 - `Props<P>.value` 提供最新父级输入；`State.binding()` 或 `binding(get, set)` 读写原状态，不创建另一份值。
 - key 在直接父级内生效，节点类别及组件和 Props 的完整类型参与匹配。新挂载必须返回新的 class 实例；普通更新保留实例与本地状态。
@@ -47,6 +48,14 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 `ScrollState` 保存可观察的 offset、viewport、content 和 maximum，支持 scrollTo／scrollBy／reveal。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`；成功提交才发布范围，被丢弃帧不覆盖旧结果。一个 State 同时只能绑定一个视口，登记可以整体替换 state，关闭立即解绑，业务 State 保留最后位置。
 
 `state.animateTo(offset, spec)` 使用视口所属 Surface 的时间轴，要求已绑定，可在首布局前排队；`cancelAnimation()` 在最后发布的位置停止。直接定位和 reveal 同样停止旧动画。实际 ScrollArea 和滚动条属于独立控件库，自绘容器可通过这组公开接口实现自己的布局，不需观察 offset 来重建内容树。滚动纯状态测试在本 Cone，成功／丢弃帧、动画、绑定替换和停帧在 `tests-cones/scroll` 验证。
+
+## 按需子项
+
+`ItemSource` 提供 count、keyAt、indexOfKey 和 build；数据或索引改变时替换这个快照，key 必须是稳定且唯一的 Text／Number。框架只检查实际访问的映射，不预先构建全部 View。build 使用普通 render 依赖追踪；已有项只因滚动再次测量时不会重跑 build。删除已实现项在逻辑更新中完成，即使窗口隐藏也会释放输入和资源。
+
+LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMeasureContext。容器用 `measureItem(index, constraints)` 按需取得子项，再用 `placeItem(index, origin)` 放置；一个索引本轮只测量一次。框架在这两个步骤之间管理 build、挂载和 update，生命周期可以正常写 State，外层 measure 和子项 render 仍保持纯度。子项在 scene.children() 中按 source 索引顺序呈现。
+
+本批离开选择范围的项正常卸载。`context.pinnedItems` 给出焦点、待聚焦请求、按钮／滚动路由及文本会话所属的已实现项，容器也须测量、放置这些项，再以统一 clip 控制可见性；交互结束及待聚焦请求结束后触发必要布局以恢复淘汰。每个列表为同一滚动候选至多额外保留一项，不产生持续帧。实际 VirtualList 由独立控件库实现；协议、隐藏删除、重排、失败清理和挂载中关闭分别由 `tests-cones/lazy`、`tests-cones/errors` 覆盖。
 
 ## 公共文本适配
 

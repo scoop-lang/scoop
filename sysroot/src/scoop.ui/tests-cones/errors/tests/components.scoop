@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LazyBuild, LazyMount, LazyMeasure, LazyMissingPaint, LazyMissingPinned, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -48,6 +48,8 @@ internal class FailureRoot(private val record: FailureRecord): Component {
     public override fun render(): View {
         if (record.mode == FailureMode.Render)
             throw record.primary
+        if (record.mode.isLazy)
+            return lazyElement(LazyFailureSource(record), { LazyFailureContainer(record) })
         val late = record.trigger.value
         val children: Array<View> =
             when (record.mode) {

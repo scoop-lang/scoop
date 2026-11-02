@@ -81,4 +81,17 @@ internal class ScrollAreaInkProps(
     val input: ScrollAreaProps,
     val state: ScrollState,
     val theme: Theme
-)
+) {
+    val controls =
+        ScrollControlProps(
+            state,
+            input.axes,
+            input.lineStep,
+            input.chain,
+            input.scrollbars,
+            input.scrollbar,
+            input.enabled,
+            input.focus,
+            theme
+        )
+}

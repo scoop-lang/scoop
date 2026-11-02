@@ -35,6 +35,15 @@ internal class FocusController(private val root: UiRoot): Closeable {
             else -> false
         }
     }
+    fun hasPendingIn(node: MountedNode): Boolean {
+        val value = pending ?: return false
+        if (value.revision != root.surface.focusRevision)
+            return false
+        return when (value.destination) {
+            case Target(target) -> target.available && withinFocusScope(target.node, node)
+            case Group(scope) -> scope.available && withinFocusScope(scope.node, node)
+        }
+    }
     fun isPending(scope: FocusScope): Boolean {
         val value = pending ?: return false
         if (value.revision != root.surface.focusRevision)
@@ -49,7 +58,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         when (value.destination) {
             case Target(current) -> {
                 if (current === target)
-                    pending = None
+                    clearPending()
             }
             else -> {}
         }
@@ -59,13 +68,13 @@ internal class FocusController(private val root: UiRoot): Closeable {
         when (value.destination) {
             case Group(current) -> {
                 if (current === scope)
-                    pending = None
+                    clearPending()
             }
             else -> {}
         }
     }
     fun request(target: FocusTarget): Boolean {
-        pending = None
+        clearPending()
         if (!root.isOpen)
             return false
         if (!target.available) {
@@ -80,7 +89,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         return true
     }
     fun request(scope: FocusScope): Boolean {
-        pending = None
+        clearPending()
         if (!root.isOpen)
             return false
         if (!scope.available) {
@@ -134,7 +143,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         if (frame.submission != FrameSubmission.Accepted)
             return
         val value = pending ?: return
-        pending = None
+        clearPending()
         if (value.revision != root.surface.focusRevision)
             return
         val target =
@@ -221,8 +230,17 @@ internal class FocusController(private val root: UiRoot): Closeable {
         }
         return false
     }
-    public override fun close() {
+    private fun clearPending() {
+        val previous = pending
         pending = None
+        when (previous) {
+            case Some(_) -> if (root.isOpen)
+                root.surface.requestFrame()
+            case None -> {}
+        }
+    }
+    public override fun close() {
+        clearPending()
         registration?.close()
         registration = None
     }
