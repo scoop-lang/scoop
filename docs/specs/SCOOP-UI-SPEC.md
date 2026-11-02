@@ -16,6 +16,8 @@
 
 SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../graphics/sksl/DESIGN.md)及 [UI 设计第 14 节](../ui/DESIGN.md#14-后续增强sksl-与组件效果)。组件通过普通 Element 使用效果，Surface Animatable 驱动 uniform；持有 shader 或声明时间参数不产生隐式帧需求，继续遵守第 6.1 节的停帧要求。
 
+弹层／模态、滚动及绘制／实例缓存、虚拟子项、键盘导航、快捷键、路由扩展与公共编辑的后续方案见[基础交互能力设计](../ui/foundations/DESIGN.md)。该方案尚未实施；拟议 scene／按需子项协议不替代本文件当前的 Element、测量和绘制合同，实施时按批次修订。
+
 | Cone | 职责 |
 | --- | --- |
 | `scoop.window` | 原生窗口、事件循环、输入归一、IME 和 native lease |

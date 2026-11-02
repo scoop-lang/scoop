@@ -12,6 +12,8 @@
 
 首期与 UI 框架相同，先在 macOS aarch64 完成实现与验证，最后统一补验 x86_64；Windows 接入后续单独推进。普通控件测试使用本 Cone 的 scoop.test，实施记录见 [UI 实施记录](../ui/PROGRESS.md)。
 
+Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 所需能力的后续设计见[基础交互能力设计](../ui/foundations/DESIGN.md)。这些能力尚未交付，不计入下列第一批控件；Code Block 不在本次扩充设计范围内。
+
 ## 2. 控件与使用入口
 
 第一批控件包括：
