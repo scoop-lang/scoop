@@ -99,6 +99,19 @@ internal class DrawingPanel(
     public override fun scene(context: SceneContext) {
         probe.paints += 1
         probe.lastScene = Some(context)
+        val frameTime = context.time
+        val frameSize = context.size
+        context.onFrameComplete {
+            result ->
+            assertEquals(frameTime, result.time)
+            assertEquals(frameSize, result.size)
+            assertFailsWith<IllegalStateException> { context.size }
+            assertFailsWith<IllegalStateException> { context.onFrameComplete { _ -> Unit } }
+            probe.frameCompletions += 1
+            probe.sequence.add("complete")
+            if (probe.completedState.value == 0)
+                probe.completedState.value = 1
+        }
         probe.lastPlaced = props.value.placed
         probe.lastCompleted = props.value.finished
         probe.sequence.add("background")
@@ -107,6 +120,7 @@ internal class DrawingPanel(
             probe.lastPaint = Some(paint)
             paint.canvas.clear(Color.White)
             assertFailsWith<IllegalStateException> { context.save() }
+            assertFailsWith<IllegalStateException> { context.onFrameComplete { _ -> Unit } }
             val extent = paint.size
             val expiredPaint =
                 paint.withState {
@@ -265,6 +279,15 @@ internal class DrawingLeaf(
                 paint.canvas.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
             }
         context.place(area!!, path!!)
+        if (props.value.count == 2 && !probe.focusAfterCommit)
+            context.onFrameComplete {
+                result -> if (
+                    result.submission == FrameSubmission.Accepted && !probe.focusAfterCommit
+                ) {
+                    assertTrue(area!!.requestFocus())
+                    probe.focusAfterCommit = true
+                }
+            }
     }
     public override fun onUnmount() {
         unmounted += 1

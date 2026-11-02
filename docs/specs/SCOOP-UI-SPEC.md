@@ -340,6 +340,10 @@ Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入�
 
 `PaintContext.withState<T>(block: (PaintContext) -> T): T` 只隔离纯绘图块内的 Canvas；没有区域或子项接口。SceneContext、PaintContext、Canvas、MeasureContext 都只在对应同步借用内有效，不能跨帧、跨线程或跨挂起保存。用户场景／绘图异常按第 9 节关闭，失败帧不发布几何。输入的变换、裁剪和 layer 顺序均使用实际 graphics 状态，不以视觉滤镜的像素扩展扩大区域。
 
+`SceneContext.onFrameComplete(action: (scoop.surface.FrameCompletion) -> Unit)` 为当前实际场景登记一次性通知，随所属挂载节点保存到本帧结束。UiRoot 在 Surface 的完成回调中按登记顺序交付，回调中的 time／size／submission 来自该帧。此时 render／measure／scene／draw 都已退出，可以写 State、请求焦点或后续帧；这些变更按既有更新边界处理。回调执行前节点已经卸载，或根开始关闭时，取消该节点的通知；回调中关闭根也取消剩余通知。异常按普通业务回调失败关闭根，不继续交付。未进入 scene 的子树没有通知，不产生为兑现通知而轮询的帧。
+
+需要新几何的动作只在 Accepted 中执行；Discarded 可丢弃本次位置结果，不能将其发布为可交互位置。FrameCompletion.size 是窗口内容区尺寸；元素若需要自身尺寸，应在 scene 中按值捕获。通知不能用于必须执行的资源释放，也不能延长 SceneContext／PaintContext／Canvas 的借用。API 不保存永久帧订阅；持续动画仍由 Surface 时间轴驱动。
+
 ### 7.3 输入与焦点接入
 
 Element 在 onMount 中通过 `scope.createArea(focusable, textInput, handler)` 创建稳定的 Surface InputArea。作用域登记其生命周期，处理器使用既有 AreaEvent／InputResult；enabled、ignoreSelf、requestFocus 和 caret 继续使用 Surface 的公开合同。框架不将原始事件解释为 Button 的 onClick。

@@ -101,6 +101,9 @@ private class FailingContent(
         canvas = Some(frame.canvas)
         painter(frame)
     }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        fail(Some("a failing painter or hidden root must not receive frame completion"))
+    }
     public override fun close() {
         closeCalls += 1
         if (image.isClosed)

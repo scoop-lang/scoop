@@ -73,6 +73,7 @@ internal class FailureHarness: ApplicationHandler {
             FailureRecord(FailureMode.Measure),
             FailureRecord(FailureMode.MissingPaint),
             FailureRecord(FailureMode.Paint),
+            FailureRecord(FailureMode.FrameComplete),
             FailureRecord(FailureMode.LateUpdate)
         ]
     var index = 0L
@@ -116,6 +117,7 @@ internal class FailureHarness: ApplicationHandler {
                 case Measure -> true
                 case MissingPaint -> true
                 case Paint -> true
+                case FrameComplete -> true
                 else -> false
             }
         val native =

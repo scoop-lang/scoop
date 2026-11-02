@@ -46,9 +46,9 @@ SurfaceHost 包装 ApplicationHandler，管理所附着的 SurfaceWindow，使�
 
 SurfaceHost 必须在 Closing／Exiting 及用户回调失败时关闭相关 Surface 资源；不能要求应用额外转发清理事件才能释放 lease。绘制和输入回调不挂起、不在内部锁中运行，也不从原生通知递归进入。
 
-`SurfaceContent : Closeable` 定义同步 `paint(FrameContext)`，表示一个由 SurfaceWindow 拥有的内容根。`SurfaceHost.attach(window, content)` 在通过 owner 线程检查后接收新 content 的所有权；窗口状态、重复附着、renderer 创建或配置失败时，也负责关闭 content 并回滚本次取得的资源。错误线程调用在转移所有权前拒绝。一个 content 只能交给一个窗口，close 必须幂等。原有 painter 闭包重载通过不拥有额外资源的 SurfaceContent 适配，继续服务直接绘图。
+`SurfaceContent : Closeable` 定义同步 `paint(FrameContext)` 及默认不执行操作的 `onFrameComplete(FrameCompletion)`，表示一个由 SurfaceWindow 拥有的内容根。`SurfaceHost.attach(window, content)` 在通过 owner 线程检查后接收新 content 的所有权；窗口状态、重复附着、renderer 创建或配置失败时，也负责关闭 content 并回滚本次取得的资源。错误线程调用在转移所有权前拒绝。一个 content 只能交给一个窗口，close 必须幂等。原有 painter 闭包重载通过不拥有额外资源的 SurfaceContent 适配，继续服务直接绘图。
 
-关闭覆盖 SurfaceHost 的事件处理器、内容 paint 和输入回调。回调内部请求关闭时先进入 Closing 并停止新工作，当前回调栈及 Canvas／frame 借用退出后才关闭 content；随后释放 renderer 和 lease。最外层 `SurfaceHost.use` 因而同时覆盖内容根、原生窗口关闭和异常退出。attach 尚未暴露给调用方的失败结果立即回滚，不等待另一个原生事件。
+关闭覆盖 SurfaceHost 的事件处理器、内容 paint／帧完成通知和输入回调。回调内部请求关闭时先进入 Closing 并停止新工作，当前回调栈及 Canvas／frame 借用退出后才关闭 content；随后释放 renderer 和 lease。最外层 `SurfaceHost.use` 因而同时覆盖内容根、原生窗口关闭和异常退出。attach 尚未暴露给调用方的失败结果立即回滚，不等待另一个原生事件。
 
 主题绘图只消费 Canvas、几何和视觉数据，不创建 State／输入／任务；系统明暗跟随复用 window 的现有主题通知。公共 style、主题和滤镜没有独立时钟；参数动画复用 Surface Animatable，静态阴影／光晕／模糊不增加周期任务或帧需求。隐含的背景采样不属于普通内容滤镜；Backdrop blur 留待后续。
 
@@ -65,6 +65,10 @@ SurfaceHost 必须在 Closing／Exiting 及用户回调失败时关闭相关 Sur
 原生窗口在绘制回调中已改变尺寸或 backing scale 时，旧目标必须在提交前中止，即使对应 GeometryChanged 尚未进入业务事件处理器。平台 renderer 核对实际目标所依赖的原生尺寸与 scale；不把排队的 WindowMetrics 当成原生窗口尚未变化的证明，也不要求窗口请求同步递归派发事件。
 
 发布的几何对应最近成功提交的画面，不保证 GPU 已经显示该画面。首期不为输入同步而等待 GPU 或显示扫描完成。平台提交接受之后的 GPU 失败作为渲染错误处理。
+
+`FrameCompletion(time, size, submission)` 保存本次实际绘制使用的采样时间、窗口内容区逻辑尺寸及 `FrameSubmission.Accepted／Discarded`。Accepted 表示提交已被接受且本帧输入几何已经发布；Discarded 表示绘制正常返回，但目标失效、窗口隐藏等原因使该帧未被接受，旧几何继续有效。这是同步帧提交结果，不是 GPU 完成或屏幕扫描通知。
+
+只有真正调用过 paint、正常结束绘制并完成 frame 资源释放，且 SurfaceWindow 仍为 Open 时，才调用一次 onFrameComplete。Deferred／隐藏期间没有进入 paint 的机会不产生通知；paint／提交／资源释放异常或关闭会跳过通知，按正常错误与关闭路径释放内容。通知不承担资源收尾职责。回调执行时全部 Canvas 借用均已失效，Accepted 的焦点／hover 调整已经完成；回调可以请求焦点、产生业务更新或请求下一帧，不能继续绘制或使用旧 FrameContext 的 Canvas。回调中关闭窗口仍延迟到当前回调退出后释放 content；回调抛错按内容回调失败处理，关闭相关资源。通知本身不产生新帧需求。
 
 ### 4.1 空闲帧需求与原生等待
 

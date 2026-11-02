@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, MissingMeasure, Measure, MissingPaint, Paint, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -117,6 +117,10 @@ internal class FailureLeaf(
         return LayoutMetrics(constraints.constrain(Size(80.0, 50.0)))
     }
     public override fun scene(context: SceneContext) {
+        if (record.mode == FailureMode.FrameComplete) {
+            context.onFrameComplete { _ -> throw record.primary }
+            context.onFrameComplete { _ -> fail(Some("notification after a failed completion")) }
+        }
         context.saveLayer(0.5)
         context.draw {
             paint ->

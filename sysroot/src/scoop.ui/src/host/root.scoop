@@ -4,6 +4,8 @@ import scoop.graphics.Point
 import scoop.surface.*
 import scoop.window.Window
 
+private class SceneCompletion(val node: MountedNode, val action: (FrameCompletion) -> Unit)
+
 /** Owns one root; closing it leaves the caller's native window intact. */
 public class UiWindow internal constructor(private val root: UiRoot): Closeable {
     public val nativeWindow: Window get() = root.window
@@ -24,6 +26,7 @@ internal class UiRoot(
     private var attached: SurfaceWindow? = None
     private var node: MountedNode? = None
     private val pending = ArrayList<MountedNode>()
+    private val completions = ArrayList<SceneCompletion>()
     var pendingEnqueued = false
     var isOpen = true
     var closed = false
@@ -75,11 +78,23 @@ internal class UiRoot(
         current.measure(Constraints.tight(frame.size), frame.time)
         current.scene(frame, Point(0.0, 0.0), None)
     }
+    fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
+        completions.add(SceneCompletion(node, action))
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        val work = completions.toArray()
+        completions.clear()
+        for (completion in work) {
+            if (isOpen && completion.node.active)
+                completion.action(frame)
+        }
+    }
     fun stop() {
         if (!isOpen)
             return
         isOpen = false
         pending.clear()
+        completions.clear()
         node?.deactivate()
     }
     fun requestClose() {

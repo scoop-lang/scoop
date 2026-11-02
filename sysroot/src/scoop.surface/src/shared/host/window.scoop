@@ -109,26 +109,18 @@ public class SurfaceWindow internal constructor(
                 refresh()
             }
             case Ready(frame) -> {
+                val time = MonotonicTimeSource.markNow()
+                val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
                     frame.use {
                         current -> input.beginFrame().use {
                             placements ->
                             scheduler.begin()
-                            val time = MonotonicTimeSource.markNow()
                             animations.withFrame<Unit>(time) {
                                 if (phase == SurfaceWindowState.Open) {
                                     current.draw {
                                         canvas -> content.paint(
-                                            FrameContext(
-                                                this,
-                                                canvas,
-                                                Size(
-                                                    metrics.logicalSize.width,
-                                                    metrics.logicalSize.height
-                                                ),
-                                                time,
-                                                placements
-                                            )
+                                            FrameContext(this, canvas, size, time, placements)
                                         )
                                     }
                                 }
@@ -154,6 +146,17 @@ public class SurfaceWindow internal constructor(
                     }
                 if (!accepted)
                     scheduler.request()
+                if (phase == SurfaceWindowState.Open)
+                    content.onFrameComplete(
+                        FrameCompletion(
+                            time,
+                            size,
+                            if (accepted)
+                                FrameSubmission.Accepted
+                            else
+                                FrameSubmission.Discarded
+                        )
+                    )
                 refresh()
             }
         }

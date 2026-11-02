@@ -6,6 +6,7 @@ import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.time.Duration
+import scoop.time.TimeMark
 import scoop.window.*
 
 @Test
@@ -22,6 +23,9 @@ private class SurfaceHostTest {
             assertTrue(probe.secondFrames >= 2)
             assertTrue(probe.repainted)
             assertTrue(probe.rejectedGeometry)
+            assertTrue(probe.firstAccepted >= 2)
+            assertTrue(probe.firstDiscarded >= 1)
+            assertEquals(probe.firstFrames - 1, probe.firstAccepted + probe.firstDiscarded)
             assertTrue(host.isClosed)
             assertEquals(WindowState.Destroyed, probe.first!!.state)
             assertEquals(WindowState.Destroyed, probe.second!!.state)
@@ -66,6 +70,9 @@ private class HostProbe {
     var secondAfterClose = false
     var repainted = false
     var resizedArea: InputArea? = None
+    var acceptedArea: InputArea? = None
+    var firstAccepted = 0
+    var firstDiscarded = 0
     var rejectedGeometry = false
     var finished = false
 
@@ -76,8 +83,7 @@ private class HostProbe {
             case NewEvents(StartCause.Deadline) -> deadline(application)
             case AboutToWait -> {
                 if (phase == HostPhase.PaintingResize) {
-                    assertFalse(resizedArea!!.requestFocus())
-                    rejectedGeometry = true
+                    assertTrue(rejectedGeometry)
                 }
                 if (phase == HostPhase.Start && firstFrames >= 2 && secondFrames >= 1) {
                     phase = HostPhase.Settle
@@ -143,8 +149,19 @@ private class HostProbe {
         a.requestFocus()
         firstView = Some(observeWindow(a))
         secondView = Some(observeWindow(b, true))
-        firstSurface = Some(host.attach(a) { frame -> paintFirst(frame) })
+        firstSurface =
+            Some(
+                host.attach(
+                    a,
+                    ObservedFrameContent(
+                        { frame -> paintFirst(frame) },
+                        { frame -> completeFirst(frame) }
+                    )
+                )
+            )
         resizedArea =
+            Some(firstSurface!!.createArea(focusable = true) { _, _ -> InputResult.Ignored })
+        acceptedArea =
             Some(firstSurface!!.createArea(focusable = true) { _, _ -> InputResult.Ignored })
         secondSurface = Some(host.attach(b) { frame -> paintSecond(frame) })
         assertFailsWith<IllegalStateException> { host.attach(a) { _ -> fail() } }
@@ -156,10 +173,7 @@ private class HostProbe {
         checkView(firstView!!, first!!)
         frame.canvas.clear(Color.White)
         frame.canvas.drawRect(Rect(8.0, 8.0, 40.0, 30.0), Paint(Color(1.0, 0.0, 0.0)))
-        if (firstFrames == 1) {
-            frame.window.requestFrame()
-            frame.window.requestFrame()
-        }
+        frame.place(acceptedArea!!, Rect(90.0, 0.0, 80.0, 80.0))
         if (phase == HostPhase.Resize && frame.size == Size(360.0, 200.0)) {
             frame.place(resizedArea!!, Rect(0.0, 0.0, 80.0, 80.0))
             phase = HostPhase.PaintingResize
@@ -172,6 +186,26 @@ private class HostProbe {
                 assertEquals(SurfaceWindowState.Closing, frame.window.state)
                 secondSurface!!.requestFrame()
             }
+    }
+    private fun completeFirst(frame: FrameCompletion) {
+        assertEquals(thread, currentThreadId())
+        when (frame.submission) {
+            case Accepted -> {
+                firstAccepted += 1
+                assertTrue(acceptedArea!!.requestFocus())
+                if (firstAccepted == 1) {
+                    firstSurface!!.requestFrame()
+                    firstSurface!!.requestFrame()
+                }
+            }
+            case Discarded -> {
+                firstDiscarded += 1
+                if (frame.size == Size(360.0, 200.0) && phase == HostPhase.PaintingResize) {
+                    assertFalse(resizedArea!!.requestFocus())
+                    rejectedGeometry = true
+                }
+            }
+        }
     }
     private fun paintSecond(frame: FrameContext) {
         secondFrames += 1
@@ -244,4 +278,33 @@ private class HostProbe {
         firstView?.close()
         secondView?.close()
     }
+}
+
+private class ObservedFrameContent(
+    private val painter: (FrameContext) -> Unit,
+    private val completed: (FrameCompletion) -> Unit
+): SurfaceContent {
+    private var insidePaint = false
+    private var time: TimeMark? = None
+    private var size = Size(0.0, 0.0)
+    private var canvas: Canvas? = None
+    public override fun paint(frame: FrameContext) {
+        insidePaint = true
+        time = Some(frame.time)
+        size = frame.size
+        canvas = Some(frame.canvas)
+        try {
+            painter(frame)
+        } finally {
+            insidePaint = false
+        }
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        assertFalse(insidePaint)
+        assertEquals(time!!, frame.time)
+        assertEquals(size, frame.size)
+        assertFailsWith<IllegalStateException> { canvas!!.save() }
+        completed(frame)
+    }
+    public override fun close() {}
 }

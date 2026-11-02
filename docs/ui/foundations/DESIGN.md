@@ -81,7 +81,7 @@ flowchart LR
     E -->|失败或 Deferred| H[保留最近成功几何并等待机会]
 ```
 
-Surface 增加与一次实际帧绑定的提交结果通知，供 UiRoot 发布对应锚点、焦点可用性并完成延迟焦点请求。通知在 Canvas 借用和当前绘制回调退出后交付；不在绘制栈里调用任意业务回调。失败不回滚 State，也不能宣布新层已经可交互。
+Surface 通过 SurfaceContent.onFrameComplete 提供与一次实际帧绑定的提交结果；UI 通过 SceneContext.onFrameComplete 登记当前挂载的一次性动作。该边界供后续锚点发布、焦点可用性和延迟焦点请求使用。通知在 Canvas 借用和当前绘制回调退出后交付；不在绘制栈里调用任意业务回调。失败不回滚 State，也不能宣布新层已经可交互。具体已交付合同见 Surface／UI spec 与 A2 实施记录。
 
 节点关闭／禁用仍可立即收紧输入资格；新区域、解除遮挡后的目标、位置与 clip 变化，按成功帧更新。模态请求在等待首帧期间可以先阻止背景输入，但不能把焦点送到尚未提交的区域，详见 LAYERS。文本内容快照的发布独立于 caret 几何，详见 TEXT-EDITING。
 

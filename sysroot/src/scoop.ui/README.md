@@ -16,7 +16,9 @@ State 在创建它的线程读写；render／measure／scene／draw 不允许写
 
 ## 自绘与资源
 
-Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功呈现后才发布区域。
+Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
+
+`context.onFrameComplete { result -> ... }` 登记当前帧的一次性完成通知。Accepted 后可以使用已发布区域请求焦点，也可以写 State 或请求后续帧；Discarded 保留旧几何。通知执行前若节点卸载或根关闭则取消，不能把资源清理依赖在通知上；场景与绘图 context 的借用仍在同步回调结束时失效。
 
 在 onMount 中使用 ComponentScope.resource 登记 Path、Image 或缓存，使用 createArea 和 animation 登记稳定的输入区域与 Surface Animatable。应用不为每个组件 use；作用域按子先父的顺序退休输入／动画、调用 onUnmount，再逆序关闭资源。可替换缓存应自行及时关闭旧值，不能每帧登记一个新资源。
 

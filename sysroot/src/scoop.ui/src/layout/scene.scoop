@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.graphics.*
 import scoop.surface.FrameContext
+import scoop.surface.FrameCompletion
 import scoop.surface.InputArea
 import scoop.time.TimeMark
 
@@ -26,6 +27,11 @@ public class SceneContext internal constructor(
     public val time: TimeMark get() {
         checkActive()
         return frame.time
+    }
+    /** Runs after this frame ends, while this node remains mounted and its root remains open. */
+    public fun onFrameComplete(action: (FrameCompletion) -> Unit) {
+        checkActive()
+        node.root.addCompletion(node, action)
     }
     private fun checkActive() {
         node.root.checkThread()

@@ -7,7 +7,7 @@
 | 批次 | 状态 |
 | --- | --- |
 | A1：场景几何与纯绘图块分离 | 已完成 aarch64 实施和定向验证 |
-| A2：帧完成通知 | 待实施 |
+| A2：帧完成通知 | 已完成 aarch64 实施和定向验证 |
 | A3：输入作用域与路由阶段 | 待实施 |
 | B：焦点作用域、导航、快捷键 | 待实施 |
 | C：Absolute、portal、同窗口模态 | 待实施 |
@@ -32,3 +32,11 @@ Element 采用 `measure → scene`；SceneContext 控制共同的变换、clip�
 新增回归覆盖绘图 Canvas 变换不影响随后区域、跨作用域借用失效、状态写入拒绝、异常状态恢复，以及未放置子项恢复后跳过绘图仍能点击。现有停帧、焦点、滤镜、资源释放和后台任务组合保持通过。首次绘制回归因 macOS 后台激活未取得真实焦点而超时，按既有焦点前提重跑通过，未放宽焦点断言。没有运行 fixture 或全量测试，下载示例只运行 DownloadWindowTest。
 
 macOS x86_64 测试尚未执行，留到全部功能完成后统一验收。一次性测试报告由 runner 清理；后续批次仍需使用的独立 sysroot、编译产物和缓存保留在仓库外。
+
+## A2：帧完成通知
+
+SurfaceContent.onFrameComplete 接收本帧 time、窗口内容区 size 及 Accepted／Discarded。通知在 Canvas 和 frame 资源结束后交付，Accepted 的区域几何已经发布；Deferred、未绘制、异常或关闭路径不发通知。完成回调可请求下一帧和焦点，回调中的关闭仍遵守延迟释放，静止时不产生新工作。
+
+SceneContext.onFrameComplete 将一次性动作绑定到当前挂载与当前帧；UiRoot 按登记顺序交付，节点退休或根关闭会取消后续动作。回调允许正常 State 更新，不能继续使用结束的绘制借用。绘制回归已把恢复子项后的聚焦移到此公开入口，直接验证提交边界可供焦点接入使用。
+
+Surface／UI 格式化、生产类型检查和 aarch64 release 构建通过。5 项定向 scoop.test 通过：SurfaceHostTest、Surface content／errors、UI drawing／errors。覆盖真实改尺寸导致 Discarded、成功几何可立即聚焦、完成回调请求后续帧、回调内关闭、绘制失败不通知、完成动作异常后的清理及借用失效。Surface 主 Cone 只筛选 SurfaceHostTest，未运行无关用例；没有 fixture、全量或 x86_64 验证。测试临时报告已由 runner 清理。

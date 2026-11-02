@@ -25,6 +25,9 @@ private class UiDrawingTest {
             assertEquals(1, probe.leaf!!.mounted)
             assertEquals(1, probe.leaf!!.unmounted)
             assertTrue(probe.view!!.restored())
+            assertTrue(probe.frameCompletions > 0)
+            assertTrue(probe.focusAfterCommit)
+            assertEquals(1, probe.completedState.value)
         } finally {
             host.close()
             probe.view?.close()
@@ -42,6 +45,7 @@ internal class DrawingProbe {
     val completed = state(false)
     val closeOnUpdate = state(false)
     val count = state(0)
+    val completedState = state(0)
     val sequence = ArrayList<String>()
     var leaf: DrawingLeaf? = None
     var uiWindow: UiWindow? = None
@@ -62,6 +66,8 @@ internal class DrawingProbe {
     var downs = 0
     var parentDowns = 0
     var completions = 0
+    var frameCompletions = 0
+    var focusAfterCommit = false
     var returnedFromClose = false
     var finished = false
     private var phase = DrawingPhase.Starting
@@ -119,6 +125,7 @@ internal class DrawingProbe {
                 assertEquals("child", sequence[1L])
                 assertEquals("sibling", sequence[2L])
                 assertEquals("foreground", sequence[3L])
+                assertEquals("complete", sequence[4L])
                 drawsBeforeClick = leaf!!.draws
                 assertTrue(drawsBeforeClick > 0)
                 phase = DrawingPhase.Click
@@ -198,8 +205,8 @@ internal class DrawingProbe {
             case Restored -> {
                 if (lastPlaced && leaf!!.paints > unplacedPaints) {
                     assertEquals(1, leaf!!.mounted)
-                    assertFalse(leaf!!.area!!.hasFocus)
-                    assertTrue(leaf!!.area!!.requestFocus())
+                    assertTrue(focusAfterCommit)
+                    assertTrue(leaf!!.area!!.hasFocus)
                     restoredPaints = leaf!!.paints
                     phase = DrawingPhase.RestoredClick
                     assertTrue(view!!.button(45.0, 58.0, true))
