@@ -23,6 +23,13 @@ internal class FailureRecord(val mode: FailureMode) {
     var window: Window? = None
     var second: Window? = None
     var view: ViewProbe? = None
+    val overlay = OverlayHandle()
+    val anchor = LayoutAnchor()
+    var overlayCloses = 0
+    fun overlayClosed(reason: OverlayCloseReason) {
+        assertEquals(OverlayCloseReason.OwnerClosed, reason)
+        overlayCloses += 1
+    }
 }
 
 @Test
@@ -69,6 +76,8 @@ internal class FailureHarness: ApplicationHandler {
             FailureRecord(FailureMode.DuplicateKey),
             FailureRecord(FailureMode.DuplicateInstance),
             FailureRecord(FailureMode.ValueType),
+            FailureRecord(FailureMode.PortalHandle),
+            FailureRecord(FailureMode.PortalCycle),
             FailureRecord(FailureMode.MissingMeasure),
             FailureRecord(FailureMode.Measure),
             FailureRecord(FailureMode.MissingPaint),
@@ -156,7 +165,14 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         case DuplicateInstance -> assertTrue(error is IllegalStateException)
         case MissingMeasure -> assertTrue(error is IllegalStateException)
         case MissingPaint -> assertTrue(error is IllegalStateException)
+        case PortalHandle -> assertTrue(error is IllegalArgumentException)
+        case PortalCycle -> assertTrue(error is IllegalStateException)
         else -> assertTrue(containsFailure(error, record.primary))
+    }
+    if (record.mode == FailureMode.PortalHandle || record.mode == FailureMode.PortalCycle) {
+        assertEquals(1, record.overlayCloses)
+        assertFalse(record.overlay.isAttached)
+        assertFalse(record.anchor.isAttached)
     }
     if (record.mode == FailureMode.Mount) {
         assertEquals(1, record.rootMounts)

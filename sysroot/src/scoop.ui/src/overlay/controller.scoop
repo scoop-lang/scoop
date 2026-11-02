@@ -1,0 +1,76 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.*
+
+/** Frame identity contains values only; it never retains a Canvas borrow. */
+internal class OverlayFrame {
+    val unavailable = ArrayList<PortalInstance>()
+}
+
+internal class OverlayController {
+    private val sessions = ArrayList<PortalInstance>()
+    var frame = OverlayFrame()
+
+    fun add(value: PortalInstance) {
+        sessions.add(value)
+    }
+    fun remove(value: PortalInstance) {
+        for (index in 0L ..< sessions.size) {
+            if (sessions[index] === value) {
+                sessions.removeAt(index)
+                return
+            }
+        }
+    }
+    fun beginFrame() {
+        frame = OverlayFrame()
+    }
+    fun include(value: PortalInstance) {
+        value.included = Some(frame)
+    }
+    fun paint(context: FrameContext) {
+        for (portal in sessions) {
+            val included = portal.included ?: continue
+            if (!portal.isOpen || included !== frame)
+                continue
+            val anchor =
+                when (portal.anchor) {
+                    case Some(handle) -> {
+                        val geometry = handle.geometry(frame)
+                        val usable =
+                            when (geometry) {
+                                case Some(value) -> value.visible ||
+                                    portal.options.anchorVisibility ==
+                                    AnchorVisibility.KeepVisible
+                                case None -> false
+                            }
+                        if (!usable) {
+                            if (portal.options.anchorVisibility != AnchorVisibility.Hide)
+                                frame.unavailable.add(portal)
+                            continue
+                        }
+                        geometry?.bounds
+                    }
+                    case None -> None
+                }
+            val plan = planOverlay(portal.options.placement, context.size, anchor)
+            val child = portal.node.children[0L]
+            val metrics = child.measure(plan.constraints, context.time)
+            val layout = plan.layout(metrics.size)
+            child.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
+        }
+    }
+    fun complete(completion: FrameCompletion) {
+        val unavailable = frame.unavailable.toArray()
+        frame.unavailable.clear()
+        if (completion.submission != FrameSubmission.Accepted)
+            return
+        var failure: Throwable? = None
+        for (portal in unavailable) {
+            if (portal.isOpen)
+                failure = cleanupUi(failure) { portal.close(OverlayCloseReason.AnchorUnavailable) }
+        }
+        throwUi(failure)
+    }
+}

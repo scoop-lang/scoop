@@ -13,7 +13,7 @@
 | B2a：可见几何、焦点作用域与 Tab | 已完成 aarch64 实施和定向验证 |
 | B2b：组内键盘导航与 roving | 已完成 aarch64 实施和定向验证 |
 | C1：Absolute 与显式子项呈现顺序 | 已完成 aarch64 实施和定向验证 |
-| C2：portal 与 anchor 定位 | 待实施 |
+| C2：portal 与 anchor 定位 | 已完成 aarch64 实施和定向验证 |
 | C3：同窗口模态、关闭与宿主快捷键 | 待实施 |
 | D：普通／虚拟滚动、实例保留 | 待实施 |
 | E：绘制记录与分块像素缓存 | 待实施 |
@@ -94,3 +94,13 @@ SceneContext.children(order) 接受直接子项索引的完整排列，在开始
 修改的 Scoop 文件格式化、相关六个 UI 库生产类型检查及 aarch64 release 构建通过。5 项定向 scoop.test 通过：AbsoluteLayoutTest 3 项、UI drawing 1 项、AbsoluteUiTest 1 项。纯布局覆盖有界／无界、显式尺寸收敛、四种轴策略、负偏移及非法／溢出参数；实际窗口读取叠放像素并派发鼠标／Tab，验证每项每帧只测量和呈现一次、zIndex 同值稳定、Props 更新保留实例与焦点顺序、祖先裁剪仍限制像素和命中。既有绘制回归验证无效排列不消耗呈现机会、跨 withState 仍只呈现一次。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告清理，独立 sysroot、构建缓存和后续测试入口保留。
+
+## C2：portal 与锚点定位
+
+Portal 成为独立的 View 描述形状，保留逻辑挂载、输入路由和 Tab 顺序，在原容器中只返回占位尺寸，内容延后到窗口层测量一次。LayoutAnchor 使用本帧 graphics 变换／clip 几何，Viewport／Anchored 定位提供有界约束、flip、shift 和匹配锚点宽度；SceneContext.overlayLayout 传递最终位置供内容绘制。层按打开顺序呈现，嵌套层在父层之后；绑定时检查同根、自引用与实际依赖环。
+
+OverlayHandle 管理一次挂载会话，当前回调只收到一次关闭通知。Hide 保留实例等待锚点恢复，KeepVisible 使用当前有效坐标保持在窗口内；Close 和缺失位置在 Accepted 后关闭，Discarded 不误关。显式关闭立即停止子树交互，普通更新随后退休子内容；同 key 的普通更新不重开已关闭会话。锚点解绑、句柄替换和迟到清理按实际绑定身份处理，部分挂载失败也会释放登记。
+
+修改的 Scoop 文件格式化、相关六个 UI 库生产类型检查及 aarch64 release 构建通过。9 项定向 scoop.test 通过：OverlayPlacementTest 5 项，以及 overlay、UI composition、drawing、errors 各 1 项。真实窗口验证祖先变换／裁剪外的像素与命中、嵌套路由、逻辑重排与层次／Tab 顺序、resize、三种可见性策略、帧失效、当前回调、重复关闭、重新挂载和停帧；错误回归新增重复句柄及自引用下的部分树清理，绑定回归覆盖循环与跨根拒绝。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。一次性桌面报告已清理，独立 sysroot、构建缓存和后续测试入口保留。

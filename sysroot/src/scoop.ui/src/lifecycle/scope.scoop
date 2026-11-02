@@ -130,6 +130,13 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         managed.add(value)
         return value
     }
+    public fun layoutAnchor(handle: LayoutAnchor): Closeable {
+        checkMounted()
+        checkOverlayMutation()
+        val value = handle.bind(node)
+        managed.add(value)
+        return value
+    }
     public fun animation(initial: Double): Animatable<Double> =
         animation(initial, AnimationConverters.DoubleValue)
     public fun animation(initial: Point): Animatable<Point> =

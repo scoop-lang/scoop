@@ -15,6 +15,7 @@ public class SceneContext internal constructor(
     private val node: MountedNode,
     private val frame: FrameContext,
     private val extent: Size,
+    private val overlay: OverlayLayout? = None,
     private val pass: ScenePass = ScenePass()
 ) {
     private var active = true
@@ -26,6 +27,15 @@ public class SceneContext internal constructor(
     public val time: TimeMark get() {
         checkActive()
         return frame.time
+    }
+    public val overlayLayout: OverlayLayout? get() {
+        checkActive()
+        return overlay
+    }
+    /** Captures current transform and clip without creating an input target. */
+    public fun anchor(handle: LayoutAnchor, rect: Rect) {
+        checkActive()
+        handle.capture(node, node.root.overlays.frame, frame.canvas, rect)
     }
     /** Runs after this frame ends, while this node remains mounted and its root remains open. */
     public fun onFrameComplete(action: (FrameCompletion) -> Unit) {
@@ -64,7 +74,7 @@ public class SceneContext internal constructor(
         try {
             return frame.withState {
                 childFrame ->
-                val child = SceneContext(node, childFrame, extent, pass)
+                val child = SceneContext(node, childFrame, extent, overlay, pass)
                 try {
                     block(child)
                 } finally {
@@ -152,7 +162,7 @@ public class SceneContext internal constructor(
     }
     private fun presentChild(index: Long) {
         when (node.placements[index]) {
-            case Some(origin) -> node.children[index].scene(frame, origin)
+            case Some(origin) -> node.children[index].scene(frame, origin, overlay)
             case None -> {}
         }
     }
@@ -168,18 +178,19 @@ public class SceneContext internal constructor(
     }
 }
 
-internal fun MountedNode.scene(frame: FrameContext, origin: Point) {
+internal fun MountedNode.scene(frame: FrameContext, origin: Point, overlay: OverlayLayout? = None) {
     if (!active || !root.isOpen)
         return
     when (body) {
         case Empty -> {}
-        case Component(_) -> children[0L].scene(frame, origin)
+        case Component(_) -> children[0L].scene(frame, origin, overlay)
+        case Portal(instance) -> root.overlays.include(instance)
         case Element(instance) -> frame.withState {
             childFrame ->
             childFrame.canvas.translate(origin.x, origin.y)
             val result =
                 metrics ?: throw IllegalStateException(Some("element has not been measured"))
-            val context = SceneContext(this, childFrame, result.size)
+            val context = SceneContext(this, childFrame, result.size, overlay)
             try {
                 evaluateUi<Unit>(None) { instance.value.scene(context) }
                 if (active && root.isOpen)

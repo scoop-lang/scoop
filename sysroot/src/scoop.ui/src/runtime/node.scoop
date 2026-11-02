@@ -3,7 +3,7 @@ package scoop.ui
 import scoop.graphics.Point
 
 internal enum NodeBody {
-    Empty, Component(ComponentInstance), Element(ElementInstance)
+    Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance)
 }
 
 internal class UpdateTurn
@@ -40,6 +40,7 @@ internal class MountedNode(
             case(Empty, Empty) -> {}
             case(Component(instance), Component(description)) -> instance.replace(description)
             case(Element(instance), Element(description, _)) -> instance.replace(description)
+            case(Portal(instance), Portal(_, options)) -> instance.replace(options)
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
         view = next
@@ -50,6 +51,18 @@ internal class MountedNode(
         updated = Some(turn)
         when (body) {
             case Empty -> {}
+            case Portal(instance) -> when (view.body) {
+                case Portal(content, _) -> reconcile(
+                    if (instance.closeReason == None)
+                        [content]
+                    else
+                        [],
+                    turn
+                )
+                else -> throw IllegalStateException(
+                    Some("portal description was replaced by another shape")
+                )
+            }
             case Component(instance) -> {
                 val collector = DependencyCollector()
                 val next = evaluateUi(Some(collector)) { instance.value.render() }
@@ -82,6 +95,7 @@ internal class MountedNode(
                 case Empty -> {}
                 case Component(instance) -> instance.value.onMount(scope)
                 case Element(instance) -> instance.value.onMount(scope)
+                case Portal(instance) -> instance.mount(this)
             }
             mounted = true
             if (active && root.isOpen) {
@@ -123,11 +137,12 @@ internal class MountedNode(
                         case Empty -> {}
                         case Component(instance) -> instance.value.onUnmount()
                         case Element(instance) -> instance.value.onUnmount()
+                        case Portal(_) -> {}
                     }
                 }
         }
         failure = cleanupUi(failure) { throwUi(scope.release()) }
-        releaseInstance(body)
+        failure = cleanupUi(failure) { releaseInstance(body) }
         metrics = None
         placements = []
         throwUi(failure)

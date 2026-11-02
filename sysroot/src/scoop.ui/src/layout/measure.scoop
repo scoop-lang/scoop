@@ -80,6 +80,10 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Layo
                 placements = []
                 LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
             }
+            case Portal(_) -> {
+                placements = []
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
+            }
             case Component(_) -> {
                 val child = children[0L].measure(constraints, time)
                 placements = [Some(Point(0.0, 0.0))]

@@ -1,0 +1,364 @@
+package scoop.tests.ui.overlay
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class OverlayUiTest {
+    @Test
+    fun `portals escape scene clips retain logical input and manage anchor visibility and sessions`() {
+        val probe = OverlayProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.view!!.restored())
+            for (index in 0L ..< 3L) {
+                assertEquals(probe.mounts[index], probe.unmounts[index])
+                assertFalse(probe.overlays[index].isAttached)
+                assertFalse(probe.focus[index].isAttached)
+            }
+            assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.alternate.lastCloseReason)
+            assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.overlays[1L].lastCloseReason)
+            assertFalse(probe.anchor.isAttached)
+            assertFalse(probe.childAnchor.isAttached)
+            assertEquals(probe.closed.size, probe.closedState.value.toLong())
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal struct CloseRecord(val index: Long, val reason: OverlayCloseReason, val generation: Int)
+
+internal class OverlayProbe {
+    val anchor = LayoutAnchor()
+    val childAnchor = LayoutAnchor()
+    val selfAnchor = LayoutAnchor()
+    val cycleA = LayoutAnchor()
+    val cycleB = LayoutAnchor()
+    val foreignAnchor = LayoutAnchor()
+    val overlays = Array<OverlayHandle>(3L) { _ -> OverlayHandle() }
+    val alternate = OverlayHandle()
+    var mainHandle = overlays[0L]
+    val focus = Array<FocusHandle>(4L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(4L) { _ -> None }
+    val layouts = MutableArray<OverlayLayout?>(3L) { _ -> None }
+    val mounts = MutableArray<Int>(3L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(3L) { _ -> 0 }
+    val measures = MutableArray<Int>(3L) { _ -> 0 }
+    val scenes = MutableArray<Int>(3L) { _ -> 0 }
+    val clicks = MutableArray<Int>(3L) { _ -> 0 }
+    val pixels = MutableArray<Long>(3L) { _ -> -1L }
+    val colors = [Color(1.0, 0.0, 0.0), Color(0.0, 1.0, 0.0), Color(0.0, 0.0, 1.0)]
+    val generation = state(0)
+    val closedState = state(0)
+    val closed = ArrayList<CloseRecord>()
+    var anchorRect = Rect(20.0, 20.0, 20.0, 10.0)
+    var smallClip = true
+    var omitAnchor = false
+    var reversed = false
+    var discardHidden = false
+    var didResize = false
+    var discarded = 0
+    var mainPolicy = AnchorVisibility.Close
+    var otherPolicy = AnchorVisibility.Close
+    var mainKey = 0L
+    var extent = Size(0.0, 0.0)
+    var committed = -1
+    var passes = 0
+    var order = ""
+    var bubbles = 0
+    var parentBubbles = 0
+    var relationChecks = 0
+    var finished = false
+    var window: Window? = None
+    var rootScope: ComponentScope? = None
+    var anchorBinding: Closeable? = None
+    var view: ViewProbe? = None
+    private var foreign: Window? = None
+    private var ui: UiWindow? = None
+    private var phase = 0
+    private var waiting = false
+    private var retryFocus = false
+    private var hiddenMain = 0
+    private var hiddenChild = 0
+    private var quietPasses = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop portal layout", LogicalSize(320.0, 220.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { OverlayScene(this) }))
+                val second =
+                    active.createWindow(WindowAttributes("Scoop portal ownership", visible = false))
+                foreign = Some(second)
+                host.attach(second, { ForeignRoot(this) })
+                waitFor(active, 30000L)
+            }
+            case AboutToWait -> {
+                if (!finished && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (!finished && !waiting && committed == generation.value && window!!.isFocused)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                if (phase == 22) {
+                    quietPasses = passes
+                    phase = 23
+                    waitFor(active, 150L)
+                } else
+                    if (phase == 23) {
+                        assertEquals(quietPasses, passes)
+                        finished = true
+                        ui!!.close()
+                        window!!.requestDestroy()
+                        foreign!!.requestDestroy()
+                    } else
+                        fail(
+                            Some(
+                                f"portal timeout phase=${phase}, frames=${passes}, generation=${
+                                    generation.value
+                                }, committed=${committed}"
+                            )
+                        )
+            }
+            else -> {}
+        }
+    }
+    private fun change() {
+        generation.value += 1
+        phase += 1
+    }
+    private fun afterInput(active: ActiveApplication, target: Long) {
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                for (index in 0L ..< focus.size)
+                    assertEquals(index == target, focus[index].hasFocus)
+                phase += 1
+                waiting = false
+            }
+        )
+    }
+    private fun click(active: ActiveApplication, x: Double, y: Double, target: Long) {
+        waiting = true
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+        afterInput(active, target)
+    }
+    private fun tab(active: ActiveApplication, target: Long) {
+        waiting = true
+        assertTrue(sendSurfaceKey(window!!, 48, true))
+        assertTrue(sendSurfaceKey(window!!, 48, false))
+        afterInput(active, target)
+    }
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertEquals(4, relationChecks)
+                assertEquals("012", order)
+                assertEquals(Some(Rect(60.0, 84.0, 80.0, 40.0)), areas[0L]!!.windowBounds)
+                assertEquals(Some(Rect(144.0, 84.0, 30.0, 20.0)), areas[1L]!!.windowBounds)
+                for (index in 0L ..< 3L) {
+                    assertEquals(areas[index]!!.windowBounds, areas[index]!!.visibleBounds)
+                    assertEquals(1, mounts[index])
+                }
+                assertEquals(255L, pixels[0L])
+                assertEquals(65280L, pixels[1L])
+                assertEquals(16711680L, pixels[2L])
+                assertTrue(focus[0L].hasFocus)
+                click(active, 70.0, 94.0, 2L)
+            }
+            case 1 -> {
+                assertEquals(1, clicks[2L]);
+                assertEquals(1, bubbles);
+                tab(active, 3L)
+            }
+            case 2 -> tab(active, 0L)
+            case 3 -> tab(active, 1L)
+            case 4 -> click(active, 150.0, 90.0, 1L)
+            case 5 -> {
+                assertEquals(1, clicks[1L])
+                assertEquals(1, parentBubbles)
+                assertEquals(2, bubbles)
+                reversed = true
+                change()
+            }
+            case 6 -> {
+                assertEquals("012", order);
+                tab(active, 3L)
+            }
+            case 7 -> tab(active, 2L)
+            case 8 -> {
+                anchorRect = Rect(130.0, 70.0, 20.0, 10.0);
+                smallClip = false;
+                change()
+            }
+            case 9 -> {
+                assertEquals(Some(OverlaySide.Top), layouts[0L]!!.side)
+                assertEquals(Rect(232.0, 116.0, 80.0, 40.0), layouts[0L]!!.bounds)
+                anchorRect = Rect(90.0, 70.0, 20.0, 10.0)
+                window!!.requestSize(LogicalSize(240.0, 220.0))
+                change()
+            }
+            case 10 -> {
+                if (extent != Size(240.0, 220.0))
+                    return
+                assertEquals(Rect(152.0, 116.0, 80.0, 40.0), layouts[0L]!!.bounds)
+                mainPolicy = AnchorVisibility.Hide
+                otherPolicy = AnchorVisibility.KeepVisible
+                hiddenMain = scenes[0L]
+                hiddenChild = scenes[1L]
+                anchorRect = Rect(300.0, 300.0, 20.0, 10.0)
+                change()
+            }
+            case 11 -> {
+                assertTrue(mainHandle.isOpen)
+                assertTrue(overlays[1L].isOpen)
+                assertEquals(hiddenMain, scenes[0L])
+                assertEquals(hiddenChild, scenes[1L])
+                assertFalse(areas[0L]!!.canFocus)
+                assertTrue(areas[2L]!!.canFocus)
+                assertEquals(Rect(152.0, 172.0, 80.0, 40.0), layouts[2L]!!.bounds)
+                omitAnchor = true
+                change()
+            }
+            case 12 -> {
+                if (unmounts[2L] == 0)
+                    return
+                assertFalse(overlays[2L].isOpen)
+                assertTrue(overlays[2L].isAttached)
+                assertEquals(
+                    Some(OverlayCloseReason.AnchorUnavailable),
+                    overlays[2L].lastCloseReason
+                )
+                assertEquals(
+                    CloseRecord(2L, OverlayCloseReason.AnchorUnavailable, generation.value),
+                    closed[0L]
+                )
+                assertTrue(mainHandle.isOpen)
+                omitAnchor = false
+                anchorRect = Rect(20.0, 20.0, 20.0, 10.0)
+                smallClip = true
+                change()
+            }
+            case 13 -> {
+                assertTrue(areas[0L]!!.canFocus)
+                assertTrue(areas[1L]!!.canFocus)
+                assertEquals(1, mounts[0L])
+                assertEquals(1, mounts[1L])
+                assertFalse(overlays[2L].isOpen)
+                mainHandle = alternate
+                change()
+            }
+            case 14 -> {
+                assertTrue(alternate.isOpen)
+                assertFalse(overlays[0L].isAttached)
+                assertEquals(1, mounts[0L])
+                mainPolicy = AnchorVisibility.Close
+                discardHidden = true
+                change()
+            }
+            case 15 -> {
+                if (discarded == 0 || extent != Size(260.0, 220.0))
+                    return
+                assertTrue(alternate.isOpen)
+                assertEquals(1L, closed.size)
+                alternate.close()
+                alternate.close()
+                assertFalse(alternate.isOpen)
+                assertFalse(areas[0L]!!.scope.isEnabledInHierarchy)
+                assertFalse(areas[1L]!!.scope.isEnabledInHierarchy)
+                phase += 1
+                waiting = true
+                assertTrue(active.proxy().post { _ -> waiting = false })
+            }
+            case 16 -> {
+                assertEquals(1, unmounts[0L])
+                assertEquals(1, unmounts[1L])
+                assertEquals(Some(OverlayCloseReason.Explicit), alternate.lastCloseReason)
+                assertEquals(Some(OverlayCloseReason.OwnerClosed), overlays[1L].lastCloseReason)
+                assertEquals(3L, closed.size)
+                change()
+            }
+            case 17 -> {
+                assertFalse(alternate.isOpen)
+                assertEquals(1, mounts[0L])
+                assertEquals(3L, closed.size)
+                mainKey += 1L
+                discardHidden = false
+                change()
+            }
+            case 18 -> {
+                assertTrue(alternate.isOpen)
+                assertEquals(None, alternate.lastCloseReason)
+                assertEquals(2, mounts[0L])
+                assertEquals(2, mounts[1L])
+                val old = anchorBinding!!
+                old.close()
+                assertFalse(anchor.isAttached)
+                assertEquals(Some(OverlayCloseReason.AnchorUnavailable), alternate.lastCloseReason)
+                anchorBinding = Some(rootScope!!.layoutAnchor(anchor))
+                old.close()
+                assertTrue(anchor.isAttached)
+                mainKey += 1L
+                change()
+            }
+            case 19 -> {
+                assertTrue(alternate.isOpen)
+                assertEquals(3, mounts[0L])
+                assertEquals(3, mounts[1L])
+                assertEquals(2, unmounts[0L])
+                assertEquals(2, unmounts[1L])
+                anchorRect = Rect(300.0, 300.0, 20.0, 10.0)
+                change()
+            }
+            case 20 -> {
+                if (unmounts[0L] < 3 || unmounts[1L] < 3)
+                    return
+                assertEquals(Some(OverlayCloseReason.AnchorUnavailable), alternate.lastCloseReason)
+                assertEquals(
+                    CloseRecord(0L, OverlayCloseReason.AnchorUnavailable, generation.value),
+                    closed[closed.size - 2L]
+                )
+                anchorRect = Rect(20.0, 20.0, 20.0, 10.0)
+                mainKey += 1L
+                change()
+            }
+            case 21 -> {
+                assertTrue(alternate.isOpen)
+                assertEquals(4, mounts[0L])
+                assertEquals(4, mounts[1L])
+                waiting = true
+                phase = 22
+                waitFor(active, 150L)
+            }
+            else -> fail(Some("unexpected portal phase"))
+        }
+    }
+    private fun waitFor(active: ActiveApplication, milliseconds: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(
+                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
+            )
+        )
+    }
+}

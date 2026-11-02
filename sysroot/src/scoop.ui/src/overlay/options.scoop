@@ -1,0 +1,79 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+
+public enum OverlayAlignment {
+    Start, Center, End
+}
+
+public enum OverlaySide {
+    Top, Right, Bottom, Left
+}
+
+public enum AnchorVisibility {
+    Close, Hide, KeepVisible
+}
+
+public enum OverlayCloseReason {
+    Explicit, AnchorUnavailable, OwnerClosed
+}
+
+public enum OverlayPlacement {
+    Viewport(
+        val horizontal: OverlayAlignment = OverlayAlignment.Center,
+        val vertical: OverlayAlignment = OverlayAlignment.Center,
+        val viewportPadding: Double = 8.0
+    ),
+    Anchored(
+        val anchor: LayoutAnchor,
+        val preferredSide: OverlaySide = OverlaySide.Bottom,
+        val alignment: OverlayAlignment = OverlayAlignment.Start,
+        val gap: Double = 4.0,
+        val viewportPadding: Double = 8.0,
+        val matchAnchorWidth: Boolean = false
+    )
+}
+
+public class PortalOptions public constructor(
+    public val placement: OverlayPlacement = OverlayPlacement.Viewport(),
+    public val handle: OverlayHandle? = None,
+    public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
+    public val onClose: (OverlayCloseReason) -> Unit = { _ -> Unit }
+) {
+    init {
+        when (placement) {
+            case Viewport(_, _, padding) -> checkOverlayDistance(padding)
+            case Anchored(_, _, _, gap, padding, _) -> {
+                checkOverlayDistance(gap)
+                checkOverlayDistance(padding)
+            }
+        }
+    }
+}
+
+/** Value geometry for the nearest portal in the current scene pass. */
+public class OverlayLayout internal constructor(
+    public val bounds: Rect,
+    public val available: Rect,
+    public val anchor: Rect?,
+    public val side: OverlaySide?
+)
+
+private fun checkOverlayDistance(value: Double) {
+    requireUi(value.isFinite() && value >= 0.0, "invalid overlay gap or viewport padding")
+}
+
+internal val OverlayPlacement.anchor: LayoutAnchor? get() =
+    when (this) {
+        case Viewport(_, _, _) -> None
+        case Anchored(value, _, _, _, _, _) -> Some(value)
+    }
+
+internal fun checkOverlayMutation() {
+    when (currentEvaluation()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("overlay bindings cannot change during render, measure, scene or draw")
+        )
+        case None -> {}
+    }
+}

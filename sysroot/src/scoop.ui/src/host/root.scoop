@@ -26,6 +26,7 @@ internal class UiRoot(
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
     val focus = FocusController(this)
+    val overlays = OverlayController()
     private val pending = ArrayList<MountedNode>()
     private val completions = ArrayList<SceneCompletion>()
     var pendingEnqueued = false
@@ -77,13 +78,17 @@ internal class UiRoot(
         if (!isOpen)
             return
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
+        overlays.beginFrame()
         current.measure(Constraints.tight(frame.size), frame.time)
         current.scene(frame, Point(0.0, 0.0))
+        overlays.paint(frame)
     }
     fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
         completions.add(SceneCompletion(node, action))
     }
     public override fun onFrameComplete(frame: FrameCompletion) {
+        if (isOpen)
+            overlays.complete(frame)
         if (isOpen)
             focus.complete(frame)
         val work = completions.toArray()

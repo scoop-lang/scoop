@@ -1,0 +1,271 @@
+package scoop.tests.ui.overlay
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.window.*
+
+internal class OverlayScene(private val probe: OverlayProbe): Component {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        val main =
+            layer(
+                0L,
+                probe.anchor,
+                probe.mainHandle,
+                probe.mainPolicy,
+                generation,
+                [
+                    layer(
+                        1L,
+                        probe.childAnchor,
+                        probe.overlays[1L],
+                        AnchorVisibility.Hide,
+                        generation
+                    )
+                ],
+                ViewKey.Number(probe.mainKey)
+            )
+        val other = layer(2L, probe.anchor, probe.overlays[2L], probe.otherPolicy, generation)
+        val layers =
+            if (probe.reversed)
+                [other, main]
+            else
+                [main, other]
+        val children = ArrayList<View>()
+        for (child in layers)
+            children.add(child)
+        for (child in relationProbes(probe))
+            children.add(child)
+        return element(
+            CanvasInput(
+                generation,
+                probe.anchorRect,
+                probe.smallClip,
+                probe.omitAnchor,
+                probe.discardHidden
+            ),
+            { props -> OverlayCanvas(probe, props) },
+            children.toArray()
+        )
+    }
+    private fun layer(
+        index: Long,
+        anchor: LayoutAnchor,
+        handle: OverlayHandle,
+        visibility: AnchorVisibility,
+        generation: Int,
+        children: Array<View> = [],
+        key: ViewKey = ViewKey.Text("second")
+    ): View =
+        portal(
+            element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children),
+            PortalOptions(
+                OverlayPlacement.Anchored(
+                    anchor,
+                    if (index == 1L)
+                        OverlaySide.Right
+                    else
+                        OverlaySide.Bottom
+                ),
+                Some(handle),
+                visibility,
+                {
+                    reason ->
+                    probe.closed.add(CloseRecord(index, reason, generation))
+                    probe.closedState.value += 1
+                }
+            ),
+            key
+        )
+}
+
+private struct CanvasInput(
+    val generation: Int,
+    val anchor: Rect,
+    val smallClip: Boolean,
+    val omitAnchor: Boolean,
+    val discardHidden: Boolean
+)
+
+private class OverlayCanvas(
+    private val probe: OverlayProbe,
+    private val props: Props<CanvasInput>
+): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        probe.rootScope = Some(scope)
+        probe.anchorBinding = Some(scope.layoutAnchor(probe.anchor))
+        assertFailsWith<IllegalArgumentException> { scope.layoutAnchor(probe.anchor) }
+        probe.relationChecks += 1
+        val region =
+            scope.createArea(focusable = true) {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (context.phase == RoutedPhase.Bubble)
+                            probe.bubbles += 1
+                    }
+                    else -> {}
+                }
+            }
+        area = Some(region)
+        probe.areas[3L] = Some(region)
+        scope.focusTarget(region, FocusOptions(Some(probe.focus[3L])))
+        scope.routeChildren(region)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            val placeholder =
+                context.measureChild(index, Constraints(7.0, Some(15.0), 9.0, Some(15.0)))
+            assertEquals(Size(7.0, 9.0), placeholder.size)
+            context.placeChild(index, Point(900.0, 900.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        probe.passes += 1
+        probe.order = ""
+        probe.extent = context.size
+        when (context.overlayLayout) {
+            case Some(_) -> fail(Some("ordinary scene inherited a portal layout"))
+            case None -> {}
+        }
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        val discard = input.discardHidden && !probe.didResize
+        context.withState {
+            child ->
+            child.translate(20.0, 20.0)
+            child.scale(2.0, 2.0)
+            child.clipRect(
+                if (discard)
+                    Rect(0.0, 0.0, 0.0, 0.0)
+                else
+                    if (input.smallClip)
+                        Rect(0.0, 0.0, 50.0, 30.0)
+                    else
+                        Rect(0.0, 0.0, 300.0, 300.0)
+            )
+            if (!input.omitAnchor) {
+                child.anchor(probe.anchor, input.anchor)
+                assertFailsWith<IllegalStateException> { child.anchor(probe.anchor, input.anchor) }
+            }
+            assertFailsWith<IllegalStateException> { probe.mainHandle.close() }
+            assertFailsWith<IllegalStateException> {
+                probe.rootScope!!.layoutAnchor(LayoutAnchor())
+            }
+            child.children()
+        }
+        if (discard) {
+            probe.didResize = true
+            probe.window!!.requestSize(LogicalSize(260.0, 220.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> probe.committed = input.generation
+                case Discarded -> if (discard) {
+                    assertTrue(probe.mainHandle.isOpen)
+                    probe.discarded += 1
+                    probe.rootScope!!.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+private struct LayerInput(val index: Long, val handle: OverlayHandle)
+
+private class OverlayBox(
+    private val probe: OverlayProbe,
+    private val props: Props<LayerInput>
+): Element {
+    private var area: InputArea? = None
+    private var measuredAt = -1
+    public override fun onMount(scope: ComponentScope) {
+        val index = props.value.index
+        probe.mounts[index] += 1
+        if (index == 0L)
+            scope.layoutAnchor(probe.childAnchor)
+        val region =
+            scope.createArea(focusable = true) {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (context.phase == RoutedPhase.Target)
+                            probe.clicks[index] += 1
+                        else
+                            if (index == 0L && context.phase == RoutedPhase.Bubble)
+                                probe.parentBubbles += 1
+                    }
+                    else -> {}
+                }
+            }
+        area = Some(region)
+        probe.areas[index] = Some(region)
+        scope.routeChildren(region)
+        scope.focusTarget(region, FocusOptions(Some(probe.focus[index])))
+        if (index == 0L) {
+            assertTrue(probe.focus[index].requestFocus())
+            assertTrue(probe.focus[index].isPending)
+        }
+    }
+    public override fun onUnmount() {
+        probe.unmounts[props.value.index] += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        assertTrue(measuredAt != probe.passes)
+        measuredAt = probe.passes
+        probe.measures[props.value.index] += 1
+        for (index in 0L ..< context.childCount) {
+            assertEquals(Size(0.0, 0.0), context.measureChild(index, Constraints()).size)
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        val desired =
+            if (props.value.index == 1L)
+                Size(30.0, 20.0)
+            else
+                Size(80.0, 40.0)
+        return LayoutMetrics(constraints.constrain(desired))
+    }
+    public override fun scene(context: SceneContext) {
+        val index = props.value.index
+        assertEquals(measuredAt, probe.passes)
+        probe.scenes[index] += 1
+        assertEquals(probe.measures[index], probe.scenes[index])
+        probe.order += index.toString()
+        val layout = context.overlayLayout!!
+        probe.layouts[index] = Some(layout)
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, rect)
+        assertFailsWith<IllegalArgumentException> { context.anchor(probe.anchor, rect) }
+        if (index == 0L)
+            context.anchor(probe.childAnchor, Rect(60.0, 0.0, 20.0, 20.0))
+        context.draw {
+            paint ->
+            paint.canvas.drawRect(rect, Paint(probe.colors[index]))
+            @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.pixels[index] = readNativePixel(native, 5.0, 5.0)
+                    }
+                }
+            }
+        }
+        context.withState {
+            child ->
+            assertTrue(child.overlayLayout!! === layout);
+            child.children()
+        }
+    }
+}

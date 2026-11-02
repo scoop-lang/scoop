@@ -236,6 +236,10 @@ fun <P, E : Element> element(
     props: P, create: (Props<P>) -> E,
     children: Array<View> = [], key: ViewKey = ViewKey.Position
 ): View
+fun portal(
+    content: View, options: PortalOptions = PortalOptions(),
+    key: ViewKey = ViewKey.Position
+): View
 ```
 
 `ViewKey` 是包含 Position、Text(String)、Number(Long) 的值类型。Position 表示采用同一父级子序列中的位置；另外两个分支是显式 key。
@@ -243,6 +247,8 @@ fun <P, E : Element> element(
 `component`／`element` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
 
 节点形状包含 Component／Element 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+
+Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 options 和唯一子描述；子内容仍按普通规则匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。已关闭会话不会因普通 Props 更新自动重新打开；重新呈现需在旧描述退休后再次挂载，或显式选择新的 key。
 
 C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒绝接口、object 或值类型作为具体实例类型，不要求新的编译器诊断。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责初次创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
@@ -426,6 +432,28 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 `ParagraphHost.layout` 借出最近一次成功测量的 TextLayout，以供自绘控件命中、caret、selection 或位置查询；首次测量前或关闭后访问报告状态错误。调用方不关闭该借用；下次替换或宿主关闭后旧布局资源失效。新 Paragraph／TextLayout 成功取得后才替换缓存；失败时释放新取得的资源并保留原缓存，随后仍遵守框架的回调失败与关闭规则。ParagraphHost 只能在创建它的 owner 线程使用，close 幂等；不关闭传入的字体来源。
 
 所有内容查询、metrics 和 placement 通过文本库的 public API 取得。公共适配不读取 graphics.text 的 internal 缓存，不把无匹配 box 的对象悄悄移除出 children，也不需要基础控件库来实现。
+
+### 7.6 同窗口 portal 与锚点
+
+UiRoot 在普通内容的测量和 scene 完成后处理同窗口层出口。Portal 在原容器中按 empty 的约束下限返回占位尺寸，不测量其内容，也不以弹层尺寸撑开父容器；内容在逻辑阶段正常挂载，获得有效层位置后才在本帧测量一次，并从窗口根的坐标与 clip 状态呈现。普通父容器不重复测量层内内容。未参与本帧正常场景的 Portal 不呈现；层内容的逻辑更新和资源归属仍按普通挂载处理。
+
+LayoutAnchor 是 owner 线程上的稳定引用，通过 ComponentScope.layoutAnchor(handle) 登记到一个挂载，返回随挂载退休的 Closeable。一个 handle 同时只绑定一个活动挂载；重新绑定后旧登记的迟到清理不解除新绑定。SceneContext.anchor(handle, rect) 只允许登记本元素拥有的 anchor，每帧至多一次。它使用 graphics 的同一变换／clip 快照得到窗口包围盒和可见性，不创建 InputArea；旋转使用轴对齐包围盒。LayoutAnchor.isAttached 查询逻辑绑定，不表示已有成功帧或可见几何。
+
+PortalOptions 保存 placement、可选外部 OverlayHandle、anchorVisibility（默认 Close）和当前 onClose 回调。缺省句柄由挂载会话内部拥有；描述重建不会隐式分配新的活动会话。参数在描述构造／更新边界检查，归属在建立实际绑定时检查；错误保留旧的有效绑定。
+
+OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, viewportPadding=8)，在窗口可用矩形中对齐；Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，相对锚点定位。OverlayAlignment 包含 Start／Center／End，OverlaySide 包含 Top／Right／Bottom／Left；对齐使用物理坐标，不隐式读取控件 writing direction。gap／viewportPadding 为有限非负值。
+
+锚点定位先扣除 viewportPadding，求优先侧和反侧的可用范围，用较大主轴范围与视口交叉轴范围给内容一次有界测量。matchAnchorWidth 提供受本次最大宽度限制的 tight 宽度。实际尺寸放得下优先侧时保留该侧，否则选择反侧，二者均不足时选较大侧；交叉轴 shift 到视口内。KeepVisible 对有效但已离开视口的锚点进一步将层位置限制在可用视口内。不存在通过重复测量实现的 flip 协商，也不轮询静止锚点。
+
+SceneContext.overlayLayout 返回当前最近 Portal 的本帧 OverlayLayout，普通内容为 None。OverlayLayout 只包含只读的 bounds、available、可选 anchor 矩形和实际 side；Viewport 的后两项为 None。弹层可用该结果绘制箭头，跟随本帧最终位置，不为取得 side 再触发布局。数据不含 Canvas 借用，输入位置仍只以 Surface 成功提交的几何为准。
+
+层按打开顺序排列，逻辑上的子 Portal 在其父层之后完成测量和呈现。普通内容的 anchor 先完成登记，再定位相应层；层内 anchor 可供后续层使用。anchor 必须属于同一 UiRoot，其位置来源不能依赖当前层本身。建立或更新 Portal／anchor 绑定时沿实际依赖关系检查自引用和环，不在每帧重新审计整棵树；尚未绑定的 anchor 在随后绑定时完成同一局部检查。层顺序与已建立依赖不一致、当前没有可用位置时，本帧不使用旧坐标强行呈现。
+
+AnchorVisibility 包含 Close／Hide／KeepVisible。锚点有当前几何但完全不可见时，Close 在成功帧完成后关闭层，Hide 保留内容挂载但不呈现，KeepVisible 使用当前有效包围盒继续定位。没有本帧几何时 Hide 等待恢复，其余策略关闭；锚点解绑／所属挂载退休时所有依赖层关闭，不能继续使用旧绑定。因场景可见性产生的关闭只在 Accepted 后兑现；Discarded 不以未提交结果关闭层。回调均在 render／measure／scene／draw 退出后运行。
+
+OverlayHandle 是会话的稳定引用，提供 isAttached、isOpen、lastCloseReason 和 close()；close 接受显式关闭并停止该会话的交互，子内容在普通 UI 更新边界退休。关闭是幂等的，晚到清理不解除同一句柄的新绑定；同一个外部句柄不能绑定到两个活动挂载。当前 OverlayCloseReason 包含 Explicit、AnchorUnavailable、OwnerClosed；每个会话最多通知一次当前 onClose。关闭／配置／绑定变更禁止发生在纯渲染阶段，场景中的 anchor 登记属于正常几何装配。
+
+本节交付定位、逻辑归属及会话生命周期。Escape／外部点击、模态屏障、层域与焦点恢复在同窗口模态批次接入；普通 portal 本身不隔离背景输入或拦截快捷键。
 
 ## 8. 挂载与资源生命周期
 

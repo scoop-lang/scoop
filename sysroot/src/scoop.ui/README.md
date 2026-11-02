@@ -26,6 +26,12 @@ Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可�
 
 FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop=false 才退出 Tab。`scope.focusScope(FocusScopeOptions(loop = true))` 建立组内循环；普通 scope 在边界让父继续，窗口根循环。FocusScope.requestFocus 按 defaultFocus、首个 Tab 目标、fallback 选择。禁用、未放置和完全裁剪的目标不作为新的 Tab 停靠点；已聚焦目标仅被滚动裁剪时保持当前会话。
 
+`portal(content, PortalOptions(...), key)` 把一个子 View 放到当前窗口的层出口。原位置只返回约束下限的占位尺寸，内容在层约束下测量一次；它越过原祖先的 transform／clip，继续沿原挂载树路由输入并参与 Tab。相同 key 保留会话，逻辑重排不改变层的打开顺序，子 portal 位于父层之后。
+
+相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐。
+
+锚点不可见时默认在成功帧后关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑会关闭从属层。OverlayHandle 提供关闭与状态查询，onClose 每个会话只通知一次当前回调。已关闭会话不会因普通 Props 更新自动重开，调用方移除后重新挂载或更换 key；Escape、外部点击及模态行为在后续批次接入。
+
 最外层用 `UiHost.use` 包住 Application.run，或使用 `runUiApplication(title, create)`。SurfaceContent 拥有 UI 根，原生窗口关闭、异常和显式关闭都释放挂载树。UiWindow.close 只关闭所附着的 UI／Surface 内容，原生 Window 的归属仍由调用者决定。绘制或逻辑回调内请求关闭时，先停止新工作，回调结束后再释放资源。
 
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。
@@ -54,9 +60,12 @@ scoop test sysroot/src/scoop.ui/tests-cones/drawing --release --target aarch64-a
 scoop test sysroot/src/scoop.ui/tests-cones/errors --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/focus --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/navigation --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
+scoop test sysroot/src/scoop.ui/tests-cones/overlay --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 scoop test sysroot/src/scoop.ui/tests-cones/text --release --target aarch64-apple-darwin --sysroot /path/to/sysroot
 ```
 
 普通测试验证状态／Binding、线程规则和约束，并以隐藏原生窗口验证多根组合；drawing Cone 从公开接口验证真实绘制、输入、动画、可选放置和回调关闭；errors Cone 验证构造、挂载、更新、布局和绘制失败下的清理。原生窗口测试顺序运行，避免焦点和遮挡相互影响。开发时先按仓库 scripts 说明准备目标 sysroot，并显式使用同一套 scoop／scoopc。
+
+OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay Cone 检查真实像素与命中、嵌套层逻辑路由、Tab 与打开次序、resize、Hide／KeepVisible、Discarded、句柄替换、锚点重绑及停止渲染。自引用、依赖环、跨根和重复句柄同时覆盖正常错误处理与部分挂载清理。
 
 UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；text Cone 通过框架公开 API 验证富文本、固定尺寸图片、自然尺寸交互子项、动画重排、截断／恢复、RTL 和内部 key 更换。固定字体由 [text-fonts 测试数据 Cone](../scoop.graphics.text/tests/data/FONTS.md) 提供，不加入生产默认字体。

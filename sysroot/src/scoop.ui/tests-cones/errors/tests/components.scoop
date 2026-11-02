@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -61,6 +61,26 @@ internal class FailureRoot(private val record: FailureRecord): Component {
                 }
                 case MissingMeasure -> [component({ SmallComponent() })]
                 case MissingPaint -> [component({ SmallComponent() })]
+                case PortalHandle -> [
+                    portal(
+                        empty(),
+                        PortalOptions(
+                            handle = Some(record.overlay),
+                            onClose = { reason -> record.overlayClosed(reason) }
+                        )
+                    ),
+                    portal(empty(), PortalOptions(handle = Some(record.overlay)))
+                ]
+                case PortalCycle -> [
+                    portal(
+                        element({ FailurePortalAnchor(record.anchor) }),
+                        PortalOptions(
+                            OverlayPlacement.Anchored(record.anchor),
+                            Some(record.overlay),
+                            onClose = { reason -> record.overlayClosed(reason) }
+                        )
+                    )
+                ]
                 else -> []
             }
         return element(late, { props -> FailureLeaf(props, record) }, children)
@@ -78,6 +98,15 @@ internal class FailureRoot(private val record: FailureRecord): Component {
         assertFalse(resource!!.image.isClosed)
         record.log.add("unmount root")
     }
+}
+
+private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element {
+    public override fun onMount(scope: ComponentScope) {
+        scope.layoutAnchor(anchor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+    public override fun scene(context: SceneContext) {}
 }
 
 internal class FailureLeaf(
