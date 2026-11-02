@@ -35,6 +35,13 @@ pub enum FinalLinkProfile {
     Windows,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodegenDeploymentProfile {
+    Darwin,
+    Linux,
+    Windows,
+}
+
 impl FinalLinkProfile {
     pub const fn source_name(self) -> &'static str {
         match self {
@@ -85,6 +92,7 @@ pub struct TargetDefinition {
     pub architecture: TargetArchitecture,
     pub env: &'static str,
     pub llvm_triple: &'static str,
+    pub codegen_deployment: CodegenDeploymentProfile,
     pub native_environment: NativeEnvironment,
     pub final_link: FinalLinkProfile,
     pub c_bridge_profile: &'static str,

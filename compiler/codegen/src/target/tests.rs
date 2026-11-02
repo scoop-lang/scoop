@@ -227,3 +227,31 @@ fn canonical_unknown_target_is_not_a_codegen_registration() {
             .contains("unsupported target/backend")
     );
 }
+
+#[test]
+fn catalog_codegen_deployment_rejects_a_different_native_platform() {
+    let version = scoop_lir::DarwinPackedVersionV1::new(11 << 16).unwrap();
+    let native = scoop_lir::CBridgeToolchainContractV1::new(
+        scoop_target_data::LINUX_X86_64_GNU,
+        scoop_lir::CBridgePlatformContractV1::Darwin {
+            deployment: scoop_lir::DarwinCBridgeDeploymentContractV1::new(
+                version,
+                version,
+                Vec::new(),
+            )
+            .unwrap(),
+            compiler: scoop_lir::AppleClangCompilerIdentityV1::new(22, 1, 0, "test-clang").unwrap(),
+        },
+        scoop_lir::CanonicalCBridgeFlagContractV1::DarwinAppleClangX86_64,
+    )
+    .unwrap();
+    let error = ValidatedBackendProfile::from_selection(
+        scoop_target_data::LINUX_X86_64_GNU_LLVM_22_1,
+        &native,
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.0,
+        "codegen deployment and native toolchain platform differ"
+    );
+}

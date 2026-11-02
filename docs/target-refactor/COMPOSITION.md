@@ -17,7 +17,7 @@
 | [backend](../../compiler/target-data/src/backend.rs) | 首个 AArch64 backend 常量简称 `LLVM_22_1` | 名称隐藏 Darwin／Mach-O／frame 等实际合同，容易把整份 backend profile 当作通用 AArch64 支持 |
 | [codegen target](../../compiler/codegen/src/target.rs) | LLVM backend 初始化只列 AArch64／X86；red-zone 由 x86_64 推导 | ISA、过程 ABI 和 frame policy 没有分开 |
 | [LLVM process options](../../compiler/codegen/src/target/machine.rs) | 一次性全局参数同时包含通用 statepoint 约束和 X86 专用选项 | 新 ISA 不能依赖调用顺序获得另一套进程全局配置 |
-| codegen deployment | 测试入口按 Mach-O／ELF／COFF 推导 Darwin／Linux／Windows | OpenHarmony 与 FreeBSD 同为 ELF，却不是 Linux deployment |
+| codegen deployment | target 目录显式选择当前 Darwin／Linux／Windows deployment profile；Darwin 最低版本由已验证 C toolchain 合同补充 | —（不再从对象格式或 native environment 推导平台） |
 | [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
 | [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
 | [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
@@ -192,6 +192,8 @@ Rust 构建目录时完成一次性检查：
 - native producer 与 final-link profile 接受所选 OS、machine 和 environment。
 
 数据进入已验证的静态常量后，各 stage 复用结果，不重复读取 TOML 或重放完整一致性检查。
+
+当前 target 目录已经为现有七个 target 显式绑定 `CodegenDeploymentProfile::{Darwin,Linux,Windows}`。codegen 先消费该投影，再核对 generated-C toolchain 的平台合同；后者只为 Darwin 提供实际 minimum OS 等工具链事实，不能反向选择 deployment profile。目录构建同时核对当前 profile 与 `TargetOs`，没有登记未实现平台。
 
 ### 4.2 类型化 OS 与显式投影
 

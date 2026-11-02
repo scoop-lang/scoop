@@ -59,10 +59,20 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
                 .supports_exception_model(exception_model)
         );
         assert!(matches!(
-            (target.os, target.final_link),
-            (crate::TargetOs::Darwin, crate::FinalLinkProfile::Darwin)
-                | (crate::TargetOs::Linux, crate::FinalLinkProfile::Linux)
-                | (crate::TargetOs::Windows, crate::FinalLinkProfile::Windows)
+            (target.os, target.codegen_deployment, target.final_link),
+            (
+                crate::TargetOs::Darwin,
+                crate::CodegenDeploymentProfile::Darwin,
+                crate::FinalLinkProfile::Darwin
+            ) | (
+                crate::TargetOs::Linux,
+                crate::CodegenDeploymentProfile::Linux,
+                crate::FinalLinkProfile::Linux
+            ) | (
+                crate::TargetOs::Windows,
+                crate::CodegenDeploymentProfile::Windows,
+                crate::FinalLinkProfile::Windows
+            )
         ));
         for alias in target.aliases {
             assert_eq!(crate::named_target(alias), Some(target));

@@ -16,16 +16,17 @@ impl ObjectDeployment {
     });
 
     #[cfg(test)]
-    pub(super) const fn for_test(os: scoop_target_data::TargetOs) -> Self {
-        match os {
-            scoop_target_data::TargetOs::Darwin => Self::DARWIN_TEST,
-            scoop_target_data::TargetOs::Linux => Self::Linux,
-            scoop_target_data::TargetOs::Windows => Self::Windows,
+    pub(super) const fn for_test(profile: scoop_target_data::CodegenDeploymentProfile) -> Self {
+        match profile {
+            scoop_target_data::CodegenDeploymentProfile::Darwin => Self::DARWIN_TEST,
+            scoop_target_data::CodegenDeploymentProfile::Linux => Self::Linux,
+            scoop_target_data::CodegenDeploymentProfile::Windows => Self::Windows,
         }
     }
 
     pub(super) fn from_contract(
         selection: ValidatedLirTargetSelection,
+        profile: scoop_target_data::CodegenDeploymentProfile,
         native: &CBridgeToolchainContractV1,
     ) -> Result<Self, CodegenError> {
         if native.target().id() != selection.target().id() {
@@ -33,13 +34,23 @@ impl ObjectDeployment {
                 "backend and native deployment targets differ".into(),
             ));
         }
-        Ok(match native.platform() {
-            CBridgePlatformContractV1::Darwin { deployment, .. } => {
-                Self::Darwin(deployment.minimum_os())
-            }
-            CBridgePlatformContractV1::Linux { .. } => Self::Linux,
-            CBridgePlatformContractV1::Windows { .. } => Self::Windows,
-        })
+        match (profile, native.platform()) {
+            (
+                scoop_target_data::CodegenDeploymentProfile::Darwin,
+                CBridgePlatformContractV1::Darwin { deployment, .. },
+            ) => Ok(Self::Darwin(deployment.minimum_os())),
+            (
+                scoop_target_data::CodegenDeploymentProfile::Linux,
+                CBridgePlatformContractV1::Linux { .. },
+            ) => Ok(Self::Linux),
+            (
+                scoop_target_data::CodegenDeploymentProfile::Windows,
+                CBridgePlatformContractV1::Windows { .. },
+            ) => Ok(Self::Windows),
+            _ => Err(CodegenError(
+                "codegen deployment and native toolchain platform differ".into(),
+            )),
+        }
     }
 
     pub(super) fn triple(self, canonical: &str) -> String {

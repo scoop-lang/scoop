@@ -193,7 +193,17 @@ impl ValidatedBackendProfile {
         selection: ValidatedLirTargetSelection,
         native: &scoop_lir::CBridgeToolchainContractV1,
     ) -> Result<Self, CodegenError> {
-        let deployment = deployment::ObjectDeployment::from_contract(selection, native)?;
+        let deployment_profile = scoop_target_data::definition(selection.target().id())
+            .filter(|definition| definition.selection == selection)
+            .ok_or_else(|| {
+                CodegenError(format!(
+                    "unsupported target/backend contract for `{}`",
+                    selection.target().contract().canonical_triple()
+                ))
+            })?
+            .codegen_deployment;
+        let deployment =
+            deployment::ObjectDeployment::from_contract(selection, deployment_profile, native)?;
         Self::select(selection, deployment)
     }
 
@@ -209,7 +219,7 @@ impl ValidatedBackendProfile {
                     selection.target().contract().canonical_triple()
                 ))
             })?;
-        let deployment = deployment::ObjectDeployment::for_test(definition.os);
+        let deployment = deployment::ObjectDeployment::for_test(definition.codegen_deployment);
         Self::select(selection, deployment)
     }
 
