@@ -53,14 +53,14 @@ impl Lowerer {
     }
 
     /// `[e1, ...]` (spec 10.2/10.3, milestone5 DESIGN.md 2.2). With an
-    /// expected `Array<U>` / `MutableArray<U>` the literal takes that
+    /// expected `Array<U>` / `MutableArray<U>` or an implemented interface,
+    /// the literal takes the inferred concrete array
     /// kind and every element must be a subtype of `U`, except that a
     /// value element may not cross into a reference type by implicit
     /// boxing (an empty literal is only legal in this case). Without an
-    /// array expectation, value elements require exact equality while
-    /// an all-reference literal infers their least upper bound. (An
-    /// expected type of any other shape is ignored: the context's own
-    /// check reports the mismatch.)
+    /// usable array expectation, value elements require exact equality while
+    /// an all-reference literal infers their least upper bound. Other
+    /// expectations are left to the context's own compatibility check.
     pub(super) fn lower_array_literal(
         &mut self,
         elements: &[ast::Expr],
@@ -68,8 +68,9 @@ impl Lowerer {
         sink: &mut Vec<hir::Statement>,
         expected: Option<TypeId>,
     ) -> Option<hir::Expr> {
-        let expected_array =
-            expected.and_then(|ty| self.array_type_info(ty).map(|array| (ty, array.element)));
+        let expected_array = expected
+            .and_then(|ty| self.expected_array_literal(ty, span))
+            .and_then(|ty| self.array_type_info(ty).map(|array| (ty, array.element)));
         if let Some((array_ty, element_ty)) = expected_array {
             let mut lowered = Vec::with_capacity(elements.len());
             let mut element_sinks = Vec::with_capacity(elements.len());

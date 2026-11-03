@@ -1842,6 +1842,7 @@ val m: MutableArray<Int> = [1, 2, 3]    // MutableArray<Int>
 - `[v1, v2, ...]` 是数组字面量；它具体构造 `Array` 还是 `MutableArray` 由**上下文推导**（类型标注、参数类型等）。
 - 当上下文同时允许二者（例如无显式类型标注）时，使用 `Array`。
 - 空数组字面量 `[]` 必须有显式的类型上下文，否则编译错误。
+- 上下文可以是数组实际实现的接口：按普通 nominal 父类型关系求解数组的元素类型，例如 `List<Int>`、`Collection<Int>`、`Iterable<Int>` 均使 `[]` 构造 `Array<Int>`。两种数组都符合时优先 `Array`；只有 `MutableArray` 符合时选择它，例如 `IndexSet<Long, Int>`。`Any` 不能确定元素类型，`MutableList<Int>` 也不能使定长数组具有增删能力。接口上下文同样遵守 10.3 的元素检查和禁止隐式装箱规则。
 
 ### 10.3 数组字面量的类型推导与检查
 

@@ -34,7 +34,9 @@
 | F1b2：原生编辑命令 | 已完成 aarch64 实施和定向验证 |
 | F1b3：原生文本快照与连接几何 | 已完成 aarch64 实施和定向验证 |
 | F1c：视觉词移动和物理行边界 | 已完成 aarch64 实施和定向验证 |
-| F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
+| F2a：公共编辑状态与事务历史 | 实施中 |
+| F2b：公共编辑宿主与输入／滚动接入 | 待实施 |
+| F2c：Input／Textarea 与主题组合 | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
 
@@ -327,3 +329,9 @@ CaretMovement 增加 WordLeft／WordRight 和 LineLeft／LineRight，与逻辑 m
 Scoop 格式、文本库与 UI 文本组合的测试源码类型检查、C++ arm64 警告检查、Graphics.Text／UI 的 aarch64 release 构建通过。47 项定向 scoop.test 通过：Graphics.Text 46 项和 PublicParagraphHost 原生窗口回归 1 项。新增覆盖 Unicode 空白与组合字符、RTL／混合方向的词段边缘、软换行、截断，以及 LF／CRLF／连续换行／Unicode 行分隔符的空行和光标几何。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。5 份一次性报告及 2 个被替代的测试输出已清理；本批产物、独立 sysroot 与共享缓存保留。
+
+## F2 前置修复：数组接口上下文推导
+
+公共编辑状态的空批次测试暴露 `List<TextInputOperation>` 参数不能为 `[]` 提供元素上下文。语言规范明确数组实际实现的接口也参与推导；HIR lowering 复用现有 nominal 约束求解器，从真实父类型关系取得元素类型，两种数组都满足时优先 Array，仅可写定长接口满足时选择 MutableArray。没有按 List 名称另建推导规则，也没有在 UI 改写调用绕过。
+
+Rust 格式、workspace Clippy、配套 scoopc release 构建及公共 UI 测试源码类型检查通过。38 项编译器定向单元测试和 19 项 aarch64 数组 CLI fixture 通过，覆盖继承接口、参数／返回值／泛型上下文、嵌套字面量、可写定长数组、不变性、装箱和无法推导的错误。仅因本批修改编译器使用 fixture，没有运行全量或 x86_64 验证。该批 fixture 的一次性工作目录清理，编译器及共享缓存保留。

@@ -1,0 +1,37 @@
+fun <T> emptyValues(): List<T> = []
+
+fun <T> seeded(values: List<T>, seed: T): List<T> = values
+
+fun length(values: List<Int>): Long = values.size
+
+fun main(): Int {
+    val values: List<Int> = []
+    val inherited: Collection<String> = []
+    val iterable: Iterable<Long> = [1, 2]
+    val writable: IndexSet<Long, Int> = [1, 2]
+    writable[0L] = 42
+    val nested: List<List<Int>> = [[], [1]]
+    val generic = seeded([], 1)
+    val rigid: List<String> = emptyValues()
+    if (values.size != 0L || inherited.size != 0L || length([]) != 0L) {
+        return 1
+    }
+    if (nested[0L].size != 0L || nested[1L][0L] != 1) {
+        return 2
+    }
+    if (generic.size != 0L || rigid.size != 0L) {
+        return 3
+    }
+    val mutable = writable as MutableArray<Int>
+    if (mutable[0L] != 42) {
+        return 4
+    }
+    var total = 0L
+    for (value in iterable) {
+        total += value
+    }
+    if (total != 3L) {
+        return 5
+    }
+    return 0
+}
