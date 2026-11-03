@@ -1,0 +1,215 @@
+package scoop.concurrent
+
+import scoop.collections.ArrayDeque
+import scoop.platform.concurrent.Mutex
+
+/** The result of a non-suspending send attempt. */
+public enum TrySendResult {
+    Sent, Full, Closed
+}
+
+/** A received message, a temporarily empty channel, or a drained closed channel. */
+public enum TryReceiveResult<T> {
+    Value(T), Empty, Closed
+}
+
+/** The channel no longer accepts messages, or has closed and drained. */
+public class ChannelClosedException public constructor(): Exception(Some("channel is closed"))
+
+/** A FIFO MPMC channel. Zero capacity requires a rendezvous with a receiver. */
+public class Channel<T> public constructor(private val capacity: Long) {
+    private val lock = Mutex()
+    private val buffer = ArrayDeque<T>()
+    private val senders = WaitQueue<ChannelSender<T>>()
+    private val receivers = WaitQueue<ChannelReceiver<T>>()
+    private var closed = false
+
+    init {
+        if (capacity < 0L)
+            throw IllegalArgumentException(Some("negative channel capacity"))
+    }
+
+    /** Suspends until the message is committed, or cancellation or closure wins. */
+    public suspend fun send(value: T) {
+        ensureActive()
+        suspendCoroutine<Unit> {
+            continuation ->
+            val sender = ChannelSender(value, continuation)
+            val registration =
+                currentJobOrNone()?.invokeOnCancellation { error -> cancelSend(sender, error) }
+            val notifications = WaitNotifications()
+            lock.withLock {
+                sender.result.bind(registration, notifications)
+                if (sender.result.isPending) {
+                    when (sendLocked(value, notifications)) {
+                        case Sent -> {
+                            sender.value = None
+                            sender.result.succeed(Unit, notifications)
+                        }
+                        case Closed -> {
+                            sender.value = None
+                            sender.result.fail(ChannelClosedException(), notifications)
+                        }
+                        case Full -> sender.link = Some(senders.append(sender))
+                    }
+                }
+                Unit
+            }
+            notifications.deliver()
+        }
+    }
+
+    /** Receives the next message, or throws after closure and draining. */
+    public suspend fun receive(): T =
+        when (receiveOrNone()) {
+            case Some(value) -> value
+            case None -> throw ChannelClosedException()
+        }
+
+    /** Returns None only after closure and draining, preserving nullable messages. */
+    public suspend fun receiveOrNone(): T? {
+        ensureActive()
+        return suspendCoroutine<T?> {
+            continuation ->
+            val receiver = ChannelReceiver(continuation)
+            val registration =
+                currentJobOrNone()?.invokeOnCancellation { error -> cancelReceive(receiver, error) }
+            val notifications = WaitNotifications()
+            lock.withLock {
+                receiver.result.bind(registration, notifications)
+                if (receiver.result.isPending) {
+                    when (receiveLocked(notifications)) {
+                        case Value(value) -> receiver.result.succeed(Some(value), notifications)
+                        case Closed -> receiver.result.succeed(None, notifications)
+                        case Empty -> receiver.link = Some(receivers.append(receiver))
+                    }
+                }
+                Unit
+            }
+            notifications.deliver()
+        }
+    }
+
+    /** Attempts a send without suspending or observing the current Job. */
+    public fun trySend(value: T): TrySendResult {
+        val notifications = WaitNotifications()
+        val result = lock.withLock { sendLocked(value, notifications) }
+        notifications.deliver()
+        return result
+    }
+
+    /** Attempts a receive without suspending or observing the current Job. */
+    public fun tryReceive(): TryReceiveResult<T> {
+        val notifications = WaitNotifications()
+        val result = lock.withLock { receiveLocked(notifications) }
+        notifications.deliver()
+        return result
+    }
+
+    /** Rejects pending and future sends; committed buffered messages remain available. */
+    public fun close(): Boolean {
+        val notifications = WaitNotifications()
+        val changed =
+            lock.withLock {
+                if (closed)
+                    return@withLock false
+                closed = true
+                while (!senders.isEmpty) {
+                    val sender = senders.takeFirst()!!
+                    sender.link = None
+                    sender.value = None
+                    sender.result.fail(ChannelClosedException(), notifications)
+                }
+                while (!receivers.isEmpty) {
+                    val receiver = receivers.takeFirst()!!
+                    receiver.link = None
+                    receiver.result.succeed(None, notifications)
+                }
+                true
+            }
+        notifications.deliver()
+        return changed
+    }
+
+    private fun sendLocked(value: T, notifications: WaitNotifications): TrySendResult {
+        if (closed)
+            return TrySendResult.Closed
+        when (receivers.takeFirst()) {
+            case Some(receiver) -> {
+                receiver.link = None
+                receiver.result.succeed(Some(value), notifications)
+                return TrySendResult.Sent
+            }
+            case None -> {}
+        }
+        if (senders.isEmpty && buffer.size < capacity) {
+            buffer.addLast(value)
+            return TrySendResult.Sent
+        }
+        return TrySendResult.Full
+    }
+
+    private fun receiveLocked(notifications: WaitNotifications): TryReceiveResult<T> {
+        if (!receivers.isEmpty)
+            return TryReceiveResult.Empty
+        if (buffer.size > 0L) {
+            val value = buffer.removeFirst()
+            when (senders.takeFirst()) {
+                case Some(sender) -> {
+                    sender.link = None
+                    buffer.addLast(sender.value!!)
+                    sender.value = None
+                    sender.result.succeed(Unit, notifications)
+                }
+                case None -> {}
+            }
+            return TryReceiveResult.Value(value)
+        }
+        when (senders.takeFirst()) {
+            case Some(sender) -> {
+                sender.link = None
+                val value = sender.value!!
+                sender.value = None
+                sender.result.succeed(Unit, notifications)
+                return TryReceiveResult.Value(value)
+            }
+            case None -> {}
+        }
+        if (closed)
+            return TryReceiveResult.Closed
+        return TryReceiveResult.Empty
+    }
+
+    private fun cancelSend(sender: ChannelSender<T>, error: CancellationException) {
+        val notifications = WaitNotifications()
+        lock.withLock {
+            if (sender.result.isPending) {
+                when (sender.link) {
+                    case Some(link) -> senders.remove(link)
+                    case None -> {}
+                }
+                sender.link = None
+                sender.value = None
+                sender.result.fail(error, notifications)
+            }
+            Unit
+        }
+        notifications.deliver()
+    }
+
+    private fun cancelReceive(receiver: ChannelReceiver<T>, error: CancellationException) {
+        val notifications = WaitNotifications()
+        lock.withLock {
+            if (receiver.result.isPending) {
+                when (receiver.link) {
+                    case Some(link) -> receivers.remove(link)
+                    case None -> {}
+                }
+                receiver.link = None
+                receiver.result.fail(error, notifications)
+            }
+            Unit
+        }
+        notifications.deliver()
+    }
+}

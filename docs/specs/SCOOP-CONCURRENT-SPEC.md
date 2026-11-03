@@ -1,0 +1,87 @@
+# Scoop 并发库规范
+
+本文规定普通 Cone `scoop:scoop.concurrent:0.1.0` 的合同。源码位于 `sysroot/src/scoop.concurrent/`，显式依赖 core、std、platform，测试依赖 scoop.test；公共声明属于 `scoop.concurrent`，不默认导入。实施与验证范围见[实施记录](../coroutine-executors/PROGRESS.md)，整体设计见[设计文档](../coroutine-executors/DESIGN.md)。
+
+## 1. 分层与等待协议
+
+语言规范 11.9 的 continuation、Job、execution 与 executor 负责执行归属。Channel、AsyncMutex 和 AsyncConditionVariable 不保存一个固定 executor；每个等待者保存自己的 typed continuation，因此同一对象可以由单个或多个 executor、普通 managed thread 共同使用。同步 API 不要求调用者具有 Job；挂起 API 在有当前 Job 时参与其取消，无 Job 时仍可等待。
+
+内部平台 Mutex 只保护状态、等待队列和待交付结果。锁内不执行用户回调、不恢复 continuation、不 dispose Job 订阅、不跨挂起点。等待队列支持取消时摘除任意节点；摘除后清空节点链接，终态后解除 continuation、取消订阅和未交付参数引用。消息缓冲复用 std 的 ArrayDeque。
+
+挂起操作先检查当前 Job，再使用原始 suspendCoroutine 与 invokeOnCancellation。消息、锁持有权、取消和关闭竞争同一对象锁下的状态转换；不得在提交所有权之后再用独立仲裁的 CancellableContinuation 决定是否接收结果。
+
+登记顺序为：建立未入队节点；在锁外订阅取消；取得订阅后在对象锁内检查节点终态、保存订阅并尝试完成或入队。已取消 Job 可同步执行 handler；此时迟到的订阅在锁外 dispose。已开始的 handler 可以与 dispose 竞争，handler 必须在对象锁内检查节点状态。快速路径可在入口取消检查后直接提交成功。
+
+结果在锁内提交一次，在锁外通知。一个操作选中多个等待者时，某个低层无 executor 的 completion 即使抛出异常，其余已选中通知也必须执行，之后才传播首先捕获的异常。通知顺序不承诺不同 executor 的实际执行顺序。GC 不自动 close Channel 或释放 async guard。
+
+## 2. Channel
+
+```scoop
+public enum TrySendResult { Sent, Full, Closed }
+public enum TryReceiveResult<T> { Value(T), Empty, Closed }
+public class ChannelClosedException public constructor() : Exception
+public class Channel<T> public constructor(capacity: Long) {
+    public suspend fun send(value: T)
+    public suspend fun receive(): T
+    public suspend fun receiveOrNone(): T?
+    public fun trySend(value: T): TrySendResult
+    public fun tryReceive(): TryReceiveResult<T>
+    public fun close(): Boolean
+}
+```
+
+Channel 是 MPMC。capacity 为 0 时双方会合；正数表示有限 FIFO 缓冲；负数抛 IllegalArgumentException。没有负数魔法值、无限缓冲或自动丢弃模式。
+
+send 优先匹配最早等待接收者，否则在缓冲有空位时提交消息，否则挂起。receive 先取最早缓冲消息，并接纳最早等待发送者补入缓冲；没有缓冲消息时可直接匹配等待发送者，否则挂起。FIFO 按锁内的匹配、入缓冲和等待登记顺序确定，新调用不能越过同侧有效等待者。
+
+trySend 与 tryReceive 不挂起、不订阅取消，可以完成对方已等待的操作。Full／Empty 表示本次未发生交付；Closed 表示发送已关闭或接收已关闭且缓冲排空。
+
+发送或接收节点取消先胜时将其移除，既不交付也不消费消息；双方匹配在一个临界区内提交两方成功，后续取消不能撤回。缓冲入队即为发送成功。结果已确定、等待者尚未运行期间，消息由 typed 结果持有，不重新放回 Channel。
+
+close 首次把开放状态改为关闭返回 true，之后返回 false。它拒绝新发送，并让所有尚未提交的发送者收到 ChannelClosedException；不会将待发送节点补入已关闭的缓冲。已提交消息仍可按序排空。关闭且缓冲为空时，receive 抛 ChannelClosedException，receiveOrNone 返回 None，所有等待接收者结束。T 本身是 Option 时，Some(None) 仍是有效消息。
+
+close 不执行消息元素的清理代码。携带需显式关闭的资源时，由应用安排消费或清理；没有 abort、drop-buffer 或 undelivered 回调。
+
+## 3. AsyncMutex
+
+```scoop
+public class AsyncMutex public constructor() {
+    public suspend fun lock(): AsyncMutexGuard
+    public fun tryLock(): AsyncMutexGuard?
+    public suspend fun <T> withLock(block: AsyncMutexGuard.() -> T): T
+    public suspend fun <T> withLock(block: suspend AsyncMutexGuard.() -> T): T
+}
+public class AsyncMutexGuard : Disposable {
+    public override fun dispose()
+}
+```
+
+锁非重入；guard 仅由库构造，表示一次持有权，不绑定 OS thread。guard 可随 coroutine 迁移或由应用明确交给另一任务释放，但不能由多个任务同时作为持有权使用。重复获取已持有锁可以等待自身，不自动检测死锁。
+
+等待者 FIFO，tryLock 不能插队。释放在内部锁下直接把持有权交给最早等待者，随后恢复；不会先变为空闲再竞争获取。取消先胜则不取得锁，交付先胜则返回有效 guard，即使调度前已取消。
+
+withLock 取得 guard 后用 try/finally 覆盖完整 block，普通或 suspend block 返回、抛出或取消均释放。两个 overload 的字面量挂起性遵循语言规范的期望类型与对称重载规则；已有函数值不跨效果转换。
+
+guard 的所有别名共享 Held、ConditionWaiting、Released 状态。对 Released 的 dispose 幂等；ConditionWaiting 期间 dispose 抛 IllegalStateException。没有 GC 自动解锁或 poison。
+
+## 4. AsyncConditionVariable
+
+```scoop
+public class AsyncConditionVariable public constructor(val mutex: AsyncMutex) {
+    public suspend fun await(guard: AsyncMutexGuard)
+    public fun signal(guard: AsyncMutexGuard)
+    public fun broadcast(guard: AsyncMutexGuard)
+}
+```
+
+Condition 固定关联一个 AsyncMutex；全部操作要求该 mutex 的当前有效 guard，错误锁、已释放或正在等待的 guard 抛 IllegalStateException。signal／broadcast 也必须持锁。无等待者时不保存通知；应用在 while 中检查由该 mutex 保护的谓词。
+
+Condition 队列和 mutex 获取队列共用一把内部状态锁。await 在一个临界区登记节点、将 guard 标为 ConditionWaiting、释放持有权并交给下一获取者，然后才在锁外通知，不存在释放后尚未登记的窗口。
+
+signal 将最早 condition 节点选为成功并移到 mutex 重新获取队列；broadcast 对当前全部等待者按顺序执行。通知不等于已取锁，取得锁之前不会恢复 await。
+
+入口已取消时保留原 guard 并直接抛取消。登记期间取消先胜、尚未释放锁时同样保留 guard；已在 condition 队列的取消则摘除节点，携带取消结果进入 mutex 重新获取队列。通知先胜时，后续取消不能覆盖成功。重新获取不再接受取消，不调用公开 lock，也不创建额外 Job。仅在原 guard 恢复 Held 后交付成功或取消，所以 await 返回或抛出时仍持有同一个 guard，外层 finally 可以正常释放。
+
+## 5. 验证边界
+
+普通行为在本 Cone 测试：容量与 FIFO、关闭排空、可空消息、取消与交付竞争、跨 executor 恢复、mutex 直接交接、condition 通知／取消后的重新获取、错误 guard 和异常清理。真实 managed threads 验证并发状态转换；定向 GC stress 验证挂起消息、guard 与 continuation 的托管根。多 worker executor 和阻塞池按整体设计后续条目接入，实际可用范围以实施记录为准。

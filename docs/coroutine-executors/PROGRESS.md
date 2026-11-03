@@ -6,7 +6,7 @@
 | --- | --- |
 | lambda 按期望类型推导挂起性、对称重载消歧、跨 Cone 定型 | 已完成本地验收 |
 | core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成本地验收 |
-| Channel、AsyncMutex、AsyncConditionVariable | 未开始 |
+| Channel、AsyncMutex、AsyncConditionVariable | 已完成本地验收 |
 | MultiThreadExecutor、通用 managed BlockingTaskPool | 未开始 |
 | asyncio 接入、AsyncRuntime、三平台 native work 迁移与 API 收敛 | 未开始 |
 | Linux/Windows 组合验证及最终清理 | 未开始 |
@@ -60,3 +60,10 @@
 - 修复导入泛型模板中 callback 注册／操作缺失隐式协议类型的问题：在 HIR 模板物化边界按已有 core 身份请求模式、状态与 Option<Throwable>，复用类型缓存。实现规范已同步；产物格式、runtime ABI 与 callback ownership 协议不变。
 - 验证：格式化、HIR lowering all-targets Clippy、5 项相关导入／native-call 测试通过；core/std/test release 构建及 27 项 executor 行为测试通过，其中新增 12 项 blocking 测试。托管结构体结果／Context 与异常交付两项用例在移动 GC／minor GC stress 下通过，平台为 Darwin AArch64 release。
 - 当前验证使用可控排队 executor，覆盖同步取消安装、出队与通知交错、成功资源与失败身份、跨 executor 返回、捕获 scope 发起 child 以及 completion 抛出后的退休。实际 managed blocking pool 和多 worker 组合仍待后续实现。
+
+## Channel 与异步同步原语（2026-11-04）
+
+- 新增普通 Cone scoop.concurrent 与[并发库规范](../specs/SCOOP-CONCURRENT-SPEC.md)。Channel 提供会合／有限 FIFO 缓冲、非挂起尝试、关闭排空和可空消息；AsyncMutex 提供 FIFO 直接交接、共享 guard 状态与普通／挂起 receiver 的 withLock；AsyncConditionVariable 原子释放并在通知或取消后重新取得同一个 guard。
+- 三个原语的等待、取消和所有权交付由各自同一状态锁仲裁，原始 continuation 保存实际 executor；锁外解除订阅并交付全部选中结果。内部可摘除链表用于实际等待队列，消息缓冲使用 ArrayDeque，终态解除 payload、continuation、订阅与节点链接。
+- 验证：Scoop 格式化及源码检查通过；29 项 release Cone tests 全部通过，涵盖跨 executor／Context 恢复、关闭与 FIFO、取消和提交先后、错误 guard、异常通知、真实线程 MPMC，以及取消与发送、解锁、条件通知各 24 轮竞争。含引用的 struct／tuple 消息与跨 executor mutex／condition 两项用例在移动 GC／minor GC stress 下通过。
+- 本轮在 Darwin AArch64 验证；普通线程行为与可控排队 executor 已覆盖，多 worker executor 的组合和 Linux／Windows 验收按后续大项集中进行。
