@@ -51,6 +51,10 @@ fn darwin_x86_64_machine_matches_the_registered_layout() {
         ValidatedBackendProfile::for_selection(scoop_target_data::DARWIN_X86_64_LLVM_22_1).unwrap();
     let machine = backend.create_target_machine().unwrap();
     assert_eq!(
+        machine.get_triple().as_str().to_str().unwrap(),
+        "x86_64-apple-macosx11.0.0"
+    );
+    assert_eq!(
         machine
             .get_target_data()
             .get_data_layout()

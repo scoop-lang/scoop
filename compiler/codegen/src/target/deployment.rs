@@ -53,14 +53,20 @@ impl ObjectDeployment {
         }
     }
 
-    pub(super) fn triple(self, canonical: &str) -> String {
+    pub(super) fn triple(
+        self,
+        llvm_triple: &str,
+        architecture: scoop_lir::TargetArchitecture,
+    ) -> String {
         match self {
             Self::Darwin(version) => {
-                let architecture = canonical.split('-').next().expect("registered LLVM triple");
+                let architecture = match architecture {
+                    scoop_lir::TargetArchitecture::Aarch64 => "aarch64",
+                    scoop_lir::TargetArchitecture::X86_64 => "x86_64",
+                };
                 format!("{architecture}-apple-macosx{version}")
             }
-            Self::Linux => canonical.into(),
-            Self::Windows => canonical.into(),
+            Self::Linux | Self::Windows => llvm_triple.into(),
         }
     }
 }

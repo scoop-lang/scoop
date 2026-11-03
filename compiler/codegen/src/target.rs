@@ -394,7 +394,11 @@ impl ValidatedBackendProfile {
     ) -> Result<TargetMachine, CodegenError> {
         machine::initialize_process_options();
         architecture::initialize(self.llvm_architecture);
-        let triple = TargetTriple::create(&self.deployment.triple(self.llvm_triple()));
+        let triple = TargetTriple::create(
+            &self
+                .deployment
+                .triple(self.llvm_triple(), self.lir_target_profile().architecture()),
+        );
         let target = Target::from_triple(&triple).map_err(|error| {
             CodegenError(format!("no target for {}: {error}", self.canonical_triple))
         })?;
