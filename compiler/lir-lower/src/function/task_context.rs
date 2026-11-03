@@ -36,9 +36,17 @@ impl FunctionLowerer<'_> {
                 Ok(self.unit_value())
             }
             Op::Current => Ok(self.context_current()),
-            Op::Snapshot => self.context_snapshot(),
-            Op::Fork { root } => {
+            Op::Snapshot => self.context_current_field(0),
+            Op::CurrentExecution => self.context_current_field(1),
+            Op::Fork { root, execution } => {
                 let root = self.lower_expr(root)?;
+                let execution = match execution {
+                    Some(execution) => {
+                        let lowered = self.lower_expr(execution)?;
+                        self.reference_object(lowered, &execution.ty)
+                    }
+                    None => lir::Value::NullPointer(lir::PointerKind::Managed),
+                };
                 let storage = self.context_storage(mir::ContextStorageRole::Task);
                 let (fields, size, _) = context_object_shape(self.context, storage);
                 let task = self.emit_plain_call(
@@ -48,9 +56,10 @@ impl FunctionLowerer<'_> {
                         lir::Value::MachineScalar(lir::MachineScalarValue::ByteSize(size)),
                     ],
                 )?;
-                // Keep the snapshot live through allocation so the root plan
-                // restores it before this heap write if allocation moves it.
+                // Keep both references live through allocation so the root plan
+                // restores them before these heap writes if allocation moves them.
                 self.store_at_offset(task, fields[0].offset, root, lir::MANAGED_PTR);
+                self.store_at_offset(task, fields[1].offset, execution, lir::MANAGED_PTR);
                 Ok(task)
             }
             Op::Enter { task } => {
@@ -93,7 +102,7 @@ impl FunctionLowerer<'_> {
         lir::Value::Temp(out)
     }
 
-    fn context_snapshot(&mut self) -> StorageResult<lir::Value> {
+    fn context_current_field(&mut self, index: usize) -> StorageResult<lir::Value> {
         let task = self.context_current();
         let root = self.new_hidden_local(lir::MANAGED_PTR)?;
         let null = lir::Value::NullPointer(lir::PointerKind::Managed);
@@ -109,7 +118,7 @@ impl FunctionLowerer<'_> {
             rhs: null,
         });
         let present = self.new_block("context_present");
-        let done = self.new_block("context_snapshot");
+        let done = self.new_block("context_field");
         self.seal(lir::Terminator::CondBr {
             cond: lir::Value::Temp(non_null),
             then_block: present,
@@ -118,7 +127,7 @@ impl FunctionLowerer<'_> {
         self.enter(present);
         let storage = self.context_storage(mir::ContextStorageRole::Task);
         let (fields, _, _) = context_object_shape(self.context, storage);
-        let value = self.load_at_offset(task, fields[0].offset, lir::MANAGED_PTR);
+        let value = self.load_at_offset(task, fields[index].offset, lir::MANAGED_PTR);
         self.push(lir::Instruction::Store {
             local: root,
             value: lir::Value::Temp(value),

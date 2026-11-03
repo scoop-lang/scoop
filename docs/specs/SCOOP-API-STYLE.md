@@ -43,7 +43,7 @@ withPadding 是不可变配置派生，withIndex 是惰性迭代变换，二者�
 | 嵌套可选值 | T? 是 Option<T>，Some(None) 与 None 不同；mapNotNone 只去掉一层。Map.getOrPut 只把外层 None 视为缺少键，已有 Some(None) 不触发缺省值生成 |
 | Result | Result<T, E> 使用 Success／Failure，E 无异常上界；mapError、flatMap 与 getOrThrow 各按明确的载荷／异常约束使用 |
 | 数组与能力 | Array 只读、MutableArray 可写；Any 没有通用 equals／hashCode／toString 回退。普通 struct 可派生 ==，但不自动获得 Equals<T> conformance；assertEquals 要求该显式能力，数组内容比较由实际元素规则决定 |
-| 任务执行 | launch／async 可以在返回前同步执行正文，不承诺切换线程；具体 IO 驱动由 EventLoop 提供。CancellableContinuation.tryResume 返回 Boolean，一步选择并提交恢复，不使用 Kotlin 的 tryResume／completeResume 两阶段协议 |
+| 任务执行 | scope 有 executor 时 launch／async 排队，无 executor 的低层 scope 才允许同步启动；普通 binding 取调用处快照，executor 取 scope 默认值或显式参数。blocking 接受普通托管闭包；withExecutor 建立结构化子作用域。CancellableContinuation.tryResume 返回 Boolean，一步选择并提交恢复，不使用 Kotlin 的 tryResume／completeResume 两阶段协议 |
 | CLI | parse(arguments) 不含程序名，parseCommandLine(argv) 包含程序名；CliResult.Parsed／HelpRequested 表达正常控制流程 |
 
 每个公共入口的领域文档应交代返回形状、求值方式、复制或借用、正常失败以及有实际影响的复杂度。普通 enum 源名字、反射／debug 名字与默认派生编码名字一起变化；显式协议格式独立规定。API 迁移必须同时修改规范、实现与实际消费者，验收使用真实编译诊断和运行结果。

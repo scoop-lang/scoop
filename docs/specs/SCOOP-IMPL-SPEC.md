@@ -365,6 +365,14 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 协程活跃度分别处理调用的正常后继与异常后继；异常边发生在实际调用处，不能统一放在块末再被后续赋值杀死。挂起前保存成功恢复、失败恢复及待定 cleanup 所需的值，失败恢复先还原异常处理所需的旧值，再进入原 catch／finally。成功路径在调用后覆盖的局部值，若仍被异常路径使用，也必须跨挂起保存；结果 local 只在成功恢复时定义。此规则同样覆盖挂起之后的普通调用失败和直接 suspendCoroutine 注册，不增加运行时根兜底或改变源码赋值语义。
 
+语言规范 11.9.3 的执行协议使用 core 中实际声明的类型、普通 callable 与派发槽。HIR 的 core 协议及 LocalConcrete 协程协议完整携带执行所需的 typed 身份；跨 Cone 保存这些关系，MIR 不重新按名字搜索，也不依赖 hir-lower 实现。executor 队列、任务登记和结构化 Job 保持普通库职责；编译器负责进入/退出 execution、完整挂起握手、强制 yield 及已有 coroutine ABI。
+
+direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；退役在 callee 返回前直接发布 Waiting 的路径。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。
+
+恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，公开外部恢复按 executor 队列调度。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
+
+生成类型、调用与字段角色按实际结构更新 coroutine metadata、core 协议、`.slib` profile 及 runtime ABI；不保留旧 adapter 或 TaskContext 布局的兼容分支。检查仍在实际声明、产物格式及 ABI 边界完成，不增加调度授权、独立证明记录或重复全图验证。
+
 release 在 suspend ABI 转换前，从 source-signature CFG 与私有 call-site 登记中确定本 Cone 直接可见的同步 suspend 正文：没有原语挂起、动态／外部 suspend 边、递归依赖或自身 EH／pending cleanup；这一事实可沿直接 suspend 依赖传播。普通 GC、可能抛异常或有副作用的非 suspend 调用不因此变成 NoGC 或纯操作。只在 2.19 的调用点评分、累计增长与六层展开深度范围内克隆正文，稳定模板不使用已展开函数重置成本；同步事实本身不能删除仍存在的调用点。
 
 该克隆复用普通内联的参数求值、local 身份与 CFG 重映射，同时更新 call-site 的块、语句位置、语义顺序和调用点 cleanup。共享插入位置的待生成 suspend 注册仍位于原语句之前；callee 无自身 cleanup，克隆调用继承 caller 的 pending 链及异常出口。内联完成后才转换 hidden completion／step ABI，并只生成一次正式状态机。全部 suspend site 已实际消除的函数沿既有 Immediate 路径；剩余调用仍参与尾转交或状态机生成。该局部阶段不导入普通外部正文，也不把无帧尾转交判为同步。
@@ -1626,9 +1634,9 @@ Context scope 在完整 value 求值与成功 push 后才生效。真实离开 s
 
 协程 frame 保存完整 TaskContext 与跨挂起 mark。只有取得实际恢复权的入口切换到 frame context，所有 driver 出口恢复 previous context。普通 closure 只捕获实际词法值，callback 注册另按语言规定捕获 binding snapshot。
 
-MIR 中已选的 Context fork 在 LIR 根计划形成前降低为普通 managed 分配和 root 字段写入。分配、字段位置与 TD／scan 共用实际 generated TaskContext 的对象布局；当前支持目标上为 16 字节对象头加一个 8 字节 managed root。所有 profile 使用同一布局与基本操作，release 复用已有 TLAB 快路径。输入 snapshot 只求值一次，并作为分配后写入所需的活跃引用参与根计划；若分配触发搬迁，字段必须写入恢复后的引用，并执行普通含引用写屏障。即使 snapshot 为空也建立独立的 TaskContext，不合并任务身份。该降低只处理 typed Context 操作，不改变同名普通 extern 的协议；runtime 的 fork 后备、初始 root 创建及共享绑定树操作继续有效，不增加 TLS 字段、隐藏参数或产物 ABI。
+MIR 中已选的 Context fork 在 LIR 根计划形成前降低为普通 managed 分配、root 与 execution 字段写入。分配、字段位置与 TD／scan 共用实际 generated TaskContext 的对象布局；当前目标上为 16 字节对象头加两个 8 字节可空 managed 引用，总大小 32 bytes。fork 的 typed 操作明确给出任务执行属性，coroutine fork 安装新 execution，callback fork 与初始 root 的 execution 为空；snapshot 始终只读取 binding root。所有 profile 使用同一布局，release 复用已有 TLAB 快路径。输入只求值一次，snapshot 与 execution 都作为分配后写入所需的活跃引用参与根计划；移动 GC 后使用重定位结果并执行普通写屏障。即使 snapshot 为空也建立独立 TaskContext，不合并任务身份。该降低只处理 typed Context 操作，不改变同名普通 extern 的协议；runtime 后备、初始 root 创建及实际 ABI 记录同步演进，不新增 TLS 根。
 
-MIR Context snapshot 同样在 LIR 根计划前降低为 typed current、判空和普通 HeapLoad，字段偏移复用 generated TaskContext 的同一布局。release codegen 将真实 NoGC runtime 身份的 current／enter／leave 普通调用生成对运行时规范 9.2 原根槽的读写；普通 extern、invoke 和 debug 保留 C 后备。它们的 managed 结果及 previous guard 继续参与后续根计划与 SSA 重定位，不增设独立的引用缓存。槽读取和写入保留实际内存效果，可能 GC 或切换绑定后从当前槽或实际 relocate 结果取得引用。
+MIR Context snapshot 与 execution 读取均在 LIR 根计划前降低为 typed current、判空和普通 HeapLoad，字段偏移复用 generated TaskContext 的同一布局。current／enter／leave 在全部 profile 使用 TaskContextLoad／TaskContextStore 访问运行时规范 9.2 的原根槽；它们不再表示为已退役的 C 后备调用，普通 extern 不受影响。它们的 managed 结果及 previous guard 继续参与后续根计划与 SSA 重定位，不增设独立的引用缓存。槽读取和写入保留实际内存效果，可能 GC 或切换绑定后从当前槽或实际 relocate 结果取得引用。
 
 ARM64 release 复用已有分配 context 的首次使用机制，在一次 invocation 中惰性取得并复用 native 根槽地址；x86_64 直接读取 TLS 指针。缓存只存 AS0 地址，初次 TLS 取址不提前到从未执行该操作的路径；槽内 managed 引用和 TaskContext 字段不作相同缓存。runtime ABI contract 20 为该 TLS data symbol 登记 `RuntimeAbiSymbolV1` tag 34，所有 profile 的符号、大小和 attach／detach 合同一致，旧 sysroot 与产物按原 ABI 边界重建；对象表示、GC roots、metadata ABI 9 和 `.slib` 容器保持。
 

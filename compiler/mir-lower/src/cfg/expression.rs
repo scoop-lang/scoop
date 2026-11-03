@@ -69,14 +69,11 @@ impl<'a> CfgLowerer<'a> {
                 })
             }
             smir::ExprKind::Context(operation) => {
-                let mut value = match operation.operand() {
-                    Some(operand) => Some(self.lower_expr(operand, span)?),
-                    None => None,
-                };
+                let mut values = self.lower_operands(operation.operands(), span)?.into_iter();
                 mir::ExprKind::Context(operation.map(|_| {
-                    value
-                        .take()
-                        .expect("a context operation has at most one operand")
+                    values
+                        .next()
+                        .expect("all context operands were lowered in order")
                 }))
             }
             smir::ExprKind::ArrayConst(id) => mir::ExprKind::ArrayConst(*id),

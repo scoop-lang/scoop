@@ -91,6 +91,7 @@ pub(super) fn fork(
             ty.clone(),
             mir::ExprKind::Context(mir::ContextOperation::Fork {
                 root: Box::new(root),
+                execution: None,
             }),
         ),
     });

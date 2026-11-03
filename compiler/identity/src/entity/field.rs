@@ -163,10 +163,10 @@ impl FieldIdentityKey {
             return Err(FieldIdentityError::GeneratedOwnerMismatch);
         };
         let count = match storage.role {
-            crate::ContextStorageRole::Task | crate::ContextStorageRole::SwitchGuard => 1,
+            crate::ContextStorageRole::SwitchGuard => 1,
             crate::ContextStorageRole::Node => 4,
             crate::ContextStorageRole::Binding => 0,
-            crate::ContextStorageRole::Mark => 2,
+            crate::ContextStorageRole::Task | crate::ContextStorageRole::Mark => 2,
         };
         if index >= count {
             return Err(FieldIdentityError::GeneratedOwnerMismatch);

@@ -223,7 +223,7 @@ unit 由 `PersistentInitializationUnitId` 标识；diagnostic path 只用于显�
 
 ### 2.8 多 image 登记与启动 ABI
 
-runtime ABI contract 为 **32**，metadata ABI 为 **10**。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 9`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
+runtime ABI contract 为 **33**，metadata ABI 为 **10**。contract 33 将 9.2 的 TaskContext 扩为 binding root 与 execution 两个 managed 字段；metadata 记录格式不变，compiler、runtime 与系统库机器正文须配套重建。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 9`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
 
 | descriptor | magic | size（bytes） |
 | --- | --- | --- |
@@ -1015,6 +1015,12 @@ suspend callable 使用完整的 Continuation 与 CoroutineStep 合同；跨挂�
 
 completion 的成功、失败与恢复具有唯一获胜方和 release/acquire 发布；未获胜恢复不能执行正文、改变 TaskContext 或消费状态。异常在挂起前保存为普通 managed 引用并结束 native catch，不能把 active native record 存入 frame。
 
+每个低层任务有独立的 managed execution，保存固定 executor、活动任务登记和驱动状态；direct、virtual 与 closure suspend 调用共享同一 execution。结果提交与取得驱动权分离：registration/callee 尚未返回时的 completion 只发布结果，所有挂起入口使用同一 Registering/Waiting 握手。execution 在 Running、Idle、Queued、Finished 之间协调同一任务，最多一个驱动者及一个待领取调度项。当前驱动必须先退出 frame 访问、结束 native catch 并恢复 resumer Context，才能让下一驱动执行。发布 payload 后才以 release 发布 ready，读取端 acquire 后消费；发布临界路径不调用用户代码。
+
+有 executor 的外部恢复通过目标 execution 排队；内置 executor 不在 dispatch 调用栈中执行 work。另一 worker 可以在 dispatch 返回前开始，因此不能把函数返回视为发布屏障。无 executor 时允许当前线程恢复，但仍经过同一驱动状态协调。编译器内部、同 execution 的完成链可由当前驱动循环消费，不能递归增长 native 完成栈；用户 completion 仍是一次公开通知。
+
+execution、work、typed 结果及异常都是普通 managed 对象，必须由实际队列/TaskContext/frame 引用保活，遵守写屏障与精确扫描。实际任务终止且完成通知退出后才释放 executor 登记；取消不提前释放登记，不覆盖已提交成功。worker attach/detach、park/join 复用现有线程与 NativeSafe 合同，C runtime 不实现调度队列，不新增 executor TLS 根。源码协议见语言规范 11.9.3。
+
 每次真正进入或恢复协程正文时使用 frame 保存的 TaskContext，退出或传播异常时恢复调用者 Context。其语言行为见语言规范 8.3、11.9，Context 契约见第 9 章。
 
 语言规范 11.9.1～11.9.2 的结构化并发及取消由普通 core 对象实现。Job 树、等待者与结果沿普通 managed 扫描和原子发布；取消以普通异常恢复，不新增 runtime 任务、取消 ABI 或线程调度职责。
@@ -1039,7 +1045,9 @@ current、enter、leave 在所有 profile 按上述槽生成普通 managed-point
 
 同一任务串行改变绑定。child task 继承创建时的 snapshot，后续重新绑定独立；binding 中原对象的身份仍可共享，不隐含深复制或并发同步。
 
-TaskContext 的实例由对象头和一个可空 managed root 字段组成，root 指向已有的不可变 binding tree；fork 只分配新的实例并保存该 root。编译器按同一 TD／scan 布局生成分配及字段写入，复用普通分配失败、TLAB 慢路径和写屏障协议（实现规范 2.16）。snapshot 在可能 GC 的分配期间保活，分配后的写入消费重定位结果；不能跨分配保存内部裸地址。生成路径保持任务身份、绑定快照及恢复语义，不改变当前线程 Context 的根发布规则。
+TaskContext 的实例由对象头、可空 managed root 字段及独立的可空 managed execution 字段组成；root 指向不可变 binding tree，execution 指向第 8 章的任务执行对象。snapshot 只保存 binding root。创建 coroutine 时 fork 新实例，继承 binding 并安装该新任务的 execution；foreign callback 的独立 invocation 只 fork binding，execution 为空。普通同步 native 往返保留当前任务，不创建 callback execution。root context 的 execution 也为空。普通 binding 的 push/restore 不改变 execution，不能通过 Context binding 假装切换 executor。
+
+编译器与 C 后备使用相同的实际 TD／scan 布局：当前 64-bit 对象头之后，root 位于 offset 16，execution 位于 offset 24，总大小 32 bytes，两字段均为可空 managed 引用。该变更直接更新 runtime ABI 与所需产物，不保留旧 24-byte 布局。编译器生成分配及字段写入，复用普通分配失败、TLAB 慢路径和写屏障协议（实现规范 2.16）；两份引用在可能 GC 的分配期间保活，随后消费重定位结果，不能跨分配保存内部裸地址。当前线程 Context 仍由既有根槽发布与扫描。
 
 ### 9.3 Context key 登记
 
