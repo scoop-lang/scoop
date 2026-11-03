@@ -299,7 +299,11 @@ private class TextNavigationTest {
                             CaretMovement.LineStart,
                             CaretMovement.LineEnd,
                             CaretMovement.DocumentStart,
-                            CaretMovement.DocumentEnd
+                            CaretMovement.DocumentEnd,
+                            CaretMovement.WordLeft,
+                            CaretMovement.WordRight,
+                            CaretMovement.LineLeft,
+                            CaretMovement.LineRight
                         ]
                     )
                         assertEquals(

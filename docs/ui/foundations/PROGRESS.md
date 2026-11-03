@@ -33,7 +33,7 @@
 | F1b1：应用所属的 GUI 纯文本剪贴板 | 已完成 aarch64 实施和定向验证 |
 | F1b2：原生编辑命令 | 已完成 aarch64 实施和定向验证 |
 | F1b3：原生文本快照与连接几何 | 已完成 aarch64 实施和定向验证 |
-| F1c：视觉词移动和物理行边界 | 待实施 |
+| F1c：视觉词移动和物理行边界 | 已完成 aarch64 实施和定向验证 |
 | F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
@@ -317,3 +317,13 @@ InputArea 的 textInput 可以随只读状态切换，restartTextInput 等待旧
 Scoop 格式、相关生产／测试源码类型检查、Objective-C arm64 警告检查和 17 个 UI 依赖库的 aarch64 release 构建通过。78 项定向 scoop.test 通过：Window 10 项、Surface 输入 65 项，以及新原生 caret、原有原生 IME 输入和 SurfaceHost 各 1 项。覆盖真实 NSTextInputClient Unicode 文档范围、排队批次、旧 revision／连接、逆向选区、unmark／取消、候选几何、缩放／路径裁剪、提交失败、只读重连和关闭。原有 IME 用例的预期按 unmark 保留选区调整；输入过滤器实际选中 65 项，首次计数预估修正后确认全部正常完成。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。10 份一次性报告和 2 个被本批替代的测试输出已清理；独立 sysroot、本批测试产物及共享缓存保留。
+
+## F1c：视觉词移动和物理行边界
+
+CaretMovement 增加 WordLeft／WordRight 和 LineLeft／LineRight，与逻辑 moveWord、LineStart／LineEnd 分开。物理词移动沿既有实际字形边缘跨越 Unicode 空白及 ICU 词段，保留所到字形的 affinity；跨软换行不把一个词拆开。词段查找与普通 wordRange 共用，字符与词导航共用水平步进。
+
+末尾换行用例发现 SkParagraph 的最后行指标可能把换行计入 fEndIndex，并让新增空行复用该换行的范围。Graphics.Text 按已有 Unicode grapheme 判定真实硬换行，将最后空行规范为文档末端的空范围；换行不生成虚构字形边缘。字符、词、行边界、上下移动及命中查询保持同一行表，原断言没有放宽。
+
+Scoop 格式、文本库与 UI 文本组合的测试源码类型检查、C++ arm64 警告检查、Graphics.Text／UI 的 aarch64 release 构建通过。47 项定向 scoop.test 通过：Graphics.Text 46 项和 PublicParagraphHost 原生窗口回归 1 项。新增覆盖 Unicode 空白与组合字符、RTL／混合方向的词段边缘、软换行、截断，以及 LF／CRLF／连续换行／Unicode 行分隔符的空行和光标几何。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。5 份一次性报告及 2 个被替代的测试输出已清理；本批产物、独立 sysroot 与共享缓存保留。

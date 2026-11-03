@@ -30,6 +30,8 @@ path = "tests/inline.scoop"
 [[test.sources]]
 path = "tests/navigation.scoop"
 [[test.sources]]
+path = "tests/navigation_words.scoop"
+[[test.sources]]
 path = "tests/boundaries.scoop"
 [[test.sources]]
 path = "tests/paint_bounds.scoop"

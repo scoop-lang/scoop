@@ -96,6 +96,15 @@ struct STTextData {
   STTextData(std::string value, std::vector<STRange> objects,
              std::string language);
   void find_words();
+  const STWord *word_at(int64_t byte, int32_t affinity);
+  bool hard_break(int64_t start, int64_t end) const {
+    const char *cursor = text.data() + start;
+    const char *limit = text.data() + end;
+    while (cursor < limit)
+      if (unicode->isHardBreak(SkUTF::NextUTF8(&cursor, limit)))
+        return true;
+    return false;
+  }
   bool scalar(int64_t index) const {
     return index >= 0 && (size_t)index < to16.size() &&
            to16[index] != std::numeric_limits<size_t>::max();

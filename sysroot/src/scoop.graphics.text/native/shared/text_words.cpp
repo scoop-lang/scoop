@@ -38,6 +38,21 @@ void STTextData::find_words() {
   words_known = true;
 }
 
+const STWord *STTextData::word_at(int64_t byte, int32_t affinity) {
+  find_words();
+  if (words.empty())
+    return nullptr;
+  auto word = std::upper_bound(words.begin(), words.end(), byte,
+                               [](int64_t offset, const STWord &item) {
+                                 return offset < item.range.end;
+                               });
+  if (word == words.end())
+    word = words.end() - 1;
+  else if (affinity == 0 && word != words.begin() && word->range.start == byte)
+    --word;
+  return &*word;
+}
+
 extern "C" {
 STRangeQuery scoop_graphics_text_word_range(void *pointer, int64_t byte,
                                             int32_t affinity) {
@@ -45,19 +60,8 @@ STRangeQuery scoop_graphics_text_word_range(void *pointer, int64_t byte,
     auto &data = *static_cast<STTextLayout *>(pointer)->data;
     if (!data.scalar(byte))
       return {{}, -1};
-    data.find_words();
-    if (data.words.empty())
-      return {{0, 0}, 1};
-    auto word = std::upper_bound(data.words.begin(), data.words.end(), byte,
-                                 [](int64_t offset, const STWord &item) {
-                                   return offset < item.range.end;
-                                 });
-    if (word == data.words.end())
-      word = data.words.end() - 1;
-    else if (affinity == 0 && word != data.words.begin() &&
-             word->range.start == byte)
-      --word;
-    return {word->range, 1};
+    const auto *word = data.word_at(byte, affinity);
+    return {word ? word->range : STRange{0, 0}, 1};
   } catch (...) {
     return {{}, -2};
   }

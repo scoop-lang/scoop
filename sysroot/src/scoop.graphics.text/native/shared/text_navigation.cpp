@@ -22,6 +22,10 @@ void STTextLayout::find_carets() {
       break;
     sgt::Paragraph::GlyphInfo glyph;
     bool ltr = style.getTextDirection() == sgt::TextDirection::kLtr;
+    if (data->hard_break(start, end)) {
+      append(start, 1, ltr);
+      continue;
+    }
     if (paragraph->getGlyphInfoAtUTF16Offset(data->to16[(size_t)start], &glyph))
       ltr = glyph.fDirection == sgt::TextDirection::kLtr;
     append(start, 1, !ltr);
@@ -80,6 +84,73 @@ STCaretMove located(STTextLayout *layout, int64_t byte, int32_t affinity) {
 STCaretMove selected(const STVisualCaret &value, double preferred_x) {
   return {value.byte, preferred_x, value.affinity, 1};
 }
+
+struct STHorizontalStep {
+  STCaretMove move;
+  bool crossed_glyph;
+};
+
+STHorizontalStep horizontal(STTextLayout *layout, STCaretMove current,
+                            int line_index, bool right) {
+  const auto &line = layout->carets[(size_t)line_index];
+  if (line.empty())
+    return {{0, 0, 1, 0}, false};
+  if (right) {
+    auto next = std::upper_bound(
+        line.begin(), line.end(), current.preferred_x,
+        [](double x, const STVisualCaret &value) { return x < value.x; });
+    if (next != line.end())
+      return {selected(at_x(line, next->x, true), next->x), true};
+  } else {
+    auto next = std::lower_bound(
+        line.begin(), line.end(), current.preferred_x,
+        [](const STVisualCaret &value, double x) { return value.x < x; });
+    if (next != line.begin()) {
+      double x = (next - 1)->x;
+      return {selected(at_x(line, x, false), x), true};
+    }
+  }
+  bool ltr = layout->style.getTextDirection() == sgt::TextDirection::kLtr;
+  int next_line = line_index + (right == ltr ? 1 : -1);
+  if (next_line < 0 || next_line >= (int)layout->lines.size())
+    return {current, false};
+  const auto &target = layout->carets[(size_t)next_line];
+  if (target.empty())
+    return {{0, 0, 1, 0}, false};
+  const auto &value = edge(target, !right);
+  return {selected(value, value.x), false};
+}
+
+STCaretMove visual_word(STTextLayout *layout, STCaretMove current, bool right) {
+  const STWord *active = nullptr;
+  STCaretMove last_word = current;
+  while (true) {
+    int line = layout->line_at((size_t)current.byte, current.affinity == 0);
+    if (line < 0)
+      return {0, 0, 1, 0};
+    auto step = horizontal(layout, current, line, right);
+    if (step.move.status != 1)
+      return step.move;
+    if (step.move.byte == current.byte &&
+        step.move.affinity == current.affinity)
+      return active ? last_word : current;
+    if (step.crossed_glyph) {
+      // The arriving affinity identifies the glyph just crossed, even at a
+      // coincident boundary between runs with opposite directions.
+      const STWord *word =
+          layout->data->word_at(step.move.byte, step.move.affinity);
+      if (!word)
+        return step.move;
+      if (active && word != active)
+        return last_word;
+      if (!word->whitespace) {
+        active = word;
+        last_word = step.move;
+      }
+    }
+    current = step.move;
+  }
+}
 } // namespace
 
 extern "C" {
@@ -113,6 +184,12 @@ STCaretMove scoop_graphics_text_move_caret(void *pointer, int64_t byte,
     const auto &line = layout->carets[(size_t)line_index];
     if (line.empty())
       return {0, 0, 1, 0};
+    if (movement == 10 || movement == 11) {
+      const auto &value = edge(line, movement == 11);
+      return selected(value, value.x);
+    }
+    if (movement == 8 || movement == 9)
+      return visual_word(layout, current, movement == 9);
     if (movement == 2 || movement == 3) {
       double x = has_x ? preferred_x : current.preferred_x;
       int next_line = std::clamp(line_index + (movement == 2 ? -1 : 1), 0,
@@ -126,31 +203,7 @@ STCaretMove scoop_graphics_text_move_caret(void *pointer, int64_t byte,
     }
     if (movement != 0 && movement != 1)
       return {0, 0, 1, -1};
-    bool right = movement == 1;
-    if (right) {
-      auto next = std::upper_bound(
-          line.begin(), line.end(), current.preferred_x,
-          [](double x, const STVisualCaret &value) { return x < value.x; });
-      if (next != line.end())
-        return selected(at_x(line, next->x, true), next->x);
-    } else {
-      auto next = std::lower_bound(
-          line.begin(), line.end(), current.preferred_x,
-          [](const STVisualCaret &value, double x) { return value.x < x; });
-      if (next != line.begin()) {
-        double x = (next - 1)->x;
-        return selected(at_x(line, x, false), x);
-      }
-    }
-    bool ltr = layout->style.getTextDirection() == sgt::TextDirection::kLtr;
-    int next_line = line_index + (right == ltr ? 1 : -1);
-    if (next_line < 0 || next_line >= (int)layout->lines.size())
-      return current;
-    const auto &target = layout->carets[(size_t)next_line];
-    if (target.empty())
-      return {0, 0, 1, 0};
-    const auto &value = edge(target, !right);
-    return selected(value, value.x);
+    return horizontal(layout, current, line_index, movement == 1).move;
   } catch (...) {
     return {0, 0, 1, -2};
   }
@@ -170,12 +223,7 @@ STRangeQuery scoop_graphics_text_logical_line(void *pointer, int64_t byte,
     int64_t probe = byte > 0 && affinity == 0 ? byte - 1 : byte;
     int64_t start = 0;
     for (size_t index = 1; index < data.graphemes.size(); ++index) {
-      const char *cursor = data.text.data() + data.graphemes[index - 1];
-      const char *end = data.text.data() + data.graphemes[index];
-      bool hard = false;
-      while (cursor < end)
-        hard = data.unicode->isHardBreak(SkUTF::NextUTF8(&cursor, end)) || hard;
-      if (hard) {
+      if (data.hard_break(data.graphemes[index - 1], data.graphemes[index])) {
         int64_t line_end = data.graphemes[index];
         if (probe < line_end)
           return {{start, line_end}, 1};

@@ -2,9 +2,10 @@ package scoop.graphics.text
 
 import scoop.graphics.GraphicsException
 
-/** Physical horizontal movement and logical line/document edges. */
+/** Physical character/word movement and explicit logical or physical line edges. */
 public enum CaretMovement {
-    Left, Right, Up, Down, LineStart, LineEnd, DocumentStart, DocumentEnd
+    Left, Right, Up, Down, LineStart, LineEnd, DocumentStart, DocumentEnd,
+    WordLeft, WordRight, LineLeft, LineRight
 }
 
 /** The preferred column survives vertical movement through shorter lines. */
@@ -125,6 +126,10 @@ private fun navigationMovement(value: CaretMovement): Int =
         case LineEnd -> 5
         case DocumentStart -> 6
         case DocumentEnd -> 7
+        case WordLeft -> 8
+        case WordRight -> 9
+        case LineLeft -> 10
+        case LineRight -> 11
     }
 
 @CLayout
