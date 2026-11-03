@@ -1,7 +1,9 @@
 package scoop.ui.component
 
 import scoop.ui.View
+import scoop.ui.LayoutDirection
 import scoop.ui.style.Insets
+import scoop.ui.style.LogicalInsets
 
 public enum FlexAxis {
     Horizontal, Vertical
@@ -56,12 +58,14 @@ public class LinearProps public constructor(
     public val alignment: CrossAlignment = CrossAlignment.Start,
     public val justify: MainAlignment = MainAlignment.Start,
     public val padding: Insets = Insets(),
-    public val clip: Boolean = false
+    public val clip: Boolean = false,
+    public val logicalPadding: LogicalInsets? = None
 ) {
     internal val paddingSize = padding.totals()
     public val children: Array<View> = Array(items.size) { index -> items[index].content }
     init {
         nonnegative(spacing, "invalid flex spacing")
+        logicalPadding?.resolve(LayoutDirection.Ltr)?.totals()
     }
 }
 

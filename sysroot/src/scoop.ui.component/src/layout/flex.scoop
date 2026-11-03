@@ -18,16 +18,7 @@ private class LinearInk(private val props: Props<LinearInput>): Element {
         measureFlex(context, constraints, props.value.value, props.value.vertical)
 
     public override fun scene(context: SceneContext) {
-        if (!props.value.value.clip) {
-            context.children()
-            return
-        }
-        val size = context.size
-        context.withState {
-            clipped ->
-            clipped.clipRect(Rect(0.0, 0.0, size.width, size.height))
-            clipped.children()
-        }
+        containerScene(context, props.value.value.clip)
     }
 }
 
@@ -37,7 +28,8 @@ private fun measureFlex(
     props: LinearProps,
     vertical: Boolean
 ): LayoutMetrics {
-    val padding = props.paddingSize
+    val edges = props.logicalPadding?.resolve(context.layoutDirection) ?: props.padding
+    val padding = edges.totals()
     val mainMaximum =
         insetMaximum(
             if (vertical)
@@ -167,14 +159,21 @@ private fun measureFlex(
         val metric = metrics[index]
         val offset =
             flexCrossOffset(aligns[index], availableCross, metric, cross.baseline, vertical)
+        val start =
+            if (vertical)
+                offset
+            else
+                cursor
         val origin =
             Point(
-                props.padding.left +
-                    if (vertical)
-                        offset
-                    else
-                        cursor,
-                props.padding.top +
+                edges.left +
+                    logicalX(
+                        start,
+                        metric.size.width,
+                        lowerBound(size.width - padding.width, 0.0),
+                        context.layoutDirection
+                    ),
+                edges.top +
                     if (vertical)
                         cursor
                     else

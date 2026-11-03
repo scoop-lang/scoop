@@ -29,7 +29,7 @@ public open class ButtonBuilder internal constructor() {
             LabelProps(
                 LabelText.Plain(text, None),
                 fonts,
-                paragraphStyle { alignment = TextAlignment.Center }
+                Some(paragraphStyle { alignment = TextAlignment.Center })
             ),
             onClick
         )
@@ -37,11 +37,11 @@ public open class ButtonBuilder internal constructor() {
 
 /** Extra paragraph and inline options for a complete styled label. */
 public class StyledButtonBuilder internal constructor(): ButtonBuilder() {
-    public var settings: ParagraphStyle = paragraphStyle()
+    public var settings: ParagraphStyle? = None
     public var inlines: Array<InlineView> = []
 
     public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
-        settings = settings.copy(configure)
+        settings = Some((settings ?: paragraphStyle()).copy(configure))
     }
 
     internal fun snapshot(text: StyledText, onClick: () -> Unit): ButtonProps =

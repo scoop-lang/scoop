@@ -99,19 +99,18 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                 },
                 label(text) {
                     this.fonts = Some(this @LayoutScene.probe.fonts)
-                    this.settings =
-                        paragraphStyle {
-                            this.direction =
-                                if (generation >= 5)
-                                    TextDirection.Rtl
-                                else
-                                    TextDirection.Ltr
-                            this.maxLines =
-                                if (generation == 4)
-                                    Some(1L)
-                                else
-                                    None
-                        }
+                    this.settings {
+                        this.direction =
+                            if (generation >= 5)
+                                TextDirection.Rtl
+                            else
+                                TextDirection.Ltr
+                        this.maxLines =
+                            if (generation == 4)
+                                Some(1L)
+                            else
+                                None
+                    }
                     this.inlines =
                         [
                             inlineView(

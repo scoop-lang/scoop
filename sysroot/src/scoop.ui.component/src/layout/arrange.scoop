@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.graphics.*
 import scoop.ui.Constraints
+import scoop.ui.LayoutDirection
 
 public enum AxisAlignment {
     Start, Center, End
@@ -21,16 +22,28 @@ internal fun alignmentOffset(alignment: AxisAlignment, available: Double, conten
         case End -> available - content
     }
 
-internal fun alignedOrigin(bounds: Rect, child: Size, alignment: Alignment): Point =
+internal fun alignedOrigin(
+    bounds: Rect,
+    child: Size,
+    alignment: Alignment,
+    direction: LayoutDirection = LayoutDirection.Ltr
+): Point =
     Point(
-        bounds.x + alignmentOffset(alignment.horizontal, bounds.width, child.width),
+        bounds.x +
+            logicalX(
+                alignmentOffset(alignment.horizontal, bounds.width, child.width),
+                child.width,
+                bounds.width,
+                direction
+            ),
         bounds.y + alignmentOffset(alignment.vertical, bounds.height, child.height)
     )
 
 internal fun arrangeStack(
     children: Array<Size>,
     parent: Constraints,
-    alignment: Alignment
+    alignment: Alignment,
+    direction: LayoutDirection = LayoutDirection.Ltr
 ): LayoutPlan {
     var width = 0.0
     var height = 0.0
@@ -42,7 +55,9 @@ internal fun arrangeStack(
     val bounds = Rect(0.0, 0.0, size.width, size.height)
     return LayoutPlan(
         size,
-        Array<Point>(children.size) { index -> alignedOrigin(bounds, children[index], alignment) }
+        Array<Point>(children.size) {
+            index -> alignedOrigin(bounds, children[index], alignment, direction)
+        }
     )
 }
 

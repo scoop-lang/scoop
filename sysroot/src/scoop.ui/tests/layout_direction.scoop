@@ -1,0 +1,56 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class LayoutDirectionTest {
+    @Test
+    fun `logical overlay sides and horizontal alignment resolve before collision handling`() {
+        val anchor = LayoutAnchor()
+        val viewport = Size(400.0, 200.0)
+        val bounds = Some(Rect(160.0, 80.0, 20.0, 20.0))
+        val logical =
+            OverlayPlacement.Anchored(anchor, OverlaySide.Start, gap = 4.0, viewportPadding = 0.0)
+        val left =
+            planOverlay(logical, viewport, bounds, LayoutDirection.Ltr).layout(Size(40.0, 30.0))
+        val right =
+            planOverlay(logical, viewport, bounds, LayoutDirection.Rtl).layout(Size(40.0, 30.0))
+        assertEquals(Some(OverlaySide.Left), left.side)
+        assertEquals(Some(OverlaySide.Right), right.side)
+        assertEquals(116.0, left.bounds.x)
+        assertEquals(184.0, right.bounds.x)
+        val physical = OverlayPlacement.Anchored(anchor, OverlaySide.Left, viewportPadding = 0.0)
+        assertEquals(
+            left.bounds,
+            planOverlay(physical, viewport, bounds, LayoutDirection.Rtl).layout(
+                Size(40.0, 30.0)
+            ).bounds
+        )
+        val below = OverlayPlacement.Anchored(anchor, OverlaySide.Bottom, viewportPadding = 0.0)
+        assertEquals(160.0, planOverlay(below, viewport, bounds).layout(Size(40.0, 30.0)).bounds.x)
+        assertEquals(
+            140.0,
+            planOverlay(below, viewport, bounds, LayoutDirection.Rtl).layout(
+                Size(40.0, 30.0)
+            ).bounds.x
+        )
+        val edge = OverlayPlacement.Viewport(OverlayAlignment.End, OverlayAlignment.Start, 0.0)
+        assertEquals(
+            0.0,
+            planOverlay(edge, viewport, None, LayoutDirection.Rtl).layout(Size(40.0, 30.0)).bounds.x
+        )
+    }
+
+    @Test
+    fun `navigation inherits layout direction and explicit direction remains independent`() {
+        val inherited = NavigationOptions([], NavigationLayout.Horizontal)
+        val key = LogicalKey.Named(NamedKey.ArrowLeft)
+        assertFalse(navigationStep(inherited, key, LayoutDirection.Ltr)!!.forward)
+        assertTrue(navigationStep(inherited, key, LayoutDirection.Rtl)!!.forward)
+        val explicit = NavigationOptions([], NavigationLayout.Horizontal, Some(LayoutDirection.Ltr))
+        assertFalse(navigationStep(explicit, key, LayoutDirection.Rtl)!!.forward)
+        assertEquals(None, navigationStep(NavigationLayout.Vertical, LayoutDirection.Rtl, key))
+    }
+}

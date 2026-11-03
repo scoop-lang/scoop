@@ -21,7 +21,7 @@ public class TextEditOptions public constructor(
     public val enabled: Boolean = true,
     public val tab: TextTabBehavior = TextTabBehavior.Navigate,
     public val submit: TextSubmitKeys = TextSubmitKeys.Enter,
-    public val direction: TextDirection = TextDirection.Ltr,
+    public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
     public val caretBlink: Duration = Duration.milliseconds(500L)

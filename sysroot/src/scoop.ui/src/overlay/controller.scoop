@@ -99,7 +99,13 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                     }
                     case None -> None
                 }
-            val plan = planOverlay(portal.options.placement, context.size, anchor)
+            val plan =
+                planOverlay(
+                    portal.options.placement,
+                    context.size,
+                    anchor,
+                    portal.node.layoutDirection
+                )
             val child = portal.node.children[0L]
             val metrics = child.measure(plan.constraints, context.time)
             child.finishMeasurement()

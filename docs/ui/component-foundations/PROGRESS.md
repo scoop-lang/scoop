@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，当前进行 L2。
+日期：2026-11-04。状态：实施中，当前进行 I1。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -11,8 +11,8 @@
 | P1 平台键盘合同 | 已完成 |
 | P2 文本服务与源码边界 | 已完成 |
 | L1 布局协议与空间分配 | 已完成 |
-| L2 方向、Wrap 和 Grid | 实施中 |
-| I1 公共激活与拖动 | 待实施 |
+| L2 方向、Wrap 和 Grid | 已完成 |
+| I1 公共激活与拖动 | 实施中 |
 | I2 弹层、候选项和悬浮 | 待实施 |
 | T1 编辑事务策略 | 待实施 |
 | T2 文本投影与选择 | 待实施 |
@@ -20,7 +20,7 @@
 | S1 阅读位置与滚动意图 | 待实施 |
 | C1 组合验收 | 待实施 |
 
-本轮实现先验证 macOS aarch64，最后补做受影响生产库与代表组合的 x86_64 Rosetta 验证。Windows native 实现、Windows 构建／桌面验收、accessibility、原生控件交互和 shadcn 控件库不在本轮范围。
+本轮实现先验证 macOS aarch64，最后补做受影响生产库与代表组合的 x86_64 Rosetta 验证。Windows／Linux 后端实现及构建／桌面验收、accessibility、原生控件交互和 shadcn 控件库不在本轮范围。
 
 ## 设计阶段
 
@@ -55,3 +55,12 @@
 - aarch64 macOS release：ui、style、三套主题和 component 共 6 个受影响生产库构建成功；Scoop 格式化与 5 个相关 Cone 的 tests 类型检查通过。依赖重建服从现有产物指纹规则，没有扩大到编译器或其他平台验证。
 - 15 项定向测试全部通过：Flex 分配／冻结／极大权重／基线／配置 4 项，Frame／Stack／参数 3 项，builder 5 项；真实 lazy、绘制和控件布局组合各 1 项。组合覆盖不同约束与失败恢复、临时省略焦点项、实例与局部 State 保留、80＋8＋212 的实际文本换行、行内控件、裁剪和静止停止提交。无未闭合失败。
 - 清理本项独立检查锁文件，保留后续复用的产物、Cone cache 和 L2 草稿；x86_64 仍在 C1 统一验收。
+
+## L2：方向、Wrap 和 Grid
+
+- UI 增加继承的 LayoutDirection 与透明 direction 作用域；ComponentScope、普通／lazy 测量和 Scene 使用同一有效方向。方向变化保留实例、State、输入区域和焦点，显式局部覆盖停止继承传播；portal 继续沿逻辑父级继承。
+- 导航默认继承布局方向，显式方向独立。ParagraphHost 与编辑器的缺省段落方向跟随布局，显式 ParagraphStyle／TextDirection 保留覆盖。Overlay 的逻辑 Start／End 在碰撞前转换为物理侧；LogicalInsets 与物理 Insets 分开，Flex／Frame／Stack／Absolute 采用逻辑水平位置，不镜像绘图或文字。
+- Wrap 使用 Flex 分配和真实基线，按有限主轴换行，支持行间距及明确裁剪。Grid 提供 Fixed／Auto／Fraction、显式位置及跨度，先解析内容需求，再按最终列宽测量高度；有限 Fraction 分配剩余空间，不被自然文本宽度撑大。共享表格列宽使用普通值，不扫描虚拟数据。
+- aarch64 macOS release：ui、style、三套主题和 component 共 6 个受影响生产库构建成功；58 个修改／新增 Scoop 源文件格式化通过，8 个相关 Cone 的 tests 类型检查通过，文档本地链接与 diff 检查通过。
+- 9 项定向测试全部通过：方向／逻辑弹层算法 2 项，Wrap／Grid／逻辑几何／配置 5 项，真实方向切换及布局各 1 项。窗口组合验证 LTR→RTL→LTR 后的同一焦点与局部状态、显式覆盖、portal、真实文本，以及两种方向下 Wrap 基线、Grid 跨列／文本换行和 Frame／Stack／Absolute 的提交位置。测试场景的锚点登记与 Closing 后查询问题已修正，无未闭合失败；未把 IME 方向组合记作已验收。
+- 清理本项独立检查锁文件和已使用的布局草稿，保留复用产物／缓存及下一项交互草稿。水平虚拟列表的方向与阅读位置一起在 S1 补齐；x86_64 仍在 C1 统一验收。

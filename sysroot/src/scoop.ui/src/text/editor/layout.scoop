@@ -43,7 +43,7 @@ private fun editorLayout(host: TextEditHost, width: Double?): TextLayout {
         content,
         paragraphStyle {
             this.alignment = host.options.alignment
-            this.direction = host.options.direction
+            this.direction = host.options.direction ?: host.scope.layoutDirection.textDirection()
         },
         width,
         []
@@ -80,7 +80,8 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
             content,
             paragraphStyle {
                 this.alignment = host.options.alignment
-                this.direction = host.options.direction
+                this.direction =
+                    host.options.direction ?: host.scope.layoutDirection.textDirection()
             },
             width,
             []

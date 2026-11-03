@@ -35,7 +35,7 @@ private class StackInk(private val props: Props<StackProps>): Element {
             Array<Size>(context.childCount) {
                 index -> context.measureChild(index, childConstraints).size
             }
-        val plan = arrangeStack(sizes, constraints, props.value.alignment)
+        val plan = arrangeStack(sizes, constraints, props.value.alignment, context.layoutDirection)
         for (index in 0L until context.childCount)
             context.placeChild(index, plan.origins[index])
         return LayoutMetrics(plan.size)

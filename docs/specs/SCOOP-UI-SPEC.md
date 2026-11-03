@@ -327,7 +327,7 @@ public struct LayoutMetrics(
 
 基线是相对元素顶边的有限有符号偏移，文本采用首行基线；None 表示元素没有该基线。外框裁剪不要求基线落在其高度范围内。空内容采用约束下限尺寸和两项 None。Component 原样透传子描述的尺寸与基线；容器可以根据子项偏移给出自己的基线，未定义时返回 None，不隐式扫描后代。框架不扩展成通用 alignment-line 系统。
 
-MeasureContext 提供本帧 time、子项数量、`measureChild(index, constraints): LayoutMetrics` 和 `placeChild(index, origin: Point)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项至少成功测量一次，尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
+MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics` 和 `placeChild(index, origin: Point)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项至少成功测量一次，尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
 
 子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
 
@@ -407,7 +407,7 @@ UiRoot 在 Surface 的 Accepted 完成边界先发布本帧的滚动内容路径
 
 #### 7.3.2 KeyNavigation 与组内导航
 
-ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有的无样式导航组，返回随挂载退休的 KeyNavigation；每个挂载至多一个活动组。NavigationOptions 包含不可变 items: Array<NavigationItem>、layout: NavigationLayout = Vertical、direction: graphics.text.TextDirection = Ltr、loop=false、roving=true。NavigationItem 包含稳定 FocusHandle 及 row=0、column=0；Horizontal／Vertical 使用数组顺序，Grid 使用显式行列位置。
+ComponentScope.keyNavigation(options: NavigationOptions) 登记本挂载拥有的无样式导航组，返回随挂载退休的 KeyNavigation；每个挂载至多一个活动组。NavigationOptions 包含不可变 items: Array<NavigationItem>、layout: NavigationLayout = Vertical、direction: LayoutDirection? = None（继承当前挂载方向）、loop=false、roving=true。NavigationItem 包含稳定 FocusHandle 及 row=0、column=0；Horizontal／Vertical 使用数组顺序，Grid 使用显式行列位置。
 
 options 在逻辑阶段整体更新；重复 handle、同一个 handle 属于两个活动导航组、Grid 重复行列坐标均报告配置错误，并保留旧配置。允许先配置尚未挂载的 handle，但它随后只能绑定到该导航组的逻辑子树。关闭组解除成员关系；替换目标的外部 handle 后，旧 handle 不会继续控制新引用。enabled 和可聚焦性仍来自原区域与逻辑祖先，没有另一份成员禁用状态。
 
@@ -470,7 +470,7 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
-TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction=Ltr、alignment=Start、paintCache=None 和 caretBlink=500ms。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部正文不得含硬换行；粘贴和原生输入把硬换行转为空格，CRLF 作为一个换行。原生批次先按原始有序范围完整应用，再统一转换最终正文、选区、标记和仍活动的组合基线，不在每个操作之间改变后续原生范围的坐标依据。活动单行宿主在模型发布前验证这一条件，失败不改变正文或历史。
+TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None 和 caretBlink=500ms。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部正文不得含硬换行；粘贴和原生输入把硬换行转为空格，CRLF 作为一个换行。原生批次先按原始有序范围完整应用，再统一转换最终正文、选区、标记和仍活动的组合基线，不在每个操作之间改变后续原生范围的坐标依据。活动单行宿主在模型发布前验证这一条件，失败不改变正文或历史。
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
@@ -496,7 +496,7 @@ LayoutAnchor 是 owner 线程上的稳定引用，通过 ComponentScope.layoutAn
 
 PortalOptions 保存 placement、可选外部 OverlayHandle、anchorVisibility（默认 Close）、可选 modal: ModalOptions、dismiss: OverlayDismiss 和当前 onClose 回调。缺省句柄由挂载会话内部拥有；描述重建不会隐式分配新的活动会话。参数在描述构造／更新边界检查，归属在建立实际绑定时检查；错误保留旧的有效绑定。普通／模态是不同的挂载形状，改变 modal 的有无会退休旧会话并重新挂载；同一模态形状内的 initialFocus、restoreFocus 和关闭策略可正常更新。
 
-OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, viewportPadding=8)，在窗口可用矩形中对齐；Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，相对锚点定位。OverlayAlignment 包含 Start／Center／End，OverlaySide 包含 Top／Right／Bottom／Left；对齐使用物理坐标，不隐式读取控件 writing direction。gap／viewportPadding 为有限非负值。
+OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, viewportPadding=8)，在窗口可用矩形中对齐；Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，相对锚点定位。OverlayAlignment 包含 Start／Center／End，OverlaySide 包含 Top／Right／Bottom／Left／Start／End；Start／End 在测量前按 portal 的 LayoutDirection 解析为物理左右侧，Left／Right 始终为物理方向。水平 OverlayAlignment.Start／End 同样从逻辑起点解析，垂直对齐不变。OverlayLayout.side 返回解析并经过翻转选择后的物理侧。gap／viewportPadding 为有限非负值。
 
 锚点定位先扣除 viewportPadding，求优先侧和反侧的可用范围，用较大主轴范围与视口交叉轴范围给内容一次有界测量。matchAnchorWidth 提供受本次最大宽度限制的 tight 宽度。实际尺寸放得下优先侧时保留该侧，否则选择反侧，二者均不足时选较大侧；交叉轴 shift 到视口内。KeepVisible 对有效但已离开视口的锚点进一步将层位置限制在可用视口内。不存在通过重复测量实现的 flip 协商，也不轮询静止锚点。
 
@@ -554,7 +554,7 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 `LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
-LazyMeasureContext 公开 time、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量且相邻同约束复用最后结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
+LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量且相邻同约束复用最后结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
 
 同一布局中，lazy 只暂存最后一次测量的选中集合与 placements；普通根或 portal 的最终测量结束后才检查 pinned 项、更新帧参与和执行 retention。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。每次新测量都替换该节点待收尾的集合；最终收尾仍沿现有关闭／卸载规则执行。
 
@@ -584,7 +584,7 @@ LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引�
 
 ### 7.8.2 虚拟 Tab 与条目导航
 
-LazyFocus.options 使用 `LazyFocusOptions(navigation = ItemNavigation.None, layout = NavigationLayout.Vertical, order = 0)`，在逻辑阶段整体更新；实际配置改变取消旧等待。layout 只接受 Horizontal／Vertical，条目按 ItemSource 的线性顺序导航，Grid 使用第 7.3.2 节的有限成员协议。ItemNavigation 为 None、Sequential 或 `Roving(direction = TextDirection.Ltr, loop = false)`。
+LazyFocus.options 使用 `LazyFocusOptions(navigation = ItemNavigation.None, layout = NavigationLayout.Vertical, order = 0)`，在逻辑阶段整体更新；实际配置改变取消旧等待。layout 只接受 Horizontal／Vertical，条目按 ItemSource 的线性顺序导航，Grid 使用第 7.3.2 节的有限成员协议。ItemNavigation 为 None、Sequential 或 `Roving(direction: LayoutDirection? = None, loop = false)`。
 
 None 保留普通已挂载目标的 Tab 行为，仅提供按 key 聚焦。Sequential／Roving 在包含该 lazy 节点的逻辑 Tab 序列中登记一个按 order 排序的条目入口，代替枚举它的已挂载子行；节点自身的独立 FocusTarget 仍由其自身 tabStop 控制。进入条目入口后按需解析 key、测量、显露，再使用行内实际的 Tab 顺序，不创建伪区域或全量句柄。嵌套虚拟列表使用同一流程，普通 FocusScope 的默认目标、Tab 首项和 fallback 也经过这一顺序。
 
@@ -595,6 +595,16 @@ Roving 使条目入口成为一个 Tab 停靠点，离开任一行后 Tab 继续
 Roving 的方向键和 Home／End 只在事件仍未消费且当前焦点正是行的主目标时处理。Horizontal 的左右按 direction 映射，Vertical 的上下不受 RTL 影响；Home／End 从数据首／末端寻找有效项。禁用、空项与不能显露的项按需跳过；loop 仅控制方向键越过数据边界后的环绕。接受真实无修饰 key-down 和 repeat，拒绝 synthetic、key-up 及 Command／Control／Alt／Shift／Function 组合。认领的方向即使无下一项也消费，不接管嵌套编辑器已经处理的按键，不处理 Enter／Space 或修改选择状态。
 
 所有导航候选继续使用根上的唯一焦点请求、同一 viewport 定位和成功帧协议；请求完成后释放临时固定。只保存当前遍历的实际挂载路径、有限顺序游标和少量稳定 key，不按 source.count 创建数组，不为遍历等待启动定时器。
+
+### 7.9 布局方向继承
+
+LayoutDirection 为 Ltr／Rtl。`direction(content: View, value: LayoutDirection, key = Position): View` 创建一个透明的单内容方向作用域；根缺省 Ltr，其他节点沿逻辑挂载父级继承，portal 在窗口出口呈现时仍继承逻辑祖先。它不读取系统 locale，不改变子项 key、Tab 顺序或绘制内容自身的变换。
+
+ComponentScope、MeasureContext、LazyMeasureContext 和 SceneContext 的 `layoutDirection` 读取当前有效方向；context getter 沿用同步借用期限，scope getter 沿用挂载检查。`LayoutDirection.textDirection()` 显式转换为 graphics.text.TextDirection。只改变方向时更新继承节点并请求布局，Element／LazyElement 重新 update，Component 可重新 render；不卸载实例、重建输入区域或丢弃编辑状态。纯方向传播遇到已有明确覆盖即停止；真实 Props／content 变化仍执行普通协调。该专门机制不改变 Context 的挂载时绑定合同，也不建立任意动态环境框架。
+
+方向只影响逻辑几何：水平布局从逻辑起边排列，纵向布局的交叉轴 Start／End 按方向解析。物理 Left／Right 不变；Canvas、图片、Path 和文字不整体镜像。NavigationOptions／ItemNavigation.Roving 的 None 方向在事件时读取所属挂载的有效值，显式值覆盖；方向改变不替换导航登记或焦点 handle。
+
+ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以本次 MeasureContext 的方向生成段落设置，明确提供的 ParagraphStyle 保留其文本方向。TextEditOptions 同样缺省继承、显式覆盖，布局方向变化只改变排版，不改变正文、选区、组合基线或文本连接身份。
 
 ## 8. 挂载与资源生命周期
 
@@ -708,6 +718,6 @@ native 呈现和窗口行为使用现有真实后端，不为测试单独搭一�
 
 PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onClose。
 
-`focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=Ltr、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
+`focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 
 `inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。

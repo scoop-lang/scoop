@@ -21,7 +21,7 @@ public class TextareaProps public constructor(
     public val style: TextFieldStyle = textFieldStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val direction: TextDirection = TextDirection.Ltr,
+    public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,

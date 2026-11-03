@@ -102,6 +102,10 @@ ThemePalette 的 canvas／surface／elevated／text／secondaryText／disabledTe
 
 构造仅发布普通描述，不读取 Context／State、不创建 painter／Path／字体资源或动画；回调异常沿普通调用传播，原值不变。Array 元素槽与子描述不可变，可安全共享；发布后修改被捕获的 builder 不改变结果。颜色、长度与视觉采样继续在原有实际消费边界检查，不增加另一套布局或绘图验证流程。
 
+### 3.3 物理与逻辑边距
+
+Insets(left, top, right, bottom) 始终表示逻辑长度单位中的物理四边。LogicalInsets(start, top, end, bottom) 是独立值类型；resolve(LayoutDirection) 先把 start／end 映射到左右，再返回已检查的 Insets。两者的 all(value) 生成四边相等的值，长度及总和有限非负。主题和通用几何消费已解析的物理 Insets；graphics 不依赖 UI 方向。
+
 ## 4. 公共绘图部件
 
 各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focused 数据，部件另带自身选择或滚动输入。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。

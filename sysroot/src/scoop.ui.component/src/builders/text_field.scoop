@@ -16,7 +16,7 @@ public open class InputBuilder internal constructor() {
     public var style: TextFieldStyle = textFieldStyle()
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
-    public var direction: TextDirection = TextDirection.Ltr
+    public var direction: TextDirection? = None
     public var alignment: TextAlignment = TextAlignment.Start
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
     public var caretBlink: Duration = Duration.milliseconds(500L)

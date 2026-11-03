@@ -28,7 +28,7 @@ public enum ScrollbarRegion {
     Track, Thumb, Decrement, Increment
 }
 
-/** Local logical insets, shared by geometry and control layout. */
+/** Physical edges in logical units, shared by geometry and control layout. */
 public struct Insets(
     val left: Double = 0.0,
     val top: Double = 0.0,

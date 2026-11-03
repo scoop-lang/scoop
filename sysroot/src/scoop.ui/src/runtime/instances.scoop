@@ -9,6 +9,7 @@ internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): Mounted
     val body =
         when (view.body) {
             case Empty -> NodeBody.Empty
+            case Direction(_, _) -> NodeBody.Direction
             case Component(description) -> NodeBody.Component(description.create())
             case Element(description, _) -> NodeBody.Element(description.create())
             case Portal(_, options) -> NodeBody.Portal(PortalInstance(root, options))
@@ -34,6 +35,7 @@ internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): Mounted
 private fun instanceIdentity(body: NodeBody): Any? =
     when (body) {
         case Empty -> None
+        case Direction -> None
         case Component(instance) -> Some(instance.value)
         case Element(instance) -> Some(instance.value)
         case Portal(_) -> None

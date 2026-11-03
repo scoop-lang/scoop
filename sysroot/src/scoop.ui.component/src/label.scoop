@@ -12,7 +12,7 @@ public enum LabelText {
 public class LabelProps public constructor(
     public val text: LabelText,
     public val fonts: FontCollection? = None,
-    public val settings: ParagraphStyle = paragraphStyle(),
+    public val settings: ParagraphStyle? = None,
     public val inlines: Array<InlineView> = [],
     public val theme: ThemeSource? = None,
     public val baseStyle: TextStyle? = None

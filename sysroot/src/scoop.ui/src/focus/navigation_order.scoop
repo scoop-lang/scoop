@@ -1,6 +1,5 @@
 package scoop.ui
 
-import scoop.graphics.text.TextDirection
 import scoop.window.*
 
 internal enum NavigationAxis {
@@ -13,12 +12,15 @@ internal struct NavigationStep(
     val edge: Boolean = false
 )
 
-internal fun navigationStep(options: NavigationOptions, key: LogicalKey): NavigationStep? =
-    navigationStep(options.layout, options.direction, key)
+internal fun navigationStep(
+    options: NavigationOptions,
+    key: LogicalKey,
+    inherited: LayoutDirection = LayoutDirection.Ltr
+): NavigationStep? = navigationStep(options.layout, options.direction ?: inherited, key)
 
 internal fun navigationStep(
     layout: NavigationLayout,
-    direction: TextDirection,
+    direction: LayoutDirection,
     key: LogicalKey
 ): NavigationStep? {
     val grid = layout == NavigationLayout.Grid
@@ -36,11 +38,11 @@ internal fun navigationStep(
         case Named(NamedKey.Home) -> Some(NavigationStep(horizontal, false, true))
         case Named(NamedKey.End) -> Some(NavigationStep(horizontal, true, true))
         case Named(NamedKey.ArrowLeft) -> if (layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, direction == TextDirection.Rtl))
+            Some(NavigationStep(horizontal, direction == LayoutDirection.Rtl))
         else
             None
         case Named(NamedKey.ArrowRight) -> if (layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, direction != TextDirection.Rtl))
+            Some(NavigationStep(horizontal, direction != LayoutDirection.Rtl))
         else
             None
         case Named(NamedKey.ArrowUp) -> if (layout != NavigationLayout.Horizontal)

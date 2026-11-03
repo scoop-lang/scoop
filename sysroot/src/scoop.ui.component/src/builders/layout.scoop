@@ -10,6 +10,7 @@ public open class LinearBuilder internal constructor(): ChildrenBuilder() {
     public var alignment: CrossAlignment = CrossAlignment.Start
     public var justify: MainAlignment = MainAlignment.Start
     public var padding: Insets = Insets()
+    public var logicalPadding: LogicalInsets? = None
     public var clip: Boolean = false
     private val options = HashMap<Long, FlexItemOptions>()
 
@@ -29,7 +30,8 @@ public open class LinearBuilder internal constructor(): ChildrenBuilder() {
             alignment,
             justify,
             padding,
-            clip
+            clip,
+            logicalPadding
         )
     }
 }

@@ -8,6 +8,7 @@ public class FrameBuilder internal constructor() {
     public var width: Double? = None
     public var height: Double? = None
     public var padding: Insets? = None
+    public var logicalPadding: LogicalInsets? = None
     public var alignment: Alignment = Alignment()
     public var style: StyleOverride = styleOverride()
     public var surface: SurfaceKind? = None
@@ -18,7 +19,17 @@ public class FrameBuilder internal constructor() {
         style = style.copy(configure)
     }
     internal fun snapshot(content: View): FrameProps =
-        FrameProps(content, width, height, padding, alignment, style, surface, theme)
+        FrameProps(
+            content,
+            width,
+            height,
+            padding,
+            alignment,
+            style,
+            surface,
+            theme,
+            logicalPadding
+        )
 }
 
 internal fun makeFrame(content: View, configure: FrameBuilder.() -> Unit): View {

@@ -7,7 +7,7 @@ public enum OverlayAlignment {
 }
 
 public enum OverlaySide {
-    Top, Right, Bottom, Left
+    Top, Right, Bottom, Left, Start, End
 }
 
 public enum AnchorVisibility {

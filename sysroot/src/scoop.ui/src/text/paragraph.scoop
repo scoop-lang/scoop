@@ -35,7 +35,7 @@ public class ParagraphHost public constructor(): Closeable {
         constraints: Constraints,
         fonts: FontCollection,
         content: StyledText,
-        settings: ParagraphStyle = paragraphStyle(),
+        settings: ParagraphStyle? = None,
         inlines: Array<InlineView> = []
     ): LayoutMetrics {
         checkOpen()
@@ -56,7 +56,9 @@ public class ParagraphHost public constructor(): Closeable {
                     }
                 item.metrics(context.measureChild(index, limits))
             }
-        val result = cache.update(fonts, content, settings, constraints.maxWidth, metrics)
+        val resolved =
+            settings ?: paragraphStyle { direction = context.layoutDirection.textDirection() }
+        val result = cache.update(fonts, content, resolved, constraints.maxWidth, metrics)
         var index = 0L
         for (placement in result.inlineObjects) {
             when (placement.box) {

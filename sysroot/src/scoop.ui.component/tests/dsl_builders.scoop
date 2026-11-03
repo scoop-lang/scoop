@@ -58,7 +58,7 @@ private class ComponentReceiverDslTests {
         assertEquals(3, original.focus.order)
         assertEquals(Some(700), original.style.text!!.weight)
         assertEquals(Some(17.0), original.style.text!!.fontSize)
-        assertEquals(TextAlignment.Center, original.label.settings.alignment)
+        assertEquals(TextAlignment.Center, original.label.settings!!.alignment)
         assertEquals(0L, clicked.size)
         original.onClick()
         assertEquals(1L, clicked.size)

@@ -1,0 +1,71 @@
+package scoop.ui
+
+import scoop.graphics.text.TextDirection
+
+public enum LayoutDirection {
+    Ltr, Rtl
+}
+
+/** Layout inheritance is independent from a paragraph's explicit bidi direction. */
+public fun LayoutDirection.textDirection(): TextDirection =
+    if (this == LayoutDirection.Rtl)
+        TextDirection.Rtl
+    else
+        TextDirection.Ltr
+
+public fun direction(content: View, value: LayoutDirection, key: ViewKey = ViewKey.Position): View =
+    View(key, ViewBody.Direction(content, value))
+
+internal val View.directionOverride: LayoutDirection? get() =
+    when (body) {
+        case Direction(_, value) -> Some(value)
+        else -> None
+    }
+
+/** Only a direction change reaches this path; ordinary Props still use reconciliation. */
+internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
+    if (!active || !root.isOpen)
+        return
+    val next = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
+    if (next == layoutDirection)
+        return
+    layoutDirection = next
+    updated = Some(turn)
+    when (body) {
+        case Component(instance) -> rebuildComponent(instance, turn, true)
+        case Element(instance) -> {
+            for (child in children)
+                child.refreshDirection(turn)
+            if (mounted && active && root.isOpen)
+                instance.value.update()
+        }
+        case Lazy(instance, _) -> {
+            for (child in children)
+                child.refreshDirection(turn)
+            if (mounted && active && root.isOpen)
+                instance.value.update()
+        }
+        else -> for (child in children)
+            child.refreshDirection(turn)
+    }
+}
+
+internal fun MountedNode.rebuildComponent(
+    instance: ComponentInstance,
+    turn: UpdateTurn,
+    directionOnly: Boolean
+) {
+    val collector = DependencyCollector()
+    val next = evaluateUi(Some(collector)) { instance.value.render() }
+    if (!active || !root.isOpen)
+        return
+    for (source in dependencies)
+        source.unsubscribe(this)
+    dependencies = collector.collected()
+    for (source in dependencies)
+        source.subscribe(this)
+    if (directionOnly && children.size == 1L && children[0L].view === next)
+        children[0L].refreshDirection(turn)
+    else
+        reconcile([next], turn)
+}

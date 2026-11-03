@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.portal as makePortal
+import scoop.ui.direction as makeDirection
 import scoop.ui.style.StyledBuilder
 import scoop.ui.style.styled as makeStyled
 import scoop.ui.text.TextEditorState
@@ -78,6 +79,22 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun flex(configure: FlexBuilder.() -> Unit = {}): Unit {
         add(makeFlex(configure))
+    }
+
+    public fun wrap(configure: WrapBuilder.() -> Unit = {}): Unit {
+        add(makeWrap(configure))
+    }
+
+    public fun grid(configure: GridBuilder.() -> Unit = {}): Unit {
+        add(makeGrid(configure))
+    }
+
+    public fun direction(
+        content: View,
+        value: LayoutDirection,
+        key: ViewKey = ViewKey.Position
+    ): Unit {
+        add(makeDirection(content, value, key))
     }
 
     public fun stack(configure: StackBuilder.() -> Unit = {}): Unit {

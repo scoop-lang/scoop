@@ -8,12 +8,12 @@ import scoop.ui.text.InlineView
 /** Common options for both text models; configuration never acquires fonts. */
 public open class LabelBuilder internal constructor() {
     public var fonts: FontCollection? = None
-    public var settings: ParagraphStyle = paragraphStyle()
+    public var settings: ParagraphStyle? = None
     public var theme: ThemeSource? = None
     public var key: ViewKey = ViewKey.Position
 
     public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
-        settings = settings.copy(configure)
+        settings = Some((settings ?: paragraphStyle()).copy(configure))
     }
 
     internal fun properties(text: LabelText, inlines: Array<InlineView> = []): LabelProps =

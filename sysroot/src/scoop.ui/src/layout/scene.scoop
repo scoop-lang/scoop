@@ -21,6 +21,10 @@ public class SceneContext internal constructor(
     private val scrollPath: Array<ScrollReveal> = [],
     private val paintCache: PaintCachePolicy = PaintCachePolicy.None
 ) {
+    public val layoutDirection: LayoutDirection get() {
+        checkActive();
+        return node.layoutDirection
+    }
     private var active = true
     private var borrowed = false
     public val size: Size get() {
@@ -267,6 +271,7 @@ internal fun MountedNode.scene(
         return
     when (body) {
         case Empty -> {}
+        case Direction -> children[0L].scene(frame, origin, overlay, scrollPath, paintCache)
         case Component(_) -> children[0L].scene(frame, origin, overlay, scrollPath, paintCache)
         case Portal(instance) -> root.overlays.include(instance)
         case Element(instance) -> sceneElement(frame, origin, overlay, scrollPath, paintCache) {

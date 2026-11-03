@@ -13,10 +13,15 @@ private class ChildMeasure(val node: MountedNode) {
 
 /** One synchronous measure callback; children can be remeasured before their single placement. */
 public class MeasureContext internal constructor(
-    private val root: UiRoot,
+    private val node: MountedNode,
     children: Array<MountedNode>,
     private val mark: TimeMark
 ) {
+    private val root = node.root
+    public val layoutDirection: LayoutDirection get() {
+        checkActive();
+        return node.layoutDirection
+    }
     private var active = true
     private val entries =
         Array<ChildMeasure>(children.size) { index -> ChildMeasure(children[index]) }
@@ -106,13 +111,18 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Layo
                 placements = []
                 LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
             }
+            case Direction -> {
+                val child = children[0L].measure(constraints, time)
+                placements = [Some(Point(0.0, 0.0))]
+                child
+            }
             case Component(_) -> {
                 val child = children[0L].measure(constraints, time)
                 placements = [Some(Point(0.0, 0.0))]
                 child
             }
             case Element(instance) -> {
-                val context = MeasureContext(root, children, time)
+                val context = MeasureContext(this, children, time)
                 try {
                     val measured =
                         evaluateUi<LayoutMetrics>(None) {

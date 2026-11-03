@@ -169,7 +169,7 @@ public class KeyNavigation internal constructor(
                 modifiers.function
         )
             return
-        val step = navigationStep(current, key.logicalKey) ?: return
+        val step = navigationStep(current, key.logicalKey, node.layoutDirection) ?: return
         val index = focusedIndex() ?: return
         val next =
             navigationDestination(current.items, index, step, current.loop) {

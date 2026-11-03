@@ -76,11 +76,11 @@ checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit 
 
 | Builder | 全部可写属性与默认值 |
 | --- | --- |
-| LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle = paragraphStyle()；theme: ThemeSource? = None；key: ViewKey = Position |
+| LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle? = None；theme: ThemeSource? = None；key: ViewKey = Position |
 | PlainLabelBuilder : LabelBuilder | 继承上述字段；style: SpanStyle? = None |
 | StyledLabelBuilder : LabelBuilder | 继承上述字段；inlines: Array<InlineView> = [] |
 | ButtonBuilder | enabled: Boolean = true；style: ButtonStyle = buttonStyle()；fonts: FontCollection? = None；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
-| StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle = paragraphStyle()；inlines: Array<InlineView> = [] |
+| StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle? = None；inlines: Array<InlineView> = [] |
 | CheckboxBuilder | enabled: Boolean = true；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
 
 LabelBuilder／StyledButtonBuilder 的 settings 成员接受 ParagraphStyleBuilder；PlainLabelBuilder 的 style 接受 SpanStyleBuilder；ButtonBuilder／CheckboxBuilder 的 style 接受各自样式 Builder。真实嵌套成员返回 Unit，基于当前值继续修改，空块保留配置；完整赋值替换。PlainLabelBuilder.style 的 None 表示没有局部覆盖，第一次 style 块从全部继承的 spanStyle() 开始。String Button 的标签段落继续默认居中，StyledText Button 使用其 settings；不为某种文字模式暴露没有意义的输入。
@@ -89,9 +89,9 @@ Builder 构造器内部化，公共基类只服务上述真实复用。工厂和
 
 Input／Textarea 同样以共享编辑模型为必需参数：`input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View` 与 `textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View`。InputBuilder 的可写属性是 InputProps 除 state 外的全部输入，另有 key: ViewKey = Position；属性名、类型、默认值与第 9 节编辑合同及 InputProps 一致。TextareaBuilder 继承这些共同输入，增加 rows: Long = 4、wrap: Boolean = true、tab: TextTabBehavior = Navigate、submit: TextSubmitKeys = PrimaryEnter、scrollbars: ScrollbarVisibility = Auto。两者 style 成员接受 TextFieldStyleBuilder，重复配置保留当前局部样式。onEdited／onSubmit 是普通 `(TextEditorState) -> Unit` 通知函数，默认不执行动作；构造不编辑模型或调用它们，回调经 Props 更新。
 
-多子项容器使用 `row(configure: LinearBuilder.() -> Unit = {})`、`column(configure: LinearBuilder.() -> Unit = {})`、`stack(configure: StackBuilder.() -> Unit = {})`，均返回 View。LinearBuilder 提供 spacing: Double = 0、alignment: CrossAlignment = Start、justify: MainAlignment = Start、padding: Insets = Insets()、clip=false；StackBuilder 提供 alignment: Alignment = Alignment()。它们继承 ChildrenBuilder 的 key: ViewKey = Position、有序 add(View)／addAll(Array<View>) 和控件真实成员；同名成员追加一次并返回 Unit，使用顶层工厂相同的构造实现。构造结束时子项转为独立 Array，空容器有效；循环、条件与追加按源码执行顺序组合，捕获的 builder 后续追加不影响已发布 Props。
+多子项容器使用 `row(configure: LinearBuilder.() -> Unit = {})`、`column(configure: LinearBuilder.() -> Unit = {})`、`stack(configure: StackBuilder.() -> Unit = {})`，均返回 View。LinearBuilder 提供 spacing: Double = 0、alignment: CrossAlignment = Start、justify: MainAlignment = Start、padding: Insets = Insets()、logicalPadding: LogicalInsets? = None、clip=false；StackBuilder 提供 alignment: Alignment = Alignment()。它们继承 ChildrenBuilder 的 key: ViewKey = Position、有序 add(View)／addAll(Array<View>) 和控件真实成员；同名成员追加一次并返回 Unit，使用顶层工厂相同的构造实现。构造结束时子项转为独立 Array，空容器有效；循环、条件与追加按源码执行顺序组合，捕获的 builder 后续追加不影响已发布 Props。
 
-`frame(content: View, configure: FrameBuilder.() -> Unit = {}): View` 固定接收一个完整内容，FrameBuilder 提供 width／height: Double? = None、padding: Insets? = None、alignment: Alignment = Alignment()、style: StyleOverride = styleOverride()、surface: SurfaceKind? = None、theme: ThemeSource? = None、key: ViewKey = Position。style 成员接受 StyleOverrideBuilder 并基于当前值配置。Frame 不继承 ChildrenBuilder；尺寸校验与包装行为仍由原有 FrameProps 和 Frame 完成。
+`frame(content: View, configure: FrameBuilder.() -> Unit = {}): View` 固定接收一个完整内容，FrameBuilder 提供 width／height: Double? = None、padding: Insets? = None、logicalPadding: LogicalInsets? = None、alignment: Alignment = Alignment()、style: StyleOverride = styleOverride()、surface: SurfaceKind? = None、theme: ThemeSource? = None、key: ViewKey = Position。style 成员接受 StyleOverrideBuilder 并基于当前值配置。Frame 不继承 ChildrenBuilder；尺寸校验与包装行为仍由原有 FrameProps 和 Frame 完成。
 
 Absolute、ScrollArea、VirtualList 使用以下入口，仍构造原有 Props 和具体组件：
 
@@ -102,7 +102,7 @@ scrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit = {}): View
 virtualList(source: ItemSource, itemExtent: ItemExtent, configure: VirtualListBuilder.() -> Unit = {}): View
 ```
 
-AbsoluteBuilder 的 width／height 为 None、padding 为 Insets()、key 为 Position；add(AbsoluteChild)／addAll(Array<AbsoluteChild>) 按顺序收集，item(content) 配置 horizontal／vertical（均 Start()）和 zIndex=0 后追加一次。它不继承 ChildrenBuilder。AbsoluteChild 保留单条完整几何值构造；absoluteChild 与 item 共享配置实现。逻辑子项顺序不因 zIndex 绘制排序而改变。
+AbsoluteBuilder 的 width／height 为 None、padding 为 Insets()、logicalPadding 为 None、key 为 Position；add(AbsoluteChild)／addAll(Array<AbsoluteChild>) 按顺序收集，item(content) 配置 horizontal／vertical（均 Start()）和 zIndex=0 后追加一次。它不继承 ChildrenBuilder。AbsoluteChild 保留单条完整几何值构造；absoluteChild 与 item 共享配置实现。逻辑子项顺序不因 zIndex 绘制排序而改变。
 
 ScrollAreaBuilder 的属性与 ScrollAreaProps 除 content 外的全部字段一致，VirtualListBuilder 与 VirtualListProps 除 source／itemExtent 外的全部字段一致，另有 key=Position。默认值沿用本规范的滚动与虚拟列表合同。两者 scrollbar／focus 嵌套块基于当前选项配置；required source、itemExtent 不放入可缺失槽。发布时仅保存状态、资源和 source 引用，构造不读取 source.count、枚举 source、创建条目、滚动或获取焦点。ChildrenBuilder 的 absolute／scrollArea／virtualList／portal／styled 成员均调用对应顶层入口并追加一次，返回 Unit。
 
@@ -131,6 +131,8 @@ ParagraphHost 按内容、字体来源／revision、样式、段落设置、宽�
 行内子组件在插字、换行及省略号隐藏后保留 key、实例和状态；截断项不放置、不绘制，在该帧成功提交后退出输入和焦点。改变 key、移除对象或卸载 Label 才执行正常卸载。图片可以用普通自绘 Element 包装，使用与 Button 相同的行内协议；Label 不直接接管外部 Image 的所有权。
 
 Label 本身不创建 InputArea，其行内控件可以拥有并放置自己的区域。文字选择、编辑文档、marked range、剪贴板和撤销不属于首期 Label；公共 graphics.text 的 hitTest／caret／selection 及替代文字导出仍可由其他控件使用。
+
+Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；明确提供完整 ParagraphStyle 时使用其文本方向。settings 配置块从默认 ParagraphStyle 或已有显式值复制，提供完整段落设置；Plain 与 Styled 两种文字模式使用同一规则。
 
 ## 4. Button
 
@@ -229,6 +231,8 @@ FlexItem(content, options = FlexItemOptions()) 关联一份内容与不可变分
 
 CrossAlignment 支持 Start／Center／End／Stretch／Baseline；Stretch 按最终交叉轴尺寸作必要的紧约束测量。Baseline 用水平布局的 alphabeticBaseline，缺少时用该项底边，垂直布局不接受 Baseline。MainAlignment 支持 Start／Center／End／SpaceBetween／SpaceAround／SpaceEvenly。spacing 和 padding 均为有限非负值。容器按父约束确定尺寸；有界 grow 项可以填满可用主轴，其余按实际内容收敛。主轴留白由 justify 分配，分配型间距不减小显式 spacing。
 
+Stack／Frame 的 Alignment.horizontal 的 Start／End 为逻辑起终点；Center 不变。两者按有效方向计算实际原点，不改变子内容自身。Frame 另有 logicalPadding，非 None 时解析为物理 Insets 后替代 padding；无覆盖时仍消费主题默认边距。
+
 Stack 对每个子项使用零最小值和同样的可用最大约束，取子项包围尺寸并按父约束收敛，再依对齐放置。绘制顺序与描述顺序一致，输入重叠选择继续由 Surface 的放置顺序决定。
 
 Frame 先扣除 padding 得到子约束，再测量唯一子项，加回 padding 并按父约束确定自身尺寸。固定尺寸在父约束允许范围内生效；对子项的放置由 padding 和对齐决定。超出部分只有显式 clip 才裁剪，不因父子关系自动裁剪。装饰使用公共 Style／StylePainter，背景在子项之前绘制，显式 clip 使用同一个 Canvas 的几何状态；padding 是布局输入，效果不隐式增加它。
@@ -239,13 +243,15 @@ FrameProps 保存 content、可选 width／height、可选 padding、Alignment�
 
 各容器消费 measureChild 返回的 LayoutMetrics；Frame 把子项基线加上实际 y 偏移后返回。Row／Column／Flex 透传首个有相应基线的直接子项及其实际 y 偏移；水平 Baseline 组使用同一对齐位置。Stack 仍返回 None，不扫描后代。容器无截断策略时仍测量并放置所有子项，不能把父约束溢出当成隐式卸载。
 
+Flex／Row／Column 的位置按本次 MeasureContext.layoutDirection 解析；水平逻辑起点在 RTL 时位于右侧，垂直排列仅翻转交叉轴逻辑起点。声明顺序、子 key 和 Tab 顺序不变，内容自身不镜像。logicalPadding 非 None 时先按方向解析为 Insets，再替代 physical padding；两个字段是不同值类型，赋入 None 恢复 physical padding。
+
 ### 6.1 Absolute
 
-AbsoluteProps 包含 children: Array<AbsoluteChild>、可选 width／height 及 padding: Insets（默认零）。AbsoluteChild 保存 View、horizontal／vertical: AbsoluteAxis（默认 Start(0)）和 zIndex: Int = 0；absolute 工厂与 Absolute 组件消费同一 Props。子 View 的 key 及逻辑顺序直接保留，不为 zIndex 重排逻辑子树。
+AbsoluteProps 包含 children: Array<AbsoluteChild>、可选 width／height、padding: Insets（默认零）及 logicalPadding: LogicalInsets?（默认 None）。AbsoluteChild 保存 View、horizontal／vertical: AbsoluteAxis（默认 Start(0)）和 zIndex: Int = 0；absolute 工厂与 Absolute 组件消费同一 Props。子 View 的 key 及逻辑顺序直接保留，不为 zIndex 重排逻辑子树。
 
 AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size?) 从起边、终边或中心放置；Stretch(start, end) 由两端确定 tight 尺寸。offset／start／end 必须有限，允许负值；size 若提供必须有限非负。Start／End 没有 size 时用 max(0, extent - offset) 作最大测量范围，Center 使用内容轴 extent；指定 size 使用 tight 约束，可溢出容器。Stretch 的 extent - start - end 为 tight 尺寸，负值或非有限结果报参数错误。
 
-容器先用显式 width／height 或该轴的有限最大父约束确定自身尺寸，再受完整父约束收敛；无界轴必须提供显式尺寸。子项不反向撑大 Absolute。扣除 padding 得到非负内容范围，每个直接子项测量一次；测量后用实际子项尺寸计算 End／Center 位置，再加 padding 原点。Absolute 不创建输入区域，不隐式 clip，也不依赖环境主题；需要裁剪和装饰时组合 Frame。尺寸及坐标计算溢出按普通参数错误报告。
+容器先用显式 width／height 或该轴的有限最大父约束确定自身尺寸，再受完整父约束收敛；无界轴必须提供显式尺寸。子项不反向撑大 Absolute。扣除 padding 得到非负内容范围，每个直接子项测量一次；测量后用实际子项尺寸计算 End／Center 位置，再加 padding 原点。水平 AbsoluteAxis 的 Start／End 及 Stretch 的起终边按当前布局方向解析；纵向不变。logicalPadding 提供时先解析并替代 padding。Absolute 不创建输入区域，不隐式 clip，也不依赖环境主题；需要裁剪和装饰时组合 Frame。尺寸及坐标计算溢出按普通参数错误报告。
 
 同层子项按 zIndex 升序、同值按描述顺序呈现，使用 SceneContext.children(order)；排序在 Props 逻辑更新时完成，绘制与输入使用同一呈现顺序。Tab 与路由继续使用原逻辑挂载顺序。Absolute 不突破祖先裁剪，不代替 portal 或模态屏障。
 
@@ -283,11 +289,27 @@ VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAt
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
 
-navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺序访问行内各个有效 Tab 目标，跨过行尾才按需准备下一行；`Roving(direction = Ltr, loop = false)` 让列表只占一个条目 Tab 停靠点，方向键和 Home／End 切换实际行目标。导航轴来自 orientation，条目入口顺序来自 focus.order。两种模式均关闭视口自身独立的 Tab 停靠点，保留其显式 FocusHandle 和鼠标／程序聚焦用途；空列表没有虚拟条目停靠点。focus.tabStop 在 None 模式下仍只控制视口自身。键盘导航不选择或激活数据，具体菜单／表格语义由组合控件实现。
+navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺序访问行内各个有效 Tab 目标，跨过行尾才按需准备下一行；`Roving(direction = None, loop = false)` 让列表只占一个条目 Tab 停靠点，方向键和 Home／End 切换实际行目标。导航轴来自 orientation，条目入口顺序来自 focus.order。两种模式均关闭视口自身独立的 Tab 停靠点，保留其显式 FocusHandle 和鼠标／程序聚焦用途；空列表没有虚拟条目停靠点。focus.tabStop 在 None 模式下仍只控制视口自身。键盘导航不选择或激活数据，具体菜单／表格语义由组合控件实现。
 
 列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项按 retention 保留或正常卸载，同 key 的存活项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。已放置目标复用第 6.2 节的焦点显露；绘制缓存只影响图层像素，不改变这些规则。
 
-Flex／Row／Column 的空间分配使用 UI 的公开重新测量协议。Grid 和独立 intrinsic 查询尚未实现；布局策略不能在框架中增加本库专用类型分支。
+### 6.4 Wrap
+
+Wrap 使用 `WrapProps(axis: FlexAxis, layout: LinearProps, lineSpacing=0)`，复用 FlexItem 和 LinearProps；`wrap { ... }` 的 WrapBuilder 继承 LinearBuilder，另有 axis=Horizontal、lineSpacing=0。ChildrenBuilder 提供 wrap 成员。lineSpacing 有限非负。
+
+按内容／固定 basis 和 min／max 得到各项基础尺寸，按声明顺序生成行；加入下一项及 spacing 后超过有限主轴空间时开始新行，单个超大项仍形成一行。每行复用 Flex 的 grow／shrink 分配；无界主轴只有一行。按最终主轴约束重测，按各行实际 cross size／baseline 作 stretch 和对齐，再一次放置。主轴无 grow 时按最长行收敛，grow 可填满有限空间；多行的 cross size 加 lineSpacing 后受父约束约束，保留明确 overflow，clip=true 才裁剪。水平行支持 Baseline，垂直排列拒绝 Baseline。两种轴均按有效布局方向解析物理 x，不镜像内容。
+
+### 6.5 Grid
+
+GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、columnGap／rowGap=0、padding=Insets()、logicalPadding=None、clip=false。GridTrack 为 Fixed(length)、Auto、Fraction(weight)；每轴至少一条轨道，固定长度有限非负，fraction 权重有限且大于零。GridItem 包含 content、column／row、columnSpan／rowSpan=1、horizontal／vertical=CrossAlignment.Stretch；位置和 span 必须在轨道范围内，单元格对齐接受 Start／Center／End／Stretch。重叠单元格按声明顺序绘制，不改变挂载和 Tab 顺序。
+
+`grid { ... }` 的 GridBuilder 默认 columns／rows 各为 [Auto]，另提供上述几何字段及 key；add(GridItem) 追加完整配置，item(content) { ... } 与 gridItem(content) { ... } 共享 GridItemBuilder，配置默认坐标为 (0,0)。ChildrenBuilder 提供 grid 成员。描述构造验证轨道、坐标、跨度和间距，不挂载或遍历外部数据。
+
+有限轴先确定 Fixed，按实际供给的子项取得 Auto 需求，再由 Fraction 按权重分配扣除 gap 和 Fixed／Auto 后的非负余量。有限 Fraction 不因文本自然宽度而扩张；跨越 Fraction 的内容按分配后的 span 排版，不反过来撑大该跨度内的 Auto。没有 Fraction 的跨轨需求扣除已知尺寸后在 Auto 中等分；无界轴的 Fraction 作为按权重增长的内容轨道参与。单轨需求先处理，再按跨度递增、同跨度按声明顺序处理；固定轨道不增长。不可满足的 Auto／Fixed 总尺寸保留为显式 overflow。
+
+先确定最终列宽，再用每项实际跨度宽度重新测量高度；获得 Auto 行需求、分配行 Fraction 后施加最终单元格约束并放置。已知有限的行跨度用于初次测量需要有界视口的内容；Auto 轴没有可供虚拟列表查询的全数据自然尺寸，须由应用提供有限轨道。逻辑列起点与单元格横向对齐按 LayoutDirection 解析；行从上到下。
+
+表头和虚拟行共享的列宽是普通不可变 Array<Double>，各自转为 Fixed 轨道消费，不建立全局列登记或扫描／挂载虚拟数据。Grid 不承担排序、筛选、分页、拖列或二维虚拟化。所有布局仅调用 UI 的公开协议，独立 intrinsic 查询不在本轮范围。
 
 ## 7. 样式与资源归属
 
@@ -345,7 +367,7 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink 和当前回调均经 Props 更新。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink 和当前回调均经 Props 更新。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 

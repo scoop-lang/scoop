@@ -54,17 +54,21 @@ public fun <P, E: Element> element(
 
 internal enum ViewBody {
     Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>),
-    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource, Long)
+    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource, Long), Direction(
+        View,
+        LayoutDirection
+    )
 }
 
 internal enum ViewShape {
     Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef), Portal(Boolean),
-    Lazy(TypeRef, TypeRef)
+    Lazy(TypeRef, TypeRef), Direction
 }
 
 internal val View.shape: ViewShape get() =
     when (body) {
         case Empty -> ViewShape.Empty
+        case Direction(_, _) -> ViewShape.Direction
         case Component(value) -> value.shape
         case Element(value, _) -> value.shape
         case Portal(_, options) -> ViewShape.Portal(options.isModal)

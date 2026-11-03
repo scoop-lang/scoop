@@ -17,6 +17,10 @@ public class LazyMeasureContext internal constructor(
     private val items: LazyChildren,
     private val mark: TimeMark
 ) {
+    public val layoutDirection: LayoutDirection get() {
+        checkActive();
+        return node.layoutDirection
+    }
     private var active = true
     private var borrowed = false
     private val measured = HashMap<Long, LazyItemMeasure>()
