@@ -22,6 +22,24 @@ ControlFlow 为 Wait／Poll／WaitUntil(TimeMark)，默认 Wait；TimeMark 必�
 
 run Context 在业务回调中恢复，外线程 post 不替换该 Context。用户异常终止业务派发并开始有序收尾；native bridge 捕获异常，不跨 C／ObjC 栈展开。最终清理通知继续执行，异常记录后继续关闭其他资源。
 
+### 2.1 窗口所属的一次性定时回调
+
+`Window.createDeadline(callback: () -> Unit)` 创建尚未排期的 WindowDeadline，提供 schedule(TimeMark)、cancel()、close()、isScheduled 和 isClosed。创建、查询、排期与取消使用窗口 owner 线程，时间必须来自 MonotonicTimeSource；非法时间不改变原排期。schedule 替换之前的排期，已到期的时间也异步进入后续批次，不内联 callback。cancel 与 close 幂等，close 后不能再次 schedule。
+
+每个排期至多调用一次。进入到期批次时先清除本次排期，再按到期时间、同时间按登记顺序交付；callback 可以重新排期自己、取消别的登记或关闭窗口。已经进入当前快照但尚未调用的旧回调，在 cancel、重新 schedule 或 close 后跳过，不重放错过的次数。隐藏、遮挡或零 drawable 不阻止业务回调；回调本身不自动请求重绘。
+
+WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只安排最近的实际期限，不建立周期轮询、另一个事件循环或计时线程。内部期限唤醒使用 NewEvents(Wake)，只有应用当前 WaitUntil 真正到期才产生 NewEvents(Deadline) 并恢复 Wait；内部回调不能取消或提前触发应用期限。普通事件到来时也可消费已经到期的登记。
+
+回调沿同一业务派发入口恢复 run／附着 I/O Context，异常按普通 handler 失败开始完整关闭。窗口进入 Closing 时立即关闭其登记，取消未调用的快照；应用退出同样撤销全部排期。登记不取得 native window lease，不延迟窗口销毁。首批用于 UI 基础交互中的离屏动画完成和后续编辑定时工作，按该批次先验证 macOS aarch64，其余目标留到对应验收。
+
+### 2.2 GUI 纯文本剪贴板
+
+macOS 提供 `ActiveApplication.clipboard` 和 `Window.clipboard`，取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 general pasteboard 的 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 写入完整 UTF-8 文本，替换剪贴板当前内容；字符串长度显式传递，保留非 BMP 字符、换行及内嵌 NUL。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
+
+取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
+
+原生调用不把 NSPasteboard／NSString 借用泄漏给 managed 代码。读取结果独立复制，正常成功和异常路径均释放临时存储。首批只实现 macOS；Windows API 随该平台后续实施增加。剪切的上层编辑必须先成功写出，再修改文档。
+
 ## 3. 事件模型
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
@@ -91,21 +109,31 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 
 ## 5. 输入与文本
 
-KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+
+TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
+
+AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。未知 selector 保留已有按键信息供上层回退，不伪造语义。没有 AppKit selector 的平台保持空列表；此次没有增加 Windows 编辑实现。上层优先使用非空命令列表，空列表才使用平台缺省映射；两者必须沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑。
+
+macOS 提供 `LogicalKey.matchesShortcut(other)`，供上层匹配已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。实际匹配所需修饰键、重复及作用域由 Surface 的快捷键层处理。
 
 AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／Control 快捷键不产生普通文本提交。无装饰窗口仍可成为 key／main window，接收键盘不依赖原生标题栏。已交付的按下状态在失焦时补发 synthetic release，清空按住的修饰键并保留已知锁定状态；没有硬件来源的设备 id 为 None。CapsLock 通知表达锁定状态，不伪造物理按键释放。指针同时携带同次 native 事件的逻辑／物理位置与 scale，两种位置均以内容区左上为原点，物理位置由该次窗口 backing scale 换算；不能直接混入 backing surface 的底部原点。精确滚轮的 AppKit points 转换为物理 PixelDelta，普通滚轮保持 LineDelta，普通 phase 和 momentumPhase 分别保留。光标基础图标使用 NSCursor，可见性只在本窗口内容区域生效，退出该区域、失焦或销毁时平衡系统 hide／unhide。
 
-文字统一由 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作交付；普通键、compose、IME 不得重复插入。TextInputEvent 只有 Enabled／Disabled／Edit。一次 AppKit 输入解释形成一个编辑批次，以一个事件调用 handler。范围为 UTF-8 字节区间且位于字符边界，平台 UTF-16 索引在 native 边界转换；非法 native 范围触发状态重同步，不越界访问。
+文字统一由 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作交付；普通键、compose、IME 不得重复插入。TextInputEvent 只有 Enabled(connection?)／Disabled(connection?)／Edit。TextInputConnection 由 WindowId 与该窗口递增的输入连接 generation 组成；macOS 开启时交付 Some(connection)，重复开关不重建连接，Disabled 保留结束的连接身份。尚无原生文档快照连接的 Win32 交付 None。一次 AppKit 输入解释形成一个编辑批次，以一个事件调用 handler。范围为 UTF-8 字节区间且位于字符边界，平台 UTF-16 索引在 native 边界转换；非法 native 范围触发状态重同步，不越界访问。
 
-本阶段提供 owner 线程上的 setImeAllowed 与 setImeCursorArea，采用 winit 0.30.13 的 AppKit 文本输入边界：NSTextInputClient 只保存当前 marked text 和候选窗矩形，不向系统发布完整编辑器文档，attributedSubstring 查询返回 nil。原生询问直接从这些 native 值回答，不进入 managed handler 或挂起。完整 surrounding 文档桥接、重转换与 purpose 扩展后续按实际编辑器需求增加。
+owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。macOS 另提供 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。没有发布快照时，attributedSubstring 仍返回 nil。
 
-IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标；没有文档位置可报告时，characterIndex 和 actualRange 返回 NSNotFound。
+原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。未来源于原生连接的纯值批次和现有 Win32 批次为 None。native 只保存最新已发布文档、已经排队及已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
-接入开启后，每次 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理及确认消耗的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经提交组合时不再次交付确认键。Command／Control 快捷键正常交付 Keyboard，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
+NSTextInputClient 的同步查询读取原生不可变文档副本；同一次原生解释内允许对其临时副本依次投影本批操作。attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；selection／marked 的文档范围保留实际 native 组合信息。未知范围、尚未同步的 surrounding、切断 surrogate 或缺少布局时返回 nil／NSNotFound，不回调 managed handler、不布局、不挂起。
 
-TextInputState 是应用可选用的纯值编辑辅助，包含 surroundingText、selection、markedRange?、caretRect、revision；它不是本阶段自动发布给 OS 的文档镜像。selection 保存 anchor／cursor，不能排序后丢失选择活动端；markedRange 为 Utf8Range。只修改候选窗位置不推进应用文本 revision。组合与真实编辑状态由上层编辑器持有，窗口库不负责排版或 grapheme 导航。
+IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；macOS 的 clearImeCursorArea 撤销它。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标。macOS 文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。firstRect 只报告确知的活动 cursor 位置；characterIndex 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
 
-TextInputBatch 保存可选 baseRevision 与有序的 TextInputOperation 数组。Utf8Range 是非负、半开的 Long 字节区间，start 不大于 end；Utf8Selection 的两端均非负。操作如下：
+接入开启后，普通 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理、确认及取消已消费的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经改变／提交／取消组合时不再次交付确认或取消键，即使命令早于该次组合编辑产生也如此。Command／Control 快捷键继续直接交付 Keyboard，缺省编辑映射使用实际修饰信息，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
+
+TextInputState 是应用可选用的纯值编辑辅助，包含 surroundingText、selection、markedRange?、caretRect、revision；只有调用上述发布入口才成为 OS 可查询的文档副本。selection 保存 anchor／cursor，不能排序后丢失选择活动端；markedRange 为 Utf8Range。只修改候选窗位置不推进应用文本 revision。`String.utf8Slice(Utf8Range)` 复用同一范围检查返回文本片段，供选区读取和编辑差量使用。组合与真实编辑状态由上层编辑器持有，窗口库不负责排版或 grapheme 导航。
+
+TextInputBatch 保存可选 baseRevision、origin 与有序的 TextInputOperation 数组；纯值 apply 只解释编辑和 baseRevision，连接归属与原生批次完成由宿主处理。Utf8Range 是非负、半开的 Long 字节区间，start 不大于 end；Utf8Selection 的两端均非负。操作如下：
 
 | 变体 | 载荷与语义 |
 | --- | --- |
@@ -114,9 +142,9 @@ TextInputBatch 保存可选 baseRevision 与有序的 TextInputOperation 数组�
 | Commit | text、replacement；replacement 为 CurrentSelection 或 Range(Utf8Range)，范围引用该批前序操作产生的临时文本 |
 | DeleteSurrounding | beforeBytes、afterBytes；相对当前 selection 两侧，须校验长度与字符边界 |
 
-纯值批次开始时核对 baseRevision，按顺序在临时文本上解释范围，整批通过后发布一次新快照。任何范围或 revision 失效均拒绝整批，不能部分应用。AppKit 基础桥产生 baseRevision=None、CurrentSelection 的 Preedit／Commit；普通文本不依赖 surrounding 快照。取消组合产生空 Preedit，删除应用正在显示的组合内容；不能只用 ClearPreedit 清除标记后再重复插入 Commit。原生 UTF-16 选区必须合法且不切断 surrogate pair，非法批次拒绝并撤销组合。未来需要 surrounding 的协议再接入文档快照与协议 serial，不为当前桥引入独立同步状态机。
+纯值批次开始时核对 baseRevision，按顺序在临时文本上解释范围，整批通过后发布一次新快照。任何范围或 revision 失效均拒绝整批，不能部分应用。AppKit 的 CurrentSelection Preedit／Commit 保持 baseRevision=None；只有引用实际已发布文档的显式范围使本批携带该文档的 baseRevision。取消组合产生空 Preedit，删除应用正在显示的组合内容；上层编辑器可据其组合事务恢复替换前基线。unmarkText 表示接受已经显示的组合，产生 ClearPreedit 而保留正文；它与 cancelComposition 不同，不能把接受组合变成删除或第二次插入。原生 insertText 接受实际纯文本及显式替换，包括空字符串和换行，普通未解释按键的 fallback 仍过滤控制键。原生 UTF-16 选区必须合法且不切断 surrogate pair，非法批次拒绝并撤销组合。
 
-AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选区；显式 replacement 只能引用已知 native marked segment，归一为整段 CurrentSelection 替换，选区先平移再转 UTF-8。不能把未知文档位置伪装成可用范围。无效 native 批次丢弃全部待交付操作；仅在批次开始前应用已有 preedit 时产生一次空 Preedit 撤销它，不能因拒绝一个新组合而误删应用原选区。
+AppKit 的 NSNotFound replacement 表示替换当前 marked segment 或应用选区。没有文档快照时，显式 replacement 只能引用已知 native marked segment，归一为整段 CurrentSelection 替换，选区先平移再转 UTF-8。有文档快照时，显式 replacement 使用文档坐标，按本批前序操作的临时文本转成 UTF-8；若较早排队编辑尚未处理或范围未知，则拒绝整批，不能退回 marked 局部索引或重新解释旧范围。过期的 managed baseRevision 同样拒绝整批，由宿主关闭到 Disabled 后用当前 state 重开连接。无效 native 批次丢弃全部待交付操作；仅在批次开始前已有 native preedit 时产生一次空 Preedit 撤销它，不能因拒绝一个新组合而误删应用原选区。
 
 `TextInputState.apply(batch)` 提供上述字节编辑规则的纯值实现，供输入归一和应用同步快照使用，不承担文档布局。CurrentSelection 在存在 marked range 时替换组合文本，否则替换 selection；ClearPreedit 只清除 marked 标记。Preedit 插入后设置 marked range，并把相对 selection 平移到新文本；Commit 清除组合，光标落在插入末尾。DeleteSurrounding 删除 selection 之前／之后指定字节，保留选区正文与活动端方向，清除组合标记。成功批次统一使 revision 加一，空批次保持原值；过期 revision 报 IllegalStateException，非法范围、尺寸或 revision 溢出报 IllegalArgumentException，原快照保持不变。
 

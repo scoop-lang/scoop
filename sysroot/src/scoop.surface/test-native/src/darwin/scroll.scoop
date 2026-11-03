@@ -1,0 +1,49 @@
+package scoop.tests.surface
+
+import scoop.window.*
+import scoop.window.native.*
+
+/** Phase fields use the public CoreGraphics scroll and momentum constants. */
+public fun sendSurfaceScroll(
+    window: Window,
+    x: Double,
+    y: Double,
+    horizontal: Int,
+    vertical: Int,
+    pixels: Boolean = false,
+    phase: Int = 0,
+    momentum: Int = 0
+): Boolean {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> sendScroll(
+                        view,
+                        x,
+                        y,
+                        horizontal,
+                        vertical,
+                        pixels,
+                        phase,
+                        momentum
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_surface_test_scroll")
+private fun sendScroll(
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    horizontal: Int,
+    vertical: Int,
+    pixels: Boolean,
+    phase: Int,
+    momentum: Int
+): Boolean

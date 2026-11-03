@@ -139,18 +139,30 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
         context.placeChild(0L, origin)
         return offsetMetrics(child, size, origin.y)
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         when (drawing!!) {
-            case Plain(value) -> style!!.paint(context, value) {
-                content -> content.paintChildren()
-            }
+            case Plain(value) -> style!!.scene(context, value) { content -> content.children() }
             case Themed(theme, geometry, visual) -> {
                 val painter = painters!!.get(theme)
-                painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Background)
-                style!!.paint(context, geometry.bounds, geometry.contentStyle) {
-                    content -> content.paintChildren()
+                context.draw {
+                    paint -> painter.drawSurface(
+                        paint.canvas,
+                        geometry,
+                        visual,
+                        SurfaceLayer.Background
+                    )
                 }
-                painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Foreground)
+                style!!.scene(context, geometry.bounds, geometry.contentStyle) {
+                    content -> content.children()
+                }
+                context.draw {
+                    paint -> painter.drawSurface(
+                        paint.canvas,
+                        geometry,
+                        visual,
+                        SurfaceLayer.Foreground
+                    )
+                }
             }
         }
     }

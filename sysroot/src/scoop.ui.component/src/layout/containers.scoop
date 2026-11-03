@@ -67,8 +67,8 @@ private class LinearInk(private val props: Props<LinearInput>): Element {
             context.placeChild(index, plan.origins[index])
         return LayoutMetrics(plan.size)
     }
-    public override fun paint(context: PaintContext) {
-        context.paintChildren()
+    public override fun scene(context: SceneContext) {
+        context.children()
     }
 }
 
@@ -101,7 +101,7 @@ private class StackInk(private val props: Props<StackProps>): Element {
             context.placeChild(index, plan.origins[index])
         return LayoutMetrics(plan.size)
     }
-    public override fun paint(context: PaintContext) {
-        context.paintChildren()
+    public override fun scene(context: SceneContext) {
+        context.children()
     }
 }

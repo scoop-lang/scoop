@@ -102,8 +102,8 @@ private class FailureInk(private val probe: FailureProbe): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(180.0, 100.0)))
-    public override fun paint(context: PaintContext) {
-        probe.painter!!.paint(
+    public override fun scene(context: SceneContext) {
+        probe.painter!!.scene(
             context,
             Style(
                 background = Some(Paint(Color.White)),
@@ -113,12 +113,14 @@ private class FailureInk(private val probe: FailureProbe): Element {
                     [ContentEffect.Glow(3.0, 3.0, Color.White), ContentEffect.Blur(1.0, 1.0)]
             )
         ) {
-            child ->
-            probe.canvas = Some(child.canvas)
-            child.canvas.saveLayer(0.5)
-            child.canvas.drawImage(probe.image!!, Rect(20.0, 20.0, 24.0, 24.0))
-            probe.painted = true
-            throw probe.paintFailure
+            child -> child.draw {
+                paint ->
+                probe.canvas = Some(paint.canvas)
+                paint.canvas.saveLayer(0.5)
+                paint.canvas.drawImage(probe.image!!, Rect(20.0, 20.0, 24.0, 24.0))
+                probe.painted = true
+                throw probe.paintFailure
+            }
         }
     }
 }

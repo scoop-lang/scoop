@@ -7,9 +7,16 @@ import scoop.ui.throwUi
 /** Owns the two native snapshots; replacement publishes only fully built results. */
 internal class ParagraphCache: Closeable {
     private var current: CachedParagraph? = None
+    private var serial = 0L
+    val generation: Long get() = serial
 
     val layout: TextLayout get() =
         (current ?: throw IllegalStateException(Some("paragraph has not been measured"))).layout
+
+    fun retainLayout(): RetainedParagraphLayout =
+        (
+            current ?: throw IllegalStateException(Some("paragraph has not been measured"))
+        ).retained.retain()
 
     fun update(
         fonts: FontCollection,
@@ -23,13 +30,14 @@ internal class ParagraphCache: Closeable {
                 if (previous.matches(fonts, content, settings)) {
                     if (previous.width == width && equalMetrics(previous.metrics, metrics))
                         return previous.layout
-                    val next = createLayout(previous.paragraph, width, metrics)
-                    val old = previous.layout
-                    previous.layout = next
+                    val next = ParagraphLayout(createLayout(previous.paragraph, width, metrics))
+                    val old = previous.retained
+                    previous.retained = next
                     previous.width = width
                     previous.metrics = metrics
-                    old.close()
-                    return next
+                    serial += 1L
+                    old.release()
+                    return next.layout
                 }
             }
             case None -> {}
@@ -43,7 +51,7 @@ internal class ParagraphCache: Closeable {
                     content,
                     settings,
                     paragraph,
-                    createLayout(paragraph, width, metrics),
+                    ParagraphLayout(createLayout(paragraph, width, metrics)),
                     width,
                     metrics
                 )
@@ -53,6 +61,7 @@ internal class ParagraphCache: Closeable {
             }
         val previous = current
         current = Some(next)
+        serial += 1L
         previous?.close()
         return next.layout
     }
@@ -70,10 +79,11 @@ private class CachedParagraph(
     val content: StyledText,
     val settings: ParagraphStyle,
     val paragraph: Paragraph,
-    var layout: TextLayout,
+    var retained: ParagraphLayout,
     var width: Double?,
     var metrics: Array<InlineMetrics>
 ): Closeable {
+    val layout: TextLayout get() = retained.layout
     fun matches(source: FontCollection, text: StyledText, style: ParagraphStyle): Boolean =
         fonts ===
             source &&
@@ -92,7 +102,7 @@ private class CachedParagraph(
 
     public override fun close() {
         var failure: Throwable? = None
-        failure = cleanupUi(failure) { layout.close() }
+        failure = cleanupUi(failure) { retained.release() }
         failure = cleanupUi(failure) { paragraph.close() }
         throwUi(failure)
     }

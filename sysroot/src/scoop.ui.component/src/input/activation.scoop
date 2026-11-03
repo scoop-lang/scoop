@@ -28,55 +28,67 @@ internal class Activation(private val acceptsEnter: Boolean) {
         }
         publish()
     }
-    fun handle(area: InputArea, event: AreaEvent, activate: () -> Unit): InputResult {
-        val result =
+    fun handle(
+        area: InputArea,
+        context: RoutedEventContext,
+        event: InputEvent,
+        activate: () -> Unit
+    ) {
+        if (context.phase == RoutedPhase.Notification) {
             when (event) {
                 case FocusChanged(value) -> {
                     focused = value && enabled
                     if (!focused)
                         cancel()
-                    InputResult.Ignored
                 }
-                case Pointer(AreaPointerEvent.Cancelled(_, _)) -> {
-                    pointer = false
-                    InputResult.Ignored
-                }
-                case Pointer(AreaPointerEvent.Entered(_)) -> {
-                    hovered = enabled
-                    InputResult.Ignored
-                }
-                case Pointer(AreaPointerEvent.Left(_)) -> {
-                    hovered = false
-                    InputResult.Ignored
-                }
-                case Pointer(AreaPointerEvent.Button(_, MouseButton.Left, state, _)) -> {
-                    if (!enabled)
-                        InputResult.Ignored
-                    else {
-                        if (state == ElementState.Pressed) {
-                            if (hovered && key == None) {
-                                area.requestFocus()
-                                pointer = true
+                case Pointer(InputPointerEvent.Cancelled(_, _)) -> pointer = false
+                case Pointer(InputPointerEvent.Entered(_)) -> hovered = enabled
+                case Pointer(InputPointerEvent.Left(_)) -> hovered = false
+                else -> {}
+            }
+        } else
+            if (context.phase == RoutedPhase.Default) {
+                when (event) {
+                    case Pointer(InputPointerEvent.Button(_, MouseButton.Left, state, _)) -> {
+                        if (enabled) {
+                            if (state == ElementState.Pressed) {
+                                if (hovered && key == None)
+                                    pointer = true
+                            } else {
+                                val fire = pointer && hovered
+                                pointer = false
+                                publish()
+                                if (fire)
+                                    activate()
                             }
-                        } else {
-                            val fire = pointer && hovered
-                            pointer = false
-                            publish()
-                            if (fire)
-                                activate()
+                            context.consume()
                         }
-                        InputResult.Handled
                     }
+                    case Keyboard(value) -> {
+                        if (keyboard(area, value, activate))
+                            context.consume()
+                    }
+                    else -> {}
                 }
-                case Keyboard(value) -> keyboard(area, value, activate)
-                else -> InputResult.Ignored
             }
         publish()
-        return result
     }
-    private fun keyboard(area: InputArea, event: KeyEvent, activate: () -> Unit): InputResult {
+    fun finish(event: InputEvent) {
+        when (event) {
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+            ) -> pointer = false
+            case Keyboard(value) -> {
+                if (value.state == ElementState.Released && key == Some(value.physicalKey))
+                    key = None
+            }
+            else -> {}
+        }
+        publish()
+    }
+    private fun keyboard(area: InputArea, event: KeyEvent, activate: () -> Unit): Boolean {
         if (!enabled || !area.isFocusActive)
-            return InputResult.Ignored
+            return false
         val supported =
             when (event.logicalKey) {
                 case Named(NamedKey.Space) -> true
@@ -88,10 +100,10 @@ internal class Activation(private val acceptsEnter: Boolean) {
             publish()
             if (!event.synthetic)
                 activate()
-            return InputResult.Handled
+            return true
         }
         if (!supported)
-            return InputResult.Ignored
+            return false
         if (
             event.state ==
                 ElementState.Pressed &&
@@ -102,7 +114,7 @@ internal class Activation(private val acceptsEnter: Boolean) {
                 None
         )
             key = Some(event.physicalKey)
-        return InputResult.Handled
+        return true
     }
     private fun cancel() {
         pointer = false;

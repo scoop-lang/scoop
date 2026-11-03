@@ -9,16 +9,106 @@ import scoop.window.*
 @Test
 private class InputFocusTest {
     @Test
+    fun `successful focus history follows pointer and direct requests across window sequence wrap`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", true)
+            val b = rig.area("b", true)
+            assertEquals(None, a.focusRevision)
+            assertFalse(a.requestFocus())
+            assertEquals(None, a.focusRevision)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+            }
+            rig.router.focusRevision = 18446744073709551614uL
+            assertTrue(a.requestFocus())
+            assertEquals(Some(18446744073709551615uL), a.focusRevision)
+            rig.move(60.0, 10.0)
+            rig.button(60.0, 10.0, ElementState.Pressed)
+            rig.button(60.0, 10.0, ElementState.Released)
+            assertEquals(Some(0uL), b.focusRevision)
+            assertTrue(b.hasFocus)
+            assertTrue(
+                rig.router.focusRevision -
+                    b.focusRevision!! <
+                    rig.router.focusRevision -
+                    a.focusRevision!!
+            )
+            assertEquals(1uL, rig.router.reserveFocusRequest())
+            assertEquals(1uL, rig.router.focusRevision)
+            assertTrue(b.hasFocus && b.isFocusActive)
+            assertEquals(Some(0uL), b.focusRevision)
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.event(WindowEvent.Focused(true))
+            b.clearFocus()
+            assertEquals(Some(0uL), b.focusRevision)
+            a.scope.enabled = false
+            assertFalse(a.requestFocus())
+            assertEquals(Some(18446744073709551615uL), a.focusRevision)
+            b.close()
+            assertEquals(None, b.focusRevision)
+        }
+    }
+
+    @Test
+    fun `clipping keeps an existing text session but blocks new focus requests`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", text = true)
+            assertTrue(area.scope.isEnabledInHierarchy)
+            assertEquals(None, area.windowBounds)
+            assertFalse(area.canFocus)
+            val initial = rig.router.focusRevision
+            assertFalse(area.requestFocus())
+            assertEquals(initial + 1uL, rig.router.focusRevision)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(20.0, 20.0, 10.0, 10.0)) }
+            assertTrue(area.canFocus)
+            assertTrue(area.requestFocus())
+            assertEquals(Some(Rect(20.0, 20.0, 10.0, 10.0)), area.visibleBounds)
+            val focused = rig.router.focusRevision
+            assertTrue(area.requestFocus())
+            assertEquals(focused + 1uL, rig.router.focusRevision)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
+            rig.frame {
+                frame, canvas ->
+                canvas.clipRect(Rect(0.0, 0.0, 5.0, 5.0))
+                frame.place(canvas, area, Rect(20.0, 20.0, 10.0, 10.0))
+            }
+            assertEquals(Some(Rect(20.0, 20.0, 10.0, 10.0)), area.windowBounds)
+            assertEquals(None, area.visibleBounds)
+            assertFalse(area.canFocus)
+            assertTrue(area.hasFocus && area.isFocusActive)
+            assertEquals(1L, rig.log.ime.size)
+            assertFalse(area.requestFocus())
+            assertTrue(area.hasFocus)
+            val beforeOsLoss = rig.router.focusRevision
+            rig.router.event(WindowEvent.Focused(false))
+            assertEquals(beforeOsLoss, rig.router.focusRevision)
+            rig.router.event(WindowEvent.Focused(true))
+            assertTrue(area.hasFocus)
+            rig.frame { _, _ -> Unit }
+            assertFalse(area.hasFocus)
+            assertEquals(None, area.windowBounds)
+            area.scope.enabled = false
+            assertFalse(area.scope.isEnabledInHierarchy)
+            area.close()
+            assertFalse(area.canFocus)
+        }
+    }
+
+    @Test
     fun `logical focus survives OS focus loss while keyboard routing is inactive`() {
         InputRig().use {
             rig ->
             val parent = rig.area("parent")
-            val child = rig.area("child", true)
+            val child = rig.area("child", true, parent = Some(parent.scope))
             assertFalse(child.requestFocus())
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 100.0), None)
-                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 100.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 50.0, 50.0))
             }
             assertTrue(child.requestFocus())
             assertTrue(child.hasFocus && child.isFocusActive)
@@ -35,11 +125,11 @@ private class InputFocusTest {
             rig.router.event(WindowEvent.Focused(true))
             assertTrue(child.isFocusActive)
             rig.log.events.clear()
-            parent.enabled = false
+            parent.scope.enabled = false
             assertEquals("child/blur", rig.log.trace())
             assertFalse(child.hasFocus)
             assertFalse(child.requestFocus())
-            parent.enabled = true
+            parent.scope.enabled = true
             assertFalse(child.hasFocus)
             assertTrue(child.requestFocus())
             child.clearFocus()
@@ -53,26 +143,26 @@ private class InputFocusTest {
         InputRig().use {
             rig ->
             val parent = rig.area("parent")
-            val a = rig.area("a", text = true)
-            val b = rig.area("b", text = true)
-            a.setCaret(Rect(1.0, 2.0, 1.0, 10.0))
-            b.setCaret(Rect(3.0, 4.0, 1.0, 12.0))
+            val a = rig.area("a", text = true, parent = Some(parent.scope))
+            val b = rig.area("b", text = true, parent = Some(parent.scope))
+            a.setCaret(Some(Rect(1.0, 2.0, 1.0, 10.0)))
+            b.setCaret(Some(Rect(3.0, 4.0, 1.0, 12.0)))
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0), None)
+                frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0))
                 canvas.save()
                 canvas.translate(10.0, 20.0)
                 canvas.scale(2.0, 2.0)
-                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, a, Rect(0.0, 0.0, 50.0, 50.0))
                 canvas.restore()
                 canvas.translate(150.0, 0.0)
-                frame.place(canvas, b, Rect(0.0, 0.0, 50.0, 50.0), Some(parent))
+                frame.place(canvas, b, Rect(0.0, 0.0, 50.0, 50.0))
             }
             assertTrue(a.requestFocus())
             assertEquals(1L, rig.log.ime.size)
             assertTrue(rig.log.ime[0L])
             assertEquals(Rect(12.0, 24.0, 2.0, 20.0), rig.log.carets[0L])
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(preeditBatch())))
             assertTrue(b.requestFocus())
             assertTrue(b.hasFocus && b.isFocusActive)
@@ -81,12 +171,12 @@ private class InputFocusTest {
             rig.log.events.clear()
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("a/edit", rig.log.trace())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertEquals("a/edit,a/disabled", rig.log.trace())
             assertEquals(3L, rig.log.ime.size)
             assertTrue(rig.log.ime[2L])
             assertEquals(Rect(153.0, 4.0, 1.0, 12.0), rig.log.carets[1L])
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("a/edit,a/disabled,b/enabled,b/edit", rig.log.trace())
             b.close()
@@ -94,8 +184,8 @@ private class InputFocusTest {
             rig.log.events.clear()
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("", rig.log.trace())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("a/enabled", rig.log.trace())
         }
     }
@@ -109,28 +199,28 @@ private class InputFocusTest {
             val c = rig.area("c", text = true)
             rig.frame {
                 frame, canvas ->
-                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0), None)
-                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0), None)
-                frame.place(canvas, c, Rect(100.0, 0.0, 30.0, 30.0), None)
+                frame.place(canvas, a, Rect(0.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, b, Rect(50.0, 0.0, 30.0, 30.0))
+                frame.place(canvas, c, Rect(100.0, 0.0, 30.0, 30.0))
             }
             assertTrue(a.requestFocus())
             assertTrue(b.requestFocus())
             assertTrue(c.requestFocus())
             assertEquals(2L, rig.log.ime.size)
             rig.log.events.clear()
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(preeditBatch())))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("a/enabled,a/edit,a/disabled,c/enabled", rig.log.trace())
             assertEquals(3L, rig.log.ime.size)
             rig.log.events.clear()
             rig.router.event(WindowEvent.Focused(false))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertEquals("c/blur,c/disabled", rig.log.trace())
             assertTrue(c.hasFocus)
             rig.router.event(WindowEvent.Focused(true))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("c/blur,c/disabled,c/focus,c/enabled", rig.log.trace())
             assertEquals(5L, rig.log.ime.size)
         }
@@ -148,7 +238,7 @@ private class InputFocusTest {
                         layout ->
                         val caret = layout.caret(TextPosition(2L))!!
                         carets.add(caret)
-                        area.setCaret(caret)
+                        area.setCaret(Some(caret))
                     }
                 }
             }
@@ -156,12 +246,12 @@ private class InputFocusTest {
                 frame, canvas ->
                 canvas.translate(30.0, 40.0)
                 canvas.scale(2.0, 2.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0), None)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
             }
             assertTrue(area.requestFocus())
             val caret = carets[0L]
             val invalidations = rig.log.invalidations
-            area.setCaret(caret)
+            area.setCaret(Some(caret))
             assertTrue(area.requestFocus())
             assertEquals(invalidations, rig.log.invalidations)
             val mapped = rig.log.carets[0L]
@@ -171,7 +261,7 @@ private class InputFocusTest {
             rig.frame {
                 frame, canvas ->
                 canvas.translate(50.0, 60.0)
-                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0), None)
+                frame.place(canvas, area, Rect(0.0, 0.0, 100.0, 50.0))
             }
             assertEquals(2L, rig.log.carets.size)
             assertTrue(abs(rig.log.carets[1L].x - (50.0 + caret.x)) < 0.001)
@@ -184,23 +274,20 @@ private class InputFocusTest {
         InputRig().use {
             rig ->
             val area = rig.area("area", text = true)
-            rig.frame {
-                frame,
-                canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0), None)
-            }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
             assertTrue(area.requestFocus())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.move(10.0, 10.0)
             rig.button(10.0, 10.0, ElementState.Pressed)
-            area.handler =
+            area.scope.handler =
                 {
-                    _, event ->
-                    rig.log.record("area", event)
+                    context, event ->
+                    rig.log.record("area", context, event)
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Cancelled(_, _)
+                            InputPointerEvent.Cancelled(_, _)
                         ) -> throw IllegalArgumentException(Some("cancel failure"))
-                        else -> InputResult.Ignored
+                        else -> {}
                     }
                 }
             rig.log.events.clear()

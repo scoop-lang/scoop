@@ -1,0 +1,146 @@
+package scoop.tests.ui.navigation
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class NavigationScene(private val probe: NavigationProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context,
+                _ -> if (probe.prevent)
+                    context.preventDefault()
+            }
+        scope.resource {
+            scope.input.addDefaultAction {
+                _,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (key.state == ElementState.Pressed)
+                            probe.outerKeys += 1
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun render(): View {
+        val revision = probe.revision.value
+        val members = ArrayList<View>()
+        for (index in 1L .. 5L)
+            members.add(cell(index))
+        members.add(cell(7L))
+        return element(
+            PanelProps(false, revision),
+            { props -> NavigationPanel(probe, props) },
+            [
+                cell(0L),
+                element(
+                    PanelProps(true, revision),
+                    { props -> NavigationPanel(probe, props) },
+                    members.toArray()
+                ),
+                cell(6L)
+            ]
+        )
+    }
+    private fun cell(index: Long): View =
+        element(
+            CellProps(index, index != 5L || probe.showLast),
+            { props -> NavigationCell(probe, props) },
+            key = ViewKey.Number(index)
+        )
+}
+
+private class CellProps(val index: Long, val visible: Boolean)
+
+private class NavigationCell(
+    private val probe: NavigationProbe,
+    private val props: Props<CellProps>
+): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val index = props.value.index
+        val region = scope.createArea(focusable = true)
+        area = Some(region)
+        probe.areas[index] = Some(region)
+        probe.scopes[index] = Some(scope)
+        probe.targets[index] =
+            Some(
+                scope.focusTarget(
+                    region,
+                    FocusOptions(Some(probe.handles[index]), tabStop = index != 7L)
+                )
+            )
+        region.scope.enabled = index != 3L
+        region.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(_) -> {
+                        if (index == 2L && probe.local)
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        if (index == 0L)
+            assertTrue(probe.handles[0L].requestFocus())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(40.0, 40.0)))
+    public override fun scene(context: SceneContext) {
+        if (!props.value.visible)
+            context.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
+        context.place(area!!, Rect(2.0, 2.0, 32.0, 30.0))
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(2.0, 2.0, 32.0, 30.0), Paint(Color.Black))
+        }
+    }
+}
+
+private class PanelProps(val group: Boolean, val revision: Int)
+
+private class NavigationPanel(
+    private val probe: NavigationProbe,
+    private val props: Props<PanelProps>
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        if (props.value.group) {
+            probe.groupScope = Some(scope)
+            probe.group = Some(scope.keyNavigation(probe.configuration()))
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        var x = 0.0
+        for (index in 0L ..< context.childCount) {
+            val width =
+                if (!props.value.group && index == 1L)
+                    240.0
+                else
+                    40.0
+            context.measureChild(index, Constraints.tight(Size(width, 40.0)))
+            context.placeChild(index, Point(x, 0.0))
+            x += width
+        }
+        return LayoutMetrics(constraints.constrain(Size(x, 40.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        if (!props.value.group)
+            context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        if (!props.value.group) {
+            val revision = props.value.revision
+            context.onFrameComplete {
+                frame -> if (frame.submission == FrameSubmission.Accepted) {
+                    probe.frames += 1
+                    probe.committed = revision
+                }
+            }
+        } else
+            assertFailsWith<IllegalStateException> { probe.group!!.options = probe.group!!.options }
+    }
+}

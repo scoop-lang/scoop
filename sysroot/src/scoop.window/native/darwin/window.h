@@ -20,6 +20,8 @@ typedef struct {
   int64_t anchor, cursor;
   const uint8_t *text;
   int64_t text_length;
+  int32_t has_replacement;
+  int64_t replacement_start, replacement_end;
 } SWTextEditData;
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;
@@ -34,6 +36,13 @@ typedef struct {
 
 @class SWApplication, SWWindow;
 
+@interface SWTextSnapshot : NSObject
+@property(nonatomic, strong) NSString *text;
+@property(nonatomic) NSUInteger anchor, cursor;
+@property(nonatomic) NSRange marked;
+@property(nonatomic) int64_t revision;
+@end
+
 @interface SWTextEdit : NSObject
 @property(nonatomic) SWTextEditData data;
 @property(nonatomic, strong) NSData *text;
@@ -43,6 +52,7 @@ typedef struct {
 @property(nonatomic) SWEventData data;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
+@property(nonatomic, strong) NSArray<NSNumber *> *commands;
 @end
 
 @interface SWApplication : NSObject <NSApplicationDelegate>
@@ -69,9 +79,16 @@ typedef struct {
 @property(nonatomic) BOOL pointerInside, cursorVisible, cursorHidden;
 @property(nonatomic) BOOL imeAllowed, discardingText;
 @property(nonatomic) NSRect imeCaret;
+@property(nonatomic) BOOL imeCaretKnown;
+@property(nonatomic) int64_t imeCaretRevision, textConnection, textSequence,
+    appliedTextSequence;
+@property(nonatomic, strong) SWTextSnapshot *textSnapshot, *textProjection;
+@property(nonatomic) BOOL textBatchUsesRange, documentCoordinatesKnown;
+@property(nonatomic) NSRange documentSelection, documentMarked;
 @property(nonatomic, strong) NSString *markedText;
 @property(nonatomic) NSRange markedSelection;
 @property(nonatomic, strong) NSMutableArray<SWTextEdit *> *textEdits;
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *textCommands;
 @property(nonatomic) NSUInteger textBatchDepth;
 @property(nonatomic) BOOL textBatchHadMarked, textBatchInvalid;
 @property(nonatomic) BOOL compositionConsumed, compositionCommitted, forwardKey;
@@ -99,6 +116,16 @@ enum {
 };
 void sw_commit(SWView *view, NSString *text);
 void sw_modifiers(SWView *view, NSEventModifierFlags flags);
+int32_t sw_text_command(SEL selector);
+BOOL sw_text_boundary(NSString *text, NSUInteger offset);
+BOOL sw_text_range(NSString *text, NSRange range);
+void sw_append_text(SWView *view, int32_t kind, NSString *text,
+                    NSRange selection);
+BOOL sw_document_edit(SWView *view, int32_t kind, NSString *text,
+                      NSRange selection, NSRange replacement);
+SWTextSnapshot *sw_copy_text_snapshot(SWTextSnapshot *value);
+SWTextSnapshot *sw_query_text_snapshot(SWView *view);
+void sw_invalidate_text_caret(SWView *view);
 
 @interface SWWindow : NSObject <NSWindowDelegate>
 @property(nonatomic, weak) SWApplication *application;

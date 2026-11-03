@@ -1,0 +1,190 @@
+package scoop.tests.ui.itemnavigation
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class VirtualNavigationTest {
+    @Test
+    fun `real Tab and arrows traverse lazy rows nested lists and roving history through accepted geometry`() {
+        val probe = ItemNavigationProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.rows.size < 160L)
+            assertTrue(probe.group!!.isClosed)
+            assertFalse(probe.list.isAttached)
+            assertFalse(probe.frames!!.snapshot().required)
+            assertTrue(probe.view!!.restored())
+            for (row in probe.rows) {
+                assertEquals(1, row.mounts)
+                assertEquals(1, row.unmounts)
+                assertEquals(1, row.disposals)
+                for (handle in row.handles)
+                    assertFalse(handle.isAttached)
+            }
+        } catch (failure: Exception) {
+            fail(
+                Some(
+                    f"item navigation phase=${probe.phase}: " +
+                        (failure.message ?: "unspecified failure")
+                )
+            )
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class ItemNavigationProbe {
+    val lead = FocusHandle()
+    val tail = FocusHandle()
+    val fallback = FocusHandle()
+    val list = VirtualListHandle()
+    val scroll = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val navigation = state<ItemNavigation>(ItemNavigation.Sequential)
+    val orientation = state(Orientation.Vertical)
+    val enabled = state(true)
+    val huge = state(false)
+    val rows = ArrayList<NavigationRowRecord>()
+    var data: State<ItemSource>? = None
+    var group: FocusScope? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var oldFourth: NavigationRowRecord? = None
+    var phase = 0
+    var accepted = 0
+    var passes = 0
+    var builds = 0
+    var largeStart = 0
+    var waiting = false
+    var retryFocus = false
+    var finished = false
+    var outerKeys = 0
+    var outerBefore = 0
+    var localKeys = 0
+    var captureKeys = 0
+    var local = false
+    var capture = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                data =
+                    Some(
+                        state<ItemSource>(
+                            NavigationSource(this, Some([0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L]), true)
+                        )
+                    )
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop virtual navigation", LogicalSize(320.0, 220.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { ItemNavigationScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (phase < 44 && !waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (settled()) {
+                                if (phase < 18)
+                                    sequentialNavigation(this)
+                                else
+                                    rovingNavigation(this)
+                            }
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 44
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"item navigation timeout phase=${phase}, frames=${passes}, accepted=${
+                        accepted
+                    }"
+                )
+            )
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean =
+        accepted >
+            0 &&
+            window!!.isFocused &&
+            !frames!!.snapshot().required &&
+            !list.isPending &&
+            !lead.isPending &&
+            !(group?.isPending ?: false)
+
+    fun next(action: () -> Unit) {
+        phase += 1
+        waiting = true
+        action()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun key(code: Int, shift: Boolean = false, command: Boolean = false, repeat: Boolean = false) {
+        assertTrue(sendSurfaceKey(window!!, code, true, repeat, command, shift))
+        assertTrue(sendSurfaceKey(window!!, code, false, command = command, shift = shift))
+    }
+    fun replace(keys: Array<Long>?, nested: Boolean = false, parts: Int = 2) {
+        huge.value =
+            when (keys) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        data!!.value = NavigationSource(this, keys, nested, parts)
+    }
+    fun row(id: Long): NavigationRowRecord {
+        for (row in rows)
+            if (row.id == id && row.unmounts == 0)
+                return row
+        throw IllegalStateException(Some(f"navigation row ${id} is not mounted"))
+    }
+    fun assertFocus(id: Long, part: Long = 0L) {
+        assertEquals(id == -1L, lead.hasFocus, Some(f"phase=${phase}, lead"))
+        assertEquals(id == -2L, tail.hasFocus, Some(f"phase=${phase}, tail"))
+        assertEquals(id == -3L, fallback.hasFocus, Some(f"phase=${phase}, fallback"))
+        for (row in rows)
+            for (index in 0L ..< row.handles.size)
+                assertEquals(
+                    row.id == id && row.unmounts == 0 && index == part,
+                    row.handles[index].hasFocus,
+                    Some(f"phase=${phase}, row=${row.id}, part=${index}")
+                )
+    }
+}

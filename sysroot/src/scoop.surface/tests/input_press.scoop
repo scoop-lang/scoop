@@ -1,0 +1,146 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputPressTest {
+    @Test
+    fun `press decisions precede notifications and retain the original target and coordinates`() {
+        InputRig().use {
+            rig ->
+            val background = rig.area("background")
+            val front = rig.area("front")
+            val order = ArrayList<String>()
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
+                canvas.translate(20.0, 0.0)
+                frame.place(canvas, front, Rect(0.0, 0.0, 40.0, 40.0))
+            }
+            front.scope.handler =
+                {
+                    context, event ->
+                    order.add("front")
+                    rig.log.record("front", context, event)
+                }
+            rig.router.rootScope.beforePointerPress =
+                {
+                    press ->
+                    order.add("filter")
+                    assertTrue(press.target === front.scope)
+                    assertEquals(MouseButton.Left, press.button)
+                    assertEquals(1, press.clickCount)
+                    assertEquals(LogicalPosition(30.0, 10.0), press.pointer.state.logicalPosition)
+                    rig.frame {
+                        frame, canvas ->
+                        frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
+                        canvas.translate(80.0, 0.0)
+                        frame.place(canvas, front, Rect(0.0, 0.0, 40.0, 40.0))
+                    }
+                    false
+                }
+            rig.log.events.clear()
+            rig.button(30.0, 10.0, ElementState.Pressed)
+            assertEquals("filter", order[0L])
+            assertEquals("front/Target", boundaryTrace(rig.log))
+            val down = rig.log.events[rig.log.events.size - 1L]
+            assertEquals("front", down.name)
+            assertEquals(Some(Point(10.0, 10.0)), down.position)
+            rig.button(30.0, 10.0, ElementState.Released)
+        }
+    }
+
+    @Test
+    fun `consuming the first press suppresses the entire button sequence without repeating its filter`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area")
+            val presses = ArrayList<InputPress>()
+            val root = rig.router.rootScope
+            root.beforePointerPress =
+                {
+                    press ->
+                    presses.add(press);
+                    true
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            root.beforePointerPress =
+                {
+                    press ->
+                    presses.add(press);
+                    false
+                }
+            rig.move(20.0, 20.0)
+            rig.button(20.0, 20.0, ElementState.Pressed, MouseButton.Right)
+            rig.button(20.0, 20.0, ElementState.Released)
+            rig.button(20.0, 20.0, ElementState.Released, MouseButton.Right)
+            assertEquals(1L, presses.size)
+            assertEquals("", boundaryTrace(rig.log))
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals(2L, presses.size)
+            assertEquals("area/Target,area/Target", boundaryTrace(rig.log))
+        }
+    }
+
+    @Test
+    fun `only the current domain filter runs and switching domains cannot pass through to a frozen background target`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val group =
+                rig.router.createScope(None) {
+                    context,
+                    event -> rig.log.record("group", context, event)
+                }
+            val area = rig.area("background")
+            val boundaries = ArrayList<InputBoundary>()
+            val calls = ArrayList<String>()
+            root.beforePointerPress =
+                {
+                    _ ->
+                    calls.add("root")
+                    boundaries.add(InputBoundary(group))
+                    false
+                }
+            group.beforePointerPress =
+                {
+                    press ->
+                    calls.add("group")
+                    assertTrue(press.target === group)
+                    true
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("", boundaryTrace(rig.log))
+            assertEquals(1L, calls.size)
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals(2L, calls.size)
+            assertEquals("group", calls[1L])
+            assertEquals("", boundaryTrace(rig.log))
+        }
+    }
+
+    @Test
+    fun `a throwing preprocessor leaves no orphan release or stuck capture`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
+            rig.router.rootScope.beforePointerPress =
+                { _ -> throw IllegalStateException(Some("expected press failure")) }
+            assertFailsWith<IllegalStateException> { rig.button(10.0, 10.0, ElementState.Pressed) }
+            rig.router.rootScope.beforePointerPress = { _ -> false }
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("", boundaryTrace(rig.log))
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("area/Target,area/Target", boundaryTrace(rig.log))
+        }
+    }
+}

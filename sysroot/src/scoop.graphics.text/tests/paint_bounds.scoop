@@ -1,0 +1,176 @@
+package scoop.graphics.text
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class TextPaintBoundsTest {
+    @Test
+    fun `ink bounds cover overhang combining marks and compact line heights instead of layout boxes`() {
+        testFonts().use {
+            fonts -> Paragraph(
+                fonts,
+                "jÁf\nÉgj",
+                TextStyle(["Test Sans"], 32.0, slant = FontSlant.Italic, lineHeight = Some(0.5))
+            ).use {
+                paragraph -> paragraph.layout(80.0).use {
+                    layout ->
+                    val bounds = layout.paintBounds
+                    assertTrue(bounds.width > 0.0 && bounds.height > 0.0)
+                    assertTrue(
+                        bounds.x <
+                            0.0 ||
+                            bounds.y <
+                            0.0 ||
+                            bounds.x +
+                            bounds.width >
+                            layout.size.width ||
+                            bounds.y +
+                            bounds.height >
+                            layout.size.height
+                    )
+                    for (scale in [1.0, 2.0])
+                        assertTextInkBounds(layout, scale)
+                    assertEquals(bounds, layout.paintBounds)
+                    Thread.start {
+                        assertFailsWith<IllegalStateException> { layout.paintBounds }
+                    }.use { thread -> thread.join() }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `bounds follow bidi wrapping and ellipsis while empty and inline-only paragraphs have no text ink`() {
+        testFonts(true).use {
+            fonts ->
+            for (direction in [TextDirection.Ltr, TextDirection.Rtl]) {
+                Paragraph(
+                    fonts,
+                    "Aé אבג 是是 jÁf Aé אבג 是是 jÁf Aé אבג 是是 jÁf",
+                    TextStyle(["Test Sans", "Test CJK"], 20.0),
+                    ParagraphStyle(direction = direction, maxLines = Some(2L))
+                ).use {
+                    paragraph -> paragraph.layout(74.0).use {
+                        layout ->
+                        assertTrue(layout.didExceedMaxLines)
+                        assertTextInkBounds(layout, 2.0)
+                    }
+                }
+            }
+            Paragraph(fonts, "", TextStyle(["Test Sans"], 20.0)).use {
+                paragraph -> paragraph.layout(60.0).use {
+                    layout ->
+                    assertTrue(layout.size.height > 0.0)
+                    assertEquals(Rect(0.0, 0.0, 0.0, 0.0), layout.paintBounds)
+                }
+            }
+            val key = InlineKey.Text("picture")
+            val content =
+                StyledText([TextSpan.inlineObject(key, "image")], TextStyle(["Test Sans"], 20.0))
+            Paragraph(fonts, content).use {
+                paragraph -> paragraph.layout(100.0, [InlineMetrics(key, Size(70.0, 40.0))]).use {
+                    layout ->
+                    assertEquals(70.0, layout.inlineObjects[0L].box!!.rect.width)
+                    assertEquals(Rect(0.0, 0.0, 0.0, 0.0), layout.paintBounds)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `recorded text keeps glyphs after layout paragraph and fonts close`() {
+        val layouts = ArrayList<TextLayout>()
+        val references = ArrayList<Array<Byte>>()
+        val drawing =
+            testFonts().use {
+                fonts -> Paragraph(fonts, "jé是", TextStyle(["Test Sans", "Test CJK"], 28.0)).use {
+                    paragraph -> paragraph.layout(80.0).use {
+                        layout ->
+                        layouts.add(layout)
+                        val bounds = expandTextBounds(layout.paintBounds)
+                        RasterSurface(128, 80).use {
+                            surface ->
+                            surface.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.translate(20.0, 16.0)
+                                canvas.drawText(layout)
+                            }
+                            references.add(surface.readPixels())
+                            surface.draw {
+                                canvas -> canvas.recordDrawing(bounds) {
+                                    record -> record.drawText(layout)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        assertFailsWith<IllegalStateException> { layouts[0L].paintBounds }
+        assertTrue(drawing.canRasterizeTiles)
+        drawing.use {
+            record -> RasterSurface(128, 80).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    canvas.translate(20.0, 16.0)
+                    canvas.drawDrawing(record)
+                }
+                assertTextPixels(references[0L], surface.readPixels(), 1)
+            }
+        }
+    }
+}
+
+internal fun expandTextBounds(bounds: Rect): Rect =
+    Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0)
+
+private fun assertTextInkBounds(layout: TextLayout, scale: Double) {
+    val bounds = expandTextBounds(layout.paintBounds)
+    RasterSurface(256, 192).use {
+        surface ->
+        surface.draw {
+            canvas ->
+            canvas.clear(Color.Transparent)
+            canvas.scale(scale, scale)
+            canvas.translate(32.0, 32.0)
+            canvas.drawText(layout)
+        }
+        val pixels = surface.readPixels()
+        assertTrue(hasInk(pixels))
+        for (y in 0 ..< 192)
+            for (x in 0 ..< 256) {
+                if (pixels[((y * 256 + x) * 4 + 3).toLong()].toUByte().toInt() > 0) {
+                    val point =
+                        Point(
+                            (x.toDouble() + 0.5) / scale - 32.0,
+                            (y.toDouble() + 0.5) / scale - 32.0
+                        )
+                    if (!bounds.contains(point))
+                        fail(Some(f"text ink outside paint bounds at pixel ${x},${y}"))
+                }
+            }
+    }
+}
+
+internal fun assertTextPixels(expected: Array<Byte>, actual: Array<Byte>, tolerance: Int) {
+    assertEquals(expected.size, actual.size)
+    var index = 0L
+    while (index < expected.size) {
+        val ea = expected[index + 3L].toUByte().toInt()
+        val aa = actual[index + 3L].toUByte().toInt()
+        if (abs(ea - aa) > tolerance)
+            fail(Some(f"text alpha differs at byte ${index}: ${ea} / ${aa}"))
+        for (offset in 0L ..< 3L) {
+            val e = expected[index + offset].toUByte().toInt() * ea
+            val a = actual[index + offset].toUByte().toInt() * aa
+            if (abs(e - a) > tolerance * 255)
+                fail(Some(f"text color differs at byte ${index + offset}"))
+        }
+        index += 4L
+    }
+}

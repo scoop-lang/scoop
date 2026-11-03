@@ -1,0 +1,5 @@
+package scoop.tests.window
+
+/** Queries and edits the real NSTextInputClient across published and queued document states. */
+@Extern(name = "scoop_window_test_snapshot")
+public fun exerciseNativeSnapshot(view: Ptr<Unit>, phase: Int): Int

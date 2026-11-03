@@ -1,0 +1,59 @@
+package scoop.surface
+
+/** One registration shared by the host's current and future window roots. */
+internal class HostInputAction(
+    val owner: SurfaceHost,
+    val handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    var closed = false
+    val active: Boolean get() = !closed && owner.acceptsShortcuts
+
+    fun accepts(input: InputScope): Boolean {
+        if (!active || input.owner.path(input).size == 0L)
+            return false
+        return when (input.owner.currentBoundary) {
+            case Some(_) -> false
+            case None -> true
+        }
+    }
+
+    public override fun close() {
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        when (owner.shortcutAction) {
+            case Some(action) -> if (action === this) {
+                owner.shortcutAction = None
+            }
+            case None -> {}
+        }
+    }
+}
+
+internal fun SurfaceHost.registerShortcuts(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): HostInputAction {
+    checkThread()
+    if (!acceptsShortcuts)
+        throw IllegalStateException(Some("Surface host is closed"))
+    when (shortcutAction) {
+        case Some(_) -> throw IllegalArgumentException(Some("host already has a shortcut scope"))
+        case None -> {}
+    }
+    val action = HostInputAction(this, handler)
+    shortcutAction = Some(action)
+    return action
+}
+
+internal fun SurfaceHost.bindShortcuts(input: InputScope) {
+    input.addHostShortcutAction {
+        context,
+        event -> when (shortcutAction) {
+            case Some(action) -> if (action.accepts(context.currentTarget)) {
+                action.handler(context, event)
+            }
+            case None -> {}
+        }
+    }
+}

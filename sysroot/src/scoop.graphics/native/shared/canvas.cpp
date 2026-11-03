@@ -17,8 +17,10 @@ SGCanvas *scoop_graphics_canvas_scope(SGCanvas *value) {
     return nullptr;
   }
 }
-void *scoop_graphics_canvas_borrow(SGCanvas *value) {
+void *scoop_graphics_canvas_borrow(SGCanvas *value, bool independentTiles) {
   try {
+    if (value->recording && !independentTiles)
+      value->recording->independentTiles = false;
     return new NativeCanvasBorrow(value->canvas);
   } catch (...) {
     return nullptr;

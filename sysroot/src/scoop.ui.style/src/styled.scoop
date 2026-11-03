@@ -27,7 +27,7 @@ private class StyledInk(private val props: Props<Style>): Element {
         context.placeChild(0L, Point(0.0, 0.0))
         return result
     }
-    public override fun paint(context: PaintContext) {
-        painter!!.paint(context, props.value) { content -> content.paintChildren() }
+    public override fun scene(context: SceneContext) {
+        painter!!.scene(context, props.value) { content -> content.children() }
     }
 }

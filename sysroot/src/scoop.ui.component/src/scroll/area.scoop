@@ -1,0 +1,101 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ScrollChain {
+    Chain, Contain
+}
+
+public enum ScrollbarVisibility {
+    Auto, Always, Hidden
+}
+
+public class ScrollAreaProps public constructor(
+    public val content: View,
+    public val state: ScrollState? = None,
+    public val axes: ScrollAxes = ScrollAxes.Vertical,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val lineStep: Double = 40.0,
+    public val chain: ScrollChain = ScrollChain.Chain,
+    public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val scrollbar: ScrollbarOptions = ScrollbarOptions(),
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val theme: ThemeSource? = None,
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+)
+
+/** Keeps explicit content mounted while moving its scene inside one viewport clip. */
+public class ScrollArea public constructor(private val props: Props<ScrollAreaProps>): Component {
+    private val local = ScrollState()
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            ScrollAreaInkProps(input, input.state ?: local, themes.read(input.theme)),
+            { value -> ScrollAreaInk(value) },
+            [input.content]
+        )
+    }
+}
+
+public fun scrollArea(
+    content: View,
+    state: ScrollState? = None,
+    axes: ScrollAxes = ScrollAxes.Vertical,
+    width: Double? = None,
+    height: Double? = None,
+    lineStep: Double = 40.0,
+    chain: ScrollChain = ScrollChain.Chain,
+    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    scrollbar: ScrollbarOptions = ScrollbarOptions(),
+    enabled: Boolean = true,
+    focus: FocusOptions = FocusOptions(),
+    theme: ThemeSource? = None,
+    paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    key: ViewKey = ViewKey.Position
+): View =
+    component(
+        ScrollAreaProps(
+            content,
+            state,
+            axes,
+            width,
+            height,
+            lineStep,
+            chain,
+            scrollbars,
+            scrollbar,
+            enabled,
+            focus,
+            theme,
+            paintCache
+        ),
+        { props -> ScrollArea(props) },
+        key
+    )
+
+internal class ScrollAreaInkProps(
+    val input: ScrollAreaProps,
+    val state: ScrollState,
+    val theme: Theme
+) {
+    val controls =
+        ScrollControlProps(
+            state,
+            input.axes,
+            input.lineStep,
+            input.chain,
+            input.scrollbars,
+            input.scrollbar,
+            input.enabled,
+            input.focus,
+            input.paintCache,
+            theme
+        )
+}

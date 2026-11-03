@@ -1,0 +1,247 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.collections.HashSet
+import scoop.collections.contains
+import scoop.collections.sortedBy
+import scoop.time.TimeMark
+
+private class LazyItemInput(val source: ItemSource, val index: Long)
+
+/** Reuses ordinary render dependencies and keyed child reconciliation. */
+private class LazyItem(private val props: Props<LazyItemInput>): Component {
+    public override fun render(): View = props.value.source.build(props.value.index)
+}
+
+internal class LazyItemEntry(
+    val key: ViewKey,
+    var index: Long,
+    val node: MountedNode,
+    var lastUsed: TimeMark
+) {
+    var selected = true
+    val pinned: Boolean get() =
+        node.active && (node.scope.hasInputActivity || node.root.focus.hasPendingIn(node))
+}
+
+internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
+    private var source = initial
+    private var total = itemCount(initial)
+    private var entries: Array<LazyItemEntry> = []
+    private val keyed = HashMap<ViewKey, LazyItemEntry>()
+    val count: Long get() = total
+
+    fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
+    fun focusedEntry(): LazyItemEntry? {
+        for (entry in entries)
+            if (entry.node.active && entry.node.scope.input.activity.hasFocus)
+                return Some(entry)
+        return None
+    }
+    fun entryContaining(node: MountedNode): LazyItemEntry? {
+        for (entry in entries)
+            if (withinFocusScope(node, entry.node))
+                return Some(entry)
+        return None
+    }
+    fun entry(key: ViewKey): LazyItemEntry? = keyed[key]
+    fun indexOf(key: ViewKey): Long? {
+        when (keyed[key]) {
+            case Some(entry) -> return Some(entry.index)
+            case None -> {}
+        }
+        return evaluateUi<Long?>(None) {
+            val index = source.indexOfKey(key) ?: return@evaluateUi None
+            requireUi(index >= 0L && index < total, "item reverse index is out of range")
+            requireUi(source.keyAt(index) == key, "item key mapping is inconsistent")
+            Some(index)
+        }
+    }
+
+    fun mount(node: MountedNode) {
+        node.scope.resource {
+            node.scope.input.observeActivity {
+                if (node.scope.isMounted)
+                    node.scope.requestFrame()
+            }
+        }
+    }
+    fun replace(node: MountedNode, next: ItemSource, nextCapacity: Long, turn: UpdateTurn) {
+        capacity = nextCapacity
+        if (source === next) {
+            trim(node)
+            return
+        }
+        val nextCount = itemCount(next)
+        val positions = HashSet<Long>()
+        val keep = ArrayList<LazyItemEntry>()
+        evaluateUi<Unit>(None) {
+            for (entry in entries) {
+                when (next.indexOfKey(entry.key)) {
+                    case Some(index) -> {
+                        requireUi(
+                            index >= 0L && index < nextCount,
+                            "item reverse index is out of range"
+                        )
+                        requireUi(
+                            next.keyAt(index) == entry.key,
+                            "item key mapping is inconsistent"
+                        )
+                        requireUi(positions.add(index), "item keys share a source index")
+                        entry.index = index
+                        keep.add(entry)
+                    }
+                    case None -> {}
+                }
+            }
+        }
+        retain(node, keep.toArray())
+        source = next
+        total = nextCount
+        node.lazyFocus?.sourceChanged()
+        trim(node)
+        if (!node.root.isOpen)
+            return
+        for (entry in entries) {
+            entry.node.replace(description(entry.index, entry.key))
+            entry.node.rebuild(turn)
+        }
+    }
+    fun prepare(node: MountedNode, index: Long, time: TimeMark): LazyItemEntry {
+        val key = checkedItemKey(source, total, index)
+        when (keyed[key]) {
+            case Some(entry) -> {
+                requireUi(entry.index == index, "duplicate item ViewKey")
+                entry.lastUsed = time
+                return entry
+            }
+            case None -> {}
+        }
+        val child = createNode(node.root, Some(node), description(index, key))
+        val entry = LazyItemEntry(key, index, child, time)
+        val previous = entries
+        entries =
+            Array<LazyItemEntry>(previous.size + 1L) {
+                position -> if (position < previous.size)
+                    previous[position]
+                else
+                    entry
+            }
+        keyed.put(key, entry)
+        // Keep the new mount reachable before any user render or lifecycle callback.
+        publishOrder(node)
+        child.rebuild(UpdateTurn())
+        child.mountPending()
+        if (!node.root.isOpen)
+            throw UiLayoutEnded()
+        return entry
+    }
+    fun pinnedItems(node: MountedNode): Array<Long> {
+        val result = ArrayList<Long>()
+        for (entry in entries)
+            if (entry.pinned)
+                result.add(entry.index)
+        when (node.lazyFocus) {
+            case Some(focus) -> when (focus.pendingIndex()) {
+                case Some(index) -> if (!result.contains(index))
+                    result.add(index)
+                case None -> {}
+            }
+            case None -> {}
+        }
+        return result.toArray()
+    }
+    fun finish(node: MountedNode, measured: HashMap<Long, LazyItemMeasure>) {
+        when (node.lazyFocus) {
+            case Some(focus) -> when (focus.pendingIndex()) {
+                case Some(index) -> if (!measured.containsKey(index))
+                    throw IllegalStateException(
+                        Some("a pending focus item must be measured and placed")
+                    )
+                case None -> {}
+            }
+            case None -> {}
+        }
+        for (entry in entries) {
+            val selection = measured[entry.index]
+            val placed = selection?.placed ?: false
+            if (entry.pinned && !placed)
+                throw IllegalStateException(Some("an interaction item must be measured and placed"))
+            entry.selected =
+                when (selection) {
+                    case Some(_) -> true
+                    case None -> false
+                }
+            entry.node.setFrameParticipation(placed)
+        }
+        prepareUi<Unit> { trim(node) }
+        if (!node.root.isOpen)
+            throw UiLayoutEnded()
+        node.placements =
+            Array(entries.size) {
+                index -> when (measured[entries[index].index]) {
+                    case Some(selection) -> selection.origin
+                    case None -> None
+                }
+            }
+    }
+    private fun trim(node: MountedNode) {
+        val keep = ArrayList<LazyItemEntry>()
+        val idle = ArrayList<LazyItemEntry>()
+        for (entry in entries) {
+            if (entry.selected || entry.pinned)
+                keep.add(entry)
+            else
+                idle.add(entry)
+        }
+        if (idle.size <= capacity) {
+            for (entry in idle)
+                keep.add(entry)
+        } else
+            if (capacity > 0L) {
+                val ordered = idle.sortedBy<LazyItemEntry, TimeMark> { entry -> entry.lastUsed }
+                for (index in ordered.size - capacity ..< ordered.size)
+                    keep.add(ordered[index])
+            }
+        retain(node, keep.toArray())
+    }
+    private fun description(index: Long, key: ViewKey): View =
+        component(LazyItemInput(source, index), { props -> LazyItem(props) }, key)
+    private fun publishOrder(node: MountedNode) {
+        entries = entries.sortedBy<LazyItemEntry, Long> { entry -> entry.index }.toArray()
+        node.children = Array(entries.size) { index -> entries[index].node }
+    }
+    private fun retain(node: MountedNode, keep: Array<LazyItemEntry>) {
+        val previous = entries
+        entries = keep
+        keyed.clear()
+        for (entry in entries)
+            keyed.put(entry.key, entry)
+        publishOrder(node)
+        var failure: Throwable? = None
+        // Retire every removed route before invoking any unmount callback.
+        for (entry in previous)
+            if (!keyed.containsKey(entry.key))
+                failure = cleanupUi(failure) { entry.node.deactivate() }
+        for (entry in previous)
+            if (!keyed.containsKey(entry.key))
+                failure = cleanupUi(failure) { entry.node.unmount() }
+        throwUi(failure)
+    }
+}
+
+private fun itemCount(source: ItemSource): Long =
+    evaluateUi<Long>(None) {
+        val count = source.count
+        requireUi(count >= 0L, "negative item count")
+        count
+    }
+
+internal fun checkedItemKey(source: ItemSource, count: Long, index: Long): ViewKey =
+    evaluateUi<ViewKey>(None) {
+        requireUi(index >= 0L && index < count, "item index is out of range")
+        val key = source.keyAt(index)
+        requireUi(key != ViewKey.Position, "lazy items require explicit ViewKeys")
+        requireUi(source.indexOfKey(key) == Some(index), "item key mapping is inconsistent")
+        key
+    }

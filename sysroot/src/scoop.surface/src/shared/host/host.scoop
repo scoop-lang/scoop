@@ -16,6 +16,8 @@ public class SurfaceHost public constructor(
     private val windows = ArrayList<SurfaceWindow>()
     public val isClosed: Boolean get() = closing && windows.size == 0L
     internal val callbackActive: Boolean get() = callbackDepth != 0
+    internal val acceptsShortcuts: Boolean get() = !closing
+    internal var shortcutAction: HostInputAction? = None
 
     /** Attaches one painter to an open window without replacing its input view. */
     public fun attach(window: Window, painter: (FrameContext) -> Unit): SurfaceWindow {
@@ -152,6 +154,10 @@ public class SurfaceHost public constructor(
         checkThread()
         closing = true
         var failure: Throwable? = None
+        when (shortcutAction) {
+            case Some(action) -> failure = cleanupFailure(failure) { action.close() }
+            case None -> {}
+        }
         for (window in windows.toArray())
             failure = cleanupFailure(failure) { window.close() }
         failure = cleanupFailure(failure) { releaseUnusedRenderer() }

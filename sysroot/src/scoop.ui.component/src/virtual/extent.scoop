@@ -1,0 +1,124 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+
+public enum ItemExtent {
+    Fixed(val value: Double), Variable(val estimate: Double)
+}
+
+public enum VirtualListAnchor {
+    KeepVisible, FollowEnd
+}
+
+internal fun itemEstimate(mode: ItemExtent): Double {
+    val value =
+        when (mode) {
+            case Fixed(extent) -> extent
+            case Variable(estimate) -> estimate
+        }
+    requireComponent(value.isFinite() && value > 0.0, "invalid item extent or estimate")
+    return value
+}
+
+/** Sparse Fenwick deltas from a constant estimate, with no allocation proportional to count. */
+internal class ItemExtentIndex(val count: Long, val mode: ItemExtent) {
+    private val estimate = itemEstimate(mode)
+    private val values = HashMap<Long, Double>()
+    private val sums = HashMap<Long, Double>()
+    val variable: Boolean =
+        when (mode) {
+            case Variable(_) -> true
+            case Fixed(_) -> false
+        }
+    init {
+        requireComponent(count >= 0L, "negative item count")
+        nonnegative(count.toDouble() * estimate, "virtual content extent overflow")
+    }
+    val total: Double get() = prefix(count)
+    fun extent(index: Long): Double {
+        checkIndex(index)
+        return values[index] ?: estimate
+    }
+    fun record(index: Long, value: Double) {
+        checkIndex(index)
+        nonnegative(value, "invalid measured item extent")
+        if (!variable)
+            return
+        val previous = values[index] ?: estimate
+        if (previous == value)
+            return
+        values.put(index, value)
+        val change = value - previous
+        var at = index + 1L
+        while (at <= count) {
+            val sum = (sums[at] ?: 0.0) + change
+            requireComponent(sum.isFinite(), "virtual extent sum overflow")
+            sums.put(at, sum)
+            val step = at and -at
+            if (step > count - at)
+                break
+            at += step
+        }
+        total
+    }
+    fun prefix(end: Long): Double {
+        requireComponent(end >= 0L && end <= count, "virtual prefix index is out of range")
+        var result = end.toDouble() * estimate
+        if (!variable)
+            return result
+        var at = end
+        while (at > 0L) {
+            result += sums[at] ?: 0.0
+            at -= at and -at
+        }
+        requireComponent(result.isFinite(), "virtual content extent overflow")
+        // Cancellation of estimated and measured extents may round slightly below zero.
+        return lowerBound(result, 0.0)
+    }
+    /** First item whose end is strictly after position; known zero-size items are skipped. */
+    fun indexAt(position: Double): Long {
+        nonnegative(position, "invalid virtual position")
+        if (position >= total)
+            return count
+        if (!variable)
+            return boundIndex((position / estimate).toLong())
+        var low = 0L
+        var high = count
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (prefix(middle + 1L) <= position)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return low
+    }
+    /** Exclusive end of the items starting before position. */
+    fun endBefore(position: Double): Long {
+        nonnegative(position, "invalid virtual position")
+        if (!variable) {
+            var end = boundIndex((position / estimate).toLong())
+            if (end < count && end.toDouble() * estimate < position)
+                end += 1L
+            return end
+        }
+        var low = 0L
+        var high = count
+        while (low < high) {
+            val middle = low + (high - low) / 2L
+            if (prefix(middle) < position)
+                low = middle + 1L
+            else
+                high = middle
+        }
+        return low
+    }
+    private fun boundIndex(index: Long): Long =
+        if (index < count)
+            index
+        else
+            count
+    private fun checkIndex(index: Long) {
+        requireComponent(index >= 0L && index < count, "virtual item index is out of range")
+    }
+}

@@ -1,0 +1,82 @@
+package scoop.ui
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+
+internal class PaintTile(val image: Image, val source: Rect, val destination: Rect)
+
+/** Owns native resources only; no element, callback or input route is retained. */
+internal class CachedPaintLayer(
+    val key: PaintKey,
+    val input: PaintLayerInput,
+    val grid: PaintTileGrid,
+    val drawing: Drawing
+): Closeable {
+    val tiles = HashMap<PaintTileIndex, PaintTile>()
+
+    fun compatible(canvas: Canvas): Boolean {
+        if (!canvas.isCompatible(drawing))
+            return false
+        for (tile in tiles.values)
+            if (!canvas.isCompatible(tile.image))
+                return false
+        return true
+    }
+    fun paint(canvas: Canvas, range: PaintTileRange) {
+        val retired = ArrayList<PaintTileIndex>()
+        for (entry in tiles)
+            if (!range.contains(entry.key))
+                retired.add(entry.key)
+        for (index in retired)
+            tiles.remove(index)!!.image.close()
+        for (y in range.top ..< range.bottom) {
+            for (x in range.left ..< range.right) {
+                val index = PaintTileIndex(x, y)
+                val tile = tiles[index] ?: rasterize(canvas, index)
+                canvas.drawImageRegion(tile.image, tile.source, tile.destination)
+            }
+        }
+    }
+    private fun rasterize(canvas: Canvas, index: PaintTileIndex): PaintTile {
+        val core = grid.core(index)
+        val image =
+            canvas.createSurface(grid.pixelWidth, grid.pixelHeight).use {
+                surface ->
+                surface.draw {
+                    target ->
+                    target.clear(Color.Transparent)
+                    target.translate(grid.paddingX.toDouble(), grid.paddingY.toDouble())
+                    target.scale(grid.scaleX, grid.scaleY)
+                    target.translate(-core.x, -core.y)
+                    target.drawDrawing(drawing)
+                }
+                surface.snapshot()
+            }
+        val tile =
+            PaintTile(
+                image,
+                Rect(
+                    grid.paddingX.toDouble(),
+                    grid.paddingY.toDouble(),
+                    grid.tileSize.toDouble(),
+                    grid.tileSize.toDouble()
+                ),
+                core
+            )
+        try {
+            tiles.put(index, tile)
+            return tile
+        } catch (error: Throwable) {
+            image.close()
+            throw error
+        }
+    }
+    public override fun close() {
+        var failure: Throwable? = None
+        for (tile in tiles.values)
+            failure = cleanupUi(failure) { tile.image.close() }
+        tiles.clear()
+        failure = cleanupUi(failure) { drawing.close() }
+        throwUi(failure)
+    }
+}

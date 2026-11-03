@@ -1,0 +1,56 @@
+package scoop.ui
+
+import scoop.platform.concurrent.currentThreadId
+
+/** Stable reference to one mounted layer session, including its terminal close reason. */
+public class OverlayHandle public constructor() {
+    private val thread = currentThreadId()
+    private var session: PortalInstance? = None
+    private var lastReason: OverlayCloseReason? = None
+
+    public val isAttached: Boolean get() {
+        checkUiThread(thread)
+        return session?.active ?: false
+    }
+    public val isOpen: Boolean get() {
+        checkUiThread(thread)
+        return session?.isOpen ?: false
+    }
+    public val lastCloseReason: OverlayCloseReason? get() {
+        checkUiThread(thread)
+        return when (session) {
+            case Some(value) -> value.closeReason
+            case None -> lastReason
+        }
+    }
+    public fun close() {
+        checkUiThread(thread)
+        checkOverlayMutation()
+        val value = session ?: return
+        if (value.active)
+            value.close(OverlayCloseReason.Explicit)
+    }
+    internal fun checkBinding(value: PortalInstance) {
+        checkUiThread(thread)
+        when (session) {
+            case Some(current) -> requireUi(
+                current === value || !current.active,
+                "overlay handle already has a session"
+            )
+            case None -> {}
+        }
+    }
+    internal fun bind(value: PortalInstance) {
+        session = Some(value)
+        lastReason = None
+    }
+    internal fun unbind(value: PortalInstance) {
+        when (session) {
+            case Some(current) -> if (current === value) {
+                lastReason = current.closeReason
+                session = None
+            }
+            case None -> {}
+        }
+    }
+}

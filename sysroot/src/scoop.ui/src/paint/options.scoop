@@ -1,0 +1,49 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.graphics.Size
+
+/** Stable identity for one finite layer in an element's scene. */
+public class PaintKey public constructor()
+
+/** Pixel retention is independent of child instance retention. */
+public enum PaintCachePolicy {
+    None, Tiles(val tileSize: Int = 256, val overscan: Int = 1)
+}
+
+internal fun checkPaintCachePolicy(value: PaintCachePolicy) {
+    when (value) {
+        case None -> {}
+        case Tiles(size, overscan) -> {
+            requireUi(size > 0, "paint tile size must be positive")
+            requireUi(overscan >= 0, "paint tile overscan must be nonnegative")
+        }
+    }
+}
+
+internal struct PaintLayerInput(
+    val size: Size,
+    val bounds: Rect,
+    val revision: Long,
+    val samplingOutset: Double
+) {
+    fun check() {
+        checkLayoutSize(size)
+        for (
+            value in [
+                bounds.x,
+                bounds.y,
+                bounds.width,
+                bounds.height,
+                bounds.x + bounds.width,
+                bounds.y + bounds.height
+            ]
+        )
+            requireUi(value.isFinite() && value.toFloat().isFinite(), "invalid paint bounds")
+        requireUi(bounds.width >= 0.0 && bounds.height >= 0.0, "negative paint bounds")
+        requireUi(
+            samplingOutset.isFinite() && samplingOutset >= 0.0,
+            "invalid paint sampling outset"
+        )
+    }
+}

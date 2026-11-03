@@ -1,0 +1,189 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.window.*
+
+@Test
+private class TextEditNavigationTest {
+    @Test
+    fun `collapsed scalar positions delete complete combining and emoji graphemes`() {
+        withEditLayout("á👩‍💻z", None) {
+            layout ->
+            assertEquals(
+                Utf8Range(0L, 3L),
+                editorDeleteRange(layout, Utf8Selection(1L, 1L), TextDeletion.Backward)
+            )
+            assertEquals(
+                Utf8Range(0L, 3L),
+                editorDeleteRange(layout, Utf8Selection(1L, 1L), TextDeletion.Forward)
+            )
+            assertEquals(
+                Utf8Range(3L, 14L),
+                editorDeleteRange(layout, Utf8Selection(7L, 7L), TextDeletion.Forward)
+            )
+            assertEquals(
+                Utf8Range(3L, 14L),
+                editorDeleteRange(layout, Utf8Selection(14L, 14L), TextDeletion.Backward)
+            )
+            assertEquals(
+                Utf8Range(1L, 3L),
+                editorDeleteRange(layout, Utf8Selection(3L, 1L), TextDeletion.Backward)
+            )
+            assertEquals(
+                TextPosition(0L, TextAffinity.Upstream),
+                editorVisualPosition(layout, TextPosition(1L, TextAffinity.Upstream))
+            )
+            assertEquals(TextPosition(3L), editorVisualPosition(layout, TextPosition(1L)))
+        }
+    }
+
+    @Test
+    fun `visual collapse follows bidi geometry while logical collapse follows byte order`() {
+        withEditLayout("שלום", None) {
+            layout ->
+            val range = EditorSelection(TextPosition(0L), TextPosition(layout.text.byteLength))
+            val left = editorMove(layout, range, TextMovement.Left, false, None, 40.0)
+            val right = editorMove(layout, range, TextMovement.Right, false, None, 40.0)
+            assertEquals(layout.text.byteLength, left.selection.cursor.byteOffset)
+            assertEquals(0L, right.selection.cursor.byteOffset)
+            assertEquals(left.selection.anchor, left.selection.cursor)
+            assertEquals(
+                0L,
+                editorMove(
+                    layout,
+                    range,
+                    TextMovement.Backward,
+                    false,
+                    None,
+                    40.0
+                ).selection.cursor.byteOffset
+            )
+            assertEquals(
+                layout.text.byteLength,
+                editorMove(
+                    layout,
+                    range,
+                    TextMovement.Forward,
+                    false,
+                    None,
+                    40.0
+                ).selection.cursor.byteOffset
+            )
+        }
+    }
+
+    @Test
+    fun `vertical and page navigation preserve the preferred column across a short line`() {
+        withEditLayout("abcdef\nx\nabcdef", None) {
+            layout ->
+            val initial = EditorSelection(TextPosition(5L), TextPosition(5L))
+            val short = editorMove(layout, initial, TextMovement.Down, false, None, 30.0)
+            assertEquals(8L, short.selection.cursor.byteOffset)
+            val restored =
+                editorMove(
+                    layout,
+                    short.selection,
+                    TextMovement.Down,
+                    false,
+                    short.preferredX,
+                    30.0
+                )
+            assertEquals(14L, restored.selection.cursor.byteOffset)
+            assertEquals(short.preferredX, restored.preferredX)
+            val page =
+                editorMove(
+                    layout,
+                    restored.selection,
+                    TextMovement.PageUp,
+                    true,
+                    restored.preferredX,
+                    layout.lines[1L].rect.height
+                )
+            assertEquals(restored.selection.anchor, page.selection.anchor)
+            assertEquals(8L, page.selection.cursor.byteOffset)
+            assertEquals(restored.preferredX, page.preferredX)
+        }
+    }
+
+    @Test
+    fun `paragraph commands span soft lines but stop before the hard line break`() {
+        withEditLayout("one two three four\nnext", Some(90.0)) {
+            layout ->
+            val initial = EditorSelection(TextPosition(4L), TextPosition(4L))
+            assertTrue(layout.lines.size > 2L)
+            val paragraph = editorMove(layout, initial, TextMovement.ParagraphEnd, true, None, 40.0)
+            assertEquals(4L, paragraph.selection.anchor.byteOffset)
+            assertEquals(18L, paragraph.selection.cursor.byteOffset)
+            val line = editorMove(layout, initial, TextMovement.LineEnd, true, None, 40.0)
+            assertTrue(line.selection.cursor.byteOffset < paragraph.selection.cursor.byteOffset)
+            assertEquals(
+                Utf8Range(4L, 18L),
+                editorDeleteRange(layout, Utf8Selection(4L, 4L), TextDeletion.ParagraphEnd)
+            )
+            assertEquals(
+                Utf8Range(0L, 4L),
+                editorDeleteRange(layout, Utf8Selection(4L, 4L), TextDeletion.ParagraphStart)
+            )
+        }
+    }
+
+    @Test
+    fun `empty text and document edges never produce out of range edits`() {
+        withEditLayout("", None) {
+            layout ->
+            val initial = EditorSelection(TextPosition(0L), TextPosition(0L))
+            for (
+                movement in [
+                    TextMovement.Left,
+                    TextMovement.Right,
+                    TextMovement.Up,
+                    TextMovement.Down,
+                    TextMovement.PageDown,
+                    TextMovement.ParagraphEnd
+                ]
+            )
+                assertEquals(
+                    0L,
+                    editorMove(
+                        layout,
+                        initial,
+                        movement,
+                        false,
+                        None,
+                        20.0
+                    ).selection.cursor.byteOffset
+                )
+            for (
+                deletion in [
+                    TextDeletion.Backward,
+                    TextDeletion.Forward,
+                    TextDeletion.WordBackward,
+                    TextDeletion.LineEnd,
+                    TextDeletion.ParagraphEnd
+                ]
+            )
+                assertEquals(
+                    Utf8Range(0L, 0L),
+                    editorDeleteRange(layout, Utf8Selection(0L, 0L), deletion)
+                )
+        }
+    }
+}
+
+private fun withEditLayout(text: String, width: Double?, action: (TextLayout) -> Unit) {
+    FontCollection(false).use {
+        fonts ->
+        fonts.register(testSansBytes, "Editor Test")
+        Paragraph(fonts, text, TextStyle(["Editor Test"], 20.0)).use {
+            paragraph ->
+            val layout =
+                when (width) {
+                    case Some(value) -> paragraph.layout(value)
+                    case None -> paragraph.layoutUnwrapped()
+                }
+            layout.use(action)
+        }
+    }
+}

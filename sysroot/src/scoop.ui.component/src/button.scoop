@@ -3,6 +3,8 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.InputArea
+import scoop.surface.InputEvent
+import scoop.surface.RoutedEventContext
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.InlineView
@@ -12,7 +14,8 @@ public class ButtonProps public constructor(
     public val onClick: () -> Unit,
     public val enabled: Boolean = true,
     public val style: ButtonStyle = ButtonStyle(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions()
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
@@ -75,7 +78,8 @@ public fun button(
     style: ButtonStyle = ButtonStyle(),
     fonts: FontCollection? = None,
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
     component(
         ButtonProps(
@@ -87,7 +91,8 @@ public fun button(
             onClick,
             enabled,
             style,
-            theme
+            theme,
+            focus
         ),
         { props -> Button(props) },
         key
@@ -102,7 +107,8 @@ public fun button(
     settings: ParagraphStyle = ParagraphStyle(),
     inlines: Array<InlineView> = [],
     theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    focus: FocusOptions = FocusOptions()
 ): View =
     component(
         ButtonProps(
@@ -110,7 +116,8 @@ public fun button(
             onClick,
             enabled,
             style,
-            theme
+            theme,
+            focus
         ),
         { props -> Button(props) },
         key
@@ -128,6 +135,7 @@ private class ButtonDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVi
 
 private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
     private var area: InputArea? = None
+    private var focus: FocusTarget? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
@@ -136,19 +144,23 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
-        area =
-            Some(
-                scope.createArea(focusable = true) {
-                    current, event ->
-                    val value = props.value
-                    value.interaction.handle(current, event, value.input.onClick)
-                }
-            )
+        val handle: (RoutedEventContext, InputEvent) -> Unit =
+            {
+                current, event ->
+                val value = props.value
+                value.interaction.handle(area!!, current, event, value.input.onClick)
+            }
+        area = Some(scope.createArea(focusable = true, handler = handle))
+        focus = Some(scope.focusTarget(area!!, props.value.input.focus))
+        area!!.scope.defaultAction = handle
+        area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
+        scope.routeChildren(area!!)
     }
     public override fun update() {
         val value = props.value
         value.interaction.update(value.input.enabled)
-        area!!.enabled = value.input.enabled
+        area!!.scope.enabled = value.input.enabled
+        focus!!.options = value.input.focus
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
@@ -191,16 +203,20 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         context.placeChild(0L, origin)
         return offsetMetrics(child, size, origin.y)
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val value = props.value
         val visual = drawing!!.visual
         val geometry = drawing!!.geometry
         val painter = painters!!.get(value.theme)
-        painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Background)
-        context.place(area!!, geometry.bounds)
-        content!!.paint(context, geometry.bounds, geometry.contentStyle) {
-            children -> children.paintChildren(Some(area!!))
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
-        painter.drawSurface(context.canvas, geometry, visual, SurfaceLayer.Foreground)
+        context.place(area!!, geometry.bounds)
+        content!!.scene(context, geometry.bounds, geometry.contentStyle) {
+            children -> children.children()
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
+        }
     }
 }

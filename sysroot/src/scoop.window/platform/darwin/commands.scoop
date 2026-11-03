@@ -1,0 +1,72 @@
+package scoop.window
+
+internal fun platformTextCommands(pointer: Ptr<Unit>): Array<TextEditCommand> {
+    @Unsafe
+    {
+        val count = nativeTextCommandCount(pointer)
+        return Array<TextEditCommand>(count) {
+            index -> @Unsafe
+            {
+                return@Array decodeTextCommand(nativeTextCommand(pointer, index))
+            }
+        }
+    }
+}
+
+private fun decodeTextCommand(code: Int): TextEditCommand {
+    val movement = code.and(255)
+    if (movement >= 1 && movement <= 20)
+        return TextEditCommand.Move(decodeMovement(movement), code.and(256) != 0)
+    return when (code) {
+        32 -> TextEditCommand.Delete(TextDeletion.Backward)
+        33 -> TextEditCommand.Delete(TextDeletion.Forward)
+        34 -> TextEditCommand.Delete(TextDeletion.WordBackward)
+        35 -> TextEditCommand.Delete(TextDeletion.WordForward)
+        36 -> TextEditCommand.Delete(TextDeletion.LineStart)
+        37 -> TextEditCommand.Delete(TextDeletion.LineEnd)
+        38 -> TextEditCommand.Delete(TextDeletion.ParagraphStart)
+        39 -> TextEditCommand.Delete(TextDeletion.ParagraphEnd)
+        40 -> TextEditCommand.Copy
+        41 -> TextEditCommand.Cut
+        42 -> TextEditCommand.Paste
+        43 -> TextEditCommand.SelectAll
+        44 -> TextEditCommand.Undo
+        45 -> TextEditCommand.Redo
+        46 -> TextEditCommand.InsertNewline
+        47 -> TextEditCommand.InsertTab
+        48 -> TextEditCommand.InsertBacktab
+        49 -> TextEditCommand.Cancel
+        else -> throw WindowException("unknown native text command", WindowErrorKind.NativeFailure)
+    }
+}
+
+private fun decodeMovement(code: Int): TextMovement =
+    when (code) {
+        1 -> TextMovement.Backward
+        2 -> TextMovement.Forward
+        3 -> TextMovement.Left
+        4 -> TextMovement.Right
+        5 -> TextMovement.Up
+        6 -> TextMovement.Down
+        7 -> TextMovement.WordBackward
+        8 -> TextMovement.WordForward
+        9 -> TextMovement.WordLeft
+        10 -> TextMovement.WordRight
+        11 -> TextMovement.LineStart
+        12 -> TextMovement.LineEnd
+        13 -> TextMovement.LineLeft
+        14 -> TextMovement.LineRight
+        15 -> TextMovement.ParagraphStart
+        16 -> TextMovement.ParagraphEnd
+        17 -> TextMovement.DocumentStart
+        18 -> TextMovement.DocumentEnd
+        19 -> TextMovement.PageUp
+        20 -> TextMovement.PageDown
+        else -> throw WindowException("unknown native text movement", WindowErrorKind.NativeFailure)
+    }
+
+@Extern(name = "scoop_window_command_count")
+private fun nativeTextCommandCount(event: Ptr<Unit>): Long
+
+@Extern(name = "scoop_window_command")
+private fun nativeTextCommand(event: Ptr<Unit>, index: Long): Int

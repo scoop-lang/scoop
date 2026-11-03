@@ -17,6 +17,7 @@ fn ty_int_array() -> TypeRef {
 
 mod basics;
 mod conversion_errors;
+mod interface_context;
 mod literal_errors;
 mod structural;
 mod subscript_errors;

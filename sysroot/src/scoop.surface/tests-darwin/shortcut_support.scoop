@@ -1,0 +1,59 @@
+package scoop.surface
+
+import scoop.window.*
+
+internal class ShortcutLog {
+    var trace = ""
+    var ready = false
+    fun add(value: String) {
+        if (trace.byteLength > 0L)
+            trace += ","
+        trace += value
+    }
+}
+
+internal fun shortcutKey(
+    logical: LogicalKey = LogicalKey.Character("s"),
+    physical: KeyCode = KeyCode.KeyS,
+    command: Boolean = false,
+    control: Boolean = false,
+    shift: Boolean = false,
+    alt: Boolean = false,
+    function: Boolean = false,
+    capsLock: Boolean = false,
+    repeat: Boolean = false,
+    synthetic: Boolean = false,
+    state: ElementState = ElementState.Pressed
+): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(physical),
+        logical,
+        KeyLocation.Standard,
+        state,
+        repeat,
+        Modifiers(
+            shift,
+            control,
+            alt,
+            command,
+            capsLock,
+            function,
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None)
+        ),
+        synthetic,
+        inputObservation()
+    )
+
+internal fun commandBinding(text: String, action: () -> Unit): ShortcutBinding =
+    ShortcutBinding(
+        ShortcutKey.Logical(LogicalKey.Character(text)),
+        ShortcutModifiers(primary = true),
+        action = action
+    )
+
+internal fun InputRig.key(event: KeyEvent) {
+    router.event(WindowEvent.Keyboard(event))
+}

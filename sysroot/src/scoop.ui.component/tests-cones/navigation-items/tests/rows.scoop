@@ -1,0 +1,196 @@
+package scoop.tests.ui.itemnavigation
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class NavigationSource(
+    private val probe: ItemNavigationProbe,
+    private val order: Array<Long>?,
+    private val nested: Boolean = false,
+    private val parts: Int = 2,
+    private val empty: Boolean = false
+): ItemSource {
+    public override val count: Long get() = order?.size ?: 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(id) -> when (order) {
+                case Some(keys) -> {
+                    var result: Long? = None
+                    for (index in 0L ..< keys.size)
+                        if (keys[index] == id)
+                            result = Some(index)
+                    result
+                }
+                case None -> if (id >= 0L && id < count)
+                    Some(id)
+                else
+                    None
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        probe.builds += 1
+        val id = order?.get(index) ?: index
+        if (nested && (id == 5L || id == 6L))
+            return component(id, { input -> NestedNavigationRow(probe, input) })
+        return component(
+            NavigationRowInput(
+                id,
+                parts,
+                empty || id == 1L || id == 8L || id == 500L || id == 503L
+            ),
+            { input -> NavigationRow(probe, input) }
+        )
+    }
+}
+
+private class NestedNavigationRow(
+    private val probe: ItemNavigationProbe,
+    private val props: Props<Long>
+): Component {
+    private val scroll = ScrollState()
+    public override fun onMount(scope: ComponentScope) {
+        scope.focusScope()
+    }
+    public override fun render(): View {
+        val id = props.value
+        return virtualList(
+            NavigationSource(
+                probe,
+                Some(
+                    if (id == 5L)
+                        [500L, 501L, 502L, 503L]
+                    else
+                        [601L, 602L]
+                ),
+                parts = 1,
+                empty = id == 6L
+            ),
+            ItemExtent.Fixed(24.0),
+            Some(scroll),
+            height = Some(24.0),
+            scrollbars = ScrollbarVisibility.Hidden,
+            theme = Some(probe.theme),
+            navigation = ItemNavigation.Sequential
+        )
+    }
+}
+
+internal class NavigationRowRecord(val id: Long) {
+    val handles = Array<FocusHandle>(2L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(2L) { _ -> None }
+    var mounts = 0
+    var unmounts = 0
+    var disposals = 0
+}
+
+private class NavigationRowInput(val id: Long, val parts: Int, val empty: Boolean)
+
+private class NavigationRow(
+    private val probe: ItemNavigationProbe,
+    private val props: Props<NavigationRowInput>
+): Component {
+    private val record = NavigationRowRecord(props.value.id)
+    init {
+        probe.rows.add(record)
+    }
+    public override fun onMount(scope: ComponentScope) {
+        record.mounts += 1
+        scope.onDispose { record.disposals += 1 }
+        if (props.value.empty)
+            return
+        for (index in 0L ..< record.handles.size) {
+            val area = scope.createArea(focusable = true)
+            record.areas[index] = Some(area)
+            scope.focusTarget(
+                area,
+                FocusOptions(
+                    Some(record.handles[index]),
+                    order =
+                        if (record.id == 0L && index == 1L)
+                            -1
+                        else
+                            0
+                )
+            )
+            area.scope.defaultAction =
+                {
+                    context,
+                    event -> when (event) {
+                        case Keyboard(key) -> {
+                            if (
+                                probe.local &&
+                                    key.state ==
+                                    ElementState.Pressed &&
+                                    key.logicalKey ==
+                                    LogicalKey.Named(NamedKey.ArrowLeft)
+                            ) {
+                                probe.localKeys += 1
+                                context.consume()
+                            }
+                        }
+                        else -> {}
+                    }
+                }
+        }
+    }
+    public override fun render(): View =
+        element(props.value, { input -> NavigationRowInk(record, input) })
+    public override fun onUnmount() {
+        record.unmounts += 1
+        for (area in record.areas)
+            when (area) {
+                case Some(value) -> assertTrue(value.isClosed);
+                case None -> {}
+            }
+    }
+}
+
+private class NavigationRowInk(
+    private val record: NavigationRowRecord,
+    private val props: Props<NavigationRowInput>
+): Element {
+    public override fun update() {
+        for (index in 0L ..< record.areas.size)
+            when (record.areas[index]) {
+                case Some(area) -> area.scope.enabled =
+                    record.id != 2L && index < props.value.parts.toLong()
+                case None -> {}
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(
+            constraints.constrain(
+                Size(
+                    144.0,
+                    if (record.id == 3L)
+                        0.0
+                    else
+                        24.0
+                )
+            )
+        )
+    public override fun scene(context: SceneContext) {
+        val size = context.size
+        val height =
+            if (record.id == 3L || size.height <= 4.0)
+                0.0
+            else
+                size.height - 4.0
+        val rectangles = [Rect(2.0, 2.0, 8.0, height), Rect(size.width - 10.0, 2.0, 8.0, height)]
+        for (index in 0L ..< record.areas.size)
+            when (record.areas[index]) {
+                case Some(area) -> context.place(area, rectangles[index])
+                case None -> {}
+            }
+        context.draw {
+            paint -> for (rect in rectangles)
+                paint.canvas.drawRect(rect, Paint(Color.Black))
+        }
+    }
+}

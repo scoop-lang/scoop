@@ -1,0 +1,82 @@
+package scoop.tests.ui.paintcache
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.FrameSubmission
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class CacheScene(private val probe: CacheProbe): Component {
+    private val sources = Array<ItemSource>(4L) { index -> PaintSource(probe, index.toInt()) }
+    public override fun render(): View {
+        val mode = probe.mode.value
+        val policy = probe.policy.value
+        return element(
+            probe.placed.value,
+            { props -> CachePanel(probe, props) },
+            [
+                virtualList(
+                    sources[mode.toLong()],
+                    ItemExtent.Fixed(24.0),
+                    Some(probe.scroll),
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    theme = Some(probe.theme),
+                    retention =
+                        if (mode >= 2)
+                            ItemRetention.KeepAlive(3L)
+                        else
+                            ItemRetention.Dispose,
+                    paintCache = policy
+                ),
+                scrollArea(
+                    paintRow(probe, mode, -1L),
+                    Some(probe.eagerScroll),
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    theme = Some(probe.theme),
+                    paintCache = policy
+                )
+            ],
+            ViewKey.Number(mode.toLong())
+        )
+    }
+}
+
+private class CachePanel(
+    private val probe: CacheProbe,
+    private val props: Props<Boolean>
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(144.0, 48.0)))
+        if (props.value)
+            context.placeChild(0L, Point(16.0, 16.0))
+        context.measureChild(1L, Constraints.tight(Size(120.0, 48.0)))
+        context.placeChild(1L, Point(180.0, 16.0))
+        return LayoutMetrics(constraints.constrain(Size(320.0, 120.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.inside = readNativePixel(native, 156.0, 20.0)
+                        probe.outside = readNativePixel(native, 164.0, 20.0)
+                    }
+                }
+            }
+        }
+        val ticket = probe.ticket
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = ticket
+        }
+    }
+}

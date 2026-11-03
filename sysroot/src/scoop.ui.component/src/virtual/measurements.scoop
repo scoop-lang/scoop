@@ -1,0 +1,65 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+/** Measured sizes are estimates after a source replacement, never a reason to skip item layout. */
+internal class VirtualMeasurements {
+    private var source: ItemSource? = None
+    private var index: ItemExtentIndex? = None
+    private var orientation = Orientation.Vertical
+    private var cross = 0.0
+    private var known = HashMap<ViewKey, Double>()
+
+    fun prepare(
+        next: ItemSource,
+        count: Long,
+        mode: ItemExtent,
+        axis: Orientation,
+        breadth: Double
+    ): ItemExtentIndex {
+        val previous = index
+        val sameShape = previous?.mode == Some(mode) && orientation == axis && cross == breadth
+        val sameSource =
+            when (source) {
+                case Some(value) -> value === next
+                case None -> false
+            }
+        if (sameSource && sameShape)
+            return previous!!
+        val fresh = ItemExtentIndex(count, mode)
+        val retained = HashMap<ViewKey, Double>()
+        if (sameShape && fresh.variable) {
+            for (entry in known.entries) {
+                when (virtualIndex(next, count, entry.key)) {
+                    case Some(at) -> {
+                        fresh.record(at, entry.value)
+                        retained.put(entry.key, entry.value)
+                    }
+                    case None -> {}
+                }
+            }
+        }
+        source = Some(next)
+        index = Some(fresh)
+        orientation = axis
+        cross = breadth
+        known = retained
+        return fresh
+    }
+    fun record(at: Long, extent: Double) {
+        val current = index!!
+        if (!current.variable)
+            return
+        current.record(at, extent)
+        known.put(source!!.keyAt(at), extent)
+    }
+}
+
+internal fun virtualIndex(source: ItemSource, count: Long, key: ViewKey): Long? {
+    val at = source.indexOfKey(key) ?: return None
+    requireComponent(at >= 0L && at < count, "item reverse index is out of range")
+    requireComponent(source.keyAt(at) == key, "item key mapping is inconsistent")
+    return Some(at)
+}

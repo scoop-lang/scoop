@@ -1,0 +1,291 @@
+package scoop.graphics.text
+
+import scoop.test.*
+import scoop.graphics.Point
+
+@Test
+private class VisualWordNavigationTest {
+    @Test
+    fun `physical word commands skip Unicode spaces and finish the encountered segment`() {
+        testFonts().use {
+            fonts ->
+            Paragraph(fonts, "a  b", wordStyle()).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    assertEquals(
+                        1L,
+                        layout.moveCaret(
+                            TextPosition(0L),
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        4L,
+                        layout.moveCaret(
+                            TextPosition(1L),
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        3L,
+                        layout.moveCaret(
+                            TextPosition(4L),
+                            CaretMovement.WordLeft
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            TextPosition(3L),
+                            CaretMovement.WordLeft
+                        )!!.position.byteOffset
+                    )
+                }
+            }
+            Paragraph(fonts, "é 猫", wordStyle()).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    assertEquals(
+                        3L,
+                        layout.moveCaret(
+                            TextPosition(0L),
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        8L,
+                        layout.moveCaret(
+                            TextPosition(3L),
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            TextPosition(5L),
+                            CaretMovement.WordLeft
+                        )!!.position.byteOffset
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `RTL word and line commands follow physical edges rather than byte order`() {
+        testFonts(true).use {
+            fonts -> Paragraph(
+                fonts,
+                "שלום עולם",
+                wordStyle(),
+                ParagraphStyle(direction = TextDirection.Rtl)
+            ).use {
+                paragraph -> paragraph.layout(240.0).use {
+                    layout ->
+                    val first = layout.moveCaret(TextPosition(0L), CaretMovement.WordLeft)!!
+                    assertEquals(8L, first.position.byteOffset)
+                    assertTrue(first.preferredX < layout.caret(TextPosition(0L))!!.x)
+                    val last = layout.moveCaret(first.position, CaretMovement.WordLeft)!!
+                    assertEquals(17L, last.position.byteOffset)
+                    assertEquals(
+                        9L,
+                        layout.moveCaret(
+                            last.position,
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            TextPosition(9L),
+                            CaretMovement.WordRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        17L,
+                        layout.moveCaret(
+                            first.position,
+                            CaretMovement.LineLeft
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            first.position,
+                            CaretMovement.LineRight
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            first.position,
+                            CaretMovement.LineStart
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        17L,
+                        layout.moveCaret(
+                            first.position,
+                            CaretMovement.LineEnd
+                        )!!.position.byteOffset
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `mixed direction words preserve the arriving glyph affinity at run boundaries`() {
+        testFonts(true).use {
+            fonts -> Paragraph(fonts, "ab אבג cd", wordStyle()).use {
+                paragraph -> paragraph.layout(240.0).use {
+                    layout ->
+                    var position = TextPosition(0L)
+                    for (offset in [2L, 3L, 12L]) {
+                        val next = layout.moveCaret(position, CaretMovement.WordRight)!!
+                        assertEquals(offset, next.position.byteOffset)
+                        assertTrue(next.preferredX > layout.caret(position)!!.x)
+                        if (offset == 3L)
+                            assertEquals(TextAffinity.Downstream, next.position.affinity)
+                        position = next.position
+                    }
+                    for (offset in [10L, 9L, 0L]) {
+                        val next = layout.moveCaret(position, CaretMovement.WordLeft)!!
+                        assertEquals(offset, next.position.byteOffset)
+                        assertTrue(next.preferredX < layout.caret(position)!!.x)
+                        if (offset == 9L)
+                            assertEquals(TextAffinity.Upstream, next.position.affinity)
+                        position = next.position
+                    }
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            TextPosition(5L),
+                            CaretMovement.LineLeft
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        12L,
+                        layout.moveCaret(
+                            TextPosition(5L),
+                            CaretMovement.LineRight
+                        )!!.position.byteOffset
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `word navigation crosses soft wraps without absorbing a following hard break`() {
+        testFonts().use {
+            fonts ->
+            Paragraph(fonts, "abcdefgh\n", wordStyle()).use {
+                paragraph -> paragraph.layout(38.0).use {
+                    layout ->
+                    assertTrue(layout.lines.size > 2L)
+                    val end = layout.moveCaret(TextPosition(0L), CaretMovement.WordRight)!!.position
+                    assertEquals(8L, end.byteOffset)
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(end, CaretMovement.WordLeft)!!.position.byteOffset
+                    )
+                    assertEquals(
+                        9L,
+                        layout.moveCaret(end, CaretMovement.WordRight)!!.position.byteOffset
+                    )
+                }
+            }
+            Paragraph(
+                fonts,
+                "Hello world beyond",
+                wordStyle(),
+                ParagraphStyle(maxLines = Some(1L))
+            ).use {
+                paragraph -> paragraph.layout(45.0).use {
+                    layout ->
+                    assertTrue(layout.didExceedMaxLines)
+                    assertEquals(
+                        None,
+                        layout.moveCaret(
+                            TextPosition(paragraph.text.byteLength),
+                            CaretMovement.WordLeft
+                        )
+                    )
+                    val edge =
+                        layout.moveCaret(TextPosition(0L), CaretMovement.LineRight)!!.position
+                    assertTrue(edge.byteOffset < paragraph.text.byteLength)
+                    assertTrue(layout.caret(edge) != None)
+                }
+            }
+        }
+    }
+    @Test
+    fun `trailing empty lines own only the document end and preserve hard breaks`() {
+        testFonts(true).use {
+            fonts -> for (text in ["\n", "\r\n", "a\n\n", "\u2028"]) {
+                for (rtl in [false, true]) {
+                    Paragraph(
+                        fonts,
+                        text,
+                        wordStyle(),
+                        ParagraphStyle(
+                            direction =
+                                if (rtl)
+                                    TextDirection.Rtl
+                                else
+                                    TextDirection.Ltr
+                        )
+                    ).use {
+                        paragraph -> paragraph.layout(160.0).use {
+                            layout ->
+                            val last = layout.lines[layout.lines.size - 1L]
+                            val end = text.byteLength
+                            assertEquals(TextRange(end, end), last.range)
+                            assertEquals(TextRange(end, end), last.contentRange)
+                            assertEquals(TextRange(end, end), last.visibleRange)
+                            assertFalse(last.hardBreak)
+                            assertEquals(
+                                end,
+                                layout.hitTest(
+                                    Point(last.rect.x, last.rect.y + last.rect.height / 2.0)
+                                ).byteOffset
+                            )
+                            val before = TextPosition(layout.moveGrapheme(end, false))
+                            val after =
+                                layout.moveCaret(
+                                    before,
+                                    if (rtl)
+                                        CaretMovement.Left
+                                    else
+                                        CaretMovement.Right
+                                )!!.position
+                            assertEquals(end, after.byteOffset)
+                            assertTrue(layout.caret(after)!!.y > layout.caret(before)!!.y)
+                            assertEquals(
+                                before.byteOffset,
+                                layout.moveCaret(
+                                    before,
+                                    CaretMovement.LineRight
+                                )!!.position.byteOffset
+                            )
+                            assertEquals(
+                                end,
+                                layout.moveCaret(
+                                    after,
+                                    CaretMovement.LineStart
+                                )!!.position.byteOffset
+                            )
+                            assertEquals(
+                                end,
+                                layout.moveCaret(after, CaretMovement.LineEnd)!!.position.byteOffset
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun wordStyle(): TextStyle = TextStyle(["Test Sans", "Test CJK"], 20.0)

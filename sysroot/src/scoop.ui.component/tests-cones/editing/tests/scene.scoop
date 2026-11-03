@@ -1,0 +1,207 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class FieldScene(private val probe: FieldProbe): Component {
+    public override fun render(): View {
+        val generation = probe.version.value
+        val callback = probe.callbackVersion
+        val props =
+            InputProps(
+                probe.main,
+                placeholder = "Your name",
+                enabled = probe.enabled,
+                readOnly = probe.readOnly,
+                invalid = probe.invalid,
+                description = probe.description,
+                fonts =
+                    if (probe.ownedFonts)
+                        None
+                    else
+                        Some(probe.fonts),
+                focus = FocusOptions(Some(probe.focus[0L])),
+                caretBlink = Duration.milliseconds(0L),
+                paintCache = PaintCachePolicy.Tiles(64, 0),
+                onEdited =
+                    {
+                        _ ->
+                        probe.edits += 1;
+                        probe.editedVersion = callback
+                    },
+                onSubmit = { _ -> probe.submits += 1 }
+            )
+        return element(
+            generation,
+            { current -> FieldPanel(probe, current) },
+            [
+                component(
+                    props,
+                    {
+                        current ->
+                        probe.inputCreates += 1;
+                        Input(current)
+                    }
+                ),
+                component(
+                    TextareaProps(
+                        probe.secondary,
+                        rows = probe.editorRows,
+                        wrap = probe.wrap,
+                        fonts = Some(probe.fonts),
+                        focus = FocusOptions(Some(probe.focus[1L])),
+                        scrollbars = probe.scrollbars,
+                        caretBlink = Duration.milliseconds(0L),
+                        paintCache = PaintCachePolicy.Tiles(64, 0)
+                    ),
+                    {
+                        current ->
+                        probe.textareaCreates += 1;
+                        Textarea(current)
+                    }
+                ),
+                input(
+                    probe.primary,
+                    readOnly = true,
+                    fonts = Some(probe.fonts),
+                    focus = FocusOptions(Some(probe.focus[2L]), tabStop = false),
+                    caretBlink = Duration.milliseconds(0L)
+                ),
+                virtualList(
+                    probe.items,
+                    ItemExtent.Fixed(48.0),
+                    state = Some(probe.listScroll),
+                    width = Some(260.0),
+                    height = Some(144.0),
+                    handle = Some(probe.list),
+                    retention = ItemRetention.KeepAlive(1L),
+                    navigation = ItemNavigation.Sequential,
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    paintCache = PaintCachePolicy.Tiles(64, 0)
+                ),
+                if (probe.dialogOpen)
+                    portal(
+                        element(
+                            { ScaledField() },
+                            [
+                                input(
+                                    probe.dialog,
+                                    placeholder = "Dialog text",
+                                    fonts = Some(probe.fonts),
+                                    focus = FocusOptions(Some(probe.focus[3L])),
+                                    caretBlink = Duration.milliseconds(0L)
+                                )
+                            ]
+                        ),
+                        PortalOptions(
+                            handle = Some(probe.overlay),
+                            modal = Some(ModalOptions(initialFocus = Some(probe.focus[3L]))),
+                            dismiss = OverlayDismiss(escape = true),
+                            onClose =
+                                {
+                                    _ ->
+                                    probe.dialogOpen = false;
+                                    probe.change()
+                                }
+                        )
+                    )
+                else
+                    empty()
+            ]
+        )
+    }
+}
+
+private class FieldPanel(private val probe: FieldProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        probe.primaryMetrics = Some(context.measureChild(0L, Constraints(260.0, Some(260.0))))
+        context.placeChild(0L, Point(30.0, 30.0))
+        context.measureChild(1L, Constraints(360.0, Some(360.0)))
+        context.placeChild(1L, Point(30.0, 130.0))
+        context.measureChild(2L, Constraints(260.0, Some(260.0)))
+        context.placeChild(2L, Point(440.0, 30.0))
+        context.measureChild(3L, Constraints.tight(Size(260.0, 144.0)))
+        context.placeChild(3L, Point(440.0, 130.0))
+        context.measureChild(4L, Constraints())
+        context.placeChild(4L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(760.0, 520.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        probe.horizontal = None
+        probe.vertical = None
+        context.draw {
+            paint -> paint.canvas.clear(probe.source.current.value.tokens.palette.canvas)
+        }
+        context.children()
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.accepted += 1
+        }
+    }
+}
+
+private class ScaledField: Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, Constraints(320.0, Some(320.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(
+            constraints.constrain(Size(child.size.width * 1.2, child.size.height * 1.2))
+        )
+    }
+    public override fun scene(context: SceneContext) {
+        context.scale(1.2, 1.2)
+        context.children()
+    }
+}
+
+internal class FieldRow(val index: Long) {
+    val model = TextEditorState("row " + index.toString())
+    val focus = FocusHandle()
+    var mounts = 0
+    var unmounts = 0
+}
+
+internal class FieldItems(private val probe: FieldProbe): ItemSource {
+    public override val count: Long get() = 60L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        component(probe.row(index), { props -> FieldRowComponent(probe, props) })
+}
+
+private class FieldRowComponent(
+    private val probe: FieldProbe,
+    private val props: Props<FieldRow>
+): Component {
+    public override fun onMount(scope: ComponentScope) {
+        props.value.mounts += 1
+    }
+    public override fun onUnmount() {
+        props.value.unmounts += 1
+    }
+    public override fun render(): View =
+        input(
+            props.value.model,
+            fonts = Some(probe.fonts),
+            focus = FocusOptions(Some(props.value.focus)),
+            caretBlink = Duration.milliseconds(0L),
+            paintCache = PaintCachePolicy.Tiles(64, 0)
+        )
+}

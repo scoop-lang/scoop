@@ -1,0 +1,276 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+/** One mounted plain-text view, using the existing input, layout and scroll owners. */
+public class TextEditHost public constructor(
+    internal val scope: ComponentScope,
+    initialState: TextEditorState,
+    initialAppearance: TextEditAppearance,
+    initialOptions: TextEditOptions = TextEditOptions()
+): Closeable {
+    private val thread = currentThreadId()
+    internal val window = scope.nativeWindow
+    internal var current = initialState
+    internal var appearance = initialAppearance
+    internal var options = initialOptions
+    internal var placeholder = ""
+    internal var edited: (TextEditorState) -> Unit = { _ -> Unit }
+    internal var submitted: (TextEditorState) -> Unit = { _ -> Unit }
+    internal var closed = false
+    internal var performing = false
+    internal var notifying = false
+    internal var connection: TextInputConnection? = None
+    internal var sessionEnabled = false
+    internal var retiring = false
+    internal var preferredX: Double? = None
+    internal val visual = State<TextEditInteraction>(TextEditInteraction())
+    internal val body = ParagraphCache()
+    internal val hint = ParagraphCache()
+    internal val bodyKey = PaintKey()
+    internal val hintKey = PaintKey()
+    internal var content: StyledText? = None
+    internal var hintContent: StyledText? = None
+    internal var measured: EditorMeasure? = None
+    internal var staged: EditorFrame? = None
+    internal var accepted: EditorFrame? = None
+    internal var revealNeeded = false
+    internal var revealRevision = 0UL
+    internal var caretVisible = true
+    internal var drag: EditorDrag? = None
+    public val scroll = ScrollState()
+    internal val viewport = scope.scrollViewport(scroll)
+    public val area =
+        scope.createArea(
+            focusable = true,
+            textInput = initialOptions.enabled && !initialOptions.readOnly
+        ) { context, event -> editorHandle(this, context, event) }
+    public val focus = scope.focusTarget(area)
+    internal val blink = scope.resource { window.createDeadline { editorBlink(this) } }
+    internal val dragTimer = scope.resource { window.createDeadline { editorDragTick(this) } }
+
+    init {
+        initialOptions.check()
+        initialAppearance.check()
+        checkDocument(initialState.text)
+        area.scope.defaultAction = { context, event -> editorHandle(this, context, event) }
+        area.scope.onEventFinished = { event -> editorFinish(this, event) }
+        area.scope.enabled = initialOptions.enabled
+        viewport.paintCache = initialOptions.paintCache
+    }
+
+    public val isClosed: Boolean get() {
+        checkUiThread(thread);
+        return closed
+    }
+    public val state: TextEditorState get() {
+        checkOpen();
+        return current
+    }
+    public val interaction: TextEditInteraction get() {
+        checkOpen();
+        return visual.value
+    }
+    /** Borrowed until the next measurement or close; callers must not close it. */
+    public val layout: TextLayout get() {
+        checkOpen();
+        return body.layout
+    }
+    /** The layout being presented, including offsets clamped for this measurement. */
+    public val scrollSnapshot: ScrollSnapshot get() {
+        checkOpen()
+        return measured?.snapshot ?:
+            throw IllegalStateException(Some("text editor has not been measured"))
+    }
+
+    internal fun checkOpen() {
+        checkUiThread(thread)
+        if (closed || !scope.isMounted)
+            throw IllegalStateException(Some("text edit host is no longer mounted"))
+    }
+    internal fun checkDocument(text: String) {
+        requireUi(
+            options.multiline || !editorHasLineBreak(text),
+            "single-line editor contains a hard line break"
+        )
+    }
+
+    public fun update(
+        state: TextEditorState,
+        appearance: TextEditAppearance,
+        options: TextEditOptions = TextEditOptions(),
+        focus: FocusOptions = FocusOptions(),
+        placeholder: String = "",
+        onEdited: (TextEditorState) -> Unit = { _ -> Unit },
+        onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+    ) {
+        checkOpen()
+        checkFocusMutation()
+        options.check()
+        appearance.check()
+        requireUi(
+            options.multiline || !editorHasLineBreak(state.text),
+            "single-line editor contains a hard line break"
+        )
+        if (area.isFocusActive && options.enabled)
+            state.checkHost(this)
+        this.focus.options = focus
+        val blinkChanged = this.options.caretBlink != options.caretBlink
+        val rebound = current !== state
+        val restart =
+            rebound ||
+                this.options.readOnly !=
+                options.readOnly ||
+                this.options.enabled !=
+                options.enabled ||
+                this.options.multiline !=
+                options.multiline
+        if (restart) {
+            retireConnection()
+            editorStopDrag(this, false)
+            if (current.ownsHost(this))
+                perform({ current.cancelComposition() }, notify = false)
+            if (rebound)
+                current.detachHost(this)
+        }
+        current = state
+        this.appearance = appearance
+        this.options = options
+        this.placeholder = placeholder
+        edited = onEdited
+        submitted = onSubmit
+        if (blinkChanged) {
+            blink.cancel()
+            caretVisible = true
+        }
+        viewport.paintCache = options.paintCache
+        area.scope.enabled = options.enabled
+        area.textInput = options.enabled && !options.readOnly
+        if (area.isFocusActive && options.enabled)
+            current.attachHost(this)
+        if (restart)
+            invalidate()
+        editorInteraction(this, area.isFocusActive, visual.value.hovered && options.enabled)
+        scope.requestFrame()
+    }
+
+    public fun measure(constraints: Constraints): LayoutMetrics {
+        checkOpen()
+        return editorMeasure(this, constraints)
+    }
+    public fun scene(context: SceneContext) {
+        checkOpen()
+        editorScene(this, context)
+    }
+    public fun execute(command: TextEditCommand): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        if (!options.enabled || !area.isFocusActive || !area.scope.isInputAllowed)
+            return false
+        editorStopDrag(this, false)
+        return editorCommand(this, command, None)
+    }
+
+    internal fun modelChanged() {
+        if (closed || performing)
+            return
+        invalidate()
+        editorStopDrag(this, false)
+        current.breakUndoGroup()
+        retireConnection()
+    }
+    internal fun invalidate() {
+        preferredX = None
+        if (!area.isClosed)
+            area.setCaret(None, Some(current.revision))
+        focus.node.root.focus.cancel(focus)
+        revealNeeded = area.isFocusActive && !focus.node.root.focus.pendingElsewhere(focus)
+        revealRevision = focus.node.root.surface.focusRevision
+        caretVisible = true
+        blink.cancel()
+        if (!closed && scope.isMounted)
+            scope.requestFrame()
+    }
+    internal fun retireConnection() {
+        if (!area.isClosed)
+            retiring = area.restartTextInput()
+    }
+    internal fun publishNative(after: TextInputOrigin? = None) {
+        if (
+            closed ||
+                retiring ||
+                !sessionEnabled ||
+                !area.isFocusActive ||
+                options.readOnly ||
+                !options.enabled
+        )
+            return
+        when (connection) {
+            case Some(value) -> window.publishTextInputState(value, current.inputState, after)
+            case None -> {}
+        }
+    }
+    internal fun perform(
+        action: () -> Boolean,
+        endComposition: Boolean = false,
+        notify: Boolean = true
+    ): Boolean {
+        val before = current.text
+        val composing = current.isComposing
+        performing = true
+        val changed =
+            try {
+                action()
+            } finally {
+                performing = false
+            }
+        if (changed)
+            invalidate()
+        if (endComposition && composing)
+            retireConnection()
+        publishNative()
+        if (notify)
+            notifyEdited(before)
+        return changed
+    }
+    internal fun notifyEdited(before: String) {
+        if (before == current.text || notifying || closed)
+            return
+        notifying = true
+        try {
+            edited(current)
+        } finally {
+            notifying = false
+        }
+    }
+
+    public override fun close() {
+        checkUiThread(thread)
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        val owned = current.detachHost(this)
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { blink.close() }
+        failure = cleanupUi(failure) { dragTimer.close() }
+        drag = None
+        if (owned)
+            failure = cleanupUi(failure) { current.cancelComposition() }
+        failure = cleanupUi(failure) { focus.close() }
+        failure = cleanupUi(failure) { area.close() }
+        failure = cleanupUi(failure) { viewport.close() }
+        failure = cleanupUi(failure) { staged?.close() }
+        staged = None
+        failure = cleanupUi(failure) { accepted?.close() }
+        accepted = None
+        failure = cleanupUi(failure) { body.close() }
+        failure = cleanupUi(failure) { hint.close() }
+        throwUi(failure)
+    }
+}

@@ -40,6 +40,29 @@ STTextLayout::STTextLayout(const STParagraph &source, double width, bool wrap,
     size_t end = data->byte(line.fEndIncludingNewline);
     size_t content = data->byte(line.fEndExcludingWhitespaces);
     size_t plain_end = data->byte(line.fEndIndex);
+    // The final line's fEndIndex can include its hard break. Use the same
+    // Unicode grapheme as navigation, including both scalars of CRLF.
+    auto ending = std::lower_bound(data->graphemes.begin(),
+                                   data->graphemes.end(), (int64_t)end);
+    if (end > start && ending != data->graphemes.begin()) {
+      size_t last = (size_t)*(ending - 1);
+      if (last >= start && data->hard_break((int64_t)last, (int64_t)end))
+        plain_end = std::min(plain_end, last);
+    }
+    // SkParagraph's trailing empty line reuses the final hard-break cluster.
+    // That break belongs to the preceding line; the empty line starts after it.
+    if (index + 1 == metrics.size() && !lines.empty() && line.fWidth == 0 &&
+        lines.back().hard_break &&
+        (size_t)lines.back().range.end == data->text.size() &&
+        start < (size_t)lines.back().range.end) {
+      start = end = content = plain_end = data->text.size();
+      actual = {start, start};
+    }
+    // SkParagraph can exclude only LF from a CRLF line ending. Editing edges
+    // must keep the full Unicode grapheme intact.
+    auto caret_end = std::upper_bound(
+        data->graphemes.begin(), data->graphemes.end(), (int64_t)plain_end);
+    line_ends.push_back((size_t)*(caret_end - 1));
     lines.push_back(
         {{(int64_t)start, (int64_t)end},
          {(int64_t)start, (int64_t)content},
@@ -74,6 +97,7 @@ STTextLayout::STTextLayout(const STParagraph &source, double width, bool wrap,
                      info.height - info.alphabetic,
                      0});
     info.lines = 1;
+    line_ends.push_back(0);
   }
   if (!std::isfinite(info.width) || !std::isfinite(info.height))
     throw std::runtime_error("text layout overflow");
@@ -111,10 +135,14 @@ int STTextLayout::line_at(size_t byte, bool upstream) const {
     return -1;
   if (upstream && byte > 0)
     --byte;
-  for (size_t i = 0; i < lines.size(); ++i) {
-    if (byte >= (size_t)lines[i].range.start &&
-        byte < (size_t)lines[i].range.end)
-      return (int)i;
+  auto next = std::upper_bound(lines.begin(), lines.end(), byte,
+                               [](size_t offset, const STTextLine &line) {
+                                 return offset < (size_t)line.range.start;
+                               });
+  if (next != lines.begin()) {
+    auto line = next - 1;
+    if (byte < (size_t)line->range.end)
+      return (int)(line - lines.begin());
   }
   if (byte == data->text.size() || byte == visible_end())
     return (int)lines.size() - 1;

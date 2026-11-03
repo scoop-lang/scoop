@@ -11,6 +11,11 @@ internal fun createNode(root: UiRoot, parent: MountedNode?, view: View): Mounted
             case Empty -> NodeBody.Empty
             case Component(description) -> NodeBody.Component(description.create())
             case Element(description, _) -> NodeBody.Element(description.create())
+            case Portal(_, options) -> NodeBody.Portal(PortalInstance(root, options))
+            case Lazy(description, source, capacity) -> NodeBody.Lazy(
+                description.create(),
+                LazyChildren(source, capacity)
+            )
         }
     when (instanceIdentity(body)) {
         case Some(value) -> {
@@ -31,9 +36,15 @@ private fun instanceIdentity(body: NodeBody): Any? =
         case Empty -> None
         case Component(instance) -> Some(instance.value)
         case Element(instance) -> Some(instance.value)
+        case Portal(_) -> None
+        case Lazy(instance, _) -> Some(instance.value)
     }
 
 internal fun releaseInstance(body: NodeBody) {
+    when (body) {
+        case Portal(instance) -> instance.dispose()
+        else -> {}
+    }
     when (instanceIdentity(body)) {
         case Some(value) -> {
             var index = 0L

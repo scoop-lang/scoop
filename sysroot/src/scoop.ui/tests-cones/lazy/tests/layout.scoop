@@ -1,0 +1,85 @@
+package scoop.tests.ui.lazy
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+
+internal class LazyScene(private val probe: LazyProbe): Component {
+    public override fun render(): View {
+        return lazyElement(probe.source!!.value, { ProtocolContainer(probe) })
+    }
+}
+
+private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
+    private var ticket = -1
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutMetrics {
+        ticket = probe.ticket
+        probe.activeContext = Some(context)
+        probe.savedContext = Some(context)
+        val chosen = HashSet<Long>()
+        val item = Constraints.tight(Size(100.0, 24.0))
+        assertFailsWith<IllegalStateException> { probe.mountWrites.value += 1 }
+        assertFailsWith<IllegalArgumentException> { context.measureItem(-1L, item) }
+        assertFailsWith<IllegalArgumentException> { context.measureItem(context.itemCount, item) }
+        assertFailsWith<IllegalStateException> {
+            context.placeItem(context.itemCount, Point(0.0, 0.0))
+        }
+        var position = 0L
+        for (index in probe.selected) {
+            context.measureItem(index, item)
+            chosen.add(index)
+            assertFailsWith<IllegalStateException> { context.measureItem(index, item) }
+            context.placeItem(
+                index,
+                Point(
+                    0.0,
+                    if (probe.offscreen == Some(index))
+                        220.0
+                    else
+                        position.toDouble() * 24.0
+                )
+            )
+            assertFailsWith<IllegalStateException> { context.placeItem(index, Point(0.0, 0.0)) }
+            position += 1L
+        }
+        val pinned = context.pinnedItems
+        for (index in pinned) {
+            if (chosen.add(index)) {
+                context.measureItem(index, item)
+                context.placeItem(index, Point(0.0, 220.0))
+            }
+        }
+        if (probe.phase == 4) {
+            var sawPending = false
+            for (index in pinned)
+                if (index == 9L)
+                    sawPending = true
+            assertTrue(sawPending)
+        }
+        probe.activeContext = None
+        return LayoutMetrics(constraints.constrain(Size(240.0, 160.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        probe.drawOrder.clear()
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.withState {
+            content ->
+            content.clipRect(Rect(0.0, 0.0, 200.0, 100.0))
+            content.children()
+        }
+        val accepted = ticket
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = accepted
+        }
+    }
+}

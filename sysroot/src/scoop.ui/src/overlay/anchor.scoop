@@ -1,0 +1,136 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.platform.concurrent.currentThreadId
+
+/** Owner-thread layout reference; its rectangle is supplied by the owning element's scene. */
+public class LayoutAnchor public constructor() {
+    private val thread = currentThreadId()
+    internal var binding: AnchorBinding? = None
+    private val dependents = ArrayList<PortalInstance>()
+
+    public val isAttached: Boolean get() {
+        checkUiThread(thread)
+        return binding?.active ?: false
+    }
+    internal val owner: MountedNode? get() {
+        val current = binding ?: return None
+        return if (current.active)
+            Some(current.node)
+        else
+            None
+    }
+    internal fun bind(node: MountedNode): AnchorBinding {
+        checkUiThread(thread)
+        when (binding) {
+            case Some(current) -> requireUi(!current.active, "layout anchor already has an owner")
+            case None -> {}
+        }
+        val change = AnchorOwnerChange(this, node)
+        for (portal in dependents)
+            if (portal.isOpen)
+                checkOverlayDependency(portal, Some(this), Some(change))
+        val value = AnchorBinding(this, node)
+        binding = Some(value)
+        return value
+    }
+    internal fun checkThread() {
+        checkUiThread(thread)
+    }
+    internal fun addDependent(portal: PortalInstance) {
+        dependents.add(portal)
+    }
+    internal fun removeDependent(portal: PortalInstance) {
+        for (index in 0L ..< dependents.size) {
+            if (dependents[index] === portal) {
+                dependents.removeAt(index)
+                return
+            }
+        }
+    }
+    internal fun unbind(value: AnchorBinding) {
+        when (binding) {
+            case Some(current) -> if (current !== value)
+                return
+            case None -> return
+        }
+        binding = None
+        val work = dependents.toArray()
+        var failure: Throwable? = None
+        for (portal in work) {
+            failure =
+                cleanupUi(failure) {
+                    portal.close(
+                        if (portal.active)
+                            OverlayCloseReason.AnchorUnavailable
+                        else
+                            OverlayCloseReason.OwnerClosed
+                    )
+                }
+        }
+        throwUi(failure)
+    }
+    internal fun capture(node: MountedNode, frame: OverlayFrame, canvas: Canvas, rect: Rect) {
+        checkUiThread(thread)
+        val current = binding ?: throw IllegalStateException(Some("layout anchor is not attached"))
+        requireUi(
+            current.active && current.node === node,
+            "scene anchor must belong to this element"
+        )
+        current.capture(frame, canvas, rect)
+    }
+    internal fun geometry(frame: OverlayFrame): AnchorGeometry? {
+        val current = binding ?: return None
+        return if (current.active)
+            current.geometry(frame)
+        else
+            None
+    }
+}
+
+internal class AnchorGeometry(val frame: OverlayFrame, val bounds: Rect, val visible: Boolean)
+
+internal class AnchorBinding(val handle: LayoutAnchor, val node: MountedNode): Closeable {
+    private var closed = false
+    private var captured: AnchorGeometry? = None
+    val active: Boolean get() = !closed && node.active && node.root.isOpen
+
+    fun capture(frame: OverlayFrame, canvas: Canvas, rect: Rect) {
+        when (captured) {
+            case Some(value) -> if (value.frame === frame)
+                throw IllegalStateException(Some("layout anchor was already placed this frame"))
+            case None -> {}
+        }
+        @Unsafe
+        {
+            val geometry = captureGeometry(canvas, rect)
+            try {
+                val visible =
+                    when (geometry.visibleBounds) {
+                        case Some(_) -> true
+                        case None -> false
+                    }
+                captured = Some(AnchorGeometry(frame, geometry.bounds, visible))
+            } finally {
+                geometry.close()
+            }
+        }
+    }
+    fun geometry(frame: OverlayFrame): AnchorGeometry? {
+        val value = captured ?: return None
+        return if (value.frame === frame)
+            Some(value)
+        else
+            None
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkOverlayMutation()
+        if (closed)
+            return
+        closed = true
+        captured = None
+        handle.unbind(this)
+    }
+}

@@ -1,0 +1,45 @@
+package scoop.ui
+
+internal class AnchorOwnerChange(val anchor: LayoutAnchor, val node: MountedNode)
+
+/** Checks the changed dependency chain once, before publishing a binding. */
+internal fun checkOverlayDependency(
+    portal: PortalInstance,
+    anchor: LayoutAnchor?,
+    change: AnchorOwnerChange? = None
+) {
+    var next = anchor
+    val visited = ArrayList<PortalInstance>()
+    visited.add(portal)
+    while (true) {
+        val reference = next ?: return
+        reference.checkThread()
+        val owner =
+            when (change) {
+                case Some(value) -> if (value.anchor === reference)
+                    Some(value.node)
+                else
+                    reference.owner
+                case None -> reference.owner
+            } ?:
+                return
+        requireUi(owner.root === portal.root, "portal anchor belongs to another UI root")
+        val source = nearestPortal(owner) ?: return
+        for (previous in visited)
+            if (source === previous)
+                throw IllegalStateException(Some("cyclic portal anchor dependency"))
+        visited.add(source)
+        next = source.anchor
+    }
+}
+
+private fun nearestPortal(owner: MountedNode): PortalInstance? {
+    var cursor = Some(owner)
+    while (true) {
+        val node = cursor ?: return None
+        when (node.body) {
+            case Portal(value) -> return Some(value)
+            else -> cursor = node.parent
+        }
+    }
+}

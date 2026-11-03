@@ -60,6 +60,14 @@ public class RenderTarget internal constructor(
             return Image(ownedGraphics(targetSnapshot(available()), "snapshot image"))
         }
     }
+    internal fun compositeSnapshot(): Image {
+        @Unsafe
+        {
+            return Image(
+                ownedGraphics(targetCompositeSnapshot(available()), "snapshot compositing image")
+            )
+        }
+    }
     private fun available(): Ptr<Unit> {
         val pointer = resource.get()
         if (borrowed)
@@ -85,3 +93,6 @@ private fun targetRead(target: Ptr<Unit>, bytes: Ptr<Byte>): Int
 
 @Extern(name = "scoop_graphics_target_snapshot")
 private fun targetSnapshot(target: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_target_composite_snapshot")
+private fun targetCompositeSnapshot(target: Ptr<Unit>): Ptr<Unit>?

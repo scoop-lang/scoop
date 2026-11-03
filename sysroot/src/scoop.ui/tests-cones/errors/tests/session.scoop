@@ -1,6 +1,7 @@
 package scoop.tests.ui.errors
 
 import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.InputArea
 import scoop.test.*
 import scoop.tests.surface.*
 import scoop.time.Duration
@@ -23,6 +24,25 @@ internal class FailureRecord(val mode: FailureMode) {
     var window: Window? = None
     var second: Window? = None
     var view: ViewProbe? = None
+    val overlay = OverlayHandle()
+    val anchor = LayoutAnchor()
+    var overlayCloses = 0
+    var modalRoot: InputArea? = None
+    val lazyItems = ArrayList<LazyFailureItem>()
+    var lazyContext: LazyMeasureContext? = None
+    var lazySkip = false
+    fun overlayClosed(reason: OverlayCloseReason) {
+        assertEquals(
+            if (mode == FailureMode.ModalClose)
+                OverlayCloseReason.Explicit
+            else
+                OverlayCloseReason.OwnerClosed,
+            reason
+        )
+        overlayCloses += 1
+        if (mode == FailureMode.ModalClose)
+            throw primary
+    }
 }
 
 @Test
@@ -69,10 +89,20 @@ internal class FailureHarness: ApplicationHandler {
             FailureRecord(FailureMode.DuplicateKey),
             FailureRecord(FailureMode.DuplicateInstance),
             FailureRecord(FailureMode.ValueType),
+            FailureRecord(FailureMode.PortalHandle),
+            FailureRecord(FailureMode.PortalCycle),
+            FailureRecord(FailureMode.ModalMount),
+            FailureRecord(FailureMode.ModalClose),
             FailureRecord(FailureMode.MissingMeasure),
             FailureRecord(FailureMode.Measure),
             FailureRecord(FailureMode.MissingPaint),
             FailureRecord(FailureMode.Paint),
+            FailureRecord(FailureMode.FrameComplete),
+            FailureRecord(FailureMode.LazyBuild),
+            FailureRecord(FailureMode.LazyMount),
+            FailureRecord(FailureMode.LazyMeasure),
+            FailureRecord(FailureMode.LazyMissingPaint),
+            FailureRecord(FailureMode.LazyMissingPinned),
             FailureRecord(FailureMode.LateUpdate)
         ]
     var index = 0L
@@ -116,7 +146,9 @@ internal class FailureHarness: ApplicationHandler {
                 case Measure -> true
                 case MissingPaint -> true
                 case Paint -> true
-                else -> false
+                case FrameComplete -> true
+                case ModalClose -> true
+                else -> record.mode.isLazy
             }
         val native =
             application.createWindow(
@@ -154,7 +186,51 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
         case DuplicateInstance -> assertTrue(error is IllegalStateException)
         case MissingMeasure -> assertTrue(error is IllegalStateException)
         case MissingPaint -> assertTrue(error is IllegalStateException)
+        case PortalHandle -> assertTrue(error is IllegalArgumentException)
+        case PortalCycle -> assertTrue(error is IllegalStateException)
+        case LazyMissingPaint -> assertTrue(error is IllegalStateException)
+        case LazyMissingPinned -> assertTrue(error is IllegalStateException)
         else -> assertTrue(containsFailure(error, record.primary))
+    }
+    if (record.mode.isLazy) {
+        assertEquals(
+            if (record.mode == FailureMode.LazyBuild)
+                1L
+            else
+                2L,
+            record.lazyItems.size
+        )
+        assertEquals(1, record.rootMounts)
+        assertEquals(1, record.rootUnmounts)
+        assertFailsWith<IllegalStateException> { record.lazyContext!!.itemCount }
+        for (item in record.lazyItems) {
+            assertTrue(item.area!!.isClosed)
+            assertEquals(
+                if (record.mode == FailureMode.LazyMount && item.index == 1L)
+                    0
+                else
+                    1,
+                item.unmounts
+            )
+        }
+    }
+    if (
+        record.mode ==
+            FailureMode.PortalHandle ||
+            record.mode ==
+            FailureMode.PortalCycle ||
+            record.mode ==
+            FailureMode.ModalMount ||
+            record.mode ==
+            FailureMode.ModalClose
+    ) {
+        assertEquals(1, record.overlayCloses)
+        assertFalse(record.overlay.isAttached)
+        assertFalse(record.anchor.isAttached)
+        when (record.modalRoot) {
+            case Some(area) -> assertTrue(area.isClosed)
+            case None -> {}
+        }
     }
     if (record.mode == FailureMode.Mount) {
         assertEquals(1, record.rootMounts)

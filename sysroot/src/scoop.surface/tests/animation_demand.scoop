@@ -1,0 +1,168 @@
+package scoop.surface
+
+import scoop.test.*
+import scoop.time.*
+
+private class DemandClock: TimeSource {
+    var reading = Duration.ZERO
+    public override fun markNow(): TimeMark = TimeMark(this, reading)
+    fun at(milliseconds: Long): TimeMark {
+        reading = Duration.milliseconds(milliseconds)
+        return markNow()
+    }
+    fun mark(milliseconds: Long): TimeMark = TimeMark(this, Duration.milliseconds(milliseconds))
+}
+
+@Test
+private class AnimationDemandTest {
+    @Test
+    fun `offscreen animations keep elapsed time and finite completion without frame work`() {
+        val clock = DemandClock()
+        val invalidations = ArrayList<Int>()
+        val results = ArrayList<Double>()
+        AnimationTimeline(clock, { invalidations.add(1) }).use {
+            timeline ->
+            val finite = timeline.value(0.0)
+            val infinite = timeline.value(0.0)
+            finite.isFrameEnabled = false
+            infinite.isFrameEnabled = false
+            finite.animateTo(
+                100.0,
+                AnimationSpec.Tween(Duration.seconds(1L)),
+                onFinished = Some { value -> results.add(value) }
+            )
+            infinite.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+            assertTrue(timeline.hasWork)
+            assertFalse(timeline.hasFrameWork)
+            assertEquals(Some(clock.mark(1000L)), timeline.nextDeadline(false))
+            timeline.advanceTo(clock.at(250L))
+            assertEquals(25.0, finite.value)
+            assertEquals(25.0, infinite.value)
+            assertEquals(0L, invalidations.size)
+            clock.at(750L)
+            infinite.isFrameEnabled = true
+            assertEquals(75.0, infinite.value)
+            assertEquals(AnimationState.Running, infinite.state)
+            assertTrue(timeline.hasFrameWork)
+            finite.isFrameEnabled = true
+            assertEquals(None, timeline.nextDeadline(false))
+            assertEquals(Some(clock.mark(1000L)), timeline.nextDeadline(true))
+            finite.isFrameEnabled = false
+            infinite.isFrameEnabled = false
+            val before = invalidations.size
+            timeline.advanceTo(clock.at(1000L))
+            assertEquals(before, invalidations.size)
+            assertEquals(1L, results.size)
+            assertEquals(100.0, results[0L])
+            assertEquals(AnimationState.Finished, finite.state)
+            assertTrue(timeline.hasWork)
+            assertFalse(timeline.hasFrameWork)
+            assertEquals(None, timeline.nextDeadline(true))
+            clock.at(1250L)
+            infinite.isFrameEnabled = true
+            assertEquals(25.0, infinite.value)
+            assertTrue(timeline.hasFrameWork)
+            infinite.cancel()
+            assertFalse(timeline.hasWork)
+        }
+    }
+
+    @Test
+    fun `retarget pause cancellation and zero duration replace the pending deadline`() {
+        val clock = DemandClock()
+        val results = ArrayList<Double>()
+        AnimationTimeline(clock).use {
+            timeline ->
+            val value = timeline.value(0.0)
+            value.isFrameEnabled = false
+            value.animateTo(100.0, AnimationSpec.Tween(Duration.seconds(1L)))
+            clock.at(500L)
+            value.animateTo(200.0, AnimationSpec.Tween(Duration.seconds(1L)))
+            assertEquals(50.0, value.value)
+            assertEquals(Some(clock.mark(1500L)), timeline.nextDeadline(false))
+            clock.at(750L)
+            value.pause()
+            assertEquals(87.5, value.value)
+            assertEquals(None, timeline.nextDeadline(true))
+            clock.at(1250L)
+            value.resume()
+            assertEquals(Some(clock.mark(2000L)), timeline.nextDeadline(false))
+            clock.at(1500L)
+            value.cancel()
+            assertEquals(None, timeline.nextDeadline(true))
+            value.animateTo(
+                1.0,
+                AnimationSpec.Tween(Duration.ZERO),
+                onFinished = Some { _ -> fail(Some("replaced completion was delivered")) }
+            )
+            value.animateTo(
+                2.0,
+                AnimationSpec.Tween(Duration.ZERO),
+                onFinished =
+                    Some {
+                        result ->
+                        results.add(result)
+                        value.animateTo(
+                            3.0,
+                            AnimationSpec.Tween(Duration.ZERO),
+                            onFinished = Some { next -> results.add(next) }
+                        )
+                    }
+            )
+            assertEquals(0L, results.size)
+            assertFalse(timeline.hasFrameWork)
+            assertEquals(Some(clock.mark(1500L)), timeline.nextDeadline(false))
+            timeline.advanceTo(clock.at(1500L))
+            assertEquals(1L, results.size)
+            assertEquals(2.0, results[0L])
+            assertTrue(timeline.hasWork)
+            timeline.advanceTo(clock.at(1501L))
+            assertEquals(2L, results.size)
+            assertEquals(3.0, results[1L])
+            assertFalse(timeline.hasWork)
+            assertEquals(None, timeline.nextDeadline(true))
+        }
+    }
+
+    @Test
+    fun `finite repeats and analytic springs finish at their representable deadline`() {
+        val regimes: Array<Double> = [0.5, 1.0, 2.0]
+        for (regime in regimes) {
+            val clock = DemandClock()
+            AnimationTimeline(clock).use {
+                timeline ->
+                val value = timeline.value(0.0)
+                value.isFrameEnabled = false
+                value.animateTo(1.0, AnimationSpec.Spring(100.0, regime))
+                val deadline = timeline.nextDeadline(false)!!
+                assertTrue(deadline > clock.markNow())
+                clock.reading = deadline.reading
+                timeline.advanceTo(deadline)
+                assertEquals(AnimationState.Finished, value.state)
+                assertEquals(1.0, value.value)
+                assertEquals(0.0, value.velocity.x)
+                assertEquals(None, timeline.nextDeadline(true))
+            }
+        }
+        val clock = DemandClock()
+        AnimationTimeline(clock).use {
+            timeline ->
+            val value = timeline.value(0.0)
+            value.isFrameEnabled = false
+            value.animateTo(
+                1.0,
+                AnimationSpec.Tween(Duration.seconds(1L)),
+                Some(Repeat(Some(2L), RepeatMode.Reverse))
+            )
+            assertEquals(Some(clock.mark(2000L)), timeline.nextDeadline(false))
+            timeline.advanceTo(clock.at(2000L))
+            assertEquals(0.0, value.value)
+            assertEquals(AnimationState.Finished, value.state)
+            assertFailsWith<IllegalArgumentException> {
+                value.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(9223372036854775807L)))
+            }
+            assertEquals(AnimationState.Finished, value.state)
+            assertEquals(None, timeline.nextDeadline(true))
+        }
+    }
+}

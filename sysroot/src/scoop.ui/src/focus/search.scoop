@@ -1,0 +1,316 @@
+package scoop.ui
+
+/** Traverses mounted stops and lazy data through the same accepted-frame focus request. */
+internal class FocusSearch(private val reverse: Boolean) {
+    private val cursors = ArrayList<FocusCursor>()
+    private var boundary: MountedNode? = None
+    private var group: FocusScope? = None
+    private var groupStarted = false
+    private var fallbackUsed = false
+    private var skip: FocusTarget? = None
+    private var waiting: FocusItemVisit? = None
+    private var excluded: MountedNode? = None
+
+    companion object {
+        fun tab(node: MountedNode, reverse: Boolean, loop: Boolean): FocusSearch {
+            val result = FocusSearch(reverse)
+            result.boundary = Some(node)
+            result.seedFocused(node, loop)
+            return result
+        }
+        fun group(scope: FocusScope, attempted: FocusTarget?): FocusSearch {
+            val result = FocusSearch(false)
+            result.group = Some(scope)
+            result.skip = attempted
+            return result
+        }
+        fun first(node: MountedNode): FocusSearch {
+            val result = FocusSearch(false)
+            result.cursors.add(FocusCursor.Nodes(NodeFocusCursor(node, false, false)))
+            return result
+        }
+        fun item(owner: LazyFocus, key: ViewKey, edge: ItemFocusEdge): FocusSearch {
+            val result = FocusSearch(edge == ItemFocusEdge.Last)
+            result.cursors.add(
+                FocusCursor.Items(ItemFocusCursor(owner, false, 0L, 1L, false, edge, Some(key)))
+            )
+            return result
+        }
+        fun navigation(
+            owner: LazyFocus,
+            entry: LazyItemEntry,
+            step: NavigationStep,
+            loop: Boolean
+        ): FocusSearch {
+            val reverse =
+                if (step.edge)
+                    step.forward
+                else
+                    !step.forward
+            val result = FocusSearch(reverse)
+            val start =
+                if (step.edge)
+                    if (reverse)
+                        owner.count - 1L
+                    else
+                        0L
+                else
+                    entry.index +
+                        if (reverse)
+                            -1L
+                        else
+                            1L
+            val count =
+                if (step.edge || loop)
+                    owner.count
+                else
+                    if (reverse)
+                        entry.index
+                    else
+                        owner.count - entry.index - 1L
+            result.cursors.add(
+                FocusCursor.Items(
+                    ItemFocusCursor(owner, reverse, start, count, loop, ItemFocusEdge.First)
+                )
+            )
+            return result
+        }
+    }
+
+    private fun seedFocused(node: MountedNode, loop: Boolean) {
+        val cursor = NodeFocusCursor(node, reverse, loop)
+        cursors.add(FocusCursor.Nodes(cursor))
+        val position = cursor.focusedPosition() ?: return
+        cursor.seekAfter(position)
+        when (cursor.stops[position]) {
+            case Items(owner) -> {
+                if (owner.options.navigation != ItemNavigation.Sequential)
+                    return
+                val entry = owner.focusedEntry() ?: return
+                appendTail(owner, entry)
+                seedFocused(entry.node, false)
+            }
+            case Target(_) -> {}
+        }
+    }
+    private fun appendTail(owner: LazyFocus, entry: LazyItemEntry) {
+        val count =
+            if (reverse)
+                entry.index
+            else
+                owner.count - entry.index - 1L
+        val tail =
+            ItemFocusCursor(
+                owner,
+                reverse,
+                0L,
+                count,
+                false,
+                if (reverse)
+                    ItemFocusEdge.Last
+                else
+                    ItemFocusEdge.First
+            )
+        tail.current = Some(entry.key)
+        cursors.add(FocusCursor.Items(tail))
+    }
+    private fun seedAfterSubtree(node: MountedNode, loop: Boolean, previous: MountedNode) {
+        val cursor = NodeFocusCursor(node, reverse, loop, excluded)
+        cursors.add(FocusCursor.Nodes(cursor))
+        for (position in 0L ..< cursor.stops.size) {
+            when (cursor.stops[position]) {
+                case Items(owner) -> {
+                    if (owner.node === previous || !withinFocusScope(previous, owner.node))
+                        continue
+                    cursor.seekAfter(position)
+                    if (owner.options.navigation == ItemNavigation.Sequential) {
+                        val entry = owner.entryContaining(previous) ?: return
+                        appendTail(owner, entry)
+                        seedAfterSubtree(entry.node, false, previous)
+                    }
+                    return
+                }
+                case Target(_) -> {}
+            }
+        }
+        cursor.seekAfterSubtree(previous)
+    }
+    private fun enter(owner: LazyFocus, backwards: Boolean) {
+        if (!owner.available || owner.count == 0L)
+            return
+        when (owner.options.navigation) {
+            case None -> {}
+            case Sequential -> cursors.add(
+                FocusCursor.Items(
+                    ItemFocusCursor(
+                        owner,
+                        backwards,
+                        if (backwards)
+                            owner.count - 1L
+                        else
+                            0L,
+                        owner.count,
+                        false,
+                        if (backwards)
+                            ItemFocusEdge.Last
+                        else
+                            ItemFocusEdge.First
+                    )
+                )
+            )
+            case Roving(_, _) -> {
+                val key = owner.preferredKey() ?: return
+                val start = owner.indexOf(key) ?: return
+                cursors.add(
+                    FocusCursor.Items(
+                        ItemFocusCursor(owner, false, start, owner.count, true, ItemFocusEdge.First)
+                    )
+                )
+            }
+        }
+    }
+    fun keyFor(owner: LazyFocus): ViewKey? {
+        for (cursor in cursors)
+            when (cursor) {
+                case Items(value) -> if (value.owner === owner)
+                    return value.current
+                case Nodes(_) -> {}
+            }
+        return None
+    }
+    fun itemToPrepare(owner: LazyFocus): ViewKey? {
+        val visit = waiting ?: return None
+        return if (visit.owner === owner)
+            Some(visit.key)
+        else
+            None
+    }
+    fun hasPendingIn(node: MountedNode): Boolean {
+        val visit = waiting ?: return false
+        if (!visit.owner.available)
+            return false
+        if (withinFocusScope(visit.owner.node, node))
+            return true
+        val entry = visit.owner.entry(visit.key) ?: return false
+        return withinFocusScope(entry.node, node)
+    }
+    fun ownsBoundary(node: MountedNode): Boolean =
+        when (boundary) {
+            case Some(value) -> value === node
+            case None -> false
+        }
+    fun prepared() {
+        val visit = waiting ?: return
+        waiting = None
+        if (!visit.owner.available)
+            return
+        val entry = visit.owner.entry(visit.key) ?: return
+        cursors.add(
+            FocusCursor.Nodes(
+                NodeFocusCursor(entry.node, visit.edge == ItemFocusEdge.Last, false, excluded)
+            )
+        )
+    }
+    fun next(continueParents: Boolean = true): FocusSearchStep {
+        when (group) {
+            case Some(scope) -> {
+                if (!scope.available)
+                    return FocusSearchStep.End
+                if (!groupStarted) {
+                    groupStarted = true
+                    cursors.add(FocusCursor.Nodes(NodeFocusCursor(scope.node, false, false)))
+                    val target = explicitFocus(scope, scope.options.defaultFocus)
+                    when (target) {
+                        case Some(value) -> if (!skipped(value))
+                            return FocusSearchStep.Target(value)
+                        case None -> {}
+                    }
+                }
+            }
+            case None -> {}
+        }
+        while (true) {
+            if (cursors.size == 0L) {
+                when (group) {
+                    case Some(scope) -> if (!fallbackUsed) {
+                        fallbackUsed = true
+                        val target = explicitFocus(scope, scope.options.fallback)
+                        when (target) {
+                            case Some(value) -> if (!skipped(value))
+                                return FocusSearchStep.Target(value)
+                            case None -> {}
+                        }
+                    }
+                    case None -> {}
+                }
+                if (!continueParents || !parentBoundary())
+                    return FocusSearchStep.End
+                continue
+            }
+            val position = cursors.size - 1L
+            when (cursors[position]) {
+                case Nodes(cursor) -> {
+                    when (cursor.next()) {
+                        case Some(FocusStop.Target(target)) -> if (
+                            !skipped(target) && target.acceptsTab
+                        )
+                            return FocusSearchStep.Target(target)
+                        case Some(FocusStop.Items(owner)) -> enter(owner, cursor.reverse)
+                        case None -> cursors.removeAt(position)
+                    }
+                }
+                case Items(cursor) -> {
+                    when (cursor.next()) {
+                        case Some(key) -> {
+                            val visit = FocusItemVisit(cursor.owner, key, cursor.edge)
+                            waiting = Some(visit)
+                            return FocusSearchStep.Item(visit)
+                        }
+                        case None -> cursors.removeAt(position)
+                    }
+                }
+            }
+        }
+    }
+    private fun skipped(target: FocusTarget): Boolean =
+        when (skip) {
+            case Some(value) -> value === target
+            case None -> false
+        }
+    private fun parentBoundary(): Boolean {
+        val previous = boundary ?: return false
+        var parent = previous.parent
+        while (true) {
+            val node = parent ?: return false
+            if (!node.active || !node.scope.input.isInputAllowed)
+                return false
+            val atRoot =
+                when (node.parent) {
+                    case None -> true;
+                    case Some(_) -> false
+                }
+            val scope = node.focusScope
+            val accepts =
+                when (scope) {
+                    case Some(value) -> value.available;
+                    case None -> atRoot
+                }
+            if (accepts) {
+                excluded = Some(previous)
+                seedAfterSubtree(node, (scope?.options?.loop ?: false) || atRoot, previous)
+                boundary = Some(node)
+                return true
+            }
+            parent = node.parent
+        }
+    }
+}
+
+internal fun explicitFocus(scope: FocusScope, handle: FocusHandle?): FocusTarget? {
+    val reference = handle ?: return None
+    val target = reference.target ?: return None
+    return if (target.reachable && withinFocusScope(target.node, scope.node))
+        Some(target)
+    else
+        None
+}

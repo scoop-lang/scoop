@@ -1,0 +1,164 @@
+package scoop.tests.ui.itemnavigation
+
+import scoop.graphics.Point
+import scoop.graphics.text.TextDirection
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+internal fun rovingNavigation(probe: ItemNavigationProbe) {
+    when (probe.phase) {
+        case 18 -> {
+            probe.assertFocus(-1L)
+            probe.next { probe.key(48) }
+        }
+        case 19 -> {
+            probe.assertFocus(0L, 1L)
+            probe.next { probe.key(125, repeat = true) }
+        }
+        case 20 -> {
+            probe.assertFocus(4L)
+            probe.next { probe.key(48) }
+        }
+        case 21 -> {
+            probe.assertFocus(-2L)
+            probe.oldFourth = Some(probe.row(4L))
+            probe.next { probe.scroll.scrollTo(Point(0.0, 0.0)) }
+        }
+        case 22 -> {
+            probe.assertFocus(-2L)
+            assertEquals(1, probe.oldFourth!!.unmounts)
+            probe.next { probe.key(48, shift = true) }
+        }
+        case 23 -> {
+            probe.assertFocus(4L)
+            assertTrue(probe.row(4L) !== probe.oldFourth!!)
+            probe.next { probe.key(119) }
+        }
+        case 24 -> {
+            probe.assertFocus(99999999L)
+            assertTrue(probe.builds - probe.largeStart < 25)
+            probe.outerBefore = probe.outerKeys
+            probe.next { probe.key(125) }
+        }
+        case 25 -> {
+            probe.assertFocus(99999999L)
+            assertEquals(probe.outerBefore, probe.outerKeys)
+            probe.next { probe.key(115) }
+        }
+        case 26 -> {
+            probe.assertFocus(0L, 1L)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.orientation.value = Orientation.Horizontal
+                probe.navigation.value = ItemNavigation.Roving(TextDirection.Rtl, true)
+                probe.replace(Some([0L, 4L, 7L]), parts = 1)
+                probe.scroll.scrollTo(Point(0.0, 0.0))
+            }
+        }
+        case 27 -> {
+            probe.assertFocus(-1L)
+            probe.next { probe.key(48) }
+        }
+        case 28 -> {
+            probe.assertFocus(0L)
+            probe.next { probe.key(123) }
+        }
+        case 29 -> {
+            probe.assertFocus(4L)
+            probe.next { probe.key(124) }
+        }
+        case 30 -> {
+            probe.assertFocus(0L)
+            probe.next { probe.key(124) }
+        }
+        case 31 -> {
+            probe.assertFocus(7L)
+            probe.outerBefore = probe.outerKeys
+            probe.next { probe.key(126) }
+        }
+        case 32 -> {
+            probe.assertFocus(7L)
+            assertEquals(probe.outerBefore + 1, probe.outerKeys)
+            probe.outerBefore = probe.outerKeys
+            probe.next { probe.key(123, command = true) }
+        }
+        case 33 -> {
+            probe.assertFocus(7L)
+            assertEquals(probe.outerBefore + 1, probe.outerKeys)
+            probe.outerBefore = probe.outerKeys
+            probe.next { probe.key(123, shift = true) }
+        }
+        case 34 -> {
+            probe.assertFocus(7L)
+            assertEquals(probe.outerBefore + 1, probe.outerKeys)
+            probe.outerBefore = probe.outerKeys
+            probe.next {
+                probe.local = true
+                probe.key(123)
+            }
+        }
+        case 35 -> {
+            probe.assertFocus(7L)
+            assertEquals(1, probe.localKeys)
+            assertEquals(probe.outerBefore, probe.outerKeys)
+            probe.next {
+                probe.local = false
+                probe.capture = true
+                probe.key(123)
+            }
+        }
+        case 36 -> {
+            probe.assertFocus(7L)
+            assertEquals(1, probe.captureKeys)
+            assertEquals(probe.outerBefore, probe.outerKeys)
+            probe.next {
+                probe.capture = false
+                assertTrue(probe.group!!.requestFocus())
+                assertTrue(probe.group!!.isPending)
+                assertTrue(probe.lead.requestFocus())
+                assertFalse(probe.group!!.isPending)
+            }
+        }
+        case 37 -> {
+            probe.assertFocus(-1L)
+            probe.next { probe.key(48) }
+        }
+        case 38 -> {
+            probe.assertFocus(7L)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.replace(Some([0L, 4L]), parts = 1)
+            }
+        }
+        case 39 -> {
+            probe.assertFocus(-1L)
+            probe.next { probe.key(48) }
+        }
+        case 40 -> {
+            probe.assertFocus(0L)
+            probe.next {
+                probe.group!!.options =
+                    FocusScopeOptions(loop = true, fallback = Some(probe.fallback))
+                probe.key(48)
+            }
+        }
+        case 41 -> {
+            probe.assertFocus(0L)
+            probe.next {
+                probe.group!!.options = FocusScopeOptions(fallback = Some(probe.fallback))
+                assertTrue(probe.lead.requestFocus())
+                probe.enabled.value = false
+            }
+        }
+        case 42 -> {
+            probe.assertFocus(-1L)
+            probe.next { probe.key(48) }
+        }
+        case 43 -> {
+            probe.assertFocus(-2L)
+            probe.next { probe.window!!.requestDestroy() }
+        }
+        else -> fail(Some("unexpected roving navigation phase"))
+    }
+}

@@ -1,0 +1,75 @@
+package scoop.tests.ui.retention
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class RetentionScene(private val probe: RetentionProbe): Component {
+    public override fun render(): View =
+        element(
+            { RetentionPanel(probe) },
+            [
+                virtualList(
+                    probe.data!!.value,
+                    ItemExtent.Fixed(24.0),
+                    Some(probe.scroll),
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    focus = FocusOptions(Some(probe.viewportFocus)),
+                    theme = Some(probe.theme),
+                    retention = probe.retention.value
+                )
+            ]
+        )
+}
+
+private class RetentionPanel(private val probe: RetentionProbe): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(160.0, 24.0)))
+        context.placeChild(0L, Point(16.0, 16.0))
+        return LayoutMetrics(constraints.constrain(Size(220.0, 160.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val ticket = probe.ticket
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = ticket
+        }
+    }
+}
+
+internal class RetentionSource(
+    private val probe: RetentionProbe,
+    private val order: Array<Long>? = None,
+    private val variant: Int = 0
+): ItemSource {
+    public override val count: Long get() = order?.size ?: 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(id) -> when (order) {
+                case None -> if (id >= 0L && id < count)
+                    Some(id)
+                else
+                    None
+                case Some(keys) -> {
+                    var found: Long? = None
+                    for (index in 0L ..< keys.size)
+                        if (keys[index] == id)
+                            found = Some(index)
+                    found
+                }
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val input = RowInput(order?.get(index) ?: index, index, variant)
+        return if (variant == 0)
+            component(input, { props -> RetainedRow(probe, props) })
+        else
+            element(input, { props -> AlternateRow(probe, props) })
+    }
+}

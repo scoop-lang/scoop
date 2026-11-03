@@ -1,0 +1,80 @@
+package scoop.ui.component
+
+import scoop.graphics.Size
+import scoop.ui.Constraints
+
+internal struct AbsoluteRange(val minimum: Double, val maximum: Double)
+
+internal fun validateAbsoluteAxis(axis: AbsoluteAxis) {
+    when (axis) {
+        case Start(offset, size) -> validateAbsoluteFixed(offset, size)
+        case End(offset, size) -> validateAbsoluteFixed(offset, size)
+        case Center(offset, size) -> validateAbsoluteFixed(offset, size)
+        case Stretch(start, end) -> requireComponent(
+            start.isFinite() && end.isFinite(),
+            "invalid absolute stretch offset"
+        )
+    }
+}
+
+private fun validateAbsoluteFixed(offset: Double, size: Double?) {
+    requireComponent(offset.isFinite(), "invalid absolute offset")
+    when (size) {
+        case Some(value) -> nonnegative(value, "invalid absolute child size")
+        case None -> {}
+    }
+}
+
+internal fun absoluteSize(parent: Constraints, width: Double?, height: Double?): Size {
+    val x =
+        width ?:
+            (
+                parent.maxWidth ?:
+                    throw IllegalArgumentException(
+                        Some("absolute width requires a bounded parent or an explicit width")
+                    )
+            )
+    val y =
+        height ?:
+            (
+                parent.maxHeight ?:
+                    throw IllegalArgumentException(
+                        Some("absolute height requires a bounded parent or an explicit height")
+                    )
+            )
+    return parent.constrain(Size(x, y))
+}
+
+private fun absoluteFixedRange(size: Double?, available: Double): AbsoluteRange =
+    when (size) {
+        case Some(value) -> AbsoluteRange(value, value)
+        case None -> {
+            val maximum = lowerBound(available, 0.0)
+            nonnegative(maximum, "absolute measurement range overflow")
+            AbsoluteRange(0.0, maximum)
+        }
+    }
+
+internal fun absoluteRange(axis: AbsoluteAxis, extent: Double): AbsoluteRange =
+    when (axis) {
+        case Start(offset, size) -> absoluteFixedRange(size, extent - offset)
+        case End(offset, size) -> absoluteFixedRange(size, extent - offset)
+        case Center(_, size) -> absoluteFixedRange(size, extent)
+        case Stretch(start, end) -> {
+            val size = extent - start - end
+            nonnegative(size, "absolute stretch has a negative or non-finite size")
+            AbsoluteRange(size, size)
+        }
+    }
+
+internal fun absoluteOrigin(axis: AbsoluteAxis, extent: Double, size: Double): Double {
+    val result =
+        when (axis) {
+            case Start(offset, _) -> offset
+            case End(offset, _) -> extent - offset - size
+            case Center(offset, _) -> (extent - size) / 2.0 + offset
+            case Stretch(start, _) -> start
+        }
+    requireComponent(result.isFinite(), "absolute position overflow")
+    return result
+}

@@ -30,6 +30,9 @@ when = { os = "darwin" }
 path = "native/frames.m"
 when = { os = "darwin" }
 [[native.sources]]
+path = "native/scroll.m"
+when = { os = "darwin" }
+[[native.sources]]
 path = "native/view.cpp"
 when = { os = "windows" }
 [[native.libraries]]
@@ -42,6 +45,10 @@ kind = "framework"
 when = { os = "darwin" }
 [[native.libraries]]
 name = "Metal"
+kind = "framework"
+when = { os = "darwin" }
+[[native.libraries]]
+name = "CoreGraphics"
 kind = "framework"
 when = { os = "darwin" }
 [[native.libraries]]

@@ -1,0 +1,105 @@
+package scoop.tests.window.deadlines
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.window.*
+
+internal fun installDeadlines(probe: DeadlineProbe, application: ActiveApplication) {
+    val first = application.createWindow(WindowAttributes(visible = false))
+    val second = application.createWindow(WindowAttributes(visible = false))
+    probe.first = Some(first)
+    probe.second = Some(second)
+    application.setControlFlow(
+        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+    )
+    probe.repeater =
+        Some(
+            probe.make(first) {
+                val repeater = probe.repeater!!
+                assertFalse(repeater.isScheduled)
+                probe.repeats += 1
+                if (probe.repeats == 1) {
+                    probe.firstBatch = probe.batches
+                    probe.cancelled!!.cancel()
+                    probe.cancelled!!.cancel()
+                    probe.rescheduled!!.schedule(
+                        MonotonicTimeSource.markNow() + Duration.milliseconds(30L)
+                    )
+                    repeater.schedule(MonotonicTimeSource.markNow())
+                    assertEquals(1, probe.repeats)
+                } else {
+                    assertEquals(2, probe.repeats)
+                    assertTrue(probe.batches > probe.firstBatch)
+                    repeater.close()
+                    repeater.cancel()
+                    assertFailsWith<WindowException> {
+                        repeater.schedule(MonotonicTimeSource.markNow())
+                    }
+                }
+            }
+        )
+    probe.cancelled =
+        Some(probe.make(first) { fail(Some("cancelled callback survived its batch")) })
+    probe.rescheduled =
+        Some(
+            probe.make(first) {
+                assertEquals(2, probe.repeats)
+                assertEquals(0, probe.rescheduledCalls)
+                probe.rescheduledCalls += 1
+                val time = MonotonicTimeSource.markNow() + Duration.milliseconds(50L)
+                probe.userTime = Some(time)
+                application.setControlFlow(ControlFlow.WaitUntil(time))
+                probe.signal!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(10L))
+            }
+        )
+    probe.killer =
+        Some(
+            probe.make(first) {
+                first.requestDestroy()
+                assertTrue(probe.killer!!.isClosed)
+                assertTrue(probe.closingVictim!!.isClosed)
+                assertFalse(probe.closingVictim!!.isScheduled)
+                assertFailsWith<WindowException> { first.createDeadline {} }
+            }
+        )
+    probe.closingVictim = Some(probe.make(first) { fail(Some("callback survived its window")) })
+    probe.signal =
+        Some(
+            probe.make(second) {
+                probe.internalFired = true
+                closeAfterBoth(probe)
+            }
+        )
+    probe.finish =
+        Some(
+            probe.make(second) {
+                assertTrue(probe.closingStarted)
+                assertTrue(probe.closingVictim!!.isClosed)
+                assertFalse(probe.first!!.state == WindowState.Open)
+                probe.completed = true
+                throw probe.failure
+            }
+        )
+    val watchdog = probe.make(second) { fail(Some("window deadlines stopped progressing")) }
+    watchdog.schedule(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+    val past = MonotonicTimeSource.markNow() - Duration.seconds(1L)
+    probe.repeater!!.schedule(past)
+    probe.cancelled!!.schedule(past)
+    probe.rescheduled!!.schedule(past)
+    assertTrue(probe.repeater!!.isScheduled)
+    assertFailsWith<IllegalArgumentException> { probe.repeater!!.schedule(OtherClock.markNow()) }
+    assertTrue(probe.repeater!!.isScheduled)
+    probe.checkOwner(probe.repeater!!)
+    assertEquals(0, probe.repeats)
+}
+
+internal fun closeAfterBoth(probe: DeadlineProbe) {
+    if (!probe.internalFired || probe.userDeadlines == 0 || probe.closingStarted)
+        return
+    probe.closingStarted = true
+    val past = MonotonicTimeSource.markNow() - Duration.milliseconds(1L)
+    probe.killer!!.schedule(past)
+    probe.closingVictim!!.schedule(past)
+    probe.finish!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+}

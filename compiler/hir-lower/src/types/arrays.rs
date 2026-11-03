@@ -83,4 +83,54 @@ impl Lowerer {
     pub(crate) fn array_element_ty(&self, ty: TypeId) -> Option<TypeId> {
         self.array_type_info(ty).map(|array| array.element)
     }
+
+    /// Infer the literal's concrete array through its declared supertypes.
+    /// The ordinary solver keeps interface arguments invariant and leaves
+    /// unrelated or element-free expectations without an inferred element.
+    pub(crate) fn expected_array_literal(
+        &mut self,
+        expected: TypeId,
+        span: ast::Span,
+    ) -> Option<TypeId> {
+        if self.array_type_info(expected).is_some() {
+            return Some(expected);
+        }
+        self.nominal_application(expected)?;
+        use crate::call_resolution::candidates::NominalConstructorSource;
+        use crate::call_resolution::constraints::{
+            Constraint, ConstraintOrigin, InferenceSession, TypeTerm,
+        };
+        for kind in [ArrayKind::Immutable, ArrayKind::Mutable] {
+            let source = match &self.core {
+                crate::CoreLoweringAuthority::Defined => {
+                    NominalConstructorSource::IntrinsicClass(self.array_class(kind))
+                }
+                crate::CoreLoweringAuthority::Imported(protocols) => {
+                    let fundamental = protocols.fundamental_types();
+                    let owner = match kind {
+                        ArrayKind::Immutable => fundamental.array(),
+                        ArrayKind::Mutable => fundamental.mutable_array(),
+                    };
+                    NominalConstructorSource::ImportedArray(hir::SourceNominalId::GenericTemplate(
+                        owner.persistent(),
+                    ))
+                }
+            };
+            let view = self.nominal_constructor_view(source, span);
+            let mut session = InferenceSession::new();
+            let environment = session.add_environment(&view.signature.owner_parameters, &[]);
+            session.push(
+                Constraint::Subtype(
+                    TypeTerm::Type(view.signature.return_type),
+                    TypeTerm::Rigid(expected),
+                ),
+                ConstraintOrigin::ExpectedResult,
+            );
+            if let Ok(solution) = self.solve_constraints(&session) {
+                let element = solution.type_for(session.owner_variables(environment)[0]);
+                return Some(self.array_type(kind, element));
+            }
+        }
+        None
+    }
 }

@@ -1,0 +1,217 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.graphics.Size
+
+/** One bounded measurement followed by a pure placement decision. */
+internal class OverlayMeasurePlan(
+    val constraints: Constraints,
+    private val available: Rect,
+    private val placement: OverlayPlanPlacement
+) {
+    fun layout(size: Size): OverlayLayout =
+        when (placement) {
+            case Viewport(horizontal, vertical) -> OverlayLayout(
+                Rect(
+                    aligned(available.x, available.width, size.width, horizontal),
+                    aligned(available.y, available.height, size.height, vertical),
+                    size.width,
+                    size.height
+                ),
+                available,
+                None,
+                None
+            )
+            case Anchored(anchor, side, alignment, preferred, opposite) -> {
+                val vertical = verticalSide(side)
+                val extent =
+                    if (vertical)
+                        size.height
+                    else
+                        size.width
+                val first =
+                    if (vertical)
+                        preferred.height
+                    else
+                        preferred.width
+                val second =
+                    if (vertical)
+                        opposite.height
+                    else
+                        opposite.width
+                val keep = extent <= first || (extent > second && first >= second)
+                val actual =
+                    if (keep)
+                        side
+                    else
+                        reverseSide(side)
+                val space =
+                    if (keep)
+                        preferred
+                    else
+                        opposite
+                val x =
+                    when (actual) {
+                        case Left -> space.x + space.width - size.width
+                        case Right -> space.x
+                        else -> clampPosition(
+                            aligned(anchor.x, anchor.width, size.width, alignment),
+                            available.x,
+                            available.width,
+                            size.width
+                        )
+                    }
+                val y =
+                    when (actual) {
+                        case Top -> space.y + space.height - size.height
+                        case Bottom -> space.y
+                        else -> clampPosition(
+                            aligned(anchor.y, anchor.height, size.height, alignment),
+                            available.y,
+                            available.height,
+                            size.height
+                        )
+                    }
+                OverlayLayout(
+                    Rect(x, y, size.width, size.height),
+                    space,
+                    Some(anchor),
+                    Some(actual)
+                )
+            }
+        }
+}
+
+internal enum OverlayPlanPlacement {
+    Viewport(OverlayAlignment, OverlayAlignment),
+    Anchored(Rect, OverlaySide, OverlayAlignment, Rect, Rect)
+}
+
+internal fun planOverlay(
+    placement: OverlayPlacement,
+    viewport: Size,
+    anchor: Rect?
+): OverlayMeasurePlan {
+    checkLayoutSize(viewport)
+    return when (placement) {
+        case Viewport(horizontal, vertical, padding) -> {
+            val available = insetViewport(viewport, padding)
+            OverlayMeasurePlan(
+                Constraints(maxWidth = Some(available.width), maxHeight = Some(available.height)),
+                available,
+                OverlayPlanPlacement.Viewport(horizontal, vertical)
+            )
+        }
+        case Anchored(_, side, alignment, gap, padding, matchWidth) -> {
+            val bounds =
+                anchor ?: throw IllegalStateException(Some("anchor has no current geometry"))
+            requireUi(
+                (bounds.x + bounds.width).isFinite() && (bounds.y + bounds.height).isFinite(),
+                "anchor bounds overflow"
+            )
+            val available = insetViewport(viewport, padding)
+            val preferred = sideSpace(available, bounds, side, gap)
+            val opposite = sideSpace(available, bounds, reverseSide(side), gap)
+            val width = maximum(preferred.width, opposite.width)
+            val height = maximum(preferred.height, opposite.height)
+            val matched = minimum(bounds.width, width)
+            OverlayMeasurePlan(
+                Constraints(
+                    minWidth =
+                        if (matchWidth)
+                            matched
+                        else
+                            0.0,
+                    maxWidth =
+                        Some(
+                            if (matchWidth)
+                                matched
+                            else
+                                width
+                        ),
+                    maxHeight = Some(height)
+                ),
+                available,
+                OverlayPlanPlacement.Anchored(bounds, side, alignment, preferred, opposite)
+            )
+        }
+    }
+}
+
+private fun minimum(a: Double, b: Double): Double =
+    if (a < b)
+        a
+    else
+        b
+
+private fun maximum(a: Double, b: Double): Double =
+    if (a > b)
+        a
+    else
+        b
+
+private fun clamp(value: Double, lower: Double, upper: Double): Double =
+    minimum(maximum(value, lower), upper)
+
+private fun insetViewport(size: Size, padding: Double): Rect {
+    val x = minimum(padding, size.width / 2.0)
+    val y = minimum(padding, size.height / 2.0)
+    return Rect(x, y, size.width - x * 2.0, size.height - y * 2.0)
+}
+
+private fun aligned(
+    origin: Double,
+    available: Double,
+    extent: Double,
+    alignment: OverlayAlignment
+): Double =
+    when (alignment) {
+        case Start -> origin
+        case Center -> origin + available / 2.0 - extent / 2.0
+        case End -> origin + available - extent
+    }
+
+private fun clampPosition(
+    value: Double,
+    origin: Double,
+    available: Double,
+    extent: Double
+): Double = clamp(value, origin, origin + available - extent)
+
+private fun verticalSide(side: OverlaySide): Boolean =
+    side == OverlaySide.Top || side == OverlaySide.Bottom
+
+private fun reverseSide(side: OverlaySide): OverlaySide =
+    when (side) {
+        case Top -> OverlaySide.Bottom
+        case Right -> OverlaySide.Left
+        case Bottom -> OverlaySide.Top
+        case Left -> OverlaySide.Right
+    }
+
+private fun sideSpace(viewport: Rect, anchor: Rect, side: OverlaySide, gap: Double): Rect {
+    val right = viewport.x + viewport.width
+    val bottom = viewport.y + viewport.height
+    return when (side) {
+        case Top -> Rect(
+            viewport.x,
+            viewport.y,
+            viewport.width,
+            clamp(anchor.y - gap, viewport.y, bottom) - viewport.y
+        )
+        case Bottom -> {
+            val y = clamp(anchor.y + anchor.height + gap, viewport.y, bottom)
+            Rect(viewport.x, y, viewport.width, bottom - y)
+        }
+        case Left -> Rect(
+            viewport.x,
+            viewport.y,
+            clamp(anchor.x - gap, viewport.x, right) - viewport.x,
+            viewport.height
+        )
+        case Right -> {
+            val x = clamp(anchor.x + anchor.width + gap, viewport.x, right)
+            Rect(x, viewport.y, right - x, viewport.height)
+        }
+    }
+}

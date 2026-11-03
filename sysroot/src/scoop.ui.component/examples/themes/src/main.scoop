@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
 import scoop.window.*
 
 internal class Showcase(
@@ -12,6 +13,18 @@ internal class Showcase(
     private val fonts: FontCollection
 ): Component {
     private var count: Int by state(0)
+    private val name = TextEditorState("Scoop")
+    private val notes = TextEditorState()
+    private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
+    public override fun onMount(scope: ComponentScope) {
+        scope.keyNavigation(
+            NavigationOptions(
+                Array<NavigationItem>(choices.size) { index -> NavigationItem(choices[index]) },
+                layout = NavigationLayout.Horizontal,
+                loop = true
+            )
+        )
+    }
     public override fun render(): View {
         val theme = model.source.current.value
         val effects = ArrayList<ContentEffect>()
@@ -82,13 +95,13 @@ internal class Showcase(
                     ),
                     row(
                         [
-                            choiceButton("macOS", ThemeChoice.MacOS),
-                            choiceButton("Material", ThemeChoice.Material),
-                            choiceButton("Fluent", ThemeChoice.Fluent),
+                            choiceButton("macOS", ThemeChoice.MacOS, 0L),
+                            choiceButton("Material", ThemeChoice.Material, 1L),
+                            choiceButton("Fluent", ThemeChoice.Fluent, 2L),
                             label("/", fonts = Some(fonts)),
-                            modeButton("Light", ModeChoice.Light),
-                            modeButton("Dark", ModeChoice.Dark),
-                            modeButton("Follow system", ModeChoice.System),
+                            modeButton("Light", ModeChoice.Light, 3L),
+                            modeButton("Dark", ModeChoice.Dark, 4L),
+                            modeButton("Follow system", ModeChoice.System, 5L),
                             label(
                                 if (theme.tokens.mode == ThemeMode.Dark)
                                     "Dark palette"
@@ -122,9 +135,54 @@ internal class Showcase(
                         alignment = AxisAlignment.Center
                     ),
                     label(
-                        "Hover, press, or focus the live controls. Effect order: drop shadow → glow → blur.",
+                        "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur.",
                         style = Some(SpanStyle(fontSize = Some(12.0))),
                         fonts = Some(fonts)
+                    ),
+                    row(
+                        [
+                            frame(
+                                column(
+                                    [
+                                        label("Project name", fonts = Some(fonts)),
+                                        input(
+                                            name,
+                                            placeholder = "Enter a name",
+                                            enabled = model.enabled.value,
+                                            invalid = name.text.byteLength == 0L,
+                                            description =
+                                                if (name.text.byteLength == 0L)
+                                                    "This field is required."
+                                                else
+                                                    "Enter submits the name.",
+                                            fonts = Some(fonts),
+                                            onSubmit = { _ -> count += 1 }
+                                        )
+                                    ],
+                                    spacing = 4.0
+                                ),
+                                width = Some(350.0)
+                            ),
+                            frame(
+                                column(
+                                    [
+                                        label("Notes", fonts = Some(fonts)),
+                                        textarea(
+                                            notes,
+                                            placeholder = "Add a note",
+                                            rows = 3L,
+                                            enabled = model.enabled.value,
+                                            description = "Enter adds a line. ⌘Enter submits.",
+                                            fonts = Some(fonts),
+                                            onSubmit = { _ -> count += 1 }
+                                        )
+                                    ],
+                                    spacing = 4.0
+                                ),
+                                width = Some(600.0)
+                            )
+                        ],
+                        spacing = 16.0
                     )
                 ],
                 spacing = 5.0
@@ -138,7 +196,7 @@ internal class Showcase(
                 )
         )
     }
-    private fun choiceButton(text: String, value: ThemeChoice): View =
+    private fun choiceButton(text: String, value: ThemeChoice, index: Long): View =
         button(
             text,
             { model.select(value) },
@@ -150,9 +208,10 @@ internal class Showcase(
                         else
                             SurfaceKind.Plain
                 ),
-            fonts = Some(fonts)
+            fonts = Some(fonts),
+            focus = FocusOptions(Some(choices[index]))
         )
-    private fun modeButton(text: String, value: ModeChoice): View =
+    private fun modeButton(text: String, value: ModeChoice, index: Long): View =
         button(
             text,
             { model.selectMode(value) },
@@ -164,7 +223,8 @@ internal class Showcase(
                         else
                             SurfaceKind.Plain
                 ),
-            fonts = Some(fonts)
+            fonts = Some(fonts),
+            focus = FocusOptions(Some(choices[index]))
         )
     private fun option(value: Binding<Boolean>, text: String): View =
         row(
@@ -184,8 +244,8 @@ private class Gallery(
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0)))
-    public override fun paint(context: PaintContext) {
-        painter!!.paint(context.canvas, props.value, context.size.width)
+    public override fun scene(context: SceneContext) {
+        context.draw { paint -> painter!!.paint(paint.canvas, props.value, paint.size.width) }
     }
 }
 
@@ -201,7 +261,7 @@ fun main() {
                     case Resumed -> {
                         val window =
                             active.createWindow(
-                                WindowAttributes("Scoop — themes", LogicalSize(1120.0, 670.0))
+                                WindowAttributes("Scoop — themes", LogicalSize(1120.0, 840.0))
                             )
                         model.systemTheme(window.observedTheme)
                         host.attach(window, { Showcase(model, fonts) })

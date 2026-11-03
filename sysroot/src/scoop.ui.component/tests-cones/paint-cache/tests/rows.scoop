@@ -1,0 +1,138 @@
+package scoop.tests.ui.paintcache
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.ParagraphHost
+import scoop.window.ElementState
+
+internal class PaintRowRecord(val mode: Int, val id: Long) {
+    val local = state(0)
+    var observed = -1
+    var scenes = 0
+    var paints = 0
+    var foregrounds = 0
+    var unmounts = 0
+    var area: InputArea? = None
+    var text: ParagraphHost? = None
+    var lastPosition: Point? = None
+}
+
+private class PaintRow(private val probe: CacheProbe, mode: Int, id: Long): Component {
+    private val record = PaintRowRecord(mode, id)
+    init {
+        probe.rows.add(record)
+    }
+    public override fun render(): View =
+        element(record.local.value, { input -> PaintRowInk(probe, record, input) })
+}
+
+private class PaintRowInk(
+    private val probe: CacheProbe,
+    private val record: PaintRowRecord,
+    private val props: Props<Int>
+): Element {
+    private var content = StyledText([])
+    private var checkedContract = false
+    public override fun onMount(scope: ComponentScope) {
+        record.text = Some(scope.resource { ParagraphHost() })
+        record.area =
+            Some(
+                scope.createArea {
+                    route,
+                    event -> when (event) {
+                        case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> {
+                            record.lastPosition = route.localPosition
+                            record.local.value += 1
+                            route.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            )
+    }
+    public override fun update() {
+        if (record.observed == props.value)
+            return
+        record.observed = props.value
+        content =
+            StyledText(
+                [TextSpan.text(f"Row ${record.id}: ${props.value}")],
+                TextStyle(["Cache Test"], 14.0)
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        record.text!!.measure(context, Constraints(maxWidth = Some(120.0)), probe.fonts, content)
+        return LayoutMetrics(
+            constraints.constrain(
+                Size(
+                    144.0,
+                    if (record.id < 0L)
+                        192.0
+                    else
+                        24.0
+                )
+            )
+        )
+    }
+    public override fun scene(context: SceneContext) {
+        record.scenes += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(record.area!!, bounds)
+        context.drawLayer(probe.backgroundKey, bounds, props.value.toLong()) {
+            paint ->
+            record.paints += 1
+            assertEquals(Transform(), paint.canvas.pixelTransform)
+            assertFailsWith<IllegalStateException> { context.place(record.area!!, bounds) }
+            assertFailsWith<IllegalStateException> { record.local.value += 1 }
+            paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (props.value % 2 == 0)
+                        Color(1.0, 0.0, 0.0)
+                    else
+                        Color(0.0, 0.0, 1.0)
+                )
+            )
+        }
+        if (!checkedContract) {
+            checkedContract = true
+            assertFailsWith<IllegalArgumentException> {
+                context.withState {
+                    child -> child.drawLayer(probe.backgroundKey, bounds, 0L) {
+                        _ -> fail(Some("duplicate key recorded"))
+                    }
+                }
+            }
+        }
+        record.text!!.scene(context)
+        context.draw {
+            paint ->
+            record.foregrounds += 1
+            paint.canvas.drawRect(Rect(100.0, 20.0, 2.0, 2.0), Paint(Color(0.0, 1.0, 0.0)))
+        }
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+        assertTrue(record.area!!.isClosed)
+    }
+}
+
+internal class PaintSource(private val probe: CacheProbe, private val mode: Int): ItemSource {
+    public override val count: Long get() = 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(value) -> if (value >= 0L && value < count)
+                Some(value)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View = paintRow(probe, mode, index)
+}
+
+internal fun paintRow(probe: CacheProbe, mode: Int, id: Long): View =
+    component({ PaintRow(probe, mode, id) })

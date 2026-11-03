@@ -83,8 +83,8 @@ private class InputSession: Closeable {
                             input -> receive(area, input, false)
                         }
                     )
-                first!!.setCaret(Rect(12.0, 34.0, 2.0, 18.0))
-                second!!.setCaret(Rect(12.0, 34.0, 2.0, 18.0))
+                first!!.setCaret(Some(Rect(12.0, 34.0, 2.0, 18.0)))
+                second!!.setCaret(Some(Rect(12.0, 34.0, 2.0, 18.0)))
                 val value = attached.animations.value(0.0)
                 motion = Some(value)
                 value.animateTo(
@@ -159,15 +159,16 @@ private class InputSession: Closeable {
         assertFailsWith<IllegalStateException> { ended.canvas.save() }
     }
 
-    private fun receive(area: InputArea, event: AreaEvent, isFirst: Boolean): InputResult {
+    private fun receive(context: RoutedEventContext, event: InputEvent, isFirst: Boolean) {
+        val area = context.currentTarget.area!!
         when (event) {
-            case Pointer(AreaPointerEvent.Button(pointer, _, ElementState.Pressed, _)) -> {
+            case Pointer(InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)) -> {
                 downs += 1
-                assertEquals(Point(10.0, 10.0), pointer.localPosition)
+                assertEquals(Point(10.0, 10.0), context.localPosition!!)
                 assertTrue(area.requestFocus())
             }
-            case Pointer(AreaPointerEvent.Button(_, _, ElementState.Released, _)) -> ups += 1
-            case TextInput(TextInputEvent.Enabled) -> {
+            case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> ups += 1
+            case TextInput(TextInputEvent.Enabled(_)) -> {
                 if (isFirst) {
                     assertEquals(InputPhase.FirstEnabled, phase)
                     assertTrue(view!!.caretMatches(12.0, 34.0, 2.0, 18.0))
@@ -183,7 +184,7 @@ private class InputSession: Closeable {
                     assertTrue(view!!.commitText())
                 }
             }
-            case TextInput(TextInputEvent.Disabled) -> {
+            case TextInput(TextInputEvent.Disabled(_)) -> {
                 if (isFirst)
                     oldDisabled = true
             }
@@ -209,7 +210,7 @@ private class InputSession: Closeable {
             }
             else -> {}
         }
-        return InputResult.Ignored
+        return
     }
 
     public override fun close() {

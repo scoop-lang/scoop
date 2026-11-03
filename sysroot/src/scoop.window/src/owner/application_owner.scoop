@@ -2,7 +2,7 @@ package scoop.window
 
 import scoop.platform.concurrent.ThreadId
 import scoop.platform.concurrent.currentThreadId
-import scoop.platform.time.MonotonicTimeSource
+import scoop.time.TimeMark
 import scoop.window.native.ApplicationAttachment
 import scoop.window.native.ApplicationHost
 import scoop.window.native.ApplicationWatch
@@ -14,6 +14,8 @@ internal class ApplicationOwner(
 ) {
     val mailbox: ApplicationMailbox = ApplicationMailbox()
     val windows: ArrayList<WindowOwner> = ArrayList<WindowOwner>()
+    val deadlines = ArrayList<WindowDeadline>()
+    var armedDeadline: TimeMark? = None
     var monitorRecords: ArrayList<MonitorRecord> = ArrayList<MonitorRecord>()
     var nextMonitor: Long = 1L
     val watches: ArrayList<ApplicationWatch> = ArrayList<ApplicationWatch>()
@@ -208,35 +210,12 @@ internal class ApplicationOwner(
         checkThread()
         if (exiting)
             throw WindowException("set control flow", WindowErrorKind.InvalidState)
-        val seconds =
-            when (flow) {
-                case Wait -> -1.0
-                case Poll -> 0.0
-                case WaitUntil(mark) -> {
-                    requireWindow(
-                        mark.source === MonotonicTimeSource,
-                        "window deadline requires MonotonicTimeSource"
-                    )
-                    val remaining = mark - MonotonicTimeSource.markNow()
-                    if (remaining.floorSeconds < 0L)
-                        0.0
-                    else
-                        remaining.floorSeconds.toDouble() +
-                            remaining.nanosecondsOfSecond.toDouble() /
-                            1000000000.0
-                }
-            }
-        this.flow = flow
-        @Unsafe
-        {
-            nativeApplicationDeadline(
-                native!!,
-                if (flow == ControlFlow.Poll)
-                    -1.0
-                else
-                    seconds
-            )
+        when (flow) {
+            case WaitUntil(mark) -> checkDeadlineTime(mark)
+            else -> {}
         }
+        this.flow = flow
+        refreshDeadline()
         if (flow == ControlFlow.Poll)
             mailbox.wake()
     }
@@ -246,6 +225,7 @@ internal class ApplicationOwner(
             return
         exiting = true
         mailbox.closeBusiness()
+        refreshDeadline()
         for (window in windows)
             window.close()
         mailbox.wake()

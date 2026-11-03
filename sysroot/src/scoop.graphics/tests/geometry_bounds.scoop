@@ -1,0 +1,84 @@
+package scoop.graphics
+
+import scoop.graphics.native.*
+import scoop.test.*
+
+@Test
+private class GeometryBoundsTest {
+    @Test
+    fun `visible bounds use the same transform clip and target viewport as the scene`() {
+        val geometry =
+            RasterSurface(64, 48).use {
+                surface -> surface.draw {
+                    canvas ->
+                    canvas.translate(8.0, 16.0)
+                    canvas.scale(2.0, 2.0)
+                    canvas.clipRect(Rect(0.0, 0.0, 20.0, 20.0))
+                    @Unsafe
+                    {
+                        return@draw captureGeometry(canvas, Rect(0.0, 0.0, 40.0, 40.0))
+                    }
+                }
+            }
+        geometry.use {
+            current ->
+            assertEquals(Rect(8.0, 16.0, 80.0, 80.0), current.bounds)
+            assertEquals(Some(Rect(8.0, 16.0, 40.0, 32.0)), current.visibleBounds)
+        }
+        assertFailsWith<IllegalStateException> { geometry.visibleBounds }
+    }
+
+    @Test
+    fun `path holes exclude shapes even when their bounding rectangles overlap`() {
+        RasterSurface(80, 80).use {
+            surface ->
+            val hole =
+                PathBuilder(FillRule.EvenOdd).use {
+                    builder ->
+                    builder.addRect(Rect(0.0, 0.0, 80.0, 80.0))
+                    builder.addRect(Rect(20.0, 20.0, 40.0, 40.0))
+                    builder.build()
+                }
+            try {
+                val geometry =
+                    surface.draw {
+                        canvas ->
+                        canvas.clipPath(hole)
+                        @Unsafe
+                        {
+                            return@draw captureGeometry(canvas, Rect(25.0, 25.0, 10.0, 10.0))
+                        }
+                    }
+                hole.close()
+                geometry.use {
+                    current ->
+                    assertEquals(Rect(25.0, 25.0, 10.0, 10.0), current.bounds)
+                    assertEquals(None, current.visibleBounds)
+                }
+            } finally {
+                hole.close()
+            }
+        }
+    }
+
+    @Test
+    fun `singular empty and offscreen shapes have no visible focus geometry`() {
+        RasterSurface(40, 40).use {
+            surface -> surface.draw {
+                canvas -> @Unsafe
+                {
+                    captureGeometry(canvas, Rect(50.0, 0.0, 10.0, 10.0)).use {
+                        current -> assertEquals(None, current.visibleBounds)
+                    }
+                    captureGeometry(canvas, Rect(0.0, 0.0, 0.0, 10.0)).use {
+                        current -> assertEquals(None, current.visibleBounds)
+                    }
+                    canvas.scale(0.0, 1.0)
+                    captureGeometry(canvas, Rect(0.0, 0.0, 10.0, 10.0)).use {
+                        current -> assertEquals(None, current.visibleBounds)
+                    }
+                }
+            }
+        }
+    }
+}

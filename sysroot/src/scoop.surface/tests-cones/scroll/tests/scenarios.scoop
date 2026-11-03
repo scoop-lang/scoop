@@ -1,0 +1,107 @@
+package scoop.tests.surface.scroll
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.window.*
+
+internal fun NativeScrollSession.check(active: ActiveApplication) {
+    when (phase) {
+        case 1 -> {
+            assertEquals(
+                1,
+                innerEvents,
+                Some(f"wheel position: ${lastPosition.x}, ${lastPosition.y}")
+            )
+            assertEquals(1, outerEvents)
+            assertEquals(2L, amounts.size)
+            assertEquals(
+                NativeScrollAmount(InputScrollDelta.Lines(2.0, -4.0), Point(20.0, -40.0)),
+                amounts[0L]
+            )
+            assertEquals(
+                NativeScrollAmount(InputScrollDelta.Lines(2.0, -4.0), Point(20.0, -40.0)),
+                amounts[1L]
+            )
+            phase = 2
+            send(8, -12, true, 1)
+            after(active)
+        }
+        case 2 -> {
+            assertEquals(2, innerEvents)
+            assertEquals(2, outerEvents)
+            assertEquals(
+                NativeScrollAmount(InputScrollDelta.Pixels(8.0, -12.0), Point(8.0, -12.0)),
+                amounts[2L]
+            )
+            assertEquals(
+                NativeScrollAmount(InputScrollDelta.Pixels(8.0, -12.0), Point(4.0, -6.0)),
+                amounts[3L]
+            )
+            moved = true
+            phase = 3
+            surface!!.requestFrame()
+        }
+        case 4 -> {
+            assertEquals(7, innerEvents)
+            assertEquals(7, outerEvents)
+            assertEquals(ScrollPhase.Began, contacts[1L])
+            assertEquals(ScrollPhase.Changed, contacts[2L])
+            assertEquals(ScrollPhase.Ended, contacts[3L])
+            assertEquals(ScrollPhase.Began, momentums[4L])
+            assertEquals(ScrollPhase.Changed, momentums[5L])
+            assertEquals(ScrollPhase.Ended, momentums[6L])
+            phase = 5
+            send(2, -4)
+            after(active)
+        }
+        case 5 -> {
+            assertEquals(7, innerEvents)
+            assertEquals(8, outerEvents)
+            assertEquals(
+                NativeScrollAmount(InputScrollDelta.Lines(2.0, -4.0), Point(40.0, -80.0)),
+                amounts[amounts.size - 1L]
+            )
+            phase = 6
+            send(8, -12, true, 1, x = 160.0)
+            after(active)
+        }
+        case 6 -> {
+            assertEquals(8, innerEvents)
+            assertEquals(9, outerEvents)
+            inner!!.scope.enabled = false
+            assertEquals(1, innerCancels)
+            assertEquals(1, outerCancels)
+            phase = 7
+            send(8, -12, true, 2)
+            send(0, 0, true, 4)
+            send(8, -12, true, momentum = 1)
+            send(0, 0, true, momentum = 3)
+            after(active)
+        }
+        case 7 -> {
+            assertEquals(8, innerEvents)
+            assertEquals(9, outerEvents)
+            assertEquals(1, innerCancels)
+            assertEquals(1, outerCancels)
+            phase = 8
+            send(2, -4)
+            after(active)
+        }
+        case 8 -> {
+            assertEquals(8, innerEvents)
+            assertEquals(10, outerEvents)
+            phase = 9
+            surface!!.close()
+            after(active)
+        }
+        case 9 -> {
+            assertEquals(SurfaceWindowState.Closed, surface!!.state)
+            assertTrue(contentClosed)
+            assertTrue(view!!.restored())
+            phase = 10
+            window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected native scroll phase"))
+    }
+}

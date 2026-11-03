@@ -1,0 +1,38 @@
+package scoop.ui.text
+
+import scoop.platform.time.MonotonicTimeSource
+
+private fun editorCanBlink(host: TextEditHost): Boolean {
+    if (
+        host.closed ||
+            !host.scope.isMounted ||
+            !host.area.isFocusActive ||
+            host.current.isComposing ||
+            host.current.selection.anchor !=
+            host.current.selection.cursor ||
+            !host.window.isVisible ||
+            host.window.isOccluded ||
+            host.area.visibleCaretBounds ==
+            None
+    )
+        return false
+    val interval = host.options.caretBlink
+    return interval.floorSeconds > 0L || interval.nanosecondsOfSecond > 0
+}
+
+internal fun editorScheduleBlink(host: TextEditHost) {
+    if (!editorCanBlink(host)) {
+        host.blink.cancel()
+        return
+    }
+    if (!host.blink.isScheduled)
+        host.blink.schedule(MonotonicTimeSource.markNow() + host.options.caretBlink)
+}
+
+internal fun editorBlink(host: TextEditHost) {
+    if (!editorCanBlink(host))
+        return
+    host.caretVisible = !host.caretVisible
+    host.scope.requestFrame()
+    // The next successful frame decides whether another tick is still useful.
+}

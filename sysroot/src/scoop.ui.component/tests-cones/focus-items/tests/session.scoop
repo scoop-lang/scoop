@@ -1,0 +1,166 @@
+package scoop.tests.ui.itemfocus
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class VirtualFocusTest {
+    @Test
+    fun `keyed requests realize distant items and retire failed or superseded focus without eager handles`() {
+        val probe = ItemFocusProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.rows.size < 40L)
+            assertEquals(probe.builds.toLong(), probe.rows.size)
+            assertFalse(probe.first.isAttached)
+            assertFalse(probe.second.isAttached)
+            for (row in probe.rows) {
+                assertEquals(1, row.mounts)
+                assertEquals(1, row.unmounts)
+                assertEquals(1, row.disposals)
+                for (handle in row.handles)
+                    assertFalse(handle.isAttached)
+            }
+            assertFalse(probe.frames!!.snapshot().required)
+        } catch (failure: Exception) {
+            fail(
+                Some(
+                    f"item focus phase=${probe.phase}: " +
+                        (failure.message ?: "unspecified failure")
+                )
+            )
+        } finally {
+            probe.frames?.close()
+        }
+    }
+}
+
+internal class ItemFocusProbe {
+    val scroll = ScrollState()
+    val first = VirtualListHandle()
+    val second = VirtualListHandle()
+    val lead = FocusHandle()
+    val theme = ThemeSource(macosTheme())
+    val enabled = state(true)
+    val variable = state(false)
+    val replacement = state(false)
+    val show = state(true)
+    val outer = state(0L)
+    val rows = ArrayList<FocusRowRecord>()
+    var data: State<ItemSource>? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var scope: ComponentScope? = None
+    var frames: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var checkpointAction: () -> Unit = {}
+    var builds = 0
+    var accepted = 0
+    var passes = 0
+    var phase = 0
+    var waiting = false
+    var retryFocus = false
+    var finished = false
+    var discardNext = false
+    var discarded = 0
+    var checkFarGeometry = false
+    var farGeometryChecked = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                data = Some(state<ItemSource>(FocusSource(this)))
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop keyed focus", LogicalSize(320.0, 220.0))
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                checkpoint =
+                    Some(
+                        native.createDeadline {
+                            val action = checkpointAction
+                            assertTrue(application.proxy().post { _ -> action() })
+                        }
+                    )
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { ItemFocusScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (phase < 18 && !waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (settled())
+                                advanceItemFocus(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 18
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"item focus timeout phase=${phase}, frames=${passes}, accepted=${accepted}")
+            )
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean =
+        accepted >
+            0 &&
+            window!!.isFocused &&
+            !frames!!.snapshot().required &&
+            !first.isPending &&
+            !second.isPending &&
+            !lead.isPending
+    fun next(action: () -> Unit) {
+        phase += 1
+        waiting = true
+        action()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun find(id: Long): FocusRowRecord? {
+        for (row in rows)
+            if (row.id == id && row.unmounts == 0)
+                return Some(row)
+        return None
+    }
+    fun row(id: Long): FocusRowRecord =
+        find(id) ?: throw IllegalStateException(Some("focus row is not mounted"))
+    fun assertFocused(id: Long, part: Long) {
+        assertFalse(lead.hasFocus)
+        for (row in rows)
+            for (index in 0L ..< row.handles.size)
+                assertEquals(
+                    row.id == id && row.unmounts == 0 && index == part,
+                    row.handles[index].hasFocus,
+                    Some(f"phase=${phase}, row=${row.id}, part=${index}")
+                )
+    }
+}

@@ -25,20 +25,29 @@ public enum TextInputOperation {
     DeleteSurrounding(val beforeBytes: Long, val afterBytes: Long)
 }
 
+/** One native document connection, replaced whenever macOS text input reopens. */
+public struct TextInputConnection(val window: WindowId, val generation: Long)
+
+/** Ordered native batch identity; it is independent of the application's text revision. */
+public struct TextInputOrigin(val connection: TextInputConnection, val sequence: Long)
+
 /** An owned, ordered edit transaction against an optional editor revision. */
 public class TextInputBatch public constructor(
     public val baseRevision: Long?,
-    operations: List<TextInputOperation>
+    operations: List<TextInputOperation>,
+    public val origin: TextInputOrigin? = None
 ) {
     public val operations: Array<TextInputOperation> = operations.toArray()
 }
 
 /** Text has exactly one insertion channel, including ordinary printable keys. */
 public enum TextInputEvent {
-    Enabled, Disabled, Edit(TextInputBatch)
+    Enabled(val connection: TextInputConnection?), Disabled(
+        val connection: TextInputConnection?
+    ), Edit(TextInputBatch)
 }
 
-/** The editor's immutable UTF-8 snapshot; it is not published to the native input context. */
+/** An immutable UTF-8 snapshot, published to native text input only by an explicit request. */
 public struct TextInputState(
     val surroundingText: String,
     val selection: Utf8Selection,
@@ -82,3 +91,6 @@ internal fun textSlice(text: String, range: Utf8Range): String {
         Array<Byte>(range.end - range.start) { index -> bytes[range.start + index] }
     )
 }
+
+/** Copies a validated UTF-8 byte range without reinterpreting it as character indices. */
+public fun String.utf8Slice(range: Utf8Range): String = textSlice(this, range)

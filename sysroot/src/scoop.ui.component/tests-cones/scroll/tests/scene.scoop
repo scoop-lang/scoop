@@ -1,0 +1,200 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class AreaScene(private val probe: AreaProbe): Component {
+    public override fun render(): View {
+        probe.renders += 1
+        val generation = probe.generation.value
+        return element(
+            generation,
+            { props -> AreaPanel(probe, props) },
+            [
+                if (generation < 4)
+                    scrollArea(
+                        component(generation, { props -> AreaContent(probe, props) }),
+                        state = Some(probe.outer),
+                        axes = ScrollAxes.Both,
+                        lineStep = 20.0,
+                        focus = FocusOptions(Some(probe.outerFocus)),
+                        theme = Some(probe.theme)
+                    )
+                else
+                    empty()
+            ]
+        )
+    }
+}
+
+private class AreaPanel(private val probe: AreaProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+                        if (probe.preventWheel)
+                            context.preventDefault()
+                    }
+                    case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> {
+                        if (probe.preventRelease)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(200.0, 120.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.outsidePixel = readNativePixel(native, 250.0, 120.0)
+                    }
+                }
+            }
+        }
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = generation
+        }
+    }
+}
+
+private class AreaContent(private val probe: AreaProbe, private val props: Props<Int>): Component {
+    public override fun onMount(scope: ComponentScope) {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun render(): View {
+        probe.contentRenders += 1
+        return element(
+            props.value,
+            { current -> ContentLayout(probe, current) },
+            [
+                scrollArea(
+                    element({ ContentInput(probe, true) }),
+                    state = Some(probe.inner),
+                    lineStep = 10.0,
+                    chain =
+                        if (props.value == 1)
+                            ScrollChain.Contain
+                        else
+                            ScrollChain.Chain,
+                    theme = Some(probe.theme)
+                ),
+                element({ ContentInput(probe, false) })
+            ]
+        )
+    }
+}
+
+private class ContentLayout(private val probe: AreaProbe, private val props: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(100.0, 60.0)))
+        context.placeChild(0L, Point(40.0, 30.0))
+        context.measureChild(1L, Constraints.tight(Size(50.0, 30.0)))
+        context.placeChild(1L, Point(240.0, 400.0))
+        return LayoutMetrics(
+            constraints.constrain(
+                if (props.value == 3)
+                    Size(150.0, 80.0)
+                else
+                    Size(400.0, 600.0)
+            )
+        )
+    }
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.9, 0.9, 0.9))) }
+        context.children()
+    }
+}
+
+private class ContentInput(private val probe: AreaProbe, private val inner: Boolean): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val input = scope.createArea(focusable = true)
+        area = Some(input)
+        if (inner)
+            probe.innerArea = Some(input)
+        else
+            probe.leafArea = Some(input)
+        scope.focusTarget(
+            input,
+            FocusOptions(
+                Some(
+                    if (inner)
+                        probe.innerFocus
+                    else
+                        probe.leafFocus
+                )
+            )
+        )
+        input.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(value) -> if (
+                        value.state ==
+                            ElementState.Pressed &&
+                            value.logicalKey ==
+                            LogicalKey.Named(NamedKey.PageDown)
+                    ) {
+                        probe.childKeys += 1
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (!inner)
+                            probe.leafClicks += 1
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(
+            constraints.constrain(
+                if (inner)
+                    Size(100.0, 240.0)
+                else
+                    Size(50.0, 30.0)
+            )
+        )
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, rect)
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                rect,
+                Paint(
+                    if (inner)
+                        Color(0.2, 0.5, 0.8)
+                    else
+                        Color(0.9, 0.2, 0.1)
+                )
+            )
+        }
+    }
+}

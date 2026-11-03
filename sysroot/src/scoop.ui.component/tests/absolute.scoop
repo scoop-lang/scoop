@@ -1,0 +1,62 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+@Test
+private class AbsoluteLayoutTest {
+    @Test
+    fun `absolute extent is resolved before children and unbounded axes require a size`() {
+        val parent = Constraints(minWidth = 40.0, maxWidth = Some(120.0), maxHeight = Some(100.0))
+        assertEquals(Size(120.0, 100.0), absoluteSize(parent, None, None))
+        assertEquals(Size(40.0, 100.0), absoluteSize(parent, Some(20.0), Some(150.0)))
+        assertEquals(Size(75.0, 50.0), absoluteSize(Constraints(), Some(75.0), Some(50.0)))
+        assertFailsWith<IllegalArgumentException> { absoluteSize(Constraints(), None, Some(50.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            absoluteSize(Constraints(maxWidth = Some(100.0)), None, None)
+        }
+    }
+
+    @Test
+    fun `axis constraints and origins retain negative offsets tight dimensions and content sizing`() {
+        assertEquals(AbsoluteRange(0.0, 90.0), absoluteRange(AbsoluteAxis.Start(10.0), 100.0))
+        assertEquals(AbsoluteRange(0.0, 110.0), absoluteRange(AbsoluteAxis.End(-10.0), 100.0))
+        assertEquals(AbsoluteRange(0.0, 100.0), absoluteRange(AbsoluteAxis.Center(20.0), 100.0))
+        assertEquals(
+            AbsoluteRange(200.0, 200.0),
+            absoluteRange(AbsoluteAxis.Start(70.0, Some(200.0)), 100.0)
+        )
+        assertEquals(
+            AbsoluteRange(90.0, 90.0),
+            absoluteRange(AbsoluteAxis.Stretch(-5.0, 15.0), 100.0)
+        )
+        assertEquals(AbsoluteRange(0.0, 0.0), absoluteRange(AbsoluteAxis.Start(200.0), 100.0))
+        assertEquals(-5.0, absoluteOrigin(AbsoluteAxis.Start(-5.0), 100.0, 20.0))
+        assertEquals(73.0, absoluteOrigin(AbsoluteAxis.End(7.0), 100.0, 20.0))
+        assertEquals(45.0, absoluteOrigin(AbsoluteAxis.Center(5.0), 100.0, 20.0))
+        assertEquals(10.0, absoluteOrigin(AbsoluteAxis.Stretch(10.0, 20.0), 100.0, 70.0))
+    }
+
+    @Test
+    fun `invalid offsets dimensions padding and dependent stretch ranges fail locally`() {
+        assertFailsWith<IllegalArgumentException> { AbsoluteProps([], width = Some(-1.0)) }
+        assertFailsWith<IllegalArgumentException> { AbsoluteProps([], padding = Insets.all(-1.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            AbsoluteProps([AbsoluteChild(empty(), AbsoluteAxis.Start(1.0e308 * 2.0))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            AbsoluteProps([AbsoluteChild(empty(), AbsoluteAxis.Center(size = Some(-1.0)))])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            absoluteRange(AbsoluteAxis.Stretch(60.0, 50.0), 100.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            absoluteRange(AbsoluteAxis.Stretch(-1.0e308, -1.0e308), 10.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            absoluteOrigin(AbsoluteAxis.End(-1.0e308), 1.0e308, 0.0)
+        }
+    }
+}

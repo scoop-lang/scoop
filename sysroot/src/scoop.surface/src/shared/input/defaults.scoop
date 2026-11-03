@@ -1,0 +1,89 @@
+package scoop.surface
+
+internal enum InputDefaultKind {
+    Ordinary, Shortcut, HostShortcut
+}
+
+internal class InputDefaultAction(
+    val scope: InputScope,
+    val handler: (RoutedEventContext, InputEvent) -> Unit,
+    val kind: InputDefaultKind
+): Closeable {
+    var closed = false
+    public override fun close() {
+        scope.owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        val actions = scope.defaultActions
+        var index = 0L
+        while (index < actions.size) {
+            if (actions[index] === this) {
+                val removed = index
+                scope.defaultActions =
+                    Array<InputDefaultAction>(actions.size - 1L) {
+                        position -> actions[
+                            if (position < removed)
+                                position
+                            else
+                                position + 1L
+                        ]
+                    }
+                return
+            }
+            index += 1L
+        }
+    }
+}
+
+/** Adds ordinary node behavior before the node's shortcut bindings. */
+public fun InputScope.addDefaultAction(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    checkOpen()
+    val value = InputDefaultAction(this, handler, InputDefaultKind.Ordinary)
+    appendDefaultAction(value)
+    return value
+}
+
+internal fun InputScope.addShortcutAction(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    checkOpen()
+    for (action in defaultActions)
+        requireInput(
+            action.kind != InputDefaultKind.Shortcut,
+            "input scope already has a shortcut scope"
+        )
+    val value = InputDefaultAction(this, handler, InputDefaultKind.Shortcut)
+    appendDefaultAction(value)
+    return value
+}
+
+internal fun InputScope.addHostShortcutAction(handler: (RoutedEventContext, InputEvent) -> Unit) {
+    checkOpen()
+    requireInput(this === owner.rootScope, "host shortcuts require the window root")
+    for (action in defaultActions)
+        requireInput(
+            action.kind != InputDefaultKind.HostShortcut,
+            "window already has host shortcuts"
+        )
+    appendDefaultAction(InputDefaultAction(this, handler, InputDefaultKind.HostShortcut))
+}
+
+private fun InputScope.appendDefaultAction(value: InputDefaultAction) {
+    val previous = defaultActions
+    defaultActions =
+        Array<InputDefaultAction>(previous.size + 1L) {
+            index -> if (index == previous.size)
+                value
+            else
+                previous[index]
+        }
+}
+
+internal fun InputScope.retireDefaultActions() {
+    for (action in defaultActions)
+        action.closed = true
+    defaultActions = []
+}

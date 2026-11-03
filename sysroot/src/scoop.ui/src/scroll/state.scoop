@@ -1,0 +1,146 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+
+/** Observable scroll position, independent of a particular mount. */
+public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.0)) {
+    private val thread = currentThreadId()
+    private val signal = StateSignal()
+    private var viewportOwner: ScrollViewport? = None
+    private var initialized = false
+    internal var current = ScrollSnapshot(Point(0.0, 0.0), Size(0.0, 0.0), Size(0.0, 0.0))
+    internal var request = ScrollRequest.Position(initialOffset)
+    internal var revision = 0UL
+
+    init {
+        checkScrollPoint(initialOffset)
+    }
+
+    private fun observe() {
+        checkUiThread(thread)
+        when (currentEvaluation()) {
+            case Some(evaluation) -> evaluation.collector?.read(signal)
+            case None -> {}
+        }
+    }
+    internal fun checkMutation() {
+        checkUiThread(thread)
+        when (currentEvaluation()) {
+            case Some(_) -> throw IllegalStateException(
+                Some("scroll state cannot change during render, measure, scene or draw")
+            )
+            case None -> {}
+        }
+    }
+    public val snapshot: ScrollSnapshot get() {
+        observe();
+        return current
+    }
+    public val offset: Point get() = snapshot.offset
+    public val viewport: Size get() = snapshot.viewport
+    public val content: Size get() = snapshot.content
+    public val maximum: Point get() = snapshot.maximum
+    public val requestRevision: ULong get() {
+        checkUiThread(thread)
+        return revision
+    }
+    public val isAttached: Boolean get() {
+        observe();
+        return viewportOwner?.active ?: false
+    }
+    public val isAnimating: Boolean get() {
+        observe();
+        return viewportOwner?.moving ?: false
+    }
+
+    public fun scrollTo(offset: Point) {
+        checkMutation()
+        checkScrollPoint(offset)
+        change(ScrollRequest.Position(offset))
+    }
+    public fun scrollBy(delta: Point) {
+        checkMutation()
+        checkScrollPoint(delta)
+        val base =
+            if (initialized)
+                current.offset
+            else
+                when (request) {
+                    case Position(value) -> value
+                    case Reveal(_, _, _) -> current.offset
+                }
+        val next = Point(base.x + delta.x, base.y + delta.y)
+        checkScrollPoint(next)
+        change(ScrollRequest.Position(next))
+    }
+    public fun reveal(
+        rect: Rect,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ) {
+        checkMutation()
+        checkScrollRect(rect)
+        change(ScrollRequest.Reveal(rect, horizontal, vertical))
+    }
+    public fun animateTo(
+        offset: Point,
+        spec: AnimationSpec = AnimationSpec.Tween(Duration.milliseconds(300L))
+    ) {
+        checkMutation()
+        checkScrollPoint(offset)
+        val owner =
+            viewportOwner ?:
+                throw IllegalStateException(Some("smooth scrolling requires an attached viewport"))
+        owner.animateTo(offset, spec)
+    }
+    public fun cancelAnimation() {
+        checkMutation()
+        viewportOwner?.cancelAnimation()
+    }
+    private fun change(next: ScrollRequest) {
+        viewportOwner?.cancelAnimation()
+        request = next
+        revision += 1UL
+        if (initialized)
+            publish(plan(current.viewport, current.content), false)
+        viewportOwner?.requestFrame()
+    }
+    internal fun plan(viewport: Size, content: Size): ScrollSnapshot =
+        resolveScroll(request, current.offset, viewport, content)
+
+    internal fun publish(value: ScrollSnapshot, settle: Boolean) {
+        val changed = current != value
+        current = value
+        initialized = true
+        if (settle)
+            request = ScrollRequest.Position(value.offset)
+        if (changed)
+            signal.changed()
+    }
+    internal fun changed() {
+        signal.changed()
+    }
+    internal fun checkBinding() {
+        checkMutation()
+        when (viewportOwner) {
+            case Some(_) -> throw IllegalStateException(Some("scroll state already has a viewport"))
+            case None -> {}
+        }
+    }
+    internal fun attach(owner: ScrollViewport) {
+        viewportOwner = Some(owner)
+        signal.changed()
+    }
+    internal fun detach(owner: ScrollViewport) {
+        when (viewportOwner) {
+            case Some(value) -> if (value === owner) {
+                viewportOwner = None
+                signal.changed()
+            }
+            case None -> {}
+        }
+    }
+}

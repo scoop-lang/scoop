@@ -1,0 +1,77 @@
+package scoop.graphics.text
+
+import scoop.test.*
+
+@Test
+private class TextNavigationBoundaryTest {
+    @Test
+    fun `ICU words preserve apostrophes CJK combining text and emoji`() {
+        testFonts(true).use {
+            fonts ->
+            val accentStart = "can't 你好 世界! ".byteLength
+            val emojiStart = accentStart + "é ".byteLength
+            val text = "can't 你好 世界! é 👨‍👩‍👧‍👦"
+            Paragraph(fonts, text, TextStyle(["Test Sans", "Test CJK"], 20.0, locale = "zh")).use {
+                paragraph -> paragraph.layoutUnwrapped().use {
+                    layout ->
+                    assertEquals(TextRange(0L, 5L), layout.wordRange(TextPosition(2L)))
+                    assertEquals(TextRange(5L, 7L), layout.wordRange(TextPosition(5L)))
+                    assertEquals(
+                        TextRange(0L, 5L),
+                        layout.wordRange(TextPosition(5L, TextAffinity.Upstream))
+                    )
+                    assertEquals(TextRange(7L, 13L), layout.wordRange(TextPosition(10L)))
+                    assertEquals(13L, layout.moveWord(5L, true))
+                    assertEquals(7L, layout.moveWord(14L, false))
+                    assertEquals(21L, layout.moveWord(20L, true))
+                    assertEquals(20L, layout.moveWord(21L, false))
+                    assertEquals(
+                        TextRange(accentStart, accentStart + 3L),
+                        layout.wordRange(TextPosition(accentStart + 1L))
+                    )
+                    assertEquals(
+                        TextRange(emojiStart, text.byteLength),
+                        layout.wordRange(TextPosition(emojiStart + 4L))
+                    )
+                    assertEquals(emojiStart, layout.moveWord(text.byteLength, false))
+                    assertEquals(text.byteLength, layout.moveWord(text.byteLength, true))
+                    assertEquals(0L, layout.moveWord(0L, false))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `grapheme movement uses scalar positions and preserves CRLF and ZWJ`() {
+        testFonts(true).use {
+            fonts -> Paragraph(
+                fonts,
+                "Aé👨‍👩‍👧‍👦\r\n是",
+                TextStyle(["Test Sans", "Test CJK"], 20.0)
+            ).use {
+                paragraph -> paragraph.layout(100.0).use {
+                    layout ->
+                    val boundaries: Array<Long> = [0L, 1L, 4L, 29L, 31L, 34L]
+                    for (index in 1L ..< boundaries.size) {
+                        assertEquals(
+                            boundaries[index],
+                            layout.moveGrapheme(boundaries[index - 1L], true)
+                        )
+                        assertEquals(
+                            boundaries[index - 1L],
+                            layout.moveGrapheme(boundaries[index], false)
+                        )
+                    }
+                    assertEquals(1L, layout.moveGrapheme(2L, false))
+                    assertEquals(4L, layout.moveGrapheme(2L, true))
+                    assertEquals(4L, layout.moveGrapheme(8L, false))
+                    assertEquals(29L, layout.moveGrapheme(8L, true))
+                    assertEquals(29L, layout.moveGrapheme(30L, false))
+                    assertEquals(31L, layout.moveGrapheme(30L, true))
+                    assertEquals(0L, layout.moveGrapheme(0L, false))
+                    assertEquals(34L, layout.moveGrapheme(34L, true))
+                }
+            }
+        }
+    }
+}

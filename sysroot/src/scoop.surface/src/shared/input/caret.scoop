@@ -1,0 +1,35 @@
+package scoop.surface
+
+import scoop.graphics.Rect
+import scoop.window.TextInputConnection
+
+/** A value publication; None in rect explicitly withdraws old native geometry. */
+internal struct ImeCaret(val rect: Rect?, val revision: Long?, val connection: TextInputConnection?)
+
+internal fun InputRouter.currentCaret(area: InputArea): ImeCaret {
+    val placement = scene.find(area)
+    val revision = area.caretRevision
+    val connection =
+        if (revision != None)
+            imeConnection
+        else
+            None
+    when (placement) {
+        case Some(value) -> if (
+            caretFrameValid && value.localCaret == area.caret && value.caretRevision == revision
+        )
+            return ImeCaret(value.visibleCaret, revision, connection)
+        case None -> {}
+    }
+    return ImeCaret(None, revision, connection)
+}
+
+internal fun InputRouter.publishCaret(area: InputArea) {
+    val value = currentCaret(area)
+    if (imeCaret != Some(value)) {
+        if (imeCursor(value))
+            imeCaret = Some(value)
+        else
+            imeCaret = None
+    }
+}

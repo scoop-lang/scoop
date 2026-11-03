@@ -15,10 +15,10 @@ public class FrameContext internal constructor(
     public fun <T> withState(block: (FrameContext) -> T): T =
         canvas.withState { child -> block(FrameContext(window, child, size, time, input)) }
 
-    public fun place(area: InputArea, shape: Rect, parent: InputArea? = None) {
-        input.place(canvas, area, shape, parent)
+    public fun place(area: InputArea, shape: Rect) {
+        input.place(canvas, area, shape)
     }
-    public fun place(area: InputArea, shape: Path, parent: InputArea? = None) {
-        input.place(canvas, area, shape, parent)
+    public fun place(area: InputArea, shape: Path) {
+        input.place(canvas, area, shape)
     }
 }

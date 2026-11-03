@@ -1,0 +1,166 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Element {
+    private var scope: ComponentScope? = None
+    private var ownedFonts: FontCollection? = None
+    internal var fonts: FontCollection? = None
+    internal var host: TextEditHost? = None
+    internal val lineHeight = TextFieldLineHeight()
+    internal var drawing: TextFieldDrawing? = None
+    private var padding: InputArea? = None
+    private var horizontal: ScrollBarControl? = None
+    private var vertical: ScrollBarControl? = None
+    private var painters: ThemePainterCache? = None
+    private var content: StylePainter? = None
+
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        fonts = Some(resolveFonts())
+        painters = Some(scope.resource { ThemePainterCache() })
+        content = Some(scope.resource { StylePainter() })
+        val value = props.value
+        val adapter =
+            scope.resource {
+                TextEditHost(scope, value.input.state, appearance(), value.input.options)
+            }
+        host = Some(adapter)
+        value.mounted.value = Some(adapter)
+        val area = scope.createArea()
+        padding = Some(area)
+        area.scope.parent = Some(adapter.area.scope)
+        area.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        adapter.focus.handle.requestFocus()
+                        context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        horizontal =
+            Some(
+                ScrollBarControl(scope, { scrollbarProps() }, adapter.area, Orientation.Horizontal)
+            )
+        vertical =
+            Some(ScrollBarControl(scope, { scrollbarProps() }, adapter.area, Orientation.Vertical))
+        scope.routeChildren(adapter.area)
+    }
+    private fun resolveFonts(): FontCollection =
+        when (props.value.input.fonts) {
+            case Some(value) -> value
+            case None -> when (ownedFonts) {
+                case Some(value) -> value
+                case None -> {
+                    val value = scope!!.resource { FontCollection() }
+                    ownedFonts = Some(value)
+                    value
+                }
+            }
+        }
+    private fun appearance(): TextEditAppearance {
+        val value = props.value
+        val style = value.input.style
+        val palette = value.theme.tokens.palette
+        return TextEditAppearance(
+            fonts!!,
+            value.text,
+            value.placeholder,
+            style.selectionColor ?: palette.accent.withAlpha(0.30),
+            style.inactiveSelectionColor ?: palette.secondaryText.withAlpha(0.20),
+            style.caretColor ?: palette.accent,
+            style.markedColor ?: palette.accent,
+            style.caretWidth
+        )
+    }
+    private fun scrollbarProps(): ScrollControlProps {
+        val value = props.value
+        return ScrollControlProps(
+            host!!.scroll,
+            if (value.input.options.wrap)
+                ScrollAxes.Vertical
+            else
+                ScrollAxes.Both,
+            value.text.fontSize,
+            ScrollChain.Chain,
+            value.input.scrollbars,
+            value.input.style.scrollbar,
+            value.input.options.enabled,
+            value.input.focus,
+            value.input.options.paintCache,
+            value.theme
+        )
+    }
+    public override fun update() {
+        fonts = Some(resolveFonts())
+        val value = props.value
+        val input = value.input
+        host!!.update(
+            input.state,
+            appearance(),
+            input.options,
+            input.focus,
+            input.placeholder,
+            input.onEdited,
+            input.onSubmit
+        )
+        padding!!.scope.enabled = input.options.enabled
+        horizontal!!.update()
+        vertical!!.update()
+        painters!!.get(value.theme)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureTextField(this, context, constraints)
+    public override fun scene(context: SceneContext) {
+        val value = props.value
+        val current = drawing!!
+        val geometry = current.geometry
+        val painter = painters!!.get(value.theme)
+        context.draw {
+            paint -> painter.drawSurface(
+                paint.canvas,
+                geometry,
+                value.visual,
+                SurfaceLayer.Background
+            )
+        }
+        context.place(padding!!, geometry.bounds)
+        content!!.scene(context, geometry.bounds, geometry.contentStyle) {
+            local ->
+            local.translate(geometry.content.x, geometry.content.y)
+            host!!.scene(local)
+            horizontal!!.scene(local, host!!.scrollSnapshot, current.horizontal, painter)
+            vertical!!.scene(local, host!!.scrollSnapshot, current.vertical, painter)
+        }
+        context.draw {
+            paint -> painter.drawSurface(
+                paint.canvas,
+                geometry,
+                value.visual,
+                SurfaceLayer.Foreground
+            )
+        }
+        context.children()
+    }
+    public override fun onUnmount() {
+        when (props.value.mounted.value) {
+            case Some(value) -> when (host) {
+                case Some(owned) -> if (value === owned)
+                    props.value.mounted.value = None
+                case None -> {}
+            }
+            case None -> {}
+        }
+    }
+}

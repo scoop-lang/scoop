@@ -18,13 +18,22 @@ public class State<T> internal constructor(initial: T) {
         return current
     }
     set(value) {
+        checkMutation()
+        publish(value)
+    }
+
+    internal fun checkMutation() {
         checkUiThread(thread)
         when (currentEvaluation()) {
             case Some(_) -> throw IllegalStateException(
-                Some("State cannot change during render, measure or paint")
+                Some("State cannot change during render, measure, scene or draw")
             )
             case None -> {}
         }
+    }
+
+    /** Publishes a synchronous transaction whose caller already passed checkMutation. */
+    internal fun publish(value: T) {
         current = value
         signal.changed()
     }

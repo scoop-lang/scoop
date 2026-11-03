@@ -23,6 +23,13 @@ public class View internal constructor(internal val key: ViewKey, internal val b
 
 public fun empty(): View = View(ViewKey.Position, ViewBody.Empty)
 
+/** Keeps logical ownership while presenting one child in the window's layer outlet. */
+public fun portal(
+    content: View,
+    options: PortalOptions = PortalOptions(),
+    key: ViewKey = ViewKey.Position
+): View = View(key, ViewBody.Portal(content, options))
+
 public fun <C: Component> component(create: () -> C, key: ViewKey = ViewKey.Position): View =
     component(Unit, { _ -> create() }, key)
 
@@ -46,11 +53,13 @@ public fun <P, E: Element> element(
 ): View = View(key, ViewBody.Element(ElementDescription(props, create), children))
 
 internal enum ViewBody {
-    Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>)
+    Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>),
+    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource, Long)
 }
 
 internal enum ViewShape {
-    Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef)
+    Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef), Portal(Boolean),
+    Lazy(TypeRef, TypeRef)
 }
 
 internal val View.shape: ViewShape get() =
@@ -58,4 +67,22 @@ internal val View.shape: ViewShape get() =
         case Empty -> ViewShape.Empty
         case Component(value) -> value.shape
         case Element(value, _) -> value.shape
+        case Portal(_, options) -> ViewShape.Portal(options.isModal)
+        case Lazy(value, _, _) -> value.shape
     }
+
+public fun <E: LazyElement> lazyElement(
+    source: ItemSource,
+    create: () -> E,
+    retention: ItemRetention = ItemRetention.Dispose,
+    key: ViewKey = ViewKey.Position
+): View = lazyElement(source, Unit, { _ -> create() }, retention, key)
+
+public fun <P, E: LazyElement> lazyElement(
+    source: ItemSource,
+    props: P,
+    create: (Props<P>) -> E,
+    retention: ItemRetention = ItemRetention.Dispose,
+    key: ViewKey = ViewKey.Position
+): View =
+    View(key, ViewBody.Lazy(LazyDescription(props, create), source, retentionLimit(retention)))

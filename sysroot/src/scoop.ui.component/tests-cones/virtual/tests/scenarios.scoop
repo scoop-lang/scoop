@@ -1,0 +1,130 @@
+package scoop.tests.ui.virtual
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.style.Orientation
+import scoop.window.*
+
+internal fun advanceList(probe: ListProbe, active: ActiveApplication) {
+    when (probe.phase) {
+        case 0 -> {
+            assertEquals(Size(160.0, 60.0), probe.scroll.viewport)
+            assertEquals(Size(160.0, 2000000000.0), probe.scroll.content)
+            probe.assertLive([0L, 1L, 2L, 3L])
+            assertEquals(4, probe.builds)
+            probe.initialRenders = probe.renders
+            probe.first = Some(probe.row(0L))
+            probe.first!!.local.value = 13
+            probe.input(active) {
+                assertTrue(moveSurfacePointer(probe.window!!, 30.0, 30.0))
+                assertTrue(probe.view!!.button(30.0, 30.0, true))
+            }
+        }
+        case 1 -> {
+            assertTrue(probe.first!!.area!!.scope.activity.hasPress)
+            assertFalse(probe.first!!.area!!.hasFocus)
+            probe.scrollTo(Point(0.0, 100.0))
+        }
+        case 2 -> {
+            probe.assertLive([0L, 4L, 5L, 6L, 7L, 8L])
+            assertSame(probe.first!!, probe.row(0L))
+            assertEquals(13, probe.row(0L).observed)
+            assertEquals(None, probe.row(0L).area!!.visibleBounds)
+            probe.preventRelease = true
+            probe.input(active) { assertTrue(probe.view!!.button(30.0, 40.0, false)) }
+        }
+        case 3 -> {
+            probe.preventRelease = false
+            assertEquals(1, probe.first!!.releases)
+            assertEquals(1, probe.first!!.unmounts)
+            probe.assertLive([4L, 5L, 6L, 7L, 8L])
+            probe.focused = Some(probe.row(5L))
+            assertTrue(probe.focused!!.area!!.requestFocus())
+            probe.scrollTo(Point(0.0, 200.0))
+        }
+        case 4 -> {
+            probe.assertLive([5L, 9L, 10L, 11L, 12L, 13L])
+            assertTrue(probe.focused!!.area!!.hasFocus)
+            assertEquals(None, probe.focused!!.area!!.visibleBounds)
+            probe.focused!!.area!!.clearFocus()
+            probe.phase += 1
+        }
+        case 5 -> {
+            assertEquals(1, probe.focused!!.unmounts)
+            probe.assertLive([9L, 10L, 11L, 12L, 13L])
+            probe.scrollTo(Point(0.0, 0.0))
+        }
+        case 6 -> {
+            probe.assertLive([0L, 1L, 2L, 3L])
+            assertNotSame(probe.first!!, probe.row(0L))
+            assertEquals(0, probe.row(0L).observed)
+            probe.candidate = Some(probe.row(0L))
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, -10, phase = 1))
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, phase = 4))
+            }
+        }
+        case 7 -> {
+            assertEquals(Point(0.0, 100.0), probe.scroll.offset)
+            assertTrue(probe.candidate!!.area!!.scope.activity.hasScrollRoute)
+            assertFalse(probe.candidate!!.area!!.scope.activity.hasPress)
+            assertFalse(probe.candidate!!.area!!.hasFocus)
+            assertTrue(probe.frames!!.snapshot().paused)
+            probe.assertLive([0L, 4L, 5L, 6L, 7L, 8L])
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, -2, momentum = 1))
+            }
+        }
+        case 8 -> {
+            assertEquals(Point(0.0, 120.0), probe.scroll.offset)
+            assertSame(probe.candidate!!, probe.row(0L))
+            probe.assertLive([0L, 5L, 6L, 7L, 8L, 9L])
+            probe.input(active) {
+                assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, 0, momentum = 3))
+            }
+        }
+        case 9 -> {
+            assertEquals(1, probe.candidate!!.unmounts)
+            probe.assertLive([5L, 6L, 7L, 8L, 9L])
+            assertEquals(probe.initialRenders, probe.renders)
+            probe.six = Some(probe.row(6L))
+            probe.orientation.value = Orientation.Horizontal
+            probe.refresh()
+        }
+        case 10 -> {
+            assertEquals(Size(2000000000.0, 60.0), probe.scroll.content)
+            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            probe.assertLive([0L, 1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L])
+            assertSame(probe.six!!, probe.row(6L))
+            probe.input(active) { assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, -4, 0)) }
+        }
+        case 11 -> {
+            assertEquals(Point(40.0, 0.0), probe.scroll.offset)
+            probe.assertLive([1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L])
+            probe.scrollTo(Point(2000.0, 0.0))
+        }
+        case 12 -> {
+            probe.assertLive([99L, 100L, 101L, 102L, 103L, 104L, 105L, 106L, 107L, 108L])
+            probe.data!!.value = ListSource(probe, 2L)
+            probe.refresh()
+        }
+        case 13 -> {
+            probe.assertLive([0L, 1L])
+            assertEquals(Size(40.0, 60.0), probe.scroll.content)
+            assertEquals(Point(0.0, 0.0), probe.scroll.maximum)
+            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            probe.show.value = false
+            probe.refresh()
+        }
+        case 14 -> {
+            probe.assertLive([])
+            assertFalse(probe.scroll.isAttached)
+            assertTrue(probe.frames!!.snapshot().paused)
+            probe.phase = 15
+            probe.ui!!.close()
+            probe.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected virtual list phase"))
+    }
+}

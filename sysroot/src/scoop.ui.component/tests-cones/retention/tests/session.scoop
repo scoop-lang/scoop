@@ -1,0 +1,166 @@
+package scoop.tests.ui.retention
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class RetainedVirtualListTest {
+    @Test
+    fun `bounded item retention preserves state and resources while cached work stays off the display clock`() {
+        val probe = RetentionProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.rows.size < 30L)
+            for (row in probe.rows) {
+                assertEquals(1, row.mounts)
+                assertEquals(1, row.unmounts)
+                assertEquals(1, row.resource!!.closes)
+                assertFalse(row.scope!!.isMounted)
+                assertTrue(row.area!!.isClosed)
+                for (inner in row.innerRows)
+                    assertEquals(1, inner.closes)
+            }
+        } catch (failure: Exception) {
+            fail(
+                Some(
+                    f"retention phase=${probe.phase}: " + (failure.message ?: "unspecified failure")
+                )
+            )
+        } finally {
+            probe.frames?.close()
+        }
+    }
+}
+
+internal class RetentionProbe {
+    val scroll = ScrollState()
+    val viewportFocus = FocusHandle()
+    val theme = ThemeSource(macosTheme())
+    val retention = state<ItemRetention>(ItemRetention.KeepAlive(2L))
+    val rows = ArrayList<RowRecord>()
+    var data: State<ItemSource>? = None
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var frames: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var checkpointAction: () -> Unit = {}
+    var first: RowRecord? = None
+    var returned: RowRecord? = None
+    var cached: RowRecord? = None
+    var baseline: FrameSnapshot? = None
+    var quietPasses = 0
+    var quietMeasures = 0
+    var passes = 0
+    var ticket = 0
+    var committed = -1
+    var phase = 0
+    var waiting = false
+    var retryFocus = false
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                data = Some(state<ItemSource>(RetentionSource(this)))
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop item retention", LogicalSize(220.0, 160.0))
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                checkpoint =
+                    Some(
+                        native.createDeadline {
+                            val action = checkpointAction
+                            assertTrue(application.proxy().post { _ -> action() })
+                        }
+                    )
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { RetentionScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (
+                    phase <
+                        16 &&
+                        !waiting &&
+                        committed ==
+                        ticket &&
+                        window!!.isFocused &&
+                        !frames!!.snapshot().required
+                ) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (
+                                committed ==
+                                    ticket &&
+                                    !frames!!.snapshot().required &&
+                                    window!!.isFocused
+                            )
+                                advanceRetention(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 16
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"item retention timeout phase=${phase}, frames=${passes}")
+            )
+            else -> {}
+        }
+    }
+    fun row(id: Long): RowRecord {
+        for (row in rows)
+            if (row.id == id && row.unmounts == 0)
+                return row
+        throw IllegalStateException(Some("retention row is not mounted"))
+    }
+    fun assertLive(expected: Array<Long>) {
+        val live = HashSet<Long>()
+        for (row in rows)
+            if (row.unmounts == 0)
+                assertTrue(live.add(row.id))
+        assertEquals(expected.size, live.size)
+        for (key in expected)
+            assertTrue(live.contains(key), Some("missing retained row " + key.toString()))
+    }
+    fun next(action: () -> Unit) {
+        phase += 1
+        ticket += 1
+        action()
+    }
+    fun scrollTo(index: Long) {
+        next { scroll.scrollTo(Point(0.0, index.toDouble() * 24.0)) }
+    }
+    fun after(milliseconds: Long, action: () -> Unit) {
+        waiting = true
+        checkpointAction = action
+        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+}

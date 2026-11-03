@@ -8,6 +8,64 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             throw IllegalStateException(Some("canvas has an active child scope"))
         return handle
     }
+    /** Includes the target DPI root; useful for choosing a raster grid. */
+    public val pixelTransform: Transform get() {
+        @Unsafe
+        {
+            val result = canvasPixelTransform(resource.get())
+            checkTransform(result)
+            return result
+        }
+    }
+    /** Conservative local bounds, not an exact path clip or hit-test result. */
+    public val localClipBounds: Rect? get() {
+        @Unsafe
+        {
+            val result = canvasClipBounds(resource.get())
+            if (result.found == 0)
+                return None
+            checkRect(result.rect)
+            return Some(result.rect)
+        }
+    }
+    /** Records in an independent local coordinate system, clipped to bounds. */
+    public fun recordDrawing(bounds: Rect, block: (Canvas) -> Unit): Drawing {
+        checkRect(bounds)
+        val pointer = resource.get()
+        borrowed = true
+        try {
+            return recordGraphics(pointer, bounds, block)
+        } finally {
+            borrowed = false
+        }
+    }
+    public fun drawDrawing(drawing: Drawing) {
+        @Unsafe
+        {
+            graphicsResult(
+                canvasDrawing(resource.get(), drawing.resource.get()),
+                "draw incompatible drawing"
+            )
+        }
+    }
+    public fun isCompatible(drawing: Drawing): Boolean {
+        @Unsafe
+        {
+            return drawingCompatible(resource.get(), drawing.resource.get())
+        }
+    }
+    public fun isCompatible(image: Image): Boolean {
+        @Unsafe
+        {
+            return imageCompatible(resource.get(), image.resource.get())
+        }
+    }
+    /** Creates an independent surface on the same backend without reading pixels. */
+    public fun createSurface(
+        pixelWidth: Int,
+        pixelHeight: Int,
+        scale: Double = 1.0
+    ): OffscreenSurface = createOffscreen(resource.get(), pixelWidth, pixelHeight, scale)
     /** Borrows a child canvas and restores all state, including on exceptional exit. */
     public fun <T> withState(block: (Canvas) -> T): T {
         val pointer = resource.get()
@@ -158,6 +216,48 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             )
         }
     }
+    /** Linear sampling may use neighboring source pixels, including a tile's gutter. */
+    public fun drawImageRegion(
+        image: Image,
+        source: Rect,
+        destination: Rect,
+        sampling: ImageSampling = ImageSampling.Linear,
+        opacity: Double = 1.0
+    ) {
+        checkRect(source)
+        checkRect(destination)
+        checkOpacity(opacity)
+        requireGraphics(
+            source.x >=
+                0.0 &&
+                source.y >=
+                0.0 &&
+                source.x +
+                source.width <=
+                image.width.toDouble() &&
+                source.y +
+                source.height <=
+                image.height.toDouble(),
+            "image source rectangle is out of bounds"
+        )
+        @Unsafe
+        {
+            graphicsResult(
+                canvasImageRegion(
+                    resource.get(),
+                    image.resource.get(),
+                    source,
+                    destination,
+                    if (sampling == ImageSampling.Nearest)
+                        0
+                    else
+                        1,
+                    opacity
+                ),
+                "draw image region"
+            )
+        }
+    }
     private fun shape(kind: Int, rect: Rect, rx: Double, ry: Double, paint: Paint) {
         checkRect(rect)
         val pointer = resource.get()
@@ -173,6 +273,34 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
 internal fun checkOpacity(value: Double) {
     requireGraphics(value.isFinite() && value >= 0.0 && value <= 1.0, "invalid opacity")
 }
+
+@CLayout
+private struct NativeClipBounds(val found: Int, val rect: Rect)
+
+@Extern(name = "scoop_graphics_canvas_pixel_transform")
+private fun canvasPixelTransform(canvas: Ptr<Unit>): Transform
+
+@Extern(name = "scoop_graphics_canvas_clip_bounds")
+private fun canvasClipBounds(canvas: Ptr<Unit>): NativeClipBounds
+
+@Extern(name = "scoop_graphics_canvas_drawing")
+private fun canvasDrawing(canvas: Ptr<Unit>, drawing: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_drawing_compatible")
+private fun drawingCompatible(canvas: Ptr<Unit>, drawing: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_graphics_image_compatible")
+private fun imageCompatible(canvas: Ptr<Unit>, image: Ptr<Unit>): Boolean
+
+@Extern(name = "scoop_graphics_canvas_image_region")
+private fun canvasImageRegion(
+    canvas: Ptr<Unit>,
+    image: Ptr<Unit>,
+    source: Rect,
+    destination: Rect,
+    sampling: Int,
+    opacity: Double
+): Int
 
 @Extern(name = "scoop_graphics_canvas_clear")
 private fun canvasClear(canvas: Ptr<Unit>, color: Color): Int

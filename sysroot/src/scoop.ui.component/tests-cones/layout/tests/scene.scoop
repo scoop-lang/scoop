@@ -191,17 +191,19 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
         context.placeChild(3L, Point(20.0, 240.0))
         return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.paints += 1
-        context.canvas.clear(Color.White)
-        context.paintChildren()
-        @Unsafe
-        {
-            context.canvas.withSkiaCanvas {
-                native -> @Unsafe
-                {
-                    assertEquals(16711680L, readNativePixel(native, 295.0, 45.0))
-                    assertEquals(16777215L, readNativePixel(native, 21.0, 151.0))
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        assertEquals(16711680L, readNativePixel(native, 295.0, 45.0))
+                        assertEquals(16777215L, readNativePixel(native, 21.0, 151.0))
+                    }
                 }
             }
         }
@@ -237,31 +239,34 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
                     current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                        ) -> current.requestFocus()
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                        ) -> current.currentTarget.area!!.requestFocus()
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> props.value.click()
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.consume()
                 }
             )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(32.0 + props.value.count.toDouble() * 8.0, 24.0)))
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
-        bounds = windowBounds(context.canvas, local)
-        context.canvas.drawRect(
-            local,
-            Paint(
-                if (props.value.id == "a")
-                    Color(1.0, 0.0, 0.0)
-                else
-                    Color(0.0, 0.5, 0.0)
+        context.draw {
+            paint ->
+            bounds = windowBounds(paint.canvas, local)
+            paint.canvas.drawRect(
+                local,
+                Paint(
+                    if (props.value.id == "a")
+                        Color(1.0, 0.0, 0.0)
+                    else
+                        Color(0.0, 0.5, 0.0)
+                )
             )
-        )
+        }
         context.place(area!!, local)
     }
 }
@@ -269,10 +274,13 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
 private class BaselineBox(private val probe: LayoutProbe): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(30.0, 20.0)), Some(12.0), Some(16.0))
-    public override fun paint(context: PaintContext) {
-        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
-        assertEquals(Rect(290.0, 43.0, 30.0, 20.0), windowBounds(context.canvas, bounds))
-        context.canvas.drawRect(bounds, Paint(Color(0.0, 0.0, 1.0)))
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            val bounds = Rect(0.0, 0.0, paint.size.width, paint.size.height)
+            assertEquals(Rect(290.0, 43.0, 30.0, 20.0), windowBounds(paint.canvas, bounds))
+            paint.canvas.drawRect(bounds, Paint(Color(0.0, 0.0, 1.0)))
+        }
     }
 }
 
@@ -282,10 +290,10 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
         area =
             Some(
                 scope.createArea {
-                    _, event ->
+                    current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> {
                             if (props.value == "front")
                                 probe.frontClicks += 1
@@ -294,7 +302,7 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
                         }
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.consume()
                 }
             )
     }
@@ -307,17 +315,19 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
                     Size(60.0, 50.0)
             )
         )
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
-        context.canvas.drawRect(
-            bounds,
-            Paint(
-                if (props.value == "front")
-                    Color(0.0, 1.0, 0.0)
-                else
-                    Color(1.0, 0.0, 0.0)
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (props.value == "front")
+                        Color(0.0, 1.0, 0.0)
+                    else
+                        Color(1.0, 0.0, 0.0)
+                )
             )
-        )
+        }
         context.place(area!!, bounds)
     }
 }
@@ -332,9 +342,9 @@ private class ButtonObserver(
         context.placeChild(0L, Point(0.0, 0.0))
         return metrics
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.buttonPaints += 1;
-        context.paintChildren()
+        context.children()
     }
 }
 
@@ -364,8 +374,13 @@ internal class InlineImage(private val probe: LayoutProbe): Element {
         size = constraints.constrain(Size(22.0, 28.0))
         return LayoutMetrics(size)
     }
-    public override fun paint(context: PaintContext) {
-        context.canvas.drawImage(image!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint -> paint.canvas.drawImage(
+                image!!,
+                Rect(0.0, 0.0, paint.size.width, paint.size.height)
+            )
+        }
     }
     public override fun onUnmount() {
         unmounts += 1

@@ -1,0 +1,162 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class EditScene(private val probe: EditProbe): Component {
+    public override fun render(): View {
+        val revision = probe.revision.value
+        val children = ArrayList<View>()
+        for (
+            index in 0L ..<
+                if (probe.showObserver)
+                    3L
+                else
+                    2L
+        ) {
+            val input = probe.model(index).inputState
+            children.add(
+                element(
+                    EditFieldProps(index, probe.options(index)),
+                    { props -> EditField(probe, props) },
+                    key = ViewKey.Number(index)
+                )
+            )
+        }
+        return element(revision, { props -> EditPanel(probe, props) }, children.toArray())
+    }
+}
+
+private class EditPanel(private val probe: EditProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(_) -> {
+                        if (probe.preventKeys)
+                            context.preventDefault()
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (probe.preventRelease)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+        scope.input.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (
+                            key.state ==
+                                ElementState.Pressed &&
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.Escape)
+                        ) {
+                            probe.escapes += 1
+                            context.consume()
+                        }
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(
+                index,
+                Constraints.tight(
+                    if (index == 1L)
+                        Size(probe.multiWidth, 72.0)
+                    else
+                        Size(probe.primaryWidth, 32.0)
+                )
+            )
+            context.placeChild(
+                index,
+                if (index == 0L)
+                    Point(30.0, 30.0)
+                else
+                    if (index == 1L)
+                        Point(30.0, 100.0)
+                    else
+                        Point(260.0, 30.0)
+            )
+        }
+        return LayoutMetrics(constraints.constrain(Size(520.0, 400.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.scale(probe.scale, probe.scale)
+        context.children()
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(540.0, 420.0))
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.accepted += 1
+            else {
+                assertTrue(discard)
+                probe.discarded += 1
+                assertFalse(probe.savedLayout!!.isClosed)
+                assertTrue(probe.field(1L).execute(TextEditCommand.Move(TextMovement.Up, false)))
+                assertEquals(probe.expectedMove!!, probe.multiline.cursor)
+                probe.scope!!.requestFrame()
+            }
+        }
+    }
+}
+
+private class EditFieldProps(val index: Long, val options: TextEditOptions)
+
+private class EditField(
+    private val probe: EditProbe,
+    private val props: Props<EditFieldProps>
+): Element {
+    private var host: TextEditHost? = None
+    public override fun onMount(scope: ComponentScope) {
+        val index = props.value.index
+        val adapter =
+            scope.resource {
+                TextEditHost(scope, probe.model(index), probe.appearance, props.value.options)
+            }
+        host = Some(adapter)
+        probe.fields[index] = Some(adapter)
+        probe.mounts += 1
+        update()
+        if (index == 0L)
+            assertTrue(probe.focus[0L].requestFocus())
+    }
+    public override fun update() {
+        val input = props.value
+        host!!.update(
+            probe.model(input.index),
+            probe.appearance,
+            input.options,
+            FocusOptions(Some(probe.focus[input.index]), tabStop = input.index != 2L),
+            "placeholder",
+            { state -> probe.edited(state) },
+            { _ -> probe.submits += 1 }
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        host!!.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        host!!.scene(context)
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+}

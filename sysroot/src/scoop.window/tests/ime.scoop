@@ -45,11 +45,11 @@ internal class ImeProbe {
 
     fun event(value: TextInputEvent) {
         when (value) {
-            case Enabled -> {
+            case Enabled(_) -> {
                 assertEquals(0L, batches.size)
                 enabled += 1
             }
-            case Disabled -> {
+            case Disabled(_) -> {
                 assertEquals(11L, batches.size)
                 disabled += 1
             }
@@ -57,6 +57,11 @@ internal class ImeProbe {
                 assertEquals(None, batch.baseRevision)
                 batches.add(batch)
                 text = text.apply(batch)
+                if (batches.size == 3L) {
+                    assertEquals("[字é😀]", text.surroundingText)
+                    assertEquals(None, text.markedRange)
+                    assertEquals(Utf8Selection(6L, 10L), text.selection)
+                }
             }
         }
     }
@@ -74,9 +79,9 @@ internal class ImeProbe {
         assertEquals(1, enabled)
         assertEquals(1, disabled)
         assertEquals(11L, batches.size)
-        assertEquals("[字aQd]", text.surroundingText)
+        assertEquals("[字éaQd]", text.surroundingText)
         assertEquals(None, text.markedRange)
-        assertEquals(Utf8Selection(7L, 7L), text.selection)
+        assertEquals(Utf8Selection(9L, 9L), text.selection)
         assertEquals(11L, text.revision)
 
         val first = batches[0L].operations
@@ -86,7 +91,7 @@ internal class ImeProbe {
         commit(first[2L], "字")
         preedit(first[3L], "글", Some(Utf8Selection(3L, 3L)))
         preedit(batches[1L].operations[0L], "é😀", Some(Utf8Selection(2L, 6L)))
-        preedit(batches[2L].operations[0L], "", None)
+        assertEquals(TextInputOperation.ClearPreedit, batches[2L].operations[0L])
         preedit(batches[3L].operations[0L], "old", Some(Utf8Selection(3L, 3L)))
         preedit(batches[4L].operations[0L], "", None)
         commit(batches[6L].operations[0L], "aQd")

@@ -1,0 +1,174 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.*
+
+/** Frame identity contains values only; it never retains a Canvas borrow. */
+internal class OverlayFrame {
+    val unavailable = ArrayList<PortalInstance>()
+}
+
+internal class OverlayController(private val root: UiRoot): Closeable {
+    private val sessions = ArrayList<PortalInstance>()
+    private val modals = ArrayList<ModalSession>()
+    private var registration: Closeable? = None
+    var frame = OverlayFrame()
+
+    val currentModal: ModalSession? get() {
+        val boundary = root.surface.inputBoundary ?: return None
+        for (modal in modals)
+            if (modal.boundary === boundary)
+                return Some(modal)
+        return None
+    }
+    fun start() {
+        root.surface.input.beforePointerPress = { press -> beforePress(press) }
+        registration =
+            Some(root.surface.input.addDefaultAction { context, event -> dismiss(context, event) })
+    }
+    fun add(value: PortalInstance) {
+        sessions.add(value)
+        value.domain = containingModal(value.node.parent)
+        when (value.options.modal) {
+            case Some(options) -> {
+                val modal = ModalSession(value, options, currentModal)
+                value.modal = Some(modal)
+                value.domain = Some(modal)
+                if (root.isOpen) {
+                    modals.add(modal)
+                    when (value.retirementRevision) {
+                        case Some(revision) -> modal.beginClose(revision)
+                        case None -> {}
+                    }
+                } else
+                    modal.boundary.close()
+            }
+            case None -> {}
+        }
+    }
+    fun remove(value: PortalInstance) {
+        for (index in 0L ..< sessions.size) {
+            if (sessions[index] === value) {
+                sessions.removeAt(index)
+                return
+            }
+        }
+    }
+    fun beginFrame() {
+        frame = OverlayFrame()
+    }
+    fun include(value: PortalInstance) {
+        value.included = Some(frame)
+    }
+    fun paint(context: FrameContext) {
+        paintDomain(None, context)
+        for (modal in modals)
+            paintDomain(Some(modal), context)
+        for (portal in sessions) {
+            val included = portal.included
+            when (included) {
+                case Some(value) -> if (value !== frame)
+                    portal.node.clearPaintSubtree()
+                case None -> portal.node.clearPaintSubtree()
+            }
+        }
+    }
+    private fun paintDomain(domain: ModalSession?, context: FrameContext) {
+        for (portal in sessions) {
+            val included = portal.included ?: continue
+            if (!portal.isOpen || included !== frame || !sameModal(portal.domain, domain))
+                continue
+            val anchor =
+                when (portal.anchor) {
+                    case Some(handle) -> {
+                        val geometry = handle.geometry(frame)
+                        val usable =
+                            when (geometry) {
+                                case Some(value) -> value.visible ||
+                                    portal.options.anchorVisibility ==
+                                    AnchorVisibility.KeepVisible
+                                case None -> false
+                            }
+                        if (!usable) {
+                            portal.node.clearPaintSubtree()
+                            if (portal.options.anchorVisibility != AnchorVisibility.Hide)
+                                frame.unavailable.add(portal)
+                            continue
+                        }
+                        geometry?.bounds
+                    }
+                    case None -> None
+                }
+            val plan = planOverlay(portal.options.placement, context.size, anchor)
+            val child = portal.node.children[0L]
+            val metrics = child.measure(plan.constraints, context.time)
+            val layout = plan.layout(metrics.size)
+            portal.modal?.place(context)
+            child.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
+            when (portal.modal) {
+                case Some(modal) -> modal.presented = Some(frame)
+                case None -> {}
+            }
+        }
+    }
+    fun complete(completion: FrameCompletion) {
+        val completed = frame
+        val unavailable = frame.unavailable.toArray()
+        frame.unavailable.clear()
+        if (completion.submission != FrameSubmission.Accepted)
+            return
+        var failure: Throwable? = None
+        for (portal in unavailable) {
+            if (portal.isOpen)
+                failure = cleanupUi(failure) { portal.close(OverlayCloseReason.AnchorUnavailable) }
+        }
+        val previous = root.surface.inputBoundary
+        var restore: ModalSession? = None
+        val work = modals.toArray()
+        var index = work.size
+        while (index > 0L) {
+            index -= 1L
+            val modal = work[index]
+            if (modal.isClosing && !modal.wasPresented(completed)) {
+                if (sameInputBoundary(previous, Some(modal.boundary)))
+                    restore = Some(modal)
+                failure = cleanupUi(failure) { modal.boundary.close() }
+                removeModal(modal)
+            }
+        }
+        throwUi(failure)
+        if (root.isOpen)
+            restore?.restore()
+        for (modal in modals.toArray())
+            if (root.isOpen)
+                modal.complete(completed)
+    }
+    private fun removeModal(value: ModalSession) {
+        for (index in 0L ..< modals.size)
+            if (modals[index] === value) {
+                modals.removeAt(index)
+                return
+            }
+    }
+    public override fun close() {
+        val work = modals.toArray()
+        modals.clear()
+        sessions.clear()
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { registration?.close() }
+        registration = None
+        var index = work.size
+        while (index > 0L) {
+            index -= 1L
+            val modal = work[index]
+            failure = cleanupUi(failure) { modal.boundary.close() }
+        }
+        throwUi(failure)
+    }
+
+    fun beforePress(press: InputPress): Boolean =
+        dismissOverlayPress(root, sessions, currentModal, press)
+    fun dismiss(context: RoutedEventContext, event: InputEvent) {
+        dismissOverlayKey(root, sessions, currentModal, context, event)
+    }
+}

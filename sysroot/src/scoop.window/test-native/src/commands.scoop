@@ -1,0 +1,5 @@
+package scoop.tests.window
+
+/** Exercises real key bindings and ordered IME/selector callbacks on the focused AppKit view. */
+@Extern(name = "scoop_window_test_commands")
+public fun exerciseNativeCommands(view: Ptr<Unit>): Int

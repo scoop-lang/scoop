@@ -12,6 +12,8 @@ scoop run sysroot/src/scoop.ui.component/examples/themes --release --target aarc
 
 下方使用真正的 Label、Button、Checkbox、Frame、Row、Column 和 Stack。点击计数按钮、切换自有状态 Checkbox，或给控件设置焦点后切换主题，可以观察尺寸、字体和外观更新，而计数与勾选状态保留。Enabled 控制计数按钮是否接收激活；Disabled 按钮始终禁用。
 
+底部的 Input／Textarea 共享同一套公共文本编辑能力，切换主题保留正文、选区和历史。名称为空时显示验证说明；名称的 Enter 和备注的 ⌘Enter 都增加上方计数，备注的普通 Enter 换行。Enabled 同时控制两个输入控件。长备注可以使用主题滚动条，选择、撤销、中文输入和剪贴板沿同一个编辑模型工作。
+
 Drop shadow、Glow、Blur 依次作用于整个预览子树的内容 alpha，外框装饰仍由主题绘制。切换效果只更新现有 Frame 的 Props，不增删包装层。阴影和光晕不增加布局、基线或点击范围。表格中的悬停／按下状态是固定绘图输入，下方真实控件的状态过渡使用 Surface Animatable。
 
 `GalleryPainter` 是示例自身的普通绘图辅助对象，可直接在 RasterSurface 上使用。它复用当前主题 painter 与文字布局，主题或字体 revision 改变时替换资源；挂载版本由 ComponentScope 统一关闭。应用只为共享字体及 UiHost 保留最外层 use。

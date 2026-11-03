@@ -1,0 +1,112 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.max
+import scoop.math.min
+
+public enum ScrollAxes {
+    Horizontal, Vertical, Both
+
+    public val horizontal: Boolean get() = this != ScrollAxes.Vertical
+    public val vertical: Boolean get() = this != ScrollAxes.Horizontal
+}
+
+public enum ScrollAlignment {
+    Nearest, Start, Center, End
+}
+
+public struct ScrollSnapshot(val offset: Point, val viewport: Size, val content: Size) {
+    public val maximum: Point get() =
+        Point(max(0.0, content.width - viewport.width), max(0.0, content.height - viewport.height))
+    public fun revealedOffset(
+        rect: Rect,
+        horizontal: ScrollAlignment = ScrollAlignment.Nearest,
+        vertical: ScrollAlignment = ScrollAlignment.Nearest
+    ): Point {
+        checkScrollRect(rect)
+        checkScrollPoint(offset)
+        checkLayoutSize(viewport)
+        checkLayoutSize(content)
+        return clampScroll(
+            Point(
+                revealScrollAxis(offset.x, viewport.width, rect.x, rect.width, horizontal),
+                revealScrollAxis(offset.y, viewport.height, rect.y, rect.height, vertical)
+            ),
+            viewport,
+            content
+        )
+    }
+}
+
+/** A layout correction based on a particular explicit positioning intent. */
+public struct ScrollAdjustment(val requestRevision: ULong, val offset: Point)
+
+internal enum ScrollRequest {
+    Position(val point: Point),
+    Reveal(val rect: Rect, val horizontal: ScrollAlignment, val vertical: ScrollAlignment)
+}
+
+internal fun checkScrollPoint(point: Point) {
+    requireUi(point.x.isFinite() && point.y.isFinite(), "invalid scroll position or displacement")
+}
+
+internal fun checkScrollRect(rect: Rect) {
+    checkScrollPoint(Point(rect.x, rect.y))
+    checkLayoutSize(Size(rect.width, rect.height))
+    checkScrollPoint(Point(rect.x + rect.width, rect.y + rect.height))
+}
+
+internal fun clampScroll(point: Point, viewport: Size, content: Size): Point =
+    Point(
+        min(max(0.0, point.x), max(0.0, content.width - viewport.width)),
+        min(max(0.0, point.y), max(0.0, content.height - viewport.height))
+    )
+
+internal fun resolveScroll(
+    request: ScrollRequest,
+    previous: Point,
+    viewport: Size,
+    content: Size
+): ScrollSnapshot {
+    checkLayoutSize(viewport)
+    checkLayoutSize(content)
+    val point =
+        when (request) {
+            case Position(value) -> value
+            case Reveal(rect, horizontal, vertical) ->
+            ScrollSnapshot(previous, viewport, content).revealedOffset(rect, horizontal, vertical)
+        }
+    return ScrollSnapshot(clampScroll(point, viewport, content), viewport, content)
+}
+
+private fun revealScrollAxis(
+    offset: Double,
+    viewport: Double,
+    start: Double,
+    length: Double,
+    alignment: ScrollAlignment
+): Double =
+    when (alignment) {
+        case Start -> start
+        case Center -> start + (length - viewport) / 2.0
+        case End -> start + length - viewport
+        case Nearest -> {
+            val end = start + length
+            if (
+                (start >= offset && end <= offset + viewport) ||
+                    (start <= offset && end >= offset + viewport)
+            )
+                offset
+            else
+                if (start < offset)
+                    if (length <= viewport)
+                        start
+                    else
+                        end - viewport
+                else
+                    if (length <= viewport)
+                        end - viewport
+                    else
+                        start
+        }
+    }

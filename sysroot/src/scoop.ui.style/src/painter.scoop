@@ -2,7 +2,13 @@ package scoop.ui.style
 
 import scoop.graphics.*
 import scoop.platform.concurrent.currentThreadId
-import scoop.ui.PaintContext
+import scoop.ui.SceneContext
+
+private struct DecorationDrawing(
+    val paths: DecorationPaths?,
+    val shadows: Array<ImageFilter>,
+    val filter: ImageFilter?
+)
 
 /** Owns just the current filters and outlines; register once in the using element's scope. */
 public class StylePainter public constructor(): Closeable {
@@ -26,22 +32,36 @@ public class StylePainter public constructor(): Closeable {
             throw IllegalStateException(Some("style painter requires its owner thread"))
     }
 
-    public fun paint(context: PaintContext, style: Style, content: (PaintContext) -> Unit) {
+    public fun scene(context: SceneContext, style: Style, content: (SceneContext) -> Unit) {
         val size = context.size
-        paint(context, Rect(0.0, 0.0, size.width, size.height), style, content)
+        scene(context, Rect(0.0, 0.0, size.width, size.height), style, content)
     }
-    public fun paint(
-        context: PaintContext,
+    public fun scene(
+        context: SceneContext,
         bounds: Rect,
         style: Style,
-        content: (PaintContext) -> Unit
+        content: (SceneContext) -> Unit
     ) {
         checkOpen()
         painting = true
         try {
+            val drawing = prepare(bounds, style)
+            context.draw { paint -> background(paint.canvas, bounds, style, drawing) }
             context.withState {
-                local -> draw(local.canvas, bounds, style) { local.withState(content) }
+                local ->
+                if (style.clipContent)
+                    local.clipPath(drawing.paths!!.outline)
+                when (drawing.filter) {
+                    case Some(value) -> local.saveLayer(filter = Some(value))
+                    case None -> {}
+                }
+                local.withState(content)
+                when (drawing.filter) {
+                    case Some(_) -> local.restore()
+                    case None -> {}
+                }
             }
+            context.draw { paint -> border(paint.canvas, style, drawing) }
         } finally {
             painting = false
         }
@@ -50,13 +70,31 @@ public class StylePainter public constructor(): Closeable {
         checkOpen()
         painting = true
         try {
-            canvas.withState { local -> draw(local, bounds, style) { local.withState(content) } }
+            val drawing = prepare(bounds, style)
+            canvas.withState {
+                local ->
+                background(local, bounds, style, drawing)
+                local.save()
+                if (style.clipContent)
+                    local.clipPath(drawing.paths!!.outline)
+                when (drawing.filter) {
+                    case Some(value) -> local.saveLayer(filter = Some(value))
+                    case None -> {}
+                }
+                local.withState(content)
+                when (drawing.filter) {
+                    case Some(_) -> local.restore()
+                    case None -> {}
+                }
+                local.restore()
+                border(local, style, drawing)
+            }
         } finally {
             painting = false
         }
     }
 
-    private fun draw(canvas: Canvas, bounds: Rect, style: Style, content: () -> Unit) {
+    private fun prepare(bounds: Rect, style: Style): DecorationDrawing {
         requireStyle(
             bounds.x.isFinite() &&
                 bounds.y.isFinite() &&
@@ -88,37 +126,30 @@ public class StylePainter public constructor(): Closeable {
             )
             case None -> {}
         }
-        val paths = geometry.update(bounds, style)
-        val shadows = boxFilters.update(style.boxShadows)
-        val filter = contentFilters.update(style.contentEffects)
-        if (bounds.width > 0.0 && bounds.height > 0.0) {
-            for (shadow in shadows)
-                canvas.withState {
-                    mask ->
-                    mask.saveLayer(filter = Some(shadow))
-                    mask.drawPath(paths!!.outline, Paint(Color.White))
-                    mask.restore()
-                }
-            when (style.background) {
-                case Some(paint) -> canvas.drawPath(paths!!.outline, paint)
-                case None -> {}
+        return DecorationDrawing(
+            geometry.update(bounds, style),
+            boxFilters.update(style.boxShadows),
+            contentFilters.update(style.contentEffects)
+        )
+    }
+    private fun background(canvas: Canvas, bounds: Rect, style: Style, drawing: DecorationDrawing) {
+        if (bounds.width == 0.0 || bounds.height == 0.0)
+            return
+        for (shadow in drawing.shadows)
+            canvas.withState {
+                mask ->
+                mask.saveLayer(filter = Some(shadow))
+                mask.drawPath(drawing.paths!!.outline, Paint(Color.White))
+                mask.restore()
             }
-        }
-        canvas.save()
-        if (style.clipContent)
-            canvas.clipPath(paths!!.outline)
-        when (filter) {
-            case Some(value) -> canvas.saveLayer(filter = Some(value))
+        when (style.background) {
+            case Some(paint) -> canvas.drawPath(drawing.paths!!.outline, paint)
             case None -> {}
         }
-        content()
-        when (filter) {
-            case Some(_) -> canvas.restore();
-            case None -> {}
-        }
-        canvas.restore()
+    }
+    private fun border(canvas: Canvas, style: Style, drawing: DecorationDrawing) {
         when (style.border) {
-            case Some(edge) -> when (paths) {
+            case Some(edge) -> when (drawing.paths) {
                 case Some(value) -> when (value.border) {
                     case Some(path) -> canvas.drawPath(path, Paint(edge.color))
                     case None -> {}

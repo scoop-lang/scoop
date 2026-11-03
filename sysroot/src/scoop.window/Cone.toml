@@ -76,11 +76,27 @@ path = "native/darwin/keyboard.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/commands.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/pointer.m"
 when = { os = "darwin" }
 
 [[native.sources]]
 path = "native/darwin/text.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/text_snapshot.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/text_document.m"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/darwin/clipboard.m"
 when = { os = "darwin" }
 
 [[native.libraries]]

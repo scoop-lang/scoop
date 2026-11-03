@@ -1,0 +1,61 @@
+package scoop.ui
+
+import scoop.graphics.Canvas
+import scoop.graphics.Rect
+import scoop.graphics.native.captureGeometry
+import scoop.surface.InputArea
+
+private class FocusPlacement(val area: InputArea, val path: Array<ScrollReveal>)
+
+/** Keeps only the scroll paths and independent geometry of one submitted scene. */
+internal class FocusScene: Closeable {
+    private val placements = ArrayList<FocusPlacement>()
+    private val boundaries = ArrayList<ScrollReveal>()
+
+    fun place(area: InputArea, path: Array<ScrollReveal>) {
+        if (path.size > 0L)
+            placements.add(FocusPlacement(area, path))
+    }
+    fun path(area: InputArea): Array<ScrollReveal> {
+        for (placement in placements)
+            if (placement.area === area)
+                return placement.path
+        return []
+    }
+    fun capture(viewport: ScrollViewport, layout: ScrollLayout, canvas: Canvas): ScrollReveal {
+        val size = layout.snapshot.viewport
+        @Unsafe
+        {
+            val geometry = captureGeometry(canvas, Rect(0.0, 0.0, size.width, size.height))
+            val boundary = ScrollReveal(viewport, viewport.state, layout, geometry)
+            boundaries.add(boundary)
+            return boundary
+        }
+    }
+    fun canReveal(area: InputArea): Boolean {
+        var rect = area.windowBounds ?: return false
+        if (rect.width <= 0.0 || rect.height <= 0.0)
+            return false
+        val route = path(area)
+        var index = route.size
+        while (index > 0L) {
+            index -= 1L
+            val boundary = route[index]
+            if (!boundary.active)
+                return false
+            val local = boundary.local(rect) ?: return false
+            if (!boundary.current || boundary.needsMove(local))
+                return true
+            rect = intersectReveal(rect, boundary.geometry.bounds) ?: return false
+        }
+        return false
+    }
+    public override fun close() {
+        var failure: Throwable? = None
+        for (boundary in boundaries)
+            failure = cleanupUi(failure) { boundary.geometry.close() }
+        boundaries.clear()
+        placements.clear()
+        throwUi(failure)
+    }
+}

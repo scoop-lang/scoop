@@ -1,0 +1,210 @@
+package scoop.tests.ui.retention
+
+import scoop.graphics.Point
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun advanceRetention(probe: RetentionProbe) {
+    when (probe.phase) {
+        case 0 -> {
+            probe.assertLive([0L])
+            val first = probe.row(0L)
+            probe.first = Some(first)
+            assertEquals(2L, first.innerRows.size)
+            for (row in first.innerRows)
+                row.motion!!.animateTo(
+                    1.0,
+                    AnimationSpec.Tween(Duration.seconds(1L)),
+                    Some(Repeat())
+                )
+            probe.next {
+                first.local.value = 7
+                first.innerIndex.value = 1L
+            }
+        }
+        case 1 -> {
+            val first = probe.first!!
+            assertEquals(7, first.observed)
+            assertEquals(3L, first.innerRows.size)
+            assertEquals(AnimationState.Running, first.innerRows[0L].motion!!.state)
+            first.infinite!!.animateTo(
+                1.0,
+                AnimationSpec.Tween(Duration.seconds(1L)),
+                Some(Repeat())
+            )
+            first.muted!!.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+            probe.scrollTo(1L)
+        }
+        case 2 -> {
+            probe.assertLive([0L, 1L])
+            probe.cached = Some(probe.row(1L))
+            probe.after(100L) { beginQuietWork(probe) }
+        }
+        case 3 -> {
+            val first = probe.first!!
+            assertTrue(probe.row(0L) === first)
+            assertEquals(9, first.observed)
+            assertEquals(0, first.resource!!.closes)
+            assertFalse(first.muted!!.isFrameEnabled)
+            assertFalse(first.extraMotion!!.isFrameEnabled)
+            assertTrue(first.innerRows[0L].motion!!.isFrameEnabled)
+            assertEquals(AnimationState.Running, first.innerRows[0L].motion!!.state)
+            assertFalse(probe.frames!!.snapshot().required)
+            probe.scrollTo(2L)
+        }
+        case 4 -> {
+            probe.assertLive([0L, 1L, 2L])
+            probe.scrollTo(3L)
+        }
+        case 5 -> {
+            probe.assertLive([0L, 2L, 3L])
+            assertEquals(1, probe.cached!!.unmounts)
+            assertEquals(0, probe.first!!.unmounts)
+            probe.scrollTo(4L)
+        }
+        case 6 -> {
+            probe.assertLive([2L, 3L, 4L])
+            val first = probe.first!!
+            assertEquals(1, first.unmounts)
+            assertEquals(1, first.resource!!.closes)
+            assertEquals(1, first.extraCloses)
+            for (inner in first.innerRows)
+                assertEquals(1, inner.closes)
+            probe.scrollTo(0L)
+        }
+        case 7 -> {
+            probe.assertLive([0L, 3L, 4L])
+            val returned = probe.row(0L)
+            probe.returned = Some(returned)
+            assertTrue(returned !== probe.first!!)
+            assertEquals(0, returned.observed)
+            probe.window!!.setVisible(false)
+            probe.after(100L) { trimHidden(probe) }
+        }
+        case 8 -> {
+            probe.assertLive([1L])
+            probe.next {
+                probe.retention.value = ItemRetention.KeepAlive(2L)
+                probe.scroll.scrollTo(Point(0.0, 24.0))
+            }
+        }
+        case 9 -> {
+            probe.assertLive([1L, 2L])
+            val cached = probe.row(1L)
+            probe.cached = Some(cached)
+            probe.quietMeasures = cached.measures
+            cached.local.value = 11
+            probe.next { probe.data!!.value = RetentionSource(probe, Some([3L, 2L, 1L])) }
+        }
+        case 10 -> {
+            probe.assertLive([1L, 2L])
+            val cached = probe.cached!!
+            assertTrue(probe.row(1L) === cached)
+            assertEquals(2L, cached.input.index)
+            assertEquals(11, cached.observed)
+            assertEquals(probe.quietMeasures, cached.measures)
+            probe.next { probe.data!!.value = RetentionSource(probe, Some([3L, 2L, 1L]), 1) }
+        }
+        case 11 -> {
+            probe.assertLive([1L, 2L])
+            assertEquals(1, probe.cached!!.unmounts)
+            val alternate = probe.row(1L)
+            assertTrue(alternate !== probe.cached!!)
+            assertEquals(1, alternate.input.variant)
+            probe.cached = Some(alternate)
+            probe.next { probe.data!!.value = RetentionSource(probe, Some([3L, 2L, 1L])) }
+        }
+        case 12 -> {
+            assertEquals(1, probe.cached!!.unmounts)
+            val cached = probe.row(1L)
+            probe.cached = Some(cached)
+            assertFalse(cached.scope!!.input.activity.hasFocus)
+            probe.next { cached.openModal.value = true }
+        }
+        case 13 -> {
+            val cached = probe.cached!!
+            assertTrue(cached.overlay.isOpen)
+            assertTrue(cached.dialogPaints > 0)
+            assertTrue(cached.scope!!.input.activity.hasBoundary)
+            probe.next { probe.retention.value = ItemRetention.Dispose }
+        }
+        case 14 -> {
+            probe.assertLive([1L, 2L])
+            assertTrue(probe.cached!!.scope!!.input.activity.hasBoundary)
+            probe.next { probe.cached!!.overlay.close() }
+        }
+        case 15 -> {
+            probe.assertLive([2L])
+            assertEquals(1, probe.cached!!.unmounts)
+            assertTrue(probe.viewportFocus.hasFocus)
+            probe.next { probe.window!!.requestDestroy() }
+        }
+        else -> fail(Some("unexpected retention phase"))
+    }
+}
+
+private fun beginQuietWork(probe: RetentionProbe) {
+    val first = probe.first!!
+    val snapshot = probe.frames!!.snapshot()
+    assertTrue(snapshot.paused)
+    assertFalse(snapshot.required)
+    probe.baseline = Some(snapshot)
+    probe.quietPasses = probe.passes
+    probe.quietMeasures = first.measures
+    first.local.value = 8
+    first.extra.value = true
+    first.scope!!.requestFrame()
+    first.finite!!.animateTo(
+        1.0,
+        AnimationSpec.Tween(Duration.milliseconds(100L)),
+        onFinished =
+            Some {
+                _ ->
+                first.completions += 1
+                first.local.value = 9
+                first.scope!!.requestFrame()
+            }
+    )
+    probe.after(250L) { endQuietWork(probe) }
+}
+
+private fun endQuietWork(probe: RetentionProbe) {
+    val first = probe.first!!
+    assertEquals(1, first.completions)
+    assertEquals(9, first.observed)
+    assertTrue(first.scope!!.isMounted)
+    assertEquals(0, first.resource!!.closes)
+    assertEquals(probe.quietMeasures, first.measures)
+    assertEquals(probe.quietPasses, probe.passes)
+    assertEquals(AnimationState.Running, first.infinite!!.state)
+    assertEquals(AnimationState.Running, first.extraMotion!!.state)
+    val baseline = probe.baseline!!
+    val snapshot = probe.frames!!.snapshot()
+    assertTrue(snapshot.paused)
+    assertFalse(snapshot.required)
+    assertEquals(baseline.callbacks, snapshot.callbacks)
+    assertEquals(baseline.presentations, snapshot.presentations)
+    first.infinite!!.isFrameEnabled = false
+    first.extraMotion!!.isFrameEnabled = false
+    probe.waiting = false
+    probe.scrollTo(0L)
+}
+
+private fun trimHidden(probe: RetentionProbe) {
+    probe.retention.value = ItemRetention.KeepAlive(0L)
+    probe.after(100L) {
+        probe.assertLive([0L])
+        assertFalse(probe.window!!.isVisible)
+        probe.data!!.value = RetentionSource(probe, Some([1L, 2L, 3L]))
+        probe.after(100L) {
+            probe.assertLive([])
+            assertEquals(1, probe.returned!!.unmounts)
+            probe.window!!.setVisible(true)
+            probe.window!!.requestFocus()
+            probe.waiting = false
+            probe.scrollTo(0L)
+        }
+    }
+}

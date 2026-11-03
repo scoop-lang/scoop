@@ -1,0 +1,195 @@
+package scoop.tests.ui.scroll
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class ScrollViewportTest {
+    @Test
+    fun `accepted ranges binding replacement animation and disposal share the normal UI lifetime`() {
+        val probe = ScrollProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.first.isAttached)
+            assertFalse(probe.second.isAttached)
+            assertFalse(probe.first.isAnimating)
+            assertTrue(probe.view!!.restored())
+            assertEquals(1, probe.discarded)
+            assertTrue(probe.ignoredBinding)
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class ScrollProbe {
+    val first = ScrollState(Point(30.0, 120.0))
+    val second = ScrollState()
+    val replacement = ScrollState()
+    val generation = state(0)
+    var window: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ui: UiWindow? = None
+    var scope: ComponentScope? = None
+    var viewport: ScrollViewport? = None
+    var renders = 0
+    var observations = 0
+    var passes = 0
+    var committed = -1
+    var shown = Point(0.0, 0.0)
+    var phase = 0
+    var finished = false
+    var discardNext = false
+    var discarded = 0
+    var lateRequest = false
+    var rebind = false
+    var ignoredBinding = false
+    var previousRenders = 0
+    var adjustment: ScrollAdjustment? = None
+    var secondShown = Point(0.0, 0.0)
+    var secondLate = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop scroll state", LogicalSize(300.0, 160.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                ui = Some(host.attach(native, { ScrollScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> if (!finished && committed == generation.value)
+                advance()
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"scroll state timeout phase=${phase}, passes=${passes}")
+            )
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 11;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        when (phase) {
+            case 0 -> {
+                if (second.isAnimating)
+                    return
+                assertEquals(Point(0.0, 100.0), second.offset)
+                assertEquals(Point(30.0, 120.0), first.offset)
+                assertEquals(Size(500.0, 500.0), first.content)
+                assertTrue(first.isAttached)
+                assertFailsWith<IllegalStateException> { scope!!.scrollViewport(first) }
+                assertFailsWith<IllegalStateException> { viewport!!.state = second }
+                assertTrue(viewport!!.state === first)
+                previousRenders = renders
+                first.animateTo(
+                    Point(80.0, 300.0),
+                    AnimationSpec.Tween(Duration.milliseconds(120L))
+                )
+                assertTrue(first.isAnimating)
+                phase = 1
+            }
+            case 1 -> if (!first.isAnimating && shown == first.offset) {
+                assertEquals(Point(80.0, 300.0), first.offset)
+                assertEquals(previousRenders, renders)
+                assertTrue(observations > 1)
+                first.animateTo(Point(0.0, 0.0), AnimationSpec.Tween(Duration.seconds(3L)))
+                first.cancelAnimation()
+                assertEquals(Point(80.0, 300.0), first.offset)
+                assertFalse(first.isAnimating)
+                discardNext = true
+                generation.value = 1
+                phase = 2
+            }
+            case 2 -> {
+                assertEquals(1, discarded)
+                assertEquals(Size(500.0, 100.0), first.content)
+                assertEquals(Point(80.0, 20.0), first.offset)
+                lateRequest = true
+                generation.value = 2
+                phase = 3
+            }
+            case 3 -> if (shown == first.offset) {
+                assertEquals(Point(40.0, 350.0), first.offset)
+                rebind = true
+                generation.value = 3
+                phase = 4
+            }
+            case 4 -> if (first.content == Size(500.0, 700.0)) {
+                assertTrue(ignoredBinding)
+                assertTrue(first.isAttached)
+                assertFalse(replacement.isAttached)
+                assertEquals(Point(40.0, 350.0), first.offset)
+                first.animateTo(Point(200.0, 600.0), AnimationSpec.Tween(Duration.seconds(3L)))
+                generation.value = 4
+                phase = 5
+            }
+            case 5 -> {
+                assertFalse(first.isAnimating)
+                assertEquals(Point(0.0, 0.0), first.offset)
+                assertEquals(Point(0.0, 0.0), first.maximum)
+                phase = 6
+                scope!!.requestFrame()
+            }
+            case 6 -> {
+                if (frames!!.snapshot().required)
+                    return
+                assertTrue(frames!!.snapshot().paused)
+                generation.value = 5
+                phase = 7
+            }
+            case 7 -> {
+                assertFalse(first.isAttached)
+                assertTrue(viewport!!.isClosed)
+                viewport!!.close()
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(35.0, 160.0)))
+                assertEquals(Point(0.0, 100.0), second.offset)
+                generation.value = 6
+                phase = 8
+            }
+            case 8 -> {
+                assertEquals(Point(35.0, 160.0), second.offset)
+                assertEquals(second.offset, secondShown)
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(0.0, 0.0)))
+                second.scrollTo(Point(40.0, 180.0))
+                generation.value = 7
+                phase = 9
+            }
+            case 9 -> {
+                assertEquals(Point(40.0, 180.0), second.offset)
+                assertEquals(second.offset, secondShown)
+                adjustment = Some(ScrollAdjustment(second.requestRevision, Point(20.0, 90.0)))
+                secondLate = true
+                generation.value = 8
+                phase = 10
+            }
+            case 10 -> {
+                if (secondShown == second.offset) {
+                    assertEquals(Point(55.0, 200.0), second.offset)
+                    phase = 11
+                    ui!!.close()
+                    window!!.requestDestroy()
+                }
+            }
+            else -> {}
+        }
+    }
+}

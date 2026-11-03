@@ -1,0 +1,54 @@
+package scoop.tests.surface.deadlines
+
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+
+internal fun inspectDeadline(probe: DeadlineProbe) {
+    when (probe.phase) {
+        case Settle -> {
+            val snapshot = probe.monitor!!.snapshot()
+            assertTrue(snapshot.attached)
+            assertFalse(snapshot.required)
+            assertTrue(snapshot.paused)
+            probe.baseline = Some(snapshot)
+            probe.quietFrames = probe.frames
+            probe.phase = DeadlinePhase.Quiet
+            probe.finite!!.animateTo(
+                2.0,
+                AnimationSpec.Tween(Duration.milliseconds(80L)),
+                onFinished =
+                    Some {
+                        result ->
+                        assertEquals(2.0, result)
+                        assertEquals(probe.quietFrames, probe.frames)
+                        probe.offscreenFinished = true
+                    }
+            )
+            probe.waitFor(200L)
+        }
+        case Quiet -> {
+            assertTrue(probe.offscreenFinished)
+            assertEquals(probe.quietFrames, probe.frames)
+            val baseline = probe.baseline!!
+            val snapshot = probe.monitor!!.snapshot()
+            assertFalse(snapshot.required)
+            assertTrue(snapshot.paused)
+            assertEquals(baseline.callbacks, snapshot.callbacks)
+            assertEquals(baseline.presentations, snapshot.presentations)
+            assertEquals(AnimationState.Running, probe.infinite!!.state)
+            probe.phase = DeadlinePhase.Animating
+            probe.infinite!!.isFrameEnabled = true
+        }
+        case Closing -> {
+            assertEquals(SurfaceWindowState.Closed, probe.surface!!.state)
+            assertEquals(AnimationState.Closed, probe.finite!!.state)
+            assertEquals(AnimationState.Closed, probe.infinite!!.state)
+            assertFalse(probe.monitor!!.snapshot().attached)
+            probe.checkpoint!!.close()
+            probe.phase = DeadlinePhase.Done
+            probe.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected animation checkpoint"))
+    }
+}

@@ -151,7 +151,7 @@ bool scoop_surface_test_pointer_move(void *pointer, double x, double y) {
 }
 
 bool scoop_surface_test_key(void *pointer, int32_t code, bool pressed,
-                            bool repeat) {
+                            bool repeat, bool command, bool shift) {
   @autoreleasepool {
     @try {
       if (code < 0 || code > UINT16_MAX)
@@ -162,8 +162,11 @@ bool scoop_surface_test_key(void *pointer, int32_t code, bool pressed,
           [NSEvent keyEventWithType:pressed ? NSEventTypeKeyDown
                                             : NSEventTypeKeyUp
                                  location:NSZeroPoint
-                            modifierFlags:0
-                                timestamp:NSProcessInfo.processInfo.systemUptime
+                            modifierFlags:(command ? NSEventModifierFlagCommand
+                                                   : 0) |
+                                          (shift ? NSEventModifierFlagShift
+                                                 : 0)timestamp
+                                         :NSProcessInfo.processInfo.systemUptime
                              windowNumber:view.window.windowNumber
                                   context:nil
                                characters:text
@@ -198,6 +201,34 @@ bool scoop_surface_test_view_caret(void *pointer, double x, double y,
           convertRectToScreen:[view convertRect:NSMakeRect(x, y, width, height)
                                          toView:nil]];
       return NSEqualRects(result, expected) && actual.location == NSNotFound;
+    } @catch (NSException *exception) {
+      (void)exception;
+      return false;
+    }
+  }
+}
+
+bool scoop_surface_test_document_caret(void *pointer, bool available, double x,
+                                       double y, double width, double height,
+                                       int64_t cursor) {
+  @autoreleasepool {
+    @try {
+      NSView *view = (__bridge NSView *)pointer;
+      id<NSTextInputClient> client = (id<NSTextInputClient>)view;
+      NSRange actual = NSMakeRange(0, 1);
+      NSRect result =
+          [client firstRectForCharacterRange:NSMakeRange((NSUInteger)cursor, 0)
+                                 actualRange:&actual];
+      if (!available)
+        return NSEqualRects(result, NSZeroRect) &&
+               actual.location == NSNotFound;
+      if (!view.window.keyWindow || view.window.firstResponder != view)
+        return false;
+      NSRect expected = [view.window
+          convertRectToScreen:[view convertRect:NSMakeRect(x, y, width, height)
+                                         toView:nil]];
+      return NSEqualRects(result, expected) &&
+             NSEqualRanges(actual, NSMakeRange((NSUInteger)cursor, 0));
     } @catch (NSException *exception) {
       (void)exception;
       return false;

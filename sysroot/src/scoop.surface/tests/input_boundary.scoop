@@ -1,0 +1,309 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputBoundaryTest {
+    @Test
+    fun `a new domain ends background editing while queued IME transactions retain their old owner`() {
+        InputRig().use {
+            rig ->
+            val a = rig.area("a", text = true)
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            val b = rig.area("b", text = true, parent = Some(group))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, a, Rect(0.0, 0.0, 40.0, 40.0))
+                frame.place(canvas, b, Rect(100.0, 0.0, 40.0, 40.0))
+            }
+            assertTrue(a.requestFocus())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
+            InputBoundary(group).use {
+                _ ->
+                assertFalse(a.hasFocus)
+                assertEquals(2L, rig.log.ime.size)
+                assertFalse(rig.log.ime[1L])
+                assertTrue(b.requestFocus())
+                rig.log.events.clear()
+                rig.router.event(WindowEvent.Keyboard(inputKey()))
+                val batch =
+                    TextInputBatch(
+                        None,
+                        [TextInputOperation.Commit("中", TextReplacement.CurrentSelection)]
+                    )
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(batch)))
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
+                assertEquals("b/key,a/edit,a/disabled", rig.log.trace())
+                assertEquals(3L, rig.log.ime.size)
+                assertTrue(rig.log.ime[2L])
+                rig.log.events.clear()
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(batch)))
+                assertEquals("b/enabled,b/edit", rig.log.trace())
+            }
+        }
+    }
+
+    @Test
+    fun `domains restrict hits focus and every route phase without requiring outside area geometry`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val parent = rig.area("parent", true)
+            val group =
+                rig.router.createScope(Some(parent.scope)) {
+                    context,
+                    event -> rig.log.record("group", context, event)
+                }
+            val child = rig.area("child", true, parent = Some(group))
+            val waiting = rig.area("waiting", true, parent = Some(group))
+            val outside = rig.area("outside", true)
+            root.handler = { context, event -> rig.log.record("root", context, event) }
+            for (scope in [root, parent.scope, group, child.scope, outside.scope]) {
+                scope.captureHandler = scope.handler
+                scope.defaultAction = scope.handler
+            }
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, child, Rect(20.0, 20.0, 30.0, 30.0))
+                frame.place(canvas, outside, Rect(0.0, 0.0, 300.0, 200.0))
+            }
+            assertFalse(child.canFocus)
+            assertTrue(outside.requestFocus())
+            InputBoundary(group).use {
+                boundary ->
+                assertTrue(boundary.isCurrent)
+                assertFalse(outside.hasFocus)
+                assertFalse(outside.canFocus)
+                assertFalse(outside.requestFocus())
+                assertTrue(parent.scope.isEnabledInHierarchy)
+                assertFalse(parent.scope.isInputAllowed)
+                assertTrue(waiting.scope.isInputAllowed)
+                assertFalse(waiting.canFocus)
+                rig.log.events.clear()
+                rig.router.event(WindowEvent.Keyboard(inputKey()))
+                assertEquals("group/Target,group/Default", boundaryTrace(rig.log))
+                assertTrue(child.requestFocus())
+                rig.log.events.clear()
+                rig.move(25.0, 25.0)
+                assertEquals(
+                    "group/Capture,child/Target,group/Bubble,child/Default,group/Default",
+                    boundaryTrace(rig.log)
+                )
+                rig.log.events.clear()
+                rig.router.event(WindowEvent.Keyboard(inputKey()))
+                assertEquals(
+                    "group/Capture,child/Target,group/Bubble,child/Default,group/Default",
+                    boundaryTrace(rig.log)
+                )
+                rig.log.events.clear()
+                rig.router.event(WindowEvent.ModifiersChanged(inputModifiers()))
+                assertEquals("child/modifiers,group/modifiers", rig.log.trace())
+                parent.scope.enabled = false
+                assertFalse(group.isInputAllowed)
+                assertFalse(child.hasFocus)
+                parent.scope.enabled = true
+                assertTrue(child.canFocus)
+            }
+            assertFalse(child.canFocus)
+            assertTrue(outside.canFocus)
+        }
+    }
+
+    @Test
+    fun `nested boundaries can retire out of order and a closed scope retains its barrier`() {
+        val retained = ArrayList<InputBoundary>()
+        InputRig().use {
+            rig ->
+            val outer = rig.router.createScope(None) { _, _ -> Unit }
+            val inner = rig.router.createScope(Some(outer)) { _, _ -> Unit }
+            val background = rig.area("background", true)
+            val a = InputBoundary(outer)
+            val b = InputBoundary(inner)
+            retained.add(b)
+            assertFalse(a.isCurrent)
+            assertTrue(b.isCurrent)
+            assertFailsWith<IllegalArgumentException> { InputBoundary(inner) }
+            assertTrue(b.isCurrent)
+            a.close()
+            assertTrue(b.isCurrent)
+            rig.frame {
+                frame,
+                canvas -> frame.place(canvas, background, Rect(0.0, 0.0, 300.0, 200.0))
+            }
+            inner.close()
+            assertTrue(b.isCurrent)
+            assertFalse(b.isClosed)
+            assertFalse(background.scope.isInputAllowed)
+            assertFalse(background.requestFocus())
+            rig.log.events.clear()
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("", rig.log.trace())
+            b.close()
+            b.close()
+            assertTrue(background.scope.isInputAllowed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            rig.log.events.clear()
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertTrue(background.hasFocus)
+            assertEquals("background/down,background/focus", rig.log.trace())
+            retained.add(InputBoundary(outer))
+        }
+        for (boundary in retained) {
+            assertTrue(boundary.isClosed)
+            assertFalse(boundary.isCurrent)
+            boundary.close()
+        }
+    }
+
+    @Test
+    fun `opening a boundary during input cancels the complete old path after the callback and skips background defaults`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val background = rig.area("background", true)
+            val keys = ArrayList<InputEvent>()
+            val group =
+                rig.router.createScope(None) {
+                    _,
+                    event -> when (event) {
+                        case Keyboard(_) -> keys.add(event)
+                        else -> {}
+                    }
+                }
+            val child = rig.area("child", true, parent = Some(group))
+            val boundaries = ArrayList<InputBoundary>()
+            root.handler = { context, event -> rig.log.record("root", context, event) }
+            root.defaultAction = root.handler
+            background.scope.defaultAction = background.scope.handler
+            background.scope.handler =
+                {
+                    context, event ->
+                    rig.log.record("background", context, event)
+                    when (event) {
+                        case Pointer(InputPointerEvent.Button(_, _, ElementState.Pressed, _)) -> {
+                            boundaries.add(InputBoundary(group))
+                            rig.router.event(WindowEvent.Keyboard(inputKey()))
+                            assertEquals(1L, keys.size)
+                            for (record in rig.log.events)
+                                assertTrue(inputKind(record.event) != "cancel")
+                        }
+                        case Pointer(InputPointerEvent.Cancelled(reason, _)) -> {
+                            assertEquals(InputCancelReason.BoundaryChanged, reason)
+                            context.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, background, Rect(0.0, 0.0, 40.0, 40.0))
+                frame.place(canvas, child, Rect(100.0, 0.0, 40.0, 40.0))
+            }
+            assertTrue(background.requestFocus())
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertEquals("background/Target", boundaryTrace(rig.log))
+            val cancels = ArrayList<InputRecord>()
+            for (record in rig.log.events)
+                if (inputKind(record.event) == "cancel")
+                    cancels.add(record)
+            assertEquals(2L, cancels.size)
+            assertEquals("background", cancels[0L].name)
+            assertEquals("root", cancels[1L].name)
+            rig.log.events.clear()
+            rig.move(110.0, 10.0)
+            rig.button(110.0, 10.0, ElementState.Pressed, MouseButton.Right)
+            rig.button(110.0, 10.0, ElementState.Released)
+            rig.button(110.0, 10.0, ElementState.Released, MouseButton.Right)
+            assertEquals("", boundaryTrace(rig.log))
+            rig.button(110.0, 10.0, ElementState.Pressed)
+            assertTrue(child.hasFocus)
+            assertEquals("child/Target", boundaryTrace(rig.log))
+        }
+    }
+
+    @Test
+    fun `closing a boundary does not extend the event already in progress to outside ancestors`() {
+        InputRig().use {
+            rig ->
+            val root = rig.router.rootScope
+            val group =
+                rig.router.createScope(None) {
+                    context,
+                    event -> rig.log.record("group", context, event)
+                }
+            val child = rig.area("child", true, parent = Some(group))
+            val boundary = InputBoundary(group)
+            root.handler = { context, event -> rig.log.record("root", context, event) }
+            child.scope.defaultAction =
+                {
+                    _,
+                    event -> when (event) {
+                        case Keyboard(_) -> boundary.close()
+                        else -> {}
+                    }
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 40.0)) }
+            assertTrue(child.requestFocus())
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("child/Target,group/Bubble", boundaryTrace(rig.log))
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("child/Target,group/Bubble,root/Bubble", boundaryTrace(rig.log))
+        }
+    }
+
+    @Test
+    fun `failed installation removes its registration even when a focus notification throws`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", true)
+            val group = rig.router.createScope(None) { _, _ -> Unit }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 40.0)) }
+            assertTrue(area.requestFocus())
+            area.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case FocusChanged(false) -> throw IllegalStateException(
+                            Some("expected blur failure")
+                        )
+                        else -> {}
+                    }
+                }
+            assertFailsWith<IllegalStateException> { InputBoundary(group) }
+            when (rig.router.currentBoundary) {
+                case Some(_) -> fail(Some("failed boundary remained installed"))
+                case None -> {}
+            }
+            assertTrue(area.scope.isInputAllowed)
+            InputBoundary(group).use { boundary -> assertTrue(boundary.isCurrent) }
+        }
+    }
+}
+
+internal fun boundaryTrace(log: InputLog): String {
+    val values = ArrayList<String>()
+    for (record in log.events) {
+        val phase =
+            when (record.phase) {
+                case Capture -> "Capture"
+                case Target -> "Target"
+                case Bubble -> "Bubble"
+                case Default -> "Default"
+                case Notification -> continue
+            }
+        values.add(record.name + "/" + phase)
+    }
+    var result = ""
+    for (value in values) {
+        if (result.byteLength != 0L)
+            result += ","
+        result += value
+    }
+    return result
+}

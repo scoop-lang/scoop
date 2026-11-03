@@ -122,27 +122,30 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 360.0, 12.0)))
-    public override fun paint(context: PaintContext) {
-        val value = props.value
-        context.canvas.drawRect(
-            Rect(0.0, 0.0, context.size.width, context.size.height),
-            Paint(value.colors.border)
-        )
-        when (value.snapshot.fraction) {
-            case Some(_) -> context.canvas.drawRect(
-                Rect(0.0, 0.0, context.size.width * amount!!.value, context.size.height),
-                Paint(value.colors.accent)
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            val value = props.value
+            paint.canvas.drawRect(
+                Rect(0.0, 0.0, paint.size.width, paint.size.height),
+                Paint(value.colors.border)
             )
-            case None -> if (value.snapshot.phase == DownloadPhase.Running)
-                context.canvas.drawRect(
-                    Rect(
-                        context.size.width * 0.35,
-                        0.0,
-                        context.size.width * 0.3,
-                        context.size.height
-                    ),
+            when (value.snapshot.fraction) {
+                case Some(_) -> paint.canvas.drawRect(
+                    Rect(0.0, 0.0, paint.size.width * amount!!.value, paint.size.height),
                     Paint(value.colors.accent)
                 )
+                case None -> if (value.snapshot.phase == DownloadPhase.Running)
+                    paint.canvas.drawRect(
+                        Rect(
+                            paint.size.width * 0.35,
+                            0.0,
+                            paint.size.width * 0.3,
+                            paint.size.height
+                        ),
+                        Paint(value.colors.accent)
+                    )
+            }
         }
     }
 }

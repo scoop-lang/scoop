@@ -1,0 +1,184 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.graphics.native.CanvasGeometry
+import scoop.window.*
+
+internal struct RouteDelivery(
+    val scope: InputScope,
+    val position: Point?,
+    val geometry: CanvasGeometry? = None
+)
+
+internal fun InputRouter.deliveries(scopes: Array<InputScope>, point: Point? = None): Array<
+    RouteDelivery
+> {
+    val result = ArrayList<RouteDelivery>()
+    for (scope in scopes) {
+        var local: Point? = None
+        var geometry: CanvasGeometry? = None
+        when ((scope.area, point)) {
+            case(Some(area), Some(position)) -> {
+                val placement = scene.find(area) ?: return []
+                geometry = Some(placement.geometry)
+                local = placement.geometry.toLocal(position)
+                if (local == None) {
+                    pending = true
+                    return []
+                }
+            }
+            else -> {}
+        }
+        result.add(RouteDelivery(scope, local, geometry))
+    }
+    return result.toArray()
+}
+
+private fun InputRouter.invoke(
+    delivery: RouteDelivery,
+    target: InputScope,
+    event: InputEvent,
+    phase: RoutedPhase,
+    time: InputTime,
+    flags: RouteFlags,
+    terminal: Boolean = false,
+    inactive: Boolean = false,
+    callback: ((RoutedEventContext, InputEvent) -> Unit)? = None
+) {
+    val scope = delivery.scope
+    if (!terminal && (closed || scope.closed || (!inactive && path(scope).size == 0L)))
+        return
+    if (!terminal && !scrollDeliveryAllowed(flags.scroll))
+        return
+    val context =
+        RoutedEventContext(
+            this,
+            target,
+            scope,
+            phase,
+            time,
+            delivery.position,
+            delivery.geometry,
+            flags
+        )
+    try {
+        when (callback) {
+            case Some(action) -> action(context, event)
+            case None -> when (phase) {
+                case Capture -> scope.captureHandler(context, event)
+                case Default -> scope.defaultAction(context, event)
+                else -> scope.handler(context, event)
+            }
+        }
+    } finally {
+        context.end()
+    }
+}
+
+internal fun InputRouter.route(
+    chain: Array<RouteDelivery>,
+    event: InputEvent,
+    time: InputTime,
+    scroll: InputScrollRoute? = None
+) {
+    var failure = cleanupFailure(None) { routeStages(chain, event, time, scroll) }
+    for (delivery in chain) {
+        val scope = delivery.scope
+        if (!closed && !scope.closed && path(scope).size > 0L)
+            failure = cleanupFailure(failure) { scope.onEventFinished(event) }
+    }
+    throwFailure(failure)
+}
+
+private fun InputRouter.routeStages(
+    chain: Array<RouteDelivery>,
+    event: InputEvent,
+    time: InputTime,
+    scroll: InputScrollRoute?
+) {
+    if (chain.size == 0L)
+        return
+    val target = chain[0L].scope
+    val flags = RouteFlags(true, scrollConsumption(event, scroll))
+    var index = chain.size
+    while (index > 1L && !flags.stopped) {
+        index -= 1L
+        invoke(chain[index], target, event, RoutedPhase.Capture, time, flags)
+    }
+    if (!flags.stopped)
+        invoke(chain[0L], target, event, RoutedPhase.Target, time, flags)
+    index = 1L
+    while (index < chain.size && !flags.stopped) {
+        invoke(chain[index], target, event, RoutedPhase.Bubble, time, flags)
+        index += 1L
+    }
+    var focused = false
+    for (delivery in chain) {
+        if (flags.prevented || closed)
+            break
+        if (path(delivery.scope).size == 0L)
+            continue
+        if (!focused && focusesOnPress(event) && containsScope(hover, delivery.scope)) {
+            when (delivery.scope.area) {
+                case Some(area) -> if (area.focusable) {
+                    focus(area)
+                    focused = true
+                }
+                case None -> {}
+            }
+        }
+        val actions = delivery.scope.defaultActions
+        invoke(delivery, target, event, RoutedPhase.Default, time, flags)
+        var pass = 0
+        while (pass < 3) {
+            val kind =
+                when (pass) {
+                    case 0 -> InputDefaultKind.Ordinary
+                    case 1 -> InputDefaultKind.Shortcut
+                    else -> InputDefaultKind.HostShortcut
+                }
+            for (action in actions) {
+                if (flags.prevented || closed)
+                    break
+                if (!action.closed && action.kind == kind)
+                    invoke(
+                        delivery,
+                        target,
+                        event,
+                        RoutedPhase.Default,
+                        time,
+                        flags,
+                        callback = Some(action.handler)
+                    )
+            }
+            pass += 1
+        }
+    }
+}
+
+private fun focusesOnPress(event: InputEvent): Boolean =
+    when (event) {
+        case Pointer(InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)) -> true
+        else -> false
+    }
+
+internal fun InputRouter.notify(
+    scope: InputScope,
+    event: InputEvent,
+    time: InputTime = inputObservation(),
+    target: InputScope? = None,
+    position: Point? = None,
+    terminal: Boolean = false,
+    inactive: Boolean = false
+) {
+    invoke(
+        RouteDelivery(scope, position),
+        target ?: scope,
+        event,
+        RoutedPhase.Notification,
+        time,
+        RouteFlags(false),
+        terminal,
+        inactive
+    )
+}

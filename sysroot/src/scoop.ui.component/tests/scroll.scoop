@@ -1,0 +1,106 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+
+@Test
+private class ScrollLayoutTest {
+    @Test
+    fun `one measurement fills bounded cross axes and leaves only scrolling axes unbounded`() {
+        val parent = Constraints(20.0, Some(200.0), 30.0, Some(100.0))
+        val vertical = ScrollMeasure(parent, ScrollAxes.Vertical, None, None)
+        assertEquals(Constraints(200.0, Some(200.0), 0.0, None), vertical.contentConstraints)
+        assertEquals(Size(200.0, 100.0), vertical.size(Size(200.0, 600.0)))
+        val horizontal = ScrollMeasure(parent, ScrollAxes.Horizontal, None, None)
+        assertEquals(Constraints(0.0, None, 100.0, Some(100.0)), horizontal.contentConstraints)
+        assertEquals(Size(200.0, 100.0), horizontal.size(Size(600.0, 100.0)))
+        val both = ScrollMeasure(parent, ScrollAxes.Both, None, None)
+        assertEquals(Constraints(), both.contentConstraints)
+        assertEquals(Size(200.0, 100.0), both.size(Size(500.0, 500.0)))
+    }
+
+    @Test
+    fun `explicit viewport extents clamp while an unbounded cross axis follows content once`() {
+        val bounded =
+            ScrollMeasure(
+                Constraints(50.0, Some(200.0), 20.0, Some(100.0)),
+                ScrollAxes.Both,
+                Some(30.0),
+                Some(150.0)
+            )
+        assertEquals(Size(50.0, 100.0), bounded.size(Size(500.0, 800.0)))
+        val intrinsic =
+            ScrollMeasure(Constraints(minWidth = 20.0), ScrollAxes.Vertical, None, Some(80.0))
+        assertEquals(Constraints(minWidth = 20.0), intrinsic.contentConstraints)
+        assertEquals(Size(75.0, 80.0), intrinsic.size(Size(75.0, 500.0)))
+        val minimum =
+            ScrollMeasure(Constraints(minWidth = 50.0), ScrollAxes.Both, Some(10.0), Some(0.0))
+        assertEquals(Size(50.0, 0.0), minimum.size(Size(200.0, 300.0)))
+        assertFailsWith<IllegalArgumentException> {
+            ScrollMeasure(Constraints(), ScrollAxes.Vertical, None, None)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ScrollMeasure(Constraints(), ScrollAxes.Horizontal, None, Some(10.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ScrollMeasure(Constraints(), ScrollAxes.Both, Some(-1.0), Some(10.0))
+        }
+    }
+
+    @Test
+    fun `themed thumb travel maps to the whole range even with minimum lengths and buttons`() {
+        for (theme in [macosTheme(), materialTheme(), fluentTheme()]) {
+            for (orientation in [Orientation.Horizontal, Orientation.Vertical]) {
+                val bounds =
+                    if (orientation == Orientation.Horizontal)
+                        Rect(5.0, 8.0, 200.0, 20.0)
+                    else
+                        Rect(5.0, 8.0, 20.0, 200.0)
+                val shape = theme.scrollbarGeometry(bounds, ScrollbarVisual(orientation, 0.5, 0.01))
+                assertTrue(shape.travel > 0.0)
+                val thumb =
+                    Point(
+                        shape.thumb.bounds.x + shape.thumb.bounds.width / 2.0,
+                        shape.thumb.bounds.y + shape.thumb.bounds.height / 2.0
+                    )
+                assertEquals(Some(ScrollbarRegion.Thumb), scrollbarPart(shape, thumb))
+                assertEquals(500.0, scrollbarThumbOffset(shape, thumb, 0.5, 1000.0))
+                assertEquals(0.0, scrollbarThumbOffset(shape, Point(-100.0, -100.0), 0.5, 1000.0))
+                assertEquals(
+                    1000.0,
+                    scrollbarThumbOffset(shape, Point(1000.0, 1000.0), 0.5, 1000.0)
+                )
+                assertEquals(None, scrollbarPart(shape, Point(-5.0, -5.0)))
+                when (shape.decrement) {
+                    case Some(button) -> assertEquals(
+                        Some(ScrollbarRegion.Decrement),
+                        scrollbarPart(
+                            shape,
+                            Point(button.outline.bounds.x + 2.0, button.outline.bounds.y + 2.0)
+                        )
+                    )
+                    case None -> {}
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `bar visibility and zero travel have finite behavior`() {
+        assertFalse(showScrollbar(ScrollbarVisibility.Auto, 0.0))
+        assertTrue(showScrollbar(ScrollbarVisibility.Always, 0.0))
+        assertFalse(showScrollbar(ScrollbarVisibility.Hidden, 500.0))
+        val tiny =
+            macosTheme().scrollbarGeometry(
+                Rect(0.0, 0.0, 10.0, 10.0),
+                ScrollbarVisual(position = 0.5, visibleFraction = 0.01)
+            )
+        assertEquals(0.0, tiny.travel)
+        assertEquals(50.0, scrollbarThumbOffset(tiny, Point(8.0, 9.0), 0.5, 100.0))
+    }
+}

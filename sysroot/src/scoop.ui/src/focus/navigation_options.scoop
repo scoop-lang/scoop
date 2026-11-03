@@ -1,0 +1,17 @@
+package scoop.ui
+
+import scoop.graphics.text.TextDirection
+
+public enum NavigationLayout {
+    Horizontal, Vertical, Grid
+}
+
+public struct NavigationItem(val handle: FocusHandle, val row: Int = 0, val column: Int = 0)
+
+public struct NavigationOptions(
+    val items: Array<NavigationItem>,
+    val layout: NavigationLayout = NavigationLayout.Vertical,
+    val direction: TextDirection = TextDirection.Ltr,
+    val loop: Boolean = false,
+    val roving: Boolean = true
+)

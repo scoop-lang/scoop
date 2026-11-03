@@ -1,0 +1,190 @@
+package scoop.tests.ui.itemfocus
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal class ItemFocusScene(private val probe: ItemFocusProbe): Component {
+    public override fun render(): View {
+        val content =
+            if (probe.show.value)
+                virtualList(
+                    probe.data!!.value,
+                    if (probe.variable.value)
+                        ItemExtent.Variable(24.0)
+                    else
+                        ItemExtent.Fixed(24.0),
+                    Some(probe.scroll),
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    focus = FocusOptions(tabStop = false),
+                    enabled = probe.enabled.value,
+                    theme = Some(probe.theme),
+                    handle =
+                        Some(
+                            if (probe.replacement.value)
+                                probe.second
+                            else
+                                probe.first
+                        )
+                )
+            else
+                empty()
+        return element(
+            { ItemFocusPanel(probe) },
+            [
+                element({ LeadTarget(probe) }),
+                lazyElement(
+                    FocusOuterSource(content),
+                    probe.outer.value,
+                    { value -> FocusOuterPanel(value) },
+                    retention = ItemRetention.KeepAlive(1L)
+                )
+            ]
+        )
+    }
+}
+
+private class FocusOuterSource(private val content: View): ItemSource {
+    public override val count = 2L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < 2L)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View =
+        if (index == 0L)
+            content
+        else
+            empty()
+}
+
+private class FocusOuterPanel(private val selected: Props<Long>): LazyElement {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutMetrics {
+        context.measureItem(selected.value, constraints)
+        context.placeItem(selected.value, Point(0.0, 0.0))
+        for (index in context.pinnedItems)
+            if (index != selected.value) {
+                context.measureItem(index, constraints)
+                context.placeItem(index, Point(0.0, 0.0))
+            }
+        return LayoutMetrics(constraints.constrain(Size(160.0, 72.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class ItemFocusPanel(private val probe: ItemFocusProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(40.0, 24.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints.tight(Size(160.0, 72.0)))
+        context.placeChild(1L, Point(17.0, 43.0))
+        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(360.0, 260.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Discarded -> {
+                    assertTrue(discard)
+                    assertTrue(probe.first.isPending)
+                    assertTrue(probe.lead.hasFocus)
+                    probe.discarded += 1
+                    probe.scope!!.requestFrame()
+                }
+                case Accepted -> {
+                    probe.accepted += 1
+                    if (probe.checkFarGeometry) {
+                        val far = probe.row(99999999L)
+                        val bounds = far.areas[0L]!!.windowBounds!!
+                        assertEquals(19.0, bounds.x)
+                        assertEquals(93.0, bounds.y)
+                        assertEquals(50.0, bounds.width)
+                        assertEquals(20.0, bounds.height)
+                        assertTrue(far.areas[0L]!!.canFocus)
+                        probe.checkFarGeometry = false
+                        probe.farGeometryChecked = true
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class LeadTarget(private val probe: ItemFocusProbe): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        area = Some(scope.createArea(focusable = true))
+        scope.focusTarget(area!!, FocusOptions(Some(probe.lead)))
+        assertTrue(probe.lead.requestFocus())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(40.0, 24.0)))
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, 40.0, 24.0)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.Black)) }
+    }
+}
+
+internal class FocusSource(
+    private val probe: ItemFocusProbe,
+    private val order: Array<Long>? = None,
+    private val variable: Boolean = false
+): ItemSource {
+    public override val count: Long get() = order?.size ?: 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(id) -> when (order) {
+                case None -> if (id >= 0L && id < count)
+                    Some(id)
+                else
+                    None
+                case Some(keys) -> {
+                    var found: Long? = None
+                    for (index in 0L ..< keys.size)
+                        if (keys[index] == id)
+                            found = Some(index)
+                    found
+                }
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        probe.builds += 1
+        val id = order?.get(index) ?: index
+        val height =
+            if (!variable)
+                24.0
+            else
+                when (id) {
+                    case 7L -> 0.0
+                    case 9L -> 96.0
+                    case 10L -> 37.0
+                    else -> 24.0
+                }
+        return component(FocusRowInput(id, index, height), { props -> FocusRow(probe, props) })
+    }
+}

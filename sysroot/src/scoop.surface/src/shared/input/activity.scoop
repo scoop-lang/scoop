@@ -1,0 +1,139 @@
+package scoop.surface
+
+/** Ownership that keeps a logical subtree involved in an input session. */
+public struct InputActivity(
+    val hasFocus: Boolean = false,
+    val hasPress: Boolean = false,
+    val hasScrollRoute: Boolean = false,
+    val hasTextInput: Boolean = false,
+    val hasBoundary: Boolean = false
+) {
+    public val isEmpty: Boolean get() =
+        !hasFocus && !hasPress && !hasScrollRoute && !hasTextInput && !hasBoundary
+}
+
+internal class InputActivitySnapshot(
+    val focus: InputScope? = None,
+    val press: InputScope? = None,
+    val scroll: InputScope? = None,
+    val text: InputScope? = None,
+    val boundaries: Array<InputBoundary> = []
+) {
+    val value: InputActivity get() =
+        InputActivity(
+            present(focus),
+            present(press),
+            present(scroll),
+            present(text),
+            boundaries.size > 0L
+        )
+    fun same(other: InputActivitySnapshot): Boolean {
+        if (boundaries.size != other.boundaries.size)
+            return false
+        for (index in 0L ..< boundaries.size)
+            if (boundaries[index] !== other.boundaries[index])
+                return false
+        return sameScope(focus, other.focus) &&
+            sameScope(press, other.press) &&
+            sameScope(scroll, other.scroll) &&
+            sameScope(text, other.text)
+    }
+}
+
+private fun present(scope: InputScope?): Boolean =
+    when (scope) {
+        case Some(_) -> true
+        case None -> false
+    }
+
+private fun insideActivity(scope: InputScope?, boundary: InputScope): InputScope? {
+    var cursor = scope
+    while (true) {
+        val current = cursor ?: return None
+        if (current === boundary)
+            return scope
+        cursor = current.ancestor
+    }
+}
+
+private fun firstActivity(path: Array<InputScope>?): InputScope? =
+    when (path) {
+        case Some(value) -> if (value.size > 0L)
+            Some(value[0L])
+        else
+            None
+        case None -> None
+    }
+
+internal fun InputRouter.activityFor(scope: InputScope): InputActivitySnapshot {
+    checkThread()
+    if (closed || scope.closed)
+        return InputActivitySnapshot()
+    val scroll =
+        when (scrollRoute) {
+            case Some(route) -> if (!route.cancelled)
+                firstActivity(Some(route.scopes))
+            else
+                None
+            case None -> None
+        }
+    val text =
+        when (ime) {
+            case Off -> None
+            case Opening(area) -> Some(area.scope)
+            case On(area) -> Some(area.scope)
+            case Closing(area) -> Some(area.scope)
+        }
+    val ownedBoundaries = ArrayList<InputBoundary>()
+    for (boundary in boundaries)
+        if (present(insideActivity(Some(boundary.input), scope)))
+            ownedBoundaries.add(boundary)
+    return InputActivitySnapshot(
+        insideActivity(logicalFocus?.scope, scope),
+        insideActivity(firstActivity(pressed), scope),
+        insideActivity(scroll, scope),
+        insideActivity(text, scope),
+        ownedBoundaries.toArray()
+    )
+}
+
+internal class InputActivityObserver(val scope: InputScope, val handler: () -> Unit): Closeable {
+    var closed = false
+    var snapshot = scope.owner.activityFor(scope)
+    public override fun close() {
+        val owner = scope.owner
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        var index = 0L
+        while (index < owner.activityObservers.size) {
+            if (owner.activityObservers[index] === this) {
+                owner.activityObservers.removeAt(index)
+                return
+            }
+            index += 1L
+        }
+    }
+}
+
+internal fun InputRouter.notifyActivity() {
+    for (observer in activityObservers.toArray()) {
+        if (observer.closed)
+            continue
+        val next = activityFor(observer.scope)
+        if (!observer.snapshot.same(next)) {
+            observer.snapshot = next
+            observer.handler()
+        }
+        // A callback may have changed another observer's route. Reconcile before delivery.
+        if (pending || closed)
+            return
+    }
+}
+
+internal fun InputRouter.retireActivity(scope: InputScope) {
+    for (observer in activityObservers.toArray())
+        if (observer.scope === scope)
+            observer.close()
+}

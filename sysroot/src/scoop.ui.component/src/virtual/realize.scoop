@@ -1,0 +1,211 @@
+package scoop.ui.component
+
+import scoop.collections.HashSet
+import scoop.graphics.Point
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+/** One synchronous measure pass. No context or mutable geometry escapes into a frame callback. */
+internal class VirtualListLayout(
+    private val context: LazyMeasureContext,
+    constraints: Constraints,
+    private val props: VirtualListInkProps,
+    private val control: ScrollControl,
+    private val measurements: VirtualMeasurements,
+    previous: VirtualReadingPosition?,
+    private val request: ItemScrollRequest?
+) {
+    private val input = props.input
+    private val state = props.controls.state
+    private val revision = state.requestRevision
+    private val size = virtualViewport(constraints, input.width, input.height)
+    private val vertical = input.orientation == Orientation.Vertical
+    private val visible =
+        if (vertical)
+            size.height
+        else
+            size.width
+    private val index =
+        measurements.prepare(
+            input.source,
+            context.itemCount,
+            input.itemExtent,
+            input.orientation,
+            if (vertical)
+                size.width
+            else
+                size.height
+        )
+    private val geometry = ListGeometry(index, input.orientation, input.overscan, size)
+    private val measured = HashSet<Long>()
+    private val requestActive = request?.revision == Some(revision)
+    private val destination: Long? =
+        if (requestActive)
+            virtualIndex(input.source, index.count, request!!.key)
+        else
+            None
+    private val mayAnchor =
+        when (previous) {
+            case Some(value) -> value.state ===
+                state &&
+                value.orientation ==
+                input.orientation &&
+                value.revision ==
+                revision &&
+                !state.isAnimating
+            case None -> false
+        }
+    private val followEnd =
+        mayAnchor && input.anchor == VirtualListAnchor.FollowEnd && previous!!.atEnd
+    private val anchor: VirtualItemAnchor? =
+        if (mayAnchor && !followEnd)
+            previous!!.anchor
+        else
+            None
+    private val anchorIndex: Long? =
+        when (anchor) {
+            case Some(value) -> if (index.count > 0L)
+                Some(
+                    virtualIndex(input.source, index.count, value.key) ?:
+                        if (value.index < index.count)
+                            value.index
+                        else
+                            index.count - 1L
+                )
+            else
+                None
+            case None -> None
+        }
+
+    fun measure(): VirtualListFrame {
+        if (visible > 0.0) {
+            when (destination) {
+                case Some(at) -> ensure(at)
+                case None -> when (anchorIndex) {
+                    case Some(at) -> ensure(at)
+                    case None -> {}
+                }
+            }
+        }
+        var changed = true
+        while (changed) {
+            changed = false
+            for (at in context.pinnedItems)
+                if (ensure(at))
+                    changed = true
+            var cursor = currentRange().start
+            while (cursor < index.count) {
+                val range = currentRange()
+                if (cursor < range.start)
+                    cursor = range.start
+                if (cursor >= range.end)
+                    break
+                if (ensure(cursor))
+                    changed = true
+                cursor += 1L
+            }
+        }
+        val final = snapshot()
+        val range = geometry.range(scrollbarAxis(input.orientation, final.offset))
+        val pinned = HashSet<Long>()
+        for (at in context.pinnedItems)
+            pinned.add(at)
+        var recheck = false
+        for (at in measured) {
+            val origin = geometry.origin(at)
+            context.placeItem(at, Point(origin.x - final.offset.x, origin.y - final.offset.y))
+            if ((at < range.start || at >= range.end) && !pinned.contains(at))
+                recheck = true
+        }
+        val offset = scrollbarAxis(input.orientation, final.offset)
+        val first = index.indexAt(offset)
+        val nextAnchor =
+            if (visible > 0.0 && first < index.count)
+                Some(
+                    VirtualItemAnchor(
+                        input.source.keyAt(first),
+                        first,
+                        lowerBound(offset - index.prefix(first), 0.0)
+                    )
+                )
+            else
+                None
+        val reading =
+            VirtualReadingPosition(
+                state,
+                input.orientation,
+                revision,
+                nextAnchor,
+                offset == scrollbarAxis(input.orientation, final.maximum)
+            )
+        val requestDone = requestActive && (destination == None || visible > 0.0)
+        return VirtualListFrame(
+            props,
+            final,
+            revision,
+            visible > 0.0,
+            reading,
+            request,
+            requestDone,
+            recheck
+        )
+    }
+    private fun ensure(at: Long): Boolean {
+        if (measured.contains(at))
+            return false
+        val metrics = context.measureItem(at, geometry.itemConstraints)
+        measured.add(at)
+        measurements.record(
+            at,
+            if (vertical)
+                metrics.size.height
+            else
+                metrics.size.width
+        )
+        return true
+    }
+    private fun currentRange(): ItemRange =
+        geometry.range(scrollbarAxis(input.orientation, snapshot().offset))
+    private fun snapshot(): ScrollSnapshot {
+        val base = control.layout(size, geometry.content)
+        var adjustment: ScrollAdjustment? = None
+        when (destination) {
+            case Some(at) -> adjustment =
+                Some(
+                    ScrollAdjustment(
+                        revision,
+                        base.revealedOffset(
+                            geometry.bounds(at),
+                            if (vertical)
+                                ScrollAlignment.Nearest
+                            else
+                                request!!.alignment,
+                            if (vertical)
+                                request!!.alignment
+                            else
+                                ScrollAlignment.Nearest
+                        )
+                    )
+                )
+            case None -> {
+                if (followEnd)
+                    adjustment = Some(ScrollAdjustment(revision, base.maximum))
+                else
+                    when (anchorIndex) {
+                        case Some(at) -> adjustment =
+                            Some(
+                                ScrollAdjustment(
+                                    revision,
+                                    geometry.point(
+                                        index.prefix(at) +
+                                            upperBound(anchor!!.inside, index.extent(at))
+                                    )
+                                )
+                            )
+                        case None -> {}
+                    }
+            }
+        }
+        return control.layout(size, geometry.content, adjustment)
+    }
+}
