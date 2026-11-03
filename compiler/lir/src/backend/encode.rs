@@ -2,7 +2,7 @@ use super::*;
 
 impl WireEncode for BackendProfileContract {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(29)?;
+        encoder.map(30)?;
         encode_pair(
             encoder,
             1,
@@ -90,6 +90,14 @@ impl WireEncode for BackendProfileContract {
             match self.red_zone {
                 BackendRedZoneV1::Enabled => 1,
                 BackendRedZoneV1::Disabled => 2,
+            },
+        )?;
+        encode_unsigned_field(
+            encoder,
+            30,
+            match self.debug_information {
+                BackendDebugInformationFormatV1::Dwarf5 => 1,
+                BackendDebugInformationFormatV1::CodeView => 2,
             },
         )?;
         Ok(())

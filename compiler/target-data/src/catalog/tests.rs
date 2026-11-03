@@ -74,6 +74,18 @@ fn spelling_and_host_selection_use_the_complete_catalog() {
                 crate::FinalLinkProfile::Windows
             )
         ));
+        let expected_debug_information = match target.os {
+            crate::TargetOs::Darwin | crate::TargetOs::Linux => {
+                scoop_lir::BackendDebugInformationFormatV1::Dwarf5
+            }
+            crate::TargetOs::Windows => scoop_lir::BackendDebugInformationFormatV1::CodeView,
+        };
+        assert_eq!(
+            target.selection.backend().contract().debug_information,
+            expected_debug_information,
+            "{}",
+            target.canonical()
+        );
         for alias in target.aliases {
             assert_eq!(crate::named_target(alias), Some(target));
         }

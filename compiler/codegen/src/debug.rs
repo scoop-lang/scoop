@@ -65,9 +65,9 @@ impl<'a, 'ctx> DebugContext<'a, 'ctx> {
             "",
             "",
         );
-        let (format, version) = match profile.lir_target_profile().native_object_format() {
-            scoop_lir::NativeObjectFormat::Coff64 => ("CodeView", 1),
-            _ => ("Dwarf Version", 5),
+        let (format, version) = match profile.debug_information_format() {
+            scoop_lir::BackendDebugInformationFormatV1::Dwarf5 => ("Dwarf Version", 5),
+            scoop_lir::BackendDebugInformationFormatV1::CodeView => ("CodeView", 1),
         };
         module.add_basic_value_flag(
             format,

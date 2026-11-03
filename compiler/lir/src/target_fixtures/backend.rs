@@ -1,7 +1,7 @@
 use scoop_identity::BackendProfileId;
 use scoop_lir::{
-    BackendLsdaEncodingsV1, BackendProfile, BackendProfileContract, MachineFrameRecoveryV1,
-    ObjectTargetProfileV1, UnwindProviderV1,
+    BackendDebugInformationFormatV1, BackendLsdaEncodingsV1, BackendProfile,
+    BackendProfileContract, MachineFrameRecoveryV1, ObjectTargetProfileV1, UnwindProviderV1,
 };
 
 const fn id(name: &str) -> BackendProfileId {
@@ -29,6 +29,7 @@ pub const LLVM_22_1_DARWIN_AARCH64: BackendProfile = BackendProfile::new(
         },
         machine_frame_recovery: MachineFrameRecoveryV1::DarwinAarch64Fixed,
         red_zone: scoop_lir::BackendRedZoneV1::Enabled,
+        debug_information: BackendDebugInformationFormatV1::Dwarf5,
     },
 );
 
@@ -45,6 +46,7 @@ pub const LLVM_22_1_LINUX_X86_64: BackendProfile = BackendProfile::new(
         },
         machine_frame_recovery: MachineFrameRecoveryV1::SysvAmd64Fixed,
         red_zone: scoop_lir::BackendRedZoneV1::Disabled,
+        debug_information: BackendDebugInformationFormatV1::Dwarf5,
         ..LLVM_22_1_DARWIN_AARCH64.contract()
     },
 );

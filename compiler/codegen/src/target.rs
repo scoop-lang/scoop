@@ -133,6 +133,7 @@ pub struct ValidatedBackendProfile {
     features: &'static str,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
+    debug_information_format: scoop_lir::BackendDebugInformationFormatV1,
     relocation: RelocMode,
     code_model: CodeModel,
     object_format: ObjectFormat,
@@ -174,6 +175,7 @@ impl ValidatedBackendProfile {
             features: selection.backend().contract().features,
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
+            debug_information_format: selection.backend().contract().debug_information,
             relocation: RelocMode::PIC,
             code_model: CodeModel::Default,
             object_format,
@@ -255,6 +257,12 @@ impl ValidatedBackendProfile {
 
     pub const fn debug_info(self) -> scoop_lir::DebugInfoLevel {
         self.debug_info
+    }
+
+    pub(crate) const fn debug_information_format(
+        self,
+    ) -> scoop_lir::BackendDebugInformationFormatV1 {
+        self.debug_information_format
     }
 
     pub fn id(self) -> TargetProfileId {
