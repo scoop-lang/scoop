@@ -1,0 +1,95 @@
+package scoop.ui.text
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class TextEditorSingleLineTest {
+    @Test
+    fun `single line conversion preserves raw ordered native replacement coordinates`() {
+        val state = TextEditorState("A")
+        assertTrue(
+            applyEditorInput(
+                state,
+                TextInputBatch(
+                    None,
+                    [
+                        TextInputOperation.Commit("😀\r\nB", TextReplacement.CurrentSelection),
+                        TextInputOperation.Commit("中", TextReplacement.Range(Utf8Range(7L, 8L)))
+                    ]
+                ),
+                true
+            )
+        )
+        assertEquals("A😀 中", state.text)
+        assertEquals(Utf8Selection(9L, 9L), state.selection)
+        assertEquals(1L, state.revision)
+        assertTrue(state.undo())
+        assertEquals("A", state.text)
+        assertFalse(state.canUndo)
+        assertTrue(state.redo())
+        assertEquals("A😀 中", state.text)
+    }
+
+    @Test
+    fun `normalized marked text preserves reverse selection and restores the replacement baseline`() {
+        val state = TextEditorState("AZ", Some(Utf8Selection(2L, 1L)))
+        applyEditorInput(
+            state,
+            TextInputBatch(
+                None,
+                [
+                    TextInputOperation.Preedit(
+                        "仮\r\n😀",
+                        Some(Utf8Selection(9L, 5L)),
+                        TextReplacement.CurrentSelection
+                    )
+                ]
+            ),
+            true
+        )
+        assertEquals("A仮 😀", state.text)
+        assertEquals(Utf8Selection(9L, 5L), state.selection)
+        assertEquals(Some(Utf8Range(1L, 9L)), state.markedRange)
+        applyEditorInput(
+            state,
+            TextInputBatch(
+                None,
+                [TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection)]
+            ),
+            true
+        )
+        assertEquals("AZ", state.text)
+        assertEquals(Utf8Selection(2L, 1L), state.selection)
+        assertFalse(state.isComposing)
+        assertFalse(state.canUndo)
+    }
+
+    @Test
+    fun `a final composition retains a normalized baseline independently of completed edits`() {
+        val state = TextEditorState()
+        applyEditorInput(
+            state,
+            TextInputBatch(
+                None,
+                [
+                    TextInputOperation.Commit("X\r\n", TextReplacement.CurrentSelection),
+                    TextInputOperation.Preedit(
+                        "y\u2028z",
+                        Some(Utf8Selection(5L, 5L)),
+                        TextReplacement.CurrentSelection
+                    )
+                ]
+            ),
+            true
+        )
+        assertEquals("X y z", state.text)
+        assertEquals(Some(Utf8Range(2L, 5L)), state.markedRange)
+        assertTrue(state.cancelComposition())
+        assertEquals("X ", state.text)
+        assertEquals(Utf8Selection(2L, 2L), state.selection)
+        assertTrue(state.undo())
+        assertEquals("", state.text)
+        assertEquals("a b c d e f", EditorSingleLine.from("a\r\nb\nc\rd\u0085e\u2029f").text)
+    }
+}

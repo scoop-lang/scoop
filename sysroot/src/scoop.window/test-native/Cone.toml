@@ -39,6 +39,10 @@ path = "native/snapshot.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/editor.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/clipboard.m"
 when = { os = "darwin" }
 

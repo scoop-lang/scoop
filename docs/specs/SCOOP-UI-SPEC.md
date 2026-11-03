@@ -463,6 +463,26 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `undo()` 先取消仍在进行的组合，再撤销最近编辑；没有历史时仍可取消组合。`redo()` 在存在可重做项时先取消组合再重做，否则不改变状态。历史只保存必要的 UTF-8 文本差量及前后 TextPosition，不为普通键入保存全文；连续插入／退格／向前删除仅在种类、相邻范围及方向选区相符时合并。粘贴、剪切、显式替换、选择与焦点切换形成边界，`breakUndoGroup()` 可显式结束合并。新编辑丢弃旧 redo，取消组合不丢弃已有 redo。各编辑入口返回是否改变可观察状态；空批次与无效 undo／redo 返回 false。
 
+#### 7.5.2 公共纯文本编辑宿主
+
+`TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
+
+TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction=Ltr、alignment=Start、paintCache=None 和 caretBlink=500ms。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部正文不得含硬换行；粘贴和原生输入把硬换行转为空格，CRLF 作为一个换行。原生批次先按原始有序范围完整应用，再统一转换最终正文、选区、标记和仍活动的组合基线，不在每个操作之间改变后续原生范围的坐标依据。活动单行宿主在模型发布前验证这一条件，失败不改变正文或历史。
+
+TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+
+组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
+
+同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
+
+默认行为使用同一 InputScope 路由。真实 key-down 优先执行 KeyEvent.textCommands 的有序命令，仅载荷为空时采用 macOS 编辑键位回退；从不根据 LogicalKey.Character 再插入正文。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
+
+点击、Shift 点击、拖选、双击词和三击逻辑行均通过 TextLayout 命中与 Unicode 导航完成。选区保留方向和 TextPosition affinity；普通左右移动折叠非空选区到相应视觉边缘，逻辑前后移动使用相应字节边界；上下／翻页保留期望 x。删除单个字符使用完整 grapheme，word／行／段落／文档命令使用文本库实际范围，段落末端不删除硬换行。原生标量选区可以落在 grapheme 内部，显示 caret 临时收敛到对应 grapheme 边缘，不改写原生规范选区。
+
+输入区域在 ScrollViewport 内以当前内容坐标放置完整视口，使局部输入与 caret 使用文档坐标。光标变化通过 FocusTarget.reveal 在成功帧后显露，同一次请求沿内外层滚动推进；自动显露不覆盖另一个目标正在等待的焦点请求。宿主保留最后 Accepted 帧的 TextLayout 所有权；失败的新布局不能替换输入所依据的旧几何。文档已更新而尚未呈现时，命中／导航使用新正文与最近成功视口宽度，候选框仍不可用。原生 TextInputState 在操作生效后立即按实际 origin 确认发布，不等待 drawable；成功场景单独发布当前 revision 的 caret。过期／非法原生批次整批拒绝并重建连接，关闭中的旧连接批次不进入恢复或新绑定的编辑器。
+
+caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠选区、非组合、窗口可见且实际 caret 可见时预约下一次闪烁；输入重置可见阶段，失焦／隐藏／不可见／关闭停止预约。拖选出视口时才预约边缘滚动，按实际可滚范围推进，每次滚动等 Accepted 后再继续；被阻止的释放也通过 onEventFinished 结束拖选。普通滚轮复用残量消费和祖先链，宿主没有永久轮询或第二个场景坐标系统。
+
 ### 7.6 同窗口 portal 与锚点
 
 UiRoot 在普通内容的测量和 scene 完成后处理同窗口层出口。Portal 在原容器中按 empty 的约束下限返回占位尺寸，不测量其内容，也不以弹层尺寸撑开父容器；内容在逻辑阶段正常挂载，获得有效层位置后才在本帧测量一次，并从窗口根的坐标与 clip 状态呈现。普通父容器不重复测量层内内容。未参与本帧正常场景的 Portal 不呈现；层内容的逻辑更新和资源归属仍按普通挂载处理。

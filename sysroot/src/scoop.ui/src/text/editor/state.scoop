@@ -12,6 +12,31 @@ public class TextEditorState public constructor(
     internal val storage = state(editorInitial(text, selection))
     internal val history = EditorHistory()
     internal var composition: EditorValue? = None
+    private var activeHost: TextEditHost? = None
+
+    internal fun checkHost(host: TextEditHost) {
+        storage.checkMutation()
+        when (activeHost) {
+            case Some(value) -> requireUi(value === host, "text state already has an active editor")
+            case None -> {}
+        }
+    }
+    internal fun attachHost(host: TextEditHost) {
+        checkHost(host)
+        activeHost = Some(host)
+    }
+    internal fun ownsHost(host: TextEditHost): Boolean =
+        when (activeHost) {
+            case Some(value) -> value === host
+            case None -> false
+        }
+    internal fun detachHost(host: TextEditHost): Boolean {
+        storage.checkMutation()
+        if (!ownsHost(host))
+            return false
+        activeHost = None
+        return true
+    }
 
     public val inputState: TextInputState get() = storage.value.input
     public val text: String get() = inputState.surroundingText
@@ -139,6 +164,7 @@ public class TextEditorState public constructor(
         val previous = storage.value
         val a = previous.input
         val b = next.input
+        activeHost?.checkDocument(b.surroundingText)
         val revise =
             forceRevision ||
                 a.surroundingText !=
@@ -162,6 +188,8 @@ public class TextEditorState public constructor(
         composition = baseline
         if (changed || changedHistory)
             storage.publish(value)
+        if (changed)
+            activeHost?.modelChanged()
         return changed || changedHistory
     }
 }

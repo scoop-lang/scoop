@@ -146,6 +146,33 @@ private class UiTextCacheTest {
         assertTrue(host.isClosed)
         assertFailsWith<IllegalStateException> { host.layout }
     }
+
+    @Test
+    fun `an accepted editor layout survives cache replacement until its last frame owner closes`() {
+        adapterFonts().use {
+            fonts ->
+            val cache = ParagraphCache()
+            val content =
+                StyledText([TextSpan.text("first second third")], TextStyle(["UI Test"], 20.0))
+            val old = cache.update(fonts, content, ParagraphStyle(), Some(180.0), [])
+            val accepted = cache.retainLayout()
+            val retainedAgain = cache.retainLayout()
+            val next = cache.update(fonts, content, ParagraphStyle(), Some(65.0), [])
+            assertFalse(old.isClosed)
+            assertTrue(next.lines.size > old.lines.size)
+            assertTrue(accepted.layout.caret(TextPosition(0L)) != None)
+            cache.close()
+            assertTrue(next.isClosed)
+            assertFalse(old.isClosed)
+            accepted.close()
+            accepted.close()
+            assertFalse(old.isClosed)
+            assertTrue(retainedAgain.layout.caret(TextPosition(0L)) != None)
+            retainedAgain.close()
+            assertTrue(old.isClosed)
+            assertFailsWith<IllegalStateException> { accepted.layout }
+        }
+    }
 }
 
 private fun adapterFonts(): FontCollection {

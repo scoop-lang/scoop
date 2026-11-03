@@ -1,0 +1,224 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.math.max
+import scoop.math.min
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal enum EditorDragUnit {
+    Character, Word, Line
+}
+
+internal class EditorDrag(
+    var windowPoint: Point,
+    val unit: EditorDragUnit,
+    val initial: TextRange,
+    val anchor: TextPosition
+) {
+    var waiting = false
+}
+
+internal fun editorDragging(host: TextEditHost): Boolean =
+    when (host.drag) {
+        case Some(_) -> true
+        case None -> false
+    }
+
+internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point?, clicks: Int) {
+    val point = local ?: return
+    host.area.requestFocus()
+    val layout = editorInputLayout(host)
+    val position = layout.hitTest(point)
+    val shift = pointer.state.modifiers.shift
+    val unit =
+        if (shift || clicks < 2)
+            EditorDragUnit.Character
+        else
+            if (clicks == 2)
+                EditorDragUnit.Word
+            else
+                EditorDragUnit.Line
+    val range = editorDragRange(layout, position, unit)
+    val anchor =
+        if (shift)
+            host.current.anchor
+        else
+            if (unit == EditorDragUnit.Character)
+                position
+            else
+                TextPosition(range.start)
+    val cursor =
+        if (unit == EditorDragUnit.Character)
+            position
+        else
+            TextPosition(range.end, TextAffinity.Upstream)
+    editorStopDrag(host, false)
+    host.drag =
+        Some(
+            EditorDrag(
+                Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y),
+                unit,
+                range,
+                anchor
+            )
+        )
+    host.perform({ host.current.setSelection(anchor, cursor) }, endComposition = true)
+    host.invalidate()
+    host.revealNeeded = false
+}
+
+internal fun editorDragMove(host: TextEditHost, pointer: InputPointer) {
+    val drag = host.drag ?: return
+    drag.windowPoint = Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y)
+    if (!drag.waiting)
+        editorUpdateDrag(host, drag, Point(0.0, 0.0))
+    editorScheduleDrag(host)
+}
+
+private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement: Point) {
+    val frame = host.accepted ?: return
+    val point = host.area.toLocal(drag.windowPoint) ?: return
+    val offset = frame.snapshot.offset
+    val viewport = frame.snapshot.viewport
+    val hit =
+        Point(
+            min(max(point.x, offset.x), offset.x + viewport.width) + displacement.x,
+            min(max(point.y, offset.y), offset.y + viewport.height) + displacement.y
+        )
+    val layout = editorInputLayout(host)
+    val position = layout.hitTest(hit)
+    val range = editorDragRange(layout, position, drag.unit)
+    val selection =
+        if (drag.unit == EditorDragUnit.Character)
+            EditorSelection(drag.anchor, position)
+        else
+            if (range.start < drag.initial.start)
+                EditorSelection(
+                    TextPosition(drag.initial.end, TextAffinity.Upstream),
+                    TextPosition(range.start)
+                )
+            else
+                EditorSelection(
+                    TextPosition(drag.initial.start),
+                    TextPosition(range.end, TextAffinity.Upstream)
+                )
+    host.perform(
+        { host.current.setSelection(selection.anchor, selection.cursor) },
+        endComposition = true
+    )
+    host.revealNeeded = false
+}
+
+private fun editorDragRange(
+    layout: TextLayout,
+    position: TextPosition,
+    unit: EditorDragUnit
+): TextRange =
+    when (unit) {
+        case Character -> TextRange(position.byteOffset, position.byteOffset)
+        case Word -> layout.wordRange(position)
+        case Line -> layout.logicalLineRange(position) ?:
+            TextRange(position.byteOffset, position.byteOffset)
+    }
+
+internal fun editorStopDrag(host: TextEditHost, reveal: Boolean) {
+    if (!editorDragging(host))
+        return
+    host.drag = None
+    host.dragTimer.cancel()
+    if (reveal && !host.closed && host.scope.isMounted)
+        host.invalidate()
+}
+
+private fun editorDragDelta(host: TextEditHost, drag: EditorDrag): Point {
+    val frame = host.accepted ?: return Point(0.0, 0.0)
+    val point = host.area.toLocal(drag.windowPoint) ?: return Point(0.0, 0.0)
+    val snapshot = frame.snapshot
+    val x = point.x - snapshot.offset.x
+    val y = point.y - snapshot.offset.y
+    val horizontal =
+        if (x < 0.0)
+            editorEdgeStep(x)
+        else
+            if (x > snapshot.viewport.width)
+                editorEdgeStep(x - snapshot.viewport.width)
+            else
+                0.0
+    val vertical =
+        if (!host.options.multiline)
+            0.0
+        else
+            if (y < 0.0)
+                editorEdgeStep(y)
+            else
+                if (y > snapshot.viewport.height)
+                    editorEdgeStep(y - snapshot.viewport.height)
+                else
+                    0.0
+    val offset = host.scroll.offset
+    val maximum = host.scroll.maximum
+    return Point(
+        min(max(horizontal, -offset.x), maximum.x - offset.x),
+        min(max(vertical, -offset.y), maximum.y - offset.y)
+    )
+}
+
+private fun editorEdgeStep(distance: Double): Double {
+    val amount = min(40.0, max(2.0, abs(distance) * 0.25))
+    return if (distance < 0.0)
+        -amount
+    else
+        amount
+}
+
+private fun editorScheduleDrag(host: TextEditHost) {
+    val drag = host.drag ?: return
+    if (
+        drag.waiting ||
+            host.closed ||
+            !host.scope.isMounted ||
+            !host.area.isFocusActive ||
+            !host.window.isVisible ||
+            host.window.isOccluded
+    ) {
+        host.dragTimer.cancel()
+        return
+    }
+    if (editorDragDelta(host, drag) == Point(0.0, 0.0)) {
+        host.dragTimer.cancel()
+        return
+    }
+    if (!host.dragTimer.isScheduled)
+        host.dragTimer.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(16L))
+}
+
+internal fun editorDragTick(host: TextEditHost) {
+    val drag = host.drag ?: return
+    if (
+        host.closed ||
+            !host.scope.isMounted ||
+            !host.area.isFocusActive ||
+            !host.window.isVisible ||
+            host.window.isOccluded
+    )
+        return
+    val before = host.scroll.offset
+    host.scroll.scrollBy(editorDragDelta(host, drag))
+    val after = host.scroll.offset
+    if (before == after)
+        return
+    drag.waiting = true
+    editorUpdateDrag(host, drag, Point(after.x - before.x, after.y - before.y))
+}
+
+internal fun editorDragAccepted(host: TextEditHost) {
+    val drag = host.drag ?: return
+    drag.waiting = false
+    editorUpdateDrag(host, drag, Point(0.0, 0.0))
+    editorScheduleDrag(host)
+}

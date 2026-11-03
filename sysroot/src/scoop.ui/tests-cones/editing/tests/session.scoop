@@ -1,0 +1,228 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class PublicTextEditHostTest {
+    @Test
+    fun `native editing focus clipboard selection scrolling and successful geometry share one host`() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard() ?: fail(Some("cannot save clipboard"))
+            try {
+                FontCollection().use {
+                    fonts ->
+                    fonts.register(testSansBytes, "Host Test")
+                    val probe = EditProbe(fonts)
+                    try {
+                        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                            host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                        }
+                        assertTrue(probe.finished)
+                        assertEquals(3, probe.mounts)
+                        assertEquals(probe.mounts, probe.unmounts)
+                        for (host in probe.fields)
+                            assertTrue(host!!.isClosed)
+                        for (focus in probe.focus)
+                            assertFalse(focus.isAttached)
+                        assertFalse(probe.frames!!.snapshot().required)
+                        assertFalse(fonts.isClosed)
+                    } finally {
+                        probe.frames?.close()
+                    }
+                }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+}
+
+internal class EditProbe(val fonts: FontCollection) {
+    val primary = TextEditorState("A😀éZ")
+    val multiline = TextEditorState("one two\nthree")
+    val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
+    val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
+    val revision = state(0)
+    val appearance =
+        TextEditAppearance(
+            fonts,
+            TextStyle(["Host Test"], 20.0),
+            TextStyle(["Host Test"], 20.0, Color(0.5, 0.5, 0.5))
+        )
+    var readonly = false
+    var showObserver = true
+    var tab = TextTabBehavior.Navigate
+    var blink = Duration.milliseconds(0L)
+    var primaryWidth = 128.0
+    var multiWidth = 180.0
+    var scale = 1.0
+    var preventKeys = false
+    var preventRelease = false
+    var checkSnapshot = false
+    var discarded = 0
+    var discardNext = false
+    var savedLayout: TextLayout? = None
+    var expectedMove: TextPosition? = None
+    var savedEdits = 0
+    var savedPasses = 0
+    var savedLength = 0L
+    var edits = 0
+    var submits = 0
+    var escapes = 0
+    var mounts = 0
+    var unmounts = 0
+    var passes = 0
+    var accepted = 0
+    var phase = 0
+    var waiting = false
+    var retriedFocus = false
+    var finished = false
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var scope: ComponentScope? = None
+    var frames: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var action: () -> Unit = {}
+
+    fun options(index: Long): TextEditOptions =
+        TextEditOptions(
+            multiline = index == 1L,
+            readOnly =
+                if (index == 2L)
+                    true
+                else
+                    readonly,
+            enabled = index != 2L,
+            tab = tab,
+            submit =
+                if (index == 1L)
+                    TextSubmitKeys.PrimaryEnter
+                else
+                    TextSubmitKeys.Enter,
+            paintCache = PaintCachePolicy.Tiles(64, 0),
+            caretBlink = blink
+        )
+    fun model(index: Long): TextEditorState =
+        if (index == 1L)
+            multiline
+        else
+            primary
+    fun field(index: Long): TextEditHost = fields[index]!!
+    fun change() {
+        revision.value += 1
+    }
+    fun edited(state: TextEditorState) {
+        edits += 1
+        if (checkSnapshot) {
+            assertTrue(
+                editorDocument(window!!, state),
+                Some(f"immediate text snapshot phase=${phase}")
+            )
+            editorNativeCaret(window!!, state, None)
+        }
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop text editing", LogicalSize(520.0, 400.0))
+                    )
+                window = Some(native)
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                frames = Some(observeFrames(native))
+                checkpoint =
+                    Some(
+                        native.createDeadline {
+                            val current = action
+                            assertTrue(application.proxy().post { _ -> current() })
+                        }
+                    )
+                ui = Some(host.attach(native, { EditScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && !nativeFocused() && !retriedFocus) {
+                    retriedFocus = true
+                    window!!.requestFocus()
+                }
+                if (!finished && phase < 37 && !waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (settled())
+                                advanceEditing(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 37
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"editor timeout phase=${phase}, passes=${passes}, accepted=${accepted}")
+            )
+            else -> {}
+        }
+    }
+    private fun nativeFocused(): Boolean = window!!.isFocused
+    private fun settled(): Boolean {
+        if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
+            return false
+        for (target in focus)
+            if (target.isPending)
+                return false
+        for (index in 0L ..< 2L) {
+            val host = fields[index] ?: return false
+            if (host.area.isFocusActive && !readonly && !editorDocument(window!!, model(index)))
+                return false
+        }
+        return true
+    }
+    fun next(block: () -> Unit) {
+        phase += 1
+        waiting = true
+        block()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun later(block: () -> Unit) {
+        waiting = true
+        action =
+            {
+                block()
+                waiting = false
+            }
+        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(140L))
+    }
+    fun point(index: Long, byte: Long): Point {
+        val host = field(index)
+        val caret = host.layout.caret(TextPosition(byte))!!
+        val rect = host.area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
+        return Point(rect.x, rect.y)
+    }
+    fun click(index: Long, byte: Long, count: Int = 1, shift: Boolean = false) {
+        val point = point(index, byte)
+        editorPointer(window!!, point, true, count, shift)
+        editorPointer(window!!, point, false, count, shift)
+    }
+}

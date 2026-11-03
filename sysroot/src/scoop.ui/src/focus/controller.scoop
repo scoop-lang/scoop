@@ -87,6 +87,16 @@ internal class FocusController(private val root: UiRoot): Closeable {
             case None -> false
         }
     }
+    /** An editor's automatic caret reveal must not replace a different focus destination. */
+    fun pendingElsewhere(target: FocusTarget): Boolean {
+        val value = pending ?: return false
+        if (!current(value))
+            return false
+        return when (value.selected) {
+            case Some(selected) -> selected !== target
+            case None -> true
+        }
+    }
     fun hasPendingIn(node: MountedNode): Boolean {
         val value = pending ?: return false
         if (!current(value))

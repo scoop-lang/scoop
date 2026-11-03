@@ -1,0 +1,50 @@
+package scoop.tests.window
+
+/** Sends a commit, preedit, cancel or unmark through the actual NSTextInputClient. */
+@Extern(name = "scoop_window_test_editor_text")
+public fun nativeEditorText(
+    view: Ptr<Unit>,
+    kind: Int,
+    text: Ptr<UInt8>,
+    length: Long,
+    selectionStart: Long,
+    selectionLength: Long,
+    replacementStart: Long,
+    replacementLength: Long
+): Int
+
+/** Expected document ranges use UTF-8; AppKit's returned ranges are compared in UTF-16. */
+@Extern(name = "scoop_window_test_editor_document")
+public fun nativeEditorDocument(
+    view: Ptr<Unit>,
+    text: Ptr<UInt8>,
+    length: Long,
+    selectionStart: Long,
+    selectionEnd: Long,
+    markedStart: Long,
+    markedEnd: Long
+): Boolean
+
+/** Flags: Shift=1, Control=2, Option=4, Command=8. */
+@Extern(name = "scoop_window_test_editor_key")
+public fun nativeEditorKey(
+    view: Ptr<Unit>,
+    code: Int,
+    text: Ptr<UInt8>,
+    length: Long,
+    flags: Int
+): Int
+
+/** Reproduces selector/IME ordering inside a real keyDown transaction. */
+@Extern(name = "scoop_window_test_editor_interpret")
+public fun nativeEditorInterpret(view: Ptr<Unit>, scenario: Int): Int
+
+@Extern(name = "scoop_window_test_editor_pointer")
+public fun nativeEditorPointer(
+    view: Ptr<Unit>,
+    x: Double,
+    y: Double,
+    pressed: Boolean,
+    clicks: Int,
+    shift: Boolean
+): Int

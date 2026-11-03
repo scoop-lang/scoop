@@ -1,0 +1,302 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun advanceEditing(probe: EditProbe) {
+    val first = probe.primary
+    val second = probe.multiline
+    val window = probe.window!!
+    when (probe.phase) {
+        case 0 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            assertEquals("A😀éZ", first.text)
+            probe.next {
+                probe.checkSnapshot = true
+                first.setSelection(Utf8Selection(8L, 1L))
+            }
+        }
+        case 1 -> {
+            assertEquals(Utf8Selection(8L, 1L), first.selection)
+            assertEquals(0, probe.edits)
+            probe.next { assertEquals(0, editorText(window, "仮😀", 1, 1L, 2L)) }
+        }
+        case 2 -> {
+            assertEquals("A仮😀Z", first.text)
+            assertEquals(Utf8Selection(4L, 8L), first.selection)
+            assertEquals(Some(Utf8Range(1L, 8L)), first.markedRange)
+            probe.savedEdits = probe.edits
+            probe.next {
+                probe.showObserver = false;
+                probe.change()
+            }
+        }
+        case 3 -> {
+            assertTrue(probe.field(2L).isClosed)
+            assertTrue(first.isComposing)
+            assertEquals(probe.savedEdits, probe.edits)
+            probe.next { editorInterpret(window, 2) }
+        }
+        case 4 -> {
+            assertEquals("A😀éZ", first.text)
+            assertEquals(Utf8Selection(8L, 1L), first.selection)
+            assertFalse(first.isComposing)
+            assertEquals(0, probe.escapes)
+            probe.next { assertEquals(0, editorText(window, "中", 1, 1L, 0L)) }
+        }
+        case 5 -> {
+            assertEquals("A中Z", first.text)
+            probe.next { editorInterpret(window, 1) }
+        }
+        case 6 -> {
+            assertEquals("A中文Z", first.text)
+            assertFalse(first.isComposing)
+            assertEquals(0, probe.submits)
+            probe.next { editorKey(window, 6, "z", 8) }
+        }
+        case 7 -> {
+            assertEquals("A😀éZ", first.text)
+            assertEquals(Utf8Selection(8L, 1L), first.selection)
+            probe.next { editorKey(window, 6, "z", 9) }
+        }
+        case 8 -> {
+            assertEquals("A中文Z", first.text)
+            probe.savedEdits = probe.edits
+            probe.next { editorInterpret(window, 4) }
+        }
+        case 9 -> {
+            assertEquals("A中文xZ", first.text)
+            assertEquals(probe.savedEdits + 1, probe.edits)
+            probe.next {
+                probe.preventKeys = true;
+                editorInterpret(window, 3)
+            }
+        }
+        case 10 -> {
+            assertEquals("A中文xZ", first.text)
+            probe.next {
+                probe.preventKeys = false;
+                editorInterpret(window, 3)
+            }
+        }
+        case 11 -> {
+            assertEquals("中文xZ", first.text)
+            assertEquals(Utf8Selection(0L, 0L), first.selection)
+            probe.next {
+                probe.checkSnapshot = false
+                first.setSelection(Utf8Selection(0L, first.text.byteLength))
+                assertTrue(probe.field(0L).execute(TextEditCommand.Copy))
+                assertEquals(Some("中文xZ"), window.clipboard.readText())
+                @Unsafe
+                {
+                    assertEquals(0, failNextNativeClipboardWrite())
+                }
+                assertEquals(
+                    WindowErrorKind.NativeFailure,
+                    assertFailsWith<WindowException> {
+                        probe.field(0L).execute(TextEditCommand.Cut)
+                    }.kind
+                )
+                assertEquals("中文xZ", first.text)
+                assertEquals(Utf8Selection(0L, 8L), first.selection)
+                assertTrue(probe.field(0L).execute(TextEditCommand.Cut))
+            }
+        }
+        case 12 -> {
+            assertEquals("", first.text)
+            assertEquals(Some("中文xZ"), window.clipboard.readText())
+            probe.next {
+                window.clipboard.writeText("B\r\n😀\u2028C")
+                assertTrue(probe.field(0L).execute(TextEditCommand.Paste))
+            }
+        }
+        case 13 -> {
+            assertEquals("B 😀 C", first.text)
+            probe.next {
+                assertTrue(probe.field(0L).execute(TextEditCommand.Undo))
+                assertEquals("", first.text)
+                assertTrue(probe.field(0L).execute(TextEditCommand.Redo))
+                assertEquals("B 😀 C", first.text)
+                probe.readonly = true
+                probe.change()
+            }
+        }
+        case 14 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            assertEquals(1, editorText(window, "blocked"))
+            assertTrue(probe.field(0L).execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertEquals("B 😀 C", first.text)
+            probe.next {
+                probe.readonly = false;
+                probe.change()
+            }
+        }
+        case 15 -> probe.next {
+            probe.savedEdits = probe.edits
+            assertEquals(0, editorText(window, "OLD"))
+            first.replaceAll("server")
+        }
+        case 16 -> {
+            assertEquals("server", first.text)
+            assertEquals(probe.savedEdits, probe.edits)
+            assertFailsWith<IllegalArgumentException> { first.replaceAll("bad\nline") }
+            assertEquals("server", first.text)
+            probe.next {
+                val text = StringBuilder()
+                for (index in 0L ..< 200L)
+                    text.append("x")
+                first.replaceAll(text.toString())
+                probe.scale = 1.25
+                probe.change()
+            }
+        }
+        case 17 -> {
+            assertTrue(probe.field(0L).scroll.offset.x > 0.0)
+            assertTrue(probe.field(0L).area.visibleCaretBounds != None)
+            editorNativeCaret(window, first, probe.field(0L).area.visibleCaretBounds)
+            probe.savedLayout = Some(probe.field(0L).layout)
+            probe.next { first.setSelection(Utf8Selection(199L, 199L)) }
+        }
+        case 18 -> {
+            assertSame(probe.savedLayout!!, probe.field(0L).layout)
+            editorNativeCaret(window, first, probe.field(0L).area.visibleCaretBounds)
+            probe.next { editorKey(window, 48, "\t") }
+        }
+        case 19 -> {
+            assertTrue(probe.focus[1L].hasFocus)
+            assertTrue(probe.field(1L).area.isFocusActive)
+            probe.next {
+                first.replaceAll("background")
+                probe.checkSnapshot = true;
+                editorKey(window, 36, "\r")
+            }
+        }
+        case 20 -> {
+            assertEquals("background", probe.field(0L).layout.text)
+            assertEquals("one two\nthree\n", second.text)
+            assertEquals(0, probe.submits)
+            probe.next { editorKey(window, 36, "\r", 1) }
+        }
+        case 21 -> {
+            assertEquals("one two\nthree\n\n", second.text)
+            probe.next { editorKey(window, 36, "\r", 8) }
+        }
+        case 22 -> {
+            assertEquals(1, probe.submits)
+            assertEquals("one two\nthree\n\n", second.text)
+            probe.next {
+                probe.checkSnapshot = false
+                second.replaceAll("one two\nthree", Some(Utf8Selection(0L, 0L)))
+            }
+        }
+        case 23 -> probe.next { probe.click(1L, 1L, 2) }
+        case 24 -> {
+            assertEquals(Utf8Range(0L, 3L), second.selection.range)
+            probe.next { probe.click(1L, 1L, 3) }
+        }
+        case 25 -> {
+            assertEquals(Utf8Range(0L, 8L), second.selection.range)
+            probe.next {
+                probe.click(1L, 10L);
+                probe.click(1L, 0L, shift = true)
+            }
+        }
+        case 26 -> {
+            assertEquals(Utf8Selection(10L, 0L), second.selection)
+            probe.next {
+                val text = StringBuilder()
+                for (index in 0L ..< 50L)
+                    text.append("row ").append(index).append(" content\n")
+                second.replaceAll(text.toString(), Some(Utf8Selection(0L, 0L)))
+            }
+        }
+        case 27 -> {
+            assertEquals(0.0, probe.field(1L).scroll.offset.y)
+            val start = probe.point(1L, 1L)
+            val bounds = probe.field(1L).area.windowBounds!!
+            val outside = Point(bounds.x + bounds.width + 40.0, bounds.y + bounds.height + 90.0)
+            probe.phase += 1
+            probe.preventRelease = true
+            editorPointer(window, start, true)
+            assertTrue(moveSurfacePointer(window, outside.x, outside.y))
+            probe.later {
+                assertTrue(probe.field(1L).scroll.offset.y > 0.0)
+                assertTrue(second.selection.range.end > second.selection.range.start)
+                editorPointer(window, outside, false)
+            }
+        }
+        case 28 -> {
+            probe.preventRelease = false
+            probe.savedPasses = probe.passes
+            probe.phase += 1
+            probe.later { assertEquals(probe.savedPasses, probe.passes) }
+        }
+        case 29 -> probe.next {
+            second.replaceAll("one two three four five six seven\nlast long line")
+            probe.tab = TextTabBehavior.Insert
+            probe.change()
+        }
+        case 30 -> {
+            val layout = probe.field(1L).layout
+            probe.savedLayout = Some(layout)
+            probe.expectedMove = Some(layout.moveCaret(second.cursor, CaretMovement.Up)!!.position)
+            probe.next {
+                probe.multiWidth = 95.0;
+                probe.discardNext = true;
+                probe.change()
+            }
+        }
+        case 31 -> {
+            assertEquals(1, probe.discarded)
+            assertTrue(probe.savedLayout!!.isClosed)
+            editorNativeCaret(window, second, probe.field(1L).area.visibleCaretBounds)
+            probe.savedLength = second.text.byteLength
+            probe.next { editorKey(window, 48, "\t") }
+        }
+        case 32 -> {
+            assertEquals(probe.savedLength + 1L, second.text.byteLength)
+            probe.next { editorKey(window, 48, "\u0019", 1) }
+        }
+        case 33 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            probe.savedLayout = Some(probe.field(0L).layout)
+            probe.next {
+                probe.blink = Duration.milliseconds(40L);
+                probe.change()
+            }
+        }
+        case 34 -> {
+            probe.savedPasses = probe.passes
+            probe.phase += 1
+            probe.later {
+                assertTrue(probe.passes >= probe.savedPasses + 2)
+                assertSame(probe.savedLayout!!, probe.field(0L).layout)
+            }
+        }
+        case 35 -> {
+            probe.phase += 1
+            window.setVisible(false)
+            probe.savedPasses = probe.passes
+            probe.later {
+                assertEquals(probe.savedPasses, probe.passes)
+                assertFalse(probe.frames!!.snapshot().required)
+                probe.blink = Duration.milliseconds(0L)
+                probe.change()
+                window.setVisible(true)
+                window.requestFocus()
+            }
+        }
+        case 36 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            editorNativeCaret(window, first, probe.field(0L).area.visibleCaretBounds)
+            probe.next { window.requestDestroy() }
+        }
+        else -> fail(Some(f"unexpected editing phase ${probe.phase}"))
+    }
+}

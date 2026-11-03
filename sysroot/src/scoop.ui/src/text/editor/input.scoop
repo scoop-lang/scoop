@@ -3,7 +3,11 @@ package scoop.ui.text
 import scoop.ui.*
 import scoop.window.*
 
-internal fun applyEditorInput(editor: TextEditorState, batch: TextInputBatch): Boolean {
+internal fun applyEditorInput(
+    editor: TextEditorState,
+    batch: TextInputBatch,
+    singleLine: Boolean = false
+): Boolean {
     editor.storage.checkMutation()
     val previous = editor.storage.value
     when (batch.baseRevision) {
@@ -60,6 +64,14 @@ internal fun applyEditorInput(editor: TextEditorState, batch: TextInputBatch): B
                 boundary = true
             }
         }
+    }
+    if (singleLine) {
+        current = editorSingleLine(current)
+        baseline =
+            when (baseline) {
+                case Some(saved) -> Some(editorSingleLine(saved))
+                case None -> None
+            }
     }
     val edits = ArrayList<EditorDelta>()
     val kind =
