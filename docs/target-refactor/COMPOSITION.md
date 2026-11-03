@@ -1,6 +1,6 @@
 # Target 组合解耦后续重构设计
 
-状态：结构迁移已实施；集中回归进行中。
+状态：结构迁移与 macOS 集中回归完成；Linux／Windows 复验待完成。
 
 日期：2026-11-03。
 
@@ -675,6 +675,21 @@ C0～C5 的结构迁移已经完成，且没有把 Linux ARM64、Windows ARM64�
 - runtime 只有一个静态 bundle 组合入口，target 目录是唯一完整组合根；普通 consumer 没有完整未来 target 名称分支。
 
 因此，未来移植剩余的是对应平台或机器本身尚未实现、必须实测的能力，而不是现有 OS／toolchain／arch 强绑定造成的重复实现障碍。
+
+### 11.6 集中回归记录
+
+验证按“全部本地改动与验证 → Linux → Windows”的顺序进行，不按每个提交重复跨平台验证。原始日志和逐项报告保存在仓库外；完成批次清理不再需要的测试产物和依赖构建目录。
+
+macOS 27.2／SDK 27.2 的本地回归已完成：
+
+- Rust 格式检查、workspace／all-targets Clippy、Ruff 0.16.10 通过；维护脚本 41 项测试中 6 项宿主不适用，fixture runner 82 项测试中 4 项宿主不适用，其余通过；
+- workspace 的 6,386 项 Rust／文档测试已闭合。显式 debug format 改变缓存编码后的固定向量已更新；Windows statepoint 返回 PC 专测使用已有补丁版 LLVM 22.1.8 通过，未放宽断言；
+- ARM64 和 x86_64 的系统库与四种 runtime 配置全部重新准备；两种 target 各 4,317 项适用正式 fixture 通过，另各有 26 项目标不适用；
+- 两种 target 各 34 个普通系统库／consumer Cone 完成 release 运行，各 1,781 项通过、6 项显式忽略；图形文本测试使用按现有 `text-baselines.patch` 重建的 Skia 后达到各 28／28；
+- ARM64 的 `exception-path-inlining` 在未打补丁的 Homebrew LLVM 下失败，显式链接项目已有补丁版 LLVM 后两个变体均通过。`scoop` 的编译子进程清理环境变量，因此这项复验使用临时配套 `scoopc` 的直接动态库依赖，不能仅依赖 `DYLD_LIBRARY_PATH`；
+- x86_64 程序在本机 Rosetta 下执行，不作为 Intel 硬件验收。
+
+Linux GNU／musl 和三种 Windows target 的集中复验将在同一实现版本上继续；完成前不宣称 C6 的七目标行为验收结束。
 
 ## 12. 调研依据与当前结论
 
