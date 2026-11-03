@@ -143,7 +143,11 @@ def prepare_locked(args, source, archive, build):
     (build / "toolchain.txt").write_text(version)
     stage = build / "stage"
     stage.mkdir(exist_ok=True)
-    built_name = "scoop_text_backend.lib" if rust_target.endswith("-msvc") else LIBRARY
+    built_name = (
+        "scoop_text_backend.lib"
+        if target_configuration["native_environment"] == "MicrosoftUcrt"
+        else LIBRARY
+    )
     shutil.copy2(build / "target" / rust_target / "release" / built_name, stage / LIBRARY)
     shutil.copy2(source / "include" / HEADER, stage / HEADER)
     staged_files = [stage / LIBRARY, stage / HEADER]

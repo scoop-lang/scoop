@@ -6,7 +6,7 @@ import subprocess
 from pathlib import Path
 
 from build_rust_text import NOTICE_DIRECTORY
-from target_catalog import llvm_mingw_resource_triple, native_configuration
+from target_catalog import host_definition, llvm_mingw_resource_triple, native_configuration
 
 
 def llvm_mingw_license_root(prefix, architecture):
@@ -47,7 +47,7 @@ def collect(root, repository, source, host, native, targets, *, sysroot=None, py
     own = license_files(repository)
     add("Scoop", "See project license" if own else "Not yet selected by the maintainer", own)
     add("LLVM", "Apache-2.0 WITH LLVM-exception", [source / "llvm/LICENSE.TXT"])
-    if "windows" in host:
+    if host_definition(host)["system"] == "Windows":
         for component in ("libcxx", "libcxxabi", "libunwind", "compiler-rt"):
             add(component, "See included documents", [source / component / "LICENSE.TXT"])
     if python_license is not None:
