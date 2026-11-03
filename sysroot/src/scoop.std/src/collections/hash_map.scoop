@@ -1,13 +1,16 @@
 package scoop.collections
 
-internal struct HashLocation(val index: Long, val hash: Long)
+internal enum HashProbe {
+    Found(Long, ULong),
+    Absent(Long, ULong)
+}
 
 /**
  * A mutable hash table using key equality and hash codes. Keys must retain consistent equality and
  * hashes while stored; iteration order is unspecified.
  */
-public class HashMap<K, V> public constructor() : MutableMap<K, V>
-    where K : Equals<K>, K : Hash {
+public class HashMap<K, V> public constructor(): MutableMap<K, V>
+where K: Equals<K>, K: Hash {
     private var storage: HashStorage<K, V> = HashStorage<K, V>(8L)
     private var elementCount: Long = 0L
     private var occupied: Long = 0L
@@ -31,46 +34,91 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
      */
     public override val entries: Collection<Map.Entry<K, V>> get() = MapEntries<K, V>(this)
 
-    internal fun locate(key: K): HashLocation {
+    internal fun locate(key: K): HashProbe {
         val stamp = changes.snapshot()
-        val hash = key.hash()
+        val mixedHash = hashMixed(key.hash())
         changes.check(stamp)
-        var index = storage.start(hash)
-        while (storage.states[index] != 0) {
-            if (storage.states[index] == 1) {
-                val entry = storage.read(index)
-                if (entry.hash == hash) {
+        val h2 = hashH2(mixedHash)
+        var group = storage.startGroup(mixedHash)
+        var step = 0L
+        var visited = 0L
+        var firstDeleted = -1L
+        while (visited < storage.groupCount) {
+            val controls = storage.word(group)
+            var candidates = hashControlMatches(controls, h2)
+            while (candidates != 0uL) {
+                val offset = hashLowestMatch(candidates)
+                candidates = candidates and (candidates - 1uL)
+                if (hashControlAt(controls, offset) == h2) {
+                    val index = storage.index(group, offset)
+                    val entry = storage.read(index)
+                    if (entry.mixedHash != mixedHash)
+                        continue
                     val equal = entry.key == key
                     changes.check(stamp)
-                    if (equal) return HashLocation(index, hash)
+                    if (equal)
+                        return HashProbe.Found(index, mixedHash)
                 }
             }
-            index = storage.next(index)
+            if (firstDeleted < 0L) {
+                val deleted = hashControlMatches(controls, 0xfeuL)
+                if (deleted != 0uL)
+                    firstDeleted = storage.index(group, hashLowestMatch(deleted))
+            }
+            val empty = hashControlMatches(controls, 0x80uL)
+            if (empty != 0uL) {
+                val vacant =
+                    if (firstDeleted >= 0L)
+                        firstDeleted
+                    else
+                        storage.index(group, hashLowestMatch(empty))
+                return HashProbe.Absent(vacant, mixedHash)
+            }
+            step += 1L
+            group = (group + step) and storage.groupMask
+            visited += 1L
         }
-        return HashLocation(-1L, hash)
+        if (firstDeleted >= 0L)
+            return HashProbe.Absent(firstDeleted, mixedHash)
+        throw IllegalStateException(Some("hash table has no vacant slot"))
     }
 
     /**
      * Returns the value associated with the key, or None when absent.
      */
     public override operator fun get(key: K): V? {
-        val location = locate(key)
-        return if (location.index < 0L) None else Some(storage.read(location.index).value)
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(index, _) -> Some(storage.read(index).value)
+            case HashProbe.Absent(_, _) -> None
+        }
     }
 
     /**
      * Tests whether the key has an association.
      */
-    public override fun containsKey(key: K): Boolean = locate(key).index >= 0L
-
-    private fun ensureRoom() {
-        val capacity = storage.capacity
-        if (occupied < capacity - capacity / 4L) return
-        val nextCapacity = if (elementCount < capacity / 2L) capacity else {
-            if (capacity <= 4611686018427387903L) capacity * 2L else 9223372036854775807L
+    public override fun containsKey(key: K): Boolean =
+        when (locate(key)) {
+            case HashProbe.Found(_, _) -> true
+            case HashProbe.Absent(_, _) -> false
         }
+
+    private fun prepareVacant(index: Long, mixedHash: ULong): (Long, Boolean) {
+        if (storage.isDeleted(index))
+            return (index, false)
+        val capacity = storage.capacity
+        if (occupied < capacity - capacity / 4L)
+            return (index, true)
+        val nextCapacity =
+            if (elementCount < capacity / 2L)
+                capacity
+            else {
+                if (capacity > Long.MAX_VALUE / 2L)
+                    throw ArithmeticException()
+                capacity * 2L
+            }
         storage = storage.rehashed(nextCapacity)
         occupied = elementCount
+        return (storage.vacant(mixedHash), true)
     }
 
     /**
@@ -81,25 +129,28 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
     internal fun putIfAbsent(key: K, value: V): V? = putEntry(key, value, false)
 
     private fun putEntry(key: K, value: V, replace: Boolean): V? {
-        val location = locate(key)
-        if (location.index >= 0L) {
-            val old = storage.read(location.index)
-            if (replace) {
-                storage.write(location.index, HashEntry<K, V>(old.key, value, old.hash))
-                changes.advance()
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(index, _) -> {
+                val old = storage.read(index)
+                if (replace) {
+                    storage.replace(index, HashEntry<K, V>(old.key, value, old.mixedHash))
+                    changes.advance()
+                }
+                Some(old.value)
             }
-            return Some(old.value)
+            case HashProbe.Absent(index, mixedHash) -> {
+                insertAbsent(key, value, index, mixedHash)
+                None
+            }
         }
-        insertAbsent(key, value, location.hash)
-        return None
     }
 
     // The caller has completed lookup; no user callbacks run while committing.
-    internal fun insertAbsent(key: K, value: V, hash: Long) {
-        ensureRoom()
-        val index = storage.vacant(hash)
-        if (storage.states[index] == 0) occupied += 1L
-        storage.write(index, HashEntry<K, V>(key, value, hash))
+    internal fun insertAbsent(key: K, value: V, index: Long, mixedHash: ULong) {
+        val(target, consumesEmpty) = prepareVacant(index, mixedHash)
+        if (consumesEmpty)
+            occupied += 1L
+        storage.write(target, HashEntry<K, V>(key, value, mixedHash))
         elementCount += 1L
         changes.advance()
         structure.advance()
@@ -109,16 +160,18 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
      * Removes the key and returns its former value, or None if absent.
      */
     public override fun remove(key: K): V? {
-        val location = locate(key)
-        if (location.index < 0L) return None
-        return Some(removeAt(location.index))
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(index, _) -> Some(removeAt(index))
+            case HashProbe.Absent(_, _) -> None
+        }
     }
 
     internal fun valueAt(index: Long): V = storage.read(index).value
 
     internal fun removeAt(index: Long): V {
         val value = storage.read(index).value
-        storage.erase(index)
+        if (storage.erase(index))
+            occupied -= 1L
         elementCount -= 1L
         changes.advance()
         structure.advance()
@@ -129,7 +182,8 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
      * Removes every association.
      */
     public override fun clear() {
-        if (elementCount == 0L) return
+        if (elementCount == 0L)
+            return
         storage.cleared()
         elementCount = 0L
         occupied = 0L
@@ -152,21 +206,29 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
         /**
          * Encodes entries or elements in iteration order using the supplied component codecs.
          */
-        public fun encoder(key: ValueEncoder<K>, value: ValueEncoder<V>): ValueEncoder<HashMap<K, V>> =
-            ValueEncoderFunction<HashMap<K, V>> { values, encoder -> encodeMap(values, key, value, encoder) }
+        public fun encoder(key: ValueEncoder<K>, value: ValueEncoder<V>): ValueEncoder<
+            HashMap<K, V>
+        > =
+            ValueEncoderFunction<HashMap<K, V>> {
+                values,
+                encoder -> encodeMap(values, key, value, encoder)
+            }
         /**
          * Decodes entries or elements into a new collection using the supplied component codecs
          * and comparator where required.
          */
-        public fun decoder(key: ValueDecoder<K>, value: ValueDecoder<V>): ValueDecoder<HashMap<K, V>> =
-            ValueDecoderFunction<HashMap<K, V>> { decoder ->
+        public fun decoder(key: ValueDecoder<K>, value: ValueDecoder<V>): ValueDecoder<
+            HashMap<K, V>
+        > =
+            ValueDecoderFunction<HashMap<K, V>> {
+                decoder ->
                 val result = HashMap<K, V>()
                 decodeMapInto(decoder, key, value, result)
                 result
             }
 
         override interface ValueEncoder<HashMap<K, V>>
-            where K.Companion : ValueEncoder<K>, V.Companion : ValueEncoder<V> {
+        where K.Companion: ValueEncoder<K>, V.Companion: ValueEncoder<V> {
             /**
              * Encodes entries using the key and value companions in iteration order.
              */
@@ -175,7 +237,7 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
         }
 
         override interface ValueDecoder<HashMap<K, V>>
-            where K.Companion : ValueDecoder<K>, V.Companion : ValueDecoder<V> {
+        where K.Companion: ValueDecoder<K>, V.Companion: ValueDecoder<V> {
             /**
              * Decodes entries using the key and value companions into a new map.
              */
@@ -191,19 +253,24 @@ public class HashMap<K, V> public constructor() : MutableMap<K, V>
 internal class HashIterator<K, V> internal constructor(
     private val source: HashMap<K, V>,
     private val structure: ModificationCounter
-) : Iterator<Map.Entry<K, V>> where K : Equals<K>, K : Hash {
+): Iterator<Map.Entry<K, V>> where K: Equals<K>, K: Hash {
     private val stamp: RevisionStamp = structure.snapshot()
     private var index: Long = 0L
+    private var controls: ULong = 0uL
     private var exhausted: Boolean = false
 
     public override fun next(): Map.Entry<K, V>? {
-        if (exhausted) return None
+        if (exhausted)
+            return None
         structure.check(stamp)
         val storage = source.table
         while (index < storage.capacity) {
             val current = index
+            val offset = current % 8L
+            if (offset == 0L)
+                controls = storage.word(current / 8L)
             index += 1L
-            if (storage.states[current] == 1) {
+            if (hashControlAt(controls, offset) < 0x80uL) {
                 val entry = storage.read(current)
                 return Some(Map.Entry<K, V>(entry.key, entry.value))
             }

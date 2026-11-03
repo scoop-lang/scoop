@@ -4,8 +4,8 @@ package scoop.collections
  * A mutable hash map whose iteration follows insertion order. Replacing an existing value retains
  * its position; removing and reinserting moves it to the end.
  */
-public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
-    where K : Equals<K>, K : Hash {
+public class LinkedHashMap<K, V> public constructor(): MutableMap<K, V>
+where K: Equals<K>, K: Hash {
     private val positions: HashMap<K, Long> = HashMap<K, Long>()
     private val storage: LinkedStorage<K, V> = LinkedStorage<K, V>()
     private val changes: ModificationCounter = ModificationCounter()
@@ -28,7 +28,7 @@ public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
      */
     public override val entries: Collection<Map.Entry<K, V>> get() = MapEntries<K, V>(this)
 
-    private fun locate(key: K): HashLocation {
+    private fun locate(key: K): HashProbe {
         val stamp = changes.snapshot()
         val location = positions.locate(key)
         changes.check(stamp)
@@ -39,14 +39,20 @@ public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
      * Returns the value associated with the key, or None when absent.
      */
     public override operator fun get(key: K): V? {
-        val location = locate(key)
-        return if (location.index < 0L) None else Some(storage.read(positions.valueAt(location.index)).value)
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(index, _) -> Some(storage.read(positions.valueAt(index)).value)
+            case HashProbe.Absent(_, _) -> None
+        }
     }
 
     /**
      * Tests whether the key has an association.
      */
-    public override fun containsKey(key: K): Boolean = locate(key).index >= 0L
+    public override fun containsKey(key: K): Boolean =
+        when (locate(key)) {
+            case HashProbe.Found(_, _) -> true
+            case HashProbe.Absent(_, _) -> false
+        }
 
     /**
      * Associates the value with the key and returns the previous value, or None for a new key.
@@ -56,41 +62,48 @@ public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
     internal fun putIfAbsent(key: K, value: V): V? = putEntry(key, value, false)
 
     private fun putEntry(key: K, value: V, replace: Boolean): V? {
-        val location = locate(key)
-        if (location.index >= 0L) {
-            val index = positions.valueAt(location.index)
-            val old = storage.read(index).value
-            if (replace) {
-                storage.replace(index, value)
-                changes.advance()
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(position, _) -> {
+                val index = positions.valueAt(position)
+                val old = storage.read(index).value
+                if (replace) {
+                    storage.replace(index, value)
+                    changes.advance()
+                }
+                Some(old)
             }
-            return Some(old)
+            case HashProbe.Absent(vacant, mixedHash) -> {
+                val index = storage.append(key, value)
+                positions.insertAbsent(key, index, vacant, mixedHash)
+                changes.advance()
+                structure.advance()
+                None
+            }
         }
-        val index = storage.append(key, value)
-        positions.insertAbsent(key, index, location.hash)
-        changes.advance()
-        structure.advance()
-        return None
     }
 
     /**
      * Removes the key and returns its former value, or None if absent.
      */
     public override fun remove(key: K): V? {
-        val location = locate(key)
-        if (location.index < 0L) return None
-        val index = positions.removeAt(location.index)
-        val value = storage.remove(index)
-        changes.advance()
-        structure.advance()
-        return Some(value)
+        return when (val probe = locate(key)) {
+            case HashProbe.Found(position, _) -> {
+                val index = positions.removeAt(position)
+                val value = storage.remove(index)
+                changes.advance()
+                structure.advance()
+                Some(value)
+            }
+            case HashProbe.Absent(_, _) -> None
+        }
     }
 
     /**
      * Removes every association.
      */
     public override fun clear() {
-        if (size == 0L) return
+        if (size == 0L)
+            return
         positions.clear()
         storage.clear()
         changes.advance()
@@ -110,14 +123,22 @@ public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
         /**
          * Encodes entries or elements in iteration order using the supplied component codecs.
          */
-        public fun encoder(key: ValueEncoder<K>, value: ValueEncoder<V>): ValueEncoder<LinkedHashMap<K, V>> =
-            ValueEncoderFunction<LinkedHashMap<K, V>> { values, encoder -> encodeMap(values, key, value, encoder) }
+        public fun encoder(key: ValueEncoder<K>, value: ValueEncoder<V>): ValueEncoder<
+            LinkedHashMap<K, V>
+        > =
+            ValueEncoderFunction<LinkedHashMap<K, V>> {
+                values,
+                encoder -> encodeMap(values, key, value, encoder)
+            }
         /**
          * Decodes entries or elements into a new collection using the supplied component codecs
          * and comparator where required.
          */
-        public fun decoder(key: ValueDecoder<K>, value: ValueDecoder<V>): ValueDecoder<LinkedHashMap<K, V>> =
-            ValueDecoderFunction<LinkedHashMap<K, V>> { decoder ->
+        public fun decoder(key: ValueDecoder<K>, value: ValueDecoder<V>): ValueDecoder<
+            LinkedHashMap<K, V>
+        > =
+            ValueDecoderFunction<LinkedHashMap<K, V>> {
+                decoder ->
                 val result = LinkedHashMap<K, V>()
                 decodeMapInto(decoder, key, value, result)
                 result
@@ -128,13 +149,14 @@ public class LinkedHashMap<K, V> public constructor() : MutableMap<K, V>
 internal class LinkedIterator<K, V> internal constructor(
     private val storage: LinkedStorage<K, V>,
     private val structure: ModificationCounter
-) : Iterator<Map.Entry<K, V>> {
+): Iterator<Map.Entry<K, V>> {
     private val stamp: RevisionStamp = structure.snapshot()
     private var index: Long = storage.first
     private var exhausted: Boolean = false
 
     public override fun next(): Map.Entry<K, V>? {
-        if (exhausted) return None
+        if (exhausted)
+            return None
         structure.check(stamp)
         if (index < 0L) {
             exhausted = true
