@@ -13,10 +13,11 @@ sk_sp<sgt::FontCollection> STFonts::snapshot() const {
   return result;
 }
 
-STTextData::STTextData(std::string value, std::vector<STRange> objects)
+STTextData::STTextData(std::string value, std::vector<STRange> objects,
+                       std::string language)
     : text(std::move(value)), unicode(SkUnicodes::ICU::Make()),
       to16(text.size() + 1, std::numeric_limits<size_t>::max()),
-      inlines(std::move(objects)) {
+      inlines(std::move(objects)), locale(std::move(language)) {
   if (!unicode)
     throw std::runtime_error("ICU initialization failed");
   const char *cursor = text.data(), *end = cursor + text.size();

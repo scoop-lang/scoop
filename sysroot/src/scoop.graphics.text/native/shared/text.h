@@ -71,6 +71,10 @@ struct STRichRun {
 struct STRange {
   int64_t start, end;
 };
+struct STWord {
+  STRange range;
+  bool whitespace;
+};
 struct STParagraphBuilder : STObject {
   sk_sp<sgt::FontCollection> fonts;
   sgt::ParagraphStyle style;
@@ -86,7 +90,12 @@ struct STTextData {
   std::vector<size_t> to16, to8;
   std::vector<int64_t> graphemes;
   std::vector<STRange> inlines;
-  STTextData(std::string value, std::vector<STRange> objects);
+  std::string locale;
+  bool words_known = false;
+  std::vector<STWord> words;
+  STTextData(std::string value, std::vector<STRange> objects,
+             std::string language);
+  void find_words();
   bool scalar(int64_t index) const {
     return index >= 0 && (size_t)index < to16.size() &&
            to16[index] != std::numeric_limits<size_t>::max();
@@ -103,7 +112,9 @@ struct STParagraph : STObject {
   std::shared_ptr<STTextData> data;
   explicit STParagraph(const STParagraphBuilder &builder)
       : fonts(builder.fonts), style(builder.style), runs(builder.runs),
-        data(std::make_shared<STTextData>(builder.text, builder.inlines)) {}
+        data(std::make_shared<STTextData>(
+            builder.text, builder.inlines,
+            builder.style.getTextStyle().getLocale().c_str())) {}
 };
 struct STTextLine {
   STRange range, content, visible;
@@ -123,6 +134,15 @@ struct STTextHit {
 struct STCaret {
   STRect rect;
   int32_t status;
+};
+struct STRangeQuery {
+  STRange range;
+  int32_t status;
+};
+struct STCaretMove {
+  int64_t byte;
+  double preferred_x;
+  int32_t affinity, status;
 };
 struct STTextBox {
   STRect rect;
@@ -144,18 +164,32 @@ struct STInlineBox {
   int64_t line;
   int32_t direction, visible;
 };
+struct STVisualCaret {
+  int64_t byte;
+  int32_t affinity;
+  double x;
+  bool right_edge;
+};
 struct STTextLayout : STObject {
   std::unique_ptr<sgt::Paragraph> paragraph;
   std::shared_ptr<STTextData> data;
   sgt::ParagraphStyle style;
   std::vector<STTextLine> lines;
+  std::vector<size_t> line_ends;
   std::vector<STInlineBox> inlines;
   STLayoutInfo info;
   bool paint_bounds_known = false;
   SkRect paint_bounds = SkRect::MakeEmpty();
+  bool carets_known = false;
+  std::vector<std::vector<STVisualCaret>> carets;
   STTextLayout(const STParagraph &source, double width, bool wrap,
                const STInlineMetrics *metrics, size_t count);
   void place_inlines();
+  void find_carets();
   size_t visible_end() const;
   int line_at(size_t byte, bool upstream) const;
 };
+
+extern "C" STCaret scoop_graphics_text_caret(void *pointer, int64_t byte,
+                                             int32_t affinity,
+                                             double thickness);

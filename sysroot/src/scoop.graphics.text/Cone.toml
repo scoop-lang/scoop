@@ -28,6 +28,10 @@ path = "tests/styled.scoop"
 [[test.sources]]
 path = "tests/inline.scoop"
 [[test.sources]]
+path = "tests/navigation.scoop"
+[[test.sources]]
+path = "tests/boundaries.scoop"
+[[test.sources]]
 path = "tests/paint_bounds.scoop"
 [[test.sources]]
 path = "tests/paint_bounds_metal.scoop"
@@ -47,6 +51,10 @@ path = "native/shared/text.cpp"
 path = "native/shared/text_layout.cpp"
 [[native.sources]]
 path = "native/shared/text_queries.cpp"
+[[native.sources]]
+path = "native/shared/text_navigation.cpp"
+[[native.sources]]
+path = "native/shared/text_words.cpp"
 [[native.sources]]
 path = "native/shared/text_paint.cpp"
 [[native.sources]]

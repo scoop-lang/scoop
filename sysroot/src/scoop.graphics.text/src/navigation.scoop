@@ -1,0 +1,173 @@
+package scoop.graphics.text
+
+import scoop.graphics.GraphicsException
+
+/** Physical horizontal movement and logical line/document edges. */
+public enum CaretMovement {
+    Left, Right, Up, Down, LineStart, LineEnd, DocumentStart, DocumentEnd
+}
+
+/** The preferred column survives vertical movement through shorter lines. */
+public struct CaretMove(val position: TextPosition, val preferredX: Double)
+
+/** ICU segment containing a scalar position; affinity resolves an exact boundary. */
+public fun TextLayout.wordRange(position: TextPosition): TextRange {
+    @Unsafe
+    {
+        val value =
+            textWordRange(
+                resource.get(),
+                position.byteOffset,
+                navigationAffinity(position.affinity)
+            )
+        checkNavigation(value.status)
+        return value.range
+    }
+}
+
+/** Moves to a segment edge, skipping intervening Unicode whitespace segments. */
+public fun TextLayout.moveWord(byteOffset: Long, forward: Boolean): Long {
+    @Unsafe
+    {
+        val value = textMoveWord(resource.get(), byteOffset, forward)
+        checkNavigation(value.status)
+        return value.range.start
+    }
+}
+
+/** Accepts scalar boundaries, including positions inside a grapheme. */
+public fun TextLayout.moveGrapheme(byteOffset: Long, forward: Boolean): Long {
+    @Unsafe
+    {
+        val value = textMoveGrapheme(resource.get(), byteOffset, forward)
+        checkNavigation(value.status)
+        return value.range.start
+    }
+}
+
+/** Uses the actual shaped glyph edges and keeps affinity across visual lines. */
+public fun TextLayout.moveCaret(
+    position: TextPosition,
+    movement: CaretMovement,
+    preferredX: Double? = None
+): CaretMove? {
+    when (preferredX) {
+        case Some(value) -> checkTextScalar(value)
+        case None -> {}
+    }
+    @Unsafe
+    {
+        val value =
+            textMoveCaret(
+                resource.get(),
+                position.byteOffset,
+                navigationAffinity(position.affinity),
+                navigationMovement(movement),
+                preferredX != None,
+                preferredX ?: 0.0
+            )
+        checkNavigation(value.status)
+        if (value.status == 0)
+            return None
+        return Some(
+            CaretMove(
+                TextPosition(
+                    value.byteOffset,
+                    if (value.affinity == 0)
+                        TextAffinity.Upstream
+                    else
+                        TextAffinity.Downstream
+                ),
+                value.preferredX
+            )
+        )
+    }
+}
+
+/** Includes the hard break and all soft-wrapped parts of a logical line. */
+public fun TextLayout.logicalLineRange(position: TextPosition): TextRange? {
+    @Unsafe
+    {
+        val value =
+            textLogicalLine(
+                resource.get(),
+                position.byteOffset,
+                navigationAffinity(position.affinity)
+            )
+        checkNavigation(value.status)
+        return if (value.status == 0)
+            None
+        else
+            Some(value.range)
+    }
+}
+
+private fun checkNavigation(status: Int) {
+    if (status == -1)
+        throw IllegalArgumentException(Some("invalid text navigation boundary"))
+    if (status == -2)
+        throw GraphicsException("query text navigation")
+}
+
+private fun navigationAffinity(value: TextAffinity): Int =
+    if (value == TextAffinity.Upstream)
+        0
+    else
+        1
+
+private fun navigationMovement(value: CaretMovement): Int =
+    when (value) {
+        case Left -> 0
+        case Right -> 1
+        case Up -> 2
+        case Down -> 3
+        case LineStart -> 4
+        case LineEnd -> 5
+        case DocumentStart -> 6
+        case DocumentEnd -> 7
+    }
+
+@CLayout
+private struct NativeNavigationRange(val range: TextRange, val status: Int)
+
+@CLayout
+private struct NativeCaretMove(
+    val byteOffset: Long,
+    val preferredX: Double,
+    val affinity: Int,
+    val status: Int
+)
+
+@Extern(name = "scoop_graphics_text_word_range")
+private fun textWordRange(layout: Ptr<Unit>, byteOffset: Long, affinity: Int): NativeNavigationRange
+
+@Extern(name = "scoop_graphics_text_move_word")
+private fun textMoveWord(
+    layout: Ptr<Unit>,
+    byteOffset: Long,
+    forward: Boolean
+): NativeNavigationRange
+
+@Extern(name = "scoop_graphics_text_move_grapheme")
+private fun textMoveGrapheme(
+    layout: Ptr<Unit>,
+    byteOffset: Long,
+    forward: Boolean
+): NativeNavigationRange
+
+@Extern(name = "scoop_graphics_text_move_caret")
+private fun textMoveCaret(
+    layout: Ptr<Unit>,
+    byteOffset: Long,
+    affinity: Int,
+    movement: Int,
+    hasX: Boolean,
+    preferredX: Double
+): NativeCaretMove
+
+@Extern(name = "scoop_graphics_text_logical_line")
+private fun textLogicalLine(
+    layout: Ptr<Unit>,
+    byteOffset: Long,
+    affinity: Int
+): NativeNavigationRange

@@ -1,6 +1,6 @@
 # Scoop 文本排版库规范
 
-日期：2026-11-02。状态：独立文本能力及 UI 接入已完成 macOS aarch64 实施和 x86_64 补验，包括字体、StyledText／TextSpan／SpanStyle、Paragraph／TextLayout、行内对象及文字绘制查询。x86_64 使用 Apple Silicon 上的 Rosetta，范围见 [UI 实施记录](../ui/PROGRESS.md)。取舍、迁移和调研依据见 [文本排版设计](../graphics/text/DESIGN.md)。UI 接入见 [UI 规范第 7.5 节](SCOOP-UI-SPEC.md#75-公共文本接入)。
+日期：2026-11-03。状态：原有独立文本能力及 UI 接入已完成 macOS aarch64 实施和 x86_64 补验，包括字体、StyledText／TextSpan／SpanStyle、Paragraph／TextLayout、行内对象及文字绘制查询。原有 x86_64 使用 Apple Silicon 上的 Rosetta，范围见 [UI 实施记录](../ui/PROGRESS.md)；第 6.1 节新增导航按[基础交互实施记录](../ui/foundations/PROGRESS.md)先验证 aarch64。取舍、迁移和调研依据见 [文本排版设计](../graphics/text/DESIGN.md)。UI 接入见 [UI 规范第 7.5 节](SCOOP-UI-SPEC.md#75-公共文本接入)。
 
 ## 1. 定位与依赖
 
@@ -119,6 +119,26 @@ maxLines／ellipsis 决定排版可见性；Canvas clip 只决定某次绘制的
 selection 返回可见文字和已选中对象的 TextBox；完全覆盖对象的范围包含其实际盒子，被截断部分没有选择几何。一个逻辑范围在 bidi 下仍可返回多个矩形。被截断位置的 caret 为 None，空文本的行高及起始 caret 保持既有行为。
 
 `StyledText.toPlainText(range)` 接受上述规范化文本范围，将其中对象替换为 alternateText；无参形式导出全部内容。替代文字不参与原段落的 shaping、断行或位置计数，导出的字符串使用自己的索引。空替代文字合法，但应由调用方根据图片或控件含义明确选择。辅助功能和复制的上层实现可以消费该数据，本库不接管剪贴板或 UI 语义树。
+
+### 6.1 公共编辑导航
+
+TextLayout 提供以下纯查询；它们使用同一不可变布局和所属线程，不修改文档或选择状态：
+
+| 查询 | 行为 |
+| --- | --- |
+| `wordRange(position: TextPosition): TextRange` | 返回 ICU 分词段，位置恰在边界时按 affinity 选择前／后段；空文本返回空范围 |
+| `moveWord(byteOffset: Long, forward: Boolean): Long` | 从当前位置向指定逻辑方向移动到词段末／首，跳过途中纯空白段；标点和 emoji 继续使用 ICU 的实际分段 |
+| `moveGrapheme(byteOffset: Long, forward: Boolean): Long` | 返回指定逻辑方向上的相邻 grapheme 边界；标量位于 grapheme 内时移到该 grapheme 的对应边界，文档端点收敛 |
+| `moveCaret(position, movement, preferredX = None): CaretMove?` | 按实际视觉位置或行／文档边界返回新位置；CaretMove 同时返回 position 与供后续上下移动复用的 preferredX |
+| `logicalLineRange(position: TextPosition): TextRange?` | 返回显式换行分隔的整条逻辑行，合并其软换行片段并包含末尾换行；不可见位置返回 None |
+
+分词采用现有 SkUnicode／ICU 的 word iterator 和段落基础 TextStyle.locale，行内对象仍单独成段；不能以空格或 ASCII 分类近似。wordRange、moveWord 和 moveGrapheme 的输入必须是文档内的 UTF-8 标量边界，返回范围／偏移处于 grapheme 边界。moveWord 不把一次删除拆成每个码点的循环。
+
+CaretMovement 包含 Left、Right、Up、Down、LineStart、LineEnd、DocumentStart、DocumentEnd。moveCaret 的输入必须是 grapheme 边界；LineStart／LineEnd 指当前视觉行的逻辑起止，保留行尾空白并排除显式换行。Left／Right 沿实际字形边缘移动，使用排版引擎的方向与 caret 几何，不按 UTF-8 大小排序视觉顺序。重合位置的别名不会使按键停顿；到达同一视觉位置时采用所跨字形相应边缘的 byteOffset 和 affinity。跨行的继续方向依段落基础方向，软换行前／后的同一 byteOffset 保留不同 affinity。
+
+Up／Down 使用 preferredX 或原 caret 的 x，在相邻视觉行选最近的合法 caret，返回同一 preferredX，经过短行后仍可回到原列。其他移动返回新 caret 的 x。达到边界时返回收敛后的合法位置；源位置或目标文档端点被截断时返回 None，不把 ellipsis 冒充文档末尾。空行和行内对象仍遵守同一规则。非法偏移、非有限 preferredX 报参数错误，关闭／跨线程查询沿 TextLayout 原有状态错误规则处理。
+
+词段和视觉 caret 的派生结果按不可变文本／布局复用；它们只包含文本位置和排版几何，不保存 UI、输入回调、选择状态或编辑历史。公共编辑适配负责 selection 的 anchor、Shift 扩展和期望列的生命周期。此增补先执行 macOS aarch64 的定向验证，x86_64 在全部 UI 基础交互功能完成后统一验证。
 
 ## 7. 绘制、缓存与所有权
 

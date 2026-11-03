@@ -1,0 +1,346 @@
+package scoop.graphics.text
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+private fun navigationStyle(): TextStyle = TextStyle(["Test Sans", "Test CJK"], 20.0)
+
+@Test
+private class TextNavigationTest {
+    @Test
+    fun `horizontal navigation crosses each visible glyph and settles at edges`() {
+        testFonts().use {
+            fonts -> Paragraph(fonts, "abcd", navigationStyle()).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    var position = TextPosition(0L)
+                    for (offset in 1L ..< 5L) {
+                        val next = layout.moveCaret(position, CaretMovement.Right)!!
+                        assertEquals(offset, next.position.byteOffset)
+                        assertTrue(next.preferredX > layout.caret(position)!!.x)
+                        position = next.position
+                    }
+                    assertEquals(
+                        position,
+                        layout.moveCaret(position, CaretMovement.Right)!!.position
+                    )
+                    for (offset in 0L ..< 4L) {
+                        val next = layout.moveCaret(position, CaretMovement.Left)!!
+                        assertEquals(3L - offset, next.position.byteOffset)
+                        assertTrue(next.preferredX < layout.caret(position)!!.x)
+                        position = next.position
+                    }
+                    assertEquals(
+                        position,
+                        layout.moveCaret(position, CaretMovement.Left)!!.position
+                    )
+                    assertEquals(
+                        4L,
+                        layout.moveCaret(position, CaretMovement.DocumentEnd)!!.position.byteOffset
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `RTL and mixed direction traversal follows physical glyph order`() {
+        testFonts(true).use {
+            fonts ->
+            Paragraph(
+                fonts,
+                "שלום",
+                navigationStyle(),
+                ParagraphStyle(direction = TextDirection.Rtl)
+            ).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    val start = TextPosition(0L)
+                    val next = layout.moveCaret(start, CaretMovement.Left)!!
+                    assertEquals(2L, next.position.byteOffset)
+                    assertTrue(next.preferredX < layout.caret(start)!!.x)
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(next.position, CaretMovement.Right)!!.position.byteOffset
+                    )
+                }
+            }
+            Paragraph(fonts, "abc אבג xyz مرحبا", navigationStyle()).use {
+                paragraph -> paragraph.layout(400.0).use {
+                    layout ->
+                    var position = TextPosition(0L)
+                    var reversed = false
+                    var steps = 0L
+                    while (steps < layout.graphemeBoundaries.size * 2L) {
+                        val next = layout.moveCaret(position, CaretMovement.Right)!!
+                        val previousX = layout.caret(position)!!.x
+                        if (next.preferredX == previousX)
+                            break
+                        assertTrue(next.preferredX > previousX)
+                        if (next.position.byteOffset < position.byteOffset)
+                            reversed = true
+                        position = next.position
+                        steps += 1L
+                    }
+                    assertTrue(reversed)
+                    assertTrue(steps >= 12L && steps < layout.graphemeBoundaries.size * 2L)
+                    for (_ in 0L ..< steps)
+                        position = layout.moveCaret(position, CaretMovement.Left)!!.position
+                    assertEquals(0L, position.byteOffset)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `soft line transitions preserve the two affinities of one offset`() {
+        testFonts(true).use {
+            fonts -> for (rtl in [false, true]) {
+                Paragraph(
+                    fonts,
+                    if (rtl)
+                        "שלוםשלום"
+                    else
+                        "HHHH",
+                    navigationStyle(),
+                    ParagraphStyle(
+                        direction =
+                            if (rtl)
+                                TextDirection.Rtl
+                            else
+                                TextDirection.Ltr
+                    )
+                ).use {
+                    paragraph -> paragraph.layout(30.0).use {
+                        layout ->
+                        assertTrue(layout.lines.size >= 2L)
+                        val byte = layout.lines[1L].range.start
+                        val before = TextPosition(byte, TextAffinity.Upstream)
+                        val after = TextPosition(byte, TextAffinity.Downstream)
+                        val forward =
+                            if (rtl)
+                                CaretMovement.Left
+                            else
+                                CaretMovement.Right
+                        val backward =
+                            if (rtl)
+                                CaretMovement.Right
+                            else
+                                CaretMovement.Left
+                        val next = layout.moveCaret(before, forward)!!
+                        assertEquals(after, next.position)
+                        assertTrue(layout.caret(next.position)!!.y > layout.caret(before)!!.y)
+                        assertEquals(before, layout.moveCaret(after, backward)!!.position)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `vertical navigation retains the desired column across a short line`() {
+        testFonts().use {
+            fonts -> Paragraph(fonts, "MMMM\nM\nMMMM", navigationStyle()).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    val start = TextPosition(3L)
+                    val column = layout.caret(start)!!.x
+                    val middle = layout.moveCaret(start, CaretMovement.Down)!!
+                    assertEquals(6L, middle.position.byteOffset)
+                    assertEquals(column, middle.preferredX)
+                    val end =
+                        layout.moveCaret(
+                            middle.position,
+                            CaretMovement.Down,
+                            Some(middle.preferredX)
+                        )!!
+                    assertEquals(10L, end.position.byteOffset)
+                    assertTrue(abs(column - layout.caret(end.position)!!.x) < 0.001)
+                    val back =
+                        layout.moveCaret(end.position, CaretMovement.Up, Some(end.preferredX))!!
+                    assertEquals(6L, back.position.byteOffset)
+                    assertEquals(
+                        3L,
+                        layout.moveCaret(
+                            back.position,
+                            CaretMovement.Up,
+                            Some(back.preferredX)
+                        )!!.position.byteOffset
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `line edges retain spaces while logical selection includes explicit breaks`() {
+        testFonts().use {
+            fonts ->
+            Paragraph(fonts, "ab  \r\ncd", navigationStyle()).use {
+                paragraph -> paragraph.layout(200.0).use {
+                    layout ->
+                    assertEquals(
+                        4L,
+                        layout.moveCaret(
+                            TextPosition(1L),
+                            CaretMovement.LineEnd
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(
+                        0L,
+                        layout.moveCaret(
+                            TextPosition(4L),
+                            CaretMovement.LineStart
+                        )!!.position.byteOffset
+                    )
+                    assertEquals(Some(TextRange(0L, 6L)), layout.logicalLineRange(TextPosition(4L)))
+                    assertEquals(Some(TextRange(6L, 8L)), layout.logicalLineRange(TextPosition(6L)))
+                }
+            }
+            Paragraph(fonts, "abcd efgh\n\njk\u2028", navigationStyle()).use {
+                paragraph -> paragraph.layout(40.0).use {
+                    layout ->
+                    assertTrue(layout.lines.size > 4L)
+                    assertEquals(
+                        Some(TextRange(0L, 10L)),
+                        layout.logicalLineRange(TextPosition(3L))
+                    )
+                    assertEquals(
+                        Some(TextRange(10L, 11L)),
+                        layout.logicalLineRange(TextPosition(10L))
+                    )
+                    assertEquals(
+                        Some(TextRange(11L, 16L)),
+                        layout.logicalLineRange(TextPosition(11L))
+                    )
+                    assertEquals(
+                        Some(TextRange(16L, 16L)),
+                        layout.logicalLineRange(TextPosition(16L))
+                    )
+                    assertEquals(
+                        Some(TextRange(11L, 16L)),
+                        layout.logicalLineRange(TextPosition(16L, TextAffinity.Upstream))
+                    )
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `inline objects are atomic and ellipsized positions remain unavailable`() {
+        testFonts().use {
+            fonts ->
+            val key = InlineKey.Text("object")
+            val content =
+                StyledText(
+                    [
+                        TextSpan.text("ab"),
+                        TextSpan.inlineObject(key, "image"),
+                        TextSpan.text("cdef")
+                    ],
+                    navigationStyle()
+                )
+            Paragraph(fonts, content).use {
+                paragraph -> paragraph.layout(200.0, [InlineMetrics(key, Size(20.0, 20.0))]).use {
+                    layout ->
+                    assertEquals(TextRange(2L, 5L), layout.wordRange(TextPosition(2L)))
+                    assertEquals(5L, layout.moveGrapheme(2L, true))
+                    val next = layout.moveCaret(TextPosition(2L), CaretMovement.Right)!!
+                    assertEquals(5L, next.position.byteOffset)
+                    assertTrue(
+                        abs(next.preferredX - layout.caret(TextPosition(2L))!!.x - 20.0) < 0.001
+                    )
+                }
+            }
+            Paragraph(
+                fonts,
+                "Hello world more words",
+                navigationStyle(),
+                ParagraphStyle(maxLines = Some(1L))
+            ).use {
+                paragraph -> paragraph.layout(45.0).use {
+                    layout ->
+                    val hidden = TextPosition(paragraph.text.byteLength)
+                    assertTrue(layout.didExceedMaxLines)
+                    assertEquals(None, layout.moveCaret(hidden, CaretMovement.Left))
+                    assertEquals(
+                        None,
+                        layout.moveCaret(TextPosition(0L), CaretMovement.DocumentEnd)
+                    )
+                    assertEquals(None, layout.logicalLineRange(hidden))
+                    assertEquals(
+                        Some(TextRange(0L, paragraph.text.byteLength)),
+                        layout.logicalLineRange(TextPosition(0L))
+                    )
+                    assertEquals(paragraph.text.byteLength, layout.wordRange(hidden).end)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `navigation handles empty content and validates boundaries and lifetime`() {
+        testFonts().use {
+            fonts ->
+            Paragraph(fonts, "", navigationStyle()).use {
+                paragraph -> paragraph.layout(100.0).use {
+                    layout ->
+                    assertEquals(TextRange(0L, 0L), layout.wordRange(TextPosition(0L)))
+                    assertEquals(0L, layout.moveWord(0L, true))
+                    assertEquals(0L, layout.moveGrapheme(0L, true))
+                    for (
+                        movement in [
+                            CaretMovement.Left,
+                            CaretMovement.Right,
+                            CaretMovement.Up,
+                            CaretMovement.Down,
+                            CaretMovement.LineStart,
+                            CaretMovement.LineEnd,
+                            CaretMovement.DocumentStart,
+                            CaretMovement.DocumentEnd
+                        ]
+                    )
+                        assertEquals(
+                            TextPosition(0L),
+                            layout.moveCaret(TextPosition(0L), movement)!!.position
+                        )
+                }
+            }
+            Paragraph(fonts, "Aé", navigationStyle()).use {
+                paragraph -> paragraph.layout(100.0).use {
+                    layout ->
+                    paragraph.close()
+                    assertEquals(4L, layout.moveWord(0L, true))
+                    assertFailsWith<IllegalArgumentException> {
+                        layout.moveCaret(TextPosition(2L), CaretMovement.Right)
+                    }
+                    assertFailsWith<IllegalArgumentException> { layout.wordRange(TextPosition(3L)) }
+                    assertFailsWith<IllegalArgumentException> { layout.moveGrapheme(3L, true) }
+                    assertFailsWith<IllegalArgumentException> { layout.moveWord(5L, false) }
+                    assertFailsWith<IllegalArgumentException> {
+                        layout.logicalLineRange(TextPosition(-1L))
+                    }
+                    assertFailsWith<IllegalArgumentException> {
+                        layout.moveCaret(TextPosition(0L), CaretMovement.Down, Some(Double.NaN))
+                    }
+                    Thread.start {
+                        assertFailsWith<IllegalStateException> {
+                            layout.moveCaret(TextPosition(0L), CaretMovement.Right)
+                        }
+                        assertFailsWith<IllegalStateException> {
+                            layout.wordRange(TextPosition(0L))
+                        }
+                    }.use { thread -> thread.join() }
+                    layout.close()
+                    assertFailsWith<IllegalStateException> { layout.moveGrapheme(0L, true) }
+                    assertFailsWith<IllegalStateException> { layout.moveWord(0L, true) }
+                    assertFailsWith<IllegalStateException> {
+                        layout.logicalLineRange(TextPosition(0L))
+                    }
+                }
+            }
+        }
+    }
+}

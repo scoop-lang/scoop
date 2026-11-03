@@ -29,7 +29,9 @@
 | D2d2b：虚拟 Tab 与 roving 导航 | 已完成 aarch64 实施和定向验证 |
 | E1：绘制记录、兼容离屏图像与文字绘制边界 | 已完成 aarch64 实施和定向验证 |
 | E2：滚动容器分块像素缓存 | 已完成 aarch64 实施和定向验证 |
-| F：公共编辑与 Input／Textarea | 待实施 |
+| F1a：Unicode 词边界与视觉光标导航 | 已完成 aarch64 实施和定向验证 |
+| F1b：剪贴板、原生编辑命令与文本快照 | 待实施 |
+| F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
 
@@ -272,3 +274,15 @@ Scoop 格式检查、修改库的生产／测试源码类型检查、C++ arm64 �
 初次像素测试修正了对 Skia 保守裁剪范围的过紧块数断言；Metal 差异按上述滤镜合成边界解决。原生组合的四组交互已通过后，测试收尾仍查询已关闭窗口焦点，限制查询只在场景推进阶段执行后通过；生产缓存逻辑没有为测试增加旁路。最终产物上的专项与回归全部通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。11 份一次性报告、6 个被替代的测试输出及原生采样诊断文件清理；本批产物、独立 sysroot、配套命令和共享缓存保留。后续进入公共编辑能力。
+
+## F1a：Unicode 词边界与视觉光标导航
+
+TextLayout 提供 wordRange、moveWord、moveGrapheme、moveCaret 和 logicalLineRange。词段按段落基础 locale 复用 SkUnicode／ICU；grapheme、字形方向、caret 几何与原有排版一致。视觉左右跳过同一坐标的别名，按跨过字形的实际边缘保留 affinity；软换行可在同一字节的两种 affinity 间移动，跨行方向遵守段落基础方向。上下移动返回可持续传递的 preferredX，行起止保留空白并保持 CRLF 完整，整行选择包含实际显式换行。
+
+导航结果随所属文本／布局复用，不保存选择状态或 UI 对象。TextLayout 的定位改用有序行范围查询，避免构建多行导航位置时逐项扫描整份行表。查询继续遵守实际 UTF-8 标量／grapheme 边界、截断、线程与资源生命周期规则。
+
+Scoop 格式检查、文本库生产／测试源码类型检查、C++ arm64 警告检查和 UI 依赖闭包的 aarch64 release 构建通过。42 项定向 scoop.test 通过：Graphics.Text 41 项和 UI 真实窗口文本回归 1 项。新增覆盖带撇号词、中文分词、不换行空格、组合字符与 emoji ZWJ、CRLF、纯 RTL／混合方向、双向软换行、短行期望列、行内对象、ellipsis、空段落及边界／线程／关闭检查。
+
+首轮发现 SkUnicode 的 isWhitespace 不包含不换行空格，改用同一 Unicode 服务的 isSpace；SkParagraph 的行尾可能只排除 CRLF 中的 LF，导航边界按已有 grapheme 收敛，逻辑行识别检查整个 grapheme 中的硬换行。原有断言保持，最终专项与回归全部通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。4 份一次性报告与 2 个被替代的测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。公共编辑事务和原生文档连接继续按后续批次实施。
