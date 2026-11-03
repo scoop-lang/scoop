@@ -33,10 +33,10 @@ private class HttpClientTlsTest {
         clientTestTrust().use {
             trust ->
             val config =
-                HttpClientConfig(
-                    versionPolicy = HttpVersionPolicy.Http2Only,
-                    tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
-                )
+                httpClientConfig {
+                    this.versionPolicy = HttpVersionPolicy.Http2Only
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                }
             val failure = clientTlsRejection(config)
             assertTrue(failure is HttpNegotiationException)
         }
@@ -93,7 +93,7 @@ private fun clientTlsSuccess(protocols: List<Array<Byte>>) {
                             Url.parse(
                                 "https://localhost:" + listener.localAddress.port.toString() + "/"
                             )
-                        client.withResponse(HttpRequest.get(url)) suspend {
+                        client.withResponse(httpRequest(url)) suspend {
                             response ->
                             assertTrue(response.version == HttpVersion.Http11)
                             assertEquals("tls", String.fromUtf8(response.body.readAllBytes(3L)))
@@ -145,7 +145,7 @@ private fun clientTlsRejection(config: HttpClientConfig): Throwable {
                             "https://localhost:" + listener.localAddress.port.toString() + "/"
                         )
                     try {
-                        client.execute(HttpRequest.get(url)).close();
+                        client.execute(httpRequest(url)).close();
                         fail(Some("rejected TLS policy succeeded"))
                     }
                     catch (error: Throwable) {

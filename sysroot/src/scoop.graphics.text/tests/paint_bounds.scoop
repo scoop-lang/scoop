@@ -13,7 +13,12 @@ private class TextPaintBoundsTest {
             fonts -> Paragraph(
                 fonts,
                 "jÁf\nÉgj",
-                TextStyle(["Test Sans"], 32.0, slant = FontSlant.Italic, lineHeight = Some(0.5))
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 32.0
+                    this.slant = FontSlant.Italic
+                    this.lineHeight = Some(0.5)
+                }
             ).use {
                 paragraph -> paragraph.layout(80.0).use {
                     layout ->
@@ -50,8 +55,14 @@ private class TextPaintBoundsTest {
                 Paragraph(
                     fonts,
                     "Aé אבג 是是 jÁf Aé אבג 是是 jÁf Aé אבג 是是 jÁf",
-                    TextStyle(["Test Sans", "Test CJK"], 20.0),
-                    ParagraphStyle(direction = direction, maxLines = Some(2L))
+                    textStyle {
+                        this.families = ["Test Sans", "Test CJK"]
+                        this.fontSize = 20.0
+                    },
+                    paragraphStyle {
+                        this.direction = direction
+                        this.maxLines = Some(2L)
+                    }
                 ).use {
                     paragraph -> paragraph.layout(74.0).use {
                         layout ->
@@ -60,7 +71,14 @@ private class TextPaintBoundsTest {
                     }
                 }
             }
-            Paragraph(fonts, "", TextStyle(["Test Sans"], 20.0)).use {
+            Paragraph(
+                fonts,
+                "",
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 20.0
+                }
+            ).use {
                 paragraph -> paragraph.layout(60.0).use {
                     layout ->
                     assertTrue(layout.size.height > 0.0)
@@ -69,7 +87,13 @@ private class TextPaintBoundsTest {
             }
             val key = InlineKey.Text("picture")
             val content =
-                StyledText([TextSpan.inlineObject(key, "image")], TextStyle(["Test Sans"], 20.0))
+                styledText {
+                    this.inlineObject(key, "image")
+                    style {
+                        this.families = ["Test Sans"]
+                        this.fontSize = 20.0
+                    }
+                }
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layout(100.0, [InlineMetrics(key, Size(70.0, 40.0))]).use {
                     layout ->
@@ -86,7 +110,14 @@ private class TextPaintBoundsTest {
         val references = ArrayList<Array<Byte>>()
         val drawing =
             testFonts().use {
-                fonts -> Paragraph(fonts, "jé是", TextStyle(["Test Sans", "Test CJK"], 28.0)).use {
+                fonts -> Paragraph(
+                    fonts,
+                    "jé是",
+                    textStyle {
+                        this.families = ["Test Sans", "Test CJK"]
+                        this.fontSize = 28.0
+                    }
+                ).use {
                     paragraph -> paragraph.layout(80.0).use {
                         layout ->
                         layouts.add(layout)

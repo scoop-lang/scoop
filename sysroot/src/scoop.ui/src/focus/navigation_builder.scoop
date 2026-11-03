@@ -1,0 +1,32 @@
+package scoop.ui
+
+import scoop.graphics.text.TextDirection
+
+public fun navigationOptions(
+    configure: NavigationOptionsBuilder.() -> Unit = {}
+): NavigationOptions {
+    val builder = NavigationOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class NavigationOptionsBuilder internal constructor() {
+    private val entries = ArrayList<NavigationItem>()
+    public var layout: NavigationLayout = NavigationLayout.Vertical
+    public var direction: TextDirection = TextDirection.Ltr
+    public var loop: Boolean = false
+    public var roving: Boolean = true
+
+    public fun add(item: NavigationItem): Unit {
+        entries.add(item)
+    }
+    public fun addAll(items: Array<NavigationItem>): Unit {
+        for (item in items)
+            add(item)
+    }
+    public fun item(handle: FocusHandle, row: Int = 0, column: Int = 0): Unit {
+        add(NavigationItem(handle, row, column))
+    }
+    internal fun snapshot(): NavigationOptions =
+        NavigationOptions(entries.toArray(), layout, direction, loop, roving)
+}

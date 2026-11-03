@@ -63,29 +63,30 @@ internal class ModalScene(private val probe: ModalProbe): Component {
                 PaneProps(index, index == 0L && probe.emptyOuter),
                 { props -> ModalPane(probe, props) },
                 children
-            ),
-            PortalOptions(
-                placement = placement,
-                handle = Some(probe.layers[index]),
-                modal =
+            )
+        ) {
+            this.options {
+                this.placement = placement
+                this.handle = Some(this @ModalScene.probe.layers[index])
+                this.modal =
                     if (modal)
                         Some(
                             ModalOptions(
                                 initialFocus =
                                     if (index == 0L)
-                                        Some(probe.focus[3L])
+                                        Some(this @ModalScene.probe.focus[3L])
                                     else
                                         None,
-                                restoreFocus = probe.restore
+                                restoreFocus = this @ModalScene.probe.restore
                             )
                         )
                     else
-                        None,
-                dismiss = OverlayDismiss(escape = index != 5L, outsidePress = policy),
-                onClose = { reason -> probe.close(index, reason) }
-            ),
-            ViewKey.Number(index)
-        )
+                        None
+                this.dismiss = OverlayDismiss(escape = index != 5L, outsidePress = policy)
+                this.onClose = { reason -> this @ModalScene.probe.close(index, reason) }
+            }
+            this.key = ViewKey.Number(index)
+        }
     }
 }
 
@@ -257,11 +258,9 @@ private class ModalPane(
 }
 
 private fun saveBinding(action: () -> Unit): ShortcutBinding =
-    ShortcutBinding(
-        ShortcutKey.Logical(LogicalKey.Character("s")),
-        ShortcutModifiers(primary = true),
-        action = action
-    )
+    shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("s")), action) {
+        this.modifiers = ShortcutModifiers(primary = true)
+    }
 
 private fun recordInput(
     probe: ModalProbe,

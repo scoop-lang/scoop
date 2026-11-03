@@ -17,7 +17,10 @@ private class TimerWindow: ApplicationHandler {
             case Resumed -> {
                 val window =
                     application.createWindow(
-                        WindowAttributes("Scoop · 0 seconds", LogicalSize(420.0, 220.0))
+                        windowAttributes {
+                            this.title = "Scoop · 0 seconds"
+                            this.size = LogicalSize(420.0, 220.0)
+                        }
                     )
                 window.requestFocus()
                 val loop = currentEventLoop()

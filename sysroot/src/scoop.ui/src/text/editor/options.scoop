@@ -35,8 +35,8 @@ public class TextEditOptions public constructor(
 /** Borrows fonts and immutable styles; the host owns only the resulting layouts. */
 public class TextEditAppearance public constructor(
     public val fonts: FontCollection,
-    public val textStyle: TextStyle = TextStyle(),
-    public val placeholderStyle: TextStyle = TextStyle(color = Color(0.5, 0.5, 0.5)),
+    public val textStyle: TextStyle = textStyle(),
+    public val placeholderStyle: TextStyle = textStyle { this.color = Color(0.5, 0.5, 0.5) },
     public val selectionColor: Color = Color(0.2, 0.45, 0.9, 0.3),
     public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25),
     public val caretColor: Color = Color.Black,

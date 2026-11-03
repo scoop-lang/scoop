@@ -1,0 +1,150 @@
+package scoop.tests.receivers.tests
+
+import scoop.test.*
+import scoop.tests.receivers.provider.*
+
+private class Inner(val own: Int) {
+    fun choose(value: String): Int = 100
+}
+
+private class Outer(var total: Int) {
+    fun choose(): Int = total
+
+    fun run(): Int {
+        val block: Outer.() -> Int =
+            outer@{
+                val nested: Inner.() -> Int =
+                    inner@{
+                        this @outer.total += own
+                        this @outer.choose() + this @outer.total + this @Outer.total
+                    }
+                nested(Inner(2))
+            }
+        return block(this)
+    }
+}
+
+private class Choice(val choose: () -> Int)
+
+private class ChoiceOwner {
+    fun choose(): Int = 1
+    fun run(): Int {
+        val action: Choice.() -> Int = { choose() }
+        return action(Choice { 42 })
+    }
+}
+
+private class Near
+
+private fun Near.pick(value: String): Int = 0
+
+private class Host(val base: Int) {
+    val action: Int.(Int) -> Int = { this + it + this @Host.base }
+    val anonymous: Int.() -> Int =
+        fun Int.(): Int {
+            return this + this @Host.base
+        }
+    val copied = this @Host.base
+}
+
+private class Default(val action: Int.() -> Int = { this + 1 })
+
+private class ParameterHost(seed: Int) {
+    val action: Far.() -> Int = { count + seed }
+}
+
+private class Enclosing(val number: Int) {
+    inner class Child {
+        fun read(): Int = number
+    }
+    fun run(): Int = Child().read()
+    fun factory(): Child {
+        val block: Near.() -> Child = { this @Enclosing.Child() }
+        return block(Near())
+    }
+}
+
+@Test
+private class ReceiverBoundaryTests {
+    @Test
+    fun nestedExplicitReceivers() {
+        assertEquals(42, Outer(12).run())
+        val outer: Int.() -> Int =
+            named@{
+                val copy = { this @named }
+                val inner: String.() -> Int = { copy() }
+                inner("ignored")
+            }
+        assertEquals(7, outer(7))
+    }
+
+    @Test
+    fun currentFunctionPropertyWins() {
+        assertEquals(42, ChoiceOwner().run())
+    }
+
+    @Test
+    fun explicitExtensionsAcrossCones() {
+        val action: Far.() -> Int =
+            {
+                val far = this
+                within(Near()) {
+                    far.amount += 2
+                    far.bump(0)
+                    far.operation(0) + far.pick()
+                }
+            }
+        assertEquals(84, action(Far(40)))
+    }
+
+    @Test
+    fun receiverInitializersAndLexicalParameters() {
+        val host = Host(1)
+        assertEquals(42, host.action(39, 2))
+        assertEquals(42, host.anonymous(41))
+        assertEquals(1, host.copied)
+        assertEquals(42, Default().action(41))
+        assertEquals(42, ParameterHost(2).action(Far(40)))
+    }
+
+    @Test
+    fun sameTypeReceiversKeepTheirOwnIdentity() {
+        val first = Far(7)
+        val second = Far(9)
+        val outer: Far.() -> Int =
+            outer@{
+                val inner: Far.() -> Int =
+                    {
+                        count += 1
+                        this @outer.count * 100 + count
+                    }
+                inner(second)
+            }
+        assertEquals(710, outer(first))
+        assertEquals(7, first.count)
+        assertEquals(10, second.count)
+    }
+
+    @Test
+    fun explicitCapturesAndFunctionAdaptation() {
+        val owner = Far(41)
+        val ordinary: (Near) -> Int = { ignored -> owner.count + 1 }
+        val adapted: Near.() -> Int = ordinary
+        assertEquals(42, adapted(Near()))
+        val saved =
+            capture(owner) {
+                val read = { count + 1 };
+                read()
+            }
+        assertEquals(42, saved())
+    }
+
+    @Test
+    fun innerInstancesRemainAccessible() {
+        val owner = Enclosing(42)
+        assertEquals(42, owner.run())
+        assertEquals(42, owner.factory().read())
+        val create: () -> Enclosing.Child = owner::Child
+        assertEquals(42, create().read())
+    }
+}

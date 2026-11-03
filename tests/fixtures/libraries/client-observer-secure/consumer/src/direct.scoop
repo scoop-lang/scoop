@@ -14,25 +14,25 @@ internal fun observedDirectTls(trust: TrustStore, port: Int, failing: Boolean) {
     PlatformEventLoop().run suspend {
         _ ->
         val tls =
-            HttpClientTlsConfig(
-                TlsTrustSource.Store(trust),
-                maximum =
+            httpClientTlsConfig {
+                this.trust = TlsTrustSource.Store(trust)
+                this.maximum =
                     if (failing)
                         TlsVersion.Tls12
                     else
                         TlsVersion.Tls13
-            )
+            }
         withHttpClient(
-            HttpClientConfig(
-                tls = tls,
-                observer = Some(log.observer()),
-                retries = HttpRetryOptions(maxRetries = 0L)
-            )
+            httpClientConfig {
+                this.tls = tls
+                this.observer = Some(log.observer())
+                this.retries = httpRetryOptions { this.maxRetries = 0L }
+            }
         ) suspend {
             client -> if (failing) {
                 val failure =
                     observationFailure suspend {
-                        client.execute(HttpRequest.get(url));
+                        client.execute(httpRequest(url));
                         Unit
                     }
                 assertTrue(failure is TlsException)
@@ -85,14 +85,14 @@ internal fun observedForwardTls(trust: TrustStore, port: Int) {
     val endpoint = Url.parse("https://127.0.0.1:" + port.toString())
     PlatformEventLoop().run suspend {
         _ ->
-        val tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
+        val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
         val proxy = HttpProxy.Http(HttpProxyEndpoint(endpoint, tls))
         val config =
-            HttpClientConfig(
-                tls = tls,
-                observer = Some(log.observer()),
-                proxy = HttpProxySelector.fixed(proxy)
-            )
+            httpClientConfig {
+                this.tls = tls
+                this.observer = Some(log.observer())
+                this.proxy = HttpProxySelector.fixed(proxy)
+            }
         withHttpClient(config) suspend { client -> observationGet(client, url, "body") }
     }
     val metrics = log.ofKind(HttpCallEventKind.Completed)[0L].metrics

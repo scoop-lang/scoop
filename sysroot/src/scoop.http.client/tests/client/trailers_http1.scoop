@@ -75,7 +75,11 @@ private class HttpClientTrailersHttp1Test {
                                     )
                                 ]
                             client.withResponse(
-                                HttpRequest.post(clientTestUrl(listener), body, fields)
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "POST"
+                                    this.body = body
+                                    this.fields = fields
+                                }
                             ) suspend {
                                 response ->
                                 assertEquals("ok", String.fromUtf8(response.body.readAllBytes(2L)))
@@ -107,7 +111,12 @@ private class HttpClientTrailersHttp1Test {
                 withHttpClient(clientTestConfig(trust, HttpVersion.Http10)) suspend {
                     client ->
                     expectBodyFailure<IllegalArgumentException> suspend {
-                        client.execute(HttpRequest.post(Url.parse("http://127.0.0.1:1/"), body))
+                        client.execute(
+                            httpRequest(Url.parse("http://127.0.0.1:1/")) {
+                                this.method = "POST"
+                                this.body = body
+                            }
+                        )
                     }
                     Unit
                 }

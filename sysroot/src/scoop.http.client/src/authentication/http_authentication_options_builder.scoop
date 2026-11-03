@@ -1,0 +1,43 @@
+package scoop.http.client
+
+import scoop.collections.emptyList
+import scoop.http.HttpAuthChallenge
+import scoop.url.Url
+import scoop.url.UrlOrigin
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpAuthenticationOptions(
+    configure: HttpAuthenticationOptionsBuilder.() -> Unit = {}
+): HttpAuthenticationOptions {
+    val builder = HttpAuthenticationOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpAuthenticationOptions.copy(
+    configure: HttpAuthenticationOptionsBuilder.() -> Unit = {}
+): HttpAuthenticationOptions {
+    val builder = HttpAuthenticationOptionsBuilder()
+    builder.providers = this.providers
+    builder.maxAttempts = this.maxAttempts
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpAuthenticationOptionsBuilder internal constructor() {
+    public var providers: List<HttpAuthenticator> = emptyList<HttpAuthenticator>()
+    public var maxAttempts: Long = 3L
+
+    public fun provider(value: HttpAuthenticator): Unit {
+        val next = ArrayList<HttpAuthenticator>()
+        for (item in providers)
+            next.add(item)
+        next.add(value)
+        providers = next.toArray()
+    }
+    internal fun snapshot(): HttpAuthenticationOptions =
+        HttpAuthenticationOptions(providers, maxAttempts)
+}

@@ -1,6 +1,33 @@
 use super::*;
 
 #[test]
+fn receiver_boundaries_reject_dependency_properties_on_outer_receivers() {
+    let fixture = DependencyPropertyFixture::new(vec![computed_extension_property(
+        "score",
+        ty_named("Int"),
+        int_lit(1),
+        Some(Vec::new()),
+    )]);
+    for body in ["score", "score = 7; 0"] {
+        let consumer = scoop_parser::parse(&format!(
+            "import dependency.api.score\nfun Int.capture(): Boolean.() -> Int = {{ {body} }}"
+        ))
+        .unwrap();
+        fixture.inspect(consumer, |output| {
+            let errors = output
+                .err()
+                .expect("an imported property cannot bind an outer receiver");
+            assert!(
+                errors.iter().any(|error| error
+                    .message
+                    .contains("implicit use of an outer receiver is not allowed")),
+                "{errors:#?}"
+            );
+        });
+    }
+}
+
+#[test]
 fn getter_setter_and_update_support_explicit_and_implicit_receivers() {
     let fixture = DependencyPropertyFixture::new(vec![computed_extension_property(
         "score",

@@ -1,0 +1,95 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Constructs a complete description and applies configuration once. */
+public fun surfacePart(
+    metrics: SurfaceMetrics,
+    fill: StateColors,
+    border: StateColors,
+    foreground: StateColors,
+    focus: FocusStyle,
+    configure: SurfacePartBuilder.() -> Unit = {}
+): SurfacePart =
+    configureSurfacePart(
+        SurfacePart(
+            metrics = metrics,
+            fill = fill,
+            border = border,
+            foreground = foreground,
+            focus = focus
+        ),
+        configure
+    )
+
+internal fun configureSurfacePart(
+    initial: SurfacePart,
+    configure: SurfacePartBuilder.() -> Unit
+): SurfacePart {
+    val builder = SurfacePartBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class SurfacePartBuilder internal constructor(initial: SurfacePart) {
+    public var metrics: SurfaceMetrics = initial.metrics
+    public var fill: StateColors = initial.fill
+    public var border: StateColors = initial.border
+    public var foreground: StateColors = initial.foreground
+    public var focus: FocusStyle = initial.focus
+    public var shadows: Array<BoxShadow> = initial.shadows
+
+    internal fun snapshot(): SurfacePart =
+        SurfacePart(
+            metrics = metrics,
+            fill = fill,
+            border = border,
+            foreground = foreground,
+            focus = focus,
+            shadows = shadows
+        )
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun surfaceParts(
+    plain: SurfacePart,
+    action: SurfacePart,
+    elevated: SurfacePart,
+    configure: SurfacePartsBuilder.() -> Unit = {}
+): SurfaceParts =
+    configureSurfaceParts(
+        SurfaceParts(plain = plain, action = action, elevated = elevated),
+        configure
+    )
+
+internal fun configureSurfaceParts(
+    initial: SurfaceParts,
+    configure: SurfacePartsBuilder.() -> Unit
+): SurfaceParts {
+    val builder = SurfacePartsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class SurfacePartsBuilder internal constructor(initial: SurfaceParts) {
+    public var plain: SurfacePart = initial.plain
+    public var action: SurfacePart = initial.action
+    public var elevated: SurfacePart = initial.elevated
+
+    public fun plain(configure: SurfacePartBuilder.() -> Unit): Unit {
+        plain = plain.copy(configure)
+    }
+
+    public fun action(configure: SurfacePartBuilder.() -> Unit): Unit {
+        action = action.copy(configure)
+    }
+
+    public fun elevated(configure: SurfacePartBuilder.() -> Unit): Unit {
+        elevated = elevated.copy(configure)
+    }
+
+    internal fun snapshot(): SurfaceParts =
+        SurfaceParts(plain = plain, action = action, elevated = elevated)
+}

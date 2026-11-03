@@ -41,30 +41,34 @@ private class HttpRequestObservationHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                        }
                     val firstLog = RequestObservationLog()
                     val secondLog = RequestObservationLog()
                     withHttpClient(config) suspend {
                         client -> try {
                             val first =
                                 client.execute(
-                                    HttpRequest.get(
-                                        clientTestUrl(listener),
-                                        options =
-                                            HttpCallOptions(observer = Some(firstLog.observer))
-                                    )
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.options =
+                                            httpCallOptions {
+                                                this.observer = Some(firstLog.observer)
+                                            }
+                                    }
                                 )
                             val second =
                                 client.execute(
-                                    HttpRequest.get(
-                                        clientTestUrl(listener),
-                                        options =
-                                            HttpCallOptions(observer = Some(secondLog.observer))
-                                    )
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.options =
+                                            httpCallOptions {
+                                                this.observer = Some(secondLog.observer)
+                                            }
+                                    }
                                 )
                             assertTrue(second.metrics!!.connectionReused == Some(true))
                             first.close()

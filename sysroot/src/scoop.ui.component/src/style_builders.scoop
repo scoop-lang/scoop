@@ -1,0 +1,154 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.style.*
+
+/** Configures one immutable local appearance without reading the current theme. */
+public fun interactionStyles(
+    configure: InteractionStylesBuilder.() -> Unit = {}
+): InteractionStyles = configureInteractionStyles(InteractionStyles(), configure)
+
+internal fun configureInteractionStyles(
+    initial: InteractionStyles,
+    configure: InteractionStylesBuilder.() -> Unit
+): InteractionStyles {
+    val builder = InteractionStylesBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; later edits do not change published descriptions. */
+public class InteractionStylesBuilder internal constructor(initial: InteractionStyles) {
+    public var hovered: StyleOverride = initial.hovered
+    public var pressed: StyleOverride = initial.pressed
+    public var focused: StyleOverride = initial.focused
+    public var disabled: StyleOverride = initial.disabled
+
+    public fun hovered(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        hovered = hovered.copy(configure)
+    }
+
+    public fun pressed(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        pressed = pressed.copy(configure)
+    }
+
+    public fun focused(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        focused = focused.copy(configure)
+    }
+
+    public fun disabled(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        disabled = disabled.copy(configure)
+    }
+
+    internal fun snapshot(): InteractionStyles =
+        InteractionStyles(
+            hovered = hovered,
+            pressed = pressed,
+            focused = focused,
+            disabled = disabled
+        )
+}
+
+/** Configures one immutable local appearance without reading the current theme. */
+public fun buttonStyle(configure: ButtonStyleBuilder.() -> Unit = {}): ButtonStyle =
+    configureButtonStyle(ButtonStyle(), configure)
+
+internal fun configureButtonStyle(
+    initial: ButtonStyle,
+    configure: ButtonStyleBuilder.() -> Unit
+): ButtonStyle {
+    val builder = ButtonStyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; later edits do not change published descriptions. */
+public class ButtonStyleBuilder internal constructor(initial: ButtonStyle) {
+    public var kind: SurfaceKind = initial.kind
+    public var surface: SurfaceOptions = initial.surface
+    public var text: SpanStyle? = initial.text
+    public var states: InteractionStyles = initial.states
+    public var transition: StyleValue<AnimationSpec?> = initial.transition
+
+    public fun surface(configure: SurfaceOptionsBuilder.() -> Unit): Unit {
+        surface = surface.copy(configure)
+    }
+
+    public fun text(configure: SpanStyleBuilder.() -> Unit): Unit {
+        text = Some(configureOptionalSpanStyle(text, configure))
+    }
+
+    public fun states(configure: InteractionStylesBuilder.() -> Unit): Unit {
+        states = states.copy(configure)
+    }
+
+    public fun transition(value: AnimationSpec?): Unit {
+        this.transition = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): ButtonStyle =
+        ButtonStyle(
+            kind = kind,
+            surface = surface,
+            text = text,
+            states = states,
+            transition = transition
+        )
+}
+
+/** Configures one immutable local appearance without reading the current theme. */
+public fun checkboxStyle(configure: CheckboxStyleBuilder.() -> Unit = {}): CheckboxStyle =
+    configureCheckboxStyle(CheckboxStyle(), configure)
+
+internal fun configureCheckboxStyle(
+    initial: CheckboxStyle,
+    configure: CheckboxStyleBuilder.() -> Unit
+): CheckboxStyle {
+    val builder = CheckboxStyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; later edits do not change published descriptions. */
+public class CheckboxStyleBuilder internal constructor(initial: CheckboxStyle) {
+    public var marker: CheckboxOptions = initial.marker
+    public var padding: Insets? = initial.padding
+    public var states: InteractionStyles = initial.states
+    public var transition: StyleValue<AnimationSpec?> = initial.transition
+    public var selectionTransition: StyleValue<AnimationSpec?> = initial.selectionTransition
+
+    public fun marker(configure: CheckboxOptionsBuilder.() -> Unit): Unit {
+        marker = marker.copy(configure)
+    }
+
+    public fun states(configure: InteractionStylesBuilder.() -> Unit): Unit {
+        states = states.copy(configure)
+    }
+
+    public fun transition(value: AnimationSpec?): Unit {
+        this.transition = StyleValue.Set(value)
+    }
+
+    public fun selectionTransition(value: AnimationSpec?): Unit {
+        this.selectionTransition = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): CheckboxStyle =
+        CheckboxStyle(
+            marker = marker,
+            padding = padding,
+            states = states,
+            transition = transition,
+            selectionTransition = selectionTransition
+        )
+}
+
+internal fun configureOptionalSpanStyle(
+    initial: SpanStyle?,
+    configure: SpanStyleBuilder.() -> Unit
+): SpanStyle =
+    when (initial) {
+        case Some(value) -> value.copy(configure);
+        case None -> spanStyle(configure)
+    }

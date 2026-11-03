@@ -17,43 +17,45 @@ internal fun sseTransport(trust: TrustStore, mode: String, url: Url, notifyPort:
             client ->
             val calls = AtomicLong(0L)
             val reconnect =
-                HttpSseReconnectOptions(
-                    Duration.ZERO,
-                    Duration.ZERO,
-                    Some(
-                        if (mode == "refused")
-                            2L
-                        else
-                            1L
-                    ),
-                    suspend {
-                        event ->
-                        calls.fetchAdd(1L)
-                        assertEquals("one", event.lastEventId)
-                        if (mode == "refused" && event.number == 1L)
-                            assertFalse(ssePresent(event.cause))
-                        else {
-                            assertTrue(ssePresent(event.cause))
-                            val error = event.cause!!
+                httpSseReconnectOptions {
+                    this.initialDelay = Duration.ZERO
+                    this.maxDelay = Duration.ZERO
+                    this.maxReconnects =
+                        Some(
                             if (mode == "refused")
-                                assertTrue(error is TcpConnectException)
+                                2L
                             else
-                                if (mode == "h2-eof") {
-                                    assertTrue(error is HttpException)
-                                    assertTrue((error as HttpException).isUnexpectedEof)
-                                } else {
-                                    assertTrue(error is TlsException)
-                                    assertEquals(
-                                        TlsFailureKind.Truncated,
-                                        (error as TlsException).kind
-                                    )
-                                }
+                                1L
+                        )
+                    this.onReconnect =
+                        suspend {
+                            event ->
+                            calls.fetchAdd(1L)
+                            assertEquals("one", event.lastEventId)
+                            if (mode == "refused" && event.number == 1L)
+                                assertFalse(ssePresent(event.cause))
+                            else {
+                                assertTrue(ssePresent(event.cause))
+                                val error = event.cause!!
+                                if (mode == "refused")
+                                    assertTrue(error is TcpConnectException)
+                                else
+                                    if (mode == "h2-eof") {
+                                        assertTrue(error is HttpException)
+                                        assertTrue((error as HttpException).isUnexpectedEof)
+                                    } else {
+                                        assertTrue(error is TlsException)
+                                        assertEquals(
+                                            TlsFailureKind.Truncated,
+                                            (error as TlsException).kind
+                                        )
+                                    }
+                            }
                         }
-                    }
-                )
+                }
             client.withSse(
-                HttpRequest.get(url),
-                HttpSseOptions(reconnect = Some(reconnect))
+                httpRequest(url),
+                httpSseOptions { this.reconnect = Some(reconnect) }
             ) suspend {
                 source ->
                 assertEquals(

@@ -1,0 +1,30 @@
+package scoop.http.client
+
+import scoop.asyncio.*
+import scoop.collections.emptyList
+import scoop.collections.Map
+import scoop.collections.sorted
+import scoop.collections.sortedBy
+import scoop.http.*
+import scoop.platform.time.SystemClock
+import scoop.time.Clock
+import scoop.time.Instant
+import scoop.url.Url
+import scoop.http.asyncio.*
+
+public fun HttpCacheOptions.copy(
+    configure: HttpCacheOptionsBuilder.() -> Unit = {}
+): HttpCacheOptions {
+    val builder = HttpCacheOptionsBuilder()
+    builder.partition = this.partition
+    builder.clock = this.clock
+    builder.configure()
+    return builder.snapshot(this.storage)
+}
+
+public class HttpCacheOptionsBuilder internal constructor() {
+    public var partition: String? = None
+    public var clock: Clock = SystemClock
+    internal fun snapshot(storage: HttpCache): HttpCacheOptions =
+        HttpCacheOptions(storage, partition, clock)
+}

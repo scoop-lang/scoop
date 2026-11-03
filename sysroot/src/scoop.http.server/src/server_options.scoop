@@ -5,7 +5,7 @@ import scoop.time.Duration
 import scoop.tls.TlsServerContext
 
 /** Transport, capacity and timeout configuration for an owned HTTP server. */
-public class HttpServerOptions public constructor(
+public class HttpServerOptions internal constructor(
     /** Shared TLS configuration, retained by the caller; None selects cleartext. */
     public val tls: TlsServerContext? = None,
     /** Whether TLS without negotiated ALPN may use HTTP/1. */
@@ -45,7 +45,8 @@ public class HttpServerOptions public constructor(
     /** Existing HTTP/1 start-line, field and buffering limits. */
     public val http1Limits: Http1Limits = Http1Limits(),
     /** HTTP/2 receive behavior, rejecting invalid regular fields by default. */
-    public val http2Receive: Http2ReceiveOptions = Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream),
+    public val http2Receive: Http2ReceiveOptions =
+        Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream),
     /** Existing HTTP/2 header and pending output limits. */
     public val http2Limits: Http2Limits = Http2Limits(),
     /** Local HTTP/2 settings, including the bounded incoming request queue. */
@@ -58,15 +59,36 @@ public class HttpServerOptions public constructor(
     public val onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None
 ) {
     init {
-        if (maxConnections <= 0L || maxActiveRequests <= 0L || maxWebSocketSessions <= 0L || bufferedBodyLimit < 0L)
+        if (
+            maxConnections <=
+                0L ||
+                maxActiveRequests <=
+                0L ||
+                maxWebSocketSessions <=
+                0L ||
+                bufferedBodyLimit <
+                0L
+        )
             throw IllegalArgumentException(Some("invalid HTTP server capacity"))
         if (present(requestBodyLimit) && requestBodyLimit!! < 0L)
             throw IllegalArgumentException(Some("negative request body limit"))
-        for (value in [tlsHandshakeTimeout, firstRequestHeadTimeout, http2HeadTimeout, keepAliveIdleTimeout,
-            bodyReadIdle, responseWriteIdle, requestDeadline, Some(gracefulShutdownTimeout)]) requireServerDuration(value)
+        for (
+            value in [
+                tlsHandshakeTimeout,
+                firstRequestHeadTimeout,
+                http2HeadTimeout,
+                keepAliveIdleTimeout,
+                bodyReadIdle,
+                responseWriteIdle,
+                requestDeadline,
+                Some(gracefulShutdownTimeout)
+            ]
+        )
+            requireServerDuration(value)
     }
 }
 
 internal fun requireServerDuration(value: Duration?) {
-    if (present(value) && value!! < Duration.ZERO) throw IllegalArgumentException(Some("negative HTTP server duration"))
+    if (present(value) && value!! < Duration.ZERO)
+        throw IllegalArgumentException(Some("negative HTTP server duration"))
 }

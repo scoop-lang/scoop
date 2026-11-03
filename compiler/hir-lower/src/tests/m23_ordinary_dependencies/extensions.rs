@@ -1,6 +1,41 @@
 use super::*;
 
 #[test]
+fn receiver_boundaries_reject_dependency_extensions_on_outer_receivers() {
+    let provider = extension_provider(
+        "receiver-boundary-provider",
+        extension_expr(
+            ty_named("Int"),
+            "identity",
+            Vec::new(),
+            Vec::new(),
+            Some(ty_named("Int")),
+            this_expr(),
+        ),
+        &["Int"],
+        91,
+    );
+    let consumer = scoop_parser::parse(
+        r#"
+        import dependency.api.identity
+        fun Int.capture(): Boolean.() -> Int = { identity() }
+        "#,
+    )
+    .unwrap();
+    inspect_extensions(vec![provider], consumer, |output| {
+        let errors = output
+            .err()
+            .expect("an imported extension cannot bind an outer receiver");
+        assert!(
+            errors.iter().any(|error| error
+                .message
+                .contains("implicit use of an outer receiver is not allowed")),
+            "{errors:#?}"
+        );
+    });
+}
+
+#[test]
 fn dependency_extension_functions_support_explicit_and_implicit_receivers() {
     let provider = extension_provider(
         "extension-provider",

@@ -71,13 +71,14 @@ private class NestedNavigationRow(
                 parts = 1,
                 empty = id == 6L
             ),
-            ItemExtent.Fixed(24.0),
-            Some(scroll),
-            height = Some(24.0),
-            scrollbars = ScrollbarVisibility.Hidden,
-            theme = Some(probe.theme),
-            navigation = ItemNavigation.Sequential
-        )
+            ItemExtent.Fixed(24.0)
+        ) {
+            this.state = Some(this @NestedNavigationRow.scroll)
+            this.height = Some(24.0)
+            this.scrollbars = ScrollbarVisibility.Hidden
+            this.theme = Some(this @NestedNavigationRow.probe.theme)
+            this.navigation = ItemNavigation.Sequential
+        }
     }
 }
 

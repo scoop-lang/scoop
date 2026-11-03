@@ -1,5 +1,7 @@
 package scoop.readline.history
 
+import scoop.readline.readlineConfig
+
 import scoop.readline.Config
 import scoop.platform.fs.*
 import scoop.platform.concurrent.Thread
@@ -40,24 +42,35 @@ private fun checkHistory(history: History) {
     assertTrue(history.isEmpty)
 }
 
-@Test private class HistoryTest {
-    @Test fun caseInsensitiveSearchKeepsOriginalIndices() {
-        val history = MemoryHistory(Config(historyCaseSensitive = false))
+@Test
+private class HistoryTest {
+    @Test
+    fun caseInsensitiveSearchKeepsOriginalIndices() {
+        val history = MemoryHistory(readlineConfig { this.historyCaseSensitive = false })
         history.add("中 Straße Σς")
         assertEquals(2L, history.search("STRASSE", 0L, SearchDirection.Forward)!!.position)
         assertEquals(8L, history.startsWith("中 STRASSE", 0L, SearchDirection.Forward)!!.position)
         assertEquals(9L, history.search("σσ", 0L, SearchDirection.Forward)!!.position)
         assertEquals(None, MemoryHistory().search("strasse", 0L, SearchDirection.Forward))
     }
-    @Test fun memoryContract() { checkHistory(MemoryHistory()) }
-    @Test fun fileContract() { checkHistory(FileHistory()) }
-    @Test fun defaultCapacity() {
+    @Test
+    fun memoryContract() {
+        checkHistory(MemoryHistory())
+    }
+    @Test
+    fun fileContract() {
+        checkHistory(FileHistory())
+    }
+    @Test
+    fun defaultCapacity() {
         val history = MemoryHistory()
-        for (index in 0L..109L) history.add(index.toString())
+        for (index in 0L .. 109L)
+            history.add(index.toString())
         assertEquals(100L, history.size)
         assertEquals("10", history.get(0L)!!.entry)
     }
-    @Test fun fileFormatsAndPendingEntries() {
+    @Test
+    fun fileFormatsAndPendingEntries() {
         val path = createTempFile(prefix = "scoop-history-")
         try {
             path.writeText("old\r\nlast")
@@ -79,13 +92,16 @@ private fun checkHistory(history: History) {
             other.clear()
             other.save(path)
             assertEquals("#V2\n", path.readText())
-        } finally { path.delete() }
+        } finally {
+            path.delete()
+        }
     }
-    @Test fun appendMergesSessionsAndTrims() {
+    @Test
+    fun appendMergesSessionsAndTrims() {
         val path = createTempFile(prefix = "scoop-history-")
         try {
-            val first = FileHistory(Config(maxHistorySize = 3L))
-            val second = FileHistory(Config(maxHistorySize = 3L))
+            val first = FileHistory(readlineConfig { this.maxHistorySize = 3L })
+            val second = FileHistory(readlineConfig { this.maxHistorySize = 3L })
             first.add("a")
             first.save(path)
             second.load(path)
@@ -98,9 +114,12 @@ private fun checkHistory(history: History) {
             val read = FileHistory()
             read.load(path)
             assertItems(["b", "c", "d"], read.toArray())
-        } finally { path.delete() }
+        } finally {
+            path.delete()
+        }
     }
-    @Test fun failedIoPreservesPendingAndLoadedState() {
+    @Test
+    fun failedIoPreservesPendingAndLoadedState() {
         val directory = createTempDirectory(prefix = "scoop-history-")
         val path = directory.resolve(Path.fromString("history"))
         try {
@@ -112,31 +131,43 @@ private fun checkHistory(history: History) {
             path.writeAllBytes([0xff.toByte()])
             assertFailsWith<CharacterCodingException> { history.load(path) }
             assertItems(["pending"], history.toArray())
-        } finally { directory.deleteRecursively() }
+        } finally {
+            directory.deleteRecursively()
+        }
     }
-    @Test fun concurrentAppend() {
+    @Test
+    fun concurrentAppend() {
         val path = createTempFile(prefix = "scoop-history-")
         try {
             val threads = ArrayList<Thread>()
-            for (index in 0L..7L) {
+            for (index in 0L .. 7L) {
                 val entry = index.toString()
-                threads.add(Thread.start {
-                    val history = FileHistory()
-                    history.add(entry)
-                    history.append(path)
-                })
+                threads.add(
+                    Thread.start {
+                        val history = FileHistory()
+                        history.add(entry)
+                        history.append(path)
+                    }
+                )
             }
-            for (thread in threads) thread.join()
+            for (thread in threads)
+                thread.join()
             val read = FileHistory()
             read.load(path)
             assertEquals(8L, read.size)
-            for (index in 0L..7L) assertTrue(read.search(index.toString(), 0L, SearchDirection.Forward) != None)
-        } finally { path.delete() }
+            for (index in 0L .. 7L)
+                assertTrue(read.search(index.toString(), 0L, SearchDirection.Forward) != None)
+        } finally {
+            path.delete()
+        }
     }
 }
 
-private fun <T : Equals<T>> assertItems(expected: List<T>, actual: List<T>) {
+private fun <T: Equals<T>> assertItems(expected: List<T>, actual: List<T>) {
     assertEquals(expected.size, actual.size)
     var index = 0L
-    while (index < expected.size) { assertEquals(expected[index], actual[index]); index += 1L }
+    while (index < expected.size) {
+        assertEquals(expected[index], actual[index]);
+        index += 1L
+    }
 }

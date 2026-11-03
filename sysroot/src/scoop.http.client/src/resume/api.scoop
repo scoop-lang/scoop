@@ -14,7 +14,9 @@ public enum HttpResumeMismatch {
     /**
      * Reports the mismatch instead of restarting.
      */
-    Fail }
+    Fail
+}
+
 /**
  * The condition preventing safe byte-range continuation.
  */
@@ -23,41 +25,41 @@ public enum HttpResumeFailureReason {
      * The partial file has no usable companion metadata.
      */
     MissingMetadata,
-        /**
+    /**
          * Saved resume metadata is malformed or exceeds its limits.
          */
-        InvalidMetadata,
-        /**
+    InvalidMetadata,
+    /**
          * The saved response has no reliable validator for continuation.
          */
-        UnreliableValidator,
-        /**
+    UnreliableValidator,
+    /**
          * The current request no longer matches the saved download identity.
          */
-        RequestChanged,
+    RequestChanged,
     /**
      * The server representation or validator differs from the saved one.
      */
     RepresentationChanged,
-        /**
+    /**
          * The response range does not agree with the requested continuation.
          */
-        InvalidRange,
-        /**
+    InvalidRange,
+    /**
          * The response ended before the promised range was complete.
          */
-        IncompleteRange,
-        /**
+    IncompleteRange,
+    /**
          * The response status cannot complete the selected resume operation.
          */
-        UnexpectedStatus
+    UnexpectedStatus
 }
 
 /**
  * Explicit partial-file and metadata paths, mismatch policy, and metadata size bound. The two
  * paths must differ.
  */
-public class HttpResumeOptions public constructor(
+public class HttpResumeOptions internal constructor(
     /**
      * The explicit path retaining incomplete representation bytes.
      */
@@ -76,7 +78,8 @@ public class HttpResumeOptions public constructor(
     public val maxMetadataBytes: Long = 65536L
 ) {
     init {
-        if (maxMetadataBytes <= 0L) throw IllegalArgumentException(Some("resume metadata limit must be positive"))
+        if (maxMetadataBytes <= 0L)
+            throw IllegalArgumentException(Some("resume metadata limit must be positive"))
         if (partialFile.normalizeLexically() == metadataFile.normalizeLexically())
             throw IllegalArgumentException(Some("resume data and metadata need different paths"))
     }
@@ -90,16 +93,16 @@ public class HttpResumeException public constructor(
      * The continuation failure category.
      */
     public val reason: HttpResumeFailureReason,
-        /**
+    /**
          * The mismatch explanation.
          */
-        public val detail: String,
+    public val detail: String,
     /**
      * The response head involved, when available.
      */
     public val head: HttpResponseHead? = None,
-        /**
+    /**
          * The underlying I/O or validation failure, when available.
          */
-        public val cause: Throwable? = None
-) : Exception(Some(detail))
+    public val cause: Throwable? = None
+): Exception(Some(detail))

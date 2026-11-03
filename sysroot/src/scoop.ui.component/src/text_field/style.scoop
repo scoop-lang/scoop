@@ -4,19 +4,22 @@ import scoop.graphics.*
 import scoop.graphics.text.SpanStyle
 import scoop.ui.style.*
 
-public class TextFieldStyle public constructor(
-    public val surface: SurfaceOptions = SurfaceOptions(),
+public class TextFieldStyle internal constructor(
+    public val surface: SurfaceOptions = surfaceOptions(),
     public val text: SpanStyle? = None,
     public val placeholder: SpanStyle? = None,
     public val description: SpanStyle? = None,
-    public val states: InteractionStyles = InteractionStyles(),
+    public val states: InteractionStyles = interactionStyles(),
     public val selectionColor: Color? = None,
     public val inactiveSelectionColor: Color? = None,
     public val caretColor: Color? = None,
     public val markedColor: Color? = None,
     public val caretWidth: Double = 1.0,
-    public val scrollbar: ScrollbarOptions = ScrollbarOptions()
+    public val scrollbar: ScrollbarOptions = scrollbarOptions()
 ) {
+    public fun copy(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle =
+        configureTextFieldStyle(this, configure)
+
     internal fun options(
         theme: Theme,
         visual: InteractionVisual,
@@ -24,11 +27,9 @@ public class TextFieldStyle public constructor(
     ): SurfaceOptions {
         val validation =
             if (invalid)
-                StyleOverride(
-                    border = StyleValue.Set(Some(Border(1.0, theme.tokens.palette.error)))
-                )
+                styleOverride { this.border(Some(Border(1.0, theme.tokens.palette.error))) }
             else
-                StyleOverride()
+                styleOverride()
         val focus =
             when (surface.focus) {
                 case Some(value) -> Some(value)
@@ -37,12 +38,10 @@ public class TextFieldStyle public constructor(
                 else
                     None
             }
-        return SurfaceOptions(
-            surface.suggestedSize,
-            surface.minimumSize,
-            surface.padding,
-            states.apply(validation.then(surface.style), visual),
-            focus
-        )
+        val localStyle = states.apply(validation.then(surface.style), visual)
+        return surface.copy {
+            this.style = localStyle
+            this.focus = focus
+        }
     }
 }

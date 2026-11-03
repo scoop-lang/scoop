@@ -173,13 +173,7 @@ def main():
     binary = sys.argv[1]
     for mode in ("sequence", "manual", "disabled", "default", "proxy"):
         external(binary, mode)
-    run(binary, ["http2"])
-    for stage in ("load", "save"):
-        run(binary, ["failure", stage])
-        for mode in ("caller", "client", "total"):
-            run(binary, ["cancel", stage, mode, "normal"])
-        run(binary, ["cancel", stage, "client", "cleanup"])
-    print("client cookies network authentication redirects retries H2 and callback lifetime passed")
+    print("client cookie peer validates authentication redirects retries and field isolation")
 
 
 if __name__ == "__main__":

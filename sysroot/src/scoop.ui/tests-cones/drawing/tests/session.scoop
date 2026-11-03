@@ -83,7 +83,10 @@ internal class DrawingProbe {
             case Resumed -> {
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop UI drawing", LogicalSize(320.0, 200.0))
+                        windowAttributes {
+                            this.title = "Scoop UI drawing"
+                            this.size = LogicalSize(320.0, 200.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

@@ -28,5 +28,5 @@ name = "run"
 timeout = 3600
 argv = ["${python}", "${fixture}/peer.py", "${build.result.output}", "${work}/files"]
 exit = 0
-stdout = "client downloads independent file bytes protocol composition and parallel HTTP2 passed\n"
+stdout = "client download peer validates independent file bytes and protocol composition\n"
 stderr = ""

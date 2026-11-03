@@ -179,6 +179,7 @@ impl Lowerer {
                         binding: self.locals[local].binding,
                         ty,
                     }),
+                    self.current_owner.is_none(),
                 );
             }
             hir::ExportDefaultReceiver { local, ty }

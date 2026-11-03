@@ -11,7 +11,7 @@ import scoop.ui.style.*
 public class CheckboxProps public constructor(
     public val checked: Binding<Boolean>,
     public val enabled: Boolean = true,
-    public val style: CheckboxStyle = CheckboxStyle(),
+    public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions()
 )
@@ -45,33 +45,38 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
     }
 }
 
-public fun checkbox(
-    checked: Binding<Boolean>,
-    enabled: Boolean = true,
-    style: CheckboxStyle = CheckboxStyle(),
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position,
-    focus: FocusOptions = FocusOptions()
-): View =
-    component(
-        CheckboxProps(checked, enabled, style, theme, focus),
-        { props -> Checkbox(props) },
-        key
-    )
+public fun checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View =
+    makeCheckbox(checked, configure)
 
 public fun checkbox(
     initialChecked: Boolean = false,
-    enabled: Boolean = true,
-    style: CheckboxStyle = CheckboxStyle(),
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position,
-    focus: FocusOptions = FocusOptions()
-): View =
-    component(
-        OwnedCheckboxProps(initialChecked, enabled, style, theme, focus),
+    configure: CheckboxBuilder.() -> Unit = {}
+): View = makeOwnedCheckbox(initialChecked, configure)
+
+internal fun makeCheckbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit): View {
+    val builder = CheckboxBuilder()
+    builder.configure()
+    return component(builder.snapshot(checked), { props -> Checkbox(props) }, builder.key)
+}
+
+internal fun makeOwnedCheckbox(
+    initialChecked: Boolean,
+    configure: CheckboxBuilder.() -> Unit
+): View {
+    val builder = CheckboxBuilder()
+    builder.configure()
+    return component(
+        OwnedCheckboxProps(
+            initialChecked,
+            builder.enabled,
+            builder.style,
+            builder.theme,
+            builder.focus
+        ),
         { props -> OwnedCheckbox(props) },
-        key
+        builder.key
     )
+}
 
 private class OwnedCheckboxProps(
     val initial: Boolean,
@@ -84,13 +89,12 @@ private class OwnedCheckboxProps(
 private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Component {
     private val checked = state(props.value.initial)
     public override fun render(): View =
-        checkbox(
-            checked.binding(),
-            props.value.enabled,
-            props.value.style,
-            props.value.theme,
-            focus = props.value.focus
-        )
+        checkbox(checked.binding()) {
+            this.enabled = this @OwnedCheckbox.props.value.enabled
+            this.style = this @OwnedCheckbox.props.value.style
+            this.theme = this @OwnedCheckbox.props.value.theme
+            this.focus = this @OwnedCheckbox.props.value.focus
+        }
 }
 
 private class CheckboxInkProps(

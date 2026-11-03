@@ -1,0 +1,170 @@
+package scoop.http.client
+
+import scoop.asyncio.TcpConnectOptions
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.time.Duration
+import scoop.tls.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpClientConfig(configure: HttpClientConfigBuilder.() -> Unit = {}): HttpClientConfig {
+    val builder = HttpClientConfigBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpClientConfig.copy(
+    configure: HttpClientConfigBuilder.() -> Unit = {}
+): HttpClientConfig {
+    val builder = HttpClientConfigBuilder()
+    builder.versionPolicy = this.versionPolicy
+    builder.cleartext = this.cleartext
+    builder.http1RequestVersion = this.http1RequestVersion
+    builder.tls = this.tls
+    builder.pool = this.pool
+    builder.tcpConnect = this.tcpConnect
+    builder.http1Receive = this.http1Receive
+    builder.http1Limits = this.http1Limits
+    builder.http2Receive = this.http2Receive
+    builder.http2Limits = this.http2Limits
+    builder.http2Settings = this.http2Settings
+    builder.decoding = this.decoding
+    builder.timeouts = this.timeouts
+    builder.redirects = this.redirects
+    builder.retries = this.retries
+    builder.authentication = this.authentication
+    builder.proxy = this.proxy
+    builder.cookieJar = this.cookieJar
+    builder.cache = this.cache
+    builder.interceptors = this.interceptors
+    builder.onAttempt = this.onAttempt
+    builder.observer = this.observer
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpClientConfigBuilder internal constructor() {
+    public var versionPolicy: HttpVersionPolicy = HttpVersionPolicy.Auto
+    public var cleartext: HttpCleartextProtocol = HttpCleartextProtocol.Http1
+    public var http1RequestVersion: HttpVersion = HttpVersion.Http11
+    public var tls: HttpClientTlsConfig = httpClientTlsConfig()
+    public var pool: HttpConnectionPoolOptions = httpConnectionPoolOptions()
+    public var tcpConnect: TcpConnectOptions = tcpConnectOptions()
+    public var http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()
+    public var http1Limits: Http1Limits = Http1Limits()
+    public var http2Receive: Http2ReceiveOptions = Http2ReceiveOptions()
+    public var http2Limits: Http2Limits = Http2Limits()
+    public var http2Settings: Http2Settings = Http2Settings()
+    public var decoding: HttpDecodingOptions = httpDecodingOptions()
+    public var timeouts: HttpTimeoutOptions = httpTimeoutOptions()
+    public var redirects: HttpRedirectOptions = httpRedirectOptions()
+    public var retries: HttpRetryOptions = httpRetryOptions()
+    public var authentication: HttpAuthenticationOptions = httpAuthenticationOptions()
+    public var proxy: HttpProxySelector = HttpProxySelector.direct()
+    public var cookieJar: CookieJar? = None
+    public var cache: HttpCacheOptions? = None
+    public var interceptors: List<HttpInterceptor> = emptyList<HttpInterceptor>()
+    public var onAttempt: (suspend (HttpAttempt) -> List<HttpField>)? = None
+    public var observer: HttpObserver? = None
+
+    public fun tls(configure: HttpClientTlsConfigBuilder.() -> Unit): Unit {
+        tls = tls.copy(configure)
+    }
+
+    public fun pool(configure: HttpConnectionPoolOptionsBuilder.() -> Unit): Unit {
+        pool = pool.copy(configure)
+    }
+
+    public fun tcpConnect(configure: TcpConnectOptionsBuilder.() -> Unit): Unit {
+        tcpConnect = tcpConnect.copy(configure)
+    }
+
+    public fun http1Receive(configure: Http1ReceiveOptionsBuilder.() -> Unit): Unit {
+        http1Receive = http1Receive.copy(configure)
+    }
+
+    public fun http1Limits(configure: Http1LimitsBuilder.() -> Unit): Unit {
+        http1Limits = http1Limits.copy(configure)
+    }
+
+    public fun http2Receive(configure: Http2ReceiveOptionsBuilder.() -> Unit): Unit {
+        http2Receive = http2Receive.copy(configure)
+    }
+
+    public fun http2Limits(configure: Http2LimitsBuilder.() -> Unit): Unit {
+        http2Limits = http2Limits.copy(configure)
+    }
+
+    public fun http2Settings(configure: Http2SettingsBuilder.() -> Unit): Unit {
+        http2Settings = http2Settings.copy(configure)
+    }
+
+    public fun decoding(configure: HttpDecodingOptionsBuilder.() -> Unit): Unit {
+        decoding = decoding.copy(configure)
+    }
+
+    public fun timeouts(configure: HttpTimeoutOptionsBuilder.() -> Unit): Unit {
+        timeouts = timeouts.copy(configure)
+    }
+
+    public fun redirects(configure: HttpRedirectOptionsBuilder.() -> Unit): Unit {
+        redirects = redirects.copy(configure)
+    }
+
+    public fun retries(configure: HttpRetryOptionsBuilder.() -> Unit): Unit {
+        retries = retries.copy(configure)
+    }
+
+    public fun authentication(configure: HttpAuthenticationOptionsBuilder.() -> Unit): Unit {
+        authentication = authentication.copy(configure)
+    }
+
+    public fun cache(storage: HttpCache, configure: HttpCacheOptionsBuilder.() -> Unit = {}): Unit {
+        val current = cache
+        val builder = HttpCacheOptionsBuilder()
+        when (current) {
+            case Some(value) -> {
+                builder.partition = value.partition;
+                builder.clock = value.clock
+            }
+            case None -> {}
+        }
+        builder.configure()
+        cache = Some(builder.snapshot(storage))
+    }
+
+    public fun interceptor(value: HttpInterceptor): Unit {
+        val next = ArrayList<HttpInterceptor>()
+        for (item in interceptors)
+            next.add(item)
+        next.add(value)
+        interceptors = next.toArray()
+    }
+    internal fun snapshot(): HttpClientConfig =
+        HttpClientConfig(
+            versionPolicy,
+            cleartext,
+            http1RequestVersion,
+            tls,
+            pool,
+            tcpConnect,
+            http1Receive,
+            http1Limits,
+            http2Receive,
+            http2Limits,
+            http2Settings,
+            decoding,
+            timeouts,
+            redirects,
+            retries,
+            authentication,
+            proxy,
+            cookieJar,
+            cache,
+            interceptors,
+            onAttempt,
+            observer
+        )
+}

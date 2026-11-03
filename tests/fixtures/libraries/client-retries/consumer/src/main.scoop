@@ -27,27 +27,27 @@ internal suspend fun retryWrite(output: AsyncByteSink, text: String) {
 private fun exercise(mode: String, url: Url, trust: TrustStore) {
     val h2 = mode == "refused" || mode == "goaway"
     val retries =
-        HttpRetryOptions(
-            maxRetries =
+        httpRetryOptions {
+            this.maxRetries =
                 if (mode == "status")
                     0L
                 else
-                    2L,
-            initialDelay = Duration.ZERO,
-            maxDelay = Duration.ZERO,
-            jitter = false
-        )
+                    2L
+            this.initialDelay = Duration.ZERO
+            this.maxDelay = Duration.ZERO
+            this.jitter = false
+        }
     val config =
-        HttpClientConfig(
-            cleartext =
+        httpClientConfig {
+            this.cleartext =
                 if (h2)
                     HttpCleartextProtocol.Http2PriorKnowledge
                 else
-                    HttpCleartextProtocol.Http1,
-            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-            retries = retries,
-            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-        )
+                    HttpCleartextProtocol.Http1
+            this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            this.retries = retries
+            this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+        }
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope ->
@@ -55,7 +55,7 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
             client -> when (mode) {
                 case "replay" -> retryReplay(client, url)
                 case "refused" -> retryRefused(client, url)
-                case "goaway" -> client.withResponse(HttpRequest.get(url)) suspend {
+                case "goaway" -> client.withResponse(httpRequest(url)) suspend {
                     response -> retryCheck(
                         response.retryCount == 1L && response.body.text(4L) == "done"
                     )

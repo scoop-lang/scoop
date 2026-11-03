@@ -14,12 +14,13 @@ public enum HttpContentDecoding {
     /**
      * Delivers encoded representation bytes unchanged.
      */
-    Raw }
+    Raw
+}
 
 /**
  * Content-decoding mode, transfer buffer size, and maximum compression window.
  */
-public class HttpDecodingOptions public constructor(
+public class HttpDecodingOptions internal constructor(
     /**
      * Automatic decoding or raw encoded bytes.
      */
@@ -34,7 +35,8 @@ public class HttpDecodingOptions public constructor(
     public val maxWindowBytes: Long? = None
 ) {
     init {
-        if (bufferSize <= 0L) throw IllegalArgumentException(Some("HTTP decoding buffer size must be positive"))
+        if (bufferSize <= 0L)
+            throw IllegalArgumentException(Some("HTTP decoding buffer size must be positive"))
         if (maxWindowBytes != None && maxWindowBytes!! <= 0L)
             throw IllegalArgumentException(Some("HTTP decoding window limit must be positive"))
     }
@@ -47,15 +49,26 @@ public class HttpUnsupportedContentCodingException public constructor(
     /**
      * The unsupported normalized content-coding token.
      */
-    public val coding: String)
-    : Exception(Some("unsupported HTTP content coding: " + coding))
+    public val coding: String
+)
+: Exception(Some("unsupported HTTP content coding: " + coding))
 
-internal class ClientResponseDecoding(val options: HttpDecodingOptions, val formats: Array<CompressionFormat>, val contentLength: Long?)
+internal class ClientResponseDecoding(
+    val options: HttpDecodingOptions,
+    val formats: Array<CompressionFormat>,
+    val contentLength: Long?
+)
 
-internal fun clientDecodingOptions(config: HttpClientConfig, request: HttpRequest): HttpDecodingOptions =
-    request.options.decoding ?: config.decoding
+internal fun clientDecodingOptions(
+    config: HttpClientConfig,
+    request: HttpRequest
+): HttpDecodingOptions = request.options.decoding ?: config.decoding
 
-internal fun clientResponseDecoding(call: ClientCall, head: HttpResponseHead, wireLength: Long?): ClientResponseDecoding {
+internal fun clientResponseDecoding(
+    call: ClientCall,
+    head: HttpResponseHead,
+    wireLength: Long?
+): ClientResponseDecoding {
     val options = clientDecodingOptions(call.client.config, call.request)
     val allows = httpResponseAllowsContent(head, call.request.methodBytes)
     val formats = ArrayList<CompressionFormat>()
@@ -76,13 +89,34 @@ internal fun clientResponseDecoding(call: ClientCall, head: HttpResponseHead, wi
             }
         }
     }
-    return ClientResponseDecoding(options, formats.toArray(), if (allows && formats.size == 0L) wireLength else None)
+    return ClientResponseDecoding(
+        options,
+        formats.toArray(),
+        if (allows && formats.size == 0L)
+            wireLength
+        else
+            None
+    )
 }
 
-internal fun addClientAcceptEncoding(fields: ArrayList<HttpField>, request: HttpRequest, config: HttpClientConfig) {
-    if (fields.findAll("Accept-Encoding".toByteArray()).size != 0L) return
+internal fun addClientAcceptEncoding(
+    fields: ArrayList<HttpField>,
+    request: HttpRequest,
+    config: HttpClientConfig
+) {
+    if (fields.findAll("Accept-Encoding".toByteArray()).size != 0L)
+        return
     val range = fields.findAll("Range".toByteArray()).size != 0L
     if (range || clientDecodingOptions(config, request).mode == HttpContentDecoding.Automatic)
-        fields.add(HttpField("Accept-Encoding".toByteArray(),
-            (if (range) "identity" else "gzip, deflate, br, zstd").toByteArray()))
+        fields.add(
+            HttpField(
+                "Accept-Encoding".toByteArray(),
+                (
+                    if (range)
+                        "identity"
+                    else
+                        "gzip, deflate, br, zstd"
+                ).toByteArray()
+            )
+        )
 }

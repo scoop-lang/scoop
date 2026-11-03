@@ -1,0 +1,35 @@
+package scoop.http.client
+
+import scoop.http.HttpResponseHead
+import scoop.url.Url
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpRedirectOptions(
+    configure: HttpRedirectOptionsBuilder.() -> Unit = {}
+): HttpRedirectOptions {
+    val builder = HttpRedirectOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpRedirectOptions.copy(
+    configure: HttpRedirectOptionsBuilder.() -> Unit = {}
+): HttpRedirectOptions {
+    val builder = HttpRedirectOptionsBuilder()
+    builder.enabled = this.enabled
+    builder.maxRedirects = this.maxRedirects
+    builder.allowHttpsToHttp = this.allowHttpsToHttp
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpRedirectOptionsBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var maxRedirects: Long = 10L
+    public var allowHttpsToHttp: Boolean = false
+    internal fun snapshot(): HttpRedirectOptions =
+        HttpRedirectOptions(enabled, maxRedirects, allowHttpsToHttp)
+}

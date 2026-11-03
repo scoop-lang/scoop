@@ -27,28 +27,27 @@ Skia 固定版本 `f326a1e25fc736704063922b9ce76b527b1c5efe` 提供 addPlacehold
 
 ## 3. 描述与排版结果
 
-作者层采用不可变 class 的 StyledText／TextSpan，使用普通函数构造内容。SpanStyle 只覆盖指定属性，解析后成为完整 TextStyle；TextRun 仅作为内部展开结果。片段不包含 native owner，描述复用不要求重复复制整段文字。
+作者层采用不可变 class 的 StyledText／TextSpan，通过 styledText／textSpan 接收者配置构造；TextChildrenBuilder 的真实 text／span／inlineObject／add 成员按顺序追加内容。TextStyle、SpanStyle、ParagraphStyle 各有对应的接收者配置入口。SpanStyle 只覆盖指定属性，解析后成为完整 TextStyle；TextRun 仅作为内部展开结果。片段不包含 native owner，描述复用不要求重复复制整段文字。
 
 例如下面表达文字、局部样式、图片和控件的位置；行内对象的实际资源另外提供：
 
-```kotlin
+```scoop
 import scoop.graphics.text.*
 
-val content =
-    StyledText(
-        spans =
-            arrayOf(
-                TextSpan.text("Total: "),
-                TextSpan.span(
-                    style = SpanStyle(fontSize = Some(20.0), weight = Some(700)),
-                    children = arrayOf(TextSpan.text("128.00"))
-                ),
-                TextSpan.text(" "),
-                TextSpan.inlineObject(InlineKey.Text("badge"), alternateText = "Member"),
-                TextSpan.text(" "),
-                TextSpan.inlineObject(InlineKey.Text("action"), alternateText = "Details")
-            )
-    )
+val content = styledText {
+    text("Total: ")
+    span {
+        style {
+            fontSize = Some(20.0)
+            weight = Some(700)
+        }
+        text("128.00")
+    }
+    text(" ")
+    inlineObject(InlineKey.Text("badge"), alternateText = "Member")
+    text(" ")
+    inlineObject(InlineKey.Text("action"), alternateText = "Details")
+}
 ```
 
 文本层只收到 `badge`／`action` 的尺寸和对齐信息。直接绘图程序可在 badge 的排版位置画 Image；UI 可把 action 关联到持久 Button。图片和控件都遵守同一个对象盒子合同。

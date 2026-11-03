@@ -14,15 +14,13 @@ internal class VariableScene(private val probe: VariableProbe): Component {
             { props -> VariablePanel(probe, props) },
             [
                 if (probe.show.value)
-                    virtualList(
-                        probe.data!!.value,
-                        ItemExtent.Variable(20.0),
-                        state = Some(probe.scroll),
-                        overscan = 20.0,
-                        theme = Some(probe.theme),
-                        handle = Some(probe.handle.value),
-                        anchor = probe.anchor.value
-                    )
+                    virtualList(probe.data!!.value, ItemExtent.Variable(20.0)) {
+                        this.state = Some(this @VariableScene.probe.scroll)
+                        this.overscan = 20.0
+                        this.theme = Some(this @VariableScene.probe.theme)
+                        this.handle = Some(this @VariableScene.probe.handle.value)
+                        this.anchor = this @VariableScene.probe.anchor.value
+                    }
                 else
                     empty()
             ]

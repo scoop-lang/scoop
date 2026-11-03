@@ -90,19 +90,19 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
             else
                 HttpCleartextProtocol.Http2PriorKnowledge
     val config =
-        HttpClientConfig(
-            cleartext = cleartext,
-            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-            pool =
-                HttpConnectionPoolOptions(
-                    maxConnectionsPerOrigin = 1L,
-                    maxStreamsPerHttp2 =
+        httpClientConfig {
+            this.cleartext = cleartext
+            this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            this.pool =
+                httpConnectionPoolOptions {
+                    this.maxConnectionsPerOrigin = 1L
+                    this.maxStreamsPerHttp2 =
                         if (mode == "h2-isolation")
                             2L
                         else
                             1L
-                )
-        )
+                }
+        }
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope ->

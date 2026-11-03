@@ -1,0 +1,232 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+
+@Test
+private class ThemeBuilderTest {
+    @Test
+    fun `all presets configure complete data once and nested edits publish stable geometry inputs`() {
+        val calls = ArrayList<Int>()
+        val palettes = ArrayList<ThemePaletteBuilder>()
+        val fonts = ArrayList<TextStyleBuilder>()
+        val parts = ArrayList<SurfacePartBuilder>()
+        val configure: ShapeThemeBuilder.() -> Unit =
+            {
+                calls.add(1)
+                tokens {
+                    palette {
+                        palettes.add(this)
+                        error = Color.White
+                    }
+                    palette {}
+                    typography {
+                        action {
+                            fonts.add(this)
+                            weight = 700
+                        }
+                    }
+                    typography { action { letterSpacing = 1.2 } }
+                    typography {}
+                    effects { emphasis = [] }
+                    effects {}
+                    motion { hover = None }
+                    motion {}
+                }
+                tokens {}
+                surfaces {
+                    action {
+                        parts.add(this)
+                        fill = StateColors.solid(Color.Black)
+                        shadows = []
+                    }
+                    action {}
+                }
+                surfaces {}
+                checkbox { appearance { mark = StateColors.solid(Color.White) } }
+                checkbox {}
+                radio { appearance { mark = StateColors.solid(Color.Black) } }
+                radio {}
+                scrollbar { arrowWidth = 3.0 }
+                scrollbar {}
+            }
+        val configured =
+            [
+                macosTheme(ThemeMode.Dark, configure),
+                materialTheme(ThemeMode.Dark, configure),
+                fluentTheme(ThemeMode.Dark, configure)
+            ]
+        palettes[0L].error = Color.Black
+        fonts[0L].fontSize = 90.0
+        parts[0L].fill = StateColors.solid(Color.White)
+        assertEquals(3L, calls.size)
+        assertEquals(13.0, configured[0L].tokens.typography.action.fontSize)
+        for (theme in configured) {
+            assertEquals(ThemeMode.Dark, theme.tokens.mode)
+            assertEquals(Color.White, theme.tokens.palette.error)
+            assertEquals(700, theme.tokens.typography.action.weight)
+            assertEquals(1.2, theme.tokens.typography.action.letterSpacing)
+            assertEquals(0L, theme.tokens.effects.emphasis.size)
+            assertTrue(
+                when (theme.tokens.motion.hover) {
+                    case None -> true;
+                    else -> false
+                }
+            )
+            assertEquals(0L, theme.surfaces.action.shadows.size)
+            val surface =
+                theme.surfaceGeometry(
+                    Rect(0.0, 0.0, 120.0, 40.0),
+                    SurfaceVisual(SurfaceKind.Action)
+                )
+            assertEquals(Color.Black, surface.style.background!!.color)
+            val box =
+                theme.checkboxGeometry(Rect(0.0, 0.0, 24.0, 24.0), CheckboxVisual(CheckMark.On))
+            assertEquals(Color.White, box.markColor)
+            val radio = theme.radioGeometry(Rect(0.0, 0.0, 24.0, 24.0), RadioVisual(true))
+            assertEquals(Color.Black, radio.dotColor)
+            assertEquals(3.0, theme.scrollbar.arrowWidth)
+        }
+    }
+
+    @Test
+    fun `copy preserves other descriptions while assignments replace only the selected field`() {
+        val original = materialTheme()
+        val replacement = original.tokens.palette.copy { accent = Color.White }
+        val derived =
+            original.copy {
+                tokens {
+                    palette = replacement
+                    palette { error = Color.Black }
+                    typography { body { fontSize = 21.0 } }
+                }
+                tokens {}
+                surfaces {
+                    action { fill = StateColors.solid(Color.Black) }
+                    action = original.surfaces.plain
+                    action { foreground = StateColors.solid(Color.Black) }
+                }
+            }
+        assertEquals(Color.White, derived.tokens.palette.accent)
+        assertEquals(Color.Black, derived.tokens.palette.error)
+        assertEquals(original.tokens.palette.error, replacement.error)
+        assertTrue(original.tokens.palette.accent != derived.tokens.palette.accent)
+        assertEquals(21.0, derived.tokens.typography.body.fontSize)
+        assertEquals(
+            original.tokens.typography.action.fontSize,
+            derived.tokens.typography.action.fontSize
+        )
+        assertEquals(original.surfaces.plain.fill.normal, derived.surfaces.action.fill.normal)
+        assertEquals(
+            original.surfaces.plain.metrics.suggestedSize,
+            derived.surfaces.action.metrics.suggestedSize
+        )
+        assertEquals(original.surfaces.action.fill.normal, original.tokens.palette.accent)
+        assertEquals(
+            original.checkbox.appearance.selected.normal,
+            derived.checkbox.appearance.selected.normal
+        )
+        assertEquals(Color.Black, derived.surfaceTextColor(SurfaceVisual(SurfaceKind.Action)))
+        assertEquals(original.tokens.palette.error, original.copy().tokens.palette.error)
+        assertEquals(derived.tokens.palette.error, derived.tokens.copy().palette.error)
+    }
+
+    @Test
+    fun `standalone factories keep required seeds and snapshot ordered effects with disabled defaults`() {
+        val seed = fluentTheme()
+        val defaults =
+            themeTokens(
+                seed.tokens.palette,
+                seed.tokens.typography,
+                seed.tokens.spacing,
+                seed.tokens.corners
+            )
+        assertEquals(ThemeMode.Light, defaults.mode)
+        assertEquals(0L, defaults.effects.raised.size)
+        assertEquals(0L, defaults.effects.floating.size)
+        assertEquals(0L, defaults.effects.emphasis.size)
+        assertTrue(
+            when (defaults.motion.selection) {
+                case None -> true;
+                else -> false
+            }
+        )
+        val captured = ArrayList<ThemeEffectsBuilder>()
+        val first = BoxShadow(Point(1.0, 2.0), 3.0, 4.0, Color.Black)
+        val second = BoxShadow(Point(2.0, 3.0), 4.0, 5.0, Color.White)
+        val effects =
+            themeEffects {
+                captured.add(this)
+                raised = [first, second]
+                floating = [second]
+                emphasis = [ContentEffect.Glow(2.0, 2.0, Color.White), ContentEffect.Blur(3.0, 3.0)]
+            }
+        val configured =
+            defaults.copy {
+                this.effects = effects
+                motion { hover = Some(AnimationSpec.Tween(Duration.milliseconds(150L))) }
+            }
+        val complete =
+            shapeTheme(configured, seed.surfaces, seed.checkbox, seed.radio, seed.scrollbar) {
+                scrollbar { arrowWidth = 2.5 }
+            }
+        captured[0L].raised = []
+        captured[0L].emphasis = []
+        assertEquals(first, complete.tokens.effects.raised[0L])
+        assertEquals(second, complete.tokens.effects.raised[1L])
+        assertEquals(second, complete.tokens.effects.floating[0L])
+        assertEquals(
+            ContentEffect.Glow(2.0, 2.0, Color.White),
+            complete.tokens.effects.emphasis[0L]
+        )
+        assertEquals(ContentEffect.Blur(3.0, 3.0), complete.tokens.effects.emphasis[1L])
+        assertEquals(2.5, complete.scrollbar.arrowWidth)
+        assertEquals(seed.scrollbar.metrics.buttonLength, complete.scrollbar.metrics.buttonLength)
+        assertEquals(2L, complete.copy().tokens.effects.raised.size)
+        when (complete.tokens.motion.hover) {
+            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(150L), duration);
+            else -> fail(Some("configured motion was lost"))
+        }
+        assertTrue(
+            when (themeMotion().press) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertEquals(0L, themeEffects().raised.size)
+    }
+
+    @Test
+    fun `nested configuration errors propagate without changing the original theme`() {
+        val original = macosTheme()
+        val errorColor = original.tokens.palette.error
+        val failure = IllegalStateException(Some("theme configuration failed"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                original.copy {
+                    tokens {
+                        palette {
+                            error = Color.White;
+                            throw failure
+                        }
+                    }
+                }
+            }
+        )
+        assertEquals(errorColor, original.tokens.palette.error)
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                fluentTheme { checkbox { appearance { throw failure } } }
+            }
+        )
+    }
+}

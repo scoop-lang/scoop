@@ -55,14 +55,7 @@ public class Absolute public constructor(private val props: Props<AbsoluteProps>
     }
 }
 
-public fun absolute(
-    children: Array<AbsoluteChild>,
-    width: Double? = None,
-    height: Double? = None,
-    padding: Insets = Insets(),
-    key: ViewKey = ViewKey.Position
-): View =
-    component(AbsoluteProps(children, width, height, padding), { props -> Absolute(props) }, key)
+public fun absolute(configure: AbsoluteBuilder.() -> Unit = {}): View = makeAbsolute(configure)
 
 private class AbsoluteInput(val value: AbsoluteProps, val order: Array<Long>)
 

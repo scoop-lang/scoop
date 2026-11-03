@@ -13,7 +13,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 
 FontCollection().use { fonts ->
-    Paragraph(fonts, "Hello，是世界。مرحبا", TextStyle(fontSize = 20.0)).use { paragraph ->
+    Paragraph(fonts, "Hello，是世界。مرحبا", textStyle { fontSize = 20.0 }).use { paragraph ->
         paragraph.layout(280.0).use { layout ->
             RasterSurface(320, 180).use { surface ->
                 surface.draw { canvas ->
@@ -31,18 +31,24 @@ FontCollection().use { fonts ->
 
 FontCollection 默认使用系统 fallback，也可以通过 `FontCollection(false)` 关闭并用 `register(bytes, family)` 登记自有字体。只读 `revision` 从 0 开始，每次成功登记增加一次，失败不改变版本。Paragraph 在构造时保存文字、样式和字体来源快照；`layout(width)` 与 `layoutUnwrapped()` 每次产生独立结果，后续登记字体、关闭来源或重新布局不改变旧结果。
 
-内容输入为 StyledText，或 String／TextStyle 的便利构造。TextSpan.text 创建文字，TextSpan.span 组合局部 SpanStyle 和子片段；未指定属性继承父样式，数组属性整体替换，`lineHeight = Some(None)` 恢复自然行高。公开 `SpanStyle.resolve(parent)` 允许主题及普通消费者使用同一继承计算，返回完整 TextStyle，不创建 native 资源。TextStyle 支持 family 顺序、字号、颜色、weight／width／slant、locale、字距、词距、行高及 OpenType feature／variation；ParagraphStyle 指定方向、对齐、maxLines 和 ellipsis。TextRun 仅为内部展开结果。
+内容通过 `styledText { ... }` 组装，`text(value)`、`span { ... }`、`inlineObject(key, alternateText)` 和 `add(existingSpan)` 是按顺序追加并返回 Unit 的真实成员。`textSpan { ... }` 创建可复用的不可变片段。配置同步执行一次，不创建 native 或 UI 资源；已生成描述不随捕获的 builder 后续修改而变化。Paragraph 也接受 String／TextStyle 的便利构造。
+
+`textStyle { ... }`、`spanStyle { ... }` 和 `paragraphStyle { ... }` 分别构造完整文字样式、继承覆盖和段落选项。内容中的 `style { ... }` 基于当前设置修改，重复块累积、空块不重置；`style = existingStyle` 整体替换。SpanStyle 未指定属性继承父样式，数组属性整体替换，`lineHeight = Some(None)` 恢复自然行高。公开 `SpanStyle.resolve(parent)` 允许主题及普通消费者使用同一继承计算，返回完整 TextStyle，不创建 native 资源。TextStyle 支持 family 顺序、字号、颜色、weight／width／slant、locale、字距、词距、行高及 OpenType feature／variation；ParagraphStyle 指定方向、对齐、maxLines 和 ellipsis。TextRun 仅为内部展开结果。
 
 ```scoop
-val content = StyledText([
-    TextSpan.text("Hello, "),
-    TextSpan.span(SpanStyle(fontSize = Some(28.0)), [TextSpan.text("世界")])
-], TextStyle(fontSize = 20.0))
+val content = styledText {
+    style { fontSize = 20.0 }
+    text("Hello, ")
+    span {
+        style { fontSize = Some(28.0) }
+        text("世界")
+    }
+}
 ```
 
 Paragraph／TextLayout 的 `content` 保留同一描述。`content.toPlainText()` 导出全文，也可以传入 UTF-8 标量边界的 TextRange。
 
-`TextSpan.inlineObject(key, alternateText)` 声明行内对象；InlineKey.Text／Number 在同一 StyledText 中唯一。`content.inlineObjects` 提供按逻辑顺序保存的 key、UTF-8 range 和 alternateText；规范化文字以一个 U+FFFC 表示对象，导出纯文本时才替换为 alternateText。
+`inlineObject(key, alternateText)` 声明行内对象；InlineKey.Text／Number 在同一 StyledText 中唯一。`content.inlineObjects` 提供按逻辑顺序保存的 key、UTF-8 range 和 alternateText；规范化文字以一个 U+FFFC 表示对象，导出纯文本时才替换为 alternateText。
 
 `paragraph.layout(width, inlines)` 或 `layoutUnwrapped(inlines)` 接收 `Array<InlineMetrics>`，必须按 key 完整覆盖对象，可以以任意顺序提供。metrics 包含 Size 和 InlineAlignment；默认底边贴 alphabetic baseline，也可选显式 baseline offset、AboveBaseline／BelowBaseline、Top／Bottom／Middle。尺寸允许为零，超宽对象不自动缩小。TextLayout.inlineObjects 保留全部 key；其 box 为 None 表示被 maxLines／ellipsis 截掉，Some 则给出局部矩形、行号和方向。
 

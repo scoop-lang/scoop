@@ -1,0 +1,70 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class VirtualListBuilder internal constructor() {
+    public var state: ScrollState? = None
+    public var orientation: Orientation = Orientation.Vertical
+    public var overscan: Double = 0.0
+    public var width: Double? = None
+    public var height: Double? = None
+    public var lineStep: Double = 40.0
+    public var chain: ScrollChain = ScrollChain.Chain
+    public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+    public var scrollbar: ScrollbarOptions = scrollbarOptions()
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var theme: ThemeSource? = None
+    public var handle: VirtualListHandle? = None
+    public var anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible
+    public var retention: ItemRetention = ItemRetention.Dispose
+    public var navigation: ItemNavigation = ItemNavigation.None
+    public var paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public var key: ViewKey = ViewKey.Position
+
+    public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
+        scrollbar = scrollbar.copy(configure)
+    }
+
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(source: ItemSource, itemExtent: ItemExtent): VirtualListProps =
+        VirtualListProps(
+            source,
+            itemExtent,
+            state,
+            orientation,
+            overscan,
+            width,
+            height,
+            lineStep,
+            chain,
+            scrollbars,
+            scrollbar,
+            enabled,
+            focus,
+            theme,
+            handle,
+            anchor,
+            retention,
+            navigation,
+            paintCache
+        )
+}
+
+internal fun makeVirtualList(
+    source: ItemSource,
+    itemExtent: ItemExtent,
+    configure: VirtualListBuilder.() -> Unit
+): View {
+    val builder = VirtualListBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(source, itemExtent),
+        { props -> VirtualList(props) },
+        builder.key
+    )
+}

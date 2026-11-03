@@ -7,7 +7,7 @@ import scoop.time.Duration
  * Incoming frame limits, bounded read/write buffers, graceful-close deadline, and
  * decompressed-message limit for a WebSocket session.
  */
-public class WebSocketSessionOptions public constructor(
+public class WebSocketSessionOptions internal constructor(
     /**
      * Limits applied to incoming wire frames and messages.
      */
@@ -16,10 +16,10 @@ public class WebSocketSessionOptions public constructor(
      * The positive transport input buffer capacity.
      */
     public val inputBufferBytes: Long = 8192L,
-        /**
+    /**
          * The positive maximum payload chunk used for streamed output frames.
          */
-        public val outgoingFrameBytes: Long = 8192L,
+    public val outgoingFrameBytes: Long = 8192L,
     /**
      * The deadline used by graceful close negotiation.
      */
@@ -31,10 +31,20 @@ public class WebSocketSessionOptions public constructor(
     public val maxDecompressedMessageBytes: Long = incomingLimits.maxMessageBytes
 ) {
     init {
-        if (inputBufferBytes <= 0L || outgoingFrameBytes <= 0L || outgoingFrameBytes > Long.MAX_VALUE - 14L)
+        if (
+            inputBufferBytes <=
+                0L ||
+                outgoingFrameBytes <=
+                0L ||
+                outgoingFrameBytes >
+                Long.MAX_VALUE -
+                14L
+        )
             throw IllegalArgumentException(Some("invalid WebSocket stream buffer size"))
-        if (closeTimeout <= Duration.ZERO) throw IllegalArgumentException(Some("WebSocket close timeout must be positive"))
-        if (maxDecompressedMessageBytes < 0L) throw IllegalArgumentException(Some("negative decompressed message limit"))
+        if (closeTimeout <= Duration.ZERO)
+            throw IllegalArgumentException(Some("WebSocket close timeout must be positive"))
+        if (maxDecompressedMessageBytes < 0L)
+            throw IllegalArgumentException(Some("negative decompressed message limit"))
     }
 }
 
@@ -57,7 +67,8 @@ public enum WebSocketFailureKind {
     /**
      * The peer did not complete the close handshake before its deadline.
      */
-    CloseTimeout }
+    CloseTimeout
+}
 
 /**
  * A session failure with portable kind, explanatory text, optional peer close, and original cause.
@@ -67,16 +78,16 @@ public class WebSocketSessionException public constructor(
      * The session-lifecycle failure category.
      */
     public val kind: WebSocketFailureKind,
-        /**
+    /**
          * The reason the operation failed.
          */
-        public val detail: String,
+    public val detail: String,
     /**
      * The peer's close frame when one was received.
      */
     public val peerClose: WebSocketClose? = None,
-        /**
+    /**
          * The underlying I/O, protocol, or callback exception when available.
          */
-        public val cause: Throwable? = None
-) : Exception(Some("WebSocket session: " + detail))
+    public val cause: Throwable? = None
+): Exception(Some("WebSocket session: " + detail))

@@ -78,7 +78,7 @@ private class VisualWordNavigationTest {
                 fonts,
                 "שלום עולם",
                 wordStyle(),
-                ParagraphStyle(direction = TextDirection.Rtl)
+                paragraphStyle { this.direction = TextDirection.Rtl }
             ).use {
                 paragraph -> paragraph.layout(240.0).use {
                     layout ->
@@ -200,7 +200,7 @@ private class VisualWordNavigationTest {
                 fonts,
                 "Hello world beyond",
                 wordStyle(),
-                ParagraphStyle(maxLines = Some(1L))
+                paragraphStyle { this.maxLines = Some(1L) }
             ).use {
                 paragraph -> paragraph.layout(45.0).use {
                     layout ->
@@ -229,13 +229,13 @@ private class VisualWordNavigationTest {
                         fonts,
                         text,
                         wordStyle(),
-                        ParagraphStyle(
-                            direction =
+                        paragraphStyle {
+                            this.direction =
                                 if (rtl)
                                     TextDirection.Rtl
                                 else
                                     TextDirection.Ltr
-                        )
+                        }
                     ).use {
                         paragraph -> paragraph.layout(160.0).use {
                             layout ->
@@ -288,4 +288,8 @@ private class VisualWordNavigationTest {
     }
 }
 
-private fun wordStyle(): TextStyle = TextStyle(["Test Sans", "Test CJK"], 20.0)
+private fun wordStyle(): TextStyle =
+    textStyle {
+        this.families = ["Test Sans", "Test CJK"]
+        this.fontSize = 20.0
+    }

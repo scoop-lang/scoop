@@ -6,7 +6,7 @@ import scoop.url.Url
 /**
  * Redirect enablement, maximum hops, and explicit permission for HTTPS-to-HTTP downgrade.
  */
-public class HttpRedirectOptions public constructor(
+public class HttpRedirectOptions internal constructor(
     /**
      * Whether eligible redirect responses are followed.
      */
@@ -21,7 +21,8 @@ public class HttpRedirectOptions public constructor(
     public val allowHttpsToHttp: Boolean = false
 ) {
     init {
-        if (maxRedirects < 0L) throw IllegalArgumentException(Some("negative redirect limit"))
+        if (maxRedirects < 0L)
+            throw IllegalArgumentException(Some("negative redirect limit"))
     }
 }
 
@@ -33,22 +34,22 @@ public class HttpRedirect internal constructor(
      * The URL that returned the redirect.
      */
     public val url: Url,
-        /**
+    /**
          * The method used for the redirecting request.
          */
-        public val method: String,
-        /**
+    public val method: String,
+    /**
          * The redirect response head.
          */
-        public val head: HttpResponseHead,
+    public val head: HttpResponseHead,
     /**
      * The resolved URL selected for the next request.
      */
     public val nextUrl: Url,
-        /**
+    /**
          * The method selected after redirect rewriting rules.
          */
-        public val nextMethod: String
+    public val nextMethod: String
 )
 
 /**
@@ -78,7 +79,8 @@ public enum HttpRedirectFailure {
     /**
      * The selected redirected method requires a body that cannot be replayed.
      */
-    BodyNotReplayable }
+    BodyNotReplayable
+}
 
 /**
  * A rejected redirect, retaining the source response, destination when known, and underlying
@@ -89,29 +91,30 @@ public class HttpRedirectException internal constructor(
      * The redirect failure category.
      */
     public val reason: HttpRedirectFailure,
-        /**
+    /**
          * The URL that returned the rejected redirect.
          */
-        public val url: Url,
-        /**
+    public val url: Url,
+    /**
          * The redirect response head.
          */
-        public val head: HttpResponseHead,
+    public val head: HttpResponseHead,
     /**
      * The resolved destination when it could be determined.
      */
     public val destination: Url? = None,
-        /**
+    /**
          * The underlying failure, if any.
          */
-        public val cause: Throwable? = None
-) : Exception(Some(redirectFailureMessage(reason)))
+    public val cause: Throwable? = None
+): Exception(Some(redirectFailureMessage(reason)))
 
-private fun redirectFailureMessage(reason: HttpRedirectFailure): String = when (reason) {
-    case InvalidLocation -> "invalid HTTP redirect location"
-    case UnsupportedScheme -> "HTTP redirect requires http or https"
-    case HttpsDowngrade -> "HTTPS redirect to HTTP is disabled"
-    case LimitExceeded -> "HTTP redirect limit exceeded"
-    case Loop -> "HTTP redirect loop"
-    case BodyNotReplayable -> "HTTP redirect requires a replayable request body"
-}
+private fun redirectFailureMessage(reason: HttpRedirectFailure): String =
+    when (reason) {
+        case InvalidLocation -> "invalid HTTP redirect location"
+        case UnsupportedScheme -> "HTTP redirect requires http or https"
+        case HttpsDowngrade -> "HTTPS redirect to HTTP is disabled"
+        case LimitExceeded -> "HTTP redirect limit exceeded"
+        case Loop -> "HTTP redirect loop"
+        case BodyNotReplayable -> "HTTP redirect requires a replayable request body"
+    }

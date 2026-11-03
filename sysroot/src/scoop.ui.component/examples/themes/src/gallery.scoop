@@ -148,14 +148,14 @@ internal class GalleryPainter(private val fonts: FontCollection): Closeable {
                 next.add(
                     layout(
                         "Button",
-                        SpanStyle(
-                            color =
+                        spanStyle {
+                            this.color =
                                 Some(
                                     theme.surfaceTextColor(
                                         SurfaceVisual(SurfaceKind.Action, sampleInteraction(column))
                                     )
                                 )
-                        ).resolve(theme.tokens.typography.action)
+                        }.resolve(theme.tokens.typography.action)
                     )
                 )
             next.add(layout("—", theme.tokens.typography.caption))

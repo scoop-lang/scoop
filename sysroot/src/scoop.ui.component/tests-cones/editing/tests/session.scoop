@@ -26,7 +26,9 @@ private class TextControlsTest {
         try {
             context(probe.source) {
                 host.use {
-                    owner -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(owner)
+                    owner -> Application(
+                        applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                    ).run(owner)
                 }
             }
             assertTrue(probe.finished)
@@ -174,7 +176,10 @@ internal class FieldProbe {
                 active = Some(application)
                 val window =
                     application.createWindow(
-                        WindowAttributes("Scoop text controls", LogicalSize(760.0, 520.0))
+                        windowAttributes {
+                            this.title = "Scoop text controls"
+                            this.size = LogicalSize(760.0, 520.0)
+                        }
                     )
                 native = Some(window)
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -215,9 +220,11 @@ internal class FieldProbe {
             }
             case NewEvents(StartCause.Deadline) -> {
                 println(
-                    f"waiting: focused=${native!!.isFocused}, frame=${
-                        frames!!.snapshot().required
-                    }, list=${list.isPending}, accepted=${accepted}"
+                    f"waiting: focused=${this @FieldProbe.native!!.isFocused}, frame=${
+                        this @FieldProbe.frames!!.snapshot().required
+                    }, list=${this @FieldProbe.list.isPending}, accepted=${
+                        this @FieldProbe.accepted
+                    }"
                 )
                 for (index in 0L ..< focus.size) {
                     val target = focus[index]

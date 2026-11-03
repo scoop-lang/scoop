@@ -17,7 +17,7 @@ public struct ShortcutModifiers(
     val function: Boolean = false
 )
 
-public class ShortcutBinding public constructor(
+public class ShortcutBinding internal constructor(
     public val key: ShortcutKey,
     public val modifiers: ShortcutModifiers = ShortcutModifiers(),
     public val enabled: Boolean = true,

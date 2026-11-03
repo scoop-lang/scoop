@@ -66,25 +66,25 @@ internal fun tcpTraceConnection(mode: String, host: String) {
                             throw state.failure
                     }
                 val options =
-                    TcpConnectOptions(
-                        resolutionDelay = Duration.ZERO,
-                        attemptDelay = Duration.ZERO,
-                        resolveTimeout =
+                    tcpConnectOptions {
+                        this.resolutionDelay = Duration.ZERO
+                        this.attemptDelay = Duration.ZERO
+                        this.resolveTimeout =
                             if (mode == "resolve-zero")
                                 Some(Duration.ZERO)
                             else
-                                None,
-                        connectTimeout =
+                                None
+                        this.connectTimeout =
                             if (mode == "connect-zero")
                                 Some(Duration.ZERO)
                             else
-                                None,
-                        onEvent =
+                                None
+                        this.onEvent =
                             if (mode == "off")
                                 None
                             else
                                 Some(callback)
-                    )
+                    }
                 context(TcpTraceMarker("connection")) {
                     if (success) {
                         loop.connectTcp(OsString.fromString(host), port, options).useAsync suspend {

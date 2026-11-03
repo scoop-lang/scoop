@@ -62,7 +62,7 @@ internal class ServerTestCompletions(private val expected: Long = 1L) {
 
 internal fun withServer(
     application: HttpApplication,
-    options: HttpServerOptions = HttpServerOptions(),
+    options: HttpServerOptions = httpServerOptions(),
     block: suspend (CoroutineScope, HttpServer, SocketAddress) -> Unit
 ) {
     val loop: EventLoop = PlatformEventLoop()

@@ -1,0 +1,44 @@
+package scoop.http.client.tests.consumer.client_trailers
+
+import scoop.test.Test
+
+import scoop.asyncio.*
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.crypto.x509.TrustStore
+import scoop.http.*
+import scoop.http.client.*
+import scoop.platform.concurrent.Thread
+import scoop.platform.memory.NativeByteBuffer
+import scoop.time.Duration
+import scoop.tls.TlsTrustSource
+import scoop.url.Url
+
+internal fun trailerCheck(value: Boolean) {
+    if (!value)
+        throw IllegalStateException(Some("client trailer integration check failed"))
+}
+
+internal suspend fun writeTrailerText(output: AsyncByteSink, text: String) {
+    val bytes = text.toByteArray()
+    if (bytes.size == 0L)
+        return
+    NativeByteBuffer.allocate(bytes.size).use suspend {
+        buffer ->
+        buffer.writeBytes(bytes)
+        output.writeFully(buffer)
+    }
+}
+
+@Test
+private class Http2ConsumerTests {
+    @Test
+    fun `HTTP2 retains parallel body and lifetime behavior`() {
+        TrustStore.fromPem(rootPem()).use {
+            trust -> Thread.start { exerciseTrailerHttp2(trust) }.use {
+                worker ->
+                exerciseTrailerHttp2(trust);
+                worker.join()
+            }
+        }
+    }
+}

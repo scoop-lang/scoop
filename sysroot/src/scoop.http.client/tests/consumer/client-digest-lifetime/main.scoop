@@ -1,0 +1,35 @@
+package scoop.http.client.tests.consumer.client_digest_lifetime
+
+import scoop.platform.concurrent.Thread
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+private fun withDigestThreads(block: (TrustStore) -> Unit) {
+    TrustStore.fromPem(rootPem()).use {
+        trust -> Thread.start { block(trust) }.use {
+            worker ->
+            block(trust);
+            worker.join()
+        }
+    }
+}
+
+@Test
+private class DigestLifetimeTests {
+    @Test
+    fun callbacks() {
+        for (mode in ["caller", "total", "client"]) {
+            withDigestThreads { trust -> digestCancellation(trust, mode) }
+            withDigestThreads { trust -> digestCancellation(trust, mode, true) }
+            withDigestThreads { trust -> digestCancellation(trust, mode, true, true) }
+        }
+    }
+    @Test
+    fun prehash() {
+        for (mode in ["success", "caller", "total", "client"])
+            for (cleanup in [false, true])
+                withDigestThreads { trust -> digestPrehash(trust, mode, cleanup) }
+    }
+}

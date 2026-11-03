@@ -59,6 +59,7 @@ impl Lowerer {
             return;
         };
         applicable.push(NamedApplicable {
+            implicit_receiver: None,
             probe: NamedFunctionLikeProbe::IntrinsicStruct(NamedIntrinsicStructProbe {
                 origin,
                 fixed_alias: fixed_alias || alias.is_some_and(|alias| !alias.parameterized()),

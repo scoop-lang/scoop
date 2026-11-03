@@ -54,18 +54,18 @@ internal fun authBasic(mode: String, proxy: Url, second: Url, target: Url, trust
                     else
                         None,
                 authentication =
-                    HttpAuthenticationOptions(
-                        [provider],
-                        maxAttempts =
+                    httpAuthenticationOptions {
+                        this.providers = [provider]
+                        this.maxAttempts =
                             if (mode == "basic-limit")
                                 1L
                             else
                                 3L
-                    )
+                    }
             )
         val options =
             if (mode == "basic-sent")
-                HttpCallOptions()
+                httpCallOptions()
             else
                 authContinue()
         val body =
@@ -78,13 +78,18 @@ internal fun authBasic(mode: String, proxy: Url, second: Url, target: Url, trust
                 trust,
                 authSelector(endpoint),
                 if (mode == "basic-layered")
-                    HttpAuthenticationOptions([origin])
+                    httpAuthenticationOptions { this.providers = [origin] }
                 else
-                    HttpAuthenticationOptions()
+                    httpAuthenticationOptions()
             )
         ) suspend {
             client -> context(AuthContext("application")) {
-                val request = HttpRequest.post(target, body, options = options)
+                val request =
+                    httpRequest(target) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options = options
+                    }
                 if (
                     mode ==
                         "basic-static" ||
@@ -232,11 +237,17 @@ internal fun authRedirect(proxy: Url, second: Url, target: Url, trust: TrustStor
             }
         val left =
             HttpProxy.Http(
-                HttpProxyEndpoint(proxy, authentication = HttpAuthenticationOptions([first]))
+                HttpProxyEndpoint(
+                    proxy,
+                    authentication = httpAuthenticationOptions { this.providers = [first] }
+                )
             )
         val right =
             HttpProxy.Http(
-                HttpProxyEndpoint(second, authentication = HttpAuthenticationOptions([next]))
+                HttpProxyEndpoint(
+                    second,
+                    authentication = httpAuthenticationOptions { this.providers = [next] }
+                )
             )
         val selector =
             HttpProxySelector(
@@ -251,16 +262,16 @@ internal fun authRedirect(proxy: Url, second: Url, target: Url, trust: TrustStor
             client -> context(AuthContext("application")) {
                 authDone(
                     client,
-                    HttpRequest.get(
-                        target,
-                        [
-                            HttpField(
-                                "Authorization".toByteArray(),
-                                "Bearer original".toByteArray(),
-                                true
-                            )
-                        ]
-                    ),
+                    httpRequest(target) {
+                        this.fields =
+                            [
+                                HttpField(
+                                    "Authorization".toByteArray(),
+                                    "Bearer original".toByteArray(),
+                                    true
+                                )
+                            ]
+                    },
                     proxyCount = 2L,
                     redirects = 1L
                 )

@@ -1,0 +1,20 @@
+package scoop.http
+
+public fun WebSocketFrameLimits.copy(
+    configure: WebSocketFrameLimitsBuilder.() -> Unit = {}
+): WebSocketFrameLimits {
+    val builder = WebSocketFrameLimitsBuilder()
+    builder.maxFrameBytes = this.maxFrameBytes
+    builder.maxMessageBytes = this.maxMessageBytes
+    builder.dataChunkBytes = this.dataChunkBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class WebSocketFrameLimitsBuilder internal constructor() {
+    public var maxFrameBytes: Long = 16777216L
+    public var maxMessageBytes: Long = 67108864L
+    public var dataChunkBytes: Long = 8192L
+    internal fun snapshot(): WebSocketFrameLimits =
+        WebSocketFrameLimits(maxFrameBytes, maxMessageBytes, dataChunkBytes)
+}

@@ -46,16 +46,16 @@ private class DxgiHandler(val automatic: Boolean): ApplicationHandler {
             case Resumed -> {
                 val value =
                     application.createWindow(
-                        WindowAttributes(
-                            "Scoop · DXGI",
-                            LogicalSize(480.0, 300.0),
-                            visible = false,
-                            level =
-                                if (automatic)
+                        windowAttributes {
+                            this.title = "Scoop · DXGI"
+                            this.size = LogicalSize(480.0, 300.0)
+                            this.visible = false
+                            this.level =
+                                if (this @DxgiHandler.automatic)
                                     WindowLevel.AlwaysOnTop
                                 else
                                     WindowLevel.Normal
-                        )
+                        }
                     )
                 window = Some(value)
                 val renderer = DxgiSurface.create(value)

@@ -55,14 +55,14 @@ private fun exerciseClient(mode: String, url: Url, trust: TrustStore) {
     loop.run suspend {
         scope ->
         val config =
-            HttpClientConfig(
-                cleartext =
+            httpClientConfig {
+                this.cleartext =
                     if (mode == "h2c")
                         HttpCleartextProtocol.H2cUpgrade
                     else
-                        HttpCleartextProtocol.Http1,
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
-            )
+                        HttpCleartextProtocol.Http1
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            }
         withHttpClient(config) suspend {
             client ->
             val actual =
@@ -71,15 +71,15 @@ private fun exerciseClient(mode: String, url: Url, trust: TrustStore) {
                 else
                     body
             val request =
-                HttpRequest.post(
-                    url,
-                    actual,
-                    options =
-                        HttpCallOptions(
-                            expectContinue = mode == "h2c" || mode == "reject",
-                            continueWait = Duration.seconds(60L)
-                        )
-                )
+                httpRequest(url) {
+                    this.method = "POST"
+                    this.body = actual
+                    this.options =
+                        httpCallOptions {
+                            this.expectContinue = mode == "h2c" || mode == "reject"
+                            this.continueWait = Duration.seconds(60L)
+                        }
+                }
             client.withResponse(request) suspend {
                 response ->
                 trailerCheck(
@@ -118,24 +118,13 @@ private fun exerciseClient(mode: String, url: Url, trust: TrustStore) {
 }
 
 private fun exercise(mode: String, args: Array<String>, trust: TrustStore) {
-    if (mode == "h2")
-        exerciseTrailerHttp2(trust)
-    else
-        exerciseClient(mode, Url.parse(args[2L]), trust)
+    exerciseClient(mode, Url.parse(args[2L]), trust)
 }
 
 fun main(args: Array<String>) {
     trailerCheck(args.size >= 2L)
     val mode = args[1L]
-    trailerCheck(
-        args.size ==
-            (
-                if (mode == "h2")
-                    2L
-                else
-                    3L
-            )
-    )
+    trailerCheck(args.size == 3L)
     TrustStore.fromPem(rootPem()).use {
         trust -> Thread.start { exercise(mode, args, trust) }.use {
             thread ->

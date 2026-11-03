@@ -15,15 +15,18 @@ fun main() {
 
     loop.run suspend {
         scope -> HttpServer.listen(scope) {
-            routes ->
+            val routes = this
+
             routes.get("/hello", suspend { _ -> text("Hello, Scoop!") })
 
             routes.get("/api", notFound)
             routes.group("/api") {
-                api ->
+                val api = this
+
                 api.get("/", notFound)
                 api.group("/v1") {
-                    v1 ->
+                    val v1 = this
+
                     v1.get("/status", suspend { _ -> text("ok") })
                     v1.get(
                         "/users/{id}",
@@ -45,10 +48,10 @@ fun main() {
                 "/{*path}",
                 staticFiles(
                     root,
-                    StaticFileOptions(
-                        indexDocument = Some("index.html"),
-                        fallbackFile = Some(entry)
-                    )
+                    staticFileOptions {
+                        this.indexDocument = Some("index.html")
+                        this.fallbackFile = Some(entry)
+                    }
                 )
             )
         }.useAsync suspend {

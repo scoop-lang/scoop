@@ -217,6 +217,7 @@ impl Lowerer {
                     binding: self.locals[local].binding,
                     ty,
                 }),
+                false,
             );
         }
         self.observe_constructor_parameters(&parameters);

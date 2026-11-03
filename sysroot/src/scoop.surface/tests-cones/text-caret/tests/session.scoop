@@ -15,7 +15,9 @@ private class NativeCaretTest {
         val probe = CaretSession()
         SurfaceHost { host, application, event -> probe.event(host, application, event) }.use {
             host ->
-            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+                host
+            )
             assertTrue(probe.finished)
             assertEquals(1, probe.discarded)
             assertEquals(3, probe.connections)
@@ -49,7 +51,10 @@ private class CaretSession: SurfaceContent {
             case Resumed -> {
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop document caret", LogicalSize(320.0, 220.0))
+                        windowAttributes {
+                            this.title = "Scoop document caret"
+                            this.size = LogicalSize(320.0, 220.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

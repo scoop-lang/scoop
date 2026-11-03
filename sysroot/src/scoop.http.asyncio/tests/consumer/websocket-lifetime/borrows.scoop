@@ -16,7 +16,7 @@ internal fun wsBorrowCompletion(cancelCaller: Boolean) {
                 transport,
                 scope,
                 HttpRole.Client,
-                WebSocketSessionOptions(outgoingFrameBytes = 2L)
+                webSocketSessionOptions { this.outgoingFrameBytes = 2L }
             )
         val writer = session.beginMessage(WebSocketMessageType.Text)
         val readFailure = WsFailure()

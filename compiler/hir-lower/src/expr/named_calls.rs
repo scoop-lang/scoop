@@ -37,6 +37,7 @@ enum NamedFunctionCommit {
 struct NamedApplicable {
     probe: NamedFunctionLikeProbe,
     commit: NamedFunctionCommit,
+    implicit_receiver: Option<hir::BindingId>,
 }
 
 impl Lowerer {
@@ -122,6 +123,7 @@ impl Lowerer {
                 RequiredCallableModifiers::default(),
             ) {
                 PropertyExtensionInvokeOutcome::Resolved(layer) => {
+                    self.require_implicit_receiver(binding.binding, call.callee.span)?;
                     return Some(self.commit_expr_layer(layer, sink));
                 }
                 PropertyExtensionInvokeOutcome::NoApplicable(failure) => {
@@ -140,18 +142,19 @@ impl Lowerer {
                 state.member_property_read(receiver, &call.callee)
             }) {
                 Ok(read) => {
-                    let outcome = self.probe_named_value_member(&read, site, expected);
+                    let property = NamedValueLayer {
+                        read,
+                        rank: crate::imports::lookup::calls::ImportLookupRank::ImplicitReceiver,
+                        origin: PropertyExtensionInvokeOrigin::ImplicitMember(binding.binding),
+                    };
+                    let outcome = self.probe_named_value_member(&property, site, expected);
                     if let Some(expression) = self
                         .finish_property_partition(outcome, sink, &mut first_failure)
                         .ok()?
                     {
                         return Some(expression);
                     }
-                    implicit_properties.push(NamedValueLayer {
-                        read,
-                        rank: crate::imports::lookup::calls::ImportLookupRank::ImplicitReceiver,
-                        origin: PropertyExtensionInvokeOrigin::ImplicitMember(binding.binding),
-                    });
+                    implicit_properties.push(property);
                 }
                 Err(failure) if failure.diagnostics.len() > self.diagnostics.len() => {
                     first_failure.get_or_insert(failure);
@@ -306,7 +309,10 @@ impl Lowerer {
                     crate::properties::ExtensionPropertyCandidateOutcome::Resolved(property) => {
                         state.observe_import_lookup(&call.callee, layer.kind);
                         current_values.push(NamedValueLayer {
-                            origin: PropertyExtensionInvokeOrigin::Extension(property.identity()),
+                            origin: PropertyExtensionInvokeOrigin::ImplicitExtension(
+                                property.identity(),
+                                binding.binding,
+                            ),
                             read: SuccessfulExprLayer {
                                 state,
                                 expression: property.read,
@@ -338,7 +344,7 @@ impl Lowerer {
             }
             // Scope property selection precedes invoke applicability (c5).
             for property in &current_values {
-                let outcome = self.probe_named_value_member(&property.read, site, expected);
+                let outcome = self.probe_named_value_member(property, site, expected);
                 if let Some(expression) = self
                     .finish_property_partition(outcome, sink, &mut first_failure)
                     .ok()?

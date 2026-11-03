@@ -19,7 +19,9 @@ private class AsyncWebSocketFailureTests {
             ]
         for ((wire, code) in cases) {
             withRawWebSocket(
-                WebSocketSessionOptions(WebSocketFrameLimits(maxFrameBytes = 2L))
+                webSocketSessionOptions {
+                    this.incomingLimits = WebSocketFrameLimits(maxFrameBytes = 2L)
+                }
             ) suspend {
                 scope, _, client, peer ->
                 val reading =
@@ -99,7 +101,7 @@ private class AsyncWebSocketFailureTests {
     @Test
     fun `a peer that does not complete the close handshake times out`() {
         withRawWebSocket(
-            WebSocketSessionOptions(closeTimeout = Duration.milliseconds(5L))
+            webSocketSessionOptions { this.closeTimeout = Duration.milliseconds(5L) }
         ) suspend {
             _, _, client, _ ->
             val error =

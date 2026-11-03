@@ -1,5 +1,7 @@
 package scoop.tests.ui.controls
 
+import scoop.window.windowAttributes
+
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.platform.time.MonotonicTimeSource
@@ -190,7 +192,10 @@ internal class ControlProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop themed controls", LogicalSize(360.0, 240.0))
+                        windowAttributes {
+                            this.title = "Scoop themed controls"
+                            this.size = LogicalSize(360.0, 240.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -381,7 +386,7 @@ internal class ControlProbe {
                 val expected =
                     themes[themeIndex.toLong()].surfaceMetrics(
                         SurfaceVisual(SurfaceKind.Action),
-                        SurfaceOptions()
+                        surfaceOptions()
                     )
                 assertEquals(expected.suggestedSize.height, buttonBounds.height)
                 assertTrue(previousPixel != buttonPixel)
@@ -498,11 +503,11 @@ internal class ControlProbe {
             }
             else -> fail(
                 Some(
-                    f"control UI timed out in phase ${phase}, focused=${
-                        window!!.isFocused
-                    }, visible=${window!!.isVisible}, occluded=${window!!.isOccluded}, frames=${
-                        frames!!.snapshot().presentations
-                    }"
+                    f"control UI timed out in phase ${this @ControlProbe.phase}, focused=${
+                        this @ControlProbe.window!!.isFocused
+                    }, visible=${this @ControlProbe.window!!.isVisible}, occluded=${
+                        this @ControlProbe.window!!.isOccluded
+                    }, frames=${this @ControlProbe.frames!!.snapshot().presentations}"
                 )
             )
         }

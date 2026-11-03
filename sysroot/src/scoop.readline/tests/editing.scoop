@@ -4,15 +4,23 @@ import scoop.readline.history.*
 import scoop.terminal.event.*
 import scoop.test.*
 
-internal fun press(session: EditingSession, code: KeyCode): EditResult = session.handle(Event.Key(KeyEvent(code)))
+internal fun press(session: EditingSession, code: KeyCode): EditResult =
+    session.handle(Event.Key(KeyEvent(code)))
+
 internal fun control(session: EditingSession, character: Char): EditResult =
-    session.handle(Event.Key(KeyEvent(KeyCode.Char(character), KeyModifiers().with(KeyModifier.Control))))
+    session.handle(
+        Event.Key(KeyEvent(KeyCode.Char(character), KeyModifiers().with(KeyModifier.Control)))
+    )
+
 internal fun typeText(session: EditingSession, text: String) {
-    for (character in text) press(session, KeyCode.Char(character))
+    for (character in text)
+        press(session, KeyCode.Char(character))
 }
 
-@Test private class EditingTest {
-    @Test fun sharedBindingPrefixesAndTimeout() {
+@Test
+private class EditingTest {
+    @Test
+    fun sharedBindingPrefixesAndTimeout() {
         val session = EditingSession()
         val x = KeyEvent(KeyCode.Char('x'))
         val y = KeyEvent(KeyCode.Char('y'))
@@ -30,7 +38,8 @@ internal fun typeText(session: EditingSession, text: String) {
         typeText(session, "xz")
         assertEquals("longshortshortzxz", session.line)
     }
-    @Test fun numericArgumentsAndWordTranspose() {
+    @Test
+    fun numericArgumentsAndWordTranspose() {
         val session = EditingSession(initial = "one two three")
         session.execute(Command.TransposeWords)
         assertEquals("one three two", session.line)
@@ -40,7 +49,8 @@ internal fun typeText(session: EditingSession, text: String) {
         session.handle(Event.Key(KeyEvent(KeyCode.Left, KeyModifiers().with(KeyModifier.Control))))
         assertEquals(10L, session.cursor)
     }
-    @Test fun unicodeMotionAndDeletion() {
+    @Test
+    fun unicodeMotionAndDeletion() {
         val session = EditingSession()
         typeText(session, "e\u0301中👩\u200d💻🇨🇳")
         assertEquals(8L, session.cursor)
@@ -56,7 +66,8 @@ internal fun typeText(session: EditingSession, text: String) {
         press(session, KeyCode.Backspace)
         assertEquals("中", session.line)
     }
-    @Test fun emacsUndoRedoAndPaste() {
+    @Test
+    fun emacsUndoRedoAndPaste() {
         val session = EditingSession()
         typeText(session, "hello")
         session.execute(Command.Undo())
@@ -71,7 +82,8 @@ internal fun typeText(session: EditingSession, text: String) {
         typeText(session, "> ")
         assertEquals("> hello", session.line)
     }
-    @Test fun killRingYankAndRotation() {
+    @Test
+    fun killRingYankAndRotation() {
         val session = EditingSession(initial = "one two three")
         control(session, 'w')
         control(session, 'w')
@@ -84,8 +96,9 @@ internal fun typeText(session: EditingSession, text: String) {
         session.execute(Command.YankPop)
         assertEquals("two three two three", session.line)
     }
-    @Test fun viOperatorsCountsReplaceAndUndo() {
-        val session = EditingSession(Config(editMode = EditMode.Vi))
+    @Test
+    fun viOperatorsCountsReplaceAndUndo() {
+        val session = EditingSession(readlineConfig { this.editMode = EditMode.Vi })
         typeText(session, "one two three")
         press(session, KeyCode.Esc)
         typeText(session, "0dw")
@@ -101,8 +114,13 @@ internal fun typeText(session: EditingSession, text: String) {
         assertEquals("Three!", session.line)
         assertTrue(session.viMode == ViMode.Command)
     }
-    @Test fun viFindAndChange() {
-        val session = EditingSession(Config(editMode = EditMode.Vi), initial = "alpha: beta: gamma")
+    @Test
+    fun viFindAndChange() {
+        val session =
+            EditingSession(
+                readlineConfig { this.editMode = EditMode.Vi },
+                initial = "alpha: beta: gamma"
+            )
         press(session, KeyCode.Esc)
         typeText(session, "0f:cl")
         typeText(session, "=")
@@ -112,7 +130,8 @@ internal fun typeText(session: EditingSession, text: String) {
         typeText(session, "new")
         assertEquals("new= beta: gamma", session.line)
     }
-    @Test fun historyRestoresDraftAndNavigatesMultiline() {
+    @Test
+    fun historyRestoresDraftAndNavigatesMultiline() {
         val history = MemoryHistory()
         history.add("old")
         history.add("new")
@@ -129,7 +148,8 @@ internal fun typeText(session: EditingSession, text: String) {
         assertEquals("draft\nsecond", session.line)
         assertEquals(5L, session.cursor)
     }
-    @Test fun incrementalSearchAndAbort() {
+    @Test
+    fun incrementalSearchAndAbort() {
         val history = MemoryHistory()
         history.add("first target")
         history.add("second target")
@@ -142,7 +162,8 @@ internal fun typeText(session: EditingSession, text: String) {
         control(session, 'g')
         assertEquals("draft", session.line)
     }
-    @Test fun eofInterruptAndRelease() {
+    @Test
+    fun eofInterruptAndRelease() {
         val session = EditingSession()
         session.handle(Event.Key(KeyEvent(KeyCode.Char('a'), kind = KeyEventKind.Release)))
         assertEquals("", session.line)
@@ -150,9 +171,13 @@ internal fun typeText(session: EditingSession, text: String) {
         assertFailsWith<IllegalStateException> { typeText(session, "x") }
         assertTrue(control(EditingSession(), 'c') == EditResult.Interrupted)
     }
-    @Test fun customSequenceAndQuotedControl() {
+    @Test
+    fun customSequenceAndQuotedControl() {
         val session = EditingSession()
-        session.bindSequence([KeyEvent(KeyCode.Char('x')), KeyEvent(KeyCode.Char('y'))]) { _, _ -> Command.Insert("bound") }
+        session.bindSequence([KeyEvent(KeyCode.Char('x')), KeyEvent(KeyCode.Char('y'))]) {
+            _,
+            _ -> Command.Insert("bound")
+        }
         typeText(session, "xy")
         assertEquals("bound", session.line)
         typeText(session, "xz")
@@ -161,13 +186,16 @@ internal fun typeText(session: EditingSession, text: String) {
         control(session, 'c')
         assertEquals("boundxz\u0003", session.line)
     }
-    @Test fun unicodeWordCaseAndTranspose() {
+    @Test
+    fun unicodeWordCaseAndTranspose() {
         val session = EditingSession(initial = "straße ω", cursor = 0L)
         session.execute(Command.UpcaseWord)
         assertEquals("STRASSE ω", session.line)
         session.execute(Command.Move(Movement.EndOfBuffer))
         session.execute(Command.TransposeChars)
         assertEquals("STRASSEω ", session.line)
-        assertFailsWith<IllegalArgumentException> { session.execute(Command.Move(Movement.ForwardChar(-1L))) }
+        assertFailsWith<IllegalArgumentException> {
+            session.execute(Command.Move(Movement.ForwardChar(-1L)))
+        }
     }
 }

@@ -1,0 +1,159 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+
+/** Constructs a complete description and applies configuration once. */
+public fun themeTypography(
+    body: TextStyle,
+    caption: TextStyle,
+    action: TextStyle,
+    configure: ThemeTypographyBuilder.() -> Unit = {}
+): ThemeTypography =
+    configureThemeTypography(
+        ThemeTypography(body = body, caption = caption, action = action),
+        configure
+    )
+
+internal fun configureThemeTypography(
+    initial: ThemeTypography,
+    configure: ThemeTypographyBuilder.() -> Unit
+): ThemeTypography {
+    val builder = ThemeTypographyBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ThemeTypographyBuilder internal constructor(initial: ThemeTypography) {
+    public var body: TextStyle = initial.body
+    public var caption: TextStyle = initial.caption
+    public var action: TextStyle = initial.action
+
+    public fun body(configure: TextStyleBuilder.() -> Unit): Unit {
+        body = body.copy(configure)
+    }
+
+    public fun caption(configure: TextStyleBuilder.() -> Unit): Unit {
+        caption = caption.copy(configure)
+    }
+
+    public fun action(configure: TextStyleBuilder.() -> Unit): Unit {
+        action = action.copy(configure)
+    }
+
+    internal fun snapshot(): ThemeTypography =
+        ThemeTypography(body = body, caption = caption, action = action)
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun themeEffects(configure: ThemeEffectsBuilder.() -> Unit = {}): ThemeEffects =
+    configureThemeEffects(ThemeEffects(), configure)
+
+internal fun configureThemeEffects(
+    initial: ThemeEffects,
+    configure: ThemeEffectsBuilder.() -> Unit
+): ThemeEffects {
+    val builder = ThemeEffectsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ThemeEffectsBuilder internal constructor(initial: ThemeEffects) {
+    public var raised: Array<BoxShadow> = initial.raised
+    public var floating: Array<BoxShadow> = initial.floating
+    public var emphasis: Array<ContentEffect> = initial.emphasis
+
+    internal fun snapshot(): ThemeEffects =
+        ThemeEffects(raised = raised, floating = floating, emphasis = emphasis)
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun themeMotion(configure: ThemeMotionBuilder.() -> Unit = {}): ThemeMotion =
+    configureThemeMotion(ThemeMotion(), configure)
+
+internal fun configureThemeMotion(
+    initial: ThemeMotion,
+    configure: ThemeMotionBuilder.() -> Unit
+): ThemeMotion {
+    val builder = ThemeMotionBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ThemeMotionBuilder internal constructor(initial: ThemeMotion) {
+    public var hover: AnimationSpec? = initial.hover
+    public var press: AnimationSpec? = initial.press
+    public var selection: AnimationSpec? = initial.selection
+
+    internal fun snapshot(): ThemeMotion =
+        ThemeMotion(hover = hover, press = press, selection = selection)
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun themeTokens(
+    palette: ThemePalette,
+    typography: ThemeTypography,
+    spacing: ThemeSpacing,
+    corners: ThemeCorners,
+    configure: ThemeTokensBuilder.() -> Unit = {}
+): ThemeTokens =
+    configureThemeTokens(
+        ThemeTokens(
+            palette = palette,
+            typography = typography,
+            spacing = spacing,
+            corners = corners
+        ),
+        configure
+    )
+
+internal fun configureThemeTokens(
+    initial: ThemeTokens,
+    configure: ThemeTokensBuilder.() -> Unit
+): ThemeTokens {
+    val builder = ThemeTokensBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ThemeTokensBuilder internal constructor(initial: ThemeTokens) {
+    public var mode: ThemeMode = initial.mode
+    public var palette: ThemePalette = initial.palette
+    public var typography: ThemeTypography = initial.typography
+    public var spacing: ThemeSpacing = initial.spacing
+    public var motion: ThemeMotion = initial.motion
+    public var corners: ThemeCorners = initial.corners
+    public var effects: ThemeEffects = initial.effects
+
+    public fun palette(configure: ThemePaletteBuilder.() -> Unit): Unit {
+        palette = palette.copy(configure)
+    }
+
+    public fun typography(configure: ThemeTypographyBuilder.() -> Unit): Unit {
+        typography = typography.copy(configure)
+    }
+
+    public fun motion(configure: ThemeMotionBuilder.() -> Unit): Unit {
+        motion = motion.copy(configure)
+    }
+
+    public fun effects(configure: ThemeEffectsBuilder.() -> Unit): Unit {
+        effects = effects.copy(configure)
+    }
+
+    internal fun snapshot(): ThemeTokens =
+        ThemeTokens(
+            mode = mode,
+            palette = palette,
+            typography = typography,
+            spacing = spacing,
+            motion = motion,
+            corners = corners,
+            effects = effects
+        )
+}

@@ -11,7 +11,15 @@ private class TextNavigationBoundaryTest {
             val accentStart = "can't 你好 世界! ".byteLength
             val emojiStart = accentStart + "é ".byteLength
             val text = "can't 你好 世界! é 👨‍👩‍👧‍👦"
-            Paragraph(fonts, text, TextStyle(["Test Sans", "Test CJK"], 20.0, locale = "zh")).use {
+            Paragraph(
+                fonts,
+                text,
+                textStyle {
+                    this.families = ["Test Sans", "Test CJK"]
+                    this.fontSize = 20.0
+                    this.locale = "zh"
+                }
+            ).use {
                 paragraph -> paragraph.layoutUnwrapped().use {
                     layout ->
                     assertEquals(TextRange(0L, 5L), layout.wordRange(TextPosition(2L)))
@@ -47,7 +55,10 @@ private class TextNavigationBoundaryTest {
             fonts -> Paragraph(
                 fonts,
                 "Aé👨‍👩‍👧‍👦\r\n是",
-                TextStyle(["Test Sans", "Test CJK"], 20.0)
+                textStyle {
+                    this.families = ["Test Sans", "Test CJK"]
+                    this.fontSize = 20.0
+                }
             ).use {
                 paragraph -> paragraph.layout(100.0).use {
                     layout ->

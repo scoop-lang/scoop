@@ -22,26 +22,30 @@ private class HttpServerFileConsumerTests {
         try {
             val path = directory.resolve(Path.fromString("data.txt"));
             path.writeText("published file")
-            val routes = RouterBuilder()
-            routes.get(
-                "/single",
-                suspend {
-                    _ -> file(
-                        path,
-                        FileResponseOptions(entityTag = Some(HttpEntityTag.parse("\"v1\"")))
+            val routes =
+                routing {
+                    this.get(
+                        "/single",
+                        suspend {
+                            _ -> file(
+                                path,
+                                fileResponseOptions {
+                                    this.entityTag = Some(HttpEntityTag.parse("\"v1\""))
+                                }
+                            )
+                        }
+                    )
+                    this.get(
+                        "/assets/{*asset}",
+                        staticFiles(directory, staticFileOptions { this.pathParameter = "asset" })
                     )
                 }
-            )
-            routes.get(
-                "/assets/{*asset}",
-                staticFiles(directory, StaticFileOptions(pathParameter = "asset"))
-            )
             val loop: EventLoop = PlatformEventLoop()
             loop.run suspend {
                 scope ->
                 val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val address = listener.localAddress
-                HttpServer.takeOwnership(listener, routes.build(), scope).useAsync suspend {
+                HttpServer.takeOwnership(listener, routes, scope).useAsync suspend {
                     _ -> AsyncHttp1Connection.takeOwnershipAsClient(
                         loop.connectTcp(address),
                         scope

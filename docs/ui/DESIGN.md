@@ -34,7 +34,7 @@ import scoop.ui.component.button
 class Counter: Component {
     private var count: Int by state(0)
 
-    public override fun render(): View = button(text = f"Count: ${count}", onClick = { count += 1 })
+    public override fun render(): View = button(f"Count: ${this @Counter.count}", { count += 1 })
 }
 ```
 
@@ -294,9 +294,9 @@ fun startDownload(client: HttpClient, request: HttpRequest, destination: Path): 
             client.download(
                 request,
                 destination,
-                HttpDownloadOptions(
-                    onProgress = suspend { progress -> model.progress.value = Some(progress) }
-                )
+                httpDownloadOptions {
+                    this.onProgress = suspend { progress -> model.progress.value = Some(progress) }
+                }
             )
             model.phase.value = DownloadPhase.Completed
         } catch (cancelled: CancellationException) {

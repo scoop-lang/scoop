@@ -91,6 +91,7 @@ impl Lowerer {
         for candidate in candidates {
             match self.probe_imported_constructor(candidate, call, expected, alias) {
                 Ok(probe) => applicable.push(NamedApplicable {
+                    implicit_receiver: None,
                     probe: NamedFunctionLikeProbe::ImportedDependency(Box::new(probe)),
                     commit: NamedFunctionCommit::ImportedDependency,
                 }),

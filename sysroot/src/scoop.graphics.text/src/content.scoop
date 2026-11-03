@@ -3,24 +3,16 @@ package scoop.graphics.text
 import scoop.collections.HashSet
 
 /** A reusable immutable text description, without native resources or UI ownership. */
-public class TextSpan private constructor(internal val content: SpanContent) {
-    public companion object {
-        public fun text(text: String): TextSpan = TextSpan(SpanContent.Plain(text))
-        public fun span(style: SpanStyle, children: Array<TextSpan>): TextSpan =
-            TextSpan(SpanContent.Styled(style, children))
-        public fun inlineObject(key: InlineKey, alternateText: String): TextSpan =
-            TextSpan(SpanContent.Object(key, alternateText))
-    }
-}
+public class TextSpan internal constructor(internal val content: SpanContent)
 
 internal enum SpanContent {
     Plain(String), Styled(SpanStyle, Array<TextSpan>), Object(InlineKey, String)
 }
 
 /** Resolves inherited styles once; every Paragraph can reuse the same content. */
-public class StyledText public constructor(
+public class StyledText internal constructor(
     public val spans: Array<TextSpan>,
-    public val style: TextStyle = TextStyle()
+    public val style: TextStyle
 ) {
     private val normalized = normalizeText(spans, style)
     internal val runs: Array<TextRun> = normalized.runs

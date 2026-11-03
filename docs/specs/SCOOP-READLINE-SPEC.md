@@ -78,3 +78,14 @@ append 不访问文件。创建权限请求 0600，受 umask 限制，不审计�
 只使用所属 Cone 的 scoop.test，不新增 fixture。覆盖第三方 History、两种 backend、
 V1/V2、Unicode、多行、过滤/长度/搜索、并发追加及失败重试，编辑核心的模式、撤销、
 kill、补全/提示/验证/高亮与组合行为。按用户要求，遇到编译器、链接器及其他底层缺口时只修复实现，不为这些补缺新增正例或负例测试；文本后端与 readline 自身的公开功能仍由 scoop.test 验证。
+
+
+### 接收者配置入口
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| Config | `readlineConfig(configure: ConfigBuilder.() -> Unit = {})`；editMode: EditMode = EditMode.Emacs；maxHistorySize: Long = 100L；historyIgnoreDuplicates: Boolean = true；historyIgnoreSpace: Boolean = false；historyCaseSensitive: Boolean = true；autoAddHistory: Boolean = false；completionType: CompletionType = CompletionType.Circular；completionPromptLimit: Long = 100L；completionShowAllIfAmbiguous: Boolean = false；bellStyle: BellStyle = BellStyle.Audible；colorMode: ColorMode = ColorMode.Enabled；tabStop: Long = 8L；indentSize: Long = 2L；bracketedPaste: Boolean = true；keySequenceTimeoutMilliseconds: Long = 500L |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。

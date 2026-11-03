@@ -17,7 +17,8 @@ private fun deliveryValue(): Int = value.value
 private class AppKitApplicationTest {
     @Test
     fun `real AppKit delivers serial callbacks and drains cross-thread native leases`() {
-        val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
+        val application =
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
         val handler = LifecycleHandler(application.proxy())
         val proxy = application.proxy()
         assertTrue(
@@ -185,15 +186,14 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
 
     private fun start(application: ActiveApplication) {
         val attributes =
-            WindowAttributes(
-                "Scoop AppKit lifecycle test",
-                LogicalSize(320.0, 180.0),
-                visible = false
-            )
+            windowAttributes {
+                this.title = "Scoop AppKit lifecycle test"
+                this.size = LogicalSize(320.0, 180.0)
+                this.visible = false
+            }
         val first = application.createWindow(attributes)
         window = Some(first)
         checkMonitorSnapshots(application, first)
-        attributes.size = LogicalSize(10.0, 10.0)
         assertEquals(LogicalSize(320.0, 180.0), first.metrics!!.logicalSize)
         assertFalse(first.isVisible)
         assertEquals(
@@ -237,13 +237,13 @@ private class LifecycleHandler(val proxy: ApplicationProxy): ApplicationHandler 
         first.requestAttention(AttentionKind.Cancel)
         assertFailsWith<IllegalArgumentException> {
             application.createWindow(
-                WindowAttributes(
-                    constraints = WindowSizeConstraints(max = Some(LogicalSize(1.0, 1.0)))
-                )
+                windowAttributes {
+                    this.constraints = WindowSizeConstraints(max = Some(LogicalSize(1.0, 1.0)))
+                }
             )
         }
         first.requestRedraw()
-        val second = application.createWindow(WindowAttributes(visible = false))
+        val second = application.createWindow(windowAttributes { this.visible = false })
         assertNotEquals(first.id, second.id)
         second.requestDestroy()
         second.requestDestroy()

@@ -49,7 +49,7 @@ private class AsyncTcpConnectHostTest {
                 loop.connectTcp(
                     OsString.fromString("localhost"),
                     listener.localAddress.port,
-                    TcpConnectOptions(attemptDelay = Duration.seconds(60L))
+                    tcpConnectOptions { this.attemptDelay = Duration.seconds(60L) }
                 )
             val peer = listener.accept()
             assertEquals(listener.localAddress, client.peerAddress)

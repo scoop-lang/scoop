@@ -96,7 +96,10 @@ private class ContentProbe {
     private fun start(host: SurfaceHost, application: ActiveApplication) {
         val native =
             application.createWindow(
-                WindowAttributes("Surface content ownership", LogicalSize(260.0, 140.0))
+                windowAttributes {
+                    this.title = "Surface content ownership"
+                    this.size = LogicalSize(260.0, 140.0)
+                }
             )
         window = Some(native)
         native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -118,7 +121,7 @@ private class ContentProbe {
         assertFalse(foreign.image.isClosed)
         foreign.close()
 
-        val closingWindow = application.createWindow(WindowAttributes(visible = false))
+        val closingWindow = application.createWindow(windowAttributes { this.visible = false })
         closingWindow.requestDestroy()
         val rejected = OwnedContent()
         assertFailsWith<IllegalStateException> { host.attach(closingWindow, rejected) }
@@ -171,7 +174,12 @@ private class ContentProbe {
                 assertEquals(1, second!!.closeCalls)
                 assertTrue(firstView!!.restored())
                 val native =
-                    application.createWindow(WindowAttributes("Hidden content", visible = false))
+                    application.createWindow(
+                        windowAttributes {
+                            this.title = "Hidden content"
+                            this.visible = false
+                        }
+                    )
                 hiddenView = Some(observeWindow(native))
                 val content = owned(hiddenView!!)
                 hidden = Some(content)

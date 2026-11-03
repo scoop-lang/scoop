@@ -16,7 +16,9 @@ private class UiFocusTest {
         val probe = FocusProbe()
         UiHost { host, active, event -> probe.event(host, active, event) }.use {
             host ->
-            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+                host
+            )
             assertTrue(probe.finished)
             assertTrue(probe.initialCommit)
             for (index in 0L ..< probe.handles.size) {
@@ -66,7 +68,10 @@ internal class FocusProbe {
                 assertFalse(handles[0L].requestFocus())
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop focus navigation", LogicalSize(440.0, 140.0))
+                        windowAttributes {
+                            this.title = "Scoop focus navigation"
+                            this.size = LogicalSize(440.0, 140.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -86,7 +91,9 @@ internal class FocusProbe {
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
-                    f"focus timeout phase=${phase}, frames=${frames}, focused=${window!!.isFocused}"
+                    f"focus timeout phase=${this @FocusProbe.phase}, frames=${
+                        this @FocusProbe.frames
+                    }, focused=${this @FocusProbe.window!!.isFocused}"
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()

@@ -18,12 +18,14 @@ import scoop.url.UrlQuery
  */
 public class RequestBody internal constructor(
     contentLength: Long?,
-        /**
+    /**
          * The body's media type, if supplied.
          */
-        public val contentType: HttpMediaType?, private val plan: RequestBodyPlan,
+    public val contentType: HttpMediaType?,
+    private val plan: RequestBodyPlan,
     contentEncodings: List<String> = emptyList<String>(),
-    internal val trailerDeclaration: HttpTrailerDeclaration = HttpTrailerDeclaration(emptyList<String>()),
+    internal val trailerDeclaration: HttpTrailerDeclaration =
+        HttpTrailerDeclaration(emptyList<String>()),
     internal val entityDigests: Array<ClientEntityDigest> = []
 ) {
     /**
@@ -47,16 +49,23 @@ public class RequestBody internal constructor(
      * Wraps this plan in streaming compression, preserving its replayability and updating coding
      * metadata.
      */
-    public fun compressed(options: CompressionOptions = CompressionOptions.Gzip(GzipOptions())): RequestBody =
-        compressedRequestBody(this, options)
+    public fun compressed(
+        options: CompressionOptions = CompressionOptions.Gzip(GzipOptions())
+    ): RequestBody = compressedRequestBody(this, options)
 
     /**
      * Adds an explicit entity digest for the selected authentication algorithm; the caller
      * supplies bytes matching the actual body.
      */
     public fun withDigest(algorithm: HttpDigestAlgorithm, bytes: List<Byte>): RequestBody =
-        RequestBody(contentLength, contentType, plan, contentEncodings, trailerDeclaration,
-            replaceClientEntityDigest(entityDigests, algorithm, bytes))
+        RequestBody(
+            contentLength,
+            contentType,
+            plan,
+            contentEncodings,
+            trailerDeclaration,
+            replaceClientEntityDigest(entityDigests, algorithm, bytes)
+        )
 
     /**
      * Writes the body to a borrowed sink and verifies declared length; bodies declaring trailers
@@ -65,7 +74,9 @@ public class RequestBody internal constructor(
     public suspend fun writeTo(destination: AsyncByteSink, bufferSize: Long = 8192L): Long {
         ensureActive()
         if (trailerNames.size != 0L)
-            throw IllegalArgumentException(Some("request body trailers require writeWithTrailersTo"))
+            throw IllegalArgumentException(
+                Some("request body trailers require writeWithTrailersTo")
+            )
         return writeWithTrailersTo(destination, bufferSize).transferredBytes
     }
 
@@ -73,16 +84,22 @@ public class RequestBody internal constructor(
      * Writes and length-checks the body, then returns transferred bytes and validated declared
      * trailers.
      */
-    public suspend fun writeWithTrailersTo(destination: AsyncByteSink, bufferSize: Long = 8192L): RequestBodyWriteResult {
+    public suspend fun writeWithTrailersTo(
+        destination: AsyncByteSink,
+        bufferSize: Long = 8192L
+    ): RequestBodyWriteResult {
         ensureActive()
-        if (bufferSize <= 0L) throw IllegalArgumentException(Some("request body buffer size must be positive"))
+        if (bufferSize <= 0L)
+            throw IllegalArgumentException(Some("request body buffer size must be positive"))
         val sink = RequestBodySink(destination, contentLength)
         try {
             val trailers = plan.writeTo(sink, bufferSize).toArray()
             val transferred = sink.finish()
             trailerDeclaration.requireDeclared(trailers)
             return RequestBodyWriteResult(transferred, trailers)
-        } finally { sink.end() }
+        } finally {
+            sink.end()
+        }
     }
 
     /**
@@ -92,12 +109,16 @@ public class RequestBody internal constructor(
         /**
          * A replayable zero-byte body without a media type.
          */
-        public val Empty: RequestBody = RequestBody(Some(0L), None, RequestBytes(Array<Byte>(0L) { _ -> 0.toByte() }))
+        public val Empty: RequestBody =
+            RequestBody(Some(0L), None, RequestBytes(Array<Byte>(0L) { _ -> 0.toByte() }))
 
         /**
          * Copies bytes into a replayable body with known length.
          */
-        public fun fromByteArray(bytes: List<Byte>, contentType: HttpMediaType? = None): RequestBody {
+        public fun fromByteArray(
+            bytes: List<Byte>,
+            contentType: HttpMediaType? = None
+        ): RequestBody {
             val snapshot = bytes.toArray()
             return RequestBody(Some(snapshot.size), contentType, RequestBytes(snapshot))
         }
@@ -116,7 +137,7 @@ public class RequestBody internal constructor(
 
         /** Encodes JSON using the value companion, retaining the explicit UTF-8 byte limit. */
         public fun <T> fromJson(value: T, maxBytes: Long): RequestBody
-            where T.Companion : ValueEncoder<T> = fromJson(value, T.Companion, maxBytes)
+        where T.Companion: ValueEncoder<T> = fromJson(value, T.Companion, maxBytes)
 
         /**
          * Encodes form parameters as application/x-www-form-urlencoded.
@@ -124,76 +145,144 @@ public class RequestBody internal constructor(
         public fun fromForm(parameters: UrlQuery): RequestBody = formRequestBody(parameters)
 
         /**
-         * Combines part plans with multipart framing; replayability depends on all parts.
-         */
-        public fun fromMultipart(parts: List<RequestBodyPart>, boundary: MultipartBoundary = MultipartBoundary.generate(),
-            subtype: String = "form-data"): RequestBody = multipartRequestBody(parts, boundary, subtype)
-
-        /**
          * Borrows a one-shot asynchronous source without taking close ownership.
          */
-        public fun fromSource(source: AsyncByteSource, contentLength: Long? = None,
-            contentType: HttpMediaType? = None): RequestBody =
-            RequestBody(contentLength, contentType, RequestBodyOnce(suspend { destination, bufferSize ->
-                source.copyTo(destination, bufferSize)
-                emptyList<HttpField>()
-            }))
+        public fun fromSource(
+            source: AsyncByteSource,
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None
+        ): RequestBody =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyOnce(
+                    suspend {
+                        destination, bufferSize ->
+                        source.copyTo(destination, bufferSize)
+                        emptyList<HttpField>()
+                    }
+                )
+            )
 
         /**
          * Creates and closes a fresh owned source for each body attempt, enabling replay.
          */
-        public fun <T> fromSourceFactory(contentLength: Long? = None, contentType: HttpMediaType? = None,
-            factory: suspend () -> T): RequestBody where T : AsyncByteSource, T : AsyncCloseable =
-            RequestBody(contentLength, contentType, RequestBodyFactory(suspend {
-                suspend { destination, bufferSize ->
-                    factory().useAsync suspend { source -> source.copyTo(destination, bufferSize); Unit }
-                    emptyList<HttpField>()
-                }
-            }))
+        public fun <T> fromSourceFactory(
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None,
+            factory: suspend () -> T
+        ): RequestBody where T: AsyncByteSource, T: AsyncCloseable =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyFactory(
+                    suspend {
+                        suspend {
+                            destination, bufferSize ->
+                            factory().useAsync suspend {
+                                source ->
+                                source.copyTo(destination, bufferSize);
+                                Unit
+                            }
+                            emptyList<HttpField>()
+                        }
+                    }
+                )
+            )
 
         /**
          * Reopens the path for each attempt; it does not snapshot changing file contents.
          */
-        public fun fromFile(path: Path, contentLength: Long? = None, contentType: HttpMediaType? = None): RequestBody =
-            fromSourceFactory(contentLength, contentType, suspend { currentEventLoop().openFile(path) })
+        public fun fromFile(
+            path: Path,
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None
+        ): RequestBody =
+            fromSourceFactory(
+                contentLength,
+                contentType,
+                suspend { currentEventLoop().openFile(path) }
+            )
 
         /**
          * Creates a one-shot producer that writes to a borrowed sink.
          */
-        public fun fromProducer(contentLength: Long? = None, contentType: HttpMediaType? = None,
-            producer: suspend (AsyncByteSink) -> Unit): RequestBody =
-            RequestBody(contentLength, contentType, RequestBodyOnce(suspend { destination, _ ->
-                producer(destination)
-                emptyList<HttpField>()
-            }))
+        public fun fromProducer(
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None,
+            producer: suspend (AsyncByteSink) -> Unit
+        ): RequestBody =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyOnce(
+                    suspend {
+                        destination, _ ->
+                        producer(destination)
+                        emptyList<HttpField>()
+                    }
+                )
+            )
 
         /**
          * Creates a fresh producer for each attempt, enabling replay.
          */
-        public fun fromProducerFactory(contentLength: Long? = None, contentType: HttpMediaType? = None,
-            factory: suspend () -> suspend (AsyncByteSink) -> Unit): RequestBody =
-            RequestBody(contentLength, contentType, RequestBodyFactory(suspend {
-                val producer = factory();
-                suspend { destination, _ -> producer(destination); emptyList<HttpField>() }
-            }))
+        public fun fromProducerFactory(
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None,
+            factory: suspend () -> suspend (AsyncByteSink) -> Unit
+        ): RequestBody =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyFactory(
+                    suspend {
+                        val producer = factory();
+                        suspend {
+                            destination, _ ->
+                            producer(destination);
+                            emptyList<HttpField>()
+                        }
+                    }
+                )
+            )
 
         /**
          * Creates a one-shot producer returning trailers from the declared name set.
          */
-        public fun fromProducerWithTrailers(trailerNames: List<String>, contentLength: Long? = None,
-            contentType: HttpMediaType? = None, producer: suspend (AsyncByteSink) -> List<HttpField>): RequestBody =
-            RequestBody(contentLength, contentType, RequestBodyOnce(suspend { destination, _ -> producer(destination) }),
-                trailerDeclaration = HttpTrailerDeclaration(trailerNames))
+        public fun fromProducerWithTrailers(
+            trailerNames: List<String>,
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None,
+            producer: suspend (AsyncByteSink) -> List<HttpField>
+        ): RequestBody =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyOnce(suspend { destination, _ -> producer(destination) }),
+                trailerDeclaration = HttpTrailerDeclaration(trailerNames)
+            )
 
         /**
          * Creates a fresh trailer-producing callback for each attempt, enabling replay.
          */
-        public fun fromProducerWithTrailersFactory(trailerNames: List<String>, contentLength: Long? = None,
-            contentType: HttpMediaType? = None, factory: suspend () -> suspend (AsyncByteSink) -> List<HttpField>): RequestBody =
-            RequestBody(contentLength, contentType, RequestBodyFactory(suspend {
-                val producer = factory();
-                suspend { destination, _ -> producer(destination) }
-            }), trailerDeclaration = HttpTrailerDeclaration(trailerNames))
+        public fun fromProducerWithTrailersFactory(
+            trailerNames: List<String>,
+            contentLength: Long? = None,
+            contentType: HttpMediaType? = None,
+            factory: suspend () -> suspend (AsyncByteSink) -> List<HttpField>
+        ): RequestBody =
+            RequestBody(
+                contentLength,
+                contentType,
+                RequestBodyFactory(
+                    suspend {
+                        val producer = factory();
+                        suspend { destination, _ -> producer(destination) }
+                    }
+                ),
+                trailerDeclaration = HttpTrailerDeclaration(trailerNames)
+            )
     }
 }
 
@@ -208,9 +297,11 @@ public class RequestBodyWriteResult internal constructor(
     /**
      * Validated trailers produced after the body.
      */
-    public val trailers: Array<HttpField>)
+    public val trailers: Array<HttpField>
+)
 
 private fun checkedBodyLength(length: Long?): Long? {
-    if (length != None && length!! < 0L) throw IllegalArgumentException(Some("negative request body length"))
+    if (length != None && length!! < 0L)
+        throw IllegalArgumentException(Some("negative request body length"))
     return length
 }

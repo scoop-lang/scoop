@@ -11,10 +11,10 @@ private class RequestBodyTrailersCompositionTest {
     @Test
     fun `compression preserves per-send trailers until a wrapped multipart is complete`() {
         val multipart =
-            RequestBody.fromMultipart(
-                [RequestBodyPart.formData("value", RequestBody.fromText("中文"))],
-                MultipartBoundary("trailer-boundary")
-            )
+            multipartBody {
+                this.addAll([formDataPart("value", RequestBody.fromText("中文"))])
+                this.boundary = MultipartBoundary("trailer-boundary")
+            }
         val calls = AtomicLong(0L)
         val body =
             RequestBody.fromProducerWithTrailersFactory(

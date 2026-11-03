@@ -7,30 +7,30 @@ public interface Theme {
     public val tokens: ThemeTokens
     public fun surfaceMetrics(
         visual: SurfaceVisual = SurfaceVisual(),
-        options: SurfaceOptions = SurfaceOptions()
+        options: SurfaceOptions = surfaceOptions()
     ): SurfaceMetrics
     public fun surfaceGeometry(
         bounds: Rect,
         visual: SurfaceVisual = SurfaceVisual(),
-        options: SurfaceOptions = SurfaceOptions()
+        options: SurfaceOptions = surfaceOptions()
     ): SurfaceGeometry
-    public fun checkboxMetrics(options: CheckboxOptions = CheckboxOptions()): CheckboxMetrics
+    public fun checkboxMetrics(options: CheckboxOptions = checkboxOptions()): CheckboxMetrics
     public fun checkboxGeometry(
         bounds: Rect,
         visual: CheckboxVisual = CheckboxVisual(),
-        options: CheckboxOptions = CheckboxOptions()
+        options: CheckboxOptions = checkboxOptions()
     ): CheckboxGeometry
-    public fun radioMetrics(options: RadioOptions = RadioOptions()): RadioMetrics
+    public fun radioMetrics(options: RadioOptions = radioOptions()): RadioMetrics
     public fun radioGeometry(
         bounds: Rect,
         visual: RadioVisual = RadioVisual(),
-        options: RadioOptions = RadioOptions()
+        options: RadioOptions = radioOptions()
     ): RadioGeometry
-    public fun scrollbarMetrics(options: ScrollbarOptions = ScrollbarOptions()): ScrollbarMetrics
+    public fun scrollbarMetrics(options: ScrollbarOptions = scrollbarOptions()): ScrollbarMetrics
     public fun scrollbarGeometry(
         bounds: Rect,
         visual: ScrollbarVisual = ScrollbarVisual(),
-        options: ScrollbarOptions = ScrollbarOptions()
+        options: ScrollbarOptions = scrollbarOptions()
     ): ScrollbarGeometry
     public fun surfaceTextColor(visual: SurfaceVisual): Color
     public fun createPainter(): ThemePainter

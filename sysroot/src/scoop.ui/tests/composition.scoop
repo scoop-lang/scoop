@@ -66,7 +66,10 @@ internal class CompositionProbe(val store: CompositionStore) {
                     Some(
                         host.attach(
                             application.createWindow(
-                                WindowAttributes("UI composition", visible = false)
+                                windowAttributes {
+                                    this.title = "UI composition"
+                                    this.visible = false
+                                }
                             ),
                             { CompositionScene(this) }
                         )
@@ -75,7 +78,10 @@ internal class CompositionProbe(val store: CompositionStore) {
                     Some(
                         host.attach(
                             application.createWindow(
-                                WindowAttributes("UI shared state", visible = false)
+                                windowAttributes {
+                                    this.title = "UI shared state"
+                                    this.visible = false
+                                }
                             ),
                             { CompositionMirror(this) }
                         )

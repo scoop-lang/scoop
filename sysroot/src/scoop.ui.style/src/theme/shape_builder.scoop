@@ -1,0 +1,68 @@
+package scoop.ui.style
+
+/** Constructs a complete description and applies configuration once. */
+public fun shapeTheme(
+    tokens: ThemeTokens,
+    surfaces: SurfaceParts,
+    checkbox: CheckboxPart,
+    radio: RadioPart,
+    scrollbar: ScrollbarPart,
+    configure: ShapeThemeBuilder.() -> Unit = {}
+): ShapeTheme =
+    configureShapeTheme(
+        ShapeTheme(
+            tokens = tokens,
+            surfaces = surfaces,
+            checkbox = checkbox,
+            radio = radio,
+            scrollbar = scrollbar
+        ),
+        configure
+    )
+
+internal fun configureShapeTheme(
+    initial: ShapeTheme,
+    configure: ShapeThemeBuilder.() -> Unit
+): ShapeTheme {
+    val builder = ShapeThemeBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ShapeThemeBuilder internal constructor(initial: ShapeTheme) {
+    public var tokens: ThemeTokens = initial.tokens
+    public var surfaces: SurfaceParts = initial.surfaces
+    public var checkbox: CheckboxPart = initial.checkbox
+    public var radio: RadioPart = initial.radio
+    public var scrollbar: ScrollbarPart = initial.scrollbar
+
+    public fun tokens(configure: ThemeTokensBuilder.() -> Unit): Unit {
+        tokens = tokens.copy(configure)
+    }
+
+    public fun surfaces(configure: SurfacePartsBuilder.() -> Unit): Unit {
+        surfaces = surfaces.copy(configure)
+    }
+
+    public fun checkbox(configure: CheckboxPartBuilder.() -> Unit): Unit {
+        checkbox = checkbox.copy(configure)
+    }
+
+    public fun radio(configure: RadioPartBuilder.() -> Unit): Unit {
+        radio = radio.copy(configure)
+    }
+
+    public fun scrollbar(configure: ScrollbarPartBuilder.() -> Unit): Unit {
+        scrollbar = scrollbar.copy(configure)
+    }
+
+    internal fun snapshot(): ShapeTheme =
+        ShapeTheme(
+            tokens = tokens,
+            surfaces = surfaces,
+            checkbox = checkbox,
+            radio = radio,
+            scrollbar = scrollbar
+        )
+}

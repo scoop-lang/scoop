@@ -72,21 +72,21 @@ internal fun cacheConfig(
     partition: String? = None,
     jar: CookieJar? = None,
     h2: Boolean = false,
-    authentication: HttpAuthenticationOptions = HttpAuthenticationOptions()
+    authentication: HttpAuthenticationOptions = httpAuthenticationOptions()
 ): HttpClientConfig =
-    HttpClientConfig(
-        tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-        cache = Some(HttpCacheOptions(storage, partition, clock)),
-        cookieJar = jar,
-        authentication = authentication,
-        cleartext =
+    httpClientConfig {
+        this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+        this.cache = Some(HttpCacheOptions(storage, partition, clock))
+        this.cookieJar = jar
+        this.authentication = authentication
+        this.cleartext =
             if (h2)
                 HttpCleartextProtocol.Http2PriorKnowledge
             else
-                HttpCleartextProtocol.Http1,
-        retries = HttpRetryOptions(maxRetries = 0L),
-        pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-    )
+                HttpCleartextProtocol.Http1
+        this.retries = httpRetryOptions { this.maxRetries = 0L }
+        this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+    }
 
 internal suspend fun cacheGet(
     client: HttpClient,
@@ -94,9 +94,14 @@ internal suspend fun cacheGet(
     body: String,
     status: HttpCacheStatus,
     fields: List<HttpField> = emptyList<HttpField>(),
-    options: HttpCallOptions = HttpCallOptions()
+    options: HttpCallOptions = httpCallOptions()
 ) {
-    client.withResponse(HttpRequest.get(url, fields, options)) suspend {
+    client.withResponse(
+        httpRequest(url) {
+            this.fields = fields
+            this.options = options
+        }
+    ) suspend {
         response ->
         assertEquals(status, response.cacheStatus)
         assertEquals(200U, response.status)

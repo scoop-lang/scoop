@@ -1,0 +1,113 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Constructs a complete description and applies configuration once. */
+public fun markerAppearance(
+    empty: StateColors,
+    selected: StateColors,
+    border: StateColors,
+    selectedBorder: StateColors,
+    mark: StateColors,
+    focus: FocusStyle,
+    configure: MarkerAppearanceBuilder.() -> Unit = {}
+): MarkerAppearance =
+    configureMarkerAppearance(
+        MarkerAppearance(
+            empty = empty,
+            selected = selected,
+            border = border,
+            selectedBorder = selectedBorder,
+            mark = mark,
+            focus = focus
+        ),
+        configure
+    )
+
+internal fun configureMarkerAppearance(
+    initial: MarkerAppearance,
+    configure: MarkerAppearanceBuilder.() -> Unit
+): MarkerAppearance {
+    val builder = MarkerAppearanceBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class MarkerAppearanceBuilder internal constructor(initial: MarkerAppearance) {
+    public var empty: StateColors = initial.empty
+    public var selected: StateColors = initial.selected
+    public var border: StateColors = initial.border
+    public var selectedBorder: StateColors = initial.selectedBorder
+    public var mark: StateColors = initial.mark
+    public var focus: FocusStyle = initial.focus
+    public var shadows: Array<BoxShadow> = initial.shadows
+
+    internal fun snapshot(): MarkerAppearance =
+        MarkerAppearance(
+            empty = empty,
+            selected = selected,
+            border = border,
+            selectedBorder = selectedBorder,
+            mark = mark,
+            focus = focus,
+            shadows = shadows
+        )
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun checkboxPart(
+    metrics: CheckboxMetrics,
+    appearance: MarkerAppearance,
+    configure: CheckboxPartBuilder.() -> Unit = {}
+): CheckboxPart =
+    configureCheckboxPart(CheckboxPart(metrics = metrics, appearance = appearance), configure)
+
+internal fun configureCheckboxPart(
+    initial: CheckboxPart,
+    configure: CheckboxPartBuilder.() -> Unit
+): CheckboxPart {
+    val builder = CheckboxPartBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class CheckboxPartBuilder internal constructor(initial: CheckboxPart) {
+    public var metrics: CheckboxMetrics = initial.metrics
+    public var appearance: MarkerAppearance = initial.appearance
+
+    public fun appearance(configure: MarkerAppearanceBuilder.() -> Unit): Unit {
+        appearance = appearance.copy(configure)
+    }
+
+    internal fun snapshot(): CheckboxPart = CheckboxPart(metrics = metrics, appearance = appearance)
+}
+
+/** Constructs a complete description and applies configuration once. */
+public fun radioPart(
+    metrics: RadioMetrics,
+    appearance: MarkerAppearance,
+    configure: RadioPartBuilder.() -> Unit = {}
+): RadioPart = configureRadioPart(RadioPart(metrics = metrics, appearance = appearance), configure)
+
+internal fun configureRadioPart(
+    initial: RadioPart,
+    configure: RadioPartBuilder.() -> Unit
+): RadioPart {
+    val builder = RadioPartBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class RadioPartBuilder internal constructor(initial: RadioPart) {
+    public var metrics: RadioMetrics = initial.metrics
+    public var appearance: MarkerAppearance = initial.appearance
+
+    public fun appearance(configure: MarkerAppearanceBuilder.() -> Unit): Unit {
+        appearance = appearance.copy(configure)
+    }
+
+    internal fun snapshot(): RadioPart = RadioPart(metrics = metrics, appearance = appearance)
+}

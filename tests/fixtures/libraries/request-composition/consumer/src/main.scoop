@@ -16,34 +16,35 @@ fun fileText(): String = "文件字节\n--scoop-body-fixturex\ntail\n"
 
 private fun createBody(input: Path): RequestBody {
     val nested =
-        RequestBody.fromMultipart(
-            [RequestBodyPart(RequestBody.fromText("inside"))],
-            MultipartBoundary("inner-body"),
-            "mixed"
-        )
+        multipartBody {
+            this.addAll([requestBodyPart(RequestBody.fromText("inside"))])
+            this.boundary = MultipartBoundary("inner-body")
+            this.subtype = "mixed"
+        }
     val body =
-        RequestBody.fromMultipart(
-            [
-                RequestBodyPart.formData("note", RequestBody.fromText("值 🌍")),
-                RequestBodyPart.formData(
-                    "file",
-                    RequestBody.fromFile(
-                        input,
-                        contentType = Some(HttpMediaType("application", "octet-stream"))
+        multipartBody {
+            this.addAll(
+                [
+                    formDataPart("note", RequestBody.fromText("值 🌍")),
+                    formDataPart(
+                        "file",
+                        RequestBody.fromFile(
+                            input,
+                            contentType = Some(HttpMediaType("application", "octet-stream"))
+                        )
+                    ) { this.filename = Some("report.bin") },
+                    formDataPart(
+                        "coded",
+                        RequestBody.fromText("coded part data").compressed(
+                            CompressionOptions.Zlib(DeflateOptions())
+                        )
                     ),
-                    Some("report.bin")
-                ),
-                RequestBodyPart.formData(
-                    "coded",
-                    RequestBody.fromText("coded part data").compressed(
-                        CompressionOptions.Zlib(DeflateOptions())
-                    )
-                ),
-                RequestBodyPart.formData("empty", RequestBody.Empty),
-                RequestBodyPart.formData("nested", nested)
-            ],
-            MultipartBoundary("scoop-body-fixture")
-        )
+                    formDataPart("empty", RequestBody.Empty),
+                    formDataPart("nested", nested)
+                ]
+            )
+            this.boundary = MultipartBoundary("scoop-body-fixture")
+        }
     return body.compressed()
 }
 

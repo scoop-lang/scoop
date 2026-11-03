@@ -1,0 +1,39 @@
+package scoop.surface
+
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class ShortcutReceiverDslTests {
+    @Test
+    fun `bindings snapshot ordered descriptions without executing command callbacks`() {
+        val calls = ArrayList<String>()
+        val captured = ArrayList<ShortcutsBuilder>()
+        val value =
+            shortcuts {
+                captured.add(this)
+                binding(ShortcutKey.Logical(LogicalKey.Character("k")), { calls.add("action") }) {
+                    modifiers { primary = true }
+                    modifiers { shift = true }
+                    canExecute =
+                        {
+                            calls.add("check");
+                            true
+                        }
+                    allowRepeat = true
+                }
+            }
+        captured[0L].add(value[0L])
+        assertEquals(1L, value.size)
+        assertTrue(value[0L].modifiers.primary)
+        assertTrue(value[0L].modifiers.shift)
+        assertTrue(value[0L].allowRepeat)
+        assertEquals(0L, calls.size)
+        assertTrue(value[0L].canExecute())
+        value[0L].action()
+        assertEquals(2L, calls.size)
+        assertFailsWith<IllegalArgumentException> {
+            shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("")), {})
+        }
+    }
+}

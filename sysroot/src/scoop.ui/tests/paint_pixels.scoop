@@ -119,10 +119,13 @@ private class PaintPixelsTest {
             fonts ->
             fonts.register(testSansBytes, "Paint Test")
             val content =
-                StyledText(
-                    [TextSpan.text("Áfj café\nMix ligatures")],
-                    TextStyle(["Paint Test"], 24.0)
-                )
+                styledText {
+                    this.text("Áfj café\nMix ligatures")
+                    style {
+                        this.families = ["Paint Test"]
+                        this.fontSize = 24.0
+                    }
+                }
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layout(160.0).use {
                     layout -> PaintLayers().use {

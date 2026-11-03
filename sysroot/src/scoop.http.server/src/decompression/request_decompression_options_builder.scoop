@@ -1,0 +1,49 @@
+package scoop.http.server
+
+import scoop.compression.CompressionFormat
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun requestDecompressionOptions(
+    configure: RequestDecompressionOptionsBuilder.() -> Unit = {}
+): RequestDecompressionOptions {
+    val builder = RequestDecompressionOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun RequestDecompressionOptions.copy(
+    configure: RequestDecompressionOptionsBuilder.() -> Unit = {}
+): RequestDecompressionOptions {
+    val builder = RequestDecompressionOptionsBuilder()
+    builder.allowedFormats = this.allowedFormats
+    builder.maxLayers = this.maxLayers
+    builder.decodedBodyLimit = this.decodedBodyLimit
+    builder.maxWindowBytes = this.maxWindowBytes
+    builder.bufferSize = this.bufferSize
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class RequestDecompressionOptionsBuilder internal constructor() {
+    public var allowedFormats: List<CompressionFormat> =
+        [
+            CompressionFormat.Gzip,
+            CompressionFormat.Zlib,
+            CompressionFormat.Brotli,
+            CompressionFormat.Zstd
+        ]
+    public var maxLayers: Long = 2L
+    public var decodedBodyLimit: Long? = Some(8388608L)
+    public var maxWindowBytes: Long? = Some(8388608L)
+    public var bufferSize: Long = 8192L
+    internal fun snapshot(): RequestDecompressionOptions =
+        RequestDecompressionOptions(
+            allowedFormats,
+            maxLayers,
+            decodedBodyLimit,
+            maxWindowBytes,
+            bufferSize
+        )
+}

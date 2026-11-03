@@ -11,7 +11,9 @@ private class NativeTextCommandsTest {
     @Test
     fun `native editing commands remain ordered and IME consumption suppresses duplicate keys`() {
         val handler = CommandsHandler()
-        Application(ApplicationOptions(LastWindowPolicy.Exit)).run(handler)
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+            handler
+        )
         assertTrue(handler.verified)
     }
 }
@@ -31,7 +33,10 @@ private class CommandsHandler: ApplicationHandler {
             case Resumed -> {
                 val created =
                     application.createWindow(
-                        WindowAttributes("Native text commands", LogicalSize(240.0, 100.0))
+                        windowAttributes {
+                            this.title = "Native text commands"
+                            this.size = LogicalSize(240.0, 100.0)
+                        }
                     )
                 window = Some(created)
                 created.setWindowLevel(WindowLevel.AlwaysOnTop)

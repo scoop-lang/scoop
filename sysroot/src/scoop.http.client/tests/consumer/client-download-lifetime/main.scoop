@@ -1,0 +1,58 @@
+package scoop.http.client.tests.consumer.client_download_lifetime
+
+import scoop.platform.fs.*
+import scoop.http.client.*
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+private fun withDownloadTree(block: (TrustStore, Path) -> Unit) {
+    val parent = createTempDirectory(prefix = "scoop-download-lifetime-")
+    try {
+        TrustStore.fromPem(rootPem()).use {
+            trust -> block(trust, parent.resolve(Path.fromString("case")))
+        }
+    }
+    finally {
+        parent.deleteRecursively()
+    }
+}
+
+@Test
+private class DownloadLifetimeTests {
+    @Test
+    fun cancellation() {
+        for (last in [false, true])
+            for (mode in ["caller", "client"])
+                for (cleanup in ["none", "direct", "wrapped", "nested"])
+                    withDownloadTree {
+                        trust,
+                        path -> downloadCancellation(trust, path, last, mode, cleanup)
+                    }
+    }
+    @Test
+    fun deadlines() {
+        for (last in [false, true])
+            withDownloadTree {
+                trust,
+                path -> downloadCancellation(trust, path, last, "total", "wrapped")
+            }
+    }
+    @Test
+    fun callbackFailures() {
+        for (nested in [false, true])
+            withDownloadTree { trust, path -> downloadCallbackFailure(trust, path, nested) }
+    }
+    @Test
+    fun ownershipAndFiles() {
+        withDownloadTree { trust, path -> downloadSelfClose(trust, path) }
+        withDownloadTree { trust, path -> downloadFileFailure(trust, path) }
+        TrustStore.fromPem(rootPem()).use { trust -> downloadInvalidPath(trust) }
+    }
+    @Test
+    fun invalidOptions() {
+        assertFailsWith<IllegalArgumentException> { httpDownloadOptions { this.bufferSize = 0L } }
+        assertFailsWith<IllegalArgumentException> { httpDownloadOptions { this.bufferSize = -1L } }
+    }
+}

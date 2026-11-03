@@ -1,0 +1,44 @@
+package scoop.ui.style
+
+import scoop.graphics.Color
+
+internal fun configureThemePalette(
+    initial: ThemePalette,
+    configure: ThemePaletteBuilder.() -> Unit
+): ThemePalette {
+    val builder = ThemePaletteBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ThemePaletteBuilder internal constructor(initial: ThemePalette) {
+    public var canvas: Color = initial.canvas
+    public var surface: Color = initial.surface
+    public var elevated: Color = initial.elevated
+    public var text: Color = initial.text
+    public var secondaryText: Color = initial.secondaryText
+    public var disabledText: Color = initial.disabledText
+    public var border: Color = initial.border
+    public var accent: Color = initial.accent
+    public var onAccent: Color = initial.onAccent
+    public var focus: Color = initial.focus
+    public var shadow: Color = initial.shadow
+    public var error: Color = initial.error
+
+    internal fun snapshot(): ThemePalette =
+        ThemePalette(
+            canvas = canvas,
+            surface = surface,
+            elevated = elevated,
+            text = text,
+            secondaryText = secondaryText,
+            disabledText = disabledText,
+            border = border,
+            accent = accent,
+            onAccent = onAccent,
+            focus = focus,
+            shadow = shadow,
+            error = error
+        )
+}

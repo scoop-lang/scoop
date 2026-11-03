@@ -1,0 +1,90 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun style(configure: StyleBuilder.() -> Unit = {}): Style =
+    configureStyle(Style(), configure)
+
+internal fun configureStyle(initial: Style, configure: StyleBuilder.() -> Unit): Style {
+    val builder = StyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class StyleBuilder internal constructor(initial: Style) {
+    public var background: Paint? = initial.background
+    public var border: Border? = initial.border
+    public var cornerRadius: Double = initial.cornerRadius
+    public var boxShadows: Array<BoxShadow> = initial.boxShadows
+    public var contentEffects: Array<ContentEffect> = initial.contentEffects
+    public var clipContent: Boolean = initial.clipContent
+
+    internal fun snapshot(): Style =
+        Style(
+            background = background,
+            border = border,
+            cornerRadius = cornerRadius,
+            boxShadows = boxShadows,
+            contentEffects = contentEffects,
+            clipContent = clipContent
+        )
+}
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun styleOverride(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverride =
+    configureStyleOverride(StyleOverride(), configure)
+
+internal fun configureStyleOverride(
+    initial: StyleOverride,
+    configure: StyleOverrideBuilder.() -> Unit
+): StyleOverride {
+    val builder = StyleOverrideBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
+    public var background: StyleValue<Paint?> = initial.background
+    public var border: StyleValue<Border?> = initial.border
+    public var cornerRadius: StyleValue<Double> = initial.cornerRadius
+    public var boxShadows: StyleValue<Array<BoxShadow>> = initial.boxShadows
+    public var contentEffects: StyleValue<Array<ContentEffect>> = initial.contentEffects
+    public var clipContent: StyleValue<Boolean> = initial.clipContent
+
+    public fun background(value: Paint?): Unit {
+        this.background = StyleValue.Set(value)
+    }
+
+    public fun border(value: Border?): Unit {
+        this.border = StyleValue.Set(value)
+    }
+
+    public fun cornerRadius(value: Double): Unit {
+        this.cornerRadius = StyleValue.Set(value)
+    }
+
+    public fun boxShadows(value: Array<BoxShadow>): Unit {
+        this.boxShadows = StyleValue.Set(value)
+    }
+
+    public fun contentEffects(value: Array<ContentEffect>): Unit {
+        this.contentEffects = StyleValue.Set(value)
+    }
+
+    public fun clipContent(value: Boolean): Unit {
+        this.clipContent = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): StyleOverride =
+        StyleOverride(
+            background = background,
+            border = border,
+            cornerRadius = cornerRadius,
+            boxShadows = boxShadows,
+            contentEffects = contentEffects,
+            clipContent = clipContent
+        )
+}

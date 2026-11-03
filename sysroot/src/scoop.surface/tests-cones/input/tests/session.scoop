@@ -13,7 +13,8 @@ private class NativeInputTest {
     @Test
     fun `native input retains its view while regions switch composition and close`() {
         val probe = InputSession()
-        val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
+        val application =
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
             host -> try {
                 application.run(host)
@@ -61,7 +62,10 @@ private class InputSession: Closeable {
             case Resumed -> {
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop region input", LogicalSize(320.0, 220.0))
+                        windowAttributes {
+                            this.title = "Scoop region input"
+                            this.size = LogicalSize(320.0, 220.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

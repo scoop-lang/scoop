@@ -140,7 +140,7 @@ private class InputHandler: ApplicationHandler {
     }
 
     private fun start(application: ActiveApplication) {
-        val window = application.createWindow(WindowAttributes(visible = false))
+        val window = application.createWindow(windowAttributes { this.visible = false })
         @Unsafe
         {
             val held = window.acquireNativeWindow()

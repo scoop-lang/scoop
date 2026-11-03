@@ -58,7 +58,7 @@ import scoop.ui.component.button
 class Counter: Component {
     private var count: Int by state(0)
 
-    public override fun render(): View = button(text = f"Count: ${count}", onClick = { count += 1 })
+    public override fun render(): View = button(f"Count: ${this @Counter.count}", { count += 1 })
 }
 
 fun main() {
@@ -150,12 +150,11 @@ class SharedCounter: Component {
 
     public override fun render(): View =
         button(
-            text = f"Shared: ${count}; local: ${localClicks}",
-            onClick =
-                {
-                    count += 1
-                    localClicks += 1
-                }
+            f"Shared: ${this @SharedCounter.count}; local: ${this @SharedCounter.localClicks}",
+            {
+                count += 1
+                localClicks += 1
+            }
         )
 }
 
@@ -192,10 +191,11 @@ class Screen: Component {
     private var name: String by state("Scoop")
 
     public override fun render(): View =
-        column(
-            [component(props = name, create = ::Greeting), component(::Counter)],
-            spacing = 12.0
-        )
+        column {
+            this.add(component(props = this @Screen.name, create = ::Greeting))
+            this.add(component(::Counter))
+            this.spacing = 12.0
+        }
 }
 ```
 
@@ -237,8 +237,7 @@ fun <P, E : Element> element(
     children: Array<View> = [], key: ViewKey = ViewKey.Position
 ): View
 fun portal(
-    content: View, options: PortalOptions = PortalOptions(),
-    key: ViewKey = ViewKey.Position
+    content: View, configure: PortalBuilder.() -> Unit = {}
 ): View
 ```
 
@@ -430,7 +429,7 @@ FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：
 
 InlineView 是不拥有资源的描述，保存 InlineKey、View、自然或固定 Size 的测量策略，以及对齐选择。默认采用子项 alphabetic baseline；调用方可选择 ideographic baseline，所选基线缺失时使用盒子底边，也可显式给出文本 InlineAlignment。固定尺寸不自动按段落宽度缩小。图片可由普通自绘 Element 包装成 View，沿同一协议接入。
 
-公开构造器为 `InlineView(key, view, size: Size? = None, alignment: InlineViewAlignment = Baseline(TextBaseline.Alphabetic))`。None 尺寸表示自然测量；`InlineViewAlignment.Baseline(kind)` 使用子项相应基线，`Explicit(value)` 直接采用 graphics.text 的 InlineAlignment。两种形式都由文本库参与同一次排版，不在 UI 层另算文字行高。
+公开入口为 `inlineView(key, view, configure: InlineViewBuilder.() -> Unit = {})`，builder 配置 `size: Size? = None` 与 `alignment: InlineViewAlignment = Baseline(TextBaseline.Alphabetic)`。None 尺寸表示自然测量；`InlineViewAlignment.Baseline(kind)` 使用子项相应基线，`Explicit(value)` 直接采用 graphics.text 的 InlineAlignment。两种形式都由文本库参与同一次排版，不在 UI 层另算文字行高。
 
 `inlineChildren(content, inlines): Array<View>` 按 StyledText 中对象的逻辑顺序生成普通 keyed 子描述。它根据 InlineKey 建立对应，不根据文字偏移、视觉顺序或数组下标推断身份；缺失、重复或多余绑定报告参数错误。每个对象用普通 keyed 包装节点保存其出现身份，传入 View 自己的 key 继续作用于包装节点内的子位置。包装只使用普通 Component／Props；Span 不生成挂载节点，同段落的全部对象共享该 Element 的直接父级。
 
@@ -695,3 +694,14 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 native 呈现和窗口行为使用现有真实后端，不为测试单独搭一套生产 renderer 工厂。编译／链接合同使用少量必要的独立 Cone 或 fixture，不按每种组件重复普通类型错误与缓存检查。
 
 静止验收用测试内计数及真实后端的调用记录或分析工具，同时检查逻辑／绘制入口、原生帧通知和 GPU 提交，不能仅凭画面不变或平均帧率低判定通过。先完成初始化及有限的在途通知，再用一次性等待观察覆盖多个显示刷新周期的稳定区间；测试自身不以逐帧 timer 唤醒应用。CPU／GPU 活动与能耗观察用于辅助定位，不把固定硬件百分比当成可移植门槛，也不向生产路径加入持续运行的监测循环。
+
+
+### 接收者配置与行内装配
+
+上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(content: View, configure: PortalBuilder.() -> Unit = {}): View` 以一个完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、onClose={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
+
+PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onClose。
+
+`focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=Ltr、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
+
+`inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。

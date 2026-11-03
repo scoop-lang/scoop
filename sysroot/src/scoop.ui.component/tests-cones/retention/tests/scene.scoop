@@ -10,15 +10,13 @@ internal class RetentionScene(private val probe: RetentionProbe): Component {
         element(
             { RetentionPanel(probe) },
             [
-                virtualList(
-                    probe.data!!.value,
-                    ItemExtent.Fixed(24.0),
-                    Some(probe.scroll),
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    focus = FocusOptions(Some(probe.viewportFocus)),
-                    theme = Some(probe.theme),
-                    retention = probe.retention.value
-                )
+                virtualList(probe.data!!.value, ItemExtent.Fixed(24.0)) {
+                    this.state = Some(this @RetentionScene.probe.scroll)
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.focus = FocusOptions(Some(this @RetentionScene.probe.viewportFocus))
+                    this.theme = Some(this @RetentionScene.probe.theme)
+                    this.retention = this @RetentionScene.probe.retention.value
+                }
             ]
         )
 }

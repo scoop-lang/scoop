@@ -44,15 +44,22 @@ private class HttpClientLateFailureTest {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                        }
                     withHttpClient(config) suspend {
                         client -> try {
                             val body = RequestBody.fromSourceFactory(Some(4L)) suspend { source }
                             val response =
-                                client.execute(HttpRequest.post(clientTestUrl(listener), body))
+                                client.execute(
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.method = "POST"
+                                        this.body = body
+                                    }
+                                )
                             source.closeStarted.await()
                             NativeByteBuffer.allocate(2L).use suspend {
                                 buffer ->
@@ -60,7 +67,7 @@ private class HttpClientLateFailureTest {
                                 assertEquals("ok", String.fromUtf8(buffer.readBytes(2L)))
                             }
                             source.closeRelease.signal()
-                            client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                            client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                                 next -> assertEquals(
                                     "next",
                                     String.fromUtf8(next.body.readAllBytes(4L))

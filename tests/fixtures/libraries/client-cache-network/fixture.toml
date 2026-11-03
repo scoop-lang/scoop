@@ -31,5 +31,5 @@ name = "run"
 timeout = 3600
 argv = ["${python}", "${work}/peer.py", "${build.result.output}", "${work}/files"]
 exit = 0
-stdout = "client cache freshness validation identities streams H2 and lifetime passed\n"
+stdout = "client cache peer validates freshness identities streams and invalidation\n"
 stderr = ""

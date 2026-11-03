@@ -12,47 +12,50 @@ private class HttpServerWebSocketConsumerTests {
     @Test
     fun `published upgrade starts after HTTP cleanup and exchanges negotiated compressed messages`() {
         val state = ConsumerWebSocketState()
-        val routes = RouterBuilder()
-        routes.use(
-            suspend {
-                ctx,
-                next -> if (
-                    ctx.request.headers.getSingle("Authorization") != Some("Bearer consumer")
-                )
-                    ctx.respond(empty(401U))
-                else
-                    try {
-                        next()
-                    } finally {
-                        state.cleaned = true
-                    }
-            }
-        )
-        routes.get(
-            "/socket",
-            suspend {
-                _ -> webSocket(
-                    WebSocketOptions(
-                        protocols = ["echo"],
-                        requireProtocol = true,
-                        originAllowed =
-                            {
-                                fields -> fields.size ==
-                                    1L &&
-                                    String.fromUtf8OrNone(fields[0L].value) ==
-                                    Some("https://consumer.example")
-                            },
-                        deflate = Some(WebSocketDeflate())
-                    ),
+        val routes =
+            routing {
+                this.use(
                     suspend {
-                        context, session ->
-                        assertTrue(state.cleaned);
-                        assertEquals(Some("echo"), context.protocol)
-                        session.sendText(session.receive()!!.readText())
+                        ctx,
+                        next -> if (
+                            ctx.request.headers.getSingle("Authorization") !=
+                                Some("Bearer consumer")
+                        )
+                            ctx.respond(empty(401U))
+                        else
+                            try {
+                                next()
+                            } finally {
+                                state.cleaned = true
+                            }
+                    }
+                )
+                this.get(
+                    "/socket",
+                    suspend {
+                        _ -> webSocket(
+                            webSocketOptions {
+                                this.protocols = ["echo"]
+                                this.requireProtocol = true
+                                this.originAllowed =
+                                    {
+                                        fields -> fields.size ==
+                                            1L &&
+                                            String.fromUtf8OrNone(fields[0L].value) ==
+                                            Some("https://consumer.example")
+                                    }
+                                this.deflate = Some(WebSocketDeflate())
+                            },
+                            suspend {
+                                context, session ->
+                                assertTrue(state.cleaned);
+                                assertEquals(Some("echo"), context.protocol)
+                                session.sendText(session.receive()!!.readText())
+                            }
+                        )
                     }
                 )
             }
-        )
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope ->
@@ -61,9 +64,9 @@ private class HttpServerWebSocketConsumerTests {
             val server =
                 HttpServer.takeOwnership(
                     listener,
-                    routes.build(),
+                    routes,
                     scope,
-                    HttpServerOptions(onWebSocketCompleted = Some(state::receive))
+                    httpServerOptions { this.onWebSocketCompleted = Some(state::receive) }
                 )
             try {
                 AsyncHttp1Connection.takeOwnershipAsClient(
@@ -119,7 +122,7 @@ private class HttpServerWebSocketConsumerTests {
                         client.takeTransport(),
                         scope,
                         HttpRole.Client,
-                        WebSocketSessionOptions(outgoingFrameBytes = 3L),
+                        webSocketSessionOptions { this.outgoingFrameBytes = 3L },
                         negotiated.deflate
                     ).useAsync suspend {
                         session ->

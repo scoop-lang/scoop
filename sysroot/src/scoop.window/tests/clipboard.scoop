@@ -13,7 +13,9 @@ private class ClipboardTest {
             val saved = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
             try {
                 val handler = ClipboardHandler()
-                Application(ApplicationOptions(LastWindowPolicy.KeepRunning)).run(handler)
+                Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.KeepRunning }
+                ).run(handler)
                 assertTrue(handler.destroyed)
                 assertEquals(
                     WindowErrorKind.InvalidState,
@@ -70,7 +72,7 @@ private class ClipboardHandler: ApplicationHandler {
                         assertFailsWith<IllegalStateException> { application.clipboard }
                     }
                 worker.join()
-                val created = application.createWindow(WindowAttributes(visible = false))
+                val created = application.createWindow(windowAttributes { this.visible = false })
                 window = Some(created)
                 clipboard = Some(created.clipboard)
                 created.clipboard.writeText("window facade")

@@ -1,0 +1,158 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 435,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 428
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 492,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 485
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 554,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 547
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 614,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 609
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 682,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 676
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 741,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 737
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 805,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 802
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 891,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 884
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 989,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 982
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 1067,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 1060
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 190,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 186
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "no applicable candidate for constructor reference `::Item` in constructor candidate layer:\n  - constructor `Item` \u2014 implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 272,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 266
+    },
+    "severity": "error"
+  }
+]

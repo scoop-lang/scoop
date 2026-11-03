@@ -35,7 +35,7 @@ public class ParagraphHost public constructor(): Closeable {
         constraints: Constraints,
         fonts: FontCollection,
         content: StyledText,
-        settings: ParagraphStyle = ParagraphStyle(),
+        settings: ParagraphStyle = paragraphStyle(),
         inlines: Array<InlineView> = []
     ): LayoutMetrics {
         checkOpen()

@@ -65,25 +65,25 @@ private class HttpRequestObservationFollowUpTest {
                         }
                     val log = RequestObservationLog()
                     val options =
-                        HttpCallOptions(
-                            observer = Some(log.observer),
-                            retries =
+                        httpCallOptions {
+                            this.observer = Some(log.observer)
+                            this.retries =
                                 Some(
-                                    HttpRetryOptions(
-                                        maxRetries = 1L,
-                                        statuses = [503U],
-                                        initialDelay = Duration.ZERO,
-                                        jitter = false
-                                    )
+                                    httpRetryOptions {
+                                        this.maxRetries = 1L
+                                        this.statuses = [503U]
+                                        this.initialDelay = Duration.ZERO
+                                        this.jitter = false
+                                    }
                                 )
-                        )
+                        }
                     withHttpClient(clientTestConfig(trust)) suspend {
                         client -> client.withResponse(
-                            HttpRequest.post(
-                                clientTestUrl(listener),
-                                RequestBody.Empty,
-                                options = options
-                            )
+                            httpRequest(clientTestUrl(listener)) {
+                                this.method = "POST"
+                                this.body = RequestBody.Empty
+                                this.options = options
+                            }
                         ) suspend { response -> assertEquals("ok", response.body.text(16L)) }
                     }
                     serving.join()
@@ -153,10 +153,10 @@ private class HttpRequestObservationFollowUpTest {
                     val log = RequestObservationLog()
                     withHttpClient(clientTestConfig(trust)) suspend {
                         client -> client.withSse(
-                            HttpRequest.get(
-                                clientTestUrl(listener),
-                                options = HttpCallOptions(observer = Some(log.observer))
-                            )
+                            httpRequest(clientTestUrl(listener)) {
+                                this.options =
+                                    httpCallOptions { this.observer = Some(log.observer) }
+                            }
                         ) suspend {
                             events ->
                             assertEquals("message", events.next()!!.data)

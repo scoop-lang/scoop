@@ -36,48 +36,53 @@ internal fun downloadNetwork(trust: TrustStore, mode: String, url: Url, director
             downloadStore(destination, "original")
         val authentication =
             if (mode == "auth")
-                HttpAuthenticationOptions(
-                    [
-                        HttpAuthenticator.basic(
-                            url.httpOrigin(),
-                            credentials =
-                                suspend { _ -> HttpPasswordCredentials("user", "password") }
-                        )
-                    ]
-                )
+                httpAuthenticationOptions {
+                    this.providers =
+                        [
+                            HttpAuthenticator.basic(
+                                url.httpOrigin(),
+                                credentials =
+                                    suspend { _ -> HttpPasswordCredentials("user", "password") }
+                            )
+                        ]
+                }
             else
-                HttpAuthenticationOptions()
+                httpAuthenticationOptions()
         val cache: HttpCache? =
             if (mode == "cache")
                 Some<HttpCache>(MemoryHttpCache())
             else
                 None
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                authentication = authentication,
-                cookieJar =
-                    Some<CookieJar>(MemoryCookieJar(suffixes = PublicSuffixList.parse("com\n"))),
-                cache =
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.authentication = authentication
+                this.cookieJar =
+                    Some<CookieJar>(MemoryCookieJar(suffixes = PublicSuffixList.parse("com\n")))
+                this.cache =
                     when (cache) {
                         case Some(storage) -> Some(HttpCacheOptions(storage));
                         case None -> None
                     }
-            )
+            }
         val callOptions =
-            HttpCallOptions(
-                decoding =
+            httpCallOptions {
+                this.decoding =
                     if (mode == "raw")
-                        Some(HttpDecodingOptions(HttpContentDecoding.Raw))
+                        Some(httpDecodingOptions { this.mode = HttpContentDecoding.Raw })
                     else
                         None
-            )
+            }
         val fields = ArrayList<HttpField>()
         if (mode == "raw")
             fields.add(downloadField("Accept-Encoding", "gzip"))
         if (mode == "range")
             fields.add(downloadField("Range", "bytes=2-4"))
-        val request = HttpRequest.get(url, fields, callOptions)
+        val request =
+            httpRequest(url) {
+                this.fields = fields
+                this.options = callOptions
+            }
         withHttpClient(config) suspend {
             client ->
             val progress = DownloadProgressState()
@@ -90,11 +95,11 @@ internal fun downloadNetwork(trust: TrustStore, mode: String, url: Url, director
                         client.download(
                             request,
                             destination,
-                            HttpDownloadOptions(
-                                replaceExisting = mode != "exists",
-                                syncOnCommit = true,
-                                bufferSize = 257L,
-                                onProgress =
+                            httpDownloadOptions {
+                                this.replaceExisting = mode != "exists"
+                                this.syncOnCommit = true
+                                this.bufferSize = 257L
+                                this.onProgress =
                                     suspend {
                                         value ->
                                         assertEquals("original-context", downloadMarker())
@@ -107,7 +112,7 @@ internal fun downloadNetwork(trust: TrustStore, mode: String, url: Url, director
                                         progress.written = value.bytesWritten;
                                         progress.total = value.totalBytes
                                     }
-                            )
+                            }
                         )
                     }
                 assertFalse(expectedFailure)

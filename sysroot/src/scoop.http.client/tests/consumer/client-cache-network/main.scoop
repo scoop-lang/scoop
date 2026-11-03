@@ -1,0 +1,17 @@
+package scoop.http.client.tests.consumer.client_cache_network
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+@Test
+private class CachePolicyConsumerTests {
+    @Test
+    fun policies() {
+        TrustStore.fromPem(rootPem()).use { trust -> cachePolicies(trust) }
+    }
+    @Test
+    fun http2() {
+        TrustStore.fromPem(rootPem()).use { trust -> cacheHttp2(trust) }
+    }
+}

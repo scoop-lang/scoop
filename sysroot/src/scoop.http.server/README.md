@@ -2,7 +2,7 @@
 
 纯 Scoop 的应用层 HTTP server，复用 `scoop.http`、`scoop.http.asyncio`、TLS、异步文件和压缩库。路由、middleware 与资源寿命由普通函数和结构化任务表达，不使用反射或 DI 容器。
 
-`RouterBuilder` 显式注册端点并构造不可变 `HttpApplication`。`HttpServer.listen` 可直接接收 application，或通过末尾回调配置路由；默认监听 `127.0.0.1:8080`，沿用 `HttpServerOptions` 的容量和超时设置。已有 listener 仍用 `takeOwnership` 接管；两种方式返回同一个 `HttpServer`，`shutdownGracefully` 排空，`close` 取消并等待实际清理。
+`routing { ... }` 显式注册端点并构造不可变 `HttpApplication`。`HttpServer.listen` 可直接接收 application，或通过末尾回调配置路由；默认监听 `127.0.0.1:8080`，沿用 `HttpServerOptions` 的容量和超时设置。已有 listener 仍用 `takeOwnership` 接管；两种方式返回同一个 `HttpServer`，`shutdownGracefully` 排空，`close` 取消并等待实际清理。
 
 下面直接使用现有事件循环；`listen` 负责创建 listener 和启动 server，`localAddress` 可读取实际绑定地址（包括 `port = 0` 分配的端口）：
 
@@ -12,14 +12,10 @@ import scoop.http.server.*
 
 fun main() {
     val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend { scope ->
-        HttpServer.listen(scope) { routes ->
-            routes.get("/", suspend { _ -> text("Hello") })
-            routes.group("/api") { api ->
-                api.group("/v1") { version ->
-                    version.get("/status", suspend { _ -> text("ok") })
-                }
-            }
+    loop.run suspend {
+        scope -> HttpServer.listen(scope) {
+            get("/", suspend { _ -> text("Hello") })
+            group("/api") { group("/v1") { get("/status", suspend { _ -> text("ok") }) } }
         }.useAsync suspend { server -> server.awaitTermination() }
     }
 }
@@ -44,11 +40,24 @@ SPA 在路由配置回调中使用现有文件 handler；以下片段需要 `imp
 
 ```scoop
 val root = Path.fromString("public")
+
 val entry = root.resolve(Path.fromString("index.html"))
-routes.get("/", suspend { _ -> file(entry) })
-routes.get("/assets/{*path}", staticFiles(root.resolve(Path.fromString("assets"))))
-routes.get("/{*path}", staticFiles(root, StaticFileOptions(
-    indexDocument = Some("index.html"), fallbackFile = Some(entry))))
+
+val application =
+    routing {
+        get("/", suspend { _ -> file(entry) })
+        get("/assets/{*path}", staticFiles(root.resolve(Path.fromString("assets"))))
+        get(
+            "/{*path}",
+            staticFiles(
+                root,
+                staticFileOptions {
+                    indexDocument = Some("index.html")
+                    fallbackFile = Some(entry)
+                }
+            )
+        )
+    }
 ```
 
 已有文件正常发送；缺失的 GET／HEAD 路径回退到指定入口文件，目录首页优先。`/assets` 使用更具体且没有 fallback 的路由，因此缺失资源仍为 404。入口文件自身缺失、权限错误或非法路径按原错误规则处理。fallback 的 MIME、HEAD、条件请求与 Range 均使用实际入口文件；相对 fallbackFile 路径以进程当前目录为基准。末尾通配不匹配空后缀，因此挂载根仍显式注册。路由分组的 fallback 只处理未匹配路径，不接管文件 404；如 SPA 通配路径下还包含 API，应注册更具体的 API 端点及其通配 404 端点。

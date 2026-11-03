@@ -10,7 +10,7 @@ public class FrameProps public constructor(
     public val height: Double? = None,
     public val padding: Insets? = None,
     public val alignment: Alignment = Alignment(),
-    public val style: StyleOverride = StyleOverride(),
+    public val style: StyleOverride = styleOverride(),
     public val surface: SurfaceKind? = None,
     public val theme: ThemeSource? = None
 ) {
@@ -46,22 +46,8 @@ public class Frame public constructor(private val props: Props<FrameProps>): Com
     }
 }
 
-public fun frame(
-    content: View,
-    width: Double? = None,
-    height: Double? = None,
-    padding: Insets? = None,
-    alignment: Alignment = Alignment(),
-    style: StyleOverride = StyleOverride(),
-    surface: SurfaceKind? = None,
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        FrameProps(content, width, height, padding, alignment, style, surface, theme),
-        { props -> Frame(props) },
-        key
-    )
+public fun frame(content: View, configure: FrameBuilder.() -> Unit = {}): View =
+    makeFrame(content, configure)
 
 private class FrameInput(val value: FrameProps, val theme: Theme?)
 
@@ -87,7 +73,11 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
         val input = props.value
         val value = input.value
         val visual = SurfaceVisual(value.surface ?: SurfaceKind.Plain)
-        val options = SurfaceOptions(padding = value.padding, style = value.style)
+        val options =
+            surfaceOptions {
+                this.padding = value.padding
+                this.style = value.style
+            }
         val metrics =
             when (input.theme) {
                 case Some(theme) -> Some(theme.surfaceMetrics(visual, options));
@@ -126,7 +116,7 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
                     geometry.content
                 }
                 case None -> {
-                    drawing = Some(FrameDrawing.Plain(value.style.resolve(Style())))
+                    drawing = Some(FrameDrawing.Plain(value.style.resolve(style())))
                     Rect(
                         insets.left,
                         insets.top,

@@ -20,12 +20,12 @@ private fun exercise(url: Url, trust: TrustStore) {
             }
         withHttpClient(digestConfig(trust, provider)) suspend {
             client ->
-            client.withResponse(HttpRequest.get(url)) suspend {
+            client.withResponse(httpRequest(url)) suspend {
                 response ->
                 digestCheck(response.authenticationCount == 1L)
                 val next =
                     scope.async<Unit> suspend {
-                        client.withResponse(HttpRequest.get(url.resolve("new"))) suspend {
+                        client.withResponse(httpRequest(url.resolve("new"))) suspend {
                             fresh -> digestCheck(
                                 fresh.authenticationCount == 1L && fresh.body.text(4L) == "done"
                             )
@@ -34,7 +34,7 @@ private fun exercise(url: Url, trust: TrustStore) {
                 digestCheck(response.body.text(4L) == "done")
                 next.await()
             }
-            client.withResponse(HttpRequest.get(url.resolve("final"))) suspend {
+            client.withResponse(httpRequest(url.resolve("final"))) suspend {
                 response -> digestCheck(
                     response.authenticationCount == 0L && response.body.text(4L) == "done"
                 )

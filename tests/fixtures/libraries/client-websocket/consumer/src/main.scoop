@@ -32,51 +32,51 @@ private fun runWsCase(args: Array<String>) {
         loop.run suspend {
             scope ->
             val config =
-                HttpClientConfig(
-                    tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                    versionPolicy =
+                httpClientConfig {
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                    this.versionPolicy =
                         if (mode == "force-h2")
                             HttpVersionPolicy.Http2Only
                         else
-                            HttpVersionPolicy.Auto,
-                    cleartext =
+                            HttpVersionPolicy.Auto
+                    this.cleartext =
                         if (mode == "force-h2")
                             HttpCleartextProtocol.Http2PriorKnowledge
                         else
-                            HttpCleartextProtocol.Http1,
-                    http1RequestVersion =
+                            HttpCleartextProtocol.Http1
+                    this.http1RequestVersion =
                         if (mode == "force-h1")
                             HttpVersion.Http10
                         else
-                            HttpVersion.Http11,
-                    retries =
-                        HttpRetryOptions(
-                            maxRetries =
+                            HttpVersion.Http11
+                    this.retries =
+                        httpRetryOptions {
+                            this.maxRetries =
                                 if (mode == "retry")
                                     1L
                                 else
-                                    0L,
-                            statuses = [503U],
-                            initialDelay = Duration.ZERO,
-                            maxDelay = Duration.ZERO
-                        ),
-                    pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L),
-                    timeouts = HttpTimeoutOptions(poolAcquire = Some(Duration.seconds(5L))),
-                    cookieJar =
+                                    0L
+                            this.statuses = [503U]
+                            this.initialDelay = Duration.ZERO
+                            this.maxDelay = Duration.ZERO
+                        }
+                    this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                    this.timeouts =
+                        httpTimeoutOptions { this.poolAcquire = Some(Duration.seconds(5L)) }
+                    this.cookieJar =
                         if (mode == "cookie")
                             Some<CookieJar>(
                                 MemoryCookieJar(suffixes = PublicSuffixList.parse("com\n"))
                             )
                         else
                             None
-                )
+                }
             val client = HttpClient.open(scope, config)
             try {
                 val request =
-                    HttpWebSocketRequest(
-                        url,
-                        [HttpField("X-Client".toByteArray(), "scoop".toByteArray())]
-                    )
+                    httpWebSocketRequest(url) {
+                        this.fields = [HttpField("X-Client".toByteArray(), "scoop".toByteArray())]
+                    }
                 val offers =
                     if (mode == "deflate" || mode == "bad-window")
                         [
@@ -95,15 +95,16 @@ private fun runWsCase(args: Array<String>) {
                     else
                         Array<WebSocketDeflateOffer>(0L) { _ -> WebSocketDeflateOffer() }
                 val options =
-                    HttpWebSocketOptions(
-                        ["chat"],
-                        offers,
-                        WebSocketSessionOptions(
-                            outgoingFrameBytes = 7L,
-                            inputBufferBytes = 19L,
-                            incomingLimits = WebSocketFrameLimits(dataChunkBytes = 11L)
-                        )
-                    )
+                    httpWebSocketOptions {
+                        this.protocols = ["chat"]
+                        this.deflateOffers = offers
+                        this.session =
+                            webSocketSessionOptions {
+                                this.outgoingFrameBytes = 7L
+                                this.inputBufferBytes = 19L
+                                this.incomingLimits = WebSocketFrameLimits(dataChunkBytes = 11L)
+                            }
+                    }
                 if (mode == "bad-window") {
                     val error =
                         wsClientFailure suspend {

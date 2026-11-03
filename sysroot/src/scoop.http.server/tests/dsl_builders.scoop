@@ -1,0 +1,77 @@
+package scoop.http.server
+
+import scoop.http.*
+import scoop.test.*
+
+@Test
+private class ServerReceiverDslTests {
+    @Test
+    fun `routing freezes groups and preserves middleware and application configuration`() {
+        val groups = ArrayList<RouteGroup>()
+        val calls = ArrayList<String>()
+        val app =
+            routing {
+                use(
+                    suspend {
+                        _, next ->
+                        calls.add("before");
+                        next();
+                        calls.add("after")
+                    }
+                )
+                application { errorMapper = suspend { _, _ -> text("mapped", 503U) } }
+                application {}
+                group("/api") {
+                    groups.add(this)
+                    get("/ok", suspend { _ -> text("ok") })
+                    get("/error", suspend { _ -> throw IllegalStateException() })
+                }
+            }
+        assertEquals(0L, calls.size)
+        assertEquals("ok", exercise(app, "/api/ok").text())
+        assertEquals("before", calls[0L])
+        assertEquals("after", calls[1L])
+        assertEquals(503U, exercise(app, "/api/error").status)
+        expectState { groups[0L].get("/late", suspend { _ -> empty() }) }
+    }
+
+    @Test
+    fun `server capacities derive defaults while copies retain explicit complete values`() {
+        val original =
+            httpServerOptions {
+                maxConnections = 17L
+                http2Limits { headers { maxFields = 30L } }
+                http2Limits { maxContinuations = 4L }
+            }
+        val changed = original.copy { maxConnections = 40L }
+        assertEquals(17L, original.maxWebSocketSessions)
+        assertEquals(17L, changed.maxWebSocketSessions)
+        assertEquals(40L, changed.maxConnections)
+        assertEquals(30L, changed.http2Limits.headers.maxFields)
+        assertEquals(4L, changed.http2Limits.maxContinuations)
+    }
+
+    @Test
+    fun `result construction preserves repeated fields and defers stream producers`() {
+        val produced = ArrayList<Unit>()
+        val captured = ArrayList<HttpResultBuilder>()
+        val value =
+            httpResult {
+                captured.add(this)
+                fields { add("Set-Cookie", "a=1") }
+                fields { add("set-cookie", "b=2") }
+                body = HttpBody.Stream(HttpStreamBody(suspend { _ -> produced.add(Unit) }))
+            }
+        captured[0L].fields = []
+        assertEquals(2L, value.fields.size)
+        assertEquals(0L, produced.size)
+        val changed =
+            value.copy {
+                fields { set("Set-Cookie", "c=3") };
+                allowCompression = false
+            }
+        assertEquals(1L, changed.fields.size)
+        assertFalse(changed.allowCompression)
+        assertEquals(0L, produced.size)
+    }
+}

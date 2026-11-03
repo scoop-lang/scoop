@@ -28,13 +28,51 @@ Cone 名称为 `scoop:scoop.graphics.text`，公共 package 为 `scoop.graphics.
 
 ## 2. 内容与样式
 
-`StyledText` 是无 native 资源的不可变 class，保存基础 TextStyle 与有序 `Array<TextSpan>`。TextSpan 同样是不可变描述，公开工厂只有以下内容形状：
+`StyledText` 是无 native 资源的不可变 class，保存基础 TextStyle 与有序 `Array<TextSpan>`。TextSpan 同样是不可变描述。两者通过接收者构造入口创建：
 
-| 工厂 | 内容 |
+```text
+fun styledText(configure: StyledTextBuilder.() -> Unit = {}): StyledText
+fun textSpan(configure: TextSpanBuilder.() -> Unit = {}): TextSpan
+fun textStyle(configure: TextStyleBuilder.() -> Unit = {}): TextStyle
+fun spanStyle(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle
+fun paragraphStyle(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle
+```
+
+配置块同步执行一次，返回独立描述，不创建字体、Paragraph、TextLayout 或 UI 资源。StyledText、三种样式描述及 builder 的构造器只供库内部使用；TextSpan 的原 text／span／inlineObject companion 工厂移除。String 输入的 Paragraph 便利构造仍生成同一个 styledText 描述，排版及绘图仍由显式入口执行。
+
+StyledTextBuilder 与 TextSpanBuilder 继承同一个 TextChildrenBuilder，提供以下真实成员；全部返回 Unit，按调用顺序追加恰好一项：
+
+| 成员 | 内容 |
 | --- | --- |
-| `TextSpan.text(text)` | 普通 String |
-| `TextSpan.span(style, children)` | 局部 SpanStyle 与有序子片段 |
-| `TextSpan.inlineObject(key, alternateText)` | 一个有稳定 InlineKey 的行内对象及其替代文字 |
+| `text(value: String)` | 普通 String |
+| `span(configure: TextSpanBuilder.() -> Unit = {})` | 局部 SpanStyle 与有序子片段 |
+| `inlineObject(key: InlineKey, alternateText: String)` | 一个有稳定 InlineKey 的行内对象及其替代文字；两项均为必需参数 |
+| `add(value: TextSpan)` | 追加已有的不可变片段，包括由 textSpan 创建的可复用内容 |
+
+StyledTextBuilder 的 `style: TextStyle` 可写属性默认等于 textStyle()；TextSpanBuilder 的 `style: SpanStyle` 默认等于 spanStyle()。两者各自提供 `style(configure: TextStyleBuilder.() -> Unit)`／`style(configure: SpanStyleBuilder.() -> Unit)` 成员，基于当前样式配置，重复块累积、空块不重置；直接赋入完整 style 表示替换。空 styledText 生成空文本和完整默认样式，空 textSpan 不插入字符。
+
+TextStyleBuilder 的可写属性、类型和默认值如下，TextStyle 公开相应只读值：
+
+| 属性 | 类型 | 默认值 |
+| --- | --- | --- |
+| families | Array<String> | ["sans-serif"] |
+| fontSize | Double | 14.0 |
+| color | Color | Color.Black |
+| weight | Int | 400 |
+| width | Int | 5 |
+| slant | FontSlant | FontSlant.Upright |
+| locale | String | "" |
+| letterSpacing | Double | 0.0 |
+| wordSpacing | Double | 0.0 |
+| lineHeight | Option<Double> | None |
+| features | Array<FontFeature> | [] |
+| variations | Array<FontVariation> | [] |
+
+SpanStyleBuilder 为上述每个字段增加一层 Option，全部默认 None；因此 lineHeight 为 Option<Option<Double>>。SpanStyle 公开对应的只读覆盖值。ParagraphStyleBuilder 的可写属性为 `alignment: TextAlignment = TextAlignment.Start`、`direction: TextDirection = TextDirection.Ltr`、`maxLines: Option<Long> = None`、`ellipsis: String = "…"`，ParagraphStyle 公开相应只读值。
+
+`TextStyle.copy(configure: TextStyleBuilder.() -> Unit = {}): TextStyle`、`SpanStyle.copy(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle` 与 `ParagraphStyle.copy(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle` 以当前完整值或覆盖值初始化配置，供主题、控件等跨 Cone 的嵌套样式继续修改；空块保留全部字段，包括 SpanStyle.lineHeight 的继承／清除／设置区别。它们分别与 textStyle、spanStyle、paragraphStyle 工厂共用一次配置及快照实现，SpanStyle.copy 不解析或冻结父级 TextStyle。
+
+子项收集在发布时转换为独立 Array；Array 的元素槽及这些描述本身不可变，可以共享已有数组、样式和片段，不增加额外复制协议。之后修改被捕获的 builder 不改变已发布内容或样式。回调或规范化失败不发布部分结果；InlineKey 唯一性仍在整个 StyledText 的规范化边界检查。builder 不承担持久编辑状态，也没有 native 生命周期。
 
 片段树只表达内容与样式，不是 UI 挂载树；Span 不产生组件身份或资源作用域。同一段落中的文字共同进行双向分析、shaping 和断行，不能把样式片段变成多个独立 Label 后拼接。Span 可以跨行；行内对象占一个不可拆分盒子。换行符沿既有 Paragraph 行为产生显式换行。
 

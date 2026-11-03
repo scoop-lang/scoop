@@ -76,7 +76,7 @@ fromProducer 接收一次性的 suspend `(AsyncByteSink) -> Unit`；fromProducer
 
 RequestBodyPart 以 body 和有序 fields 创建不可变 part head，bodyLength 来自该 body 的已知长度；formData(name, body, filename) 工厂使用 HTTP 库的 RFC 7578 字段生成器。构造复制 fields；缺少 Content-Type 时补充 body 的媒体类型，已经显式提供时保留。body 若包含编码描述则自动生成 Content-Encoding，此时再提供同名字段报配置冲突，不生成两套互相矛盾的编码声明。
 
-`RequestBody.fromMultipart(parts, boundary = MultipartBoundary.generate(), subtype = "form-data")` 保存 part 列表快照及固定 boundary，每次发送创建新的 MultipartSink，按 part 消费顺序完成正文、part 结束和整个 multipart 结束。contentLength 使用 HTTP 库的 MultipartEncoder.contentLength；任一 part 长度未知则整体未知，不为求长度预读。只有所有 part 均可重放时整体可重放；包含单次来源的整体也只允许发送一次，重复调用在输出新 delimiter 之前失败。边界字节、quoted 参数与文件名规则全部由 HTTP 负责。嵌套 multipart 使用同一组合；调用者负责提供不会出现在 part 正文中的显式 boundary，缺省边界使用 HTTP 的安全随机生成器。
+`multipartBody { ... }` 用 add／addAll／part／formData 收集有序 part，并配置 boundary=MultipartBoundary.generate()、subtype="form-data"；发布结果保存 part 列表快照及固定 boundary，每次发送创建新的 MultipartSink，按 part 消费顺序完成正文、part 结束和整个 multipart 结束。contentLength 使用 HTTP 库的 MultipartEncoder.contentLength；任一 part 长度未知则整体未知，不为求长度预读。只有所有 part 均可重放时整体可重放；包含单次来源的整体也只允许发送一次，重复调用在输出新 delimiter 之前失败。边界字节、quoted 参数与文件名规则全部由 HTTP 负责。嵌套 multipart 使用同一组合；调用者负责提供不会出现在 part 正文中的显式 boundary，缺省边界使用 HTTP 的安全随机生成器。
 
 `body.compressed(options = CompressionOptions.Gzip(GzipOptions()))` 返回新的流式 body，复用 AsyncCompressionSink，先写完原 body 再显式 finish 压缩流，并关闭本次 codec；不接管 HTTP 输出端。支持 gzip、zlib 包装的 HTTP deflate、br 与 zstd，raw DEFLATE 不是 HTTP deflate 表示，配置时拒绝。contentType 保留，contentLength 改为未知，contentEncodings 按实际施加次序追加；重复压缩明确表示多层编码。原 body 的重放约束继续有效，非重放组合只允许一次发送。字典等外部配置按 compression 的借用规则保持有效；要用于认证摘要或重试，调用者须使各次产生的原文和编码选项一致，不把重新打开变化中的输入等同于字节快照。
 
@@ -168,7 +168,7 @@ endpoint.authorization 表示调用者显式提供的代理凭据；selector 可
 
 ### 6.3 环境代理
 
-`HttpProxySelector.fromEnvironment(variables: Map<String, String>, tls = HttpClientTlsConfig())` 在构造时解析给定配置并保存不可变路由；无 variables 的重载显式读取当前进程的相关环境变量。创建普通 HttpClient 不读取环境代理；环境后续变化不改变已经创建的 selector，同一个 endpoint 在多次选择间复用。tls 只配置 HTTPS 代理的外层 TLS。
+`HttpProxySelector.fromEnvironment(variables: Map<String, String>, tls = httpClientTlsConfig())` 在构造时解析给定配置并保存不可变路由；无 variables 的重载显式读取当前进程的相关环境变量。创建普通 HttpClient 不读取环境代理；环境后续变化不改变已经创建的 selector，同一个 endpoint 在多次选择间复用。tls 只配置 HTTPS 代理的外层 TLS。
 
 读取 http_proxy／https_proxy／all_proxy／no_proxy 及各自的大写形式，小写存在时优先，包括空值；空代理值按没有该项处理，HTTP／HTTPS 没有专用代理时使用 ALL_PROXY。存在 REQUEST_METHOD 时忽略大写 HTTP_PROXY，小写 http_proxy 和其他代理项仍有效。未知环境变量不参与配置。当前进程重载仅对实际选中的值做严格 UTF-8 解码，未选择的大小写别名和无关变量不影响结果。
 
@@ -288,7 +288,7 @@ HttpClient.clearAuthenticationCache(authenticator) 同步使该 provider 的跨�
 
 清除缓存时立即记录相关调用的取消原因，后续 client.close 不覆盖它。共享回调的一次清理失败会交付每个仍在等待清理的调用；client.close 按实际共享工作汇总一次，不因等待者数量重复附加同一错误。
 
-回调可以用同一 client 请求令牌端点；该子请求通过 HttpCallOptions.authentication = Some(HttpAuthenticationOptions()) 显式关闭内建认证，避免等待当前正在执行的 provider。加载／刷新发生在原请求取得连接名额之前，子请求使用已有连接池、Context、截止和取消合同，不提供另一套令牌请求传输。
+回调可以用同一 client 请求令牌端点；该子请求通过 HttpCallOptions.authentication = Some(httpAuthenticationOptions()) 显式关闭内建认证，避免等待当前正在执行的 provider。加载／刷新发生在原请求取得连接名额之前，子请求使用已有连接池、Context、截止和取消合同，不提供另一套令牌请求传输。
 
 ### 8.3 Digest 认证
 
@@ -396,7 +396,7 @@ MemoryHttpCache 的 maxBytes 默认 32 MiB、maxEntryBytes 默认 8 MiB、maxEnt
 
 ### 9.5 文件下载
 
-`HttpClient.download(request, destination, options = HttpDownloadOptions())` 返回不可变 HttpDownloadResult；destination 是调用者明确指定的 Path。HttpDownloadOptions 的 replaceExisting 默认 false，syncOnCommit 默认 false，bufferSize 默认 8192 且必须为正，onProgress 是默认空操作的 suspend 回调。下载要求最终 HTTP 状态成功，按该响应已选定的解码视图保存正文；普通请求的重定向、重试、认证、代理、Cookie 与完整缓存仍生效。手写 Range 的普通下载仅保存调用者请求的那份响应，不自动解释为续传。
+`HttpClient.download(request, destination, options = httpDownloadOptions())` 返回不可变 HttpDownloadResult；destination 是调用者明确指定的 Path。HttpDownloadOptions 的 replaceExisting 默认 false，syncOnCommit 默认 false，bufferSize 默认 8192 且必须为正，onProgress 是默认空操作的 suspend 回调。下载要求最终 HTTP 状态成功，按该响应已选定的解码视图保存正文；普通请求的重定向、重试、认证、代理、Cookie 与完整缓存仍生效。手写 Range 的普通下载仅保存调用者请求的那份响应，不自动解释为续传。
 
 下载先在目标的父目录创建临时文件，使用有界缓冲异步读写；读到完整正文、验证编码与认证、关闭响应及文件后，才通过 asyncio.moveFile 提交。syncOnCommit=true 时在关闭前调用文件的 syncAll；不承诺目录同步或断电恢复。拒绝覆盖由实际改名操作原子执行，不通过事先检查目标存在来决定。目标父目录由应用准备，库不依据 Content-Disposition 自行选择目录或文件名，也不使用同步文件 I/O。
 
@@ -410,7 +410,7 @@ onProgress 接收 HttpDownloadProgress 的 url、bytesWritten、totalBytes；首
 
 ### 9.6 显式文件续传
 
-`HttpClient.resumeDownload(request, destination, resume, options = HttpDownloadOptions())` 复用文件下载的进度、覆盖、总截止和最终提交合同。HttpResumeOptions 显式指定 partialFile 与 metadataFile，mismatch 默认为 HttpResumeMismatch.Restart，可选 Fail；maxMetadataBytes 默认 65536 且必须为正。destination、partialFile 和 metadataFile 由调用者独占使用并指向不同文件，部分文件与最终目标须能进行同文件系统改名；实际文件系统错误照常报告，不做来源审计或多进程目录协调。
+`HttpClient.resumeDownload(request, destination, resume, options = httpDownloadOptions())` 复用文件下载的进度、覆盖、总截止和最终提交合同。HttpResumeOptions 显式指定 partialFile 与 metadataFile，mismatch 默认为 HttpResumeMismatch.Restart，可选 Fail；maxMetadataBytes 默认 65536 且必须为正。destination、partialFile 和 metadataFile 由调用者独占使用并指向不同文件，部分文件与最终目标须能进行同文件系统改名；实际文件系统错误照常报告，不做来源审计或多进程目录协调。
 
 续传只接受已知为空且可重放的 GET 正文，没有请求 trailer、duplex、Range 或调用者条件字段。它固定选择 Raw 响应视图；未给 Accept-Encoding 时添加 identity，显式编码提议保留。部分文件保存完成 HTTP 定界之后的表示字节，不能拼接自动解压的数据。续传绕过完整响应缓存，OnlyIfCached 与请求 only-if-cached 不适用于此入口。
 
@@ -434,7 +434,7 @@ SSE 通过普通 execute 和 HTTP/1.1／HTTP/2 响应流工作，要求适用的
 
 ### 10.1 客户端 SSE 事件源
 
-`HttpClient.openSse(request, options = HttpSseOptions())` 挂起至首个最终响应验证完成，返回实现 AsyncCloseable 的 HttpEventSource；`withSse(request, options, block)` 在 block 结束时关闭该事件源。它支持普通 HTTP 方法与请求正文，包括 POST 返回的事件流；重定向、认证、代理、Cookie、上传与早期响应沿用 execute。显式启用重连时，请求正文必须可重放，调用者同时授权重复该方法和正文；不能用重连隐式重放单次来源。
+`HttpClient.openSse(request, options = httpSseOptions())` 挂起至首个最终响应验证完成，返回实现 AsyncCloseable 的 HttpEventSource；`withSse(request, options, block)` 在 block 结束时关闭该事件源。它支持普通 HTTP 方法与请求正文，包括 POST 返回的事件流；重定向、认证、代理、Cookie、上传与早期响应沿用 execute。显式启用重连时，请求正文必须可重放，调用者同时授权重复该方法和正文；不能用重连隐式重放单次来源。
 
 HttpSseOptions 提供 SseLimits、正数 bufferSize（默认 8192）、可选 initialLastEventId 与可选 reconnect（默认关闭）。缺少 Accept 时添加 text/event-stream，缺少 Cache-Control 时添加 no-cache；本地响应缓存固定绕过，OnlyIfCached 与请求 only-if-cached 不适用。事件源总是使用自动内容解码视图，沿用原解码配置的缓冲与窗口限制；SSE 的字符编码固定为 UTF-8，不受 Content-Type 的 charset 参数覆盖。
 
@@ -454,9 +454,9 @@ HttpSseReconnectOptions 提供 initialDelay（默认 3 秒）、maxDelay（默�
 
 WebSocket 仅实现 RFC 6455 的 HTTP/1.1 Upgrade，`wss` 使用仅提供 http/1.1 的独立 TLS 连接。该入口固定使用 HTTP/1.1；普通 HTTP 请求的 versionPolicy、cleartext 与 http1RequestVersion 不改变 WebSocket 的协议。同 origin 已有 H2 池连接时仍使用单独的 H1 连接，不尝试 RFC 8441。握手验证、随机 key、SHA-1、mask、帧编解码、分片、UTF-8、Ping／Pong、Close 和消息上限使用 HTTP／crypto 的公共能力。
 
-`HttpWebSocketRequest(url, fields = 空列表, options = HttpCallOptions())` 接受无 fragment 的 ws／wss URL，保存字段快照与普通请求选项；握手固定 GET 和空正文。Host、Upgrade、Connection、Sec-WebSocket-*、正文定界由 HTTP 握手库生成，调用者不能覆盖；duplex、Expect／expectContinue 与仅缓存请求不适用。`HttpWebSocketOptions(protocols = 空列表, deflateOffers = 空列表, session = WebSocketSessionOptions())` 保存有序子协议、显式 permessage-deflate 提议和底层会话配置的快照。每次实际握手生成新的 key，响应只能选择已提议的协议与扩展。
+`HttpWebSocketRequest(url, fields = 空列表, options = httpCallOptions())` 接受无 fragment 的 ws／wss URL，保存字段快照与普通请求选项；握手固定 GET 和空正文。Host、Upgrade、Connection、Sec-WebSocket-*、正文定界由 HTTP 握手库生成，调用者不能覆盖；duplex、Expect／expectContinue 与仅缓存请求不适用。`HttpWebSocketOptions(protocols = 空列表, deflateOffers = 空列表, session = webSocketSessionOptions())` 保存有序子协议、显式 permessage-deflate 提议和底层会话配置的快照。每次实际握手生成新的 key，响应只能选择已提议的协议与扩展。
 
-`HttpClient.openWebSocket(request, options = HttpWebSocketOptions()): HttpWebSocketResult` 挂起至握手的最终结果。HttpWebSocketResult 实现 AsyncCloseable，只有 `Opened(HttpWebSocketSession)` 与 `Rejected(HttpResponse, Throwable)` 两种结果；Rejected 的原因是实际握手验证异常，HTTP 响应及其流仍由调用者检查和关闭。`withWebSocket(request, options, block)` 将同一结果传给 suspend block，并在结束时关闭结果拥有的资源。没有取得完整 HTTP 头部的传输／协议失败，以及普通策略回调的失败，继续直接抛出原始异常。
+`HttpClient.openWebSocket(request, options = httpWebSocketOptions()): HttpWebSocketResult` 挂起至握手的最终结果。HttpWebSocketResult 实现 AsyncCloseable，只有 `Opened(HttpWebSocketSession)` 与 `Rejected(HttpResponse, Throwable)` 两种结果；Rejected 的原因是实际握手验证异常，HTTP 响应及其流仍由调用者检查和关闭。`withWebSocket(request, options, block)` 将同一结果传给 suspend block，并在结束时关闭结果拥有的资源。没有取得完整 HTTP 头部的传输／协议失败，以及普通策略回调的失败，继续直接抛出原始异常。
 
 握手复用现有请求的重定向、有限重试、Basic／Bearer／Digest、代理、Cookie 和信息响应回调，使用同一个 client 的认证与 Cookie 状态。本地响应缓存固定绕过，不以旧的 101 建立会话。URL 库负责 ws／wss 与对应 http／https 握手地址的组件转换；认证、Cookie 和代理选择使用实际 HTTP 握手地址，保留原始编码路径和 query。重定向接受 http／https 或 ws／wss 的等价地址，继续遵守 origin、凭据剥离、HTTPS 降级、次数与循环规则；不能接受其他 scheme 或含 fragment 的 WebSocket 目的地。
 
@@ -518,10 +518,12 @@ urlDisplay 只保留 origin 和明确的路径脱敏标记，去掉 userinfo、q
 
 ```scoop
 fun main() {
-    PlatformEventLoop().run suspend { _ ->
-        withHttpClient(HttpClientConfig()) suspend { client ->
-            val request = HttpRequest.get(Url.parse("https://example.com/data"))
-            client.withResponse(request) suspend { response ->
+    PlatformEventLoop().run suspend {
+        _ -> withHttpClient(httpClientConfig()) suspend {
+            client ->
+            val request = httpRequest(Url.parse("https://example.com/data"))
+            client.withResponse(request) suspend {
+                response ->
                 response.requireSuccess()
                 val bytes = response.body.readAllBytes(maxBytes = 1048576L)
                 print(bytes.size)
@@ -541,3 +543,40 @@ fun main() {
 - [.NET HttpClient 使用指南](https://learn.microsoft.com/en-us/dotnet/fundamentals/networking/http/httpclient-guidelines)。
 - [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html)、[RFC 9111](https://www.rfc-editor.org/rfc/rfc9111.html)、[RFC 9113](https://www.rfc-editor.org/rfc/rfc9113.html)、[RFC 8305](https://www.rfc-editor.org/rfc/rfc8305.html)。
 - [RFC 7616](https://www.rfc-editor.org/rfc/rfc7616.html)、[RFC 6455](https://www.rfc-editor.org/rfc/rfc6455.html)、[RFC 7692](https://www.rfc-editor.org/rfc/rfc7692.html)、[SSE](https://html.spec.whatwg.org/multipage/server-sent-events.html)。
+
+
+### 客户端描述与配置的接收者入口
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| HttpClientTlsConfig | `httpClientTlsConfig(configure: HttpClientTlsConfigBuilder.() -> Unit = {})`；trust: TlsTrustSource = TlsTrustSource.System；minimum: TlsVersion = TlsVersion.Tls12；maximum: TlsVersion = TlsVersion.Tls13；identity: TlsIdentity? = None |
+| HttpClientConfig | `httpClientConfig(configure: HttpClientConfigBuilder.() -> Unit = {})`；versionPolicy: HttpVersionPolicy = HttpVersionPolicy.Auto；cleartext: HttpCleartextProtocol = HttpCleartextProtocol.Http1；http1RequestVersion: HttpVersion = HttpVersion.Http11；tls: HttpClientTlsConfig = httpClientTlsConfig()；pool: HttpConnectionPoolOptions = httpConnectionPoolOptions()；tcpConnect: TcpConnectOptions = tcpConnectOptions()；http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()；http1Limits: Http1Limits = Http1Limits()；http2Receive: Http2ReceiveOptions = Http2ReceiveOptions()；http2Limits: Http2Limits = Http2Limits()；http2Settings: Http2Settings = Http2Settings()；decoding: HttpDecodingOptions = httpDecodingOptions()；timeouts: HttpTimeoutOptions = httpTimeoutOptions()；redirects: HttpRedirectOptions = httpRedirectOptions()；retries: HttpRetryOptions = httpRetryOptions()；authentication: HttpAuthenticationOptions = httpAuthenticationOptions()；proxy: HttpProxySelector = HttpProxySelector.direct()；cookieJar: CookieJar? = None；cache: HttpCacheOptions? = None；interceptors: List<HttpInterceptor> = emptyList<HttpInterceptor>()；onAttempt: (suspend (HttpAttempt) -> List<HttpField>)? = None；observer: HttpObserver? = None |
+| HttpCallOptions | `httpCallOptions(configure: HttpCallOptionsBuilder.() -> Unit = {})`；duplex: Boolean = false；expectContinue: Boolean = false；continueWait: Duration = Duration.seconds(1L)；decoding: HttpDecodingOptions? = None；timeouts: HttpTimeoutOptions? = None；onInformational: suspend (HttpResponseHead) -> Unit = suspend { _ -> }；redirects: HttpRedirectOptions? = None；retries: HttpRetryOptions? = None；authentication: HttpAuthenticationOptions? = None；proxy: HttpProxySelector? = None；useCookies: Boolean = true；cookieContext: HttpCookieContext? = None；cacheMode: HttpCacheMode = HttpCacheMode.Default；observer: HttpObserver? = None |
+| HttpRequest | `httpRequest(url: Url, configure: HttpRequestBuilder.() -> Unit = {})`；method: String = "GET"；fields: List<HttpField> = emptyList<HttpField>()；body: RequestBody = RequestBody.Empty；options: HttpCallOptions = httpCallOptions() |
+| HttpConnectionPoolOptions | `httpConnectionPoolOptions(configure: HttpConnectionPoolOptionsBuilder.() -> Unit = {})`；maxConnectionsPerOrigin: Long = 8L；maxConnections: Long = 64L；maxStreamsPerHttp2: Long = 100L；idleTimeout: Duration = Duration.seconds(60L)；maxLifetime: Duration? = None |
+| HttpTimeoutOptions | `httpTimeoutOptions(configure: HttpTimeoutOptionsBuilder.() -> Unit = {})`；total: Duration? = None；poolAcquire: Duration? = None；responseHeaders: Duration? = None；resolve: Duration? = Some(Duration.seconds(30L))；connect: Duration? = Some(Duration.seconds(30L))；tlsHandshake: Duration? = Some(Duration.seconds(30L))；readIdle: Duration? = None；writeIdle: Duration? = None；proxyHandshake: Duration? = Some(Duration.seconds(30L)) |
+| HttpRedirectOptions | `httpRedirectOptions(configure: HttpRedirectOptionsBuilder.() -> Unit = {})`；enabled: Boolean = true；maxRedirects: Long = 10L；allowHttpsToHttp: Boolean = false |
+| HttpRetryOptions | `httpRetryOptions(configure: HttpRetryOptionsBuilder.() -> Unit = {})`；maxRetries: Long = 2L；connectionFailures: Boolean = true；methods: List<String> = ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"]；statuses: List<UInt> = emptyList<UInt>()；initialDelay: Duration = Duration.milliseconds(100L)；maxDelay: Duration = Duration.seconds(30L)；jitter: Boolean = true；respectRetryAfter: Boolean = true |
+| HttpAuthenticationOptions | `httpAuthenticationOptions(configure: HttpAuthenticationOptionsBuilder.() -> Unit = {})`；providers: List<HttpAuthenticator> = emptyList<HttpAuthenticator>()；maxAttempts: Long = 3L |
+| HttpDecodingOptions | `httpDecodingOptions(configure: HttpDecodingOptionsBuilder.() -> Unit = {})`；mode: HttpContentDecoding = HttpContentDecoding.Automatic；bufferSize: Long = 8192L；maxWindowBytes: Long? = None |
+| HttpDownloadOptions | `httpDownloadOptions(configure: HttpDownloadOptionsBuilder.() -> Unit = {})`；replaceExisting: Boolean = false；syncOnCommit: Boolean = false；bufferSize: Long = 8192L；onProgress: suspend (HttpDownloadProgress) -> Unit = suspend { _ -> } |
+| HttpResumeOptions | `httpResumeOptions(partialFile: Path, metadataFile: Path, configure: HttpResumeOptionsBuilder.() -> Unit = {})`；mismatch: HttpResumeMismatch = HttpResumeMismatch.Restart；maxMetadataBytes: Long = 65536L |
+| HttpSseOptions | `httpSseOptions(configure: HttpSseOptionsBuilder.() -> Unit = {})`；limits: SseLimits = SseLimits()；bufferSize: Long = 8192L；initialLastEventId: String? = None；reconnect: HttpSseReconnectOptions? = None |
+| HttpSseReconnectOptions | `httpSseReconnectOptions(configure: HttpSseReconnectOptionsBuilder.() -> Unit = {})`；initialDelay: Duration = Duration.seconds(3L)；maxDelay: Duration = Duration.seconds(30L)；maxReconnects: Long? = None；onReconnect: suspend (HttpSseReconnect) -> Unit = suspend { _ -> } |
+| HttpWebSocketRequest | `httpWebSocketRequest(url: Url, configure: HttpWebSocketRequestBuilder.() -> Unit = {})`；fields: List<HttpField> = emptyList<HttpField>()；options: HttpCallOptions = httpCallOptions() |
+| HttpWebSocketOptions | `httpWebSocketOptions(configure: HttpWebSocketOptionsBuilder.() -> Unit = {})`；protocols: List<String> = emptyList<String>()；deflateOffers: List<WebSocketDeflateOffer> = emptyList<WebSocketDeflateOffer>()；session: WebSocketSessionOptions = webSocketSessionOptions() |
+| HttpCacheOptions | `保留完整值构造；copy(HttpCacheOptionsBuilder.() -> Unit)`；partition: String? = None；clock: Clock = SystemClock |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+HttpClientConfigBuilder 的 tls、pool、tcpConnect、http1Receive、http1Limits、http2Receive、http2Limits、http2Settings、decoding、timeouts、redirects、retries、authentication 成员接受相应 Builder。interceptor(value) 与 authentication.provider(value) 在当前序列后追加；赋入完整 List 则替换，结果构造时复制成数组。cache(storage) 必须提供存储，保留当前 partition／clock；None 明确停用 cache。proxy selector、cookieJar、认证 provider 和 TLS identity 由调用方提供。
+
+HttpCallOptionsBuilder 的 decoding、timeouts、redirects、retries、authentication 嵌套块从当前 Some 配置继续修改；None 时以该领域的库默认配置开始，发布 Some 完整覆盖。再次赋 None 恢复客户端继承；它不等价于禁用某策略，也不隐式读取某个 HttpClient 的当前值。
+
+`httpRequest(url) { method = ...; fields { ... }; body = ...; options { ... } }` 替换 HttpRequest 构造和 get／head／post／put／patch／delete companion 工厂。GET 和 Empty 是完整默认；其他方法显式设置。fields 的完整赋值替换，fields 块从当前序列继续修改。HttpRequest.copy 使用原始调用方字段重新派生 body metadata，避免把旧 body 自动生成的字段带入新 body。`httpWebSocketRequest(url)` 同样支持 fields／options，保留 ws／wss 和握手字段限制。
+
+`multipartBody(configure: MultipartBodyBuilder.() -> Unit = {}): RequestBody` 配置 boundary=MultipartBoundary.generate()、subtype="form-data"，有序 add(RequestBodyPart)／part(body)／formData(name, body)。part 接收 RequestBodyPartBuilder，配置 fields；formData 使用 FormDataPartBuilder 的 filename=None 和 fields。body、name 是必需数据，content type 取 body 元数据或显式字段。`requestBodyPart(body, configure)`／`formDataPart(name, body, configure)` 发布可复用单条描述，替换 RequestBodyPart 公开构造／formData companion 与 RequestBody.fromMultipart。Multipart 只组装已有 body plan，构造不打开文件、读取 source、调用 producer 或发送数据。trailer、boundary、长度、编码和重放规则沿用原合同。
+
+HttpSseOptions 的 limits／reconnect、HttpWebSocketOptions 的 session 及会话 incomingLimits 可就近配置。Download／resume／SSE／WebSocket 操作继续显式接收完成的配置值，调用时点不变。SSE 与 WebSocket 回调仍明确为 suspend。WebSocketSessionOptionsBuilder 的 maxDecompressedMessageBytes 未显式设置时随当前 incomingLimits.maxMessageBytes；copy 以已有结果的完整数值为起点。

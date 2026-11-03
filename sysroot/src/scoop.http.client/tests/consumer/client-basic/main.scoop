@@ -1,0 +1,85 @@
+package scoop.http.client.tests.consumer.client_basic
+
+import scoop.crypto.x509.TrustStore
+import scoop.platform.concurrent.Thread
+import scoop.test.Test
+import scoop.tests.scoop.crypto.testdata.rootPem
+
+private fun runBasicCase(name: String, block: (TrustStore) -> Unit) {
+    try {
+        TrustStore.fromPem(rootPem()).use {
+            trust -> Thread.start { block(trust) }.use {
+                thread ->
+                block(trust)
+                thread.join()
+            }
+        }
+    } catch (error: Throwable) {
+        eprintln("failed Basic authentication case: " + name)
+        throw error
+    }
+}
+
+@Test
+private class BasicAuthenticationTests {
+    @Test
+    fun policies() {
+        for (
+            mode in [
+                "manual",
+                "disabled",
+                "realm",
+                "missing",
+                "malformed",
+                "sent",
+                "rejected",
+                "limit"
+            ]
+        )
+            runBasicCase("policy-" + mode) { trust -> basicPolicies(trust, mode) }
+    }
+
+    @Test
+    fun credentials() {
+        for (mode in ["preemptive", "zero", "user", "password", "encoding", "callback", "nested"])
+            runBasicCase("credentials-" + mode) { trust -> basicCredentialFailures(trust, mode) }
+    }
+
+    @Test
+    fun cancellation() {
+        for (mode in ["caller", "total", "client"])
+            runBasicCase("cancel-" + mode) { trust -> basicCancellation(trust, mode) }
+    }
+
+    @Test
+    fun cancellationCleanup() {
+        for (mode in ["caller", "total", "client"])
+            runBasicCase("cancel-cleanup-" + mode) { trust -> basicCancellation(trust, mode, true) }
+    }
+
+    @Test
+    fun cancellationWrappedCleanup() {
+        for (mode in ["caller", "total", "client"])
+            runBasicCase("cancel-wrapped-cleanup-" + mode) {
+                trust -> basicCancellation(trust, mode, true, true)
+            }
+    }
+
+    @Test
+    fun sourceCleanup() {
+        for (failure in [false, true])
+            runBasicCase("source-cleanup-" + failure.toString()) {
+                trust -> basicSourceCleanup(trust, failure)
+            }
+    }
+
+    @Test
+    fun selection() {
+        runBasicCase("selection") { trust -> basicSelection(trust) }
+    }
+
+    @Test
+    fun http2() {
+        runBasicCase("http2") { trust -> basicHttp2(trust) }
+    }
+}

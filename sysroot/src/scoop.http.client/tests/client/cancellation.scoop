@@ -36,10 +36,10 @@ private class HttpClientCancellationTest {
                         scope.launch suspend {
                             try {
                                 client.execute(
-                                    HttpRequest.post(
-                                        clientTestUrl(listener),
-                                        RequestBody.fromSourceFactory suspend { source }
-                                    )
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.method = "POST"
+                                        this.body = RequestBody.fromSourceFactory suspend { source }
+                                    }
                                 ).close()
                                 throw IllegalStateException(
                                     Some("cancelled call completed successfully")
@@ -106,7 +106,7 @@ private class HttpClientCancellationTest {
                 listener.close()
                 withHttpClient(clientTestConfig(trust)) suspend {
                     client -> expectBodyFailure<Throwable> suspend {
-                        client.execute(HttpRequest.get(url));
+                        client.execute(httpRequest(url));
                         Unit
                     }
                 }

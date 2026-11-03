@@ -3,7 +3,7 @@ package scoop.graphics.text
 import scoop.graphics.Color
 
 /** Unspecified fields inherit; specified arrays replace the entire parent value. */
-public class SpanStyle public constructor(
+public class SpanStyle internal constructor(
     public val families: Array<String>? = None,
     public val fontSize: Double? = None,
     public val color: Color? = None,
@@ -17,6 +17,10 @@ public class SpanStyle public constructor(
     public val features: Array<FontFeature>? = None,
     public val variations: Array<FontVariation>? = None
 ) {
+    /** Derives an independent override while preserving all unspecified settings. */
+    public fun copy(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle =
+        configureSpanStyle(this, configure)
+
     /** Applies these overrides to the current parent without allocating native resources. */
     public fun resolve(parent: TextStyle): TextStyle =
         TextStyle(

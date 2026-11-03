@@ -1,0 +1,35 @@
+package scoop.http.client
+
+import scoop.http.HttpResponseHead
+import scoop.platform.fs.Path
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpResumeOptions(
+    partialFile: Path,
+    metadataFile: Path,
+    configure: HttpResumeOptionsBuilder.() -> Unit = {}
+): HttpResumeOptions {
+    val builder = HttpResumeOptionsBuilder()
+    builder.configure()
+    return builder.snapshot(partialFile, metadataFile)
+}
+
+public fun HttpResumeOptions.copy(
+    configure: HttpResumeOptionsBuilder.() -> Unit = {}
+): HttpResumeOptions {
+    val builder = HttpResumeOptionsBuilder()
+    builder.mismatch = this.mismatch
+    builder.maxMetadataBytes = this.maxMetadataBytes
+    builder.configure()
+    return builder.snapshot(this.partialFile, this.metadataFile)
+}
+
+public class HttpResumeOptionsBuilder internal constructor() {
+    public var mismatch: HttpResumeMismatch = HttpResumeMismatch.Restart
+    public var maxMetadataBytes: Long = 65536L
+    internal fun snapshot(partialFile: Path, metadataFile: Path): HttpResumeOptions =
+        HttpResumeOptions(partialFile, metadataFile, mismatch, maxMetadataBytes)
+}

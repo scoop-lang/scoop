@@ -14,20 +14,20 @@ private class HttpRequestObservationFailureTest {
                 _ ->
                 val failure = IllegalStateException(Some("prepare failed"))
                 val config =
-                    HttpClientConfig(
-                        tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                        onAttempt = Some(suspend { _ -> throw failure })
-                    )
+                    httpClientConfig {
+                        this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                        this.onAttempt = Some(suspend { _ -> throw failure })
+                    }
                 val log = RequestObservationLog()
                 withHttpClient(config) suspend {
                     client ->
                     val actual =
                         expectBodyFailure<IllegalStateException> suspend {
                             client.execute(
-                                HttpRequest.get(
-                                    Url.parse("http://127.0.0.1:1/"),
-                                    options = HttpCallOptions(observer = Some(log.observer))
-                                )
+                                httpRequest(Url.parse("http://127.0.0.1:1/")) {
+                                    this.options =
+                                        httpCallOptions { this.observer = Some(log.observer) }
+                                }
                             )
                             Unit
                         }
@@ -63,10 +63,10 @@ private class HttpRequestObservationFailureTest {
                     val failure =
                         expectBodyFailure<IllegalStateException> suspend {
                             client.execute(
-                                HttpRequest.get(
-                                    Url.parse("http://127.0.0.1:1/"),
-                                    options = HttpCallOptions(observer = Some(observer))
-                                )
+                                httpRequest(Url.parse("http://127.0.0.1:1/")) {
+                                    this.options =
+                                        httpCallOptions { this.observer = Some(observer) }
+                                }
                             )
                             Unit
                         }

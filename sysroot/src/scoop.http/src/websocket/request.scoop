@@ -5,17 +5,24 @@ import scoop.crypto.secureRandomBytes
 import scoop.io.encoding.Base64
 import scoop.url.Url
 
-internal fun createWebSocketHandshake(url: Url, protocols: List<String>, offers: List<WebSocketDeflateOffer>,
-    fields: List<HttpField>, absoluteForm: Boolean): WebSocketHandshake {
+internal fun createWebSocketHandshake(
+    url: Url,
+    protocols: List<String>,
+    offers: List<WebSocketDeflateOffer>,
+    fields: List<HttpField>,
+    absoluteForm: Boolean
+): WebSocketHandshake {
     val origin = url.httpOrigin()
     if (origin.scheme != "ws" && origin.scheme != "wss")
         throw IllegalArgumentException(Some("WebSocket URL requires ws or wss"))
-    if (url.encodedFragment != None) throw IllegalArgumentException(Some("WebSocket URL cannot contain a fragment"))
+    if (url.encodedFragment != None)
+        throw IllegalArgumentException(Some("WebSocket URL cannot contain a fragment"))
     val copied = protocols.toArray()
     val names = HashSet<String>()
     for (protocol in copied) {
         webSocketToken(protocol)
-        if (!names.add(protocol)) throw IllegalArgumentException(Some("duplicate WebSocket subprotocol"))
+        if (!names.add(protocol))
+            throw IllegalArgumentException(Some("duplicate WebSocket subprotocol"))
     }
     val headers = webSocketExtraFields(fields)
     val key = Base64.Default.encode(secureRandomBytes(16L))
@@ -28,51 +35,94 @@ internal fun createWebSocketHandshake(url: Url, protocols: List<String>, offers:
         val value = StringBuilder()
         var separator = false
         for (protocol in copied) {
-            if (separator) value.append(", ")
+            if (separator)
+                value.append(", ")
             value.append(protocol)
             separator = true
         }
         headers.add(webSocketField("Sec-WebSocket-Protocol", value.toString()))
     }
     val extensions = ArrayList<WebSocketExtension>()
-    for (offer in offers) { val extension = offer.toExtension(); extensions.add(extension); headers.add(extension.toHttpField()) }
-    val target = if (absoluteForm)
-        url.toBuilder().setScheme(Some(if (origin.scheme == "ws") "http" else "https")).build().httpAbsoluteTarget()
-        else url.httpRequestTarget()
-    val request = HttpRequestHead(HttpVersion.Http11, "GET".toByteArray(), HttpRequestTarget.Http1(target.toByteArray()), headers)
+    for (offer in offers) {
+        val extension = offer.toExtension();
+        extensions.add(extension);
+        headers.add(extension.toHttpField())
+    }
+    val target =
+        if (absoluteForm)
+            url.copy {
+                scheme =
+                    Some(
+                        if (origin.scheme == "ws")
+                            "http"
+                        else
+                            "https"
+                    )
+            }.httpAbsoluteTarget()
+        else
+            url.httpRequestTarget()
+    val request =
+        HttpRequestHead(
+            HttpVersion.Http11,
+            "GET".toByteArray(),
+            HttpRequestTarget.Http1(target.toByteArray()),
+            headers
+        )
     return WebSocketHandshake(request, key, copied, extensions.toArray())
 }
 
 internal fun parseWebSocketHandshake(request: HttpRequestHead): WebSocketHandshake {
-    if (request.version != HttpVersion.Http11 || !httpBytesEqual(request.method, "GET".toByteArray()))
+    if (
+        request.version !=
+            HttpVersion.Http11 ||
+            !httpBytesEqual(request.method, "GET".toByteArray())
+    )
         throw WebSocketHandshakeException("expected HTTP/1.1 GET")
     when (request.target) {
-        case Http1(bytes) -> if (bytes.size == 0L) throw WebSocketHandshakeException("empty HTTP/1 request target")
-        case Http2(_, _, _) -> throw WebSocketHandshakeException("expected an HTTP/1 request target")
+        case Http1(bytes) -> if (bytes.size == 0L)
+            throw WebSocketHandshakeException("empty HTTP/1 request target")
+        case Http2(_, _, _) -> throw WebSocketHandshakeException(
+            "expected an HTTP/1 request target"
+        )
         case Connect(_) -> throw WebSocketHandshakeException("expected an HTTP/1 request target")
     }
     val fields = request.fields
     webSocketSingleField(fields, "Host", true)
     requireWebSocketUpgrade(fields)
     val key = webSocketSingleField(fields, "Sec-WebSocket-Key", true)!!
-    val validKey = when (Base64.Default.decodeOrNone(key)) { case Some(bytes) -> bytes.size == 16L; case None -> false }
+    val validKey =
+        when (Base64.Default.decodeOrNone(key)) {
+            case Some(bytes) -> bytes.size == 16L;
+            case None -> false
+        }
     if (!validKey)
-        throw WebSocketHandshakeException("key must encode exactly 16 bytes", Some("Sec-WebSocket-Key"))
+        throw WebSocketHandshakeException(
+            "key must encode exactly 16 bytes",
+            Some("Sec-WebSocket-Key")
+        )
     val version = webSocketSingleField(fields, "Sec-WebSocket-Version", true)!!
     requireWebSocketVersionSyntax(version)
     if (fields.findAll("Transfer-Encoding".toByteArray()).size != 0L)
-        throw WebSocketHandshakeException("upgrade request cannot use Transfer-Encoding", Some("Transfer-Encoding"))
+        throw WebSocketHandshakeException(
+            "upgrade request cannot use Transfer-Encoding",
+            Some("Transfer-Encoding")
+        )
     val length = webSocketSingleField(fields, "Content-Length", false)
     when (length) {
         case Some(value) -> {
             val reader = HttpFieldReader("Content-Length", value.toByteArray())
-            if (reader.decimal() != 0L || !reader.ended) reader.fail("WebSocket request body must be empty")
+            if (reader.decimal() != 0L || !reader.ended)
+                reader.fail("WebSocket request body must be empty")
         }
         case None -> {}
     }
     val protocols = readWebSocketProtocols(fields)
     val extensions = WebSocketExtension.parseFields(fields)
-    if (version != "13") throw WebSocketHandshakeException("only WebSocket version 13 is supported",
-        Some("Sec-WebSocket-Version"), WebSocketHandshakeFailureKind.UnsupportedVersion)
+    if (version != "13")
+        throw WebSocketHandshakeException(
+            "only WebSocket version 13 is supported",
+            Some("Sec-WebSocket-Version"),
+            WebSocketHandshakeFailureKind.UnsupportedVersion
+        )
     return WebSocketHandshake(request, key, protocols, extensions)
 }

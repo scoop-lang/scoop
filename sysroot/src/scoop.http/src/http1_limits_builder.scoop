@@ -1,0 +1,19 @@
+package scoop.http
+
+public fun Http1Limits.copy(configure: Http1LimitsBuilder.() -> Unit = {}): Http1Limits {
+    val builder = Http1LimitsBuilder()
+    builder.headers = this.headers
+    builder.maxStartLineBytes = this.maxStartLineBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class Http1LimitsBuilder internal constructor() {
+    public var headers: HttpHeaderLimits = HttpHeaderLimits()
+    public var maxStartLineBytes: Long = 8192L
+
+    public fun headers(configure: HttpHeaderLimitsBuilder.() -> Unit): Unit {
+        headers = headers.copy(configure)
+    }
+    internal fun snapshot(): Http1Limits = Http1Limits(headers, maxStartLineBytes)
+}

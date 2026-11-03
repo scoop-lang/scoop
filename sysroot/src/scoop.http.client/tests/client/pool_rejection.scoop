@@ -81,13 +81,13 @@ private class HttpClientPoolRejectionTest {
                         val failure =
                             expectBodyFailure<Throwable> suspend {
                                 client.execute(
-                                    HttpRequest.get(
-                                        clientTestUrl(listener),
-                                        options =
-                                            HttpCallOptions(
-                                                retries = Some(HttpRetryOptions(maxRetries = 0L))
-                                            )
-                                    )
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.options =
+                                            httpCallOptions {
+                                                this.retries =
+                                                    Some(httpRetryOptions { this.maxRetries = 0L })
+                                            }
+                                    }
                                 ).close()
                                 fail(Some("GOAWAY peer unexpectedly returned a response"))
                             }

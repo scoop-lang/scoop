@@ -42,12 +42,12 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
 }
 
 fun sessionOptions(): WebSocketSessionOptions =
-    WebSocketSessionOptions(
-        WebSocketFrameLimits(dataChunkBytes = 7L),
-        inputBufferBytes = 19L,
-        outgoingFrameBytes = 17L,
-        closeTimeout = Duration.seconds(60L)
-    )
+    webSocketSessionOptions {
+        this.incomingLimits = WebSocketFrameLimits(dataChunkBytes = 7L)
+        this.inputBufferBytes = 19L
+        this.outgoingFrameBytes = 17L
+        this.closeTimeout = Duration.seconds(60L)
+    }
 
 private fun runPair() {
     val loop: EventLoop = PlatformEventLoop()

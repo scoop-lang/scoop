@@ -45,7 +45,7 @@ public enum OverlayPlacement {
     )
 }
 
-public class PortalOptions public constructor(
+public class PortalOptions internal constructor(
     public val placement: OverlayPlacement = OverlayPlacement.Viewport(),
     public val handle: OverlayHandle? = None,
     public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,

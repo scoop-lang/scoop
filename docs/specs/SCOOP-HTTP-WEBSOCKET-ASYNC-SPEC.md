@@ -4,7 +4,7 @@
 
 ## 1. 接管与配置
 
-`AsyncWebSocketSession.takeOwnership(transport, scope, role, options = WebSocketSessionOptions(), deflate = None)` 为 suspend 工厂，transport 同时实现 AsyncByteStream 与 AsyncCloseable。调用者先完成并验证 RFC 6455 握手，再移交唯一的传输关闭责任。HttpTransport 已保存 HTTP/1 的完整切换后缀，会话直接消费它，不重新解析 HTTP、URL 或握手字段。deflate 是本次握手所得的 WebSocketDeflateNegotiation，缺省不启用扩展并拒绝 RSV1。
+`AsyncWebSocketSession.takeOwnership(transport, scope, role, options = webSocketSessionOptions(), deflate = None)` 为 suspend 工厂，transport 同时实现 AsyncByteStream 与 AsyncCloseable。调用者先完成并验证 RFC 6455 握手，再移交唯一的传输关闭责任。HttpTransport 已保存 HTTP/1 的完整切换后缀，会话直接消费它，不重新解析 HTTP、URL 或握手字段。deflate 是本次握手所得的 WebSocketDeflateNegotiation，缺省不启用扩展并拒绝 RSV1。
 
 `WebSocketSessionOptions(incomingLimits = WebSocketFrameLimits(), inputBufferBytes = 8192, outgoingFrameBytes = 8192, closeTimeout = Duration.seconds(5))` 保存接收帧／消息／事件限制、原生输入容量、发送片段大小与关闭握手期限。两项容量必须为正，outgoingFrameBytes 加最大 14 字节头部不得溢出 Long；有限输出容量取 max(outgoingFrameBytes, 125) 加头部，以容纳完整控制帧。closeTimeout 必须为正，计时复用 EventLoop 的 Duration 合同。incomingLimits 针对接收数据，发送流不以它假装已知完整消息长度。
 
@@ -75,3 +75,14 @@ HTTP 适配不添加或移除 DEFLATE 尾部，不访问 native codec 或自己�
 库测试覆盖短读写、双向并发、同向拒绝、跨帧 UTF-8、空消息、单个大 frame 的有限交付、应用发送期间的自动 Pong、匹配 Ping、传输／flush 失败、错误进度、未完成 body 关闭、异常 EOF、握手超时、取消与真实借用延迟完成、重复清理失败。
 
 正式消费者组合真实 HTTP/1 升级、同次读取的首帧后缀、移动 GC 与缓存复用，并与独立 WebSocket 对端收发分片和控制帧。压缩覆盖双向窗口、历史保留／丢弃、混合普通消息、FIN 前 flush、明文限制和取消；WSS 验证 TLS 的 HTTP/1.1 ALPN 与相同消息流。HTTP/2 WebSocket 与 HTTP/3 不在本期。
+
+
+### 会话配置
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| WebSocketSessionOptions | `webSocketSessionOptions(configure: WebSocketSessionOptionsBuilder.() -> Unit = {})`；incomingLimits: WebSocketFrameLimits = WebSocketFrameLimits()；inputBufferBytes: Long = 8192L；outgoingFrameBytes: Long = 8192L；closeTimeout: Duration = Duration.seconds(5L)；maxDecompressedMessageBytes: Long = incomingLimits.maxMessageBytes |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。

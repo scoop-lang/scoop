@@ -89,7 +89,7 @@ AppKit 使用原生内容尺寸／桌面坐标、titlebar 按钮、window level�
 
 decorations 与 resizable 是独立属性。Win32 当前在 decorations=false 时使用 WS_POPUP，在 resizable=true 时仍保留 WS_THICKFRAME，因此关闭标题栏／装饰不承诺同时去掉原生缩放边框。需要去掉该缩放边框时，当前还须设置 resizable=false；原生样式见 [Win32 实现](../../sysroot/src/scoop.window/native/windows/window.c)。
 
-macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent，通过 WindowAttributes.setMacOSTitlebar 或 Window.setMacOSTitlebar 设置。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
+macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent，通过 WindowAttributesBuilder.macOSTitlebar 配置创建值，或通过 Window.setMacOSTitlebar 更新现有窗口。无装饰窗口仍可成为 key／main window，沿用第 5 节的输入规则。透明背景属性不替代 renderer 的实际 alpha 呈现能力。
 
 窗口层级与模态是不同属性：AlwaysOnTop／AlwaysOnBottom 只改变叠放策略，不禁止其他窗口输入，也不建立窗口归属。
 
@@ -222,3 +222,17 @@ PointerState 与 KeyEvent 均携带 InputTime，取消事件独立携带；平�
 原生秒／纳秒读数通过既有 Duration、TimeMark 与 MonotonicTimeSource 构造，不新增 runtime 时钟或窗口专用 TimeSource。NSEvent.timestamp、Windows 消息时间等只有完成来源与原点转换后才能成为 Event；不能把外观相似的计数直接互减，不能假定系统睡眠前后仍使用同一未经验证的偏移。首批后端明确交付 Observed 也符合合同。
 
 输入时间随原始 payload 保存；合并连续移动时保留最终被交付样本的位置、scale 与时间，不跨按钮／焦点／取消等顺序边界合并。相关验证覆盖来源标记、同源运算和排队延迟，不以精确计时断言替代事件顺序验收。
+
+
+### 创建配置的接收者入口
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| WindowAttributes | `windowAttributes(configure: WindowAttributesBuilder.() -> Unit = {})`；title: String = "Scoop"；size: LogicalSize = LogicalSize(800.0, 600.0)；visible: Boolean = true；decorations: Boolean = true；resizable: Boolean = true；transparent: Boolean = false；requestActivation: Boolean = true；constraints: WindowSizeConstraints = WindowSizeConstraints()；position: DesktopPosition? = None；resizeIncrements: LogicalSize? = None；buttons: WindowButtons = WindowButtons()；level: WindowLevel = WindowLevel.Normal；theme: Theme? = None；blur: Boolean = false；contentProtected: Boolean = false |
+| ApplicationOptions | `applicationOptions(configure: ApplicationOptionsBuilder.() -> Unit = {})`；lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+WindowAttributes 和 ApplicationOptions 发布只读值；完整修改通过 copy 产生新配置。macOS 的 ApplicationOptionsBuilder.macOSActivationPolicy 属性与 WindowAttributesBuilder.macOSTitlebar(TitlebarOptionsBuilder.() -> Unit) 配置平台字段；macOSTitlebar 块基于当前 flags，三个布尔字段默认 false。创建配置上的 setMacOSActivationPolicy／setMacOSTitlebar 删除，Window.setMacOSTitlebar 仍是对现有窗口的显式操作。配置不激活应用、不请求焦点、不创建窗口；Application／ActiveApplication.createWindow 的执行合同不变。

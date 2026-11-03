@@ -12,7 +12,7 @@ public enum LabelText {
 public class LabelProps public constructor(
     public val text: LabelText,
     public val fonts: FontCollection? = None,
-    public val settings: ParagraphStyle = ParagraphStyle(),
+    public val settings: ParagraphStyle = paragraphStyle(),
     public val inlines: Array<InlineView> = [],
     public val theme: ThemeSource? = None,
     public val baseStyle: TextStyle? = None
@@ -67,39 +67,26 @@ public class Label public constructor(private val props: Props<LabelProps>): Com
                 case Some(value) -> value.resolve(base);
                 case None -> base
             }
-        val next = PlainLabel(text, base, style, StyledText([TextSpan.text(text)], resolved))
+        val next =
+            PlainLabel(
+                text,
+                base,
+                style,
+                styledText {
+                    this.text(text)
+                    this.style = resolved
+                }
+            )
         plain = Some(next)
         return next.content
     }
 }
 
-public fun label(
-    text: String,
-    style: SpanStyle? = None,
-    fonts: FontCollection? = None,
-    settings: ParagraphStyle = ParagraphStyle(),
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        LabelProps(LabelText.Plain(text, style), fonts, settings, theme = theme),
-        { props -> Label(props) },
-        key
-    )
+public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): View =
+    makePlainLabel(text, configure)
 
-public fun label(
-    content: StyledText,
-    fonts: FontCollection? = None,
-    settings: ParagraphStyle = ParagraphStyle(),
-    inlines: Array<InlineView> = [],
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        LabelProps(LabelText.Styled(content), fonts, settings, inlines, theme),
-        { props -> Label(props) },
-        key
-    )
+public fun label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): View =
+    makeStyledLabel(content, configure)
 
 private class PlainLabel(
     val text: String,

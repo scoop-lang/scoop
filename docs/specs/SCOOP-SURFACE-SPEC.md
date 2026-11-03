@@ -1,6 +1,6 @@
 # Scoop Surface 基础库规范
 
-状态：第一期共享基础层及 macOS 后端已实现。更新：2026-11-02。本文件规定 window 输入前置、graphics 绘图／文本、Surface 宿主、动画和区域输入的当前合同；各项验证、执行环境和未测边界见 [实施记录](../surface/PROGRESS.md)。架构、平台接入和实施顺序见 [Surface 设计](../surface/DESIGN.md)。
+状态：第一期共享基础层及 macOS 后端已实现。更新：2026-11-03。本文件规定 window 输入前置、graphics 绘图／文本、Surface 宿主、动画和区域输入的当前合同；各项验证、执行环境和未测边界见 [实施记录](../surface/PROGRESS.md)。架构、平台接入和实施顺序见 [Surface 设计](../surface/DESIGN.md)。
 
 ## 1. 范围与依赖
 
@@ -22,7 +22,13 @@
 
 Canvas 提供 save／restore、二维仿射变换、矩形与 Path clip、基本形状、Path、Image、文本布局绘制及组透明度。组透明度按离屏合成的整体结果应用，不能替换为各绘图操作分别乘 alpha。第一期颜色与窗口输出采用 sRGB、预乘 alpha；不承诺 HDR 或跨 GPU 的逐像素一致结果。
 
-PathBuilder 构造 move／line／quadratic／cubic／arc／close，build 产生不可变 Path；包含 non-zero／even-odd 填充规则、bounds、contains 和路径长度／位置查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
+`path(fillRule: FillRule = FillRule.NonZero, configure: PathBuilder.() -> Unit = {}): Path` 在当前线程构造一个独立、不可变的 Path。配置块在 builder 创建成功后同步执行一次，操作按源码求值顺序追加；空配置生成空路径。正常返回或配置／快照失败均关闭临时 PathBuilder，异常原样传播，不发布部分结果；返回的 Path 由调用方负责 close／use。捕获的 builder 在作用域结束后已关闭，不可继续操作。
+
+PathBuilder 的 `moveTo(point)`、`lineTo(point)`、`quadraticTo(control, end)`、`cubicTo(control1, control2, end)`、`closeContour()`、`addRect(rect)`、`addOval(rect)`、`addRoundRect(rect, radiusX, radiusY)`、`arcTo(oval, start, sweep, moveToStart = false)` 和 `reset()` 均返回 Unit，不提供链式构造。填充规则支持 NonZero／EvenOdd；arc 使用弧度，moveToStart 决定是否开始新轮廓。几何参数沿现有有限值和范围规则校验，圆角合同见[图像滤镜规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md#2-图层与混合)。
+
+需要增量修改、反复取得快照的调用方可显式创建 `PathBuilder(fillRule = FillRule.NonZero)` 并管理其 close／use。`build(): Path` 保留 builder，返回独立快照；`reset()` 清空几何但保留填充规则。后续追加、重置或关闭 builder 均不改变已交付的 Path。两种入口使用同一构造实现和 owner 线程规则；作用域入口不转移临时 builder 的所有权。
+
+Path 提供 bounds、contains 和路径长度／位置查询；measure 返回独立 PathMeasure，原 Path 关闭后仍可查询。Paint 描述填充或描边、颜色／基础渐变、线宽与端点／连接样式。已交付的 Path、Image 和 Paint 描述不得因调用方后续修改 builder 而改变。
 
 Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其他线程调用；作用域结束后使用报状态异常。变换和 clip 的当前几何状态由 graphics 维护，并经低层接入接口提供给 Surface。绘制与区域放置不得分别维护两套可能不一致的变换。
 
@@ -265,3 +271,8 @@ Surface 在 owner 上创建并使用 GPU context、swapchain 和呈现资源；�
 Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换，再在同一 direct queue 的有序工作之后 Present。过期尺寸、暂不可呈现或未就绪返回 Deferred；设备移除及其他确定的 HRESULT 失败报告 GraphicsException，不能静默重试或切换 renderer。resize 退休旧 backbuffer，并在其实际 GPU 使用结束后重新配置；普通提交保持异步，显式读回、resize 和关闭才同步相关 GPU 使用。
 
 关闭先解除原生等待和消息通知，结束正在使用的 frame，再排空相关 GPU 工作、卸载自己的合成目标、释放 swapchain／context，最后关闭 lease。已排队通知不能访问已释放 surface；关闭不依赖 ApplicationProxy 再执行业务闭包。三个目标分别构建相容的 C++／CRT 资源，并用所属 Cone 的 scoop.test 运行离屏、真实 D3D12、窗口、IME 与收尾测试；Linux 不进入本阶段的发布或验收。
+
+
+### 快捷键描述装配
+
+`shortcutBinding(key: ShortcutKey, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以键和动作作为必需参数，配置 modifiers=ShortcutModifiers()、enabled=true、allowRepeat=false、canExecute={ true }。modifiers 块基于当前六个布尔修饰键字段配置。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(key, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。

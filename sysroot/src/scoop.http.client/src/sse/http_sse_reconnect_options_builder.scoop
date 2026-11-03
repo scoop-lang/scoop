@@ -1,0 +1,38 @@
+package scoop.http.client
+
+import scoop.asyncio.AsyncCloseable
+import scoop.http.*
+import scoop.time.Duration
+import scoop.url.Url
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpSseReconnectOptions(
+    configure: HttpSseReconnectOptionsBuilder.() -> Unit = {}
+): HttpSseReconnectOptions {
+    val builder = HttpSseReconnectOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpSseReconnectOptions.copy(
+    configure: HttpSseReconnectOptionsBuilder.() -> Unit = {}
+): HttpSseReconnectOptions {
+    val builder = HttpSseReconnectOptionsBuilder()
+    builder.initialDelay = this.initialDelay
+    builder.maxDelay = this.maxDelay
+    builder.maxReconnects = this.maxReconnects
+    builder.onReconnect = this.onReconnect
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpSseReconnectOptionsBuilder internal constructor() {
+    public var initialDelay: Duration = Duration.seconds(3L)
+    public var maxDelay: Duration = Duration.seconds(30L)
+    public var maxReconnects: Long? = None
+    public var onReconnect: suspend (HttpSseReconnect) -> Unit = suspend { _ -> }
+    internal fun snapshot(): HttpSseReconnectOptions =
+        HttpSseReconnectOptions(initialDelay, maxDelay, maxReconnects, onReconnect)
+}

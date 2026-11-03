@@ -16,7 +16,7 @@ internal fun observedFailure(trust: TrustStore, url: Url, body: Boolean) {
             client ->
             val failure =
                 observationFailure suspend {
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         response.body.bytes(32L);
                         Unit
@@ -67,18 +67,18 @@ internal fun observedTcpCallback(trust: TrustStore, url: Url) {
     PlatformEventLoop().run suspend {
         _ ->
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                observer = Some(log.observer()),
-                tcpConnect = TcpConnectOptions(onEvent = Some(callback)),
-                retries = HttpRetryOptions(maxRetries = 2L)
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.observer = Some(log.observer())
+                this.tcpConnect = tcpConnectOptions { this.onEvent = Some(callback) }
+                this.retries = httpRetryOptions { this.maxRetries = 2L }
+            }
         withHttpClient(config) suspend {
             client ->
             assertSame(
                 failure,
                 observationFailure suspend {
-                    client.execute(HttpRequest.get(url));
+                    client.execute(httpRequest(url));
                     Unit
                 }
             )

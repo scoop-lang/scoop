@@ -20,26 +20,26 @@ internal fun clientWsValidation(trust: TrustStore) {
         ]
     )
         assertFailsWith<IllegalArgumentException> {
-            val ignored = HttpWebSocketRequest(Url.parse(text));
+            val ignored = httpWebSocketRequest(Url.parse(text));
             Unit
         }
     assertFailsWith<UrlParseException> {
-        val ignored = HttpWebSocketRequest(Url.parse("ws://localhost:0"));
+        val ignored = httpWebSocketRequest(Url.parse("ws://localhost:0"));
         Unit
     }
-    val userInfo = HttpWebSocketRequest(Url.parse("ws://name:password@localhost/path"))
+    val userInfo = httpWebSocketRequest(Url.parse("ws://name:password@localhost/path"))
     assertEquals("/path", userInfo.url.httpRequestTarget())
     assertEquals(0L, userInfo.fields.size)
     val url = Url.parse("ws://127.0.0.1:1/")
     for (
         options in [
-            HttpCallOptions(duplex = true),
-            HttpCallOptions(expectContinue = true),
-            HttpCallOptions(cacheMode = HttpCacheMode.OnlyIfCached)
+            httpCallOptions { this.duplex = true },
+            httpCallOptions { this.expectContinue = true },
+            httpCallOptions { this.cacheMode = HttpCacheMode.OnlyIfCached }
         ]
     )
         assertFailsWith<IllegalArgumentException> {
-            val ignored = HttpWebSocketRequest(url, options = options);
+            val ignored = httpWebSocketRequest(url) { this.options = options };
             Unit
         }
     for (
@@ -49,7 +49,7 @@ internal fun clientWsValidation(trust: TrustStore) {
         ]
     )
         assertFailsWith<IllegalArgumentException> {
-            val ignored = HttpWebSocketRequest(url, [field]);
+            val ignored = httpWebSocketRequest(url) { this.fields = [field] };
             Unit
         }
     val loop: EventLoop = PlatformEventLoop()
@@ -73,7 +73,9 @@ internal fun clientWsValidation(trust: TrustStore) {
             ) {
                 val error =
                     clientWsFailure suspend {
-                        client.openWebSocket(HttpWebSocketRequest(url, [clientWsField(name, "x")]));
+                        client.openWebSocket(
+                            httpWebSocketRequest(url) { this.fields = [clientWsField(name, "x")] }
+                        );
                         Unit
                     }
                 assertTrue(error is IllegalArgumentException)
@@ -82,8 +84,8 @@ internal fun clientWsValidation(trust: TrustStore) {
                 val error =
                     clientWsFailure suspend {
                         client.openWebSocket(
-                            HttpWebSocketRequest(url),
-                            HttpWebSocketOptions(protocols)
+                            httpWebSocketRequest(url),
+                            httpWebSocketOptions { this.protocols = protocols }
                         );
                         Unit
                     }

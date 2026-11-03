@@ -56,11 +56,11 @@ internal fun extensionAttemptValidation(trust: TrustStore, url: Url, fields: Boo
             withHttpClient(extensionConfig(trust, callback = Some(callback))) suspend {
                 client ->
                 val request =
-                    HttpRequest.post(
-                        url,
-                        RequestBody.fromText("data").compressed(),
-                        [extensionField("X-Existing", "old")]
-                    )
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = RequestBody.fromText("data").compressed()
+                        this.fields = [extensionField("X-Existing", "old")]
+                    }
                 val error =
                     extensionFailure suspend {
                         client.execute(request);

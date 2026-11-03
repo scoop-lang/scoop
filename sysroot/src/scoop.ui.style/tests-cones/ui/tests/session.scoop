@@ -87,7 +87,10 @@ internal class StyleProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop style integration", LogicalSize(320.0, 160.0))
+                        windowAttributes {
+                            this.title = "Scoop style integration"
+                            this.size = LogicalSize(320.0, 160.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

@@ -31,8 +31,13 @@ impl Lowerer {
         &mut self,
         label: Option<String>,
         receiver: Option<ReceiverBinding>,
+        blocks_outer_lookup: bool,
     ) {
-        self.receiver_scopes.push(ReceiverScope { label, receiver });
+        self.receiver_scopes.push(ReceiverScope {
+            label,
+            receiver,
+            blocks_outer_lookup,
+        });
     }
 
     pub(crate) fn bind_callable_receiver(
@@ -50,6 +55,7 @@ impl Lowerer {
                 binding: self.locals[local].binding,
                 ty,
             }),
+            true,
         );
         hir::Param {
             name: "this".to_owned(),
@@ -97,6 +103,45 @@ impl Lowerer {
             }
         }
         result
+    }
+
+    pub(crate) fn implicit_receiver_is_accessible(&self, binding: hir::BindingId) -> bool {
+        for scope in self.receiver_scopes.iter().rev() {
+            if scope
+                .receiver
+                .is_some_and(|receiver| receiver.binding == binding)
+            {
+                return true;
+            }
+            if scope.blocks_outer_lookup {
+                return false;
+            }
+        }
+        true
+    }
+
+    pub(crate) fn require_implicit_receiver(
+        &mut self,
+        binding: hir::BindingId,
+        span: Span,
+    ) -> Option<()> {
+        if self.implicit_receiver_is_accessible(binding) {
+            return Some(());
+        }
+        self.error(
+            span,
+            "implicit use of an outer receiver is not allowed; use `this@label` or an explicit object reference".into(),
+        );
+        None
+    }
+
+    pub(crate) fn lower_implicit_receiver_binding(
+        &mut self,
+        receiver: ReceiverBinding,
+        span: Span,
+    ) -> Option<hir::Expr> {
+        self.require_implicit_receiver(receiver.binding, span)?;
+        self.lower_receiver_binding(receiver, span)
     }
 
     pub(crate) fn lower_receiver_binding(

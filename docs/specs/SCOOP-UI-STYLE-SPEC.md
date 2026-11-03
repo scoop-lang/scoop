@@ -1,6 +1,6 @@
 # Scoop 公共 UI 样式规范
 
-日期：2026-11-02。状态：graphics 滤镜／图层、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成原有 macOS 验证，见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与纯绘图分离按[基础交互实施记录](../ui/foundations/PROGRESS.md)验收；各批验证 aarch64，全部功能完成后再统一验证 x86_64，Windows 后续。分批范围见 [UI 设计](../ui/DESIGN.md)。
+日期：2026-11-03。状态：graphics 滤镜／图层、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成原有 macOS 验证，见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与纯绘图分离按[基础交互实施记录](../ui/foundations/PROGRESS.md)验收；各批验证 aarch64，全部功能完成后再统一验证 x86_64，Windows 后续。分批范围见 [UI 设计](../ui/DESIGN.md)。
 
 ## 1. 分层与接入
 
@@ -8,13 +8,30 @@
 
 文字继续使用 `scoop.graphics.text` 的 TextStyle／SpanStyle、ParagraphStyle；Theme 的公共 typography 也直接使用这些类型，Style 不定义另一套字体、段落或文本继承模型。第三方完全自绘组件和基础控件使用同一公开适配，没有专用 View 分支、控件节点或效果注册入口。
 
-`styled(content, style = Style(), key = ViewKey.Position)` 始终建立相同具体类型的普通组件／元素及单个内容子项，包括空 Style。更新只替换 Props；在相同 key 和类型下，从无效果到有阴影、阴影移除、参数或效果顺序改变，都保留内容的实例和 State。调用者改变 content 自身的 key／类型时继续执行正常重挂载规则。
+`styled(content, style = style(), key = ViewKey.Position)` 始终建立相同具体类型的普通组件／元素及单个内容子项，包括空 Style。更新只替换 Props；在相同 key 和类型下，从无效果到有阴影、阴影移除、参数或效果顺序改变，都保留内容的实例和 State。调用者改变 content 自身的 key／类型时继续执行正常重挂载规则。
 
 第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 scene 中调用公共 `StylePainter.scene(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 SceneContext，可提交 draw 块并调用 children。StylePainter 同时保留独立的 paint(Canvas, Rect, Style, content) 入口，供真实离屏组合使用。隔离复用通用 SceneContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。
 
 ## 2. 描述与参数
 
 Style 是普通不可变、可复用的完整描述 class，经 Props 传递，不拥有需要调用方 close 的 native 对象。主题的局部输入使用 StyleOverride，只替换明确指定的属性；StyleValue<T>.Inherit／Set 区分继承和显式清除。覆盖在最终几何计算前解析，具体协议见主题规范第 3 节。
+
+公开构造与派生入口采用以下接收者签名，均同步执行 configure 一次并返回独立描述：
+
+```scoop
+style(configure: StyleBuilder.() -> Unit = {}): Style
+Style.copy(configure: StyleBuilder.() -> Unit = {}): Style
+styleOverride(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverride
+StyleOverride.copy(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverride
+```
+
+Style／StyleOverride 及两个 builder 的构造器仅供库内部使用；Style.withBackground／withBorder 由 copy 配置替换。copy 以原值初始化全部字段，空块保留原配置。内部几何计算仍可直接生成同一种完整值，不另设结果或执行通路。
+
+StyleBuilder 公开六个可写属性：`background: Paint? = None`、`border: Border? = None`、`cornerRadius: Double = 0.0`、`boxShadows: Array<BoxShadow> = []`、`contentEffects: Array<ContentEffect> = []`、`clipContent: Boolean = false`。Style 公开对应只读值。StyleOverrideBuilder 的同名属性分别包装为 `StyleValue<对应类型>`，全部默认 Inherit；StyleOverride 保存对应只读覆盖值。
+
+StyleOverrideBuilder 另有与六个属性同名的设置方法，例如 `background(value: Paint?): Unit`、`border(value: Border?): Unit`、`contentEffects(value: Array<ContentEffect>): Unit`，都只把同一个槽写为 Set(value)。显式把该属性赋为 StyleValue.Inherit 恢复继承；`border(None)` 表示清除边框。效果数组整体替换并保持顺序，不把读取未指定覆盖伪装成某个完整默认值。
+
+发布后修改被捕获的 builder 不改变结果；Array 元素槽及效果描述不可变，可以共享。回调失败直接抛错，不发布部分结果，不创建 painter、滤镜、窗口或资源作用域。数值和 Paint 合法性继续在本规范已有的几何／绘图边界检查，配置入口不重复这些检查。
 
 `StyleOverride.then(next)` 有序组合覆盖：next 中的 Inherit 保留前一覆盖，Set 替换对应属性，包括显式 None 与完整效果数组。组合结果仍是覆盖描述，之后才对当前主题 resolve，不冻结旧主题。控件的普通／hover／pressed／focus／disabled 局部外观复用这个操作，再把结果交给主题计算几何。
 
@@ -32,6 +49,8 @@ sigmaX／sigmaY 是 Gaussian 标准差，offset、边框宽度、圆角和 bound
 BoxShadow 沿填满的圆角外框 alpha 生成，与 background 是否存在、是否透明以及子内容形状无关。DropShadow 沿真实子树 alpha 生成，带原内容；不是外框的另一种写法。两者都不提供首批未实现的 spread／inset 语义。
 
 Glow(sigmaX, sigmaY, color) 等价于零 offset 的带源 DropShadow：对源 alpha 模糊后用 color 着色，再将原内容以 SrcOver 合成到光晕上。color.alpha 决定光晕不透明度，没有另一个不明单位的 strength，也不默认采用加色或 HDR。文字直接以实际 glyph 绘图结果为源，无需转 Path；透明图片、行内对象和子组件采用相同通路。
+
+Styled 的单内容入口为 `styled(content: View, configure: StyledBuilder.() -> Unit = {}): View`。StyledBuilder 提供 style: Style = style()、key: ViewKey = Position，并提供返回 Unit 的 style(StyleBuilder.() -> Unit) 成员；嵌套配置基于当前 Style.copy，完整赋值替换。构造器内部化，入口只产生现有 StyledProps／Styled 的 View 描述，保留空样式包装；不运行内容、创建 painter 或挂载组件。配置执行一次、异常直接传播，发布后修改 builder 不改变已产生的输入。
 
 ## 3. 绘制、布局与输入
 

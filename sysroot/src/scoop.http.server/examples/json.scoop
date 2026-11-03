@@ -20,7 +20,8 @@ fun main() {
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope -> HttpServer.listen(scope) {
-            routes ->
+            val routes = this
+
             routes.get(
                 "/greet",
                 suspend {

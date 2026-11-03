@@ -193,12 +193,16 @@ private fun removeRoot(values: ArrayList<UiRoot>, root: UiRoot) {
 
 /** A single-window entry point with the same explicit root ownership as UiHost.use. */
 public fun <C: Component> runUiApplication(title: String, create: () -> C) {
-    val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
+    val application =
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
     UiHost {
         host,
         active,
         event -> when (event) {
-            case Resumed -> host.attach(active.createWindow(WindowAttributes(title)), create)
+            case Resumed -> host.attach(
+                active.createWindow(windowAttributes { this.title = title }),
+                create
+            )
             case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
             else -> {}
         }

@@ -43,7 +43,7 @@ private class HttpClientIdleResponseCancellationTest {
                             scope.launch suspend {
                                 try {
                                     client.withResponse(
-                                        HttpRequest.get(clientTestUrl(listener))
+                                        httpRequest(clientTestUrl(listener))
                                     ) suspend {
                                         _ ->
                                         entered.signal();
@@ -99,7 +99,7 @@ private class HttpClientIdleResponseCancellationTest {
                         client ->
                         val calling =
                             scope.launch suspend {
-                                saved.add(client.execute(HttpRequest.get(clientTestUrl(listener))))
+                                saved.add(client.execute(httpRequest(clientTestUrl(listener))))
                                 entered.signal()
                                 loop.sleep(Duration.seconds(60L))
                             }

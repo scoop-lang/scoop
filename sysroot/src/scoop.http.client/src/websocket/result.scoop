@@ -6,33 +6,45 @@ import scoop.asyncio.AsyncCloseable
  * An opened session or a consumable rejection response plus handshake error. Both variants require
  * close.
  */
-public enum HttpWebSocketResult : AsyncCloseable {
+public enum HttpWebSocketResult: AsyncCloseable {
     /**
      * The handshake succeeded and owns an active WebSocket session.
      */
     Opened(HttpWebSocketSession),
-        /**
+    /**
          * The handshake was rejected; the HTTP response body remains available together with the
          * validation error.
          */
-        Rejected(HttpResponse, Throwable)
+    Rejected(HttpResponse, Throwable)
 
     /**
      * Closes the opened session or the rejected handshake response.
      */
     public override suspend fun close() {
-        when (this) { case Opened(session) -> session.close(); case Rejected(response, _) -> response.close() }
+        when (this) {
+            case Opened(session) -> session.close();
+            case Rejected(response, _) -> response.close()
+        }
     }
 }
 
-internal suspend fun openClientWebSocket(client: ClientState, request: HttpWebSocketRequest,
-    options: HttpWebSocketOptions): HttpWebSocketResult {
+internal suspend fun openClientWebSocket(
+    client: ClientState,
+    request: HttpWebSocketRequest,
+    options: HttpWebSocketOptions
+): HttpWebSocketResult {
     clientJob(client.loop, true)
     validateClientWebSocket(request, options)
-    val http = HttpRequest.get(request.httpUrl, request.fields, clientWebSocketOptions(request.options))
+    val http =
+        httpRequest(request.httpUrl) {
+            this.fields = request.fields
+            this.options = clientWebSocketOptions(request.options)
+        }
     val sequence = ClientRequestSequence(client.config, http, webSocket = Some(options))
     return when (interceptClientSequence(client, http, sequence)) {
         case WebSocket(result) -> result
-        case Response(_) -> throw IllegalStateException(Some("WebSocket request returned an ordinary HTTP result"))
+        case Response(_) -> throw IllegalStateException(
+            Some("WebSocket request returned an ordinary HTTP result")
+        )
     }
 }

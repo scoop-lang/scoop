@@ -1,0 +1,115 @@
+package scoop.ui
+
+import scoop.graphics.Size
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.text.*
+
+@Test
+private class UiReceiverDslTests {
+    @Test
+    fun `portal configuration keeps one content slot and snapshots nested options`() {
+        val child = empty()
+        val anchor = LayoutAnchor()
+        val captured = ArrayList<PortalBuilder>()
+        val closes = ArrayList<OverlayCloseReason>()
+        val view =
+            portal(child) {
+                captured.add(this)
+                anchored(anchor) { gap = 12.0 }
+                anchored(anchor) { matchAnchorWidth = true }
+                modal { restoreFocus = false }
+                modal {}
+                dismiss { escape = true }
+                onClose = { reason -> closes.add(reason) }
+                key = ViewKey.Text("portal")
+            }
+        captured[0L].modal = None
+        captured[0L].placement = OverlayPlacement.Viewport()
+        assertEquals(ViewKey.Text("portal"), view.key)
+        when (view.body) {
+            case Portal(content, options) -> {
+                assertSame(child, content)
+                assertFalse(options.modal!!.restoreFocus)
+                assertTrue(options.dismiss.escape)
+                when (options.placement) {
+                    case Anchored(value, _, _, gap, _, matchWidth) -> {
+                        assertSame(anchor, value)
+                        assertEquals(12.0, gap)
+                        assertTrue(matchWidth)
+                    }
+                    else -> fail(Some("anchored placement lost"))
+                }
+                assertEquals(0L, closes.size)
+                options.onClose(OverlayCloseReason.Explicit)
+            }
+            else -> fail(Some("portal description lost"))
+        }
+        assertEquals(1L, closes.size)
+        assertFailsWith<IllegalArgumentException> {
+            portal(child) {
+                modal {};
+                dismiss { outsidePress = OutsidePress.CloseAndContinue }
+            }
+        }
+    }
+
+    @Test
+    fun `navigation and focus snapshots retain stable handles without registration`() {
+        val handle = FocusHandle()
+        val captured = ArrayList<NavigationOptionsBuilder>()
+        val options =
+            navigationOptions {
+                captured.add(this)
+                item(handle, row = 2, column = 3)
+                loop = true
+            }
+        captured[0L].item(FocusHandle())
+        assertEquals(1L, options.items.size)
+        assertSame(handle, options.items[0L].handle)
+        assertEquals(3, options.items[0L].column)
+        val focus =
+            focusOptions {
+                this.handle = Some(handle);
+                tabStop = false
+            }
+        val changed = focus.copy { order = 4 }
+        assertSame(handle, changed.handle!!)
+        assertFalse(changed.tabStop)
+        assertEquals(0, focus.order)
+        assertEquals(4, changed.order)
+    }
+
+    @Test
+    fun `inline assembly matches text occurrences with views and publishes independent arrays`() {
+        val key = InlineKey.Text("icon")
+        val view = empty()
+        val captured = ArrayList<InlineTextBuilder>()
+        val content =
+            inlineText {
+                captured.add(this)
+                text("before ")
+                inline(key, view, "[icon]") { size = Some(Size(12.0, 9.0)) }
+                span { text(" after") }
+                style { fontSize = 19.0 }
+                style { weight = 600 }
+            }
+        captured[0L].text("late")
+        assertEquals("before [icon] after", content.content.toPlainText())
+        assertEquals(1L, content.inlines.size)
+        assertSame(view, content.inlines[0L].view)
+        assertEquals(Some(Size(12.0, 9.0)), content.inlines[0L].size)
+        assertEquals(19.0, content.content.style.fontSize)
+        assertEquals(600, content.content.style.weight)
+        assertEquals(1L, inlineChildren(content.content, content.inlines).size)
+        assertFailsWith<IllegalArgumentException> {
+            inlineText {
+                inline(key, view, "one");
+                inline(key, view, "two")
+            }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            inlineText { add(textSpan { inlineObject(key, "missing") }) }
+        }
+    }
+}

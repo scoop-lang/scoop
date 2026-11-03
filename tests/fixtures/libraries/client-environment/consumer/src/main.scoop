@@ -18,43 +18,43 @@ fun main(args: Array<String>) {
     } else {
         TrustStore.fromPem(rootPem()).use {
             trust ->
-            val tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
+            val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
             val selector =
                 if (mode == "default")
-                    HttpClientConfig().proxy
+                    httpClientConfig().proxy
                 else
                     HttpProxySelector.fromEnvironment(tls = tls)
             val rewriting = mode.startsWith("redirect-override-")
             val options =
                 if (mode == "override" || rewriting)
-                    HttpCallOptions(proxy = Some(HttpProxySelector.direct()))
+                    httpCallOptions { this.proxy = Some(HttpProxySelector.direct()) }
                 else
-                    HttpCallOptions()
+                    httpCallOptions()
             val config =
-                HttpClientConfig(
-                    tls = tls,
-                    proxy = selector,
-                    retries = HttpRetryOptions(maxRetries = 0L),
-                    timeouts =
-                        HttpTimeoutOptions(
-                            resolve = None,
-                            connect = None,
-                            tlsHandshake = None,
-                            proxyHandshake = None
-                        )
-                )
+                httpClientConfig {
+                    this.tls = tls
+                    this.proxy = selector
+                    this.retries = httpRetryOptions { this.maxRetries = 0L }
+                    this.timeouts =
+                        httpTimeoutOptions {
+                            this.resolve = None
+                            this.connect = None
+                            this.tlsHandshake = None
+                            this.proxyHandshake = None
+                        }
+                }
             PlatformEventLoop().run suspend {
                 _ -> withHttpClient(config) suspend {
                     client ->
                     val request =
                         if (rewriting)
-                            HttpRequest.post(
-                                Url.parse(args[2L]),
-                                RequestBody.Empty,
-                                options = options
-                            )
+                            httpRequest(Url.parse(args[2L])) {
+                                this.method = "POST"
+                                this.body = RequestBody.Empty
+                                this.options = options
+                            }
                         else
-                            HttpRequest.get(Url.parse(args[2L]), options = options)
+                            httpRequest(Url.parse(args[2L])) { this.options = options }
                     client.withResponse(request) suspend {
                         response ->
                         assertEquals(200U, response.status)

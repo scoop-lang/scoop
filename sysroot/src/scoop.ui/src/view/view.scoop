@@ -24,11 +24,11 @@ public class View internal constructor(internal val key: ViewKey, internal val b
 public fun empty(): View = View(ViewKey.Position, ViewBody.Empty)
 
 /** Keeps logical ownership while presenting one child in the window's layer outlet. */
-public fun portal(
-    content: View,
-    options: PortalOptions = PortalOptions(),
-    key: ViewKey = ViewKey.Position
-): View = View(key, ViewBody.Portal(content, options))
+public fun portal(content: View, configure: PortalBuilder.() -> Unit = {}): View {
+    val builder = PortalBuilder()
+    builder.configure()
+    return View(builder.key, ViewBody.Portal(content, builder.snapshot()))
+}
 
 public fun <C: Component> component(create: () -> C, key: ViewKey = ViewKey.Position): View =
     component(Unit, { _ -> create() }, key)

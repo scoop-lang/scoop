@@ -866,7 +866,10 @@ lambda 写作 `{ parameters -> body }`，挂起 lambda 写作 `suspend { paramet
 - lambda 中的裸 `return` 是编译错误；局部提前返回使用 `return@label`。`label@ { ... }`、`label@ suspend { ... }`、`label@ fun(...) { ... }` 为当前 callable 声明显式标签。直接作为具名调用实参的 lambda 以调用末段名称作为隐式标签，显式标签覆盖同一 lambda 的隐式标签；复杂 callee 不产生隐式名称。具名函数以自身名称作为返回标签。标签只能命中当前 callable，不能跨过嵌套 callable；同名包围循环标签遮蔽 callable 标签时，return 不能将循环当作返回目标。未知、非 callable 和跨 callable 目标均为编译错误。
 - `return@label value` 按当前 callable 的返回类型检查，无值 return 提供 Unit。无期望返回类型的 lambda 将所有自身局部 return 的值与正常末尾结果共同推导；内层 callable 的 return 独立处理。已有 Unit 期望只丢弃 lambda 的正常末尾值，不丢弃显式 return 的类型检查。表达式体具名函数仍禁止显式 return。non-local return/break/continue 不提供 inline 豁免。
 - 期望 receiver 函数类型为 lambda 提供不可重新绑定的隐式 `this`；显式参数模式只对应普通参数，省略参数列表时的 `it` 也只按普通参数数目决定。没有期望类型时，可用 `fun A.(parameters)[: R] { body }` 或显式 `suspend fun A.(parameters)[: R] { body }` 建立 receiver 匿名函数；receiver 类型必须完整。
-- 局部 binding 和显式参数遵守普通遮蔽规则，隐式 receiver 从内向外参与成员查找；`this` 指最近的 receiver，`this@label` 指命中的 class、扩展函数或 receiver lambda 的 receiver。标签遵守最近同名遮蔽；没有 receiver 的标签不能用作 `this@label`。外层 receiver 按 8.1.3 捕获，不使外层局部 `var` 可被捕获；Context 不加入隐式 receiver 列表。
+- 局部 binding 和显式参数遵守普通遮蔽规则；`this` 指最近的 receiver，`this@label` 指命中的 class、扩展函数或 receiver lambda 的 receiver。标签遵守最近同名遮蔽；没有 receiver 的标签不能用作 `this@label`。Context 不加入隐式 receiver 列表。
+- receiver lambda、receiver 匿名函数和扩展函数建立自己的隐式 receiver 查找边界，普通与 suspend 形式一致。裸名称若按普通候选规则实际选中该边界外的 receiver，直接报编译错误，提示显式接收者；不退回另一个同名候选。该规则按 receiver 的绑定身份判断，包括同类型的不同 receiver，统一适用于属性读取、赋值／更新、成员与扩展调用、函数属性 invoke，以及需要隐式外层实例的构造／引用。未选中的候选不因该限制单独报错。
+- receiver function 内定义的无 receiver lambda／局部函数继承该查找边界。未跨过 receiver function 边界的普通闭包和 inner class 仍按既有规则从内向外查找。显式 `this@label`、`owner.member`、`owner::method` 和普通词法捕获继续可用；外层 receiver 的显式访问按 8.1.3 捕获，不使外层局部 `var` 可被捕获。
+- 函数体在其定义处检查。调用外层已经定义的普通函数值／局部函数，或按 8.1.1 在普通与 receiver 函数值之间适配，不重新检查定义处的 receiver 查找，也不改变已有捕获。该规则不依赖 `@DslMarker`，不改变函数值 ABI。
 - `suspend` 必须显式写在 lambda 或匿名函数上；期望类型不会把普通 lambda 静默改为挂起 lambda。创建或保存挂起函数值本身不会挂起，只有调用其 body 时才检查挂起上下文。
 
 lambda 参与重载决议时，每个候选先提供自己的期望函数类型，再据此检查参数与 body。lambda 的返回表达式可以验证候选是否适用，但不作为“仅按 lambda 返回类型选择重载”的额外优先规则；若完成既有重载优先级比较后仍有多个候选，则调用有歧义。
@@ -874,7 +877,7 @@ lambda 参与重载决议时，每个候选先提供自己的期望函数类型�
 #### 8.1.3 捕获与局部函数
 
 - closure、匿名函数与局部函数只允许捕获外层 `val`、参数、接收者 `this` 及其他**不可重新绑定**的 binding；对外层 `var` 的读取或写入都是编译错误。Scoop 已有显式 `val`，因此本规则不额外引入 Java 式“effectively final”流分析：需要捕获时应先显式绑定为 `val`。
-- `this` 是 3.3 定义的隐含不可变参数，与显式参数使用同一条按值捕获规则：value-type `this` 复制完整值，ref-type `this` 复制 ref value。两者都不保留调用方 receiver binding/place；复制 ref value 不会复制其指向的对象。
+- `this` 是 3.3 定义的隐含不可变参数，与显式参数使用同一条按值捕获规则：value-type `this` 复制完整值，ref-type `this` 复制 ref value。两者都不保留调用方 receiver binding/place；复制 ref value 不会复制其指向的对象。8.1.2 限制跨 receiver function 边界的隐式名称绑定，允许显式外层 receiver 捕获，不能按最终捕获列表一律拒绝外层 `this`。
 - 上述“外层 `var`”特指 callable body 中作为自由变量引用的外层**词法局部 binding**。顶层/object 属性按其 global/singleton storage 访问；class 可变属性则通过被捕获的 `this` 或其他显式引用对象访问，二者都不会把局部 `var` 隐式提升成 cell。
 - capture 一律按值发生在函数值创建时：引用类型复制引用，值类型复制完整值并直接内联保存于 closure environment，不为 captured value type 隐式生成 identity-bearing box、shared cell 或 `Any` 装箱。
 - captured `val` 本身不能重新绑定；若其值是带可变状态的引用对象，仍可按该对象公开的普通成员规则修改 referent。需要多个 closure 共享可变状态时，程序必须显式捕获这样的引用对象；编译器不把局部 `var` 隐式提升成引用对象。
@@ -1278,11 +1281,11 @@ base class的全部constructor body与初始化项先于derived自有字段。�
 
 inner 可以使用直接外层 class 的类型参数与实例成员；它自己的类型参数不能与可见的外层参数重名。完整类型 `Outer<A>.Inner<B>` 由 outer application 与自身实参共同确定，外层对象的运行期 identity 不参与类型身份。类型限定只建立类型，不取得外层实例；不能通过 `Outer<A>.Inner(...)` 绕过构造所需的 outer。inner 的 companion 继承此完整 application 的参数，仍不捕获任何实例。
 
-`outer.Inner(args...)` 先求值并保存 outer，再按普通命名参数、default 与 vararg 协议求值构造实参；同名成员按既有候选分区及重载规则选择。在可取得匹配外层 application 的隐式 receiver 的作用域中，可以省略 outer。多层 inner 按从近到远的 receiver 顺序查找；`this` 指当前 receiver，`this@Outer` 按 8.1.2 的标签规则选择对应外层实例。缺少外层实例是编译错误，不能以 null 或新构造的对象补齐。
+`outer.Inner(args...)` 先求值并保存 outer，再按普通命名参数、default 与 vararg 协议求值构造实参；同名成员按既有候选分区及重载规则选择。在可取得匹配外层 application 且未越过 8.1.2 receiver function 查找边界的隐式 receiver 作用域中，可以省略 outer。多层 inner 按从近到远的 receiver 顺序查找；`this` 指当前 receiver，`this@Outer` 按 8.1.2 的标签规则选择对应外层实例。缺少外层实例或只能越过该边界隐式取得实例是编译错误，不能以 null 或新构造的对象补齐。
 
 每个 inner 实例保存一个不可重新绑定的普通 typed outer 引用字段，其可达性、扫描与移动更新沿用普通 class 字段协议。outer 以隐藏值参数进入构造器；base/this 委派实参、构造默认值及初始化表达式通过该参数读取外层实例。字段在 base constructor 成功后、primary property 与 delegate 初始化前写入；多次 this 委派只由最终构造器写入。outer与当前inner的`this`使用均遵守9.1.1；保存外层实例不要求其全部构造逻辑已经完成，但不得提前读取尚未就绪的字段。继承需要outer的基类时，也必须从当前构造上下文取得匹配的外层实例。
 
-`outer::Inner` 创建绑定 outer 的构造器引用，outer 在创建引用时求值并保存一次；`::Inner` 仅在创建点存在匹配隐式 outer receiver 时合法。引用的显式参数只对应源码构造参数，不暴露隐藏 outer 参数。outer 是局部 `var` 时，显式 receiver 的读取为创建时快照，后续重新绑定不改变已创建引用；自由变量捕获仍遵守 8.1.3。跨 Cone 调用、泛型实例化和再次发布保留同一完整类型、outer 参数及字段关系。
+`outer::Inner` 创建绑定 outer 的构造器引用，outer 在创建引用时求值并保存一次；`::Inner` 仅在创建点存在符合 8.1.2 查找边界的匹配隐式 outer receiver 时合法。引用的显式参数只对应源码构造参数，不暴露隐藏 outer 参数。outer 是局部 `var` 时，显式 receiver 的读取为创建时快照，后续重新绑定不改变已创建引用；自由变量捕获仍遵守 8.1.3。跨 Cone 调用、泛型实例化和再次发布保留同一完整类型、outer 参数及字段关系。
 
 ##### 9.1.3.2 局部类型与匿名 object
 

@@ -1,6 +1,7 @@
 package scoop.tests.ui.drawing
 
 import scoop.graphics.*
+import scoop.graphics.path as makePath
 import scoop.graphics.native.captureGeometry
 import scoop.surface.*
 import scoop.test.*
@@ -194,11 +195,9 @@ internal class DrawingLeaf(
         path =
             Some(
                 scope.resource {
-                    PathBuilder(FillRule.EvenOdd).use {
-                        builder ->
-                        builder.addRect(Rect(0.0, 0.0, 60.0, 60.0))
-                        builder.addRect(Rect(15.0, 15.0, 10.0, 10.0))
-                        builder.build()
+                    makePath(FillRule.EvenOdd) {
+                        addRect(Rect(0.0, 0.0, 60.0, 60.0))
+                        addRect(Rect(15.0, 15.0, 10.0, 10.0))
                     }
                 }
             )

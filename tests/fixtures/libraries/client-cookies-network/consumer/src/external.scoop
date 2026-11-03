@@ -31,38 +31,45 @@ internal fun cookieExternal(trust: TrustStore, mode: String, url: Url, other: Ur
             else
                 HttpProxySelector.direct()
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                cookieJar =
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.cookieJar =
                     if (mode == "default")
                         None
                     else
-                        Some(jar),
-                proxy = proxy,
-                retries = HttpRetryOptions(maxRetries = 0L)
-            )
+                        Some(jar)
+                this.proxy = proxy
+                this.retries = httpRetryOptions { this.maxRetries = 0L }
+            }
         withHttpClient(config) suspend {
             client -> if (mode == "proxy") {
-                client.withResponse(HttpRequest.get(target)) suspend {
+                client.withResponse(httpRequest(target)) suspend {
                     response ->
                     assertEquals(407U, response.status)
                     assertEquals("", response.body.text(16L))
                 }
                 assertEquals(1L, jar.snapshot().size)
-                client.withResponse(HttpRequest.get(target)) suspend {
+                client.withResponse(httpRequest(target)) suspend {
                     response -> assertEquals("done", response.body.text(16L))
                 }
-                client.withResponse(HttpRequest.get(target)) suspend {
+                client.withResponse(httpRequest(target)) suspend {
                     response -> assertEquals("done", response.body.text(16L))
                 }
                 assertEquals(2L, jar.snapshot().size)
             } else {
-                val options = HttpCallOptions(useCookies = mode != "disabled")
+                val options = httpCallOptions { this.useCookies = mode != "disabled" }
                 val request =
                     if (mode == "manual")
-                        HttpRequest.get(target, [cookieField("Cookie", "manual=M")], options)
+                        httpRequest(target) {
+                            this.fields = [cookieField("Cookie", "manual=M")]
+                            this.options = options
+                        }
                     else
-                        HttpRequest.post(target, RequestBody.Empty, options = options)
+                        httpRequest(target) {
+                            this.method = "POST"
+                            this.body = RequestBody.Empty
+                            this.options = options
+                        }
                 client.withResponse(request) suspend {
                     response ->
                     assertEquals("done", response.body.text(16L))
@@ -108,34 +115,38 @@ private suspend fun cookieExternalSequence(trust: TrustStore, url: Url) {
             _ -> HttpPasswordCredentials("user", "pass")
         }
     val config =
-        HttpClientConfig(
-            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-            cookieJar = Some(jar),
-            authentication = HttpAuthenticationOptions([provider]),
-            retries =
-                HttpRetryOptions(
-                    maxRetries = 1L,
-                    statuses = [503U],
-                    initialDelay = Duration.ZERO,
-                    maxDelay = Duration.ZERO,
-                    jitter = false
-                ),
-            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-        )
+        httpClientConfig {
+            this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            this.cookieJar = Some(jar)
+            this.authentication = httpAuthenticationOptions { this.providers = [provider] }
+            this.retries =
+                httpRetryOptions {
+                    this.maxRetries = 1L
+                    this.statuses = [503U]
+                    this.initialDelay = Duration.ZERO
+                    this.maxDelay = Duration.ZERO
+                    this.jitter = false
+                }
+            this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+        }
     context(CookieMarker("cookie-callback")) {
         withHttpClient(config) suspend {
             client ->
             val options =
-                HttpCallOptions(
-                    onInformational =
+                httpCallOptions {
+                    this.onInformational =
                         suspend {
                             head ->
                             assertEquals(103U, head.status);
                             informational.fetchAdd(1L)
                         }
-                )
+                }
             client.withResponse(
-                HttpRequest.post(url, RequestBody.Empty, options = options)
+                httpRequest(url) {
+                    this.method = "POST"
+                    this.body = RequestBody.Empty
+                    this.options = options
+                }
             ) suspend {
                 response ->
                 assertEquals("done", response.body.text(16L))
@@ -143,7 +154,7 @@ private suspend fun cookieExternalSequence(trust: TrustStore, url: Url) {
                 assertEquals(1L, response.authenticationCount)
                 assertEquals(1L, response.retryCount)
             }
-            client.withResponse(HttpRequest.get(url.resolve("/next"))) suspend {
+            client.withResponse(httpRequest(url.resolve("/next"))) suspend {
                 response -> assertEquals("done", response.body.text(16L))
             }
         }

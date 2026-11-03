@@ -18,17 +18,15 @@ private class ThemePaintingTest {
                     theme.surfaceGeometry(
                         Rect(20.0, 20.0, 60.0, 40.0),
                         visual,
-                        SurfaceOptions(
-                            style =
-                                StyleOverride(
-                                    border =
-                                        StyleValue.Set(Some(Border(2.0, Color(0.0, 1.0, 0.0)))),
-                                    boxShadows = StyleValue.Set([]),
-                                    cornerRadius = StyleValue.Set(8.0),
-                                    contentEffects = StyleValue.Set([ContentEffect.Blur(3.0, 3.0)]),
-                                    clipContent = StyleValue.Set(true)
-                                )
-                        )
+                        surfaceOptions {
+                            style {
+                                this.border(Some(Border(2.0, Color(0.0, 1.0, 0.0))))
+                                this.boxShadows([])
+                                this.cornerRadius(8.0)
+                                this.contentEffects([ContentEffect.Blur(3.0, 3.0)])
+                                this.clipContent(true)
+                            }
+                        }
                     )
                 val result =
                     StylePainter().use {
@@ -179,7 +177,7 @@ private class ThemePaintingTest {
         FontCollection(systemFallback = false).use {
             fonts ->
             fonts.register(testSansBytes, "Theme Sans")
-            val local = SpanStyle(families = Some(["Theme Sans"]))
+            val local = spanStyle { this.families = Some(["Theme Sans"]) }
             var previousWidth = 0.0
             val all = themes()
             for (i in [0L, 2L, 4L]) {

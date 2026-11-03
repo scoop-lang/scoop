@@ -49,7 +49,12 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                     }
                 val failure =
                     proxyFailure<HttpProxyConnectException> suspend {
-                        client.execute(HttpRequest.post(target, body)).close()
+                        client.execute(
+                            httpRequest(target) {
+                                this.method = "POST"
+                                this.body = body
+                            }
+                        ).close()
                     }
                 proxyCheck(
                     failure.proxyUrl ==
@@ -67,7 +72,7 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                 if (mode == "socks-reject") {
                     val failure =
                         proxyFailure<Socks5Exception> suspend {
-                            client.execute(HttpRequest.get(target)).close()
+                            client.execute(httpRequest(target)).close()
                         }
                     proxyCheck(
                         failure.phase ==
@@ -95,7 +100,12 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                             }
                         val failure =
                             proxyFailure<HttpTimeoutException> suspend {
-                                client.execute(HttpRequest.post(target, body)).close()
+                                client.execute(
+                                    httpRequest(target) {
+                                        this.method = "POST"
+                                        this.body = body
+                                    }
+                                ).close()
                             }
                         proxyCheck(
                             failure.phase ==
@@ -110,24 +120,24 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                                 client,
                                 target,
                                 options =
-                                    HttpCallOptions(
-                                        timeouts =
+                                    httpCallOptions {
+                                        this.timeouts =
                                             Some(
-                                                HttpTimeoutOptions(
-                                                    resolve = None,
-                                                    connect = None,
-                                                    tlsHandshake = None,
-                                                    proxyHandshake = None
-                                                )
+                                                httpTimeoutOptions {
+                                                    this.resolve = None
+                                                    this.connect = None
+                                                    this.tlsHandshake = None
+                                                    this.proxyHandshake = None
+                                                }
                                             )
-                                    )
+                                    }
                             )
                         }
                     } else
                         if (mode == "proxy-untrusted" || mode == "target-untrusted") {
                             val failure =
                                 proxyFailure<TlsException> suspend {
-                                    client.execute(HttpRequest.get(target)).close()
+                                    client.execute(httpRequest(target)).close()
                                 }
                             proxyCheck(failure.kind == TlsFailureKind.Verification)
                         } else
@@ -142,7 +152,11 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                                         proxyWrite(output, "def")
                                     }
                                 client.withResponse(
-                                    HttpRequest.post(target, body, proxyFields())
+                                    httpRequest(target) {
+                                        this.method = "POST"
+                                        this.body = body
+                                        this.fields = proxyFields()
+                                    }
                                 ) suspend {
                                     response -> proxyCheck(
                                         response.version ==

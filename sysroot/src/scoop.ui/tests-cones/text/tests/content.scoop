@@ -24,7 +24,7 @@ internal class TextScene(private val probe: TextProbe): Component {
             else
                 probe.original
         val action =
-            InlineView(
+            inlineView(
                 actionKey,
                 component(
                     generation,
@@ -38,12 +38,10 @@ internal class TextScene(private val probe: TextProbe): Component {
                 )
             )
         val photo =
-            InlineView(
-                imageKey,
-                element({ InlinePhoto(probe) }),
-                Some(Size(22.0, 28.0)),
-                InlineViewAlignment.Explicit(InlineAlignment.Middle)
-            )
+            inlineView(imageKey, element({ InlinePhoto(probe) })) {
+                this.size = Some(Size(22.0, 28.0))
+                this.alignment = InlineViewAlignment.Explicit(InlineAlignment.Middle)
+            }
         // Binding order is intentionally different from the first content's logical order.
         val inlines = [photo, action]
         return element(
@@ -73,18 +71,18 @@ private class SelfDrawnParagraph(
         val input = props.value
         val narrow = input.generation == 2
         val settings =
-            ParagraphStyle(
-                direction =
+            paragraphStyle {
+                this.direction =
                     if (input.generation >= 4)
                         TextDirection.Rtl
                     else
-                        TextDirection.Ltr,
-                maxLines =
+                        TextDirection.Ltr
+                this.maxLines =
                     if (narrow)
                         Some(1L)
                     else
                         None
-            )
+            }
         val metrics =
             host!!.measure(
                 context,

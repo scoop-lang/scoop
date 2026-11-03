@@ -16,20 +16,21 @@ internal class ItemFocusScene(private val probe: ItemFocusProbe): Component {
                     if (probe.variable.value)
                         ItemExtent.Variable(24.0)
                     else
-                        ItemExtent.Fixed(24.0),
-                    Some(probe.scroll),
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    focus = FocusOptions(tabStop = false),
-                    enabled = probe.enabled.value,
-                    theme = Some(probe.theme),
-                    handle =
+                        ItemExtent.Fixed(24.0)
+                ) {
+                    this.state = Some(this @ItemFocusScene.probe.scroll)
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.focus = FocusOptions(tabStop = false)
+                    this.enabled = this @ItemFocusScene.probe.enabled.value
+                    this.theme = Some(this @ItemFocusScene.probe.theme)
+                    this.handle =
                         Some(
-                            if (probe.replacement.value)
-                                probe.second
+                            if (this @ItemFocusScene.probe.replacement.value)
+                                this @ItemFocusScene.probe.second
                             else
-                                probe.first
+                                this @ItemFocusScene.probe.first
                         )
-                )
+                }
             else
                 empty()
         return element(

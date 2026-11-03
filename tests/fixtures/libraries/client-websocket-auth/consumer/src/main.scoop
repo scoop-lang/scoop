@@ -42,7 +42,7 @@ private fun runAuthWs(mode: String, port: Int) {
             else
                 "http://127.0.0.1:" + port.toString() + "/resource?q=%2f"
         )
-    val websocket = target.toBuilder().setScheme(Some("ws")).build()
+    val websocket = target.copy { scheme = Some("ws") }
     TrustStore.fromPem(rootPem()).use {
         trust ->
         val loop: EventLoop = PlatformEventLoop()
@@ -65,8 +65,8 @@ private fun runAuthWs(mode: String, port: Int) {
                     else
                         target
                 )
-            val authentication = HttpAuthenticationOptions([provider])
-            val tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
+            val authentication = httpAuthenticationOptions { this.providers = [provider] }
+            val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
             val route =
                 if (proxy)
                     HttpProxySelector.fixed(
@@ -77,36 +77,36 @@ private fun runAuthWs(mode: String, port: Int) {
                 else
                     HttpProxySelector.direct()
             val config =
-                HttpClientConfig(
-                    tls = tls,
-                    proxy = route,
-                    authentication =
+                httpClientConfig {
+                    this.tls = tls
+                    this.proxy = route
+                    this.authentication =
                         if (proxy)
-                            HttpAuthenticationOptions()
+                            httpAuthenticationOptions()
                         else
-                            authentication,
-                    retries =
-                        HttpRetryOptions(
-                            maxRetries = 2L,
-                            initialDelay = Duration.ZERO,
-                            maxDelay = Duration.ZERO
-                        ),
-                    pool =
-                        HttpConnectionPoolOptions(
-                            maxConnections = 1L,
-                            maxConnectionsPerOrigin = 1L
-                        ),
-                    timeouts = HttpTimeoutOptions(poolAcquire = Some(Duration.seconds(5L)))
-                )
+                            authentication
+                    this.retries =
+                        httpRetryOptions {
+                            this.maxRetries = 2L
+                            this.initialDelay = Duration.ZERO
+                            this.maxDelay = Duration.ZERO
+                        }
+                    this.pool =
+                        httpConnectionPoolOptions {
+                            this.maxConnections = 1L
+                            this.maxConnectionsPerOrigin = 1L
+                        }
+                    this.timeouts =
+                        httpTimeoutOptions { this.poolAcquire = Some(Duration.seconds(5L)) }
+                }
             val client = HttpClient.open(scope, config)
             try {
                 context(WsAuthContext("application")) {
                     val request =
-                        HttpWebSocketRequest(
-                            websocket,
-                            options =
-                                HttpCallOptions(
-                                    onInformational =
+                        httpWebSocketRequest(websocket) {
+                            this.options =
+                                httpCallOptions {
+                                    this.onInformational =
                                         suspend {
                                             head ->
                                             assertEquals("application", wsAuthContext());
@@ -114,8 +114,8 @@ private fun runAuthWs(mode: String, port: Int) {
                                             probe.information.fetchAdd(1L);
                                             Unit
                                         }
-                                )
-                        )
+                                }
+                        }
                     if (mode == "bad-proof" || mode == "callback") {
                         val error =
                             wsClientFailure suspend {

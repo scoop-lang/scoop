@@ -16,7 +16,7 @@ public enum ContentEffect {
 }
 
 /** Reusable resource-free drawing inputs. Empty styles retain the same styled content identity. */
-public class Style public constructor(
+public class Style internal constructor(
     public val background: Paint? = None,
     public val border: Border? = None,
     public val cornerRadius: Double = 0.0,
@@ -24,10 +24,8 @@ public class Style public constructor(
     public val contentEffects: Array<ContentEffect> = [],
     public val clipContent: Boolean = false
 ) {
-    public fun withBackground(value: Paint?): Style =
-        Style(value, border, cornerRadius, boxShadows, contentEffects, clipContent)
-    public fun withBorder(value: Border?): Style =
-        Style(background, value, cornerRadius, boxShadows, contentEffects, clipContent)
+    public fun copy(configure: StyleBuilder.() -> Unit = {}): Style =
+        configureStyle(this, configure)
 }
 
 /** Inherit is distinct from explicitly setting an optional property to None. */
@@ -35,7 +33,7 @@ public enum StyleValue<T> {
     Inherit, Set(T)
 }
 
-public class StyleOverride public constructor(
+public class StyleOverride internal constructor(
     public val background: StyleValue<Paint?> = StyleValue.Inherit,
     public val border: StyleValue<Border?> = StyleValue.Inherit,
     public val cornerRadius: StyleValue<Double> = StyleValue.Inherit,
@@ -43,6 +41,9 @@ public class StyleOverride public constructor(
     public val contentEffects: StyleValue<Array<ContentEffect>> = StyleValue.Inherit,
     public val clipContent: StyleValue<Boolean> = StyleValue.Inherit
 ) {
+    public fun copy(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverride =
+        configureStyleOverride(this, configure)
+
     public fun then(next: StyleOverride): StyleOverride =
         StyleOverride(
             background.then(next.background),

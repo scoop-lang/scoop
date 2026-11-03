@@ -31,15 +31,15 @@ private class MetalWindowHandler(val closeAfterFrame: Boolean): ApplicationHandl
             case Resumed -> {
                 val value =
                     application.createWindow(
-                        WindowAttributes(
-                            "Scoop · Metal",
-                            LogicalSize(480.0, 300.0),
-                            level =
-                                if (closeAfterFrame)
+                        windowAttributes {
+                            this.title = "Scoop · Metal"
+                            this.size = LogicalSize(480.0, 300.0)
+                            this.level =
+                                if (this @MetalWindowHandler.closeAfterFrame)
                                     WindowLevel.AlwaysOnTop
                                 else
                                     WindowLevel.Normal
-                        )
+                        }
                     )
                 window = Some(value)
                 surface = Some(MetalSurface.create(value))

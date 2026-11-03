@@ -5,7 +5,7 @@ import scoop.ui.*
 
 public class StyledProps public constructor(
     public val content: View,
-    public val style: Style = Style()
+    public val style: Style = style()
 )
 
 /** The wrapper exists even for an empty style, preserving the content's mount position. */
@@ -14,8 +14,11 @@ public class Styled public constructor(private val props: Props<StyledProps>): C
         element(props.value.style, ::StyledInk, [props.value.content])
 }
 
-public fun styled(content: View, style: Style = Style(), key: ViewKey = ViewKey.Position): View =
-    component(StyledProps(content, style), ::Styled, key)
+public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): View {
+    val builder = StyledBuilder()
+    builder.configure()
+    return component(StyledProps(content, builder.style), ::Styled, builder.key)
+}
 
 private class StyledInk(private val props: Props<Style>): Element {
     private var painter: StylePainter? = None

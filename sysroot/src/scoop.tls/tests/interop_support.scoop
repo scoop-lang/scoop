@@ -26,14 +26,14 @@ internal fun peerCommand(
     input: Stdio = Stdio.Null,
     workingDirectory: Path = currentDirectory()
 ): Command =
-    Command(
-        Path.fromString(executable),
-        Array<OsString>(arguments.size) { index -> OsString.fromString(arguments[index]) },
-        workingDirectory = workingDirectory,
-        stdin = input,
-        stdout = Stdio.Pipe,
-        stderr = Stdio.Pipe
-    )
+    command(Path.fromString(executable)) {
+        this.arguments =
+            Array<OsString>(arguments.size) { index -> OsString.fromString(arguments[index]) }
+        this.workingDirectory = workingDirectory
+        this.stdin = input
+        this.stdout = Stdio.Pipe
+        this.stderr = Stdio.Pipe
+    }
 
 internal fun peerSucceeded(output: ProcessOutput) {
     val details = Some(OsString.fromByteArray(output.stderr).decodeUtf8())

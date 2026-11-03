@@ -22,7 +22,8 @@ Url 为不可变、可比较与 hash 的普通值对象，持有 Scoop 组件快
 | `base.resolve(reference)` | 按 RFC 3986 第 5 节返回新值，reference 可为 String 或 Url |
 | `url.toString()` | 生成该值的 ASCII URI；保留有语义影响的组件及已编码字节 |
 | `url.toIriString()` | 生成 Unicode 展示文本；不用于 DNS、TLS、签名或 origin 比较 |
-| `url.toBuilder()`、`builder.build()` | 显式修改与检查后构造新值；原值不变 |
+| `url(configure: UrlBuilder.() -> Unit = {}): Url` | 从空引用配置并检查完整组件，返回不可变值；`url()` 是合法的空相对引用 |
+| `base.copy(configure: UrlBuilder.() -> Unit = {}): Url` | 从 base 的组件快照开始配置，返回独立值；空配置保留所有组件，原值不变 |
 | `scheme`、`authority`、`encodedPath`、`encodedQuery`、`encodedFragment` | 保存是否存在及编码后的独立组件；缺失和空串不同 |
 | `authority.networkHost()` | 返回已解析的规范 DNS／IP，与 scheme 和端口策略无关；非法网络 host 报告 Host 错误，不改变通用 URI |
 | `httpOrigin()` | 验证 HTTP／WebSocket 网络目标并返回规范化 scheme、host、有效端口 |
@@ -43,7 +44,54 @@ authority 保存 host 的网络解释结果与失败原因。DNS 同时需要传
 
 ## 3. 编码、参数与拼装
 
-builder 分开提供接收原文与接收已编码组件的入口：`appendPathSegment` 按 UTF-8 编码单段，`appendEncodedPathSegment` 校验百分号格式但不二次编码；query 和 fragment 同理。原文单段中的 `/`、`?`、`#` 作为数据编码，不能被当成新结构；整体 `setPath` 则保留 `/` 作为路径分隔符。
+### 3.1 接收者构造入口
+
+`url { ... }` 与 `base.copy { ... }` 都同步执行 configure 恰好一次，在成功完成组件组合检查后返回 Url。没有必需组件，空引用是有效的默认值。配置抛出的异常原样传播，不发布部分结果；组件解析与最终装配的临时 native 存储均按原有边界释放，不执行网络或文件 I/O。保存并继续修改 builder 不影响已经返回的 Url。
+
+`UrlBuilder` 只由这两个入口在内部创建，构造器和 snapshot 方法不公开。旧 `Url.toBuilder()`、公开 `UrlBuilder()`、链式 `setX` 和 `build()` 直接删除。配置属性读写同一份组件状态；后写覆盖先写，追加操作按执行顺序生效。copy 初始化直接复用已有组件快照及 authority 的网络解释，不重复运行 IDNA；新输入和最终组件组合仍按各自真实边界检查。
+
+| UrlBuilder 可写属性 | 类型、初始值与规则 |
+| --- | --- |
+| `scheme` | `String? = None`；None 清除，存在时规范化 ASCII 大小写，完整语法在装配时检查 |
+| `port` | `Int? = None`；None 清除显式端口，存在时必须在 `0..65535`；网络连接另拒绝零 |
+| `encodedHost` | `String? = None`；None 不提供 host，Some("") 提供空 host；IPv6／IPvFuture 的已编码输入包含方括号 |
+| `encodedUserInfo` | `String? = None`；已编码 userinfo，None 清除 |
+| `encodedPath` | `String = ""`；完整已编码 path，不把转义的保留字符改成结构 |
+| `encodedQuery` | `String? = None`；不含前导 `?`，None 与 Some("") 不同，不要求键值对形式 |
+| `encodedFragment` | `String? = None`；不含前导 `#`，None 与 Some("") 不同 |
+
+encoded 属性保留已编码组件并统一百分号 hex 大小写。getter 读取当前配置的组件文本；网络 host 的最终 A-label／IP 表示由生成的 Url 提供。单独清除 host 不隐式清除 userinfo 或 port，非法组合在构造边界报错。
+
+| UrlBuilder 成员操作，均返回 Unit | 合同 |
+| --- | --- |
+| `host(value: String)` | 原文 Unicode host，采用已有 IDNA 规则；裸 IPv6 地址自动加方括号，其他数据按 host 规则编码 |
+| `userInfo(value: String?)` | 原文 userinfo，编码分隔符；None 清除 |
+| `path(value: String)` | 完整原文 path，保留 `/` 作为路径分隔符；修改 encodedPath |
+| `appendPathSegment(value: String)` | 追加一个原文段，将 `/`、`?`、`#` 及恰为 `.`／`..` 的段编码为数据 |
+| `appendEncodedPathSegment(value: String)` | 追加已编码段，校验百分号且拒绝裸 `/`、`?`、`#`，不二次编码 |
+| `query(value: String?)` | 编码整个原文 query，不将输入解析为参数；None 清除 |
+| `queryParameters(value: UrlQuery)` | 以普通 URI 参数规则序列化并替换 query，保留重复项和无值／空值区别 |
+| `fragment(value: String?)` | 编码原文 fragment；None 清除 |
+| `encodedAuthority(value: String?)` | 整体替换 host、userinfo 和 port；None 同时清除三者。存在时仅接受完整 authority，不得混入 path、query 或 fragment |
+
+原文编码与整组替换使用明确的方法，已编码标量使用属性，不提供会丢失保留字符结构的原文 path／query 读写属性。`UrlQuery` 仍是有独立 `add`／`remove`／`set` 值语义的不可变参数集合，不引入第二套 query 数据模型。
+
+```scoop
+val base = url {
+    scheme = Some("https")
+    host("bücher.example")
+    path("/api")
+    queryParameters(UrlQuery().add("q", Some("x+y")))
+}
+val item = base.copy {
+    appendPathSegment("a/b")
+    encodedFragment = Some("")
+}
+```
+
+### 3.2 编码与参数语义
+
+builder 分开提供接收原文与接收已编码组件的入口：`appendPathSegment` 按 UTF-8 编码单段，`appendEncodedPathSegment` 校验百分号格式但不二次编码；query 和 fragment 同理。原文单段中的 `/`、`?`、`#` 作为数据编码，不能被当成新结构；整体 `path` 操作则保留 `/` 作为路径分隔符。
 
 `UrlQuery` 使用有序重复项，参数值为可选文本或字节，区分 `a`、`a=`、缺少 a；保留重复 key 的顺序。原始 query 无须符合键值形式，只有调用参数接口时才按明确的 `&` 与 `=` 规则解释。设置／删除参数和整体替换 encodedQuery 是不同操作。
 
@@ -71,7 +119,7 @@ userinfo 能解析和显式序列化，但 HTTP client 不把它自动转成 Aut
 
 uriparser 源码与许可按 M52 vendor 布局交付，为[实现规范](SCOOP-IMPL-SPEC.md)所列的当前完整 target 分别提供静态库和头文件；目标选择共用静态目录，Darwin AArch64／amd64 的资源分别构建。仅构建库所需的窄字符 API，不引入系统 locale。Windows 使用上游 CMake 配置和所选目标编译器，Microsoft 使用 `/MD`，两个 MinGW 目标使用各自 CRT 的 LLVM-MinGW prefix；COFF 静态库统一发布为 `liburiparser.a`。C 返回前复制解析结果，错误路径也释放临时存储。所有 native 依赖通过普通 Cone manifest 传递。
 
-独立库测试覆盖 RFC 3986 的正常／异常相对解析向量、Unicode host、A-label、IPv4／IPv6、显式默认端口、根点、空组件、有序重复 query、表单加号、百分号双重编码、非法 UTF-8、userinfo 和 CR／LF 注入。验证 parse／build／resolve 的组合结果及与上游 uriparser 的交叉行为；不要求该 RFC profile 与浏览器容错结果一致。
+所属 Cone 的 scoop.test 覆盖 RFC 3986 的正常／异常相对解析向量、Unicode host、A-label、IPv4／IPv6、显式默认端口、根点、空组件、有序重复 query、表单加号、百分号双重编码、非法 UTF-8、userinfo 和 CR／LF 注入。验证 parse／url／copy／resolve 的组合结果及与上游 uriparser 的交叉行为，并覆盖默认配置、执行一次、覆盖与追加顺序、异常传播和捕获 builder 后的快照独立性；不要求该 RFC profile 与浏览器容错结果一致。HTTP、client 与 charset 的受影响消费通过各自 scoop.test 验证；外部协议 fixture 按[迁移计划](../ui/DSL-MIGRATION.md#71-普通行为与组合)的已评估边界保留。
 
 ## 6. 依据
 

@@ -11,7 +11,12 @@ impl Lowerer {
     ) -> Result<Option<hir::Expr>, ()> {
         let (probes, mut commits): (Vec<_>, Vec<_>) = applicable
             .into_iter()
-            .map(|applicable| (applicable.probe, applicable.commit))
+            .map(|applicable| {
+                (
+                    applicable.probe,
+                    (applicable.commit, applicable.implicit_receiver),
+                )
+            })
             .unzip();
         let diagnostics_before = self.diagnostics.len();
         let Some(winner) = self.select_named_function_like(
@@ -36,7 +41,11 @@ impl Lowerer {
         };
         let mut probes = probes;
         let probe = probes.swap_remove(winner);
-        let commit = commits.swap_remove(winner);
+        let (commit, implicit_receiver) = commits.swap_remove(winner);
+        if let Some(binding) = implicit_receiver {
+            self.require_implicit_receiver(binding, call.callee.span)
+                .ok_or(())?;
+        }
         let expression = match (probe, commit) {
             (NamedFunctionLikeProbe::Callable(probe), NamedFunctionCommit::TopLevel) => {
                 let resolved = self.commit_named_callable(*probe, sink).ok_or(())?;

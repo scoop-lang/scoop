@@ -1,0 +1,72 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.text.InlineView
+
+/** Button input is published through Props, including the current click callback. */
+public open class ButtonBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var style: ButtonStyle = buttonStyle()
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    public var focus: FocusOptions = FocusOptions()
+
+    public fun style(configure: ButtonStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun properties(label: LabelProps, onClick: () -> Unit): ButtonProps =
+        ButtonProps(label, onClick, enabled, style, theme, focus)
+
+    internal fun snapshot(text: String, onClick: () -> Unit): ButtonProps =
+        properties(
+            LabelProps(
+                LabelText.Plain(text, None),
+                fonts,
+                paragraphStyle { alignment = TextAlignment.Center }
+            ),
+            onClick
+        )
+}
+
+/** Extra paragraph and inline options for a complete styled label. */
+public class StyledButtonBuilder internal constructor(): ButtonBuilder() {
+    public var settings: ParagraphStyle = paragraphStyle()
+    public var inlines: Array<InlineView> = []
+
+    public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
+        settings = settings.copy(configure)
+    }
+
+    internal fun snapshot(text: StyledText, onClick: () -> Unit): ButtonProps =
+        properties(LabelProps(LabelText.Styled(text), fonts, settings, inlines), onClick)
+}
+
+internal fun makeTextButton(
+    text: String,
+    onClick: () -> Unit,
+    configure: ButtonBuilder.() -> Unit
+): View {
+    val builder = ButtonBuilder()
+    builder.configure()
+    return buttonView(builder.snapshot(text, onClick), builder.key)
+}
+
+internal fun makeStyledButton(
+    text: StyledText,
+    onClick: () -> Unit,
+    configure: StyledButtonBuilder.() -> Unit
+): View {
+    val builder = StyledButtonBuilder()
+    builder.configure()
+    return buttonView(builder.snapshot(text, onClick), builder.key)
+}
+
+private fun buttonView(input: ButtonProps, key: ViewKey): View =
+    component(input, { props -> Button(props) }, key)

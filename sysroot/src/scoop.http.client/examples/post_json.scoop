@@ -26,7 +26,11 @@ fun main(args: Array<String>) {
     loop.run suspend {
         _ -> withHttpClient suspend {
             client ->
-            val request = HttpRequest.post(url, RequestBody.fromJson(GreetingInput("Scoop"), 1024L))
+            val request =
+                httpRequest(url) {
+                    this.method = "POST"
+                    this.body = RequestBody.fromJson(GreetingInput("Scoop"), 1024L)
+                }
             client.withResponse(request) suspend {
                 response ->
                 response.requireSuccess()

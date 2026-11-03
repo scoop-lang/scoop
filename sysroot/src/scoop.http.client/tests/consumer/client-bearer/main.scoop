@@ -1,0 +1,126 @@
+package scoop.http.client.tests.consumer.client_bearer
+
+import scoop.crypto.x509.TrustStore
+import scoop.platform.concurrent.Thread
+import scoop.test.Test
+import scoop.tests.scoop.crypto.testdata.rootPem
+
+private fun runBearerCase(name: String, block: (TrustStore) -> Unit) {
+    try {
+        TrustStore.fromPem(rootPem()).use {
+            trust -> Thread.start { block(trust) }.use {
+                thread ->
+                block(trust)
+                thread.join()
+            }
+        }
+    } catch (error: Throwable) {
+        eprintln("failed Bearer authentication case: " + name)
+        throw error
+    }
+}
+
+@Test
+private class BearerAuthenticationTests {
+    @Test
+    fun cache() {
+        runBearerCase("cache") { trust -> bearerCache(trust) }
+    }
+
+    @Test
+    fun refresh() {
+        runBearerCase("refresh") { trust -> bearerRefresh(trust, false) }
+    }
+
+    @Test
+    fun refreshSameToken() {
+        runBearerCase("same-token") { trust -> bearerRefresh(trust, true) }
+    }
+
+    @Test
+    fun sharedCancellation() {
+        for (total in [false, true])
+            runBearerCase("shared-" + total.toString()) {
+                trust -> bearerSharedCancellation(trust, total)
+            }
+    }
+
+    @Test
+    fun cancellation() {
+        for (mode in ["caller", "total", "clear", "client"])
+            for (cleanup in ["none", "plain", "wrapped"])
+                runBearerCase("cancel-" + mode + "-" + cleanup) {
+                    trust -> bearerCancellation(trust, mode, cleanup)
+                }
+    }
+
+    @Test
+    fun clearInsideCallback() {
+        runBearerCase("clear-inside-callback") { trust -> bearerClearInsideCallback(trust) }
+    }
+
+    @Test
+    fun policies() {
+        for (
+            mode in [
+                "challenge",
+                "realm",
+                "preemptive",
+                "realm-miss",
+                "token68",
+                "malformed",
+                "scope",
+                "request",
+                "unknown",
+                "forbidden",
+                "manual",
+                "disabled",
+                "zero",
+                "limit",
+                "sent",
+                "unoffered",
+                "origin"
+            ]
+        )
+            runBearerCase("policy-" + mode) { trust -> bearerPolicies(trust, mode) }
+    }
+
+    @Test
+    fun credentials() {
+        for (
+            mode in [
+                "empty",
+                "space",
+                "unicode",
+                "control",
+                "padding",
+                "load-callback",
+                "load-nested",
+                "refresh-none",
+                "refresh-same",
+                "refresh-bad",
+                "refresh-callback",
+                "refresh-nested"
+            ]
+        )
+            runBearerCase("credentials-" + mode) { trust -> bearerCredentialFailures(trust, mode) }
+    }
+
+    @Test
+    fun http2() {
+        runBearerCase("http2") { trust -> bearerHttp2(trust) }
+    }
+
+    @Test
+    fun sharedLifetimeFailure() {
+        for (nested in [false, true])
+            runBearerCase("shared-failure-" + nested.toString()) {
+                trust -> bearerSharedFailure(trust, nested)
+            }
+    }
+
+    @Test
+    fun sharedLifetimeClear() {
+        runBearerCase("shared-clear") { trust -> bearerSharedClear(trust) }
+    }
+}

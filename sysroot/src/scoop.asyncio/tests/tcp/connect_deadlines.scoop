@@ -9,16 +9,16 @@ import scoop.time.Duration
 private class AsyncTcpConnectDeadlineTest {
     @Test
     fun `connection deadlines are optional and reject negative values`() {
-        val options = TcpConnectOptions()
+        val options = tcpConnectOptions()
         assertTrue(options.resolveTimeout == None && options.connectTimeout == None)
         assertFailsWith<IllegalArgumentException> {
-            TcpConnectOptions(resolveTimeout = Some(Duration.nanoseconds(-1L)))
+            tcpConnectOptions { this.resolveTimeout = Some(Duration.nanoseconds(-1L)) }
         }
         assertFailsWith<IllegalArgumentException> {
-            TcpConnectOptions(connectTimeout = Some(Duration.seconds(-1L)))
+            tcpConnectOptions { this.connectTimeout = Some(Duration.seconds(-1L)) }
         }
         assertTrue(
-            TcpConnectOptions(resolveTimeout = Some(Duration.ZERO)).resolveTimeout ==
+            tcpConnectOptions { this.resolveTimeout = Some(Duration.ZERO) }.resolveTimeout ==
                 Some(Duration.ZERO)
         )
     }
@@ -34,7 +34,7 @@ private class AsyncTcpConnectDeadlineTest {
                     loop.connectTcp(
                         host,
                         listener.localAddress.port,
-                        TcpConnectOptions(resolveTimeout = Some(Duration.ZERO))
+                        tcpConnectOptions { this.resolveTimeout = Some(Duration.ZERO) }
                     )
                     fail(Some("zero DNS deadline connected"))
                 } catch (error: TcpConnectException) {
@@ -57,7 +57,7 @@ private class AsyncTcpConnectDeadlineTest {
                     loop.connectTcp(
                         host,
                         listener.localAddress.port,
-                        TcpConnectOptions(connectTimeout = Some(Duration.ZERO))
+                        tcpConnectOptions { this.connectTimeout = Some(Duration.ZERO) }
                     )
                     fail(Some("zero TCP deadline connected"))
                 } catch (error: TcpConnectTimeoutException) {
@@ -81,11 +81,11 @@ private class AsyncTcpConnectDeadlineTest {
                 listener ->
                 val long = Some(Duration.seconds(3600L))
                 val options =
-                    TcpConnectOptions(
-                        attemptDelay = Duration.seconds(60L),
-                        resolveTimeout = long,
-                        connectTimeout = long
-                    )
+                    tcpConnectOptions {
+                        this.attemptDelay = Duration.seconds(60L)
+                        this.resolveTimeout = long
+                        this.connectTimeout = long
+                    }
                 loop.connectTcp(
                     OsString.fromString("localhost"),
                     listener.localAddress.port,

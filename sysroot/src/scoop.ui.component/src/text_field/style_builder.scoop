@@ -1,0 +1,72 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.graphics.text.*
+import scoop.ui.style.*
+
+/** Configures one immutable local appearance without reading the current theme. */
+public fun textFieldStyle(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle =
+    configureTextFieldStyle(TextFieldStyle(), configure)
+
+internal fun configureTextFieldStyle(
+    initial: TextFieldStyle,
+    configure: TextFieldStyleBuilder.() -> Unit
+): TextFieldStyle {
+    val builder = TextFieldStyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; later edits do not change published descriptions. */
+public class TextFieldStyleBuilder internal constructor(initial: TextFieldStyle) {
+    public var surface: SurfaceOptions = initial.surface
+    public var text: SpanStyle? = initial.text
+    public var placeholder: SpanStyle? = initial.placeholder
+    public var description: SpanStyle? = initial.description
+    public var states: InteractionStyles = initial.states
+    public var selectionColor: Color? = initial.selectionColor
+    public var inactiveSelectionColor: Color? = initial.inactiveSelectionColor
+    public var caretColor: Color? = initial.caretColor
+    public var markedColor: Color? = initial.markedColor
+    public var caretWidth: Double = initial.caretWidth
+    public var scrollbar: ScrollbarOptions = initial.scrollbar
+
+    public fun surface(configure: SurfaceOptionsBuilder.() -> Unit): Unit {
+        surface = surface.copy(configure)
+    }
+
+    public fun text(configure: SpanStyleBuilder.() -> Unit): Unit {
+        text = Some(configureOptionalSpanStyle(text, configure))
+    }
+
+    public fun placeholder(configure: SpanStyleBuilder.() -> Unit): Unit {
+        placeholder = Some(configureOptionalSpanStyle(placeholder, configure))
+    }
+
+    public fun description(configure: SpanStyleBuilder.() -> Unit): Unit {
+        description = Some(configureOptionalSpanStyle(description, configure))
+    }
+
+    public fun states(configure: InteractionStylesBuilder.() -> Unit): Unit {
+        states = states.copy(configure)
+    }
+
+    public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
+        scrollbar = scrollbar.copy(configure)
+    }
+
+    internal fun snapshot(): TextFieldStyle =
+        TextFieldStyle(
+            surface = surface,
+            text = text,
+            placeholder = placeholder,
+            description = description,
+            states = states,
+            selectionColor = selectionColor,
+            inactiveSelectionColor = inactiveSelectionColor,
+            caretColor = caretColor,
+            markedColor = markedColor,
+            caretWidth = caretWidth,
+            scrollbar = scrollbar
+        )
+}

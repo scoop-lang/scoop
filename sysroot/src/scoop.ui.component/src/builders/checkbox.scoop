@@ -1,0 +1,23 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+
+/** Shared options; the factory keeps external bindings and owned state distinct. */
+public class CheckboxBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var style: CheckboxStyle = checkboxStyle()
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+    public var focus: FocusOptions = FocusOptions()
+
+    public fun style(configure: CheckboxStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(checked: Binding<Boolean>): CheckboxProps =
+        CheckboxProps(checked, enabled, style, theme, focus)
+}

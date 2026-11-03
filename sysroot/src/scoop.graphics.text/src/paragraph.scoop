@@ -6,7 +6,7 @@ import scoop.graphics.*
 public class Paragraph public constructor(
     fonts: FontCollection,
     public val content: StyledText,
-    settings: ParagraphStyle = ParagraphStyle()
+    settings: ParagraphStyle = paragraphStyle()
 ): Closeable {
     public val text: String get() = content.text
     private val resource = makeParagraph(fonts, content, settings)
@@ -15,10 +15,17 @@ public class Paragraph public constructor(
     public constructor(
         fonts: FontCollection,
         text: String,
-        style: TextStyle = TextStyle(),
-        settings: ParagraphStyle = ParagraphStyle()
+        style: TextStyle = textStyle(),
+        settings: ParagraphStyle = paragraphStyle()
     )
-    : this(fonts, StyledText([TextSpan.text(text)], style), settings) {}
+    : this(
+        fonts,
+        styledText {
+            this.text(text)
+            this.style = style
+        },
+        settings
+    ) {}
 
     /** Lays out in finite logical width, preserving prior results. */
     public fun layout(width: Double, inlines: Array<InlineMetrics> = []): TextLayout {

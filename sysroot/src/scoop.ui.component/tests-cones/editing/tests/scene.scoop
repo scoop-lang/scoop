@@ -66,51 +66,55 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                         Textarea(current)
                     }
                 ),
-                input(
-                    probe.primary,
-                    readOnly = true,
-                    fonts = Some(probe.fonts),
-                    focus = FocusOptions(Some(probe.focus[2L]), tabStop = false),
-                    caretBlink = Duration.milliseconds(0L)
-                ),
-                virtualList(
-                    probe.items,
-                    ItemExtent.Fixed(48.0),
-                    state = Some(probe.listScroll),
-                    width = Some(260.0),
-                    height = Some(144.0),
-                    handle = Some(probe.list),
-                    retention = ItemRetention.KeepAlive(1L),
-                    navigation = ItemNavigation.Sequential,
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    paintCache = PaintCachePolicy.Tiles(64, 0)
-                ),
+                input(probe.primary) {
+                    this.readOnly = true
+                    this.fonts = Some(this @FieldScene.probe.fonts)
+                    this.focus =
+                        FocusOptions(Some(this @FieldScene.probe.focus[2L]), tabStop = false)
+                    this.caretBlink = Duration.milliseconds(0L)
+                },
+                virtualList(probe.items, ItemExtent.Fixed(48.0)) {
+                    this.state = Some(this @FieldScene.probe.listScroll)
+                    this.width = Some(260.0)
+                    this.height = Some(144.0)
+                    this.handle = Some(this @FieldScene.probe.list)
+                    this.retention = ItemRetention.KeepAlive(1L)
+                    this.navigation = ItemNavigation.Sequential
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.paintCache = PaintCachePolicy.Tiles(64, 0)
+                },
                 if (probe.dialogOpen)
                     portal(
                         element(
                             { ScaledField() },
                             [
-                                input(
-                                    probe.dialog,
-                                    placeholder = "Dialog text",
-                                    fonts = Some(probe.fonts),
-                                    focus = FocusOptions(Some(probe.focus[3L])),
-                                    caretBlink = Duration.milliseconds(0L)
-                                )
+                                input(probe.dialog) {
+                                    this.placeholder = "Dialog text"
+                                    this.fonts = Some(this @FieldScene.probe.fonts)
+                                    this.focus =
+                                        FocusOptions(Some(this @FieldScene.probe.focus[3L]))
+                                    this.caretBlink = Duration.milliseconds(0L)
+                                }
                             ]
-                        ),
-                        PortalOptions(
-                            handle = Some(probe.overlay),
-                            modal = Some(ModalOptions(initialFocus = Some(probe.focus[3L]))),
-                            dismiss = OverlayDismiss(escape = true),
-                            onClose =
+                        )
+                    ) {
+                        this.options {
+                            this.handle = Some(this @FieldScene.probe.overlay)
+                            this.modal =
+                                Some(
+                                    ModalOptions(
+                                        initialFocus = Some(this @FieldScene.probe.focus[3L])
+                                    )
+                                )
+                            this.dismiss = OverlayDismiss(escape = true)
+                            this.onClose =
                                 {
                                     _ ->
-                                    probe.dialogOpen = false;
-                                    probe.change()
+                                    this @FieldScene.probe.dialogOpen = false;
+                                    this @FieldScene.probe.change()
                                 }
-                        )
-                    )
+                        }
+                    }
                 else
                     empty()
             ]
@@ -197,11 +201,10 @@ private class FieldRowComponent(
         props.value.unmounts += 1
     }
     public override fun render(): View =
-        input(
-            props.value.model,
-            fonts = Some(probe.fonts),
-            focus = FocusOptions(Some(props.value.focus)),
-            caretBlink = Duration.milliseconds(0L),
-            paintCache = PaintCachePolicy.Tiles(64, 0)
-        )
+        input(props.value.model) {
+            this.fonts = Some(this @FieldRowComponent.probe.fonts)
+            this.focus = FocusOptions(Some(this @FieldRowComponent.props.value.focus))
+            this.caretBlink = Duration.milliseconds(0L)
+            this.paintCache = PaintCachePolicy.Tiles(64, 0)
+        }
 }

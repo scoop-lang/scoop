@@ -1,0 +1,72 @@
+package scoop.http
+
+/** Collects ordered ordinary fields without combining duplicates. */
+public fun httpFields(configure: HttpFieldsBuilder.() -> Unit = {}): Array<HttpField> {
+    val builder = HttpFieldsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun List<HttpField>.copyFields(configure: HttpFieldsBuilder.() -> Unit): Array<HttpField> {
+    val builder = HttpFieldsBuilder()
+    builder.addAll(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpFieldsBuilder internal constructor() {
+    private val entries = ArrayList<HttpField>()
+
+    public fun add(field: HttpField): Unit {
+        field.validate();
+        entries.add(field)
+    }
+    public fun add(name: List<Byte>, value: List<Byte>): Unit {
+        add(HttpField(name, value))
+    }
+    public fun add(name: String, value: String): Unit {
+        add(name.toByteArray(), value.toByteArray())
+    }
+    public fun addAll(fields: List<HttpField>): Unit {
+        for (field in fields)
+            add(field)
+    }
+    public fun set(field: HttpField): Unit {
+        field.validate()
+        var first = entries.size
+        var index = 0L
+        while (index < entries.size) {
+            if (entries[index].hasName(field.name)) {
+                if (first > index)
+                    first = index
+                entries.removeAt(index)
+            } else
+                index += 1L
+        }
+        entries.add(first, field)
+    }
+    public fun set(name: List<Byte>, value: List<Byte>): Unit {
+        set(HttpField(name, value))
+    }
+    public fun set(name: String, value: String): Unit {
+        set(name.toByteArray(), value.toByteArray())
+    }
+    public fun remove(name: List<Byte>): Unit {
+        if (!isHttpToken(name))
+            throw IllegalArgumentException(Some("invalid ordinary HTTP field name"))
+        var index = 0L
+        while (index < entries.size) {
+            if (entries[index].hasName(name))
+                entries.removeAt(index)
+            else
+                index += 1L
+        }
+    }
+    public fun remove(name: String): Unit {
+        remove(name.toByteArray())
+    }
+    public fun clear(): Unit {
+        entries.clear()
+    }
+    internal fun snapshot(): Array<HttpField> = entries.toArray()
+}

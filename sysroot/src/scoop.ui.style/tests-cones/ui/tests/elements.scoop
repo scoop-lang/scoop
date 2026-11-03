@@ -15,24 +15,27 @@ internal class StyleScene(private val probe: StyleProbe): Component {
         val generation = probe.generation.value
         val style =
             when (generation) {
-                case 1 -> Style(
-                    border = Some(Border(1.0, Color.Black)),
-                    cornerRadius = 10.0,
-                    boxShadows = [BoxShadow(Point(4.0, 0.0), 3.0, 3.0, Color.Black)],
-                    contentEffects = [ContentEffect.Glow(3.0, 3.0, Color(0.0, 0.0, 1.0))]
-                )
-                case 3 -> Style(
-                    cornerRadius = 20.0,
-                    contentEffects = [ContentEffect.Blur(3.0, 3.0)],
-                    clipContent = true
-                )
-                else -> Style()
+                case 1 -> style {
+                    this.border = Some(Border(1.0, Color.Black))
+                    this.cornerRadius = 10.0
+                    this.boxShadows = [BoxShadow(Point(4.0, 0.0), 3.0, 3.0, Color.Black)]
+                    this.contentEffects = [ContentEffect.Glow(3.0, 3.0, Color(0.0, 0.0, 1.0))]
+                }
+                case 3 -> style {
+                    this.cornerRadius = 20.0
+                    this.contentEffects = [ContentEffect.Blur(3.0, 3.0)]
+                    this.clipContent = true
+                }
+                else -> style()
             }
         return element(
             generation,
             { props -> StylePanel(props, probe) },
             [
-                styled(component({ StyleCounter(probe) }), style, ViewKey.Text("content")),
+                styled(component({ StyleCounter(probe) })) {
+                    this.style = style
+                    this.key = ViewKey.Text("content")
+                },
                 if (probe.showAnimation.value)
                     element({ AnimatedInk(probe) })
                 else
@@ -167,7 +170,7 @@ internal class AnimatedInk(private val probe: StyleProbe): Element {
         val value = sigma!!.value
         painter!!.scene(
             context,
-            Style(contentEffects = [ContentEffect.Glow(value, value, Color(0.0, 0.0, 1.0))])
+            style { this.contentEffects = [ContentEffect.Glow(value, value, Color(0.0, 0.0, 1.0))] }
         ) {
             content -> content.draw {
                 paint -> paint.canvas.drawRect(

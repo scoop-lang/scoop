@@ -35,7 +35,7 @@ private fun serve(listener: TcpListener) {
 
 private suspend fun rejectDeadlines(loop: EventLoop, host: OsString, port: Int) {
     try {
-        loop.connectTcp(host, port, TcpConnectOptions(resolveTimeout = Some(Duration.ZERO)))
+        loop.connectTcp(host, port, tcpConnectOptions { this.resolveTimeout = Some(Duration.ZERO) })
         throw IllegalStateException(Some("zero resolution deadline connected"))
     } catch (error: TcpConnectException) {
         check(error.host == host && error.port == port && error.attempts.size == 0L)
@@ -47,7 +47,7 @@ private suspend fun rejectDeadlines(loop: EventLoop, host: OsString, port: Int) 
         }
     }
     try {
-        loop.connectTcp(host, port, TcpConnectOptions(connectTimeout = Some(Duration.ZERO)))
+        loop.connectTcp(host, port, tcpConnectOptions { this.connectTimeout = Some(Duration.ZERO) })
         throw IllegalStateException(Some("zero connection deadline connected"))
     } catch (error: TcpConnectTimeoutException) {
         check(error.host == host && error.port == port && error.attempts.size == 0L)
@@ -70,7 +70,10 @@ private fun exercise(ip: IpAddress, host: OsString) {
                 loop.connectTcp(
                     host,
                     address.port,
-                    TcpConnectOptions(resolveTimeout = long, connectTimeout = long)
+                    tcpConnectOptions {
+                        this.resolveTimeout = long
+                        this.connectTimeout = long
+                    }
                 ).useAsync suspend {
                     client ->
                     check(client.peerAddress == address)

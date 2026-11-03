@@ -27,7 +27,9 @@ private class PublicTextEditHostTest {
                     val probe = EditProbe(fonts)
                     try {
                         UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                            host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                            host -> Application(
+                                applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                            ).run(host)
                         }
                         assertTrue(probe.finished)
                         assertEquals(3, probe.mounts)
@@ -58,8 +60,15 @@ internal class EditProbe(val fonts: FontCollection) {
     val appearance =
         TextEditAppearance(
             fonts,
-            TextStyle(["Host Test"], 20.0),
-            TextStyle(["Host Test"], 20.0, Color(0.5, 0.5, 0.5))
+            textStyle {
+                this.families = ["Host Test"]
+                this.fontSize = 20.0
+            },
+            textStyle {
+                this.families = ["Host Test"]
+                this.fontSize = 20.0
+                this.color = Color(0.5, 0.5, 0.5)
+            }
         )
     var readonly = false
     var showObserver = true
@@ -129,7 +138,7 @@ internal class EditProbe(val fonts: FontCollection) {
         if (checkSnapshot) {
             assertTrue(
                 editorDocument(window!!, state),
-                Some(f"immediate text snapshot phase=${phase}")
+                Some(f"immediate text snapshot phase=${this @EditProbe.phase}")
             )
             editorNativeCaret(window!!, state, None)
         }
@@ -140,7 +149,10 @@ internal class EditProbe(val fonts: FontCollection) {
                 active = Some(application)
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop text editing", LogicalSize(520.0, 400.0))
+                        windowAttributes {
+                            this.title = "Scoop text editing"
+                            this.size = LogicalSize(520.0, 400.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -180,7 +192,11 @@ internal class EditProbe(val fonts: FontCollection) {
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"editor timeout phase=${phase}, passes=${passes}, accepted=${accepted}")
+                Some(
+                    f"editor timeout phase=${this @EditProbe.phase}, passes=${
+                        this @EditProbe.passes
+                    }, accepted=${this @EditProbe.accepted}"
+                )
             )
             else -> {}
         }

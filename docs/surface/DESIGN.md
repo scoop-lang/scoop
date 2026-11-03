@@ -143,7 +143,7 @@ graphics 自有 Point／Size／Rect／Transform，统一使用 Double 逻辑坐�
 
 Canvas 提供 save／restore、translate／scale／rotate／concat、clipRect／clipPath、基本形状／Path／Image／TextLayout 绘制、saveLayer 组透明度。初期覆盖实用的 fill／stroke、端点／连接、纯色及线性／径向渐变；Image 至少覆盖自有 RGBA 数据与固定支持的 PNG／JPEG 解码，不引入可发现的 codec 插件框架。
 
-PathBuilder 可变，build 后的 Path 不可变，可反复绘制、做 contains 或路径测量。命中只对显式提供的几何 shape 测试；可见描边不自动变成命中范围，调用方可以单独给更宽的矩形或 Path 作为拖动把手。
+`path(fillRule = ...) { ... }` 同步追加轮廓，退出时关闭临时 PathBuilder，返回由调用方拥有的不可变 Path。需要增量修改和多次快照时显式管理 PathBuilder；追加及 reset 返回 Unit，build 保留 builder，reset 保留填充规则。Path 可反复绘制、做 contains 或路径测量，后续 builder 变化不会改变它。命中只对显式提供的几何 shape 测试；可见描边不自动变成命中范围，调用方可以单独给更宽的矩形或 Path 作为拖动把手。
 
 Canvas 的变换和 clip 同时服务绘制与命中。`FrameContext.place(area, shape, parent)` 从 Canvas 取得当前几何状态，DPI 根变换不计入 Area 的逻辑坐标；不能只在 FrameContext 记录 transform、却允许 Canvas 自身的变换绕开记录。clip 使用同一填充规则与有效交集，snapshot 保留所需 Path 引用。奇异矩阵可以绘制退化结果，但区域不可命中。
 

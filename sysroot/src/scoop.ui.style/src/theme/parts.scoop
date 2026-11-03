@@ -19,13 +19,16 @@ public struct SurfaceMetrics(
         )
 }
 
-public class SurfaceOptions public constructor(
+public class SurfaceOptions internal constructor(
     public val suggestedSize: Size? = None,
     public val minimumSize: Size? = None,
     public val padding: Insets? = None,
-    public val style: StyleOverride = StyleOverride(),
+    public val style: StyleOverride = styleOverride(),
     public val focus: FocusStyle? = None
-)
+) {
+    public fun copy(configure: SurfaceOptionsBuilder.() -> Unit = {}): SurfaceOptions =
+        configureSurfaceOptions(this, configure)
+}
 
 public class SurfaceGeometry public constructor(
     public val bounds: Rect,
@@ -53,14 +56,17 @@ public struct CheckboxMetrics(
     val focusOutset: Double
 )
 
-public class CheckboxOptions public constructor(
+public class CheckboxOptions internal constructor(
     public val size: Double? = None,
     public val minimumSize: Double? = None,
     public val markInset: Double? = None,
-    public val style: StyleOverride = StyleOverride(),
+    public val style: StyleOverride = styleOverride(),
     public val markColor: Color? = None,
     public val focus: FocusStyle? = None
-)
+) {
+    public fun copy(configure: CheckboxOptionsBuilder.() -> Unit = {}): CheckboxOptions =
+        configureCheckboxOptions(this, configure)
+}
 
 public class CheckboxGeometry public constructor(
     public val bounds: Rect,
@@ -83,7 +89,7 @@ public struct RadioMetrics(
     val focusOutset: Double
 )
 
-public class RadioOptions public constructor(
+public class RadioOptions internal constructor(
     public val size: Double? = None,
     public val minimumSize: Double? = None,
     public val dotInset: Double? = None,
@@ -91,7 +97,10 @@ public class RadioOptions public constructor(
     public val border: StyleValue<Border?> = StyleValue.Inherit,
     public val dotColor: Color? = None,
     public val focus: FocusStyle? = None
-)
+) {
+    public fun copy(configure: RadioOptionsBuilder.() -> Unit = {}): RadioOptions =
+        configureRadioOptions(this, configure)
+}
 
 public class RadioGeometry public constructor(
     public val bounds: Rect,
@@ -113,13 +122,16 @@ public struct ScrollbarMetrics(
     val buttonLength: Double?
 )
 
-public class ScrollbarOptions public constructor(
+public class ScrollbarOptions internal constructor(
     public val thickness: Double? = None,
     public val minimumThumbLength: Double? = None,
     public val trackInset: Double? = None,
     public val thumbInset: Double? = None,
     public val buttonLength: StyleValue<Double?> = StyleValue.Inherit
-)
+) {
+    public fun copy(configure: ScrollbarOptionsBuilder.() -> Unit = {}): ScrollbarOptions =
+        configureScrollbarOptions(this, configure)
+}
 
 public struct ScrollbarButtonGeometry(val outline: RoundedOutline, val arrow: StrokeSegment)
 
@@ -138,20 +150,26 @@ public class ScrollbarGeometry public constructor(
 )
 
 /** Concrete descriptions used by the three shape-based themes, also useful for custom presets. */
-public class SurfacePart public constructor(
+public class SurfacePart internal constructor(
     public val metrics: SurfaceMetrics,
     public val fill: StateColors,
     public val border: StateColors,
     public val foreground: StateColors,
     public val focus: FocusStyle,
     public val shadows: Array<BoxShadow> = []
-)
+) {
+    public fun copy(configure: SurfacePartBuilder.() -> Unit = {}): SurfacePart =
+        configureSurfacePart(this, configure)
+}
 
-public class SurfaceParts public constructor(
+public class SurfaceParts internal constructor(
     public val plain: SurfacePart,
     public val action: SurfacePart,
     public val elevated: SurfacePart
 ) {
+    public fun copy(configure: SurfacePartsBuilder.() -> Unit = {}): SurfaceParts =
+        configureSurfaceParts(this, configure)
+
     public fun get(kind: SurfaceKind): SurfacePart =
         when (kind) {
             case Plain -> plain;
@@ -160,7 +178,7 @@ public class SurfaceParts public constructor(
         }
 }
 
-public class MarkerAppearance public constructor(
+public class MarkerAppearance internal constructor(
     public val empty: StateColors,
     public val selected: StateColors,
     public val border: StateColors,
@@ -168,23 +186,35 @@ public class MarkerAppearance public constructor(
     public val mark: StateColors,
     public val focus: FocusStyle,
     public val shadows: Array<BoxShadow> = []
-)
+) {
+    public fun copy(configure: MarkerAppearanceBuilder.() -> Unit = {}): MarkerAppearance =
+        configureMarkerAppearance(this, configure)
+}
 
-public class CheckboxPart public constructor(
+public class CheckboxPart internal constructor(
     public val metrics: CheckboxMetrics,
     public val appearance: MarkerAppearance
-)
+) {
+    public fun copy(configure: CheckboxPartBuilder.() -> Unit = {}): CheckboxPart =
+        configureCheckboxPart(this, configure)
+}
 
-public class RadioPart public constructor(
+public class RadioPart internal constructor(
     public val metrics: RadioMetrics,
     public val appearance: MarkerAppearance
-)
+) {
+    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart =
+        configureRadioPart(this, configure)
+}
 
-public class ScrollbarPart public constructor(
+public class ScrollbarPart internal constructor(
     public val metrics: ScrollbarMetrics,
     public val track: StateColors,
     public val thumb: StateColors,
     public val button: StateColors,
     public val arrow: StateColors,
     public val arrowWidth: Double = 1.5
-)
+) {
+    public fun copy(configure: ScrollbarPartBuilder.() -> Unit = {}): ScrollbarPart =
+        configureScrollbarPart(this, configure)
+}

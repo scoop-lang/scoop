@@ -74,13 +74,13 @@ private class RequestBodyTrailersTest {
         names.add("X-Later")
         assertEquals(1L, body.trailerNames.size)
         assertFalse(body.isReplayable)
-        assertFailsWith<IllegalArgumentException> { RequestBodyPart(body) }
+        assertFailsWith<IllegalArgumentException> { requestBodyPart(body) }
         assertFailsWith<IllegalArgumentException> {
-            HttpRequest.post(
-                Url.parse("http://example.test/"),
-                body,
-                [HttpField("Trailer".toByteArray(), "X-End".toByteArray())]
-            )
+            httpRequest(Url.parse("http://example.test/")) {
+                this.method = "POST"
+                this.body = body
+                this.fields = [HttpField("Trailer".toByteArray(), "X-End".toByteArray())]
+            }
         }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {

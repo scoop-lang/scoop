@@ -254,10 +254,7 @@ private class ImageFilterTest {
 
     @Test
     fun `rounded path is shared by pixels clips and logical input geometry`() {
-        val path =
-            PathBuilder().use {
-                builder -> builder.addRoundRect(Rect(8.0, 8.0, 24.0, 16.0), 8.0, 8.0).build()
-            }
+        val path = path { addRoundRect(Rect(8.0, 8.0, 24.0, 16.0), 8.0, 8.0) }
         path.use {
             outline ->
             assertFalse(outline.contains(Point(8.1, 8.1)))

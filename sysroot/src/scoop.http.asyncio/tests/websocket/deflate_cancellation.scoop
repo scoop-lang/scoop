@@ -21,7 +21,7 @@ private class AsyncWebSocketDeflateCancellationTests {
                     transport,
                     scope,
                     HttpRole.Client,
-                    WebSocketSessionOptions(outgoingFrameBytes = 2L),
+                    webSocketSessionOptions { this.outgoingFrameBytes = 2L },
                     Some(negotiatedWsDeflate())
                 )
             val writer = session.beginMessage(WebSocketMessageType.Text)

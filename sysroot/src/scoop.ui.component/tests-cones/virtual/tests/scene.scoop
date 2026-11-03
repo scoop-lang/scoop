@@ -14,15 +14,13 @@ internal class ListScene(private val probe: ListProbe): Component {
             { ListPanel(probe) },
             [
                 if (probe.show.value)
-                    virtualList(
-                        probe.data!!.value,
-                        ItemExtent.Fixed(20.0),
-                        Some(probe.scroll),
-                        probe.orientation.value,
-                        overscan = 20.0,
-                        lineStep = 10.0,
-                        theme = Some(probe.theme)
-                    )
+                    virtualList(probe.data!!.value, ItemExtent.Fixed(20.0)) {
+                        this.state = Some(this @ListScene.probe.scroll)
+                        this.orientation = this @ListScene.probe.orientation.value
+                        this.overscan = 20.0
+                        this.lineStep = 10.0
+                        this.theme = Some(this @ListScene.probe.theme)
+                    }
                 else
                     empty()
             ]

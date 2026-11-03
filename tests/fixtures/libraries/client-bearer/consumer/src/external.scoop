@@ -1,4 +1,4 @@
-package scoop.tests
+package scoop.http.client.tests.consumer.client_bearer
 
 import scoop.asyncio.*
 import scoop.crypto.x509.TrustStore
@@ -43,25 +43,27 @@ internal fun bearerChallenge(url: Url, trust: TrustStore) {
                 bearerWrite(output, "payload")
                 [bearerField("X-Upload", "once")]
             }.compressed()
-        withHttpClient(bearerConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+        withHttpClient(
+            bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+        ) suspend {
             client -> context(BearerContext("challenge")) {
                 client.withResponse(
-                    HttpRequest.post(
-                        url,
-                        body,
-                        options =
-                            HttpCallOptions(
-                                expectContinue = true,
-                                continueWait = Duration.seconds(3600L),
-                                onInformational =
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options =
+                            httpCallOptions {
+                                this.expectContinue = true
+                                this.continueWait = Duration.seconds(3600L)
+                                this.onInformational =
                                     suspend {
                                         head ->
                                         bearerCheck(head.status == 100U || head.status == 103U)
                                         observed.fetchAdd(1L)
                                         Unit
                                     }
-                            )
-                    )
+                            }
+                    }
                 ) suspend {
                     response ->
                     bearerCheck(
@@ -124,15 +126,21 @@ internal fun bearerRedirect(first: Url, second: Url, trust: TrustStore) {
         withHttpClient(bearerConfig(trust)) suspend {
             client -> context(BearerContext("redirect")) {
                 client.withResponse(
-                    HttpRequest.post(
-                        first,
-                        RequestBody.Empty,
-                        [bearerField("Cookie", "caller=value"), bearerField("X-Keep", "same")],
-                        HttpCallOptions(
-                            authentication =
-                                Some(HttpAuthenticationOptions([original, destination]))
-                        )
-                    )
+                    httpRequest(first) {
+                        this.method = "POST"
+                        this.body = RequestBody.Empty
+                        this.fields =
+                            [bearerField("Cookie", "caller=value"), bearerField("X-Keep", "same")]
+                        this.options =
+                            httpCallOptions {
+                                this.authentication =
+                                    Some(
+                                        httpAuthenticationOptions {
+                                            this.providers = [original, destination]
+                                        }
+                                    )
+                            }
+                    }
                 ) suspend {
                     response ->
                     bearerCheck(response.authenticationCount == 1L && response.retryCount == 0L)

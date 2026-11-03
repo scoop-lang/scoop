@@ -9,17 +9,29 @@ private class StyledTextTest {
     @Test
     fun `public span resolution preserves local choices while following a changed parent`() {
         val local =
-            SpanStyle(color = Some(Color.White), lineHeight = Some(None), features = Some([]))
+            spanStyle {
+                this.color = Some(Color.White)
+                this.lineHeight = Some(None)
+                this.features = Some([])
+            }
         val small =
             local.resolve(
-                TextStyle(
-                    ["Test Sans"],
-                    13.0,
-                    lineHeight = Some(2.0),
-                    features = [FontFeature("kern", 0)]
-                )
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 13.0
+                    this.lineHeight = Some(2.0)
+                    this.features = [FontFeature("kern", 0)]
+                }
             )
-        val large = local.resolve(TextStyle(["Test CJK"], 22.0, weight = 700, letterSpacing = 1.5))
+        val large =
+            local.resolve(
+                textStyle {
+                    this.families = ["Test CJK"]
+                    this.fontSize = 22.0
+                    this.weight = 700
+                    this.letterSpacing = 1.5
+                }
+            )
         assertEquals(13.0, small.fontSize)
         assertEquals(22.0, large.fontSize)
         assertEquals("Test CJK", large.families[0L])
@@ -38,22 +50,25 @@ private class StyledTextTest {
         testFonts().use {
             fonts ->
             val content =
-                StyledText(
-                    [
-                        TextSpan.text("HH"),
-                        TextSpan.span(
-                            SpanStyle(fontSize = Some(32.0), color = Some(Color(0.0, 1.0, 0.0))),
-                            [
-                                TextSpan.span(
-                                    SpanStyle(color = Some(Color(0.0, 0.0, 1.0))),
-                                    [TextSpan.text("H")]
-                                ),
-                                TextSpan.text("H")
-                            ]
-                        )
-                    ],
-                    TextStyle(["Test Sans"], 20.0, Color(1.0, 0.0, 0.0))
-                )
+                styledText {
+                    this.text("HH")
+                    this.span {
+                        style {
+                            this.fontSize = Some(32.0)
+                            this.color = Some(Color(0.0, 1.0, 0.0))
+                        }
+                        this.span {
+                            style { this.color = Some(Color(0.0, 0.0, 1.0)) }
+                            this.text("H")
+                        }
+                        this.text("H")
+                    }
+                    style {
+                        this.families = ["Test Sans"]
+                        this.fontSize = 20.0
+                        this.color = Color(1.0, 0.0, 0.0)
+                    }
+                }
             assertEquals("HHHH", content.text)
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layoutUnwrapped().use {
@@ -74,18 +89,27 @@ private class StyledTextTest {
     fun `font family overrides replace rather than append to the inherited fallback list`() {
         testFonts().use {
             fonts ->
-            val base = TextStyle(["Test CJK"], 24.0)
-            val inherited = StyledText([TextSpan.span(SpanStyle(), [TextSpan.text("是")])], base)
+            val base =
+                textStyle {
+                    this.families = ["Test CJK"]
+                    this.fontSize = 24.0
+                }
+            val inherited =
+                styledText {
+                    this.span {
+                        this.style = spanStyle()
+                        this.text("是")
+                    }
+                    this.style = base
+                }
             val replaced =
-                StyledText(
-                    [
-                        TextSpan.span(
-                            SpanStyle(families = Some(["Test Sans"])),
-                            [TextSpan.text("是")]
-                        )
-                    ],
-                    base
-                )
+                styledText {
+                    this.span {
+                        style { this.families = Some(["Test Sans"]) }
+                        this.text("是")
+                    }
+                    this.style = base
+                }
             Paragraph(fonts, inherited).use {
                 paragraph -> paragraph.layoutUnwrapped().use {
                     layout -> assertEquals(0, layout.unresolvedGlyphCount)
@@ -103,14 +127,36 @@ private class StyledTextTest {
     fun `explicitly clearing line height restores natural metrics while omission inherits`() {
         testFonts().use {
             fonts ->
-            val base = TextStyle(["Test Sans"], 20.0, lineHeight = Some(2.0))
-            val inherited = StyledText([TextSpan.span(SpanStyle(), [TextSpan.text("HH")])], base)
+            val base =
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 20.0
+                    this.lineHeight = Some(2.0)
+                }
+            val inherited =
+                styledText {
+                    this.span {
+                        this.style = spanStyle()
+                        this.text("HH")
+                    }
+                    this.style = base
+                }
             val reset =
-                StyledText(
-                    [TextSpan.span(SpanStyle(lineHeight = Some(None)), [TextSpan.text("HH")])],
-                    base
-                )
-            val natural = StyledText([TextSpan.text("HH")], TextStyle(["Test Sans"], 20.0))
+                styledText {
+                    this.span {
+                        style { this.lineHeight = Some(None) }
+                        this.text("HH")
+                    }
+                    this.style = base
+                }
+            val natural =
+                styledText {
+                    this.text("HH")
+                    style {
+                        this.families = ["Test Sans"]
+                        this.fontSize = 20.0
+                    }
+                }
             val reference = contentHeight(fonts, natural)
             assertTrue(contentHeight(fonts, inherited) > reference + 10.0)
             assertTrue(abs(contentHeight(fonts, reset) - reference) < 0.01)
@@ -121,14 +167,36 @@ private class StyledTextTest {
     fun `empty feature arrays restore default kerning instead of retaining the parent feature`() {
         testFonts().use {
             fonts ->
-            val base = TextStyle(["Test Sans"], 40.0, features = [FontFeature("kern", 0)])
-            val inherited = StyledText([TextSpan.span(SpanStyle(), [TextSpan.text("AVAV")])], base)
+            val base =
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 40.0
+                    this.features = [FontFeature("kern", 0)]
+                }
+            val inherited =
+                styledText {
+                    this.span {
+                        this.style = spanStyle()
+                        this.text("AVAV")
+                    }
+                    this.style = base
+                }
             val reset =
-                StyledText(
-                    [TextSpan.span(SpanStyle(features = Some([])), [TextSpan.text("AVAV")])],
-                    base
-                )
-            val natural = StyledText([TextSpan.text("AVAV")], TextStyle(["Test Sans"], 40.0))
+                styledText {
+                    this.span {
+                        style { this.features = Some([]) }
+                        this.text("AVAV")
+                    }
+                    this.style = base
+                }
+            val natural =
+                styledText {
+                    this.text("AVAV")
+                    style {
+                        this.families = ["Test Sans"]
+                        this.fontSize = 40.0
+                    }
+                }
             val reference = contentWidth(fonts, natural)
             assertTrue(abs(contentWidth(fonts, inherited) - reference) > 0.1)
             assertTrue(abs(contentWidth(fonts, reset) - reference) < 0.01)
@@ -139,14 +207,36 @@ private class StyledTextTest {
     fun `empty variation arrays clear inherited axes for actual glyph painting`() {
         testFonts().use {
             fonts ->
-            val base = TextStyle(["Test CJK"], 48.0, variations = [FontVariation("wght", 900.0)])
-            val inherited = StyledText([TextSpan.span(SpanStyle(), [TextSpan.text("是")])], base)
+            val base =
+                textStyle {
+                    this.families = ["Test CJK"]
+                    this.fontSize = 48.0
+                    this.variations = [FontVariation("wght", 900.0)]
+                }
+            val inherited =
+                styledText {
+                    this.span {
+                        this.style = spanStyle()
+                        this.text("是")
+                    }
+                    this.style = base
+                }
             val reset =
-                StyledText(
-                    [TextSpan.span(SpanStyle(variations = Some([])), [TextSpan.text("是")])],
-                    base
-                )
-            val natural = StyledText([TextSpan.text("是")], TextStyle(["Test CJK"], 48.0))
+                styledText {
+                    this.span {
+                        style { this.variations = Some([]) }
+                        this.text("是")
+                    }
+                    this.style = base
+                }
+            val natural =
+                styledText {
+                    this.text("是")
+                    style {
+                        this.families = ["Test CJK"]
+                        this.fontSize = 48.0
+                    }
+                }
             val reference = paintContent(fonts, natural)
             assertFalse(samePixels(reference, paintContent(fonts, inherited)))
             assertTrue(samePixels(reference, paintContent(fonts, reset)))
@@ -157,15 +247,21 @@ private class StyledTextTest {
     fun `empty fragments preserve base metrics and fragment boundaries do not split shaping`() {
         testFonts().use {
             fonts ->
-            val base = TextStyle(["Test Sans"], 40.0, lineHeight = Some(2.0))
+            val base =
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 40.0
+                    this.lineHeight = Some(2.0)
+                }
             val content =
-                StyledText(
-                    [
-                        TextSpan.text(""),
-                        TextSpan.span(SpanStyle(fontSize = Some(100.0)), [TextSpan.text("")])
-                    ],
-                    base
-                )
+                styledText {
+                    this.text("")
+                    this.span {
+                        style { this.fontSize = Some(100.0) }
+                        this.text("")
+                    }
+                    this.style = base
+                }
             assertEquals("", content.text)
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layout(100.0).use {
@@ -176,8 +272,17 @@ private class StyledTextTest {
                 }
             }
             val fragments =
-                StyledText([TextSpan.text("f"), TextSpan.text(""), TextSpan.text("i")], base)
-            val whole = StyledText([TextSpan.text("fi")], base)
+                styledText {
+                    this.text("f")
+                    this.text("")
+                    this.text("i")
+                    this.style = base
+                }
+            val whole =
+                styledText {
+                    this.text("fi")
+                    this.style = base
+                }
             assertTrue(samePixels(paintContent(fonts, whole), paintContent(fonts, fragments)))
         }
     }
@@ -185,12 +290,13 @@ private class StyledTextTest {
     @Test
     fun `plain text ranges use UTF8 scalar offsets even when fragments split a grapheme`() {
         val content =
-            StyledText(
-                [
-                    TextSpan.text("A是e"),
-                    TextSpan.span(SpanStyle(color = Some(Color.White)), [TextSpan.text("́😀")])
-                ]
-            )
+            styledText {
+                this.text("A是e")
+                this.span {
+                    style { this.color = Some(Color.White) }
+                    this.text("́😀")
+                }
+            }
         assertEquals("A是é😀", content.text)
         assertEquals(content.text, content.toPlainText())
         assertEquals("是é", content.toPlainText(TextRange(1L, 7L)))

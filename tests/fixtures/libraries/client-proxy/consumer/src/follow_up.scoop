@@ -61,16 +61,18 @@ internal fun proxyFollowUp(mode: String, first: Url, second: Url, target: Url, t
                 selector,
                 mode,
                 retries =
-                    HttpRetryOptions(
-                        maxRetries =
+                    httpRetryOptions {
+                        this.maxRetries =
                             if (mode == "retry")
                                 1L
                             else
                                 0L
-                    )
+                    }
             )
         ) suspend {
-            client -> client.withResponse(HttpRequest.get(target, proxyFields())) suspend {
+            client -> client.withResponse(
+                httpRequest(target) { this.fields = proxyFields() }
+            ) suspend {
                 response ->
                 proxyCheck(response.status == 200U && response.body.text(2L) == "ok")
                 proxyCheck(

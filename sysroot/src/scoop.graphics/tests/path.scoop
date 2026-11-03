@@ -1,0 +1,94 @@
+package scoop.graphics
+
+import scoop.test.*
+
+@Test
+private class PathScopeTest {
+    @Test
+    fun `default construction returns an owned empty path`() {
+        path().use {
+            outline ->
+            assertFalse(outline.isClosed)
+            assertEquals(Rect(0.0, 0.0, 0.0, 0.0), outline.bounds)
+            assertFalse(outline.contains(Point(0.0, 0.0)))
+            outline.measure().use { measure -> assertEquals(0.0, measure.length) }
+        }
+    }
+
+    @Test
+    fun `configuration runs once in order and closes only the builder`() {
+        val builders = ArrayList<PathBuilder>()
+        val outline =
+            path {
+                builders.add(this)
+                moveTo(Point(0.0, 0.0))
+                for (point in [Point(3.0, 0.0), Point(3.0, 4.0)])
+                    lineTo(point)
+                closeContour()
+            }
+        outline.use {
+            shape ->
+            assertEquals(1L, builders.size)
+            assertFailsWith<IllegalStateException> { builders[0L].reset() }
+            assertFailsWith<IllegalStateException> { builders[0L].build() }
+            assertFalse(shape.isClosed)
+            assertEquals(Rect(0.0, 0.0, 3.0, 4.0), shape.bounds)
+            assertTrue(shape.contains(Point(2.0, 1.0)))
+            shape.measure().use { measure -> assertEquals(12.0, measure.length) }
+        }
+        assertTrue(outline.isClosed)
+    }
+
+    @Test
+    fun `reset preserves even odd winding and earlier snapshots`() {
+        PathBuilder(FillRule.EvenOdd).use {
+            builder ->
+            builder.addRect(Rect(0.0, 0.0, 20.0, 20.0))
+            builder.build().use {
+                original ->
+                builder.reset()
+                builder.addRect(Rect(40.0, 40.0, 20.0, 20.0))
+                builder.addOval(Rect(45.0, 45.0, 10.0, 10.0))
+                builder.build().use {
+                    ring ->
+                    builder.reset()
+                    assertTrue(original.contains(Point(10.0, 10.0)))
+                    assertFalse(original.contains(Point(42.0, 42.0)))
+                    assertTrue(ring.contains(Point(42.0, 42.0)))
+                    assertFalse(ring.contains(Point(50.0, 50.0)))
+                }
+            }
+        }
+        path {
+            addRect(Rect(40.0, 40.0, 20.0, 20.0))
+            addOval(Rect(45.0, 45.0, 10.0, 10.0))
+        }.use { solid -> assertTrue(solid.contains(Point(50.0, 50.0))) }
+    }
+
+    @Test
+    fun `callback and geometry failures close captured builders`() {
+        val builders = ArrayList<PathBuilder>()
+        val failure = IllegalStateException(Some("configuration failed"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                path {
+                    builders.add(this)
+                    addRect(Rect(0.0, 0.0, 10.0, 10.0))
+                    throw failure
+                }
+            }
+        )
+        assertFailsWith<IllegalArgumentException> {
+            path {
+                builders.add(this)
+                addRoundRect(Rect(0.0, 0.0, 10.0, 10.0), -1.0, 2.0)
+            }
+        }
+        assertEquals(2L, builders.size)
+        for (builder in builders) {
+            assertFailsWith<IllegalStateException> { builder.moveTo(Point(0.0, 0.0)) }
+            builder.close()
+        }
+    }
+}

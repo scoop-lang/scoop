@@ -1,0 +1,35 @@
+package scoop.http.server
+
+import scoop.http.HttpField
+import scoop.json.Json
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpResult(configure: HttpResultBuilder.() -> Unit = {}): HttpResult {
+    val builder = HttpResultBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpResult.copy(configure: HttpResultBuilder.() -> Unit = {}): HttpResult {
+    val builder = HttpResultBuilder()
+    builder.status = this.status
+    builder.fields = this.fields
+    builder.body = this.body
+    builder.allowCompression = this.allowCompression
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpResultBuilder internal constructor() {
+    public var status: UInt = 200U
+    public var fields: List<HttpField> = ArrayList<HttpField>()
+    public var body: HttpBody = HttpBody.Empty
+    public var allowCompression: Boolean = true
+
+    public fun fields(configure: HttpFieldsBuilder.() -> Unit): Unit {
+        fields = fields.copyFields(configure)
+    }
+    internal fun snapshot(): HttpResult = HttpResult(status, fields, body, allowCompression)
+}

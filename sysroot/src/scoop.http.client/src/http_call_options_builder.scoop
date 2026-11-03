@@ -1,0 +1,92 @@
+package scoop.http.client
+
+import scoop.asyncio.TcpConnectOptions
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.time.Duration
+import scoop.tls.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpCallOptions(configure: HttpCallOptionsBuilder.() -> Unit = {}): HttpCallOptions {
+    val builder = HttpCallOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpCallOptions.copy(
+    configure: HttpCallOptionsBuilder.() -> Unit = {}
+): HttpCallOptions {
+    val builder = HttpCallOptionsBuilder()
+    builder.duplex = this.duplex
+    builder.expectContinue = this.expectContinue
+    builder.continueWait = this.continueWait
+    builder.decoding = this.decoding
+    builder.timeouts = this.timeouts
+    builder.onInformational = this.onInformational
+    builder.redirects = this.redirects
+    builder.retries = this.retries
+    builder.authentication = this.authentication
+    builder.proxy = this.proxy
+    builder.useCookies = this.useCookies
+    builder.cookieContext = this.cookieContext
+    builder.cacheMode = this.cacheMode
+    builder.observer = this.observer
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpCallOptionsBuilder internal constructor() {
+    public var duplex: Boolean = false
+    public var expectContinue: Boolean = false
+    public var continueWait: Duration = Duration.seconds(1L)
+    public var decoding: HttpDecodingOptions? = None
+    public var timeouts: HttpTimeoutOptions? = None
+    public var onInformational: suspend (HttpResponseHead) -> Unit = suspend { _ -> }
+    public var redirects: HttpRedirectOptions? = None
+    public var retries: HttpRetryOptions? = None
+    public var authentication: HttpAuthenticationOptions? = None
+    public var proxy: HttpProxySelector? = None
+    public var useCookies: Boolean = true
+    public var cookieContext: HttpCookieContext? = None
+    public var cacheMode: HttpCacheMode = HttpCacheMode.Default
+    public var observer: HttpObserver? = None
+
+    public fun decoding(configure: HttpDecodingOptionsBuilder.() -> Unit): Unit {
+        decoding = Some((decoding ?: httpDecodingOptions()).copy(configure))
+    }
+
+    public fun timeouts(configure: HttpTimeoutOptionsBuilder.() -> Unit): Unit {
+        timeouts = Some((timeouts ?: httpTimeoutOptions()).copy(configure))
+    }
+
+    public fun redirects(configure: HttpRedirectOptionsBuilder.() -> Unit): Unit {
+        redirects = Some((redirects ?: httpRedirectOptions()).copy(configure))
+    }
+
+    public fun retries(configure: HttpRetryOptionsBuilder.() -> Unit): Unit {
+        retries = Some((retries ?: httpRetryOptions()).copy(configure))
+    }
+
+    public fun authentication(configure: HttpAuthenticationOptionsBuilder.() -> Unit): Unit {
+        authentication = Some((authentication ?: httpAuthenticationOptions()).copy(configure))
+    }
+    internal fun snapshot(): HttpCallOptions =
+        HttpCallOptions(
+            duplex,
+            expectContinue,
+            continueWait,
+            decoding,
+            timeouts,
+            onInformational,
+            redirects,
+            retries,
+            authentication,
+            proxy,
+            useCookies,
+            cookieContext,
+            cacheMode,
+            observer
+        )
+}

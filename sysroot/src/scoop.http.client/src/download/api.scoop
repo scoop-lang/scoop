@@ -9,7 +9,7 @@ import scoop.url.Url
  * Download publication, buffering, and progress policy. Completion atomically installs the
  * destination; failures retain the prior destination.
  */
-public class HttpDownloadOptions public constructor(
+public class HttpDownloadOptions internal constructor(
     /**
      * Whether atomic publication may replace an existing destination.
      */
@@ -28,7 +28,10 @@ public class HttpDownloadOptions public constructor(
      */
     public val onProgress: suspend (HttpDownloadProgress) -> Unit = suspend { _ -> }
 ) {
-    init { if (bufferSize <= 0L) throw IllegalArgumentException(Some("download buffer size must be positive")) }
+    init {
+        if (bufferSize <= 0L)
+            throw IllegalArgumentException(Some("download buffer size must be positive"))
+    }
 }
 
 /**
@@ -39,18 +42,18 @@ public class HttpDownloadProgress internal constructor(
      * The final response URL.
      */
     public val url: Url,
-        /**
+    /**
          * Total bytes present in the download so far, including any reused prefix.
          */
-        public val bytesWritten: Long,
-        /**
+    public val bytesWritten: Long,
+    /**
          * The expected complete size when known.
          */
-        public val totalBytes: Long?,
-        /**
+    public val totalBytes: Long?,
+    /**
          * Bytes retained from a previously validated partial file.
          */
-        public val resumedBytes: Long = 0L
+    public val resumedBytes: Long = 0L
 )
 
 /**
@@ -62,24 +65,24 @@ public class HttpDownloadResult internal constructor(
      * The committed destination path.
      */
     public val path: Path,
-        /**
+    /**
          * The final response URL.
          */
-        public val url: Url,
-        /**
+    public val url: Url,
+    /**
          * The successful final response head.
          */
-        public val head: HttpResponseHead,
+    public val head: HttpResponseHead,
     /**
      * Complete response trailers after body consumption.
      */
     public val trailers: Array<HttpField>,
-        /**
+    /**
          * The complete committed file byte count.
          */
-        public val byteCount: Long,
-        /**
+    public val byteCount: Long,
+    /**
          * Bytes reused from the previous partial download.
          */
-        public val resumedBytes: Long = 0L
+    public val resumedBytes: Long = 0L
 )

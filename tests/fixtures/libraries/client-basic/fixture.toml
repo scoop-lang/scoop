@@ -1,7 +1,7 @@
 schema = 1
 name = "client-basic"
 inputs = ["consumer", "peer.py", "http1_peer.py"]
-support = ["../client-trailers/wire.py", "../../../../sysroot/src/scoop.crypto/test-certificates/src/root.scoop"]
+support = ["../../../../sysroot/src/scoop.http.client/tests/consumer/client-basic/support.scoop", "../client-trailers/wire.py", "../../../../sysroot/src/scoop.crypto/test-certificates/src/root.scoop"]
 tools = ["scoop", "scoopc", "python"]
 when = { os = ["darwin", "linux"] }
 tags = ["http", "client", "authentication", "asyncio", "prebuilt", "libraries"]
@@ -10,6 +10,7 @@ variants = [{"name" = "release", "vars" = {"mode" = ["--release"]}}]
 name = "source"
 files = [
     {copy = {from = "${fixture}/consumer", to = "${work}/consumer"}},
+    {copy = {from = "${repo}/sysroot/src/scoop.http.client/tests/consumer/client-basic/support.scoop", to = "${work}/consumer/src/support.scoop"}},
     {copy = {from = "${fixture}/peer.py", to = "${work}/peer.py"}},
     {copy = {from = "${fixture}/http1_peer.py", to = "${work}/http1_peer.py"}},
     {copy = {from = "${repo}/tests/fixtures/libraries/client-trailers/wire.py", to = "${work}/wire.py"}},
@@ -31,5 +32,5 @@ name = "run"
 timeout = 900
 argv = ["${python}", "${work}/peer.py", "${build.result.output}"]
 exit = 0
-stdout = "independent Basic credentials redirects cancellation and HTTP2 passed\n"
+stdout = "independent Basic HTTP1 challenge and redirect protocol checks passed\n"
 stderr = ""

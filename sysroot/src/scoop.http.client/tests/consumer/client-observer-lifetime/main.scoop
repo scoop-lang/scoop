@@ -1,0 +1,68 @@
+package scoop.http.client.tests.consumer.client_observer_lifetime
+
+import scoop.http.client.HttpCallEventKind
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+private fun observerKind(text: String): HttpCallEventKind =
+    when (text) {
+        "start" -> HttpCallEventKind.AttemptStarted
+        "connection" -> HttpCallEventKind.ConnectionAcquired
+        "request" -> HttpCallEventKind.RequestHeaders
+        "upload" -> HttpCallEventKind.RequestProgress
+        "headers" -> HttpCallEventKind.ResponseHeaders
+        "read" -> HttpCallEventKind.ResponseProgress
+        "complete" -> HttpCallEventKind.Completed
+        else -> throw IllegalArgumentException(Some("unknown observer event"))
+    }
+
+@Test
+private class ObserverLifetimeTests {
+    @Test
+    fun cancellationAndCleanup() {
+        for (where in ["start", "upload", "headers", "read", "complete"])
+            for (child in [false, true]) {
+                for (stop in ["caller", "client", "total"])
+                    TrustStore.fromPem(rootPem()).use {
+                        trust -> observerLifetime(trust, observerKind(where), stop, child, true)
+                    }
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> observerLifetime(trust, observerKind(where), "client", child, false)
+                }
+            }
+    }
+    @Test
+    fun selfWait() {
+        for (where in ["start", "connection", "request", "upload", "headers", "read", "complete"])
+            for (child in [false, true])
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> observerSelfWait(trust, observerKind(where), child, false)
+                }
+        for (where in ["read", "complete"])
+            for (child in [false, true])
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> observerSelfWait(trust, observerKind(where), child, true)
+                }
+    }
+    @Test
+    fun callbackFailures() {
+        for (where in ["start", "connection", "request", "upload", "headers", "read", "complete"])
+            for (timeout in [false, true])
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> observerThrows(trust, observerKind(where), timeout)
+                }
+    }
+    @Test
+    fun http2Isolation() {
+        for (where in ["request", "upload", "headers", "read", "complete"])
+            TrustStore.fromPem(rootPem()).use { trust -> observerHttp2(trust, observerKind(where)) }
+    }
+    @Test
+    fun failuresAndResources() {
+        TrustStore.fromPem(rootPem()).use { trust -> observerRethrowsNetworkFailure(trust) }
+        TrustStore.fromPem(rootPem()).use { trust -> observerQueue(trust) }
+        TrustStore.fromPem(rootPem()).use { trust -> observerSourceCleanup(trust) }
+    }
+}

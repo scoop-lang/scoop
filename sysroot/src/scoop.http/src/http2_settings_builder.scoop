@@ -1,0 +1,28 @@
+package scoop.http
+
+public fun Http2Settings.copy(configure: Http2SettingsBuilder.() -> Unit = {}): Http2Settings {
+    val builder = Http2SettingsBuilder()
+    builder.headerTableSize = this.headerTableSize
+    builder.maxConcurrentStreams = this.maxConcurrentStreams
+    builder.initialWindowSize = this.initialWindowSize
+    builder.maxFrameSize = this.maxFrameSize
+    builder.maxHeaderListSize = this.maxHeaderListSize
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class Http2SettingsBuilder internal constructor() {
+    public var headerTableSize: UInt = 4096U
+    public var maxConcurrentStreams: UInt = 100U
+    public var initialWindowSize: UInt = 65535U
+    public var maxFrameSize: UInt = 16384U
+    public var maxHeaderListSize: UInt = 65536U
+    internal fun snapshot(): Http2Settings =
+        Http2Settings(
+            headerTableSize,
+            maxConcurrentStreams,
+            initialWindowSize,
+            maxFrameSize,
+            maxHeaderListSize
+        )
+}

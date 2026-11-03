@@ -1,0 +1,109 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.ui.*
+import scoop.ui.portal as makePortal
+import scoop.ui.style.StyledBuilder
+import scoop.ui.style.styled as makeStyled
+import scoop.ui.text.TextEditorState
+
+/** Collects one ordered child sequence; members append exactly once. */
+public open class ChildrenBuilder internal constructor() {
+    private val entries = ArrayList<View>()
+    public var key: ViewKey = ViewKey.Position
+
+    public fun add(view: View): Unit {
+        entries.add(view)
+    }
+    public fun addAll(views: Array<View>): Unit {
+        for (view in views)
+            add(view)
+    }
+    internal fun childrenSnapshot(): Array<View> = entries.toArray()
+
+    public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): Unit {
+        add(makePlainLabel(text, configure))
+    }
+
+    public fun label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): Unit {
+        add(makeStyledLabel(content, configure))
+    }
+
+    public fun button(
+        text: String,
+        onClick: () -> Unit,
+        configure: ButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTextButton(text, onClick, configure))
+    }
+
+    public fun button(
+        text: StyledText,
+        onClick: () -> Unit,
+        configure: StyledButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeStyledButton(text, onClick, configure))
+    }
+
+    public fun checkbox(
+        checked: Binding<Boolean>,
+        configure: CheckboxBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeCheckbox(checked, configure))
+    }
+
+    public fun checkbox(
+        initialChecked: Boolean = false,
+        configure: CheckboxBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeOwnedCheckbox(initialChecked, configure))
+    }
+
+    public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): Unit {
+        add(makeInput(state, configure))
+    }
+
+    public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): Unit {
+        add(makeTextarea(state, configure))
+    }
+
+    public fun row(configure: LinearBuilder.() -> Unit = {}): Unit {
+        add(makeRow(configure))
+    }
+
+    public fun column(configure: LinearBuilder.() -> Unit = {}): Unit {
+        add(makeColumn(configure))
+    }
+
+    public fun stack(configure: StackBuilder.() -> Unit = {}): Unit {
+        add(makeStack(configure))
+    }
+
+    public fun frame(content: View, configure: FrameBuilder.() -> Unit = {}): Unit {
+        add(makeFrame(content, configure))
+    }
+
+    public fun absolute(configure: AbsoluteBuilder.() -> Unit = {}): Unit {
+        add(makeAbsolute(configure))
+    }
+
+    public fun scrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit = {}): Unit {
+        add(makeScrollArea(content, configure))
+    }
+
+    public fun virtualList(
+        source: ItemSource,
+        itemExtent: ItemExtent,
+        configure: VirtualListBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeVirtualList(source, itemExtent, configure))
+    }
+
+    public fun portal(content: View, configure: PortalBuilder.() -> Unit = {}): Unit {
+        add(makePortal(content, configure))
+    }
+
+    public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): Unit {
+        add(makeStyled(content, configure))
+    }
+}

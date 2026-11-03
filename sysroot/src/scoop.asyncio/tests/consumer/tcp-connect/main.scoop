@@ -44,7 +44,12 @@ private fun exercise(ip: IpAddress) {
             val loop: EventLoop = PlatformEventLoop()
             loop.run suspend {
                 scope -> for (maximum in [1L, 2L]) {
-                    val options = TcpConnectOptions(Duration.ZERO, Duration.ZERO, maximum)
+                    val options =
+                        tcpConnectOptions {
+                            this.resolutionDelay = Duration.ZERO
+                            this.attemptDelay = Duration.ZERO
+                            this.maxConcurrentAttempts = maximum
+                        }
                     // System localhost records need not include both address families.
                     loop.connectTcp(
                         OsString.fromString(ip.toString()),

@@ -14,7 +14,7 @@ public class VirtualListProps public constructor(
     public val lineStep: Double = 40.0,
     public val chain: ScrollChain = ScrollChain.Chain,
     public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
-    public val scrollbar: ScrollbarOptions = ScrollbarOptions(),
+    public val scrollbar: ScrollbarOptions = scrollbarOptions(),
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
     public val theme: ThemeSource? = None,
@@ -68,49 +68,7 @@ public class VirtualList public constructor(private val props: Props<VirtualList
 public fun virtualList(
     source: ItemSource,
     itemExtent: ItemExtent,
-    state: ScrollState? = None,
-    orientation: Orientation = Orientation.Vertical,
-    overscan: Double = 0.0,
-    width: Double? = None,
-    height: Double? = None,
-    lineStep: Double = 40.0,
-    chain: ScrollChain = ScrollChain.Chain,
-    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
-    scrollbar: ScrollbarOptions = ScrollbarOptions(),
-    enabled: Boolean = true,
-    focus: FocusOptions = FocusOptions(),
-    theme: ThemeSource? = None,
-    handle: VirtualListHandle? = None,
-    anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
-    retention: ItemRetention = ItemRetention.Dispose,
-    navigation: ItemNavigation = ItemNavigation.None,
-    paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        VirtualListProps(
-            source,
-            itemExtent,
-            state,
-            orientation,
-            overscan,
-            width,
-            height,
-            lineStep,
-            chain,
-            scrollbars,
-            scrollbar,
-            enabled,
-            focus,
-            theme,
-            handle,
-            anchor,
-            retention,
-            navigation,
-            paintCache
-        ),
-        { props -> VirtualList(props) },
-        key
-    )
+    configure: VirtualListBuilder.() -> Unit = {}
+): View = makeVirtualList(source, itemExtent, configure)
 
 internal class VirtualListInkProps(val input: VirtualListProps, val controls: ScrollControlProps)

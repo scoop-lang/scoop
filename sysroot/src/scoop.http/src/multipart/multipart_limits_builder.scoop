@@ -1,0 +1,37 @@
+package scoop.http
+
+/** Configures one complete value; execution remains explicit. */
+public fun multipartLimits(configure: MultipartLimitsBuilder.() -> Unit = {}): MultipartLimits {
+    val builder = MultipartLimitsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun MultipartLimits.copy(
+    configure: MultipartLimitsBuilder.() -> Unit = {}
+): MultipartLimits {
+    val builder = MultipartLimitsBuilder()
+    builder.maxHeaderBytes = this.maxHeaderBytes
+    builder.maxFields = this.maxFields
+    builder.maxParts = this.maxParts
+    builder.maxBoundaryPaddingBytes = this.maxBoundaryPaddingBytes
+    builder.dataChunkBytes = this.dataChunkBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class MultipartLimitsBuilder internal constructor() {
+    public var maxHeaderBytes: Long = 65536L
+    public var maxFields: Long = 100L
+    public var maxParts: Long = 1024L
+    public var maxBoundaryPaddingBytes: Long = 1024L
+    public var dataChunkBytes: Long = 8192L
+    internal fun snapshot(): MultipartLimits =
+        MultipartLimits(
+            maxHeaderBytes,
+            maxFields,
+            maxParts,
+            maxBoundaryPaddingBytes,
+            dataChunkBytes
+        )
+}

@@ -7,44 +7,44 @@ import scoop.http.*
  * A multipart part combining a body plan with derived validated fields. HTTP trailers are not
  * permitted inside individual parts.
  */
-public class RequestBodyPart public constructor(
+public class RequestBodyPart internal constructor(
     /**
      * The part's body plan.
      */
-    public val body: RequestBody, fields: List<HttpField> = emptyList<HttpField>()) {
+    public val body: RequestBody,
+    fields: List<HttpField> = emptyList<HttpField>()
+) {
     /**
      * Validated part fields and the body's declared length.
      */
-    public val head: MultipartPartHead = MultipartPartHead(requestBodyFields(body, fields), body.contentLength)
+    public val head: MultipartPartHead =
+        MultipartPartHead(requestBodyFields(body, fields), body.contentLength)
     init {
-        if (body.trailerNames.size != 0L) throw IllegalArgumentException(Some("multipart parts cannot carry HTTP trailers"))
-    }
-
-    /**
-     * Factories for multipart form-data parts.
-     */
-    public companion object {
-        /**
-         * Creates a form-data part with a name, optional filename, and the supplied body plan.
-         */
-        public fun formData(name: String, body: RequestBody, filename: String? = None): RequestBodyPart =
-            RequestBodyPart(body, MultipartPartHead.formData(name, filename).fields)
+        if (body.trailerNames.size != 0L)
+            throw IllegalArgumentException(Some("multipart parts cannot carry HTTP trailers"))
     }
 }
 
 internal fun requestBodyFields(body: RequestBody, fields: List<HttpField>): Array<HttpField> {
     val result = ArrayList<HttpField>()
-    for (field in fields) result.add(field)
+    for (field in fields)
+        result.add(field)
     if (result.findAll("content-type".toByteArray()).size == 0L) {
-        when (body.contentType) { case Some(type) -> result.add(type.toHttpField()); case None -> {} }
+        when (body.contentType) {
+            case Some(type) -> result.add(type.toHttpField());
+            case None -> {}
+        }
     }
     if (body.contentEncodings.size != 0L) {
         if (result.findAll("content-encoding".toByteArray()).size != 0L)
-            throw IllegalArgumentException(Some("request body already supplies its Content-Encoding"))
+            throw IllegalArgumentException(
+                Some("request body already supplies its Content-Encoding")
+            )
         val coding = StringBuilder()
         var first = true
         for (encoding in body.contentEncodings) {
-            if (!first) coding.append(", ")
+            if (!first)
+                coding.append(", ")
             first = false
             coding.append(encoding)
         }
@@ -52,7 +52,9 @@ internal fun requestBodyFields(body: RequestBody, fields: List<HttpField>): Arra
     }
     if (body.trailerNames.size != 0L) {
         if (result.findAll("trailer".toByteArray()).size != 0L)
-            throw IllegalArgumentException(Some("request body already supplies its Trailer declaration"))
+            throw IllegalArgumentException(
+                Some("request body already supplies its Trailer declaration")
+            )
         result.add(body.trailerDeclaration.toHttpField())
     }
     return result.toArray()

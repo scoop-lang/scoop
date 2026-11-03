@@ -76,15 +76,15 @@ private class CompositionProbe {
     }
 
     private fun attributes(title: String, transparent: Boolean): WindowAttributes =
-        WindowAttributes(
-            title,
-            LogicalSize(160.0, 120.0),
-            decorations = false,
-            resizable = false,
-            transparent = transparent,
-            position = Some(DesktopPosition(200.0, 200.0)),
-            level = WindowLevel.AlwaysOnTop
-        )
+        windowAttributes {
+            this.title = title
+            this.size = LogicalSize(160.0, 120.0)
+            this.decorations = false
+            this.resizable = false
+            this.transparent = transparent
+            this.position = Some(DesktopPosition(200.0, 200.0))
+            this.level = WindowLevel.AlwaysOnTop
+        }
 
     private fun assertPixel(pixel: Long, red: Int, green: Int, blue: Int) {
         assertTrue(pixel >= 0L, Some("cannot sample the composed desktop"))

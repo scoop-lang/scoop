@@ -1,0 +1,47 @@
+package scoop.http.server
+
+import scoop.collections.HashSet
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun webSocketOptions(configure: WebSocketOptionsBuilder.() -> Unit = {}): WebSocketOptions {
+    val builder = WebSocketOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun WebSocketOptions.copy(
+    configure: WebSocketOptionsBuilder.() -> Unit = {}
+): WebSocketOptions {
+    val builder = WebSocketOptionsBuilder()
+    builder.protocols = this.protocols
+    builder.requireProtocol = this.requireProtocol
+    builder.originAllowed = this.originAllowed
+    builder.session = this.session
+    builder.deflate = this.deflate
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class WebSocketOptionsBuilder internal constructor() {
+    public var protocols: List<String> = ArrayList<String>()
+    public var requireProtocol: Boolean = false
+    public var originAllowed: (List<HttpField>) -> Boolean = { _ -> true }
+    public var session: WebSocketSessionOptions = webSocketSessionOptions()
+    public var deflate: WebSocketDeflate? = None
+
+    public fun session(configure: WebSocketSessionOptionsBuilder.() -> Unit): Unit {
+        session = session.copy(configure)
+    }
+
+    public fun protocol(value: String): Unit {
+        val next = ArrayList<String>()
+        for (item in protocols)
+            next.add(item)
+        next.add(value)
+        protocols = next.toArray()
+    }
+    internal fun snapshot(): WebSocketOptions =
+        WebSocketOptions(protocols, requireProtocol, originAllowed, session, deflate)
+}

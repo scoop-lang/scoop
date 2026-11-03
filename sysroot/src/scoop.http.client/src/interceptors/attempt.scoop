@@ -33,7 +33,8 @@ public enum HttpAttemptReason {
     /**
      * An attempt validating or refreshing a cached representation.
      */
-    CacheRefresh }
+    CacheRefresh
+}
 
 /**
  * A snapshot of the concrete request target, prepared fields, route, and attempt number supplied
@@ -59,58 +60,120 @@ public class HttpAttempt internal constructor(call: ClientCall) {
     /**
      * A snapshot of fields prepared before onAttempt additions.
      */
-    public val fields: Array<HttpField> = when (call.webSocketHandshake) {
-        case Some(handshake) -> handshake.request.fields.toArray()
-        case None -> clientRequestSnapshotFields(call)
-    }
+    public val fields: Array<HttpField> =
+        when (call.webSocketHandshake) {
+            case Some(handshake) -> handshake.request.fields.toArray()
+            case None -> clientRequestSnapshotFields(call)
+        }
     /**
      * The selected proxy endpoint, or None for a direct route.
      */
-    public val proxyUrl: Url? = when (call.route) {
-        case Direct -> None
-        case HttpForward(endpoint) -> Some(endpoint.url)
-        case HttpTunnel(endpoint) -> Some(endpoint.url)
-        case Socks5(endpoint) -> Some(endpoint.url)
-    }
+    public val proxyUrl: Url? =
+        when (call.route) {
+            case Direct -> None
+            case HttpForward(endpoint) -> Some(endpoint.url)
+            case HttpTunnel(endpoint) -> Some(endpoint.url)
+            case Socks5(endpoint) -> Some(endpoint.url)
+        }
 }
 
-private class ClientAttemptCallback(val call: ClientCall) { var active: Boolean = true }
+private class ClientAttemptCallback(val call: ClientCall) {
+    var active: Boolean = true
+}
 
 internal suspend fun prepareClientAttempt(call: ClientCall) {
     val callback = call.client.config.onAttempt ?: return
     val request = call.request
     val supplied = ArrayList<HttpField>()
-    for (field in request.suppliedFields) supplied.add(field)
+    for (field in request.suppliedFields)
+        supplied.add(field)
     addClientAcceptEncoding(supplied, request, call.client.config)
-    call.request = HttpRequest(request.url, request.method, supplied, request.body, request.options)
+    call.request =
+        httpRequest(request.url) {
+            this.method = request.method
+            this.fields = supplied
+            this.body = request.body
+            this.options = request.options
+        }
     val snapshot = HttpAttempt(call)
     val active = ClientAttemptCallback(call)
-    val added = try { context(active) { callback(snapshot).toArray() } }
-        catch (error: Throwable) { failClientUserCallback(call, error); throw error }
-        finally { call.client.lock.withLock { active.active = false } }
+    val added =
+        try {
+            context(active) {
+                callback(snapshot).toArray()
+            }
+        }
+        catch (error: Throwable) {
+            failClientUserCallback(call, error);
+            throw error
+        }
+        finally {
+            call.client.lock.withLock { active.active = false }
+        }
     requireClientCall(call)
     val names = HashSet<String>()
-    for (field in snapshot.fields) names.add(String.fromUtf8(field.name).lowercaseAscii())
+    for (field in snapshot.fields)
+        names.add(String.fromUtf8(field.name).lowercaseAscii())
     for (field in added) {
         field.validate()
         val name = String.fromUtf8(field.name).lowercaseAscii()
-        if (name == "host" || name == "content-length" || name == "transfer-encoding" || name == "connection" ||
-            name == "upgrade" || name == "expect" || name == "trailer" || name == "proxy-authorization" ||
-            (clientPresent(call.sequence.webSocket) && name.startsWith("sec-websocket-")))
-            throw IllegalArgumentException(Some("HTTP attempt callback cannot supply managed field " + name))
-        if (!names.add(name)) throw IllegalArgumentException(Some("HTTP attempt callback cannot replace field " + name))
-        if (name == "authorization") call.attemptAuthorization = true
+        if (
+            name ==
+                "host" ||
+                name ==
+                "content-length" ||
+                name ==
+                "transfer-encoding" ||
+                name ==
+                "connection" ||
+                name ==
+                "upgrade" ||
+                name ==
+                "expect" ||
+                name ==
+                "trailer" ||
+                name ==
+                "proxy-authorization" ||
+                (clientPresent(call.sequence.webSocket) && name.startsWith("sec-websocket-"))
+        )
+            throw IllegalArgumentException(
+                Some("HTTP attempt callback cannot supply managed field " + name)
+            )
+        if (!names.add(name))
+            throw IllegalArgumentException(
+                Some("HTTP attempt callback cannot replace field " + name)
+            )
+        if (name == "authorization")
+            call.attemptAuthorization = true
         supplied.add(field)
     }
     call.attemptFields = added
-    call.request = HttpRequest(request.url, request.method, supplied, request.body, request.options)
+    call.request =
+        httpRequest(request.url) {
+            this.method = request.method
+            this.fields = supplied
+            this.body = request.body
+            this.options = request.options
+        }
 }
 
 context(callback: ClientAttemptCallback)
 private fun boundClientAttemptCallback(): ClientAttemptCallback = callback
 
 internal fun checkClientAttemptClose(client: ClientState) {
-    val callback = try { Some(boundClientAttemptCallback()) } catch (_: MissingContextException) { None }
-    if (clientPresent(callback) && callback!!.call.client === client && client.lock.withLock { callback!!.active })
-        throw IllegalStateException(Some("cannot await client.close from its active attempt callback"))
+    val callback =
+        try {
+            Some(boundClientAttemptCallback())
+        } catch (_: MissingContextException) {
+            None
+        }
+    if (
+        clientPresent(callback) &&
+            callback!!.call.client ===
+            client &&
+            client.lock.withLock { callback!!.active }
+    )
+        throw IllegalStateException(
+            Some("cannot await client.close from its active attempt callback")
+        )
 }

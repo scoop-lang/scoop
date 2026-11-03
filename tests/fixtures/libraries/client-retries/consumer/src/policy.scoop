@@ -1,4 +1,5 @@
 package scoop.tests
+
 import scoop.http.*
 import scoop.http.client.*
 import scoop.platform.io.UnexpectedEofException
@@ -6,20 +7,42 @@ import scoop.time.Duration
 import scoop.url.Url
 
 internal suspend fun retryStatus(client: HttpClient, url: Url) {
-    val retries = HttpRetryOptions(methods = ["GET", "POST"], statuses = [302U, 503U],
-        initialDelay = Duration.ZERO, maxDelay = Duration.ZERO, jitter = false)
-    client.withResponse(HttpRequest.post(url, RequestBody.Empty,
-        options = HttpCallOptions(retries = Some(retries)))) suspend { response ->
+    val retries =
+        httpRetryOptions {
+            this.methods = ["GET", "POST"]
+            this.statuses = [302U, 503U]
+            this.initialDelay = Duration.ZERO
+            this.maxDelay = Duration.ZERO
+            this.jitter = false
+        }
+    client.withResponse(
+        httpRequest(url) {
+            this.method = "POST"
+            this.body = RequestBody.Empty
+            this.options = httpCallOptions { this.retries = Some(retries) }
+        }
+    ) suspend {
+        response ->
         retryCheck(response.status == 200U && response.retryCount == 2L)
         retryCheck(response.redirectHistory.size == 1L)
-        retryCheck(response.redirectHistory[0L].method == "POST" && response.redirectHistory[0L].nextMethod == "GET")
+        retryCheck(
+            response.redirectHistory[0L].method ==
+                "POST" &&
+                response.redirectHistory[0L].nextMethod ==
+                "GET"
+        )
         retryCheck(response.url == url.resolve("/after") && response.body.text(4L) == "done")
     }
 }
 
 internal suspend fun retryPost(client: HttpClient, url: Url) {
     try {
-        client.execute(HttpRequest.post(url, RequestBody.fromText("once"))).close()
+        client.execute(
+            httpRequest(url) {
+                this.method = "POST"
+                this.body = RequestBody.fromText("once")
+            }
+        ).close()
         retryCheck(false)
     } catch (_: UnexpectedEofException) {
         retryCheck(!client.isClosed)
@@ -28,14 +51,37 @@ internal suspend fun retryPost(client: HttpClient, url: Url) {
 
 internal suspend fun retryTotal(client: HttpClient, url: Url) {
     val limit = Duration.seconds(10L)
-    val retries = HttpRetryOptions(statuses = [503U], initialDelay = Duration.ZERO,
-        maxDelay = Duration.ZERO, jitter = false)
+    val retries =
+        httpRetryOptions {
+            this.statuses = [503U]
+            this.initialDelay = Duration.ZERO
+            this.maxDelay = Duration.ZERO
+            this.jitter = false
+        }
     try {
-        client.execute(HttpRequest(url, "PUT", body = RequestBody.fromText("sent"),
-            options = HttpCallOptions(retries = Some(retries), timeouts = Some(HttpTimeoutOptions(total = Some(limit)))))).close()
+        client.execute(
+            httpRequest(url) {
+                this.method = "PUT"
+                this.body = RequestBody.fromText("sent")
+                this.options =
+                    httpCallOptions {
+                        this.retries = Some(retries)
+                        this.timeouts = Some(httpTimeoutOptions { this.total = Some(limit) })
+                    }
+            }
+        ).close()
         retryCheck(false)
     } catch (error: HttpTimeoutException) {
-        retryCheck(error.phase == HttpTimeoutPhase.Total && error.limit == limit && error.elapsed >= limit)
-        retryCheck(error.requestBodyBytes == 4L && error.encodedResponseBodyBytes == 0L && error.responseBodyBytes == 0L)
+        retryCheck(
+            error.phase == HttpTimeoutPhase.Total && error.limit == limit && error.elapsed >= limit
+        )
+        retryCheck(
+            error.requestBodyBytes ==
+                4L &&
+                error.encodedResponseBodyBytes ==
+                0L &&
+                error.responseBodyBytes ==
+                0L
+        )
     }
 }

@@ -50,7 +50,7 @@ internal fun authDigest(mode: String, proxy: Url, target: Url, trust: TrustStore
             HttpProxyEndpoint(
                 proxy,
                 authTls(trust),
-                authentication = HttpAuthenticationOptions([provider])
+                authentication = httpAuthenticationOptions { this.providers = [provider] }
             )
         val h2 = mode == "digest-h2-connect"
         withHttpClient<Unit>(authConfig(trust, authSelector(endpoint), h2 = h2)) suspend {
@@ -80,15 +80,15 @@ internal fun authDigest(mode: String, proxy: Url, target: Url, trust: TrustStore
                             else
                                 RequestBody.fromText("payload")
                 val request =
-                    HttpRequest(
-                        target,
-                        if (h2)
-                            "GET"
-                        else
-                            "POST",
-                        body = body,
-                        options = authContinue()
-                    )
+                    httpRequest(target) {
+                        this.method =
+                            if (h2)
+                                "GET"
+                            else
+                                "POST"
+                        this.body = body
+                        this.options = authContinue()
+                    }
                 if (
                     mode ==
                         "digest-bad-connect" ||
@@ -147,7 +147,7 @@ internal fun authDigest(mode: String, proxy: Url, target: Url, trust: TrustStore
                                 target.resolve("/second?q=2")
                         authDone(
                             client,
-                            HttpRequest.get(next),
+                            httpRequest(next),
                             proxyCount =
                                 if (mode == "digest-clear")
                                     1L
@@ -209,12 +209,12 @@ internal fun authDouble(proxy: Url, trust: TrustStore) {
                 authCheck(authContext() == "application")
                 HttpPasswordCredentials("Mufasa", "Circle of Life")
             }
-        val options = HttpAuthenticationOptions([provider])
+        val options = httpAuthenticationOptions { this.providers = [provider] }
         val endpoint = HttpProxyEndpoint(proxy, authentication = options)
         withHttpClient(authConfig(trust, authSelector(endpoint), options)) suspend {
             client -> context(AuthContext("application")) {
-                authDone(client, HttpRequest.get(target), originCount = 1L)
-                authDone(client, HttpRequest.get(target.resolve("/second?q=2")), proxyCount = 0L)
+                authDone(client, httpRequest(target), originCount = 1L)
+                authDone(client, httpRequest(target.resolve("/second?q=2")), proxyCount = 0L)
                 authCheck(proxyCalls.load() == 2L && originCalls.load() == 2L)
             }
         }

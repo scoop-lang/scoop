@@ -28,53 +28,57 @@ internal suspend fun consumerResponseText(source: AsyncByteSource): String {
 private class HttpServerH2ConsumerTests {
     @Test
     fun `published server supports HTTP2 streams SSE and compressed multipart through public APIs`() {
-        val routes = RouterBuilder()
-        routes.use(requestDecompression())
-        routes.get(
-            "/",
-            suspend {
-                ctx ->
-                assertEquals(HttpProtocol.Http2, ctx.connection.protocol)
-                stream(
-                    "text/plain",
-                    suspend { writer -> writer.writeText("public h2") },
-                    length = Some(9L)
+        val routes =
+            routing {
+                this.use(requestDecompression())
+                this.get(
+                    "/",
+                    suspend {
+                        ctx ->
+                        assertEquals(HttpProtocol.Http2, ctx.connection.protocol)
+                        stream(
+                            "text/plain",
+                            suspend { writer -> writer.writeText("public h2") },
+                            length = Some(9L)
+                        )
+                    }
                 )
-            }
-        )
-        routes.get(
-            "/events",
-            suspend {
-                ctx ->
-                ctx.setDeadline(None)
-                val id = ctx.request.lastEventId
-                sse(
-                    produce =
-                        suspend { events -> events.send(SseMessage(Some("public SSE"), id = id)) }
+                this.get(
+                    "/events",
+                    suspend {
+                        ctx ->
+                        ctx.setDeadline(None)
+                        val id = ctx.request.lastEventId
+                        sse(
+                            produce =
+                                suspend {
+                                    events -> events.send(SseMessage(Some("public SSE"), id = id))
+                                }
+                        )
+                    }
                 )
-            }
-        )
-        routes.post(
-            "/upload",
-            suspend {
-                ctx -> ctx.request.body.multipart(
-                    RequestMultipartOptions(maxPartBytes = 16L)
-                ).useAsync suspend {
-                    reader ->
-                    val part = reader.nextPart()!!
-                    val result = part.name + ":" + part.text()
-                    assertTrue(
-                        when (reader.nextPart()) {
-                            case None -> true;
-                            case Some(_) -> false
+                this.post(
+                    "/upload",
+                    suspend {
+                        ctx -> ctx.request.body.multipart(
+                            requestMultipartOptions { this.maxPartBytes = 16L }
+                        ).useAsync suspend {
+                            reader ->
+                            val part = reader.nextPart()!!
+                            val result = part.name + ":" + part.text()
+                            assertTrue(
+                                when (reader.nextPart()) {
+                                    case None -> true;
+                                    case Some(_) -> false
+                                }
+                            )
+                            assertEquals("gzip", ctx.request.body.view!!.decodedEncodings[0L])
+                            assertEquals(None, ctx.request.body.view!!.contentLength)
+                            text(result)
                         }
-                    )
-                    assertEquals("gzip", ctx.request.body.view!!.decodedEncodings[0L])
-                    assertEquals(None, ctx.request.body.view!!.contentLength)
-                    text(result)
-                }
+                    }
+                )
             }
-        )
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope ->
@@ -82,9 +86,9 @@ private class HttpServerH2ConsumerTests {
             val address = listener.localAddress
             HttpServer.takeOwnership(
                 listener,
-                routes.build(),
+                routes,
                 scope,
-                HttpServerOptions(allowCleartextHttp2 = true)
+                httpServerOptions { this.allowCleartextHttp2 = true }
             ).useAsync suspend {
                 server -> AsyncHttp2Connection.takeOwnershipAsClient(
                     loop.connectTcp(address),

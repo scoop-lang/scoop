@@ -22,7 +22,10 @@ private class StyleFailureTest {
                     case Resumed -> {
                         val native =
                             active.createWindow(
-                                WindowAttributes("Style failure", LogicalSize(180.0, 100.0))
+                                windowAttributes {
+                                    this.title = "Style failure"
+                                    this.size = LogicalSize(180.0, 100.0)
+                                }
                             )
                         native.setWindowLevel(WindowLevel.AlwaysOnTop)
                         probe.window = Some(native)
@@ -105,13 +108,13 @@ private class FailureInk(private val probe: FailureProbe): Element {
     public override fun scene(context: SceneContext) {
         probe.painter!!.scene(
             context,
-            Style(
-                background = Some(Paint(Color.White)),
-                border = Some(Border(2.0, Color.Black)),
-                boxShadows = [BoxShadow(Point(2.0, 2.0), 2.0, 2.0, Color.Black)],
-                contentEffects =
+            style {
+                this.background = Some(Paint(Color.White))
+                this.border = Some(Border(2.0, Color.Black))
+                this.boxShadows = [BoxShadow(Point(2.0, 2.0), 2.0, 2.0, Color.Black)]
+                this.contentEffects =
                     [ContentEffect.Glow(3.0, 3.0, Color.White), ContentEffect.Blur(1.0, 1.0)]
-            )
+            }
         ) {
             child -> child.draw {
                 paint ->

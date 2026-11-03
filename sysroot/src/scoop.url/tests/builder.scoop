@@ -6,43 +6,185 @@ import scoop.collections.listOf
 @Test
 private class UrlBuilderTests {
     @Test
-    fun `raw and encoded component setters do not inject structure or double encode`() {
-        val url = UrlBuilder().setScheme(Some("https")).setHost("bücher.example").setPort(Some(443))
-            .appendPathSegment("a/b?#%").appendEncodedPathSegment("x%2fy").appendPathSegment("..")
-            .setQueryParameters(UrlQuery().add("a", Some("x+y&z")))
-            .setFragment(Some("#片段")).build()
-        assertEquals("https://xn--bcher-kva.example:443/a%2Fb%3F%23%25/x%2Fy/%2E%2E?a=x%2By%26z#%23%E7%89%87%E6%AE%B5", url.toString())
-        assertEquals(url, Url.parse(url.toString()))
-        val builder = url.toBuilder().setEncodedQuery(Some(""))
-        val changed = builder.build()
-        builder.appendPathSegment("later")
-        assertEquals("a=x%2By%26z", url.encodedQuery!!)
+    fun rawAndEncodedComponentsPreserveData() {
+        val value =
+            url {
+                scheme = Some("https")
+                host("bücher.example")
+                port = Some(443)
+                appendPathSegment("a/b?#%")
+                appendEncodedPathSegment("x%2fy")
+                appendPathSegment("..")
+                queryParameters(UrlQuery().add("a", Some("x+y&z")))
+                fragment(Some("#片段"))
+            }
+        assertEquals(
+            "https://xn--bcher-kva.example:443/a%2Fb%3F%23%25/x%2Fy/%2E%2E?a=x%2By%26z#%23%E7%89%87%E6%AE%B5",
+            value.toString()
+        )
+        assertEquals(value, Url.parse(value.toString()))
+        val saved = ArrayList<UrlBuilder>()
+        val changed =
+            value.copy {
+                saved.add(this)
+                encodedQuery = Some("")
+            }
+        saved[0L].appendPathSegment("later")
+        assertEquals("a=x%2By%26z", value.encodedQuery!!)
         assertEquals("", changed.encodedQuery!!)
-        assertEquals(url.encodedPath, changed.encodedPath)
-        assertEquals("http://[0000:0000:0000:0000:0000:0000:0000:0001]/", UrlBuilder().setScheme(Some("http")).setHost("::1").setPath("/").build().toString())
+        assertEquals(value.encodedPath, changed.encodedPath)
+        assertEquals(
+            "http://[0000:0000:0000:0000:0000:0000:0000:0001]/",
+            url {
+                scheme = Some("http")
+                host("::1")
+                path("/")
+            }.toString()
+        )
     }
 
     @Test
-    fun `redaction and request targets omit credentials and fragments explicitly`() {
-        val url = Url.parse("https://user:pass@example/a?token=secret&x=1&token=second#fragment")
-        assertEquals("https://example/a?token=%5Bredacted%5D&x=1&token=%5Bredacted%5D#fragment", url.redacted(listOf("token")))
-        assertEquals("/a?token=secret&x=1&token=second", url.httpRequestTarget())
-        assertEquals("https://example/a?token=secret&x=1&token=second", url.httpAbsoluteTarget())
-        assertEquals("user:pass", url.authority!!.encodedUserInfo!!)
-        assertEquals("https://example/a?token=secret&x=1&token=second#fragment", url.redacted())
+    fun defaultsOrderAndCapturedBuilders() {
+        assertEquals("", url().toString())
+        val calls = ArrayList<Unit>()
+        val saved = ArrayList<UrlBuilder>()
+        val value =
+            url {
+                calls.add(Unit)
+                saved.add(this)
+                assertTrue(scheme == None && encodedHost == None && encodedUserInfo == None)
+                assertTrue(port == None && encodedQuery == None && encodedFragment == None)
+                assertEquals("", encodedPath)
+                scheme = Some("HTTP")
+                scheme = Some("HTTPS")
+                assertEquals(Some("https"), scheme)
+                host("EXAMPLE.COM")
+                path("/root")
+                for (segment in ["one", "", "two"])
+                    if (segment.charLength > 0L)
+                        appendPathSegment(segment)
+                encodedQuery = Some("")
+                encodedFragment = Some("")
+            }
+        assertEquals(1L, calls.size)
+        assertEquals("https://example.com/root/one/two?#", value.toString())
+        saved[0L].encodedHost = Some("later.example")
+        saved[0L].encodedPath = "/later"
+        assertEquals("https://example.com/root/one/two?#", value.toString())
+        val copied =
+            value.copy {
+                calls.add(Unit)
+                assertEquals(Some("example.com"), encodedHost)
+                assertEquals("/root/one/two", encodedPath)
+                assertEquals(Some(""), encodedQuery)
+                assertEquals(Some(""), encodedFragment)
+            }
+        assertEquals(2L, calls.size)
+        assertEquals(value, copied)
+        assertEquals(value, value.copy())
     }
 
     @Test
-    fun `component validation catches authority path and port mistakes`() {
-        assertFailsWith<UrlParseException> { UrlBuilder().setEncodedAuthority(Some("a/b")) }
-        assertFailsWith<UrlParseException> { UrlBuilder().setEncodedHost(Some("a/b")).build() }
-        assertFailsWith<UrlParseException> { UrlBuilder().setScheme(Some("1http")).build() }
-        assertFailsWith<UrlParseException> { UrlBuilder().setPort(Some(65536)) }
-        assertFailsWith<UrlParseException> { UrlBuilder().setPort(Some(80)).build() }
-        assertFailsWith<UrlParseException> { UrlBuilder().setHost("example").setEncodedPath("relative").build() }
-        assertFailsWith<UrlParseException> { UrlBuilder().appendEncodedPathSegment("a/b") }
-        assertFailsWith<UrlParseException> { UrlBuilder().setEncodedQuery(Some("%XY")) }
-        assertEquals("./a:b", UrlBuilder().setEncodedPath("a:b").build().toString())
-        assertEquals("//", UrlBuilder().setEncodedHost(Some("")).build().toString())
+    fun rawOperationsAndEncodedPropertiesShareState() {
+        val value =
+            url {
+                scheme = Some("http")
+                encodedAuthority(Some("old:secret@[::1]:443"))
+                assertEquals(Some("[0000:0000:0000:0000:0000:0000:0000:0001]"), encodedHost)
+                assertEquals(Some("old:secret"), encodedUserInfo)
+                assertEquals(Some(443), port)
+                port = Some(9)
+                encodedAuthority(Some("other:secret@EXAMPLE:80"))
+                assertEquals(Some(80), port)
+                userInfo(Some("name:secret"))
+                assertEquals(Some("name%3Asecret"), encodedUserInfo)
+                encodedPath = "/x%2fy"
+                assertEquals("/x%2Fy", encodedPath)
+                query(Some("a=b+c"))
+                assertEquals(Some("a%3Db%2Bc"), encodedQuery)
+                fragment(Some("tail?#"))
+                assertEquals(Some("tail%3F%23"), encodedFragment)
+            }
+        assertEquals("http://name%3Asecret@example:80/x%2Fy?a%3Db%2Bc#tail%3F%23", value.toString())
+        val cleared =
+            value.copy {
+                encodedAuthority(None)
+                assertTrue(encodedHost == None && encodedUserInfo == None && port == None)
+                scheme = None
+                path("relative")
+                query(None)
+                fragment(None)
+            }
+        assertEquals("relative", cleared.toString())
+        val encoded =
+            value.copy {
+                encodedUserInfo = Some("u%3ap")
+                encodedQuery = Some("a=&a&b=%2f+z")
+                encodedFragment = Some("x%2f")
+            }
+        assertEquals("u%3Ap", encoded.authority!!.encodedUserInfo!!)
+        assertEquals("a=&a&b=%2F+z", encoded.encodedQuery!!)
+        assertEquals("x%2F", encoded.encodedFragment!!)
+        assertEquals(Some(""), encoded.queryParameters().getAll("a")[0L])
+        assertTrue(encoded.queryParameters().getAll("a")[1L] == None)
+        assertEquals(Some("/+z"), encoded.queryParameters().getAll("b")[0L])
+    }
+
+    @Test
+    fun configurationFailuresPreserveExceptionAndSource() {
+        val original = IllegalStateException(Some("configuration failed"))
+        val calls = ArrayList<Unit>()
+        val first =
+            assertFailsWith<IllegalStateException> {
+                url {
+                    calls.add(Unit)
+                    host("example.com")
+                    throw original
+                }
+            }
+        val source = Url.parse("https://user:pass@example.com/base?q#f")
+        val second =
+            assertFailsWith<IllegalStateException> {
+                source.copy {
+                    calls.add(Unit)
+                    encodedAuthority(None)
+                    throw original
+                }
+            }
+        assertTrue(first === original && second === original)
+        assertEquals(2L, calls.size)
+        assertEquals("https://user:pass@example.com/base?q#f", source.toString())
+    }
+
+    @Test
+    fun redactionAndRequestTargetsOmitCredentials() {
+        val value = Url.parse("https://user:pass@example/a?token=secret&x=1&token=second#fragment")
+        assertEquals(
+            "https://example/a?token=%5Bredacted%5D&x=1&token=%5Bredacted%5D#fragment",
+            value.redacted(listOf("token"))
+        )
+        assertEquals("/a?token=secret&x=1&token=second", value.httpRequestTarget())
+        assertEquals("https://example/a?token=secret&x=1&token=second", value.httpAbsoluteTarget())
+        assertEquals("user:pass", value.authority!!.encodedUserInfo!!)
+        assertEquals("https://example/a?token=secret&x=1&token=second#fragment", value.redacted())
+    }
+
+    @Test
+    fun componentValidationRejectsInvalidCombinations() {
+        assertFailsWith<UrlParseException> { url { encodedAuthority(Some("a/b")) } }
+        assertFailsWith<UrlParseException> { url { encodedHost = Some("a/b") } }
+        assertFailsWith<UrlParseException> { url { scheme = Some("1http") } }
+        assertFailsWith<UrlParseException> { url { port = Some(65536) } }
+        assertFailsWith<UrlParseException> { url { port = Some(80) } }
+        assertFailsWith<UrlParseException> {
+            url {
+                host("example");
+                encodedPath = "relative"
+            }
+        }
+        assertFailsWith<UrlParseException> { url { appendEncodedPathSegment("a/b") } }
+        assertFailsWith<UrlParseException> { url { encodedQuery = Some("%XY") } }
+        assertEquals("./a:b", url { encodedPath = "a:b" }.toString())
+        assertEquals("//", url { encodedHost = Some("") }.toString())
     }
 }

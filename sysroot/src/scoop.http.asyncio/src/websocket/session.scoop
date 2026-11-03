@@ -8,7 +8,9 @@ import scoop.http.*
  * A structured WebSocket session over an already-upgraded transport. Background tasks handle
  * control frames and bounded message backpressure; serialize message operations in each direction.
  */
-public class AsyncWebSocketSession internal constructor(private val state: WsState) : AsyncCloseable {
+public class AsyncWebSocketSession internal constructor(
+    private val state: WsState
+): AsyncCloseable {
     /**
      * Starts a session while transferring an established transport into a supplied coroutine
      * scope.
@@ -19,10 +21,15 @@ public class AsyncWebSocketSession internal constructor(private val state: WsSta
          * Invalid initial options leave ownership with the caller; failures after takeover clean
          * up the transport.
          */
-        public suspend fun <T> takeOwnership(transport: T, scope: CoroutineScope, role: HttpRole,
-            options: WebSocketSessionOptions = WebSocketSessionOptions(),
-            deflate: WebSocketDeflateNegotiation? = None): AsyncWebSocketSession
-            where T : AsyncByteStream, T : AsyncCloseable = adoptWs(transport, transport, scope, role, options, deflate)
+        public suspend fun <T> takeOwnership(
+            transport: T,
+            scope: CoroutineScope,
+            role: HttpRole,
+            options: WebSocketSessionOptions = webSocketSessionOptions(),
+            deflate: WebSocketDeflateNegotiation? = None
+        ): AsyncWebSocketSession
+        where T: AsyncByteStream, T: AsyncCloseable =
+            adoptWs(transport, transport, scope, role, options, deflate)
     }
 
     /**
@@ -32,10 +39,11 @@ public class AsyncWebSocketSession internal constructor(private val state: WsSta
     /**
      * The actual permessage-deflate negotiation, if compression was negotiated.
      */
-    public val deflate: WebSocketDeflateNegotiation? get() = when (state.deflate) {
-        case Some(value) -> Some(value.negotiated)
-        case None -> None
-    }
+    public val deflate: WebSocketDeflateNegotiation? get() =
+        when (state.deflate) {
+            case Some(value) -> Some(value.negotiated)
+            case None -> None
+        }
     /**
      * Whether owned session cleanup has completed.
      */
@@ -57,13 +65,22 @@ public class AsyncWebSocketSession internal constructor(private val state: WsSta
      * Begins one streamed outgoing message. Compression can be disabled for this message even when
      * negotiated; finish the returned writer before another message.
      */
-    public suspend fun beginMessage(type: WebSocketMessageType, compress: Boolean = true): WebSocketMessageWriter =
-        wsOperation<WsOutgoing, WebSocketMessageWriter>(state, false, { beginWsMessage(state, type, compress) }, suspend { message ->
-            val job = httpJob(state.loop, true)
-            listenWsLife(state, message.life, job)
-            job.ensureActive()
-            WebSocketMessageWriter(state, message)
-        })
+    public suspend fun beginMessage(
+        type: WebSocketMessageType,
+        compress: Boolean = true
+    ): WebSocketMessageWriter =
+        wsOperation<WsOutgoing, WebSocketMessageWriter>(
+            state,
+            false,
+            { beginWsMessage(state, type, compress) },
+            suspend {
+                message ->
+                val job = httpJob(state.loop, true)
+                listenWsLife(state, message.life, job)
+                job.ensureActive()
+                WebSocketMessageWriter(state, message)
+            }
+        )
 
     /**
      * Waits for the next message or returns None at normal session end. Complete the current
@@ -85,30 +102,43 @@ public class AsyncWebSocketSession internal constructor(private val state: WsSta
     /**
      * Streams one complete message from a borrowed source; the source is not closed by this call.
      */
-    public suspend fun send(type: WebSocketMessageType, source: AsyncByteSource, compress: Boolean = true) {
+    public suspend fun send(
+        type: WebSocketMessageType,
+        source: AsyncByteSource,
+        compress: Boolean = true
+    ) {
         sendWsSource(state, type, source, compress)
     }
     /**
      * Sends a Ping and waits for its matching Pong.
      */
-    public suspend fun ping(payload: List<Byte> = emptyList<Byte>()) { sendWsControl(state, true, payload) }
+    public suspend fun ping(payload: List<Byte> = emptyList<Byte>()) {
+        sendWsControl(state, true, payload)
+    }
     /**
      * Sends an unsolicited Pong without waiting for a reply.
      */
-    public suspend fun pong(payload: List<Byte> = emptyList<Byte>()) { sendWsControl(state, false, payload) }
+    public suspend fun pong(payload: List<Byte> = emptyList<Byte>()) {
+        sendWsControl(state, false, payload)
+    }
     /**
      * Sends Close and waits for peer Close, transport flush, and cleanup within the configured
      * deadline.
      */
-    public suspend fun shutdownGracefully(value: WebSocketClose = WebSocketClose(Some(1000U))): WebSocketClose =
-        shutdownWs(state, value)
+    public suspend fun shutdownGracefully(
+        value: WebSocketClose = WebSocketClose(Some(1000U))
+    ): WebSocketClose = shutdownWs(state, value)
     /**
      * Waits for session cleanup to complete.
      */
-    public suspend fun awaitClosed() { observeWsClosed(state) }
+    public suspend fun awaitClosed() {
+        observeWsClosed(state)
+    }
     /**
      * Performs local closure, cancelling owned I/O and waiting for native borrows and cleanup.
      * Repeated close is supported, including cleanup from an already-cancelled caller.
      */
-    public override suspend fun close() { closeWs(state) }
+    public override suspend fun close() {
+        closeWs(state)
+    }
 }

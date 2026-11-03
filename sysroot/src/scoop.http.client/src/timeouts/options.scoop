@@ -6,7 +6,7 @@ import scoop.time.Duration
  * Optional nonnegative deadlines for the total call and individual waits. None disables that
  * bound; total includes upload, response body, and cleanup.
  */
-public class HttpTimeoutOptions public constructor(
+public class HttpTimeoutOptions internal constructor(
     /**
      * Optional timeout for the entire call through body and cleanup; None disables this bound.
      */
@@ -45,7 +45,19 @@ public class HttpTimeoutOptions public constructor(
     public val proxyHandshake: Duration? = Some(Duration.seconds(30L))
 ) {
     init {
-        for (duration in [total, poolAcquire, responseHeaders, resolve, connect, tlsHandshake, readIdle, writeIdle, proxyHandshake]) {
+        for (
+            duration in [
+                total,
+                poolAcquire,
+                responseHeaders,
+                resolve,
+                connect,
+                tlsHandshake,
+                readIdle,
+                writeIdle,
+                proxyHandshake
+            ]
+        ) {
             if (duration != None && duration!! < Duration.ZERO)
                 throw IllegalArgumentException(Some("HTTP timeout must be nonnegative"))
         }
@@ -91,7 +103,8 @@ public enum HttpTimeoutPhase {
     /**
      * The deadline expired while performing CONNECT or SOCKS5 negotiation.
      */
-    ProxyHandshake }
+    ProxyHandshake
+}
 
 /**
  * An expired deadline with configured limit, elapsed time, byte progress, and optional underlying
@@ -126,16 +139,17 @@ public class HttpTimeoutException internal constructor(
      * The underlying failure associated with the timeout, if any.
      */
     public val cause: Throwable? = None
-) : Exception(Some("HTTP " + httpTimeoutPhaseName(phase) + " timeout"))
+): Exception(Some("HTTP " + httpTimeoutPhaseName(phase) + " timeout"))
 
-private fun httpTimeoutPhaseName(phase: HttpTimeoutPhase): String = when (phase) {
-    case Total -> "total"
-    case PoolAcquire -> "pool acquisition"
-    case ResponseHeaders -> "response headers"
-    case Resolve -> "address resolution"
-    case Connect -> "TCP connection"
-    case TlsHandshake -> "TLS handshake"
-    case ReadIdle -> "read idle"
-    case WriteIdle -> "write idle"
-    case ProxyHandshake -> "proxy handshake"
-}
+private fun httpTimeoutPhaseName(phase: HttpTimeoutPhase): String =
+    when (phase) {
+        case Total -> "total"
+        case PoolAcquire -> "pool acquisition"
+        case ResponseHeaders -> "response headers"
+        case Resolve -> "address resolution"
+        case Connect -> "TCP connection"
+        case TlsHandshake -> "TLS handshake"
+        case ReadIdle -> "read idle"
+        case WriteIdle -> "write idle"
+        case ProxyHandshake -> "proxy handshake"
+    }

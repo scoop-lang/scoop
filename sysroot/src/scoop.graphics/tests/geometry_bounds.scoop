@@ -33,11 +33,9 @@ private class GeometryBoundsTest {
         RasterSurface(80, 80).use {
             surface ->
             val hole =
-                PathBuilder(FillRule.EvenOdd).use {
-                    builder ->
-                    builder.addRect(Rect(0.0, 0.0, 80.0, 80.0))
-                    builder.addRect(Rect(20.0, 20.0, 40.0, 40.0))
-                    builder.build()
+                path(FillRule.EvenOdd) {
+                    addRect(Rect(0.0, 0.0, 80.0, 80.0))
+                    addRect(Rect(20.0, 20.0, 40.0, 40.0))
                 }
             try {
                 val geometry =

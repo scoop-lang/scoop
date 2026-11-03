@@ -18,21 +18,24 @@ internal fun observedFollowUp(trust: TrustStore, url: Url) {
     PlatformEventLoop().run suspend {
         _ ->
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                observer = Some(log.observer()),
-                authentication = HttpAuthenticationOptions([provider]),
-                retries =
-                    HttpRetryOptions(
-                        maxRetries = 1L,
-                        statuses = [503U],
-                        initialDelay = Duration.ZERO,
-                        maxDelay = Duration.ZERO
-                    )
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.observer = Some(log.observer())
+                this.authentication = httpAuthenticationOptions { this.providers = [provider] }
+                this.retries =
+                    httpRetryOptions {
+                        this.maxRetries = 1L
+                        this.statuses = [503U]
+                        this.initialDelay = Duration.ZERO
+                        this.maxDelay = Duration.ZERO
+                    }
+            }
         withHttpClient(config) suspend {
             client -> client.withResponse(
-                HttpRequest(url, "POST", body = RequestBody.fromText("payload"))
+                httpRequest(url) {
+                    this.method = "POST"
+                    this.body = RequestBody.fromText("payload")
+                }
             ) suspend {
                 response ->
                 assertEquals("done", response.body.text(4L))
@@ -81,16 +84,16 @@ internal fun observedCache(trust: TrustStore, url: Url) {
     PlatformEventLoop().run suspend {
         _ ->
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                observer = Some(log.observer()),
-                cache = Some(HttpCacheOptions(MemoryHttpCache()))
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.observer = Some(log.observer())
+                this.cache = Some(HttpCacheOptions(MemoryHttpCache()))
+            }
         withHttpClient(config) suspend {
             client -> for (index in 0 ..< 4) {
                 val options =
-                    HttpCallOptions(
-                        cacheMode =
+                    httpCallOptions {
+                        this.cacheMode =
                             if (index == 2)
                                 HttpCacheMode.Reload
                             else
@@ -98,15 +101,14 @@ internal fun observedCache(trust: TrustStore, url: Url) {
                                     HttpCacheMode.OnlyIfCached
                                 else
                                     HttpCacheMode.Default
-                    )
+                    }
                 client.withResponse(
-                    HttpRequest.get(
+                    httpRequest(
                         if (index == 3)
                             url.resolve("/missing")
                         else
-                            url,
-                        options = options
-                    )
+                            url
+                    ) { this.options = options }
                 ) suspend {
                     response ->
                     assertEquals(

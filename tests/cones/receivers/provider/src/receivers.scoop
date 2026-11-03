@@ -1,0 +1,23 @@
+package scoop.tests.receivers.provider
+
+public class Far public constructor(public var count: Int)
+
+public var Far.amount: Int
+get() = count
+set(value) {
+    count = value
+}
+
+public fun Far.bump(step: Int): Int {
+    amount += step;
+    return amount
+}
+
+public fun Far.pick(): Int = count
+
+public val Far.operation: (Int) -> Int
+get() = { count + it }
+
+public fun <T, R> within(value: T, action: T.() -> R): R = value.action()
+
+public fun <T, R> capture(value: T, action: T.() -> R): () -> R = { value.action() }

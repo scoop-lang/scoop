@@ -11,7 +11,7 @@ public enum InlineViewAlignment {
 }
 
 /** One occurrence; the view and any resources used by it retain their normal owners. */
-public class InlineView public constructor(
+public class InlineView internal constructor(
     public val key: InlineKey,
     public val view: View,
     public val size: Size? = None,

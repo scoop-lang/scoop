@@ -19,7 +19,11 @@ internal fun testFonts(fallback: Boolean = false): FontCollection {
     }
 }
 
-private fun textStyle(size: Double = 20.0): TextStyle = TextStyle(["Test Sans", "Test CJK"], size)
+private fun fixedTextStyle(size: Double = 20.0): TextStyle =
+    textStyle {
+        this.families = ["Test Sans", "Test CJK"]
+        this.fontSize = size
+    }
 
 @Test
 private class TextLayoutTest {
@@ -30,7 +34,7 @@ private class TextLayoutTest {
             assertEquals(0L, fonts.revision)
             fonts.register(includeBytes("data/Roboto-Regular.ttf"), "Test Sans")
             assertEquals(1L, fonts.revision)
-            val style = textStyle()
+            val style = fixedTextStyle()
             Paragraph(fonts, "是", style).use {
                 old ->
                 fonts.register(includeBytes("data/NotoSansCJK-VF-subset.otf.ttc"), "Test CJK")
@@ -51,7 +55,7 @@ private class TextLayoutTest {
     fun `fixed font measurement and independent layouts retain font sources`() {
         val layouts = ArrayList<TextLayout>()
         testFonts().use {
-            fonts -> Paragraph(fonts, "HHHH", textStyle()).use {
+            fonts -> Paragraph(fonts, "HHHH", fixedTextStyle()).use {
                 paragraph ->
                 val wide = paragraph.layoutUnwrapped()
                 layouts.add(wide)
@@ -86,7 +90,12 @@ private class TextLayoutTest {
     fun `CJK lines expose byte indices and variable fonts share paint metrics`() {
         testFonts().use {
             fonts ->
-            val style = TextStyle(["Test CJK"], 20.0, variations = [FontVariation("wght", 600.0)])
+            val style =
+                textStyle {
+                    this.families = ["Test CJK"]
+                    this.fontSize = 20.0
+                    this.variations = [FontVariation("wght", 600.0)]
+                }
             Paragraph(fonts, "是是是是是", style).use {
                 paragraph -> paragraph.layout(41.0).use {
                     layout ->
@@ -109,7 +118,7 @@ private class TextLayoutTest {
         testFonts(true).use {
             fonts ->
             val text = "Aé👨‍👩‍👧‍👦\r\n是"
-            Paragraph(fonts, text, textStyle()).use {
+            Paragraph(fonts, text, fixedTextStyle()).use {
                 paragraph -> paragraph.layout(400.0).use {
                     layout ->
                     assertEquals(34L, text.byteLength)
@@ -137,7 +146,7 @@ private class TextLayoutTest {
     fun `mixed bidi selection keeps visual runs and caret affinity`() {
         testFonts(true).use {
             fonts ->
-            Paragraph(fonts, "abc אבג xyz مرحبا", textStyle()).use {
+            Paragraph(fonts, "abc אבג xyz مرحبا", fixedTextStyle()).use {
                 paragraph -> paragraph.layout(400.0).use {
                     layout ->
                     val boxes = layout.selection(TextRange(0L, paragraph.text.byteLength))
@@ -156,7 +165,7 @@ private class TextLayoutTest {
                     assertTrue(start.x > end.x)
                 }
             }
-            Paragraph(fonts, "Hello Hello Hello", textStyle()).use {
+            Paragraph(fonts, "Hello Hello Hello", fixedTextStyle()).use {
                 paragraph -> paragraph.layout(60.0).use {
                     layout ->
                     assertTrue(layout.lines.size >= 2L)
@@ -175,8 +184,8 @@ private class TextLayoutTest {
             fonts -> Paragraph(
                 fonts,
                 "Hello world Hello world",
-                textStyle(),
-                ParagraphStyle(maxLines = Some(1L))
+                fixedTextStyle(),
+                paragraphStyle { this.maxLines = Some(1L) }
             ).use {
                 paragraph -> paragraph.layout(90.0).use {
                     layout ->
@@ -197,20 +206,27 @@ private class TextLayoutTest {
         testFonts().use {
             fonts ->
             val red =
-                TextStyle(
-                    ["Test Sans"],
-                    20.0,
-                    Color(1.0, 0.0, 0.0),
-                    features = [FontFeature("liga", 0)]
-                )
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 20.0
+                    this.color = Color(1.0, 0.0, 0.0)
+                    this.features = [FontFeature("liga", 0)]
+                }
             val green =
-                SpanStyle(
-                    fontSize = Some(32.0),
-                    color = Some(Color(0.0, 1.0, 0.0)),
-                    lineHeight = Some(Some(2.0))
-                )
+                spanStyle {
+                    this.fontSize = Some(32.0)
+                    this.color = Some(Color(0.0, 1.0, 0.0))
+                    this.lineHeight = Some(Some(2.0))
+                }
             val content =
-                StyledText([TextSpan.text("HH"), TextSpan.span(green, [TextSpan.text("HH")])], red)
+                styledText {
+                    this.text("HH")
+                    this.span {
+                        this.style = green
+                        this.text("HH")
+                    }
+                    this.style = red
+                }
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layout(180.0).use {
                     layout ->
@@ -244,7 +260,7 @@ private class TextLayoutTest {
     fun `empty paragraphs terminal newlines and zero width keep defined caret geometry`() {
         testFonts().use {
             fonts ->
-            Paragraph(fonts, "", textStyle()).use {
+            Paragraph(fonts, "", fixedTextStyle()).use {
                 paragraph -> paragraph.layout(100.0).use {
                     layout ->
                     assertEquals(1L, layout.lines.size)
@@ -254,7 +270,7 @@ private class TextLayoutTest {
                     assertEquals(0L, layout.selection(TextRange(0L, 0L)).size)
                 }
             }
-            Paragraph(fonts, "Hi\n", textStyle()).use {
+            Paragraph(fonts, "Hi\n", fixedTextStyle()).use {
                 paragraph ->
                 paragraph.layout(100.0).use {
                     layout ->
@@ -274,12 +290,12 @@ private class TextLayoutTest {
             fonts ->
             assertFailsWith<IllegalArgumentException> { fonts.register([0, 1, 2], "broken") }
             assertFailsWith<IllegalArgumentException> {
-                Paragraph(fonts, "a", TextStyle(fontSize = -1.0))
+                Paragraph(fonts, "a", textStyle { this.fontSize = -1.0 })
             }
             assertFailsWith<IllegalArgumentException> {
-                Paragraph(fonts, "a", TextStyle(features = [FontFeature("bad")]))
+                Paragraph(fonts, "a", textStyle { this.features = [FontFeature("bad")] })
             }
-            Paragraph(fonts, "abc", textStyle()).use {
+            Paragraph(fonts, "abc", fixedTextStyle()).use {
                 paragraph ->
                 assertFailsWith<IllegalArgumentException> { paragraph.layout(-1.0) }
                 paragraph.layout(100.0).use {

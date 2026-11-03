@@ -1,0 +1,55 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.text.InlineView
+
+/** Common options for both text models; configuration never acquires fonts. */
+public open class LabelBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var settings: ParagraphStyle = paragraphStyle()
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+
+    public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
+        settings = settings.copy(configure)
+    }
+
+    internal fun properties(text: LabelText, inlines: Array<InlineView> = []): LabelProps =
+        LabelProps(text, fonts, settings, inlines, theme)
+}
+
+/** Plain text inherits the current theme and accepts a local span override. */
+public class PlainLabelBuilder internal constructor(): LabelBuilder() {
+    public var style: SpanStyle? = None
+
+    public fun style(configure: SpanStyleBuilder.() -> Unit): Unit {
+        style = Some(configureOptionalSpanStyle(style, configure))
+    }
+
+    internal fun snapshot(text: String): LabelProps = properties(LabelText.Plain(text, style))
+}
+
+/** Styled text carries its own complete style and optional inline view bindings. */
+public class StyledLabelBuilder internal constructor(): LabelBuilder() {
+    public var inlines: Array<InlineView> = []
+
+    internal fun snapshot(content: StyledText): LabelProps =
+        properties(LabelText.Styled(content), inlines)
+}
+
+internal fun makePlainLabel(text: String, configure: PlainLabelBuilder.() -> Unit): View {
+    val builder = PlainLabelBuilder()
+    builder.configure()
+    return labelView(builder.snapshot(text), builder.key)
+}
+
+internal fun makeStyledLabel(content: StyledText, configure: StyledLabelBuilder.() -> Unit): View {
+    val builder = StyledLabelBuilder()
+    builder.configure()
+    return labelView(builder.snapshot(content), builder.key)
+}
+
+private fun labelView(input: LabelProps, key: ViewKey): View =
+    component(input, { props -> Label(props) }, key)

@@ -16,7 +16,9 @@ private class OverlayUiTest {
         val probe = OverlayProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertTrue(probe.view!!.restored())
@@ -97,7 +99,10 @@ internal class OverlayProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop portal layout", LogicalSize(320.0, 220.0))
+                        windowAttributes {
+                            this.title = "Scoop portal layout"
+                            this.size = LogicalSize(320.0, 220.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -105,7 +110,12 @@ internal class OverlayProbe {
                 native.requestFocus()
                 ui = Some(host.attach(native, { OverlayScene(this) }))
                 val second =
-                    active.createWindow(WindowAttributes("Scoop portal ownership", visible = false))
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop portal ownership"
+                            this.visible = false
+                        }
+                    )
                 foreign = Some(second)
                 host.attach(second, { ForeignRoot(this) })
                 waitFor(active, 30000L)
@@ -133,9 +143,11 @@ internal class OverlayProbe {
                     } else
                         fail(
                             Some(
-                                f"portal timeout phase=${phase}, frames=${passes}, generation=${
-                                    generation.value
-                                }, committed=${committed}"
+                                f"portal timeout phase=${this @OverlayProbe.phase}, frames=${
+                                    this @OverlayProbe.passes
+                                }, generation=${this @OverlayProbe.generation.value}, committed=${
+                                    this @OverlayProbe.committed
+                                }"
                             )
                         )
             }

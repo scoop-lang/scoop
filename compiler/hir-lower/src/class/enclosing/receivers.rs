@@ -92,6 +92,7 @@ impl Lowerer {
                     binding: self.locals[local].binding,
                     ty: value.ty,
                 }),
+                blocks_outer_lookup: false,
             });
             let Some(enclosing) = self.enclosing_instance_expression(value) else {
                 break;
@@ -140,6 +141,7 @@ impl Lowerer {
         for binding in self.implicit_receivers() {
             let receiver = self.lower_receiver_binding(binding, span)?;
             if let Some(receiver) = self.enclosing_receiver_application(receiver, required) {
+                self.require_implicit_receiver(binding.binding, span)?;
                 return Some(receiver);
             }
         }

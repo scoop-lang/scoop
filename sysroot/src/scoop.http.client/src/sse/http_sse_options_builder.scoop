@@ -1,0 +1,42 @@
+package scoop.http.client
+
+import scoop.asyncio.AsyncCloseable
+import scoop.http.*
+import scoop.time.Duration
+import scoop.url.Url
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpSseOptions(configure: HttpSseOptionsBuilder.() -> Unit = {}): HttpSseOptions {
+    val builder = HttpSseOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpSseOptions.copy(configure: HttpSseOptionsBuilder.() -> Unit = {}): HttpSseOptions {
+    val builder = HttpSseOptionsBuilder()
+    builder.limits = this.limits
+    builder.bufferSize = this.bufferSize
+    builder.initialLastEventId = this.initialLastEventId
+    builder.reconnect = this.reconnect
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpSseOptionsBuilder internal constructor() {
+    public var limits: SseLimits = SseLimits()
+    public var bufferSize: Long = 8192L
+    public var initialLastEventId: String? = None
+    public var reconnect: HttpSseReconnectOptions? = None
+
+    public fun limits(configure: SseLimitsBuilder.() -> Unit): Unit {
+        limits = limits.copy(configure)
+    }
+
+    public fun reconnect(configure: HttpSseReconnectOptionsBuilder.() -> Unit): Unit {
+        reconnect = Some((reconnect ?: httpSseReconnectOptions()).copy(configure))
+    }
+    internal fun snapshot(): HttpSseOptions =
+        HttpSseOptions(limits, bufferSize, initialLastEventId, reconnect)
+}

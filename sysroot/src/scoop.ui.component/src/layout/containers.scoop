@@ -31,19 +31,9 @@ public class Column public constructor(private val props: Props<LinearProps>): C
         )
 }
 
-public fun row(
-    children: Array<View>,
-    spacing: Double = 0.0,
-    alignment: AxisAlignment = AxisAlignment.Start,
-    key: ViewKey = ViewKey.Position
-): View = component(LinearProps(children, spacing, alignment), { props -> Row(props) }, key)
+public fun row(configure: LinearBuilder.() -> Unit = {}): View = makeRow(configure)
 
-public fun column(
-    children: Array<View>,
-    spacing: Double = 0.0,
-    alignment: AxisAlignment = AxisAlignment.Start,
-    key: ViewKey = ViewKey.Position
-): View = component(LinearProps(children, spacing, alignment), { props -> Column(props) }, key)
+public fun column(configure: LinearBuilder.() -> Unit = {}): View = makeColumn(configure)
 
 private class LinearInput(val value: LinearProps, val vertical: Boolean)
 
@@ -82,11 +72,7 @@ public class Stack public constructor(private val props: Props<StackProps>): Com
         element(props.value, { current -> StackInk(current) }, props.value.children)
 }
 
-public fun stack(
-    children: Array<View>,
-    alignment: Alignment = Alignment(),
-    key: ViewKey = ViewKey.Position
-): View = component(StackProps(children, alignment), { props -> Stack(props) }, key)
+public fun stack(configure: StackBuilder.() -> Unit = {}): View = makeStack(configure)
 
 private class StackInk(private val props: Props<StackProps>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {

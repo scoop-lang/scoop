@@ -16,7 +16,7 @@ fun main(args: Array<String>) {
         println("Usage: ui-download <url> <destination>")
         return
     }
-    val request = HttpRequest.get(Url.parse(args[1L]))
+    val request = httpRequest(Url.parse(args[1L]))
     val destination = Path.fromString(args[2L])
     val themes = ThemeSource(macosTheme())
     val model = DownloadModel()
@@ -34,10 +34,10 @@ fun main(args: Array<String>) {
                                     client ->
                                     val window =
                                         active.createWindow(
-                                            WindowAttributes(
-                                                "Scoop — download",
-                                                LogicalSize(580.0, 320.0)
-                                            )
+                                            windowAttributes {
+                                                this.title = "Scoop — download"
+                                                this.size = LogicalSize(580.0, 320.0)
+                                            }
                                         )
                                     host.attach(
                                         window,

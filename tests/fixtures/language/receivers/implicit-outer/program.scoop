@@ -1,0 +1,42 @@
+class Leaf
+
+class Branch(var spacing: Int) {
+    val action: () -> Int = { spacing }
+    fun child(): Int = spacing
+    inner class Item
+    fun rejectConstructor(): Leaf.() -> Unit = { Item() }
+    fun rejectConstructorReference(): Leaf.() -> Unit = { val create = ::Item }
+}
+
+var Branch.gap: Int
+get() = spacing
+set(value) {
+    spacing = value
+}
+
+fun Branch.emit(): Int = spacing
+
+fun Branch.rejectRead(): Leaf.() -> Int = { spacing }
+
+fun Branch.rejectWrite(): Leaf.() -> Unit = { spacing = 1 }
+
+fun Branch.rejectUpdate(): Leaf.() -> Unit = { spacing += 1 }
+
+fun Branch.rejectMethod(): Leaf.() -> Int = { child() }
+
+fun Branch.rejectFunctionProperty(): Leaf.() -> Int = { action() }
+
+fun Branch.rejectExtension(): Leaf.() -> Int = { emit() }
+
+fun Branch.rejectExtensionWrite(): Leaf.() -> Unit = { gap = 1 }
+
+fun Branch.rejectNested(): Leaf.() -> Unit = { val read: () -> Int = { spacing } }
+
+fun Branch.rejectAnonymous(): Leaf.() -> Int =
+    fun Leaf.(): Int {
+        return spacing
+    }
+
+fun Branch.rejectSuspend(): suspend Leaf.() -> Int = suspend { spacing }
+
+fun main() {}

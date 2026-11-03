@@ -7,44 +7,48 @@ import scoop.http.HttpField
 import scoop.http.server.*
 
 fun main() {
-    val routes = RouterBuilder()
-    routes.get("/", suspend { _ -> text("Try /api/v1/teams/scoop/users/42") })
-    routes.fallback(suspend { _ -> text("Page not found", 404U) })
+    val routes =
+        routing {
+            this.get("/", suspend { _ -> text("Try /api/v1/teams/scoop/users/42") })
+            this.fallback(suspend { _ -> text("Page not found", 404U) })
+            this.group("/api") {
+                val api = this
 
-    routes.group("/api") {
-        api ->
-        api.use(
-            suspend {
-                ctx, next ->
-                ctx.response.set(
-                    HttpField("X-Example".toByteArray(), "nested-routes".toByteArray())
-                )
-                next()
-            }
-        )
-        api.fallback(suspend { _ -> text("API route not found", 404U) })
-
-        api.group("/v1") {
-            v1 ->
-            v1.get("/status", suspend { _ -> text("ok") })
-            v1.group("/teams/{team}") {
-                team -> team.get(
-                    "/users/{id}",
+                api.use(
                     suspend {
-                        ctx -> text(
-                            "team:" +
-                                ctx.pathParams.text("team") +
-                                ", user:" +
-                                ctx.pathParams.text("id")
+                        ctx, next ->
+                        ctx.response.set(
+                            HttpField("X-Example".toByteArray(), "nested-routes".toByteArray())
                         )
+                        next()
                     }
                 )
+                api.fallback(suspend { _ -> text("API route not found", 404U) })
+
+                api.group("/v1") {
+                    val v1 = this
+
+                    v1.get("/status", suspend { _ -> text("ok") })
+                    v1.group("/teams/{team}") {
+                        val team = this
+                        team.get(
+                            "/users/{id}",
+                            suspend {
+                                ctx -> text(
+                                    "team:" +
+                                        ctx.pathParams.text("team") +
+                                        ", user:" +
+                                        ctx.pathParams.text("id")
+                                )
+                            }
+                        )
+                    }
+                }
             }
         }
-    }
 
     // A built application can be supplied to the same listen factory.
-    val application = routes.build()
+    val application = routes
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope -> HttpServer.listen(application, scope).useAsync suspend {

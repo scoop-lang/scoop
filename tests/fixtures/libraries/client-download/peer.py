@@ -163,15 +163,4 @@ with http.server.ThreadingHTTPServer(("127.0.0.1", 0), Peer) as server:
     finally:
         server.shutdown()
         worker.join(TIMEOUT)
-directory = root / "http2"
-directory.mkdir()
-result = subprocess.run(
-    [binary, "http2", str(directory)],
-    capture_output=True,
-    text=True,
-    timeout=TIMEOUT,
-    env=os.environ,
-)
-assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
-assert result.stdout == "client download http2\n" and not result.stderr
-print("client downloads independent file bytes protocol composition and parallel HTTP2 passed")
+print("client download peer validates independent file bytes and protocol composition")

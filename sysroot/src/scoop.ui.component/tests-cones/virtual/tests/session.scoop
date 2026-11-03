@@ -18,7 +18,9 @@ private class VirtualListTest {
         val probe = ListProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertFalse(probe.scroll.isAttached)
@@ -72,7 +74,10 @@ internal class ListProbe {
                 data = Some(state<ItemSource>(ListSource(this, 100000000L)))
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop virtual list", LogicalSize(220.0, 120.0))
+                        windowAttributes {
+                            this.title = "Scoop virtual list"
+                            this.size = LogicalSize(220.0, 120.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -119,7 +124,11 @@ internal class ListProbe {
                 active.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"virtual list timeout phase=${phase}, frames=${passes}")
+                Some(
+                    f"virtual list timeout phase=${this @ListProbe.phase}, frames=${
+                        this @ListProbe.passes
+                    }"
+                )
             )
             else -> {}
         }

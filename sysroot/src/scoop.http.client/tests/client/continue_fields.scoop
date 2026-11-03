@@ -11,37 +11,70 @@ private class HttpClientContinueFieldsTest {
     fun `Continue options preserve extensions and avoid duplicate or empty body expectations`() {
         val url = Url.parse("http://example.test/")
         val body = RequestBody.fromText("four")
-        val options = HttpCallOptions(expectContinue = true)
-        val request = HttpRequest.post(url, body, [HttpField("Expect".toByteArray(),
-            "other=\"a,b\"; x=one".toByteArray()), HttpField("Content-Length".toByteArray(), "004".toByteArray())], options)
+        val options = httpCallOptions { this.expectContinue = true }
+        val request =
+            httpRequest(url) {
+                this.method = "POST"
+                this.body = body
+                this.fields =
+                    [
+                        HttpField("Expect".toByteArray(), "other=\"a,b\"; x=one".toByteArray()),
+                        HttpField("Content-Length".toByteArray(), "004".toByteArray())
+                    ]
+                this.options = options
+            }
         assertTrue(request.expectsContinue)
         assertTrue(request.contentLength == Some(4L))
         val fields = request.fields.findAll("Expect".toByteArray())
         assertEquals(2L, fields.size)
         assertEquals("other=\"a,b\"; x=one", String.fromUtf8(fields[0L].value))
         assertEquals("100-continue", String.fromUtf8(fields[1L].value))
-        val explicit = HttpRequest.post(url, body, [HttpField("Expect".toByteArray(), "100-CoNtInUe".toByteArray())], options)
+        val explicit =
+            httpRequest(url) {
+                this.method = "POST"
+                this.body = body
+                this.fields = [HttpField("Expect".toByteArray(), "100-CoNtInUe".toByteArray())]
+                this.options = options
+            }
         assertEquals(1L, explicit.fields.findAll("Expect".toByteArray()).size)
         assertTrue(explicit.expectsContinue)
-        val empty = HttpRequest.get(url, options = options)
+        val empty = httpRequest(url) { this.options = options }
         assertFalse(empty.expectsContinue)
         assertEquals(0L, empty.fields.findAll("Expect".toByteArray()).size)
-        val extension = HttpRequest.post(url, body, [HttpField("Expect".toByteArray(), "100-continue=other".toByteArray())])
+        val extension =
+            httpRequest(url) {
+                this.method = "POST"
+                this.body = body
+                this.fields =
+                    [HttpField("Expect".toByteArray(), "100-continue=other".toByteArray())]
+            }
         assertFalse(extension.expectsContinue)
     }
 
     @Test
     fun `Continue rejects negative intervals malformed fields and HTTP10 waiting`() {
-        assertFailsWith<IllegalArgumentException> { HttpCallOptions(continueWait = Duration.nanoseconds(-1L)) }
-        assertFailsWith<HttpFieldParseException> {
-            HttpRequest.get(Url.parse("http://example.test/"), [HttpField("Expect".toByteArray(), "100 continue".toByteArray())])
+        assertFailsWith<IllegalArgumentException> {
+            httpCallOptions { this.continueWait = Duration.nanoseconds(-1L) }
         }
-        withClientContinueTest(HttpVersion.Http10) suspend { _, _, listener, config ->
+        assertFailsWith<HttpFieldParseException> {
+            httpRequest(Url.parse("http://example.test/")) {
+                this.fields = [HttpField("Expect".toByteArray(), "100 continue".toByteArray())]
+            }
+        }
+        withClientContinueTest(HttpVersion.Http10) suspend {
+            _, _, listener, config ->
             val url = clientTestUrl(listener)
             listener.close()
-            withHttpClient(config) suspend { client ->
+            withHttpClient(config) suspend {
+                client ->
                 expectBodyFailure<IllegalArgumentException> suspend {
-                    client.execute(HttpRequest.post(url, RequestBody.fromText("four"), options = HttpCallOptions(expectContinue = true)))
+                    client.execute(
+                        httpRequest(url) {
+                            this.method = "POST"
+                            this.body = RequestBody.fromText("four")
+                            this.options = httpCallOptions { this.expectContinue = true }
+                        }
+                    )
                     Unit
                 }
                 Unit

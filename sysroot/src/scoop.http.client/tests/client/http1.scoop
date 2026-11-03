@@ -59,22 +59,22 @@ private class HttpClientHttp1Test {
                                 writeBodyText(sink, "client body")
                             }
                         val options =
-                            HttpCallOptions(
-                                onInformational =
+                            httpCallOptions {
+                                this.onInformational =
                                     suspend {
                                         head ->
                                         assertEquals(103U, head.status)
                                         assertEquals("request", currentBodyTestContext())
                                         calls.add("observed")
                                     }
-                            )
+                            }
                         context(BodyTestContext("request")) {
                             client.withResponse(
-                                HttpRequest.post(
-                                    clientTestUrl(listener, "/actual?q=1#fragment"),
-                                    body,
-                                    options = options
-                                )
+                                httpRequest(clientTestUrl(listener, "/actual?q=1#fragment")) {
+                                    this.method = "POST"
+                                    this.body = body
+                                    this.options = options
+                                }
                             ) suspend {
                                 response ->
                                 assertEquals(404U, response.status)
@@ -106,7 +106,7 @@ private class HttpClientHttp1Test {
                     assertTrue(client.isClosed)
                     client.close()
                     expectBodyFailure<HttpClientClosedException> suspend {
-                        client.execute(HttpRequest.get(clientTestUrl(listener)));
+                        client.execute(httpRequest(clientTestUrl(listener)));
                         Unit
                     }
                 }
@@ -144,11 +144,19 @@ private class HttpClientHttp1Test {
                         client ->
                         val unknown = RequestBody.fromProducer suspend { _ -> }
                         expectBodyFailure<IllegalArgumentException> suspend {
-                            client.execute(HttpRequest.post(clientTestUrl(listener), unknown));
+                            client.execute(
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "POST"
+                                    this.body = unknown
+                                }
+                            );
                             Unit
                         }
                         client.withResponse(
-                            HttpRequest.post(clientTestUrl(listener), RequestBody.fromText("data"))
+                            httpRequest(clientTestUrl(listener)) {
+                                this.method = "POST"
+                                this.body = RequestBody.fromText("data")
+                            }
                         ) suspend {
                             response ->
                             assertTrue(response.version == HttpVersion.Http10)
@@ -191,7 +199,12 @@ private class HttpClientHttp1Test {
                         client ->
                         val body = RequestBody.fromSourceFactory suspend { source }
                         val response =
-                            client.execute(HttpRequest.post(clientTestUrl(listener), body))
+                            client.execute(
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "POST"
+                                    this.body = body
+                                }
+                            )
                         assertEquals(413U, response.status)
                         assertEquals("stop", String.fromUtf8(response.body.readAllBytes(4L)))
                         assertEquals(0L, source.closes)

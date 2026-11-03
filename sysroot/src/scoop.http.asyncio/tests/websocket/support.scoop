@@ -7,7 +7,7 @@ import scoop.platform.memory.NativeByteBuffer
 import scoop.test.*
 
 internal fun withWebSockets(
-    options: WebSocketSessionOptions = WebSocketSessionOptions(),
+    options: WebSocketSessionOptions = webSocketSessionOptions(),
     deflate: WebSocketDeflateNegotiation? = None,
     block: suspend (
         CoroutineScope,
@@ -113,7 +113,7 @@ internal class RawWebSocketPeer(
 }
 
 internal fun withRawWebSocket(
-    options: WebSocketSessionOptions = WebSocketSessionOptions(),
+    options: WebSocketSessionOptions = webSocketSessionOptions(),
     deflate: WebSocketDeflateNegotiation? = None,
     block: suspend (
         CoroutineScope,

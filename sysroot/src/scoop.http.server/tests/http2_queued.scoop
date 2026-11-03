@@ -46,21 +46,22 @@ private class ServerHttp2QueuedTests {
                                 val entered = ServerTestGate();
                                 val draining = ServerTestGate()
                                 val visits = TestCounter()
-                                val routes = RouterBuilder()
-                                routes.get(
-                                    "/{name}",
-                                    suspend {
-                                        ctx ->
-                                        if (ctx.pathParams.text("name") == "one") {
-                                            entered.signal();
-                                            draining.await()
-                                        }
-                                        visits.value += 1
-                                        text("kept")
+                                val routes =
+                                    routing {
+                                        this.get(
+                                            "/{name}",
+                                            suspend {
+                                                ctx ->
+                                                if (ctx.pathParams.text("name") == "one") {
+                                                    entered.signal();
+                                                    draining.await()
+                                                }
+                                                visits.value += 1
+                                                text("kept")
+                                            }
+                                        )
                                     }
-                                )
-                                val state =
-                                    ServerState(listener, routes.build(), HttpServerOptions(), loop)
+                                val state = ServerState(listener, routes, httpServerOptions(), loop)
                                 val entry = ServerConnection(raw)
                                 entry.info =
                                     HttpConnectionInfo(

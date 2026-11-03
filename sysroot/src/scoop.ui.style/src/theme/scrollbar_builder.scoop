@@ -1,0 +1,50 @@
+package scoop.ui.style
+
+/** Constructs a complete description and applies configuration once. */
+public fun scrollbarPart(
+    metrics: ScrollbarMetrics,
+    track: StateColors,
+    thumb: StateColors,
+    button: StateColors,
+    arrow: StateColors,
+    configure: ScrollbarPartBuilder.() -> Unit = {}
+): ScrollbarPart =
+    configureScrollbarPart(
+        ScrollbarPart(
+            metrics = metrics,
+            track = track,
+            thumb = thumb,
+            button = button,
+            arrow = arrow
+        ),
+        configure
+    )
+
+internal fun configureScrollbarPart(
+    initial: ScrollbarPart,
+    configure: ScrollbarPartBuilder.() -> Unit
+): ScrollbarPart {
+    val builder = ScrollbarPartBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration initialized from a complete immutable value. */
+public class ScrollbarPartBuilder internal constructor(initial: ScrollbarPart) {
+    public var metrics: ScrollbarMetrics = initial.metrics
+    public var track: StateColors = initial.track
+    public var thumb: StateColors = initial.thumb
+    public var button: StateColors = initial.button
+    public var arrow: StateColors = initial.arrow
+    public var arrowWidth: Double = initial.arrowWidth
+
+    internal fun snapshot(): ScrollbarPart =
+        ScrollbarPart(
+            metrics = metrics,
+            track = track,
+            thumb = thumb,
+            button = button,
+            arrow = arrow,
+            arrowWidth = arrowWidth
+        )
+}

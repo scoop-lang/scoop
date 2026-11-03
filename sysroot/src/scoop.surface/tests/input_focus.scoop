@@ -233,7 +233,7 @@ private class InputFocusTest {
             val area = rig.area("text", text = true)
             val carets = ArrayList<Rect>()
             FontCollection().use {
-                fonts -> Paragraph(fonts, "Hello", TextStyle(fontSize = 20.0)).use {
+                fonts -> Paragraph(fonts, "Hello", textStyle { this.fontSize = 20.0 }).use {
                     paragraph -> paragraph.layout(200.0).use {
                         layout ->
                         val caret = layout.caret(TextPosition(2L))!!

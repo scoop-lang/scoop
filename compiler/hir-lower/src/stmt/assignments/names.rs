@@ -101,9 +101,8 @@ impl Lowerer {
                             .find_accessible_nominal_property(receiver_ty, &name.text)
                             .is_some()
                         {
-                            let receiver = self
-                                .lower_receiver_binding(binding, name.span)
-                                .expect("a receiver callable body always has a lexical `this`");
+                            let receiver =
+                                self.lower_implicit_receiver_binding(binding, name.span)?;
                             let mut sink = Vec::new();
                             let kind =
                                 self.assign_class_field(assign, receiver, name, &mut sink)?;
@@ -114,7 +113,8 @@ impl Lowerer {
                             .resolve_imported_member_property(receiver_ty, name)
                             .ok()?
                         {
-                            let receiver = self.lower_receiver_binding(binding, name.span)?;
+                            let receiver =
+                                self.lower_implicit_receiver_binding(binding, name.span)?;
                             let mut sink = Vec::new();
                             let kind = self.assign_imported_member_property(
                                 assign, property, receiver, name, &mut sink,

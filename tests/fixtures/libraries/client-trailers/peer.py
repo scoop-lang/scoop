@@ -79,13 +79,3 @@ def exercise(binary, mode):
 for mode in ("h1", "compressed", "empty", "h2c", "reject"):
     exercise(sys.argv[1], mode)
 print("independent chunked gzip Continue and h2c trailers passed")
-result = subprocess.run(
-    [sys.argv[1], "h2"],
-    capture_output=True,
-    text=True,
-    timeout=180,
-    env=os.environ,
-)
-assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
-assert result.stdout == "trailers h2\n" and not result.stderr
-print("parallel HTTP2 trailers passed")

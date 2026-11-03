@@ -10,7 +10,14 @@ private class MetalRecordedTextTest {
     @Test
     fun `text records and GPU snapshots preserve ink and one DPI transform`() {
         testFonts().use {
-            fonts -> Paragraph(fonts, "jé是", TextStyle(["Test Sans", "Test CJK"], 28.0)).use {
+            fonts -> Paragraph(
+                fonts,
+                "jé是",
+                textStyle {
+                    this.families = ["Test Sans", "Test CJK"]
+                    this.fontSize = 28.0
+                }
+            ).use {
                 paragraph -> paragraph.layout(80.0).use {
                     layout ->
                     val bounds = expandTextBounds(layout.paintBounds)

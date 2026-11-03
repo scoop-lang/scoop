@@ -25,11 +25,10 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                     ShortcutScope(
                         scope.input,
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyN)),
-                                ShortcutModifiers(primary = true),
-                                action = { probe.shortcutCalls += 1 }
-                            )
+                                { probe.shortcutCalls += 1 }
+                            ) { this.modifiers = ShortcutModifiers(primary = true) }
                         ]
                     )
                 }
@@ -80,16 +79,13 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                 1
         val effects =
             when (probe.effects.value) {
-                case 1 -> Style(
-                    contentEffects = [ContentEffect.Glow(3.0, 3.0, Color(0.0, 0.3, 1.0))]
-                )
-                case 2 -> Style(contentEffects = [ContentEffect.Blur(1.5, 1.5)])
-                else -> Style()
+                case 1 -> style {
+                    this.contentEffects = [ContentEffect.Glow(3.0, 3.0, Color(0.0, 0.3, 1.0))]
+                }
+                case 2 -> style { this.contentEffects = [ContentEffect.Blur(1.5, 1.5)] }
+                else -> style()
             }
-        val buttonStyle =
-            ButtonStyle(
-                surface = SurfaceOptions(style = StyleOverride(cornerRadius = StyleValue.Set(9.0)))
-            )
+        val buttonStyle = buttonStyle { surface { style { this.cornerRadius(9.0) } } }
         return element(
             PanelProps(generation, count, theme.tokens.palette.canvas),
             { props -> ControlPanel(props, probe) },
@@ -98,7 +94,7 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                     component(
                         ButtonProps(
                             LabelProps(
-                                LabelText.Plain(f"Count: ${count}", None),
+                                LabelText.Plain(f"Count: ${this @ControlScene.count}", None),
                                 Some(probe.fonts)
                             ),
                             { count += delta },
@@ -111,9 +107,8 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                             probe.buttonCreates += 1;
                             Button(props)
                         }
-                    ),
-                    effects
-                ),
+                    )
+                ) { this.style = effects },
                 component(
                     CheckboxProps(
                         binding,
@@ -126,10 +121,12 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                         Checkbox(props)
                     }
                 ),
-                checkbox(initialChecked = false, focus = FocusOptions(Some(probe.ownedFocus))),
+                checkbox(initialChecked = false) {
+                    this.focus = FocusOptions(Some(this @ControlScene.probe.ownedFocus))
+                },
                 component(
                     LabelProps(
-                        LabelText.Plain("Theme body", Some(SpanStyle(weight = Some(700)))),
+                        LabelText.Plain("Theme body", Some(spanStyle { this.weight = Some(700) })),
                         Some(probe.fonts)
                     ),
                     {

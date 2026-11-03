@@ -12,7 +12,9 @@ private class NativeTextSnapshotTest {
     @Test
     fun `native document queries use applied revisions and explicit ranges remain atomic`() {
         val handler = SnapshotHandler()
-        Application(ApplicationOptions(LastWindowPolicy.Exit)).run(handler)
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+            handler
+        )
         assertTrue(handler.finished)
         assertEquals(7, handler.edits)
         assertEquals(2, handler.opens)
@@ -39,7 +41,10 @@ private class SnapshotHandler: ApplicationHandler {
             case Resumed -> {
                 val created =
                     application.createWindow(
-                        WindowAttributes("Native text snapshot", LogicalSize(260.0, 120.0))
+                        windowAttributes {
+                            this.title = "Native text snapshot"
+                            this.size = LogicalSize(260.0, 120.0)
+                        }
                     )
                 window = Some(created)
                 created.setWindowLevel(WindowLevel.AlwaysOnTop)

@@ -13,7 +13,8 @@ import scoop.window.*
 private class SurfaceHostTest {
     @Test
     fun `native frame opportunities preserve input views and retire windows safely`() {
-        val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
+        val application =
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
         val probe = HostProbe()
         val host = SurfaceHost { owner, active, event -> probe.event(owner, active, event) }
         try {
@@ -128,19 +129,19 @@ private class HostProbe {
     private fun start(host: SurfaceHost, application: ActiveApplication) {
         val a =
             application.createWindow(
-                WindowAttributes(
-                    "Scoop Surface first",
-                    LogicalSize(320.0, 180.0),
-                    position = Some(DesktopPosition(100.0, 150.0))
-                )
+                windowAttributes {
+                    this.title = "Scoop Surface first"
+                    this.size = LogicalSize(320.0, 180.0)
+                    this.position = Some(DesktopPosition(100.0, 150.0))
+                }
             )
         val b =
             application.createWindow(
-                WindowAttributes(
-                    "Scoop Surface second",
-                    LogicalSize(260.0, 160.0),
-                    position = Some(DesktopPosition(460.0, 150.0))
-                )
+                windowAttributes {
+                    this.title = "Scoop Surface second"
+                    this.size = LogicalSize(260.0, 160.0)
+                    this.position = Some(DesktopPosition(460.0, 150.0))
+                }
             )
         first = Some(a)
         second = Some(b)

@@ -1,6 +1,6 @@
 # 接收者 DSL builder 设计建议
 
-日期：2026-11-03。状态：API 调研与设计建议；生产 API 尚未迁移。用户示例只说明 DSL 风格，没有指定实际控件名、属性名或 API 层级。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
+日期：2026-11-03。状态：API 调研与设计依据；[迁移计划](DSL-MIGRATION.md)已开始分批实施，JSON、URL、Path、纯文本／文本样式、公共 Style／部件 Options、控件局部样式及完整主题配置入口已迁移，UI 和其余 API 继续按计划推进。迁移按新风格直接重设计公开入口并更新调用方，不承担历史版本兼容责任。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构；完整签名、必需参数与实施范围按迁移计划落实到对应规范。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
 
 ## 1. 建议
 
@@ -36,16 +36,15 @@ builder 每次 render 都可能执行，持久模型由组件或应用保存。I
 
 ```kotlin
 // nameEditor and accepted are fields of the mounted component.
+val owner = this
 column {
     spacing = 12.0
-    input(nameEditor) {
+    input(owner.nameEditor) {
         placeholder = "Name"
-        onSubmit = { model -> saveName(model.text) }
+        onSubmit = { model -> owner.saveName(model.text) }
     }
-    button {
-        text = "OK"
-        enabled = nameEditor.text.byteLength > 0L
-        onClick = { accepted.value = true }
+    button("OK", onClick = { owner.accepted.value = true }) {
+        enabled = owner.nameEditor.text.byteLength > 0L
     }
 }
 ```
@@ -67,7 +66,7 @@ ScrollState、TextEditorState、FocusHandle、VirtualListHandle、LayoutAnchor �
 | ScrollArea | 内容、滚动参数、条样式和缓存选项可就近配置 | 绘制缓存与子项实例缓存保持独立；ScrollState 更新仍通过现有操作 |
 | VirtualList | 已有 ItemSource、ItemExtent、retention、navigation、paintCache 等 | builder 保存惰性 source／项构建回调，不枚举全量数据；实例创建仍由 lazyElement 决定 |
 | Style、SurfaceOptions、状态覆盖 | 不可变配置嵌套较深，适合局部配置块 | 保留 Inherit、Set(None)、Set(value) 三种意义；省略不能误变成清除继承值 |
-| StyledText、TextSpan 和行内内容 | 当前显式拼接文本段数组 | 同步生成现有富文本描述；排版、导航和行内 View 绑定继续走现有文字层 |
+| StyledText、TextSpan 和行内内容 | 已迁移为 styledText／textSpan 及文本样式接收者工厂，成员按顺序收集内容 | 生成不可变富文本描述，保持继承与 InlineKey；UI 行内 View 装配继续按计划推进 |
 | Shortcut、焦点／键盘导航配置 | 快捷键绑定、NavigationItem 数组和 options 可集中描述 | 只生成配置值；ShortcutScope、FocusScope 和监听器按挂载生命周期创建与更新 |
 
 event routing 的 handler、capture、bubble 和 defaultAction 已经是普通回调赋值。可以在需要组合输入容器的 API 中提供配置块，但没有必要为事件传播再造一套 DSL 执行器。`requestFocus`、`scrollTo`、文本编辑命令及 Canvas 绘图继续作为显式动作。
@@ -79,20 +78,24 @@ event routing 的 handler、capture、bubble 和 defaultAction 已经是普通�
 | API | 现状 | 建议 |
 | --- | --- | --- |
 | [HTTP 路由](../../sysroot/src/scoop.http.server/src/router.scoop) | 已有 RouterBuilder、RouteGroup 和同步 group 回调，build 冻结路由 | 高收益：添加 `routing { ... }`，group 改为接收者 lambda；沿用路由检查、中间件顺序和冻结边界 |
-| [JSON 构造](../../sysroot/src/scoop.json/src/builders.scoop) | 已有 JsonObjectBuilder／JsonArrayBuilder 和 build 快照 | 高收益：`jsonObject { ... }`／`jsonArray { ... }` 薄封装，保留重复字段拒绝及已有 JsonValue |
+| [JSON 构造](../../sysroot/src/scoop.json/src/builders.scoop) | 已迁移为 `jsonObject { ... }`／`jsonArray { ... }`，add 返回 Unit，构造和快照方法仅供库内部使用 | 已完成：保留重复字段拒绝、插入顺序及已有 JsonValue；库测试与实际跨 Cone 示例通过 |
 | [HTTP 客户端配置](../../sysroot/src/scoop.http.client/src/config.scoop) | HttpClientConfig 含 TLS、超时、池、重试、代理等多层不可变值 | 高收益：分组配置 builder 生成同一 Config；原有验证仍在配置边界完成 |
 | [HTTP 请求](../../sysroot/src/scoop.http.client/src/request.scoop) | 不可变 HttpRequest 组合 URL、fields、body、options | 请求／头／multipart 的装配适合 builder；发送仍显式调用，保留请求体的资源与重放规则 |
-| [URL](../../sysroot/src/scoop.url/src/builder.scoop) | 已有 UrlBuilder 的链式 setter 和 build | 小改即可使用接收者入口；raw／encoded 和整条 path／segment 必须继续区分 |
-| [Graphics Path](../../sysroot/src/scoop.graphics/src/drawing/path.scoop) | 已有 Closeable PathBuilder 和独立 Path 快照 | 可添加 `path { ... }`，构建器在 use 中关闭，返回 Path 的所有权仍交给调用方 |
+| [URL](../../sysroot/src/scoop.url/src/builder.scoop) | `url { ... }`／`base.copy { ... }` 配置独立快照，encoded 组件使用属性，原文编码与追加操作返回 Unit | 保留 raw／encoded、整条 path／segment、空与缺失组件及已有 authority 网络解释 |
+| [Graphics Path](../../sysroot/src/scoop.graphics/src/drawing/path.scoop) | `path(fillRule = ...) { ... }` 返回独立 Path，追加／reset 返回 Unit | 临时 builder 在 use 中关闭，返回 Path 的所有权交给调用方；增量构造显式管理同一个 PathBuilder 实现 |
 | [CLI schema](../../sysroot/src/scoop.cli/src/cli.scoop) | 已有按类型元数据／注解生成 schema 的主路径 | 优先级低；只为实际手写 CliEntry 集合提供便捷入口，继续利用类型和注解 |
 
-Point、Size、Rect、Duration 等小值构造已经简洁。网络发送、文件读写、资源关闭以及动画播放等动作也有明确执行语义，不需要为了外观一致而改成配置 builder。
+Point、Size、Rect、Duration 等小值构造已经简洁。网络发送、文件读写、资源关闭以及动画播放等动作也有明确执行语义，不需要为了外观一致而改成配置 builder。StringBuilder 和 ByteArrayBuilder 已明确排除，本次不修改它们的 API、实现或调用方式。
 
 ## 6. 与 Kotlin 的范围差异
 
-当前 Scoop 的隐式接收者从内向外查找，语言没有 `@DslMarker`。因此，在叶子 `label { ... }` 内仍可能找到外层容器的 `button` 或布局属性，意外把内容添加到外层。普通嵌套写法可以在库层实现，但禁止这种外层隐式访问需要真实的语言作用域规则。
+Scoop 还没有 `@DslMarker`。DSL 迁移的 D0a 已加入 receiver function 边界规则，叶子 `label { ... }` 不能隐式借用外层容器的 `button` 或布局属性。普通嵌套写法由库实现，外层隐式访问由编译器名称绑定规则限制。
 
-第一轮使用现有接收者语义，示例清楚展示容器／叶子的区别，必要时通过显式对象访问外层。若要提供 Kotlin 式的 DSL 作用域隔离，应另行修改语言规范与编译器，并用真实嵌套 builder 的正反例验证。它不是实现当前基本语法的前置条件，也不通过库内异常重载或运行期当前容器栈模拟。
+D0a 的规则是：receiver function 已有自己的 receiver 时，裸成员访问隐式绑定外层 `this` 直接报编译错误，不设警告期。外层组件与外层 builder 一视同仁，receiver function 内定义的普通回调也不能恢复越过该边界的隐式查找。显式 `this@Outer`／`this@outer`、保存的对象引用和普通词法捕获仍可用；没有经过 receiver function 边界的普通闭包不受这条新增限制。完整规则及实现、验收范围见[迁移计划第 1.4 节](DSL-MIGRATION.md#14-禁止隐式使用外层-receiver)和[语言规范 §8.1.2](../specs/SCOOP-SPEC.md#812-lambda-与匿名函数)。
+
+`@DslMarker` 仍列为后续加入的能力，仅用于限制 receiver 查找、减少误用，不改变已经设计好的 API 功能。上述全局禁止规则比按标记限制更强，已经覆盖此处讨论的外层 receiver 误用；后续标记设计应说明与全局规则的关系，不放宽这条规则，也不为相同限制再增加一套检查。加入标记不作为本次迁移前置。
+
+API 的完整构造与组合能力通过显式接收者保持。调用方只需明确外层对象，不改变构建结果、Props／View、状态、回调或资源生命周期。禁止隐式绑定是编译期名称使用规则，不能通过库内异常重载或运行期当前容器栈模拟，也不能在捕获列表中一律拒绝合法的显式外层引用。
 
 不引入额外的 DSL AST、全局 builder context、反射属性写入、代码生成器或第二套 reconciliation。当前实际调用支持的配置与组合即可完成这一层。
 
@@ -102,4 +105,4 @@ Point、Size、Rect、Duration 等小值构造已经简洁。网络发送、文�
 
 另一个小型语言探针确认同名普通函数与接收者扩展的歧义诊断；采用共享 builder 基类的真实成员后，格式化、类型检查、release 构建和 1 项嵌套收集测试均通过。该结果用于选择当前语言支持的入口组织方式，没有修改编译器，也不把探针名固化为公开 API。
 
-正式迁移时，验收重点是 DSL 与原入口生成同一类描述、条件／循环与稳定 key 的实例复用、嵌套配置快照、事件回调读取最新 Props，以及懒列表不提前构造离屏项。沿用相关 Cone 的 scoop.test 和现有原生组合用例；不因增加 builder 重跑编译器全量或所有系统库测试。
+正式迁移时，验收重点是 DSL 与原入口生成同一类描述、条件／循环与稳定 key 的实例复用、嵌套配置快照、事件回调读取最新 Props，以及懒列表不提前构造离屏项。所有 Cone 改动使用 scoop.test 验证；受影响的 fixture 先评估是否应迁到 scoop.test，仅在确有必要保留时更新。D0a 的编译错误与诊断位置属于必须使用编译器测试的语言规则。未修改 LIR／codegen 时只做本地验证，不因增加 builder 重跑编译器全量或所有系统库测试。

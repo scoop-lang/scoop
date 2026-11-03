@@ -17,9 +17,7 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
     val known = Array<Byte>(524288L) { index -> (index % 251L).toByte() }
     val unknown = Array<Byte>(98305L) { index -> (97L + index % 26L).toByte() }
     fun request(path: String): HttpRequest =
-        HttpRequest.get(
-            Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + path)
-        )
+        httpRequest(Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + path))
     fun start(): Job =
         jobs.launch suspend {
             coroutineScope suspend {

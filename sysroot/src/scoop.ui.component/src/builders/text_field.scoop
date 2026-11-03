@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.text.*
+
+public open class InputBuilder internal constructor() {
+    public var placeholder: String = ""
+    public var enabled: Boolean = true
+    public var readOnly: Boolean = false
+    public var invalid: Boolean = false
+    public var description: String = ""
+    public var fonts: FontCollection? = None
+    public var style: TextFieldStyle = textFieldStyle()
+    public var theme: ThemeSource? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var direction: TextDirection = TextDirection.Ltr
+    public var alignment: TextAlignment = TextAlignment.Start
+    public var paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public var caretBlink: Duration = Duration.milliseconds(500L)
+    public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
+    public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+    public var key: ViewKey = ViewKey.Position
+
+    public fun style(configure: TextFieldStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun inputProps(state: TextEditorState): InputProps =
+        InputProps(
+            state,
+            placeholder,
+            enabled,
+            readOnly,
+            invalid,
+            description,
+            fonts,
+            style,
+            theme,
+            focus,
+            direction,
+            alignment,
+            paintCache,
+            caretBlink,
+            onEdited,
+            onSubmit
+        )
+}
+
+public class TextareaBuilder internal constructor(): InputBuilder() {
+    public var rows: Long = 4L
+    public var wrap: Boolean = true
+    public var tab: TextTabBehavior = TextTabBehavior.Navigate
+    public var submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter
+    public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+
+    internal fun textareaProps(state: TextEditorState): TextareaProps =
+        TextareaProps(
+            state,
+            placeholder,
+            rows,
+            wrap,
+            tab,
+            submit,
+            enabled,
+            readOnly,
+            invalid,
+            description,
+            fonts,
+            style,
+            theme,
+            focus,
+            direction,
+            alignment,
+            scrollbars,
+            paintCache,
+            caretBlink,
+            onEdited,
+            onSubmit
+        )
+}
+
+internal fun makeInput(state: TextEditorState, configure: InputBuilder.() -> Unit): View {
+    val builder = InputBuilder()
+    builder.configure()
+    return component(builder.inputProps(state), { props -> Input(props) }, builder.key)
+}
+
+internal fun makeTextarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit): View {
+    val builder = TextareaBuilder()
+    builder.configure()
+    return component(builder.textareaProps(state), { props -> Textarea(props) }, builder.key)
+}

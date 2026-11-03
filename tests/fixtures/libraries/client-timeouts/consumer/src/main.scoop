@@ -30,15 +30,19 @@ internal fun timeoutPhase(error: HttpTimeoutException, phase: HttpTimeoutPhase, 
 
 private fun exercise(mode: String, url: Url, trust: TrustStore) {
     val config =
-        HttpClientConfig(
-            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-            cleartext =
+        httpClientConfig {
+            this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            this.cleartext =
                 if (mode == "h2")
                     HttpCleartextProtocol.Http2PriorKnowledge
                 else
-                    HttpCleartextProtocol.Http1,
-            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L, maxStreamsPerHttp2 = 2L)
-        )
+                    HttpCleartextProtocol.Http1
+            this.pool =
+                httpConnectionPoolOptions {
+                    this.maxConnectionsPerOrigin = 1L
+                    this.maxStreamsPerHttp2 = 2L
+                }
+        }
     PlatformEventLoop().run suspend {
         scope ->
         withHttpClient(config) suspend {

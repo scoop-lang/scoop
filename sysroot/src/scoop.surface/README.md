@@ -12,20 +12,30 @@ import scoop.surface.*
 import scoop.window.*
 
 fun main() {
-    val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
-    val host = SurfaceHost { owner, active, event ->
-        when (event) {
-            case Resumed -> {
-                val window = active.createWindow(WindowAttributes("Scoop Surface"))
-                owner.attach(window) { frame ->
-                    frame.canvas.clear(Color.White)
-                    frame.canvas.drawCircle(Point(80.0, 80.0), 40.0, Paint(Color(0.1, 0.4, 0.8)))
+    val application =
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
+    val host =
+        SurfaceHost {
+            owner,
+            active,
+            event -> when (event) {
+                case Resumed -> {
+                    val window =
+                        active.createWindow(windowAttributes { this.title = "Scoop Surface" })
+                    owner.attach(window) {
+                        frame ->
+                        frame.canvas.clear(Color.White)
+                        frame.canvas.drawCircle(
+                            Point(80.0, 80.0),
+                            40.0,
+                            Paint(Color(0.1, 0.4, 0.8))
+                        )
+                    }
                 }
+                case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
+                else -> {}
             }
-            case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
-            else -> {}
         }
-    }
     host.use { current -> application.run(current) }
 }
 ```

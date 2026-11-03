@@ -3,13 +3,16 @@ package scoop.ui.style
 import scoop.graphics.*
 
 /** Shared algorithms for the four public parts; concrete themes supply all appearance choices. */
-public class ShapeTheme public constructor(
+public class ShapeTheme internal constructor(
     public override val tokens: ThemeTokens,
     public val surfaces: SurfaceParts,
     public val checkbox: CheckboxPart,
     public val radio: RadioPart,
     public val scrollbar: ScrollbarPart
 ): Theme {
+    public fun copy(configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme =
+        configureShapeTheme(this, configure)
+
     private fun surfaceStyle(visual: SurfaceVisual, options: SurfaceOptions): Style {
         val part = surfaces.get(visual.kind)
         return options.style.resolve(
@@ -210,9 +213,10 @@ public class ShapeTheme public constructor(
                 visual.interaction,
                 options.focus ?: appearance.focus
             ),
-            style.withBackground(options.background.resolve(style.background)).withBorder(
-                options.border.resolve(style.border)
-            ),
+            style.copy {
+                this.background = options.background.resolve(this.background)
+                this.border = options.border.resolve(this.border)
+            },
             options.dotColor ?: appearance.mark.resolve(visual.interaction),
             amount
         )

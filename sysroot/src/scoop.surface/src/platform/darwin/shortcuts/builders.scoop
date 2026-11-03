@@ -1,0 +1,67 @@
+package scoop.surface
+
+public fun shortcutBinding(
+    key: ShortcutKey,
+    action: () -> Unit,
+    configure: ShortcutBindingBuilder.() -> Unit = {}
+): ShortcutBinding {
+    val builder = ShortcutBindingBuilder()
+    builder.configure()
+    return ShortcutBinding(
+        key,
+        builder.modifiers,
+        builder.enabled,
+        builder.allowRepeat,
+        builder.canExecute,
+        action
+    )
+}
+
+public class ShortcutBindingBuilder internal constructor() {
+    public var modifiers: ShortcutModifiers = ShortcutModifiers()
+    public var enabled: Boolean = true
+    public var allowRepeat: Boolean = false
+    public var canExecute: () -> Boolean = { true }
+
+    public fun modifiers(configure: ShortcutModifiersBuilder.() -> Unit): Unit {
+        val builder = ShortcutModifiersBuilder(modifiers)
+        builder.configure()
+        modifiers = builder.snapshot()
+    }
+}
+
+public class ShortcutModifiersBuilder internal constructor(value: ShortcutModifiers) {
+    public var primary: Boolean = value.primary
+    public var shift: Boolean = value.shift
+    public var control: Boolean = value.control
+    public var alt: Boolean = value.alt
+    public var superKey: Boolean = value.superKey
+    public var function: Boolean = value.function
+    internal fun snapshot(): ShortcutModifiers =
+        ShortcutModifiers(primary, shift, control, alt, superKey, function)
+}
+
+public fun shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding> {
+    val builder = ShortcutsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ShortcutsBuilder internal constructor() {
+    private val entries = ArrayList<ShortcutBinding>()
+    public fun add(value: ShortcutBinding): Unit {
+        entries.add(value)
+    }
+    public fun addAll(values: Array<ShortcutBinding>): Unit {
+        for (value in values)
+            add(value)
+    }
+    public fun binding(
+        key: ShortcutKey,
+        action: () -> Unit,
+        configure: ShortcutBindingBuilder.() -> Unit = {}
+    ): Unit {
+        add(shortcutBinding(key, action, configure))
+    }
+    internal fun snapshot(): Array<ShortcutBinding> = entries.toArray()
+}

@@ -9,32 +9,51 @@ import scoop.test.*
 private class HttpClientH2cRejectionTest {
     @Test
     fun `declined h2c preserves the actual response and reuses HTTP1 without another offer`() {
-        withClientH2cTest suspend { _, scope, listener, config ->
-            val serving = scope.launch suspend {
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { h1 ->
-                    val incoming = h1.receiveRequest()!!
-                    readHttp2UpgradeSettings(incoming.head)
-                    assertEquals("once", String.fromUtf8(incoming.body.readAllBytes(4L)))
-                    sendClientTestText(h1, 401U, "credentials")
-                    val next = h1.receiveRequest()!!
-                    assertEquals(0L, next.head.fields.findAll("Upgrade".toByteArray()).size)
-                    assertEquals(0L, next.head.fields.findAll("HTTP2-Settings".toByteArray()).size)
-                    next.body.readAllBytes(0L)
-                    h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 204U)).finish()
+        withClientH2cTest suspend {
+            _, scope, listener, config ->
+            val serving =
+                scope.launch suspend {
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        h1 ->
+                        val incoming = h1.receiveRequest()!!
+                        readHttp2UpgradeSettings(incoming.head)
+                        assertEquals("once", String.fromUtf8(incoming.body.readAllBytes(4L)))
+                        sendClientTestText(h1, 401U, "credentials")
+                        val next = h1.receiveRequest()!!
+                        assertEquals(0L, next.head.fields.findAll("Upgrade".toByteArray()).size)
+                        assertEquals(
+                            0L,
+                            next.head.fields.findAll("HTTP2-Settings".toByteArray()).size
+                        )
+                        next.body.readAllBytes(0L)
+                        h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 204U)).finish()
+                    }
                 }
-            }
-            withHttpClient(config) suspend { client ->
+            withHttpClient(config) suspend {
+                client ->
                 val started = AtomicBoolean(false)
-                val body = RequestBody.fromProducer(Some(4L)) suspend { output ->
-                    assertFalse(started.exchange(true))
-                    writeBodyText(output, "once")
-                }
-                client.withResponse(HttpRequest.post(clientTestUrl(listener), body)) suspend { response ->
+                val body =
+                    RequestBody.fromProducer(Some(4L)) suspend {
+                        output ->
+                        assertFalse(started.exchange(true))
+                        writeBodyText(output, "once")
+                    }
+                client.withResponse(
+                    httpRequest(clientTestUrl(listener)) {
+                        this.method = "POST"
+                        this.body = body
+                    }
+                ) suspend {
+                    response ->
                     assertTrue(response.version == HttpVersion.Http11)
                     assertEquals(401U, response.status)
                     assertEquals("credentials", String.fromUtf8(response.body.readAllBytes(11L)))
                 }
-                client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend { response ->
+                client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
+                    response ->
                     assertEquals(204U, response.status)
                     response.body.readAllBytes(0L)
                     Unit
@@ -47,29 +66,64 @@ private class HttpClientH2cRejectionTest {
     @Test
     fun `HTTP2-only and malformed switching responses fail negotiation without replay`() {
         for (malformed in [false, true]) {
-            withClientH2cTest(if (malformed) HttpVersionPolicy.Auto else HttpVersionPolicy.Http2Only) suspend { _, scope, listener, config ->
+            withClientH2cTest(
+                if (malformed)
+                    HttpVersionPolicy.Auto
+                else
+                    HttpVersionPolicy.Http2Only
+            ) suspend {
+                _, scope, listener, config ->
                 val done = BodyTestGate()
-                val serving = scope.launch suspend {
-                    AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { h1 ->
-                        val incoming = h1.receiveRequest()!!
-                        readHttp2UpgradeSettings(incoming.head)
-                        assertEquals("once", String.fromUtf8(incoming.body.readAllBytes(4L)))
-                        if (malformed) {
-                            h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 101U, fields = [
-                                HttpField("Connection".toByteArray(), "Upgrade".toByteArray()),
-                                HttpField("Upgrade".toByteArray(), "websocket".toByteArray())])).finish()
-                        } else sendClientTestText(h1, 200U, "declined")
-                        done.await()
+                val serving =
+                    scope.launch suspend {
+                        AsyncHttp1Connection.takeOwnershipAsServer(
+                            listener.accept(),
+                            scope
+                        ).useAsync suspend {
+                            h1 ->
+                            val incoming = h1.receiveRequest()!!
+                            readHttp2UpgradeSettings(incoming.head)
+                            assertEquals("once", String.fromUtf8(incoming.body.readAllBytes(4L)))
+                            if (malformed) {
+                                h1.sendResponse(
+                                    HttpResponseHead(
+                                        HttpVersion.Http11,
+                                        101U,
+                                        fields =
+                                            [
+                                                HttpField(
+                                                    "Connection".toByteArray(),
+                                                    "Upgrade".toByteArray()
+                                                ),
+                                                HttpField(
+                                                    "Upgrade".toByteArray(),
+                                                    "websocket".toByteArray()
+                                                )
+                                            ]
+                                    )
+                                ).finish()
+                            } else
+                                sendClientTestText(h1, 200U, "declined")
+                            done.await()
+                        }
                     }
-                }
-                withHttpClient(config) suspend { client ->
+                withHttpClient(config) suspend {
+                    client ->
                     val started = AtomicBoolean(false)
-                    val body = RequestBody.fromProducer(Some(4L)) suspend { output ->
-                        assertFalse(started.exchange(true))
-                        writeBodyText(output, "once")
-                    }
+                    val body =
+                        RequestBody.fromProducer(Some(4L)) suspend {
+                            output ->
+                            assertFalse(started.exchange(true))
+                            writeBodyText(output, "once")
+                        }
                     expectBodyFailure<HttpNegotiationException> suspend {
-                        client.execute(HttpRequest.post(clientTestUrl(listener), body)); Unit
+                        client.execute(
+                            httpRequest(clientTestUrl(listener)) {
+                                this.method = "POST"
+                                this.body = body
+                            }
+                        );
+                        Unit
                     }
                     assertTrue(started.load())
                 }
@@ -83,32 +137,66 @@ private class HttpClientH2cRejectionTest {
     @Test
     fun `h2c rejects incompatible configuration and request metadata before sending headers`() {
         assertFailsWith<IllegalArgumentException> {
-            HttpClientConfig(cleartext = HttpCleartextProtocol.H2cUpgrade, http1RequestVersion = HttpVersion.Http10)
+            httpClientConfig {
+                this.cleartext = HttpCleartextProtocol.H2cUpgrade
+                this.http1RequestVersion = HttpVersion.Http10
+            }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpClientConfig(cleartext = HttpCleartextProtocol.H2cUpgrade, versionPolicy = HttpVersionPolicy.Http1Only)
-        }
-        withClientH2cTest suspend { _, scope, listener, config ->
-            val serving = scope.launch suspend {
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { h1 ->
-                    val incoming = h1.receiveRequest()!!
-                    assertEquals("GET", String.fromUtf8(incoming.head.method))
-                    readHttp2UpgradeSettings(incoming.head)
-                    incoming.body.readAllBytes(0L)
-                    h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 204U)).finish()
-                }
+            httpClientConfig {
+                this.cleartext = HttpCleartextProtocol.H2cUpgrade
+                this.versionPolicy = HttpVersionPolicy.Http1Only
             }
-            withHttpClient(config) suspend { client ->
+        }
+        withClientH2cTest suspend {
+            _, scope, listener, config ->
+            val serving =
+                scope.launch suspend {
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        h1 ->
+                        val incoming = h1.receiveRequest()!!
+                        assertEquals("GET", String.fromUtf8(incoming.head.method))
+                        readHttp2UpgradeSettings(incoming.head)
+                        incoming.body.readAllBytes(0L)
+                        h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 204U)).finish()
+                    }
+                }
+            withHttpClient(config) suspend {
+                client ->
                 val url = clientTestUrl(listener)
                 val started = AtomicBoolean(false)
                 val body = RequestBody.fromProducer suspend { _ -> started.store(true) }
-                for (request in [HttpRequest.post(url, body, options = HttpCallOptions(duplex = true)),
-                    HttpRequest(url, "CONNECT"), HttpRequest.get(url, [HttpField("Upgrade".toByteArray(), "h2c".toByteArray())]),
-                    HttpRequest.get(url, [HttpField("Connection".toByteArray(), "close".toByteArray())])]) {
-                    expectBodyFailure<IllegalArgumentException> suspend { client.execute(request); Unit }
+                for (
+                    request in [
+                        httpRequest(url) {
+                            this.method = "POST"
+                            this.body = body
+                            this.options = httpCallOptions { this.duplex = true }
+                        },
+                        httpRequest(url) { this.method = "CONNECT" },
+                        httpRequest(url) {
+                            this.fields = [HttpField("Upgrade".toByteArray(), "h2c".toByteArray())]
+                        },
+                        httpRequest(url) {
+                            this.fields =
+                                [HttpField("Connection".toByteArray(), "close".toByteArray())]
+                        }
+                    ]
+                ) {
+                    expectBodyFailure<IllegalArgumentException> suspend {
+                        client.execute(request);
+                        Unit
+                    }
                 }
                 assertFalse(started.load())
-                client.withResponse(HttpRequest.get(url)) suspend { response -> response.body.readAllBytes(0L); Unit }
+                client.withResponse(httpRequest(url)) suspend {
+                    response ->
+                    response.body.readAllBytes(0L);
+                    Unit
+                }
             }
             serving.join()
         }

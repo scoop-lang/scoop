@@ -21,46 +21,39 @@ private class DrawingRecordTest {
                             canvas.clear(Color.White)
                             canvas.translate(20.0, 20.0)
                             canvas.clipRect(Rect(0.0, 0.0, 2.0, 2.0))
-                            PathBuilder().use {
-                                builder ->
-                                builder.addRect(Rect(2.0, 2.0, 6.0, 6.0))
-                                builder.build().use {
-                                    path -> Image.fromRgba(
-                                        1,
-                                        1,
-                                        [0, 255.toByte(), 0, 255.toByte()]
-                                    ).use {
-                                        image -> canvas.recordDrawing(Rect(0.0, 0.0, 20.0, 20.0)) {
-                                            record ->
-                                            expired.add(record)
-                                            assertEquals(Transform(), record.pixelTransform)
-                                            assertFailsWith<IllegalStateException> {
-                                                canvas.clear(Color.Black)
-                                            }
-                                            assertFailsWith<IllegalStateException> {
-                                                canvas.localClipBounds
-                                            }
-                                            record.drawPath(path, Paint(Color(1.0, 0.0, 0.0)))
-                                            record.drawImage(image, Rect(10.0, 2.0, 6.0, 6.0))
-                                            record.drawRect(
-                                                Rect(-4.0, 14.0, 8.0, 10.0),
-                                                Paint(Color.Black)
-                                            )
-                                            @Unsafe
-                                            {
-                                                geometries.add(
-                                                    captureGeometry(
-                                                        record,
-                                                        Rect(-4.0, 14.0, 8.0, 10.0)
-                                                    )
-                                                )
-                                            }
-                                            record.saveLayer(opacity = 0.5)
-                                            record.drawRect(
-                                                Rect(10.0, 10.0, 6.0, 6.0),
-                                                Paint(Color(0.0, 0.0, 1.0))
+                            path { addRect(Rect(2.0, 2.0, 6.0, 6.0)) }.use {
+                                path -> Image.fromRgba(
+                                    1,
+                                    1,
+                                    [0, 255.toByte(), 0, 255.toByte()]
+                                ).use {
+                                    image -> canvas.recordDrawing(Rect(0.0, 0.0, 20.0, 20.0)) {
+                                        record ->
+                                        expired.add(record)
+                                        assertEquals(Transform(), record.pixelTransform)
+                                        assertFailsWith<IllegalStateException> {
+                                            canvas.clear(Color.Black)
+                                        }
+                                        assertFailsWith<IllegalStateException> {
+                                            canvas.localClipBounds
+                                        }
+                                        record.drawPath(path, Paint(Color(1.0, 0.0, 0.0)))
+                                        record.drawImage(image, Rect(10.0, 2.0, 6.0, 6.0))
+                                        record.drawRect(
+                                            Rect(-4.0, 14.0, 8.0, 10.0),
+                                            Paint(Color.Black)
+                                        )
+                                        @Unsafe
+                                        {
+                                            geometries.add(
+                                                captureGeometry(record, Rect(-4.0, 14.0, 8.0, 10.0))
                                             )
                                         }
+                                        record.saveLayer(opacity = 0.5)
+                                        record.drawRect(
+                                            Rect(10.0, 10.0, 6.0, 6.0),
+                                            Paint(Color(0.0, 0.0, 1.0))
+                                        )
                                     }
                                 }
                             }

@@ -1,0 +1,37 @@
+package scoop.http.client.tests.consumer.client_proxy_selector
+
+import scoop.platform.concurrent.Thread
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+private fun withSelectorThreads(block: (TrustStore) -> Unit) {
+    TrustStore.fromPem(rootPem()).use {
+        trust -> Thread.start { block(trust) }.use {
+            worker ->
+            block(trust);
+            worker.join()
+        }
+    }
+}
+
+@Test
+private class ProxySelectorTests {
+    @Test
+    fun suspension() {
+        withSelectorThreads { trust -> selectorSuspension(trust) }
+    }
+    @Test
+    fun callbackFailures() {
+        for (nested in [false, true])
+            withSelectorThreads { trust -> selectorCallbackFailure(trust, nested) }
+    }
+    @Test
+    fun cancellationAndCleanup() {
+        for (mode in ["caller", "total", "client"])
+            for (cleanup in ["none", "plain"])
+                withSelectorThreads { trust -> selectorCancellation(trust, mode, cleanup) }
+        withSelectorThreads { trust -> selectorCancellation(trust, "caller", "wrapped") }
+    }
+}

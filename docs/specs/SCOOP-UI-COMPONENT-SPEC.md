@@ -45,10 +45,11 @@ class Counter: Component {
     private var count: Int by state(0)
 
     public override fun render(): View =
-        column(
-            [label(f"Count: ${count}"), button(text = "Increment", onClick = { count += 1 })],
-            spacing = 12.0
-        )
+        column {
+            this.label(f"Count: ${this @Counter.count}")
+            this.button("Increment", { this @Counter.count += 1 })
+            this.spacing = 12.0
+        }
 }
 ```
 
@@ -56,7 +57,52 @@ label／button／checkbox／row／column／stack／frame 都属于 `scoop.ui.com
 
 显式 `component(props = ..., create = ::Label)` 与便利函数沿用相同的类型／key 匹配。改变 key 或组件类型重建实例；普通输入更新保留状态、区域和可复用缓存。子数组使用普通 Array<View>，函数体中的未使用表达式不会自动成为子项。
 
-### 2.1 公共属性与状态归属
+### 2.1 接收者构造入口
+
+Label／Button／Checkbox 的文字、动作和外部 Binding 是必需参数；其余输入使用同步执行一次的接收者配置。入口返回普通 View，不挂载组件、运行事件回调或创建字体、painter、区域等资源。配置结果通过现有 LabelProps／ButtonProps／CheckboxProps 及自有勾选组件的 Props 发布，组件与 key 匹配方式保持不变，不保留原来的长参数函数重载。
+
+```scoop
+label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): View
+label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): View
+button(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = {}): View
+button(text: StyledText, onClick: () -> Unit, configure: StyledButtonBuilder.() -> Unit = {}): View
+checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
+checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit = {}): View
+```
+
+| Builder | 全部可写属性与默认值 |
+| --- | --- |
+| LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle = paragraphStyle()；theme: ThemeSource? = None；key: ViewKey = Position |
+| PlainLabelBuilder : LabelBuilder | 继承上述字段；style: SpanStyle? = None |
+| StyledLabelBuilder : LabelBuilder | 继承上述字段；inlines: Array<InlineView> = [] |
+| ButtonBuilder | enabled: Boolean = true；style: ButtonStyle = buttonStyle()；fonts: FontCollection? = None；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle = paragraphStyle()；inlines: Array<InlineView> = [] |
+| CheckboxBuilder | enabled: Boolean = true；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+
+LabelBuilder／StyledButtonBuilder 的 settings 成员接受 ParagraphStyleBuilder；PlainLabelBuilder 的 style 接受 SpanStyleBuilder；ButtonBuilder／CheckboxBuilder 的 style 接受各自样式 Builder。真实嵌套成员返回 Unit，基于当前值继续修改，空块保留配置；完整赋值替换。PlainLabelBuilder.style 的 None 表示没有局部覆盖，第一次 style 块从全部继承的 spanStyle() 开始。String Button 的标签段落继续默认居中，StyledText Button 使用其 settings；不为某种文字模式暴露没有意义的输入。
+
+Builder 构造器内部化，公共基类只服务上述真实复用。工厂和容器子项成员共用构造实现；未使用的 View 不自动成为子项。发布后修改捕获的 builder 不改变 Props，数组和不可变子描述可共享；Binding、FontCollection 和普通事件函数按原有引用／借用规则保存。回调抛错不发布部分 View，构造不读取或修改绑定值。onClick 始终进入当前 ButtonProps，不捕获到首次组件工厂里；自有勾选状态仍只在原有持久组件首次挂载时初始化。
+
+Input／Textarea 同样以共享编辑模型为必需参数：`input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View` 与 `textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View`。InputBuilder 的可写属性是 InputProps 除 state 外的全部输入，另有 key: ViewKey = Position；属性名、类型、默认值与第 9 节编辑合同及 InputProps 一致。TextareaBuilder 继承这些共同输入，增加 rows: Long = 4、wrap: Boolean = true、tab: TextTabBehavior = Navigate、submit: TextSubmitKeys = PrimaryEnter、scrollbars: ScrollbarVisibility = Auto。两者 style 成员接受 TextFieldStyleBuilder，重复配置保留当前局部样式。onEdited／onSubmit 是普通 `(TextEditorState) -> Unit` 通知函数，默认不执行动作；构造不编辑模型或调用它们，回调经 Props 更新。
+
+多子项容器使用 `row(configure: LinearBuilder.() -> Unit = {})`、`column(configure: LinearBuilder.() -> Unit = {})`、`stack(configure: StackBuilder.() -> Unit = {})`，均返回 View。LinearBuilder 提供 spacing: Double = 0、alignment: AxisAlignment = Start；StackBuilder 提供 alignment: Alignment = Alignment()。它们继承 ChildrenBuilder 的 key: ViewKey = Position、有序 add(View)／addAll(Array<View>) 和控件真实成员；同名成员追加一次并返回 Unit，使用顶层工厂相同的构造实现。构造结束时子项转为独立 Array，空容器有效；循环、条件与追加按源码执行顺序组合，捕获的 builder 后续追加不影响已发布 Props。
+
+`frame(content: View, configure: FrameBuilder.() -> Unit = {}): View` 固定接收一个完整内容，FrameBuilder 提供 width／height: Double? = None、padding: Insets? = None、alignment: Alignment = Alignment()、style: StyleOverride = styleOverride()、surface: SurfaceKind? = None、theme: ThemeSource? = None、key: ViewKey = Position。style 成员接受 StyleOverrideBuilder 并基于当前值配置。Frame 不继承 ChildrenBuilder；尺寸校验与包装行为仍由原有 FrameProps 和 Frame 完成。
+
+Absolute、ScrollArea、VirtualList 使用以下入口，仍构造原有 Props 和具体组件：
+
+```scoop
+absolute(configure: AbsoluteBuilder.() -> Unit = {}): View
+absoluteChild(content: View, configure: AbsoluteChildBuilder.() -> Unit = {}): AbsoluteChild
+scrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit = {}): View
+virtualList(source: ItemSource, itemExtent: ItemExtent, configure: VirtualListBuilder.() -> Unit = {}): View
+```
+
+AbsoluteBuilder 的 width／height 为 None、padding 为 Insets()、key 为 Position；add(AbsoluteChild)／addAll(Array<AbsoluteChild>) 按顺序收集，item(content) 配置 horizontal／vertical（均 Start()）和 zIndex=0 后追加一次。它不继承 ChildrenBuilder。AbsoluteChild 保留单条完整几何值构造；absoluteChild 与 item 共享配置实现。逻辑子项顺序不因 zIndex 绘制排序而改变。
+
+ScrollAreaBuilder 的属性与 ScrollAreaProps 除 content 外的全部字段一致，VirtualListBuilder 与 VirtualListProps 除 source／itemExtent 外的全部字段一致，另有 key=Position。默认值沿用本规范的滚动与虚拟列表合同。两者 scrollbar／focus 嵌套块基于当前选项配置；required source、itemExtent 不放入可缺失槽。发布时仅保存状态、资源和 source 引用，构造不读取 source.count、枚举 source、创建条目、滚动或获取焦点。ChildrenBuilder 的 absolute／scrollArea／virtualList／portal／styled 成员均调用对应顶层入口并追加一次，返回 Unit。
+
+### 2.2 公共属性与状态归属
 
 只读输入如 Button.enabled 作为普通值经 Props 更新；用户交互会修改的公开值如 Checkbox.checked 可以接收 Binding<T>；hover／pressed 等内部表现由持久组件的私有 State 保存。绑定读写同一份外部状态，不在控件内部复制一份值并靠回调保持同步。调用者可以提供自己的 State、Context 中 Store 持有的 State，或普通模型 getter／业务方法组成的 Binding。
 
@@ -126,13 +172,11 @@ Checkbox 的 checked 是布尔值。最小入口为：
 ```text
 fun checkbox(
     checked: Binding<Boolean>,
-    enabled: Boolean = true,
-    key: ViewKey = ViewKey.Position
+    configure: CheckboxBuilder.() -> Unit = {}
 ): View
 fun checkbox(
     initialChecked: Boolean = false,
-    enabled: Boolean = true,
-    key: ViewKey = ViewKey.Position
+    configure: CheckboxBuilder.() -> Unit = {}
 ): View
 ```
 
@@ -158,16 +202,12 @@ class Form: Component {
     private val checked: State<Boolean> = state(false)
 
     public override fun render(): View =
-        column(
-            [
-                checkbox(checked = checked.binding()),
-                button(
-                    text = "Clear selection",
-                    enabled = checked.value,
-                    onClick = { checked.value = false }
-                )
-            ]
-        )
+        column {
+            this.checkbox(this @Form.checked.binding())
+            this.button("Clear selection", { this @Form.checked.value = false }) {
+                this.enabled = this @Form.checked.value
+            }
+        }
 }
 ```
 
@@ -244,6 +284,28 @@ navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺�
 ## 7. 样式与资源归属
 
 ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，三风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。
+
+局部样式通过以下接收者入口构造，configure 同步执行一次；每个结果提供 `copy(configure: 对应Builder.() -> Unit = {})`，以当前值初始化配置并发布独立描述。值和 builder 的构造器内部化，不保留公开长参数构造。
+
+```scoop
+buttonStyle(configure: ButtonStyleBuilder.() -> Unit = {}): ButtonStyle
+checkboxStyle(configure: CheckboxStyleBuilder.() -> Unit = {}): CheckboxStyle
+textFieldStyle(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle
+interactionStyles(configure: InteractionStylesBuilder.() -> Unit = {}): InteractionStyles
+```
+
+| Builder | 全部可写属性与默认值 |
+| --- | --- |
+| InteractionStylesBuilder | hovered／pressed／focused／disabled: StyleOverride，分别默认 styleOverride() |
+| ButtonStyleBuilder | kind: SurfaceKind = Action；surface: SurfaceOptions = surfaceOptions()；text: SpanStyle? = None；states: InteractionStyles = interactionStyles()；transition: StyleValue<AnimationSpec?> = Inherit |
+| CheckboxStyleBuilder | marker: CheckboxOptions = checkboxOptions()；padding: Insets? = None；states: InteractionStyles = interactionStyles()；transition／selectionTransition: StyleValue<AnimationSpec?> = Inherit |
+| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double = 1.0；scrollbar: ScrollbarOptions = scrollbarOptions() |
+
+嵌套配置使用真实同名成员：InteractionStylesBuilder 的四种状态接收 StyleOverrideBuilder；surface／marker／scrollbar 接收对应部件 OptionsBuilder；states 接收 InteractionStylesBuilder；text／placeholder／description 接收 SpanStyleBuilder。这些成员均返回 Unit、基于当前值修改，重复块累积，空块保留已有字段。可选文字覆盖尚为 None 时，文字配置块从全部继承的 spanStyle() 开始；直接给属性赋入完整值表示替换，赋入 None 移除该文字覆盖。
+
+transition／selectionTransition 还提供同名 Unit 设置方法，将同一类型化槽写为 Set(value)。Set(None) 禁用过渡，Inherit 使用当前主题；恢复继承时显式把属性赋为 StyleValue.Inherit。InteractionStyles 的状态组合顺序保持第 4 节合同，构造期间不组合某一帧的状态，也不读取或冻结当前主题。
+
+发布后修改被捕获的 builder 不改变结果；不可变子描述可以共享。回调异常不发布部分结果，不创建字体、painter、输入区域、动画或订阅；持久资源与状态仍在挂载作用域管理。控件现有布局、颜色与文本有效性检查继续在实际消费边界执行。
 
 公共 style 的 `Insets(left, top, right, bottom)` 表达有限非负内边距，`Insets.all(value)` 构造四边相等的值，控件不再复制同名类型。布局操作检查边距、尺寸及求和结果，颜色和绘图参数继续由 graphics 检查。首批交互过渡复用 Surface Animatable<Double> 生成 0～1 采样，主题根据它解析颜色或标记外观；目标相同的普通更新不重新启动动画，显式清除 transition 时直接吸附到当前目标。
 

@@ -1,0 +1,21 @@
+package scoop.http.server
+
+import scoop.asyncio.useAsync
+import scoop.http.asyncio.SseSink
+import scoop.time.Duration
+import scoop.http.*
+import scoop.http.asyncio.*
+
+public fun SseOptions.copy(configure: SseOptionsBuilder.() -> Unit = {}): SseOptions {
+    val builder = SseOptionsBuilder()
+    builder.heartbeatInterval = this.heartbeatInterval
+    builder.allowCompression = this.allowCompression
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class SseOptionsBuilder internal constructor() {
+    public var heartbeatInterval: Duration? = None
+    public var allowCompression: Boolean = false
+    internal fun snapshot(): SseOptions = SseOptions(heartbeatInterval, allowCompression)
+}

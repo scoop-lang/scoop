@@ -1,0 +1,11 @@
+package scoop.ui.style
+
+import scoop.ui.*
+
+public class StyledBuilder internal constructor() {
+    public var style: Style = style()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+}

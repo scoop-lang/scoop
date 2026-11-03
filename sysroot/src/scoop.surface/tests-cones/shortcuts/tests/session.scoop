@@ -15,7 +15,9 @@ private class NativeShortcutTest {
         val probe = NativeShortcutSession()
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
             host -> try {
-                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
                 assertTrue(probe.finished)
                 assertEquals(1, probe.calls)
                 assertTrue(probe.shortcuts!!.isClosed)
@@ -41,7 +43,10 @@ private class NativeShortcutSession: Closeable {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop native shortcuts", LogicalSize(220.0, 120.0))
+                        windowAttributes {
+                            this.title = "Scoop native shortcuts"
+                            this.size = LogicalSize(220.0, 120.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -58,11 +63,10 @@ private class NativeShortcutSession: Closeable {
                         ShortcutScope(
                             attached.input,
                             [
-                                ShortcutBinding(
+                                shortcutBinding(
                                     ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
-                                    ShortcutModifiers(primary = true),
-                                    action = { calls += 1 }
-                                )
+                                    { calls += 1 }
+                                ) { this.modifiers = ShortcutModifiers(primary = true) }
                             ]
                         )
                     )
@@ -86,9 +90,9 @@ private class NativeShortcutSession: Closeable {
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
-                    f"native shortcut timeout, phase=${phase}, calls=${calls}, focused=${
-                        window!!.isFocused
-                    }"
+                    f"native shortcut timeout, phase=${this @NativeShortcutSession.phase}, calls=${
+                        this @NativeShortcutSession.calls
+                    }, focused=${this @NativeShortcutSession.window!!.isFocused}"
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> {

@@ -8,7 +8,7 @@ import scoop.time.Duration
  * Bounded retry eligibility and cancellable backoff. Both method semantics and body replayability
  * must permit another attempt.
  */
-public class HttpRetryOptions public constructor(
+public class HttpRetryOptions internal constructor(
     /**
      * Maximum retries after the initial attempt.
      */
@@ -45,14 +45,17 @@ public class HttpRetryOptions public constructor(
      */
     public val statuses: Array<UInt> = statuses.toArray()
     init {
-        if (maxRetries < 0L) throw IllegalArgumentException(Some("negative HTTP retry count"))
+        if (maxRetries < 0L)
+            throw IllegalArgumentException(Some("negative HTTP retry count"))
         if (initialDelay < Duration.ZERO || maxDelay < initialDelay)
             throw IllegalArgumentException(Some("invalid HTTP retry delay range"))
         for (method in this.methods) {
-            if (!isHttpToken(method.toByteArray())) throw IllegalArgumentException(Some("invalid HTTP retry method"))
+            if (!isHttpToken(method.toByteArray()))
+                throw IllegalArgumentException(Some("invalid HTTP retry method"))
         }
         for (status in this.statuses) {
-            if (status < 200U || status > 599U) throw IllegalArgumentException(Some("invalid HTTP retry status"))
+            if (status < 200U || status > 599U)
+                throw IllegalArgumentException(Some("invalid HTTP retry status"))
         }
     }
 }

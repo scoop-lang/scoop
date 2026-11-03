@@ -1,0 +1,18 @@
+package scoop.http
+
+public fun Http2ReceiveOptions.copy(
+    configure: Http2ReceiveOptionsBuilder.() -> Unit = {}
+): Http2ReceiveOptions {
+    val builder = Http2ReceiveOptionsBuilder()
+    builder.allowFieldValueEdgeWhitespace = this.allowFieldValueEdgeWhitespace
+    builder.invalidRegularField = this.invalidRegularField
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class Http2ReceiveOptionsBuilder internal constructor() {
+    public var allowFieldValueEdgeWhitespace: Boolean = false
+    public var invalidRegularField: Http2InvalidRegularField = Http2InvalidRegularField.Ignore
+    internal fun snapshot(): Http2ReceiveOptions =
+        Http2ReceiveOptions(allowFieldValueEdgeWhitespace, invalidRegularField)
+}

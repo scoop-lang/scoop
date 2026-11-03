@@ -9,7 +9,14 @@ private class ServerCompressionFailureTests {
     @Test
     fun `compression preserves original length checks and never finishes failed producers`() {
         for ((value, length) in [("short", 6L), ("too long", 2L)]) {
-            val result = compressionExercise(stream("text/plain", suspend { writer -> writer.writeText(value) }, length = Some(length)))
+            val result =
+                compressionExercise(
+                    stream(
+                        "text/plain",
+                        suspend { writer -> writer.writeText(value) },
+                        length = Some(length)
+                    )
+                )
             assertTrue(present(result.failure))
             assertTrue(result.failure!! is IllegalStateException)
             assertEquals(1, result.output.starts)
@@ -17,7 +24,18 @@ private class ServerCompressionFailureTests {
             assertEquals(1, result.output.aborts)
         }
         val failure = IllegalArgumentException(Some("producer failed"))
-        val broken = compressionExercise(stream("text/plain", suspend { writer -> writer.writeText("partial"); writer.flush(); throw failure }))
+        val broken =
+            compressionExercise(
+                stream(
+                    "text/plain",
+                    suspend {
+                        writer ->
+                        writer.writeText("partial");
+                        writer.flush();
+                        throw failure
+                    }
+                )
+            )
         assertSame(failure, broken.failure!!)
         assertEquals(0, broken.output.finishes)
         assertTrue(broken.context.encodedResponseBytes > 0L)
@@ -37,13 +55,23 @@ private class ServerCompressionFailureTests {
         assertEquals(406U, unacceptable.status)
         assertEquals(0, calls.value)
         assertEquals(1, unacceptable.output.finishes)
-        val routes = RouterBuilder()
-        routes.use(responseCompression(ResponseCompressionOptions(minimumBytes = 0L)))
-        routes.get("/", suspend { ctx ->
-            ctx.response.beforeCommit { _ -> calls.value += 1; throw IllegalStateException(Some("invalid draft")) }
-            response
-        })
-        val result = exercise(routes.build(), fields = [field("Accept-Encoding", "*;q=0")])
+        val routes =
+            routing {
+                this.use(responseCompression(responseCompressionOptions { this.minimumBytes = 0L }))
+                this.get(
+                    "/",
+                    suspend {
+                        ctx ->
+                        ctx.response.beforeCommit {
+                            _ ->
+                            calls.value += 1;
+                            throw IllegalStateException(Some("invalid draft"))
+                        }
+                        response
+                    }
+                )
+            }
+        val result = exercise(routes, fields = [field("Accept-Encoding", "*;q=0")])
         assertEquals(500U, result.status)
         assertEquals(None, responseEncoding(result))
         assertEquals(1, calls.value)

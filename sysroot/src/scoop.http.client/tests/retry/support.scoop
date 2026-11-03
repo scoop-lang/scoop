@@ -6,7 +6,11 @@ import scoop.http.asyncio.AsyncHttp1Connection
 import scoop.time.Duration
 
 internal fun immediateClientRetryOptions(maxRetries: Long = 2L): HttpRetryOptions =
-    HttpRetryOptions(maxRetries = maxRetries, initialDelay = Duration.ZERO, jitter = false)
+    httpRetryOptions {
+        this.maxRetries = maxRetries
+        this.initialDelay = Duration.ZERO
+        this.jitter = false
+    }
 
 internal fun withClientRetryTest(
     retries: HttpRetryOptions = immediateClientRetryOptions(),
@@ -17,13 +21,16 @@ internal fun withClientRetryTest(
         trust ->
         val base = clientTestConfig(trust, version)
         val config =
-            HttpClientConfig(
-                cleartext = base.cleartext,
-                tls = base.tls,
-                retries = retries,
-                pool =
-                    HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L, maxStreamsPerHttp2 = 2L)
-            )
+            httpClientConfig {
+                this.cleartext = base.cleartext
+                this.tls = base.tls
+                this.retries = retries
+                this.pool =
+                    httpConnectionPoolOptions {
+                        this.maxConnectionsPerOrigin = 1L
+                        this.maxStreamsPerHttp2 = 2L
+                    }
+            }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope -> clientTestListen(loop).useAsync suspend {

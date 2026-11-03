@@ -1,0 +1,113 @@
+package scoop.graphics.text
+
+import scoop.graphics.Color
+
+/** Runs the configuration once and returns an immutable TextStyle description. */
+public fun textStyle(configure: TextStyleBuilder.() -> Unit = {}): TextStyle =
+    configureTextStyle(TextStyle(), configure)
+
+internal fun configureTextStyle(
+    initial: TextStyle,
+    configure: TextStyleBuilder.() -> Unit
+): TextStyle {
+    val builder = TextStyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration whose later changes do not alter published values. */
+public class TextStyleBuilder internal constructor(initial: TextStyle) {
+    public var families: Array<String> = initial.families
+    public var fontSize: Double = initial.fontSize
+    public var color: Color = initial.color
+    public var weight: Int = initial.weight
+    public var width: Int = initial.width
+    public var slant: FontSlant = initial.slant
+    public var locale: String = initial.locale
+    public var letterSpacing: Double = initial.letterSpacing
+    public var wordSpacing: Double = initial.wordSpacing
+    public var lineHeight: Double? = initial.lineHeight
+    public var features: Array<FontFeature> = initial.features
+    public var variations: Array<FontVariation> = initial.variations
+
+    internal fun snapshot(): TextStyle =
+        TextStyle(
+            families = families,
+            fontSize = fontSize,
+            color = color,
+            weight = weight,
+            width = width,
+            slant = slant,
+            locale = locale,
+            letterSpacing = letterSpacing,
+            wordSpacing = wordSpacing,
+            lineHeight = lineHeight,
+            features = features,
+            variations = variations
+        )
+}
+
+/** Runs the configuration once and returns an immutable SpanStyle description. */
+public fun spanStyle(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle =
+    configureSpanStyle(SpanStyle(), configure)
+
+internal fun configureSpanStyle(
+    initial: SpanStyle,
+    configure: SpanStyleBuilder.() -> Unit
+): SpanStyle {
+    val builder = SpanStyleBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration whose later changes do not alter published values. */
+public class SpanStyleBuilder internal constructor(initial: SpanStyle) {
+    public var families: Array<String>? = initial.families
+    public var fontSize: Double? = initial.fontSize
+    public var color: Color? = initial.color
+    public var weight: Int? = initial.weight
+    public var width: Int? = initial.width
+    public var slant: FontSlant? = initial.slant
+    public var locale: String? = initial.locale
+    public var letterSpacing: Double? = initial.letterSpacing
+    public var wordSpacing: Double? = initial.wordSpacing
+    public var lineHeight: Option<Option<Double>> = initial.lineHeight
+    public var features: Array<FontFeature>? = initial.features
+    public var variations: Array<FontVariation>? = initial.variations
+
+    internal fun snapshot(): SpanStyle =
+        SpanStyle(
+            families = families,
+            fontSize = fontSize,
+            color = color,
+            weight = weight,
+            width = width,
+            slant = slant,
+            locale = locale,
+            letterSpacing = letterSpacing,
+            wordSpacing = wordSpacing,
+            lineHeight = lineHeight,
+            features = features,
+            variations = variations
+        )
+}
+
+/** Runs the configuration once and returns an immutable ParagraphStyle description. */
+public fun paragraphStyle(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle =
+    ParagraphStyle().copy(configure)
+
+/** Mutable configuration whose later changes do not alter published values. */
+public class ParagraphStyleBuilder internal constructor(initial: ParagraphStyle) {
+    public var alignment: TextAlignment = initial.alignment
+    public var direction: TextDirection = initial.direction
+    public var maxLines: Long? = initial.maxLines
+    public var ellipsis: String = initial.ellipsis
+
+    internal fun snapshot(): ParagraphStyle =
+        ParagraphStyle(
+            alignment = alignment,
+            direction = direction,
+            maxLines = maxLines,
+            ellipsis = ellipsis
+        )
+}

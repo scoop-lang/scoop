@@ -18,18 +18,18 @@ internal fun extensionOwnership(trust: TrustStore, url: Url, mode: String) {
                 state.chain = Some(chain)
                 if (mode == "short")
                     return@HttpInterceptor HttpCallResult.Response(
-                        state.client!!.execute(HttpRequest.get(url.resolve("/short")))
+                        state.client!!.execute(httpRequest(url.resolve("/short")))
                     )
                 if (mode == "owner")
                     return@HttpInterceptor HttpCallResult.Response(
-                        state.other!!.execute(HttpRequest.get(url.resolve("/other")))
+                        state.other!!.execute(httpRequest(url.resolve("/other")))
                     )
                 val result = chain.proceed()
                 if (mode == "throw")
                     throw state.failure
                 if (mode == "replace")
                     return@HttpInterceptor HttpCallResult.Response(
-                        state.client!!.execute(HttpRequest.get(url.resolve("/replacement")))
+                        state.client!!.execute(httpRequest(url.resolve("/replacement")))
                     )
                 if (mode == "kind")
                     return@HttpInterceptor when (result) {
@@ -59,7 +59,7 @@ internal fun extensionOwnership(trust: TrustStore, url: Url, mode: String) {
             if (mode == "throw" || mode == "owner" || mode == "kind") {
                 val error =
                     extensionFailure suspend {
-                        client.execute(HttpRequest.get(url));
+                        client.execute(httpRequest(url));
                         Unit
                     }
                 if (mode == "throw")

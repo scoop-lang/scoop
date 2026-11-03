@@ -66,24 +66,27 @@ internal class FailureRoot(private val record: FailureRecord): Component {
                 case ModalMount -> failureModal(record)
                 case ModalClose -> failureModal(record)
                 case PortalHandle -> [
-                    portal(
-                        empty(),
-                        PortalOptions(
-                            handle = Some(record.overlay),
-                            onClose = { reason -> record.overlayClosed(reason) }
-                        )
-                    ),
-                    portal(empty(), PortalOptions(handle = Some(record.overlay)))
+                    portal(empty()) {
+                        this.options {
+                            this.handle = Some(this @FailureRoot.record.overlay)
+                            this.onClose =
+                                { reason -> this @FailureRoot.record.overlayClosed(reason) }
+                        }
+                    },
+                    portal(empty()) {
+                        this.options { this.handle = Some(this @FailureRoot.record.overlay) }
+                    }
                 ]
                 case PortalCycle -> [
-                    portal(
-                        element({ FailurePortalAnchor(record.anchor) }),
-                        PortalOptions(
-                            OverlayPlacement.Anchored(record.anchor),
-                            Some(record.overlay),
-                            onClose = { reason -> record.overlayClosed(reason) }
-                        )
-                    )
+                    portal(element({ FailurePortalAnchor(record.anchor) })) {
+                        this.options {
+                            this.placement =
+                                OverlayPlacement.Anchored(this @FailureRoot.record.anchor)
+                            this.handle = Some(this @FailureRoot.record.overlay)
+                            this.onClose =
+                                { reason -> this @FailureRoot.record.overlayClosed(reason) }
+                        }
+                    }
                 ]
                 else -> []
             }
@@ -115,14 +118,13 @@ private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element {
 
 private fun failureModal(record: FailureRecord): Array<View> =
     [
-        portal(
-            element({ FailureModal(record) }),
-            PortalOptions(
-                handle = Some(record.overlay),
-                modal = Some(ModalOptions()),
-                onClose = { reason -> record.overlayClosed(reason) }
-            )
-        )
+        portal(element({ FailureModal(record) })) {
+            this.options {
+                this.handle = Some(record.overlay)
+                this.modal = Some(ModalOptions())
+                this.onClose = { reason -> record.overlayClosed(reason) }
+            }
+        }
     ]
 
 private class FailureModal(private val record: FailureRecord): Element {

@@ -12,13 +12,13 @@ internal fun withClientH2cTest(
     clientTestTrust().use {
         trust ->
         val config =
-            HttpClientConfig(
-                versionPolicy = version,
-                cleartext = HttpCleartextProtocol.H2cUpgrade,
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                http2Settings = Http2Settings(initialWindowSize = 3U),
-                pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 2L)
-            )
+            httpClientConfig {
+                this.versionPolicy = version
+                this.cleartext = HttpCleartextProtocol.H2cUpgrade
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.http2Settings = Http2Settings(initialWindowSize = 3U)
+                this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 2L }
+            }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope -> clientTestListen(loop).useAsync suspend {

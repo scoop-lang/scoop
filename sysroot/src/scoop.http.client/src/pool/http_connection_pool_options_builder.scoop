@@ -1,0 +1,44 @@
+package scoop.http.client
+
+import scoop.time.Duration
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpConnectionPoolOptions(
+    configure: HttpConnectionPoolOptionsBuilder.() -> Unit = {}
+): HttpConnectionPoolOptions {
+    val builder = HttpConnectionPoolOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpConnectionPoolOptions.copy(
+    configure: HttpConnectionPoolOptionsBuilder.() -> Unit = {}
+): HttpConnectionPoolOptions {
+    val builder = HttpConnectionPoolOptionsBuilder()
+    builder.maxConnectionsPerOrigin = this.maxConnectionsPerOrigin
+    builder.maxConnections = this.maxConnections
+    builder.maxStreamsPerHttp2 = this.maxStreamsPerHttp2
+    builder.idleTimeout = this.idleTimeout
+    builder.maxLifetime = this.maxLifetime
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpConnectionPoolOptionsBuilder internal constructor() {
+    public var maxConnectionsPerOrigin: Long = 8L
+    public var maxConnections: Long = 64L
+    public var maxStreamsPerHttp2: Long = 100L
+    public var idleTimeout: Duration = Duration.seconds(60L)
+    public var maxLifetime: Duration? = None
+    internal fun snapshot(): HttpConnectionPoolOptions =
+        HttpConnectionPoolOptions(
+            maxConnectionsPerOrigin,
+            maxConnections,
+            maxStreamsPerHttp2,
+            idleTimeout,
+            maxLifetime
+        )
+}

@@ -52,13 +52,16 @@ internal class DownloadController(
                         client.download(
                             request,
                             destination,
-                            HttpDownloadOptions(
-                                replaceExisting = true,
-                                onProgress =
+                            httpDownloadOptions {
+                                this.replaceExisting = true
+                                this.onProgress =
                                     suspend {
                                         value ->
-                                        checkThread()
-                                        if (owns(attempt) && attempt.accepting) {
+                                        this @DownloadController.checkThread()
+                                        if (
+                                            this @DownloadController.owns(attempt) &&
+                                                attempt.accepting
+                                        ) {
                                             val progress =
                                                 DownloadProgress(
                                                     value.bytesWritten,
@@ -71,14 +74,14 @@ internal class DownloadController(
                                                     MonotonicTimeSource.markNow()
                                                 )
                                             )
-                                                model.snapshot.value =
+                                                this @DownloadController.model.snapshot.value =
                                                     DownloadSnapshot(
                                                         DownloadPhase.Running,
                                                         progress
                                                     )
                                         }
                                     }
-                            )
+                            }
                         )
                     if (owns(attempt)) {
                         if (attempt.accepting) {

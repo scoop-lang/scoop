@@ -32,7 +32,7 @@ impl Lowerer {
         let outer_this = self.current_this.take();
         let outer_initialization = self.initialization_context.take();
         let outer_receivers = self.receiver_scopes.len();
-        self.push_receiver_scope(Some(name.clone()), None);
+        self.push_receiver_scope(Some(name.clone()), None, false);
         let outer_smart_casts = self.smart_casts.clone();
         self.capture_contexts.push(CaptureContext {
             available: capture_environment,

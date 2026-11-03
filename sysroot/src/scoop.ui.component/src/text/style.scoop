@@ -37,7 +37,7 @@ internal class ActionTextStyle {
                 return previous.resolved
             case None -> {}
         }
-        val colored = SpanStyle(color = Some(color)).resolve(base)
+        val colored = spanStyle { this.color = Some(color) }.resolve(base)
         val resolved =
             when (local) {
                 case Some(value) -> value.resolve(colored);

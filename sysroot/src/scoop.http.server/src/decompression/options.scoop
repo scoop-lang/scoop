@@ -3,9 +3,14 @@ package scoop.http.server
 import scoop.compression.CompressionFormat
 
 /** Request content coding policy, installed before choosing a body consumer. */
-public class RequestDecompressionOptions public constructor(
-    allowedFormats: List<CompressionFormat> = [CompressionFormat.Gzip, CompressionFormat.Zlib,
-        CompressionFormat.Brotli, CompressionFormat.Zstd],
+public class RequestDecompressionOptions internal constructor(
+    allowedFormats: List<CompressionFormat> =
+        [
+            CompressionFormat.Gzip,
+            CompressionFormat.Zlib,
+            CompressionFormat.Brotli,
+            CompressionFormat.Zstd
+        ],
     /** Maximum number of actual coding layers; identity does not count. */
     public val maxLayers: Long = 2L,
     /** Maximum output of each decoding layer, including the final plaintext view. */
@@ -18,23 +23,33 @@ public class RequestDecompressionOptions public constructor(
     /** A snapshot of the permitted wire formats. */
     public val allowedFormats: Array<CompressionFormat> = allowedFormats.toArray()
     init {
-        if (maxLayers < 0L || bufferSize <= 0L || (present(decodedBodyLimit) && decodedBodyLimit!! < 0L) ||
-            (present(maxWindowBytes) && maxWindowBytes!! <= 0L))
+        if (
+            maxLayers <
+                0L ||
+                bufferSize <=
+                0L ||
+                (present(decodedBodyLimit) && decodedBodyLimit!! < 0L) ||
+                (present(maxWindowBytes) && maxWindowBytes!! <= 0L)
+        )
             throw IllegalArgumentException(Some("invalid request decompression bounds"))
         val seen = ArrayList<CompressionFormat>()
         for (format in allowedFormats) {
             if (format == CompressionFormat.RawDeflate)
                 throw IllegalArgumentException(Some("HTTP deflate requires the zlib wrapper"))
-            for (previous in seen) if (previous == format)
-                throw IllegalArgumentException(Some("duplicate request content coding"))
+            for (previous in seen)
+                if (previous == format)
+                    throw IllegalArgumentException(Some("duplicate request content coding"))
             seen.add(format)
         }
     }
 }
 
 /** Configures the downstream request body without reading input or sending 100 Continue. */
-public fun requestDecompression(options: RequestDecompressionOptions = RequestDecompressionOptions()): HttpMiddleware =
-    suspend { ctx, next ->
+public fun requestDecompression(
+    options: RequestDecompressionOptions = requestDecompressionOptions()
+): HttpMiddleware =
+    suspend {
+        ctx, next ->
         ctx.requestJob.ensureActive()
         ctx.request.body.configureDecoding(options)
         next()

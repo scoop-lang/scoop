@@ -129,16 +129,17 @@ private class InputHostShortcutTest {
                     shared ->
                     shared.bindings =
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Logical(LogicalKey.Character("s")),
-                                ShortcutModifiers(primary = true),
-                                canExecute =
+                                { fail(Some("crossed the newly installed boundary")) }
+                            ) {
+                                this.modifiers = ShortcutModifiers(primary = true)
+                                this.canExecute =
                                     {
                                         boundaries.add(InputBoundary(rig.router.rootScope));
                                         true
-                                    },
-                                action = { fail(Some("crossed the newly installed boundary")) }
-                            )
+                                    }
+                            }
                         ]
                     rig.key(shortcutKey(command = true))
                     assertEquals(1L, boundaries.size)
@@ -147,10 +148,12 @@ private class InputHostShortcutTest {
                     boundaries[0L].close()
                     shared.bindings =
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Logical(LogicalKey.Character("s")),
-                                ShortcutModifiers(primary = true),
-                                canExecute =
+                                { fail(Some("executed a closed registration")) }
+                            ) {
+                                this.modifiers = ShortcutModifiers(primary = true)
+                                this.canExecute =
                                     {
                                         shared.close()
                                         replacements.add(
@@ -160,9 +163,8 @@ private class InputHostShortcutTest {
                                             )
                                         )
                                         true
-                                    },
-                                action = { fail(Some("executed a closed registration")) }
-                            )
+                                    }
+                            }
                         ]
                     rig.key(shortcutKey(command = true))
                     assertTrue(shared.isClosed)
@@ -171,16 +173,17 @@ private class InputHostShortcutTest {
                     assertEquals("new", log.trace)
                     replacements[0L].bindings =
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Logical(LogicalKey.Character("s")),
-                                ShortcutModifiers(primary = true),
-                                canExecute =
+                                { fail(Some("executed after host closure")) }
+                            ) {
+                                this.modifiers = ShortcutModifiers(primary = true)
+                                this.canExecute =
                                     {
                                         host.close();
                                         true
-                                    },
-                                action = { fail(Some("executed after host closure")) }
-                            )
+                                    }
+                            }
                         ]
                     rig.key(shortcutKey(command = true))
                     assertTrue(replacements[0L].isClosed)

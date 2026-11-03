@@ -11,22 +11,23 @@
 import scoop.graphics.*
 
 RasterSurface(320, 180).use { surface ->
-    PathBuilder().use { builder ->
-        builder.moveTo(Point(20.0, 120.0))
-            .quadraticTo(Point(160.0, 0.0), Point(300.0, 120.0))
-        builder.build().use { path ->
-            surface.draw { canvas ->
-                canvas.clear(Color.White)
-                canvas.drawPath(path, Paint(Color(0.1, 0.4, 0.8),
-                    PaintingStyle.Stroke, 4.0, StrokeCap.Round))
-            }
+    path {
+        moveTo(Point(20.0, 120.0))
+        quadraticTo(Point(160.0, 0.0), Point(300.0, 120.0))
+    }.use { outline ->
+        surface.draw { canvas ->
+            canvas.clear(Color.White)
+            canvas.drawPath(outline, Paint(Color(0.1, 0.4, 0.8),
+                PaintingStyle.Stroke, 4.0, StrokeCap.Round))
         }
     }
     val rgba = surface.readPixels()
 }
 ```
 
-Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形状、描边、线性／径向渐变、Image 及组透明度。`saveLayer(opacity = 1.0, filter = None, blendMode = BlendMode.SrcOver)` 对完整组应用滤镜，再以整体透明度和混合模式合成，`restore()` 结束该组。PathBuilder 的 `build()` 返回不可变快照；Path 的 contains、bounds 和 PathMeasure 使用相同几何与填充规则。
+Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形状、描边、线性／径向渐变、Image 及组透明度。`saveLayer(opacity = 1.0, filter = None, blendMode = BlendMode.SrcOver)` 对完整组应用滤镜，再以整体透明度和混合模式合成，`restore()` 结束该组。`path(fillRule = FillRule.NonZero) { ... }` 同步执行配置，返回由调用方拥有的不可变快照，并在正常／异常退出时关闭临时 builder；`path()` 创建空路径。Path 的 contains、bounds 和 PathMeasure 使用相同几何与填充规则。
+
+增量构造可显式使用 `PathBuilder(fillRule).use { builder -> ... }`；所有追加及 `reset()` 操作返回 Unit，`build()` 返回独立快照并保留 builder，`reset()` 清空几何但保留填充规则。后续修改或关闭 builder 不改变已有 Path，PathMeasure 也可在原 Path 关闭后继续使用。
 
 `canvas.withState { child -> ... }` 提供可嵌套的绘制作用域，子 Canvas 继承当前坐标和 clip，正常返回或异常退出都恢复全部子级保存状态。子回调只使用 child，父 Canvas 暂时不可用；退出后 child 失效，父 Canvas 恢复可用。该入口可用于自绘子组件，几何快照与绘制共享相同坐标且不会重复施加 DPI。
 
@@ -34,7 +35,7 @@ Canvas 支持 save／restore、仿射变换、矩形／Path 裁剪、基本形�
 
 SkSL runtime effect、uniform／输入 shader、Paint 着色及自定义子树滤镜列为[后续增强设计](../../../docs/graphics/sksl/DESIGN.md)，目前未提供 Scoop 接口。计划复用 Skia 现有后端，程序与参数分开管理，动画显式驱动 uniform；持有效果不自动启动帧循环。
 
-ImageFilter、Path、PathBuilder、PathMeasure、Image、RasterSurface 与底层目标均显式 close／use。原生资源限创建线程使用，Canvas 只在一次 draw 回调内有效，异常退出也会结束借用并恢复状态。Geometry 快照保留原生 Path 数据，可以在原 Path 或绘制作用域结束后继续使用；关闭快照后不可再查询。
+ImageFilter、Path、PathMeasure、Image、RasterSurface 与底层目标由使用者 close／use；显式创建的 PathBuilder 也由使用者关闭，`path { ... }` 的临时 builder 由入口关闭。原生资源限创建线程使用，Canvas 只在一次 draw 回调内有效，异常退出也会结束借用并恢复状态。Geometry 快照保留原生 Path 数据，可以在原 Path 或绘制作用域结束后继续使用；关闭快照后不可再查询。
 
 颜色采用 sRGB，绘制内部为预乘 alpha；RGBA8 输入和 `readPixels()` 返回值采用紧密排列的直通 alpha 字节。PNG／JPEG decode 会复制输入并实际解码；surface snapshot 保留独立图像内容，后续绘制不会修改旧快照。
 

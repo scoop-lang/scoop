@@ -35,20 +35,21 @@ private class HttpClientPoolHttp1Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxConnections = 1L
-                                )
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxConnections = 1L
+                                }
+                        }
                     withHttpClient(config) suspend {
                         client ->
                         var index = 0L
                         while (index < 3L) {
                             val expected = index.toString()
-                            client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                            client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                                 response -> assertEquals(
                                     expected,
                                     String.fromUtf8(response.body.readAllBytes(1L))
@@ -96,20 +97,21 @@ private class HttpClientPoolHttp1Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                        }
                     withHttpClient(config) suspend {
                         client ->
-                        val first =
-                            client.execute(HttpRequest.get(clientTestUrl(listener, "/first")))
+                        val first = client.execute(httpRequest(clientTestUrl(listener, "/first")))
                         val cancelled = ClientTestFailureHolder()
                         val pending =
                             scope.launch suspend {
                                 try {
                                     client.execute(
-                                        HttpRequest.get(clientTestUrl(listener, "/cancelled"))
+                                        httpRequest(clientTestUrl(listener, "/cancelled"))
                                     ).close()
                                 }
                                 catch (error: Throwable) {
@@ -123,7 +125,7 @@ private class HttpClientPoolHttp1Test {
                         val next =
                             scope.launch suspend {
                                 client.withResponse(
-                                    HttpRequest.get(clientTestUrl(listener, "/last"))
+                                    httpRequest(clientTestUrl(listener, "/last"))
                                 ) suspend {
                                     response -> assertEquals(
                                         "last",
@@ -177,18 +179,19 @@ private class HttpClientPoolHttp1Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxConnections = 1L
-                                )
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxConnections = 1L
+                                }
+                        }
                     withHttpClient(config) suspend {
                         client ->
-                        client.execute(HttpRequest.get(clientTestUrl(listener))).close()
-                        client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                        client.execute(httpRequest(clientTestUrl(listener))).close()
+                        client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                             response -> assertEquals(
                                 "new",
                                 String.fromUtf8(response.body.readAllBytes(3L))

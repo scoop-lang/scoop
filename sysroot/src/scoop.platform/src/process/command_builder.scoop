@@ -1,0 +1,87 @@
+package scoop.platform.process
+
+import scoop.collections.Map
+import scoop.collections.toMap
+import scoop.platform.env.currentDirectory
+import scoop.platform.env.environment as currentEnvironment
+import scoop.platform.fs.*
+import scoop.platform.io.*
+import scoop.platform.system.*
+import scoop.collections.HashMap
+
+/** Configures one complete value; execution remains explicit. */
+public fun command(executable: Path, configure: CommandBuilder.() -> Unit = {}): Command {
+    val builder = CommandBuilder()
+    builder.configure()
+    return builder.snapshot(executable)
+}
+
+public fun Command.copy(configure: CommandBuilder.() -> Unit = {}): Command {
+    val builder = CommandBuilder(this.environment, this.workingDirectory)
+    builder.arguments = this.arguments
+    builder.environment = this.environment
+    builder.workingDirectory = this.workingDirectory
+    builder.stdin = this.stdin
+    builder.stdout = this.stdout
+    builder.stderr = this.stderr
+    builder.mergeError = this.mergeError
+    builder.configure()
+    return builder.snapshot(this.executable)
+}
+
+public class CommandBuilder internal constructor(
+    initialEnvironment: Map<OsString, OsString> = currentEnvironment(),
+    initialDirectory: Path = currentDirectory()
+) {
+    public var arguments: Array<OsString> = []
+    public var environment: Map<OsString, OsString> = initialEnvironment
+    public var workingDirectory: Path = initialDirectory
+    public var stdin: Stdio = Stdio.Inherit
+    public var stdout: Stdio = Stdio.Inherit
+    public var stderr: Stdio = Stdio.Inherit
+    public var mergeError: Boolean = false
+
+    public fun arg(value: OsString): Unit {
+        val next = ArrayList<OsString>()
+        for (item in arguments)
+            next.add(item)
+        next.add(value)
+        arguments = next.toArray()
+    }
+    public fun args(values: Array<OsString>): Unit {
+        val next = ArrayList<OsString>()
+        for (item in arguments)
+            next.add(item)
+        for (item in values)
+            next.add(item)
+        arguments = next.toArray()
+    }
+    public fun env(name: OsString, value: OsString): Unit {
+        val next = HashMap<OsString, OsString>()
+        for ((key, item) in environment)
+            next.put(key, item)
+        next.put(name, value)
+        environment = next
+    }
+    public fun removeEnv(name: OsString): Unit {
+        val next = HashMap<OsString, OsString>()
+        for ((key, item) in environment)
+            if (key != name)
+                next.put(key, item)
+        environment = next
+    }
+    public fun clearEnv(): Unit {
+        environment = HashMap<OsString, OsString>()
+    }
+    internal fun snapshot(executable: Path): Command =
+        Command(
+            executable,
+            arguments,
+            environment,
+            workingDirectory,
+            stdin,
+            stdout,
+            stderr,
+            mergeError
+        )
+}

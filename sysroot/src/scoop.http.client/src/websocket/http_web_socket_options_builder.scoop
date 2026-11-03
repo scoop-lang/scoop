@@ -1,0 +1,56 @@
+package scoop.http.client
+
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.http.asyncio.WebSocketSessionOptions
+import scoop.url.Url
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpWebSocketOptions(
+    configure: HttpWebSocketOptionsBuilder.() -> Unit = {}
+): HttpWebSocketOptions {
+    val builder = HttpWebSocketOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpWebSocketOptions.copy(
+    configure: HttpWebSocketOptionsBuilder.() -> Unit = {}
+): HttpWebSocketOptions {
+    val builder = HttpWebSocketOptionsBuilder()
+    builder.protocols = this.protocols
+    builder.deflateOffers = this.deflateOffers
+    builder.session = this.session
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpWebSocketOptionsBuilder internal constructor() {
+    public var protocols: List<String> = emptyList<String>()
+    public var deflateOffers: List<WebSocketDeflateOffer> = emptyList<WebSocketDeflateOffer>()
+    public var session: WebSocketSessionOptions = webSocketSessionOptions()
+
+    public fun session(configure: WebSocketSessionOptionsBuilder.() -> Unit): Unit {
+        session = session.copy(configure)
+    }
+
+    public fun protocol(value: String): Unit {
+        val next = ArrayList<String>()
+        for (item in protocols)
+            next.add(item)
+        next.add(value)
+        protocols = next.toArray()
+    }
+
+    public fun deflateOffer(value: WebSocketDeflateOffer): Unit {
+        val next = ArrayList<WebSocketDeflateOffer>()
+        for (item in deflateOffers)
+            next.add(item)
+        next.add(value)
+        deflateOffers = next.toArray()
+    }
+    internal fun snapshot(): HttpWebSocketOptions =
+        HttpWebSocketOptions(protocols, deflateOffers, session)
+}

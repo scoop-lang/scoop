@@ -1,0 +1,44 @@
+package scoop.http.client.tests.consumer.client_proxy_authentication_lifetime
+
+import scoop.platform.concurrent.Thread
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+private fun withProxyThreads(block: (TrustStore) -> Unit) {
+    TrustStore.fromPem(rootPem()).use {
+        trust -> Thread.start { block(trust) }.use {
+            worker ->
+            block(trust);
+            worker.join()
+        }
+    }
+}
+
+@Test
+private class ProxyAuthenticationLifetimeTests {
+    @Test
+    fun cancellation() {
+        withProxyThreads { trust -> lifeCancellation(trust, "basic", "caller") }
+        withProxyThreads { trust -> lifeCancellation(trust, "bearer", "total") }
+        withProxyThreads { trust -> lifeCancellation(trust, "digest", "close") }
+    }
+    @Test
+    fun callbackFailures() {
+        for (kind in ["basic", "bearer", "digest"])
+            withProxyThreads { trust -> lifeCallbackFailure(trust, kind) }
+    }
+    @Test
+    fun sharedRefreshAndScopes() {
+        withProxyThreads { trust -> lifeSharedCancellation(trust) }
+        withProxyThreads { trust -> lifeSharedRefresh(trust, false) }
+        withProxyThreads { trust -> lifeSharedRefresh(trust, true) }
+        withProxyThreads { trust -> lifeClearScopes(trust) }
+    }
+    @Test
+    fun sourceCleanup() {
+        for (failed in [false, true])
+            withProxyThreads { trust -> lifeSourceCleanup(trust, failed) }
+    }
+}

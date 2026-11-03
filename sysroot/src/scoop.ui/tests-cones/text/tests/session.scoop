@@ -53,30 +53,35 @@ private enum TextPhase {
 internal class TextProbe(val fonts: FontCollection) {
     val generation = state(0)
     val original =
-        StyledText(
-            [
-                TextSpan.text("A sample paragraph "),
-                TextSpan.span(
-                    SpanStyle(fontSize = Some(28.0), weight = Some(700)),
-                    [TextSpan.text("big ")]
-                ),
-                TextSpan.inlineObject(actionKey, "counter"),
-                TextSpan.text(" + "),
-                TextSpan.inlineObject(imageKey, "image")
-            ],
-            TextStyle(["UI Sans"], 18.0)
-        )
+        styledText {
+            this.text("A sample paragraph ")
+            this.span {
+                style {
+                    this.fontSize = Some(28.0)
+                    this.weight = Some(700)
+                }
+                this.text("big ")
+            }
+            this.inlineObject(actionKey, "counter")
+            this.text(" + ")
+            this.inlineObject(imageKey, "image")
+            style {
+                this.families = ["UI Sans"]
+                this.fontSize = 18.0
+            }
+        }
     val reordered =
-        StyledText(
-            [
-                TextSpan.text("שלום "),
-                TextSpan.inlineObject(imageKey, "image"),
-                TextSpan.text(" "),
-                TextSpan.inlineObject(actionKey, "counter"),
-                TextSpan.text(" עולם")
-            ],
-            TextStyle(["UI Sans"], 18.0)
-        )
+        styledText {
+            this.text("שלום ")
+            this.inlineObject(imageKey, "image")
+            this.text(" ")
+            this.inlineObject(actionKey, "counter")
+            this.text(" עולם")
+            style {
+                this.families = ["UI Sans"]
+                this.fontSize = 18.0
+            }
+        }
     val counters = ArrayList<InlineCounter>()
     val inks = ArrayList<CounterInk>()
     val photos = ArrayList<InlinePhoto>()
@@ -99,7 +104,10 @@ internal class TextProbe(val fonts: FontCollection) {
             case Resumed -> {
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop inline text", LogicalSize(600.0, 240.0))
+                        windowAttributes {
+                            this.title = "Scoop inline text"
+                            this.size = LogicalSize(600.0, 240.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

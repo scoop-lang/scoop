@@ -1,0 +1,209 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.style.*
+
+@Test
+private class ControlStyleTest {
+    @Test
+    fun `button nested configuration preserves current values and publishes independent snapshots`() {
+        val captured = ArrayList<ButtonStyleBuilder>()
+        val nested = ArrayList<SpanStyleBuilder>()
+        val calls = ArrayList<Int>()
+        val original =
+            buttonStyle {
+                calls.add(1)
+                captured.add(this)
+                kind = SurfaceKind.Plain
+                surface {
+                    padding = Some(Insets.all(5.0))
+                    style { cornerRadius(4.0) }
+                }
+                surface { style { border(None) } }
+                surface {}
+                text {
+                    nested.add(this)
+                    weight = Some(700)
+                    lineHeight = Some(None)
+                }
+                text { fontSize = Some(18.0) }
+                text {}
+            }
+        val derived =
+            original.copy {
+                calls.add(2)
+                surface { padding = None }
+                text { color = Some(Color.White) }
+            }
+        captured[0L].kind = SurfaceKind.Action
+        nested[0L].weight = Some(400)
+        assertEquals(2L, calls.size)
+        assertEquals(SurfaceKind.Plain, original.kind)
+        assertEquals(SurfaceKind.Plain, derived.kind)
+        assertEquals(Some(Insets.all(5.0)), original.surface.padding)
+        assertEquals(None, derived.surface.padding)
+        assertEquals(StyleValue.Set(4.0), derived.surface.style.cornerRadius)
+        assertEquals(StyleValue.Set<Border?>(None), derived.surface.style.border)
+        assertEquals(Some(700), original.text!!.weight)
+        assertEquals(Some(700), derived.text!!.weight)
+        assertEquals(Some(18.0), derived.text!!.fontSize)
+        assertEquals(Some(None), derived.text!!.lineHeight)
+        assertEquals(None, original.text!!.color)
+        assertEquals(Some(Color.White), derived.text!!.color)
+        assertEquals(Some(18.0), original.copy().text!!.fontSize)
+        assertEquals(SurfaceKind.Action, buttonStyle().kind)
+        assertEquals(None, buttonStyle().text?.fontSize)
+    }
+
+    @Test
+    fun `interaction state blocks accumulate while complete assignments replace the selected state`() {
+        val captured = ArrayList<InteractionStylesBuilder>()
+        val states =
+            interactionStyles {
+                captured.add(this)
+                hovered { cornerRadius(6.0) }
+                hovered { border(None) }
+                hovered {}
+                focused { clipContent(true) }
+            }
+        val replaced =
+            states.copy {
+                hovered = styleOverride { background(None) }
+                hovered { cornerRadius(8.0) }
+            }
+        captured[0L].hovered = styleOverride()
+        assertEquals(StyleValue.Set(6.0), states.hovered.cornerRadius)
+        assertEquals(StyleValue.Set<Border?>(None), states.hovered.border)
+        assertEquals(StyleValue.Set(8.0), replaced.hovered.cornerRadius)
+        assertEquals(StyleValue.Inherit, replaced.hovered.border)
+        assertEquals(StyleValue.Set(true), replaced.focused.clipContent)
+        val control =
+            buttonStyle {
+                this.states = states
+                states { disabled { cornerRadius(2.0) } }
+                states {}
+            }
+        assertEquals(StyleValue.Set(6.0), control.states.hovered.cornerRadius)
+        assertEquals(StyleValue.Set(2.0), control.states.disabled.cornerRadius)
+        assertEquals(StyleValue.Inherit, states.disabled.cornerRadius)
+        assertEquals(StyleValue.Set(6.0), states.copy().hovered.cornerRadius)
+        assertEquals(StyleValue.Inherit, interactionStyles().hovered.cornerRadius)
+    }
+
+    @Test
+    fun `checkbox marker copies and transition slots preserve inheritance disabling and explicit values`() {
+        val original =
+            checkboxStyle {
+                padding = Some(Insets.all(3.0))
+                marker { size = Some(18.0) }
+                marker { style { cornerRadius(2.0) } }
+                marker {}
+                transition(None)
+                selectionTransition(Some(AnimationSpec.Tween(Duration.milliseconds(125L))))
+            }
+        val derived =
+            original.copy {
+                marker { markColor = Some(Color.White) }
+                transition = StyleValue.Inherit
+                selectionTransition(None)
+            }
+        val fallback = Some(AnimationSpec.Tween(Duration.milliseconds(250L)))
+        assertEquals(original.padding, derived.padding)
+        assertEquals(Some(18.0), derived.marker.size)
+        assertEquals(StyleValue.Set(2.0), derived.marker.style.cornerRadius)
+        assertEquals(None, original.marker.markColor)
+        assertEquals(Some(Color.White), derived.marker.markColor)
+        assertTrue(
+            when (original.transition.resolve(fallback)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertTrue(
+            when (derived.selectionTransition.resolve(fallback)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        when (original.selectionTransition.resolve(fallback)) {
+            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(125L), duration);
+            else -> fail(Some("explicit selection transition was lost"))
+        }
+        when (derived.transition.resolve(fallback)) {
+            case Some(Tween(duration, _)) -> assertEquals(Duration.milliseconds(250L), duration);
+            else -> fail(Some("inherited transition was lost"))
+        }
+        assertTrue(
+            when (buttonStyle { transition(None) }.transition.resolve(fallback)) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertEquals(Some(18.0), original.copy().marker.size)
+        assertEquals(None, checkboxStyle().padding)
+    }
+
+    @Test
+    fun `text field overrides can be accumulated cleared or replaced without resolving a theme`() {
+        val captured = ArrayList<TextFieldStyleBuilder>()
+        val original =
+            textFieldStyle {
+                captured.add(this)
+                text { weight = Some(700) }
+                text { lineHeight = Some(None) }
+                placeholder { color = Some(Color.Black) }
+                placeholder { fontSize = Some(12.0) }
+                description {}
+                caretWidth = 2.0
+                selectionColor = Some(Color.White)
+                scrollbar { thickness = Some(9.0) }
+                scrollbar { buttonLength(None) }
+                scrollbar {}
+            }
+        val replacement = spanStyle { fontSize = Some(15.0) }
+        val derived =
+            original.copy {
+                text = None
+                placeholder = Some(replacement)
+                placeholder { weight = Some(500) }
+                description { color = Some(Color.White) }
+            }
+        captured[0L].caretWidth = 9.0
+        captured[0L].text = None
+        assertEquals(Some(700), original.text!!.weight)
+        assertEquals(Some(None), original.text!!.lineHeight)
+        assertTrue(
+            when (derived.text) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertEquals(Some(12.0), original.placeholder!!.fontSize)
+        assertEquals(Some(15.0), derived.placeholder!!.fontSize)
+        assertEquals(Some(500), derived.placeholder!!.weight)
+        assertEquals(None, derived.placeholder!!.color)
+        assertEquals(None, original.description!!.color)
+        assertEquals(Some(Color.White), derived.description!!.color)
+        assertEquals(2.0, derived.caretWidth)
+        assertEquals(original.selectionColor, derived.selectionColor)
+        assertEquals(Some(9.0), derived.scrollbar.thickness)
+        assertEquals(StyleValue.Set<Double?>(None), derived.scrollbar.buttonLength)
+        assertEquals(2.0, original.copy().caretWidth)
+        assertTrue(
+            when (textFieldStyle().text) {
+                case None -> true;
+                else -> false
+            }
+        )
+        val failure = IllegalStateException(Some("control style configuration failed"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> { original.copy { text { throw failure } } }
+        )
+        assertEquals(Some(700), original.text!!.weight)
+    }
+}

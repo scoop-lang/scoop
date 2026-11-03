@@ -23,7 +23,7 @@ public struct FontFeature(val tag: String, val value: Int = 1)
 public struct FontVariation(val tag: String, val value: Double)
 
 /** Immutable shaping and painting settings; family order also controls explicit fallback. */
-public class TextStyle public constructor(
+public class TextStyle internal constructor(
     public val families: Array<String> = ["sans-serif"],
     public val fontSize: Double = 14.0,
     public val color: Color = Color.Black,
@@ -37,6 +37,9 @@ public class TextStyle public constructor(
     public val features: Array<FontFeature> = [],
     public val variations: Array<FontVariation> = []
 ) {
+    public fun copy(configure: TextStyleBuilder.() -> Unit = {}): TextStyle =
+        configureTextStyle(this, configure)
+
     internal fun <T> withNative(block: (Ptr<Unit>) -> T): T {
         checkTextScalar(fontSize)
         checkTextScalar(letterSpacing)
@@ -89,12 +92,18 @@ public class TextStyle public constructor(
     }
 }
 
-public class ParagraphStyle public constructor(
+public class ParagraphStyle internal constructor(
     public val alignment: TextAlignment = TextAlignment.Start,
     public val direction: TextDirection = TextDirection.Ltr,
     public val maxLines: Long? = None,
     public val ellipsis: String = "…"
-)
+) {
+    public fun copy(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle {
+        val builder = ParagraphStyleBuilder(this)
+        builder.configure()
+        return builder.snapshot()
+    }
+}
 
 private fun makeTextStyle(value: NativeTextStyleData): TextResource {
     @Unsafe
