@@ -1,6 +1,8 @@
 # Scoop 基础控件库规范
 
-日期：2026-11-03。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
+日期：2026-11-04。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
+
+控件基础的布局、方向与公共交互演进按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述已实施批次的现行合同。
 
 ## 1. 定位与依赖
 
@@ -87,7 +89,7 @@ Builder 构造器内部化，公共基类只服务上述真实复用。工厂和
 
 Input／Textarea 同样以共享编辑模型为必需参数：`input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View` 与 `textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View`。InputBuilder 的可写属性是 InputProps 除 state 外的全部输入，另有 key: ViewKey = Position；属性名、类型、默认值与第 9 节编辑合同及 InputProps 一致。TextareaBuilder 继承这些共同输入，增加 rows: Long = 4、wrap: Boolean = true、tab: TextTabBehavior = Navigate、submit: TextSubmitKeys = PrimaryEnter、scrollbars: ScrollbarVisibility = Auto。两者 style 成员接受 TextFieldStyleBuilder，重复配置保留当前局部样式。onEdited／onSubmit 是普通 `(TextEditorState) -> Unit` 通知函数，默认不执行动作；构造不编辑模型或调用它们，回调经 Props 更新。
 
-多子项容器使用 `row(configure: LinearBuilder.() -> Unit = {})`、`column(configure: LinearBuilder.() -> Unit = {})`、`stack(configure: StackBuilder.() -> Unit = {})`，均返回 View。LinearBuilder 提供 spacing: Double = 0、alignment: AxisAlignment = Start；StackBuilder 提供 alignment: Alignment = Alignment()。它们继承 ChildrenBuilder 的 key: ViewKey = Position、有序 add(View)／addAll(Array<View>) 和控件真实成员；同名成员追加一次并返回 Unit，使用顶层工厂相同的构造实现。构造结束时子项转为独立 Array，空容器有效；循环、条件与追加按源码执行顺序组合，捕获的 builder 后续追加不影响已发布 Props。
+多子项容器使用 `row(configure: LinearBuilder.() -> Unit = {})`、`column(configure: LinearBuilder.() -> Unit = {})`、`stack(configure: StackBuilder.() -> Unit = {})`，均返回 View。LinearBuilder 提供 spacing: Double = 0、alignment: CrossAlignment = Start、justify: MainAlignment = Start、padding: Insets = Insets()、clip=false；StackBuilder 提供 alignment: Alignment = Alignment()。它们继承 ChildrenBuilder 的 key: ViewKey = Position、有序 add(View)／addAll(Array<View>) 和控件真实成员；同名成员追加一次并返回 Unit，使用顶层工厂相同的构造实现。构造结束时子项转为独立 Array，空容器有效；循环、条件与追加按源码执行顺序组合，捕获的 builder 后续追加不影响已发布 Props。
 
 `frame(content: View, configure: FrameBuilder.() -> Unit = {}): View` 固定接收一个完整内容，FrameBuilder 提供 width／height: Double? = None、padding: Insets? = None、alignment: Alignment = Alignment()、style: StyleOverride = styleOverride()、surface: SurfaceKind? = None、theme: ThemeSource? = None、key: ViewKey = Position。style 成员接受 StyleOverrideBuilder 并基于当前值配置。Frame 不继承 ChildrenBuilder；尺寸校验与包装行为仍由原有 FrameProps 和 Frame 完成。
 
@@ -219,9 +221,13 @@ Checkbox 在自身 render 中读取绑定，Form 在 render 中读取 checked.va
 
 Row／Column／Stack／Frame 全部通过普通 Element 的 MeasureContext 测量和放置子项，通过 SceneContext 装配场景和纯绘图块。框架只执行协议，不识别这些 class，也不内置它们的算法。
 
-Row／Column 使用共同的 LinearProps（children、spacing、交叉轴 AxisAlignment），Stack 使用 StackProps（children、Alignment）。AxisAlignment 的 Start／Center／End 分别把子项放在可用轴的起点、中点和终点；Alignment 为横／纵两轴的组合。row／column／stack 的普通 View 工厂把这些输入放入 Props，不在首次构造时捕获变化的子项。
+Row／Column 使用共同的 LinearProps（items、spacing、alignment、justify、padding、clip），items 为 Array<FlexItem>，children 为由这些内容生成的只读子序列。Flex 使用 FlexProps(axis: FlexAxis, layout: LinearProps)，FlexAxis 为 Horizontal／Vertical，复用同一测量算法。Stack 使用 StackProps（children、Alignment）；其 AxisAlignment 仍为 Start／Center／End，Alignment 为横／纵两轴的组合。所有输入随 Props 更新，不在首次构造时捕获变化子项。
 
-首期 Row／Column 给每个子项一次测量机会。子约束的最小值为零，主轴采用无界最大值取得子项自然尺寸，交叉轴传入可用最大值；子项仍须返回有限尺寸。主轴结果是子项尺寸与 spacing 之和，交叉轴采用最大子项尺寸，再按父约束收敛。子项按顺序排列，交叉轴按显式对齐方式放置。spacing 为有限非负值，尺寸求和或坐标溢出按通常参数错误报告。
+FlexItem(content, options = FlexItemOptions()) 关联一份内容与不可变分配选项；flexItem(content) { ... } 和 LinearBuilder.item(content) { ... } 使用同一个 FlexItemBuilder。普通 add(View) 及控件成员使用默认选项，追加顺序保持。选项为 basis=FlexBasis.Content（或 Fixed(length)）、grow=0、shrink=1、min=0、max=None、align=None；权重及长度有限非负，max 不小于 min。basis 先按 min／max 收敛；None 对齐继承容器，不通过识别某个子控件类型取得分配参数。flex(configure: FlexBuilder.() -> Unit = {}) 的 builder 继承 LinearBuilder 的内容／配置成员，另有 axis=Horizontal。ChildrenBuilder 同时提供 flex 成员。
+
+测量先扣除 padding 和 spacing。Content basis 在父交叉轴限制下取得基础主轴尺寸；Fixed basis 直接参与分配，避免自然尺寸探测。主轴有界时，正剩余按 grow 分配、负剩余按 shrink × 原 basis 分配，达到 min／max 的项冻结，再分配未冻结项；每轮至少冻结一项或完成分配。无界主轴使用内容／固定 basis，不假设无限剩余；Content 未被 min／max 改变时直接保留自然测量，避免嵌套布局反复施加没有分配需求的 tight 约束。有分配需求时按最终紧主轴约束重新测量，每项尺寸和文字换行真实响应可用空间，最后只放置一次。最小尺寸总和大于可用空间时保留 min 并产生明确 overflow，clip=true 才裁剪。空间不足不自动卸载子项；尺寸与坐标溢出按普通参数错误报告。
+
+CrossAlignment 支持 Start／Center／End／Stretch／Baseline；Stretch 按最终交叉轴尺寸作必要的紧约束测量。Baseline 用水平布局的 alphabeticBaseline，缺少时用该项底边，垂直布局不接受 Baseline。MainAlignment 支持 Start／Center／End／SpaceBetween／SpaceAround／SpaceEvenly。spacing 和 padding 均为有限非负值。容器按父约束确定尺寸；有界 grow 项可以填满可用主轴，其余按实际内容收敛。主轴留白由 justify 分配，分配型间距不减小显式 spacing。
 
 Stack 对每个子项使用零最小值和同样的可用最大约束，取子项包围尺寸并按父约束收敛，再依对齐放置。绘制顺序与描述顺序一致，输入重叠选择继续由 Surface 的放置顺序决定。
 
@@ -231,7 +237,7 @@ FrameProps 保存 content、可选 width／height、可选 padding、Alignment�
 
 这两种外观配置更新同一个 Frame 及 Element 的 Props，不增删包装层。主题表面在 Background 与 Foreground 之间通过 StylePainter 绘制内容；普通装饰使用相同 StylePainter 的完整顺序。解除主题表面时清空当前 ThemePainterCache 并释放其资源，后续可再取得 painter；不会在每次切换时向作用域追加所有历史资源。
 
-各容器消费 measureChild 返回的 LayoutMetrics；Frame 把子项基线加上实际 y 偏移后返回。首期 Row／Column／Stack 未规定基线对齐策略，返回 None，不自动选取某个后代的基线。容器无截断策略时仍测量并放置所有子项，不能把父约束溢出当成隐式卸载。
+各容器消费 measureChild 返回的 LayoutMetrics；Frame 把子项基线加上实际 y 偏移后返回。Row／Column／Flex 透传首个有相应基线的直接子项及其实际 y 偏移；水平 Baseline 组使用同一对齐位置。Stack 仍返回 None，不扫描后代。容器无截断策略时仍测量并放置所有子项，不能把父约束溢出当成隐式卸载。
 
 ### 6.1 Absolute
 
@@ -247,7 +253,7 @@ AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size
 
 ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions 和可选 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
 
-每个滚动轴须有有限的父最大约束或显式尺寸，最终尺寸服从父最小／最大限制。非滚动轴有界时填满，无界时从一次子项测量取得尺寸。内容沿滚动轴采用无界约束，沿已确定的交叉轴采用 tight 约束；每帧测量一次，以负 offset 平移呈现。视口对像素与命中使用同一个 clip，整个显式内容树保持挂载。普通滚动只请求位置帧，不把 offset 作为内容 Props 重建；绘制缓存和虚拟化另行接入。
+每个滚动轴须有有限的父最大约束或显式尺寸，最终尺寸服从父最小／最大限制。非滚动轴有界时填满，无界时从一次子项测量取得尺寸。内容沿滚动轴采用无界约束，沿已确定的交叉轴采用 tight 约束；每次 measure 回调测量一次内容，按最终测量结果以负 offset 平移呈现。视口对像素与命中使用同一个 clip，整个显式内容树保持挂载。普通滚动只请求位置帧，不把 offset 作为内容 Props 重建；绘制缓存和虚拟化另行接入。
 
 ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记实际滚动路径，复用 UI 的焦点显露。行内目标的 FocusHandle、Tab 和组内键盘导航可显露已放置的离屏内容，嵌套视口按从内到外的成功帧顺序处理；滚动条和 Portal 不因逻辑祖先关系而被错误当作内容滚动。
 
@@ -281,7 +287,7 @@ navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺�
 
 列表复用 ScrollArea 的视口登记、滚轮残量、键盘默认动作、主题滚动条和统一 clip，只通过 UI 的公开 LazyElement 协议取得子项。已经实现且具有活动交互的条目额外固定，仍测量、放置并由视口 clip 裁剪；交互结束后在必要的下一布局恢复淘汰。其他离开实现范围的项按 retention 保留或正常卸载，同 key 的存活项在重排／Props 更新中保留原实例。source 替换的删除立即退休，不等待绘制机会。已放置目标复用第 6.2 节的焦点显露；绘制缓存只影响图层像素，不改变这些规则。
 
-尚不实现 flex／weight、grid 或 intrinsic 多轮协商。增加布局策略时继续使用或按具体需求扩展公开协议，不能在框架中增加本库专用类型分支。
+Flex／Row／Column 的空间分配使用 UI 的公开重新测量协议。Grid 和独立 intrinsic 查询尚未实现；布局策略不能在框架中增加本库专用类型分支。
 
 ## 7. 样式与资源归属
 

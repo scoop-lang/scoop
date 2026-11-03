@@ -54,6 +54,7 @@ internal class LazyProbe {
     var ticket = 0
     var committed = -1
     var passes = 0
+    var layoutCalls = 0
     var waiting = true
     var finished = false
     var retriedFocus = false

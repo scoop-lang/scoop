@@ -90,13 +90,14 @@ internal class UiRoot(
         overlays.beginFrame()
         try {
             current.measure(Constraints.tight(frame.size), frame.time)
+            current.finishMeasurement()
+            current.scene(frame, Point(0.0, 0.0))
+            overlays.paint(frame)
         } catch (error: UiLayoutEnded) {
             if (isOpen)
                 throw error
             return
         }
-        current.scene(frame, Point(0.0, 0.0))
-        overlays.paint(frame)
     }
     fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
         completions.add(SceneCompletion(node, action))

@@ -10,6 +10,7 @@ import scoop.ui.text.TextEditorState
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
     private val entries = ArrayList<View>()
+    internal val childCount: Long get() = entries.size
     public var key: ViewKey = ViewKey.Position
 
     public fun add(view: View): Unit {
@@ -73,6 +74,10 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun column(configure: LinearBuilder.() -> Unit = {}): Unit {
         add(makeColumn(configure))
+    }
+
+    public fun flex(configure: FlexBuilder.() -> Unit = {}): Unit {
+        add(makeFlex(configure))
     }
 
     public fun stack(configure: StackBuilder.() -> Unit = {}): Unit {

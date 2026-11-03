@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.ui.View
+import scoop.ui.style.Insets
+
+public enum FlexAxis {
+    Horizontal, Vertical
+}
+
+public enum FlexBasis {
+    Content, Fixed(Double)
+}
+
+public enum CrossAlignment {
+    Start, Center, End, Stretch, Baseline
+}
+
+public enum MainAlignment {
+    Start, Center, End, SpaceBetween, SpaceAround, SpaceEvenly
+}
+
+public class FlexItemOptions public constructor(
+    public val basis: FlexBasis = FlexBasis.Content,
+    public val grow: Double = 0.0,
+    public val shrink: Double = 1.0,
+    public val min: Double = 0.0,
+    public val max: Double? = None,
+    public val align: CrossAlignment? = None
+) {
+    init {
+        nonnegative(grow, "invalid flex grow weight")
+        nonnegative(shrink, "invalid flex shrink weight")
+        nonnegative(min, "invalid flex minimum")
+        when (max) {
+            case Some(value) -> {
+                nonnegative(value, "invalid flex maximum")
+                requireComponent(value >= min, "flex maximum is less than minimum")
+            }
+            case None -> {}
+        }
+        when (basis) {
+            case Fixed(value) -> nonnegative(value, "invalid flex basis")
+            case Content -> {}
+        }
+    }
+}
+
+public class FlexItem public constructor(
+    public val content: View,
+    public val options: FlexItemOptions = FlexItemOptions()
+)
+
+public class LinearProps public constructor(
+    public val items: Array<FlexItem>,
+    public val spacing: Double = 0.0,
+    public val alignment: CrossAlignment = CrossAlignment.Start,
+    public val justify: MainAlignment = MainAlignment.Start,
+    public val padding: Insets = Insets(),
+    public val clip: Boolean = false
+) {
+    internal val paddingSize = padding.totals()
+    public val children: Array<View> = Array(items.size) { index -> items[index].content }
+    init {
+        nonnegative(spacing, "invalid flex spacing")
+    }
+}
+
+public class FlexProps public constructor(public val axis: FlexAxis, public val layout: LinearProps)

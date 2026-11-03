@@ -84,15 +84,25 @@ internal class DrawingPanel(
         probe.lastMeasure = Some(context)
         assertEquals(2L, context.childCount)
         assertFailsWith<IllegalStateException> { context.placeChild(1L, Point(0.0, 0.0)) }
-        val first =
-            context.measureChild(0L, Constraints(maxWidth = Some(100.0), maxHeight = Some(100.0)))
+        val childConstraints = Constraints(maxWidth = Some(100.0), maxHeight = Some(100.0))
+        val first = context.measureChild(0L, childConstraints)
         assertEquals(Some(18.0), first.alphabeticBaseline)
         assertEquals(Some(24.0), first.ideographicBaseline)
         probe.lastChildWidth = first.size.width
-        assertFailsWith<IllegalStateException> { context.measureChild(0L, Constraints()) }
+        assertEquals(first, context.measureChild(0L, childConstraints))
+        assertEquals(
+            Size(20.0, 20.0),
+            context.measureChild(0L, Constraints.tight(Size(20.0, 20.0))).size
+        )
+        assertFailsWith<IllegalArgumentException> {
+            context.measureChild(0L, Constraints(maxWidth = Some(-1.0)))
+        }
+        assertFailsWith<IllegalStateException> { context.placeChild(0L, Point(0.0, 0.0)) }
+        assertEquals(first, context.measureChild(0L, childConstraints))
         context.measureChild(1L, Constraints())
         if (props.value.placed) {
             context.placeChild(0L, Point(30.0, 40.0))
+            assertFailsWith<IllegalStateException> { context.measureChild(0L, childConstraints) }
             assertFailsWith<IllegalStateException> { context.placeChild(0L, Point(0.0, 0.0)) }
         }
         context.placeChild(1L, Point(140.0, 40.0))

@@ -1,13 +1,37 @@
 package scoop.ui.component
 
 import scoop.graphics.*
+import scoop.collections.HashMap
 import scoop.ui.*
 import scoop.ui.style.*
 
-public class LinearBuilder internal constructor(): ChildrenBuilder() {
+public open class LinearBuilder internal constructor(): ChildrenBuilder() {
     public var spacing: Double = 0.0
-    public var alignment: AxisAlignment = AxisAlignment.Start
-    internal fun snapshot(): LinearProps = LinearProps(childrenSnapshot(), spacing, alignment)
+    public var alignment: CrossAlignment = CrossAlignment.Start
+    public var justify: MainAlignment = MainAlignment.Start
+    public var padding: Insets = Insets()
+    public var clip: Boolean = false
+    private val options = HashMap<Long, FlexItemOptions>()
+
+    public fun item(content: View, configure: FlexItemBuilder.() -> Unit = {}): Unit {
+        val value = flexItem(content, configure)
+        val index = childCount
+        add(content)
+        options.put(index, value.options)
+    }
+    internal fun snapshot(): LinearProps {
+        val children = childrenSnapshot()
+        return LinearProps(
+            Array<FlexItem>(children.size) {
+                index -> FlexItem(children[index], options[index] ?: FlexItemOptions())
+            },
+            spacing,
+            alignment,
+            justify,
+            padding,
+            clip
+        )
+    }
 }
 
 public class StackBuilder internal constructor(): ChildrenBuilder() {

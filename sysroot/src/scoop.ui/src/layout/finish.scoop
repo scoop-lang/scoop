@@ -1,0 +1,17 @@
+package scoop.ui
+
+/** Finalizes only the last layout; portal content has its own placement boundary. */
+internal fun MountedNode.finishMeasurement() {
+    if (!root.isOpen)
+        throw UiLayoutEnded()
+    when (body) {
+        case Portal(_) -> return
+        case Lazy(_, items) -> {
+            items.finish(this);
+            return
+        }
+        else -> {}
+    }
+    for (child in children)
+        child.finishMeasurement()
+}

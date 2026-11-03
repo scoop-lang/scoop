@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，当前进行 L1。
+日期：2026-11-04。状态：实施中，当前进行 L2。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -10,8 +10,8 @@
 | --- | --- |
 | P1 平台键盘合同 | 已完成 |
 | P2 文本服务与源码边界 | 已完成 |
-| L1 布局协议与空间分配 | 实施中 |
-| L2 方向、Wrap 和 Grid | 待实施 |
+| L1 布局协议与空间分配 | 已完成 |
+| L2 方向、Wrap 和 Grid | 实施中 |
 | I1 公共激活与拖动 | 待实施 |
 | I2 弹层、候选项和悬浮 | 待实施 |
 | T1 编辑事务策略 | 待实施 |
@@ -46,3 +46,12 @@
 - 移除 ui／component／style／三套主题生产源码的 Darwin 条件；window.asyncio 已有的共享宿主与 platformWatch 分层继续复用。PLATFORM.md 已列出后续 Windows／Linux 分支所需入口，本轮没有补写或验收这些后端。
 - aarch64 macOS release：window、graphics.text、window.asyncio、surface、ui、style、三套主题及 component 共 10 个生产库构建成功。修改的 Scoop 通过格式化，window／graphics.text 的 tests 类型检查通过，native 源码通过严格警告编译。
 - 5 项定向测试全部通过：剪贴板往返／NUL／原生失败／owner，原生文档修订与范围查询，以及三项字体类别／别名覆盖／禁用 fallback。没有复跑 P1 的快捷键、编辑器或模态测试。清理了本项的独立检查锁文件，保留依赖缓存与下一项草稿。
+
+## L1：布局协议与空间分配
+
+- MeasureContext／LazyMeasureContext 允许放置前重新测量，相邻同约束复用最后成功结果；失败清除本次结果，放置后拒绝再测量。每次节点测量清空旧 metrics／placements，不缓存历史尺寸来配另一套子树布局。
+- lazy 候选集合在根或 portal 最终测量后统一提交；中间试测不 trim、不切换输入参与状态，也不验证临时省略的 pinned 项。最终只收尾实际测量的子树，沿用已有按需挂载、保留和失败退出规则。
+- Row／Column 与公共 Flex 共享 basis／grow／shrink、min／max 冻结分配、交叉轴 stretch／baseline、主轴留白、padding 和显式 clip。已迁移 builder、示例及旧布局测试。无界且未改变 Content basis 时保留自然测量，避免嵌套布局重复施加无分配需求的紧约束。
+- aarch64 macOS release：ui、style、三套主题和 component 共 6 个受影响生产库构建成功；Scoop 格式化与 5 个相关 Cone 的 tests 类型检查通过。依赖重建服从现有产物指纹规则，没有扩大到编译器或其他平台验证。
+- 15 项定向测试全部通过：Flex 分配／冻结／极大权重／基线／配置 4 项，Frame／Stack／参数 3 项，builder 5 项；真实 lazy、绘制和控件布局组合各 1 项。组合覆盖不同约束与失败恢复、临时省略焦点项、实例与局部 State 保留、80＋8＋212 的实际文本换行、行内控件、裁剪和静止停止提交。无未闭合失败。
+- 清理本项独立检查锁文件，保留后续复用的产物、Cone cache 和 L2 草稿；x86_64 仍在 C1 统一验收。

@@ -1,6 +1,6 @@
 # 测量、布局、方向与视觉基础
 
-本文属于 [控件基础设计](DESIGN.md)，规定 L1／L2／V1 的目标合同，尚未实施。测量及方向归 `scoop.ui`，布局策略和内容适配归 `scoop.ui.component`，装饰归 `scoop.ui.style`，共用形状归 `scoop.graphics`。
+本文属于 [控件基础设计](DESIGN.md)，规定 L1／L2／V1 的合同；L1 已完成，L2／V1 按实施记录继续推进。测量及方向归 `scoop.ui`，布局策略和内容适配归 `scoop.ui.component`，装饰归 `scoop.ui.style`，共用形状归 `scoop.graphics`。
 
 ## 1. 演进现有测量协议
 
@@ -19,7 +19,7 @@
 
 ### 1.1 LazyElement 必须同步调整
 
-仅删除 `ChildMeasure.attempted` 检查是不够的。当前 `LazyChildren.finish` 在每次测量回调结束时立即改变 frame participation 并 trim；父布局重新测量时，这会使临时不可见项卸载又重建，丢失状态和输入归属。
+仅删除 `ChildMeasure.attempted` 检查是不够的。原有 `LazyChildren.finish` 在每次测量回调结束时立即改变 frame participation 并 trim；父布局重新测量时，这会使临时不可见项卸载又重建，丢失状态和输入归属。
 
 因此同一根布局内先记录每个 lazy 节点最后一次测量的候选集合、placements 和最终约束，待最终布局确定后才执行可见性／保留收尾：
 
@@ -41,7 +41,7 @@
 
 1. 扣除 padding 和 gap。固定 basis 直接参与计算，Content 项在受父交叉轴约束的条件下取得基础尺寸。
 2. 主轴有界时，正剩余按 grow 分配，负剩余按 `shrink × basis` 分配；达到 min／max 的项冻结，只在未冻结项中重新分配。每次冻结至少一项，或一次完成剩余分配。
-3. 主轴无界时使用内容／固定 basis，不分配不存在的剩余空间。需要滚动视口的项仍必须提供有限 basis 或尺寸。
+3. 主轴无界时使用内容／固定 basis，不分配不存在的剩余空间；未被 min／max 改变的 Content 直接保留自然测量，避免嵌套布局重复施加没有分配需求的 tight 约束。需要滚动视口的项仍必须提供有限 basis 或尺寸。
 4. 按最终主轴分配重新测量受影响子项。Stretch 使用最终交叉轴尺寸；自然交叉尺寸先由内容确定，必要时再作一次有界的 stretch 测量。基线使用实际最终 LayoutMetrics，缺少对应基线时以该项底边参与对齐。
 5. 计算最终位置和容器尺寸，一次放置。几何保留逻辑浮点值，不逐项取整累积误差，DPI 在绘制根部处理。
 

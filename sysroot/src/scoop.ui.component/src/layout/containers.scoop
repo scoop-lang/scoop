@@ -3,64 +3,17 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-public class LinearProps public constructor(
-    public val children: Array<View>,
-    public val spacing: Double = 0.0,
-    public val alignment: AxisAlignment = AxisAlignment.Start
-) {
-    init {
-        nonnegative(spacing, "invalid layout spacing")
-    }
-}
-
 public class Row public constructor(private val props: Props<LinearProps>): Component {
-    public override fun render(): View =
-        element(
-            LinearInput(props.value, false),
-            { current -> LinearInk(current) },
-            props.value.children
-        )
+    public override fun render(): View = flexElement(props.value, false)
 }
 
 public class Column public constructor(private val props: Props<LinearProps>): Component {
-    public override fun render(): View =
-        element(
-            LinearInput(props.value, true),
-            { current -> LinearInk(current) },
-            props.value.children
-        )
+    public override fun render(): View = flexElement(props.value, true)
 }
 
 public fun row(configure: LinearBuilder.() -> Unit = {}): View = makeRow(configure)
 
 public fun column(configure: LinearBuilder.() -> Unit = {}): View = makeColumn(configure)
-
-private class LinearInput(val value: LinearProps, val vertical: Boolean)
-
-private class LinearInk(private val props: Props<LinearInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        val input = props.value
-        val childConstraints = linearChildConstraints(constraints, input.vertical)
-        val sizes =
-            Array<Size>(context.childCount) {
-                index -> context.measureChild(index, childConstraints).size
-            }
-        val plan =
-            arrangeLinear(
-                sizes,
-                constraints,
-                input.value.spacing,
-                input.value.alignment,
-                input.vertical
-            )
-        for (index in 0L until context.childCount)
-            context.placeChild(index, plan.origins[index])
-        return LayoutMetrics(plan.size)
-    }
-    public override fun scene(context: SceneContext) {
-        context.children()
-    }
-}
 
 public class StackProps public constructor(
     public val children: Array<View>,

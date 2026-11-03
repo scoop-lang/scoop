@@ -5,6 +5,7 @@ import scoop.graphics.Point
 import scoop.time.TimeMark
 
 internal class LazyItemMeasure {
+    var constraints: Constraints? = None
     var result: LayoutMetrics? = None
     var origin: Point? = None
     val placed: Boolean get() = origin != None
@@ -44,16 +45,23 @@ public class LazyMeasureContext internal constructor(
     }
     public fun measureItem(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
-        constraints.check()
         requireUi(index >= 0L && index < items.count, "item index is out of range")
-        if (measured.containsKey(index))
-            throw IllegalStateException(Some("item was already measured"))
-        val entry = LazyItemMeasure()
+        val entry = measured[index] ?: LazyItemMeasure()
+        if (entry.placed)
+            throw IllegalStateException(Some("item was already placed"))
+        when (entry.result) {
+            case Some(result) -> if (entry.constraints == Some(constraints))
+                return result
+            case None -> {}
+        }
+        entry.result = None
         measured.put(index, entry)
+        constraints.check()
         borrowed = true
         try {
             val item = prepareUi<LazyItemEntry> { items.prepare(node, index, mark) }
             val result = item.node.measure(constraints, mark)
+            entry.constraints = Some(constraints)
             entry.result = Some(result)
             return result
         } finally {
@@ -81,7 +89,7 @@ public class LazyMeasureContext internal constructor(
                 case None -> throw IllegalStateException(Some("item measurement did not complete"))
                 case Some(_) -> {}
             }
-        items.finish(node, measured)
+        items.stage(measured)
     }
     internal fun end() {
         active = false

@@ -1,0 +1,124 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+@Test
+private class ComponentFlexTest {
+    @Test
+    fun `fixed and growing items receive final space and freeze at their bounds`() {
+        val split =
+            allocateFlex(
+                [80.0, 0.0],
+                [FlexItemOptions(shrink = 0.0), FlexItemOptions(grow = 1.0)],
+                292.0
+            )
+        assertEquals(80.0, split[0L])
+        assertEquals(212.0, split[1L])
+        val bounded =
+            allocateFlex(
+                [10.0, 10.0, 10.0],
+                [
+                    FlexItemOptions(grow = 1.0, max = Some(20.0)),
+                    FlexItemOptions(grow = 1.0, max = Some(40.0)),
+                    FlexItemOptions(grow = 2.0)
+                ],
+                160.0
+            )
+        assertEquals(20.0, bounded[0L])
+        assertEquals(40.0, bounded[1L])
+        assertEquals(100.0, bounded[2L])
+        val large =
+            allocateFlex(
+                [0.0, 0.0],
+                [FlexItemOptions(grow = 1.0e308), FlexItemOptions(grow = 1.0e308)],
+                100.0
+            )
+        assertEquals(50.0, large[0L])
+        assertEquals(50.0, large[1L])
+    }
+
+    @Test
+    fun `shrink uses basis weight and keeps explicit minima when space is impossible`() {
+        val weighted = allocateFlex([100.0, 200.0], [FlexItemOptions(), FlexItemOptions()], 150.0)
+        assertEquals(50.0, weighted[0L])
+        assertEquals(100.0, weighted[1L])
+        val frozen =
+            allocateFlex([100.0, 100.0], [FlexItemOptions(min = 80.0), FlexItemOptions()], 100.0)
+        assertEquals(80.0, frozen[0L])
+        assertEquals(20.0, frozen[1L])
+        val overflow =
+            allocateFlex(
+                [60.0, 80.0],
+                [FlexItemOptions(min = 60.0), FlexItemOptions(min = 80.0)],
+                20.0
+            )
+        assertEquals(140.0, flexTotal(overflow, 0.0))
+        val locked =
+            allocateFlex(
+                [100.0, 200.0],
+                [FlexItemOptions(shrink = 0.0), FlexItemOptions(shrink = 0.0)],
+                0.0
+            )
+        assertEquals(300.0, flexTotal(locked, 0.0))
+        assertEquals(0L, allocateFlex([], [], 0.0).size)
+    }
+
+    @Test
+    fun `baseline groups include descent and missing baselines use the bottom edge`() {
+        val metrics =
+            [
+                LayoutMetrics(Size(20.0, 30.0), Some(25.0)),
+                LayoutMetrics(Size(20.0, 40.0), Some(10.0)),
+                LayoutMetrics(Size(20.0, 35.0))
+            ]
+        val alignment = [CrossAlignment.Baseline, CrossAlignment.Baseline, CrossAlignment.Baseline]
+        val group = flexCrossMetrics(metrics, alignment, false)
+        assertEquals(35.0, group.baseline)
+        assertEquals(65.0, group.extent)
+        assertEquals(10.0, flexCrossOffset(CrossAlignment.Baseline, 65.0, metrics[0L], 35.0, false))
+        assertEquals(25.0, flexCrossOffset(CrossAlignment.Baseline, 65.0, metrics[1L], 35.0, false))
+        assertEquals(0.0, flexCrossOffset(CrossAlignment.Baseline, 65.0, metrics[2L], 35.0, false))
+        assertEquals(FlexSpacing(0.0, 10.0), flexSpacing(MainAlignment.SpaceBetween, 20.0, 3L))
+        assertEquals(FlexSpacing(5.0, 10.0), flexSpacing(MainAlignment.SpaceAround, 30.0, 3L))
+        assertEquals(FlexSpacing(5.0, 5.0), flexSpacing(MainAlignment.SpaceEvenly, 20.0, 3L))
+        assertEquals(FlexSpacing(-5.0, 0.0), flexSpacing(MainAlignment.Center, -10.0, 2L))
+        assertEquals(FlexSpacing(0.0, 0.0), flexSpacing(MainAlignment.SpaceBetween, -10.0, 2L))
+    }
+
+    @Test
+    fun `item configuration keeps declaration order and snapshots independently`() {
+        val builder = FlexBuilder()
+        val fixed = empty()
+        val growing = empty()
+        builder.add(fixed)
+        builder.item(growing) {
+            basis = FlexBasis.Fixed(0.0);
+            grow = 2.0;
+            align = Some(CrossAlignment.Stretch)
+        }
+        builder.padding = Insets.all(4.0)
+        builder.clip = true
+        val snapshot = builder.snapshot()
+        builder.add(empty())
+        assertEquals(2L, snapshot.items.size)
+        assertSame(fixed, snapshot.children[0L])
+        assertSame(growing, snapshot.children[1L])
+        assertEquals(FlexBasis.Content, snapshot.items[0L].options.basis)
+        assertEquals(2.0, snapshot.items[1L].options.grow)
+        assertEquals(Some(CrossAlignment.Stretch), snapshot.items[1L].options.align)
+        assertEquals(Size(8.0, 8.0), snapshot.paddingSize)
+        assertTrue(snapshot.clip)
+        assertFailsWith<IllegalArgumentException> {
+            builder.item(empty()) {
+                min = 20.0;
+                max = Some(10.0)
+            }
+        }
+        assertEquals(3L, builder.snapshot().children.size)
+        assertFailsWith<IllegalArgumentException> { FlexItemOptions(grow = -1.0) }
+        assertFailsWith<IllegalArgumentException> { FlexItemOptions(basis = FlexBasis.Fixed(-1.0)) }
+    }
+}

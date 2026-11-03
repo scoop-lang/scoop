@@ -1,0 +1,199 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+public class Flex public constructor(private val props: Props<FlexProps>): Component {
+    public override fun render(): View =
+        flexElement(props.value.layout, props.value.axis == FlexAxis.Vertical)
+}
+
+internal fun flexElement(layout: LinearProps, vertical: Boolean): View =
+    element(LinearInput(layout, vertical), { props -> LinearInk(props) }, layout.children)
+
+private class LinearInput(val value: LinearProps, val vertical: Boolean)
+
+private class LinearInk(private val props: Props<LinearInput>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureFlex(context, constraints, props.value.value, props.value.vertical)
+
+    public override fun scene(context: SceneContext) {
+        if (!props.value.value.clip) {
+            context.children()
+            return
+        }
+        val size = context.size
+        context.withState {
+            clipped ->
+            clipped.clipRect(Rect(0.0, 0.0, size.width, size.height))
+            clipped.children()
+        }
+    }
+}
+
+private fun measureFlex(
+    context: MeasureContext,
+    constraints: Constraints,
+    props: LinearProps,
+    vertical: Boolean
+): LayoutMetrics {
+    val padding = props.paddingSize
+    val mainMaximum =
+        insetMaximum(
+            if (vertical)
+                constraints.maxHeight
+            else
+                constraints.maxWidth,
+            flexMain(padding, vertical)
+        )
+    val crossMaximum =
+        insetMaximum(
+            if (vertical)
+                constraints.maxWidth
+            else
+                constraints.maxHeight,
+            flexCross(padding, vertical)
+        )
+    val crossMinimum =
+        if (vertical)
+            constraints.minWidth
+        else
+            constraints.minHeight
+    val parentCrossMaximum =
+        if (vertical)
+            constraints.maxWidth
+        else
+            constraints.maxHeight
+    val fixedCross = parentCrossMaximum == Some(crossMinimum)
+    val options = Array<FlexItemOptions>(props.items.size) { index -> props.items[index].options }
+    val aligns =
+        Array<CrossAlignment>(options.size) { index -> options[index].align ?: props.alignment }
+    for (align in aligns)
+        requireComponent(
+            !vertical || align != CrossAlignment.Baseline,
+            "baseline alignment requires a horizontal flex"
+        )
+    val content = MutableArray<LayoutMetrics?>(options.size) { _ -> None }
+    val bases =
+        Array<Double>(options.size) {
+            index ->
+            val option = options[index]
+            val basis =
+                when (option.basis) {
+                    case Fixed(value) -> value
+                    case Content -> {
+                        val measured =
+                            context.measureChild(
+                                index,
+                                flexConstraints(None, crossMaximum, vertical)
+                            )
+                        content[index] = Some(measured)
+                        flexMain(measured.size, vertical)
+                    }
+                }
+            flexClamp(basis, option)
+        }
+    val gaps = flexGaps(options.size, props.spacing)
+    nonnegative(gaps, "flex spacing overflow")
+    val allocated =
+        when (mainMaximum) {
+            case Some(maximum) -> allocateFlex(bases, options, lowerBound(maximum - gaps, 0.0))
+            case None -> bases
+        }
+    val first =
+        Array<LayoutMetrics>(allocated.size) {
+            index ->
+            val measured = content[index]
+            // An unbounded content pass has no allocation to impose. Keep its subtree
+            // when bounds did not change the basis; nested natural layouts stay linear.
+            if (
+                mainMaximum ==
+                    None &&
+                    measured !=
+                    None &&
+                    flexMain(measured!!.size, vertical) ==
+                    allocated[index] &&
+                    !(fixedCross && aligns[index] == CrossAlignment.Stretch)
+            )
+                measured!!
+            else
+                context.measureChild(
+                    index,
+                    flexConstraints(
+                        Some(allocated[index]),
+                        crossMaximum,
+                        vertical,
+                        fixedCross && aligns[index] == CrossAlignment.Stretch
+                    )
+                )
+        }
+    val natural = flexCrossMetrics(first, aligns, vertical)
+    val main = flexTotal(allocated, gaps)
+    var grow = false
+    for (option in options)
+        if (option.grow > 0.0)
+            grow = true
+    val desiredMain =
+        if (grow)
+            mainMaximum ?: main
+        else
+            main
+    val size =
+        constraints.constrain(
+            flexSize(
+                desiredMain + flexMain(padding, vertical),
+                natural.extent + flexCross(padding, vertical),
+                vertical
+            )
+        )
+    val availableCross = lowerBound(flexCross(size, vertical) - flexCross(padding, vertical), 0.0)
+    val metrics =
+        Array<LayoutMetrics>(first.size) {
+            index -> if (aligns[index] == CrossAlignment.Stretch)
+                context.measureChild(
+                    index,
+                    flexConstraints(Some(allocated[index]), Some(availableCross), vertical, true)
+                )
+            else
+                first[index]
+        }
+    val cross = flexCrossMetrics(metrics, aligns, vertical)
+    val remaining = flexMain(size, vertical) - flexMain(padding, vertical) - main
+    val spacing = flexSpacing(props.justify, remaining, metrics.size)
+    var cursor = spacing.leading
+    var alphabetic: Double? = None
+    var ideographic: Double? = None
+    for (index in 0L ..< metrics.size) {
+        val metric = metrics[index]
+        val offset =
+            flexCrossOffset(aligns[index], availableCross, metric, cross.baseline, vertical)
+        val origin =
+            Point(
+                props.padding.left +
+                    if (vertical)
+                        offset
+                    else
+                        cursor,
+                props.padding.top +
+                    if (vertical)
+                        cursor
+                    else
+                        offset
+            )
+        context.placeChild(index, origin)
+        if (alphabetic == None) {
+            when (metric.alphabeticBaseline) {
+                case Some(value) -> alphabetic = Some(value + origin.y)
+                case None -> {}
+            }
+        }
+        if (ideographic == None) {
+            when (metric.ideographicBaseline) {
+                case Some(value) -> ideographic = Some(value + origin.y)
+                case None -> {}
+            }
+        }
+        cursor += flexMain(metric.size, vertical) + props.spacing + spacing.between
+    }
+    return LayoutMetrics(size, alphabetic, ideographic)
+}

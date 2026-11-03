@@ -164,7 +164,8 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                 }
                             )
                         ]
-                }
+                },
+                flexContract(probe.fonts)
             ]
         )
     }
@@ -204,6 +205,14 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
                 )
             )
         context.placeChild(3L, Point(20.0, 240.0))
+        val flex =
+            context.measureChild(
+                4L,
+                Constraints(minWidth = 300.0, maxWidth = Some(300.0), maxHeight = Some(200.0))
+            )
+        assertEquals(300.0, flex.size.width)
+        assertTrue(flex.alphabeticBaseline!! >= 20.0)
+        context.placeChild(4L, Point(300.0, 110.0))
         return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
     }
     public override fun scene(context: SceneContext) {

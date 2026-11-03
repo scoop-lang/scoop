@@ -8,7 +8,26 @@ import scoop.ui.*
 
 internal class LazyScene(private val probe: LazyProbe): Component {
     public override fun render(): View {
-        return lazyElement(probe.source!!.value, { ProtocolContainer(probe) })
+        return element(
+            { ProbeContainer(probe) },
+            [lazyElement(probe.source!!.value, { ProtocolContainer(probe) })]
+        )
+    }
+}
+
+private class ProbeContainer(private val probe: LazyProbe): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val first = context.measureChild(0L, Constraints.tight(Size(80.0, 160.0)))
+        val calls = probe.layoutCalls
+        assertEquals(first, context.measureChild(0L, Constraints.tight(Size(80.0, 160.0))))
+        assertEquals(calls, probe.layoutCalls)
+        context.measureChild(0L, Constraints.tight(Size(60.0, 160.0)))
+        val final = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return final
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
     }
 }
 
@@ -21,11 +40,21 @@ private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
         context: LazyMeasureContext,
         constraints: Constraints
     ): LayoutMetrics {
+        probe.layoutCalls += 1
         ticket = probe.ticket
         probe.activeContext = Some(context)
         probe.savedContext = Some(context)
         val chosen = HashSet<Long>()
         val item = Constraints.tight(Size(100.0, 24.0))
+        val probing = constraints.maxWidth == Some(80.0) || constraints.maxWidth == Some(60.0)
+        val selected =
+            if (!probing || probe.selected.size == 0L)
+                probe.selected
+            else
+                if (constraints.maxWidth == Some(80.0))
+                    [probe.selected[0L]]
+                else
+                    [probe.selected[probe.selected.size - 1L]]
         assertFailsWith<IllegalStateException> { probe.mountWrites.value += 1 }
         assertFailsWith<IllegalArgumentException> { context.measureItem(-1L, item) }
         assertFailsWith<IllegalArgumentException> { context.measureItem(context.itemCount, item) }
@@ -33,10 +62,15 @@ private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
             context.placeItem(context.itemCount, Point(0.0, 0.0))
         }
         var position = 0L
-        for (index in probe.selected) {
-            context.measureItem(index, item)
+        for (index in selected) {
+            val metrics = context.measureItem(index, item)
             chosen.add(index)
-            assertFailsWith<IllegalStateException> { context.measureItem(index, item) }
+            assertEquals(metrics, context.measureItem(index, item))
+            assertEquals(
+                Size(50.0, 24.0),
+                context.measureItem(index, Constraints.tight(Size(50.0, 24.0))).size
+            )
+            assertEquals(metrics, context.measureItem(index, item))
             context.placeItem(
                 index,
                 Point(
@@ -47,17 +81,24 @@ private class ProtocolContainer(private val probe: LazyProbe): LazyElement {
                         position.toDouble() * 24.0
                 )
             )
+            assertFailsWith<IllegalStateException> { context.measureItem(index, item) }
             assertFailsWith<IllegalStateException> { context.placeItem(index, Point(0.0, 0.0)) }
             position += 1L
         }
-        val pinned = context.pinnedItems
+        // Intermediate probes deliberately omit pinned rows. Only the final layout
+        // must place them; no trial may retire their state or input activity.
+        val pinned: Array<Long> =
+            if (probing)
+                []
+            else
+                context.pinnedItems
         for (index in pinned) {
             if (chosen.add(index)) {
                 context.measureItem(index, item)
                 context.placeItem(index, Point(0.0, 220.0))
             }
         }
-        if (probe.phase == 4) {
+        if (probe.phase == 4 && !probing) {
             var sawPending = false
             for (index in pinned)
                 if (index == 9L)
