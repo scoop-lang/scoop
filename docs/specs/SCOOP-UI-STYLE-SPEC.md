@@ -8,6 +8,8 @@
 
 文字继续使用 `scoop.graphics.text` 的 TextStyle／SpanStyle、ParagraphStyle；Theme 的公共 typography 也直接使用这些类型，Style 不定义另一套字体、段落或文本继承模型。第三方完全自绘组件和基础控件使用同一公开适配，没有专用 View 分支、控件节点或效果注册入口。
 
+Linux GNU 与 macOS 共用这些协议及实现；Wayland 和 X11 通过 GLES RenderTarget 执行相同的装饰、效果和绘图缓存。资源相容性仍由 graphics context 决定，系统字体由 Fontconfig／FreeType 提供。
+
 `styled(content, style = style(), key = ViewKey.Position)` 始终建立相同具体类型的普通组件／元素及单个内容子项，包括空 Style。更新只替换 Props；在相同 key 和类型下，从无效果到有阴影、阴影移除、参数或效果顺序改变，都保留内容的实例和 State。调用者改变 content 自身的 key／类型时继续执行正常重挂载规则。
 
 第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 scene 中调用公共 `StylePainter.scene(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 SceneContext，可提交 draw 块并调用 children。StylePainter 同时保留独立的 paint(Canvas, Rect, Style, content) 入口，供真实离屏组合使用。隔离复用通用 SceneContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。

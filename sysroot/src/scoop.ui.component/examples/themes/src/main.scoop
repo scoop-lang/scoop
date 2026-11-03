@@ -172,7 +172,8 @@ internal class Showcase(
                                 this.placeholder = "Add a note"
                                 this.rows = 3L
                                 this.enabled = this @Showcase.model.enabled.value
-                                this.description = "Enter adds a line. ⌘Enter submits."
+                                this.description =
+                                    "Enter adds a line. Ctrl+Enter (⌘Enter on macOS) submits."
                                 this.fonts = Some(this @Showcase.fonts)
                                 this.onSubmit = { _ -> this @Showcase.count += 1 }
                             }

@@ -27,3 +27,27 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/builders.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/cache.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/painting.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/gpu.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }

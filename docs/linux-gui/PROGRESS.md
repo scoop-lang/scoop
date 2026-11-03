@@ -11,7 +11,7 @@
 
 ## 当前状态
 
-安装目录中原有的 25 个 Linux GNU 系统库已构建成功。
+安装目录中原有的 25 个 Linux GNU 系统库已构建成功。本阶段增加 11 个图形与 UI 库，`~/.scoop` 当前包含全部 36 个 GNU `.slib`、所需 Skia archive／headers，以及同步后的 GNU 安装清单与本次更新库的源码。为当前下载示例更新 URL、asyncio、HTTP 等依赖，并按依赖顺序重建其消费库；原安装源码的备份保存在仓库外。
 
 window 阶段已完成原生 X11／Wayland 接入、文档输入、剪贴板、借用句柄、owner loop 和 window.asyncio。原生 C 按项目警告选项构建，Scoop 源码已格式化；release 验证结果：
 
@@ -21,7 +21,7 @@ window 阶段已完成原生 X11／Wayland 接入、文档输入、剪贴板、�
 
 测试使用独立 Xvfb／Openbox 和嵌套 Weston，未操作用户桌面。原生 IME 候选窗、实体键盘布局切换、显示器热插拔和桌面合成器间差异尚未进行人工验收；协议不提供的全局位置等能力明确返回未知或不支持。
 
-窗口组合补验已闭合默认不透明区域与 libdecor 独立事件 fd：区域随 configure／resize／setTransparent 更新，装饰栏输入与内容输入共享 owner 的 poll 等待。扩展后的 window 测试仍在两后端各 13／13；X11 从服务器查询透明区域及尺寸，Wayland 以实际合成像素验证不透明／透明切换，并通过装饰栏按钮正常关闭。公开 UI consumer 还在两种后端验证了真实显示协议路由的合成键鼠、编辑选区／撤销／提交、按钮激活和跨进程 Unicode 剪贴板。
+窗口组合补验已闭合默认不透明区域与 libdecor 返回的事件 fd：区域随 configure／resize／setTransparent 更新，装饰栏输入与内容输入共享 owner 的 poll 等待。扩展后的 window 测试仍在两后端各 13／13；X11 从服务器查询透明区域及尺寸，Wayland 以实际合成像素验证不透明／透明切换，并通过装饰栏按钮正常关闭。公开 UI consumer 还在两种后端验证了真实显示协议路由的合成键鼠、编辑选区／撤销／提交、按钮激活和跨进程 Unicode 剪贴板。
 
 graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文本使用 Fontconfig／FreeType。首次 configure 后创建实际尺寸的 EGL surface；resize 排空旧目标的 GPU 使用并重建 EGL surface，避免 Wayland 首帧及 X11 resize 的旧 backbuffer。GPU context 在窗口 lease 结束前 drain／abandon，剩余 GPU 资源操作明确失败，close 仍安全。按需帧在隐藏和 idle 时停止，PendingConfigure 保留内容及 dirty。验证结果：
 
@@ -37,6 +37,15 @@ graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文�
 
 链接 Skia 时发现显式对象的 compiler builtin 与系统 C++ runtime 动态导出冲突，已修正 ELF 符号选择并补充 C++ 异常组合 fixture。`scoop-linker` 22／22，使用 fixture 默认 GCC 的原生链接验收 45 项通过、19 项不适用；workspace fmt／clippy 通过。五个 release 工具命令已重建并安装至 `~/.scoop/bin`。
 
-UI 正在完成组合验收，结果在对应功能提交时更新。
+UI 框架、公共编辑、控件、样式及三套主题已接入 Linux GNU。共享代码继续负责挂载、状态、布局、输入与资源生命周期，Linux 提供 Control 编辑键位及 GLES 目标。UiHost 每帧先清空内容，避免移动或移除元素保留旧像素；原有 macOS 编辑键位保留。release 验证结果：
+
+- `scoop.ui`：X11、Wayland 各 66／66，包含组合、多根、状态、布局、文本编辑、Linux 编辑键位和真实 GLES 缓存像素。
+- `ui-frames`：X11、Wayland、Wayland 2 倍缩放各 1／1；实际连续帧验证移动及移除内容后的 alpha，避免上一帧残影。
+- `scoop.ui.component` 33／33，`scoop.ui.style` 16／16，三主题共享测试 17／17；`ui-dsl` 独立 consumer 1／1。
+- 完整主题示例：两后端各 3／3；实际呈现全部控件与三种主题，切换样式、明暗及禁用状态，保留模型／字体／组件身份，验证隐藏、重显与静止停帧。
+- 下载示例：两后端各 5／5；真实 loopback HTTP、文件和后台 SHA-256，覆盖取消、隐藏期间完成、UI 在 I/O 期间更新、重显、停帧及关闭时取消未完成工作。
+- 更新后的 `window.asyncio` 与无窗口退出 Cone 在两后端仍各 1／1，覆盖 io_uring 通知、取消、lease 和异步 finally 收尾。
+
+自绘 Counter、完整主题展示和下载三个独立可执行示例均完成 release 构建，并在 X11 与 Wayland 上运行和正常关闭。自绘示例修正了输入区域无条件消费事件的问题：只消费自身处理的事件，点击取得焦点后仍可通过 Ctrl+I 更新成员 State；两后端均以实际像素确认计数、动画缩回和旧区域清理。主题程序通过真实指针切换 Material／Fluent。下载程序均从本地 HTTP 服务取得 2 MiB 文件，界面显示 Completed，后台 SHA-256 与原文件一致。所有示例窗口关闭后均以状态 0 退出；更新后的示例源码已同步至安装目录。
 
 原始构建和测试日志保存在仓库外 `/home/chenxu/repos/scoop-deps/logs`。本记录只保存验证范围、结果、失败闭合与实际限制。

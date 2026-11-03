@@ -1,0 +1,249 @@
+package scoop.examples.ui.download
+
+import scoop.asyncio.*
+import scoop.crypto.*
+import scoop.crypto.x509.*
+import scoop.graphics.Point
+import scoop.graphics.text.*
+import scoop.http.client.*
+import scoop.platform.fs.*
+import scoop.platform.net.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.tests.surface.sampleCanvasPixel
+import scoop.text.toHexString
+import scoop.time.Duration
+import scoop.tls.TlsTrustSource
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+import scoop.window.asyncio.*
+
+@Test
+private class LinuxDownloadWindowTest {
+    @Test
+    fun `Linux GLES UI shares the I/O loop downloads verifies cancels and closes pending work`() {
+        val probe = LinuxDownloadProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.themes) {
+                probe.application.runWithAsyncio(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(host.isClosed)
+            assertTrue(probe.ui!!.isClosed)
+            assertTrue(probe.panel!!.controller!!.isClosed)
+            assertTrue(probe.client!!.isClosed)
+            assertEquals(WindowState.Destroyed, probe.window!!.state)
+            assertEquals(1, probe.mounts)
+            assertEquals(1, probe.unmounts)
+            assertEquals(0L, probe.workers.activeCount)
+            assertFalse(probe.fonts.isClosed)
+        } catch (error: Throwable) {
+            println("Linux download phase: " + probe.phase)
+            throw error
+        } finally {
+            host.close()
+            probe.workers.close()
+            probe.fonts.close()
+            probe.directory.deleteRecursively()
+        }
+    }
+}
+
+private class LinuxDownloadProbe {
+    val application = Application()
+    val workers = ChecksumWorkers()
+    val fonts = FontCollection()
+    val themes = ThemeSource(macosTheme())
+    val model = DownloadModel()
+    val directory = createTempDirectory(prefix = "scoop-linux-download-")
+    val destination = directory.resolve(Path.fromString("download.bin"))
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var panel: DownloadPanel? = None
+    var client: HttpClient? = None
+    var frames = 0
+    var mounts = 0
+    var unmounts = 0
+    var phase = "starting"
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+                currentApplicationScope().launch suspend {
+                    coroutineScope suspend {
+                        jobs ->
+                        val anchors: Array<Certificate> = []
+                        TrustStore.fromCertificates(anchors).use suspend {
+                            trust -> currentEventLoop().listenTcp(
+                                SocketAddress(IpAddress.IPV4_LOOPBACK, 0)
+                            ).useAsync suspend {
+                                listener ->
+                                val server = DownloadServer(listener, jobs)
+                                val serving = server.start()
+                                try {
+                                    HttpClient.open(
+                                        jobs,
+                                        httpClientConfig {
+                                            tls =
+                                                httpClientTlsConfig {
+                                                    this.trust = TlsTrustSource.Store(trust)
+                                                }
+                                            retries = httpRetryOptions { maxRetries = 0L }
+                                        }
+                                    ).useAsync suspend {
+                                        http ->
+                                        client = Some(http)
+                                        val native =
+                                            active.createWindow(
+                                                windowAttributes {
+                                                    title = "Scoop Linux download verification"
+                                                    size = LogicalSize(580.0, 320.0)
+                                                }
+                                            )
+                                        window = Some(native)
+                                        ui =
+                                            Some(
+                                                host.attach(
+                                                    native,
+                                                    {
+                                                        LinuxDownloadScene(
+                                                            this,
+                                                            {
+                                                                val content =
+                                                                    DownloadPanel(
+                                                                        jobs,
+                                                                        http,
+                                                                        workers,
+                                                                        application.proxy(),
+                                                                        model,
+                                                                        server.request("/known"),
+                                                                        destination,
+                                                                        fonts
+                                                                    )
+                                                                panel = Some(content)
+                                                                content
+                                                            }
+                                                        )
+                                                    }
+                                                )
+                                            )
+                                        scenario(server)
+                                        finished = true
+                                        active.requestExit()
+                                    }
+                                } finally {
+                                    serving.cancel()
+                                    nonCancellableScope<Unit> suspend { _ -> serving.join() }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("Linux download deadline: " + phase))
+            else -> {}
+        }
+    }
+
+    private suspend fun scenario(server: DownloadServer) {
+        await("first frame") { frames > 0 }
+        val controller = panel!!.controller!!
+        destination.writeText("prior destination")
+        val slow = controller.start(server.request("/slow"), destination)
+        await("partial download") { model.snapshot.value.progress.bytes > 0L }
+        panel!!.clicks = 1
+        val before = frames
+        await("UI remains responsive during I/O") { frames > before }
+        controller.cancel()
+        slow.join()
+        assertEquals(DownloadPhase.Cancelled, model.snapshot.value.phase)
+        assertEquals("prior destination", destination.readText())
+
+        controller.start(server.request("/known"), destination).join()
+        await("background SHA-256") { model.snapshot.value.phase == DownloadPhase.Completed }
+        assertEquals(
+            digest(DigestAlgorithm.Sha256, server.known).toHexString(),
+            model.snapshot.value.digest!!
+        )
+        assertEquals(server.known.size, destination.metadata().size)
+        assertEquals(0L, workers.activeCount)
+        awaitQuiet()
+        val hidden = frames
+        window!!.setVisible(false)
+        controller.start(server.request("/unknown"), destination).join()
+        await("hidden download and verification") {
+            model.snapshot.value.phase == DownloadPhase.Completed
+        }
+        assertEquals(hidden, frames)
+        assertEquals(
+            digest(DigestAlgorithm.Sha256, server.unknown).toHexString(),
+            model.snapshot.value.digest!!
+        )
+        window!!.setVisible(true)
+        await("restored frame") { frames > hidden }
+        assertEquals(1, panel!!.clicks)
+        awaitQuiet()
+
+        val closing = controller.start(server.request("/slow"), destination)
+        await("close pending I/O") { model.snapshot.value.progress.bytes > 0L }
+        ui!!.close()
+        closing.join()
+        assertTrue(controller.isClosed)
+        assertEquals(1, unmounts)
+        assertEquals(0L, workers.activeCount)
+    }
+
+    private suspend fun await(label: String, ready: () -> Boolean) {
+        phase = label
+        val deadline = MonotonicTimeSource.markNow() + Duration.seconds(10L)
+        while (!ready()) {
+            if (MonotonicTimeSource.markNow() >= deadline)
+                fail(Some("Linux download wait: " + label))
+            currentEventLoop().sleep(Duration.milliseconds(5L))
+        }
+    }
+    private suspend fun awaitQuiet() {
+        phase = "idle"
+        currentEventLoop().sleep(Duration.milliseconds(250L))
+        val quiet = frames
+        currentEventLoop().sleep(Duration.milliseconds(140L))
+        assertEquals(quiet, frames)
+    }
+}
+
+private class LinuxDownloadScene(
+    private val probe: LinuxDownloadProbe,
+    private val create: () -> DownloadPanel
+): Component {
+    public override fun render(): View = element({ LinuxDownloadAudit(probe) }, [component(create)])
+}
+
+private class LinuxDownloadAudit(private val probe: LinuxDownloadProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        context.draw { paint -> assertEquals(255uL, sampleCanvasPixel(paint.canvas, 5, 5) % 256uL) }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.frames += 1
+        }
+    }
+}

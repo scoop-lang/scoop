@@ -17,3 +17,7 @@ when = { os = "darwin" }
 "scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }

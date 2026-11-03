@@ -212,9 +212,10 @@ internal class CompositionProbe(val store: CompositionStore) {
                 assertEquals(1, flexible[0L].unmounts)
                 assertEquals(21L, flexible[1L].observed)
                 mirrorBefore = mirrorRenders
+                val nativeState = first!!.nativeWindow.state
                 first!!.close()
                 assertTrue(first!!.isClosed)
-                assertEquals(WindowState.Open, first!!.nativeWindow.state)
+                assertEquals(nativeState, first!!.nativeWindow.state)
                 assertFalse(second!!.isClosed)
                 assertEquals("unmount scene", log[log.size - 1L])
                 store.shared.value = 31

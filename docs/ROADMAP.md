@@ -834,16 +834,18 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - 帧调度、动画、文本和事件路由共用平台无关实现；surface、原生帧通知、呈现及系统字体适配由各平台独立完成。本轮实施 Darwin 两目标的 Ganesh Metal／CAMetalDisplayLink 接入，不以其他平台 renderer 完成作为交付条件。
 - window 已先行补齐鼠标序列取消和有来源标记的单调输入时间，见[窗口规范第 11 节](specs/SCOOP-WINDOW-SPEC.md#11-surface-基础层所需输入扩展)。沿用现有 Application／asyncio 宿主、native lease、普通 FFI 和构建合同；全部功能与验证使用普通 Cone 和 scoop.test，实际交付范围见[实施记录](surface/PROGRESS.md)。
 - 基础 API 与 [组合示例](../sysroot/src/scoop.surface/examples/basics/README.md)已交付；Darwin ARM64 和 Rosetta x86_64 的绘图／文本、动画、区域输入、宿主呈现、主循环组合、异常收尾及原生 IME 会话测试通过。两架构示例均验证简体拼音组合与提交；窗口缩放后的重排及应用失焦／恢复已观察。跨屏混合 DPI 缺少多显示器硬件条件，具体桌面验证范围见实施记录。
+- Linux GNU 已通过 Wayland／X11 的原生窗口接入 Skia Ganesh GLES／EGL，复用同一帧调度、动画、输入及资源合同；真实多窗口、连续帧、resize、隐藏重显、异常清理和两倍缩放的范围见 [Linux GUI 记录](linux-gui/PROGRESS.md)。
 
-### scoop.graphics.text 公共文本排版（macOS 已实现）
+### scoop.graphics.text 公共文本排版（macOS、Linux GNU 已实现）
 
 - [设计](graphics/text/DESIGN.md)与[文本排版规范](specs/SCOOP-GRAPHICS-TEXT-SPEC.md)将字体、Paragraph／TextLayout 从 graphics 独立为 `scoop.graphics.text`，通过普通 graphics native 画布接入保持 `scoop.graphics.text → scoop.graphics`；基础 API、native 所有权、统一 StyledText／SpanStyle、行内对象及位置查询已交付，Skia 基线问题已在底层修复。两架构初始验证见 [UI 实施记录](ui/PROGRESS.md)，Unicode 词边界、视觉光标与物理行导航的后续交付见 [基础交互实施记录](ui/foundations/PROGRESS.md)。
 - StyledText／SpanStyle 表达多字体、字号及局部样式继承；行内图片和控件以稳定 key、尺寸与基线参与同一段落排版，结果明确保留被截断对象及其可见性。UTF-8 位置、caret／selection、替代文字和资源所有权共用公共合同。
 - 继续使用当前 SkParagraph／HarfBuzz／ICU；先验收独立 graphics.text／graphics 的图文排版和跨 Cone 绘制，再接入 UI 子项，不增加语言／runtime 通道或完整文档编辑系统。
+- Linux GNU 使用 Fontconfig／FreeType，沿用共享段落、Unicode 导航和字体资源合同；与 GLES 的组合验证见 [Linux GUI 记录](linux-gui/PROGRESS.md)。
 
-### scoop.ui 自绘框架与独立控件库（macOS 已实现）
+### scoop.ui 自绘框架与独立控件库（macOS、Linux GNU 已实现）
 
-- 本期已先补底层缺口和公共文本，再交付框架、简单组件及基础交互；初始批次见 [UI 实施记录](ui/PROGRESS.md)，扩展能力及最终统一补验见 [基础交互实施记录](ui/foundations/PROGRESS.md)。只实现并定向验证 macOS，Windows 后续接入。普通行为采用 scoop.test，每批验证后提交、推送并合并 origin/main。
+- 本期已先补底层缺口和公共文本，再交付框架、简单组件及基础交互；初始批次见 [UI 实施记录](ui/PROGRESS.md)，扩展能力及最终统一补验见 [基础交互实施记录](ui/foundations/PROGRESS.md)。macOS 与 Linux GNU 已实现并定向验证；Linux 通过 Wayland／X11 和 Skia GLES／EGL 接入同一框架、控件与主题，见 [Linux GUI 记录](linux-gui/PROGRESS.md)。Windows UI 后续接入。普通行为采用 scoop.test，每批验证后提交、推送并合并 origin/main。
 - [设计](ui/DESIGN.md)与 [UI 规范](specs/SCOOP-UI-SPEC.md)将 `scoop.ui` 定位为不含现成控件的自绘框架：保留持久 class Component、成员 State 和返回 View 的 render，通过公开 Element 协议提供测量、子项布局、绘制及输入接入。
 - 已交付独立框架、外部自绘示例及状态／绘制／异常定向测试，公共 ParagraphHost／InlineView、graphics 基础效果、公共 Style、三套主题、展示及宿主组合。实施期间逐批验证 aarch64，全部计划功能完成后再统一验证 x86_64；本机 x86_64 运行使用 Rosetta。
 - 独立的 `scoop.ui.component` 使用与第三方控件相同的公开能力实现 Label／Button／Checkbox、Input／Textarea、Row／Column／Stack、Frame、Absolute、ScrollArea／VirtualList 和样式，见[控件库规范](specs/SCOOP-UI-COMPONENT-SPEC.md)。框架不依赖该库；`scoop.ui.text` 提供公共 ParagraphHost、行内 View 和 TextEditorState／TextEditHost，控件复用它们并决定外观与行为。

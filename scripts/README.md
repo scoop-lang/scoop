@@ -161,7 +161,7 @@ LLVM 源码与归档优先复用 vendor 的固定版本位置；缺失时在工�
 
 Windows 的宿主 DLL 分别放在实际使用它们的 `bin`、外部命令目录及 `libexec/llvm/bin`；两个 MinGW prefix 保留自身的 DLL 和目录关系。LLVM、libc++／libc++abi、libunwind、compiler-rt、MinGW runtime 与 Rust 的许可随包收集，版本与目标信息进入组件清单。
 
-打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的库构建与文档生成直接读取。只有 Darwin 源码的窗口 Cone 因此不进入 Linux 目标清单，不需要空后端。
+打包从 `sysroot/src/*/Cone.toml` 生成目标生产清单：显式非空 `sources` 中至少一项满足该目标的条件才进入清单；缺省或显式空表仍由编译器处理。选中库依赖该目标未提供的内置库时报告错误。清单中的 Cone 目录按依赖顺序保存在 `share/scoop/toolchain.toml` 的各目标 `cones` 数组，`default_target` 记录宿主默认目标。同一选择写入 `share/scoop/install/targets.list`（默认目标在首行）及 `<target>.list`（逐行 Cone 目录），供 post-install 的库构建与文档生成直接读取。Linux GNU 的 GUI Cone 因此进入 GNU 清单，未提供 musl 源码的 GUI Cone 不进入 musl 清单，不需要空后端。
 
 post-install 使用配套 `scoop`／`scoopc`，显式选择上述目标清单，以 `--no-deps --deny-doc-warnings` 为所选目标生成共同站点。嵌套测试／辅助 Cone 不进入发行清单。工作目录下的 `doc-target` 和普通 `cache` 保留中间结果；文档直接生成到安装根的 `docs/<target>`，保留普通文档更新记录，重复执行复用未变化的文档。文档失败使本次 post-install 返回非零状态，不将失败报告为安装成功。
 

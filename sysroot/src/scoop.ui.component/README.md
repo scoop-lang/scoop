@@ -76,3 +76,7 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `handle.focusItem(key, ItemFocusEdge.First)` 按需实现并定位条目，再聚焦行内首个可用 Tab 目标；Last 选择末个目标。isPending 也包含这个聚焦过程。未知 key、没有可用目标、真实删除、禁用或更新的焦点／滚动请求会结束旧等待；外层缓存的列表可以因待聚焦归属恢复布局。`tests-cones/focus-items` 检查真实按 key 聚焦与实例数量。
 
 `navigation = ItemNavigation.Sequential` 启用逐行 Tab 访问；`ItemNavigation.Roving(direction = TextDirection.Ltr, loop = false)` 让列表占一个 Tab 停靠点，并用方向键和 Home／End 导航。轴沿 orientation，入口顺序沿 focus.order；启用时视口自身不再额外占一个 Tab 停靠点，None 默认模式保持普通滚动视口行为。选择／激活由上层组件决定。`tests-cones/navigation-items` 覆盖真实键盘、嵌套列表与焦点作用域、禁用／空项、实例卸载后的返回、RTL、循环和默认动作优先级。
+
+## Linux GNU
+
+支持 Wayland 与 X11，共用公共实现、Skia Ganesh GLES 和 Fontconfig／FreeType。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.ui.component --release --sysroot ~/.scoop`；[主题展示](examples/themes/README.md)和[后台下载](examples/download/README.md)分别提供真实窗口组合测试。图形应用通过 `SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 选择显示协议。文本编辑使用 Ctrl 快捷键。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

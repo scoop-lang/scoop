@@ -10,7 +10,7 @@
 
 框架不提供 Label、Button、文本样式、点击判定或 Row／Column／Stack 等现成控件和布局策略。它提供实现这些控件所需的公开能力。`scoop.ui.component` 是独立的普通 Cone，使用与第三方控件相同的公开接口构建基础控件；`scoop.ui` 不依赖、转导出或识别该控件库及独立 `scoop.ui.style` 中的类型。公共主题绘图／几何与装饰／效果由[样式库](SCOOP-UI-STYLE-SPEC.md)通过相同公开协议实现，实际滤镜与图层由 [graphics](SCOOP-GRAPHICS-EFFECTS-SPEC.md)负责。只依赖框架的应用可以完成自绘、输入和动画。
 
-首期只实现和验证 macOS：先完成 aarch64 的各批功能，最后统一补验 x86_64；Windows 接入与验收留待后续，不因底层已有 Windows renderer 就声明 UI 已支持该平台。不发布空 renderer。实施批次及定向验证见 [UI 实施记录](../ui/PROGRESS.md)。
+macOS aarch64 与 x86_64 已完成原有功能验证。Linux GNU 阶段沿用同一框架、控件、主题、文本和生命周期，通过 Wayland／X11 的 GLES Surface 接入，实施与验证见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。Windows UI 接入与验收留待后续，不因底层已有 Windows renderer 就声明 UI 已支持该平台。不发布空 renderer。
 
 静止时停止渲染工作是首期基本要求，见[第 6.1 节](#61-静止时停止渲染工作)。没有待处理更新、绘制失效或需推进的动画时，框架不维持周期性的逻辑遍历、绘制回调或 GPU 提交；该合同同时适用于桌面与未来移动端。
 
@@ -288,6 +288,8 @@ UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。普通元素的子序列使用显式 `Array<View>`，按需元素使用 ItemSource；不把普通 lambda 的未使用表达式冒充 result builder。
 
+UiHost 拥有完整的窗口内容场景，每次实际绘制先将目标清为空透明，再执行本帧场景；不能依赖交换链保留上一帧像素，也不能让移动、移除或半透明的元素叠加上旧图像。窗口是否与桌面透明合成仍由 window 属性控制，具体背景颜色由应用的场景绘制。此清理只发生在已有帧需求的 paint 内，不产生额外重绘。
+
 ### 6.1 静止时停止渲染工作
 
 UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈现的失效、没有需采样的运行中动画或待处理的动画完成回调，并且没有新的宿主重绘请求时进入静止。最后的必要帧、已排队通知和实际 GPU 使用正常收尾后，只要没有新的工作来源，就必须保持以下行为：
@@ -478,7 +480,7 @@ TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selection
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
-默认行为使用同一 InputScope 路由。真实 key-down 优先执行 KeyEvent.textCommands 的有序命令，仅载荷为空时采用 macOS 编辑键位回退；从不根据 LogicalKey.Character 再插入正文。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
+默认行为使用同一 InputScope 路由。真实 key-down 优先执行 KeyEvent.textCommands 的有序命令，仅载荷为空时采用平台编辑键位回退；从不根据 LogicalKey.Character 再插入正文。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
 
 点击、Shift 点击、拖选、双击词和三击逻辑行均通过 TextLayout 命中与 Unicode 导航完成。选区保留方向和 TextPosition affinity；普通左右移动折叠非空选区到相应视觉边缘，逻辑前后移动使用相应字节边界；上下／翻页保留期望 x。删除单个字符使用完整 grapheme，word／行／段落／文档命令使用文本库实际范围，段落末端不删除硬换行。原生标量选区可以落在 grapheme 内部，显示 caret 临时收敛到对应 grapheme 边缘，不改写原生规范选区。
 
@@ -631,7 +633,7 @@ ComponentScope 同步发出取消，异步 finally 和实际 I/O 收尾由既有
 
 `UiHost` 包装 SurfaceHost，作为普通 ApplicationHandler 接入 Application.run，也可以接入现有 runWithAsyncio。`UiHost.attach(window, create)` 返回管理根组件的 UiWindow。`runUiApplication(title, create)` 是单窗口便利入口，统一拥有 Application／UiHost／窗口，接受关闭请求并在最后一个窗口关闭后退出；复杂窗口策略使用显式 UiHost。
 
-macOS 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
+macOS 与 Linux 的 UiHost.shortcutScope(bindings: Array<surface.ShortcutBinding> = []) 返回其 SurfaceHost 拥有的 HostShortcutScope；采用同一输入路由和生命周期，不复制绑定或匹配算法。每个 UiHost 至多一个活动宿主登记，关闭 UiHost 时停用；局部行为与窗口 ShortcutScope 优先，任何模态输入域都会截断宿主回退。在 Dialog 内有效的保存／确认动作应登记在该域的 InputScope。
 
 底层 scoop.window 已支持同一 Application 的多个独立非模态窗口，见[窗口规范第 4.1 节](SCOOP-WINDOW-SPEC.md#41-多窗口)。一个 UiHost 可对不同 Window 分别 attach，每个窗口拥有独立根、挂载树、布局与区域场景；单窗口便利入口不限制框架只能管理一个窗口。普通关闭只卸载相应窗口的根，显式应用退出或宿主失败继续沿既有整体收尾；同一 owner 上可共享业务 State，不能共享组件实例、InputArea 或跨窗口转移挂载。
 
@@ -707,3 +709,9 @@ PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewp
 `focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=Ltr、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 
 `inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。
+
+### Linux 编辑键位与宿主
+
+Linux 的 Primary 为 Control。无额外 Alt／Super／Function 时，Ctrl+A/C/X/V 对应全选／复制／剪切／粘贴，Ctrl+Z 为撤销，Ctrl+Shift+Z 与 Ctrl+Y 为重做。左右键移动视觉字素，Ctrl+左右按词移动；Home／End 为行首／行尾，Ctrl+Home／End 为文档首尾，Ctrl+上下为段落边界。Shift 扩展移动选区；Backspace／Delete 删除前后字素，带 Ctrl 删除前后单词。普通 Enter 和 Ctrl+Enter 分别服从 Enter／PrimaryEnter 提交策略，其余换行、Tab 导航／插入和 Cancel 继续沿共享编辑合同。
+
+输入法正文仅消费 window 的有序文本批次；XKB 字符不在 UI 键盘回退中再次插入。剪贴板写入的原生错误保留，Cut 在成功写出后才改变正文。窗口等待首次配置或隐藏重显时保留已挂载树、状态和 dirty，配置与帧恢复后继续。三套主题均是可选择的普通 Scoop 绘图资源，Linux 不以主题名称推断原生 OS API 或系统字体存在。

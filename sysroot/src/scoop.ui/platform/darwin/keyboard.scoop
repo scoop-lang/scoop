@@ -149,3 +149,9 @@ internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
 
 private fun editorShortcut(key: LogicalKey, text: String): Boolean =
     LogicalKey.Character(text).matchesShortcut(key)
+
+internal fun editorSubmitChord(modifiers: Modifiers): Boolean? =
+    if (modifiers.shift || modifiers.control || modifiers.alt)
+        None
+    else
+        Some(modifiers.superKey)

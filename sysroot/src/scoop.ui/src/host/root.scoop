@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.Point
+import scoop.graphics.Color
 import scoop.surface.*
 import scoop.window.Window
 
@@ -86,6 +87,7 @@ internal class UiRoot(
         if (!isOpen)
             return
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
+        frame.canvas.clear(Color.Transparent)
         focus.beginFrame()
         overlays.beginFrame()
         try {

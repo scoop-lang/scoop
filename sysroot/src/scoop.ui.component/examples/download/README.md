@@ -1,10 +1,19 @@
 # 下载与后台校验
 
-这是组合 `scoop.ui.component`、`scoop.window.asyncio`、HTTP client 和真实后台线程的可执行示例。先按仓库流程准备 aarch64 开发 sysroot，再运行：
+这是组合 `scoop.ui.component`、`scoop.window.asyncio`、HTTP client 和真实后台线程的可执行示例。先按仓库流程准备目标平台的开发 sysroot，再运行：
 
 ```sh
 scoop run sysroot/src/scoop.ui.component/examples/download --release --target aarch64-apple-darwin --sysroot /path/to/sysroot -- https://example.com/file.zip /tmp/file.zip
 ```
+
+Linux GNU 使用同一示例、io_uring 和 Skia GLES/EGL，支持两种窗口后端：
+
+```sh
+SCOOP_WINDOW_BACKEND=wayland scoop run sysroot/src/scoop.ui.component/examples/download --release --sysroot ~/.scoop -- http://127.0.0.1:8000/file.zip /tmp/file.zip
+SCOOP_WINDOW_BACKEND=x11 scoop run sysroot/src/scoop.ui.component/examples/download --release --sysroot ~/.scoop -- http://127.0.0.1:8000/file.zip /tmp/file.zip
+```
+
+上例的 URL 需要由本地 HTTP 服务提供；也可以替换为实际下载地址。
 
 点击 Start / Restart 开始下载。进度有两个明确阶段：Downloading 表示异步传输，Verifying 表示后台线程正在对已经提交的文件计算 SHA-256；摘要成功返回后才显示 Completed。HTTP 的未知长度保持未知，不把字节百分比当作完成结果。选择较大的文件可以直接观察校验阶段；小文件可能很快完成，不人为添加延迟。
 
@@ -18,4 +27,4 @@ scoop run sysroot/src/scoop.ui.component/examples/download --release --target aa
 
 校验线程在每个文件块之间检查取消。UI 与异步 I/O 共用既有宿主，所有绘制和 State 更新都在窗口 owner 执行。
 
-本 Cone 的 `scoop test --release` 使用真实 loopback HTTP 服务、临时文件、原生 Thread 和两个 Metal 窗口，不访问外部服务。普通测试覆盖摘要结果、块尾、取消及进度回调异常；窗口组合覆盖真实按钮输入、共享状态与局部状态、未知长度、取消／替换、隐藏时完成、单根原生关闭及应用异常退出。安静区间同时检查逻辑／绘制计数、底层帧需求、display link 暂停及实际回调／提交计数，截图不代替这些断言。
+本 Cone 的 `scoop test --release` 使用真实 loopback HTTP 服务、临时文件和原生 Thread，不访问外部服务。普通测试覆盖摘要结果、块尾、取消及进度回调异常。macOS 的两个 Metal 窗口组合覆盖真实按钮输入、共享状态与局部状态、未知长度、取消／替换、隐藏时完成、单根原生关闭及应用异常退出，并检查底层 display link 计数。Linux 在 X11 与 Wayland 上使用真实 GLES 窗口，覆盖下载、后台摘要、取消、UI 挂起 I/O 时更新、隐藏时完成、重显、停帧及关闭挂载时取消未完成工作；每个实际帧读回像素确认绘制。

@@ -63,45 +63,52 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
                             current.phase ==
                             RoutedPhase.Notification
                     ) {
-                        when (event) {
-                            case Pointer(
-                                InputPointerEvent.Button(
-                                    _,
-                                    MouseButton.Left,
-                                    ElementState.Pressed,
-                                    _
-                                )
-                            ) -> {
-                                pressed = true
-                                current.currentTarget.area!!.requestFocus()
-                                scope.requestFrame()
-                            }
-                            case Pointer(
-                                InputPointerEvent.Button(
-                                    pointer,
-                                    MouseButton.Left,
-                                    ElementState.Released,
-                                    _
-                                )
-                            ) -> {
-                                val activate = pressed && bounds.contains(current.localPosition!!)
-                                pressed = false
-                                if (activate)
-                                    props.value.increment()
-                                scope.requestFrame()
-                            }
-                            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
-                                pressed = false
-                                if (scope.isMounted)
+                        val handled =
+                            when (event) {
+                                case Pointer(
+                                    InputPointerEvent.Button(
+                                        _,
+                                        MouseButton.Left,
+                                        ElementState.Pressed,
+                                        _
+                                    )
+                                ) -> {
+                                    pressed = true
+                                    current.currentTarget.area!!.requestFocus()
                                     scope.requestFrame()
-                            }
-                            case FocusChanged(_) -> {
-                                if (scope.isMounted)
+                                    true
+                                }
+                                case Pointer(
+                                    InputPointerEvent.Button(
+                                        pointer,
+                                        MouseButton.Left,
+                                        ElementState.Released,
+                                        _
+                                    )
+                                ) -> {
+                                    val activate =
+                                        pressed && bounds.contains(current.localPosition!!)
+                                    pressed = false
+                                    if (activate)
+                                        props.value.increment()
                                     scope.requestFrame()
+                                    true
+                                }
+                                case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                                    pressed = false
+                                    if (scope.isMounted)
+                                        scope.requestFrame()
+                                    true
+                                }
+                                case FocusChanged(_) -> {
+                                    if (scope.isMounted)
+                                        scope.requestFrame()
+                                    true
+                                }
+                                else -> false
                             }
-                            else -> {}
-                        }
-                        current.consume()
+                        if (handled)
+                            current.consume()
                     }
                 }
             )

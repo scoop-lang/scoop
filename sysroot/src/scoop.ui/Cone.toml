@@ -29,3 +29,83 @@ when = { os = "darwin" }
 [[test.sources]]
 path = "tests"
 when = { os = "darwin" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/composition.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/composition_models.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/dsl_builders.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/host_shortcuts.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/lazy.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/overlay.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/paint_cache.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/paint_pixels.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/reveal.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_cache.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_edit_navigation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_edit_normalize.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_editor.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/values.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "platform/darwin"
+when = { os = "darwin" }
+
+[[sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/paint_gpu.scoop"
+when = { os = "linux", env = "gnu" }
