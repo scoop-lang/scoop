@@ -73,6 +73,7 @@ SWResult scoop_window_application_create(SWCallback callback, void *context,
   app->kind = kind;
   app->wake_fd = -1;
   app->display_fd = -1;
+  app->decor_fd = -1;
   app->callback = callback;
   app->context = context;
   app->deadline = -1;
@@ -139,7 +140,7 @@ int32_t scoop_window_application_run(SWApplication *app) {
     size_t count = sw_watch_count(app);
     size_t transfers =
         app->kind == SW_WAYLAND ? sw_wayland_transfer_count(app) : 0;
-    struct pollfd *fds = calloc(count + transfers + 2, sizeof(*fds));
+    struct pollfd *fds = calloc(count + transfers + 3, sizeof(*fds));
     SWWatch **watches = calloc(count ? count : 1, sizeof(*watches));
     if (!fds || !watches) {
       free(fds);
@@ -150,9 +151,10 @@ int32_t scoop_window_application_run(SWApplication *app) {
     fds[1] =
         (struct pollfd){app->error ? -1 : app->display_fd,
                         POLLIN | (app->display_write_pending ? POLLOUT : 0), 0};
-    sw_watch_poll(app, fds + 2, watches);
+    fds[2] = (struct pollfd){app->error ? -1 : app->decor_fd, POLLIN, 0};
+    sw_watch_poll(app, fds + 3, watches);
     if (transfers)
-      sw_wayland_transfer_poll(app, fds + 2 + count);
+      sw_wayland_transfer_poll(app, fds + 3 + count);
     double deadline = app->deadline;
     if (app->kind == SW_WAYLAND && !app->error) {
       double repeat = sw_wayland_repeat_deadline(app);
@@ -162,7 +164,7 @@ int32_t scoop_window_application_run(SWApplication *app) {
     double remaining = deadline < 0 ? -1 : fmax(0, deadline - sw_now());
     int timeout =
         remaining < 0 ? -1 : (int)fmin(INT_MAX, ceil(remaining * 1000));
-    int result = poll(fds, count + transfers + 2, timeout);
+    int result = poll(fds, count + transfers + 3, timeout);
     if (result < 0) {
       int error = errno;
       free(watches);
@@ -171,7 +173,7 @@ int32_t scoop_window_application_run(SWApplication *app) {
         continue;
       return error;
     }
-    if (fds[1].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+    if ((fds[1].revents | fds[2].revents) & (POLLERR | POLLHUP | POLLNVAL)) {
       free(watches);
       free(fds);
       app->error = EPIPE;
@@ -184,7 +186,7 @@ int32_t scoop_window_application_run(SWApplication *app) {
       while (read(app->wake_fd, &value, sizeof(value)) < 0 && errno == EINTR) {
       }
     }
-    if (!app->error && fds[1].revents) {
+    if (!app->error && (fds[1].revents || fds[2].revents)) {
       int error = sw_dispatch_native(app);
       if (error) {
         app->error = error;
@@ -194,7 +196,7 @@ int32_t scoop_window_application_run(SWApplication *app) {
         return error;
       }
     }
-    sw_watch_dispatch(app, fds + 2, count, watches);
+    sw_watch_dispatch(app, fds + 3, count, watches);
     if (app->kind == SW_WAYLAND)
       sw_wayland_transfer_flush(app);
     free(watches);

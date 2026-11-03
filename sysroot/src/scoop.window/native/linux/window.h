@@ -71,7 +71,7 @@ typedef struct SWWindow SWWindow;
 typedef struct {
   SWCallback callback;
   void *context, *backend;
-  int kind, wake_fd, display_fd, error;
+  int kind, wake_fd, display_fd, decor_fd, error;
   bool stopped, error_reported, display_write_pending;
   double deadline;
   SWEvent *head, *tail;
@@ -139,6 +139,7 @@ int sw_dispatch_native(SWApplication *app);
 int sw_flush(SWApplication *app);
 void sw_set_geometry(SWWindow *window, double width, double height,
                      double scale);
+int64_t sw_transparency(SWWindow *window, bool transparent);
 uint64_t sw_modifiers(SWApplication *app);
 void sw_update_modifiers(SWWindow *window);
 void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat, bool text);

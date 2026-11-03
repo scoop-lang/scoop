@@ -34,3 +34,34 @@ int32_t scoop_test_x11_input(xcb_connection_t *connection,
   }
   return 1;
 }
+
+int32_t scoop_test_x11_opaque_region(xcb_connection_t *connection,
+                                     xcb_window_t window, int32_t width,
+                                     int32_t height) {
+  const char name[] = "_NET_WM_OPAQUE_REGION";
+  xcb_intern_atom_reply_t *atom = xcb_intern_atom_reply(
+      connection, xcb_intern_atom(connection, false, sizeof(name) - 1, name),
+      NULL);
+  if (!atom)
+    return 0;
+  xcb_get_property_reply_t *reply = xcb_get_property_reply(
+      connection,
+      xcb_get_property(connection, false, window, atom->atom, XCB_ATOM_CARDINAL,
+                       0, 4),
+      NULL);
+  free(atom);
+  if (!reply)
+    return 0;
+  bool valid;
+  if (!width && !height)
+    valid = reply->type == XCB_ATOM_NONE;
+  else {
+    uint32_t *values = xcb_get_property_value(reply);
+    valid = reply->format == 32 && reply->type == XCB_ATOM_CARDINAL &&
+            xcb_get_property_value_length(reply) == 16 && !values[0] &&
+            !values[1] && values[2] == (uint32_t)width &&
+            values[3] == (uint32_t)height;
+  }
+  free(reply);
+  return valid;
+}

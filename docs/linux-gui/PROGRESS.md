@@ -21,6 +21,8 @@ window 阶段已完成原生 X11／Wayland 接入、文档输入、剪贴板、�
 
 测试使用独立 Xvfb／Openbox 和嵌套 Weston，未操作用户桌面。原生 IME 候选窗、实体键盘布局切换、显示器热插拔和桌面合成器间差异尚未进行人工验收；协议不提供的全局位置等能力明确返回未知或不支持。
 
+窗口组合补验已闭合默认不透明区域与 libdecor 独立事件 fd：区域随 configure／resize／setTransparent 更新，装饰栏输入与内容输入共享 owner 的 poll 等待。扩展后的 window 测试仍在两后端各 13／13；X11 从服务器查询透明区域及尺寸，Wayland 以实际合成像素验证不透明／透明切换，并通过装饰栏按钮正常关闭。公开 UI consumer 还在两种后端验证了真实显示协议路由的合成键鼠、编辑选区／撤销／提交、按钮激活和跨进程 Unicode 剪贴板。
+
 graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文本使用 Fontconfig／FreeType。首次 configure 后创建实际尺寸的 EGL surface；resize 排空旧目标的 GPU 使用并重建 EGL surface，避免 Wayland 首帧及 X11 resize 的旧 backbuffer。GPU context 在窗口 lease 结束前 drain／abandon，剩余 GPU 资源操作明确失败，close 仍安全。按需帧在隐藏和 idle 时停止，PendingConfigure 保留内容及 dirty。验证结果：
 
 - `scoop.graphics`：37／37，包含真实 GLES 离屏绘图、GPU 资源生命周期与 CPU 快照。

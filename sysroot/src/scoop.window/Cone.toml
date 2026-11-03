@@ -233,6 +233,10 @@ path = "native/linux/text.c"
 when = { os = "linux", env = "gnu" }
 
 [[native.sources]]
+path = "native/linux/transparency.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
 path = "native/linux/watch.c"
 when = { os = "linux", env = "gnu" }
 

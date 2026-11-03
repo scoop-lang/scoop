@@ -104,6 +104,7 @@ private class LinuxHandler: ApplicationHandler {
                                     LogicalSize(360.0, 200.0)
                             ) {
                                 stage = 2
+                                verifyTransparency(value)
                                 value.setVisible(false)
                                 value.setVisible(true)
                                 value.requestRedraw()
@@ -205,6 +206,8 @@ private class LinuxHandler: ApplicationHandler {
         value.setCursorVisible(false);
         value.setCursorVisible(true)
         value.setTitle("窗口 😀")
+        value.setTransparent(true)
+        value.setTransparent(false)
         value.setImeAllowed(true);
         value.setImeAllowed(false)
         val monitors = application.monitors()
@@ -235,6 +238,7 @@ private class LinuxHandler: ApplicationHandler {
                     assertTrue(connection.toULong() != 0uL && handle != 0u && visual != 0u)
                     assertEquals(WindowState.Open, value.state)
                     assertEquals(LogicalSize(320.0, 180.0), value.metrics!!.logicalSize)
+                    verifyTransparency(value)
                     application.clipboard.writeText("中文 / 👩‍💻\r\nline\u{0}end")
                     assertEquals(Some("中文 / 👩‍💻\r\nline\u{0}end"), application.clipboard.readText())
                     application.clipboard.writeText("")
@@ -280,5 +284,25 @@ private class LinuxHandler: ApplicationHandler {
         application.setControlFlow(
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
         )
+    }
+
+    private fun verifyTransparency(value: Window) {
+        @Unsafe
+        {
+            when (lease!!.handle) {
+                case X11(connection, native, _) -> {
+                    val size = value.metrics!!.physicalSize
+                    assertEquals(1, hasX11OpaqueRegion(connection, native, size.width, size.height))
+                    assertEquals(RequestStatus.Applied, value.setTransparent(true))
+                    assertEquals(1, hasX11OpaqueRegion(connection, native, 0, 0))
+                    assertEquals(RequestStatus.Applied, value.setTransparent(false))
+                    assertEquals(1, hasX11OpaqueRegion(connection, native, size.width, size.height))
+                }
+                case Wayland(_, _) -> {
+                    assertEquals(RequestStatus.Applied, value.setTransparent(true))
+                    assertEquals(RequestStatus.Applied, value.setTransparent(false))
+                }
+            }
+        }
     }
 }

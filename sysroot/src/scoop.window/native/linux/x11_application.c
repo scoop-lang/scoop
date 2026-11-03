@@ -157,6 +157,7 @@ int sw_x11_initialize(SWApplication *app) {
   ATOM(size_hints, "WM_SIZE_HINTS");
   ATOM(wm_hints, "WM_HINTS");
   ATOM(theme, "_GTK_THEME_VARIANT");
+  ATOM(opaque, "_NET_WM_OPAQUE_REGION");
   ATOM(clipboard, "CLIPBOARD");
   ATOM(targets, "TARGETS");
   ATOM(text, "text/plain;charset=utf-8");

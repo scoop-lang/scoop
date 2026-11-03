@@ -184,6 +184,9 @@ int sw_wayland_initialize(SWApplication *app) {
   w->decor = libdecor_new(w->display, &decor_interface);
   if (!w->decor)
     return -2;
+  app->decor_fd = libdecor_get_fd(w->decor);
+  if (app->decor_fd < 0)
+    return -2;
   w->cursor_surface = wl_compositor_create_surface(w->compositor);
   sl_setup_clipboard(app);
   sl_setup_text(app);

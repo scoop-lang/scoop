@@ -32,7 +32,7 @@ typedef struct {
   xcb_atom_t net_state, above, below, maximized_h, maximized_v, hidden,
       attention;
   xcb_atom_t active, moveresize, frame_extents, motif, normal_hints, size_hints;
-  xcb_atom_t wm_hints, theme, clipboard, targets, text, transfer, incr,
+  xcb_atom_t wm_hints, theme, opaque, clipboard, targets, text, transfer, incr,
       timestamp;
   uint8_t *clipboard_text;
   size_t clipboard_length;

@@ -1,3 +1,4 @@
+#include "wayland.h"
 #include "x11.h"
 
 static int64_t hints(SWWindow *window) {
@@ -86,7 +87,13 @@ int64_t scoop_window_transparent(SWWindow *window, int32_t value) {
   if (value && window->application->kind == SW_X11 &&
       ((SXWindow *)window->backend)->depth != 32)
     return -1;
+  int64_t error = sw_transparency(window, value != 0);
+  if (error)
+    return error;
   window->transparent = value != 0;
+  if (window->application->kind == SW_WAYLAND && window->configured &&
+      ((SLWindow *)window->backend)->mapped)
+    wl_surface_commit(((SLWindow *)window->backend)->surface);
   return 0;
 }
 int64_t scoop_window_blur(SWWindow *window, int32_t value) {

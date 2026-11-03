@@ -230,11 +230,13 @@ PointerState 与 KeyEvent 均携带 InputTime，取消事件独立携带；平�
 
 Linux 桌面接入首先面向 `x86_64-unknown-linux-gnu`，复用第 2～8 节的应用、事件、关闭、lease、deadline 和 asyncio 合同。`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端；未设置时有 WAYLAND_DISPLAY 则选择 Wayland，否则选择 X11。显式选择或已选显示连接失败正常报错，不静默改用另一个显示服务器。`WindowBackend` 报告实际 Wayland／X11；原始 Application.run 不初始化 io_uring。
 
-X11 使用 XCB 与 XKB，XIM 接入使用 xcb-imdkit；Wayland 使用 wayland-client、xdg-shell、libdecor 与 xkbcommon。原生事件与 eventfd 唤醒、最近 deadline、借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。显示连接失联进入已有失败与关闭路径，不继续等待已失效的服务器。
+X11 使用 XCB 与 XKB，XIM 接入使用 xcb-imdkit；Wayland 使用 wayland-client、xdg-shell、libdecor 与 xkbcommon。原生显示连接、libdecor 自身的事件 descriptor、eventfd 唤醒、最近 deadline 和借入的 readable fd 共用 owner 上的 poll 等待，不增加轮询线程。libdecor 的装饰输入不能仅依赖内容 surface 的事件来偶然推进。watch 不读取或关闭借入的 descriptor，remove 在活动回调及本轮就绪快照退休后完成。显示连接失联进入已有失败与关闭路径，不继续等待已失效的服务器。
 
 X11 的配置、位置和窗口管理状态来自服务器通知／查询，DPI 读取 Xft.dpi，缺失时为 1；RandR 提供输出、当前模式与热插拔通知。Wayland 首次显示和隐藏后重显等待实际 configure；未配置时 metrics 为 None，不申请 drawable。零 configure 尺寸采用有效请求或上次内容尺寸。wl_output 的整数 scale 和可用的 fractional-scale／viewporter 决定逻辑／像素转换；没有全局窗口位置、主显示器或最小化观察协议时相应查询返回 None。输出身份在删除时退休。渲染层的 wl_egl_window 只在配置完成后调整像素大小。
 
 窗口装饰由 X11 窗口管理器或 Wayland libdecor 提供。没有协议的全局位置、置顶／置底、resize increments、内容保护、背景模糊、主题或激活请求明确返回 Unsupported；默认创建值不要求不存在的协议，调用方显式要求的创建属性若不支持则创建失败。Requested 只表示已发出有效原生请求；不能把 desired state 当成观察结果。
+
+Linux 的非透明内容区域随实际窗口尺寸发布：Wayland 使用 wl_surface 的 opaque region，X11 使用 `_NET_WM_OPAQUE_REGION`；设置透明时清除该区域。首个 configure、resize 和透明属性更新均同步这份合成状态，不能只保存本地属性而让默认非透明窗口仍透出桌面。X11 透明还要求带 alpha 的 visual 及实际合成器支持，window 不自行启动合成器；renderer 继续负责正确的预乘 alpha 像素。
 
 两个后端的物理键统一采用 Linux evdev 编码，未知物理键为 NativeKeyCode.LinuxEvdev，未知逻辑键保留 XkbKeysym。逻辑键来自当前 XKB 布局，compose／XIM／text-input-v3 的正文只经 TextInputBatch 交付一次。失焦取消组合和鼠标序列，并补发已经交付按下键的 synthetic release。Wayland 使用 compositor 的 repeat_info 仅为可重复、仍按下的键安排最近期限；没有活动按键时不唤醒。指针与键盘保存原生接收边界的 Observed 单调时间。
 

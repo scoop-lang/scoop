@@ -13,3 +13,7 @@ public fun destroyWaylandContent(content: Ptr<Unit>)
 /** Delivers X11 protocol events to the test's own window. These are synthesized input. */
 @Extern(name = "scoop_test_x11_input")
 public fun sendX11Input(connection: Ptr<Unit>, window: UInt): Int
+
+/** Reads the compositor-facing region from the X server; zero extents expect no region. */
+@Extern(name = "scoop_test_x11_opaque_region")
+public fun hasX11OpaqueRegion(connection: Ptr<Unit>, window: UInt, width: Int, height: Int): Int

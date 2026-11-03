@@ -99,6 +99,9 @@ void sw_set_geometry(SWWindow *window, double width, double height,
   value->scale = scale;
   window->configured = true;
   if (changed) {
+    int64_t error = sw_transparency(window, window->transparent);
+    if (error)
+      sw_fail(window->application, error);
     window->caret_known = false;
     sw_emit(window, 2);
   }
