@@ -2,6 +2,7 @@ package scoop.surface
 
 import scoop.test.*
 import scoop.window.*
+import scoop.graphics.Rect
 
 private class DefaultTestState {
     var trace = ""
@@ -10,8 +11,95 @@ private class DefaultTestState {
     var cancelled: Closeable? = None
 }
 
+private fun assertTextCommands(expected: Array<TextEditCommand>, actual: Array<TextEditCommand>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertEquals(expected[index], actual[index])
+}
+
 @Test
 private class InputDefaultsTest {
+    @Test
+    fun `ordered text commands share keyboard propagation and default cancellation`() {
+        InputRig().use {
+            rig ->
+            val state = DefaultTestState()
+            val root = rig.router.rootScope
+            val area = rig.area("editor", true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 30.0)) }
+            assertTrue(area.requestFocus())
+            val commands: Array<TextEditCommand> =
+                [
+                    TextEditCommand.Move(TextMovement.WordLeft, true),
+                    TextEditCommand.Delete(TextDeletion.WordForward)
+                ]
+            val key =
+                KeyEvent(
+                    PhysicalKey.Code(KeyCode.KeyA),
+                    LogicalKey.Character("a"),
+                    KeyLocation.Standard,
+                    ElementState.Pressed,
+                    false,
+                    inputModifiers(),
+                    false,
+                    inputObservation(),
+                    textCommands = commands
+                )
+            root.captureHandler =
+                {
+                    context, _ ->
+                    state.trace += "capture,";
+                    context.preventDefault()
+                }
+            area.scope.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Keyboard(value) -> {
+                            assertTextCommands(commands, value.textCommands)
+                            state.trace += "target,"
+                        }
+                        else -> {}
+                    }
+                }
+            root.handler =
+                {
+                    _,
+                    event -> when (event) {
+                        case Keyboard(value) -> {
+                            assertTextCommands(commands, value.textCommands);
+                            state.trace += "bubble,"
+                        }
+                        else -> {}
+                    }
+                }
+            area.scope.defaultAction =
+                {
+                    context,
+                    event -> when (event) {
+                        case Keyboard(value) -> {
+                            for (command in value.textCommands)
+                                when (command) {
+                                    case Move(TextMovement.WordLeft, true) -> state.trace += "move,"
+                                    case Delete(
+                                        TextDeletion.WordForward
+                                    ) -> state.trace += "delete,"
+                                    else -> fail(Some("unexpected routed text command"))
+                                }
+                            context.consume()
+                        }
+                        else -> {}
+                    }
+                }
+            rig.router.event(WindowEvent.Keyboard(key))
+            assertEquals("capture,target,bubble,", state.trace)
+            state.trace = ""
+            root.captureHandler = { _, _ -> state.trace += "capture," }
+            rig.router.event(WindowEvent.Keyboard(key))
+            assertEquals("capture,target,bubble,move,delete,", state.trace)
+        }
+    }
+
     @Test
     fun `default registrations freeze membership keep separate borrows and cancel immediately`() {
         InputRig().use {

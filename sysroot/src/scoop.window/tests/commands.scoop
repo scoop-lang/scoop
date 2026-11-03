@@ -1,0 +1,128 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.exerciseNativeCommands
+import scoop.time.Duration
+import scoop.window.native.*
+
+@Test
+private class NativeTextCommandsTest {
+    @Test
+    fun `native editing commands remain ordered and IME consumption suppresses duplicate keys`() {
+        val handler = CommandsHandler()
+        Application(ApplicationOptions(LastWindowPolicy.Exit)).run(handler)
+        assertTrue(handler.verified)
+    }
+}
+
+private class CommandsHandler: ApplicationHandler {
+    var window: Window? = None
+    var started = false
+    var verified = false
+    var enabled = 0
+    var disabled = 0
+    var batches = 0
+    var text = TextInputState("", Utf8Selection(0L, 0L))
+    val keys = ArrayList<KeyEvent>()
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val created =
+                    application.createWindow(
+                        WindowAttributes("Native text commands", LogicalSize(240.0, 100.0))
+                    )
+                window = Some(created)
+                created.setWindowLevel(WindowLevel.AlwaysOnTop)
+                created.requestFocus()
+                created.requestRedraw()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("native command test deadline"))
+            case Window(_, WindowEvent.Focused(true)) -> {
+                if (!started)
+                    window!!.requestRedraw()
+            }
+            case Window(_, WindowEvent.RedrawRequested) -> {
+                if (!started && window!!.isFocused) {
+                    started = true
+                    window!!.setImeAllowed(true)
+                    @Unsafe
+                    {
+                        window!!.acquireNativeWindow().use {
+                            lease -> @Unsafe
+                            {
+                                when (lease.handle) {
+                                    case AppKit(_, view) -> assertEquals(
+                                        0,
+                                        exerciseNativeCommands(view)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    window!!.setImeAllowed(false)
+                    window!!.requestRedraw()
+                } else
+                    if (started) {
+                        verify()
+                        verified = true
+                        window!!.requestDestroy()
+                    }
+            }
+            case Window(_, WindowEvent.Keyboard(value)) -> keys.add(value)
+            case Window(_, WindowEvent.TextInput(value)) -> when (value) {
+                case Enabled -> enabled += 1
+                case Disabled -> disabled += 1
+                case Edit(batch) -> {
+                    text = text.apply(batch);
+                    batches += 1
+                }
+            }
+            else -> {}
+        }
+    }
+
+    private fun verify() {
+        gcCollect()
+        assertEquals(13L, keys.size)
+        assertEquals(1, enabled)
+        assertEquals(1, disabled)
+        assertEquals(8, batches)
+        assertEquals("中文x", text.surroundingText)
+        assertEquals(None, text.markedRange)
+        assertEquals(8L, text.revision)
+        assertEquals(1L, keys[0L].textCommands.size)
+        assertEquals(TextEditCommand.Move(TextMovement.Left, false), keys[0L].textCommands[0L])
+        assertEquals(1L, keys[2L].textCommands.size)
+        assertEquals(TextEditCommand.Move(TextMovement.WordLeft, true), keys[2L].textCommands[0L])
+        for (index in [4L, 10L, 11L]) {
+            assertEquals(3L, keys[index].textCommands.size)
+            assertEquals(
+                TextEditCommand.Move(TextMovement.WordLeft, true),
+                keys[index].textCommands[0L]
+            )
+            assertEquals(
+                TextEditCommand.Delete(TextDeletion.WordForward),
+                keys[index].textCommands[1L]
+            )
+            assertEquals(TextEditCommand.InsertNewline, keys[index].textCommands[2L])
+        }
+        assertEquals(LogicalKey.Character("s"), keys[6L].logicalKey)
+        assertEquals(0L, keys[6L].textCommands.size)
+        assertEquals(LogicalKey.Character("x"), keys[8L].logicalKey)
+        assertEquals(0L, keys[8L].textCommands.size)
+        assertFalse(keys[10L].isRepeat)
+        assertTrue(keys[11L].isRepeat)
+        assertTrue(keys[12L].synthetic)
+        for (key in keys) {
+            assertNotEquals(LogicalKey.Named(NamedKey.Enter), key.logicalKey)
+            assertNotEquals(LogicalKey.Named(NamedKey.Escape), key.logicalKey)
+            if (key.state == ElementState.Released)
+                assertEquals(0L, key.textCommands.size)
+        }
+    }
+}

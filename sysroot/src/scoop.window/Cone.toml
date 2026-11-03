@@ -76,6 +76,10 @@ path = "native/darwin/keyboard.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/commands.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/pointer.m"
 when = { os = "darwin" }
 

@@ -109,7 +109,11 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 
 ## 5. 输入与文本
 
-KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+
+TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
+
+AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。未知 selector 保留已有按键信息供上层回退，不伪造语义。没有 AppKit selector 的平台保持空列表；此次没有增加 Windows 编辑实现。上层优先使用非空命令列表，空列表才使用平台缺省映射；两者必须沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑。
 
 macOS 提供 `LogicalKey.matchesShortcut(other)`，供上层匹配已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。实际匹配所需修饰键、重复及作用域由 Surface 的快捷键层处理。
 
@@ -121,7 +125,7 @@ AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／C
 
 IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标；没有文档位置可报告时，characterIndex 和 actualRange 返回 NSNotFound。
 
-接入开启后，每次 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理及确认消耗的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经提交组合时不再次交付确认键。Command／Control 快捷键正常交付 Keyboard，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
+接入开启后，普通 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理、确认及取消已消费的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经改变／提交／取消组合时不再次交付确认或取消键，即使命令早于该次组合编辑产生也如此。Command／Control 快捷键继续直接交付 Keyboard，缺省编辑映射使用实际修饰信息，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
 
 TextInputState 是应用可选用的纯值编辑辅助，包含 surroundingText、selection、markedRange?、caretRect、revision；它不是本阶段自动发布给 OS 的文档镜像。selection 保存 anchor／cursor，不能排序后丢失选择活动端；markedRange 为 Utf8Range。只修改候选窗位置不推进应用文本 revision。组合与真实编辑状态由上层编辑器持有，窗口库不负责排版或 grapheme 导航。
 

@@ -43,6 +43,7 @@ typedef struct {
 @property(nonatomic) SWEventData data;
 @property(nonatomic, strong) NSData *text;
 @property(nonatomic, strong) NSArray<SWTextEdit *> *edits;
+@property(nonatomic, strong) NSArray<NSNumber *> *commands;
 @end
 
 @interface SWApplication : NSObject <NSApplicationDelegate>
@@ -72,6 +73,7 @@ typedef struct {
 @property(nonatomic, strong) NSString *markedText;
 @property(nonatomic) NSRange markedSelection;
 @property(nonatomic, strong) NSMutableArray<SWTextEdit *> *textEdits;
+@property(nonatomic, strong) NSMutableArray<NSNumber *> *textCommands;
 @property(nonatomic) NSUInteger textBatchDepth;
 @property(nonatomic) BOOL textBatchHadMarked, textBatchInvalid;
 @property(nonatomic) BOOL compositionConsumed, compositionCommitted, forwardKey;
@@ -99,6 +101,7 @@ enum {
 };
 void sw_commit(SWView *view, NSString *text);
 void sw_modifiers(SWView *view, NSEventModifierFlags flags);
+int32_t sw_text_command(SEL selector);
 
 @interface SWWindow : NSObject <NSWindowDelegate>
 @property(nonatomic, weak) SWApplication *application;

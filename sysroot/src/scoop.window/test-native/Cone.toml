@@ -27,6 +27,10 @@ path = "native/input.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/commands.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/text.m"
 when = { os = "darwin" }
 

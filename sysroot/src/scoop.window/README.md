@@ -63,6 +63,8 @@ macOS 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文�
 
 应用只从编辑批次插入文字，不再从 `KeyEvent.logicalKey` 额外插入字符。输入法消耗的候选选择／确认键不会再作为普通按键交付；普通快捷键保留 Keyboard 事件。失焦会撤销 active preedit，并为已交付的按下状态补发 synthetic release。
 
+macOS 把原生解释出的移动、删除、提交等语义保存在 `KeyEvent.textCommands`；多条命令保留顺序，随该次按下事件进入同一输入路由。空列表表示由编辑器使用平台缺省键位，keyup 和 synthetic release 没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
+
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit／IMM32 的 UTF-16 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
 本阶段的 AppKit／IMM32 桥只保存当前 native marked text 和候选窗矩形，不保存应用文档。它产生 `baseRevision=None`、`CurrentSelection` 的 Preedit／Commit；AppKit 已知 marked segment 内的原生替换先归一为整段替换。无效范围拒绝整批，只在应用已收到旧 preedit 时发一次撤销。文档 surrounding、重转换、purpose 和编辑器布局后续按实际需要扩展。

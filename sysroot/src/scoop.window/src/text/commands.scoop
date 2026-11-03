@@ -1,0 +1,21 @@
+package scoop.window
+
+/** Logical and visual motions are distinct, especially in bidirectional text. */
+public enum TextMovement {
+    Backward, Forward, Left, Right, Up, Down,
+    WordBackward, WordForward, WordLeft, WordRight,
+    LineStart, LineEnd, LineLeft, LineRight,
+    ParagraphStart, ParagraphEnd, DocumentStart, DocumentEnd, PageUp, PageDown
+}
+
+/** Deletions use graphemes, Unicode words, or the named line/paragraph boundary. */
+public enum TextDeletion {
+    Backward, Forward, WordBackward, WordForward, LineStart, LineEnd, ParagraphStart, ParagraphEnd
+}
+
+/** Native editing interpretation carried by the same routed keyboard event. */
+public enum TextEditCommand {
+    Move(val movement: TextMovement, val extendSelection: Boolean),
+    Delete(TextDeletion), Copy, Cut, Paste, SelectAll, Undo, Redo,
+    InsertNewline, InsertTab, InsertBacktab, Cancel
+}

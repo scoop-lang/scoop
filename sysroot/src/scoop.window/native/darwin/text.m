@@ -94,6 +94,7 @@ void sw_commit(SWView *view, NSString *text) {
   if (self.textBatchDepth++ != 0)
     return;
   self.textEdits = [NSMutableArray new];
+  self.textCommands = [NSMutableArray new];
   self.textBatchHadMarked = self.markedText.length != 0;
   self.textBatchInvalid = NO;
   self.compositionConsumed = self.textBatchHadMarked;
@@ -118,6 +119,7 @@ void sw_commit(SWView *view, NSString *text) {
     [self.owner.application enqueue:event];
   }
   self.textEdits = nil;
+  self.textCommands = nil;
 }
 - (void)cancelComposition {
   if (self.discardingText)
@@ -197,10 +199,14 @@ void sw_commit(SWView *view, NSString *text) {
   [self cancelComposition];
 }
 - (void)doCommandBySelector:(SEL)command {
-  // Some IMEs issue a command after committing the same key (for example
-  // Enter).
-  if (!self.compositionCommitted)
+  // Commands after an IME edit belong to the already-consumed native key.
+  if (!self.compositionCommitted &&
+      !(self.compositionConsumed && self.textEdits.count)) {
     self.forwardKey = YES;
+    int32_t code = sw_text_command(command);
+    if (code)
+      [self.textCommands addObject:@(code)];
+  }
 }
 - (NSArray<NSAttributedStringKey> *)validAttributesForMarkedText {
   return @[];

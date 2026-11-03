@@ -31,7 +31,7 @@
 | E2：滚动容器分块像素缓存 | 已完成 aarch64 实施和定向验证 |
 | F1a：Unicode 词边界与视觉光标导航 | 已完成 aarch64 实施和定向验证 |
 | F1b1：应用所属的 GUI 纯文本剪贴板 | 已完成 aarch64 实施和定向验证 |
-| F1b2：原生编辑命令 | 待实施 |
+| F1b2：原生编辑命令 | 已完成 aarch64 实施和定向验证 |
 | F1b3：原生文本快照与连接几何 | 待实施 |
 | F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
 
@@ -296,3 +296,13 @@ macOS 的 ActiveApplication.clipboard 和 Window.clipboard 提供同一应用 ow
 Scoop 格式、窗口库生产／测试源码类型检查、Objective-C arm64 警告检查及窗口库 aarch64 release 构建通过。2 项真实 AppKit scoop.test 通过：ClipboardTest 和既有 AppKitApplicationTest。新用例覆盖 Unicode／空文本／无文本、原生 writeObjects 失败后继续写入、owner 线程、窗口销毁后的应用入口及退出失效；测试在 finally 恢复原有剪贴板全部 item／type 的数据，失败注入只替换一次测试进程中的原生方法，没有生产测试开关。已有键盘／IME 和窗口关闭回归通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。2 份一次性原生测试报告清理，当前测试产物及共享构建缓存保留。
+
+## F1b2：原生编辑命令
+
+KeyEvent.textCommands 保存原生按键解释中的有序语义命令，区分逻辑／视觉移动、选择扩展、删除、剪贴板、撤销和提交。AppKit 将 selector 映射为该次 Keyboard 的自有载荷；keyup、synthetic release 和修饰状态没有命令，未知 selector 保留按键回退，Windows 的既有键盘记录保持空列表。没有增加独立编辑事件或绕过 Surface 默认阶段。
+
+原生在整次 keyDown 解释结束时确认组合是否已改变、提交或取消，即使命令出现在组合编辑之前，也不重复交付被消费的按键。普通文字仍只从 TextInputBatch 插入，Window 不负责执行命令。
+
+Scoop 格式、Window／Surface 测试源码类型检查、Objective-C arm64 警告检查及 17 个 UI 依赖库的 aarch64 release 构建通过。4 项定向 scoop.test 通过：NativeTextCommandsTest、AppKitApplicationTest、InputDefaultsTest 的 2 项用例。覆盖真实系统 Option／Shift 词导航、多个 selector 的顺序、自有数据在 GC 后可读、重复／释放、未知回退、中文确认和日文取消、单次普通提交，以及同一路由的 capture／target／bubble 和 preventDefault。测试中 Array 的断言改为逐元素比较，Unsafe 构造回调使用显式返回；无需编译器或底层系统库修复。
+
+没有 fixture、全量或 x86_64 验证。3 份一次性报告与 5 个被当前主 Cone 产物替代的测试输出清理；独立 sysroot、本批产物及共享缓存保留。

@@ -69,6 +69,8 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
         dataUsingEncoding:NSUTF8StringEncoding];
   }
   event.data = data;
+  if (down && keyEvent)
+    event.commands = [view.textCommands copy];
   if (down)
     view.pressedKeys[code] = event;
   else
@@ -87,7 +89,10 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
       [self interpretKeyEvents:@[ event ]];
     else if (!shortcut)
       sw_commit(self, event.characters);
-    if (shortcut || !self.compositionConsumed || self.forwardKey)
+    BOOL editedComposition = self.compositionConsumed &&
+                             (self.textEdits.count || self.textBatchInvalid);
+    if (shortcut ||
+        (!editedComposition && (!self.compositionConsumed || self.forwardKey)))
       key(self, event, YES);
   } @finally {
     [self endTextBatch];
