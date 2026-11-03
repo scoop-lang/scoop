@@ -73,6 +73,12 @@ pub enum CodegenTuning {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuntimeTuning {
+    OutOfLineGcForwarding,
+    InlineGcForwarding,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct TargetDefinition {
     pub selection: ValidatedLirTargetSelection,
     pub aliases: &'static [&'static str],
@@ -87,6 +93,7 @@ pub struct TargetDefinition {
     pub c_bridge_profile: &'static str,
     pub native_rust_target: &'static str,
     pub tuning: CodegenTuning,
+    pub runtime_tuning: RuntimeTuning,
 }
 
 impl TargetDefinition {

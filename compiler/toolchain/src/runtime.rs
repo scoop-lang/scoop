@@ -36,6 +36,7 @@ struct RuntimeComponents {
     thread_vm_ops_flag: &'static str,
     managed_frame_ops_flag: &'static str,
     c_long_size_flag: &'static str,
+    gc_forwarding_flag: &'static str,
     os_flags: &'static [&'static str],
     image_flags: &'static [&'static str],
     frame_flags: &'static [&'static str],
@@ -78,10 +79,20 @@ impl ValidatedRuntimeBuildProfile {
                 )));
             }
         };
-        let (image, image_flags): (_, &[_]) = match target.native_object_format() {
-            NativeObjectFormat::MachO64 => (sources::MACHO_IMAGE, &[]),
-            NativeObjectFormat::Elf64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
-            NativeObjectFormat::Coff64 => (sources::PE_IMAGE, &[]),
+        let gc_forwarding_flag = match definition.runtime_tuning {
+            scoop_target_data::RuntimeTuning::OutOfLineGcForwarding => {
+                sources::OUT_OF_LINE_GC_FORWARDING
+            }
+            scoop_target_data::RuntimeTuning::InlineGcForwarding => sources::INLINE_GC_FORWARDING,
+        };
+        let (image, image_flags): (_, &[_]) = match target.object_target() {
+            ObjectTargetProfileV1::MachOAarch64 | ObjectTargetProfileV1::MachOX86_64 => {
+                (sources::MACHO_IMAGE, &[])
+            }
+            ObjectTargetProfileV1::ElfX86_64 => (sources::ELF_IMAGE, &["-fvisibility=hidden"]),
+            ObjectTargetProfileV1::CoffAmd64 => {
+                (sources::PE_IMAGE, &[sources::PE_AMD64_IMAGE_MACHINE])
+            }
         };
         let (loaded_image, trace_loader, metadata_image_ops_flag): (&[&str], &[&str], &str) =
             match (definition.os, target.native_object_format()) {
@@ -170,6 +181,7 @@ impl ValidatedRuntimeBuildProfile {
             thread_vm_ops_flag,
             managed_frame_ops_flag,
             c_long_size_flag,
+            gc_forwarding_flag,
             os_flags,
             image_flags,
             frame_flags,
@@ -214,6 +226,7 @@ impl ValidatedRuntimeBuildProfile {
                 components.thread_vm_ops_flag,
                 components.managed_frame_ops_flag,
                 components.c_long_size_flag,
+                components.gc_forwarding_flag,
             ])
             .collect()
     }

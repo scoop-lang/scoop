@@ -351,6 +351,8 @@ stack trace 也采用相同边界：`stack_trace/elf.c` 只解析显式 image vi
 
 各具体 image／VM／frame ops 保留具名符号，便于模块级 C 测试直接调用；公共 bundle translation unit 是唯一汇合这些投影的 runtime 源，但其源码本身不知道完整 target 名称。
 
+当前 runtime build 还把现有实测 GC forwarding 内联策略作为独立 runtime tuning 投影传入，并由 object target 为 PE image parser 提供当前 machine 常量。通用 C 源不再从 `__x86_64__` 猜调优，也不把 `IMAGE_FILE_MACHINE_AMD64` 固定成 PE 容器事实；未来 machine 只需在各自所有者增加经过验证的 tuning 与 object-machine 映射。
+
 ## 6. 对象格式、relocation 与 unwind
 
 ### 6.1 容器、machine 和 header ABI 分层

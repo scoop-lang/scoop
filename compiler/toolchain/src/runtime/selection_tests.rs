@@ -18,6 +18,8 @@ struct ExpectedComponents {
     thread_vm_ops: &'static str,
     managed_frame_ops: &'static str,
     c_long_size: &'static str,
+    image_machine: Option<&'static str>,
+    inline_gc_forwarding: bool,
     no_red_zone: bool,
 }
 
@@ -85,6 +87,21 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
             profile.canonical_triple()
         );
     }
+    assert_eq!(
+        flags.contains(&"-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1"),
+        expected.inline_gc_forwarding
+    );
+    assert_eq!(
+        flags.contains(&"-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0"),
+        !expected.inline_gc_forwarding
+    );
+    assert_eq!(
+        flags
+            .iter()
+            .copied()
+            .find(|flag| flag.starts_with("-DSCOOP_PE_IMAGE_MACHINE=")),
+        expected.image_machine
+    );
 }
 
 #[test]
@@ -105,6 +122,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
             thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
             managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
             c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
+            image_machine: None,
+            inline_gc_forwarding: false,
             no_red_zone: false,
         },
     );
@@ -124,6 +143,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
             thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
             managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
             c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
+            image_machine: None,
+            inline_gc_forwarding: true,
             no_red_zone: true,
         },
     );
@@ -147,6 +168,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_linux_thread_vm_ops",
                 managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
                 c_long_size: "-DSCOOP_TARGET_LONG_SIZE=8",
+                image_machine: None,
+                inline_gc_forwarding: true,
                 no_red_zone: true,
             },
         );
@@ -172,6 +195,8 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_windows_thread_vm_ops",
                 managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_windows_amd64_managed_frame_ops",
                 c_long_size: "-DSCOOP_TARGET_LONG_SIZE=4",
+                image_machine: Some("-DSCOOP_PE_IMAGE_MACHINE=IMAGE_FILE_MACHINE_AMD64"),
+                inline_gc_forwarding: true,
                 no_red_zone: true,
             },
         );

@@ -97,6 +97,9 @@ pub(super) const LINUX_ELF_METADATA_IMAGE_OPS: &str =
     "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_linux_elf_metadata_image_ops";
 pub(super) const PE_METADATA_IMAGE_OPS: &str =
     "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_pe_metadata_image_ops";
+pub(super) const PE_AMD64_IMAGE_MACHINE: &str = "-DSCOOP_PE_IMAGE_MACHINE=IMAGE_FILE_MACHINE_AMD64";
+pub(super) const OUT_OF_LINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0";
+pub(super) const INLINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1";
 pub(super) const DARWIN_AARCH64_FRAME_OPS: &str =
     "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops";
 pub(super) const SYSV_AMD64_FRAME_OPS: &str =

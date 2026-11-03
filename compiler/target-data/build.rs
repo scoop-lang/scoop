@@ -31,6 +31,7 @@ struct Target {
     scoop_abi: String,
     exception_model: String,
     tuning: String,
+    runtime_tuning: String,
     codegen_deployment: String,
     native_environment: String,
     final_link: String,
@@ -131,6 +132,7 @@ fn main() {
             &target.scoop_abi,
             &target.exception_model,
             &target.tuning,
+            &target.runtime_tuning,
         ] {
             identifier(name);
         }
@@ -203,11 +205,12 @@ fn main() {
             c_bridge_profile,
             native_rust_target,
             tuning,
+            runtime_tuning,
             ..
         } = target;
         let target_os = target_os(os);
         let architecture = target_architecture(arch);
-        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, codegen_deployment: CodegenDeploymentProfile::{codegen_deployment}, native_environment: NativeEnvironment::{native_environment}, final_link: FinalLinkProfile::{final_link}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning} }},").unwrap();
+        writeln!(output, "TargetDefinition {{ selection: {symbol}_LLVM_22_1, aliases: &{aliases:?}, versioned_aliases: &{versioned_aliases:?}, os: TargetOs::{target_os}, architecture: scoop_lir::TargetArchitecture::{architecture}, env: {env:?}, llvm_triple: {llvm_triple:?}, codegen_deployment: CodegenDeploymentProfile::{codegen_deployment}, native_environment: NativeEnvironment::{native_environment}, final_link: FinalLinkProfile::{final_link}, c_bridge_profile: {c_bridge_profile:?}, native_rust_target: {native_rust_target:?}, tuning: CodegenTuning::{tuning}, runtime_tuning: RuntimeTuning::{runtime_tuning} }},").unwrap();
     }
     output.push_str("];\npub const fn definition(id: TargetProfileId) -> Option<TargetDefinition> { match id {\n");
     for (index, target) in catalog.targets.iter().enumerate() {

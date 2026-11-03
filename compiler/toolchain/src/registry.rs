@@ -206,6 +206,7 @@ mod tests {
                     "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
                     "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
                     "-DSCOOP_TARGET_LONG_SIZE=8",
+                    "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0",
                 ]
             );
             assert!(profile.final_link().unwrap().linker_driver().is_absolute());
