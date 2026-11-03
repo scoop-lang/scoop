@@ -92,7 +92,7 @@ fn c_bridge_toolchain_contract_and_fingerprints_match_fixed_vectors() {
         "a801a301781d6f72672e73636f6f702d6c616e672e7461726765742d70726f66696c65026e64617277696e2d61617263683634030102582080dc53948c3c991a0ee6c01cec8b8ade9ff0e2eb0e8a44b885ae0ec34b2a16370374616172636836342d6170706c652d64617277696e04a40101021a000d0100031a000e02000481a20101021a1000020005a40115020003000472636c616e672d323130302e312e312e313031065820697290aeee34a7c9c2ef092c7a1fadcf6aaeabddd7f7026aa18a0efa78f8092d0758208f314440b379f395521bfef94a78be5baf19a3cc62add05363b83d3ea242b1fd08a301800261430363555443"
     );
     assert_eq!(
-        CanonicalCBridgeFlagContractV1::CURRENT
+        CanonicalCBridgeFlagContractV1::DarwinAppleClangAarch64
             .fingerprint()
             .unwrap()
             .to_string(),
@@ -130,7 +130,7 @@ fn windows_c_profiles_separate_environments_and_preserve_seh_flags() {
         assert!(profile.contract().deployment().is_err());
     }
     assert!(crate::windows_c_bridge_profile(crate::LINUX_X86_64_GNU, compiler).is_err());
-    let flags = CanonicalCBridgeFlagContractV1::WindowsClang.flags();
+    let flags = CanonicalCBridgeFlagContractV1::WindowsClangAmd64.flags();
     assert!(flags.contains(&CanonicalCBridgeFlagV1::WindowsSeh));
     assert!(flags.contains(&CanonicalCBridgeFlagV1::ReproducibleCoff));
     assert!(flags.contains(&CanonicalCBridgeFlagV1::UnwindTables));

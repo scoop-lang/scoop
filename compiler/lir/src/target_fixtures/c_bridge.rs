@@ -13,7 +13,7 @@ pub fn darwin_c_bridge_profile(
             deployment,
             compiler,
         },
-        CanonicalCBridgeFlagContractV1::CURRENT,
+        CanonicalCBridgeFlagContractV1::DarwinAppleClangAarch64,
     )?;
     CBridgeToolchainProfileV1::new(
         CBridgeToolchainProfileId::new("darwin-aarch64-apple-clang", 1).unwrap(),

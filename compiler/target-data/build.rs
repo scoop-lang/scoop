@@ -103,6 +103,15 @@ fn codegen_deployment_os(value: &str) -> &'static str {
     }
 }
 
+fn native_environment_os(value: &str) -> &'static str {
+    match value {
+        "Darwin" => "darwin",
+        "LinuxGnu" | "LinuxMusl" => "linux",
+        "MicrosoftUcrt" | "LlvmMingwMsvcrt" | "LlvmMingwUcrt" => "windows",
+        _ => panic!("unsupported native environment {value:?}"),
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-changed=targets.toml");
     let catalog: Catalog = toml::from_str(&fs::read_to_string("targets.toml").unwrap()).unwrap();
@@ -164,6 +173,11 @@ fn main() {
             target.os,
             final_link_os(&target.final_link),
             "target OS and final-link profile differ for {canonical}"
+        );
+        assert_eq!(
+            target.os,
+            native_environment_os(&target.native_environment),
+            "target OS and native environment differ for {canonical}"
         );
         writeln!(
             output,
