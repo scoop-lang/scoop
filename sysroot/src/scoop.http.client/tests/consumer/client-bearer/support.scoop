@@ -1,4 +1,4 @@
-package scoop.tests
+package scoop.http.client.tests.consumer.client_bearer
 
 import scoop.asyncio.*
 import scoop.collections.emptyList

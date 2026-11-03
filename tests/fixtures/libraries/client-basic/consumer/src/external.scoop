@@ -1,4 +1,4 @@
-package scoop.tests
+package scoop.http.client.tests.consumer.client_basic
 
 import scoop.asyncio.*
 import scoop.crypto.x509.TrustStore

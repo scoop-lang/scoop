@@ -201,6 +201,19 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 
 所有 Cone 的 API 改动只用 scoop.test 验证，测试放在所属 Cone 或实际需要的独立测试 Cone，不为库 API 迁移新增或直接修改 fixture。受影响的既有 fixture 必须先按第 6 节评估并迁移普通行为；确有必要保留时才更新 fixture，并记录保留理由。缺少必需参数、错误 receiver 类型等已有语言规则不按控件重复建立负例。
 
+URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按实际 peer 与测试内容评估，迁移边界如下：
+
+| 受影响组 | 处理与保留理由 |
+| --- | --- |
+| client-basic、client-bearer | 将策略、凭据、选择、缓存／刷新、取消／清理及 HTTP/2 的进程内 loopback 用例迁入 scoop.http.client 的 scoop.test，保留原有线程组合与分支覆盖。fixture 仅保留独立 Python HTTP/1 peer 对认证挑战、100-continue／压缩与 trailers、跨 origin 重定向字节及连接次数的断言；共享实际使用的测试 helper 源码。 |
+| client-bearer-lifetime | Python 只启动普通行为程序，没有独立 peer。共享失败、共享清理两个用例迁入同一 Cone；其余重复的取消用例由上述测试覆盖，删除这组 fixture。 |
+| client-observer、client-interceptors | 保留 Python peer 对实际请求、签名字节、重试／缓存请求次数、截断响应以及未发布响应／WebSocket 连接关闭的断言。普通 observer 行为继续由所属 Cone 已有测试验证。 |
+| client-observer-secure | 保留独立 TLS／HTTP2／代理 peer 对 ALPN、握手失败、隧道与连接复用次数的断言。 |
+| client-websocket、client-websocket-secure | 保留独立 WebSocket peer 的握手随机 key、非法响应、帧与压缩字节，以及 TLS／HTTP2 并存、ALPN 和客户端证书互操作验证。 |
+| client-websocket-proxy、client-websocket-auth | 保留 CONNECT／SOCKS5／TLS 嵌套协议、认证字段隔离及独立 Digest 校验；这些断言发生在外部 peer 观察到的真实传输上。 |
+
+先完成上述普通行为的测试归位，再更新 URL 调用。保留 fixture 只在这些外部协议合同范围复验，不用它们代替新 URL API 的 scoop.test。
+
 成员／顶层工厂与 alias 的组合放在真实跨 Cone 的 scoop.test 消费测试中。D0a 是编译器语言规则变更，其拒绝编译与诊断位置无法由 scoop.test 断言，因此保留代表性 expected-error fixture，覆盖外层 receiver 的隐式读取、赋值／复合赋值、方法／扩展／函数属性调用和必要的实例绑定；同类型不同 receiver、普通／suspend receiver、嵌套普通回调及泛型／跨 Cone 消费按实际语言规则覆盖。显式 `this@label`、对象别名、普通词法捕获和已有函数值适配为正例。
 
 原 nested、lookup、initializers 三组 receiver fixture 只断言运行结果，已将其嵌套接收者、成员优先级、扩展属性与初始化行为迁入 [receivers 测试 Cone](../../tests/cones/receivers/README.md)，并增加跨 Cone 与函数值适配覆盖。隐式外层使用的编译错误和诊断位置保留在 [implicit-outer fixture](../../tests/fixtures/language/receivers/implicit-outer/program.scoop)。HIR 与编辑查询的定向回归验证候选探测不误报、选中外层成员不能回退改绑及两类入口一致；不修改捕获或 runtime 协议。后续 `@DslMarker` 不重复这些已覆盖的检查。
@@ -230,3 +243,4 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 | 2026-11-03 | D0 公共约定 | 接收者构造入口、必需参数、快照、覆盖、子项与显式外层引用已写入 API 风格规范；StringBuilder／ByteArrayBuilder 排除，Cone 验证和 fixture 先评估规则已同步。各领域完整签名随对应批次先行落实；此批只改文档。 |
 | 2026-11-03 | D0a 外层 receiver | 语言规范、HIR 实际绑定和编辑查询统一禁止隐式外层 receiver；显式捕获与函数值适配保留。三组运行行为 fixture 迁入 receivers 测试 Cone；编译诊断保留必要 fixture。Rust 格式化与 workspace clippy 通过，HIR 全量 2,133 项及后补定向组 13 项通过；本机 aarch64 macOS release 的 7 项 scoop.test、47 个 receiver fixture 通过。合并 origin/main 的 target/runtime 重构后，重建配套工具、基础库与 runtime，Clippy 和同组 13／7／47 项增量复验通过。本任务未改 LIR／codegen。 |
 | 2026-11-03 | D4 JSON | jsonObject／jsonArray、Unit add、内部构造与快照已替换公开链式 builder；实现、测试、示例与当前文档同步更新。无受影响 fixture。本机 aarch64 macOS release 的 JSON 整库 105 项 scoop.test 通过；预编译库的 2 项临时消费测试覆盖默认配置与 value_tree 示例，公开 API 文档生成和签名检查通过。 |
+| 2026-11-03 | D4 URL 前置测试归位 | 评估九组直接受影响的 HTTP fixture 及一个共享源码调用组。Basic／Bearer 的普通认证行为与 lifetime 独有用例迁入 scoop.http.client，19 个 scoop.test 入口覆盖 79 个场景并保留双线程组合；先验 17 项、再验新增 2 项，全部通过。删除 client-bearer-lifetime；保留的 Basic／Bearer HTTP/1 peer fixture 共 2 项通过。Scoop 格式化与 Python Ruff 检查通过，正式 API 尚未在此批修改。已用当前配套工具完整准备本机 aarch64 macOS 开发 sysroot。 |

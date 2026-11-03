@@ -1,7 +1,7 @@
 schema = 1
 [cone]
 kind = "executable"
-group = "scoop.tests"
+group = "scoop"
 name = "m54-client-basic"
 version = "0.1.0"
 
