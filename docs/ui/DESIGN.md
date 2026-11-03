@@ -2,6 +2,8 @@
 
 日期：2026-11-02。状态：`scoop.ui` 的独立自绘框架和公共文本适配、公共 `scoop.ui.style`、主题绘图／几何和三套风格、基础控件／容器、主题展示及后台下载组合已完成 macOS aarch64 实施与 x86_64 统一补验，范围见 [UI 实施记录](PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续接入。框架公开行为见 [UI 规范](../specs/SCOOP-UI-SPEC.md)，公共文本能力见 [文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与[文本排版设计](../graphics/text/DESIGN.md)，基础控件行为见 [控件库规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。现有 `scoop.gui` 已直接改名为 `scoop.surface`；底层实现与验证沿用 [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)及[实施记录](../surface/PROGRESS.md)。
 
+后续基础交互按 [基础能力设计](foundations/DESIGN.md) 演进；声明入口的接收者 DSL 及其他可复用此写法的 API 见 [DSL builder 设计建议](DSL-BUILDERS.md)。
+
 ## 1. 分层目标
 
 UI 框架提供构建完全自绘控件的能力，应用可以只使用框架和 Surface 绘图／动画完成自己的界面。基础控件作为另一普通库构建：
