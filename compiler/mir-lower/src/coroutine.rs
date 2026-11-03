@@ -14,6 +14,7 @@ mod errors;
 mod frame;
 mod intrinsics;
 mod liveness;
+mod registration;
 mod sites;
 mod tail;
 
@@ -59,7 +60,11 @@ struct DiscoveredSuspendSite {
 #[derive(Clone)]
 enum SuspendKind {
     Call(mir::Call),
-    Intrinsic(crate::cfg::SuspendCall),
+    Intrinsic {
+        method: crate::coroutine_registry::ProtocolMethod,
+        receiver: Box<mir::Expr>,
+    },
+    Yield,
 }
 
 pub(super) fn transform(lowerer: &mut Lowerer, module: &hir::Module) {

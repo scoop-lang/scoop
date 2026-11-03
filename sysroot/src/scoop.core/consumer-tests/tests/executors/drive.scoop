@@ -79,6 +79,159 @@ private suspend fun callChain(gate: DriveGate, depth: Int): Int =
     else
         callChain(gate, depth - 1) + 1
 
+private class YieldState {
+    var job: Job? = None
+}
+
+@Test
+private class CoroutineYieldTest {
+    @Test
+    fun `yield queues another drive and restores the pumping context`() {
+        val executor = QueueExecutor()
+        val reached = AtomicInt(0)
+        val cleaned = AtomicBoolean(false)
+        val done = DriveCompletion<Int>()
+        val sibling = DriveCompletion<Int>()
+        context(DriveMarker(7)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    try {
+                        reached.store(1)
+                        yieldCoroutine()
+                        assertEquals(7, markerNumber())
+                        assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                        reached.store(2)
+                        yieldCoroutine()
+                        42
+                    } finally {
+                        cleaned.store(true)
+                    }
+                },
+                done
+            )
+        }
+        startDispatchedCoroutine(executor, { 9 }, sibling)
+        context(DriveMarker(99)) {
+            executor.runOne()
+            assertEquals(99, markerNumber())
+            assertEquals(1, reached.load())
+            assertEquals(0, done.calls)
+            assertFalse(cleaned.load())
+            assertEquals(2L, executor.queued)
+            executor.runOne()
+            assertEquals(9, sibling.value!!)
+            assertEquals(1, reached.load())
+            gcCollect()
+            executor.runOne()
+            assertEquals(2, reached.load())
+            assertEquals(0, done.calls)
+            assertEquals(1L, executor.queued)
+            executor.runOne()
+            assertEquals(99, markerNumber())
+        }
+        assertEquals(42, done.value!!)
+        assertTrue(cleaned.load())
+        assertEquals(4, executor.submitted)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `yield without an executor completes immediately`() {
+        val done = DriveCompletion<Int>()
+        startCoroutine(
+            {
+                yieldCoroutine();
+                42
+            },
+            done
+        )
+        assertEquals(42, done.value!!)
+        assertEquals(1, done.calls)
+    }
+
+    @Test
+    fun `yield in catch and finally preserves the pending exception`() {
+        val executor = QueueExecutor()
+        val failure = Throwable()
+        val cleaned = AtomicBoolean(false)
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            executor,
+            {
+                try {
+                    throw failure
+                } catch (error: Throwable) {
+                    yieldCoroutine()
+                    throw error
+                } finally {
+                    yieldCoroutine()
+                    cleaned.store(true)
+                }
+            },
+            done
+        )
+        executor.runOne()
+        assertEquals(0, done.calls)
+        assertFalse(cleaned.load())
+        executor.runOne()
+        assertEquals(0, done.calls)
+        assertFalse(cleaned.load())
+        executor.runOne()
+        assertSame(failure, done.failure!!)
+        assertTrue(cleaned.load())
+        assertEquals(3, executor.submitted)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `yield observes cancellation before yielding and after resumption`() {
+        for (cancelBefore in [false, true]) {
+            val executor = QueueExecutor()
+            val state = YieldState()
+            val cleaned = AtomicBoolean(false)
+            val done = DriveCompletion<Unit>()
+            startDispatchedCoroutine(
+                executor,
+                {
+                    coroutineScope {
+                        scope ->
+                        state.job = Some(scope.job)
+                        if (cancelBefore)
+                            scope.job.cancel()
+                        try {
+                            yieldCoroutine()
+                            fail(Some("cancelled yield must not continue"))
+                        } finally {
+                            cleaned.store(true)
+                        }
+                    }
+                },
+                done
+            )
+            executor.runOne()
+            if (!cancelBefore) {
+                assertFalse(cleaned.load())
+                assertEquals(0, done.calls)
+                state.job!!.cancel()
+                while (executor.queued > 0L)
+                    executor.runOne()
+            }
+            assertTrue(cleaned.load())
+            assertEquals(1, done.calls)
+            assertTrue(done.failure!! is CancellationException)
+            assertEquals(
+                if (cancelBefore)
+                    1
+                else
+                    3,
+                executor.submitted
+            )
+            assertEquals(0, executor.active)
+        }
+    }
+}
+
 @Test
 private class CoroutineExecutorDriveTest {
     @Test

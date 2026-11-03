@@ -405,6 +405,13 @@ pub const INTRINSIC_REGISTRY: &[IntrinsicSpec] = &[
         effects: IntrinsicEffects::NONE,
     },
     IntrinsicSpec {
+        name: "coroutine_yield",
+        stage: IntrinsicStage::Mir,
+        kind: IntrinsicFunctionKind::CoroutineYield,
+        target: IntrinsicTarget::TopLevel,
+        effects: IntrinsicEffects::NONE,
+    },
+    IntrinsicSpec {
         name: "coroutine_suspend",
         stage: IntrinsicStage::Mir,
         kind: IntrinsicFunctionKind::CoroutineSuspend,

@@ -2394,7 +2394,7 @@ execution 是低层任务的内部 managed 执行对象，与 Job 树、普通 C
 
 startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保留明确的立即启动语义，并继承当前 executor。真实挂起之后，有 executor 的外部恢复总是排队回目标 execution；无 executor 时可在恢复线程继续，但也必须经过任务级驱动互斥。结果提交与恢复调度分离，已经提交的成功不能被排队期间的取消覆盖。
 
-所有挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。
+所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
 
 withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
 

@@ -42,6 +42,19 @@ internal interface CoroutineExecutionDriver {
 @Intrinsic("coroutine_current_execution")
 internal fun currentCoroutineExecution(): CoroutineExecutionDriver?
 
+@Intrinsic("coroutine_yield")
+private suspend fun yieldCoroutineDrive()
+
+/** Checks cancellation and, when an executor is present, yields to its runnable queue. */
+public suspend fun yieldCoroutine() {
+    ensureActive()
+    when (currentExecutorTask()) {
+        case Some(_) -> yieldCoroutineDrive()
+        case None -> {}
+    }
+    ensureActive()
+}
+
 internal fun currentExecutorTask(): ExecutorTask? =
     when (currentCoroutineExecution()) {
         case Some(execution) -> execution.task()

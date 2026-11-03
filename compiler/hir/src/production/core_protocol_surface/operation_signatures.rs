@@ -205,6 +205,7 @@ pub(super) fn expected_operation_signature(
                 binder.clone(),
             )
         }
+        IntrinsicFunctionKind::CoroutineYield => (Effect::Suspend, Vec::new(), unit.clone()),
         IntrinsicFunctionKind::CoroutineCurrentExecution => (
             Effect::Ordinary,
             Vec::new(),
@@ -465,6 +466,7 @@ pub(super) fn operation_own_type_parameter_count(kind: IntrinsicFunctionKind) ->
         | IntrinsicFunctionKind::GcStats
         | IntrinsicFunctionKind::ThrowablePrintStackTrace
         | IntrinsicFunctionKind::CoroutineCurrentExecution
+        | IntrinsicFunctionKind::CoroutineYield
         | IntrinsicFunctionKind::CurrentSourceLocation
         | IntrinsicFunctionKind::CompileEnv
         | IntrinsicFunctionKind::IncludeStr

@@ -3,6 +3,48 @@
 use super::*;
 
 #[test]
+fn forced_yield_keeps_a_resume_point_with_coroutine_elision_enabled() {
+    let mut h = Harness::new();
+    let yielding = h.user_fn(
+        "yieldDrive",
+        hir::Body {
+            locals: Arena::new(),
+            statements: Vec::new(),
+        },
+    );
+    h.functions[yielding].is_suspend = true;
+    h.functions[yielding].kind = hir::FunctionKind::Intrinsic(hir::IntrinsicFunction {
+        kind: hir::IntrinsicFunctionKind::CoroutineYield,
+        provider: hir::IntrinsicProviderId::from_raw(0),
+    });
+    let caller = h.user_fn(
+        "yieldCaller",
+        hir::Body {
+            locals: Arena::new(),
+            statements: vec![stmt(hir::StatementKind::Return {
+                value: call_typed(yielding, Vec::new(), h.unit),
+            })],
+        },
+    );
+    h.functions[caller].is_suspend = true;
+    let main = empty_main(&mut h);
+    let source = h.finish_coroutines(main);
+    let module = super::coroutine_tail::sample::lower_tail(&source, true);
+    let (_, coroutine) = module
+        .meta
+        .coroutine_functions
+        .iter()
+        .find(|(_, coroutine)| module.functions[coroutine.function].name == "yieldCaller")
+        .unwrap();
+    assert!(matches!(
+        coroutine.lowering,
+        mir::CoroutineLowering::StateMachine { .. }
+    ));
+    assert_eq!(module.meta.coroutine_resume_points.len(), 1);
+    assert_mir_foundation_projection(&module);
+}
+
+#[test]
 fn suspend_leaf_uses_typed_hidden_abi_and_completed_step() {
     let mut h = Harness::new();
     let leaf = h.user_fn_full(

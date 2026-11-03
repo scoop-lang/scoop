@@ -328,6 +328,10 @@ impl<'a> CfgLowerer<'a> {
             smir::ExprKind::CoroutineSuspend { method, receiver } => {
                 return self.lower_suspend(*method, receiver, &expr.ty, None, span);
             }
+            smir::ExprKind::CoroutineYield => {
+                self.defer_suspend(SuspendCall::Yield);
+                return Some(mir::Expr::unit());
+            }
             smir::ExprKind::Call(call) => {
                 let value = self.lower_call(call, None, span)?;
                 if value.ty == expr.ty {

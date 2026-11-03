@@ -36,3 +36,11 @@
 - 验证：Rust 格式化及受影响 crate 的 all-targets Clippy 通过；identity 361 项、core surface 10 项、MIR adapter 4 项和 coroutine 14 项、MIR lowering 22 项、HIR coroutine 3 项及 ordinary-core 导入 35 项通过。11 个 CLI fixture 覆盖同步/异步恢复、异常、泛型/成员、Context/外部线程、GC 根及跨 Cone 导出，全部通过。
 - 新增 5 项排队 executor 行为测试通过；其中挂起恢复、启动 work 和上下文保活用例单独开启移动 GC／minor GC stress 后通过。既有 nonCancellableScope 的取消与清理组合回归通过。本轮在 Darwin AArch64 release 验证。
 - 强制 yield、receiver scope、withExecutor、通用阻塞任务入口和实际 executor 仍待接入；上述验证使用手动排队的测试 executor。
+
+## 强制 yield（2026-11-04）
+
+- 实现 yieldCoroutine：有 executor 时退出当前驱动并重新排队，无 executor 时直接返回，前后均检查取消。内部 Yield 节点独立于 registration，不被同步恢复锁存或协程尾转交优化消去。
+- 复用 managed adapter、保存的 TaskContext 和 execution 门；Wait 状态下提交 Unit，所有调用层退出后再发布下一驱动。注册握手代码拆为独立模块，普通挂起行为保持同一实现。
+- 新 intrinsic 使用 tag 37，HIR core-bootstrap-interface／cross-cone-interface 更新为 22／92；配套 CLI 与 core/std/platform/test 产物已重建，MIR/LIR 和 runtime ABI 无新增变更。
+- 验证：格式化、受影响 crate 的 all-targets Clippy 通过；23 项协程 lowering、27 项 intrinsic 和 10 项 core surface 测试通过。4 项 yield 行为及既有 5 项 executor 驱动回归通过，覆盖排队、Context、无 executor、取消和 catch/finally 挂起。排队与 Context 用例在移动 GC／minor GC stress 下单独通过，平台为 Darwin AArch64 release。
+- 下一步为 receiver scope、withExecutor 和通用阻塞任务入口；多 worker 及其他平台验收仍未开始。

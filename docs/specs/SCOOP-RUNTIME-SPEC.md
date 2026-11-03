@@ -1015,7 +1015,7 @@ suspend callable 使用完整的 Continuation 与 CoroutineStep 合同；跨挂�
 
 completion 的成功、失败与恢复具有唯一获胜方和 release/acquire 发布；未获胜恢复不能执行正文、改变 TaskContext 或消费状态。异常在挂起前保存为普通 managed 引用并结束 native catch，不能把 active native record 存入 frame。
 
-每个低层任务有独立的 managed execution，保存固定 executor、活动任务登记和驱动状态；direct、virtual 与 closure suspend 调用共享同一 execution。结果提交与取得驱动权分离：registration/callee 尚未返回时的 completion 只发布结果，所有挂起入口使用同一 Registering/Waiting 握手。execution 在 Running、Idle、Queued、Finished 之间协调同一任务，最多一个驱动者及一个待领取调度项。当前驱动必须先退出 frame 访问、结束 native catch 并恢复 resumer Context，才能让下一驱动执行。发布 payload 后才以 release 发布 ready，读取端 acquire 后消费；发布临界路径不调用用户代码。
+每个低层任务有独立的 managed execution，保存固定 executor、活动任务登记和驱动状态；direct、virtual 与 closure suspend 调用共享同一 execution。结果提交与取得驱动权分离：registration/callee 尚未返回时的 completion 只发布结果，这些挂起入口使用同一 Registering/Waiting 握手；强制 yield 直接进入 Waiting 并提交 Unit，仍须退出当前驱动后才重新排队。execution 在 Running、Idle、Queued、Finished 之间协调同一任务，最多一个驱动者及一个待领取调度项。当前驱动必须先退出 frame 访问、结束 native catch 并恢复 resumer Context，才能让下一驱动执行。发布 payload 后才以 release 发布 ready，读取端 acquire 后消费；发布临界路径不调用用户代码。
 
 有 executor 的外部恢复通过目标 execution 排队；内置 executor 不在 dispatch 调用栈中执行 work。另一 worker 可以在 dispatch 返回前开始，因此不能把函数返回视为发布屏障。无 executor 时允许当前线程恢复，但仍经过同一驱动状态协调。编译器内部、同 execution 的完成链可由当前驱动循环消费，不能递归增长 native 完成栈；用户 completion 仍是一次公开通知。
 

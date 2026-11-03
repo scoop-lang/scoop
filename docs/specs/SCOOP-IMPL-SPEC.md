@@ -373,6 +373,8 @@ direct、virtual、closure 与原语 suspend site 均生成带完整成功/失�
 
 恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，公开外部恢复按 executor 队列调度。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
 
+内部 `coroutine_yield` 是无参数、Unit 结果的 suspend intrinsic，使用 tag 37。其私有结构化 MIR／CFG 表示为独立 Yield 节点，不伪造 registration callable；该节点保存 live values 和清理状态，建立 Waiting adapter，提交 Unit 成功结果并请求外部恢复，然后无条件返回 Suspended。当前 execution 直到所有调用层和 Context／异常清理退出后才发布下一次驱动。公开 yieldCoroutine 在调用该 intrinsic 前确认存在 executor，并在前后检查取消；无 executor 时不产生 Yield 节点的动态执行。HIR core-bootstrap-interface／cross-cone-interface 升至 22／92，MIR／LIR 的既有状态机表示不新增版本或 runtime ABI。
+
 执行协议的 core coroutine surface 在原有 13 个角色后保存 CoroutineWork、run callable／dispatch、CoroutineExecutionDriver、start callable／dispatch 与 resume callable／dispatch，共 21 项；这些身份由声明绑定，其他 stage 直接消费。内部启动 intrinsic 接受 execution、dispatched、task、completion 四个参数，先捕获绑定并分配 StartWork，再通过 execution.start 取得驱动权。读取当前 execution 的 intrinsic 使用 tag 36；读取已保存 TaskContext 的 execution 使用 typed MIR Context 操作。HIR core-bootstrap-interface／cross-cone-interface 分别升至 21／91。StartWork 的 generated nominal／callable 分别使用 tag 11／19，三个字段使用 generated field tag 17；continuation adapter 的 Run callable 使用 role tag 3，与 Success／Failure 分开。MIR／LIR identity-foundation 分别升至 10／14；HIR identity-foundation 保持 11。旧产物按普通版本边界重建，不保留双轨协议。
 
 生成类型、调用与字段角色按实际结构更新 coroutine metadata、core 协议、`.slib` profile 及 runtime ABI；不保留旧 adapter 或 TaskContext 布局的兼容分支。检查仍在实际声明、产物格式及 ABI 边界完成，不增加调度授权、独立证明记录或重复全图验证。
@@ -764,7 +766,7 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/21`、`cross-cone-interface/91`、`cross-cone-type-semantics/32` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/92`、`cross-cone-type-semantics/32` |
 | MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
 | LIR / `org.scoop-lang.lir` | `identity-foundation/14`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
 

@@ -92,6 +92,7 @@ fn emits_cfg(expr: &smir::Expr) -> bool {
         ExprKind::StringByte(operation) => operation.operands().any(emits_cfg),
         ExprKind::Call(_)
         | ExprKind::CoroutineSuspend { .. }
+        | ExprKind::CoroutineYield
         | ExprKind::ClassNew { .. }
         | ExprKind::ShortCircuit { .. }
         | ExprKind::Unreachable
