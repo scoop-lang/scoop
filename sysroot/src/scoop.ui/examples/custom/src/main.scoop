@@ -40,13 +40,16 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
         outline =
             Some(
                 scope.resource {
-                    PathBuilder().use {
-                        path ->
-                        path.moveTo(Point(0.0, -14.0)).lineTo(Point(4.0, -4.0))
-                        path.lineTo(Point(14.0, 0.0)).lineTo(Point(4.0, 4.0))
-                        path.lineTo(Point(0.0, 14.0)).lineTo(Point(-4.0, 4.0))
-                        path.lineTo(Point(-14.0, 0.0)).lineTo(Point(-4.0, -4.0)).closeContour()
-                        path.build()
+                    path {
+                        moveTo(Point(0.0, -14.0))
+                        lineTo(Point(4.0, -4.0))
+                        lineTo(Point(14.0, 0.0))
+                        lineTo(Point(4.0, 4.0))
+                        lineTo(Point(0.0, 14.0))
+                        lineTo(Point(-4.0, 4.0))
+                        lineTo(Point(-14.0, 0.0))
+                        lineTo(Point(-4.0, -4.0))
+                        closeContour()
                     }
                 }
             )

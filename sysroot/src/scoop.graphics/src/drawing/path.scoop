@@ -34,33 +34,45 @@ public class Path internal constructor(internal val resource: GraphicsResource):
     }
 }
 
-/** Mutable path construction. build returns a snapshot and preserves the builder. */
+/**
+ * Builds an owned, immutable path and closes the temporary builder on every exit.
+ * The configuration runs once, synchronously. An empty configuration creates an empty path.
+ */
+public fun path(
+    fillRule: FillRule = FillRule.NonZero,
+    configure: PathBuilder.() -> Unit = {}
+): Path =
+    PathBuilder(fillRule).use {
+        builder ->
+        builder.configure()
+        builder.build()
+    }
+
+/** Incremental native path construction. build returns a snapshot and preserves the builder. */
 public class PathBuilder public constructor(fillRule: FillRule = FillRule.NonZero): Closeable {
     private val resource: GraphicsResource = createPathBuilder(fillRule)
-    public fun moveTo(point: Point): PathBuilder = command(0, point)
-    public fun lineTo(point: Point): PathBuilder = command(1, point)
-    public fun quadraticTo(control: Point, end: Point): PathBuilder = command(2, control, end)
-    public fun cubicTo(control1: Point, control2: Point, end: Point): PathBuilder =
+    public fun moveTo(point: Point): Unit = command(0, point)
+    public fun lineTo(point: Point): Unit = command(1, point)
+    public fun quadraticTo(control: Point, end: Point): Unit = command(2, control, end)
+    public fun cubicTo(control1: Point, control2: Point, end: Point): Unit =
         command(3, control1, control2, end)
-    public fun closeContour(): PathBuilder = command(4)
-    public fun addRect(rect: Rect): PathBuilder {
+    public fun closeContour(): Unit = command(4)
+    public fun addRect(rect: Rect) {
         checkRect(rect)
         @Unsafe
         {
             graphicsResult(pathAddRect(resource.get(), rect, 0), "add rectangle")
         }
-        return this
     }
-    public fun addOval(rect: Rect): PathBuilder {
+    public fun addOval(rect: Rect) {
         checkRect(rect)
         @Unsafe
         {
             graphicsResult(pathAddRect(resource.get(), rect, 1), "add oval")
         }
-        return this
     }
     /** Adds the same rounded outline used by drawing, clipping and hit geometry. */
-    public fun addRoundRect(rect: Rect, radiusX: Double, radiusY: Double): PathBuilder {
+    public fun addRoundRect(rect: Rect, radiusX: Double, radiusY: Double) {
         checkRect(rect)
         checkScalar(radiusX)
         checkScalar(radiusY)
@@ -72,15 +84,9 @@ public class PathBuilder public constructor(fillRule: FillRule = FillRule.NonZer
                 "add rounded rectangle"
             )
         }
-        return this
     }
     /** Adds a clockwise arc in radians, optionally starting a new contour. */
-    public fun arcTo(
-        oval: Rect,
-        start: Double,
-        sweep: Double,
-        moveToStart: Boolean = false
-    ): PathBuilder {
+    public fun arcTo(oval: Rect, start: Double, sweep: Double, moveToStart: Boolean = false) {
         checkRect(oval);
         checkScalar(start);
         checkScalar(sweep)
@@ -88,21 +94,22 @@ public class PathBuilder public constructor(fillRule: FillRule = FillRule.NonZer
         {
             graphicsResult(pathArc(resource.get(), oval, start, sweep, moveToStart), "add arc")
         }
-        return this
     }
+    /** Returns an independent snapshot without clearing the accumulated geometry. */
     public fun build(): Path {
         @Unsafe
         {
             return Path(ownedGraphics(pathBuild(resource.get()), "build path"))
         }
     }
-    public fun reset(): PathBuilder = command(5)
+    /** Clears the geometry and preserves the winding rule. */
+    public fun reset(): Unit = command(5)
     private fun command(
         kind: Int,
         first: Point = Point(0.0, 0.0),
         second: Point = Point(0.0, 0.0),
         third: Point = Point(0.0, 0.0)
-    ): PathBuilder {
+    ) {
         checkPoint(first);
         checkPoint(second);
         checkPoint(third)
@@ -110,7 +117,6 @@ public class PathBuilder public constructor(fillRule: FillRule = FillRule.NonZer
         {
             graphicsResult(pathCommand(resource.get(), kind, first, second, third), "path command")
         }
-        return this
     }
     public override fun close() {
         resource.close()

@@ -58,9 +58,8 @@ internal class DecorationGeometry: Closeable {
 }
 
 private fun roundPath(bounds: Rect, radius: Double, border: Double): Path =
-    PathBuilder(FillRule.EvenOdd).use {
-        builder ->
-        builder.addRoundRect(bounds, radius, radius)
+    path(FillRule.EvenOdd) {
+        addRoundRect(bounds, radius, radius)
         if (border > 0.0 && border < bounds.width / 2.0 && border < bounds.height / 2.0) {
             val inner =
                 Rect(
@@ -74,7 +73,6 @@ private fun roundPath(bounds: Rect, radius: Double, border: Double): Path =
                     radius - border
                 else
                     0.0
-            builder.addRoundRect(inner, innerRadius, innerRadius)
+            addRoundRect(inner, innerRadius, innerRadius)
         }
-        builder.build()
     }

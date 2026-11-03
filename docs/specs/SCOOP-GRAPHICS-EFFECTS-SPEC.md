@@ -29,7 +29,7 @@ filter 在调用时借用，图层保留实际需要的原生引用直到恢复�
 
 clip 建立在 saveLayer 之前时约束恢复后的输出；滤镜可能为该输出读取 clip 外所需的源样本。若要先裁源内容再产生向外效果，须在滤镜图层内部另建显式 clip。两种顺序不同。几何捕获继续使用绘制时的 transform／clip；滤镜的像素扩展本身不扩大区域几何。
 
-`PathBuilder.addRoundRect(rect, radiusX, radiusY)` 补齐共用的圆角轮廓。半径有限非负，超过尺寸时按 Skia 圆角矩形规则收敛；同一 Path 用于填充、clip、contains 和输入几何，不另用 UI 的圆角近似。build 的快照及所有权合同不变。
+`path { addRoundRect(rect, radiusX, radiusY) }` 构造共用的圆角轮廓；PathBuilder 的追加操作返回 Unit。半径有限非负，超过尺寸时按 Skia 圆角矩形规则收敛；同一 Path 用于填充、clip、contains 和输入几何，不另用 UI 的圆角近似。作用域清理与增量构造的快照所有权见 [Surface 规范 §2](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
 
 ## 3. 坐标、生命周期与能耗
 

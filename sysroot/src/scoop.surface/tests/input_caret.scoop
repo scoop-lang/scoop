@@ -80,11 +80,9 @@ private class InputCaretTest {
             assertTrue(area.requestFocus())
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             val hole =
-                PathBuilder(FillRule.EvenOdd).use {
-                    builder ->
-                    builder.addRect(Rect(0.0, 0.0, 80.0, 80.0))
-                    builder.addRect(Rect(20.0, 20.0, 40.0, 40.0))
-                    builder.build()
+                path(FillRule.EvenOdd) {
+                    addRect(Rect(0.0, 0.0, 80.0, 80.0))
+                    addRect(Rect(20.0, 20.0, 40.0, 40.0))
                 }
             hole.use {
                 shape ->

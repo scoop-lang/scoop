@@ -56,16 +56,14 @@ private class InputAreaTest {
         InputRig().use {
             rig ->
             val area = rig.area("ring")
-            PathBuilder(FillRule.EvenOdd).use {
-                builder ->
-                builder.addOval(Rect(0.0, 0.0, 80.0, 80.0))
-                builder.addOval(Rect(20.0, 20.0, 40.0, 40.0))
-                builder.build().use {
-                    path -> rig.frame {
-                        frame, canvas ->
-                        frame.place(canvas, area, path)
-                        path.close()
-                    }
+            path(FillRule.EvenOdd) {
+                addOval(Rect(0.0, 0.0, 80.0, 80.0))
+                addOval(Rect(20.0, 20.0, 40.0, 40.0))
+            }.use {
+                path -> rig.frame {
+                    frame, canvas ->
+                    frame.place(canvas, area, path)
+                    path.close()
                 }
             }
             rig.move(10.0, 40.0)

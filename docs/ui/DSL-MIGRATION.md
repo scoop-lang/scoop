@@ -106,7 +106,7 @@ Props、具体 Component／Element 类型和 View 仍是同一条构造与挂载
 | --- | --- | --- |
 | [JSON builders](../../sysroot/src/scoop.json/src/builders.scoop) | `jsonObject { add(name, value) }`、`jsonArray { add(value) }`；嵌套直接组合这两个值工厂 | JSON tests／examples、HTTP JSON 与展示材料；重复 key 拒绝、插入顺序、JSON null、数字 token、快照；不增加另一套 DOM 或 codec |
 | [URL builder](../../sysroot/src/scoop.url/src/builder.scoop) | `url { ... }` 与 `base.copy { ... }`；scheme／port／encoded 组件使用属性，原文编码与整组 authority 替换使用明确操作，替换 `toBuilder/setX/build` 链 | URL tests／examples、HTTP Location／WebSocket、client request／proxy 和 charset 消费方；raw／encoded、整条 path／segment 分名；query 的重复项、无值／空值和 URI／form 编码区别 |
-| [Graphics Path](../../sysroot/src/scoop.graphics/src/drawing/path.scoop) | `path(fillRule = ...) { moveTo(...); lineTo(...); ... }` 返回独立 Path；内部用 use 关闭构造器 | graphics、surface、主题 painter 和实际图形示例；正常／异常关闭、快照独立、fill rule、几何与调用方释放 |
+| [Graphics Path](../../sysroot/src/scoop.graphics/src/drawing/path.scoop) | `path(fillRule = ...) { moveTo(...); lineTo(...); ... }` 返回独立 Path；内部用 use 关闭构造器；追加／reset 返回 Unit，增量使用者显式管理同一个 PathBuilder 实现 | graphics、surface、主题 painter 和实际图形示例；正常／异常关闭、快照独立、reset 保留 fill rule、几何与调用方释放 |
 
 这些入口统一一次性装配的调用方式。可复用 native builder 按真实生命周期使用；作用域入口负责单次构造和清理。
 
@@ -245,3 +245,4 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 | 2026-11-03 | D4 JSON | jsonObject／jsonArray、Unit add、内部构造与快照已替换公开链式 builder；实现、测试、示例与当前文档同步更新。无受影响 fixture。本机 aarch64 macOS release 的 JSON 整库 105 项 scoop.test 通过；预编译库的 2 项临时消费测试覆盖默认配置与 value_tree 示例，公开 API 文档生成和签名检查通过。 |
 | 2026-11-03 | D4 URL 前置测试归位 | 评估九组直接受影响的 HTTP fixture 及一个共享源码调用组。Basic／Bearer 的普通认证行为与 lifetime 独有用例迁入 scoop.http.client，19 个 scoop.test 入口覆盖 79 个场景并保留双线程组合；先验 17 项、再验新增 2 项，全部通过。删除 client-bearer-lifetime；保留的 Basic／Bearer HTTP/1 peer fixture 共 2 项通过。Scoop 格式化与 Python Ruff 检查通过，正式 API 尚未在此批修改。已用当前配套工具完整准备本机 aarch64 macOS 开发 sysroot。 |
 | 2026-11-03 | D4 URL | url／Url.copy、可写 encoded 组件与 Unit 原文／追加操作替换公开链式 builder；规范、HTTP／client／charset 调用方、示例和文档同步更新。构造和快照内部化，复制复用已有 authority 解释，raw／encoded 与空／缺失区别保留。本机 aarch64 macOS release 的 scoop.test：URL 整库 22 项、HTTP 整库 303 项、charset 整库 18 项、client 定向 10 项、预编译库实际示例与导入 2 项均通过；已评估保留的外部协议 fixture 7 项通过。Scoop 格式化、公共 API 文档与签名检查通过，开发 sysroot 按依赖顺序更新；本任务未改 LIR／codegen。 |
+| 2026-11-03 | D4 Path | path 作用域入口自动关闭临时 builder，追加／reset 改为 Unit；增量 PathBuilder 继续按明确生命周期产生独立快照，reset 保留填充规则。规范、graphics／Surface／style／UI 消费方与示例同步更新，无受影响 fixture。本机 aarch64 macOS release 的 scoop.test：graphics 39 项、Surface 79 项、基础示例 4 项、UI 自绘 1 项、style 11 项、三套主题 13 项和临时消费示例 2 项，共 149 项全部通过。Scoop 格式与公共 API 文档检查通过；按现有脚本更新 Skia 的 PathOps 资源及开发 sysroot，链接失败已闭合。本任务未改 LIR／codegen。 |

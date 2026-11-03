@@ -85,8 +85,7 @@ private fun label(fonts: FontCollection, text: String, size: Double, width: Doub
     }
 
 private fun makeStar(): Path =
-    PathBuilder().use {
-        builder ->
+    path {
         for (index in 0 ..< 10) {
             val angle = index.toDouble() * 3.141592653589793 / 5.0 - 3.141592653589793 / 2.0
             val radius =
@@ -96,9 +95,9 @@ private fun makeStar(): Path =
                     22.0
             val point = Point(cos(angle) * radius, sin(angle) * radius)
             if (index == 0)
-                builder.moveTo(point)
+                moveTo(point)
             else
-                builder.lineTo(point)
+                lineTo(point)
         }
-        builder.closeContour().build()
+        closeContour()
     }
