@@ -12,7 +12,7 @@ public enum KeyLocation {
 
 /** An unrecognized key retains its platform encoding. */
 public enum NativeKeyCode {
-    Darwin(UInt), WindowsScanCode(UInt), WindowsVirtualKey(UInt)
+    Darwin(UInt), WindowsScanCode(UInt), WindowsVirtualKey(UInt), LinuxEvdev(UInt), XkbKeysym(UInt)
 }
 
 /** Layout-independent keyboard positions supported by the current backend. */

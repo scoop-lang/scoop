@@ -80,3 +80,25 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "comctl32"
 when = { os = "windows" }
+
+[[sources]]
+path = "linux"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "linux/content.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "linux/input.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "wayland-client"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }

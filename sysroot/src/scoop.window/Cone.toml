@@ -48,6 +48,7 @@ when = { os = "windows" }
 "scoop.tests:window-native" = { version = "0.1.0", path = "test-native" }
 
 [native]
+include = [{ sysroot = "include" }]
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
 
@@ -174,3 +175,186 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "advapi32"
 when = { os = "windows" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "platform/desktop"
+when = { os = "darwin" }
+
+[[sources]]
+path = "platform/desktop"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/application.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/clipboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/events.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/input.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/properties.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/protocol/fractional-scale-v1.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/protocol/text-input-unstable-v3.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/protocol/viewporter.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/protocol/xdg-activation-v1.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/text.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/watch.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/wayland_application.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/wayland_clipboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/wayland_input.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/wayland_text.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/wayland_window.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/window.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_application.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_clipboard.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_ime.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_input.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_monitors.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_properties.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/x11_window.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb-randr"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb-xkb"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb-cursor"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb-imdkit"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xkbcommon"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xkbcommon-x11"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "wayland-client"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "wayland-cursor"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "decor-0"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "scoop_text_backend"
+kind = "static"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/values.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/shortcuts.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "test-linux"
+when = { os = "linux", env = "gnu" }

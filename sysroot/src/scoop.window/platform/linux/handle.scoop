@@ -1,0 +1,7 @@
+package scoop.window.native
+
+/** Borrowed native handles; the lease retains their window and display connection. */
+public enum NativeWindowHandle {
+    X11(val connection: Ptr<Unit>, val window: UInt, val visual: UInt),
+    Wayland(val display: Ptr<Unit>, val surface: Ptr<Unit>)
+}

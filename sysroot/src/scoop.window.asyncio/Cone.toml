@@ -36,3 +36,15 @@ when = { os = "windows" }
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
 "scoop.tests:window-native" = { version = "0.1.0", path = "../scoop.window/test-native" }
+
+[[sources]]
+path = "src"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "test-linux"
+when = { os = "linux", env = "gnu" }

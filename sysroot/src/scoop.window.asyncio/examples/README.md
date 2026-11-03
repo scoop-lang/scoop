@@ -1,6 +1,6 @@
 # 桌面窗口与 asyncio 定时器
 
-`timer.scoop` 是普通单文件 Cone，消费预编译的 window／asyncio／window.asyncio。它在主线程运行真实 AppKit 或 Win32 窗口，通过当前应用 scope 启动协程，每秒更新一次窗口标题。定时来自 asyncio 的实际后端，窗口主循环保持 Wait。
+`timer.scoop` 是普通单文件 Cone，消费预编译的 window／asyncio／window.asyncio。它在主线程运行真实 AppKit、Win32、X11 或 Wayland 窗口，通过当前应用 scope 启动协程，每秒更新一次窗口标题。定时来自 asyncio 的实际后端，窗口主循环保持 Wait。
 
 准备 Darwin sysroot 后，在仓库根运行：
 
@@ -22,3 +22,5 @@ target/debug/scoop test sysroot/src/scoop.window.asyncio --release
 ```
 
 入口必须在主线程、活动 Job 之外调用；不要在窗口事件内再次调用 `PlatformEventLoop.run`。涉及真实 surface 的显式 lease 顺序见 [Metal 示例](../../scoop.window/examples/metal/README.md)与 Windows [DXGI 示例](../../scoop.window/examples/dxgi/README.md)。
+
+Linux GNU 同样使用准备好的 sysroot；通过 `SCOOP_WINDOW_BACKEND=x11` 或 `wayland` 选择显示协议，I/O 使用 io_uring，native readable watch 只观察其通知 fd。

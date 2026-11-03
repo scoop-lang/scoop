@@ -13,7 +13,7 @@ import scoop.time.Duration
 @Test
 private class NoWindowShutdownTest {
     @Test
-    fun `an application without windows drains an outstanding IOCP receive and async cleanup`() {
+    fun `an application without windows drains an outstanding receive and async cleanup`() {
         val app = Application()
         val handler = NoWindowHandler()
         app.runWithAsyncio(handler)

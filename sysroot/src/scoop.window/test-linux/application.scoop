@@ -1,0 +1,284 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.Duration
+import scoop.window.native.*
+import scoop.tests.window.*
+
+@Test
+private class LinuxApplicationTest {
+    @Test
+    fun `native windows configure resize remap and drain cross-thread leases`() {
+        val app = Application()
+        val handler = LinuxHandler()
+        val proxy = app.proxy()
+        assertTrue(proxy.post { _ -> handler.posts += 1 })
+        val wrong = Thread.start { assertFailsWith<IllegalStateException> { app.run(handler) } }
+        wrong.join()
+        app.run(handler)
+        handler.worker!!.join()
+        handler.releaser!!.join()
+        assertEquals(2, handler.posts)
+        assertEquals(2, handler.closing)
+        assertEquals(2, handler.destroyed)
+        assertEquals(1, handler.exiting)
+        assertEquals(1, handler.deadlines)
+        if (handler.x11) {
+            assertEquals(1, handler.keyDown)
+            assertEquals(1, handler.keyUp)
+            assertEquals("a", handler.text)
+            assertEquals(2, handler.buttons)
+        }
+        assertTrue(handler.redraws >= 3)
+        assertEquals(WindowState.Destroyed, handler.window!!.state)
+        assertFalse(proxy.requestExit())
+        assertFalse(proxy.post { _ -> fail() })
+        assertFailsWith<WindowException> { handler.window!!.setTitle("late") }
+        assertFailsWith<IllegalStateException> { app.run(handler) }
+    }
+}
+
+private class LinuxHandler: ApplicationHandler {
+    val thread = currentThreadId()
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var content: Ptr<Unit>? = None
+    var worker: Thread? = None
+    var releaser: Thread? = None
+    var posts = 0
+    var closing = 0
+    var destroyed = 0
+    var exiting = 0
+    var redraws = 0
+    var deadlines = 0
+    var stage = 0
+    var x11 = false
+    var keyDown = 0
+    var keyUp = 0
+    var buttons = 0
+    var text = ""
+    var inside = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        assertEquals(thread, currentThreadId())
+        assertFalse(inside)
+        inside = true
+        try {
+            when (event) {
+                case Resumed -> start(application)
+                case NewEvents(StartCause.Deadline) -> fail(
+                    Some("Linux window lifecycle timed out")
+                )
+                case Window(identity, WindowEvent.RedrawRequested) -> {
+                    if (identity == window!!.id) {
+                        val value = window!!
+                        assertEquals(WindowState.Open, value.state)
+                        assertTrue(value.metrics!!.physicalSize.isDrawable)
+                        when (content) {
+                            case Some(pointer) -> @Unsafe
+                            {
+                                val size = value.metrics!!.physicalSize
+                                assertEquals(
+                                    0,
+                                    presentWaylandContent(pointer, size.width, size.height)
+                                )
+                            }
+                            case None -> {}
+                        }
+                        redraws += 1
+                        if (stage == 0) {
+                            stage = 1
+                            assertEquals(
+                                RequestStatus.Requested,
+                                value.requestSize(LogicalSize(360.0, 200.0))
+                            )
+                            value.requestRedraw()
+                        } else
+                            if (
+                                stage ==
+                                    1 &&
+                                    value.metrics!!.logicalSize ==
+                                    LogicalSize(360.0, 200.0)
+                            ) {
+                                stage = 2
+                                value.setVisible(false)
+                                value.setVisible(true)
+                                value.requestRedraw()
+                            } else
+                                if (stage == 2) {
+                                    stage = 3
+                                    val timer =
+                                        value.createDeadline {
+                                            deadlines += 1
+                                            application.requestExit()
+                                        }
+                                    timer.schedule(
+                                        MonotonicTimeSource.markNow() + Duration.milliseconds(50L)
+                                    )
+                                }
+                    }
+                }
+                case Window(identity, WindowEvent.Closing) -> {
+                    closing += 1
+                    if (identity == window!!.id) {
+                        when (content) {
+                            case Some(pointer) -> @Unsafe
+                            {
+                                destroyWaylandContent(pointer)
+                            }
+                            case None -> {}
+                        }
+                        content = None
+                        val held = lease!!
+                        releaser =
+                            Some(
+                                Thread.start {
+                                    held.close();
+                                    held.close()
+                                }
+                            )
+                    }
+                }
+                case Window(_, WindowEvent.Destroyed) -> destroyed += 1
+                case Window(_, WindowEvent.Keyboard(key)) -> {
+                    assertEquals(PhysicalKey.Code(KeyCode.KeyA), key.physicalKey)
+                    assertEquals(LogicalKey.Character("a"), key.logicalKey)
+                    if (key.state == ElementState.Pressed)
+                        keyDown += 1
+                    else
+                        keyUp += 1
+                }
+                case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+                    for (operation in batch.operations)
+                        when (operation) {
+                            case Commit(value, _) -> text += value
+                            else -> fail(Some("ordinary XKB key produced a composition"))
+                        }
+                }
+                case Window(_, WindowEvent.Pointer(event)) -> {
+                    when (event) {
+                        case Button(_, _, _, _) -> buttons += 1
+                        else -> {}
+                    }
+                }
+                case Exiting -> exiting += 1
+                else -> {}
+            }
+        } finally {
+            inside = false
+        }
+    }
+
+    private fun start(application: ActiveApplication) {
+        val value =
+            application.createWindow(
+                windowAttributes {
+                    title = "Scoop Linux lifecycle"
+                    size = LogicalSize(320.0, 180.0)
+                    visible = false
+                    requestActivation = false
+                }
+            )
+        window = Some(value)
+        assertFalse(value.isVisible)
+        assertEquals(RequestStatus.Unsupported, value.setBlur(true))
+        assertEquals(RequestStatus.Unsupported, value.setContentProtected(true))
+        assertFailsWith<WindowException> {
+            application.createWindow(
+                windowAttributes {
+                    blur = true;
+                    visible = false
+                }
+            )
+        }
+        value.setSizeConstraints(
+            WindowSizeConstraints(Some(LogicalSize(100.0, 80.0)), Some(LogicalSize(640.0, 480.0)))
+        )
+        assertFailsWith<IllegalArgumentException> { value.requestSize(LogicalSize(700.0, 500.0)) }
+        value.setResizable(false);
+        value.setResizable(true)
+        value.setDecorations(false);
+        value.setDecorations(true)
+        value.setCursorVisible(false);
+        value.setCursorVisible(true)
+        value.setTitle("窗口 😀")
+        value.setImeAllowed(true);
+        value.setImeAllowed(false)
+        val monitors = application.monitors()
+        assertTrue(monitors.size > 0L)
+        assertTrue(monitors[0L].physicalSize.isDrawable)
+        @Unsafe
+        {
+            val held = value.acquireNativeWindow()
+            lease = Some(held)
+            when (held.handle) {
+                case Wayland(display, surface) -> {
+                    assertEquals(WindowState.PendingConfigure, value.state)
+                    assertEquals(None, value.metrics)
+                    assertEquals(None, value.desktopPosition)
+                    assertEquals(None, application.primaryMonitor())
+                    assertEquals(
+                        RequestStatus.Unsupported,
+                        value.requestPosition(DesktopPosition(10.0, 10.0))
+                    )
+                    content =
+                        Some(
+                            createWaylandContent(display, surface) ?:
+                                fail(Some("wl_shm unavailable"))
+                        )
+                }
+                case X11(connection, handle, visual) -> {
+                    x11 = true
+                    assertTrue(connection.toULong() != 0uL && handle != 0u && visual != 0u)
+                    assertEquals(WindowState.Open, value.state)
+                    assertEquals(LogicalSize(320.0, 180.0), value.metrics!!.logicalSize)
+                    application.clipboard.writeText("中文 / 👩‍💻\r\nline\u{0}end")
+                    assertEquals(Some("中文 / 👩‍💻\r\nline\u{0}end"), application.clipboard.readText())
+                    application.clipboard.writeText("")
+                    assertEquals(Some(""), application.clipboard.readText())
+                }
+            }
+        }
+        val second =
+            application.createWindow(
+                windowAttributes {
+                    visible = false;
+                    requestActivation = false
+                }
+            )
+        assertNotEquals(value.id, second.id)
+        second.requestDestroy();
+        second.requestDestroy()
+        val proxy = application.proxy()
+        worker =
+            Some(
+                Thread.start {
+                    assertFailsWith<IllegalStateException> { value.setTitle("wrong thread") }
+                    assertTrue(
+                        proxy.post {
+                            _ ->
+                            posts += 1
+                            value.setVisible(true)
+                            value.requestRedraw()
+                            @Unsafe
+                            {
+                                when (lease!!.handle) {
+                                    case X11(connection, native, _) -> assertEquals(
+                                        1,
+                                        sendX11Input(connection, native)
+                                    )
+                                    case Wayland(_, _) -> {}
+                                }
+                            }
+                        }
+                    )
+                }
+            )
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
+        )
+    }
+}

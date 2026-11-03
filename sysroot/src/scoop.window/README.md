@@ -1,8 +1,8 @@
 # scoop.window
 
-面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit 和 Windows Win32 骨架；Linux 和其他窗口后端留到后续。
+面向上层 GUI／renderer 的窗口骨架，能力边界参考 winit 0.30.13。已实现 macOS AppKit、Windows Win32，以及 Linux GNU 的 Wayland／X11 后端。
 
-库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。控件、文档布局、菜单模型、剪贴板、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
+库负责窗口、原生事件、重绘请求、显示器快照和显式生命周期。库也提供 macOS／Linux 纯文本剪贴板。控件、文档布局、菜单模型、无障碍语义和图形设备由上层实现。窗口库和 `scoop.window.asyncio` 都是普通 Scoop Cone，AppKit／Win32 薄层分别通过普通 `.m`／ARC 和 C native 构建接入。
 
 ## 依赖与入口
 
@@ -57,7 +57,7 @@ macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到
 
 ## 文本输入
 
-macOS 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+macOS／Linux 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
 
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 
@@ -122,3 +122,23 @@ scoop test sysroot/src/scoop.window/examples/dxgi/app --release --target x86_64-
 ```
 
 DPI、输入、错误收尾、watch 和无窗口退出用例各自成 Cone，因为 Application 与进程 DPI 模式不可在同一测试进程中重启。测试不会重置库的单次入口约束。输入测试通过真实 HWND 消息及与 IMM32 共用的 native UTF-16 归一路径验证批次、候选窗矩形和载荷所有权；不冒充已安装中／日输入法的候选交互。watch 测试验证 WaitUntil、借入 manual-reset HANDLE、ready 内 remove 和重复 remove；无窗口退出测试验证实际 IOCP 接收取消与异步 finally。实际显示器／输入法覆盖边界见 [PROGRESS.md](../../../docs/windowing/PROGRESS.md)。
+
+## Linux GNU
+
+`SCOOP_WINDOW_BACKEND=wayland` 或 `x11` 显式选择后端。未设置时，有 `WAYLAND_DISPLAY` 则选择 Wayland，否则选择 X11；连接失败不会改连另一显示服务器。`DISPLAY`、`WAYLAND_DISPLAY` 和 `XDG_RUNTIME_DIR` 使用显示系统的普通约定。
+
+X11 依赖 XCB、RandR、XKB、xcb-cursor、xcb-imdkit、xkbcommon-x11；Wayland 依赖 wayland-client、wayland-cursor、libdecor 和 xkbcommon。字符比较复用目标资源 `scoop_text_backend`。Linux GNU 构建前安装对应开发包，普通应用使用 `.slib` 和系统动态库。Wayland 协议生成文件及其来源见 [protocol README](native/linux/protocol/README.md)。
+
+Wayland 窗口在首次 configure 前为 PendingConfigure，metrics 为 None；显示后由 GeometryChanged 给出有效尺寸。隐藏重显需要重新配置。桌面位置、主显示器、最小化状态等协议不提供的信息返回 None，未支持的操作返回 Unsupported。显式请求不支持的创建属性会报错。
+
+两个后端使用 Linux evdev 物理键和当前 XKB 布局；有完整按键状态时保留左右修饰键，未知键保留原生代码。X11 的输入法接入为 XIM，Wayland 为 text-input-v3；未启动输入法时普通按键与 XKB compose 仍可输入。Wayland 剪贴板写入需要用户输入 serial，没有有效 serial 时报告 Unavailable。
+
+验证命令使用准备好的 GNU sysroot：
+
+```sh
+SCOOP_WINDOW_BACKEND=x11 scoop test sysroot/src/scoop.window --release
+SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window --release
+SCOOP_WINDOW_BACKEND=wayland scoop test sysroot/src/scoop.window.asyncio --release
+```
+
+窗口测试使用真实显示服务器；Wayland 的窗口专测通过所属 test-native Cone 提交真实 wl_shm 缓冲区，使没有 renderer 的测试窗口也能映射。应用绘图由 Surface 提供。验证范围、依赖版本及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

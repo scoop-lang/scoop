@@ -149,10 +149,13 @@ internal fun ApplicationOwner.deliver(event: ApplicationEvent) {
 
 internal fun ApplicationOwner.deliverWindow(window: WindowOwner, event: WindowEvent) {
     deliverBusiness {
-        if (window.phase == WindowState.Open) {
+        if (window.phase == WindowState.Open || window.phase == WindowState.PendingConfigure) {
             var ready = true
             when (event) {
-                case GeometryChanged(value) -> window.metrics = Some(value);
+                case GeometryChanged(value) -> {
+                    window.metrics = Some(value)
+                    window.phase = WindowState.Open
+                }
                 case RedrawRequested -> {
                     val value = window.snapshot()
                     ready =

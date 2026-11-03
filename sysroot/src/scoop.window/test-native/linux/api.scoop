@@ -1,0 +1,15 @@
+package scoop.tests.window
+
+/** A real wl_shm buffer producer used to map window-only test surfaces. */
+@Extern(name = "scoop_test_wayland_content_create")
+public fun createWaylandContent(display: Ptr<Unit>, surface: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_test_wayland_content_present")
+public fun presentWaylandContent(content: Ptr<Unit>, width: Int, height: Int): Int
+
+@Extern(name = "scoop_test_wayland_content_destroy")
+public fun destroyWaylandContent(content: Ptr<Unit>)
+
+/** Delivers X11 protocol events to the test's own window. These are synthesized input. */
+@Extern(name = "scoop_test_x11_input")
+public fun sendX11Input(connection: Ptr<Unit>, window: UInt): Int

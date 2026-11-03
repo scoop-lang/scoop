@@ -1,0 +1,78 @@
+package scoop.window
+
+import scoop.window.native.NativeWindowHandle
+
+internal fun platformBackend(): WindowBackend {
+    @Unsafe
+    {
+        return if (nativeBackend() == 2)
+            WindowBackend.Wayland
+        else
+            WindowBackend.X11
+    }
+}
+
+internal fun platformTextCommands(pointer: Ptr<Unit>): Array<TextEditCommand> = []
+
+internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
+    if (event.a > 0L)
+        Some(TextInputConnection(WindowId(event.window), event.a))
+    else
+        None
+
+internal fun platformUnknownLogicalKey(scan: Long, symbol: Long): NativeKeyCode =
+    NativeKeyCode.XkbKeysym(symbol.toUInt())
+
+@Unsafe
+internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle =
+    if (nativeBackend() == 2)
+        NativeWindowHandle.Wayland(nativeDisplay(pointer), nativeSurface(pointer))
+    else
+        NativeWindowHandle.X11(
+            nativeConnection(pointer),
+            nativeWindow(pointer),
+            nativeVisual(pointer)
+        )
+
+@Unsafe
+internal fun platformCreationProperties(pointer: Ptr<Unit>, flags: Int) {
+    requireWindow(flags == 0, "AppKit titlebar options cannot be used with Linux")
+}
+
+@Unsafe
+internal fun platformWindowMetrics(pointer: Ptr<Unit>): WindowMetrics? =
+    if (nativeConfigured(pointer) != 0)
+        Some(nativeWindowSnapshot(pointer).metrics())
+    else
+        None
+
+@Extern(name = "scoop_window_linux_backend")
+private fun nativeBackend(): Int
+
+@Extern(name = "scoop_window_configured")
+private fun nativeConfigured(window: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_xcb_connection")
+private fun nativeConnection(window: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_window_xcb_window")
+private fun nativeWindow(window: Ptr<Unit>): UInt
+
+@Extern(name = "scoop_window_xcb_visual")
+private fun nativeVisual(window: Ptr<Unit>): UInt
+
+@Extern(name = "scoop_window_wl_display")
+private fun nativeDisplay(window: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_window_wl_surface")
+private fun nativeSurface(window: Ptr<Unit>): Ptr<Unit>
+
+internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? {
+    @Unsafe
+    {
+        return when (owner.pointer) {
+            case Some(pointer) -> platformWindowMetrics(pointer)
+            case None -> owner.metrics
+        }
+    }
+}
