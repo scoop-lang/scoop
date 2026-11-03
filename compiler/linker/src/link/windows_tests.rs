@@ -8,7 +8,7 @@ use scoop_identity::{
     CanonicalNativeLibraryName, NativeLibraryGrouping, NativeLibraryKind, NativeLinkRequirementId,
     NativeLinkRequirementKey,
 };
-use scoop_toolchain::{FinalLinkOptions, WindowsFinalLinkProfile};
+use scoop_toolchain::{FinalLinkOptions, ValidatedRuntimeBuildProfile, WindowsFinalLinkProfile};
 use std::collections::{BTreeMap, BTreeSet};
 use std::process::{Command, Output};
 
@@ -442,18 +442,13 @@ fn compile_runtime(
     let ValidatedFinalLinkProfile::Windows(windows) = profile else {
         panic!("Windows validation requires the Windows link profile");
     };
+    let runtime_profile = ValidatedRuntimeBuildProfile::for_target(profile.target()).unwrap();
     checked(
         profile
             .startup_toolchain()
             .object_compilation_command(source, object)
-            .args([
-                "-Wall",
-                "-Wextra",
-                "-Werror",
-                "-g",
-                "-gcodeview",
-                "-D__SEH__",
-            ])
+            .args(["-Wall", "-Wextra", "-Werror", "-g", "-gcodeview"])
+            .args(runtime_profile.runtime_c_flags())
             .arg("-I")
             .arg(windows.unwind_prefix().join("include"))
             .arg("-I")
