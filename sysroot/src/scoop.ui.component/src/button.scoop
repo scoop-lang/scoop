@@ -13,7 +13,7 @@ public class ButtonProps public constructor(
     public val label: LabelProps,
     public val onClick: () -> Unit,
     public val enabled: Boolean = true,
-    public val style: ButtonStyle = ButtonStyle(),
+    public val style: ButtonStyle = buttonStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions()
 )
@@ -75,7 +75,7 @@ public fun button(
     text: String,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    style: ButtonStyle = ButtonStyle(),
+    style: ButtonStyle = buttonStyle(),
     fonts: FontCollection? = None,
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position,
@@ -102,7 +102,7 @@ public fun button(
     text: StyledText,
     onClick: () -> Unit,
     enabled: Boolean = true,
-    style: ButtonStyle = ButtonStyle(),
+    style: ButtonStyle = buttonStyle(),
     fonts: FontCollection? = None,
     settings: ParagraphStyle = paragraphStyle(),
     inlines: Array<InlineView> = [],

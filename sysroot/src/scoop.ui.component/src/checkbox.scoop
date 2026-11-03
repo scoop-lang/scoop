@@ -11,7 +11,7 @@ import scoop.ui.style.*
 public class CheckboxProps public constructor(
     public val checked: Binding<Boolean>,
     public val enabled: Boolean = true,
-    public val style: CheckboxStyle = CheckboxStyle(),
+    public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions()
 )
@@ -48,7 +48,7 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
 public fun checkbox(
     checked: Binding<Boolean>,
     enabled: Boolean = true,
-    style: CheckboxStyle = CheckboxStyle(),
+    style: CheckboxStyle = checkboxStyle(),
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position,
     focus: FocusOptions = FocusOptions()
@@ -62,7 +62,7 @@ public fun checkbox(
 public fun checkbox(
     initialChecked: Boolean = false,
     enabled: Boolean = true,
-    style: CheckboxStyle = CheckboxStyle(),
+    style: CheckboxStyle = checkboxStyle(),
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position,
     focus: FocusOptions = FocusOptions()

@@ -4,12 +4,12 @@ import scoop.graphics.*
 import scoop.graphics.text.SpanStyle
 import scoop.ui.style.*
 
-public class TextFieldStyle public constructor(
+public class TextFieldStyle internal constructor(
     public val surface: SurfaceOptions = surfaceOptions(),
     public val text: SpanStyle? = None,
     public val placeholder: SpanStyle? = None,
     public val description: SpanStyle? = None,
-    public val states: InteractionStyles = InteractionStyles(),
+    public val states: InteractionStyles = interactionStyles(),
     public val selectionColor: Color? = None,
     public val inactiveSelectionColor: Color? = None,
     public val caretColor: Color? = None,
@@ -17,6 +17,9 @@ public class TextFieldStyle public constructor(
     public val caretWidth: Double = 1.0,
     public val scrollbar: ScrollbarOptions = scrollbarOptions()
 ) {
+    public fun copy(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle =
+        configureTextFieldStyle(this, configure)
+
     internal fun options(
         theme: Theme,
         visual: InteractionVisual,

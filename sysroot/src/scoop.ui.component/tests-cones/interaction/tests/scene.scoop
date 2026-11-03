@@ -86,7 +86,7 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                 case 2 -> style { this.contentEffects = [ContentEffect.Blur(1.5, 1.5)] }
                 else -> style()
             }
-        val buttonStyle = ButtonStyle(surface = surfaceOptions { style { this.cornerRadius(9.0) } })
+        val buttonStyle = buttonStyle { surface { style { this.cornerRadius(9.0) } } }
         return element(
             PanelProps(generation, count, theme.tokens.palette.canvas),
             { props -> ControlPanel(props, probe) },

@@ -37,7 +37,7 @@ Button／Checkbox 默认参与 Tab／Shift+Tab 遍历。`focus = FocusOptions(So
 
 Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体、字号、颜色等属性；完整 StyledText 使用公共富文本模型。Button 的标签复用 Label 与主题 action 字体，其基线来自实际文字布局。外部 FontCollection 只借用，默认字体资源由挂载作用域管理。
 
-ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。Inherit 保留本轮主题值，Set(None) 明确清除可空属性。InteractionStyles 按 hovered、pressed、focused 顺序组合，禁用时只应用 disabled。`styled(content, style)` 可以给完整控件添加有序 glow、drop shadow 或 blur；空效果与有效果使用同一个持久装饰节点。
+`buttonStyle { ... }`、`checkboxStyle { ... }`、`textFieldStyle { ... }` 和 `interactionStyles { ... }` 构造不可变的局部样式；`value.copy { ... }` 基于已有值修改。surface／marker／scrollbar、states 及 text／placeholder／description 是嵌套配置成员，重复块保留此前字段，完整赋值替换该字段。文字覆盖赋为 None 时恢复继承；transition(None) 禁用动画，把 transition 属性赋为 StyleValue.Inherit 则恢复主题过渡。ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。Inherit 保留本轮主题值，Set(None) 明确清除可空属性。InteractionStyles 按 hovered、pressed、focused 顺序组合，禁用时只应用 disabled。`styled(content, style)` 可以给完整控件添加有序 glow、drop shadow 或 blur；空效果与有效果使用同一个持久装饰节点。
 
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 

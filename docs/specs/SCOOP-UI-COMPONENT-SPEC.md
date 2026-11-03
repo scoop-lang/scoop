@@ -245,6 +245,28 @@ navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺�
 
 ButtonStyle／CheckboxStyle 是本库的局部输入对象，使用公共 StyleOverride、SpanStyle 和明确的尺寸／动画覆盖。公共默认外观、视觉状态数据、表面／Checkbox／Radio／Scrollbar 的绘图和几何合同均属于 scoop.ui.style，三风格实现不依赖具体控件。本库把当前状态转换为主题视觉输入，消费同一几何和绘图，不按 macOS／Material／Fluent 分支。段落内 SpanStyle 的局部继承属于 graphics.text 的内容模型，复用其公共合同。
 
+局部样式通过以下接收者入口构造，configure 同步执行一次；每个结果提供 `copy(configure: 对应Builder.() -> Unit = {})`，以当前值初始化配置并发布独立描述。值和 builder 的构造器内部化，不保留公开长参数构造。
+
+```scoop
+buttonStyle(configure: ButtonStyleBuilder.() -> Unit = {}): ButtonStyle
+checkboxStyle(configure: CheckboxStyleBuilder.() -> Unit = {}): CheckboxStyle
+textFieldStyle(configure: TextFieldStyleBuilder.() -> Unit = {}): TextFieldStyle
+interactionStyles(configure: InteractionStylesBuilder.() -> Unit = {}): InteractionStyles
+```
+
+| Builder | 全部可写属性与默认值 |
+| --- | --- |
+| InteractionStylesBuilder | hovered／pressed／focused／disabled: StyleOverride，分别默认 styleOverride() |
+| ButtonStyleBuilder | kind: SurfaceKind = Action；surface: SurfaceOptions = surfaceOptions()；text: SpanStyle? = None；states: InteractionStyles = interactionStyles()；transition: StyleValue<AnimationSpec?> = Inherit |
+| CheckboxStyleBuilder | marker: CheckboxOptions = checkboxOptions()；padding: Insets? = None；states: InteractionStyles = interactionStyles()；transition／selectionTransition: StyleValue<AnimationSpec?> = Inherit |
+| TextFieldStyleBuilder | surface: SurfaceOptions = surfaceOptions()；text／placeholder／description: SpanStyle? = None；states: InteractionStyles = interactionStyles()；selectionColor／inactiveSelectionColor／caretColor／markedColor: Color? = None；caretWidth: Double = 1.0；scrollbar: ScrollbarOptions = scrollbarOptions() |
+
+嵌套配置使用真实同名成员：InteractionStylesBuilder 的四种状态接收 StyleOverrideBuilder；surface／marker／scrollbar 接收对应部件 OptionsBuilder；states 接收 InteractionStylesBuilder；text／placeholder／description 接收 SpanStyleBuilder。这些成员均返回 Unit、基于当前值修改，重复块累积，空块保留已有字段。可选文字覆盖尚为 None 时，文字配置块从全部继承的 spanStyle() 开始；直接给属性赋入完整值表示替换，赋入 None 移除该文字覆盖。
+
+transition／selectionTransition 还提供同名 Unit 设置方法，将同一类型化槽写为 Set(value)。Set(None) 禁用过渡，Inherit 使用当前主题；恢复继承时显式把属性赋为 StyleValue.Inherit。InteractionStyles 的状态组合顺序保持第 4 节合同，构造期间不组合某一帧的状态，也不读取或冻结当前主题。
+
+发布后修改被捕获的 builder 不改变结果；不可变子描述可以共享。回调异常不发布部分结果，不创建字体、painter、输入区域、动画或订阅；持久资源与状态仍在挂载作用域管理。控件现有布局、颜色与文本有效性检查继续在实际消费边界执行。
+
 公共 style 的 `Insets(left, top, right, bottom)` 表达有限非负内边距，`Insets.all(value)` 构造四边相等的值，控件不再复制同名类型。布局操作检查边距、尺寸及求和结果，颜色和绘图参数继续由 graphics 检查。首批交互过渡复用 Surface Animatable<Double> 生成 0～1 采样，主题根据它解析颜色或标记外观；目标相同的普通更新不重新启动动画，显式清除 transition 时直接吸附到当前目标。
 
 此前 ComponentDefaults 的固定视觉默认值方案由 ThemeSource／Theme 取代。应用在实际运行入口绑定稳定 ThemeSource；控件挂载保存来源，在 render 读取当前 Theme，其余局部属性继续继承主题。显式来源可经 Props 提供，组合控件向子标签转交；不存在自动挂载树 Provider。切换风格、明暗或效果保持组件实例、State、区域和焦点，只更新 Props、必要布局及绘图资源。

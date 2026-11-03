@@ -208,13 +208,13 @@ internal class Showcase(
             text,
             { model.select(value) },
             style =
-                ButtonStyle(
-                    kind =
-                        if (model.choice.value == value)
+                buttonStyle {
+                    this.kind =
+                        if (this @Showcase.model.choice.value == value)
                             SurfaceKind.Action
                         else
                             SurfaceKind.Plain
-                ),
+                },
             fonts = Some(fonts),
             focus = FocusOptions(Some(choices[index]))
         )
@@ -223,13 +223,13 @@ internal class Showcase(
             text,
             { model.selectMode(value) },
             style =
-                ButtonStyle(
-                    kind =
-                        if (model.mode.value == value)
+                buttonStyle {
+                    this.kind =
+                        if (this @Showcase.model.mode.value == value)
                             SurfaceKind.Action
                         else
                             SurfaceKind.Plain
-                ),
+                },
             fonts = Some(fonts),
             focus = FocusOptions(Some(choices[index]))
         )
