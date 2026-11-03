@@ -130,11 +130,11 @@ pub use object_envelope::*;
 mod elf;
 pub use elf::{
     ElfArchitecture, ElfObjectError, ElfRelocation, ValidatedElfObject,
-    validate_linux_elf_object_envelope_v1,
+    validate_elf_object_envelope_v1,
 };
 
 mod coff;
-pub use coff::{CoffObjectError, validate_windows_coff_object_envelope_v1};
+pub use coff::{CoffObjectError, validate_coff_object_envelope_v1};
 
 macro_rules! typed_digest {
     ($name:ident) => {

@@ -61,7 +61,7 @@ odr: .quad 7
         scoop_target_data::LINUX_X86_64_GNU_ID,
         scoop_target_data::LINUX_X86_64_MUSL_ID,
     ] {
-        let envelope = validate_linux_elf_object_envelope_v1(&bytes, target).unwrap();
+        let envelope = validate_elf_object_envelope_v1(&bytes, target).unwrap();
         assert_eq!(envelope.target(), target);
         assert!(
             envelope

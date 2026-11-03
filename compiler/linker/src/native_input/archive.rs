@@ -77,9 +77,9 @@ pub(super) fn read(
             == scoop_lir::NativeObjectFormat::Coff64
         {
             if object::FileKind::parse(payload).ok() == Some(object::FileKind::CoffImport) {
-                coff_import::CoffImport::read(payload).map(MemberIndex::Import)
+                coff_import::CoffImport::read(payload, profile.target()).map(MemberIndex::Import)
             } else {
-                crate::native_object::coff::read_with_import_sections(payload)
+                crate::native_object::coff::read_with_import_sections(payload, profile.target())
                     .map(|(info, imports)| MemberIndex::Object { info, imports })
             }
         } else {

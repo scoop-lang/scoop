@@ -11,10 +11,13 @@ pub(crate) struct CoffImport {
 }
 
 impl CoffImport {
-    pub fn read(bytes: &[u8]) -> Result<Self, LinkError> {
+    pub fn read(bytes: &[u8], target: scoop_lir::LirTargetProfile) -> Result<Self, LinkError> {
+        let architecture = crate::native_object::coff::object_architecture(target)?;
         let import = ImportFile::parse(bytes).map_err(error)?;
-        if import.architecture() != object::Architecture::X86_64 {
-            return Err(error("native import must target AMD64"));
+        if import.architecture() != architecture {
+            return Err(error(
+                "native import machine does not match the selected COFF target",
+            ));
         }
         Ok(Self {
             dll: std::str::from_utf8(import.dll()).map_err(error)?.to_owned(),

@@ -7,7 +7,7 @@ pub(crate) fn sections(
     bytes: &[u8],
     target: TargetProfileId,
 ) -> Result<ValidatedBuiltinObjectSectionInventoryV1, CoffObjectError> {
-    let envelope = validate_windows_coff_object_envelope_v1(bytes, target)?;
+    let envelope = validate_coff_object_envelope_v1(bytes, target)?;
     let roles = envelope
         .sections()
         .iter()

@@ -14,7 +14,7 @@ mod symbols;
 #[cfg(all(test, target_os = "windows"))]
 mod tests;
 
-pub fn validate_windows_coff_object_envelope_v1(
+pub fn validate_coff_object_envelope_v1(
     bytes: &[u8],
     target: TargetProfileId,
 ) -> Result<ValidatedObjectEnvelopeV1, CoffObjectError> {

@@ -6,7 +6,7 @@ use object::{ObjectSection, ObjectSymbol, elf};
 use super::*;
 use crate::link_object::object_envelope::*;
 
-pub fn validate_linux_elf_object_envelope_v1(
+pub fn validate_elf_object_envelope_v1(
     bytes: &[u8],
     target: TargetProfileId,
 ) -> Result<ValidatedObjectEnvelopeV1, ElfObjectError> {

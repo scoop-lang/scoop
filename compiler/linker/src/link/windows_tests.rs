@@ -119,7 +119,7 @@ fn validate_objects(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         )
         .unwrap_err()
         .0
-        .contains("ordinary AMD64 COFF")
+        .contains("ordinary COFF object required for the selected target")
     );
 }
 
