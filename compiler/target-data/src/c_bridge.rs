@@ -5,7 +5,7 @@ use scoop_lir::*;
 
 pub const fn darwin_c_bridge_flags(target: LirTargetProfile) -> CanonicalCBridgeFlagContractV1 {
     match target.architecture() {
-        TargetArchitecture::Aarch64 => CanonicalCBridgeFlagContractV1::DarwinAppleClang,
+        TargetArchitecture::Aarch64 => CanonicalCBridgeFlagContractV1::DarwinAppleClangAarch64,
         TargetArchitecture::X86_64 => CanonicalCBridgeFlagContractV1::DarwinAppleClangX86_64,
     }
 }
@@ -15,10 +15,9 @@ pub fn darwin_c_bridge_profile(
     deployment: DarwinCBridgeDeploymentContractV1,
     compiler: AppleClangCompilerIdentityV1,
 ) -> Result<CBridgeToolchainProfileV1, CBridgeToolchainBuildError> {
-    if !matches!(
-        crate::definition(target.id()).map(|definition| definition.native_environment),
-        Some(crate::NativeEnvironment::Darwin)
-    ) {
+    if !crate::definition(target.id()).is_some_and(|definition| {
+        definition.selection.target() == target && definition.os == crate::TargetOs::Darwin
+    }) {
         return Err(CBridgeToolchainBuildError::Platform(
             CBridgePlatformError::ExpectedDarwin,
         ));
@@ -43,18 +42,26 @@ pub fn linux_c_bridge_profile(
     target: LirTargetProfile,
     compiler: LinuxCCompilerIdentityV1,
 ) -> Result<CBridgeToolchainProfileV1, CBridgeToolchainBuildError> {
-    if !matches!(
-        crate::definition(target.id()).map(|definition| definition.native_environment),
-        Some(crate::NativeEnvironment::LinuxGnu | crate::NativeEnvironment::LinuxMusl)
-    ) {
+    let Some(definition) = crate::definition(target.id()).filter(|definition| {
+        definition.selection.target() == target && definition.os == crate::TargetOs::Linux
+    }) else {
         return Err(CBridgeToolchainBuildError::Platform(
             CBridgePlatformError::ExpectedLinux,
         ));
-    }
+    };
     let id = c_bridge_toolchain_id(target.id()).expect("registered Linux C producer");
-    let flags = match &compiler {
-        LinuxCCompilerIdentityV1::Gcc(_) => CanonicalCBridgeFlagContractV1::LinuxGcc,
-        LinuxCCompilerIdentityV1::Clang(_) => CanonicalCBridgeFlagContractV1::LinuxClang,
+    let flags = match (definition.architecture, &compiler) {
+        (TargetArchitecture::X86_64, LinuxCCompilerIdentityV1::Gcc(_)) => {
+            CanonicalCBridgeFlagContractV1::LinuxGccX86_64
+        }
+        (TargetArchitecture::X86_64, LinuxCCompilerIdentityV1::Clang(_)) => {
+            CanonicalCBridgeFlagContractV1::LinuxClangX86_64
+        }
+        (TargetArchitecture::Aarch64, _) => {
+            return Err(CBridgeToolchainBuildError::Platform(
+                CBridgePlatformError::UnsupportedLinuxMachine,
+            ));
+        }
     };
     let contract = CBridgeToolchainContractV1::new(
         target,
@@ -75,23 +82,26 @@ pub fn windows_c_bridge_profile(
     target: LirTargetProfile,
     compiler: ClangCompilerIdentityV1,
 ) -> Result<CBridgeToolchainProfileV1, CBridgeToolchainBuildError> {
-    if !matches!(
-        crate::definition(target.id()).map(|definition| definition.native_environment),
-        Some(
-            crate::NativeEnvironment::MicrosoftUcrt
-                | crate::NativeEnvironment::LlvmMingwMsvcrt
-                | crate::NativeEnvironment::LlvmMingwUcrt
-        )
-    ) {
+    let Some(definition) = crate::definition(target.id()).filter(|definition| {
+        definition.selection.target() == target && definition.os == crate::TargetOs::Windows
+    }) else {
         return Err(CBridgeToolchainBuildError::Platform(
             CBridgePlatformError::ExpectedWindows,
         ));
-    }
+    };
+    let flags = match definition.architecture {
+        TargetArchitecture::X86_64 => CanonicalCBridgeFlagContractV1::WindowsClangAmd64,
+        TargetArchitecture::Aarch64 => {
+            return Err(CBridgeToolchainBuildError::Platform(
+                CBridgePlatformError::UnsupportedWindowsMachine,
+            ));
+        }
+    };
     let id = c_bridge_toolchain_id(target.id()).expect("registered Windows C producer");
     let contract = CBridgeToolchainContractV1::new(
         target,
         CBridgePlatformContractV1::Windows { compiler },
-        CanonicalCBridgeFlagContractV1::WindowsClang,
+        flags,
     )
     .map_err(CBridgeToolchainBuildError::Hash)?;
     CBridgeToolchainProfileV1::new(id, contract).map_err(CBridgeToolchainBuildError::Hash)

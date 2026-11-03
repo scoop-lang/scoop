@@ -46,8 +46,9 @@ fn windows_mingw_address_pointers_join_callable_constants() {
                 .write_to_file(&llvm, FileType::Object, &path)
                 .unwrap();
             let mut bytes = std::fs::read(&path).unwrap();
-            merge_callable_constants(&mut bytes).unwrap();
-            let mut object = CoffObject::read(&bytes).unwrap();
+            let object_target = target.target().object_target();
+            merge_callable_constants(&mut bytes, object_target).unwrap();
+            let mut object = CoffObject::read(&bytes, object_target).unwrap();
             let constants = object.file.section_by_name(".rdata").unwrap();
             assert_eq!(constants.relocations().count(), 2);
             assert!(constants.size() >= 16 && constants.align() >= 8);
@@ -131,8 +132,9 @@ fn mingw_jump_table_and_address_pointer_survive_constant_merging() {
             .write_to_file(&llvm, FileType::Object, &path)
             .unwrap();
         let mut bytes = std::fs::read(&path).unwrap();
-        merge_callable_constants(&mut bytes).unwrap();
-        let mut object = CoffObject::read(&bytes).unwrap();
+        let object_target = target.target().object_target();
+        merge_callable_constants(&mut bytes, object_target).unwrap();
+        let mut object = CoffObject::read(&bytes, object_target).unwrap();
         let constants = object.file.section_by_name(".rdata").unwrap();
         assert_eq!(constants.relocations().count(), 5);
         let constant_index = constants.index();

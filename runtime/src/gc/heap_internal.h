@@ -11,6 +11,13 @@
 #include "../platform/platform.h"
 #include "stress.h"
 
+/* The selected target's measured runtime tuning supplies this call strategy.
+ * It changes no GC semantics or ABI. */
+#if !defined(SCOOP_PLATFORM_INLINE_GC_FORWARDING) ||                                      \
+    (SCOOP_PLATFORM_INLINE_GC_FORWARDING != 0 && SCOOP_PLATFORM_INLINE_GC_FORWARDING != 1)
+#error "target runtime tuning must select the GC forwarding call strategy"
+#endif
+
 #define GC_BLOCK_SIZE ((size_t)32768)
 #define GC_LINE_SIZE ((size_t)128)
 #define GC_LINES_PER_BLOCK (GC_BLOCK_SIZE / GC_LINE_SIZE)

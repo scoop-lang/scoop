@@ -56,7 +56,7 @@ pub(super) fn inputs(
     family: NativeCompilerFamily,
     inputs: &mut std::collections::BTreeSet<PathBuf>,
 ) -> Result<(), ToolchainError> {
-    if c.native_environment() == scoop_target_data::NativeEnvironment::Darwin {
+    if c.target_os() == scoop_target_data::TargetOs::Darwin {
         let sdk = c.sdk_root().map_err(error)?;
         inputs.extend([
             sdk.join("usr/lib/libc++.tbd"),

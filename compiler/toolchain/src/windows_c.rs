@@ -15,10 +15,19 @@ use crate::{ToolchainError, ValidatedCBridgeToolchainInvocation};
 mod environment;
 pub(crate) use environment::WindowsCEnvironment;
 
-pub(crate) fn machine_triple(target: TargetProfileId) -> Result<&'static str, ToolchainError> {
+pub(crate) fn target_triple(target: TargetProfileId) -> Result<&'static str, ToolchainError> {
     scoop_target_data::definition(target)
-        .filter(|definition| definition.native_environment.is_windows())
+        .filter(|definition| definition.os == scoop_target_data::TargetOs::Windows)
         .map(|definition| definition.llvm_triple)
+        .ok_or_else(|| error("a registered Windows target is required"))
+}
+
+pub(crate) fn native_environment(
+    target: TargetProfileId,
+) -> Result<scoop_target_data::NativeEnvironment, ToolchainError> {
+    scoop_target_data::definition(target)
+        .filter(|definition| definition.os == scoop_target_data::TargetOs::Windows)
+        .map(|definition| definition.native_environment)
         .ok_or_else(|| error("a registered Windows target is required"))
 }
 
@@ -50,7 +59,9 @@ pub(crate) fn probe_default(
     };
     let default_root = crate::target_library_root(&crate::configured_sysroot_root(None)?, target)
         .join("toolchain");
-    let usable_default = if target.id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID {
+    let usable_default = if native_environment(target.id())?
+        == scoop_target_data::NativeEnvironment::MicrosoftUcrt
+    {
         default_root.join("msvc.toml").is_file()
     } else {
         default_root.is_dir()
@@ -81,12 +92,13 @@ pub(crate) fn probe(
     compiler: &Path,
     native_sysroot: Option<&Path>,
 ) -> Result<(ValidatedCBridgeToolchainInvocation, Vec<PathBuf>), ToolchainError> {
-    let triple = machine_triple(target.id())?;
+    let triple = target_triple(target.id())?;
     let search_path = std::env::var_os("PATH").unwrap_or_default();
     let mut tool_inputs = BTreeSet::new();
     crate::native_record::program_candidates(compiler.as_os_str(), &search_path, &mut tool_inputs);
     let compiler = crate::paths::find_program(compiler.as_os_str(), &search_path)?;
     let (environment, paths) = WindowsCEnvironment::resolve(target, &compiler, native_sysroot)?;
+    let machine = environment.machine;
     let mut inputs: BTreeSet<_> = paths.into_iter().collect();
     inputs.extend(tool_inputs);
     inputs.insert(compiler.clone());
@@ -96,10 +108,20 @@ pub(crate) fn probe(
         .map_err(error)?;
     let source = directory.path().join("probe.c");
     let object = directory.path().join("probe.obj");
-    let microsoft = target.id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID;
-    let ucrt = target.id() != scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT_ID;
-    std::fs::write(&source, format!("{PROBE}\n#if defined(__MINGW32__) == {microsoft}\n#error wrong Windows native environment\n#endif\n#if defined(_UCRT) != {ucrt}\n#error wrong Windows CRT headers\n#endif\nvoid *scoop_windows_c_probe(void) {{ return (void *)&_errno; }}\n",
-        microsoft = u8::from(microsoft), ucrt = u8::from(ucrt))).map_err(error)?;
+    let native_environment = native_environment(target.id())?;
+    let microsoft = native_environment == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
+    let ucrt = native_environment != scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt;
+    std::fs::write(
+        &source,
+        format!(
+            "{PROBE}\n#if !defined(__clang__) || !defined(_WIN64) || !({machine_condition})\n#error the Windows generated-C producer requires {machine_name} Clang\n#endif\n#if defined(__MINGW32__) == {microsoft}\n#error wrong Windows native environment\n#endif\n#if defined(_UCRT) != {ucrt}\n#error wrong Windows CRT headers\n#endif\nvoid *scoop_windows_c_probe(void) {{ return (void *)&_errno; }}\n",
+            machine_condition = machine.predefined_macro_condition(),
+            machine_name = machine.name(),
+            microsoft = u8::from(microsoft),
+            ucrt = u8::from(ucrt),
+        ),
+    )
+    .map_err(error)?;
     let make_command = || environment.command(&compiler, triple, microsoft);
     let dependencies = run(make_command()
         .args(["-v", "-M", "-MT", "c-probe"])
@@ -127,12 +149,15 @@ pub(crate) fn probe(
     run(&mut invocation.object_compilation_command(&source, &object))?;
     let bytes = std::fs::read(object).map_err(error)?;
     let file = object::File::parse(bytes.as_slice()).map_err(error)?;
-    if file.architecture() != object::Architecture::X86_64
+    if file.architecture() != machine.object_architecture()
         || file.format() != object::BinaryFormat::Coff
         || file.kind() != ObjectKind::Relocatable
         || file.symbol_by_name("scoop_windows_c_probe").is_none()
     {
-        return Err(error("Clang did not emit the selected AMD64 COFF C object"));
+        return Err(error(format!(
+            "Clang did not emit the selected {} COFF C object",
+            machine.name()
+        )));
     }
     Ok((invocation, inputs.into_iter().collect()))
 }
@@ -144,9 +169,6 @@ const PROBE: &str = r#"
 #include <errno.h>
 #include <stdatomic.h>
 #include <windows.h>
-#if !defined(__clang__) || !defined(_WIN64) || !defined(__x86_64__)
-#error the Windows generated-C producer requires x64 Clang
-#endif
 _Static_assert(sizeof(void *) == 8 && sizeof(long) == 4 && sizeof(wchar_t) == 2,
     "Windows LLP64 required");
 _Static_assert(ATOMIC_POINTER_LOCK_FREE == 2, "Windows runtime requires lock-free pointer atomics");

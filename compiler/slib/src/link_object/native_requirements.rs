@@ -147,9 +147,7 @@ fn verify_source_external_requirements_from_candidates_v1(
             })
         });
         if let Some(requirement) = requirement {
-            if binding
-                .relocation_form()
-                .is_tls_reference(native_requirements.target())
+            if binding.relocation_form().is_tls_reference()
                 != matches!(
                     requirement.contract(),
                     scoop_identity::NativeExternalContract::ReadOnlyTls { .. }

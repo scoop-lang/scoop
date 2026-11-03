@@ -34,9 +34,13 @@ fn trace_symbols_preserve_source_names_paths_and_reject_changed_loader_indices()
     sources.extend([
         workspace.join("runtime/src/stack_trace/capture.c"),
         workspace.join("runtime/src/stack_trace/symbolize.c"),
-        workspace.join(super::platform_support::native_trace_module_source()),
         test_source.clone(),
     ]);
+    sources.extend(
+        super::platform_support::native_trace_module_sources()
+            .iter()
+            .map(|source| workspace.join(source)),
+    );
     let mut objects = Vec::new();
     for (index, source) in sources.iter().enumerate() {
         let object = work.path().join(format!("trace-{index}.o"));
@@ -66,7 +70,7 @@ fn trace_symbols_preserve_source_names_paths_and_reject_changed_loader_indices()
     let mut link = Command::new("cc");
     link.args(&objects).arg("-pthread");
     if cfg!(target_os = "linux") {
-        link.arg("-ldl");
+        link.args(["-Wl,--build-id=sha1", "-ldl"]);
     }
     checked(link.arg("-o").arg(&binary));
     if cfg!(target_os = "macos") {

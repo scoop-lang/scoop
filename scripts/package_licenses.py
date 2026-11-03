@@ -6,6 +6,11 @@ import subprocess
 from pathlib import Path
 
 from build_rust_text import NOTICE_DIRECTORY
+from target_catalog import host_definition, llvm_mingw_resource_triple, native_configuration
+
+
+def llvm_mingw_license_root(prefix, architecture):
+    return prefix / llvm_mingw_resource_triple(architecture) / "share/mingw32"
 
 
 def license_files(directory):
@@ -42,7 +47,7 @@ def collect(root, repository, source, host, native, targets, *, sysroot=None, py
     own = license_files(repository)
     add("Scoop", "See project license" if own else "Not yet selected by the maintainer", own)
     add("LLVM", "Apache-2.0 WITH LLVM-exception", [source / "llvm/LICENSE.TXT"])
-    if "windows" in host:
+    if host_definition(host)["system"] == "Windows":
         for component in ("libcxx", "libcxxabi", "libunwind", "compiler-rt"):
             add(component, "See included documents", [source / component / "LICENSE.TXT"])
     if python_license is not None:
@@ -50,14 +55,15 @@ def collect(root, repository, source, host, native, targets, *, sysroot=None, py
     for target in targets:
         notices = sysroot / "lib" / target / NOTICE_DIRECTORY
         add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
-        if "llvm-mingw" in target:
+        configuration = native_configuration(target)
+        if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
             prefix = root / "lib" / target / "toolchain"
             add(
                 "LLVM-MinGW-" + target,
                 "See included documents",
                 [
                     prefix / "LICENSE.TXT",
-                    *license_files(prefix / "x86_64-w64-mingw32/share/mingw32"),
+                    *license_files(llvm_mingw_license_root(prefix, configuration["arch"])),
                 ],
             )
     for vendor in (sysroot / "vendor").iterdir():

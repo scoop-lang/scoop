@@ -30,6 +30,7 @@ fn associated_constants_follow_their_code_in_coff_and_bigobj_and_link() {
     )
     .unwrap();
     let harness = directory.path().join("main.c");
+    let object_target = scoop_target_data::WINDOWS_X86_64_MSVC_UCRT.object_target();
     std::fs::write(
         &harness,
         "double add_value(double); int wmain(void) { return add_value(0.5) != 2.0; }\n",
@@ -63,7 +64,7 @@ fn associated_constants_follow_their_code_in_coff_and_bigobj_and_link() {
                 object::FileKind::Coff
             }
         );
-        let mut object = CoffObject::read(&bytes).unwrap();
+        let mut object = CoffObject::read(&bytes, object_target).unwrap();
         let (constant, _) = object.extent("bias").unwrap();
         let (code, _) = object.extent("add_value").unwrap();
         assert!(constant.0 < code.0);
@@ -79,7 +80,7 @@ fn associated_constants_follow_their_code_in_coff_and_bigobj_and_link() {
             .unwrap();
         let fixed = object.finish().unwrap();
         std::fs::write(&path, &fixed).unwrap();
-        let object = CoffObject::read(&fixed).unwrap();
+        let object = CoffObject::read(&fixed, object_target).unwrap();
         let (code, _) = object.extent("add_value").unwrap();
         let (constant, _) = object.extent("bias").unwrap();
         assert!(code.0 < constant.0);

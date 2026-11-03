@@ -8,7 +8,7 @@ pub(crate) fn sections(
     bytes: &[u8],
     target: TargetProfileId,
 ) -> Result<ValidatedBuiltinObjectSectionInventoryV1, ElfObjectError> {
-    let envelope = validate_linux_elf_object_envelope_v1(bytes, target)?;
+    let envelope = validate_elf_object_envelope_v1(bytes, target)?;
     let roles = envelope
         .sections()
         .iter()

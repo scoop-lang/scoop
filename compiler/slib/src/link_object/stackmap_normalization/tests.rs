@@ -19,8 +19,13 @@ fn windows_roots_preserve_offsets_for_seh_reconstructed_registers() {
             Vec::new(),
         );
         record.header.stack_size = 16424;
-        let normalized =
-            normalize_record(StackmapFrame::WindowsSeh, expected, &[], record).unwrap();
+        let normalized = normalize_record(
+            StackmapFrame::WindowsAmd64VirtualUnwind,
+            expected,
+            &[],
+            record,
+        )
+        .unwrap();
         assert_eq!(
             normalized.canonical().locations()[3],
             CanonicalStackmapLocationV1::Indirect {
@@ -38,7 +43,15 @@ fn windows_roots_preserve_offsets_for_seh_reconstructed_registers() {
             Vec::new(),
         );
         record.header.stack_size = 40;
-        assert!(normalize_record(StackmapFrame::WindowsSeh, expected, &[], record).is_err());
+        assert!(
+            normalize_record(
+                StackmapFrame::WindowsAmd64VirtualUnwind,
+                expected,
+                &[],
+                record,
+            )
+            .is_err()
+        );
     }
 }
 
@@ -57,7 +70,7 @@ fn amd64_roots_exclude_the_frame_record_red_zone_and_unaligned_slots() {
     };
     for (register, offset) in [(7, 0), (7, 8), (6, -16), (6, -8)] {
         normalize_record(
-            StackmapFrame::SysvAmd64,
+            StackmapFrame::SysvAmd64Fixed,
             expected,
             &[],
             record(register, offset),
@@ -67,7 +80,7 @@ fn amd64_roots_exclude_the_frame_record_red_zone_and_unaligned_slots() {
     for (register, offset) in [(7, -8), (7, 1), (7, 16), (6, 0), (6, 8), (6, -24)] {
         assert!(matches!(
             normalize_record(
-                StackmapFrame::SysvAmd64,
+                StackmapFrame::SysvAmd64Fixed,
                 expected,
                 &[],
                 record(register, offset)
@@ -76,14 +89,14 @@ fn amd64_roots_exclude_the_frame_record_red_zone_and_unaligned_slots() {
         ));
     }
     assert_eq!(
-        normalize_record(StackmapFrame::SysvAmd64, expected, &[], record(31, 0)),
+        normalize_record(StackmapFrame::SysvAmd64Fixed, expected, &[], record(31, 0),),
         Err(StackmapNormalizationError::InvalidRootLocation(0))
     );
     for size in [0, 16, 32, u64::MAX] {
         let mut value = record(7, 0);
         value.header.stack_size = size;
         assert_eq!(
-            normalize_record(StackmapFrame::SysvAmd64, expected, &[], value),
+            normalize_record(StackmapFrame::SysvAmd64Fixed, expected, &[], value),
             Err(StackmapNormalizationError::InvalidStackSize(size))
         );
     }
@@ -115,10 +128,15 @@ fn constant_and_constant_index_normalize_to_the_same_record() {
         Vec::new(),
     );
 
-    let direct =
-        normalize_record(StackmapFrame::DarwinAarch64, expected, &[0xfeed], direct).unwrap();
+    let direct = normalize_record(
+        StackmapFrame::DarwinAarch64Fixed,
+        expected,
+        &[0xfeed],
+        direct,
+    )
+    .unwrap();
     let indexed = normalize_record(
-        StackmapFrame::DarwinAarch64,
+        StackmapFrame::DarwinAarch64Fixed,
         expected,
         &[0xfeed, 0],
         indexed,
@@ -159,7 +177,7 @@ fn constant_and_constant_index_normalize_to_the_same_record() {
 fn canonical_fingerprint_preserves_instruction_stack_and_live_out_fields() {
     let expected = semantic_plan(0);
     let baseline = normalize_record(
-        StackmapFrame::DarwinAarch64,
+        StackmapFrame::DarwinAarch64Fixed,
         expected,
         &[],
         provisional(
@@ -176,7 +194,8 @@ fn canonical_fingerprint_preserves_instruction_stack_and_live_out_fields() {
     );
     changed.header.instruction_offset = 12;
     changed.header.stack_size = 80;
-    let changed = normalize_record(StackmapFrame::DarwinAarch64, expected, &[], changed).unwrap();
+    let changed =
+        normalize_record(StackmapFrame::DarwinAarch64Fixed, expected, &[], changed).unwrap();
 
     assert_ne!(baseline.fingerprint(), changed.fingerprint());
     assert_eq!(changed.canonical().instruction_offset(), 12);
@@ -358,7 +377,12 @@ fn normalize_without_constants(
     expected: ExpectedStackmapSemanticsV1,
     provisional: ProvisionalLlvmStackmapRecordV3,
 ) -> Result<VerifiedNormalizedStackmapRecordV1, StackmapNormalizationError> {
-    normalize_record(StackmapFrame::DarwinAarch64, expected, &[], provisional)
+    normalize_record(
+        StackmapFrame::DarwinAarch64Fixed,
+        expected,
+        &[],
+        provisional,
+    )
 }
 
 fn constant(size: u16, value: i32) -> ProvisionalLlvmStackmapLocationV3 {

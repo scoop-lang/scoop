@@ -16,10 +16,37 @@ pub enum ObjectRelocationTargetV1 {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
-pub enum ObjectEnvelopeFormatV1 {
-    MachO64 { target: TargetProfileId },
-    Elf64 { target: TargetProfileId },
-    Coff64 { target: TargetProfileId },
+pub struct ObjectEnvelopeFormatV1 {
+    target: TargetProfileId,
+    object_target: scoop_lir::ObjectTargetProfileV1,
+}
+
+impl ObjectEnvelopeFormatV1 {
+    pub(super) const fn new(
+        target: TargetProfileId,
+        object_target: scoop_lir::ObjectTargetProfileV1,
+    ) -> Self {
+        Self {
+            target,
+            object_target,
+        }
+    }
+
+    pub const fn target(&self) -> TargetProfileId {
+        self.target
+    }
+
+    pub const fn object_target(&self) -> scoop_lir::ObjectTargetProfileV1 {
+        self.object_target
+    }
+
+    pub const fn machine(&self) -> scoop_lir::ObjectMachineV1 {
+        self.object_target().machine()
+    }
+
+    pub const fn header_abi(&self) -> scoop_lir::ObjectHeaderAbiV1 {
+        self.object_target().header_abi()
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -43,11 +70,7 @@ impl ValidatedObjectEnvelopeV1 {
         &self.format
     }
     pub const fn target(&self) -> TargetProfileId {
-        match self.format {
-            ObjectEnvelopeFormatV1::MachO64 { target }
-            | ObjectEnvelopeFormatV1::Elf64 { target, .. }
-            | ObjectEnvelopeFormatV1::Coff64 { target } => target,
-        }
+        self.format.target()
     }
     pub fn sections(&self) -> &[ObservedObjectSectionV1] {
         &self.sections
@@ -196,25 +219,30 @@ impl ObservedObjectSymbolV1 {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum ObjectRelocationShapeV1 {
-    MachO(MachORelocationShapeV1),
-    ElfX86_64Rela {
+    MachO {
+        machine: scoop_lir::ObjectMachineV1,
+        shape: MachORelocationShapeV1,
+    },
+    ElfRela {
+        machine: scoop_lir::ObjectMachineV1,
         kind: u32,
         target_symbol: u32,
         addend: i64,
-        width: u8,
+        storage_width: u8,
     },
-    CoffAmd64 {
+    Coff {
+        machine: scoop_lir::ObjectMachineV1,
         kind: u16,
         target_symbol: u32,
-        width: u8,
+        storage_width: u8,
     },
 }
 
 impl ObjectRelocationShapeV1 {
     pub const fn width_bytes(self) -> u8 {
         match self {
-            Self::MachO(shape) => shape.width_bytes(),
-            Self::ElfX86_64Rela { width, .. } | Self::CoffAmd64 { width, .. } => width,
+            Self::MachO { shape, .. } => shape.width_bytes(),
+            Self::ElfRela { storage_width, .. } | Self::Coff { storage_width, .. } => storage_width,
         }
     }
 }

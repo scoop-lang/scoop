@@ -2,7 +2,7 @@
 #include <string.h>
 
 #if !defined(__x86_64__) || defined(__ILP32__)
-#error "the amd64 floating result adapters require LP64 x86_64"
+#error "the amd64 tagged floating result shim requires LP64 x86_64"
 #endif
 
 typedef struct {

@@ -5,7 +5,7 @@ import shutil
 from pathlib import Path
 
 from build_llvm import TOOLS
-from target_catalog import native_configuration
+from target_catalog import llvm_mingw_resource_triple, native_configuration
 
 
 def arguments(parser):
@@ -62,6 +62,13 @@ def openssl_arguments(args, target):
     return ["--perl", args.msys_perl, "--make", args.msys_make, "--shell", args.msys_shell]
 
 
+def mingw_resource_filter(selected):
+    def ignore(_directory, names):
+        return [name for name in names if name.endswith("-w64-mingw32") and name != selected]
+
+    return ignore
+
+
 def install(root, targets, args):
     private = root / "libexec/llvm"
     (private / "bin").mkdir(parents=True)
@@ -72,13 +79,9 @@ def install(root, targets, args):
         prefix = mingw_prefix(args, target)
         if prefix is None:
             continue
+        selected = llvm_mingw_resource_triple(native_configuration(target)["arch"])
         shutil.copytree(
             prefix,
             root / "lib" / target / "toolchain",
-            ignore=shutil.ignore_patterns(
-                "aarch64-w64-mingw32*",
-                "arm64ec-w64-mingw32*",
-                "armv7-w64-mingw32*",
-                "i686-w64-mingw32*",
-            ),
+            ignore=mingw_resource_filter(selected),
         )

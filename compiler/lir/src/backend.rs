@@ -38,11 +38,53 @@ pub struct BackendProfileContract {
     pub inkwell_binding: [u32; 3],
     pub cpu: &'static str,
     pub features: &'static str,
-    pub llvm_target_backend: crate::TargetArchitecture,
-    pub unwind_provider: u32,
-    pub artifact_inspection: crate::NativeObjectFormat,
+    pub llvm_architecture: LlvmArchitecture,
+    pub unwind_provider: UnwindProviderV1,
+    pub artifact_inspection: crate::ObjectTargetProfileV1,
     pub lsda: BackendLsdaEncodingsV1,
-    pub machine_frame: BackendMachineFrameV1,
+    pub machine_frame_recovery: MachineFrameRecoveryV1,
+    pub red_zone: BackendRedZoneV1,
+    pub debug_information: BackendDebugInformationFormatV1,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum LlvmArchitecture {
+    Aarch64,
+    X86,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BackendRedZoneV1 {
+    Enabled,
+    Disabled,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum BackendDebugInformationFormatV1 {
+    Dwarf5,
+    CodeView,
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum UnwindProviderV1 {
+    DarwinLibSystem,
+    LlvmLibunwindDwarf,
+    LlvmLibunwindWindowsSeh,
+}
+
+impl UnwindProviderV1 {
+    pub const fn supports_exception_model(self, model: crate::TargetExceptionModelV1) -> bool {
+        matches!(
+            (self, model),
+            (
+                Self::DarwinLibSystem | Self::LlvmLibunwindDwarf,
+                crate::TargetExceptionModelV1::ItaniumDwarf
+            ) | (
+                Self::LlvmLibunwindWindowsSeh,
+                crate::TargetExceptionModelV1::ItaniumWindowsSeh
+            )
+        )
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -54,17 +96,26 @@ pub struct BackendLsdaEncodingsV1 {
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum BackendMachineFrameV1 {
-    DarwinAarch64,
-    SysvAmd64,
-    WindowsSeh,
+pub enum MachineFrameRecoveryV1 {
+    DarwinAarch64Fixed,
+    SysvAmd64Fixed,
+    WindowsAmd64VirtualUnwind,
 }
 
-impl BackendMachineFrameV1 {
+impl MachineFrameRecoveryV1 {
     pub const fn registers(self) -> (u16, u16) {
         match self {
-            Self::DarwinAarch64 => (31, 29),
-            Self::SysvAmd64 | Self::WindowsSeh => (7, 6),
+            Self::DarwinAarch64Fixed => (31, 29),
+            Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => (7, 6),
+        }
+    }
+
+    pub const fn object_machine(self) -> crate::ObjectMachineV1 {
+        match self {
+            Self::DarwinAarch64Fixed => crate::ObjectMachineV1::Aarch64,
+            Self::SysvAmd64Fixed | Self::WindowsAmd64VirtualUnwind => {
+                crate::ObjectMachineV1::X86_64
+            }
         }
     }
 }
@@ -124,15 +175,15 @@ mod tests {
     #[test]
     fn backend_contract_and_fingerprint_match_the_fixed_vectors() {
         assert_eq!(
-            hex(&encode(&crate::target_fixtures::LLVM_22_1.contract()).unwrap()),
-            "b81c01a20116020102a30100020a0301036767656e657269630460050106010701080109010a010b030c010d010e010f01100111011201130114011501160217a30118ff02189b0301181801181901181a03181ba401181f02181d03080410181c01"
+            hex(&encode(&crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64.contract(),).unwrap()),
+            "b81e01a20116020102a30100020a0301036767656e657269630460050106010701080109010a010b030c010d010e010f01100111011201130114011501160217a30118ff02189b0301181801181901181a03181ba401181f02181d03080410181c01181d01181e01"
         );
         assert_eq!(
-            crate::target_fixtures::LLVM_22_1
+            crate::target_fixtures::LLVM_22_1_DARWIN_AARCH64
                 .fingerprint()
                 .unwrap()
                 .to_string(),
-            "897a958d3eeaa3ca6691d24e99c5b1a9f18d8c248ae62b588965c94467928023"
+            "7e317d89499785788da88f27b57bf5014a2d41b990d34851c6f9c390e5275bbd"
         );
     }
 

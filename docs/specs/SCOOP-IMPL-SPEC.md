@@ -20,6 +20,10 @@ Windows 发行准备使用同一 GNU-LLVM Rust 宿主构建主命令、示例命
 
 编译请求明确选择相容的 LIR target、backend、C bridge toolchain、runtime build 与 final-link 配置。静态目标目录由独立的 `scoop-target-data`（`compiler/target-data`）维护：`targets.toml` 是 Rust 与维护／fixture 脚本共用的完整目标事实，Rust 构建时生成类型化常量，Python 直接读取同一配置。目录只登记已实现的目标和实现选择，不执行工具探测或 ABI 分类；driver、toolchain、对象消费者和脚本按需投影，不各自维护完整目标列表。typed target/backend/toolchain identity 只规定规范化名称与版本的格式；格式合法不代表相应消费者支持。native 符号的对象前缀由选中目标的数据显式传入；identity 解码只检查身份和符号字节格式，目标消费边界按源码符号重建并核对归一化结果。LLVM/backend 和具体 ABI 实现由 codegen 选择，对象读取与最终链接由 slib/linker 的有限支持集合决定，未知或不相容组合必须明确诊断，不回退到宿主目标。阶段只消费其所需投影；library 编译不要求未使用的最终 linker、CRT 或 unwind archive，链接只执行其实际需要的工具，不通过移除源码编译器或 LLVM 工具证明隔离能力。
 
+静态目录是 OS、机器架构、对象目标、过程 ABI、backend、codegen deployment profile、machine frame、native environment 与 final-link profile 的唯一组合根。Rust 侧的 OS 与机器架构使用封闭的类型化值；对象目标是 `{format, machine, header ABI/flags, relocation profile, symbol normalization}` 的完整数据，不以单独的 format 代替 machine 与 ABI。目录只引用当前已有的实现，不为尚未支持的 OS、机器、ABI、triple、SDK 或资源保存占位值。consumer 只能读取自己负责的投影：runtime OS 服务不从 native environment 或对象格式推导，ABI planner 不从 ISA 或 OS 推导过程 ABI，对象 reader 不从 format 推导 machine，codegen deployment 与 final-link 都由目录显式选择，不从对象格式或 native environment 推导平台；源码调试信息格式由 backend 合同显式选择，不能以 COFF、ELF 或 Mach-O 反推 CodeView 或 DWARF。目录构建边界一次检查这些投影相容，数据未变化的后续 stage 复用结果，不重复组合或重放全量检查。
+
+正式 fixture runner 同样消费目录投影：OS 选择平台 companion，native environment 选择 libc／CRT 方言，Clang 接收目录中的 LLVM triple。Windows 的 SDK library slice 由局部 toolchain-machine 映射提供，不能通过某个完整 target 名称选出 MSVC，也不能在公共 workflow 中固定 x86-64 triple。只实现当前已有 machine；未知 OS 或 machine 在对应 companion 入口报错，不回退到 Linux 或 x86-64。
+
 | canonical target triple | LIR target profile | 对象格式 | 平台契约 |
 | --- | --- | --- | --- |
 | `aarch64-apple-darwin` | `org.scoop-lang.target-profile/darwin-aarch64/1` | Mach-O relocatable | Darwin/AArch64 |
@@ -32,6 +36,8 @@ Windows 发行准备使用同一 GNU-LLVM Rust 宿主构建主命令、示例命
 
 这些目标采用 little-endian、64-bit data/code pointer 与 16-byte 调用栈对齐。合法非 null pointer 可经内部 64-bit carrier 逐 bit 往返，null carrier 全零。data、code、managed 与 metadata pointer 的语义仍不同，不因此增加源码整数转换。
 
+output target、编译器 host 与发行资源是三个独立支持结果。backend 能发射某一 output target 不自动要求同架构 host 包，也不证明该 target 的 runtime、系统库和发行资源已经准备；反向也不能由 host 可执行或资源目录推定 output target 已完成 ABI、GC、EH 与链接验收。
+
 Darwin/amd64 使用 `org.scoop-lang.backend-profile/llvm-22-1-darwin-x86-64/1`，CPU 基线为 x86-64，LLVM data layout 为 `e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128`。Scoop 小值／interface 分量规则复用现有实现；C 固定签名使用 SysV AMD64 分类，包含 narrow integer 扩展、整 aggregate 的寄存器耗尽回退、byval 与 sret。EH 使用 Darwin 系统 unwind 与 Dwarf personality，LSDA 为 LPStart `0xff`、type table `0x9b`、call-site `0x01`，无 type table 时允许 `0xff`。managed frame 明确选择 SysV AMD64 固定帧，配套 Mach-O anchor 使用 Apple 符号命名，保持 frame pointer、禁用 red zone 与尾调用。
 
 Darwin 两个架构分别使用自身 target sysroot。amd64 的 generated-C、native、runtime 和 startup 同样显式选择 x86-64 CPU、目标 SDK 与部署版本。当前发行部署基线为 macOS 27.0.1／SDK 27.0，本机 Apple Silicon 可通过 Rosetta 验证 amd64 程序；这不构成更旧 macOS 或真实 Intel 硬件的验证声明。AArch64 宿主包携带两个 Darwin 目标，amd64 宿主默认并携带 amd64 目标，发行组合与运行能力分别判断。
@@ -40,11 +46,13 @@ Windows x64 宿主默认选择 `x86_64-pc-windows-msvc-ucrt`，不根据构建 S
 
 LIR 目标数据显式保存机器架构、过程 ABI、Scoop ABI classifier 与 EH 约定。过程 ABI 选择 Darwin AArch64、SysV AMD64 或 Win64 的完整签名分类器；Scoop classifier 不从 COFF 推导，SEH personality 的名称与签名不从对象格式推导。静态目录绑定这些已实现的规则，IR crate 只保存和编码数据，具体分类算法继续属于 codegen 的 ABI planner。
 
-backend 的 machine frame 是必需数据，明确选择 Darwin AArch64 固定帧、SysV AMD64 固定帧或 Windows SEH 恢复；不以空值代表 Darwin，也不从架构／容器推定。profile 编码包含实际选择，配套目标产物据此重建。LLVM 架构初始化、对象 section 名称、machine triple 和 CPU／features 分别消费其投影，不继承另一个平台的完整描述。接口复用、数组区域、TLAB 和 card-region 的既有调优由 codegen 内的数据选项提供，目录绑定已有调优组，通用发射与优化流程不比较 LLVM target 名称。此次重构保持当前参数／结果、根槽与运行时机器 ABI 行为。
+backend 的 machine frame 是必需数据，恢复机制为 fixed-frame 或 platform virtual-unwind 等封闭分支，每个 profile 再完整保存实际寄存器、slot、anchor、return-PC 与 next-frame 合同。当前实现明确选择 Darwin AArch64 固定帧、SysV AMD64 固定帧或 Windows AMD64 virtual-unwind；不以空值代表任一平台，也不从架构／容器推定。Windows profile 中的 RSP／RBP 与 DWARF 编号属于 AMD64 profile 数据，不能藏在看似适用于所有 Windows machine 的分支中。profile 编码包含实际选择，配套目标产物据此重建。LLVM 架构初始化、对象 section 名称、machine triple、CPU／features 和源码调试信息格式分别消费其投影，不继承另一个平台的完整描述；当前 Darwin／Linux backend 显式选择 DWARF 5，Windows backend 显式选择 CodeView。接口复用、数组区域、TLAB 和 card-region 的既有调优由 codegen 内的数据选项提供，目录绑定已有调优组，通用发射与优化流程不比较 LLVM target 名称。此次重构保持当前参数／结果、根槽与运行时机器 ABI 行为。
 
 backend contract 使用 LLVM 22.1、LLVM stackmap v3 和本规范的 GC/EH 约束。Linux 两个 libc target 共用 `org.scoop-lang.backend-profile/llvm-22-1-linux-x86-64/1`，但 native、runtime 与最终链接输入不能混用 glibc/musl。target、对象格式、调用约定、pointer/storage ABI 及实际 producer 配置必须相容；不支持的组合在生成目标产物前诊断。
 
-Windows 后端数据使用三个完整 target profile，机器 triple 分别投影为 MSVC 的 `x86_64-pc-windows-msvc` 或两个 MinGW 环境的 `x86_64-w64-windows-gnu`。三者共享 `org.scoop-lang.backend-profile/llvm-22-1-windows-x86-64/1`、Win64 数据布局与 COFF 机器发射，完整 target identity 仍参与产物相容性和缓存。Scoop ABI classifier 新编码 5 表示 Win64 caller copy／interface 间接结果，native symbol normalization 新编码 3 保留 x64 COFF 原符号字节。backend 的 frame recovery 编码 2 表示通过 SEH 重建 RSP／RBP，寄存器仍为 LLVM 编号 7／6、root slot 8 bytes，不保存 SysV frame-record 几何；LSDA 为 LPStart `0xff`、type table `0x00`、call-site `0x01`，无 type table 时为 `0xff`。同次构建的生产者与消费者使用一致的数据编码；项目未发布，不为旧编码或 fingerprint 保留兼容路径。
+LLVM architecture 只负责对应 LLVM target 的初始化、项目自建 LLVM 的 component 名称和 LLVM 接口需要的 machine 标识；完整 backend profile 继续绑定 LLVM 版本、triple、CPU／features、object target、unwind／LSDA、pipeline、frame 与已测 tuning。LLVM component build list 从当前目录实际引用的 architecture 去重取得，不手写完整 target，也不包含未实现 architecture。LLVM command-line options 在进程内只初始化一次：只有对全部当前 backend 均已验证的确定性选项可以进入进程全局集合，target-specific policy 使用 TargetMachine、function attributes、pass pipeline 或对应 backend 实现表达。先后建立不同 target 的 TargetMachine 不能改变任一输出合同。
+
+Windows 后端数据使用三个完整 target profile，机器 triple 分别投影为 MSVC 的 `x86_64-pc-windows-msvc` 或两个 MinGW 环境的 `x86_64-w64-windows-gnu`。三者共享 `org.scoop-lang.backend-profile/llvm-22-1-windows-x86-64/1`、Win64 数据布局与 COFF 机器发射，完整 target identity 仍参与产物相容性和缓存。Scoop ABI classifier 新编码 5 表示 Win64 caller copy／interface 间接结果，native symbol normalization 新编码 3 保留 x64 COFF 原符号字节。backend 的 frame recovery 编码 2 表示当前 Windows AMD64 virtual-unwind profile：通过 SEH 重建 RSP／RBP，寄存器为 LLVM 编号 7／6、root slot 8 bytes，不保存 SysV frame-record 几何；LSDA 为 LPStart `0xff`、type table `0x00`、call-site `0x01`，无 type table 时为 `0xff`。同次构建的生产者与消费者使用一致的数据编码；项目未发布，不为旧编码或 fingerprint 保留兼容路径。
 
 Windows stackmap reader 验证 location kind、寄存器、8-byte slot／对齐和 pair 结构，保留 RSP／RBP 的有符号 offset；不从 stack size 推造 RBP 位置。扫描时由运行时使用实际 SEH context 计算地址，并执行真实线程栈范围检查。编译产物读取不另建一套 SEH unwinder 重放系统 frame 恢复。
 
@@ -86,7 +94,9 @@ GNU 风格 C++ driver 独立探测 compiler family，Clang 的 target 参数不�
 
 Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择，目标环境包括 Darwin/AArch64 与 amd64、Linux/amd64 GNU，以及三个 Windows 完整 target 各自的 Microsoft／LLVM-MinGW 环境。当前 musl 工具链未配套 C++ 标准库和 ABI 运行库，C++ 与 musl 的静态／动态链接组合均不支持；源码构建和 artifact-only 消费都必须诊断该组合。
 
-runtime 源码组合由目录中的 bundle 选择及明确的 OS、对象格式、架构、frame 合同组成。`platform/arch` 保存 ISA 浮点环境；`platform/frame` 保存实际过程 ABI 的 frame 恢复和对应对象格式的 anchor 汇编；`platform/os` 不以架构限制共享系统实现。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件或重复平台探测。
+runtime 源码组合直接消费目录投影，不再登记重复 OS＋arch 的 runtime profile。结构完备的 build selection 分别选择 OS services、primitive API adapter、object image parser、loaded-image provider、startup/argv adapter、trace/symbolizer adapter、ISA helper、machine frame recovery、ManagedEntry、Scoop ABI shim、unwind provider 与已有实测 runtime tuning；缺少任一当前 target 必需组件时不能形成目录记录。`platform/arch` 只保存纯 ISA helper；frame decoder／virtual unwind 按 machine-frame profile 选择，ManagedEntry 与返回 shim 另外按 procedure ABI、Scoop ABI 和 object target 选择。red-zone 等参数属于实际 ABI／frame component，不由 x86_64 等 ISA 名称普遍推导；GC 私有 helper 的内联策略由目录绑定的 runtime tuning 显式形成编译参数，不在 C 源中从宿主或 target 架构宏推导。PE image parser 的 machine 核对同样由 object target 提供，不能把 AMD64 写成通用 PE 条件。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件、运行时注册或重复平台探测。
+
+ELF image parser 只解释 program header、segment 与 Scoop metadata/stackmap range；枚举当前已加载模块、取得 self image 与维持模块生命周期属于所选 OS／loader provider。共享 ELF 容器不能隐含 Linux loader，POSIX 名称也不能作为 thread stack、VM、RSS、argv 或 loader 的通用 fallback。静态 `ScoopPlatformBundle` 由 runtime builder 根据上述完整选择生成一份小型 translation unit，现有组件继续导出具名 ops；不为每个完整 target 复制手写 bundle 源文件。
 
 Darwin 的 metadata image 组件按运行时规范 2.8 定位承载 runtime 的实际模块。普通 executable 与 native host 加载的 dylib 使用同一 parser；地址范围、`__TEXT,__text` 与 `__DATA_CONST,__llvm_stackmaps` 均来自该模块。runtime 源码变化沿原更新记录重建，不增加目标 profile、产物版本或独立镜像登记机制。
 
@@ -583,8 +593,9 @@ ARM64 默认对 ArraySet 的单引用槽屏障使用已有数组对象基址查�
 
 每个实际物理定义都有 typed owner、role、linkage、symbol 和精确 section range。引用使用 typed target 与真实 relocation；跨对象 external 声明不能变成可缺失的 weak reference。Strong 属于原定义 Cone，ODR 使用其稳定 member identity。
 
-对象格式与架构分别决定容器结构和机器规则：ELF 不隐含 x86-64，AArch64 不隐含 Mach-O。所选对象规则解释 machine、e_flags、relocation 写入范围／addend、stackmap/EH 指针及最终动态 relocation；仅开放当前已实现的完整 target，不增加空 handler。对象边界验证目标格式、section/symbol extent、alignment、权限、relocation 写入宽度/addend、定义与引用闭合。Mach-O 使用其真实 relocation 与 weak 属性；ELF 使用 ET_REL、实际 section/symbol/RELA/COMDAT 数据，TLS 必须保持 STT_TLS/SHF_TLS，不能伪装成普通 data。
-已验证的 relocation form 明确保留机器语义；现有 ELF form 的 tag 11 表示 x86-64 RELA（kind、width、signed addend），其编码不变，不把同一数字 relocation kind 自动解释为其他架构。ELF header flags 在所选机器的对象读取边界检查一次，后续 envelope 复用该结果。
+对象格式与 object machine 分别决定容器结构和机器规则：ELF 不隐含 x86-64，COFF 不隐含 AMD64，AArch64 不隐含 Mach-O。所选 `ObjectTargetProfile` 解释 format、machine、header ABI/flags、relocation profile、symbol normalization、stackmap/EH 指针及最终动态 relocation；仅开放当前已实现的完整 target，不增加空 handler。对象边界按该 profile 验证格式、machine/header flags、section/symbol extent、alignment、权限、relocation 写入宽度/addend、定义与引用闭合，形成 validated envelope；后续 callable、stackmap 与 linker 消费其中保存的 machine，不重新解析 header 或从完整 target 推导。Mach-O 使用其真实 relocation 与 weak 属性；ELF 使用 ET_REL、实际 section/symbol/RELA/COMDAT 数据，TLS 必须保持 STT_TLS/SHF_TLS，不能伪装成普通 data。
+
+generic relocation envelope 的顶层分支只表示 Mach-O、ELF RELA、COFF 等当前实际容器形态，machine 作为必需字段保存；不得以 `ElfX86_64Rela`、`CoffAmd64` 一类当前唯一组合的名称承担通用 envelope 身份。已验证的 relocation form 继续明确保留机器语义；现有 ELF form 的 tag 11 表示 x86-64 RELA（kind、width、signed addend），其编码不变，不把同一数字 relocation kind 自动解释为其他架构。ELF header flags 在所选 machine/header ABI 的对象读取边界检查一次，后续 envelope 复用该结果。指令字段、relaxation pair、TLS 与 call relocation 仍由 machine profile 解释，不能退化为仅按 storage width 写整数。
 
 Mach-O amd64 使用 `CPU_TYPE_X86_64`／`CPU_SUBTYPE_X86_64_ALL`。UNSIGNED 与 SUBTRACTOR／UNSIGNED pair 保留 32／64-bit 宽度，pair 两端分别保留符号或 section ordinal 目标；SIGNED、BRANCH、GOT_LOAD、GOT、SIGNED_1／2／4 和 TLV 使用各自的 32-bit PC-relative 形式，保留隐式 addend 与指令尾部偏移，不将其解释为 ARM64 指令位域。新增 relocation form tag 13／14 分别为 Unsigned32／Subtractor32，tag 15 保存 x86-64 PC-relative kind；现有 64-bit 绝对指针和差值沿同一真实语义复用。SDK 文本桩、fat 对象与动态库选择 `x86_64-macos`／x86-64 slice，不能接受 arm64 或 x86_64h 专用 slice 代替基线。
 
@@ -1174,6 +1185,10 @@ RC 更新记录使用预处理器的实际头文件依赖，以及 LLVM RC 对�
 
 program-link 消费完整 `.slib` Link 闭包、普通 runtime 对象、已有 native 文件、LIR target 与 final-link 配置。它不展开模板、重新编译 Scoop 或编译用户 C/C++；只可用明确选择的 C compiler 生成本次固定启动代码与最终 image tables。
 
+final-link profile 由完整 target 显式引用，不能从 ELF／Mach-O／COFF 或 `TargetOs` 单独推导。格式／linker-family 层可以复用实际对象顺序、response file、shared/executable 形态、SONAME 与 section/relocation handling；平台环境层必须显式提供 CRT start files、dynamic loader、PIE/static policy、系统库、libc／C++ runtime、unwind provider、SDK 搜索与 rpath 约定。Linux profile 只能把确属 ELF／linker-family 的既有操作交给公共 helper，Linux CRT、loader 与默认库不能冒充通用 ELF 行为。
+
+`NativeEnvironment` 只表示 SDK／CRT／libc／C++ ABI 与链接环境，不用于选择 runtime OS、object machine、ISA 或 frame。native toolchain operation 显式接收 typed OS、toolchain machine、native environment、producer、SDK/sysroot 与 final-link profile；driver triple、CPU flag、SDK machine slice、macro/object probe、resource compiler 与 linker invocation 从对应 toolchain machine 取得，不从 canonical target 字符串拆解，也不回退到宿主或 x86-64。当前 Windows workflow 同样以现有 AMD64 machine profile 为参数，不能在公共路径中散落 AMD64 triple、macro 和目录常量。
+
 `scoop --enable-startup-stats` 和独立 `scoop-link --enable-startup-stats` 按运行时规范第 7 章选择编入启动诊断的 runtime，对 build/run/test/link 生效，独立于 profile 和 GC stress。默认 runtime 必须在预处理阶段排除启动计时、报告及专用数据访问；环境变量不能启用未编入的代码。该开关只影响 runtime 构建／选择及最终链接结果，不改变 Scoop 源码编译缓存、`.slib`、对象布局或 ABI；编译器不消费测量记录。显式 runtime index 的配置必须与请求一致。
 
 运行时规范 3.9 的搬迁覆盖登记随既有 GC stress 构建能力或显式 heap 验证编入。普通 runtime 不生成逐存活对象的 claim 调用、覆盖验证函数及专用 bitmap 生命周期操作，启动诊断开关本身不启用这项验证。不同配置仅改变 collector 私有侧元数据，所有 profile 继续使用同一对象／根 ABI；无须重建未变化的 Scoop `.slib`，重建 runtime 并重新链接即可消费该优化。
@@ -1256,7 +1271,7 @@ Darwin 使用所选系统 linker、按 native 需求选择的 C／C++ 链接 dri
 
 Linux 接受 `.o`、`.a`，动态模式另接受 ELF `.so`；framework 与静态程序的动态库需求为错误。用户 `.so` 必须是 DSO，不是 PIE executable 或 linker script。未版本化的源码 extern 只匹配默认导出版本，DT_NEEDED 不等于显式库 re-export；TLS、IFUNC、版本化导入按实际 kind/version 检查。
 
-Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。动态 metadata/stackmap 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。
+Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。Linux profile 负责上述 libc／CRT／unwind／系统库、驱动探测及静态／动态缺省策略；选定的输出形态和链接模式再交给不读取 OS、target 或 native environment 的 GNU ELF plan，后者只负责 GNU ELF linker flags、shared／PIE／ET_EXEC 形态、SONAME 以及 metadata/stackmap section script。动态 metadata/stackmap 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。共享该 ELF plan 不表示共享 Linux 的 loader、CRT、系统库或工具发现。
 
 最终链接按既有选择顺序将对象路径写入临时 response file，正确引用路径中的空白、引号和反斜杠。Linux 由实际 GNU linker 展开对象列表，不能由 C／C++ driver 先展开成再次受系统 argv 长度限制的命令。response file 与链接工作目录只承担工具参数传递，不改变对象选择、输入检查、顺序或 ResolvedLinkPlan 身份，也不开放用户 linker 参数。
 

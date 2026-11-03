@@ -18,15 +18,19 @@ from build_support import (
     apple_architecture,
     build_lock,
     cpu_flag,
+    gn_cpu,
     metadata,
     reusable,
     save_record,
     source_patch_environment,
 )
-from target_catalog import WINDOWS_TARGETS, native_configuration
+from target_catalog import TARGETS as CATALOG_TARGETS
+from target_catalog import native_configuration
 
 REVISION = "f326a1e25fc736704063922b9ce76b527b1c5efe"
-TARGETS = ("aarch64-apple-darwin", "x86_64-apple-darwin", *WINDOWS_TARGETS)
+TARGETS = tuple(
+    name for name, target in CATALOG_TARGETS.items() if target["os"] in {"darwin", "windows"}
+)
 LIBRARY = "libscoop_skia.a"
 PACKAGES = (
     (f"skia-{REVISION}", f"skia-{REVISION}", "."),
@@ -100,7 +104,8 @@ OPTIONS = {
 
 def prepare(args):
     vendor = ROOT / "sysroot/vendor/skia"
-    windows = args.target in WINDOWS_TARGETS
+    target_configuration = native_configuration(args.target)
+    windows = target_configuration["os"] == "windows"
     patches = [
         vendor / "patches" / ("windows-toolchain.patch" if windows else "macos-deployment.patch"),
         vendor / "patches/text-baselines.patch",
@@ -121,7 +126,7 @@ def prepare(args):
             )
         ],
         "target": args.target,
-        "configuration": native_configuration(args.target),
+        "configuration": target_configuration,
         "prefix": str(args.prefix),
         "gn": args.gn,
         "cc": args.cc,
@@ -237,7 +242,7 @@ def darwin_configuration(args, release):
     triple = f"{apple_architecture(architecture)}-apple-macos{deployment}"
     flags = ["-target", triple, "-isysroot", sdk]
     return {
-        "target_cpu": "arm64" if architecture == "aarch64" else "x64",
+        "target_cpu": gn_cpu(architecture),
         "cc": cc,
         "cxx": cxx,
         "mac_min_target": deployment,
@@ -259,7 +264,7 @@ def main():
     parser.add_argument("--sdk", default="macosx")
     parser.add_argument("--jobs", type=int, default=min(os.cpu_count() or 1, 6))
     args = parser.parse_args()
-    host = "Windows" if args.target in WINDOWS_TARGETS else "Darwin"
+    host = {"darwin": "Darwin", "windows": "Windows"}[native_configuration(args.target)["os"]]
     if platform.system() != host:
         parser.error(f"prepare {args.target} Skia resources on a {host} host")
     if args.jobs < 1:

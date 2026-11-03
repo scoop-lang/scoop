@@ -7,6 +7,7 @@ import subprocess
 from pathlib import Path
 
 from build_support import ROOT
+from target_catalog import host_definition
 
 
 def build(target_dir, environment=None):
@@ -28,7 +29,7 @@ def build(target_dir, environment=None):
     )
     target = environment.get("CARGO_BUILD_TARGET")
     output = target_dir / target if target else target_dir
-    windows = "windows" in target if target else os.name == "nt"
+    windows = host_definition(target)["system"] == "Windows" if target else os.name == "nt"
     return output / "release" / ("scoop-example.exe" if windows else "scoop-example")
 
 

@@ -6,24 +6,21 @@ use super::{C_BRIDGE_CANONICAL_FLAGS_DOMAIN, write_hex};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum CanonicalCBridgeFlagContractV1 {
-    DarwinAppleClang,
+    DarwinAppleClangAarch64,
     DarwinAppleClangX86_64,
-    LinuxGcc,
-    LinuxClang,
-    WindowsClang,
+    LinuxGccX86_64,
+    LinuxClangX86_64,
+    WindowsClangAmd64,
 }
 
 impl CanonicalCBridgeFlagContractV1 {
-    pub const CURRENT: Self = Self::DarwinAppleClang;
-    pub const LINUX_GCC: Self = Self::LinuxGcc;
-
     pub const fn flags(self) -> &'static [CanonicalCBridgeFlagV1] {
         match self {
-            Self::DarwinAppleClang => &CanonicalCBridgeFlagV1::ALL,
+            Self::DarwinAppleClangAarch64 => &CanonicalCBridgeFlagV1::DARWIN_AARCH64,
             Self::DarwinAppleClangX86_64 => &CanonicalCBridgeFlagV1::DARWIN_X86_64,
-            Self::LinuxGcc => &CanonicalCBridgeFlagV1::LINUX_GCC,
-            Self::LinuxClang => &CanonicalCBridgeFlagV1::LINUX_CLANG,
-            Self::WindowsClang => &CanonicalCBridgeFlagV1::WINDOWS_CLANG,
+            Self::LinuxGccX86_64 => &CanonicalCBridgeFlagV1::LINUX_GCC_X86_64,
+            Self::LinuxClangX86_64 => &CanonicalCBridgeFlagV1::LINUX_CLANG_X86_64,
+            Self::WindowsClangAmd64 => &CanonicalCBridgeFlagV1::WINDOWS_CLANG_AMD64,
         }
     }
 
@@ -85,7 +82,7 @@ impl CanonicalCBridgeFlagV1 {
         Self::NoBuiltinSubstitution,
         Self::X86_64Baseline,
     ];
-    pub const WINDOWS_CLANG: [Self; 18] = [
+    pub const WINDOWS_CLANG_AMD64: [Self; 18] = [
         Self::ExplicitCanonicalTarget,
         Self::ExplicitResolvedSdkRoot,
         Self::X86_64Baseline,
@@ -105,7 +102,7 @@ impl CanonicalCBridgeFlagV1 {
         Self::Windows10Baseline,
         Self::ReproducibleCoff,
     ];
-    pub const LINUX_CLANG: [Self; 13] = [
+    pub const LINUX_CLANG_X86_64: [Self; 13] = [
         Self::ExplicitCanonicalTarget,
         Self::X86_64Baseline,
         Self::C11,
@@ -120,7 +117,7 @@ impl CanonicalCBridgeFlagV1 {
         Self::NoBuiltinSubstitution,
         Self::PositionIndependent,
     ];
-    pub const LINUX_GCC: [Self; 12] = [
+    pub const LINUX_GCC_X86_64: [Self; 12] = [
         Self::X86_64Baseline,
         Self::C11,
         Self::RelocatableObject,
@@ -134,7 +131,7 @@ impl CanonicalCBridgeFlagV1 {
         Self::NoBuiltinSubstitution,
         Self::PositionIndependent,
     ];
-    pub const ALL: [Self; 14] = [
+    pub const DARWIN_AARCH64: [Self; 14] = [
         Self::ExplicitCanonicalTarget,
         Self::ExplicitResolvedSdkRoot,
         Self::ExplicitMinimumDeployment,

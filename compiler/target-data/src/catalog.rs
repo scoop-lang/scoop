@@ -1,5 +1,22 @@
 use scoop_identity::TargetProfileId;
-use scoop_lir::{LirTargetProfile, ValidatedLirTargetSelection};
+use scoop_lir::{LirTargetProfile, TargetArchitecture, ValidatedLirTargetSelection};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TargetOs {
+    Darwin,
+    Linux,
+    Windows,
+}
+
+impl TargetOs {
+    pub const fn source_name(self) -> &'static str {
+        match self {
+            Self::Darwin => "darwin",
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+        }
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NativeEnvironment {
@@ -11,16 +28,41 @@ pub enum NativeEnvironment {
     LlvmMingwUcrt,
 }
 
-impl NativeEnvironment {
-    pub const fn is_windows(self) -> bool {
-        matches!(
-            self,
-            Self::MicrosoftUcrt | Self::LlvmMingwMsvcrt | Self::LlvmMingwUcrt
-        )
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum FinalLinkProfile {
+    Darwin,
+    Linux,
+    Windows,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CodegenDeploymentProfile {
+    Darwin,
+    Linux,
+    Windows,
+}
+
+impl FinalLinkProfile {
+    pub const fn source_name(self) -> &'static str {
+        match self {
+            Self::Darwin => "darwin",
+            Self::Linux => "linux",
+            Self::Windows => "windows",
+        }
     }
 
-    pub const fn is_linux(self) -> bool {
-        matches!(self, Self::LinuxGnu | Self::LinuxMusl)
+    pub const fn is_windows(self) -> bool {
+        matches!(self, Self::Windows)
+    }
+}
+
+impl NativeEnvironment {
+    /// Width of the target C ABI's `long` type in bytes.
+    pub const fn c_long_size_bytes(self) -> u8 {
+        match self {
+            Self::Darwin | Self::LinuxGnu | Self::LinuxMusl => 8,
+            Self::MicrosoftUcrt | Self::LlvmMingwMsvcrt | Self::LlvmMingwUcrt => 4,
+        }
     }
 }
 
@@ -31,11 +73,9 @@ pub enum CodegenTuning {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum RuntimeProfile {
-    DarwinAarch64,
-    DarwinX86_64,
-    LinuxX86_64,
-    WindowsX86_64,
+pub enum RuntimeTuning {
+    OutOfLineGcForwarding,
+    InlineGcForwarding,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -43,20 +83,33 @@ pub struct TargetDefinition {
     pub selection: ValidatedLirTargetSelection,
     pub aliases: &'static [&'static str],
     pub versioned_aliases: &'static [&'static str],
-    pub os: &'static str,
-    pub arch: &'static str,
+    pub os: TargetOs,
+    pub architecture: TargetArchitecture,
     pub env: &'static str,
     pub llvm_triple: &'static str,
+    pub codegen_deployment: CodegenDeploymentProfile,
     pub native_environment: NativeEnvironment,
+    pub final_link: FinalLinkProfile,
     pub c_bridge_profile: &'static str,
     pub native_rust_target: &'static str,
     pub tuning: CodegenTuning,
-    pub runtime: RuntimeProfile,
+    pub runtime_tuning: RuntimeTuning,
 }
 
 impl TargetDefinition {
     pub const fn canonical(self) -> &'static str {
         self.selection.target().contract().canonical_triple()
+    }
+
+    pub const fn source_os(self) -> &'static str {
+        self.os.source_name()
+    }
+
+    pub const fn source_arch(self) -> &'static str {
+        match self.architecture {
+            TargetArchitecture::Aarch64 => "aarch64",
+            TargetArchitecture::X86_64 => "x86_64",
+        }
     }
 }
 

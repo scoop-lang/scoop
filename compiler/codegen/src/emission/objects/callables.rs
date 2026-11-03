@@ -77,7 +77,10 @@ pub(super) fn emit_callables<D: Sync, C: Sync, I: Sync>(
                 if profile.lir_target_profile().native_object_format()
                     == scoop_lir::NativeObjectFormat::Coff64
                 {
-                    crate::coff_object::merge_callable_constants(&mut bytes)?;
+                    crate::coff_object::merge_callable_constants(
+                        &mut bytes,
+                        profile.lir_target_profile().object_target(),
+                    )?;
                 }
                 let backend_constants = crate::callable_constants::present(
                     &bytes,

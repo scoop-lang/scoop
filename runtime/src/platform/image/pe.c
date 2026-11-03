@@ -8,6 +8,9 @@
 #if !defined(_WIN64)
 #error "the PE image component requires 64-bit Windows"
 #endif
+#if !defined(SCOOP_PE_IMAGE_MACHINE)
+#error "the PE image component requires an object-target machine"
+#endif
 
 static bool pe_loaded_images(ScoopPlatformMetadataImages *images, ScoopPlatformError *error);
 
@@ -34,7 +37,7 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < (LONG)sizeof *dos)
         return false;
     const IMAGE_NT_HEADERS64 *pe = (const void *)(base + dos->e_lfanew);
-    if (pe->Signature != IMAGE_NT_SIGNATURE || pe->FileHeader.Machine != IMAGE_FILE_MACHINE_AMD64 ||
+    if (pe->Signature != IMAGE_NT_SIGNATURE || pe->FileHeader.Machine != SCOOP_PE_IMAGE_MACHINE ||
         pe->FileHeader.SizeOfOptionalHeader < sizeof pe->OptionalHeader ||
         pe->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return false;

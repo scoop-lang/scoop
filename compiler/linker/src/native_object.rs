@@ -73,7 +73,7 @@ impl NativeObjectInfo {
                 toolchain.contract().deployment().map_err(error)?,
             ),
             scoop_lir::NativeObjectFormat::Elf64 => elf::read(bytes, target),
-            scoop_lir::NativeObjectFormat::Coff64 => coff::read(bytes),
+            scoop_lir::NativeObjectFormat::Coff64 => coff::read(bytes, profile),
         }
     }
 

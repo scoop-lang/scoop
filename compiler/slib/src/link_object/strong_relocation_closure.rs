@@ -10,8 +10,9 @@ use scoop_identity::{
 
 use super::{
     BuiltinObjectSectionRoleV1, LinkDefinitionOwnerV1, PlannedStrongObjectSymbolRoleV1,
-    VerifiedMemberObjectRelocationIndexV1, VerifiedObjectRelocationFormV1,
-    VerifiedObjectRelocationShapeV1, VerifiedRelocationTargetV1, VerifiedRelocationUseV1,
+    VerifiedMachORelocationShapeV1, VerifiedMemberObjectRelocationIndexV1,
+    VerifiedObjectRelocationFormV1, VerifiedObjectRelocationShapeV1, VerifiedRelocationTargetV1,
+    VerifiedRelocationUseV1,
 };
 use crate::SlibMemberId;
 use scoop_lir::LirTargetProfile;
@@ -347,19 +348,8 @@ fn collect_relocation_bindings(
     bindings: &mut Vec<StrongRelocationBindingV1>,
 ) -> Result<(), StrongRelocationClosureValidationError> {
     match relocation.shape() {
-        VerifiedObjectRelocationShapeV1::CoffAmd64 { target, .. }
-        | VerifiedObjectRelocationShapeV1::ElfX86_64Rela { target, .. }
-        | VerifiedObjectRelocationShapeV1::Unsigned32 { target }
-        | VerifiedObjectRelocationShapeV1::X86_64PcRelative32 { target, .. }
-        | VerifiedObjectRelocationShapeV1::Unsigned64 { target }
-        | VerifiedObjectRelocationShapeV1::Branch26 { target }
-        | VerifiedObjectRelocationShapeV1::Page21 { target, .. }
-        | VerifiedObjectRelocationShapeV1::PageOffset12 { target, .. }
-        | VerifiedObjectRelocationShapeV1::GotLoadPage21 { target }
-        | VerifiedObjectRelocationShapeV1::GotLoadPageOffset12 { target }
-        | VerifiedObjectRelocationShapeV1::PointerToGot32 { target }
-        | VerifiedObjectRelocationShapeV1::TlvpLoadPage21 { target }
-        | VerifiedObjectRelocationShapeV1::TlvpLoadPageOffset12 { target } => {
+        VerifiedObjectRelocationShapeV1::Coff { target, .. }
+        | VerifiedObjectRelocationShapeV1::ElfRela { target, .. } => {
             collect_target_binding(
                 source_member,
                 relocation,
@@ -370,33 +360,56 @@ fn collect_relocation_bindings(
                 bindings,
             )?;
         }
-        VerifiedObjectRelocationShapeV1::Subtractor32 {
-            minuend,
-            subtrahend,
-        }
-        | VerifiedObjectRelocationShapeV1::Subtractor64 {
-            minuend,
-            subtrahend,
-        } => {
-            collect_target_binding(
-                source_member,
-                relocation,
-                RelocationTargetSlotV1::Minuend,
+        VerifiedObjectRelocationShapeV1::MachO { shape, .. } => match shape {
+            VerifiedMachORelocationShapeV1::Unsigned32 { target }
+            | VerifiedMachORelocationShapeV1::X86_64PcRelative32 { target, .. }
+            | VerifiedMachORelocationShapeV1::Unsigned64 { target }
+            | VerifiedMachORelocationShapeV1::Branch26 { target }
+            | VerifiedMachORelocationShapeV1::Page21 { target, .. }
+            | VerifiedMachORelocationShapeV1::PageOffset12 { target, .. }
+            | VerifiedMachORelocationShapeV1::GotLoadPage21 { target }
+            | VerifiedMachORelocationShapeV1::GotLoadPageOffset12 { target }
+            | VerifiedMachORelocationShapeV1::PointerToGot32 { target }
+            | VerifiedMachORelocationShapeV1::TlvpLoadPage21 { target }
+            | VerifiedMachORelocationShapeV1::TlvpLoadPageOffset12 { target } => {
+                collect_target_binding(
+                    source_member,
+                    relocation,
+                    RelocationTargetSlotV1::Single,
+                    target,
+                    symbols,
+                    primaries,
+                    bindings,
+                )?;
+            }
+            VerifiedMachORelocationShapeV1::Subtractor32 {
                 minuend,
-                symbols,
-                primaries,
-                bindings,
-            )?;
-            collect_target_binding(
-                source_member,
-                relocation,
-                RelocationTargetSlotV1::Subtrahend,
                 subtrahend,
-                symbols,
-                primaries,
-                bindings,
-            )?;
-        }
+            }
+            | VerifiedMachORelocationShapeV1::Subtractor64 {
+                minuend,
+                subtrahend,
+            } => {
+                collect_target_binding(
+                    source_member,
+                    relocation,
+                    RelocationTargetSlotV1::Minuend,
+                    minuend,
+                    symbols,
+                    primaries,
+                    bindings,
+                )?;
+                collect_target_binding(
+                    source_member,
+                    relocation,
+                    RelocationTargetSlotV1::Subtrahend,
+                    subtrahend,
+                    symbols,
+                    primaries,
+                    bindings,
+                )?;
+            }
+        },
     }
     Ok(())
 }

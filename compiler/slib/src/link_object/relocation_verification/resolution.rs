@@ -7,117 +7,122 @@ pub(super) fn resolve_shape(
     definitions: &MemberObjectDefinitionIndexV1,
     local_symbol_owners: &BTreeMap<u32, ObjectDefinitionAtomId>,
 ) -> Result<VerifiedObjectRelocationShapeV1, ObjectRelocationValidationError> {
-    let shape = match shape {
-        crate::link_object::ObjectRelocationShapeV1::MachO(shape) => shape,
-        crate::link_object::ObjectRelocationShapeV1::CoffAmd64 {
+    let (machine, shape) = match shape {
+        crate::link_object::ObjectRelocationShapeV1::MachO { machine, shape } => (machine, shape),
+        crate::link_object::ObjectRelocationShapeV1::Coff {
+            machine,
             kind,
             target_symbol,
-            width,
+            storage_width,
         } => {
             let target = resolve_target(
                 ObjectRelocationTargetV1::SymbolTableIndex(target_symbol),
                 definitions,
                 local_symbol_owners,
             )?;
-            return Ok(VerifiedObjectRelocationShapeV1::CoffAmd64 {
+            return Ok(VerifiedObjectRelocationShapeV1::Coff {
+                machine,
                 kind,
-                width,
+                storage_width,
                 target,
             });
         }
-        crate::link_object::ObjectRelocationShapeV1::ElfX86_64Rela {
+        crate::link_object::ObjectRelocationShapeV1::ElfRela {
+            machine,
             kind,
             target_symbol,
             addend,
-            width,
+            storage_width,
         } => {
             let target = resolve_target(
                 ObjectRelocationTargetV1::SymbolTableIndex(target_symbol),
                 definitions,
                 local_symbol_owners,
             )?;
-            return Ok(VerifiedObjectRelocationShapeV1::ElfX86_64Rela {
+            return Ok(VerifiedObjectRelocationShapeV1::ElfRela {
+                machine,
                 kind,
                 addend,
-                width,
+                storage_width,
                 target,
             });
         }
     };
-    Ok(match shape {
+    let shape = match shape {
         MachORelocationShapeV1::Unsigned32 { target } => {
-            VerifiedObjectRelocationShapeV1::Unsigned32 {
+            VerifiedMachORelocationShapeV1::Unsigned32 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::Subtractor32 {
             minuend,
             subtrahend,
-        } => VerifiedObjectRelocationShapeV1::Subtractor32 {
+        } => VerifiedMachORelocationShapeV1::Subtractor32 {
             minuend: resolve_target(minuend, definitions, local_symbol_owners)?,
             subtrahend: resolve_target(subtrahend, definitions, local_symbol_owners)?,
         },
         MachORelocationShapeV1::X86_64PcRelative32 { kind, target } => {
-            VerifiedObjectRelocationShapeV1::X86_64PcRelative32 {
+            VerifiedMachORelocationShapeV1::X86_64PcRelative32 {
                 kind,
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::Unsigned64 { target } => {
-            VerifiedObjectRelocationShapeV1::Unsigned64 {
+            VerifiedMachORelocationShapeV1::Unsigned64 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::Subtractor64 {
             minuend,
             subtrahend,
-        } => VerifiedObjectRelocationShapeV1::Subtractor64 {
+        } => VerifiedMachORelocationShapeV1::Subtractor64 {
             minuend: resolve_target(minuend, definitions, local_symbol_owners)?,
             subtrahend: resolve_target(subtrahend, definitions, local_symbol_owners)?,
         },
-        MachORelocationShapeV1::Branch26 { target } => VerifiedObjectRelocationShapeV1::Branch26 {
+        MachORelocationShapeV1::Branch26 { target } => VerifiedMachORelocationShapeV1::Branch26 {
             target: resolve_target(target, definitions, local_symbol_owners)?,
         },
         MachORelocationShapeV1::Page21 {
             target,
             explicit_addend,
-        } => VerifiedObjectRelocationShapeV1::Page21 {
+        } => VerifiedMachORelocationShapeV1::Page21 {
             target: resolve_target(target, definitions, local_symbol_owners)?,
             explicit_addend,
         },
         MachORelocationShapeV1::PageOffset12 {
             target,
             explicit_addend,
-        } => VerifiedObjectRelocationShapeV1::PageOffset12 {
+        } => VerifiedMachORelocationShapeV1::PageOffset12 {
             target: resolve_target(target, definitions, local_symbol_owners)?,
             explicit_addend,
         },
         MachORelocationShapeV1::GotLoadPage21 { target } => {
-            VerifiedObjectRelocationShapeV1::GotLoadPage21 {
+            VerifiedMachORelocationShapeV1::GotLoadPage21 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::GotLoadPageOffset12 { target } => {
-            VerifiedObjectRelocationShapeV1::GotLoadPageOffset12 {
+            VerifiedMachORelocationShapeV1::GotLoadPageOffset12 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::PointerToGot32 { target } => {
-            VerifiedObjectRelocationShapeV1::PointerToGot32 {
+            VerifiedMachORelocationShapeV1::PointerToGot32 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::TlvpLoadPage21 { target } => {
-            VerifiedObjectRelocationShapeV1::TlvpLoadPage21 {
+            VerifiedMachORelocationShapeV1::TlvpLoadPage21 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
         MachORelocationShapeV1::TlvpLoadPageOffset12 { target } => {
-            VerifiedObjectRelocationShapeV1::TlvpLoadPageOffset12 {
+            VerifiedMachORelocationShapeV1::TlvpLoadPageOffset12 {
                 target: resolve_target(target, definitions, local_symbol_owners)?,
             }
         }
-    })
+    };
+    Ok(VerifiedObjectRelocationShapeV1::MachO { machine, shape })
 }
 
 fn resolve_target(

@@ -222,20 +222,19 @@ fn runtime_input(
             Ok((objects, index.clone()))
         }
         RuntimeInput::SourceRoot(root) => {
-            let unwind = if target.c_bridge_toolchain().native_environment()
-                == scoop_target_data::NativeEnvironment::Darwin
-            {
-                final_link.unwind_prefix.clone()
-            } else {
-                Some(
-                    scoop_toolchain::selected_unwind_prefix(
-                        target.lir_target(),
-                        final_link.sysroot.as_deref(),
-                        final_link.unwind_prefix.as_deref(),
+            let unwind =
+                if target.c_bridge_toolchain().target_os() == scoop_target_data::TargetOs::Darwin {
+                    final_link.unwind_prefix.clone()
+                } else {
+                    Some(
+                        scoop_toolchain::selected_unwind_prefix(
+                            target.lir_target(),
+                            final_link.sysroot.as_deref(),
+                            final_link.unwind_prefix.as_deref(),
+                        )
+                        .map_err(|error| failure(error.to_string()))?,
                     )
-                    .map_err(|error| failure(error.to_string()))?,
-                )
-            };
+                };
             let runtime = build_runtime(RuntimeBuildRequest {
                 target,
                 runtime_root: root,
@@ -304,15 +303,19 @@ fn output_path(
         let name = manifest.coordinate().name().to_owned();
         (root, name)
     };
+    let target_os = scoop_target_data::definition(target.id())
+        .filter(|definition| definition.selection.target() == target.lir_target())
+        .expect("resolved build target")
+        .os;
     if emit_slib || graph.root_kind() == RequestedConeKind::Library {
         name.push_str(".slib");
     } else if graph.root_kind() == RequestedConeKind::NativeApp {
-        name = match target.lir_target().native_object_format() {
-            scoop_lir::NativeObjectFormat::MachO64 => format!("lib{name}.dylib"),
-            scoop_lir::NativeObjectFormat::Elf64 => format!("lib{name}.so"),
-            scoop_lir::NativeObjectFormat::Coff64 => format!("{name}.dll"),
+        name = match target_os {
+            scoop_target_data::TargetOs::Darwin => format!("lib{name}.dylib"),
+            scoop_target_data::TargetOs::Linux => format!("lib{name}.so"),
+            scoop_target_data::TargetOs::Windows => format!("{name}.dll"),
         };
-    } else if target.lir_target().native_object_format() == scoop_lir::NativeObjectFormat::Coff64 {
+    } else if target_os == scoop_target_data::TargetOs::Windows {
         name.push_str(".exe");
     }
     let mut directory = target_dir

@@ -5,12 +5,14 @@ import argparse
 import os
 import shutil
 import subprocess
+import tomllib
 from pathlib import Path
 
 from build_support import (
     RELEASE_CONFIG,
     ROOT,
     build_lock,
+    cpu_flag,
     metadata,
     reusable,
     save_record,
@@ -30,10 +32,24 @@ SOURCE_DIRECTORIES = (
     "llvm/include",
     "third-party",
 )
+_CMAKE_SYSTEM_PROCESSOR_BY_ARCH = {"x86_64": "AMD64"}
+
+
+def target_recipe(target_name):
+    target = native_configuration(target_name)
+    microsoft = target["native_environment"] == "MicrosoftUcrt"
+    architecture = target["arch"]
+    try:
+        cmake_processor = _CMAKE_SYSTEM_PROCESSOR_BY_ARCH[architecture]
+    except KeyError as error:
+        raise ValueError(
+            f"no LLVM libunwind CMake processor for target architecture {architecture!r}"
+        ) from error
+    return target, microsoft, cmake_processor
 
 
 def prepare(args, build, prefix):
-    microsoft = native_configuration(args.target)["native_environment"] == "MicrosoftUcrt"
+    target, microsoft, cmake_processor = target_recipe(args.target)
     source = args.source.resolve()
     inputs = {
         "source": source_metadata(source, SOURCE_DIRECTORIES),
@@ -48,7 +64,7 @@ def prepare(args, build, prefix):
             )
         ],
         "target": args.target,
-        "target_configuration": native_configuration(args.target),
+        "target_configuration": target,
         "prefix": str(prefix),
         "cc": args.cc,
         "environment": {
@@ -61,6 +77,8 @@ def prepare(args, build, prefix):
         print(f"Reusing {args.target} LLVM libunwind: {prefix}", flush=True)
         return
 
+    release = tomllib.loads(RELEASE_CONFIG.read_text())["targets"][args.target]
+    architecture_flag = cpu_flag(target["arch"], release["cpu"])
     cc = shutil.which(args.cc)
     if cc is None:
         raise FileNotFoundError(f"Clang compiler not found: {args.cc}")
@@ -101,7 +119,7 @@ def prepare(args, build, prefix):
 
     objects = build / "objects"
     stage = build / "stage"
-    triple = native_configuration(args.target)["llvm_triple"]
+    triple = target["llvm_triple"]
     configure = [
         str(tools[2]),
         "-G",
@@ -111,7 +129,7 @@ def prepare(args, build, prefix):
         "-B",
         str(objects),
         "-DCMAKE_SYSTEM_NAME=Windows",
-        "-DCMAKE_SYSTEM_PROCESSOR=AMD64",
+        f"-DCMAKE_SYSTEM_PROCESSOR={cmake_processor}",
         "-DCMAKE_BUILD_TYPE=Release",
         "-DCMAKE_POLICY_DEFAULT_CMP0091=NEW",
         "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDLL",
@@ -142,7 +160,7 @@ def prepare(args, build, prefix):
                 f"-DCMAKE_{language}_COMPILER={compiler.as_posix()}",
                 f"-DCMAKE_{language}_COMPILER_TARGET={triple}",
                 f"-DCMAKE_{language}_FLAGS="
-                + ("/clang:-march=x86-64" if microsoft else "-march=x86-64"),
+                + (f"/clang:{architecture_flag}" if microsoft else architecture_flag),
             ]
         )
     subprocess.run(configure, env=environment, check=True)

@@ -146,6 +146,7 @@ impl InvocationRecord {
             } => {
                 let decode = |path: HostPathCarrier| path.to_path_buf().map_err(error);
                 let environment = crate::windows_c::WindowsCEnvironment {
+                    machine: crate::windows_machine::WindowsToolchainMachine::select(target)?,
                     native_sysroot: native_sysroot.map(decode).transpose()?,
                     includes: includes.into_iter().map(decode).collect::<Result<_, _>>()?,
                     libraries: libraries

@@ -137,12 +137,17 @@ impl MachOLayout {
         bytes: &[u8],
         target: scoop_lir::LirTargetProfile,
     ) -> Result<Self, CodegenError> {
-        let (cpu, subtype) = match target.architecture() {
-            scoop_lir::TargetArchitecture::Aarch64 => {
+        let (cpu, subtype) = match target.object_target() {
+            scoop_lir::ObjectTargetProfileV1::MachOAarch64 => {
                 (macho::CPU_TYPE_ARM64, macho::CPU_SUBTYPE_ARM64_ALL)
             }
-            scoop_lir::TargetArchitecture::X86_64 => {
+            scoop_lir::ObjectTargetProfileV1::MachOX86_64 => {
                 (macho::CPU_TYPE_X86_64, macho::CPU_SUBTYPE_X86_64_ALL)
+            }
+            object_target => {
+                return Err(CodegenError(format!(
+                    "callable atom boundaries have no Mach-O implementation for {object_target:?}"
+                )));
             }
         };
         if read_u32(bytes, 0)? != macho::MH_MAGIC_64

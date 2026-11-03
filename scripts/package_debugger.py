@@ -8,6 +8,7 @@ from pathlib import Path
 
 import package_debugger_windows
 from build_support import ROOT
+from target_catalog import host_definition
 
 LLVM_TOOLS = (
     "dsymutil",
@@ -65,7 +66,8 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
     paths = python_paths(python)
     version = paths["version"]
     license_file = python_license(paths, license_file)
-    if "windows" in host:
+    host_system = host_definition(host)["system"]
+    if host_system == "Windows":
         return (
             package_debugger_windows.stage(
                 root, llvm, debugger, paths, windows_compiler, LLVM_TOOLS
@@ -88,7 +90,7 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
 
     for name in LLVM_TOOLS:
         binary(llvm / "bin" / name, root / "bin" / ("scoop-" + name))
-    server = "debugserver" if host.endswith("darwin") else "lldb-server"
+    server = "debugserver" if host_system == "Darwin" else "lldb-server"
     for name in ("lldb", "lldb-dap", "lldb-argdumper", server):
         binary(debugger / "bin" / name, root / "libexec/lldb/bin" / name)
     stdlib = Path(paths["stdlib"])

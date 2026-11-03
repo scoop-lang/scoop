@@ -145,7 +145,7 @@ fn coff_preserves_sections_symbols_comdats_and_implicit_addends() {
         scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT_ID,
         scoop_target_data::WINDOWS_X86_64_MINGW_UCRT_ID,
     ] {
-        let envelope = validate_windows_coff_object_envelope_v1(&objects.ordinary, target).unwrap();
+        let envelope = validate_coff_object_envelope_v1(&objects.ordinary, target).unwrap();
         assert_eq!(envelope.target(), target);
         assert!(
             envelope
@@ -199,7 +199,8 @@ fn coff_preserves_sections_symbols_comdats_and_implicit_addends() {
             .filter(|r| {
                 matches!(
                     r.shape(),
-                    ObjectRelocationShapeV1::CoffAmd64 {
+                    ObjectRelocationShapeV1::Coff {
+                        machine: scoop_lir::ObjectMachineV1::X86_64,
                         kind: pe::IMAGE_REL_AMD64_ADDR64,
                         ..
                     }
@@ -211,17 +212,19 @@ fn coff_preserves_sections_symbols_comdats_and_implicit_addends() {
         assert!(absolute.contains(&(-17i64 as u64)));
         assert!(envelope.relocations().iter().any(|r| matches!(
             r.shape(),
-            ObjectRelocationShapeV1::CoffAmd64 {
+            ObjectRelocationShapeV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: pe::IMAGE_REL_AMD64_REL32,
-                width: 4,
+                storage_width: 4,
                 ..
             }
         )));
         assert!(envelope.relocations().iter().any(|r| matches!(
             r.shape(),
-            ObjectRelocationShapeV1::CoffAmd64 {
+            ObjectRelocationShapeV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: pe::IMAGE_REL_AMD64_ADDR32NB,
-                width: 4,
+                storage_width: 4,
                 ..
             }
         )));
@@ -238,7 +241,7 @@ fn msvc_bigobj_uses_the_same_native_facts() {
         FileKind::parse(objects.big.as_slice()).unwrap(),
         FileKind::CoffBig
     );
-    let envelope = validate_windows_coff_object_envelope_v1(
+    let envelope = validate_coff_object_envelope_v1(
         &objects.big,
         scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID,
     )
@@ -268,7 +271,7 @@ fn malformed_relocation_extent_and_auxiliary_targets_are_rejected() {
     bytes[offset..offset + 4].copy_from_slice(&u32::MAX.to_le_bytes());
     let target = scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID;
     assert!(
-        validate_windows_coff_object_envelope_v1(&bytes, target)
+        validate_coff_object_envelope_v1(&bytes, target)
             .unwrap_err()
             .to_string()
             .contains("outside section")
@@ -276,18 +279,17 @@ fn malformed_relocation_extent_and_auxiliary_targets_are_rejected() {
     let mut bytes = original.clone();
     bytes[offset + 4..offset + 8].copy_from_slice(&1u32.to_le_bytes());
     assert!(
-        validate_windows_coff_object_envelope_v1(&bytes, target)
+        validate_coff_object_envelope_v1(&bytes, target)
             .unwrap_err()
             .to_string()
             .contains("auxiliary symbol")
     );
     assert!(
-        validate_windows_coff_object_envelope_v1(original, scoop_target_data::LINUX_X86_64_GNU_ID)
-            .is_err()
+        validate_coff_object_envelope_v1(original, scoop_target_data::LINUX_X86_64_GNU_ID).is_err()
     );
     let mut bytes = original.clone();
     bytes[..2].copy_from_slice(&pe::IMAGE_FILE_MACHINE_ARM64.to_le_bytes());
-    assert!(validate_windows_coff_object_envelope_v1(&bytes, target).is_err());
+    assert!(validate_coff_object_envelope_v1(&bytes, target).is_err());
 }
 
 #[test]
@@ -318,12 +320,9 @@ fn cyclic_comdat_association_is_rejected() {
     bytes[offset + 12..offset + 14].copy_from_slice(&(section as u16).to_le_bytes());
     bytes[offset + 16..offset + 18].copy_from_slice(&((section >> 16) as u16).to_le_bytes());
     assert!(
-        validate_windows_coff_object_envelope_v1(
-            &bytes,
-            scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID
-        )
-        .unwrap_err()
-        .to_string()
-        .contains("cyclic COMDAT")
+        validate_coff_object_envelope_v1(&bytes, scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID)
+            .unwrap_err()
+            .to_string()
+            .contains("cyclic COMDAT")
     );
 }

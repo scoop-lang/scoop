@@ -1,14 +1,19 @@
 use super::*;
-use crate::link_object::{MachOSymbolKindV1, ValidatedMachOObjectEnvelopeV1};
+use crate::link_object::{MachOArchitecture, MachOSymbolKindV1, ValidatedMachOObjectEnvelopeV1};
 
 impl From<ValidatedMachOObjectEnvelopeV1> for ValidatedObjectEnvelopeV1 {
     fn from(envelope: ValidatedMachOObjectEnvelopeV1) -> Self {
+        let machine = envelope.architecture().object_machine();
         Self {
             byte_length: envelope.byte_length(),
             content_digest: envelope.content_digest(),
-            format: ObjectEnvelopeFormatV1::MachO64 {
-                target: envelope.target(),
-            },
+            format: ObjectEnvelopeFormatV1::new(
+                envelope.target(),
+                match envelope.architecture() {
+                    MachOArchitecture::Aarch64 => scoop_lir::ObjectTargetProfileV1::MachOAarch64,
+                    MachOArchitecture::X86_64 => scoop_lir::ObjectTargetProfileV1::MachOX86_64,
+                },
+            ),
             sections: envelope
                 .sections()
                 .iter()
@@ -58,7 +63,10 @@ impl From<ValidatedMachOObjectEnvelopeV1> for ValidatedObjectEnvelopeV1 {
                     containing_section_ordinal: r.containing_section_ordinal(),
                     offset: u64::from(r.offset()),
                     encoded_value: r.encoded_value(),
-                    shape: ObjectRelocationShapeV1::MachO(r.shape()),
+                    shape: ObjectRelocationShapeV1::MachO {
+                        machine,
+                        shape: r.shape(),
+                    },
                 })
                 .collect(),
         }

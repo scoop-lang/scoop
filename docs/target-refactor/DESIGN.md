@@ -2,6 +2,8 @@
 
 状态：完成。Windows 完成后的设计复审、目标边界重构和 macOS x86_64 已在 `codex/target-refactor-macos-x86-64` 分支完成；七个目标的受影响范围已验证，Rosetta 调试限制单列。实际范围与结果见[实施记录](PROGRESS.md)。
 
+上一轮实施后仍残留的 OS／arch／对象 machine 组合耦合及其后续收口方案见 [Target 组合解耦后续重构设计](COMPOSITION.md)。
+
 初稿：2026-10-29。复审：2026-10-30。
 
 复审基线：主线 [`09be3315a85cfa9e50f79e49785bd23e0880f1f0`](https://github.com/windoze/scoop/tree/09be3315a85cfa9e50f79e49785bd23e0880f1f0)。Windows targets 经 `b0de037002`（#70）合入，随后 `2ae2534a1c`（#71）和 `09be3315a8`（#72）加入 macOS／Windows 窗口库及其实际需要的 native 支持。以下代码链接已随重构更新，指向本分支的实现文件。
@@ -147,7 +149,7 @@ layout = "WindowsX86_64"
 runtime = "WindowsX86_64"
 procedure_abi = "Win64"
 scoop_abi = "Win64CallerCopyAndIndirectInterfaceResult"
-exception_handling = "WindowsSeh"
+exception_model = "ItaniumWindowsSeh"
 tuning = "X86_64"
 backend = "LLVM_22_1_WINDOWS_X86_64"
 native_environment = "LlvmMingwUcrt"
@@ -300,10 +302,10 @@ runtime/src/platform/
   arch/          ISA 浮点环境及真正只依赖架构的实现
   frame/         ABI / backend 的 anchor、精确根和逐帧恢复
   image/         Mach-O / ELF / PE 映像
-  profiles/      实际受支持目标的现有组件组合
+  bundle.c       所选 image / OS / frame ops 的唯一静态组合入口
 ```
 
-这是源码职责划分，不为每层增加动态分发。继续使用现有 `ScoopManagedFrameOps` 等接口；源码组合和 flags 由工具链选择。已有 `aarch64.c` 的 Darwin frame 部分与通用 AArch64 浮点部分分开，Windows frame 迁移时保持实现。
+这是源码职责划分，不为每层增加动态分发。继续使用现有 `ScoopManagedFrameOps` 等接口；源码组合和 flags 由工具链分别依据对象格式／loader、OS、frame 合同和目标 C 数据模型选择，`bundle.c` 本身不枚举完整 target。已有 `aarch64.c` 的 Darwin frame 部分与通用 AArch64 浮点部分分开，Windows frame 迁移时保持实现。
 
 汇编至少按 ABI＋对象格式选择。Darwin 的前导下划线／Mach-O directives、ELF 的 `.type`／CFI、Windows 的 SEH directives 和 Win64 寄存器约定不能只用 `arch = x86_64` 或 `aarch64` 选择一份文件。
 

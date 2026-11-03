@@ -71,7 +71,12 @@ pub(super) fn profiles(kind: FinalOutputKind, sysroot: &Path) -> Vec<WindowsFina
             linker,
             ..Default::default()
         };
-        profiles.push(WindowsFinalLinkProfile::resolve(startup, &options, cxx).unwrap());
+        profiles.push(
+            match crate::ValidatedFinalLinkProfile::from_tools(startup, &options, cxx).unwrap() {
+                crate::ValidatedFinalLinkProfile::Windows(profile) => profile,
+                profile => panic!("Windows target selected {profile:?}"),
+            },
+        );
     }
     profiles
 }
@@ -182,7 +187,7 @@ fn windows_final_link_profiles_link_real_crt_unwind_cpp_and_pdb() {
         });
         probe::check_image(
             &bytes,
-            profile.startup.target().id(),
+            profile.startup.target(),
             FinalOutputKind::Executable,
         )
         .unwrap();

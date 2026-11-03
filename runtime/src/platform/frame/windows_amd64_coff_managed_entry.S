@@ -1,4 +1,4 @@
-/* Win64 managed entry: preserve the caller's PC, callsite RSP and RBP.
+/* Win64 AMD64 managed entry: preserve the caller's PC, callsite RSP and RBP.
  * The private C entry has up to six words: four registers, two stack args.
  * This shim's own frame supplies the required home area and SEH metadata. */
 .text

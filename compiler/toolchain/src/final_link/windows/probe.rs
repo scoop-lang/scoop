@@ -81,11 +81,7 @@ pub(super) fn check(
         .collect();
     inputs.insert(profile.data.unwind_prefix.join("lib/libunwind.a"));
     let bytes = std::fs::read(&output).map_err(error)?;
-    check_image(
-        &bytes,
-        profile.startup.target().id(),
-        profile.data.output.kind(),
-    )?;
+    check_image(&bytes, profile.startup.target(), profile.data.output.kind())?;
     inputs
         .into_iter()
         .map(|path| {
@@ -99,22 +95,24 @@ pub(super) fn check(
 
 pub(super) fn check_image(
     bytes: &[u8],
-    target: scoop_lir::TargetProfileId,
+    target: scoop_lir::LirTargetProfile,
     kind: FinalOutputKind,
 ) -> Result<(), ToolchainError> {
+    let machine = crate::windows_machine::WindowsToolchainMachine::select(target).map_err(error)?;
     let file = object::File::parse(bytes).map_err(error)?;
     let expected = match kind {
         FinalOutputKind::Executable => object::ObjectKind::Executable,
         FinalOutputKind::SharedLibrary => object::ObjectKind::Dynamic,
     };
     if file.format() != object::BinaryFormat::Pe
-        || file.architecture() != object::Architecture::X86_64
+        || file.architecture() != machine.object_architecture()
         || file.kind() != expected
         || !file.is_64()
     {
-        return Err(error(
-            "Windows link probe did not produce the selected PE32+ AMD64 output kind",
-        ));
+        return Err(error(format!(
+            "Windows link probe did not produce the selected PE32+ {} output kind",
+            machine.name()
+        )));
     }
     if kind == FinalOutputKind::SharedLibrary {
         let exports = file.exports().map_err(error)?;
@@ -139,16 +137,27 @@ pub(super) fn check_image(
     let ucrt = libraries
         .iter()
         .any(|name| name == "ucrtbase.dll" || name.starts_with("api-ms-win-crt-"));
-    if target == scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT_ID {
-        if !legacy || ucrt {
+    match crate::windows_c::native_environment(target.id())? {
+        scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt => {
+            if !legacy || ucrt {
+                return Err(error(format!(
+                    "MSVCRT target linked incompatible CRT imports: {libraries:?}"
+                )));
+            }
+        }
+        scoop_target_data::NativeEnvironment::MicrosoftUcrt
+        | scoop_target_data::NativeEnvironment::LlvmMingwUcrt => {
+            if !ucrt || legacy {
+                return Err(error(format!(
+                    "UCRT target linked incompatible CRT imports: {libraries:?}"
+                )));
+            }
+        }
+        environment => {
             return Err(error(format!(
-                "MSVCRT target linked incompatible CRT imports: {libraries:?}"
+                "unsupported Windows native environment {environment:?}"
             )));
         }
-    } else if !ucrt || legacy {
-        return Err(error(format!(
-            "UCRT target linked incompatible CRT imports: {libraries:?}"
-        )));
     }
     Ok(())
 }

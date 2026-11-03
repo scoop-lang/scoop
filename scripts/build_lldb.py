@@ -22,7 +22,7 @@ from build_support import (
     source_metadata,
     source_patch_environment,
 )
-from target_catalog import current_host, host_definition
+from target_catalog import current_host, host_definition, native_target_for_host
 
 PATCH = ROOT / "scripts/patches/lldb-scoop-source-names.patch"
 SOURCE_PARTS = (
@@ -83,8 +83,11 @@ def copy_sources(source, copied):
 
 
 def configure(source, build, prefix, llvm, python, host, release, cc, cxx):
-    windows = "windows" in host
-    target = release["targets"]["x86_64-w64-windows-llvm-mingw-ucrt" if windows else host]
+    host_configuration = host_definition(host)
+    target_name, target_configuration = native_target_for_host(host)
+    target = release["targets"][target_name]
+    windows = host_configuration["system"] == "Windows"
+    darwin = host_configuration["system"] == "Darwin"
     options = {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": prefix.as_posix(),
@@ -104,14 +107,14 @@ def configure(source, build, prefix, llvm, python, host, release, cc, cxx):
         "LLDB_ENABLE_LIBXML2": "OFF",
         "LLDB_BUILD_FRAMEWORK": "OFF",
         "LLDB_SKIP_DSYM": "ON",
-        "CMAKE_C_FLAGS": cpu_flag(host_definition(host)["arch"], target["cpu"]),
-        "CMAKE_CXX_FLAGS": cpu_flag(host_definition(host)["arch"], target["cpu"]),
+        "CMAKE_C_FLAGS": cpu_flag(host_configuration["arch"], target["cpu"]),
+        "CMAKE_CXX_FLAGS": cpu_flag(host_configuration["arch"], target["cpu"]),
     }
     if windows:
         options.update(
             {
-                "CMAKE_C_COMPILER_TARGET": "x86_64-w64-windows-gnu",
-                "CMAKE_CXX_COMPILER_TARGET": "x86_64-w64-windows-gnu",
+                "CMAKE_C_COMPILER_TARGET": target_configuration["llvm_triple"],
+                "CMAKE_CXX_COMPILER_TARGET": target_configuration["llvm_triple"],
                 "CMAKE_AR": (Path(cc).parent / "llvm-ar.exe").as_posix(),
                 "CMAKE_RANLIB": (Path(cc).parent / "llvm-ranlib.exe").as_posix(),
                 "LLVM_USE_LINKER": "lld",
@@ -121,11 +124,9 @@ def configure(source, build, prefix, llvm, python, host, release, cc, cxx):
         )
     else:
         options["CMAKE_INSTALL_RPATH"] = (
-            ("@loader_path/../lib" if host.endswith("darwin") else "$ORIGIN/../lib")
-            + ";"
-            + str(llvm / "lib")
+            ("@loader_path/../lib" if darwin else "$ORIGIN/../lib") + ";" + str(llvm / "lib")
         )
-    if host.endswith("darwin"):
+    if darwin:
         options["CMAKE_OSX_DEPLOYMENT_TARGET"] = target["minimum_os"]
         options["CMAKE_OSX_ARCHITECTURES"] = apple_architecture(host_definition(host)["arch"])
         options["LLDB_CODESIGN_IDENTITY"] = "-"
@@ -164,9 +165,11 @@ def main():
     cc, cxx, ninja = (shutil.which(name) for name in (args.cc, args.cxx, "ninja"))
     if not all((python, swig, cc, cxx, ninja)):
         parser.error("C/C++ compilers, Python development files, SWIG 4 and Ninja are required")
-    suffix = ".exe" if "windows" in host else ""
+    windows = host_config["system"] == "Windows"
+    darwin = host_config["system"] == "Darwin"
+    suffix = ".exe" if windows else ""
     llvm_config = llvm / "bin" / ("llvm-config" + suffix)
-    server = "debugserver" if host.endswith("darwin") else "lldb-server"
+    server = "debugserver" if darwin else "lldb-server"
     outputs = [
         prefix / "bin" / (name + suffix) for name in ("lldb", "lldb-dap", "lldb-argdumper", server)
     ]
@@ -236,7 +239,7 @@ def main():
         ],
         check=True,
     )
-    if host.endswith("darwin"):
+    if darwin:
         # CMake adjusts the installed rpath after signing the build-tree helper.
         subprocess.run(
             [
