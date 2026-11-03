@@ -1,32 +1,20 @@
 # 接收者 DSL builder 设计建议
 
-日期：2026-11-03。状态：API 调研与设计建议；生产 API 尚未迁移。以当前 UI 基础能力为实现前提，范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持下面的基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
+日期：2026-11-03。状态：API 调研与设计建议；生产 API 尚未迁移。用户示例只说明 DSL 风格，没有指定实际控件名、属性名或 API 层级。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
 
 ## 1. 建议
 
 将 builder 作为 UI 的常用声明入口。一次 builder 调用同步收集属性和子 View，结束时生成现有的不可变 Props／View；框架继续使用同一 Component、Element、状态观察、key、挂载和测量／场景流程。所需新增代码主要位于控件库的构建入口，不需要改变底层渲染模型。
 
-```kotlin
-stack {
-    label {
-        title = "Hello"
-    }
-    button {
-        title = "OK"
-        enabled = false
-    }
-}
-```
-
-Stack 在当前 API 中表示叠放；顺序排列的表单使用 column／row。这次调整不改变容器的布局含义。
-
 这一层解决两个现有问题：Row／Column／Stack 目前需要显式组织 Array<View>；Input／Textarea／VirtualList 等入口有较长的命名参数列表。简单的 `label("Hello")` 仍适合直接使用，完整 Props 和 Component 构造入口继续服务自定义组合。
 
 ## 2. 最小实现结构
 
-每个控件的 builder 保存可写配置，转换为该控件已有 Props。具有多个子项的容器实现一个只负责 `add(View)` 的公共子项接收者；控件库和应用可用普通扩展函数为它增加组件入口。叶子 builder 只声明自己的配置。
+每个控件的 builder 保存可写配置，转换为该控件已有 Props。具有多个子项的容器复用一个普通 ChildrenBuilder 基类，其中保存子项序列、`add(View)` 和标准控件的真实成员方法；Row／Column／Stack 等具体 builder 增加各自布局属性。叶子 builder 只声明自己的配置。已有 View 和第三方组件统一通过 add 加入，应用也可在无歧义的命名／导入下提供接收者扩展。
 
-顶层 `stack { ... }` 返回 View；子项接收者中的 `stack`、`label`、`button` 等调用向当前容器追加一次并返回 Unit。两种入口使用同一个私有构建函数，以免在重载调用中递归或重复追加。`add(existingView)` 支持现成 View 和自定义组件；`if`、`when`、`for` 直接使用普通语言控制流。
+顶层 `stack { ... }` 返回 View；子项接收者中的 `stack`、`label`、`button` 等成员调用向当前容器追加一次并返回 Unit。两种入口使用同一个私有构建函数，以免在重载调用中递归或重复追加。`add(existingView)` 支持现成 View 和自定义组件；`if`、`when`、`for` 直接使用普通语言控制流。
+
+当前语言规则下，建议标准子项入口使用真实成员：同名顶层工厂与接收者扩展同时可应用时，裸调用会因最具体候选并列而歧义，lambda 的 Unit 结果不能用于强行选择自动追加的版本。真实成员按既有优先级胜过顶层工厂，并且可以从公共 builder 基类继承。这决定构建入口如何组织；如以后需要同名扩展优先于普通函数的 Kotlin 式规则，应先单独设计语言候选层。
 
 ```kotlin
 fun stack(configure: StackBuilder.() -> Unit): View {
@@ -40,7 +28,7 @@ fun stack(configure: StackBuilder.() -> Unit): View {
 
 子项序列在转换时保存数组快照；之后修改 builder 不改变已经生成的描述。样式等嵌套 builder 也先生成自己的配置快照。回调和调用方提供的状态引用按现有 Props 契约保存，不进行深拷贝。
 
-命名建议：用户示例中的 title 可作为纯文本便捷属性；实际 Label／Button 还支持 StyledText，正式设计应为普通文本和富文本保留明确入口。建议统一使用 `text: String` 与 `content: LabelText`，text 的 setter 写入同一个 content，按源码最后一次赋值生效；不同时保存两份互相竞争的正文。不额外保留 title／text 两个同义名称。最终命名在迁移控件 API 时统一确定。
+具体属性名、类型和必需项按对应 Props 的实际语义设计。普通文本、StyledText、单内容槽和多子项等差别应继续表达清楚；便捷 setter 最终写入同一配置值，避免保存两份互相竞争的状态。先统一 builder 的配置、子项、快照和身份规则，再在各 API 的迁移中确定公开名称。
 
 ## 3. 状态、回调和资源
 
@@ -110,6 +98,8 @@ Point、Size、Rect、Duration 等小值构造已经简洁。网络发送、文�
 
 ## 7. 验证范围
 
-独立的临时普通 Cone 已用实际预编译的 scoop.ui／scoop.ui.component 完成格式化、类型检查和 aarch64 release 构建，包含用户原样的 `stack { label { title = ... }; button { ... } }`。探针直接生成现有 LabelProps／ButtonProps／StackProps 与 View；2 项 scoop.test 均通过，覆盖属性快照、源码顺序、循环构建和回调修改应用 State。该探针用于确认语言与公共 API 的组合，不发布为生产库；完成后清理临时源码、测试产物与报告。
+独立的临时普通 Cone 已用实际预编译的 scoop.ui／scoop.ui.component 完成格式化、类型检查和 aarch64 release 构建，验证接收者配置块与嵌套子项声明。探针直接生成现有 LabelProps／ButtonProps／StackProps 与 View；2 项 scoop.test 均通过，覆盖属性快照、源码顺序、循环构建和回调修改应用 State。探针中的命名仅用于验证语言与公共 API 的组合，不发布为生产库；完成后清理临时源码、测试产物与报告。
+
+另一个小型语言探针确认同名普通函数与接收者扩展的歧义诊断；采用共享 builder 基类的真实成员后，格式化、类型检查、release 构建和 1 项嵌套收集测试均通过。该结果用于选择当前语言支持的入口组织方式，没有修改编译器，也不把探针名固化为公开 API。
 
 正式迁移时，验收重点是 DSL 与原入口生成同一类描述、条件／循环与稳定 key 的实例复用、嵌套配置快照、事件回调读取最新 Props，以及懒列表不提前构造离屏项。沿用相关 Cone 的 scoop.test 和现有原生组合用例；不因增加 builder 重跑编译器全量或所有系统库测试。
