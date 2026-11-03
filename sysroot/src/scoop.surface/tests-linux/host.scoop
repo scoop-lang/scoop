@@ -10,7 +10,7 @@ import scoop.window.*
 @Test
 private class LinuxSurfaceHostTest {
     @Test
-    fun `two EGL windows present pixels idle remap resize and reattach without losing leases`() {
+    fun `two EGL windows retain in-paint demand present pixels idle remap resize and reattach`() {
         val probe = LinuxSurfaceProbe()
         val application =
             Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit })
@@ -18,7 +18,7 @@ private class LinuxSurfaceHostTest {
         try {
             application.run(host)
             assertTrue(probe.finished)
-            assertTrue(probe.firstFrames >= 4 && probe.secondFrames >= 1)
+            assertTrue(probe.firstFrames >= 7 && probe.secondFrames >= 1)
             assertEquals(3, probe.closedContents)
             assertTrue(host.isClosed)
             assertEquals(WindowState.Destroyed, probe.first!!.state)
@@ -81,6 +81,9 @@ private class LinuxSurfaceProbe {
                                             }x${frame.size.height}"
                                         )
                                     )
+                                    // Keep demand active across an outstanding Wayland callback.
+                                    if (phase == 0 && firstFrames < 4)
+                                        frame.window.requestFrame()
                                     if (phase == 5 && frame.size == Size(360.0, 200.0)) {
                                         phase = 6
                                         a.requestSize(LogicalSize(380.0, 220.0))
@@ -129,7 +132,7 @@ private class LinuxSurfaceProbe {
                 )
             }
             case AboutToWait -> {
-                if (phase == 0 && firstFrames > 0 && secondFrames > 0) {
+                if (phase == 0 && firstFrames >= 4 && secondFrames > 0) {
                     phase = 1
                     later(100L) {
                         val idleFirst = firstFrames

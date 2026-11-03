@@ -180,9 +180,9 @@ static int current(SSSurface *surface) {
 SSAcquired scoop_surface_gles_acquire(SSSurface *surface) {
   if (surface->acquired)
     return (SSAcquired){NULL, -1};
+  surface->notified = false;
   if (surface->frame_callback)
     return (SSAcquired){NULL, 0};
-  surface->notified = false;
   int status = current(surface);
   if (status != 1)
     return (SSAcquired){NULL, status};

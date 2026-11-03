@@ -31,6 +31,8 @@ graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文�
 - `surface-errors`：X11、Wayland 各 1／1；绘制抛错时关闭可见与未配置窗口，并保留主错误及多个 cleanup 错误。
 - 工具链打包脚本：5／5；Linux GNU 包含 Skia archive／headers，musl 保持原目标范围。Python 使用 Ruff 0.16.10 格式化和检查；原生 C／C++ 完成格式化与警告检查。
 
+完整主题组合暴露了 Wayland 的一次帧通知丢失：绘制期间产生的新需求提前触发 acquire，等待 callback 时返回 Deferred，却仍保留已通知状态。已调整为每次获取都消费该次通知，使 callback 到达后继续唤醒。真实双窗口测试增加了绘制期间连续请求四帧的回归；旧实现于初始阶段停帧，修复后 X11、Wayland 和 Wayland 2 倍缩放仍各 70／70，异常清理两后端各 1／1。
+
 上述呈现测试通过真实显示协议，GPU 为 Mesa 软件渲染，未据此宣称硬件 GPU、真实 IME 或所有合成器验收通过。
 
 链接 Skia 时发现显式对象的 compiler builtin 与系统 C++ runtime 动态导出冲突，已修正 ELF 符号选择并补充 C++ 异常组合 fixture。`scoop-linker` 22／22，使用 fixture 默认 GCC 的原生链接验收 45 项通过、19 项不适用；workspace fmt／clippy 通过。五个 release 工具命令已重建并安装至 `~/.scoop/bin`。

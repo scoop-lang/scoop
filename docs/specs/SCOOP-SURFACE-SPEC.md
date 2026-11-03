@@ -289,6 +289,8 @@ graphics 的目标专用 Unsafe GLES 接入使用实际 GrDirectContext 和 EGL 
 
 Wayland 等待首个 configure 后才建立有效帧尺寸，提交前按实际物理尺寸调整 wl_egl_window；整数和 fractional scale 由 window 配置，不在 renderer 重复设置 surface scale。按需 frame callback 和 EGL swap 驱动后续帧；撤销 demand、隐藏或关闭时取消本方尚未消费的 callback。X11 使用 EGL swap interval 与实际交换完成控制连续帧，在无绘图需求时不注册周期性定时器。不能以固定频率空回调轮询 drawable。未配置、隐藏、零尺寸或本帧已过期返回 Deferred；确定的 EGL／GL 失败报告 GraphicsException，不能隐式换后端。
 
+重绘请求可以在 Wayland frame callback 尚未到达时提前被处理，包括绘制期间保留的新失效。本次获取返回 Deferred 仍消费该次机会通知；dirty 继续保留，callback 到达后必须能再次通知下一次可绘制机会，不能因提前通知仍被标为未消费而永久停止后续帧。
+
 Skia 构建由既有维护脚本使用本地固定 vendor 输入完成，启用 GLES／EGL、Fontconfig／FreeType，继续复用共享 HarfBuzz／ICU／图像解码资源。普通应用只消费预编译 `.slib`、头文件和声明的 native 依赖。验收分别覆盖 Wayland 与 X11 的真实 GLES 绘制、resize、隐藏重显、多窗口、帧需求撤销、异常及资源关闭；离屏测试不能替代实际呈现。验证记录须区分真实显示服务器、软件 GPU、合成输入及实际硬件输入。
 
 Linux 的 Primary 快捷键使用 Control；macOS 使用 Command。两者沿同一 capture／target／bubble／default 路由，平台修饰键归一之后仍检查重复组合、编辑器让行和 preventDefault。SurfaceHost 可附着 PendingConfigure 窗口，首次配置前保留内容和 dirty；隐藏重显期间暂停 demand，新的配置到来后继续，不将等待配置当作关闭。
