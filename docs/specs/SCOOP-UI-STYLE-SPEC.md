@@ -4,6 +4,8 @@
 
 ## 1. 分层与接入
 
+生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
+
 `scoop.ui.style` 是独立普通 Cone，依赖实际使用的 ui、graphics、graphics.text、surface 及 core／std／platform。它定义[公共主题绘图与几何协议](SCOOP-UI-THEME-SPEC.md)、视觉状态、语义颜色／字体／尺寸／动画参数，同时提供通用 Style、外框装饰和内容效果的 UI 应用方式。graphics 提供[真正绘图、滤镜与图层](SCOOP-GRAPHICS-EFFECTS-SPEC.md)；ui 只提供挂载、State／Props、布局、输入和作用域，不依赖或识别 style／component。控件库负责交互和 ButtonStyle／CheckboxStyle 的明确局部覆盖，向主题提交类型化视觉状态并消费同一几何与绘图。主题合同不在 component 中定义。
 
 文字继续使用 `scoop.graphics.text` 的 TextStyle／SpanStyle、ParagraphStyle；Theme 的公共 typography 也直接使用这些类型，Style 不定义另一套字体、段落或文本继承模型。第三方完全自绘组件和基础控件使用同一公开适配，没有专用 View 分支、控件节点或效果注册入口。

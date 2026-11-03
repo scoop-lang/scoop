@@ -1,0 +1,60 @@
+package scoop.window
+
+/** Publishes applied text independently of drawing or candidate geometry. */
+public fun Window.publishTextInputState(
+    connection: TextInputConnection,
+    state: TextInputState,
+    after: TextInputOrigin? = None
+): Boolean {
+    checkTextConnection(connection)
+    state.validate()
+    val sequence =
+        when (after) {
+            case Some(origin) -> {
+                requireWindow(
+                    origin.connection == connection && origin.sequence > 0L,
+                    "text batch belongs to another connection"
+                )
+                origin.sequence
+            }
+            case None -> 0L
+        }
+    return snapshotResult(platformPublishText(this, connection, state, sequence))
+}
+
+/** Publishes geometry only for the current, fully applied document revision. */
+public fun Window.publishTextInputCaret(
+    connection: TextInputConnection,
+    revision: Long,
+    area: LogicalRect?
+): Boolean {
+    checkTextConnection(connection)
+    requireWindow(revision >= 0L, "negative text revision")
+    when (area) {
+        case Some(value) -> checkImeCursorArea(value)
+        case None -> {}
+    }
+    return snapshotResult(platformPublishTextCaret(this, connection, revision, area))
+}
+
+/** Makes the basic candidate rectangle unavailable until supplied again. */
+public fun Window.clearImeCursorArea() {
+    owner.requireOpen()
+    checkNativeStatus(platformClearImeCaret(this), "clear IME caret")
+}
+
+private fun Window.checkTextConnection(connection: TextInputConnection) {
+    owner.requireOpen()
+    requireWindow(
+        connection.window == id && connection.generation > 0L,
+        "text connection belongs to another window"
+    )
+}
+
+private fun snapshotResult(code: Long): Boolean {
+    if (code == 1L)
+        return false
+    requireWindow(code != 2L, "invalid text snapshot revision or native batch sequence")
+    checkNativeStatus(code, "publish text input snapshot")
+    return true
+}

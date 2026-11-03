@@ -1,0 +1,83 @@
+package scoop.graphics.text
+
+import scoop.compiler.includeBytes
+import scoop.math.abs
+import scoop.test.*
+
+@Test
+private class SystemFontGenericTest {
+    @Test
+    fun `generic families resolve missing preferences and preserve monospace advances`() {
+        FontCollection().use {
+            fonts ->
+            for (family in ["sans-serif", "serif", "monospace"])
+                assertTrue(genericWidth(fonts, "Unicode é 文", family) > 0.0)
+            val narrow = genericWidth(fonts, "iiii", "monospace")
+            val wide = genericWidth(fonts, "MMMM", "monospace")
+            assertTrue(abs(narrow - wide) < 0.001)
+            assertTrue(
+                genericWidth(fonts, "MMMM", "sans-serif") >
+                    genericWidth(fonts, "iiii", "sans-serif")
+            )
+            assertEquals(0L, fonts.revision)
+        }
+    }
+
+    @Test
+    fun `explicit generic aliases replace only future paragraph snapshots`() {
+        FontCollection().use {
+            fonts ->
+            val style =
+                textStyle {
+                    families = ["monospace"];
+                    fontSize = 20.0
+                }
+            Paragraph(fonts, "iiii", style).use {
+                old ->
+                val before = old.layoutUnwrapped().use { layout -> layout.maxIntrinsicWidth }
+                fonts.register(includeBytes("data/Roboto-Regular.ttf"), "monospace")
+                assertEquals(1L, fonts.revision)
+                old.layoutUnwrapped().use {
+                    layout -> assertEquals(before, layout.maxIntrinsicWidth)
+                }
+                assertTrue(
+                    genericWidth(fonts, "MMMM", "monospace") >
+                        genericWidth(fonts, "iiii", "monospace")
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `disabled fallback does not add implicit generic fonts`() {
+        FontCollection(false).use {
+            fonts ->
+            val style = textStyle { families = ["monospace"] }
+            Paragraph(fonts, "abc", style).use {
+                paragraph -> paragraph.layoutUnwrapped().use {
+                    layout ->
+                    // Skia uses a smallest-positive-float sentinel when no font can shape the text.
+                    assertTrue(layout.maxIntrinsicWidth < 0.001)
+                }
+            }
+            fonts.register(includeBytes("data/Roboto-Regular.ttf"), "monospace")
+            assertTrue(genericWidth(fonts, "abc", "monospace") > 0.0)
+        }
+    }
+}
+
+private fun genericWidth(fonts: FontCollection, text: String, family: String): Double =
+    Paragraph(
+        fonts,
+        text,
+        textStyle {
+            families = ["Scoop Missing Font Preference", family]
+            fontSize = 20.0
+        }
+    ).use {
+        paragraph -> paragraph.layoutUnwrapped().use {
+            layout ->
+            assertEquals(0, layout.unresolvedGlyphCount)
+            layout.maxIntrinsicWidth
+        }
+    }

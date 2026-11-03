@@ -1,6 +1,6 @@
 # Scoop Surface 基础库规范
 
-后续共享 shortcut／caret 和输入序列归属的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，当前仅完成设计；下文仍描述现行合同，按对应实施批次先行修订。
+后续共享 shortcut／caret 和输入序列归属的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述对应批次的现行合同。
 
 状态：第一期共享基础层及 macOS 后端已实现。更新：2026-11-03。本文件规定 window 输入前置、graphics 绘图／文本、Surface 宿主、动画和区域输入的当前合同；各项验证、执行环境和未测边界见 [实施记录](../surface/PROGRESS.md)。架构、平台接入和实施顺序见 [Surface 设计](../surface/DESIGN.md)。
 
@@ -184,9 +184,9 @@ InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法
 
 更换文本接收者先关闭旧接收者的 IME，以 Disabled 为旧会话结束边界，再设置新候选窗位置并开启新接收者；没有活动旧接收者时直接开启。Enabled 先于新接收者的 Edit。结束前的 Edit 仍路由旧接收者，已注销则丢弃，不得写进新区域。逻辑 focus 可以先改变，排队编辑的归属不能随之被改写；窗口关闭的资源释放不等待业务 IME 通知。
 
-frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，macOS 原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
+frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
 
-基础接入调用 setImeCursorArea；带 revision 的 macOS 接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。此次补齐 macOS；Win32 继续使用现有候选位置推送，没有新增 surrounding 或几何查询实现。
+共享 caret 适配通过 window 的公共入口工作：基础接入调用 setImeCursorArea，清除调用 clearImeCursorArea；带 revision 的接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。macOS 已实现此合同；Windows 分支补齐 window 后端，Surface 不再保留忽略连接／revision 的另一套候选位置路径。
 
 ### 6.1 组合默认行为
 

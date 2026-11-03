@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，当前进行 P2。
+日期：2026-11-04。状态：实施中，当前进行 L1。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -9,8 +9,8 @@
 | 批次 | 状态 |
 | --- | --- |
 | P1 平台键盘合同 | 已完成 |
-| P2 文本服务与源码边界 | 实施中 |
-| L1 布局协议与空间分配 | 待实施 |
+| P2 文本服务与源码边界 | 已完成 |
+| L1 布局协议与空间分配 | 实施中 |
 | L2 方向、Wrap 和 Grid | 待实施 |
 | I1 公共激活与拖动 | 待实施 |
 | I2 弹层、候选项和悬浮 | 待实施 |
@@ -38,3 +38,11 @@
 - aarch64 macOS release：window／surface／ui 生产库构建成功；Scoop 格式化与三个 Cone 的 tests 类型检查通过，修改的 native 源码通过严格编译警告检查。
 - 定向运行 22 项全部通过：window 的 Unicode、两种 Primary 解析、标签所有权、真实 AppKit 编辑与 Fn 共 7 项；Surface 的 DSL／作用域／宿主路由共 13 项；UI 编辑器与模态组合各 1 项。无未闭合失败。Windows 只覆盖共享解析算法，不代表其后端验收；x86_64 留到 C1。
 - 已清理这一项不再使用的独立类型检查锁文件；保留后续会复用的生产库、测试构建目录和共享 Cone cache。
+
+## P2：文本服务与源码边界
+
+- Clipboard 及 IME 文档／caret 的声明、owner 和参数检查迁入 window 共享源码；Darwin 文件仅提供原生转换和发布。剪贴板读写归一化 CRLF／CR 为 LF，写前拒绝 NUL，读取到内容 NUL 报 Unsupported。Surface 使用同一个 caret 适配，删除忽略连接与 revision 的旧路径。
+- graphics.text 为 sans-serif／serif／monospace 提供真实系统 family，集合创建时解析并保存；显式同名字体优先，关闭 fallback 时不加入系统别名，已有 Paragraph 保留自己的字体快照。三套主题已有的偏好列表直接使用该共同 fallback。
+- 移除 ui／component／style／三套主题生产源码的 Darwin 条件；window.asyncio 已有的共享宿主与 platformWatch 分层继续复用。PLATFORM.md 已列出后续 Windows／Linux 分支所需入口，本轮没有补写或验收这些后端。
+- aarch64 macOS release：window、graphics.text、window.asyncio、surface、ui、style、三套主题及 component 共 10 个生产库构建成功。修改的 Scoop 通过格式化，window／graphics.text 的 tests 类型检查通过，native 源码通过严格警告编译。
+- 5 项定向测试全部通过：剪贴板往返／NUL／原生失败／owner，原生文档修订与范围查询，以及三项字体类别／别名覆盖／禁用 fallback。没有复跑 P1 的快捷键、编辑器或模态测试。清理了本项的独立检查锁文件，保留依赖缓存与下一项草稿。

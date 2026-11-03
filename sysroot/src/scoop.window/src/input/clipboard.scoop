@@ -1,0 +1,61 @@
+package scoop.window
+
+/** Unicode clipboard text with shared lifetime and newline semantics. */
+public class Clipboard internal constructor(private val owner: ApplicationOwner) {
+    public fun readText(): String? {
+        checkActive("read clipboard")
+        return when (platformReadClipboard()) {
+            case Some(text) -> Some(clipboardText(text, false))
+            case None -> None
+        }
+    }
+    public fun writeText(text: String) {
+        checkActive("write clipboard")
+        platformWriteClipboard(clipboardText(text, true))
+    }
+    internal fun checkActive(operation: String) {
+        owner.checkThread()
+        if (owner.native == None || owner.exiting)
+            throw WindowException(operation, WindowErrorKind.InvalidState)
+    }
+}
+
+/** Obtains a clipboard facade that remains valid while this application runs. */
+public val ActiveApplication.clipboard: Clipboard get() {
+    val value = Clipboard(owner)
+    value.checkActive("get clipboard")
+    return value
+}
+
+/** Uses the application clipboard without extending the lifetime of this window. */
+public val Window.clipboard: Clipboard get() {
+    val value = Clipboard(owner.application)
+    value.checkActive("get clipboard")
+    return value
+}
+
+private fun clipboardText(text: String, writing: Boolean): String {
+    var hasCarriageReturn = false
+    for (character in text) {
+        if (character.code == 0) {
+            if (writing)
+                throw IllegalArgumentException(Some("clipboard text contains NUL"))
+            throw WindowException("read clipboard", WindowErrorKind.Unsupported)
+        }
+        if (character.code == 13)
+            hasCarriageReturn = true
+    }
+    if (!hasCarriageReturn)
+        return text
+    val result = StringBuilder(text.byteLength)
+    var carriage = false
+    for (character in text) {
+        if (character.code == 13)
+            result.append("\n")
+        else
+            if (character.code != 10 || !carriage)
+                result.append(character.toString())
+        carriage = character.code == 13
+    }
+    return result.toString()
+}

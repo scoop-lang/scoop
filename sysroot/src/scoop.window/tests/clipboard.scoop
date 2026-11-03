@@ -46,8 +46,18 @@ private class ClipboardHandler: ApplicationHandler {
                 this.application = Some(application)
                 val value = application.clipboard
                 clipboard = Some(value)
-                value.writeText("中文 / 日本語 / e\u{301} / 👩‍💻\r\nline\u{0}end")
-                assertEquals(Some("中文 / 日本語 / e\u{301} / 👩‍💻\r\nline\u{0}end"), value.readText())
+                value.writeText("中文 / 日本語 / e\u{301} / 👩‍💻\r\nline\rend")
+                val normalized = "中文 / 日本語 / e\u{301} / 👩‍💻\nline\nend"
+                assertEquals(Some(normalized), value.readText())
+                assertFailsWith<IllegalArgumentException> { value.writeText("bad\u{0}text") }
+                assertEquals(Some(normalized), value.readText())
+                assertEquals(0, setNativeClipboardText("external\r\ntext\rline"))
+                assertEquals(Some("external\ntext\nline"), value.readText())
+                assertEquals(0, setNativeClipboardText("external\u{0}text"))
+                assertEquals(
+                    WindowErrorKind.Unsupported,
+                    assertFailsWith<WindowException> { value.readText() }.kind
+                )
                 value.writeText("")
                 assertEquals(Some(""), value.readText())
                 @Unsafe

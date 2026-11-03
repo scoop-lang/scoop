@@ -1,6 +1,6 @@
 package scoop.ui
 
-// macOS window mounts are confined to the one native application owner thread.
+// Window mounts are confined to the application owner thread.
 private object ActiveInstances {
     val values = ArrayList<Any>()
 }

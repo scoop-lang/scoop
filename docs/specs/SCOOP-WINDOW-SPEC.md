@@ -36,11 +36,11 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 ### 2.2 GUI 纯文本剪贴板
 
-macOS 提供 `ActiveApplication.clipboard` 和 `Window.clipboard`，取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 general pasteboard 的 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 写入完整 UTF-8 文本，替换剪贴板当前内容；字符串长度显式传递，保留非 BMP 字符、换行及内嵌 NUL。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
+公共 `ActiveApplication.clipboard` 和 `Window.clipboard` 取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 替换剪贴板当前内容。两者保留非 BMP 字符与组合序列，不做 Unicode 规范化；CRLF 和独立 CR 统一为 LF，由后端处理原生行尾。写入在修改剪贴板之前以 IllegalArgumentException 拒绝内嵌 U+0000；读取到属于文本内容的 NUL 时抛出 WindowException(Unsupported)，不能截短。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
 
 取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
 
-原生调用不把 NSPasteboard／NSString 借用泄漏给 managed 代码。读取结果独立复制，正常成功和异常路径均释放临时存储。首批只实现 macOS；Windows API 随该平台后续实施增加。剪切的上层编辑必须先成功写出，再修改文档。
+公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
 
 ## 3. 事件模型
 
@@ -129,13 +129,13 @@ AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／C
 
 文字统一由 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作交付；普通键、compose、IME 不得重复插入。TextInputEvent 只有 Enabled(connection?)／Disabled(connection?)／Edit。TextInputConnection 由 WindowId 与该窗口递增的输入连接 generation 组成；macOS 开启时交付 Some(connection)，重复开关不重建连接，Disabled 保留结束的连接身份。尚无原生文档快照连接的 Win32 交付 None。一次 AppKit 输入解释形成一个编辑批次，以一个事件调用 handler。范围为 UTF-8 字节区间且位于字符边界，平台 UTF-16 索引在 native 边界转换；非法 native 范围触发状态重同步，不越界访问。
 
-owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。macOS 另提供 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。没有发布快照时，attributedSubstring 仍返回 nil。
+owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。公共 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。公共检查和声明位于共享源码，后端负责复制与原生查询；macOS 已接入，Windows 分支补齐同一合同。没有发布快照时，原生 surrounding 查询返回 unavailable。
 
 原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。未来源于原生连接的纯值批次和现有 Win32 批次为 None。native 只保存最新已发布文档、已经排队及已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
 NSTextInputClient 的同步查询读取原生不可变文档副本；同一次原生解释内允许对其临时副本依次投影本批操作。attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；selection／marked 的文档范围保留实际 native 组合信息。未知范围、尚未同步的 surrounding、切断 surrogate 或缺少布局时返回 nil／NSNotFound，不回调 managed handler、不布局、不挂起。
 
-IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；macOS 的 clearImeCursorArea 撤销它。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标。macOS 文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。firstRect 只报告确知的活动 cursor 位置；characterIndex 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
+IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；公共 clearImeCursorArea 撤销它。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标。公共文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。firstRect 只报告确知的活动 cursor 位置；characterIndex 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
 
 接入开启后，普通 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理、确认及取消已消费的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经改变／提交／取消组合时不再次交付确认或取消键，即使命令早于该次组合编辑产生也如此。Command／Control 快捷键继续直接交付 Keyboard，缺省编辑映射使用实际修饰信息，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
 

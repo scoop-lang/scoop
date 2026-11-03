@@ -14,6 +14,8 @@
 
 三组实现为普通独立 Cone：`scoop.ui.style.macos`、`scoop.ui.style.material`、`scoop.ui.style.fluent`。它们依赖 style 和实际使用的 graphics／graphics.text／surface，不依赖 component；style 不反向引用这三库。应用选择并依赖所需主题，主题展示示例显式依赖全部三库。`scoop.ui` 仍不依赖 style 或 component。
 
+三套主题的生产源码不使用 OS 条件。macos／fluent／material 是自绘风格名称；字体可有偏好列表，但以 graphics.text 的通用 family fallback 收尾，缺少某个系统专有字体不要求上层选择平台。
+
 实现库可复用公共的几何、StylePainter 和普通绘图辅助代码。共同算法按实际三组调用复用，差异由各自的主题参数或绘图实现表达；控件中不得按 macOS／Material／Fluent 分支。自绘主题不替换 window 的原生装饰配置，也不声称与操作系统某个版本逐像素一致。
 
 ## 2. 主题对象、绘图对象与普通数据
