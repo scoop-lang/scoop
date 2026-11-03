@@ -1,6 +1,6 @@
 # Target 组合解耦后续重构设计
 
-状态：提案。
+状态：结构迁移已实施；集中回归进行中。
 
 日期：2026-11-03。
 
@@ -8,25 +8,25 @@
 
 ## 1. 背景与问题
 
-上一轮重构已经建立 Rust／Python 共用的静态 target 目录，分开 host 与 output target，并将过程 ABI、Scoop ABI、EH、machine frame 和 backend 保存为显式合同。但当前实现仍保留一批“现有组合就是维度本身”的类型和分派。它们对现有七个 target 是正确的，却会让新增 OS 或 ISA 同时修改多个无关入口。
+上一轮重构已经建立 Rust／Python 共用的静态 target 目录，分开 host 与 output target，并将过程 ABI、Scoop ABI、EH、machine frame 和 backend 保存为显式合同。本轮开始时仍保留一批“现有组合就是维度本身”的类型和分派；它们对当时七个 target 是正确的，却会让新增 OS 或 ISA 同时修改多个无关入口。本设计已完成对应迁移：
 
-| 位置 | 当前表达 | 残留耦合 |
+| 位置 | 本轮开始时的障碍 | 实施结果 |
 | --- | --- | --- |
-| [target layout](../../compiler/target-data/src/layout.rs) | `LayoutKind::{DarwinAarch64, DarwinX86_64, LinuxX86_64, WindowsX86_64}` | data layout、ISA、对象格式、符号规则被一个 OS＋arch 名称绑定 |
-| [runtime composition](../../compiler/toolchain/src/runtime.rs) | `ValidatedRuntimeBuildProfile` 分别投影 OS／image／loader／arch／frame／entry／shim，统一由 `bundle.c` 引用所选具名 ops | —（完整 OS＋arch runtime profile 与对应 C 文件已删除） |
-| [backend](../../compiler/target-data/src/backend.rs) | 首个 AArch64 backend 常量简称 `LLVM_22_1` | 名称隐藏 Darwin／Mach-O／frame 等实际合同，容易把整份 backend profile 当作通用 AArch64 支持 |
-| [codegen target](../../compiler/codegen/src/target.rs) | LLVM backend 初始化只列 AArch64／X86；red-zone 由 x86_64 推导 | ISA、过程 ABI 和 frame policy 没有分开 |
-| [LLVM process options](../../compiler/codegen/src/target/machine.rs) | 一次性全局参数同时包含通用 statepoint 约束和 X86 专用选项 | 新 ISA 不能依赖调用顺序获得另一套进程全局配置 |
-| codegen deployment | target 目录显式选择当前 Darwin／Linux／Windows deployment profile；Darwin 最低版本由已验证 C toolchain 合同补充 | —（不再从对象格式或 native environment 推导平台） |
-| [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | metadata 与 trace 都以显式 ELF image view 解析容器事实，Linux provider 独立枚举模块、解析 self path 与维护 generation | —（ELF parser／Linux loader 边界已完成） |
-| [ELF reader](../../compiler/slib/src/link_object/elf/architecture.rs) | `ElfArchitecture` 只有 `X86_64` | ELF 容器入口仍等于当前唯一 machine |
-| [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`、`CoffAmd64` | relocation 容器和 machine 固化在 variant 名称中，并传播到验证、指纹与 callable encoding |
-| [final link](../../compiler/toolchain/src/final_link.rs) | target 目录显式绑定当前 Darwin／Linux／Windows profile；Linux 将已选输出形态与模式交给无 target／OS 知识的 GNU ELF plan，libc／CRT／unwind／系统库和工具发现仍由 Linux profile 拥有 | —（目录选择与 ELF／Linux 环境边界已完成） |
-| Windows 工具链 | MSVC／LLVM-MinGW triple、SDK slice、include／lib 路径和 probe 固定 x86_64 | Windows ARM64 无法复用 Windows 工作流，只能侵入全部工具入口 |
-| runtime 源文件 | frame recovery、ManagedEntry 对象语法和 Scoop ABI 返回 shim 已作为独立 source set 选择 | —（原先随 `darwin_aarch64.c` 同组选取的边界已拆开） |
-| 准备／发行脚本 | LLVM build list 和个别 recipe 固定 AArch64／X86、`-march=`、x86_64 triple 或架构 include 目录 | 编译器支持的 ISA、host ISA 和资源 target 混为一谈 |
+| [target layout](../../compiler/target-data/src/layout.rs) | OS＋arch `LayoutKind` 同时决定 data layout、ISA、对象格式和符号规则 | `targets.toml` 显式登记 layout、architecture、object target、ABI 与 backend；组合型 `LayoutKind` 已删除 |
+| [runtime composition](../../compiler/toolchain/src/runtime.rs) | 每个 OS＋arch 需要一份完整 runtime profile／bundle C 文件 | `ValidatedRuntimeBuildProfile` 分别选择 OS、image、loader、arch、frame、entry、shim 与 tuning，统一由 `bundle.c` 组合 |
+| [backend](../../compiler/target-data/src/backend.rs) | AArch64 backend 的简称隐藏 Darwin／Mach-O／frame 合同 | backend 使用包含 OS／machine qualification 的身份，并显式保存 LLVM architecture、object target、frame、red-zone 与 debug information format |
+| [codegen target](../../compiler/codegen/src/target.rs) | LLVM 初始化、ISA、过程 ABI、frame 与 red-zone policy 相互推导 | LLVM architecture initializer 独立；deployment、red-zone、debug format 与 tuning 均来自显式 profile |
+| [LLVM process options](../../compiler/codegen/src/target/machine.rs) | 第一个 target 可能决定进程全局 LLVM 配置 | 通用与 X86 选项分组后一次性安装，A→B／B→A target machine 测试证明结果不依赖初始化顺序 |
+| codegen deployment | 对象格式或 native environment 可被误作平台 | target 目录显式选择 deployment；Darwin 最低版本只由已验证 C toolchain 合同补充 |
+| [ELF runtime image](../../runtime/src/platform/image/elf.c)／[Linux loader](../../runtime/src/platform/loader/linux_elf.c) | ELF 容器解析与 Linux loader 枚举混合 | metadata／trace 解析只消费显式 ELF image view；Linux provider 独立拥有模块枚举、self path 与 generation |
+| [object readers](../../compiler/slib/src/link_object) | 通用 ELF／COFF 入口默认当前唯一 machine | object profile 显式提供 machine 与 header ABI；各格式 reader、editor 和 linker native-object reader 在入口核对所选 machine |
+| [object envelope](../../compiler/slib/src/link_object/object_envelope.rs) | `ElfX86_64Rela`／`CoffAmd64` 顶层 variant 将容器与 machine 固化 | relocation shape 使用格式 variant＋显式 machine，并贯通验证、closure、callable encoding 与 wire 数据 |
+| [final link](../../compiler/toolchain/src/final_link.rs) | ELF 结构规则与 Linux CRT／libc／loader 规则混合 | target 显式选择 final-link profile；GNU ELF plan 不读取 OS／target，Linux profile 继续拥有其环境事实 |
+| [Windows toolchain machine](../../compiler/toolchain/src/windows_machine.rs) | triple、SDK slice、probe 与 linker 参数散落 AMD64 常量 | 当前已实现 machine 的全部拼写集中在 `WindowsToolchainMachine`，MSVC／LLVM-MinGW 公共流程消费该参数 |
+| runtime 源文件 | frame recovery、ManagedEntry、ABI shim 与 ISA helper 随完整 target 一起选择 | 四类 source set 分别由 frame、procedure ABI＋object target、Scoop ABI 与 architecture 选择 |
+| 准备／发行脚本 | LLVM build list、CPU flag、host ISA 与资源 target 相互混用 | catalog helper 提供当前 target 的 OS／arch／environment；各 recipe 只保留其上游工具确实需要的局部映射 |
 
-上一轮设计已经要求拆开 `ElfX86_64Rela` 等命名；当前代码说明这一部分只完成了选择入口的收口，还没有完成数据模型和消费者迁移。本文只处理这些剩余边界，不重做已经稳定的 target 目录、ABI planner、linker 或 runtime 架构。
+本文处理这些剩余边界，不重做已经稳定的 ABI planner、对象 reader、linker 或 runtime 算法，也没有为未来 target 增加目录项、枚举占位或伪实现。
 
 ## 2. 目标与非目标
 
@@ -502,7 +502,7 @@ LLVM 能生成某一 ISA 的对象，不代表 `scoopc` 已能在该 ISA host �
 
 本节只验证职责边界，不是待登记的 target 数据。表中的“可复用”都以精确 ABI、LLVM 输出和目标环境验证通过为前提。
 
-| 未来 target | 应复用的现有／公共能力 | 实际移植时才增加的局部实现 | 本轮必须先扫除的障碍 |
+| 未来 target | 应复用的现有／公共能力 | 实际移植时才增加的局部实现 | 本轮已扫除的前置障碍 |
 | --- | --- | --- | --- |
 | Linux ARM64 | Linux OS services、Linux loader、ELF 容器、Linux native environment 与 final-link 平台合同；已有 AArch64 LLVM initializer／ISA helper 中合同相同的部分 | 实际过程 ABI、AArch64 ELF object profile、Linux backend／frame qualification、ELF entry／shim、toolchain machine 和资源 | `LayoutKind`／`RuntimeProfile` 完整组合、AArch64 与 Darwin ABI／Mach-O 绑定、ELF 与 x86_64 绑定 |
 | Windows ARM64 | Windows OS services、PE/COFF 容器、Windows SDK／CRT tool discovery、PDB/resource/import-library/final-link 工作流 | 实际过程 ABI、COFF machine／relocation、ARM64 unwind／frame、ManagedEntry／shim、machine SDK slice 与验证资源 | `COFF = AMD64`、`Windows = x86_64`、SEH profile 内嵌 AMD64 register、Windows triple/path/probe 硬编码 |
@@ -663,6 +663,18 @@ qualification 结果绑定 LLVM 版本、triple、CPU／features、pipeline、pr
 - 第 8 节每个未来 target 的预计改动都局限于其真正新增的所有者，不要求复制已有 OS 或 ISA 全栈。
 
 不要求仓库中完全没有 `darwin_aarch64`、`linux_x86_64` 等名称。真实过程 ABI、frame 实现、目标测试和发行资源可以保留准确的组合名称；完成标准关注的是这些名称不再承担通用维度或 fallback 的职责。
+
+### 11.5 实施结论
+
+C0～C5 的结构迁移已经完成，且没有把 Linux ARM64、Windows ARM64、Linux RV64、Linux LoongArch64、OpenHarmonyOS x86_64／ARM64 或 FreeBSD AMD64／ARM64 写入 target catalog、enum、脚本矩阵或资源清单。第 8 节压力审查得到的共同结论是：
+
+- 新 OS 只需增加其真实 OS services、loader、native environment、final-link、系统库与工具链环境实现；ELF 容器、已存在的 object machine、procedure ABI、frame 和 ISA helper 可按各自合同复用；
+- 新 ISA 只需增加实际 LLVM architecture／backend qualification、procedure ABI、object machine、frame、ManagedEntry／shim 与 toolchain machine；同一 OS 的 VM、loader、启动与系统库流程不随 ISA 复制；
+- Windows 的 SDK／CRT／resource／PDB／import-library／final-link 流程已经接收显式 machine，新增 machine 不再要求平行复制整套 Windows 工作流；
+- ELF 调试文件、启动对象 section、对象解析与 GNU ELF link plan 消费对象格式或显式 object profile，不再要求新增 ELF OS 伪装成 Linux；
+- runtime 只有一个静态 bundle 组合入口，target 目录是唯一完整组合根；普通 consumer 没有完整未来 target 名称分支。
+
+因此，未来移植剩余的是对应平台或机器本身尚未实现、必须实测的能力，而不是现有 OS／toolchain／arch 强绑定造成的重复实现障碍。
 
 ## 12. 调研依据与当前结论
 
