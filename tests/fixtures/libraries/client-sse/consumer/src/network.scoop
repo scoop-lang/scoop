@@ -163,8 +163,9 @@ private suspend fun sseReconnecting(
         throw probe.error
     if (mode == "callback-close") {
         assertTrue(sseFailure suspend { probe.source!!.close() } is IllegalStateException)
-        coroutineScope suspend {
-            scope -> scope.async suspend {
+        coroutineScope {
+            val scope = this
+            scope.async suspend {
                 assertTrue(sseFailure suspend { client.close() } is IllegalStateException)
             }.await()
         }

@@ -45,11 +45,12 @@ internal class DownloadController(
             case None -> {}
         }
         model.snapshot.value = DownloadSnapshot(DownloadPhase.Running)
+        val controller = this
         val job =
-            jobs.launch suspend {
+            jobs.launch {
                 try {
                     val result =
-                        client.download(
+                        controller.client.download(
                             request,
                             destination,
                             httpDownloadOptions {
@@ -57,11 +58,8 @@ internal class DownloadController(
                                 this.onProgress =
                                     suspend {
                                         value ->
-                                        this @DownloadController.checkThread()
-                                        if (
-                                            this @DownloadController.owns(attempt) &&
-                                                attempt.accepting
-                                        ) {
+                                        controller.checkThread()
+                                        if (controller.owns(attempt) && attempt.accepting) {
                                             val progress =
                                                 DownloadProgress(
                                                     value.bytesWritten,
@@ -74,7 +72,7 @@ internal class DownloadController(
                                                     MonotonicTimeSource.markNow()
                                                 )
                                             )
-                                                this @DownloadController.model.snapshot.value =
+                                                controller.model.snapshot.value =
                                                     DownloadSnapshot(
                                                         DownloadPhase.Running,
                                                         progress
@@ -83,21 +81,21 @@ internal class DownloadController(
                                     }
                             }
                         )
-                    if (owns(attempt)) {
+                    if (controller.owns(attempt)) {
                         if (attempt.accepting) {
                             attempt.latest = DownloadProgress(0L, Some(result.byteCount))
                             attempt.cadence = ProgressCadence()
-                            model.snapshot.value =
+                            controller.model.snapshot.value =
                                 DownloadSnapshot(DownloadPhase.Verifying, attempt.latest)
                             attempt.checksum =
                                 Some(
-                                    workers.start(
-                                        proxy,
+                                    controller.workers.start(
+                                        controller.proxy,
                                         destination,
                                         {
                                             progress ->
-                                            checkThread()
-                                            if (owns(attempt) && attempt.accepting) {
+                                            controller.checkThread()
+                                            if (controller.owns(attempt) && attempt.accepting) {
                                                 attempt.latest = progress
                                                 if (
                                                     attempt.cadence.accept(
@@ -105,7 +103,7 @@ internal class DownloadController(
                                                         MonotonicTimeSource.markNow()
                                                     )
                                                 )
-                                                    model.snapshot.value =
+                                                    controller.model.snapshot.value =
                                                         DownloadSnapshot(
                                                             DownloadPhase.Verifying,
                                                             progress
@@ -114,11 +112,14 @@ internal class DownloadController(
                                         },
                                         {
                                             outcome ->
-                                            checkThread()
+                                            controller.checkThread()
                                             attempt.checksum = None
-                                            if (owns(attempt)) {
+                                            if (controller.owns(attempt)) {
                                                 when (outcome) {
-                                                    case Completed(bytes, digest) -> finish(
+                                                    case Completed(
+                                                        bytes,
+                                                        digest
+                                                    ) -> controller.finish(
                                                         attempt,
                                                         DownloadSnapshot(
                                                             DownloadPhase.Completed,
@@ -126,14 +127,14 @@ internal class DownloadController(
                                                             digest = Some(digest)
                                                         )
                                                     )
-                                                    case Cancelled -> finish(
+                                                    case Cancelled -> controller.finish(
                                                         attempt,
                                                         DownloadSnapshot(
                                                             DownloadPhase.Cancelled,
                                                             attempt.latest
                                                         )
                                                     )
-                                                    case Failed(error) -> finish(
+                                                    case Failed(error) -> controller.finish(
                                                         attempt,
                                                         DownloadSnapshot(
                                                             DownloadPhase.Failed,
@@ -147,19 +148,22 @@ internal class DownloadController(
                                     )
                                 )
                         } else {
-                            finish(
+                            controller.finish(
                                 attempt,
                                 DownloadSnapshot(DownloadPhase.Cancelled, attempt.latest)
                             )
                         }
                     }
                 } catch (cancelled: CancellationException) {
-                    if (owns(attempt))
-                        finish(attempt, DownloadSnapshot(DownloadPhase.Cancelled, attempt.latest))
+                    if (controller.owns(attempt))
+                        controller.finish(
+                            attempt,
+                            DownloadSnapshot(DownloadPhase.Cancelled, attempt.latest)
+                        )
                     throw cancelled
                 } catch (error: Throwable) {
-                    if (owns(attempt))
-                        finish(
+                    if (controller.owns(attempt))
+                        controller.finish(
                             attempt,
                             DownloadSnapshot(
                                 DownloadPhase.Failed,

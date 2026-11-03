@@ -83,8 +83,9 @@ private class HttpClientCancellationTest {
                 val closed = BodyTestGate()
                 val task =
                     scope.launch suspend {
-                        coroutineScope suspend {
-                            child ->
+                        coroutineScope {
+                            val child = this
+
                             val client = HttpClient.open(child, clientTestConfig(trust))
                             try {
                                 started.signal();

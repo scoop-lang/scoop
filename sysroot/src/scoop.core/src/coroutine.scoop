@@ -68,13 +68,7 @@ public struct FunctionSuspendRegistration<T>(
  * This primitive does not create an event loop or a structured child job.
  */
 public fun <T> startCoroutine(task: SuspendTask<T>, completion: Continuation<T>) {
-    val parent = currentExecutorTask()
-    val registration =
-        when (parent) {
-            case Some(parent) -> Some(parent.executor.registerTask(Some(parent)))
-            case None -> None
-        }
-    val execution = CoroutineExecution(registration)
+    val execution = prepareCoroutineExecution(currentCoroutineExecutorOrNone(), None)
     startCoroutineExecution(execution, false, task, ExecutionCompletion(execution, completion))
 }
 
@@ -92,10 +86,7 @@ public fun <T> startDispatchedCoroutine(
     task: SuspendTask<T>,
     completion: Continuation<T>
 ) {
-    val execution =
-        CoroutineExecution(
-            Some(executor.registerTask(executorParent(executor, currentExecutorTask())))
-        )
+    val execution = prepareCoroutineExecution(Some(executor), None)
     startCoroutineExecution(execution, true, task, ExecutionCompletion(execution, completion))
 }
 

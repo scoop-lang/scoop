@@ -1,0 +1,89 @@
+package test.core.tests.executors
+
+import scoop.test.*
+
+internal class QueueExecutor: CoroutineExecutor {
+    private val queue = ArrayList<() -> Unit>()
+    val parents = ArrayList<ExecutorTask?>()
+    var active: Int = 0
+    var submitted: Int = 0
+    var completed: Int = 0
+    var draining: Boolean = false
+    val queued: Long get() = queue.size
+
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask {
+        if (draining) {
+            val accepted =
+                when (parent) {
+                    case Some(parent) -> parent is
+                        QueueTicket &&
+                        parent.owner ===
+                        this &&
+                        parent.isActive
+                    case None -> false
+                }
+            if (!accepted)
+                throw ExecutorClosedException()
+        }
+        parents.add(parent)
+        active = active + 1
+        return QueueTicket(this)
+    }
+
+    fun enqueue(work: () -> Unit) {
+        submitted = submitted + 1
+        queue.add(work)
+    }
+
+    fun runOne() {
+        queue.removeAt(0L)()
+    }
+}
+
+internal class QueueTicket(val owner: QueueExecutor): ExecutorTask {
+    private var active: Boolean = true
+    val isActive: Boolean get() = active
+    public override val executor: CoroutineExecutor get() = owner
+
+    public override fun dispatch(work: CoroutineWork) {
+        assertTrue(active)
+        owner.enqueue { work.run() }
+    }
+
+    public override fun dispatchBlocking(work: BlockingWork) {
+        assertTrue(active)
+        owner.enqueue { work.run() }
+    }
+
+    public override fun complete() {
+        assertTrue(active)
+        active = false
+        owner.active = owner.active - 1
+        owner.completed = owner.completed + 1
+    }
+}
+
+internal class DriveCompletion<T>(val onResult: (T) -> Unit = { _ -> }): Continuation<T> {
+    var value: T? = None
+    var failure: Throwable? = None
+    var calls: Int = 0
+    public override fun resume(value: T) {
+        calls = calls + 1
+        this.value = Some(value)
+        onResult(value)
+    }
+    public override fun resumeWithException(error: Throwable) {
+        calls = calls + 1
+        failure = Some(error)
+    }
+}
+
+internal class DriveGate {
+    var waiter: Continuation<Int>? = None
+    suspend fun await(): Int = suspendCoroutine { next -> waiter = Some(next) }
+}
+
+internal class DriveMarker(val number: Int)
+
+context(marker: DriveMarker)
+internal fun markerNumber(): Int = marker.number

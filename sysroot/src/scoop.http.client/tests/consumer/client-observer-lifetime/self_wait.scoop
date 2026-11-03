@@ -56,8 +56,9 @@ internal fun observerSelfWait(
                     event -> if (event.kind == where) {
                         attempts.fetchAdd(1L)
                         if (child)
-                            coroutineScope<Unit> suspend {
-                                children ->
+                            coroutineScope<Unit> {
+                                val children = this
+
                                 children.launch suspend { observerSelfAwait(owner, response) };
                                 Unit
                             }

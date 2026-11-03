@@ -13,46 +13,85 @@ internal class ClientCacheClosure {
     private val waiters: ArrayList<Continuation<Unit>> = ArrayList<Continuation<Unit>>()
 
     suspend fun close(action: suspend () -> Unit) {
-        val first = lock.withLock { if (started) false else { started = true; true } }
+        val first =
+            lock.withLock {
+                if (started)
+                    false
+                else {
+                    started = true;
+                    true
+                }
+            }
         if (first) {
             var failed: Throwable? = None
-            try { nonCancellableScope<Unit> suspend { _ -> action() } }
-            catch (error: Throwable) { failed = Some(error) }
+            try {
+                nonCancellableScope<Unit> { action() }
+            }
+            catch (error: Throwable) {
+                failed = Some(error)
+            }
             val result = failed
-            val waiting = lock.withLock {
-                done = true; failure = result
-                val saved = waiters.toArray(); waiters.clear(); saved
-            }
-            for (waiter in waiting) when (failed) {
-                case Some(error) -> waiter.resumeWithException(error)
-                case None -> waiter.resume(Unit)
-            }
-            if (clientPresent(failed)) throw failed!!
-        } else {
-            suspendCoroutine<Unit> { continuation ->
-                val finished = lock.withLock { if (done) true else { waiters.add(continuation); false } }
-                if (finished) when (lock.withLock { failure }) {
-                    case Some(error) -> continuation.resumeWithException(error)
-                    case None -> continuation.resume(Unit)
+            val waiting =
+                lock.withLock {
+                    done = true;
+                    failure = result
+                    val saved = waiters.toArray();
+                    waiters.clear();
+                    saved
                 }
+            for (waiter in waiting)
+                when (failed) {
+                    case Some(error) -> waiter.resumeWithException(error)
+                    case None -> waiter.resume(Unit)
+                }
+            if (clientPresent(failed))
+                throw failed!!
+        } else {
+            suspendCoroutine<Unit> {
+                continuation ->
+                val finished =
+                    lock.withLock {
+                        if (done)
+                            true
+                        else {
+                            waiters.add(continuation);
+                            false
+                        }
+                    }
+                if (finished)
+                    when (lock.withLock { failure }) {
+                        case Some(error) -> continuation.resumeWithException(error)
+                        case None -> continuation.resume(Unit)
+                    }
             }
         }
     }
 }
 
 internal suspend fun deleteClientCacheFile(path: Path) {
-    try { currentEventLoop().deleteFile(path) }
-    catch (error: PlatformException) { if (error.kind != PlatformErrorKind.NotFound) throw error }
+    try {
+        currentEventLoop().deleteFile(path)
+    }
+    catch (error: PlatformException) {
+        if (error.kind != PlatformErrorKind.NotFound)
+            throw error
+    }
 }
 
 internal suspend fun deleteClientCacheFiles(paths: List<Path>) {
-    if (paths.size == 0L) return
-    nonCancellableScope<Unit> suspend { _ ->
+    if (paths.size == 0L)
+        return
+    nonCancellableScope<Unit> {
         var failure: Throwable? = None
         for (path in paths) {
-            try { deleteClientCacheFile(path) }
-            catch (error: Throwable) { failure = Some(clientCombined(failure, error)) }
+            try {
+                deleteClientCacheFile(path)
+            }
+            catch (error: Throwable) {
+                failure = Some(clientCombined(failure, error))
+            }
         }
-        if (clientPresent(failure)) throw failure!!
+        if (clientPresent(failure))
+            throw failure!!
     }
 }

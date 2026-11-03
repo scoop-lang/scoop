@@ -14,7 +14,11 @@ private class ServerOwnershipTests {
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope ->
-            val ended = coroutineScope<CoroutineScope> suspend { child -> child }
+            val ended =
+                coroutineScope<CoroutineScope> {
+                    val child = this
+                    child
+                }
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val address = listener.localAddress
             var rejected = false

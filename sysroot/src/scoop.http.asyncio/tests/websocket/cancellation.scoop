@@ -141,8 +141,9 @@ private class AsyncWebSocketCancellationTests {
             val ready = AsyncGate()
             val owner =
                 scope.launch suspend {
-                    coroutineScope<Unit> suspend {
-                        child ->
+                    coroutineScope<Unit> {
+                        val child = this
+
                         slot.value =
                             Some(
                                 AsyncWebSocketSession.takeOwnership(
@@ -189,7 +190,7 @@ private class AsyncWebSocketCancellationTests {
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             _ ->
-            val closed = coroutineScope<CoroutineScope> suspend { it }
+            val closed = coroutineScope<CoroutineScope> { this }
             val transport = WebSocketTestTransport(WebSocketWaitingSource(), MessageTestSink())
             expectMessageFailure<IllegalStateException> suspend {
                 AsyncWebSocketSession.takeOwnership(transport, closed, HttpRole.Client)
@@ -238,8 +239,9 @@ private class AsyncWebSocketCancellationTests {
             val ready = AsyncGate()
             val owner =
                 scope.launch suspend {
-                    coroutineScope<Unit> suspend {
-                        child ->
+                    coroutineScope<Unit> {
+                        val child = this
+
                         slot.value =
                             Some(
                                 AsyncWebSocketSession.takeOwnership(

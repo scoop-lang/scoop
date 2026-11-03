@@ -76,7 +76,10 @@ internal fun withServer(
                 Some(Duration.seconds(5)),
                 "network test",
                 suspend {
-                    coroutineScope<Unit> suspend { testScope -> block(testScope, server, address) }
+                    coroutineScope<Unit> {
+                        val testScope = this
+                        block(testScope, server, address)
+                    }
                 }
             )
         } finally {

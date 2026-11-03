@@ -22,7 +22,7 @@ public class HttpServer private constructor(private val state: ServerState): Asy
             }
             catch (error: Throwable) {
                 try {
-                    nonCancellableScope<Unit> suspend { _ -> listener.close() }
+                    nonCancellableScope<Unit> { listener.close() }
                 }
                 catch (cleanup: Throwable) {
                     throw ResourceUseException(error, cleanup)
@@ -140,7 +140,7 @@ public class HttpServer private constructor(private val state: ServerState): Asy
             state.owner!!.cancel()
         }
         finally {
-            nonCancellableScope<Unit> suspend { _ -> state.owner!!.join() }
+            nonCancellableScope<Unit> { this @HttpServer.state.owner!!.join() }
         }
         if (present(failure))
             throw failure!!
@@ -152,7 +152,7 @@ public class HttpServer private constructor(private val state: ServerState): Asy
         requireLoop()
         state.stopAccepting(false)
         state.owner!!.cancel()
-        nonCancellableScope<Unit> suspend { _ -> state.owner!!.join() }
+        nonCancellableScope<Unit> { this @HttpServer.state.owner!!.join() }
         state.reportFailure()
     }
 
@@ -166,8 +166,9 @@ public class HttpServer private constructor(private val state: ServerState): Asy
 
 internal suspend fun runServer(state: ServerState) {
     try {
-        coroutineScope<Unit> suspend {
-            scope -> try {
+        coroutineScope<Unit> {
+            val scope = this
+            try {
                 while (state.running()) {
                     val transport = state.listener.accept()
                     val connection = ServerConnection(transport)

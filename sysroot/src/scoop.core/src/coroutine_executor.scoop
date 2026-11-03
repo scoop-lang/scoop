@@ -29,7 +29,7 @@ public interface ExecutorTask {
 }
 
 /** Raised when an executor can no longer admit the requested task. */
-public class ExecutorClosedException: Exception(Some("executor is closed"))
+public class ExecutorClosedException public constructor(): Exception(Some("executor is closed"))
 
 // Compiler-generated work uses this ordinary dispatch boundary. The implementation
 // owns the drive state; continuations retain only its managed interface reference.
@@ -69,6 +69,25 @@ internal fun executorParent(executor: CoroutineExecutor, parent: ExecutorTask?):
             None
         case None -> None
     }
+
+internal fun prepareCoroutineExecution(
+    executor: CoroutineExecutor?,
+    preferredParent: ExecutorTask?
+): CoroutineExecution {
+    val registration =
+        when (executor) {
+            case Some(executor) -> {
+                val parent =
+                    when (executorParent(executor, preferredParent)) {
+                        case Some(parent) -> Some(parent)
+                        case None -> executorParent(executor, currentExecutorTask())
+                    }
+                Some(executor.registerTask(parent))
+            }
+            case None -> None
+        }
+    return CoroutineExecution(registration)
+}
 
 /** Returns the executor selected for the current coroutine, or None for an independent entry. */
 public fun currentCoroutineExecutorOrNone(): CoroutineExecutor? =

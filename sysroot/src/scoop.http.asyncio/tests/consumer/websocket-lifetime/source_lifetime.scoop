@@ -18,9 +18,10 @@ private class WsProbeSource(
     var closes: Int = 0
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long {
         if (child)
-            coroutineScope<Unit> suspend {
-                scope ->
-                scope.launch suspend { waitForStop() };
+            coroutineScope<Unit> {
+                val scope = this
+
+                scope.launch { this @WsProbeSource.waitForStop() };
                 Unit
             }
         else
@@ -59,8 +60,9 @@ internal fun wsSourceStop(mode: String, child: Boolean, cleanup: Boolean) {
         val ready = WsGate()
         val owner =
             scope.launch suspend {
-                coroutineScope<Unit> suspend {
-                    owned ->
+                coroutineScope<Unit> {
+                    val owned = this
+
                     slot.value =
                         Some(AsyncWebSocketSession.takeOwnership(transport, owned, HttpRole.Client))
                     ready.signal()

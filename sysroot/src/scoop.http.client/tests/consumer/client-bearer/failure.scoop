@@ -23,8 +23,9 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                 entered.signal();
                 release.await()
                 if (nested)
-                    coroutineScope<Unit> suspend {
-                        child ->
+                    coroutineScope<Unit> {
+                        val child = this
+
                         child.async<Unit> suspend { throw original };
                         Unit
                     }

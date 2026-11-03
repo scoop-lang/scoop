@@ -13,9 +13,10 @@ private class WsSelfWaitSource(
     var checked: Int = 0
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long {
         if (child)
-            coroutineScope<Unit> suspend {
-                scope ->
-                scope.launch suspend { checkWaits() };
+            coroutineScope<Unit> {
+                val scope = this
+
+                scope.launch { this @WsSelfWaitSource.checkWaits() };
                 Unit
             }
         else

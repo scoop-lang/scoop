@@ -56,8 +56,9 @@ private class RequestBodyLifecycleTest {
         loop.run suspend {
             _ ->
             try {
-                coroutineScope<Unit> suspend {
-                    scope ->
+                coroutineScope<Unit> {
+                    val scope = this
+
                     scope.job.cancel()
                     expectBodyFailure<CancellationException> suspend {
                         body.writeTo(BodyTestSink())
@@ -100,8 +101,9 @@ private class RequestBodyLifecycleTest {
             _ ->
             val body =
                 RequestBody.fromProducer(Some(1L)) suspend {
-                    sink -> coroutineScope<Unit> suspend {
-                        scope ->
+                    sink -> coroutineScope<Unit> {
+                        val scope = this
+
                         val writing = scope.launch suspend { writeBodyText(sink, "x") }
                         output.started.await()
                         try {

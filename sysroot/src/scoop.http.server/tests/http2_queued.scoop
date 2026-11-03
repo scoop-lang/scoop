@@ -36,8 +36,9 @@ private class ServerHttp2QueuedTests {
                 Some(Duration.seconds(5)),
                 "queued H2 test",
                 suspend {
-                    coroutineScope<Unit> suspend {
-                        scope ->
+                    coroutineScope<Unit> {
+                        val scope = this
+
                         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                         listener.useAsync suspend {
                             _ -> loop.connectTcp(listener.localAddress).useAsync suspend {
@@ -84,8 +85,9 @@ private class ServerHttp2QueuedTests {
                                     }
                                     val serving =
                                         scope.async<Unit> suspend {
-                                            coroutineScope<Unit> suspend {
-                                                connectionScope ->
+                                            coroutineScope<Unit> {
+                                                val connectionScope = this
+
                                                 entry.job = Some(connectionScope.job)
                                                 serveHttp2(
                                                     state,

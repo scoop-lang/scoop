@@ -58,8 +58,9 @@ private fun exercise(parent: Path, cancelBefore: Boolean) {
                         if (cancelBefore)
                             loop.sleep(Duration.hours(1L))
                     } finally {
-                        nonCancellableScope<Unit> suspend {
-                            cleanup ->
+                        nonCancellableScope<Unit> {
+                            val cleanup = this
+
                             assertEquals(29, cleanupFileMarker())
                             cleanup.launch suspend {
                                 cleaning.signal();

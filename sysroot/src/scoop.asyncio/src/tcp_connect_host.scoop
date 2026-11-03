@@ -18,8 +18,9 @@ internal suspend fun connectTcpHostOnLoop(
     val race = TcpConnectionRace(loop, host, port, options)
     val failure: Throwable? =
         try {
-            coroutineScope<Throwable?> suspend {
-                scope ->
+            coroutineScope<Throwable?> {
+                val scope = this
+
                 // An ordinary connection failure must remain catchable by this caller.
                 try {
                     race.run(scope);
@@ -170,19 +171,23 @@ private class TcpConnectionRace(
     }
 
     private fun resolve(scope: CoroutineScope, family: AddressFamily) {
+        val race = this
         val task =
-            scope.launch suspend {
+            scope.launch {
                 try {
-                    mailbox.send(
-                        TcpRaceEvent.Resolved(family, resolveOnLoop(loop, host, port, Some(family)))
+                    race.mailbox.send(
+                        TcpRaceEvent.Resolved(
+                            family,
+                            resolveOnLoop(race.loop, race.host, race.port, Some(family))
+                        )
                     )
                 }
                 catch (error: PlatformException) {
-                    mailbox.send(TcpRaceEvent.ResolutionFailed(family, error))
+                    race.mailbox.send(TcpRaceEvent.ResolutionFailed(family, error))
                 }
                 catch (_: CancellationException) {}
                 catch (error: Throwable) {
-                    mailbox.abort(error)
+                    race.mailbox.abort(error)
                 }
             }
         if (family == AddressFamily.Ipv4)
@@ -260,36 +265,38 @@ private class TcpConnectionRace(
     }
 
     private fun connect(scope: CoroutineScope, address: SocketAddress) {
+        val race = this
         tasks.add(
-            scope.launch suspend {
+            scope.launch {
                 val stream =
                     try {
-                        connectTcpOnLoop(loop, address)
+                        connectTcpOnLoop(race.loop, address)
                     }
                     catch (error: ResourceUseException) {
-                        mailbox.abort(error);
+                        race.mailbox.abort(error);
                         return@launch
                     }
                     catch (error: Throwable) {
-                        mailbox.send(TcpRaceEvent.ConnectionFailed(address, error));
+                        race.mailbox.send(TcpRaceEvent.ConnectionFailed(address, error));
                         return@launch
                     }
-                if (!mailbox.send(TcpRaceEvent.Connected(stream)))
-                    mailbox.closeUnselected(stream)
+                if (!race.mailbox.send(TcpRaceEvent.Connected(stream)))
+                    race.mailbox.closeUnselected(stream)
             }
         )
     }
 
     private fun delay(scope: CoroutineScope, duration: Duration, event: TcpRaceEvent): Job {
+        val race = this
         val task =
-            scope.launch suspend {
+            scope.launch {
                 try {
-                    sleepOnLoop(loop, duration);
-                    mailbox.send(event)
+                    sleepOnLoop(race.loop, duration);
+                    race.mailbox.send(event)
                 }
                 catch (_: CancellationException) {}
                 catch (error: Throwable) {
-                    mailbox.abort(error)
+                    race.mailbox.abort(error)
                 }
             }
         tasks.add(task)

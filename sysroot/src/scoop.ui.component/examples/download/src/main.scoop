@@ -29,8 +29,9 @@ fun main(args: Array<String>) {
                     active,
                     event -> when (event) {
                         case Resumed -> currentApplicationScope().launch suspend {
-                            coroutineScope suspend {
-                                jobs -> HttpClient.open(jobs).useAsync suspend {
+                            coroutineScope {
+                                val jobs = this
+                                HttpClient.open(jobs).useAsync suspend {
                                     client ->
                                     val window =
                                         active.createWindow(

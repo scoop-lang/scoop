@@ -46,8 +46,7 @@ private class NoWindowHandler: ApplicationHandler {
                                 socket.receiveFrom(bytes, 16L)
                                 fail(Some("empty UDP receive completed"))
                             } finally {
-                                nonCancellableScope<Unit> suspend {
-                                    _ ->
+                                nonCancellableScope<Unit> {
                                     loop.sleep(Duration.milliseconds(20L))
                                     assertEquals(thread, currentThreadId())
                                     assertEquals(1, exiting)

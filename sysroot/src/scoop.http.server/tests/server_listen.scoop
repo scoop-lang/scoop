@@ -98,7 +98,11 @@ private class ServerListenTests {
             } finally {
                 reserved.close()
             }
-            val ended = coroutineScope<CoroutineScope> suspend { child -> child }
+            val ended =
+                coroutineScope<CoroutineScope> {
+                    val child = this
+                    child
+                }
             var rejected = false
             try {
                 HttpServer.listen(routing(), ended, port = address.port)

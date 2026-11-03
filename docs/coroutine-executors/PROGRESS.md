@@ -44,3 +44,11 @@
 - 新 intrinsic 使用 tag 37，HIR core-bootstrap-interface／cross-cone-interface 更新为 22／92；配套 CLI 与 core/std/platform/test 产物已重建，MIR/LIR 和 runtime ABI 无新增变更。
 - 验证：格式化、受影响 crate 的 all-targets Clippy 通过；23 项协程 lowering、27 项 intrinsic 和 10 项 core surface 测试通过。4 项 yield 行为及既有 5 项 executor 驱动回归通过，覆盖排队、Context、无 executor、取消和 catch/finally 挂起。排队与 Context 用例在移动 GC／minor GC stress 下单独通过，平台为 Darwin AArch64 release。
 - 下一步为 receiver scope、withExecutor 和通用阻塞任务入口；多 worker 及其他平台验收仍未开始。
+
+## Receiver scope 与 withExecutor（2026-11-04）
+
+- coroutineScope、nonCancellableScope、launch 和 async 改用 CoroutineScope receiver。每个子任务获得自己的 scope，保存 Job、默认 executor 与正文活动期间的父执行登记；捕获 scope 从另一个 executor 调用时仍使用原默认 executor。显式 executor 重载保留原 Job 父子关系，关闭后拒绝启动。
+- 实现 withExecutor：即使目标与当前 executor 相同也排队，目标子树完成后才返回原 execution；目标失败在调用边界抛出，不提前取消可捕获该失败的 caller。登记失败沿 Job 完成路径结束已 attach 的 child。
+- 迁移 asyncio、HTTP、压缩、窗口和 UI 的调用方，显式限定原有外层 receiver。ExecutorClosedException 的构造器设为 public。原 5 组普通结构化并发 fixture 移入 core consumer 与 platform Cone tests；驱动、yield 和 scope 测试按行为拆分并共享排队 executor。
+- 验证：Scoop 格式化、diff 检查通过；15 项 executor/receiver/yield、8 项结构化行为、1 项非取消清理及 1 项真实线程竞争测试通过。全部系统库和 asyncio 测试程序 release 构建通过；HTTP asyncio/client/server、窗口 asyncio、Surface asyncio、无窗口宿主、下载示例的应用与测试源码，以及准备后的 SSE consumer 源码检查通过。
+- 本轮在 Darwin AArch64 release 验证；Windows 专有调用方已同步 receiver 写法，实际运行随两类 worker 闭环集中验收。

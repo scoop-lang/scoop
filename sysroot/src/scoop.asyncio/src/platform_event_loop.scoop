@@ -26,9 +26,10 @@ public class PlatformEventLoop public constructor(): EventLoop {
         context(loop) {
             startCoroutine<Unit>(
                 suspend {
-                    coroutineScope<Unit> suspend {
-                        scope ->
-                        state.bindRoot(scope.job);
+                    coroutineScope<Unit> {
+                        val scope = this
+
+                        this @PlatformEventLoop.state.bindRoot(scope.job);
                         block(scope)
                     }
                 },
@@ -48,7 +49,12 @@ public class PlatformEventLoop public constructor(): EventLoop {
         val loop: EventLoop = this
         context(loop) {
             startCoroutine<Unit>(
-                suspend { coroutineScope<Unit> suspend { scope -> mailbox.run(scope) } },
+                suspend {
+                    coroutineScope<Unit> {
+                        val scope = this
+                        mailbox.run(scope)
+                    }
+                },
                 SessionCompletion(mailbox)
             )
         }

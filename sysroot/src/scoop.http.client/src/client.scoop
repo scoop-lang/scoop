@@ -157,4 +157,8 @@ public class HttpClient internal constructor(internal val state: ClientState): A
 public suspend fun <T> withHttpClient(
     config: HttpClientConfig = httpClientConfig(),
     block: suspend (HttpClient) -> T
-): T = coroutineScope suspend { scope -> HttpClient.open(scope, config).useAsync(block) }
+): T =
+    coroutineScope {
+        val scope = this
+        HttpClient.open(scope, config).useAsync(block)
+    }
