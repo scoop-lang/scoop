@@ -140,14 +140,21 @@ impl RuntimeObjectSet {
             definitions: BTreeMap::new(),
             requirements: BTreeSet::new(),
         };
+        let definition = scoop_target_data::definition(target.id())
+            .filter(|definition| definition.selection.target() == target)
+            .ok_or_else(|| error("runtime object collection requires a registered target"))?;
         let normalization = target.contract().native_symbol_normalization();
         let native_name = |name| normalization.compiler_generated_object_symbol(name);
-        let main = native_name("main");
+        let program_entry = native_name(if definition.os == scoop_target_data::TargetOs::Windows {
+            "wmain"
+        } else {
+            "main"
+        });
         let string_descriptor = native_name("scoop_td_String");
         let generated_prefix = native_name("scoop$");
         for object in &objects {
             for (symbol, definition) in &object.info.definitions {
-                if symbol == &main
+                if symbol == &program_entry
                     || symbol == &string_descriptor
                     || symbol.starts_with(&generated_prefix)
                 {

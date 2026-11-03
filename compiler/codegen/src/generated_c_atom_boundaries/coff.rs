@@ -5,9 +5,10 @@ use crate::coff_object::{CoffObject, error};
 
 pub(super) fn materialize(
     bytes: &[u8],
+    object_target: scoop_lir::ObjectTargetProfileV1,
     atoms: &[&DefinitionSymbolPlanV1],
 ) -> Result<Vec<u8>, CodegenError> {
-    let mut output = CoffObject::read(bytes)?;
+    let mut output = CoffObject::read(bytes, object_target)?;
     for definition in atoms {
         let name = definition.primary_symbol().symbol();
         let (section, start) = output.extent(name.as_str())?;

@@ -48,6 +48,7 @@ pub(crate) struct ProgramInputs<'a> {
     pub requirement_origins: BTreeMap<String, Vec<String>>,
     pub namespace: crate::namespace::NativeNamespace,
     pub target: scoop_lir::LirTargetProfile,
+    pub target_os: scoop_target_data::TargetOs,
     pub images: Vec<String>,
     pub final_images: Vec<image::SelectedImage>,
     pub selected: SelectedMembers,
@@ -72,6 +73,10 @@ impl<'a> ProgramInputs<'a> {
         if runtime.target() != profile.target() {
             return Err(error("runtime target differs from final-link target"));
         }
+        let target_os = scoop_target_data::definition(profile.target().id())
+            .filter(|definition| definition.selection.target() == profile.target())
+            .expect("validated final-link target")
+            .os;
         let (declarations, libraries) = native::declarations::read(closure)?;
         let mut native = NativeInputs::read(libraries, library_paths, profile)?;
         native.include_embedded(closure, profile)?;
@@ -235,9 +240,7 @@ impl<'a> ProgramInputs<'a> {
                 .compiler_generated_object_symbol(
                     if profile.output_kind() == scoop_toolchain::FinalOutputKind::SharedLibrary {
                         "scoop_rt_init_native_app"
-                    } else if profile.target().native_object_format()
-                        == scoop_lir::NativeObjectFormat::Coff64
-                    {
+                    } else if target_os == scoop_target_data::TargetOs::Windows {
                         "scoop_rt_run_program_utf16"
                     } else {
                         "scoop_rt_run_program"
@@ -257,6 +260,7 @@ impl<'a> ProgramInputs<'a> {
             requirement_origins,
             namespace,
             target: profile.target(),
+            target_os,
             images,
             final_images,
             selected,
@@ -285,8 +289,7 @@ impl<'a> ProgramInputs<'a> {
 
     pub fn compiler_owned(&self, symbol: &str) -> bool {
         symbol == self.symbol("main")
-            || (self.target.native_object_format() == scoop_lir::NativeObjectFormat::Coff64
-                && symbol == "wmain")
+            || (self.target_os == scoop_target_data::TargetOs::Windows && symbol == "wmain")
             || symbol == self.symbol("scoop_td_String")
             || symbol.starts_with(&self.symbol("scoop$"))
     }

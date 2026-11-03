@@ -142,8 +142,12 @@ impl PreparedBuildGraph {
         ),
         CompileCacheKeyError,
     > {
-        let windows = self.target_selection.target().native_object_format()
-            == scoop_lir::NativeObjectFormat::Coff64;
+        let target = self.target_selection.target();
+        let windows = scoop_target_data::definition(target.id())
+            .filter(|definition| definition.selection.target() == target)
+            .expect("validated build target")
+            .os
+            == scoop_target_data::TargetOs::Windows;
         match self.nodes.get(&identity) {
             Some(PreparedGraphNode::ManifestSource(node)) => {
                 let subsystem = (windows

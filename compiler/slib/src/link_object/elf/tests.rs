@@ -61,7 +61,7 @@ odr: .quad 7
         scoop_target_data::LINUX_X86_64_GNU_ID,
         scoop_target_data::LINUX_X86_64_MUSL_ID,
     ] {
-        let envelope = validate_linux_elf_object_envelope_v1(&bytes, target).unwrap();
+        let envelope = validate_elf_object_envelope_v1(&bytes, target).unwrap();
         assert_eq!(envelope.target(), target);
         assert!(
             envelope
@@ -88,18 +88,19 @@ odr: .quad 7
         assert_eq!(odr.kind(), ObjectSymbolKindV1::ExternalWeakDefinition);
         for relocation in envelope.relocations() {
             assert_eq!(relocation.encoded_value(), 0);
-            let ObjectRelocationShapeV1::ElfX86_64Rela {
+            let ObjectRelocationShapeV1::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind,
                 addend,
-                width,
+                storage_width,
                 ..
             } = relocation.shape()
             else {
                 panic!("RELA")
             };
             match kind {
-                object::elf::R_X86_64_64 => assert_eq!((addend, width), (17, 8)),
-                object::elf::R_X86_64_PLT32 => assert_eq!((addend, width), (-4, 4)),
+                object::elf::R_X86_64_64 => assert_eq!((addend, storage_width), (17, 8)),
+                object::elf::R_X86_64_PLT32 => assert_eq!((addend, storage_width), (-4, 4)),
                 _ => panic!("unexpected relocation {kind}"),
             }
         }

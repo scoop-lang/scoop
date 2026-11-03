@@ -5,7 +5,7 @@ use scoop_protocol::HostPathCarrier;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 
-pub(super) const CACHE_DIRECTORY: &str = "final-tools-v7";
+pub(super) const CACHE_DIRECTORY: &str = "final-tools-v8";
 
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;
@@ -24,31 +24,36 @@ pub(super) fn resolve(
     cache: &Path,
 ) -> Result<ValidatedFinalLinkProfile, ToolchainError> {
     let output = OutputConfiguration::resolve(target.lir_target(), options)?;
+    let final_link = scoop_target_data::definition(target.id())
+        .expect("resolved target has catalog data")
+        .final_link
+        .source_name();
     let export = (options.output_kind == FinalOutputKind::SharedLibrary)
         .then_some(super::output::NATIVE_APP_ENTRY);
     let path = |value: &Path| {
         HostPathCarrier::from_path(&std::path::absolute(value).map_err(error)?).map_err(error)
     };
-    let unwind = (target.c_bridge_toolchain().native_environment()
-        != scoop_target_data::NativeEnvironment::Darwin
-        && (!cxx
-            || target
-                .c_bridge_toolchain()
-                .native_environment()
-                .is_windows()))
-    .then(|| {
-        crate::selected_unwind_prefix(
-            target.lir_target(),
-            options.sysroot.as_deref(),
-            options.unwind_prefix.as_deref(),
-        )
-    })
-    .transpose()?
-    .as_deref()
-    .map(path)
-    .transpose()?;
+    let target_os = target.c_bridge_toolchain().target_os();
+    let needs_unwind_prefix = match target_os {
+        scoop_target_data::TargetOs::Darwin => false,
+        scoop_target_data::TargetOs::Linux => !cxx,
+        scoop_target_data::TargetOs::Windows => true,
+    };
+    let unwind = needs_unwind_prefix
+        .then(|| {
+            crate::selected_unwind_prefix(
+                target.lir_target(),
+                options.sysroot.as_deref(),
+                options.unwind_prefix.as_deref(),
+            )
+        })
+        .transpose()?
+        .as_deref()
+        .map(path)
+        .transpose()?;
     let key = build_record::fingerprint(&(
         crate::native_record::ResolvedRecord::cache_configuration(target)?,
+        final_link,
         options.mode,
         output,
         export,

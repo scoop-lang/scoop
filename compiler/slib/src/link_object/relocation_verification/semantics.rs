@@ -1,50 +1,41 @@
 //! Architecture-specific relocation uses shared by bridge and runtime readers.
 
+use super::{VerifiedMachORelocationFormV1 as MachForm, VerifiedObjectRelocationFormV1 as Form};
 use object::elf::*;
-use scoop_lir::{LirTargetProfile, NativeObjectFormat, TargetArchitecture};
-
-use super::VerifiedObjectRelocationFormV1 as Form;
 
 impl Form {
-    pub(in crate::link_object) fn is_tls_reference(self, target: LirTargetProfile) -> bool {
-        match (target.native_object_format(), target.architecture()) {
-            (NativeObjectFormat::Coff64, TargetArchitecture::X86_64) => matches!(
-                self,
-                Self::CoffAmd64 {
-                    kind: object::pe::IMAGE_REL_AMD64_SECREL,
-                    width: 4
-                }
-            ),
-            (NativeObjectFormat::MachO64, TargetArchitecture::Aarch64) => {
-                matches!(self, Self::TlvpLoadPage21 | Self::TlvpLoadPageOffset12)
+    pub(in crate::link_object) fn is_tls_reference(self) -> bool {
+        matches!(
+            self,
+            Self::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                kind: object::pe::IMAGE_REL_AMD64_SECREL,
+                storage_width: 4,
+            } | Self::MachO {
+                machine: scoop_lir::ObjectMachineV1::Aarch64,
+                form: MachForm::TlvpLoadPage21 | MachForm::TlvpLoadPageOffset12,
+            } | Self::MachO {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                form: MachForm::X86_64PcRelative32 {
+                    kind: super::MachOX86_64PcRelativeKindV1::Tlv,
+                },
+            } | Self::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                kind: R_X86_64_TLSGD
+                    | R_X86_64_TLSLD
+                    | R_X86_64_DTPOFF32
+                    | R_X86_64_GOTTPOFF
+                    | R_X86_64_TPOFF32
+                    | R_X86_64_GOTPC32_TLSDESC,
+                storage_width: 4,
+                ..
+            } | Self::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                kind: R_X86_64_DTPOFF64 | R_X86_64_TPOFF64,
+                storage_width: 8,
+                ..
             }
-            (NativeObjectFormat::MachO64, TargetArchitecture::X86_64) => matches!(
-                self,
-                Self::X86_64PcRelative32 {
-                    kind: super::MachOX86_64PcRelativeKindV1::Tlv
-                }
-            ),
-            (NativeObjectFormat::Elf64, TargetArchitecture::X86_64) => {
-                matches!(
-                    self,
-                    Self::ElfX86_64Rela {
-                        kind: R_X86_64_TLSGD
-                            | R_X86_64_TLSLD
-                            | R_X86_64_DTPOFF32
-                            | R_X86_64_GOTTPOFF
-                            | R_X86_64_TPOFF32
-                            | R_X86_64_GOTPC32_TLSDESC,
-                        width: 4,
-                        ..
-                    } | Self::ElfX86_64Rela {
-                        kind: R_X86_64_DTPOFF64 | R_X86_64_TPOFF64,
-                        width: 8,
-                        ..
-                    }
-                )
-            }
-            _ => false,
-        }
+        )
     }
 }
 
@@ -54,24 +45,31 @@ mod tests {
 
     #[test]
     fn amd64_tls_references_are_distinct_from_ordinary_addresses() {
-        for target in [
+        for _target in [
             scoop_target_data::LINUX_X86_64_GNU,
             scoop_target_data::LINUX_X86_64_MUSL,
         ] {
-            let data = Form::ElfX86_64Rela {
+            let data = Form::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: R_X86_64_REX_GOTPCRELX,
-                width: 4,
+                storage_width: 4,
                 addend: -4,
             };
-            let tls = Form::ElfX86_64Rela {
+            let tls = Form::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: R_X86_64_TLSGD,
-                width: 4,
+                storage_width: 4,
                 addend: -4,
             };
-            assert!(!data.is_tls_reference(target));
-            assert!(tls.is_tls_reference(target));
-            assert!(!Form::TlvpLoadPage21.is_tls_reference(target));
-            assert!(!tls.is_tls_reference(scoop_target_data::DARWIN_AARCH64));
+            assert!(!data.is_tls_reference());
+            assert!(tls.is_tls_reference());
+            assert!(
+                !Form::MachO {
+                    machine: scoop_lir::ObjectMachineV1::Aarch64,
+                    form: MachForm::Branch26,
+                }
+                .is_tls_reference()
+            );
         }
     }
 }

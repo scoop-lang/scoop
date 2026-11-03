@@ -15,8 +15,18 @@ impl ObjectDeployment {
         Err(_) => panic!("valid test deployment"),
     });
 
+    #[cfg(test)]
+    pub(super) const fn for_test(profile: scoop_target_data::CodegenDeploymentProfile) -> Self {
+        match profile {
+            scoop_target_data::CodegenDeploymentProfile::Darwin => Self::DARWIN_TEST,
+            scoop_target_data::CodegenDeploymentProfile::Linux => Self::Linux,
+            scoop_target_data::CodegenDeploymentProfile::Windows => Self::Windows,
+        }
+    }
+
     pub(super) fn from_contract(
         selection: ValidatedLirTargetSelection,
+        profile: scoop_target_data::CodegenDeploymentProfile,
         native: &CBridgeToolchainContractV1,
     ) -> Result<Self, CodegenError> {
         if native.target().id() != selection.target().id() {
@@ -24,23 +34,39 @@ impl ObjectDeployment {
                 "backend and native deployment targets differ".into(),
             ));
         }
-        Ok(match native.platform() {
-            CBridgePlatformContractV1::Darwin { deployment, .. } => {
-                Self::Darwin(deployment.minimum_os())
-            }
-            CBridgePlatformContractV1::Linux { .. } => Self::Linux,
-            CBridgePlatformContractV1::Windows { .. } => Self::Windows,
-        })
+        match (profile, native.platform()) {
+            (
+                scoop_target_data::CodegenDeploymentProfile::Darwin,
+                CBridgePlatformContractV1::Darwin { deployment, .. },
+            ) => Ok(Self::Darwin(deployment.minimum_os())),
+            (
+                scoop_target_data::CodegenDeploymentProfile::Linux,
+                CBridgePlatformContractV1::Linux { .. },
+            ) => Ok(Self::Linux),
+            (
+                scoop_target_data::CodegenDeploymentProfile::Windows,
+                CBridgePlatformContractV1::Windows { .. },
+            ) => Ok(Self::Windows),
+            _ => Err(CodegenError(
+                "codegen deployment and native toolchain platform differ".into(),
+            )),
+        }
     }
 
-    pub(super) fn triple(self, canonical: &str) -> String {
+    pub(super) fn triple(
+        self,
+        llvm_triple: &str,
+        architecture: scoop_lir::TargetArchitecture,
+    ) -> String {
         match self {
             Self::Darwin(version) => {
-                let architecture = canonical.split('-').next().expect("registered LLVM triple");
+                let architecture = match architecture {
+                    scoop_lir::TargetArchitecture::Aarch64 => "aarch64",
+                    scoop_lir::TargetArchitecture::X86_64 => "x86_64",
+                };
                 format!("{architecture}-apple-macosx{version}")
             }
-            Self::Linux => canonical.into(),
-            Self::Windows => canonical.into(),
+            Self::Linux | Self::Windows => llvm_triple.into(),
         }
     }
 }

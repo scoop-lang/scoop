@@ -8,7 +8,7 @@ pub use architecture::ElfArchitecture;
 mod envelope;
 mod relocations;
 mod x86_64;
-pub use envelope::validate_linux_elf_object_envelope_v1;
+pub use envelope::validate_elf_object_envelope_v1;
 pub(super) mod builtin;
 #[cfg(all(test, target_os = "linux", target_arch = "x86_64"))]
 mod tests;

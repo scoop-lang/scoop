@@ -15,7 +15,6 @@ mod shared_tests;
 mod tests;
 
 const MSVC_OPTIONS: &[&str] = &[
-    "/machine:x64",
     "/dynamicbase",
     "/highentropyva",
     "/nxcompat",
@@ -104,7 +103,8 @@ impl WindowsFinalLinkProfile {
                 "Windows target resources use their selected dynamic CRT; --link-mode static is not supported",
             ));
         }
-        let microsoft = startup.target().id() == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID;
+        let microsoft =
+            startup.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
         let mut observed = BTreeSet::new();
         let driver = if microsoft {
             startup
@@ -242,11 +242,17 @@ impl WindowsFinalLinkProfile {
             .expect("Windows environment")
             .libraries
     }
-    pub fn linker_args(&self) -> &'static [&'static str] {
+    pub fn linker_args(&self) -> Vec<&'static str> {
         if self.microsoft() {
-            MSVC_OPTIONS
+            let environment = self
+                .startup
+                .windows_environment()
+                .expect("Windows environment");
+            let mut arguments = vec![environment.machine.msvc_linker_machine_arg()];
+            arguments.extend(MSVC_OPTIONS);
+            arguments
         } else {
-            MINGW_OPTIONS
+            MINGW_OPTIONS.to_vec()
         }
     }
     pub fn input_paths(&self) -> Vec<PathBuf> {

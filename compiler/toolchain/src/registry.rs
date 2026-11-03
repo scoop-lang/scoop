@@ -184,7 +184,10 @@ mod tests {
                 profile.lir_target_selection(),
                 scoop_target_data::DARWIN_AARCH64_LLVM_22_1
             );
-            assert_eq!(profile.backend(), scoop_target_data::LLVM_22_1);
+            assert_eq!(
+                profile.backend(),
+                scoop_target_data::LLVM_22_1_DARWIN_AARCH64
+            );
             assert_eq!(
                 profile
                     .c_bridge_toolchain()
@@ -199,6 +202,11 @@ mod tests {
                     "-pthread",
                     "-fno-omit-frame-pointer",
                     "-fno-optimize-sibling-calls",
+                    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
+                    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
+                    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
+                    "-DSCOOP_TARGET_LONG_SIZE=8",
+                    "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0",
                 ]
             );
             assert!(profile.final_link().unwrap().linker_driver().is_absolute());

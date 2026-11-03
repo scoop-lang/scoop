@@ -119,10 +119,10 @@ pub(crate) fn materialize_global_linkages_v1(
     definitions: &[scoop_lir::ObjectDefinitionPlanId],
 ) -> Result<(), CodegenError> {
     if target.native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
-        return elf::materialize(bytes, surface, definitions);
+        return elf::materialize(bytes, target.object_target(), surface, definitions);
     }
     if target.native_object_format() == scoop_lir::NativeObjectFormat::Coff64 {
-        return coff::materialize(bytes, surface, definitions);
+        return coff::materialize(bytes, target.object_target(), surface, definitions);
     }
     let normalization = target.contract().native_symbol_normalization();
     let mut names = Vec::new();

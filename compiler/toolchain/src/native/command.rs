@@ -16,7 +16,7 @@ pub(super) fn base(
 ) -> Result<Command, ToolchainError> {
     let mut command = compiler.command(language)?;
     let kind = compiler.kind(language);
-    if preprocessed && crate::windows_native::is_windows(compiler.c()) {
+    if preprocessed && crate::windows_native::is_windows_target(compiler.c()) {
         command = crate::windows_native::command(
             compiler.c(),
             Path::new(command.get_program()),
@@ -55,7 +55,7 @@ pub(super) fn base(
     if language == NativeSourceLanguage::ObjectiveC {
         command.arg("-fobjc-arc");
     }
-    if crate::windows_native::is_windows(compiler.c()) {
+    if crate::windows_native::is_windows_target(compiler.c()) {
         if optimization == OptimizationMode::Debug {
             command.arg("-gcodeview");
         }

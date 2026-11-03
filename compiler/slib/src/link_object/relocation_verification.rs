@@ -51,6 +51,27 @@ pub enum VerifiedRelocationTargetV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum VerifiedObjectRelocationShapeV1 {
+    MachO {
+        machine: scoop_lir::ObjectMachineV1,
+        shape: VerifiedMachORelocationShapeV1,
+    },
+    Coff {
+        machine: scoop_lir::ObjectMachineV1,
+        kind: u16,
+        storage_width: u8,
+        target: VerifiedRelocationTargetV1,
+    },
+    ElfRela {
+        machine: scoop_lir::ObjectMachineV1,
+        kind: u32,
+        addend: i64,
+        storage_width: u8,
+        target: VerifiedRelocationTargetV1,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum VerifiedMachORelocationShapeV1 {
     Unsigned32 {
         target: VerifiedRelocationTargetV1,
     },
@@ -60,17 +81,6 @@ pub enum VerifiedObjectRelocationShapeV1 {
     },
     X86_64PcRelative32 {
         kind: MachOX86_64PcRelativeKindV1,
-        target: VerifiedRelocationTargetV1,
-    },
-    CoffAmd64 {
-        kind: u16,
-        width: u8,
-        target: VerifiedRelocationTargetV1,
-    },
-    ElfX86_64Rela {
-        kind: u32,
-        addend: i64,
-        width: u8,
         target: VerifiedRelocationTargetV1,
     },
     Unsigned64 {
@@ -110,11 +120,28 @@ pub enum VerifiedObjectRelocationShapeV1 {
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
 pub enum VerifiedObjectRelocationFormV1 {
+    MachO {
+        machine: scoop_lir::ObjectMachineV1,
+        form: VerifiedMachORelocationFormV1,
+    },
+    Coff {
+        machine: scoop_lir::ObjectMachineV1,
+        kind: u16,
+        storage_width: u8,
+    },
+    ElfRela {
+        machine: scoop_lir::ObjectMachineV1,
+        kind: u32,
+        addend: i64,
+        storage_width: u8,
+    },
+}
+
+#[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
+pub enum VerifiedMachORelocationFormV1 {
     Unsigned32,
     Subtractor32,
     X86_64PcRelative32 { kind: MachOX86_64PcRelativeKindV1 },
-    CoffAmd64 { kind: u16, width: u8 },
-    ElfX86_64Rela { kind: u32, addend: i64, width: u8 },
     Unsigned64,
     Subtractor64,
     Branch26,
@@ -130,44 +157,63 @@ pub enum VerifiedObjectRelocationFormV1 {
 impl VerifiedObjectRelocationShapeV1 {
     pub const fn form(&self) -> VerifiedObjectRelocationFormV1 {
         match self {
-            Self::Unsigned32 { .. } => VerifiedObjectRelocationFormV1::Unsigned32,
-            Self::Subtractor32 { .. } => VerifiedObjectRelocationFormV1::Subtractor32,
-            Self::X86_64PcRelative32 { kind, .. } => {
-                VerifiedObjectRelocationFormV1::X86_64PcRelative32 { kind: *kind }
-            }
-            Self::CoffAmd64 { kind, width, .. } => VerifiedObjectRelocationFormV1::CoffAmd64 {
-                kind: *kind,
-                width: *width,
+            Self::MachO { machine, shape } => VerifiedObjectRelocationFormV1::MachO {
+                machine: *machine,
+                form: shape.form(),
             },
-            Self::ElfX86_64Rela {
+            Self::Coff {
+                machine,
+                kind,
+                storage_width,
+                ..
+            } => VerifiedObjectRelocationFormV1::Coff {
+                machine: *machine,
+                kind: *kind,
+                storage_width: *storage_width,
+            },
+            Self::ElfRela {
+                machine,
                 kind,
                 addend,
-                width,
+                storage_width,
                 ..
-            } => VerifiedObjectRelocationFormV1::ElfX86_64Rela {
+            } => VerifiedObjectRelocationFormV1::ElfRela {
+                machine: *machine,
                 kind: *kind,
                 addend: *addend,
-                width: *width,
+                storage_width: *storage_width,
             },
-            Self::Unsigned64 { .. } => VerifiedObjectRelocationFormV1::Unsigned64,
-            Self::Subtractor64 { .. } => VerifiedObjectRelocationFormV1::Subtractor64,
-            Self::Branch26 { .. } => VerifiedObjectRelocationFormV1::Branch26,
+        }
+    }
+}
+
+impl VerifiedMachORelocationShapeV1 {
+    pub const fn form(&self) -> VerifiedMachORelocationFormV1 {
+        match self {
+            Self::Unsigned32 { .. } => VerifiedMachORelocationFormV1::Unsigned32,
+            Self::Subtractor32 { .. } => VerifiedMachORelocationFormV1::Subtractor32,
+            Self::X86_64PcRelative32 { kind, .. } => {
+                VerifiedMachORelocationFormV1::X86_64PcRelative32 { kind: *kind }
+            }
+            Self::Unsigned64 { .. } => VerifiedMachORelocationFormV1::Unsigned64,
+            Self::Subtractor64 { .. } => VerifiedMachORelocationFormV1::Subtractor64,
+            Self::Branch26 { .. } => VerifiedMachORelocationFormV1::Branch26,
             Self::Page21 {
                 explicit_addend, ..
-            } => VerifiedObjectRelocationFormV1::Page21 {
+            } => VerifiedMachORelocationFormV1::Page21 {
                 explicit_addend: *explicit_addend,
             },
             Self::PageOffset12 {
                 explicit_addend, ..
-            } => VerifiedObjectRelocationFormV1::PageOffset12 {
+            } => VerifiedMachORelocationFormV1::PageOffset12 {
                 explicit_addend: *explicit_addend,
             },
-            Self::GotLoadPage21 { .. } => VerifiedObjectRelocationFormV1::GotLoadPage21,
-            Self::GotLoadPageOffset12 { .. } => VerifiedObjectRelocationFormV1::GotLoadPageOffset12,
-            Self::PointerToGot32 { .. } => VerifiedObjectRelocationFormV1::PointerToGot32,
-            Self::TlvpLoadPage21 { .. } => VerifiedObjectRelocationFormV1::TlvpLoadPage21,
+            Self::GotLoadPage21 { .. } => VerifiedMachORelocationFormV1::GotLoadPage21,
+            Self::GotLoadPageOffset12 { .. } => VerifiedMachORelocationFormV1::GotLoadPageOffset12,
+            Self::PointerToGot32 { .. } => VerifiedMachORelocationFormV1::PointerToGot32,
+            Self::TlvpLoadPage21 { .. } => VerifiedMachORelocationFormV1::TlvpLoadPage21,
             Self::TlvpLoadPageOffset12 { .. } => {
-                VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12
+                VerifiedMachORelocationFormV1::TlvpLoadPageOffset12
             }
         }
     }

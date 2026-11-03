@@ -20,7 +20,12 @@ fn coff_relocation_kind_and_in_place_addend_remain_fingerprint_inputs() {
                 symbol: b"external".to_vec(),
             },
         );
-        relocation.form = VerifiedObjectRelocationFormV1::CoffAmd64 { kind, width: 4 };
+        relocation.form =
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                kind,
+                storage_width: 4,
+            });
         relocation.canonical_value = addend;
         encode_runtime(&ObjectDefinitionFingerprintInputV1 {
             bytes: &[0; 8],
@@ -43,11 +48,13 @@ fn native_symbol_names_and_relocations_are_distinct_fingerprint_inputs() {
                 symbol: symbol.to_vec(),
             },
         );
-        relocation.form = VerifiedObjectRelocationFormV1::ElfX86_64Rela {
-            kind: object::elf::R_X86_64_PLT32,
-            addend,
-            width: 4,
-        };
+        relocation.form =
+            CanonicalObjectRelocationFormV1::Object(VerifiedObjectRelocationFormV1::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
+                kind: object::elf::R_X86_64_PLT32,
+                addend,
+                storage_width: 4,
+            });
         encode_runtime(&ObjectDefinitionFingerprintInputV1 {
             bytes: &[0; 16],
             relocations: &[relocation],

@@ -30,14 +30,27 @@ pub(crate) struct ElfObject<'a> {
 }
 
 impl<'a> ElfObject<'a> {
-    pub(crate) fn read(bytes: &'a [u8]) -> Result<Self, CodegenError> {
+    pub(crate) fn read(
+        bytes: &'a [u8],
+        object_target: scoop_lir::ObjectTargetProfileV1,
+    ) -> Result<Self, CodegenError> {
+        let architecture = match object_target {
+            scoop_lir::ObjectTargetProfileV1::ElfX86_64 => object::Architecture::X86_64,
+            _ => {
+                return Err(CodegenError(format!(
+                    "atom materialization has no ELF implementation for {object_target:?}"
+                )));
+            }
+        };
         let file = ElfFile64::<LE>::parse(bytes).map_err(error)?;
         if !file.is_little_endian()
             || file.elf_header().e_type(LE) != elf::ET_REL
             || file.elf_header().e_shentsize(LE) != 64
+            || file.architecture() != architecture
         {
             return Err(CodegenError(
-                "ELF atom materialization requires ELF64LE ET_REL".into(),
+                "ELF atom materialization requires ELF64LE ET_REL for the selected object machine"
+                    .into(),
             ));
         }
         let tables = file

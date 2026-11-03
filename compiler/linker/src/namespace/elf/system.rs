@@ -1,13 +1,14 @@
 use super::*;
 use crate::native_input::NativeFileKind;
 use object::read::archive::ArchiveFile;
-use object::{Architecture, ObjectKind, ObjectSection, ObjectSymbol, SectionFlags};
+use object::{ObjectKind, ObjectSection, ObjectSymbol, SectionFlags};
 
 impl ElfNamespace {
     pub(super) fn read_system(
         &mut self,
         profile: &ValidatedFinalLinkProfile,
     ) -> Result<(), LinkError> {
+        let architecture = scoop_slib::ElfArchitecture::for_target(profile.id()).map_err(error)?;
         for path in &self.paths {
             // Driver executables and CRT objects are not source extern providers.
             let filename = path
@@ -23,7 +24,10 @@ impl ElfNamespace {
                 let archive = ArchiveFile::parse(bytes.as_slice()).map_err(error)?;
                 for member in archive.members() {
                     let member = member.map_err(error)?;
-                    symbols.extend(exports(member.data(bytes.as_slice()).map_err(error)?)?);
+                    symbols.extend(exports(
+                        member.data(bytes.as_slice()).map_err(error)?,
+                        architecture,
+                    )?);
                 }
                 (NativeFileKind::Archive, filename.to_owned())
             } else if bytes.starts_with(b"\x7fELF") {
@@ -54,14 +58,17 @@ impl ElfNamespace {
     }
 }
 
-fn exports(bytes: &[u8]) -> Result<BTreeMap<String, NativeSymbolDefinition>, LinkError> {
+fn exports(
+    bytes: &[u8],
+    architecture: scoop_slib::ElfArchitecture,
+) -> Result<BTreeMap<String, NativeSymbolDefinition>, LinkError> {
     let file: ElfFile64<'_> = ElfFile64::parse(bytes).map_err(error)?;
-    if file.architecture() != Architecture::X86_64
+    if file.architecture() != architecture.object_architecture()
         || !file.is_little_endian()
         || file.kind() != ObjectKind::Relocatable
     {
         return Err(error(
-            "selected system input is not the expected ELF64 amd64 object",
+            "selected system input is not an ELF64 object for the selected target machine",
         ));
     }
     let symbols = file.symbols();

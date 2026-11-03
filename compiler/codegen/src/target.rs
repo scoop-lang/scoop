@@ -13,6 +13,7 @@ use scoop_lir::{BackendProfile, LirTargetProfile, ValidatedLirTargetSelection};
 
 use crate::CodegenError;
 
+mod architecture;
 mod deployment;
 mod machine;
 mod qualification;
@@ -37,8 +38,6 @@ impl fmt::Display for LlvmVersion {
 }
 
 use scoop_lir::NativeObjectFormat as ObjectFormat;
-
-use scoop_lir::TargetArchitecture as CodeArchitecture;
 
 /// Closed LLVM machine pipeline whose statepoint behavior was qualified for
 /// this compiler.  The ordinary inkwell `Target::create_target_machine` API
@@ -134,13 +133,15 @@ pub struct ValidatedBackendProfile {
     features: &'static str,
     optimization: scoop_lir::OptimizationMode,
     debug_info: scoop_lir::DebugInfoLevel,
+    debug_information_format: scoop_lir::BackendDebugInformationFormatV1,
     relocation: RelocMode,
     code_model: CodeModel,
     object_format: ObjectFormat,
     writable_storage_section: &'static str,
     zero_fill_storage_section: &'static str,
     c_string_section: &'static str,
-    llvm_target_backend: CodeArchitecture,
+    llvm_architecture: scoop_lir::LlvmArchitecture,
+    red_zone: scoop_lir::BackendRedZoneV1,
     machine_pipeline: MachinePipeline,
     managed_address_space: ManagedAddressSpace,
     frame_pointers: FramePointerPolicy,
@@ -174,13 +175,15 @@ impl ValidatedBackendProfile {
             features: selection.backend().contract().features,
             optimization: scoop_lir::OptimizationMode::Debug,
             debug_info: scoop_lir::DebugInfoLevel::None,
+            debug_information_format: selection.backend().contract().debug_information,
             relocation: RelocMode::PIC,
             code_model: CodeModel::Default,
             object_format,
             writable_storage_section,
             zero_fill_storage_section,
             c_string_section,
-            llvm_target_backend: selection.backend().contract().llvm_target_backend,
+            llvm_architecture: selection.backend().contract().llvm_architecture,
+            red_zone: selection.backend().contract().red_zone,
             machine_pipeline: MachinePipeline::Llvm22SelectionDagStandard,
             managed_address_space: ManagedAddressSpace::MOVING_GC,
             frame_pointers: FramePointerPolicy::All,
@@ -192,7 +195,17 @@ impl ValidatedBackendProfile {
         selection: ValidatedLirTargetSelection,
         native: &scoop_lir::CBridgeToolchainContractV1,
     ) -> Result<Self, CodegenError> {
-        let deployment = deployment::ObjectDeployment::from_contract(selection, native)?;
+        let deployment_profile = scoop_target_data::definition(selection.target().id())
+            .filter(|definition| definition.selection == selection)
+            .ok_or_else(|| {
+                CodegenError(format!(
+                    "unsupported target/backend contract for `{}`",
+                    selection.target().contract().canonical_triple()
+                ))
+            })?
+            .codegen_deployment;
+        let deployment =
+            deployment::ObjectDeployment::from_contract(selection, deployment_profile, native)?;
         Self::select(selection, deployment)
     }
 
@@ -200,11 +213,15 @@ impl ValidatedBackendProfile {
     pub(crate) fn for_selection(
         selection: ValidatedLirTargetSelection,
     ) -> Result<Self, CodegenError> {
-        let deployment = match selection.target().native_object_format() {
-            scoop_lir::NativeObjectFormat::MachO64 => deployment::ObjectDeployment::DARWIN_TEST,
-            scoop_lir::NativeObjectFormat::Elf64 => deployment::ObjectDeployment::Linux,
-            scoop_lir::NativeObjectFormat::Coff64 => deployment::ObjectDeployment::Windows,
-        };
+        let definition = scoop_target_data::definition(selection.target().id())
+            .filter(|definition| definition.selection == selection)
+            .ok_or_else(|| {
+                CodegenError(format!(
+                    "unsupported target/backend contract for `{}`",
+                    selection.target().contract().canonical_triple()
+                ))
+            })?;
+        let deployment = deployment::ObjectDeployment::for_test(definition.codegen_deployment);
         Self::select(selection, deployment)
     }
 
@@ -240,6 +257,12 @@ impl ValidatedBackendProfile {
 
     pub const fn debug_info(self) -> scoop_lir::DebugInfoLevel {
         self.debug_info
+    }
+
+    pub(crate) const fn debug_information_format(
+        self,
+    ) -> scoop_lir::BackendDebugInformationFormatV1 {
+        self.debug_information_format
     }
 
     pub fn id(self) -> TargetProfileId {
@@ -320,7 +343,10 @@ impl ValidatedBackendProfile {
     }
 
     pub(crate) fn disable_red_zone(self) -> bool {
-        self.llvm_target_backend == CodeArchitecture::X86_64
+        match self.red_zone {
+            scoop_lir::BackendRedZoneV1::Enabled => false,
+            scoop_lir::BackendRedZoneV1::Disabled => true,
+        }
     }
 
     pub(crate) fn frame_pointer_attribute(self) -> &'static str {
@@ -374,12 +400,13 @@ impl ValidatedBackendProfile {
         self,
         optimization: OptimizationLevel,
     ) -> Result<TargetMachine, CodegenError> {
-        machine::initialize_options();
-        match self.llvm_target_backend {
-            CodeArchitecture::Aarch64 => Target::initialize_aarch64(&Default::default()),
-            CodeArchitecture::X86_64 => Target::initialize_x86(&Default::default()),
-        }
-        let triple = TargetTriple::create(&self.deployment.triple(self.llvm_triple()));
+        machine::initialize_process_options();
+        architecture::initialize(self.llvm_architecture);
+        let triple = TargetTriple::create(
+            &self
+                .deployment
+                .triple(self.llvm_triple(), self.lir_target_profile().architecture()),
+        );
         let target = Target::from_triple(&triple).map_err(|error| {
             CodegenError(format!("no target for {}: {error}", self.canonical_triple))
         })?;

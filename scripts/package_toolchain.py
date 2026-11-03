@@ -29,7 +29,7 @@ from build_skia import LIBRARY as SKIA_LIBRARY
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from prepare_sysroot import cone_order
-from target_catalog import TARGETS, current_host, host_definition
+from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
 TOOLS = ("scoop", "scoopc", "scoop-link", "scoop-lsp", "scoop-pm")
 
@@ -177,9 +177,10 @@ def relocate_markdown_links(root, revision):
 
 def assemble(root, targets, binaries, args, release, extension):
     sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    host_system = host_definition(args.host)["system"]
     (root / "bin").mkdir(parents=True)
     for binary in binaries:
-        name = "sco.exe" if "windows" in args.host and binary.name == "scoop.exe" else binary.name
+        name = "sco.exe" if host_system == "Windows" and binary.name == "scoop.exe" else binary.name
         shutil.copy2(binary, root / "bin" / name)
     (root / "VERSION").write_text(
         f"{args.version}\nrevision: {args.revision}\nhost: {args.host}\n", encoding="utf-8"
@@ -275,13 +276,13 @@ def assemble(root, targets, binaries, args, release, extension):
         args.debugger_python,
         args.host,
         args.python_license,
-        windows_compiler=args.mingw_ucrt / "bin/clang.exe" if "windows" in args.host else None,
+        windows_compiler=args.mingw_ucrt / "bin/clang.exe" if host_system == "Windows" else None,
     )
-    if "windows" in args.host:
+    if host_system == "Windows":
         package_windows.install(root, targets, args)
         native = package_native.windows(root, binaries, args.llvm_prefix / "bin", debugger_files)
     else:
-        native = (package_native.darwin if args.host.endswith("darwin") else package_native.linux)(
+        native = (package_native.darwin if host_system == "Darwin" else package_native.linux)(
             root, binaries, args.llvm_prefix / "lib", debugger_files
         )
     package_licenses.collect(
@@ -299,7 +300,7 @@ def assemble(root, targets, binaries, args, release, extension):
     shutil.copytree(sysroot / "share/scoop/examples", share / "examples")
     for name in ("README.md", "RELEASE-NOTES.md"):
         shutil.copy2(ROOT / "scripts/distribution" / name, share / name)
-    installer = "post-install.ps1" if "windows" in args.host else "post-install.sh"
+    installer = "post-install.ps1" if host_system == "Windows" else "post-install.sh"
     shutil.copy2(ROOT / "scripts/distribution" / installer, root / installer)
     if installer.endswith(".sh"):
         (root / installer).chmod(0o755)
@@ -327,7 +328,7 @@ def assemble(root, targets, binaries, args, release, extension):
         f"pcre2 = {json.dumps(release['pcre2'])}",
         f"host_libraries = {json.dumps(sorted(path.name for path in native))}",
     ]
-    if "windows" in args.host:
+    if host_system == "Windows":
         manifest += [
             f"{name} = {json.dumps(release[name])}" for name in ("rust_windows", "llvm_mingw")
         ]
@@ -437,9 +438,10 @@ def main():
     args.host = host_config["rust_target"] if host_config else None
     if args.host is None or args.jobs < 1:
         parser.error("a supported build host and positive --jobs are required")
-    if "linux" in args.host and args.musl_include is None:
+    host_system = host_config["system"]
+    if host_system == "Linux" and args.musl_include is None:
         parser.error("Linux packaging requires --musl-include")
-    windows = "windows" in args.host
+    windows = host_system == "Windows"
     if windows and (args.mingw_msvcrt is None or args.mingw_ucrt is None):
         parser.error("Windows packaging requires --mingw-msvcrt and --mingw-ucrt")
     release = tomllib.loads(RELEASE_CONFIG.read_text(encoding="utf-8"))
@@ -470,8 +472,9 @@ def main():
         SCOOP_SOURCE_REVISION=args.revision,
         CARGO_TARGET_DIR=str(args.work_dir / "cargo"),
     )
-    if args.host.endswith("darwin"):
-        environment["MACOSX_DEPLOYMENT_TARGET"] = release["targets"][args.host]["minimum_os"]
+    if host_system == "Darwin":
+        host_target, _ = native_target_for_host(args.host)
+        environment["MACOSX_DEPLOYMENT_TARGET"] = release["targets"][host_target]["minimum_os"]
     if windows:
         package_windows.host_environment(args, environment)
     args.llvm_source, args.llvm_archive = package_llvm.prepare(
@@ -549,9 +552,10 @@ def main():
     environment["LLVM_SYS_221_PREFIX"] = str(args.llvm_prefix)
     flags = []
     if windows:
+        host_target, _ = native_target_for_host(args.host)
         flags = [
             "-C",
-            "target-cpu=" + release["targets"]["x86_64-w64-windows-llvm-mingw-ucrt"]["cpu"],
+            "target-cpu=" + release["targets"][host_target]["cpu"],
         ]
     else:
         flags = ["-C", f"link-arg=-Wl,-rpath,{args.llvm_prefix / 'lib'}"]

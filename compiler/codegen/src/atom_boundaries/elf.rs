@@ -7,10 +7,11 @@ use crate::elf_object::ElfObject;
 
 pub(super) fn materialize(
     bytes: &mut Vec<u8>,
+    object_target: scoop_lir::ObjectTargetProfileV1,
     surface: &ObjectSymbolSurfaceV1,
     definitions: &[scoop_lir::ObjectDefinitionPlanId],
 ) -> Result<(), CodegenError> {
-    let mut output = ElfObject::read(bytes)?;
+    let mut output = ElfObject::read(bytes, object_target)?;
     for definition in definitions {
         let plan = surface
             .plan(*definition)

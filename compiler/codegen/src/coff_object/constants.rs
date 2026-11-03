@@ -4,8 +4,11 @@ use object::{RelocationFlags, RelocationTarget, SectionFlags};
 
 use super::*;
 
-pub(crate) fn merge_callable_constants(bytes: &mut Vec<u8>) -> Result<(), CodegenError> {
-    let mut output = CoffObject::read(bytes)?;
+pub(crate) fn merge_callable_constants(
+    bytes: &mut Vec<u8>,
+    object_target: scoop_lir::ObjectTargetProfileV1,
+) -> Result<(), CodegenError> {
+    let mut output = CoffObject::read(bytes, object_target)?;
     let mut sections = output
         .file
         .sections()

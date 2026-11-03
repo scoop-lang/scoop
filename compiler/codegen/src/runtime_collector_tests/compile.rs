@@ -55,6 +55,7 @@ pub(super) fn compile_and_run_configuration(
     }
     crate::tests::platform_support::native_trace_symbols(&mut compile, workspace);
     compile
+        .args(crate::tests::platform_support::native_runtime_c_flags())
         .args(flags)
         .args([
             "-std=c11",
@@ -78,7 +79,6 @@ pub(super) fn compile_and_run_configuration(
         "runtime/src/stack_trace/capture.c",
         "runtime/src/stack_trace/render.c",
         "runtime/src/stack_trace/throwable_report.c",
-        crate::tests::platform_support::native_trace_module_source(),
         "runtime/src/startup/gateway.c",
         "runtime/src/boxing.c",
         "runtime/src/task_context.c",
@@ -133,6 +133,9 @@ pub(super) fn compile_and_run_configuration(
         "runtime/tests/platform/fake.c",
         test_source,
     ] {
+        compile.arg(workspace.join(source));
+    }
+    for source in crate::tests::platform_support::native_trace_module_sources() {
         compile.arg(workspace.join(source));
     }
     let compile_output = compile

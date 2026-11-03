@@ -54,11 +54,11 @@ OPTIONS = [
 def compiler_flags(target):
     config, _, host = TARGETS[target]
     release = tomllib.loads(RELEASE_CONFIG.read_text())["targets"][target]
+    architecture = native_configuration(target)["arch"]
     flags = [] if host == "Windows" else ["-fPIC"]
     if host == "Darwin":
         baseline = release["minimum_os"]
         flags.append("-mmacosx-version-min=" + os.environ.get("MACOSX_DEPLOYMENT_TARGET", baseline))
-        architecture = native_configuration(target)["arch"]
         # Apple's default CPU includes the AES/SHA features used by OpenSSL's
         # assembly. Scoop's generic backend CPU would disable those features.
         if architecture != "aarch64" or release["cpu"] != "generic":
@@ -66,7 +66,7 @@ def compiler_flags(target):
     elif config == "VC-WIN64A":
         flags.extend(("/MD", "/D_WIN32_WINNT=0x0a00"))
     else:
-        flags.append("-march=" + release["cpu"])
+        flags.append(cpu_flag(architecture, release["cpu"]))
         if config == "mingw64":
             flags.append("-D_WIN32_WINNT=0x0a00")
     return flags

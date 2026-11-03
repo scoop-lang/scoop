@@ -20,6 +20,10 @@ def apple_architecture(architecture):
     return {"aarch64": "arm64", "x86_64": "x86_64"}[architecture]
 
 
+def gn_cpu(architecture):
+    return {"aarch64": "arm64", "x86_64": "x64"}[architecture]
+
+
 def source_patch_environment(source, environment=None):
     # Git otherwise treats archive sources as a subdirectory of an enclosing
     # checkout and silently skips patch paths outside that repository prefix.

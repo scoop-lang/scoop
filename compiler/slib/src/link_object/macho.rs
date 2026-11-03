@@ -22,6 +22,7 @@ pub use relocations::*;
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ValidatedMachOObjectEnvelopeV1 {
     target: scoop_identity::TargetProfileId,
+    architecture: MachOArchitecture,
     byte_length: u64,
     content_digest: Digest256,
     section_count: u32,
@@ -35,6 +36,10 @@ pub struct ValidatedMachOObjectEnvelopeV1 {
 impl ValidatedMachOObjectEnvelopeV1 {
     pub const fn target(&self) -> scoop_identity::TargetProfileId {
         self.target
+    }
+
+    pub const fn architecture(&self) -> MachOArchitecture {
+        self.architecture
     }
 
     pub const fn byte_length(&self) -> u64 {
@@ -212,6 +217,7 @@ pub fn validate_macho_object_envelope_v1(
     .map_err(ObjectEnvelopeValidationError::RelocationInventory)?;
     Ok(ValidatedMachOObjectEnvelopeV1 {
         target,
+        architecture,
         byte_length,
         content_digest: sha256(bytes),
         section_count: observed_sections.len() as u32,

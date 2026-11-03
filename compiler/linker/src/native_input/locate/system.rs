@@ -158,7 +158,10 @@ fn linux_library(
             continue;
         };
         let file = super::read_bytes(path, bytes, kind, profile, true)?;
-        if profile.id() == scoop_target_data::LINUX_X86_64_MUSL_ID
+        if scoop_target_data::definition(profile.target().id())
+            .expect("validated final-link target")
+            .native_environment
+            == scoop_target_data::NativeEnvironment::LinuxMusl
             && file.bytes.as_ref() == b"!<arch>\n"
             && matches!(file.content, NativeContent::System)
         {

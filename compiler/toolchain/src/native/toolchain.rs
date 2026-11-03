@@ -65,7 +65,7 @@ impl NativeToolchain {
                 )?)
             })
             .transpose()?;
-        let paired_cxx = crate::windows_native::is_windows(c).then(|| {
+        let paired_cxx = crate::windows_native::is_windows_target(c).then(|| {
             crate::windows_native::paired_driver(c, NativeSourceLanguage::Cxx, selected_c)
         });
         Ok(Self {
@@ -162,7 +162,7 @@ impl NativeToolchain {
         c: &ValidatedCBridgeToolchainInvocation,
         manifest: &LoadedConeManifest,
     ) -> Result<bool, ToolchainError> {
-        if !crate::windows_native::is_windows(c) {
+        if !crate::windows_native::is_windows_target(c) {
             return Ok(false);
         }
         let config = manifest.parsed().semantic().native();

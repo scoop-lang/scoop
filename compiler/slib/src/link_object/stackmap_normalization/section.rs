@@ -116,19 +116,25 @@ pub fn read_object_stackmap_section_v3(
             ObjectStackmapSectionError::MissingFunctionAddressRelocation { index, offset },
         )?;
         let target_symbol_table_index = match relocation.shape() {
-            ObjectRelocationShapeV1::CoffAmd64 {
+            ObjectRelocationShapeV1::Coff {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: object::pe::IMAGE_REL_AMD64_ADDR64,
                 target_symbol,
-                width: 8,
+                storage_width: 8,
             } => target_symbol,
-            ObjectRelocationShapeV1::MachO(MachORelocationShapeV1::Unsigned64 {
-                target: ObjectRelocationTargetV1::SymbolTableIndex(target),
-            }) => target,
-            ObjectRelocationShapeV1::ElfX86_64Rela {
+            ObjectRelocationShapeV1::MachO {
+                shape:
+                    MachORelocationShapeV1::Unsigned64 {
+                        target: ObjectRelocationTargetV1::SymbolTableIndex(target),
+                    },
+                ..
+            } => target,
+            ObjectRelocationShapeV1::ElfRela {
+                machine: scoop_lir::ObjectMachineV1::X86_64,
                 kind: object::elf::R_X86_64_64,
                 target_symbol,
                 addend: 0,
-                width: 8,
+                storage_width: 8,
             } => target_symbol,
             shape => {
                 return Err(

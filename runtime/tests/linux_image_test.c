@@ -4,7 +4,7 @@
 
 #include "../src/platform/platform.h"
 
-extern const ScoopMetadataImageOps scoop_elf_metadata_image_ops;
+extern const ScoopMetadataImageOps scoop_linux_elf_metadata_image_ops;
 
 static uint64_t mutable_storage;
 static const uint64_t *const descriptor
@@ -17,13 +17,13 @@ static const uintptr_t stackmap_words[]
 
 int main(void) {
     assert(scoop_platform_bundle()->metadata_images ==
-           &scoop_elf_metadata_image_ops);
+           &scoop_linux_elf_metadata_image_ops);
     ScoopPlatformStackBounds stack = scoop_platform_stack_bounds();
     assert((uintptr_t)&stack >= (uintptr_t)stack.low &&
            (uintptr_t)&stack < (uintptr_t)stack.high);
     ScoopPlatformMetadataImages images;
     ScoopPlatformError error = {0};
-    assert(scoop_elf_metadata_image_ops.loaded_images(&images, &error));
+    assert(scoop_linux_elf_metadata_image_ops.loaded_images(&images, &error));
     assert(images.range_count != 0 && images.count == 1);
     assert(scoop_image_range_contains(&images, &descriptor, sizeof descriptor, _Alignof(void *)));
     assert(scoop_image_range_contains(&images, &mutable_storage, sizeof mutable_storage,
@@ -35,7 +35,7 @@ int main(void) {
     for (size_t index = 1; index < images.range_count; ++index) {
         assert(images.ranges[index - 1].end <= images.ranges[index].start);
     }
-    scoop_elf_metadata_image_ops.dispose_images(&images);
+    scoop_linux_elf_metadata_image_ops.dispose_images(&images);
     assert(images.ranges == NULL && images.images == NULL);
 
     puts("ELF load bias, stackmap bounds and metadata ranges passed");

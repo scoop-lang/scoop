@@ -13,7 +13,7 @@ const LOCATION_INDIRECT: u8 = 3;
 const LOCATION_CONSTANT: u8 = 4;
 const LOCATION_CONSTANT_INDEX: u8 = 5;
 mod frame;
-use scoop_lir::BackendMachineFrameV1 as StackmapFrame;
+use scoop_lir::MachineFrameRecoveryV1 as StackmapFrame;
 
 mod record;
 pub use record::*;

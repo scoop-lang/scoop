@@ -44,9 +44,8 @@ impl ValidatedCBridgeToolchainInvocation {
         sdk_root: PathBuf,
     ) -> Result<Self, CBridgeToolchainInvocationError> {
         if !matches!(
-            scoop_target_data::definition(target.id())
-                .map(|definition| definition.native_environment),
-            Some(scoop_target_data::NativeEnvironment::Darwin)
+            scoop_target_data::definition(target.id()).map(|definition| definition.os),
+            Some(scoop_target_data::TargetOs::Darwin)
         ) {
             return Err(CBridgeToolchainInvocationError::Platform(
                 scoop_lir::CBridgePlatformError::ExpectedDarwin,
@@ -94,6 +93,12 @@ impl ValidatedCBridgeToolchainInvocation {
         scoop_target_data::definition(self.target.id())
             .expect("validated target")
             .native_environment
+    }
+
+    pub fn target_os(&self) -> scoop_target_data::TargetOs {
+        scoop_target_data::definition(self.target.id())
+            .expect("validated target")
+            .os
     }
 
     pub const fn profile(&self) -> &CBridgeToolchainProfileV1 {
@@ -224,7 +229,7 @@ impl ValidatedCBridgeToolchainInvocation {
         if let CBridgeCommandParameters::Windows(environment) = &self.parameters {
             return environment.command(
                 driver,
-                crate::windows_c::machine_triple(self.target.id())
+                crate::windows_c::target_triple(self.target.id())
                     .expect("validated Windows target"),
                 self.native_environment() == scoop_target_data::NativeEnvironment::MicrosoftUcrt,
             );
@@ -283,7 +288,14 @@ impl ValidatedCBridgeToolchainInvocation {
         compiler_driver: PathBuf,
         environment: crate::windows_c::WindowsCEnvironment,
     ) -> Result<Self, CBridgeToolchainInvocationError> {
-        if crate::windows_c::machine_triple(target.id()).is_err()
+        let machine =
+            crate::windows_machine::WindowsToolchainMachine::select(target).map_err(|_| {
+                CBridgeToolchainInvocationError::Platform(
+                    scoop_lir::CBridgePlatformError::ExpectedWindows,
+                )
+            })?;
+        if crate::windows_c::target_triple(target.id()).is_err()
+            || environment.machine != machine
             || !matches!(
                 profile.contract().platform(),
                 scoop_lir::CBridgePlatformContractV1::Windows { .. }

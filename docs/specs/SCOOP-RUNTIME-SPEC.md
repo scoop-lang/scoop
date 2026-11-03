@@ -433,11 +433,13 @@ nursery 容量和 collection threshold 是收集触发条件，不是堆空间�
 
 ### 3.2 Safepoint 与机器根
 
-平台实现按实际职责分开：managed frame 与 caller anchor 属于 frame，返回值 shim 与浮点环境控制属于 arch，线程栈／VM 属于 OS，加载映射与 metadata 属于 image。构建只组合已实现的组件，架构专用 flags 只由对应架构选择；此职责划分不改变 GC、异常、对象布局或公共 runtime ABI。
+平台实现按实际职责分开：线程栈／VM／RSS 属于 OS services，ELF／Mach-O／PE 的 segment 与 metadata range 属于 object image parser，当前模块枚举与生命周期属于 OS／loader provider，纯 ISA helper 属于 arch，managed frame decoder／virtual unwind 属于 machine frame recovery，caller anchor／ManagedEntry 与返回值 shim 分别属于 procedure ABI 和对象汇编合同。构建只组合当前 target 已完整实现的组件；red-zone 等参数由实际 ABI／frame component 选择，不由 ISA 名称普遍推导。此职责划分不改变 GC、异常、对象布局或公共 runtime ABI。
+
+平台选择不能以对象格式、native environment 或 canonical triple 字符串替代 typed OS；ELF 不选择 Linux，COFF 不选择 Windows OS services，POSIX 也不是未实现 OS 的 fallback。只有实际 API 与生命周期合同相同且已有调用方时才提取公共 primitive 或 loader helper。runtime builder 为当前完整选择生成静态 `ScoopPlatformBundle` translation unit，引用各组件已有的具名 ops；不使用动态插件、运行时注册或每个 OS＋arch 一份的手写组合 profile。
 
 ThreadVmOps 的读写映射按请求大小和对齐返回完整可用区间，调用者只整体释放该映射；大小为 page 的倍数，对齐为不小于 page 的二次幂。普通 region 保持 16 MiB 对齐，大对象保持 64 KiB 对齐。Darwin／Linux 可过量映射后裁掉两端；Windows 以 VirtualAlloc 保留足够的地址范围，只 commit 对齐后的可用区间，释放时由 AllocationBase 整体 MEM_RELEASE，不模拟部分释放，也不将对齐 padding 计入 managed committed bytes。Windows 栈范围使用系统当前线程 stack limits；保护页、空闲整页归还和 RSS 分别使用 VirtualProtect、DiscardVirtualMemory 与进程 working-set 统计。
 
-GC 私有 helper 的目标相关内联选择由平台层提供，通用 GC 不直接使用架构宏选择调用方式。各目标共用同一算法与必要检查；内联选择不改变对象表示、函数 ABI、forwarding 规则或公开配置项，其性能依据按目标分别验证。
+GC 私有 helper 的目标相关内联选择由完整 target 已绑定的 runtime tuning 通过构建参数提供，通用 GC 和平台 C 源都不直接使用架构宏选择调用方式。各目标共用同一算法与必要检查；内联选择不改变对象表示、函数 ABI、forwarding 规则或公开配置项，其性能依据按目标分别验证。
 
 managed 函数入口（下述有界叶函数除外）和循环回边，包括 continue 回边，提供 safepoint。编译器可将继续迭代区域内无调用、分配或异常的简单计数循环分块：正文包含局部整数／Boolean／严格浮点计算，或索引合法性已在 MIR 保证的固定表示数组值读写、普通字段读取、身份比较和长度读取（实现规范 2.19）。这些值包括单字引用、interface、相应 MaybeUninit 和单引用 payload 的可选值；写入保留 3.6 的完整屏障，初始化保留 2.4 的部分初始化扫描规则。正文可以含条件分支，但去除唯一回边后必须无环，所有继续迭代的路径到达同一 latch，不能绕过归纳变量与内层倒计数的更新。提前退出沿原 return、break 或检查失败出口执行；只在退出路径上的调用、分配、异常与清理保留原 safepoint／roots，不进入复制区域。原循环 header 保留 poll，生成的内层由实际 CFG 中的常数上限倒计数约束，最多执行 64 次后返回外层 poll。数组的 managed 基址在外层 poll 后取得，内层不新增握手或跨 safepoint 的裸地址；已有引用写屏障在原写入处完成，不能因为分块或“刚分配”而省略。该选择不承诺墙钟暂停上界，不改变任意其他循环或 continue 的 poll 责任。managed references 在 LLVM ABI 中使用 address space 1；跨 safepoint 存活的引用必须由 stackmap 或显式 compiler root frame 描述。
 
@@ -465,9 +467,9 @@ native 实际调用不得 unwind 穿越边界。通过 `FunPtr` 的间接调用�
 
 core 的 Long／ULong hash、Boolean hash／equals 使用普通标量正文，执行固定次数的计算，无分配、阻塞或回调。当前 word hash 在 ULong 上依次 xor 右移 30 位、乘 `0xbf58476d1ce4e5b9`、xor 右移 27 位、乘 `0x94d049bb133111eb`、xor 右移 31 位，按原 64 位结果转换为 Long；Boolean hash 为 false→0、true→1，equals 保持逻辑相等。Boolean.toString 选择 provider 的 immortal 字符串，不新增托管 root 或对象。已有 C 后备符号及调用合同保留供实际外部引用使用，新 core 不再为这些操作声明 native wrapper；不将任意同名 extern 特化，也不改变公开方法签名。String hash／equals／字符计数会随输入增长，继续遵守各自 managed／native 边界，不能沿用这项有界标量选择。
 
-机器 frame 恢复由 backend 明确选择 Darwin AArch64 固定帧、SysV AMD64 固定帧或 Windows SEH 实现；机器架构、对象格式和恢复方式是不同事实，不用其中一项猜测另一项。编译期 reader 使用选定 frame 合同验证 stackmap，运行时使用配套 anchor 与恢复实现；这项职责分离不改变现有机器帧、根槽或 runtime ABI。
+机器 frame 恢复由 backend 的必需 profile 明确选择。恢复机制使用封闭和类型区分 fixed-frame 与 platform virtual-unwind；具体 profile 完整保存 SP／FP 等寄存器、DWARF 编号、slot size/alignment、anchor、return-PC 与 next-frame 合同。当前 profile 为 Darwin AArch64 fixed-frame、SysV AMD64 fixed-frame 与 Windows AMD64 virtual-unwind；Windows 分支不能把 AMD64 的 RSP／RBP 或 DWARF 7／6 隐藏为所有 Windows machine 的默认值。机器架构、对象格式、过程 ABI 与恢复方式是不同事实，不用其中一项猜测另一项。编译期 reader 使用选定 frame 合同验证 stackmap，运行时使用配套 decoder／virtual-unwind adapter；这项职责分离不改变现有机器帧、根槽或 runtime ABI。
 
-runtime 的 OS、loaded image、ISA 浮点环境和 frame／anchor 源码分别选择，继续由静态 `ScoopPlatformBundle` 连接现有接口。SysV AMD64 的固定帧恢复只依赖该 backend 的帧合同；anchor 汇编另外按 Mach-O／ELF 的符号与汇编指令选择。Windows SEH frame 恢复继续使用其独立实现。
+runtime 的 OS services、object image parser、loaded-image provider、ISA helper、frame recovery、ManagedEntry、ABI shim 与 unwind provider 分别选择，继续由静态 `ScoopPlatformBundle` 连接现有接口。SysV AMD64 的固定帧恢复只依赖该 backend 的帧合同；entry／anchor 汇编另外按 procedure ABI 与 Mach-O／ELF 的符号和汇编指令选择。Windows AMD64 virtual-unwind 继续使用其独立实现。ELF parser 接收 loader provider 给出的实际 image／segment view，不直接调用 Linux-only module enumeration；trace 的对象符号解析与 OS module enumeration 也保持分层。
 
 Darwin/AArch64 的 SP/FP DWARF register 分别为 31/29，stack size 为 16 的倍数。Darwin/amd64 与 Linux/amd64 分别为 7/6；若 stackmap stack size 为 N，要求 `N % 16 == 8`。amd64 的入口 return PC 在 `[RSP]`，call-site SP 为 `RSP + 8`，FP 为 RBP；N 不包含 return address，`FP = SP + N - 8`，`[FP]` 保存前一 FP、`[FP+8]` 保存 return PC、前一 SP 为 `FP+16`。root slot 位于 `[SP, FP)`。这些目标保留 frame pointer，不使用 red zone 或破坏栈遍历的 tail call。
 
@@ -894,6 +896,8 @@ native exception record 不能跨线程共享或跨挂起保存；可以保存�
 ### 5.5 依赖与 FFI 边界
 
 生产异常 ABI 只依赖 Itanium Level I，不依赖 C++ EH、RTTI 或 terminate。target profile 明确选择兼容 unwind provider；Linux CRT 的普通退出清理符号不视为 C++ EH。
+
+异常模型、unwind provider、对象中的 unwind image 与 GC machine-frame recovery 是四个独立合同。target 组合根显式绑定它们；`.eh_frame` 或 `.pdata`／`.xdata` 只表示对应 object target 的展开数据，不能据此推导 OS、provider 或 GC frame。platform virtual-unwind adapter 消费自身 profile 的 machine/register/object-unwind 合同，不从通用 Windows 名称取得某一 ISA 的默认寄存器。
 
 启用 native C++ 的程序可以在 C++ 一侧使用配套的 C++ EH／RTTI／ABI 运行库，不改变 Scoop 异常对象和 personality 的合同。最终链接须协调 Level-I unwind provider：Linux GNU C++ 配置使用配套 libgcc_s，Darwin 使用所选系统 provider；Windows Scoop 的 `_Unwind_*` 仅由相应环境的 LLVM libunwind 提供。MSVC C++ EH 仍由 VCRuntime 提供，两种语言 handler 共用系统 SEH，不删除 native C++ 的运行库，也不再引入第二套 `_Unwind_*`。具体链接选择见实现规范 2.8。C++ 异常必须在 native 一侧捕获处理后再返回 Scoop；Scoop 不接管 C++ 对象的异常或析构语义。
 

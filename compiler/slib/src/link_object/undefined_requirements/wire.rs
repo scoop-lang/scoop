@@ -7,7 +7,8 @@ use super::{
     CanonicalUndefinedSymbolRequirementV1, FinalUndefinedSymbolRequirementV1,
 };
 use crate::link_object::{
-    BuiltinObjectSectionRoleV1, RelocationTargetSlotV1, VerifiedObjectRelocationFormV1,
+    BuiltinObjectSectionRoleV1, RelocationTargetSlotV1, VerifiedMachORelocationFormV1,
+    VerifiedObjectRelocationFormV1,
 };
 
 impl WireEncode for FinalUndefinedSymbolRequirementV1 {
@@ -116,50 +117,85 @@ fn encode_relocation_form(
     form: VerifiedObjectRelocationFormV1,
 ) -> Result<(), scoop_wire::cbor::EncodeError> {
     match form {
-        VerifiedObjectRelocationFormV1::CoffAmd64 { kind, width } => {
+        VerifiedObjectRelocationFormV1::MachO { machine, form } => {
             encoder.map(3)?;
-            encode_tag(encoder, 12)?;
+            encode_tag(encoder, 1)?;
             encoder.field(1)?;
-            encoder.unsigned(u64::from(kind))?;
+            encode_machine(encoder, machine)?;
             encoder.field(2)?;
-            encoder.unsigned(u64::from(width))
+            encode_macho_relocation_form(encoder, form)
         }
-        VerifiedObjectRelocationFormV1::ElfX86_64Rela {
+        VerifiedObjectRelocationFormV1::ElfRela {
+            machine,
             kind,
             addend,
-            width,
+            storage_width,
         } => {
-            encoder.map(4)?;
-            encode_tag(encoder, 11)?;
+            encoder.map(5)?;
+            encode_tag(encoder, 2)?;
             encoder.field(1)?;
-            encoder.unsigned(u64::from(kind))?;
+            encode_machine(encoder, machine)?;
             encoder.field(2)?;
-            encoder.unsigned(u64::from(width))?;
+            encoder.unsigned(u64::from(kind))?;
             encoder.field(3)?;
+            encoder.unsigned(u64::from(storage_width))?;
+            encoder.field(4)?;
             encoder.unsigned(addend as u64)
         }
-        VerifiedObjectRelocationFormV1::Unsigned32 => encode_empty_sum(encoder, 13),
-        VerifiedObjectRelocationFormV1::Subtractor32 => encode_empty_sum(encoder, 14),
-        VerifiedObjectRelocationFormV1::X86_64PcRelative32 { kind } => {
+        VerifiedObjectRelocationFormV1::Coff {
+            machine,
+            kind,
+            storage_width,
+        } => {
+            encoder.map(4)?;
+            encode_tag(encoder, 3)?;
+            encoder.field(1)?;
+            encode_machine(encoder, machine)?;
+            encoder.field(2)?;
+            encoder.unsigned(u64::from(kind))?;
+            encoder.field(3)?;
+            encoder.unsigned(u64::from(storage_width))
+        }
+    }
+}
+
+fn encode_machine(
+    encoder: &mut Encoder,
+    machine: scoop_lir::ObjectMachineV1,
+) -> Result<(), scoop_wire::cbor::EncodeError> {
+    encoder.unsigned(match machine {
+        scoop_lir::ObjectMachineV1::Aarch64 => 1,
+        scoop_lir::ObjectMachineV1::X86_64 => 2,
+    })
+}
+
+fn encode_macho_relocation_form(
+    encoder: &mut Encoder,
+    form: VerifiedMachORelocationFormV1,
+) -> Result<(), scoop_wire::cbor::EncodeError> {
+    match form {
+        VerifiedMachORelocationFormV1::Unsigned32 => encode_empty_sum(encoder, 13),
+        VerifiedMachORelocationFormV1::Subtractor32 => encode_empty_sum(encoder, 14),
+        VerifiedMachORelocationFormV1::X86_64PcRelative32 { kind } => {
             encoder.map(2)?;
             encode_tag(encoder, 15)?;
             encoder.field(1)?;
             encoder.unsigned(u64::from(kind as u8))
         }
-        VerifiedObjectRelocationFormV1::Unsigned64 => encode_empty_sum(encoder, 1),
-        VerifiedObjectRelocationFormV1::Subtractor64 => encode_empty_sum(encoder, 2),
-        VerifiedObjectRelocationFormV1::Branch26 => encode_empty_sum(encoder, 3),
-        VerifiedObjectRelocationFormV1::Page21 { explicit_addend } => {
+        VerifiedMachORelocationFormV1::Unsigned64 => encode_empty_sum(encoder, 1),
+        VerifiedMachORelocationFormV1::Subtractor64 => encode_empty_sum(encoder, 2),
+        VerifiedMachORelocationFormV1::Branch26 => encode_empty_sum(encoder, 3),
+        VerifiedMachORelocationFormV1::Page21 { explicit_addend } => {
             encode_optional_addend_sum(encoder, 4, explicit_addend)
         }
-        VerifiedObjectRelocationFormV1::PageOffset12 { explicit_addend } => {
+        VerifiedMachORelocationFormV1::PageOffset12 { explicit_addend } => {
             encode_optional_addend_sum(encoder, 5, explicit_addend)
         }
-        VerifiedObjectRelocationFormV1::GotLoadPage21 => encode_empty_sum(encoder, 6),
-        VerifiedObjectRelocationFormV1::GotLoadPageOffset12 => encode_empty_sum(encoder, 7),
-        VerifiedObjectRelocationFormV1::PointerToGot32 => encode_empty_sum(encoder, 8),
-        VerifiedObjectRelocationFormV1::TlvpLoadPage21 => encode_empty_sum(encoder, 9),
-        VerifiedObjectRelocationFormV1::TlvpLoadPageOffset12 => encode_empty_sum(encoder, 10),
+        VerifiedMachORelocationFormV1::GotLoadPage21 => encode_empty_sum(encoder, 6),
+        VerifiedMachORelocationFormV1::GotLoadPageOffset12 => encode_empty_sum(encoder, 7),
+        VerifiedMachORelocationFormV1::PointerToGot32 => encode_empty_sum(encoder, 8),
+        VerifiedMachORelocationFormV1::TlvpLoadPage21 => encode_empty_sum(encoder, 9),
+        VerifiedMachORelocationFormV1::TlvpLoadPageOffset12 => encode_empty_sum(encoder, 10),
     }
 }
 

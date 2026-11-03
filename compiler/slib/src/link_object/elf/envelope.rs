@@ -6,7 +6,7 @@ use object::{ObjectSection, ObjectSymbol, elf};
 use super::*;
 use crate::link_object::object_envelope::*;
 
-pub fn validate_linux_elf_object_envelope_v1(
+pub fn validate_elf_object_envelope_v1(
     bytes: &[u8],
     target: TargetProfileId,
 ) -> Result<ValidatedObjectEnvelopeV1, ElfObjectError> {
@@ -102,11 +102,12 @@ pub fn validate_linux_elf_object_envelope_v1(
                 offset: r.offset,
                 encoded_value: u64::from_le_bytes(value),
                 shape: match object.architecture() {
-                    ElfArchitecture::X86_64 => ObjectRelocationShapeV1::ElfX86_64Rela {
+                    ElfArchitecture::X86_64 => ObjectRelocationShapeV1::ElfRela {
+                        machine: object.architecture().object_machine(),
                         kind: r.kind,
                         target_symbol: u32::try_from(r.symbol.0).map_err(error)?,
                         addend: r.addend,
-                        width: r.width,
+                        storage_width: r.width,
                     },
                 },
             })
@@ -115,7 +116,7 @@ pub fn validate_linux_elf_object_envelope_v1(
     Ok(ValidatedObjectEnvelopeV1 {
         byte_length: bytes.len() as u64,
         content_digest: scoop_wire::sha256(bytes),
-        format: ObjectEnvelopeFormatV1::Elf64 { target },
+        format: ObjectEnvelopeFormatV1::new(target, scoop_lir::ObjectTargetProfileV1::ElfX86_64),
         sections,
         symbols,
         relocations,

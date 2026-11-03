@@ -14,7 +14,8 @@ private class TcpThreadReturn {
 private class AsyncTcpDuplexTest {
     @Test
     fun `IPv6 permits independent reads and writes including foreign thread submission`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val backend = PlatformEventLoop()
+        val loop: EventLoop = backend
         val ownerThread = currentThreadId()
         val gate = TcpThreadReturn()
         loop.run suspend {
@@ -32,8 +33,11 @@ private class AsyncTcpDuplexTest {
                     output ->
                     output.writeByte(42)
                     suspendCoroutine<Unit> {
-                        continuation -> gate.worker =
-                            Some(Thread.start { continuation.resume(Unit) })
+                        continuation ->
+                        // Start the worker after registration returns, so completion cannot be synchronous.
+                        backend.state.post {
+                            gate.worker = Some(Thread.start { continuation.resume(Unit) })
+                        }
                     }
                     assertTrue(currentThreadId() != ownerThread)
                     client.writeFully(output)

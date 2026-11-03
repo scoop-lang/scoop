@@ -12,15 +12,16 @@ impl WireEncode for LinuxFinalLinkProfile {
         e.field(4)?;
         e.text(&self.data.linker_version)?;
         e.field(5)?;
-        e.array((OPTIONS.len() + self.mode_flags().len() + usize::from(!self.cxx())) as u64)?;
+        let linker_args = self.linker_args();
+        e.array((linker_args.len() + usize::from(!self.cxx())) as u64)?;
         if !self.cxx() {
             e.text("-nodefaultlibs")?;
         }
-        for option in OPTIONS.iter().chain(self.mode_flags()) {
+        for option in linker_args {
             e.text(option)?;
         }
         e.field(6)?;
-        sha256(self.metadata_script().as_bytes()).encode(e)?;
+        sha256(self.elf_plan().metadata_script().as_bytes()).encode(e)?;
         e.field(7)?;
         // Locators serve local reads. Content and input role determine the
         // final-link identity, so moving a sysroot does not change its bytes.

@@ -29,7 +29,10 @@ fn selected_profile_creates_the_canonical_aarch64_machine() {
     let backend =
         ValidatedBackendProfile::for_selection(scoop_target_data::DARWIN_AARCH64_LLVM_22_1)
             .expect("qualified backend selection");
-    assert_eq!(backend.backend_profile(), scoop_target_data::LLVM_22_1);
+    assert_eq!(
+        backend.backend_profile(),
+        scoop_target_data::LLVM_22_1_DARWIN_AARCH64
+    );
     assert_eq!(backend.managed_address_space(), 1);
     let machine = backend.create_target_machine().expect("target machine");
     assert_eq!(
@@ -48,6 +51,10 @@ fn darwin_x86_64_machine_matches_the_registered_layout() {
         ValidatedBackendProfile::for_selection(scoop_target_data::DARWIN_X86_64_LLVM_22_1).unwrap();
     let machine = backend.create_target_machine().unwrap();
     assert_eq!(
+        machine.get_triple().as_str().to_str().unwrap(),
+        "x86_64-apple-macosx11.0.0"
+    );
+    assert_eq!(
         machine
             .get_target_data()
             .get_data_layout()
@@ -60,22 +67,62 @@ fn darwin_x86_64_machine_matches_the_registered_layout() {
 }
 
 #[test]
+fn target_machine_initialization_is_independent_of_target_order() {
+    fn machine_signature(selection: ValidatedLirTargetSelection) -> (String, String, String) {
+        let machine = ValidatedBackendProfile::for_selection(selection)
+            .unwrap()
+            .create_target_machine()
+            .unwrap();
+        (
+            machine.get_triple().as_str().to_str().unwrap().into(),
+            machine
+                .get_target_data()
+                .get_data_layout()
+                .as_str()
+                .to_str()
+                .unwrap()
+                .into(),
+            machine.get_cpu().to_str().unwrap().into(),
+        )
+    }
+
+    let aarch64 = scoop_target_data::DARWIN_AARCH64_LLVM_22_1;
+    let x86 = scoop_target_data::LINUX_X86_64_GNU_LLVM_22_1;
+    let aarch64_then_x86 = [machine_signature(aarch64), machine_signature(x86)];
+    let x86_then_aarch64 = [machine_signature(x86), machine_signature(aarch64)];
+    assert_eq!(aarch64_then_x86[0], x86_then_aarch64[1]);
+    assert_eq!(aarch64_then_x86[1], x86_then_aarch64[0]);
+    assert_eq!(
+        machine::process_option_spellings(),
+        [
+            "--disable-tail-duplicate",
+            "--tail-dup-placement=false",
+            "--hints-allow-reordering=false",
+            "--no-x86-call-frame-opt",
+            "--x86-experimental-pref-innermost-loop-alignment=5",
+        ]
+    );
+}
+
+#[test]
 fn native_c_pointer_representations_are_qualified() {
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
         .expect("codegen crate is nested below the workspace root");
 
-    let profile_source = workspace.join(crate::tests::platform_support::native_profile_source());
-    let profile = std::process::Command::new("cc")
+    let bundle_source =
+        workspace.join(crate::tests::platform_support::native_platform_bundle_source());
+    let bundle = std::process::Command::new("cc")
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-fsyntax-only"])
-        .arg(&profile_source)
+        .args(crate::tests::platform_support::native_runtime_c_flags())
+        .arg(&bundle_source)
         .output()
-        .expect("compile native runtime profile qualification");
+        .expect("compile native runtime platform bundle qualification");
     assert!(
-        profile.status.success(),
+        bundle.status.success(),
         "native runtime target assertions must compile cleanly:\n{}",
-        String::from_utf8_lossy(&profile.stderr)
+        String::from_utf8_lossy(&bundle.stderr)
     );
 
     let binary =
@@ -118,19 +165,22 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
         Ok(id) => id,
         Err(_) => panic!("canonical test identity"),
     };
-    const KNOWN_ID: BackendProfileId = match BackendProfileId::new("llvm-22-1", 1) {
+    const KNOWN_ID: BackendProfileId = match BackendProfileId::new("llvm-22-1-darwin-aarch64", 1) {
         Ok(id) => id,
         Err(_) => panic!("canonical test identity"),
     };
     const DIFFERENT_CPU: BackendProfileContract = BackendProfileContract {
         cpu: "other-cpu",
-        ..scoop_target_data::LLVM_22_1.contract()
+        ..scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract()
     };
-    const ORIGINAL: BackendProfileContract = scoop_target_data::LLVM_22_1.contract();
+    const INCOMPATIBLE_UNWIND_PROVIDER: BackendProfileContract = BackendProfileContract {
+        unwind_provider: scoop_lir::UnwindProviderV1::LlvmLibunwindWindowsSeh,
+        ..scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract()
+    };
+    const ORIGINAL: BackendProfileContract = scoop_target_data::LLVM_22_1_DARWIN_AARCH64.contract();
     for backend in [
         BackendProfile::new(&UNKNOWN_ID, &ORIGINAL),
         BackendProfile::new(&KNOWN_ID, &DIFFERENT_CPU),
-        scoop_target_data::LLVM_22_1_LINUX_X86_64,
     ] {
         let selection =
             ValidatedLirTargetSelection::new(scoop_target_data::DARWIN_AARCH64, backend);
@@ -141,6 +191,26 @@ fn unregistered_backend_identity_or_machine_configuration_is_rejected() {
                 .contains("unsupported target/backend contract")
         );
     }
+    assert!(
+        std::panic::catch_unwind(|| {
+            ValidatedLirTargetSelection::new(
+                scoop_target_data::DARWIN_AARCH64,
+                scoop_target_data::LLVM_22_1_LINUX_X86_64,
+            )
+        })
+        .is_err(),
+        "an incompatible target/backend composition must not become a validated selection"
+    );
+    assert!(
+        std::panic::catch_unwind(|| {
+            ValidatedLirTargetSelection::new(
+                scoop_target_data::DARWIN_AARCH64,
+                BackendProfile::new(&KNOWN_ID, &INCOMPATIBLE_UNWIND_PROVIDER),
+            )
+        })
+        .is_err(),
+        "an incompatible exception model and unwind provider must be rejected"
+    );
 }
 
 #[test]
@@ -152,11 +222,40 @@ fn canonical_unknown_target_is_not_a_codegen_registration() {
         };
     let target =
         scoop_lir::LirTargetProfile::new(&UNKNOWN, scoop_target_data::DARWIN_AARCH64.description());
-    let selection = ValidatedLirTargetSelection::new(target, scoop_target_data::LLVM_22_1);
+    let selection =
+        ValidatedLirTargetSelection::new(target, scoop_target_data::LLVM_22_1_DARWIN_AARCH64);
     assert!(
         ValidatedBackendProfile::for_selection(selection)
             .unwrap_err()
             .0
             .contains("unsupported target/backend")
+    );
+}
+
+#[test]
+fn catalog_codegen_deployment_rejects_a_different_native_platform() {
+    let version = scoop_lir::DarwinPackedVersionV1::new(11 << 16).unwrap();
+    let native = scoop_lir::CBridgeToolchainContractV1::new(
+        scoop_target_data::LINUX_X86_64_GNU,
+        scoop_lir::CBridgePlatformContractV1::Darwin {
+            deployment: scoop_lir::DarwinCBridgeDeploymentContractV1::new(
+                version,
+                version,
+                Vec::new(),
+            )
+            .unwrap(),
+            compiler: scoop_lir::AppleClangCompilerIdentityV1::new(22, 1, 0, "test-clang").unwrap(),
+        },
+        scoop_lir::CanonicalCBridgeFlagContractV1::DarwinAppleClangX86_64,
+    )
+    .unwrap();
+    let error = ValidatedBackendProfile::from_selection(
+        scoop_target_data::LINUX_X86_64_GNU_LLVM_22_1,
+        &native,
+    )
+    .unwrap_err();
+    assert_eq!(
+        error.0,
+        "codegen deployment and native toolchain platform differ"
     );
 }

@@ -30,10 +30,11 @@ pub(super) fn read<'data, H: CoffHeader>(
                 containing_section_ordinal: ordinal(section.index())?,
                 offset: offset as u64,
                 encoded_value: u64::from_le_bytes(encoded),
-                shape: ObjectRelocationShapeV1::CoffAmd64 {
+                shape: ObjectRelocationShapeV1::Coff {
+                    machine: scoop_lir::ObjectMachineV1::X86_64,
                     kind,
                     target_symbol,
-                    width,
+                    storage_width: width,
                 },
             });
         }

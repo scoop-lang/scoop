@@ -84,6 +84,29 @@ pub(super) const COMMON: &[&str] = &[
     "runtime/src/platform/common.c",
 ];
 
+pub(super) const PLATFORM_BUNDLE: &str = "runtime/src/platform/bundle.c";
+pub(super) const DARWIN_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops";
+pub(super) const LINUX_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_linux_thread_vm_ops";
+pub(super) const WINDOWS_THREAD_VM_OPS: &str =
+    "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_windows_thread_vm_ops";
+pub(super) const MACHO_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops";
+pub(super) const LINUX_ELF_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_linux_elf_metadata_image_ops";
+pub(super) const PE_METADATA_IMAGE_OPS: &str =
+    "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_pe_metadata_image_ops";
+pub(super) const PE_AMD64_IMAGE_MACHINE: &str = "-DSCOOP_PE_IMAGE_MACHINE=IMAGE_FILE_MACHINE_AMD64";
+pub(super) const OUT_OF_LINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=0";
+pub(super) const INLINE_GC_FORWARDING: &str = "-DSCOOP_PLATFORM_INLINE_GC_FORWARDING=1";
+pub(super) const DARWIN_AARCH64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops";
+pub(super) const SYSV_AMD64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops";
+pub(super) const WINDOWS_AMD64_FRAME_OPS: &str =
+    "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_windows_amd64_managed_frame_ops";
+
 pub(super) const UNIX_TRACE: &[&str] = &[
     "runtime/src/stack_trace/symbolize.c",
     "vendor/libbacktrace/dwarf.c",
@@ -109,6 +132,8 @@ pub(super) const LINUX_OS: &[&str] = &[
     "runtime/src/platform/primitives/posix.c",
     "runtime/src/platform/numeric/posix.c",
 ];
+pub(super) const LINUX_ELF_LOADED_IMAGE: &[&str] = &["runtime/src/platform/loader/linux_elf.c"];
+pub(super) const LINUX_ELF_TRACE_LOADER: &[&str] = &["runtime/src/stack_trace/linux.c"];
 pub(super) const MACHO_IMAGE: &[&str] = &[
     "runtime/src/platform/image/macho.c",
     "runtime/src/stack_trace/macho.c",
@@ -139,24 +164,22 @@ pub(super) const WINDOWS_OS: &[&str] = &[
     "vendor/gdtoa/hd_init.c",
 ];
 pub(super) const AARCH64: &[&str] = &["runtime/src/platform/arch/aarch64_float_environment.c"];
-pub(super) const X86_64: &[&str] = &[
-    "runtime/src/platform/arch/x86_64_floating.c",
-    "runtime/src/platform/arch/x86_64_float_environment.c",
-];
-pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/darwin_aarch64.c",
-    "runtime/src/platform/frame/darwin_aarch64_macho.S",
-    "runtime/src/platform/arch/darwin_aarch64_floating.S",
-];
-pub(super) const SYSV_AMD64_ELF_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/sysv_amd64.c",
-    "runtime/src/platform/frame/sysv_amd64_elf.S",
-];
-pub(super) const SYSV_AMD64_MACHO_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/sysv_amd64.c",
-    "runtime/src/platform/frame/sysv_amd64_macho.S",
-];
-pub(super) const WINDOWS_SEH_FRAME: &[&str] = &[
-    "runtime/src/platform/frame/windows_seh.c",
-    "runtime/src/platform/frame/windows_seh_coff.S",
-];
+pub(super) const X86_64: &[&str] = &["runtime/src/platform/arch/x86_64_float_environment.c"];
+pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &["runtime/src/platform/frame/darwin_aarch64.c"];
+pub(super) const SYSV_AMD64_FRAME: &[&str] = &["runtime/src/platform/frame/sysv_amd64.c"];
+pub(super) const WINDOWS_AMD64_VIRTUAL_UNWIND: &[&str] =
+    &["runtime/src/platform/frame/windows_amd64_virtual_unwind.c"];
+
+pub(super) const DARWIN_AARCH64_MACHO_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/darwin_aarch64_macho.S"];
+pub(super) const SYSV_AMD64_ELF_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/sysv_amd64_elf.S"];
+pub(super) const SYSV_AMD64_MACHO_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/sysv_amd64_macho.S"];
+pub(super) const WIN64_COFF_MANAGED_ENTRY: &[&str] =
+    &["runtime/src/platform/frame/windows_amd64_coff_managed_entry.S"];
+
+pub(super) const DARWIN_AARCH64_MACHO_ABI_SHIM: &[&str] =
+    &["runtime/src/platform/abi/darwin_aarch64_macho_floating.S"];
+pub(super) const X86_64_TAGGED_FLOATING_ABI_SHIM: &[&str] =
+    &["runtime/src/platform/abi/x86_64_tagged_floating.c"];

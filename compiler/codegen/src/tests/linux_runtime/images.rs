@@ -2,8 +2,35 @@ use super::{checked, workspace};
 use std::process::Command;
 
 #[test]
+fn elf_image_parser_consumes_an_explicit_loaded_image_view() {
+    let workspace = workspace();
+    let root = workspace.join("target/linux-runtime-tests");
+    std::fs::create_dir_all(&root).unwrap();
+    let directory = tempfile::tempdir_in(root).unwrap();
+    let binary = directory.path().join("elf-image-parser");
+    let mut command = Command::new("gcc");
+    command.args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-O2"]);
+    for source in [
+        "runtime/tests/elf_image_parser_test.c",
+        "runtime/src/platform/image/elf.c",
+        "runtime/src/image/ranges.c",
+    ] {
+        command.arg(workspace.join(source));
+    }
+    checked(command.arg("-o").arg(&binary));
+    assert_eq!(
+        checked(&mut Command::new(binary)).stdout,
+        b"ELF image parser view tests passed\n"
+    );
+}
+
+#[test]
 fn elf_images_use_loaded_segments_and_stackmap_bounds() {
     let workspace = workspace();
+    let profile = scoop_toolchain::ValidatedRuntimeBuildProfile::for_target(
+        scoop_target_data::LINUX_X86_64_GNU,
+    )
+    .unwrap();
     let root = workspace.join("target/linux-runtime-tests");
     std::fs::create_dir_all(&root).unwrap();
     let directory = tempfile::tempdir_in(root).unwrap();
@@ -25,14 +52,16 @@ fn elf_images_use_loaded_segments_and_stackmap_bounds() {
                 "-O2",
                 "-Wl,-z,relro,-z,now,-z,text",
             ])
+            .args(profile.runtime_c_flags())
             .args(flags)
             .arg("-Wl,-T")
             .arg(script);
         for source in [
             "runtime/tests/linux_image_test.c",
             "runtime/src/platform/image/elf.c",
+            "runtime/src/platform/loader/linux_elf.c",
             "runtime/src/platform/common.c",
-            "runtime/src/platform/profiles/linux_x86_64.c",
+            "runtime/src/platform/bundle.c",
             "runtime/src/platform/os/linux.c",
             "runtime/src/platform/frame/sysv_amd64.c",
             "runtime/src/image/ranges.c",

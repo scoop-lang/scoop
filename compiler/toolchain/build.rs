@@ -30,7 +30,7 @@ fn main() {
         .as_array()
         .expect("target catalog entries")
     {
-        if target["native_environment"].as_str() == Some("Darwin") {
+        if target["os"].as_str() == Some("darwin") {
             let canonical = target["canonical"].as_str().expect("canonical target");
             let minimum_os = config["targets"][canonical]["minimum_os"]
                 .as_str()

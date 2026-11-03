@@ -4,6 +4,7 @@ use super::*;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub(crate) struct WindowsCEnvironment {
+    pub(crate) machine: crate::windows_machine::WindowsToolchainMachine,
     pub(crate) native_sysroot: Option<PathBuf>,
     pub(crate) includes: Vec<PathBuf>,
     pub(crate) libraries: Vec<PathBuf>,
@@ -17,7 +18,9 @@ impl WindowsCEnvironment {
         compiler: &Path,
         native_sysroot: Option<&Path>,
     ) -> Result<(Self, Vec<PathBuf>), ToolchainError> {
+        let machine = crate::windows_machine::WindowsToolchainMachine::select(target)?;
         let mut environment = Self {
+            machine,
             native_sysroot: native_sysroot
                 .map(std::path::absolute)
                 .transpose()
@@ -28,7 +31,9 @@ impl WindowsCEnvironment {
             system_root: std::env::var_os("SystemRoot"),
         };
         let mut inputs = Vec::new();
-        if target.id() != scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID {
+        if crate::windows_c::native_environment(target.id())?
+            != scoop_target_data::NativeEnvironment::MicrosoftUcrt
+        {
             if environment.native_sysroot.is_none() {
                 environment.native_sysroot = Some(compiler.parent().and_then(Path::parent)
                     .ok_or_else(|| error("cannot infer LLVM-MinGW prefix; provide an explicit native sysroot"))?.to_owned());
@@ -37,9 +42,10 @@ impl WindowsCEnvironment {
                 .native_sysroot
                 .as_ref()
                 .expect("native prefix was selected");
-            environment
-                .libraries
-                .extend([root.join("x86_64-w64-mingw32/lib"), root.join("lib")]);
+            environment.libraries.extend([
+                root.join(machine.llvm_mingw_target_directory()).join("lib"),
+                root.join("lib"),
+            ]);
         } else if let Some(root) = &environment.native_sysroot {
             let config = root.join("msvc.toml");
             let contents = std::fs::read_to_string(&config)
@@ -57,9 +63,9 @@ impl WindowsCEnvironment {
                 include.join("winrt"),
             ];
             environment.libraries = vec![
-                tools.join("lib/x64"),
-                lib.join("ucrt/x64"),
-                lib.join("um/x64"),
+                tools.join("lib").join(machine.msvc_library_directory()),
+                lib.join("ucrt").join(machine.msvc_library_directory()),
+                lib.join("um").join(machine.msvc_library_directory()),
             ];
             inputs.push(config);
         } else {
@@ -71,7 +77,7 @@ impl WindowsCEnvironment {
 
     #[cfg(windows)]
     fn discover_microsoft(&mut self, inputs: &mut Vec<PathBuf>) -> Result<(), ToolchainError> {
-        let tool = find_msvc_tools::find_tool("x86_64-pc-windows-msvc", "cl.exe")
+        let tool = find_msvc_tools::find_tool(self.machine.msvc_discovery_target(), "cl.exe")
             .ok_or_else(|| error("no Microsoft C++ Build Tools and Windows SDK found; provide an explicit native sysroot"))?;
         inputs.push(tool.path().to_owned());
         if let Some(versions) = tool.path().ancestors().nth(5) {
@@ -144,7 +150,7 @@ impl WindowsCEnvironment {
         command.args([
             "-target",
             triple,
-            "-march=x86-64",
+            self.machine.clang_arch_flag(),
             "-funwind-tables",
             "-fasynchronous-unwind-tables",
         ]);

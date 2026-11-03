@@ -9,9 +9,10 @@ mod personality;
 
 pub(super) fn materialize(
     bytes: &mut Vec<u8>,
+    object_target: scoop_lir::ObjectTargetProfileV1,
     plan: &DefinitionSymbolPlanV1,
 ) -> Result<(), CodegenError> {
-    let mut output = ElfObject::read(bytes)?;
+    let mut output = ElfObject::read(bytes, object_target)?;
     let primary_name = plan.primary_symbol().symbol();
     let primary = output
         .original_symbol(primary_name.as_str())

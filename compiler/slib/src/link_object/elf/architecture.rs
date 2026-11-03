@@ -2,6 +2,7 @@
 
 use object::{Architecture, elf};
 use scoop_identity::TargetProfileId;
+use scoop_lir::ObjectTargetProfileV1;
 
 use super::{ElfObjectError, error, x86_64};
 
@@ -14,10 +15,8 @@ impl ElfArchitecture {
     pub fn for_target(target: TargetProfileId) -> Result<Self, ElfObjectError> {
         let profile =
             scoop_target_data::layout(target).ok_or_else(|| error("unsupported ELF target"))?;
-        match (profile.native_object_format(), profile.architecture()) {
-            (scoop_lir::NativeObjectFormat::Elf64, scoop_lir::TargetArchitecture::X86_64) => {
-                Ok(Self::X86_64)
-            }
+        match profile.object_target() {
+            ObjectTargetProfileV1::ElfX86_64 => Ok(Self::X86_64),
             _ => Err(error("selected target does not support ELF")),
         }
     }
@@ -25,6 +24,12 @@ impl ElfArchitecture {
     pub fn object_architecture(self) -> Architecture {
         match self {
             Self::X86_64 => Architecture::X86_64,
+        }
+    }
+
+    pub const fn object_machine(self) -> scoop_lir::ObjectMachineV1 {
+        match self {
+            Self::X86_64 => scoop_lir::ObjectMachineV1::X86_64,
         }
     }
 

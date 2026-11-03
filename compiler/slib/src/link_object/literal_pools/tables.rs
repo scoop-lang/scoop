@@ -28,20 +28,22 @@ pub(super) fn ranges(
                 return None;
             }
             let (symbol_index, addend) = match relocation.shape() {
-                ObjectRelocationShapeV1::MachO(
-                    MachORelocationShapeV1::Page21 {
-                        target: ObjectRelocationTargetV1::SymbolTableIndex(index),
-                        ..
-                    }
-                    | MachORelocationShapeV1::PageOffset12 {
-                        target: ObjectRelocationTargetV1::SymbolTableIndex(index),
-                        ..
-                    },
-                ) => (index, 0),
-                ObjectRelocationShapeV1::MachO(MachORelocationShapeV1::X86_64PcRelative32 {
-                    kind,
-                    target,
-                }) => match target {
+                ObjectRelocationShapeV1::MachO {
+                    shape:
+                        MachORelocationShapeV1::Page21 {
+                            target: ObjectRelocationTargetV1::SymbolTableIndex(index),
+                            ..
+                        }
+                        | MachORelocationShapeV1::PageOffset12 {
+                            target: ObjectRelocationTargetV1::SymbolTableIndex(index),
+                            ..
+                        },
+                    ..
+                } => (index, 0),
+                ObjectRelocationShapeV1::MachO {
+                    shape: MachORelocationShapeV1::X86_64PcRelative32 { kind, target },
+                    ..
+                } => match target {
                     ObjectRelocationTargetV1::SectionOrdinal(target) if target == ordinal => {
                         let source = &envelope.sections()
                             [relocation.containing_section_ordinal().get() as usize - 1];

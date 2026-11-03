@@ -2,25 +2,30 @@ use super::*;
 use object::Architecture;
 use object::{ObjectComdat, SectionFlags, pe};
 
-pub(super) fn read(bytes: &[u8]) -> Result<NativeObjectInfo, LinkError> {
-    read_with_import_sections(bytes).map(|(info, _)| info)
+pub(super) fn read(
+    bytes: &[u8],
+    target: scoop_lir::LirTargetProfile,
+) -> Result<NativeObjectInfo, LinkError> {
+    read_with_import_sections(bytes, target).map(|(info, _)| info)
 }
 
 pub(crate) fn read_with_import_sections(
     bytes: &[u8],
+    target: scoop_lir::LirTargetProfile,
 ) -> Result<(NativeObjectInfo, bool), LinkError> {
+    let architecture = object_architecture(target)?;
     let file = object::File::parse(bytes).map_err(|err| {
         error(format!(
-            "ordinary AMD64 COFF object required; MSVC /GL or /LTCG input is not supported: {err}"
+            "ordinary COFF object required for the selected target; MSVC /GL or /LTCG input is not supported: {err}"
         ))
     })?;
     if file.format() != object::BinaryFormat::Coff
-        || file.architecture() != Architecture::X86_64
+        || file.architecture() != architecture
         || file.kind() != ObjectKind::Relocatable
         || !file.is_little_endian()
     {
         return Err(error(
-            "native input must be an ordinary AMD64 COFF object (including bigobj), not MSVC /GL or /LTCG",
+            "native input must be an ordinary COFF object for the selected target (including bigobj), not MSVC /GL or /LTCG",
         ));
     }
     let mut coalescible = BTreeSet::new();
@@ -103,4 +108,15 @@ pub(crate) fn read_with_import_sections(
         },
         imports,
     ))
+}
+
+pub(crate) fn object_architecture(
+    target: scoop_lir::LirTargetProfile,
+) -> Result<Architecture, LinkError> {
+    match target.object_target() {
+        scoop_lir::ObjectTargetProfileV1::CoffAmd64 => Ok(Architecture::X86_64),
+        object_target => Err(error(format!(
+            "no COFF native object reader for {object_target:?}"
+        ))),
+    }
 }

@@ -17,6 +17,7 @@ fn relocation_coverage_is_not_emitted_without_diagnostic_support() {
                 "-Werror",
                 "-O0",
             ])
+            .args(crate::tests::platform_support::native_runtime_c_flags())
             .arg(format!("-DSCOOP_ENABLE_GC_STRESS={}", u8::from(stress)))
             .arg(format!("-DSCOOP_GC_VERIFY_HEAP={}", u8::from(verify)))
             .arg("-I")

@@ -1,19 +1,20 @@
-use scoop_lir::TargetProfileId;
 use scoop_manifest::NativeSourceLanguage;
 
-pub(super) fn source(target: TargetProfileId, language: NativeSourceLanguage) -> String {
-    let microsoft = target == scoop_target_data::WINDOWS_X86_64_MSVC_UCRT_ID;
-    let ucrt = target != scoop_target_data::WINDOWS_X86_64_MINGW_MSVCRT_ID;
+pub(super) fn source(
+    environment: scoop_target_data::NativeEnvironment,
+    machine: crate::windows_machine::WindowsToolchainMachine,
+    language: NativeSourceLanguage,
+) -> String {
+    let microsoft = environment == scoop_target_data::NativeEnvironment::MicrosoftUcrt;
+    let ucrt = environment != scoop_target_data::NativeEnvironment::LlvmMingwMsvcrt;
     let cxx = language == NativeSourceLanguage::Cxx;
-    let mut source = String::from(
+    let mut source = format!(
+        "\n#include <stdint.h>\n#include <stddef.h>\n#include <stdlib.h>\n#include <windows.h>\n#if !defined(_WIN64) || !({machine_condition})\n#error {machine_name} Windows compiler required\n#endif\n",
+        machine_condition = machine.predefined_macro_condition(),
+        machine_name = machine.name(),
+    );
+    source.push_str(
         r#"
-#include <stdint.h>
-#include <stddef.h>
-#include <stdlib.h>
-#include <windows.h>
-#if !defined(_WIN64) || (!defined(_M_X64) && !defined(__x86_64__))
-#error Win64 compiler required
-#endif
 #ifdef __cplusplus
 #define SCOOP_ASSERT static_assert
 extern "C" {

@@ -83,6 +83,8 @@ pub enum CBridgePlatformError {
     ExpectedDarwin,
     ExpectedLinux,
     ExpectedWindows,
+    UnsupportedLinuxMachine,
+    UnsupportedWindowsMachine,
 }
 
 impl fmt::Display for CBridgePlatformError {
@@ -91,6 +93,12 @@ impl fmt::Display for CBridgePlatformError {
             Self::ExpectedDarwin => "a Darwin C toolchain is required for Mach-O deployment",
             Self::ExpectedLinux => "a Linux target is required for the Linux C toolchain",
             Self::ExpectedWindows => "a Windows target is required for the Windows C toolchain",
+            Self::UnsupportedLinuxMachine => {
+                "the selected Linux machine has no generated-C flag contract"
+            }
+            Self::UnsupportedWindowsMachine => {
+                "the selected Windows machine has no generated-C flag contract"
+            }
         })
     }
 }

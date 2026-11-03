@@ -12,8 +12,8 @@ const fn source_projection(target: scoop_target_data::TargetDefinition) -> Sourc
     SourceTarget {
         id: target.selection.target().id(),
         triple: target.canonical(),
-        os: target.os,
-        arch: target.arch,
+        os: target.source_os(),
+        arch: target.source_arch(),
         env: target.env,
     }
 }

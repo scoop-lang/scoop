@@ -59,10 +59,12 @@ pub(in crate::program) fn read(
         let target = symbols.native_requirements().target();
         // Windows supplies its C++ runtime through the selected final-link
         // profile and native object directives, rather than a Unix library name.
-        let environment = scoop_target_data::definition(target.id())
-            .ok_or_else(|| error("unsupported native requirement target"))?
-            .native_environment;
-        if symbols.native_requirements().cxx() && !environment.is_windows() {
+        let definition = scoop_target_data::definition(target.id())
+            .ok_or_else(|| error("unsupported native requirement target"))?;
+        let environment = definition.native_environment;
+        if symbols.native_requirements().cxx()
+            && definition.os != scoop_target_data::TargetOs::Windows
+        {
             use scoop_identity::{
                 CanonicalNativeLibraryName, NativeLibraryGrouping, NativeLibraryKind,
             };

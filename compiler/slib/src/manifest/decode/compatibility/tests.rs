@@ -26,7 +26,7 @@ fn unknown_or_mismatched_backend_identity_is_rejected_even_with_known_fingerprin
         CompatibilityRecord::new(selection, ArtifactCapabilityProfile::CROSS_CONE_GENERIC).unwrap();
     for (name, version) in [
         ("future-backend", 1),
-        ("llvm-22-1", 2),
+        ("llvm-22-1-darwin-aarch64", 2),
         ("llvm-22-1-linux-x86-64", 1),
     ] {
         let mut decoded: DecodedCompatibilityRecord =
@@ -92,8 +92,10 @@ fn canonical_unknown_target_is_rejected_even_with_matching_fingerprints() {
         };
     let target =
         scoop_lir::LirTargetProfile::new(&UNKNOWN, scoop_target_data::DARWIN_AARCH64.description());
-    let selection =
-        scoop_lir::ValidatedLirTargetSelection::new(target, scoop_target_data::LLVM_22_1);
+    let selection = scoop_lir::ValidatedLirTargetSelection::new(
+        target,
+        scoop_target_data::LLVM_22_1_DARWIN_AARCH64,
+    );
     let record =
         CompatibilityRecord::new(selection, ArtifactCapabilityProfile::CROSS_CONE_GENERIC).unwrap();
     let decoded: DecodedCompatibilityRecord = decode_canonical(&encode(&record).unwrap()).unwrap();

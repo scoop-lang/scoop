@@ -16,7 +16,7 @@ import tomllib
 from collections import Counter
 from pathlib import Path
 
-from scripts.target_catalog import TARGETS, WINDOWS_TARGETS, current_host
+from scripts.target_catalog import TARGETS, current_host
 
 from .cores import (
     prepare_class_core,
@@ -169,7 +169,7 @@ def environment(repo, work, fixtures, args):
         "python": sys.executable,
         "compile_args": ["--target", target],
         "cc_args": [],
-        "cc_link_args": ["-static"] if TARGETS[target]["env"] == "musl" else [],
+        "cc_link_args": ["-static"] if TARGETS[target]["native_environment"] == "LinuxMusl" else [],
         "native_sysroot_args": ["--native-sysroot", str(args.native_sysroot.resolve())]
         if args.native_sysroot
         else [],
@@ -178,13 +178,16 @@ def environment(repo, work, fixtures, args):
         common["compile_args"] += ["--cc", str(args.cc.resolve())]
     common["compile_args"] += common["native_sysroot_args"]
     common["link_args"] = list(common["compile_args"])
-    if TARGETS[target]["os"] != "darwin":
+    target_os = TARGETS[target]["os"]
+    if target_os in {"linux", "windows"}:
         unwind = (
             args.unwind_prefix.resolve()
             if args.unwind_prefix
             else sysroot / "lib" / target / "unwind"
         )
         common["link_args"] += ["--unwind-prefix", str(unwind)]
+    elif target_os != "darwin":
+        raise EnvironmentError(f"no fixture final-link companion for target OS {target_os!r}")
     if args.linker:
         common["link_args"] += ["--linker", str(args.linker.resolve())]
     needed = set().union(*(set(fixture.data.get("tools", ["scoop"])) for fixture in applicable))
@@ -236,7 +239,7 @@ def environment(repo, work, fixtures, args):
         if not re.search(r"\bversion 22\.1(?:\.|\b)", tool_output([located, "--version"])):
             raise EnvironmentError(f"IR companions require LLVM 22.1: {located}")
         common["llc"] = located
-    if needed & {"cc", "ar"} and TARGETS[target]["os"] == "darwin":
+    if needed & {"cc", "ar"} and target_os == "darwin":
         common.update(
             cc_family="clang",
             cc=str(args.cc.resolve())
@@ -252,21 +255,26 @@ def environment(repo, work, fixtures, args):
         )
         common["cc_args"] = [
             "-target",
-            target,
+            TARGETS[target]["llvm_triple"],
             "-isysroot",
             common["sdk"],
             "-mmacosx-version-min=" + common["deployment"],
         ]
-    elif needed & {"cc", "ar"} and target in WINDOWS_TARGETS:
+    elif needed & {"cc", "ar"} and target_os == "windows":
         from .windows_tools import companions
 
         common.update(companions(target, args, sysroot, needed))
         if "cc" in needed:
             common["cc_family"] = "clang"
-    elif needed & {"cc", "ar"}:
+    elif needed & {"cc", "ar"} and target_os == "linux":
         common["cc_args"] = ["-fPIC", "-pthread"]
+        native_environment = TARGETS[target]["native_environment"]
         for name, program in {
-            "cc": str(args.cc) if args.cc else "musl-gcc" if target.endswith("musl") else "gcc",
+            "cc": str(args.cc)
+            if args.cc
+            else "musl-gcc"
+            if native_environment == "LinuxMusl"
+            else "gcc",
             "ar": str(args.ar) if args.ar else "ar",
         }.items():
             if name in needed:
@@ -281,7 +289,9 @@ def environment(repo, work, fixtures, args):
                 common["cc_args"].append("--target=" + TARGETS[target]["llvm_triple"])
             if args.native_sysroot:
                 common["cc_args"].append("--sysroot=" + str(args.native_sysroot.resolve()))
-    if "llc" in needed and TARGETS[target]["os"] == "darwin":
+    elif needed & {"cc", "ar"}:
+        raise EnvironmentError(f"no fixture native-tool companion for target OS {target_os!r}")
+    if "llc" in needed and target_os == "darwin":
         if "deployment" not in common:
             common["deployment"] = darwin_deployment(repo, target)
         common["llvm_target"] = (
