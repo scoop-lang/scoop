@@ -2,11 +2,19 @@ package scoop.surface
 
 import scoop.window.*
 
+internal fun InputRouter.reserveFocusRequest(): ULong {
+    checkOpen()
+    focusRevision += 1uL
+    return focusRevision
+}
+
 internal fun InputRouter.focus(area: InputArea): Boolean {
     checkOpen()
     requireInput(area.owner === this, "input area belongs to another window")
-    if (!area.focusable || scene.path(area).size == 0L)
+    reserveFocusRequest()
+    if (!area.canFocus)
         return false
+    area.lastFocusRequest = Some(focusRevision)
     if (!sameArea(logicalFocus, Some(area))) {
         logicalFocus = Some(area)
         changed()
@@ -15,7 +23,7 @@ internal fun InputRouter.focus(area: InputArea): Boolean {
 }
 
 internal fun InputRouter.clearFocus() {
-    checkOpen();
+    reserveFocusRequest()
     logicalFocus = None;
     changed()
 }
@@ -23,7 +31,7 @@ internal fun InputRouter.clearFocus() {
 internal fun InputRouter.reconcileFocus() {
     when (logicalFocus) {
         case Some(area) -> {
-            if (scene.path(area).size == 0L)
+            if (path(area.scope).size == 0L)
                 logicalFocus = None
         }
         case None -> {}
@@ -37,11 +45,11 @@ internal fun InputRouter.reconcileFocus() {
         val previous = activeFocus
         activeFocus = next
         when (previous) {
-            case Some(area) -> deliver(area, AreaEvent.FocusChanged(false), true);
+            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(false), terminal = true);
             case None -> {}
         }
         when (next) {
-            case Some(area) -> deliver(area, AreaEvent.FocusChanged(true));
+            case Some(area) -> notify(area.scope, InputEvent.FocusChanged(true));
             case None -> {}
         }
     }
@@ -49,32 +57,86 @@ internal fun InputRouter.reconcileFocus() {
         reconcileIme()
 }
 
-internal fun InputRouter.routeFocused(event: AreaEvent) {
-    val area = activeFocus ?: return
-    val path = scene.path(area)
-    for (receiver in path)
-        if (deliver(receiver, event) == InputResult.Handled)
-            break
+internal fun InputRouter.routeFocused(event: InputEvent) {
+    if (!osFocused)
+        return
+    val chain = focusedPath()
+    when (event) {
+        case Keyboard(key) -> route(deliveries(chain), event, key.time)
+        else -> throw IllegalArgumentException(Some("only keyboard input uses focused routing"))
+    }
+}
+
+private fun InputRouter.focusedPath(): Array<InputScope> =
+    when (activeFocus) {
+        case Some(area) -> {
+            val current = path(area.scope)
+            if (current.size == 0L)
+                path(inputRoot)
+            else
+                current
+        }
+        case None -> path(inputRoot)
+    }
+
+internal fun InputRouter.notifyFocused(event: InputEvent) {
+    if (!osFocused)
+        return
+    val chain = focusedPath()
+    val time = inputObservation()
+    var failure: Throwable? = None
+    for (scope in chain)
+        failure = cleanupFailure(failure) { notify(scope, event, time, Some(chain[0L])) }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.restartTextInput(area: InputArea): Boolean {
+    val owned = sameArea(imeOwner(ime), Some(area))
+    area.textInputRevision += 1UL
+    changed()
+    return owned
 }
 
 internal fun InputRouter.textEvent(event: TextInputEvent) {
     val previous = imeOwner(ime)
     when (event) {
-        case Enabled -> {
+        case Enabled(connection) -> {
             when (ime) {
                 case Opening(area) -> ime = ImeSession.On(area)
-                else -> {}
+                case Closing(_) -> {
+                    if (imeConnection != None && imeConnection != connection)
+                        return
+                }
+                else -> return
             }
-        }
-        case Disabled -> {
-            ime = ImeSession.Off;
-            imeCaret = None;
+            imeConnection = connection
             pending = true
         }
-        case Edit(_) -> {}
+        case Disabled(connection) -> {
+            if (imeConnection != None && imeConnection != connection)
+                return
+            ime = ImeSession.Off;
+            imeCaret = None;
+            imeConnection = None
+            pending = true
+        }
+        case Edit(batch) -> {
+            when (batch.origin) {
+                case Some(origin) -> if (imeConnection != Some(origin.connection))
+                    return
+                case None -> {}
+            }
+            when (previous) {
+                case Some(area) -> if (area.caretRevision != None) {
+                    imeCaret = None
+                    pending = true
+                }
+                case None -> {}
+            }
+        }
     }
     when (previous) {
-        case Some(area) -> deliver(area, AreaEvent.TextInput(event), inactive = true)
+        case Some(area) -> notify(area.scope, InputEvent.TextInput(event), inactive = true)
         case None -> {}
     }
 }
@@ -82,7 +144,7 @@ internal fun InputRouter.textEvent(event: TextInputEvent) {
 private fun InputRouter.reconcileIme() {
     val desired =
         when (activeFocus) {
-            case Some(area) -> if (area.textInput && !area.closed && scene.path(area).size > 0L)
+            case Some(area) -> if (area.textInput && !area.closed && path(area.scope).size > 0L)
                 Some(area)
             else
                 None
@@ -94,6 +156,7 @@ private fun InputRouter.reconcileIme() {
                 case Some(area) -> {
                     publishCaret(area)
                     ime = ImeSession.Opening(area)
+                    imeRequest = area.textInputRevision
                     imeAllowed(true)
                 }
                 case None -> {}
@@ -106,20 +169,11 @@ private fun InputRouter.reconcileIme() {
 }
 
 private fun InputRouter.continueIme(area: InputArea, desired: InputArea?) {
-    if (sameArea(Some(area), desired))
+    if (sameArea(Some(area), desired) && imeRequest == area.textInputRevision)
         publishCaret(area)
     else {
         ime = ImeSession.Closing(area);
         imeAllowed(false)
-    }
-}
-
-private fun InputRouter.publishCaret(area: InputArea) {
-    val placement = scene.find(area) ?: return
-    val rect = placement.geometry.toWindow(area.caret)
-    if (imeCaret != Some(rect)) {
-        imeCursor(rect);
-        imeCaret = Some(rect)
     }
 }
 

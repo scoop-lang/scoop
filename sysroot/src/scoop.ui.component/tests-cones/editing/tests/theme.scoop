@@ -1,0 +1,187 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class FieldSurface(
+    val geometry: SurfaceGeometry,
+    val visual: SurfaceVisual,
+    val bounds: Rect,
+    val text: FieldText?
+)
+
+internal struct FieldText(val caret: Rect?, val baseline: Double)
+
+internal class FieldBar(
+    val geometry: ScrollbarGeometry,
+    val visual: ScrollbarVisual,
+    val bounds: Rect,
+    val thumb: Rect
+)
+
+internal class FieldTheme(private val base: Theme, private val probe: FieldProbe): Theme {
+    val painters = ArrayList<ThemePainter>()
+    public override val tokens: ThemeTokens get() = base.tokens
+    public override fun surfaceMetrics(
+        visual: SurfaceVisual,
+        options: SurfaceOptions
+    ): SurfaceMetrics = base.surfaceMetrics(visual, options)
+    public override fun surfaceGeometry(
+        bounds: Rect,
+        visual: SurfaceVisual,
+        options: SurfaceOptions
+    ): SurfaceGeometry = base.surfaceGeometry(bounds, visual, options)
+    public override fun checkboxMetrics(options: CheckboxOptions): CheckboxMetrics =
+        base.checkboxMetrics(options)
+    public override fun checkboxGeometry(
+        bounds: Rect,
+        visual: CheckboxVisual,
+        options: CheckboxOptions
+    ): CheckboxGeometry = base.checkboxGeometry(bounds, visual, options)
+    public override fun radioMetrics(options: RadioOptions): RadioMetrics =
+        base.radioMetrics(options)
+    public override fun radioGeometry(
+        bounds: Rect,
+        visual: RadioVisual,
+        options: RadioOptions
+    ): RadioGeometry = base.radioGeometry(bounds, visual, options)
+    public override fun scrollbarMetrics(options: ScrollbarOptions): ScrollbarMetrics =
+        base.scrollbarMetrics(options)
+    public override fun scrollbarGeometry(
+        bounds: Rect,
+        visual: ScrollbarVisual,
+        options: ScrollbarOptions
+    ): ScrollbarGeometry = base.scrollbarGeometry(bounds, visual, options)
+    public override fun surfaceTextColor(visual: SurfaceVisual): Color =
+        base.surfaceTextColor(visual)
+    public override fun createPainter(): ThemePainter {
+        val painter = FieldPainter(base.createPainter(), probe)
+        painters.add(painter)
+        return painter
+    }
+}
+
+private class FieldPainter(
+    private val base: ThemePainter,
+    private val probe: FieldProbe
+): ThemePainter {
+    public override val isClosed: Boolean get() = base.isClosed
+    public override fun drawSurface(
+        canvas: Canvas,
+        geometry: SurfaceGeometry,
+        visual: SurfaceVisual,
+        layer: SurfaceLayer
+    ) {
+        base.drawSurface(canvas, geometry, visual, layer)
+        if (layer != SurfaceLayer.Foreground)
+            return
+        val bounds = fieldMapped(canvas, geometry.bounds)
+        val model =
+            if (geometry.bounds.width == 320.0)
+                Some(probe.dialog)
+            else
+                if (geometry.bounds.width == 260.0 && bounds.x < 400.0)
+                    Some(probe.main)
+                else
+                    None
+        val text =
+            when (model) {
+                case Some(value) -> Some(fieldText(canvas, geometry, probe, value))
+                case None -> None
+            }
+        val value = FieldSurface(geometry, visual, bounds, text)
+        if (geometry.bounds.width == 320.0)
+            probe.dialogDrawing = Some(value)
+        else
+            if (geometry.bounds.width == 360.0)
+                probe.secondaryDrawing = Some(value)
+            else
+                if (bounds.x < 400.0)
+                    probe.primaryDrawing = Some(value)
+    }
+    public override fun drawCheckbox(
+        canvas: Canvas,
+        geometry: CheckboxGeometry,
+        visual: CheckboxVisual
+    ) {
+        base.drawCheckbox(canvas, geometry, visual)
+    }
+    public override fun drawRadio(canvas: Canvas, geometry: RadioGeometry, visual: RadioVisual) {
+        base.drawRadio(canvas, geometry, visual)
+    }
+    public override fun drawScrollbar(
+        canvas: Canvas,
+        geometry: ScrollbarGeometry,
+        visual: ScrollbarVisual
+    ) {
+        base.drawScrollbar(canvas, geometry, visual)
+        val bounds = fieldMapped(canvas, geometry.bounds)
+        if (bounds.x < 400.0) {
+            val value =
+                FieldBar(geometry, visual, bounds, fieldMapped(canvas, geometry.thumb.bounds))
+            if (visual.orientation == Orientation.Horizontal)
+                probe.horizontal = Some(value)
+            else
+                probe.vertical = Some(value)
+        }
+    }
+    public override fun close() {
+        base.close()
+    }
+}
+
+private fun fieldMapped(canvas: Canvas, rect: Rect): Rect {
+    @Unsafe
+    {
+        return captureGeometry(canvas, rect).use { geometry -> geometry.toWindow(rect) }
+    }
+}
+
+private fun fieldText(
+    canvas: Canvas,
+    geometry: SurfaceGeometry,
+    probe: FieldProbe,
+    model: TextEditorState
+): FieldText {
+    val style = probe.source.current.value.tokens.typography.body
+    return Paragraph(probe.fonts, model.text, style).use {
+        paragraph -> paragraph.layoutUnwrapped().use {
+            layout ->
+            val caret = layout.caret(model.cursor)!!
+            // Apply the actual content transform and clip, including fractional caret overhang.
+            val visible =
+                canvas.withState {
+                    local ->
+                    local.translate(geometry.content.x, geometry.content.y)
+                    local.clipRect(Rect(0.0, 0.0, geometry.content.width, geometry.content.height))
+                    @Unsafe
+                    {
+                        return@withState captureGeometry(local, caret).use {
+                            value -> value.visibleBounds
+                        }
+                    }
+                }
+            FieldText(visible, geometry.content.y + layout.alphabeticBaseline)
+        }
+    }
+}
+
+internal fun fieldCaret(probe: FieldProbe, model: TextEditorState, drawing: FieldSurface) {
+    val text = drawing.text!!
+    editorNativeCaret(probe.native!!, model, text.caret)
+    if (drawing.geometry.bounds.width == 260.0)
+        assertEquals(Some(text.baseline), probe.primaryMetrics!!.alphabeticBaseline)
+}
+
+internal fun assertFieldTheme(probe: FieldProbe) {
+    assertTrue(probe.focus[0L].hasFocus)
+    assertTrue(probe.primaryDrawing!!.visual.interaction.focused)
+    assertEquals("replacement新", probe.main.text)
+    assertEquals(1, probe.inputCreates)
+    assertEquals(1, probe.textareaCreates)
+    fieldCaret(probe, probe.main, probe.primaryDrawing!!)
+}

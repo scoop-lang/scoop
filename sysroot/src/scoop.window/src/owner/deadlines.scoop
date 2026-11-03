@@ -1,0 +1,97 @@
+package scoop.window
+
+import scoop.collections.sortedBy
+import scoop.platform.time.MonotonicTimeSource
+import scoop.time.TimeMark
+
+internal class DeadlineDelivery(
+    val deadline: WindowDeadline,
+    val revision: ULong,
+    val time: TimeMark
+) {
+    fun deliver() {
+        deadline.deliver(revision)
+    }
+}
+
+internal fun checkDeadlineTime(time: TimeMark) {
+    requireWindow(
+        time.source === MonotonicTimeSource,
+        "window deadline requires MonotonicTimeSource"
+    )
+}
+
+internal fun ApplicationOwner.takeDeadlines(now: TimeMark): Array<DeadlineDelivery> {
+    val ready = ArrayList<DeadlineDelivery>()
+    for (deadline in deadlines) {
+        when (deadline.scheduled) {
+            case Some(time) -> if (time <= now) {
+                ready.add(DeadlineDelivery(deadline, deadline.revision, time))
+                deadline.scheduled = None
+            }
+            case None -> {}
+        }
+    }
+    return ready.sortedBy<DeadlineDelivery, TimeMark> { item -> item.time }.toArray()
+}
+
+internal fun ApplicationOwner.consumeFlowDeadline(now: TimeMark): Boolean =
+    when (flow) {
+        case WaitUntil(time) -> if (time <= now) {
+            flow = ControlFlow.Wait
+            true
+        } else
+            false
+        else -> false
+    }
+
+internal fun ApplicationOwner.refreshDeadline(force: Boolean = false) {
+    val pointer = native ?: return
+    var next: TimeMark? = None
+    if (!exiting) {
+        when (flow) {
+            case WaitUntil(time) -> next = Some(time)
+            else -> {}
+        }
+        for (deadline in deadlines) {
+            when (deadline.scheduled) {
+                case Some(time) -> if (next == None || time < next!!)
+                    next = Some(time)
+                case None -> {}
+            }
+        }
+    }
+    if (!force && next == armedDeadline)
+        return
+    armedDeadline = next
+    val seconds =
+        when (next) {
+            case None -> -1.0
+            case Some(time) -> {
+                val remaining = time - MonotonicTimeSource.markNow()
+                if (remaining.floorSeconds < 0L)
+                    0.0
+                else
+                    remaining.floorSeconds.toDouble() +
+                        remaining.nanosecondsOfSecond.toDouble() /
+                        1000000000.0
+            }
+        }
+    @Unsafe
+    {
+        nativeApplicationDeadline(pointer, seconds)
+    }
+}
+
+internal fun ApplicationOwner.retireDeadlines(window: WindowOwner) {
+    var index = 0L
+    while (index < deadlines.size) {
+        val deadline = deadlines[index]
+        if (deadline.window === window) {
+            deadline.retire()
+            deadlines.removeAt(index)
+        } else
+            index += 1L
+    }
+    refreshDeadline()
+}

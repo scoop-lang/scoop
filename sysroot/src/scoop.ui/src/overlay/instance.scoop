@@ -1,0 +1,106 @@
+package scoop.ui
+
+import scoop.surface.InputScope
+
+internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
+    private val localHandle = OverlayHandle()
+    private var reference = initial.handle ?: localHandle
+    private var current = initial
+    private var owner: MountedNode? = None
+    private var disposed = false
+    var closeReason: OverlayCloseReason? = None
+    var included: OverlayFrame? = None
+    var modal: ModalSession? = None
+    var domain: ModalSession? = None
+    var retirementRevision: ULong? = None
+    private var route: InputScope? = None
+
+    val node: MountedNode get() =
+        owner ?: throw IllegalStateException(Some("portal has not mounted"))
+    val active: Boolean get() = !disposed && root.isOpen && (owner?.active ?: false)
+    val isOpen: Boolean get() = active && closeReason == None
+    val options: PortalOptions get() = current
+    val input: InputScope get() =
+        route ?: throw IllegalStateException(Some("portal has not mounted"))
+    val anchor: LayoutAnchor? get() =
+        if (closeReason == None)
+            current.placement.anchor
+        else
+            None
+
+    fun mount(value: MountedNode) {
+        owner = Some(value)
+        try {
+            validate(current)
+        } catch (error: Throwable) {
+            owner = None
+            throw error
+        }
+        reference.bind(this)
+        anchor?.addDependent(this)
+        route = Some(value.scope.input)
+        root.overlays.add(this)
+    }
+    private fun validate(value: PortalOptions) {
+        val next = value.handle ?: localHandle
+        next.checkBinding(this)
+        if (closeReason == None)
+            checkOverlayDependency(this, value.placement.anchor)
+    }
+    fun replace(value: PortalOptions) {
+        when (owner) {
+            case Some(_) -> {
+                validate(value)
+                anchor?.removeDependent(this)
+                val next = value.handle ?: localHandle
+                if (next !== reference) {
+                    reference.unbind(this)
+                    reference = next
+                    reference.bind(this)
+                }
+                current = value
+                anchor?.addDependent(this)
+                when (value.modal) {
+                    case Some(options) -> modal?.replace(options)
+                    case None -> {}
+                }
+            }
+            case None -> {
+                current = value
+                reference = value.handle ?: localHandle
+            }
+        }
+    }
+    fun close(reason: OverlayCloseReason) {
+        if (closeReason != None)
+            return
+        val value = owner ?: return
+        anchor?.removeDependent(this)
+        closeReason = Some(reason)
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { retireInput() }
+        for (child in value.children)
+            failure = cleanupUi(failure) { child.deactivate() }
+        value.invalidate()
+        failure = cleanupUi(failure) { current.onClose(reason) }
+        throwUi(failure)
+    }
+    fun retireInput() {
+        val revision = retirementRevision ?: root.surface.focusRevision
+        retirementRevision = Some(revision)
+        modal?.beginClose(revision)
+    }
+    fun dispose() {
+        if (disposed)
+            return
+        disposed = true
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { close(OverlayCloseReason.OwnerClosed) }
+        reference.unbind(this)
+        root.overlays.remove(this)
+        included = None
+        owner = None
+        route = None
+        throwUi(failure)
+    }
+}

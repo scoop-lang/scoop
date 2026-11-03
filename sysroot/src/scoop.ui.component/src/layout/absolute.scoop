@@ -1,0 +1,99 @@
+package scoop.ui.component
+
+import scoop.collections.sortedBy
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+public enum AbsoluteAxis {
+    Start(val offset: Double = 0.0, val size: Double? = None),
+    End(val offset: Double = 0.0, val size: Double? = None),
+    Center(val offset: Double = 0.0, val size: Double? = None),
+    Stretch(val start: Double = 0.0, val end: Double = 0.0)
+}
+
+public struct AbsoluteChild(
+    val view: View,
+    val horizontal: AbsoluteAxis = AbsoluteAxis.Start(),
+    val vertical: AbsoluteAxis = AbsoluteAxis.Start(),
+    val zIndex: Int = 0
+)
+
+public class AbsoluteProps public constructor(
+    public val children: Array<AbsoluteChild>,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val padding: Insets = Insets()
+) {
+    internal val paddingSize = padding.totals()
+    init {
+        when (width) {
+            case Some(value) -> nonnegative(value, "invalid absolute width")
+            case None -> {}
+        }
+        when (height) {
+            case Some(value) -> nonnegative(value, "invalid absolute height")
+            case None -> {}
+        }
+        for (child in children) {
+            validateAbsoluteAxis(child.horizontal)
+            validateAbsoluteAxis(child.vertical)
+        }
+    }
+}
+
+public class Absolute public constructor(private val props: Props<AbsoluteProps>): Component {
+    public override fun render(): View {
+        val value = props.value
+        val indices = Array<Long>(value.children.size) { index -> index }
+        val order = indices.sortedBy<Long, Int> { index -> value.children[index].zIndex }
+        return element(
+            AbsoluteInput(value, order.toArray()),
+            { current -> AbsoluteInk(current) },
+            Array<View>(value.children.size) { index -> value.children[index].view }
+        )
+    }
+}
+
+public fun absolute(
+    children: Array<AbsoluteChild>,
+    width: Double? = None,
+    height: Double? = None,
+    padding: Insets = Insets(),
+    key: ViewKey = ViewKey.Position
+): View =
+    component(AbsoluteProps(children, width, height, padding), { props -> Absolute(props) }, key)
+
+private class AbsoluteInput(val value: AbsoluteProps, val order: Array<Long>)
+
+private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val value = props.value.value
+        val size = absoluteSize(constraints, value.width, value.height)
+        val total = value.paddingSize
+        val width = lowerBound(size.width - total.width, 0.0)
+        val height = lowerBound(size.height - total.height, 0.0)
+        for (index in 0L ..< context.childCount) {
+            val child = value.children[index]
+            val x = absoluteRange(child.horizontal, width)
+            val y = absoluteRange(child.vertical, height)
+            val measured =
+                context.measureChild(
+                    index,
+                    Constraints(x.minimum, Some(x.maximum), y.minimum, Some(y.maximum))
+                )
+            context.placeChild(
+                index,
+                Point(
+                    value.padding.left +
+                        absoluteOrigin(child.horizontal, width, measured.size.width),
+                    value.padding.top + absoluteOrigin(child.vertical, height, measured.size.height)
+                )
+            )
+        }
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        context.children(props.value.order)
+    }
+}

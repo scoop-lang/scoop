@@ -1,0 +1,322 @@
+package scoop.tests.ui.modal
+
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun ModalProbe.advance(active: ActiveApplication) {
+    when (phase) {
+        case 0 -> {
+            expectFocus(0L)
+            assertFailsWith<IllegalArgumentException> {
+                PortalOptions(
+                    modal = Some(ModalOptions()),
+                    dismiss = OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue)
+                )
+            }
+            waiting = true
+            assertTrue(moveSurfacePointer(window!!, 20.0, 210.0))
+            assertTrue(view!!.button(20.0, 210.0, true))
+            after(active) {
+                expectFocus(0L)
+                open[0L] = true
+                changed()
+            }
+        }
+        case 1 -> {
+            expectFocus(3L)
+            assertEquals(1, cancels[0L])
+            assertFalse(areas[0L]!!.scope.isInputAllowed)
+            waiting = true
+            assertTrue(view!!.button(20.0, 210.0, false))
+            after(active) {
+                assertEquals(0, ups[0L])
+                assertEquals(0, ups[2L])
+                assertEquals(0, ups[3L])
+            }
+        }
+        case 2 -> key(active, 48, { expectFocus(2L) })
+        case 3 -> key(active, 48, { expectFocus(3L) }, shift = true)
+        case 4 -> {
+            assertFalse(focus[0L].requestFocus())
+            assertFalse(areas[0L]!!.requestFocus())
+            key(
+                active,
+                1,
+                {
+                    assertEquals(1, shortcuts[0L])
+                    assertEquals(0, backgroundShortcut)
+                    assertEquals(0, backgroundKeys)
+                },
+                command = true
+            )
+        }
+        case 5 -> opened(2L)
+        case 6 -> click(
+            active,
+            330.0,
+            35.0,
+            {
+                expectFocus(5L)
+                assertTrue(layers[0L].isOpen && layers[2L].isOpen)
+            }
+        )
+        case 7 -> {
+            blockEscape = true
+            key(active, 53, { assertTrue(layers[2L].isOpen) })
+        }
+        case 8 -> {
+            blockEscape = false
+            key(
+                active,
+                53,
+                {
+                    assertFalse(layers[2L].isOpen)
+                    assertTrue(layers[0L].isOpen)
+                    assertEquals(Some(OverlayCloseReason.Escape), layers[2L].lastCloseReason)
+                }
+            )
+        }
+        case 9 -> key(active, 53, { assertTrue(layers[0L].isOpen) }, repeat = true)
+        case 10 -> click(
+            active,
+            100.0,
+            210.0,
+            {
+                assertFalse(layers[0L].isOpen)
+                assertEquals(0, downs[1L])
+                assertEquals(0, ups[1L])
+            }
+        )
+        case 11 -> {
+            expectFocus(0L)
+            assertTrue(areas[0L]!!.scope.isInputAllowed)
+            assertEquals(Some(OverlayCloseReason.OutsidePress), layers[0L].lastCloseReason)
+            opened(3L)
+        }
+        case 12 -> click(
+            active,
+            100.0,
+            210.0,
+            {
+                expectFocus(1L)
+                assertFalse(layers[3L].isOpen)
+                assertEquals(1, downs[1L])
+                assertEquals(1, ups[1L])
+            }
+        )
+        case 13 -> {
+            backgroundOutside = OutsidePress.CloseAndConsume
+            opened(3L)
+        }
+        case 14 -> click(
+            active,
+            20.0,
+            210.0,
+            {
+                expectFocus(1L)
+                assertFalse(layers[3L].isOpen)
+                assertEquals(1, downs[0L])
+                assertEquals(0, ups[0L])
+            }
+        )
+        case 15 -> {
+            emptyOuter = true
+            opened(0L)
+        }
+        case 16 -> {
+            expectFocus(-1L)
+            assertTrue(modalRoots[0L]!!.hasFocus)
+            val before = closed.size
+            layers[0L].close()
+            layers[0L].close()
+            assertEquals(before + 1L, closed.size)
+            assertFalse(areas[0L]!!.scope.isInputAllowed)
+            phase += 1
+        }
+        case 17 -> {
+            expectFocus(1L)
+            emptyOuter = false
+            requestOnMount = 2L
+            opened(0L)
+        }
+        case 18 -> {
+            expectFocus(2L)
+            assertFalse(focus[2L].isPending)
+            requestOnClose = 0L
+            layers[0L].close()
+            phase += 1
+        }
+        case 19 -> {
+            expectFocus(-1L)
+            assertTrue(areas[0L]!!.scope.isInputAllowed)
+            assertTrue(focus[1L].requestFocus())
+            opened(0L)
+        }
+        case 20 -> {
+            expectFocus(3L)
+            assertTrue(focus[2L].requestFocus())
+            opened(1L)
+        }
+        case 21 -> {
+            expectFocus(4L)
+            assertFalse(focus[2L].requestFocus())
+            key(active, 48, { expectFocus(4L) })
+        }
+        case 22 -> key(
+            active,
+            53,
+            {
+                assertFalse(layers[1L].isOpen)
+                assertTrue(layers[0L].isOpen)
+            }
+        )
+        case 23 -> {
+            expectFocus(2L)
+            layers[0L].close()
+            phase += 1
+        }
+        case 24 -> {
+            expectFocus(1L)
+            opened(0L)
+        }
+        case 25 -> {
+            expectFocus(3L)
+            opened(4L)
+        }
+        case 26 -> {
+            expectFocus(7L)
+            layers[0L].close()
+            expectFocus(7L)
+            assertFalse(areas[0L]!!.scope.isInputAllowed)
+            phase += 1
+        }
+        case 27 -> {
+            expectFocus(7L)
+            assertFalse(areas[0L]!!.scope.isInputAllowed)
+            layers[4L].close()
+            phase += 1
+        }
+        case 28 -> {
+            expectFocus(1L)
+            discardNext = true
+            opened(0L)
+        }
+        case 29 -> {
+            expectFocus(3L)
+            assertEquals(1, discarded)
+            closeAfterPresent = true
+            next()
+        }
+        case 30 -> {
+            expectFocus(1L)
+            assertFalse(layers[0L].isOpen)
+            assertTrue(passes > closedAtPass)
+            opened(0L)
+        }
+        case 31 -> {
+            expectFocus(3L)
+            opened(5L)
+        }
+        case 32 -> {
+            assertEquals("50", paintOrder)
+            click(
+                active,
+                145.0,
+                100.0,
+                {
+                    expectFocus(2L)
+                    assertEquals(0, downs[8L])
+                }
+            )
+        }
+        case 33 -> {
+            layers[5L].close()
+            layers[0L].close()
+            phase += 1
+        }
+        case 34 -> {
+            expectFocus(1L)
+            restore = false
+            opened(0L)
+        }
+        case 35 -> {
+            expectFocus(3L)
+            discardNext = true
+            layers[0L].close()
+            phase += 1
+        }
+        case 36 -> {
+            expectFocus(-1L)
+            assertEquals(2, discarded)
+            restore = true
+            assertTrue(focus[1L].requestFocus())
+            opened(0L)
+        }
+        case 37 -> {
+            expectFocus(3L)
+            areas[1L]!!.close()
+            layers[0L].close()
+            phase += 1
+        }
+        case 38 -> {
+            expectFocus(0L)
+            closeOnBlur = true
+            requestOnClose = 0L
+            opened(0L)
+        }
+        case 39 -> {
+            expectFocus(-1L)
+            assertFalse(layers[0L].isOpen)
+            assertEquals(Some(OverlayCloseReason.Explicit), layers[0L].lastCloseReason)
+            assertTrue(areas[0L]!!.scope.isInputAllowed)
+            assertTrue(focus[0L].requestFocus())
+            requestOnBlur = 0L
+            opened(0L)
+        }
+        case 40 -> {
+            expectFocus(-1L)
+            assertTrue(layers[0L].isOpen)
+            assertTrue(focus[3L].requestFocus())
+            opened(1L)
+        }
+        case 41 -> {
+            expectFocus(4L)
+            outside = OutsidePress.Ignore
+            next()
+        }
+        case 42 -> click(
+            active,
+            20.0,
+            210.0,
+            {
+                expectFocus(4L)
+                assertTrue(layers[0L].isOpen && layers[1L].isOpen)
+                assertEquals(1, downs[0L])
+            }
+        )
+        case 43 -> {
+            outside = OutsidePress.CloseAndConsume
+            next()
+        }
+        case 44 -> key(
+            active,
+            53,
+            {
+                assertFalse(layers[1L].isOpen)
+                assertTrue(layers[0L].isOpen)
+            }
+        )
+        case 45 -> {
+            expectFocus(3L)
+            opened(1L)
+        }
+        case 46 -> {
+            expectFocus(4L)
+            waiting = true
+            waitFor(active, 150L)
+        }
+        else -> fail(Some(f"unexpected modal phase ${phase}"))
+    }
+}

@@ -8,6 +8,16 @@ private fun edits(vararg operations: TextInputOperation): TextInputBatch =
 @Test
 private class TextInputTest {
     @Test
+    fun `UTF-8 slices preserve byte boundaries and empty ranges`() {
+        val text = "A😀e\u{301}中"
+        assertEquals("😀e\u{301}", text.utf8Slice(Utf8Range(1L, 8L)))
+        assertEquals("", text.utf8Slice(Utf8Range(5L, 5L)))
+        assertFailsWith<IllegalArgumentException> { text.utf8Slice(Utf8Range(2L, 5L)) }
+        assertFailsWith<IllegalArgumentException> { text.utf8Slice(Utf8Range(0L, 99L)) }
+        assertFailsWith<IllegalArgumentException> { text.utf8Slice(Utf8Range(5L, 1L)) }
+    }
+
+    @Test
     fun `compose and commit retain one insertion channel and advance once`() {
         val state = TextInputState("a中😀z", Utf8Selection(8L, 1L), revision = 7L)
         val batch =

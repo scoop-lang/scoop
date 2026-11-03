@@ -29,6 +29,8 @@ typedef struct {
   int64_t anchor, cursor;
   const uint8_t *text;
   int64_t text_length;
+  int32_t has_replacement;
+  int64_t replacement_start, replacement_end;
 } SWTextEditData;
 typedef struct {
   double width, height, pixel_width, pixel_height, scale;

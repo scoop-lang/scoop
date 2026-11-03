@@ -1,0 +1,196 @@
+package scoop.tests.ui.reveal
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.LogicalSize
+
+internal class RevealScene(private val probe: RevealProbe): Component {
+    public override fun render(): View {
+        val revision = probe.revision.value
+        return element(
+            revision,
+            { props -> RevealPanel(probe, props) },
+            [
+                tile(probe, 0L),
+                scrollArea(
+                    element(
+                        revision,
+                        { props -> OuterDocument(probe, props) },
+                        [
+                            scrollArea(
+                                element(
+                                    { InnerDocument(probe) },
+                                    [
+                                        tile(probe, 4L),
+                                        tile(probe, 1L),
+                                        tile(probe, 5L),
+                                        if (probe.showPortal)
+                                            portal(tile(probe, 3L))
+                                        else
+                                            empty()
+                                    ]
+                                ),
+                                state = Some(probe.inner),
+                                axes = ScrollAxes.Both,
+                                scrollbars = ScrollbarVisibility.Hidden,
+                                focus = FocusOptions(Some(probe.innerFocus), tabStop = false),
+                                theme = Some(probe.theme)
+                            )
+                        ]
+                    ),
+                    state = Some(probe.outer),
+                    axes = ScrollAxes.Both,
+                    scrollbars = ScrollbarVisibility.Hidden,
+                    focus = FocusOptions(Some(probe.outerFocus), tabStop = false),
+                    theme = Some(probe.theme)
+                ),
+                tile(probe, 2L)
+            ]
+        )
+    }
+}
+
+private fun tile(probe: RevealProbe, index: Long): View =
+    element({ RevealTile(probe, index) }, key = ViewKey.Number(index))
+
+private class RevealPanel(private val probe: RevealProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(40.0, 24.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints.tight(Size(200.0, 100.0)))
+        context.placeChild(1L, Point(20.0, 50.0))
+        context.measureChild(2L, Constraints.tight(Size(40.0, 24.0)))
+        context.placeChild(2L, Point(350.0, 10.0))
+        return LayoutMetrics(constraints.constrain(Size(480.0, 360.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val discard = probe.discardNext
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(
+                if (probe.phase == 15)
+                    LogicalSize(520.0, 400.0)
+                else
+                    LogicalSize(500.0, 380.0)
+            )
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Discarded -> {
+                    assertTrue(discard)
+                    if (probe.phase == 15) {
+                        probe.assertFocus(0L)
+                        assertTrue(probe.handles[1L].isPending)
+                    } else {
+                        assertTrue(probe.handles[1L].hasFocus)
+                        assertTrue(probe.handles[5L].isPending)
+                    }
+                    probe.discarded += 1
+                    probe.scope!!.requestFrame()
+                }
+                case Accepted -> {
+                    probe.accepted += 1
+                    assertFalse(probe.handles[4L].hasFocus)
+                    if (probe.handles[4L].isPending)
+                        probe.clippedAttempted = true
+                    if (probe.lateScroll) {
+                        probe.lateScroll = false
+                        probe.inner.scrollTo(Point(3.0, 4.0))
+                        probe.lateApplied = true
+                        assertFalse(probe.handles[1L].isPending)
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class OuterDocument(
+    private val probe: RevealProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(120.0, probe.innerHeight)))
+        context.placeChild(0L, Point(280.0, 360.0))
+        return LayoutMetrics(constraints.constrain(Size(600.0, 600.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class InnerDocument(private val probe: RevealProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.group =
+            Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[1L]))))
+        scope.keyNavigation(
+            NavigationOptions(
+                [NavigationItem(probe.handles[5L]), NavigationItem(probe.handles[1L])],
+                layout = NavigationLayout.Vertical,
+                roving = false
+            )
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val positions =
+            [Point(380.0, 420.0), Point(380.0, 360.0), Point(10.0, 10.0), Point(0.0, 0.0)]
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints.tight(Size(40.0, 24.0)))
+            context.placeChild(index, positions[index])
+        }
+        return LayoutMetrics(constraints.constrain(Size(500.0, 500.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class RevealTile(private val probe: RevealProbe, private val index: Long): Element {
+    private var area: InputArea? = None
+    private var owner: ComponentScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        owner = Some(scope)
+        assertSame(probe.window!!, scope.nativeWindow)
+        probe.mounts += 1
+        val input = scope.createArea(focusable = true)
+        area = Some(input)
+        probe.areas[index] = Some(input)
+        probe.targets[index] =
+            Some(
+                scope.focusTarget(
+                    input,
+                    FocusOptions(
+                        Some(probe.handles[index]),
+                        tabStop = index != 4L && index != 5L && index != 3L
+                    )
+                )
+            )
+        if (index == 0L)
+            assertTrue(probe.handles[0L].requestFocus())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(40.0, 24.0)))
+    public override fun scene(context: SceneContext) {
+        assertFailsWith<IllegalStateException> {
+            probe.targets[index]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0))
+        }
+        if (index == 4L)
+            context.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
+        val bounds = Rect(2.0, 2.0, 26.0, 20.0)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.Black)) }
+    }
+    public override fun onUnmount() {
+        assertFailsWith<IllegalStateException> { owner!!.nativeWindow }
+        probe.unmounts += 1
+    }
+}

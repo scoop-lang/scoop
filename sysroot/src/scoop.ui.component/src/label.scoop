@@ -148,7 +148,7 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element {
             value.input.inlines
         )
     }
-    public override fun paint(context: PaintContext) {
-        paragraph!!.paint(context)
+    public override fun scene(context: SceneContext) {
+        paragraph!!.scene(context)
     }
 }

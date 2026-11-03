@@ -1,0 +1,136 @@
+package scoop.tests.ui.paintcache
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.PaintCachePolicy
+
+internal fun advanceCache(probe: CacheProbe) {
+    when (probe.step) {
+        case 0 -> {
+            probe.first = Some(probe.row(0L))
+            assertEquals(0, probe.first!!.local.value)
+            assertEquals(0x0000ffL, probe.inside)
+            assertEquals(0xffffffL, probe.outside)
+            probe.snapshot()
+            probe.next()
+        }
+        case 1 -> {
+            probe.assertReuse(probe.paints, probe.first!!.paints)
+            probe.assertReuse(probe.eagerPaints, probe.row(-1L).paints)
+            assertTrue(probe.first!!.scenes > probe.scenes)
+            probe.next { probe.click() }
+        }
+        case 2 -> {
+            assertEquals(1, probe.first!!.local.value)
+            assertEquals(1, probe.first!!.observed)
+            assertEquals(Some(Point(8.0, 8.0)), probe.first!!.lastPosition)
+            assertEquals(0xff0000L, probe.inside)
+            probe.snapshot()
+            probe.next { probe.scroll.scrollTo(Point(0.0, 8.0)) }
+        }
+        case 3 -> {
+            probe.assertReuse(probe.paints, probe.first!!.paints)
+            assertEquals(Some(Rect(16.0, 16.0, 144.0, 16.0)), probe.first!!.area!!.visibleBounds)
+            assertEquals(0xff0000L, probe.inside)
+            probe.eagerPaints = probe.row(-1L).paints
+            probe.next {
+                probe.scroll.scrollTo(Point(0.0, 240.0))
+                probe.eagerScroll.scrollTo(Point(0.0, 24.0))
+            }
+        }
+        case 4 -> {
+            probe.assertReuse(probe.eagerPaints, probe.row(-1L).paints)
+            if (probe.kept) {
+                assertEquals(0, probe.first!!.unmounts)
+                assertEquals(None, probe.first!!.area!!.visibleBounds)
+                probe.paints = probe.first!!.paints
+                probe.scenes = probe.first!!.scenes
+            } else
+                assertEquals(1, probe.first!!.unmounts)
+            probe.next {
+                if (probe.kept)
+                    probe.first!!.local.value = 2
+            }
+        }
+        case 5 -> {
+            if (probe.kept) {
+                assertEquals(2, probe.first!!.observed)
+                assertEquals(probe.paints, probe.first!!.paints)
+                assertEquals(probe.scenes, probe.first!!.scenes)
+            }
+            probe.next {
+                probe.scroll.scrollTo(Point(0.0, 0.0))
+                probe.eagerScroll.scrollTo(Point(0.0, 0.0))
+            }
+        }
+        case 6 -> {
+            val row = probe.row(0L)
+            probe.current = Some(row)
+            if (probe.kept) {
+                assertSame(probe.first!!, row)
+                assertEquals(2, row.local.value)
+                assertTrue(row.paints > probe.paints)
+            } else {
+                assertTrue(probe.first!! !== row)
+                assertEquals(0, row.local.value)
+            }
+            assertEquals(0x0000ffL, probe.inside)
+            probe.next { probe.click() }
+        }
+        case 7 -> {
+            assertEquals(
+                if (probe.kept)
+                    3
+                else
+                    1,
+                probe.current!!.local.value
+            )
+            assertEquals(0xff0000L, probe.inside)
+            probe.next {
+                probe.policy.value =
+                    if (probe.cached)
+                        PaintCachePolicy.None
+                    else
+                        PaintCachePolicy.Tiles(32, 0)
+            }
+        }
+        case 8 -> {
+            assertSame(probe.current!!, probe.row(0L))
+            assertEquals(Point(0.0, 0.0), probe.scroll.offset)
+            probe.snapshot()
+            probe.next()
+        }
+        case 9 -> {
+            probe.assertReuse(probe.paints, probe.current!!.paints)
+            probe.snapshot()
+            probe.next { probe.placed.value = false }
+        }
+        case 10 -> {
+            assertEquals(probe.scenes, probe.current!!.scenes)
+            assertEquals(None, probe.current!!.area!!.visibleBounds)
+            assertEquals(0xffffffL, probe.inside)
+            probe.click()
+            assertEquals(
+                if (probe.kept)
+                    3
+                else
+                    1,
+                probe.current!!.local.value
+            )
+            probe.next { probe.placed.value = true }
+        }
+        case 11 -> {
+            assertSame(probe.current!!, probe.row(0L))
+            assertTrue(probe.current!!.paints > probe.paints)
+            assertEquals(0xff0000L, probe.inside)
+            assertEquals(0xffffffL, probe.outside)
+            probe.step = 12
+            probe.waiting = true
+            probe.quietPasses = probe.passes
+            probe.quiet!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+        }
+        else -> fail(Some("unexpected paint cache phase"))
+    }
+}

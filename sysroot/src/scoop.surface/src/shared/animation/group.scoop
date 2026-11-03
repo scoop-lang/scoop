@@ -1,0 +1,79 @@
+package scoop.surface
+
+import scoop.graphics.Color
+import scoop.graphics.Point
+import scoop.graphics.Size
+
+/** Owns a set of values on the same timeline with an independent frame gate. */
+public class AnimationGroup internal constructor(
+    private val timeline: AnimationTimeline,
+    initial: Boolean
+): Closeable {
+    private val members = ArrayList<AnimationEntry>()
+    private var closed = false
+    private var enabled = initial
+    public val isClosed: Boolean get() {
+        timeline.checkThread()
+        return closed
+    }
+    public var isFrameEnabled: Boolean
+    get() {
+        timeline.checkThread()
+        return enabled
+    }
+    set(value) {
+        checkOpen()
+        if (enabled == value)
+            return
+        enabled = value
+        if (value) {
+            val time = timeline.now()
+            for (member in members.toArray())
+                member.sample(time)
+        }
+        timeline.changed(needsFrame())
+    }
+    public fun value(initial: Double): Animatable<Double> =
+        value(initial, AnimationConverters.DoubleValue)
+    public fun value(initial: Point): Animatable<Point> =
+        value(initial, AnimationConverters.PointValue)
+    public fun value(initial: Size): Animatable<Size> =
+        value(initial, AnimationConverters.SizeValue)
+    public fun value(initial: Color): Animatable<Color> =
+        value(initial, AnimationConverters.ColorValue)
+    public fun <T> value(initial: T, converter: AnimationConverter<T>): Animatable<T> {
+        checkOpen()
+        return timeline.createValue(initial, converter, Some(this))
+    }
+    internal fun add(entry: AnimationEntry) {
+        members.add(entry)
+    }
+    internal fun remove(value: Closeable) {
+        removeAnimationEntry(members, value)
+    }
+    private fun needsFrame(): Boolean {
+        for (member in members)
+            if (member.frameEnabled())
+                return true
+        return false
+    }
+    private fun checkOpen() {
+        timeline.checkOpen()
+        if (closed)
+            throw IllegalStateException(Some("animation group is closed"))
+    }
+    public override fun close() {
+        timeline.checkThread()
+        if (closed)
+            return
+        val repaint = needsFrame()
+        closed = true
+        enabled = false
+        var failure: Throwable? = None
+        for (member in members.toArray())
+            failure = cleanupFailure(failure) { member.owner.close() }
+        members.clear()
+        timeline.detachedGroup(this)
+        throwFailure(cleanupFailure(failure) { timeline.changed(repaint) })
+    }
+}

@@ -1,0 +1,224 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.surface.*
+import scoop.ui.*
+
+internal class EditorMeasure(val snapshot: ScrollSnapshot, val width: Double?, val revision: Long)
+
+internal class EditorFrame(
+    private val retained: RetainedParagraphLayout,
+    val snapshot: ScrollSnapshot,
+    val revision: Long
+): Closeable {
+    val layout: TextLayout get() = retained.layout
+    public override fun close() {
+        retained.close()
+    }
+}
+
+private fun editorLayout(host: TextEditHost, width: Double?): TextLayout {
+    val text = host.current.text
+    host.checkDocument(text)
+    val style = host.appearance.textStyle
+    val content =
+        when (host.content) {
+            case Some(previous) -> if (previous.text == text && previous.style === style)
+                previous
+            else
+                StyledText([TextSpan.text(text)], style)
+            case None -> StyledText([TextSpan.text(text)], style)
+        }
+    host.content = Some(content)
+    return host.body.update(
+        host.appearance.fonts,
+        content,
+        ParagraphStyle(host.options.alignment, host.options.direction),
+        width,
+        []
+    )
+}
+
+private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
+    if (host.current.text.byteLength != 0L || host.placeholder.byteLength == 0L)
+        return None
+    val text =
+        if (host.options.multiline)
+            host.placeholder
+        else
+            EditorSingleLine.from(host.placeholder).text
+    val style = host.appearance.placeholderStyle
+    val content =
+        when (host.hintContent) {
+            case Some(previous) -> if (previous.text == text && previous.style === style)
+                previous
+            else
+                StyledText([TextSpan.text(text)], style)
+            case None -> StyledText([TextSpan.text(text)], style)
+        }
+    host.hintContent = Some(content)
+    return Some(
+        host.hint.update(
+            host.appearance.fonts,
+            content,
+            ParagraphStyle(host.options.alignment, host.options.direction),
+            width,
+            []
+        )
+    )
+}
+
+private fun editorWidth(host: TextEditHost, viewport: Double?): Double? {
+    if (!host.options.multiline || !host.options.wrap)
+        return None
+    return when (viewport) {
+        case Some(width) -> Some(max(0.0, width - host.appearance.caretWidth))
+        case None -> None
+    }
+}
+
+internal fun editorMeasure(host: TextEditHost, constraints: Constraints): LayoutMetrics {
+    constraints.check()
+    val width = editorWidth(host, constraints.maxWidth)
+    val layout = editorLayout(host, width)
+    val hint = editorHint(host, width)
+    val naturalWidth = max(layout.size.width, hint?.size?.width ?: 0.0) + host.appearance.caretWidth
+    val size = constraints.constrain(Size(naturalWidth, layout.size.height))
+    var contentWidth = layout.size.width
+    for (line in layout.lines)
+        contentWidth = max(contentWidth, line.rect.x + line.rect.width)
+    val content =
+        Size(
+            max(size.width, contentWidth + host.appearance.caretWidth),
+            max(size.height, layout.size.height)
+        )
+    val snapshot = host.viewport.layout(size, content)
+    host.measured = Some(EditorMeasure(snapshot, width, host.current.revision))
+    return LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline))
+}
+
+/** Pointer geometry stays paired with the last successful frame, even after a failed resize. */
+internal fun editorInputLayout(host: TextEditHost): TextLayout {
+    when (host.accepted) {
+        case Some(frame) -> {
+            if (frame.layout.text == host.current.text)
+                return frame.layout
+            return editorLayout(host, editorWidth(host, Some(frame.snapshot.viewport.width)))
+        }
+        case None -> return editorLayout(host, None)
+    }
+}
+
+internal fun editorCaret(host: TextEditHost, layout: TextLayout): Rect? =
+    layout.caret(editorVisualPosition(layout, host.current.cursor), host.appearance.caretWidth)
+
+internal fun editorScene(host: TextEditHost, context: SceneContext) {
+    val measure =
+        host.measured ?: throw IllegalStateException(Some("text editor has not been measured"))
+    val frame = EditorFrame(host.body.retainLayout(), measure.snapshot, measure.revision)
+    host.staged?.close()
+    host.staged = Some(frame)
+    val layout = frame.layout
+    val appearance = host.appearance
+    val input = host.current.inputState
+    val caret = editorCaret(host, layout)
+    val selection =
+        layout.selection(TextRange(input.selection.range.start, input.selection.range.end))
+    val marked =
+        when (input.markedRange) {
+            case Some(range) -> layout.selection(TextRange(range.start, range.end))
+            case None -> []
+        }
+    val active = host.area.isFocusActive
+    val color =
+        if (active)
+            appearance.selectionColor
+        else
+            appearance.inactiveSelectionColor
+    host.viewport.present(
+        context,
+        Some {
+            content ->
+            val snapshot = frame.snapshot
+            host.area.setCaret(caret, Some(input.revision))
+            content.place(
+                host.area,
+                Rect(
+                    snapshot.offset.x,
+                    snapshot.offset.y,
+                    snapshot.viewport.width,
+                    snapshot.viewport.height
+                )
+            )
+            content.draw {
+                paint -> for (box in selection)
+                    paint.canvas.drawRect(box.rect, Paint(color))
+            }
+            val bounds = layout.paintBounds
+            content.drawLayer(host.bodyKey, editorInkBounds(bounds), host.body.generation) {
+                paint -> paint.canvas.drawText(layout)
+            }
+            if (input.surroundingText.byteLength == 0L && host.placeholder.byteLength > 0L) {
+                val hint = host.hint.layout
+                content.drawLayer(
+                    host.hintKey,
+                    editorInkBounds(hint.paintBounds),
+                    host.hint.generation
+                ) { paint -> paint.canvas.drawText(hint) }
+            }
+            content.draw {
+                paint ->
+                for (box in marked)
+                    paint.canvas.drawRect(
+                        Rect(box.rect.x, box.rect.y + box.rect.height - 1.0, box.rect.width, 1.0),
+                        Paint(appearance.markedColor)
+                    )
+                if (
+                    active && host.caretVisible && input.selection.anchor == input.selection.cursor
+                ) {
+                    when (caret) {
+                        case Some(rect) -> paint.canvas.drawRect(rect, Paint(appearance.caretColor))
+                        case None -> {}
+                    }
+                }
+            }
+        }
+    )
+    context.onFrameComplete {
+        completion ->
+        when (host.staged) {
+            case Some(staged) -> if (staged === frame)
+                host.staged = None
+            case None -> {}
+        }
+        if (host.closed || completion.submission == FrameSubmission.Discarded) {
+            frame.close()
+            return@onFrameComplete
+        }
+        val previous = host.accepted
+        host.accepted = Some(frame)
+        previous?.close()
+        if (host.current.revision == frame.revision) {
+            if (
+                host.revealNeeded &&
+                    !editorDragging(host) &&
+                    host.area.isFocusActive &&
+                    host.revealRevision ==
+                    host.focus.node.root.surface.focusRevision
+            ) {
+                host.revealNeeded = false
+                when (caret) {
+                    case Some(rect) -> host.focus.reveal(rect)
+                    case None -> {}
+                }
+            }
+            editorDragAccepted(host)
+            editorScheduleBlink(host)
+        }
+    }
+}
+
+private fun editorInkBounds(bounds: Rect): Rect =
+    Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0)

@@ -1,0 +1,25 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+internal class VirtualItemAnchor(val key: ViewKey, val index: Long, val inside: Double)
+
+internal class VirtualReadingPosition(
+    val state: ScrollState,
+    val orientation: Orientation,
+    val revision: ULong,
+    val anchor: VirtualItemAnchor?,
+    val atEnd: Boolean
+)
+
+internal class VirtualListFrame(
+    val props: VirtualListInkProps,
+    val snapshot: ScrollSnapshot,
+    val revision: ULong,
+    val hasViewport: Boolean,
+    val reading: VirtualReadingPosition,
+    val request: ItemScrollRequest?,
+    val requestDone: Boolean,
+    val recheck: Boolean
+)

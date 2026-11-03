@@ -1,0 +1,34 @@
+package scoop.ui.text
+
+import scoop.graphics.text.TextLayout
+
+/** The cache and an accepted editor frame can own the same immutable layout. */
+internal class ParagraphLayout(val layout: TextLayout) {
+    private var owners = 1L
+    fun retain(): RetainedParagraphLayout {
+        if (owners == 0L)
+            throw IllegalStateException(Some("paragraph layout has been released"))
+        owners += 1L
+        return RetainedParagraphLayout(this)
+    }
+    fun release() {
+        owners -= 1L
+        if (owners == 0L)
+            layout.close()
+    }
+}
+
+internal class RetainedParagraphLayout(private val owner: ParagraphLayout): Closeable {
+    private var closed = false
+    val layout: TextLayout get() {
+        if (closed)
+            throw IllegalStateException(Some("retained paragraph layout is closed"))
+        return owner.layout
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        owner.release()
+    }
+}

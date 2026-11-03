@@ -1,0 +1,85 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+internal fun dismissOverlayPress(
+    root: UiRoot,
+    sessions: ArrayList<PortalInstance>,
+    domain: ModalSession?,
+    press: InputPress
+): Boolean {
+    if (!root.isOpen)
+        return false
+    var index = sessions.size
+    while (index > 0L) {
+        index -= 1L
+        val portal = sessions[index]
+        if (!portal.isOpen || !sameModal(portal.domain, domain))
+            continue
+        val policy = portal.options.dismiss.outsidePress
+        if (policy == OutsidePress.Ignore)
+            continue
+        if (portal.containsInput(press.target))
+            return false
+        portal.close(OverlayCloseReason.OutsidePress)
+        return policy == OutsidePress.CloseAndConsume
+    }
+    return false
+}
+
+internal fun dismissOverlayKey(
+    root: UiRoot,
+    sessions: ArrayList<PortalInstance>,
+    domain: ModalSession?,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (!root.isOpen)
+        return
+    val key =
+        when (event) {
+            case Keyboard(value) -> value
+            else -> return
+        }
+    if (
+        key.state !=
+            ElementState.Pressed ||
+            key.synthetic ||
+            key.isRepeat ||
+            key.logicalKey !=
+            LogicalKey.Named(NamedKey.Escape)
+    )
+        return
+    val modifiers = key.modifiers
+    if (
+        modifiers.shift ||
+            modifiers.control ||
+            modifiers.alt ||
+            modifiers.superKey ||
+            modifiers.function
+    )
+        return
+    var index = sessions.size
+    while (index > 0L) {
+        index -= 1L
+        val portal = sessions[index]
+        if (portal.isOpen && sameModal(portal.domain, domain) && portal.options.dismiss.escape) {
+            context.consume()
+            portal.close(OverlayCloseReason.Escape)
+            return
+        }
+    }
+}
+
+private fun PortalInstance.containsInput(target: InputScope): Boolean {
+    if (target === input)
+        return false
+    var cursor: InputScope? = Some(target)
+    while (true) {
+        val current = cursor ?: return false
+        if (current === input)
+            return true
+        cursor = current.parent
+    }
+}

@@ -1,0 +1,63 @@
+package scoop.ui
+
+import scoop.surface.addDefaultAction
+
+/** Groups logical Tab order and optionally loops at its boundary. */
+public class FocusScope internal constructor(
+    internal val node: MountedNode,
+    initial: FocusScopeOptions
+): Closeable {
+    private var current = initial
+    private var closed = false
+    private val input = node.scope.input
+    private val windowRoot =
+        when (node.parent) {
+            case Some(_) -> false
+            case None -> true
+        }
+    private val registration =
+        input.addDefaultAction {
+            context,
+            event -> if (active)
+                node.root.focus.tab(node, current.loop || windowRoot, context, event)
+        }
+
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && !input.isClosed
+    internal val available: Boolean get() = active && input.isInputAllowed
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || input.isClosed
+    }
+    public val isPending: Boolean get() {
+        node.root.checkThread()
+        return active && node.root.focus.isPending(this)
+    }
+    public var options: FocusScopeOptions
+    get() {
+        node.root.checkThread()
+        return current
+    }
+    set(value) {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (!active)
+            throw IllegalStateException(Some("focus scope is no longer mounted"))
+        current = value
+    }
+    public fun requestFocus(): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        return node.root.focus.request(this)
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        node.root.focus.cancel(this)
+        registration.close()
+        node.focusScope = None
+    }
+}

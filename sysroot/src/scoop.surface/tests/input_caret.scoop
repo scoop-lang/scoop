@@ -1,0 +1,202 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputCaretTest {
+    @Test
+    fun `caret revisions are captured with the accepted transform and discarded frames cannot publish them`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", text = true)
+            val connection = TextInputConnection(WindowId(1L), 1L)
+            area.setCaret(Some(Rect(1.0, 2.0, 1.0, 10.0)), Some(4L))
+            assertEquals(None, area.visibleCaretBounds)
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(10.0, 20.0)
+                canvas.scale(2.0, 2.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0))
+            }
+            assertTrue(area.requestFocus())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(connection))))
+            assertEquals(Some(Rect(12.0, 24.0, 2.0, 20.0)), area.visibleCaretBounds)
+            assertEquals(Some(Point(1.0, 2.0)), area.toLocal(Point(12.0, 24.0)))
+            assertEquals(
+                Some(Rect(12.0, 24.0, 2.0, 20.0)),
+                area.toWindow(Rect(1.0, 2.0, 1.0, 10.0))
+            )
+            assertEquals(
+                Some(connection),
+                rig.log.caretUpdates[rig.log.caretUpdates.size - 1L].connection
+            )
+            area.setCaret(Some(Rect(3.0, 4.0, 2.0, 9.0)), Some(5L))
+            assertEquals(None, area.visibleCaretBounds)
+            assertEquals(None, rig.log.caretUpdates[rig.log.caretUpdates.size - 1L].rect)
+            rig.router.beginFrame().use {
+                frame -> rig.surface.draw {
+                    canvas ->
+                    canvas.translate(50.0, 60.0)
+                    frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0))
+                }
+            }
+            assertEquals(None, area.visibleCaretBounds)
+            rig.frame {
+                frame, canvas ->
+                canvas.translate(80.0, 5.0)
+                frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0))
+            }
+            assertEquals(Some(Rect(83.0, 9.0, 2.0, 9.0)), area.visibleCaretBounds)
+            assertEquals(Some(5L), rig.log.caretUpdates[rig.log.caretUpdates.size - 1L].revision)
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0))
+                area.setCaret(Some(Rect(2.0, 3.0, 1.0, 10.0)), Some(6L))
+            }
+            assertEquals(None, area.visibleCaretBounds)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0)) }
+            assertEquals(Some(Rect(2.0, 3.0, 1.0, 10.0)), area.visibleCaretBounds)
+            assertFailsWith<IllegalArgumentException> { area.setCaret(None, Some(-1L)) }
+            assertFailsWith<IllegalArgumentException> {
+                area.setCaret(Some(Rect(0.0, 0.0, -1.0, 1.0)))
+            }
+            assertEquals(Some(Rect(2.0, 3.0, 1.0, 10.0)), area.visibleCaretBounds)
+            area.close()
+            assertEquals(None, area.toLocal(Point(0.0, 0.0)))
+            assertEquals(None, area.toWindow(Rect(0.0, 0.0, 1.0, 1.0)))
+            assertEquals(None, area.visibleCaretBounds)
+        }
+    }
+
+    @Test
+    fun `caret visibility uses the area path and clip while the text session remains focused`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", text = true)
+            area.setCaret(Some(Rect(35.0, 35.0, 2.0, 10.0)))
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 80.0, 80.0)) }
+            assertTrue(area.requestFocus())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
+            val hole =
+                PathBuilder(FillRule.EvenOdd).use {
+                    builder ->
+                    builder.addRect(Rect(0.0, 0.0, 80.0, 80.0))
+                    builder.addRect(Rect(20.0, 20.0, 40.0, 40.0))
+                    builder.build()
+                }
+            hole.use {
+                shape ->
+                rig.frame { frame, canvas -> frame.place(canvas, area, shape) }
+                assertEquals(None, area.visibleCaretBounds)
+                assertTrue(area.isFocusActive)
+                assertEquals(1L, rig.log.ime.size)
+                area.setCaret(Some(Rect(10.0, 10.0, 2.0, 20.0)))
+                rig.frame {
+                    frame, canvas ->
+                    canvas.clipRect(Rect(0.0, 0.0, 100.0, 15.0))
+                    frame.place(canvas, area, shape)
+                }
+                assertEquals(Some(Rect(10.0, 10.0, 2.0, 5.0)), area.visibleCaretBounds)
+            }
+            rig.router.geometryChanged()
+            assertEquals(None, area.visibleCaretBounds)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 80.0, 80.0)) }
+            assertEquals(Some(Rect(10.0, 10.0, 2.0, 20.0)), area.visibleCaretBounds)
+            area.setCaret(None)
+            assertEquals(None, area.visibleCaretBounds)
+            assertEquals(None, rig.log.caretUpdates[rig.log.caretUpdates.size - 1L].rect)
+        }
+    }
+
+    @Test
+    fun `restarting and read-only switches preserve focus and isolate late native connections`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("editor", true, true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 60.0, 60.0)) }
+            assertTrue(area.requestFocus())
+            val first = TextInputConnection(WindowId(1L), 1L)
+            val second = TextInputConnection(WindowId(1L), 2L)
+            val third = TextInputConnection(WindowId(1L), 3L)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(first))))
+            assertTrue(area.restartTextInput())
+            assertTrue(area.hasFocus && area.isFocusActive)
+            assertEquals(2L, rig.log.ime.size)
+            assertFalse(rig.log.ime[1L])
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(originEdit(first, 1L)))
+            assertEquals("editor/edit", rig.log.trace())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(first))))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(second))))
+            assertEquals(3L, rig.log.ime.size)
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(originEdit(first, 2L)))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(first))))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(first))))
+            assertEquals("", rig.log.trace())
+            rig.router.event(WindowEvent.TextInput(originEdit(second, 1L)))
+            assertEquals("editor/edit", rig.log.trace())
+            area.textInput = false
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(second))))
+            assertEquals(4L, rig.log.ime.size)
+            assertTrue(area.hasFocus && area.isFocusActive)
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.Keyboard(inputKey()))
+            assertEquals("editor/key", rig.log.trace())
+            area.textInput = true
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(third))))
+            assertEquals(5L, rig.log.ime.size)
+            assertTrue(area.hasFocus)
+            val later = rig.area("later")
+            assertFalse(later.focusable)
+            later.textInput = true
+            assertTrue(later.focusable)
+        }
+    }
+
+    @Test
+    fun `restart waits only for the native cycle actually owned by the area`() {
+        InputRig().use {
+            rig ->
+            val first = rig.area("first", true, true)
+            val next = rig.area("next", true, true)
+            assertFalse(next.restartTextInput())
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, first, Rect(0.0, 0.0, 30.0, 60.0))
+                frame.place(canvas, next, Rect(30.0, 0.0, 30.0, 60.0))
+            }
+            assertTrue(first.requestFocus())
+            val oldConnection = TextInputConnection(WindowId(1L), 1L)
+            val opening = TextInputConnection(WindowId(1L), 2L)
+            val ready = TextInputConnection(WindowId(1L), 3L)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(oldConnection))))
+            assertTrue(next.requestFocus())
+            assertTrue(next.isFocusActive)
+            assertFalse(next.restartTextInput())
+            assertTrue(first.restartTextInput())
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(oldConnection))))
+            assertEquals("first/disabled", rig.log.trace())
+            assertTrue(next.restartTextInput())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(opening))))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(opening))))
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(ready))))
+            rig.router.event(WindowEvent.TextInput(originEdit(ready, 1L)))
+            assertEquals("next/enabled,next/edit", rig.log.trace())
+            assertTrue(next.isFocusActive)
+        }
+    }
+}
+
+private fun originEdit(connection: TextInputConnection, sequence: Long): TextInputEvent =
+    TextInputEvent.Edit(
+        TextInputBatch(
+            None,
+            [TextInputOperation.Commit("x", TextReplacement.CurrentSelection)],
+            Some(TextInputOrigin(connection, sequence))
+        )
+    )

@@ -1,0 +1,55 @@
+package scoop.surface
+
+/** Shared fallback after an attached window's ordinary and local shortcut defaults. */
+public class HostShortcutScope public constructor(
+    public val host: SurfaceHost,
+    bindings: Array<ShortcutBinding> = []
+): Closeable {
+    private var entries = checkedBindings(bindings)
+    private var accepts = true
+    private var closed = false
+    private val registration = host.registerShortcuts { context, event -> handle(context, event) }
+
+    public val isClosed: Boolean get() {
+        host.checkThread()
+        return closed || !registration.active
+    }
+    public var enabled: Boolean
+    get() {
+        host.checkThread();
+        return accepts
+    }
+    set(value) {
+        checkOpen();
+        accepts = value
+    }
+
+    public var bindings: Array<ShortcutBinding>
+    get() {
+        host.checkThread();
+        return entries
+    }
+    set(value) {
+        checkOpen();
+        entries = checkedBindings(value)
+    }
+
+    private fun checkOpen() {
+        host.checkThread()
+        if (closed || !registration.active)
+            throw IllegalStateException(Some("host shortcut scope is closed"))
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        runShortcutBindings(context, event, entries) {
+            !closed && accepts && registration.accepts(context.currentTarget)
+        }
+    }
+    public override fun close() {
+        host.checkThread()
+        if (closed)
+            return
+        closed = true
+        entries = []
+        registration.close()
+    }
+}

@@ -57,7 +57,7 @@ half4 main(float2 p) {
 
 1. onMount 时取得或编译 effect，准备绑定，通过 scope.animation(0.0) 创建进度动画，并登记自有资源。
 2. 点击等事件发生时，将进度按所选动画从 0 推进到 1；不在 paint 中启动或重启动画。
-3. 每个实际帧由 Surface 先采样动画；Element.paint 使用当前尺寸、Animatable.value 与 Props 中的颜色更新 uniform，随后绘制效果。
+3. 每个实际帧由 Surface 先采样动画；Element.scene 的 draw 块使用当前尺寸、Animatable.value 与 Props 中的颜色更新 uniform，随后绘制效果。
 4. 动画结束后呈现最终画面并撤销帧需求；组件卸载时按 scope 的正常顺序释放动画、绑定和自有缓存。
 
 业务 State 仍在 Component.render 中读取并传入 Props。单纯的动画参数在 paint 中读取已经采样的 Animatable，不为每帧 uniform 更新再写 State，也不要求父组件逐帧重建描述。只改变 uniform 不重新编译 SkSL；程序或输入结构变化按实际需要更新相应缓存。

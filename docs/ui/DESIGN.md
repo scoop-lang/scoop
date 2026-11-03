@@ -2,6 +2,8 @@
 
 日期：2026-11-02。状态：`scoop.ui` 的独立自绘框架和公共文本适配、公共 `scoop.ui.style`、主题绘图／几何和三套风格、基础控件／容器、主题展示及后台下载组合已完成 macOS aarch64 实施与 x86_64 统一补验，范围见 [UI 实施记录](PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续接入。框架公开行为见 [UI 规范](../specs/SCOOP-UI-SPEC.md)，公共文本能力见 [文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与[文本排版设计](../graphics/text/DESIGN.md)，基础控件行为见 [控件库规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。现有 `scoop.gui` 已直接改名为 `scoop.surface`；底层实现与验证沿用 [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)及[实施记录](../surface/PROGRESS.md)。
 
+弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 及其他可复用此写法的 API 见 [DSL builder 设计建议](DSL-BUILDERS.md)；该文档属于 API 设计建议，生产构建入口尚未迁移。
+
 ## 1. 分层目标
 
 UI 框架提供构建完全自绘控件的能力，应用可以只使用框架和 Surface 绘图／动画完成自己的界面。基础控件作为另一普通库构建：
@@ -15,7 +17,7 @@ UI 框架提供构建完全自绘控件的能力，应用可以只使用框架�
 | `scoop.ui` | Component／Element、状态、身份、挂载、测量／绘制接入、资源生命周期；text 子包提供公共段落适配 |
 | `scoop.ui.style` | 主题绘图协议／几何、视觉状态与语义参数；通用 Style、外框装饰、有序内容效果及自绘适配 |
 | `scoop.ui.style.macos／material／fluent` | 同一公共协议的三套自绘主题，各自支持 Light／Dark |
-| `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame 及控件专用样式和交互外观 |
+| `scoop.ui.component` | Label、Button、Checkbox、Input／Textarea、Row／Column／Stack、Frame、Absolute、ScrollArea／VirtualList 及控件专用样式和交互外观 |
 
 主要依赖方向为 `scoop.ui.component → scoop.ui.style → scoop.ui → scoop.surface → scoop.window + scoop.graphics`；三套主题实现分别依赖 style，component 不依赖具体主题，文本支路为 `scoop.ui → scoop.graphics.text → scoop.graphics`。使用下层类型的 Cone 同时声明实际直接依赖。框架不依赖或转导出 style／控件库，不根据 Label／Button 等具体类型做分派，不提供只有该库可以访问的控件入口。
 
@@ -67,11 +69,13 @@ class ColorTile(private val props: Props<Color>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(48.0, 48.0)))
 
-    public override fun paint(context: PaintContext) {
-        context.canvas.drawRect(
-            Rect(0.0, 0.0, context.size.width, context.size.height),
-            Paint(color = props.value)
-        )
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                Rect(0.0, 0.0, paint.size.width, paint.size.height),
+                Paint(color = props.value)
+            )
+        }
     }
 }
 
@@ -104,9 +108,9 @@ Element 可以单独成为自绘叶子，也可以接收显式 children 实现�
 
 state 就是普通 State class。成员属性委托的 getValue／setValue 执行读追踪和写失效，不扫描私有字段，不依赖属性名，也不按 hook 调用序号保存状态。闭包捕获组件 this 时保存 class 引用，符合现有语言规则。
 
-状态依赖通过现有同步 Context 收集，只围绕 Component.render 建立和替换订阅。首期写入即通知，包括同值写回；依靠同轮合并控制重建次数。render／measure／paint 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
+状态依赖通过现有同步 Context 收集，只围绕 Component.render 建立和替换订阅。首期写入即通知，包括同值写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
 
-Element 的 Props 由框架更新。measure／paint 的读取不另外建立依赖图；自绘组件在 render 中读取业务 State 并将数据传入 Props。元素自己的普通交互字段可以在输入处理中修改，随后显式 requestFrame。Surface 动画使用现有采样通路。
+Element 的 Props 由框架更新。measure／scene／draw 的读取不另外建立依赖图；自绘组件在 render 中读取业务 State 并将数据传入 Props。元素自己的普通交互字段可以在输入处理中修改，随后显式 requestFrame。Surface 动画使用现有采样通路。
 
 component 和 element 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架复用实例、替换 Props，执行 Component.render 或 Element.update。
 
@@ -144,7 +148,7 @@ Constraints 明确区分有限最大值与无界，最终尺寸是有限非负�
 
 首期每个子项每帧只测量一次，可以放置零次或一次。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
 
-PaintContext 提供本帧 Canvas、最终尺寸和统一时间。框架在元素局部坐标中调用 paint，并隔离各元素的 Canvas 状态。元素通过 paintChildren 在自己的背景和前景之间呈现已放置子项，使用 Canvas 的 transform／clip／组透明度控制效果。没有放置的子树不进入 paint。父子关系不自动裁剪，也不自动建立输入区域。
+SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入和子项呈现。元素通过 draw 提交只有 Canvas／size／time 的纯绘图块，通过 children 在背景和前景之间呈现已放置子项。draw 的 Canvas 状态独立于后续输入几何；影响整个子树的几何通过 SceneContext 设置。未放置子树不进入 scene，父子关系不自动裁剪或建立输入区域。
 
 文本内容、样式继承、shaping、TextLayout 和行内对象几何属于 graphics.text。公共 ParagraphHost 复用 Element 的协议管理段落缓存及行内子项接入，UI 核心不需要识别文本类型或提供特殊 TextNode。Label 每帧可以收到 measure，但内容、字体、宽度和行内 metrics 不变时复用布局。
 
@@ -162,15 +166,15 @@ Label 与第三方自绘 Element 使用相同宿主。文字光标、selection �
 
 ## 6. 输入和动画使用 Surface 的现有能力
 
-Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件继续使用 AreaEvent／InputResult，焦点、caret、指针捕获序列及取消语义沿用 Surface。
+Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
 
-paint 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas 当时的变换和 clip。容器可将自己的已放置区域传给 paintChildren，成为子区域的输入父级。布局树本身不等于输入区域树，没有交互的 Label 和 Row 可以不创建区域。
+scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas 当时的变换和 clip。容器可将自己的已放置区域传给 children，成为子区域的输入父级。布局树本身不等于输入区域树，没有交互的 Label 和 Row 可以不创建区域。
 
 点击是否发生、拖出后的视觉状态、键盘激活及 disabled 外观是 Button 的实现职责。Element.update 在逻辑阶段更新 enabled 和处理器，避免把输入禁用推迟到下一次可见绘制。
 
 因段落截断而没有放置的子区域，只在该帧成功提交后按 Surface 规则退出命中、取消序列并清除焦点；失败帧继续使用旧几何。恢复可见性保留组件状态，但不自动恢复已清除的焦点。逻辑卸载／禁用仍立即生效，不与这种呈现可见性混为一谈。
 
-scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable 登记为当前挂载的资源。元素调用 Surface 已有的 animateTo／snapTo／pause 等方法，在 measure／paint 中读 value。UI 不提供平行的动画类型、timer 或帧时钟。
+scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable 登记为当前挂载的资源。元素调用 Surface 已有的 animateTo／snapTo／pause 等方法，在 measure／scene／draw 中读 value。UI 不提供平行的动画类型、timer 或帧时钟。
 
 每个真实帧由 Surface 先统一采样动画，UI 再测量、放置和绘制当前挂载树。首期每帧遍历布局，昂贵计算由具体元素缓存，因此尺寸或位置动画自然进入同帧测量，无须额外的动画依赖图。只改变绘制值的动画不重跑未失效的 Component.render。
 
@@ -205,7 +209,7 @@ scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable �
 | 一个窗口活动，其他窗口静止 | 各根独立处理失效，静止窗口不跟随提交 |
 | 独立 I/O 或音频继续 | 主循环按业务任务等待／唤醒，只有真正影响画面的通知才产生 UI 需求 |
 
-验证同时覆盖 render／update／measure／paint、原生帧唤醒、目标获取和 submit／present；仅跳过 Component.render 仍可能留下布局或 GPU 空转，仅跳过 GPU 提交也可能留下 CPU 周期唤醒。用真实后端观察收尾后的稳定区间，再触发一次变化并验证重新停帧。细节见[Surface 设计第 6.3 节](../surface/DESIGN.md#63-停帧机制与验证)。这些检查随首期批次交付，不推迟到移动端或局部重绘优化阶段。
+验证同时覆盖 render／update／measure／scene／draw、原生帧唤醒、目标获取和 submit／present；仅跳过 Component.render 仍可能留下布局或 GPU 空转，仅跳过 GPU 提交也可能留下 CPU 周期唤醒。用真实后端观察收尾后的稳定区间，再触发一次变化并验证重新停帧。细节见[Surface 设计第 6.3 节](../surface/DESIGN.md#63-停帧机制与验证)。这些检查随首期批次交付，不推迟到移动端或局部重绘优化阶段。
 
 ## 8. 公共样式、主题绘图与控件
 
@@ -216,7 +220,7 @@ scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable �
 应用通过真实运行入口的 Context 提供稳定 ThemeSource，控件挂载保存来源、render 读取其 State<Theme>，把当前主题传入持久 Element。一次更新切换 macOS／Material／Fluent 和 Light／Dark，保持实例、State、焦点及业务绑定，按新 metrics 重排。局部样式用 StyleOverride／SpanStyle 只覆盖指定属性，其他继续跟随当前主题；局部主题显式通过参数／Props 传递，首期不引入自动子树 Provider。系统跟随使用 window 的 ThemeChanged 通知。
 
 
-公共外观独立为 `scoop.ui.style`，具体合同见[公共样式规范](../specs/SCOOP-UI-STYLE-SPEC.md)和[图像滤镜规范](../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)。Style 是经 Props 更新的普通描述；styled 始终保留稳定包装和内容位置，空样式、添加或移除效果不会重建内容 State。StylePainter 是 Element 登记一次的可替换资源缓存，第三方自绘也可直接使用。UI 增加通用 PaintContext.withState 隔离嵌套绘制，子项绘制次数在同一元素的子作用域间共享；不增加专用效果节点。
+公共外观独立为 `scoop.ui.style`，具体合同见[公共样式规范](../specs/SCOOP-UI-STYLE-SPEC.md)和[图像滤镜规范](../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)。Style 是经 Props 更新的普通描述；styled 始终保留稳定包装和内容位置，空样式、添加或移除效果不会重建内容 State。StylePainter 是 Element 登记一次的可替换资源缓存，第三方自绘也可直接使用。UI 使用通用 SceneContext.withState 隔离场景，子项呈现次数在同一元素的子作用域间共享；PaintContext.withState 只隔离纯绘图块；不增加专用效果节点。
 
 顺序为外框阴影、背景、经过有序效果的完整内容、边框。外框阴影使用圆角外框；内容阴影／glow 使用真实 alpha，文字无需转 Path。Glow 是零 offset 的着色 alpha 模糊与原内容 SrcOver 组合。内容效果数组区分先模糊再投影和投影后整体模糊；本节点装饰不进入其自身内容效果，嵌套装饰则属于子树内容。显式 clipContent 裁最终内容输出和子输入，不裁自己的外框阴影。
 
@@ -398,7 +402,7 @@ Context 传播 Store 引用，不改变线程和任务归属。只有 asyncio �
 
 ### 13.3 在自绘组件内显示 3D 场景
 
-采用 `3D 场景 → 离屏颜色纹理 → graphics 图像接入 → Element.paint`。场景使用自己的深度等渲染资源，UI 合成其颜色结果；Canvas 继续完成组件位置、裁剪、透明度及前景 UI 叠加。这种接入不使普通 UI 子项自动参与 3D 场景的深度测试。
+采用 `3D 场景 → 离屏颜色纹理 → graphics 图像接入 → Element.scene`。场景使用自己的深度等渲染资源，UI 合成其颜色结果；Canvas 继续完成组件位置、裁剪、透明度及前景 UI 叠加。这种接入不使普通 UI 子项自动参与 3D 场景的深度测试。
 
 Element 的尺寸和 DPI 决定 viewport 及目标像素尺寸，InputArea 把局部指针、滚轮和键盘事件交给场景控制器，用于相机旋转、缩放和物体选择。场景变化请求绘制；它不要求每次更新都重建组件描述。当前 UI 的实际帧仍执行既有布局与绘制流程，这不是仅重绘一个矩形区域的承诺。
 
@@ -452,3 +456,11 @@ SkSL 的职责、参数与资源模型、扫光示例及分批验证见 [graphic
 组件在挂载或加载时准备程序和绑定，使用 Props 传入业务参数，在实际帧读取 Surface Animatable 的采样值更新 uniform。程序复用，组件参数独立；自有资源由 ComponentScope 收尾，共享程序由长期所有者维护。有限动画完成后停帧，声明 time uniform 或持有 shader 不产生隐式时钟，遵守[第 7.1 节](#71-静止唤醒与能耗)。
 
 本期先完成无须 SkSL 的 graphics 滤镜与公共 style；后续 SkSL 先支持形状填充和已有图像，再扩展自定义子树滤镜并复用图层接入。背景 Paint 的 shader 不自动处理文字／子项；像素扭曲不自动改变布局、命中或 IME 几何，交互映射必须明确。验证包括多实例参数隔离、颜色／alpha／坐标、连续动画不重复编译、暂停／完成后停止提交以及卸载释放。
+
+## 15. 后续增强：基础交互与控件扩充
+
+弹层／模态／绝对定位、滚动、Tab／组内键盘导航、快捷键、事件路由和公共文本编辑的调研基线与实施设计见 [基础交互能力设计](foundations/DESIGN.md)。A–F 计划功能已完成 macOS 实施，实际交付与验证范围见[基础交互实施记录](foundations/PROGRESS.md)，Code Block 不在范围内。
+
+设计保留唯一挂载树，分离显示位置与逻辑路由；把场景几何登记与实际绘图分开，以支持 portal 和绘制缓存；另增公开的按需子项协议，以支持真正的虚拟列表。滚动的绘制缓存、离屏实例缓存和按需创建分别配置。焦点、模态、快捷键、嵌套滚动和文本编辑复用同一输入路径，Input／Textarea 复用 `scoop.ui.text` 的公共编辑适配。
+
+分项合同、需要修订的 spec 及组合验收见该设计。进入实施时按批次先改公开规范，再迁移实现与调用方，不将本文后续设计混作已交付 API。

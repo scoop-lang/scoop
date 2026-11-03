@@ -35,16 +35,18 @@ internal fun copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent {
                             Theme.Light
                     )
                 )
-                10 -> WindowEvent.Keyboard(copyKeyEvent(event))
+                10 -> WindowEvent.Keyboard(copyKeyEvent(pointer, event))
                 11 -> WindowEvent.ModifiersChanged(platformModifiers(event.a))
                 12 -> WindowEvent.Pointer(copyPointerEvent(event))
-                13 -> WindowEvent.TextInput(TextInputEvent.Edit(copyNativeTextBatch(pointer)))
+                13 -> WindowEvent.TextInput(
+                    TextInputEvent.Edit(copyNativeTextBatch(pointer, event))
+                )
                 15 -> WindowEvent.RedrawRequested
                 14 -> WindowEvent.TextInput(
                     if (event.flags != 0)
-                        TextInputEvent.Enabled
+                        TextInputEvent.Enabled(platformTextConnection(event))
                     else
-                        TextInputEvent.Disabled
+                        TextInputEvent.Disabled(platformTextConnection(event))
                 )
                 else -> throw WindowException(
                     "unknown native window event",
@@ -65,7 +67,7 @@ private fun copyNativeText(event: NativeEvent): String {
     }
 }
 
-private fun copyKeyEvent(event: NativeEvent): KeyEvent {
+private fun copyKeyEvent(pointer: Ptr<Unit>, event: NativeEvent): KeyEvent {
     val text = copyNativeText(event)
     val logical =
         when (platformNamedKey(event.a, event.c)) {
@@ -94,7 +96,8 @@ private fun copyKeyEvent(event: NativeEvent): KeyEvent {
         event.flags.and(2) != 0,
         platformModifiers(event.b),
         event.flags.and(4) != 0,
-        copyInputTime(event)
+        copyInputTime(event),
+        textCommands = platformTextCommands(pointer)
     )
 }
 

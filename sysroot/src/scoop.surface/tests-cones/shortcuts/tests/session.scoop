@@ -1,0 +1,142 @@
+package scoop.tests.surface.shortcuts
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class NativeShortcutTest {
+    @Test
+    fun `native Command shortcuts work without area focus and respect modifiers and cancellation`() {
+        val probe = NativeShortcutSession()
+        SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> try {
+                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                assertTrue(probe.finished)
+                assertEquals(1, probe.calls)
+                assertTrue(probe.shortcuts!!.isClosed)
+                assertEquals(SurfaceWindowState.Closed, probe.surface!!.state)
+            } finally {
+                probe.close()
+            }
+        }
+    }
+}
+
+private class NativeShortcutSession: Closeable {
+    var window: Window? = None
+    var surface: SurfaceWindow? = None
+    var shortcuts: ShortcutScope? = None
+    var frames = 0
+    var calls = 0
+    var phase = 0
+    var finished = false
+
+    fun event(host: SurfaceHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop native shortcuts", LogicalSize(220.0, 120.0))
+                    )
+                window = Some(native)
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                val attached =
+                    host.attach(native) {
+                        frame ->
+                        frames += 1;
+                        frame.canvas.clear(Color.White)
+                    }
+                surface = Some(attached)
+                shortcuts =
+                    Some(
+                        ShortcutScope(
+                            attached.input,
+                            [
+                                ShortcutBinding(
+                                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                    ShortcutModifiers(primary = true),
+                                    action = { calls += 1 }
+                                )
+                            ]
+                        )
+                    )
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && frames > 0 && window!!.isFocused) {
+                    phase = 1
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+                    )
+                    assertTrue(sendSurfaceKey(window!!, 1, true, command = true, shift = true))
+                    assertTrue(sendSurfaceKey(window!!, 1, false, command = true, shift = true))
+                    assertTrue(sendSurfaceKey(window!!, 1, true, command = true))
+                    assertTrue(sendSurfaceKey(window!!, 1, true, repeat = true, command = true))
+                    assertTrue(sendSurfaceKey(window!!, 1, false, command = true))
+                    assertTrue(active.proxy().post { current -> checkDisabled(current) })
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"native shortcut timeout, phase=${phase}, calls=${calls}, focused=${
+                        window!!.isFocused
+                    }"
+                )
+            )
+            case Window(_, WindowEvent.Destroyed) -> {
+                assertEquals(3, phase)
+                finished = true
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+
+    private fun checkDisabled(active: ActiveApplication) {
+        assertEquals(1, calls)
+        phase = 2
+        shortcuts!!.enabled = false
+        sendCommand()
+        assertTrue(active.proxy().post { current -> checkPrevented(current) })
+    }
+
+    private fun checkPrevented(active: ActiveApplication) {
+        assertEquals(1, calls)
+        shortcuts!!.enabled = true
+        surface!!.input.handler =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(_) -> context.preventDefault()
+                    else -> {}
+                }
+            }
+        sendCommand()
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                assertEquals(1, calls)
+                phase = 3
+                window!!.requestDestroy()
+            }
+        )
+    }
+
+    private fun sendCommand() {
+        assertTrue(sendSurfaceKey(window!!, 1, true, command = true))
+        assertTrue(sendSurfaceKey(window!!, 1, false, command = true))
+    }
+
+    public override fun close() {
+        shortcuts?.close()
+        surface?.close()
+    }
+}

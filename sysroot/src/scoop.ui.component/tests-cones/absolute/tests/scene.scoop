@@ -1,0 +1,137 @@
+package scoop.tests.ui.absolute
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.Insets
+import scoop.window.*
+
+internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        return element(
+            generation,
+            { props -> AbsoluteCanvas(probe, props) },
+            [
+                absolute(
+                    [
+                        AbsoluteChild(
+                            box(0L),
+                            AbsoluteAxis.Start(-25.0, Some(100.0)),
+                            AbsoluteAxis.Start(10.0, Some(40.0)),
+                            if (generation == 0)
+                                2
+                            else
+                                0
+                        ),
+                        AbsoluteChild(
+                            box(1L),
+                            AbsoluteAxis.End(70.0, Some(80.0)),
+                            AbsoluteAxis.Center(-10.0, Some(40.0))
+                        ),
+                        AbsoluteChild(
+                            box(2L),
+                            AbsoluteAxis.Stretch(10.0, 20.0),
+                            AbsoluteAxis.Start(10.0, Some(40.0)),
+                            if (generation == 0)
+                                1
+                            else
+                                0
+                        )
+                    ],
+                    padding = Insets.all(10.0)
+                )
+            ]
+        )
+    }
+    private fun box(index: Long): View =
+        element(index, { props -> AbsoluteBox(probe, props) }, key = ViewKey.Number(index))
+}
+
+private class AbsoluteBox(
+    private val probe: AbsoluteProbe,
+    private val props: Props<Long>
+): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val index = props.value
+        probe.mounts[index] += 1
+        val region =
+            scope.createArea(focusable = true) {
+                _,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> probe.clicks[index] += 1
+                    else -> {}
+                }
+            }
+        area = Some(region)
+        probe.areas[index] = Some(region)
+        scope.focusTarget(region, FocusOptions(Some(probe.handles[index])))
+    }
+    public override fun onUnmount() {
+        probe.unmounts[props.value] += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        probe.measures[props.value] += 1
+        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val index = props.value
+        probe.scenes[index] += 1
+        probe.order += f"${index}"
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, rect)
+        context.draw { paint -> paint.canvas.drawRect(rect, Paint(probe.colors[index])) }
+    }
+}
+
+private class AbsoluteCanvas(
+    private val probe: AbsoluteProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val measured =
+            context.measureChild(0L, Constraints(maxWidth = Some(200.0), maxHeight = Some(100.0)))
+        assertEquals(Size(200.0, 100.0), measured.size)
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.order = ""
+        probe.passes += 1
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.withState {
+            child ->
+            child.clipRect(Rect(0.0, 0.0, 150.0, 110.0))
+            child.children()
+        }
+        for (index in 0L ..< probe.handles.size) {
+            assertEquals(probe.passes, probe.measures[index])
+            assertEquals(probe.passes, probe.scenes[index])
+        }
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.overlap = readNativePixel(native, 80.0, 50.0)
+                        probe.outside = readNativePixel(native, 170.0, 50.0)
+                        probe.overflow = readNativePixel(native, 10.0, 50.0)
+                    }
+                }
+            }
+        }
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committed = generation
+        }
+    }
+}

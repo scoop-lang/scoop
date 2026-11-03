@@ -1,0 +1,190 @@
+package scoop.tests.ui.modal
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class ModalUiTest {
+    @Test
+    fun `modal domains dismiss once retain closing barriers and restore the latest valid focus`() {
+        val probe = ModalProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.view!!.restored())
+            for (index in 0L ..< probe.layers.size) {
+                assertFalse(probe.layers[index].isAttached)
+                assertEquals(probe.mounts[index], probe.unmounts[index])
+                when (probe.modalRoots[index]) {
+                    case Some(area) -> assertTrue(area.isClosed)
+                    case None -> {}
+                }
+            }
+            for (handle in probe.focus)
+                assertFalse(handle.isAttached)
+            assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.layers[0L].lastCloseReason)
+            assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.layers[1L].lastCloseReason)
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal struct ModalClose(val layer: Long, val reason: OverlayCloseReason)
+
+internal class ModalProbe {
+    val layers = Array<OverlayHandle>(6L) { _ -> OverlayHandle() }
+    val open = MutableArray<Boolean>(6L) { _ -> false }
+    val mounts = MutableArray<Int>(6L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(6L) { _ -> 0 }
+    val modalRoots = MutableArray<InputArea?>(6L) { _ -> None }
+    val shortcuts = MutableArray<Int>(6L) { _ -> 0 }
+    val focus = Array<FocusHandle>(9L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(9L) { _ -> None }
+    val downs = MutableArray<Int>(9L) { _ -> 0 }
+    val ups = MutableArray<Int>(9L) { _ -> 0 }
+    val cancels = MutableArray<Int>(9L) { _ -> 0 }
+    val closed = ArrayList<ModalClose>()
+    val revision = state(0)
+    var committed = -1
+    var passes = 0
+    var paintOrder = ""
+    var phase = 0
+    var waiting = false
+    var finished = false
+    var blockEscape = false
+    var emptyOuter = false
+    var plainOuter = false
+    var requestOnMount = -1L
+    var requestOnBlur = -1L
+    var requestOnClose = -1L
+    var restore = true
+    var outside = OutsidePress.CloseAndConsume
+    var backgroundOutside = OutsidePress.CloseAndContinue
+    var discardNext = false
+    var discarded = 0
+    var closeAfterPresent = false
+    var closeOnBlur = false
+    var closedAtPass = -1
+    var backgroundKeys = 0
+    var backgroundShortcut = 0
+    var quietPasses = 0
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var view: ViewProbe? = None
+    var rootScope: ComponentScope? = None
+    private var retryFocus = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop modal input", LogicalSize(400.0, 260.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { ModalScene(this) }))
+                waitFor(active, 30000L)
+            }
+            case AboutToWait -> {
+                if (!finished && phase == 0 && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (!finished && !waiting && committed == revision.value && window!!.isFocused)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                if (phase == 46) {
+                    quietPasses = passes
+                    phase = 47
+                    waitFor(active, 150L)
+                } else
+                    if (phase == 47) {
+                        assertEquals(quietPasses, passes)
+                        finished = true
+                        ui!!.close()
+                        window!!.requestDestroy()
+                    } else {
+                        fail(
+                            Some(
+                                f"modal timeout phase=${phase}, frames=${passes}, committed=${
+                                    committed
+                                }, revision=${revision.value}"
+                            )
+                        )
+                    }
+            }
+            else -> {}
+        }
+    }
+    fun changed() {
+        revision.value += 1
+    }
+    fun next() {
+        phase += 1
+        changed()
+    }
+    fun opened(index: Long) {
+        open[index] = true
+        next()
+    }
+    fun close(index: Long, reason: OverlayCloseReason) {
+        closed.add(ModalClose(index, reason))
+        open[index] = false
+        changed()
+        if (index == 0L && requestOnClose >= 0L) {
+            assertFalse(focus[requestOnClose].requestFocus())
+            requestOnClose = -1L
+        }
+    }
+    fun expectFocus(index: Long) {
+        for (position in 0L ..< focus.size)
+            assertEquals(position == index, focus[position].hasFocus)
+    }
+    fun after(active: ActiveApplication, check: () -> Unit) {
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                check()
+                phase += 1
+                waiting = false
+            }
+        )
+    }
+    fun key(
+        active: ActiveApplication,
+        code: Int,
+        check: () -> Unit,
+        repeat: Boolean = false,
+        command: Boolean = false,
+        shift: Boolean = false
+    ) {
+        waiting = true
+        assertTrue(sendSurfaceKey(window!!, code, true, repeat, command, shift))
+        assertTrue(sendSurfaceKey(window!!, code, false, false, command, shift))
+        after(active, check)
+    }
+    fun click(active: ActiveApplication, x: Double, y: Double, check: () -> Unit) {
+        waiting = true
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+        after(active, check)
+    }
+    fun waitFor(active: ActiveApplication, millis: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(millis))
+        )
+    }
+}

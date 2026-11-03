@@ -1,0 +1,115 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal fun advanceFieldScrollAndModal(probe: FieldProbe) {
+    val window = probe.native!!
+    when (probe.phase) {
+        case 25 -> {
+            val bar = probe.vertical!!
+            assertEquals(0.0, bar.visual.position)
+            assertTrue(bar.visual.visibleFraction < 1.0)
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.next {
+                probe.click(
+                    Point(
+                        bar.bounds.x + bar.bounds.width / 2.0,
+                        bar.thumb.y + bar.thumb.height + 8.0
+                    )
+                )
+            }
+        }
+        case 26 -> {
+            val bar = probe.vertical!!
+            assertTrue(bar.visual.position > 0.0)
+            assertTrue(bar.geometry.travel > 0.0)
+            assertTrue(probe.focus[1L].hasFocus)
+            assertEquals(Utf8Selection(0L, 0L), probe.secondary.selection)
+            probe.next {
+                val x = bar.thumb.x + bar.thumb.width / 2.0
+                assertTrue(moveSurfacePointer(window, x, bar.thumb.y + bar.thumb.height / 2.0))
+                editorPointer(window, Point(x, bar.thumb.y + bar.thumb.height / 2.0), true)
+                assertTrue(moveSurfacePointer(window, x, bar.bounds.y + bar.bounds.height))
+                editorPointer(window, Point(x, bar.bounds.y + bar.bounds.height), false)
+            }
+        }
+        case 27 -> {
+            assertTrue(probe.vertical!!.visual.position > 0.99)
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.next {
+                probe.wrap = false
+                probe.secondary.setSelection(
+                    Utf8Selection(probe.secondary.text.byteLength, probe.secondary.text.byteLength)
+                )
+                probe.secondary.setSelection(Utf8Selection(0L, 0L))
+                probe.change()
+            }
+        }
+        case 28 -> {
+            val bar = probe.horizontal!!
+            assertEquals(0.0, bar.visual.position)
+            assertTrue(probe.vertical!!.visual.enabled)
+            probe.next {
+                probe.click(
+                    Point(
+                        bar.thumb.x + bar.thumb.width + 8.0,
+                        bar.bounds.y + bar.bounds.height / 2.0
+                    )
+                )
+            }
+        }
+        case 29 -> {
+            assertTrue(probe.horizontal!!.visual.position > 0.0)
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.next {
+                probe.scrollbars = ScrollbarVisibility.Hidden
+                probe.change()
+                assertTrue(probe.focus[0L].requestFocus())
+            }
+        }
+        case 30 -> {
+            when (probe.horizontal) {
+                case Some(_) -> fail(Some("hidden horizontal bar"));
+                case None -> {}
+            }
+            when (probe.vertical) {
+                case Some(_) -> fail(Some("hidden vertical bar"));
+                case None -> {}
+            }
+            assertTrue(probe.focus[0L].hasFocus)
+            probe.next {
+                probe.dialogOpen = true;
+                probe.change()
+            }
+        }
+        case 31 -> {
+            assertTrue(probe.overlay.isOpen)
+            assertTrue(probe.focus[3L].hasFocus)
+            assertFalse(probe.focus[0L].requestFocus())
+            fieldCaret(probe, probe.dialog, probe.dialogDrawing!!)
+            probe.next { assertEquals(0, editorText(window, "仮", 1, 1L)) }
+        }
+        case 32 -> {
+            assertTrue(probe.dialog.isComposing)
+            probe.next { editorInterpret(window, 2) }
+        }
+        case 33 -> {
+            assertFalse(probe.dialog.isComposing)
+            assertEquals("Dialog", probe.dialog.text)
+            assertTrue(probe.overlay.isOpen)
+            probe.next { editorKey(window, 53, "\u001b") }
+        }
+        case 34 -> {
+            assertFalse(probe.overlay.isOpen)
+            assertFalse(probe.focus[3L].isAttached)
+            assertTrue(probe.focus[0L].hasFocus)
+            probe.next { assertTrue(probe.list.focusItem(ViewKey.Number(0L))) }
+        }
+        else -> fail(Some("unexpected scroll or modal phase"))
+    }
+}

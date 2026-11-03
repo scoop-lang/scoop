@@ -1,0 +1,150 @@
+package scoop.tests.ui.itemfocus
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun advanceItemFocus(probe: ItemFocusProbe) {
+    when (probe.phase) {
+        case 0 -> {
+            assertTrue(probe.lead.hasFocus)
+            assertTrue(probe.first.isAttached)
+            assertFalse(probe.second.focusItem(ViewKey.Number(1L)))
+            assertFailsWith<IllegalArgumentException> { probe.first.focusItem(ViewKey.Position) }
+            val built = probe.builds
+            probe.next {
+                probe.discardNext = true
+                assertTrue(probe.first.focusItem(ViewKey.Number(400L)))
+                assertTrue(probe.first.isPending)
+                assertEquals(built, probe.builds)
+            }
+        }
+        case 1 -> {
+            probe.assertFocused(400L, 0L)
+            assertEquals(1, probe.discarded)
+            assertTrue(probe.builds < 20)
+            probe.next {
+                probe.checkFarGeometry = true
+                assertTrue(probe.first.focusItem(ViewKey.Number(99999999L), ItemFocusEdge.Last))
+            }
+        }
+        case 2 -> {
+            probe.assertFocused(99999999L, 1L)
+            assertTrue(probe.farGeometryChecked)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(-1L))) }
+        }
+        case 3 -> {
+            probe.assertFocused(99999999L, 1L)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(5L))) }
+        }
+        case 4 -> {
+            probe.assertFocused(99999999L, 1L)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(6L))) }
+        }
+        case 5 -> {
+            probe.assertFocused(99999999L, 1L)
+            probe.next {
+                assertTrue(probe.first.focusItem(ViewKey.Number(401L)))
+                assertTrue(probe.lead.requestFocus())
+                assertFalse(probe.first.isPending)
+            }
+        }
+        case 6 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next {
+                assertTrue(probe.first.focusItem(ViewKey.Number(402L)))
+                probe.scroll.scrollTo(Point(0.0, 24.0))
+                assertFalse(probe.first.isPending)
+            }
+        }
+        case 7 -> {
+            assertTrue(probe.lead.hasFocus)
+            assertEquals(Point(0.0, 24.0), probe.scroll.offset)
+            probe.next { probe.outer.value = 1L }
+        }
+        case 8 -> {
+            assertTrue(probe.first.isAttached)
+            assertFalse(probe.row(1L).areas[0L]!!.canFocus)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(404L))) }
+        }
+        case 9 -> {
+            probe.assertFocused(404L, 0L)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.outer.value = 0L
+            }
+        }
+        case 10 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.phase += 1
+            probe.waiting = true
+            probe.window!!.setVisible(false)
+            assertTrue(probe.first.focusItem(ViewKey.Number(88000L)))
+            probe.data!!.value = FocusSource(probe, Some([1L, 2L, 3L]))
+            probe.checkpointAction =
+                {
+                    assertFalse(probe.first.isPending)
+                    assertFalse(probe.frames!!.snapshot().required)
+                    when (probe.find(88000L)) {
+                        case Some(_) -> fail(Some("hidden focus request eagerly built an item"))
+                        case None -> {}
+                    }
+                    assertTrue(probe.first.focusItem(ViewKey.Number(2L)))
+                    assertTrue(probe.first.isPending)
+                    probe.data!!.value = FocusSource(probe, Some([3L, 1L, 2L]))
+                    probe.window!!.setVisible(true)
+                    probe.window!!.requestFocus()
+                    probe.waiting = false
+                }
+            probe.checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(100L))
+        }
+        case 11 -> {
+            probe.assertFocused(2L, 0L)
+            assertEquals(2L, probe.row(2L).index)
+            probe.next { probe.enabled.value = false }
+        }
+        case 12 -> {
+            assertFalse(probe.first.focusItem(ViewKey.Number(1L)))
+            assertFalse(probe.first.isPending)
+            probe.next {
+                assertTrue(probe.lead.requestFocus())
+                probe.enabled.value = true
+                probe.variable.value = true
+                probe.data!!.value = FocusSource(probe, Some([5L, 7L, 9L, 10L]), true)
+            }
+        }
+        case 13 -> probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(7L))) }
+        case 14 -> {
+            assertTrue(probe.lead.hasFocus)
+            probe.next { assertTrue(probe.first.focusItem(ViewKey.Number(9L), ItemFocusEdge.Last)) }
+        }
+        case 15 -> {
+            probe.assertFocused(9L, 1L)
+            assertEquals(Point(0.0, 46.0), probe.scroll.offset)
+            probe.next {
+                assertTrue(probe.first.focusItem(ViewKey.Number(10L)))
+                probe.replacement.value = true
+            }
+        }
+        case 16 -> {
+            probe.assertFocused(9L, 1L)
+            assertFalse(probe.first.isAttached)
+            assertFalse(probe.first.isPending)
+            assertTrue(probe.second.isAttached)
+            probe.next {
+                assertTrue(probe.second.focusItem(ViewKey.Number(10L)))
+                probe.show.value = false
+            }
+        }
+        case 17 -> {
+            assertFalse(probe.second.isAttached)
+            assertFalse(probe.second.isPending)
+            for (row in probe.rows)
+                assertEquals(1, row.unmounts)
+            probe.next { probe.window!!.requestDestroy() }
+        }
+        else -> fail(Some("unexpected keyed focus phase"))
+    }
+}

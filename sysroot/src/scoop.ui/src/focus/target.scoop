@@ -1,0 +1,83 @@
+package scoop.ui
+
+import scoop.graphics.Rect
+import scoop.surface.InputArea
+
+/** One registration; its input area remains owned by ComponentScope. */
+public class FocusTarget internal constructor(
+    internal val node: MountedNode,
+    internal val area: InputArea,
+    initial: FocusOptions
+): Closeable {
+    private val localHandle = FocusHandle()
+    private var current = initial
+    private var reference = initial.handle ?: localHandle
+    private var closed = false
+
+    init {
+        reference.bind(this)
+    }
+
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && !area.isClosed
+    internal val available: Boolean get() = active && area.scope.isInputAllowed
+    internal val reachable: Boolean get() =
+        available && (area.canFocus || node.root.focus.canReveal(this))
+    internal val tabCandidate: Boolean get() = current.tabStop && reachable
+    internal val acceptsTab: Boolean get() =
+        tabCandidate && (reference.navigation?.acceptsTab(this) ?: true)
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || area.isClosed
+    }
+    public val handle: FocusHandle get() {
+        node.root.checkThread()
+        return reference
+    }
+    public var options: FocusOptions
+    get() {
+        node.root.checkThread()
+        return current
+    }
+    set(value) {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (!active)
+            throw IllegalStateException(Some("focus target is no longer mounted"))
+        val next = value.handle ?: localHandle
+        next.checkBinding(this)
+        if (next !== reference) {
+            node.root.focus.cancel(this)
+            reference.unbind(this)
+            reference = next
+            next.bind(this)
+        }
+        current = value
+    }
+    /** Reveals a local subregion through the submitted scroll path without moving focus. */
+    public fun reveal(rect: Rect): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        checkScrollRect(rect)
+        if (!active || rect.width == 0.0 || rect.height == 0.0)
+            return false
+        return node.root.focus.reveal(this, rect)
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        node.root.focus.cancel(this)
+        reference.unbind(this)
+        var index = 0L
+        while (index < node.focusTargets.size) {
+            if (node.focusTargets[index] === this) {
+                node.focusTargets.removeAt(index)
+                return
+            }
+            index += 1L
+        }
+    }
+}

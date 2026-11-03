@@ -1,0 +1,295 @@
+package scoop.tests.ui.modal
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class ModalScene(private val probe: ModalProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        probe.rootScope = Some(scope)
+        assertTrue(
+            scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.focus[0L]))).requestFocus()
+        )
+        scope.input.captureHandler =
+            {
+                _,
+                event -> when (event) {
+                    case Keyboard(_) -> probe.backgroundKeys += 1
+                    else -> {}
+                }
+            }
+        scope.resource {
+            ShortcutScope(scope.input, [saveBinding { probe.backgroundShortcut += 1 }])
+        }
+    }
+    public override fun render(): View {
+        val revision = probe.revision.value
+        val children = ArrayList<View>()
+        if (probe.open[0L]) {
+            val nested = ArrayList<View>()
+            if (probe.open[1L])
+                nested.add(layer(1L))
+            if (probe.open[2L])
+                nested.add(layer(2L))
+            children.add(layer(0L, nested.toArray()))
+        }
+        for (index in 3L ..< 6L)
+            if (probe.open[index])
+                children.add(layer(index))
+        return element(revision, { props -> ModalCanvas(probe, props) }, children.toArray())
+    }
+    private fun layer(index: Long, children: Array<View> = []): View {
+        val modal = index == 1L || index == 4L || (index == 0L && !probe.plainOuter)
+        val placement =
+            if (index == 2L)
+                OverlayPlacement.Viewport(OverlayAlignment.End, OverlayAlignment.Start, 20.0)
+            else
+                if (index == 3L)
+                    OverlayPlacement.Viewport(OverlayAlignment.Start, OverlayAlignment.Start, 10.0)
+                else
+                    OverlayPlacement.Viewport()
+        val policy =
+            if (index == 3L)
+                probe.backgroundOutside
+            else
+                if (index == 5L)
+                    OutsidePress.Ignore
+                else
+                    probe.outside
+        return portal(
+            element(
+                PaneProps(index, index == 0L && probe.emptyOuter),
+                { props -> ModalPane(probe, props) },
+                children
+            ),
+            PortalOptions(
+                placement = placement,
+                handle = Some(probe.layers[index]),
+                modal =
+                    if (modal)
+                        Some(
+                            ModalOptions(
+                                initialFocus =
+                                    if (index == 0L)
+                                        Some(probe.focus[3L])
+                                    else
+                                        None,
+                                restoreFocus = probe.restore
+                            )
+                        )
+                    else
+                        None,
+                dismiss = OverlayDismiss(escape = index != 5L, outsidePress = policy),
+                onClose = { reason -> probe.close(index, reason) }
+            ),
+            ViewKey.Number(index)
+        )
+    }
+}
+
+private class ModalCanvas(private val probe: ModalProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        for (index in 0L ..< 2L) {
+            val area =
+                scope.createArea(focusable = true) {
+                    context,
+                    event -> recordInput(probe, index, context, event)
+                }
+            probe.areas[index] = Some(area)
+            scope.focusTarget(area, FocusOptions(Some(probe.focus[index])))
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints())
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(400.0, 260.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        probe.passes += 1
+        probe.paintOrder = ""
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        for (index in 0L ..< 2L) {
+            val area = probe.areas[index]!!
+            if (!area.isClosed)
+                context.place(area, Rect(10.0 + index.toDouble() * 80.0, 200.0, 60.0, 40.0))
+        }
+        context.children()
+        val revision = props.value
+        if (probe.discardNext) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(context.size.width + 20.0, 260.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> {
+                    probe.committed = revision
+                    if (probe.closeAfterPresent && probe.layers[0L].isOpen) {
+                        probe.closeAfterPresent = false
+                        probe.closedAtPass = probe.passes
+                        probe.layers[0L].close()
+                        assertFalse(probe.areas[0L]!!.scope.isInputAllowed)
+                    }
+                }
+                case Discarded -> {
+                    probe.discarded += 1
+                    assertFalse(probe.areas[0L]!!.scope.isInputAllowed)
+                    assertFalse(probe.focus[2L].hasFocus || probe.focus[3L].hasFocus)
+                    probe.rootScope!!.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+private struct PaneProps(val index: Long, val empty: Boolean)
+
+private class ModalPane(
+    private val probe: ModalProbe,
+    private val props: Props<PaneProps>
+): Element {
+    private var panel: InputArea? = None
+    private var targets: Array<Long> = []
+    public override fun onMount(scope: ComponentScope) {
+        val input = props.value
+        val index = input.index
+        probe.mounts[index] += 1
+        probe.modalRoots[index] = scope.input.parent!!.area
+        val region = scope.createArea()
+        panel = Some(region)
+        scope.routeChildren(region)
+        targets =
+            when (index) {
+                case 0L -> if (input.empty)
+                    []
+                else
+                    [2L, 3L]
+                case 1L -> [4L]
+                case 2L -> [5L]
+                case 3L -> [6L]
+                case 4L -> [7L]
+                else -> [8L]
+            }
+        for (target in targets) {
+            val area =
+                scope.createArea(focusable = target != 8L) {
+                    context,
+                    event -> recordInput(probe, target, context, event)
+                }
+            probe.areas[target] = Some(area)
+            if (target != 8L)
+                scope.focusTarget(area, FocusOptions(Some(probe.focus[target])))
+        }
+        scope.input.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (
+                            index ==
+                                2L &&
+                                probe.blockEscape &&
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.Escape)
+                        )
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        scope.resource { ShortcutScope(scope.input, [saveBinding { probe.shortcuts[index] += 1 }]) }
+        if (index == 0L && probe.requestOnMount >= 0L) {
+            assertTrue(probe.focus[probe.requestOnMount].requestFocus())
+            assertTrue(probe.focus[probe.requestOnMount].isPending)
+            probe.requestOnMount = -1L
+        }
+    }
+    public override fun onUnmount() {
+        probe.unmounts[props.value.index] += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints())
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        val size =
+            when (props.value.index) {
+                case 0L -> Size(160.0, 100.0)
+                case 1L -> Size(100.0, 80.0)
+                case 2L -> Size(60.0, 40.0)
+                case 3L -> Size(80.0, 40.0)
+                case 4L -> Size(90.0, 60.0)
+                else -> Size(300.0, 180.0)
+            }
+        return LayoutMetrics(constraints.constrain(size))
+    }
+    public override fun scene(context: SceneContext) {
+        val index = props.value.index
+        probe.paintOrder += index.toString()
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(panel!!, bounds)
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                bounds,
+                Paint(
+                    if (index == 5L)
+                        Color(0.0, 0.0, 1.0)
+                    else
+                        Color(1.0, 0.0, 0.0)
+                )
+            )
+        }
+        for (position in 0L ..< targets.size) {
+            val target = targets[position]
+            context.place(
+                probe.areas[target]!!,
+                if (target == 8L)
+                    bounds
+                else
+                    Rect(10.0 + position.toDouble() * 70.0, 10.0, 40.0, 25.0)
+            )
+        }
+        context.children()
+    }
+}
+
+private fun saveBinding(action: () -> Unit): ShortcutBinding =
+    ShortcutBinding(
+        ShortcutKey.Logical(LogicalKey.Character("s")),
+        ShortcutModifiers(primary = true),
+        action = action
+    )
+
+private fun recordInput(
+    probe: ModalProbe,
+    index: Long,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    when (event) {
+        case Pointer(InputPointerEvent.Button(_, _, state, _)) -> if (
+            context.phase == RoutedPhase.Target
+        ) {
+            if (state == ElementState.Pressed)
+                probe.downs[index] += 1
+            else
+                probe.ups[index] += 1
+        }
+        case Pointer(InputPointerEvent.Cancelled(_, _)) -> probe.cancels[index] += 1
+        case FocusChanged(false) -> {
+            if (index < 2L && probe.requestOnBlur >= 0L) {
+                val requested = probe.requestOnBlur
+                probe.requestOnBlur = -1L
+                assertFalse(probe.focus[requested].requestFocus())
+            }
+            if (index < 2L && probe.closeOnBlur) {
+                probe.closeOnBlur = false
+                probe.layers[0L].close()
+            }
+        }
+        else -> {}
+    }
+}

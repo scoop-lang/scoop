@@ -1,0 +1,126 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.text.*
+
+public class TextareaProps public constructor(
+    public val state: TextEditorState,
+    public val placeholder: String = "",
+    public val rows: Long = 4L,
+    public val wrap: Boolean = true,
+    public val tab: TextTabBehavior = TextTabBehavior.Navigate,
+    public val submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter,
+    public val enabled: Boolean = true,
+    public val readOnly: Boolean = false,
+    public val invalid: Boolean = false,
+    public val description: String = "",
+    public val fonts: FontCollection? = None,
+    public val style: TextFieldStyle = TextFieldStyle(),
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val direction: TextDirection = TextDirection.Ltr,
+    public val alignment: TextAlignment = TextAlignment.Start,
+    public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
+    public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+) {
+    init {
+        requireComponent(rows > 0L, "text field rows must be positive")
+    }
+}
+
+/** A fixed-row viewport; text, selection and history live in the shared editor model. */
+public class Textarea public constructor(private val props: Props<TextareaProps>): Component {
+    private val field = TextFieldRenderer()
+    public override fun onMount(scope: ComponentScope) {
+        field.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        return field.render(
+            TextFieldInput(
+                input.state,
+                input.placeholder,
+                input.invalid,
+                input.description,
+                input.fonts,
+                input.style,
+                input.theme,
+                input.focus,
+                TextEditOptions(
+                    multiline = true,
+                    wrap = input.wrap,
+                    readOnly = input.readOnly,
+                    enabled = input.enabled,
+                    tab = input.tab,
+                    submit = input.submit,
+                    direction = input.direction,
+                    alignment = input.alignment,
+                    paintCache = input.paintCache,
+                    caretBlink = input.caretBlink
+                ),
+                input.rows,
+                input.scrollbars,
+                input.onEdited,
+                input.onSubmit
+            )
+        )
+    }
+}
+
+public fun textarea(
+    state: TextEditorState,
+    placeholder: String = "",
+    rows: Long = 4L,
+    wrap: Boolean = true,
+    tab: TextTabBehavior = TextTabBehavior.Navigate,
+    submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter,
+    enabled: Boolean = true,
+    readOnly: Boolean = false,
+    invalid: Boolean = false,
+    description: String = "",
+    fonts: FontCollection? = None,
+    style: TextFieldStyle = TextFieldStyle(),
+    theme: ThemeSource? = None,
+    focus: FocusOptions = FocusOptions(),
+    direction: TextDirection = TextDirection.Ltr,
+    alignment: TextAlignment = TextAlignment.Start,
+    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    caretBlink: Duration = Duration.milliseconds(500L),
+    onEdited: (TextEditorState) -> Unit = { _ -> Unit },
+    onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
+    key: ViewKey = ViewKey.Position
+): View =
+    component(
+        TextareaProps(
+            state,
+            placeholder,
+            rows,
+            wrap,
+            tab,
+            submit,
+            enabled,
+            readOnly,
+            invalid,
+            description,
+            fonts,
+            style,
+            theme,
+            focus,
+            direction,
+            alignment,
+            scrollbars,
+            paintCache,
+            caretBlink,
+            onEdited,
+            onSubmit
+        ),
+        { props -> Textarea(props) },
+        key
+    )

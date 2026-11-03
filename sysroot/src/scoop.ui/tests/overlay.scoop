@@ -1,0 +1,126 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class OverlayPlacementTest {
+    @Test
+    fun `viewport alignment stays bounded even when padding fills the window`() {
+        val plan = planOverlay(OverlayPlacement.Viewport(), Size(320.0, 200.0), None)
+        assertEquals(Some(304.0), plan.constraints.maxWidth)
+        assertEquals(Some(184.0), plan.constraints.maxHeight)
+        val layout = plan.layout(Size(40.0, 20.0))
+        assertEquals(Rect(140.0, 90.0, 40.0, 20.0), layout.bounds)
+        assertEquals(Rect(8.0, 8.0, 304.0, 184.0), layout.available)
+        assertEquals(None, layout.anchor)
+        assertEquals(None, layout.side)
+        val end =
+            planOverlay(
+                OverlayPlacement.Viewport(OverlayAlignment.End, OverlayAlignment.Start, 10.0),
+                Size(320.0, 200.0),
+                None
+            )
+        assertEquals(Rect(270.0, 10.0, 40.0, 20.0), end.layout(Size(40.0, 20.0)).bounds)
+        val empty =
+            planOverlay(
+                OverlayPlacement.Viewport(viewportPadding = 1000.0),
+                Size(100.0, 80.0),
+                None
+            )
+        assertEquals(Some(0.0), empty.constraints.maxWidth)
+        assertEquals(Some(0.0), empty.constraints.maxHeight)
+        assertEquals(Rect(50.0, 40.0, 0.0, 0.0), empty.layout(Size(0.0, 0.0)).bounds)
+    }
+
+    @Test
+    fun `anchored layout measures once for either side then flips and shifts`() {
+        val anchor = Rect(270.0, 160.0, 30.0, 20.0)
+        val plan =
+            planOverlay(OverlayPlacement.Anchored(LayoutAnchor()), Size(320.0, 200.0), Some(anchor))
+        assertEquals(Some(148.0), plan.constraints.maxHeight)
+        val layout = plan.layout(Size(80.0, 50.0))
+        assertEquals(Some(OverlaySide.Top), layout.side)
+        assertEquals(Some(anchor), layout.anchor)
+        assertEquals(Rect(232.0, 106.0, 80.0, 50.0), layout.bounds)
+        assertEquals(Rect(8.0, 8.0, 304.0, 148.0), layout.available)
+        val small = plan.layout(Size(20.0, 5.0))
+        assertEquals(Some(OverlaySide.Bottom), small.side)
+        assertEquals(Rect(270.0, 184.0, 20.0, 5.0), small.bounds)
+    }
+
+    @Test
+    fun `horizontal alignment is physical and matching width is clamped to available space`() {
+        val plan =
+            planOverlay(
+                OverlayPlacement.Anchored(
+                    LayoutAnchor(),
+                    OverlaySide.Left,
+                    OverlayAlignment.End,
+                    5.0,
+                    10.0
+                ),
+                Size(320.0, 200.0),
+                Some(Rect(100.0, 50.0, 30.0, 20.0))
+            )
+        assertEquals(Some(175.0), plan.constraints.maxWidth)
+        val layout = plan.layout(Size(60.0, 40.0))
+        assertEquals(Some(OverlaySide.Left), layout.side)
+        assertEquals(Rect(35.0, 30.0, 60.0, 40.0), layout.bounds)
+        val wide =
+            planOverlay(
+                OverlayPlacement.Anchored(LayoutAnchor(), matchAnchorWidth = true),
+                Size(320.0, 200.0),
+                Some(Rect(10.0, 50.0, 600.0, 20.0))
+            )
+        assertEquals(304.0, wide.constraints.minWidth)
+        assertEquals(Some(304.0), wide.constraints.maxWidth)
+        assertEquals(Rect(8.0, 74.0, 304.0, 30.0), wide.layout(Size(304.0, 30.0)).bounds)
+    }
+
+    @Test
+    fun `offscreen anchors and large gaps do not produce out of viewport or nonfinite origins`() {
+        val plan =
+            planOverlay(
+                OverlayPlacement.Anchored(LayoutAnchor()),
+                Size(320.0, 200.0),
+                Some(Rect(900.0, 1000.0, 50.0, 20.0))
+            )
+        assertEquals(Rect(232.0, 142.0, 80.0, 50.0), plan.layout(Size(80.0, 50.0)).bounds)
+        val huge =
+            planOverlay(
+                OverlayPlacement.Anchored(LayoutAnchor(), gap = 1.7e308),
+                Size(320.0, 200.0),
+                Some(Rect(100.0, 50.0, 30.0, 20.0))
+            )
+        assertEquals(Some(0.0), huge.constraints.maxHeight)
+        assertEquals(Rect(100.0, 192.0, 20.0, 0.0), huge.layout(Size(20.0, 0.0)).bounds)
+    }
+
+    @Test
+    fun `overlay configuration rejects invalid distances and references stay on their owner thread`() {
+        assertFailsWith<IllegalArgumentException> {
+            PortalOptions(OverlayPlacement.Viewport(viewportPadding = -1.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            PortalOptions(OverlayPlacement.Anchored(LayoutAnchor(), gap = 0.0 / 0.0))
+        }
+        assertTrue(
+            portal(empty()).shape !=
+                portal(empty(), PortalOptions(modal = Some(ModalOptions()))).shape
+        )
+        val anchor = LayoutAnchor()
+        val handle = OverlayHandle()
+        Thread.start {
+            assertFailsWith<IllegalStateException> { anchor.isAttached }
+            assertFailsWith<IllegalStateException> { handle.isOpen }
+            assertFailsWith<IllegalStateException> { handle.close() }
+        }.use { thread -> thread.join() }
+        assertFalse(anchor.isAttached)
+        assertFalse(handle.isAttached)
+        assertFalse(handle.isOpen)
+        handle.close()
+        assertEquals(None, handle.lastCloseReason)
+    }
+}

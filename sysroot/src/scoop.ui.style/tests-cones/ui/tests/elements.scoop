@@ -58,17 +58,19 @@ private class StylePanel(private val props: Props<Int>, private val probe: Style
         context.placeChild(1L, Point(180.0, 40.0))
         return LayoutMetrics(constraints.constrain(Size(300.0, 160.0)))
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.paints += 1
-        context.canvas.clear(Color.White)
-        context.paintChildren()
-        @Unsafe
-        {
-            context.canvas.withSkiaCanvas {
-                native -> @Unsafe
-                {
-                    probe.centerPixel = readNativePixel(native, 60.0, 60.0)
-                    probe.haloPixel = readNativePixel(native, 123.0, 60.0)
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        probe.centerPixel = readNativePixel(native, 60.0, 60.0)
+                        probe.haloPixel = readNativePixel(native, 123.0, 60.0)
+                    }
                 }
             }
         }
@@ -108,16 +110,16 @@ internal class CounterInk(
                     current,
                     event -> when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                         ) -> {
-                            current.requestFocus();
-                            InputResult.Handled
+                            current.currentTarget.area!!.requestFocus();
+                            current.consume()
                         }
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> {
                             props.value.activate();
-                            InputResult.Handled
+                            current.consume()
                         }
                         case Keyboard(value) -> {
                             if (value.state == ElementState.Released && !value.synthetic) {
@@ -126,22 +128,22 @@ internal class CounterInk(
                                     else -> {}
                                 }
                             }
-                            InputResult.Handled
+                            current.consume()
                         }
-                        else -> InputResult.Ignored
+                        else -> {}
                     }
                 }
             )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(80.0, 40.0)), Some(20.0), Some(28.0))
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val color =
             if (props.value.count == 7)
                 Color(1.0, 0.0, 0.0)
             else
                 Color(0.0, 1.0, 0.0)
-        context.canvas.drawRect(Rect(10.0, 10.0, 40.0, 20.0), Paint(color))
+        context.draw { paint -> paint.canvas.drawRect(Rect(10.0, 10.0, 40.0, 20.0), Paint(color)) }
         context.place(area!!, Rect(0.0, 0.0, 80.0, 40.0))
         probe.paintedCount = props.value.count
     }
@@ -161,16 +163,18 @@ internal class AnimatedInk(private val probe: StyleProbe): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(50.0, 40.0)))
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val value = sigma!!.value
-        painter!!.paint(
+        painter!!.scene(
             context,
             Style(contentEffects = [ContentEffect.Glow(value, value, Color(0.0, 0.0, 1.0))])
         ) {
-            content -> content.canvas.drawRect(
-                Rect(10.0, 12.0, 18.0, 16.0),
-                Paint(Color(1.0, 0.0, 0.0))
-            )
+            content -> content.draw {
+                paint -> paint.canvas.drawRect(
+                    Rect(10.0, 12.0, 18.0, 16.0),
+                    Paint(Color(1.0, 0.0, 0.0))
+                )
+            }
         }
         probe.paintedSigma = value
     }

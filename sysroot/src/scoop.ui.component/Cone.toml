@@ -12,6 +12,7 @@ when = { os = "darwin" }
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
 "scoop:scoop.graphics.text" = "0.1.0"
 "scoop:scoop.surface" = "0.1.0"
@@ -21,7 +22,6 @@ when = { os = "darwin" }
 
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
-"scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.ui.style.macos" = "0.1.0"
 "scoop:scoop.ui.style.material" = "0.1.0"
 "scoop:scoop.ui.style.fluent" = "0.1.0"

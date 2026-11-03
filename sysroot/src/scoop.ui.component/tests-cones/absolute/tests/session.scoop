@@ -1,0 +1,162 @@
+package scoop.tests.ui.absolute
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class AbsoluteUiTest {
+    @Test
+    fun `absolute z order changes pixels and hits while keyed instances tab order and ancestor clips stay logical`() {
+        val probe = AbsoluteProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            for (index in 0L ..< probe.handles.size) {
+                assertEquals(1, probe.mounts[index])
+                assertEquals(1, probe.unmounts[index])
+                assertFalse(probe.handles[index].isAttached)
+            }
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.view?.close()
+        }
+    }
+}
+
+internal class AbsoluteProbe {
+    val handles = Array<FocusHandle>(3L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(3L) { _ -> None }
+    val mounts = MutableArray<Int>(3L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(3L) { _ -> 0 }
+    val measures = MutableArray<Int>(3L) { _ -> 0 }
+    val scenes = MutableArray<Int>(3L) { _ -> 0 }
+    val clicks = MutableArray<Int>(3L) { _ -> 0 }
+    val colors = [Color(1.0, 0.0, 0.0), Color(0.0, 1.0, 0.0), Color(0.0, 0.0, 1.0)]
+    val generation = state(0)
+    var committed = -1
+    var passes = 0
+    var order = ""
+    var overlap = -1L
+    var outside = -1L
+    var overflow = -1L
+    var finished = false
+    var view: ViewProbe? = None
+    private var window: Window? = None
+    private var ui: UiWindow? = None
+    private var waiting = false
+    private var retryFocus = false
+    private var phase = 0
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop absolute layout", LogicalSize(320.0, 180.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { AbsoluteScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (!finished && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (!waiting && committed == generation.value && window!!.isFocused)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"absolute timeout phase=${phase}, passes=${passes}")
+            )
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            else -> {}
+        }
+    }
+    private fun assertFocus(index: Long) {
+        for (position in 0L ..< handles.size)
+            assertEquals(position == index, handles[position].hasFocus)
+    }
+    private fun afterInput(active: ActiveApplication, target: Long) {
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                assertFocus(target);
+                phase += 1;
+                waiting = false
+            }
+        )
+    }
+    private fun click(active: ActiveApplication, x: Double, target: Long) {
+        waiting = true
+        assertTrue(moveSurfacePointer(window!!, x, 50.0))
+        assertTrue(view!!.button(x, 50.0, true))
+        assertTrue(view!!.button(x, 50.0, false))
+        afterInput(active, target)
+    }
+    private fun tab(active: ActiveApplication, target: Long) {
+        waiting = true
+        assertTrue(sendSurfaceKey(window!!, 48, true))
+        assertTrue(sendSurfaceKey(window!!, 48, false))
+        afterInput(active, target)
+    }
+    private fun advance(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertEquals("120", order)
+                assertEquals(255L, overlap)
+                assertEquals(255L, overflow)
+                assertEquals(16777215L, outside)
+                assertEquals(Some(Rect(5.0, 40.0, 100.0, 40.0)), areas[0L]!!.windowBounds)
+                assertEquals(Some(Rect(60.0, 40.0, 80.0, 40.0)), areas[1L]!!.windowBounds)
+                assertEquals(Some(Rect(40.0, 40.0, 150.0, 40.0)), areas[2L]!!.windowBounds)
+                assertEquals(Some(Rect(40.0, 40.0, 110.0, 40.0)), areas[2L]!!.visibleBounds)
+                click(active, 80.0, 0L)
+            }
+            case 1 -> {
+                assertEquals(1, clicks[0L])
+                tab(active, 1L)
+            }
+            case 2 -> {
+                generation.value = 1;
+                phase += 1
+            }
+            case 3 -> {
+                assertEquals("012", order)
+                assertEquals(16711680L, overlap)
+                for (count in mounts)
+                    assertEquals(1, count)
+                assertFocus(1L)
+                click(active, 80.0, 2L)
+            }
+            case 4 -> {
+                assertEquals(1, clicks[2L])
+                tab(active, 0L)
+            }
+            case 5 -> click(active, 170.0, 0L)
+            case 6 -> {
+                assertEquals(1, clicks[0L])
+                assertEquals(0, clicks[1L])
+                assertEquals(1, clicks[2L])
+                finished = true
+                waiting = true
+                ui!!.close()
+                window!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected absolute phase"))
+        }
+    }
+}

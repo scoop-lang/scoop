@@ -1,0 +1,26 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class ShortcutKeyTest {
+    @Test
+    fun `logical shortcuts compare Unicode case without losing accents or dead key meaning`() {
+        assertTrue(LogicalKey.Character("S").matchesShortcut(LogicalKey.Character("s")))
+        assertTrue(LogicalKey.Character("Å").matchesShortcut(LogicalKey.Character("å")))
+        assertTrue(LogicalKey.Character("Σ").matchesShortcut(LogicalKey.Character("ς")))
+        assertTrue(LogicalKey.Character("É").matchesShortcut(LogicalKey.Character("é")))
+        assertFalse(LogicalKey.Character("e").matchesShortcut(LogicalKey.Character("é")))
+        assertFalse(LogicalKey.Character("i").matchesShortcut(LogicalKey.Character("ı")))
+        assertFalse(LogicalKey.Dead(Some("´")).matchesShortcut(LogicalKey.Dead(Some("´"))))
+        assertTrue(LogicalKey.Named(NamedKey.Tab).matchesShortcut(LogicalKey.Named(NamedKey.Tab)))
+        assertFalse(
+            LogicalKey.Named(NamedKey.Tab).matchesShortcut(LogicalKey.Named(NamedKey.Enter))
+        )
+        assertTrue(
+            LogicalKey.Unidentified(NativeKeyCode.Darwin(250U)).matchesShortcut(
+                LogicalKey.Unidentified(NativeKeyCode.Darwin(250U))
+            )
+        )
+    }
+}

@@ -3,6 +3,7 @@ package scoop.surface
 /** A root owned by one SurfaceWindow, closed before its renderer and native lease. */
 public interface SurfaceContent: Closeable {
     public fun paint(frame: FrameContext)
+    public fun onFrameComplete(frame: FrameCompletion) {}
 }
 
 internal class PainterContent(private val painter: (FrameContext) -> Unit): SurfaceContent {

@@ -1,0 +1,191 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal fun advanceFields(probe: FieldProbe) {
+    if (probe.phase <= 24)
+        advanceInput(probe)
+    else
+        if (probe.phase <= 34)
+            advanceFieldScrollAndModal(probe)
+        else
+            advanceVirtualField(probe)
+}
+
+private fun advanceInput(probe: FieldProbe) {
+    val window = probe.native!!
+    when (probe.phase) {
+        case 0 -> {
+            assertEquals(260.0, probe.primaryMetrics!!.size.width)
+            assertTrue(probe.primaryMetrics!!.size.height > probe.primaryDrawing!!.bounds.height)
+            assertEquals(1, probe.inputCreates)
+            probe.next { probe.paddingClick() }
+        }
+        case 1 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            assertTrue(probe.primaryDrawing!!.visual.interaction.focused)
+            fieldCaret(probe, probe.main, probe.primaryDrawing!!)
+            probe.next { probe.primary.replaceAll("from server") }
+        }
+        case 2 -> {
+            assertEquals("from server", probe.primary.text)
+            assertEquals(0, probe.edits)
+            probe.next { assertEquals(0, editorText(window, "!")) }
+        }
+        case 3 -> {
+            assertEquals("from server!", probe.primary.text)
+            assertEquals(1, probe.edits)
+            assertEquals(0, probe.editedVersion)
+            probe.next { editorKey(window, 36, "\r") }
+        }
+        case 4 -> {
+            assertEquals(1, probe.submits)
+            probe.next { editorKey(window, 48, "\t") }
+        }
+        case 5 -> {
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.savedPasses = probe.passes
+            probe.next { probe.primary.replaceAll("background") }
+        }
+        case 6 -> {
+            assertTrue(probe.passes > probe.savedPasses)
+            assertEquals(1, probe.edits)
+            probe.next { assertTrue(probe.focus[0L].requestFocus()) }
+        }
+        case 7 -> {
+            assertEquals("background", probe.primary.text)
+            assertTrue(editorDocument(window, probe.primary))
+            probe.next { assertEquals(0, editorText(window, "仮", 1, 1L)) }
+        }
+        case 8 -> {
+            assertTrue(probe.primary.isComposing)
+            probe.next {
+                probe.rebound = true
+                probe.callbackVersion = 1
+                probe.change()
+            }
+        }
+        case 9 -> {
+            assertFalse(probe.primary.isComposing)
+            assertEquals("background", probe.primary.text)
+            assertEquals("replacement", probe.replacement.text)
+            assertTrue(probe.focus[0L].hasFocus)
+            assertTrue(editorDocument(window, probe.replacement))
+            probe.next { assertEquals(0, editorText(window, "新")) }
+        }
+        case 10 -> {
+            assertEquals("replacement新", probe.main.text)
+            assertEquals(1, probe.editedVersion)
+            probe.next {
+                probe.readOnly = true;
+                probe.change()
+            }
+        }
+        case 11 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            assertEquals(1, editorText(window, "blocked"))
+            probe.next {
+                editorKey(window, 0, "a", 8)
+                editorKey(window, 51, "\u007f")
+            }
+        }
+        case 12 -> {
+            assertEquals("replacement新", probe.main.text)
+            assertEquals(Utf8Selection(0L, probe.main.text.byteLength), probe.main.selection)
+            probe.next {
+                probe.readOnly = false;
+                probe.change()
+            }
+        }
+        case 13 -> {
+            assertTrue(editorDocument(window, probe.main))
+            probe.next {
+                probe.enabled = false;
+                probe.change()
+            }
+        }
+        case 14 -> {
+            assertFalse(probe.focus[0L].hasFocus)
+            assertFalse(probe.focus[0L].requestFocus())
+            probe.next {
+                probe.enabled = true
+                probe.change()
+                assertTrue(probe.focus[1L].requestFocus())
+            }
+        }
+        case 15 -> {
+            assertTrue(probe.focus[1L].hasFocus)
+            probe.next { probe.paddingClick() }
+        }
+        case 16 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            probe.next { probe.source.current.value = probe.themes[1L] }
+        }
+        case 17 -> {
+            assertFieldTheme(probe)
+            probe.next { probe.source.current.value = probe.themes[2L] }
+        }
+        case 18 -> {
+            assertFieldTheme(probe)
+            probe.next { probe.source.current.value = probe.themes[3L] }
+        }
+        case 19 -> {
+            assertFieldTheme(probe)
+            probe.next { probe.source.current.value = probe.themes[4L] }
+        }
+        case 20 -> {
+            assertFieldTheme(probe)
+            probe.next { probe.source.current.value = probe.themes[5L] }
+        }
+        case 21 -> {
+            assertFieldTheme(probe)
+            probe.next {
+                probe.invalid = true;
+                probe.description = "Needs review";
+                probe.change()
+            }
+        }
+        case 22 -> {
+            val geometry = probe.primaryDrawing!!.geometry
+            val error = probe.source.current.value.tokens.palette.error
+            assertEquals(error, geometry.style.border!!.color)
+            assertEquals(error.withAlpha(0.72), geometry.focus!!.border.color)
+            assertTrue(probe.primaryMetrics!!.size.height > geometry.bounds.height)
+            probe.next {
+                probe.ownedFonts = true;
+                probe.change()
+            }
+        }
+        case 23 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            assertEquals(1, probe.inputCreates)
+            assertEquals("replacement新", probe.main.text)
+            probe.next {
+                probe.ownedFonts = false;
+                probe.change()
+            }
+        }
+        case 24 -> {
+            assertFalse(probe.fonts.isClosed)
+            fieldCaret(probe, probe.main, probe.primaryDrawing!!)
+            probe.next {
+                assertTrue(probe.focus[1L].requestFocus())
+                probe.secondary.replaceAll(fieldLongText(), Some(Utf8Selection(0L, 0L)))
+                probe.editorRows = 8L
+                probe.change()
+            }
+        }
+        else -> fail(Some("unexpected input phase"))
+    }
+}
+
+internal fun fieldLongText(): String {
+    val text = StringBuilder()
+    for (index in 0L ..< 60L)
+        text.append("A long editable line with enough text to exceed its viewport width.\n")
+    return text.toString()
+}

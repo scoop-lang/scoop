@@ -1,0 +1,161 @@
+package scoop.tests.ui.lazy
+
+import scoop.graphics.*
+import scoop.surface.InputArea
+import scoop.test.*
+import scoop.ui.*
+
+internal class ProtocolSource(
+    private val probe: LazyProbe,
+    private val order: Array<Long>? = None,
+    private val version: Int = 0
+): ItemSource {
+    public override val count: Long get() = order?.size ?: 100000000L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(order?.get(index) ?: index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(id) -> when (order) {
+                case None -> if (id >= 0L && id < count)
+                    Some(id)
+                else
+                    None
+                case Some(keys) -> {
+                    var found: Long? = None
+                    for (index in 0L ..< keys.size)
+                        if (keys[index] == id)
+                            found = Some(index)
+                    found
+                }
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val id = order?.get(index) ?: index
+        probe.builds.add(id)
+        assertFailsWith<IllegalStateException> { probe.mountWrites.value = 100 }
+        when (probe.activeContext) {
+            case Some(context) -> assertFailsWith<IllegalStateException> { context.itemCount }
+            case None -> {}
+        }
+        val input =
+            RowInput(
+                id,
+                index,
+                version,
+                if (id == 7L)
+                    probe.value7.value
+                else
+                    0
+            )
+        return if (version == 3)
+            element(input, { props -> AlternateRow(probe, props) })
+        else
+            component(input, { props -> ProtocolRow(probe, props) })
+    }
+}
+
+internal class TrackedRowResource: Closeable {
+    var closes = 0
+    public override fun close() {
+        closes += 1
+    }
+}
+
+internal struct RowInput(val id: Long, val index: Long, val version: Int, val value: Int)
+
+internal class RowRecord(val probe: LazyProbe, val id: Long) {
+    val local = state(0)
+    val handle = FocusHandle()
+    var input = RowInput(id, -1L, -1, 0)
+    var renders = 0
+    var localValue = -1
+    var mounts = 0
+    var unmounts = 0
+    var disposed = 0
+    var scope: ComponentScope? = None
+    var area: InputArea? = None
+    var resource: TrackedRowResource? = None
+    init {
+        probe.rows.add(this)
+    }
+    fun mount(owner: ComponentScope) {
+        scope = Some(owner)
+        resource = Some(owner.resource { TrackedRowResource() })
+        owner.onDispose { disposed += 1 }
+        area = Some(owner.createArea(focusable = true))
+        owner.focusTarget(area!!, FocusOptions(Some(handle)))
+        local.value += 1
+        probe.mountWrites.value += 1
+        mounts += 1
+        if (id == 9L)
+            assertTrue(handle.requestFocus())
+        if (id == 99L)
+            probe.ui!!.close()
+    }
+    fun unmount() {
+        unmounts += 1
+        assertFalse(scope!!.isMounted)
+        assertTrue(area!!.isClosed)
+        assertEquals(0, resource!!.closes)
+    }
+    fun measure(constraints: Constraints): LayoutMetrics {
+        assertFailsWith<IllegalStateException> { local.value += 1 }
+        return LayoutMetrics(constraints.constrain(Size(100.0, 24.0)))
+    }
+    fun scene(context: SceneContext) {
+        assertFailsWith<IllegalStateException> { local.value += 1 }
+        probe.drawOrder.add(id)
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
+    }
+}
+
+private class ProtocolRow(
+    private val probe: LazyProbe,
+    private val props: Props<RowInput>
+): Component {
+    private val record = RowRecord(probe, props.value.id)
+    public override fun render(): View {
+        record.input = props.value
+        record.localValue = record.local.value
+        record.renders += 1
+        assertFailsWith<IllegalStateException> { record.local.value += 1 }
+        return element({ RowInk(record) })
+    }
+    public override fun onMount(scope: ComponentScope) {
+        record.mount(scope)
+    }
+    public override fun onUnmount() {
+        record.unmount()
+    }
+}
+
+private class RowInk(private val record: RowRecord): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        record.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        record.scene(context)
+    }
+}
+
+private class AlternateRow(
+    private val probe: LazyProbe,
+    private val props: Props<RowInput>
+): Element {
+    private val record = RowRecord(probe, props.value.id)
+    public override fun onMount(scope: ComponentScope) {
+        record.mount(scope)
+    }
+    public override fun update() {
+        record.input = props.value
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        record.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        record.scene(context)
+    }
+    public override fun onUnmount() {
+        record.unmount()
+    }
+}

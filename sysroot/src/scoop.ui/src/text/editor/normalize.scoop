@@ -1,0 +1,102 @@
+package scoop.ui.text
+
+import scoop.window.*
+
+private struct EditorLineBreak(val end: Long, val removed: Long)
+
+/** Only changed newline intervals need mapping; native scalar offsets stay byte based. */
+internal class EditorSingleLine private constructor(
+    val text: String,
+    private val breaks: Array<EditorLineBreak>
+) {
+    fun position(offset: Long): Long {
+        var removed = 0L
+        for (item in breaks) {
+            if (offset < item.end)
+                break
+            removed += item.removed
+        }
+        return offset - removed
+    }
+    public companion object {
+        fun from(text: String): EditorSingleLine {
+            if (!editorHasLineBreak(text))
+                return EditorSingleLine(text, [])
+            val result = StringBuilder(text.byteLength)
+            val breaks = ArrayList<EditorLineBreak>()
+            var offset = 0L
+            var carriage = false
+            for (character in text) {
+                val part = character.toString()
+                val next = offset + part.byteLength
+                if (editorLineBreak(character)) {
+                    val paired = carriage && character.code == 10
+                    if (!paired)
+                        result.append(" ")
+                    breaks.add(
+                        EditorLineBreak(
+                            next,
+                            part.byteLength -
+                                if (paired)
+                                    0L
+                                else
+                                    1L
+                        )
+                    )
+                } else
+                    result.append(part)
+                carriage = character.code == 13
+                offset = next
+            }
+            return EditorSingleLine(result.toString(), breaks.toArray())
+        }
+    }
+}
+
+internal fun editorHasLineBreak(text: String): Boolean {
+    for (character in text)
+        if (editorLineBreak(character))
+            return true
+    return false
+}
+
+private fun editorLineBreak(character: Char): Boolean =
+    character.code ==
+        10 ||
+        character.code ==
+        13 ||
+        character.code ==
+        11 ||
+        character.code ==
+        12 ||
+        character.code ==
+        133 ||
+        character.code ==
+        8232 ||
+        character.code ==
+        8233
+
+internal fun editorSingleLine(value: EditorValue): EditorValue {
+    val input = value.input
+    val mapped = EditorSingleLine.from(input.surroundingText)
+    if (mapped.text == input.surroundingText)
+        return value
+    val selection = input.selection
+    val marked =
+        when (input.markedRange) {
+            case Some(range) -> Some(
+                Utf8Range(mapped.position(range.start), mapped.position(range.end))
+            )
+            case None -> None
+        }
+    return EditorValue(
+        TextInputState(
+            mapped.text,
+            Utf8Selection(mapped.position(selection.anchor), mapped.position(selection.cursor)),
+            marked,
+            revision = input.revision
+        ),
+        value.anchorAffinity,
+        value.cursorAffinity
+    )
+}

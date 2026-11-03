@@ -2,6 +2,7 @@ package scoop.surface
 
 import scoop.graphics.Size
 import scoop.platform.time.MonotonicTimeSource
+import scoop.time.TimeMark
 import scoop.window.*
 
 public enum SurfaceWindowState {
@@ -19,11 +20,31 @@ public class SurfaceWindow internal constructor(
     private var depth = 0
     private var configured: WindowMetrics? = None
     private val scheduler = FrameScheduler()
+    private var animationDeadline: WindowDeadline? = None
+    private var scheduledAnimationTime: TimeMark? = None
     public val animations: AnimationTimeline = windowAnimations(nativeWindow)
-    private val input = windowInputs(nativeWindow)
+    private val inputs = windowInputs(nativeWindow)
+    init {
+        host.bindShortcuts(inputs.rootScope)
+        animations.scheduleChanged = { refresh() }
+    }
+    public val input: InputScope get() {
+        host.checkThread()
+        return inputs.rootScope
+    }
     public val focusedArea: InputArea? get() {
         host.checkThread();
-        return input.logicalFocus
+        return inputs.logicalFocus
+    }
+    public val focusRevision: ULong get() {
+        host.checkThread()
+        return inputs.focusRevision
+    }
+    /** Records a deferred or rejected focus intent without changing the current target. */
+    public fun reserveFocusRequest(): ULong = inputs.reserveFocusRequest()
+    public val inputBoundary: InputBoundary? get() {
+        host.checkThread()
+        return inputs.currentBoundary
     }
     public val state: SurfaceWindowState get() {
         host.checkThread();
@@ -33,10 +54,15 @@ public class SurfaceWindow internal constructor(
     public fun createArea(
         focusable: Boolean = false,
         textInput: Boolean = false,
-        handler: (InputArea, AreaEvent) -> InputResult
-    ): InputArea = input.createArea(focusable, textInput, handler)
+        parent: InputScope? = None,
+        handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    ): InputArea = inputs.createArea(focusable, textInput, parent, handler)
+    public fun createScope(
+        parent: InputScope? = None,
+        handler: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
+    ): InputScope = inputs.createScope(parent, handler)
     public fun clearFocus() {
-        input.clearFocus()
+        inputs.clearFocus()
     }
 
     public fun requestFrame() {
@@ -54,24 +80,47 @@ public class SurfaceWindow internal constructor(
             close();
             return
         }
+        var drawable = false
         when (nativeWindow.metrics) {
             case Some(metrics) -> {
                 if (configured != Some(metrics)) {
                     renderer.configure(metrics)
                     configured = Some(metrics)
                     scheduler.request()
-                    input.geometryChanged()
+                    inputs.geometryChanged()
                 }
                 if (phase != SurfaceWindowState.Open)
                     return
-                renderer.setFrameDemand(
-                    (scheduler.dirty || animations.hasWork) &&
-                        metrics.physicalSize.isDrawable &&
+                drawable =
+                    metrics.physicalSize.isDrawable &&
                         nativeWindow.isVisible &&
                         !nativeWindow.isOccluded
-                )
+                renderer.setFrameDemand((scheduler.dirty || animations.hasFrameWork) && drawable)
             }
             case None -> renderer.setFrameDemand(false)
+        }
+        refreshAnimationDeadline(drawable)
+    }
+    private fun refreshAnimationDeadline(drawable: Boolean) {
+        val next = animations.nextDeadline(!drawable)
+        if (next == scheduledAnimationTime)
+            return
+        scheduledAnimationTime = next
+        when (next) {
+            case None -> animationDeadline?.cancel()
+            case Some(time) -> {
+                val deadline =
+                    animationDeadline ?:
+                        nativeWindow.createDeadline {
+                            scheduledAnimationTime = None
+                            callback {
+                                animations.advanceTo(MonotonicTimeSource.markNow())
+                                refresh()
+                            }
+                        }
+                animationDeadline = Some(deadline)
+                deadline.schedule(time)
+            }
         }
     }
     internal fun event(event: WindowEvent) {
@@ -92,7 +141,7 @@ public class SurfaceWindow internal constructor(
                     refresh()
                 }
                 case ThemeChanged(_) -> requestFrame()
-                else -> input.event(event)
+                else -> inputs.event(event)
             }
         }
     }
@@ -109,26 +158,18 @@ public class SurfaceWindow internal constructor(
                 refresh()
             }
             case Ready(frame) -> {
+                val time = MonotonicTimeSource.markNow()
+                val size = Size(metrics.logicalSize.width, metrics.logicalSize.height)
                 val accepted =
                     frame.use {
-                        current -> input.beginFrame().use {
+                        current -> inputs.beginFrame().use {
                             placements ->
                             scheduler.begin()
-                            val time = MonotonicTimeSource.markNow()
                             animations.withFrame<Unit>(time) {
                                 if (phase == SurfaceWindowState.Open) {
                                     current.draw {
                                         canvas -> content.paint(
-                                            FrameContext(
-                                                this,
-                                                canvas,
-                                                Size(
-                                                    metrics.logicalSize.width,
-                                                    metrics.logicalSize.height
-                                                ),
-                                                time,
-                                                placements
-                                            )
+                                            FrameContext(this, canvas, size, time, placements)
                                         )
                                     }
                                 }
@@ -148,12 +189,23 @@ public class SurfaceWindow internal constructor(
                                 else
                                     current.submit()
                             if (accepted)
-                                input.publish(placements)
+                                inputs.publish(placements)
                             accepted
                         }
                     }
                 if (!accepted)
                     scheduler.request()
+                if (phase == SurfaceWindowState.Open)
+                    content.onFrameComplete(
+                        FrameCompletion(
+                            time,
+                            size,
+                            if (accepted)
+                                FrameSubmission.Accepted
+                            else
+                                FrameSubmission.Discarded
+                        )
+                    )
                 refresh()
             }
         }
@@ -181,7 +233,8 @@ public class SurfaceWindow internal constructor(
         phase = SurfaceWindowState.Closing
         host.requestRetirement()
         var failure = cleanupFailure(None) { renderer.setFrameDemand(false) }
-        failure = cleanupFailure(failure) { input.close() }
+        failure = cleanupFailure(failure) { animationDeadline?.close() }
+        failure = cleanupFailure(failure) { inputs.close() }
         failure = cleanupFailure(failure) { animations.close() }
         throwFailure(cleanupFailure(failure) { finishClosing() })
     }
@@ -223,12 +276,9 @@ private fun windowInputs(window: Window): InputRouter =
             }
         },
         {
-            rect -> if (window.state == WindowState.Open)
-                window.setImeCursorArea(
-                    LogicalRect(
-                        LogicalPosition(rect.x, rect.y),
-                        LogicalSize(rect.width, rect.height)
-                    )
-                )
+            caret -> if (window.state == WindowState.Open)
+                publishWindowCaret(window, caret)
+            else
+                false
         }
     )

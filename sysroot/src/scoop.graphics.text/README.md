@@ -48,7 +48,11 @@ Paragraph／TextLayout 的 `content` 保留同一描述。`content.toPlainText()
 
 Canvas.drawText 只绘制文字；调用方按 box 绘制 Image 或放置自绘控件。文本层不拥有图片或 UI 对象。两类基线与行内对象的详细合同、后续高级排版范围见[文本排版设计](../../../docs/graphics/text/DESIGN.md)；当前基线行为需要目标资源准备时应用 [Skia 补丁](../../vendor/skia/README.md)。
 
+`TextLayout.paintBounds` 按需返回实际文字绘图的保守边界，包含字形 overhang，排除由外部绘制的行内对象；空文字为零矩形。它由同一 Skia 绘图命令计算并随不可变布局复用，不等同于 layout.size。使用 Drawing 或分块像素缓存时，在此边界之外继续预留抗锯齿／采样边缘；纯几何查询和正常绘制不因该边界改变。
+
 TextRange 和 TextPosition 使用 **UTF-8 字节偏移**，与 String 的标量索引不同。selection 的端点必须是标量边界，caret 的端点必须是 `graphemeBoundaries` 中的位置。hitTest 返回可见内容的 grapheme 边界；affinity 区分软换行和双向 run 的两侧。被截断的位置没有 caret；selection 可以返回多个带方向的矩形。各行保存 range、contentRange、visibleRange、baseline 与尺寸，查询结果相对布局原点。
+
+公共编辑查询同样使用这份布局：`wordRange` 取得 ICU 分词段，`moveWord` 按逻辑方向跳过沿途纯空白段，`moveGrapheme` 返回相邻 grapheme 边界。`moveCaret(position, CaretMovement, preferredX)` 支持视觉字符／词移动、上下、逻辑／物理行边界及文档起止，返回新 TextPosition 与可传给下一次上下移动的 preferredX；经过短行时不会丢失原列。WordLeft／WordRight 依实际字形方向遍历 ICU 词段；LineLeft／LineRight 使用物理左右边缘，与 LineStart／LineEnd 的逻辑起止分开。`logicalLineRange` 合并软换行片段并包含末尾显式换行，供整行选择使用。查询保留混合 bidi 与软换行 affinity，不建立选择状态或编辑历史；完整规则见[导航规范](../../../docs/specs/SCOOP-GRAPHICS-TEXT-SPEC.md#61-公共编辑导航)。
 
 字体、Paragraph 和 TextLayout 限创建线程使用及关闭，通过 Closeable／use 管理。文本库拥有自己的 native 资源；Canvas.drawText 只在同步回调内借用 graphics 的公开原生画布接口，正常返回或异常退出后恢复调用方状态，不依赖 graphics 的私有包装或 internal 成员。
 

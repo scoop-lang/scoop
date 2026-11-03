@@ -1,0 +1,123 @@
+package scoop.ui.text
+
+import scoop.window.*
+
+internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: KeyEvent?): Boolean {
+    val state = host.current
+    when (command) {
+        case Move(movement, extend) -> {
+            val result =
+                editorMove(
+                    editorInputLayout(host),
+                    state.storage.value.endpoints,
+                    movement,
+                    extend,
+                    host.preferredX,
+                    host.scroll.viewport.height
+                )
+            host.perform(
+                { state.setSelection(result.selection.anchor, result.selection.cursor) },
+                endComposition = true
+            )
+            host.invalidate()
+            host.preferredX = result.preferredX
+        }
+        case Delete(deletion) -> {
+            if (host.options.readOnly)
+                return true
+            val range = editorDeleteRange(editorInputLayout(host), state.selection, deletion)
+            val kind =
+                when (deletion) {
+                    case Backward -> EditorEditKind.Backspace
+                    case Forward -> EditorEditKind.Delete
+                    else -> EditorEditKind.Separate
+                }
+            host.perform({ state.edit(range, "", kind) }, endComposition = true)
+        }
+        case Copy -> {
+            val range = state.selection.range
+            if (range.start != range.end)
+                host.window.clipboard.writeText(state.text.utf8Slice(range))
+        }
+        case Cut -> {
+            if (host.options.readOnly)
+                return true
+            val range = state.selection.range
+            if (range.start != range.end) {
+                host.window.clipboard.writeText(state.text.utf8Slice(range))
+                host.perform({ state.replace(range, "") }, endComposition = true)
+            }
+        }
+        case Paste -> {
+            if (host.options.readOnly)
+                return true
+            when (host.window.clipboard.readText()) {
+                case Some(value) -> {
+                    val text =
+                        if (host.options.multiline)
+                            value
+                        else
+                            EditorSingleLine.from(value).text
+                    host.perform(
+                        { state.replace(state.selection.range, text) },
+                        endComposition = true
+                    )
+                }
+                case None -> {}
+            }
+        }
+        case SelectAll -> host.perform(
+            { state.setSelection(Utf8Selection(0L, state.text.byteLength)) },
+            endComposition = true
+        )
+        case Undo -> {
+            if (!host.options.readOnly)
+                host.perform({ state.undo() }, endComposition = true)
+        }
+        case Redo -> {
+            if (!host.options.readOnly)
+                host.perform({ state.redo() }, endComposition = true)
+        }
+        case InsertNewline -> {
+            if (editorSubmits(host.options, key)) {
+                if (!(key?.isRepeat ?: false)) {
+                    state.breakUndoGroup()
+                    host.submitted(state)
+                }
+            } else
+                if (host.options.multiline && !host.options.readOnly)
+                    host.perform(
+                        { state.replace(state.selection.range, "\n") },
+                        endComposition = true
+                    )
+        }
+        case InsertTab -> {
+            if (host.options.tab == TextTabBehavior.Navigate)
+                return false
+            if (!host.options.readOnly)
+                host.perform({ state.replace(state.selection.range, "\t") }, endComposition = true)
+        }
+        case InsertBacktab -> return false
+        case Cancel -> {
+            if (!state.isComposing)
+                return false
+            host.perform({ state.cancelComposition() }, endComposition = true)
+        }
+    }
+    return true
+}
+
+private fun editorSubmits(options: TextEditOptions, key: KeyEvent?): Boolean {
+    val modifiers = key?.modifiers
+    val shift = modifiers?.shift ?: false
+    val control = modifiers?.control ?: false
+    val alt = modifiers?.alt ?: false
+    val primary = modifiers?.superKey ?: false
+    if (shift || control || alt)
+        return false
+    return when (options.submit) {
+        case None -> false
+        case Enter -> !primary
+        case PrimaryEnter -> primary
+    }
+}

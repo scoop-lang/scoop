@@ -1,0 +1,55 @@
+package scoop.surface
+
+import scoop.window.*
+
+/** Window-local shortcuts, executed after the current node's ordinary default behavior. */
+public class ShortcutScope public constructor(
+    public val input: InputScope,
+    bindings: Array<ShortcutBinding> = []
+): Closeable {
+    private var entries = checkedBindings(bindings)
+    private var accepts = true
+    private var closed = false
+    private val registration = input.addShortcutAction { context, event -> handle(context, event) }
+
+    public val isClosed: Boolean get() {
+        input.owner.checkThread()
+        return closed || input.isClosed
+    }
+    public var enabled: Boolean
+    get() {
+        input.owner.checkThread()
+        return accepts
+    }
+    set(value) {
+        checkOpen()
+        accepts = value
+    }
+    public var bindings: Array<ShortcutBinding>
+    get() {
+        input.owner.checkThread()
+        return entries
+    }
+    set(value) {
+        checkOpen()
+        entries = checkedBindings(value)
+    }
+    private fun checkOpen() {
+        input.checkOpen()
+        if (closed)
+            throw IllegalStateException(Some("shortcut scope is closed"))
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        runShortcutBindings(context, event, entries) {
+            !closed && accepts && !input.isClosed && input.owner.path(input).size > 0L
+        }
+    }
+    public override fun close() {
+        input.owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        entries = []
+        registration.close()
+    }
+}

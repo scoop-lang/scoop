@@ -1,0 +1,112 @@
+package scoop.surface
+
+import scoop.graphics.Point
+import scoop.graphics.native.CanvasGeometry
+import scoop.math.*
+
+/** Shared by all synchronous deliveries of one wheel event. */
+internal class ScrollConsumption(
+    var remaining: InputScrollDelta,
+    val point: Point,
+    val route: InputScrollRoute?
+) {
+    private var applying = false
+
+    fun consume(
+        lineStep: Double,
+        geometry: CanvasGeometry?,
+        localPosition: Point?,
+        apply: (Point) -> Point
+    ) {
+        requireInput(lineStep.isFinite() && lineStep > 0.0, "invalid scroll line step")
+        if (applying)
+            throw IllegalStateException(Some("scroll consumption cannot recurse"))
+        val source = scrollVector(remaining)
+        if (source == Point(0.0, 0.0))
+            return
+        val factor =
+            when (remaining) {
+                case Lines(_, _) -> lineStep
+                case Pixels(_, _) -> 1.0
+            }
+        val endpoint = Point(point.x + source.x * factor, point.y + source.y * factor)
+        checkedScrollPoint(endpoint)
+        val start = localPosition ?: point
+        val end =
+            when (geometry) {
+                case Some(value) -> value.toLocal(endpoint) ?:
+                    throw IllegalArgumentException(Some("scroll transformation overflow"))
+                case None -> endpoint
+            }
+        val requested = Point(end.x - start.x, end.y - start.y)
+        checkedScrollPoint(requested)
+        applying = true
+        val returned =
+            try {
+                apply(requested)
+            } finally {
+                applying = false
+            }
+        val consumed =
+            Point(
+                checkedScrollPart(returned.x, requested.x),
+                checkedScrollPart(returned.y, requested.y)
+            )
+        if (consumed == Point(0.0, 0.0))
+            return
+        if (consumed == requested) {
+            remaining = scrollWithVector(remaining, Point(0.0, 0.0))
+            return
+        }
+        val window =
+            when (geometry) {
+                case Some(value) -> {
+                    val origin = value.toWindow(start)
+                    val moved = value.toWindow(Point(start.x + consumed.x, start.y + consumed.y))
+                    Point(moved.x - origin.x, moved.y - origin.y)
+                }
+                case None -> consumed
+            }
+        val rest = Point(source.x - window.x / factor, source.y - window.y / factor)
+        checkedScrollPoint(rest)
+        remaining = scrollWithVector(remaining, rest)
+    }
+}
+
+internal fun scrollConsumption(event: InputEvent, route: InputScrollRoute?): ScrollConsumption? =
+    when (event) {
+        case Pointer(InputPointerEvent.Wheel(pointer, delta, _, _)) -> Some(
+            ScrollConsumption(
+                delta,
+                Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y),
+                route
+            )
+        )
+        else -> None
+    }
+
+internal fun scrollVector(delta: InputScrollDelta): Point =
+    when (delta) {
+        case Lines(x, y) -> Point(x, y)
+        case Pixels(x, y) -> Point(x, y)
+    }
+
+private fun scrollWithVector(delta: InputScrollDelta, value: Point): InputScrollDelta =
+    when (delta) {
+        case Lines(_, _) -> InputScrollDelta.Lines(value.x, value.y)
+        case Pixels(_, _) -> InputScrollDelta.Pixels(value.x, value.y)
+    }
+
+internal fun checkedScrollPoint(value: Point) {
+    requireInput(value.x.isFinite() && value.y.isFinite(), "non-finite scroll displacement")
+}
+
+private fun checkedScrollPart(value: Double, requested: Double): Double {
+    requireInput(value.isFinite(), "non-finite consumed scroll displacement")
+    val tolerance = max(1.0, abs(requested)) * 1.0e-9
+    requireInput(
+        value >= min(0.0, requested) - tolerance && value <= max(0.0, requested) + tolerance,
+        "consumed scroll must have the requested direction and not exceed it"
+    )
+    return max(min(0.0, requested), min(max(0.0, requested), value))
+}

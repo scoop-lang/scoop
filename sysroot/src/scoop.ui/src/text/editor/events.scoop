@@ -1,0 +1,188 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun editorInteraction(host: TextEditHost, focused: Boolean, hovered: Boolean) {
+    val next = TextEditInteraction(focused && host.options.enabled, hovered && host.options.enabled)
+    if (host.visual.value != next)
+        host.visual.value = next
+}
+
+internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event: InputEvent) {
+    if (host.closed)
+        return
+    if (context.phase == RoutedPhase.Notification) {
+        when (event) {
+            case FocusChanged(value) -> editorFocused(host, value)
+            case TextInput(value) -> editorNative(host, value)
+            case Pointer(InputPointerEvent.Entered(_)) -> editorInteraction(
+                host,
+                host.area.isFocusActive,
+                true
+            )
+            case Pointer(InputPointerEvent.Left(_)) -> editorInteraction(
+                host,
+                host.area.isFocusActive,
+                false
+            )
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> editorStopDrag(host, false)
+            else -> {}
+        }
+        return
+    }
+    if (context.phase != RoutedPhase.Default || !host.options.enabled)
+        return
+    when (event) {
+        case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
+            if (state == ElementState.Pressed)
+                editorPress(host, pointer, context.localPosition, count)
+            else
+                editorStopDrag(host, true)
+            context.consume()
+        }
+        case Pointer(InputPointerEvent.Moved(pointer)) -> {
+            if (editorDragging(host)) {
+                editorDragMove(host, pointer)
+                context.consume()
+            }
+        }
+        case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> {
+            host.revealNeeded = false
+            host.scroll.cancelAnimation()
+            context.consumeScroll(host.appearance.textStyle.fontSize) {
+                amount ->
+                val before = host.scroll.offset
+                host.scroll.scrollBy(
+                    Point(
+                        -amount.x,
+                        if (host.options.multiline)
+                            -amount.y
+                        else
+                            0.0
+                    )
+                )
+                val after = host.scroll.offset
+                Point(before.x - after.x, before.y - after.y)
+            }
+        }
+        case Keyboard(key) -> {
+            if (!host.area.isFocusActive || key.state != ElementState.Pressed || key.synthetic)
+                return
+            var handled = false
+            if (key.textCommands.size > 0L) {
+                for (command in key.textCommands) {
+                    if (
+                        host.closed ||
+                            !host.options.enabled ||
+                            !host.area.isFocusActive ||
+                            !host.area.scope.isInputAllowed
+                    )
+                        break
+                    if (editorCommand(host, command, Some(key)))
+                        handled = true
+                }
+            } else {
+                when (editorFallbackKey(key)) {
+                    case Some(command) -> handled = editorCommand(host, command, Some(key))
+                    case None -> {}
+                }
+            }
+            if (handled) {
+                editorStopDrag(host, false)
+                context.consume()
+            }
+        }
+        else -> {}
+    }
+}
+
+private fun editorFocused(host: TextEditHost, active: Boolean) {
+    if (active) {
+        host.current.attachHost(host)
+        host.current.breakUndoGroup()
+        host.invalidate()
+        host.publishNative()
+    } else {
+        host.retireConnection()
+        editorStopDrag(host, false)
+        host.blink.cancel()
+        host.revealNeeded = false
+        if (host.current.detachHost(host)) {
+            host.current.breakUndoGroup()
+            host.perform({ host.current.cancelComposition() })
+        }
+    }
+    editorInteraction(host, active, host.visual.value.hovered)
+}
+
+private fun editorNative(host: TextEditHost, event: TextInputEvent) {
+    when (event) {
+        case Enabled(connection) -> {
+            host.connection = connection
+            host.sessionEnabled = true
+            host.publishNative()
+        }
+        case Disabled(connection) -> {
+            if (host.connection != None && host.connection != connection)
+                return
+            host.connection = None
+            host.sessionEnabled = false
+            host.retiring = false
+            if (host.current.ownsHost(host))
+                host.perform({ host.current.cancelComposition() })
+        }
+        case Edit(batch) -> {
+            if (
+                !host.sessionEnabled ||
+                    host.retiring ||
+                    !host.area.isFocusActive ||
+                    !host.options.enabled ||
+                    host.options.readOnly
+            )
+                return
+            when (batch.origin) {
+                case Some(origin) -> if (host.connection != Some(origin.connection))
+                    return
+                case None -> {}
+            }
+            editorStopDrag(host, false)
+            val before = host.current.text
+            var changed = false
+            host.performing = true
+            val valid =
+                try {
+                    changed = applyEditorInput(host.current, batch, !host.options.multiline)
+                    true
+                } catch (failure: IllegalArgumentException) {
+                    false
+                } catch (failure: IllegalStateException) {
+                    false
+                } finally {
+                    host.performing = false
+                }
+            if (!valid) {
+                host.retireConnection()
+                host.perform({ host.current.cancelComposition() })
+                return
+            }
+            if (changed)
+                host.invalidate()
+            host.publishNative(batch.origin)
+            host.notifyEdited(before)
+        }
+    }
+}
+
+internal fun editorFinish(host: TextEditHost, event: InputEvent) {
+    if (host.closed)
+        return
+    when (event) {
+        case Pointer(
+            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+        ) -> editorStopDrag(host, true)
+        else -> {}
+    }
+}

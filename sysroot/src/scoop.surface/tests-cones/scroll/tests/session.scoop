@@ -1,0 +1,223 @@
+package scoop.tests.surface.scroll
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class NativeScrollTest {
+    @Test
+    fun `native line pixel and momentum events retain source units and the captured scroll route`() {
+        val probe = NativeScrollSession()
+        SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> try {
+                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                assertTrue(probe.finished)
+                assertTrue(probe.contentClosed)
+                assertTrue(probe.view!!.restored())
+                assertEquals(SurfaceWindowState.Closed, probe.surface!!.state)
+            } finally {
+                probe.view?.close()
+            }
+        }
+    }
+}
+
+internal struct NativeScrollAmount(val delta: InputScrollDelta, val local: Point)
+
+internal class NativeScrollSession {
+    var window: Window? = None
+    var surface: SurfaceWindow? = None
+    var view: ViewProbe? = None
+    var inner: InputArea? = None
+    var outer: InputArea? = None
+    var accepted = 0
+    var moved = false
+    var movedAccepted = false
+    var phase = 0
+    var innerEvents = 0
+    var outerEvents = 0
+    var innerCancels = 0
+    var outerCancels = 0
+    var lastPosition = Point(0.0, 0.0)
+    var contentClosed = false
+    var finished = false
+    val amounts = ArrayList<NativeScrollAmount>()
+    val contacts = ArrayList<ScrollPhase>()
+    val momentums = ArrayList<ScrollPhase>()
+
+    fun event(host: SurfaceHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop native scroll", LogicalSize(260.0, 160.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                val attached = host.attach(native, NativeScrollContent(this))
+                surface = Some(attached)
+                attached.input.handler =
+                    {
+                        _,
+                        event -> when (event) {
+                            case Pointer(
+                                InputPointerEvent.Wheel(pointer, _, _, _)
+                            ) -> lastPosition =
+                                Point(
+                                    pointer.state.logicalPosition.x,
+                                    pointer.state.logicalPosition.y
+                                )
+                            else -> {}
+                        }
+                    }
+                val parent =
+                    attached.createArea {
+                        _,
+                        event -> when (event) {
+                            case Pointer(
+                                InputPointerEvent.ScrollCancelled(_, _)
+                            ) -> outerCancels += 1
+                            else -> {}
+                        }
+                    }
+                outer = Some(parent)
+                val child =
+                    attached.createArea(parent = Some(parent.scope)) {
+                        _,
+                        event -> when (event) {
+                            case Pointer(
+                                InputPointerEvent.ScrollCancelled(_, _)
+                            ) -> innerCancels += 1
+                            else -> {}
+                        }
+                    }
+                inner = Some(child)
+                child.scope.defaultAction =
+                    {
+                        context,
+                        event -> when (event) {
+                            case Pointer(InputPointerEvent.Wheel(_, delta, contact, momentum)) -> {
+                                assertTrue(context.target === child.scope)
+                                innerEvents += 1
+                                contacts.add(contact)
+                                momentums.add(momentum)
+                                context.consumeScroll(10.0) {
+                                    amount ->
+                                    amounts.add(NativeScrollAmount(delta, amount))
+                                    Point(amount.x / 2.0, amount.y / 2.0)
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                parent.scope.defaultAction =
+                    {
+                        context,
+                        event -> when (event) {
+                            case Pointer(InputPointerEvent.Wheel(_, delta, _, _)) -> {
+                                outerEvents += 1
+                                context.consumeScroll(20.0) {
+                                    amount ->
+                                    amounts.add(NativeScrollAmount(delta, amount))
+                                    amount
+                                }
+                            }
+                            else -> {}
+                        }
+                    }
+                waitFor(active, 30000L)
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && window!!.isFocused) {
+                    phase = 1
+                    send(2, -4)
+                    after(active)
+                    waitFor(active, 5000L)
+                }
+                if (phase == 3 && movedAccepted) {
+                    phase = 4
+                    send(8, -12, true, 2)
+                    send(0, 0, true, 4)
+                    send(8, -12, true, momentum = 1)
+                    send(8, -12, true, momentum = 2)
+                    send(0, 0, true, momentum = 3)
+                    after(active)
+                }
+                if (phase == 0 && !window!!.isFocused) {
+                    window!!.requestFocus()
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 10
+                active.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(
+                    f"native scroll timeout: phase=${phase}, inner=${innerEvents}, outer=${
+                        outerEvents
+                    }"
+                )
+            )
+            else -> {}
+        }
+    }
+
+    fun send(
+        horizontal: Int,
+        vertical: Int,
+        pixels: Boolean = false,
+        phase: Int = 0,
+        momentum: Int = 0,
+        x: Double = 20.0
+    ) {
+        assertTrue(
+            sendSurfaceScroll(window!!, x, 20.0, horizontal, vertical, pixels, phase, momentum)
+        )
+    }
+    fun after(active: ActiveApplication) {
+        assertTrue(active.proxy().post { current -> check(current) })
+    }
+    private fun waitFor(active: ActiveApplication, milliseconds: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(
+                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
+            )
+        )
+    }
+}
+
+private class NativeScrollContent(private val probe: NativeScrollSession): SurfaceContent {
+    public override fun paint(frame: FrameContext) {
+        frame.canvas.clear(Color.White)
+        frame.place(probe.outer!!, Rect(0.0, 0.0, 260.0, 160.0))
+        frame.place(
+            probe.inner!!,
+            Rect(
+                if (probe.moved)
+                    140.0
+                else
+                    0.0,
+                0.0,
+                80.0,
+                80.0
+            )
+        )
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        if (frame.submission == FrameSubmission.Accepted) {
+            probe.accepted += 1
+            if (probe.moved)
+                probe.movedAccepted = true
+        }
+    }
+    public override fun close() {
+        probe.contentClosed = true
+    }
+}

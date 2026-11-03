@@ -20,6 +20,39 @@ public fun observeWindow(window: Window, customContent: Boolean = false): ViewPr
 
 public fun surfaceNativeModeCount(): Int = 2
 
+public fun surfaceDocumentCaret(window: Window, rect: LogicalRect?, cursor: Long): Boolean {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> documentCaret(
+                        view,
+                        rect != None,
+                        rect?.origin?.x ?: 0.0,
+                        rect?.origin?.y ?: 0.0,
+                        rect?.size?.width ?: 0.0,
+                        rect?.size?.height ?: 0.0,
+                        cursor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_surface_test_document_caret")
+private fun documentCaret(
+    view: Ptr<Unit>,
+    available: Boolean,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    cursor: Long
+): Boolean
+
 public fun moveSurfacePointer(window: Window, x: Double, y: Double): Boolean {
     @Unsafe
     {
@@ -38,7 +71,9 @@ public fun sendSurfaceKey(
     window: Window,
     code: Int,
     pressed: Boolean,
-    repeat: Boolean = false
+    repeat: Boolean = false,
+    command: Boolean = false,
+    shift: Boolean = false
 ): Boolean {
     @Unsafe
     {
@@ -46,7 +81,7 @@ public fun sendSurfaceKey(
             lease -> @Unsafe
             {
                 return@use when (lease.handle) {
-                    case AppKit(_, view) -> sendKey(view, code, pressed, repeat)
+                    case AppKit(_, view) -> sendKey(view, code, pressed, repeat, command, shift)
                 }
             }
         }
@@ -57,7 +92,14 @@ public fun sendSurfaceKey(
 private fun movePointer(view: Ptr<Unit>, x: Double, y: Double): Boolean
 
 @Extern(name = "scoop_surface_test_key")
-private fun sendKey(view: Ptr<Unit>, code: Int, pressed: Boolean, repeat: Boolean): Boolean
+private fun sendKey(
+    view: Ptr<Unit>,
+    code: Int,
+    pressed: Boolean,
+    repeat: Boolean,
+    command: Boolean,
+    shift: Boolean
+): Boolean
 
 public fun scheduleSurfaceNativeMode(window: Window, kind: Int) {
     @Unsafe

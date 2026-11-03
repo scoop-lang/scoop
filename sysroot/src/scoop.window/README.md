@@ -27,6 +27,7 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 能力 | 接口与行为 |
 | --- | --- |
 | 主循环 | Wait、Poll、单调 WaitUntil；跨线程 `ApplicationProxy.post`／`requestExit`；回调串行交付 |
+| 定时回调 | `Window.createDeadline` 创建窗口所属的一次性回调；共用主循环最近期限，关闭窗口即撤销 |
 | 窗口 | 多个独立非模态窗口；标题、显示／隐藏、焦点请求、尺寸及约束、桌面位置、装饰及按钮、窗口级别、最小化／最大化、主题、透明／模糊、内容共享提示、注意力请求 |
 | macOS | activation policy、titlebar 属性、bundle identifier 查询 |
 | 显示器与 DPI | 拥有数据的显示器快照、可选名称／桌面位置／刷新率；窗口完整 logical／physical／scale metrics |
@@ -35,6 +36,8 @@ target/debug/scoop run sysroot/src/scoop.window/examples/metal/app --release
 | 绘制 | 合并重绘请求；隐藏／遮挡／零尺寸时保留 dirty；显式 native lease |
 
 `Window` 操作和原生句柄查询都要求 owner 线程。`RequestStatus.Requested` 表示已向系统提交请求，实际结果由事件或快照确认；例如焦点请求不保证系统一定授予焦点。
+
+`window.createDeadline { ... }` 返回可反复 `schedule(time)`、`cancel()` 的 `WindowDeadline`，time 使用 MonotonicTimeSource。已经到期的时间也在后续主循环批次交付；重排、取消或关闭使旧的排队回调失效。回调在窗口隐藏时仍能执行，但不会隐式请求重绘。内部定时与应用的 WaitUntil 独立，只有后者实际到期才发出 StartCause.Deadline；不需要为每个组件另建线程或改写应用的控制流。
 
 内容区坐标以左上为原点。`LogicalPosition`／`LogicalSize` 使用窗口逻辑单位，`PhysicalPosition`／`PhysicalSize` 使用像素。使用同一次 `WindowMetrics` 或输入事件的 scale 换算；桌面坐标不能乘某个窗口的 scale。未知的原生信息保留为 `None`。
 
@@ -54,13 +57,19 @@ macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到
 
 ## 文本输入
 
+macOS 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 
 应用只从编辑批次插入文字，不再从 `KeyEvent.logicalKey` 额外插入字符。输入法消耗的候选选择／确认键不会再作为普通按键交付；普通快捷键保留 Keyboard 事件。失焦会撤销 active preedit，并为已交付的按下状态补发 synthetic release。
 
+macOS 把原生解释出的移动、删除、提交等语义保存在 `KeyEvent.textCommands`；多条命令保留顺序，随该次按下事件进入同一输入路由。空列表表示由编辑器使用平台缺省键位，keyup 和 synthetic release 没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
+
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit／IMM32 的 UTF-16 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
-本阶段的 AppKit／IMM32 桥只保存当前 native marked text 和候选窗矩形，不保存应用文档。它产生 `baseRevision=None`、`CurrentSelection` 的 Preedit／Commit；AppKit 已知 marked segment 内的原生替换先归一为整段替换。无效范围拒绝整批，只在应用已收到旧 preedit 时发一次撤销。文档 surrounding、重转换、purpose 和编辑器布局后续按实际需要扩展。
+macOS 的 Enabled／Disabled 带有 `TextInputConnection`，原生批次的 origin 标识连接和交付顺序。编辑器用 `publishTextInputState(connection, state, after)` 立即发布已生效的文档及已处理批次；AppKit 的同步 surrounding／selection 查询读取原生不可变副本。引用该快照的显式替换带实际 baseRevision，前序批次尚未处理时不生成猜测的文档范围。CurrentSelection 批次继续不依赖 revision；无效范围拒绝整批，旧连接的编辑不能落到新连接。
+
+`publishTextInputCaret` 单独接收当前连接和文档修订的候选框；没有匹配几何或仍有待处理编辑时，原生位置查询返回 unavailable。`None` 或 `clearImeCursorArea()` 撤回旧矩形。没有发布文档快照的基础 IME 接入继续只维护 marked segment；Windows 暂保留该接入方式，新增 surrounding 协议留待后续。
 
 ## renderer 与关闭顺序
 
@@ -82,6 +91,7 @@ renderer 在 owner 上通过 `scoop.window.native` 的 Unsafe `acquireNativeWind
 
 ```sh
 target/debug/scoop test sysroot/src/scoop.window --release
+target/debug/scoop test sysroot/src/scoop.window/tests-cones/deadlines --release
 target/debug/scoop test sysroot/src/scoop.window.asyncio --release
 target/debug/scoop test sysroot/src/scoop.window/examples/metal/app --release
 ```

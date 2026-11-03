@@ -63,19 +63,20 @@ internal class DrawingPanel(
         area =
             Some(
                 scope.createArea {
-                    _, event ->
+                    current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(pointer, _, ElementState.Pressed, _)
+                            InputPointerEvent.Button(pointer, _, ElementState.Pressed, _)
                         ) -> {
                             probe.parentDowns += 1
-                            assertTrue(pointer.localPosition.x >= 0.0)
+                            assertTrue(current.localPosition!!.x >= 0.0)
                         }
                         else -> {}
                     }
-                    InputResult.Handled
+                    current.stopPropagation()
                 }
             )
+        scope.routeChildren(area!!)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         probe.measures += 1
@@ -96,42 +97,77 @@ internal class DrawingPanel(
         context.placeChild(1L, Point(140.0, 40.0))
         return LayoutMetrics(constraints.constrain(Size(240.0, 140.0)), Some(58.0), Some(64.0))
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         probe.paints += 1
-        probe.lastPaint = Some(context)
+        probe.lastScene = Some(context)
+        val frameTime = context.time
+        val frameSize = context.size
+        context.onFrameComplete {
+            result ->
+            assertEquals(frameTime, result.time)
+            assertEquals(frameSize, result.size)
+            assertFailsWith<IllegalStateException> { context.size }
+            assertFailsWith<IllegalStateException> { context.onFrameComplete { _ -> Unit } }
+            probe.frameCompletions += 1
+            probe.sequence.add("complete")
+            if (probe.completedState.value == 0)
+                probe.completedState.value = 1
+        }
         probe.lastPlaced = props.value.placed
         probe.lastCompleted = props.value.finished
         probe.sequence.add("background")
-        context.canvas.clear(Color.White)
+        context.draw {
+            paint ->
+            probe.lastPaint = Some(paint)
+            paint.canvas.clear(Color.White)
+            assertFailsWith<IllegalStateException> { context.save() }
+            assertFailsWith<IllegalStateException> { context.onFrameComplete { _ -> Unit } }
+            val extent = paint.size
+            val expiredPaint =
+                paint.withState {
+                    nested ->
+                    assertEquals(extent, nested.size)
+                    assertFailsWith<IllegalStateException> { paint.canvas.save() }
+                    nested
+                }
+            assertFailsWith<IllegalStateException> { expiredPaint.canvas.save() }
+        }
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        context.canvas.clipRect(Rect(0.0, 0.0, 280.0, 160.0))
-        context.canvas.translate(4.0, 6.0)
+        context.clipRect(Rect(0.0, 0.0, 280.0, 160.0))
+        context.translate(4.0, 6.0)
         val size = context.size
         val expired =
             context.withState {
                 child ->
                 assertEquals(size, child.size)
-                assertFailsWith<IllegalStateException> { context.paintChildren() }
+                assertFailsWith<IllegalStateException> { context.children() }
                 assertFailsWith<IllegalStateException> {
                     context.place(area!!, Rect(0.0, 0.0, 1.0, 1.0))
                 }
-                child.withState { nested -> nested.paintChildren(area) }
-                assertFailsWith<IllegalStateException> { child.paintChildren() }
+                assertFailsWith<IllegalArgumentException> { child.children([0L]) }
+                assertFailsWith<IllegalArgumentException> { child.children([0L, 0L]) }
+                assertFailsWith<IllegalArgumentException> { child.children([0L, 2L]) }
+                child.withState { nested -> nested.children([0L, 1L]) }
+                assertFailsWith<IllegalStateException> { child.children() }
                 child
             }
-        assertFailsWith<IllegalStateException> { expired.canvas.clear(Color.Black) }
+        assertFailsWith<IllegalStateException> {
+            expired.draw { paint -> paint.canvas.clear(Color.Black) }
+        }
         assertFailsWith<IllegalStateException> { expired.withState { _ -> } }
         assertFailsWith<GraphicsException> {
             context.withState<Unit> {
                 child ->
-                child.canvas.saveLayer(0.5)
-                child.canvas.save()
-                child.canvas.translate(500.0, 500.0)
+                child.saveLayer(0.5)
+                child.save()
+                child.translate(500.0, 500.0)
                 throw GraphicsException("nested drawing failed")
             }
         }
-        assertFailsWith<IllegalStateException> { context.paintChildren() }
-        context.canvas.drawRect(Rect(0.0, 0.0, 4.0, 4.0), Paint(Color.Black))
+        assertFailsWith<IllegalStateException> { context.children() }
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 4.0, 4.0), Paint(Color.Black))
+        }
         probe.sequence.add("foreground")
     }
 }
@@ -147,6 +183,7 @@ internal class DrawingLeaf(
     private var measuredTime: TimeMark? = None
     var updates = 0
     var paints = 0
+    var draws = 0
     var mounted = 0
     var unmounted = 0
     var observed = 0
@@ -172,23 +209,23 @@ internal class DrawingLeaf(
                     current, event ->
                     when (event) {
                         case Pointer(
-                            AreaPointerEvent.Button(
+                            InputPointerEvent.Button(
                                 pointer,
                                 MouseButton.Left,
                                 ElementState.Pressed,
                                 _
                             )
                         ) -> {
-                            assertEquals(Point(9.0, 9.0), pointer.localPosition)
-                            assertTrue(current.requestFocus())
+                            assertEquals(Point(9.0, 9.0), current.localPosition!!)
+                            assertTrue(current.currentTarget.area!!.requestFocus())
                             probe.downs += 1
                         }
                         case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
                         ) -> probe.count.value += 1
                         else -> {}
                     }
-                    InputResult.Ignored
+                    Unit
                 }
             )
     }
@@ -196,7 +233,7 @@ internal class DrawingLeaf(
         updates += 1
         val input = props.value
         observed = input.count
-        area!!.enabled = input.enabled
+        area!!.scope.enabled = input.enabled
         val target = 60.0 + input.count.toDouble() * 10.0
         if (width!!.target != target)
             width!!.animateTo(
@@ -226,16 +263,35 @@ internal class DrawingLeaf(
             Some(24.0)
         )
     }
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         assertEquals(measuredTime, Some(context.time))
         assertFailsWith<IllegalStateException> { probe.count.value += 1 }
         paints += 1
         probe.sequence.add("child")
-        probe.lastCanvas = Some(context.canvas)
-        context.canvas.translate(2.0, 3.0)
-        context.canvas.clipRect(Rect(0.0, 0.0, 40.0, 40.0))
-        context.canvas.drawPath(path!!, Paint(Color(0.2, 0.5, 0.8)))
+        context.translate(2.0, 3.0)
+        context.clipRect(Rect(0.0, 0.0, 40.0, 40.0))
+        if (props.value.count == 0)
+            context.draw {
+                paint ->
+                draws += 1
+                probe.lastCanvas = Some(paint.canvas)
+                assertEquals(measuredTime, Some(paint.time))
+                assertFailsWith<IllegalStateException> { probe.count.value += 1 }
+                assertFailsWith<IllegalStateException> { context.place(area!!, path!!) }
+                paint.canvas.drawPath(path!!, Paint(Color(0.2, 0.5, 0.8)))
+                paint.canvas.translate(600.0, 600.0)
+                paint.canvas.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
+            }
         context.place(area!!, path!!)
+        if (props.value.count == 2 && !probe.focusAfterCommit)
+            context.onFrameComplete {
+                result -> if (
+                    result.submission == FrameSubmission.Accepted && !probe.focusAfterCommit
+                ) {
+                    assertTrue(area!!.requestFocus())
+                    probe.focusAfterCommit = true
+                }
+            }
     }
     public override fun onUnmount() {
         unmounted += 1
@@ -249,21 +305,24 @@ internal class DrawingLeaf(
 internal class DrawingSibling(private val probe: DrawingProbe): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(30.0, 30.0)))
-    public override fun paint(context: PaintContext) {
-        probe.sequence.add("sibling")
-        when (probe.lastCanvas) {
-            case Some(canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
-            case None -> {}
-        }
-        @Unsafe
-        {
-            captureGeometry(context.canvas, Rect(0.0, 0.0, 30.0, 30.0)).use {
-                geometry -> assertEquals(
-                    Some(Point(1.0, 1.0)),
-                    geometry.toLocal(Point(145.0, 47.0))
-                )
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            probe.sequence.add("sibling")
+            when (probe.lastCanvas) {
+                case Some(canvas) -> assertFailsWith<IllegalStateException> { canvas.save() }
+                case None -> {}
             }
+            @Unsafe
+            {
+                captureGeometry(paint.canvas, Rect(0.0, 0.0, 30.0, 30.0)).use {
+                    geometry -> assertEquals(
+                        Some(Point(1.0, 1.0)),
+                        geometry.toLocal(Point(145.0, 47.0))
+                    )
+                }
+            }
+            paint.canvas.drawRect(Rect(0.0, 0.0, 30.0, 30.0), Paint(Color(0.1, 0.7, 0.2)))
         }
-        context.canvas.drawRect(Rect(0.0, 0.0, 30.0, 30.0), Paint(Color(0.1, 0.7, 0.2)))
     }
 }

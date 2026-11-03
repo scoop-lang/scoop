@@ -1,0 +1,235 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.surface.*
+
+internal class ScrollLayout(val binding: ULong, val revision: ULong, val snapshot: ScrollSnapshot)
+
+private class ScrollMotion(val target: Point, val spec: AnimationSpec) {
+    var started = false
+}
+
+/** A mount-owned layout and animation registration for one ScrollState. */
+public class ScrollViewport internal constructor(
+    private val node: MountedNode,
+    initial: ScrollState,
+    private val animation: Animatable<Point>
+): Closeable {
+    private var current = initial
+    private var closed = false
+    private var ready = false
+    private var binding = 0UL
+    private var staged: ScrollLayout? = None
+    private var motion: ScrollMotion? = None
+    private var cachePolicy = PaintCachePolicy.None
+
+    init {
+        current.attach(this)
+    }
+
+    internal val active: Boolean get() = !closed && node.active && node.root.isOpen
+    internal val bindingRevision: ULong get() = binding
+    internal fun belongsTo(owner: MountedNode): Boolean = active && node === owner
+    internal fun contains(owner: MountedNode): Boolean = withinFocusScope(owner, node)
+    internal val moving: Boolean get() = active && (motion?.started != None)
+    internal fun matches(value: ScrollState, generation: ULong): Boolean =
+        active && current === value && binding == generation
+    public val isClosed: Boolean get() {
+        node.root.checkThread();
+        return closed
+    }
+    public var state: ScrollState
+    get() {
+        node.root.checkThread();
+        return current
+    }
+    set(value) {
+        checkOpen()
+        current.checkMutation()
+        if (value === current)
+            return
+        value.checkBinding()
+        cancelAnimation()
+        current.detach(this)
+        current = value
+        binding += 1UL
+        ready = false
+        staged = None
+        current.attach(this)
+        requestFrame()
+    }
+    public var paintCache: PaintCachePolicy
+    get() {
+        node.root.checkThread()
+        return cachePolicy
+    }
+    set(value) {
+        checkOpen()
+        current.checkMutation()
+        checkPaintCachePolicy(value)
+        if (cachePolicy == value)
+            return
+        cachePolicy = value
+        requestFrame()
+    }
+    private fun checkOpen() {
+        node.root.checkThread()
+        if (!active)
+            throw IllegalStateException(Some("scroll viewport is no longer mounted"))
+    }
+    internal fun requestFrame() {
+        if (active && node.frameEnabled)
+            node.root.requestFrame()
+    }
+    public fun layout(
+        viewport: Size,
+        content: Size,
+        adjustment: ScrollAdjustment? = None
+    ): ScrollSnapshot {
+        checkOpen()
+        var result = sample(viewport, content)
+        when (adjustment) {
+            case Some(value) -> {
+                checkScrollPoint(value.offset)
+                if (value.requestRevision == current.revision && !moving)
+                    result =
+                        ScrollSnapshot(
+                            clampScroll(value.offset, viewport, content),
+                            viewport,
+                            content
+                        )
+            }
+            case None -> {}
+        }
+        staged = Some(ScrollLayout(binding, current.revision, result))
+        return result
+    }
+    public fun present(
+        context: SceneContext,
+        content: ((SceneContext) -> Unit)? = None,
+        contentOrigin: Point = Point(0.0, 0.0)
+    ) {
+        checkOpen()
+        context.checkOwner(node)
+        checkScrollPoint(contentOrigin)
+        val layout =
+            staged ?: throw IllegalStateException(Some("scroll viewport has not been laid out"))
+        staged = None
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission == FrameSubmission.Accepted && active && layout.binding == binding
+            )
+                complete(layout)
+        }
+        when (content) {
+            case Some(block) -> context.scrollContent(this, layout, contentOrigin, block)
+            case None -> {}
+        }
+    }
+    private fun sample(viewport: Size, content: Size): ScrollSnapshot {
+        checkLayoutSize(viewport)
+        checkLayoutSize(content)
+        return if (motion?.started ?: false)
+            ScrollSnapshot(clampScroll(animation.value, viewport, content), viewport, content)
+        else
+            current.plan(viewport, content)
+    }
+    private fun complete(layout: ScrollLayout) {
+        val offered = layout.snapshot
+        val newest =
+            if (layout.revision == current.revision)
+                offered
+            else
+                sample(offered.viewport, offered.content)
+        ready = true
+        current.publish(newest, !(motion?.started ?: false))
+        when (motion) {
+            case Some(value) -> {
+                val target = clampScroll(value.target, newest.viewport, newest.content)
+                val changedTarget = value.started && target != animation.target
+                if (
+                    target ==
+                        newest.offset &&
+                        (
+                            !value.started ||
+                                changedTarget ||
+                                animation.state ==
+                                AnimationState.Finished
+                        )
+                ) {
+                    endMotion(changedTarget)
+                } else
+                    if (!value.started || changedTarget) {
+                        startMotion(value, target)
+                    }
+            }
+            case None -> {}
+        }
+        if (newest != offered)
+            requestFrame()
+    }
+    internal fun animateTo(target: Point, spec: AnimationSpec) {
+        checkOpen()
+        cancelAnimation()
+        if (
+            ready &&
+                clampScroll(target, current.current.viewport, current.current.content) ==
+                current.current.offset
+        )
+            return
+        current.revision += 1UL
+        val next = ScrollMotion(target, spec)
+        motion = Some(next)
+        try {
+            if (ready)
+                startMotion(
+                    next,
+                    clampScroll(target, current.current.viewport, current.current.content)
+                )
+        } catch (failure: Throwable) {
+            motion = None
+            throw failure
+        }
+        current.changed()
+        requestFrame()
+    }
+    private fun startMotion(value: ScrollMotion, target: Point) {
+        if (target == current.current.offset) {
+            endMotion(false)
+            return
+        }
+        animation.snapTo(current.current.offset)
+        animation.animateTo(target, value.spec)
+        value.started = true
+    }
+    internal fun cancelAnimation() {
+        when (motion) {
+            case Some(_) -> {
+                current.revision += 1UL
+                endMotion(true)
+            }
+            case None -> {}
+        }
+    }
+    private fun endMotion(stop: Boolean) {
+        motion = None
+        if (stop)
+            animation.snapTo(current.current.offset)
+        if (ready)
+            current.request = ScrollRequest.Position(current.current.offset)
+        current.changed()
+    }
+    public override fun close() {
+        node.root.checkThread()
+        current.checkMutation()
+        if (closed)
+            return
+        closed = true
+        if (ready)
+            current.request = ScrollRequest.Position(current.current.offset)
+        motion = None
+        staged = None
+        animation.close()
+        current.detach(this)
+    }
+}

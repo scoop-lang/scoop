@@ -1,0 +1,257 @@
+package scoop.tests.surface.hostshortcuts
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class NativeHostShortcutTest {
+    @Test
+    fun `one host binding serves existing and later windows until the host closes`() {
+        val probe = HostShortcutSession()
+        SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> try {
+                probe.shared = Some(HostShortcutScope(host, [probe.binding(1)]))
+                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                assertTrue(probe.finished)
+                assertEquals(1, probe.localCalls)
+                assertEquals(121, probe.hostCalls)
+                assertTrue(probe.shared!!.isClosed)
+                assertTrue(host.isClosed)
+            } finally {
+                probe.close()
+            }
+        }
+    }
+}
+
+private class HostShortcutSession: Closeable {
+    var first: Window? = None
+    var second: Window? = None
+    var firstSurface: SurfaceWindow? = None
+    var secondSurface: SurfaceWindow? = None
+    var firstView: ViewProbe? = None
+    var secondView: ViewProbe? = None
+    var local: ShortcutScope? = None
+    var shared: HostShortcutScope? = None
+    var boundary: InputBoundary? = None
+    var firstFrames = 0
+    var secondFrames = 0
+    var localCalls = 0
+    var hostCalls = 0
+    var phase = 0
+    var finished = false
+
+    fun binding(amount: Int): ShortcutBinding =
+        ShortcutBinding(
+            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+            ShortcutModifiers(primary = true),
+            action = { hostCalls += amount }
+        )
+
+    fun event(host: SurfaceHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val a =
+                    active.createWindow(
+                        WindowAttributes("Scoop host shortcuts", LogicalSize(240.0, 130.0))
+                    )
+                val b =
+                    active.createWindow(
+                        WindowAttributes(
+                            "Scoop second shortcuts",
+                            LogicalSize(240.0, 130.0),
+                            visible = false
+                        )
+                    )
+                first = Some(a)
+                second = Some(b)
+                a.setWindowLevel(WindowLevel.AlwaysOnTop)
+                b.setWindowLevel(WindowLevel.AlwaysOnTop)
+                a.requestFocus()
+                firstView = Some(observeWindow(a))
+                secondView = Some(observeWindow(b))
+                val surface =
+                    host.attach(a) {
+                        frame ->
+                        firstFrames += 1;
+                        frame.canvas.clear(Color.White)
+                    }
+                firstSurface = Some(surface)
+                local =
+                    Some(
+                        ShortcutScope(
+                            surface.input,
+                            [
+                                ShortcutBinding(
+                                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                    ShortcutModifiers(primary = true),
+                                    action = { localCalls += 1 }
+                                )
+                            ]
+                        )
+                    )
+                waitFor(active, 30000L)
+            }
+            case AboutToWait -> {
+                if (phase == 0 && firstFrames > 0 && first!!.isFocused) {
+                    phase = 1
+                    sendCommand(first!!)
+                    assertTrue(active.proxy().post { current -> checkFirst(host, current) })
+                    waitFor(active, 5000L)
+                }
+                if (phase == 7 && secondFrames > 0 && second!!.isFocused) {
+                    phase = 8
+                    sendCommand(second!!)
+                    assertTrue(active.proxy().post { current -> checkSecond(host, current) })
+                    waitFor(active, 5000L)
+                }
+                if (phase == 0 && !first!!.isFocused) {
+                    first!!.requestFocus()
+                }
+                if (phase == 7 && !second!!.isFocused) {
+                    second!!.requestFocus()
+                }
+            }
+            case Window(id, WindowEvent.Destroyed) -> {
+                if (id == first!!.id) {
+                    assertEquals(6, phase)
+                    assertTrue(local!!.isClosed)
+                    assertFalse(shared!!.isClosed)
+                    assertEquals(SurfaceWindowState.Closed, firstSurface!!.state)
+                    assertTrue(firstView!!.restored())
+                    phase = 7
+                    secondSurface =
+                        Some(
+                            host.attach(second!!) {
+                                frame ->
+                                secondFrames += 1;
+                                frame.canvas.clear(Color.White)
+                            }
+                        )
+                    second!!.setVisible(true)
+                    second!!.requestFocus()
+                    waitFor(active, 30000L)
+                } else {
+                    assertEquals(11, phase)
+                    finished = true
+                    active.requestExit()
+                }
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"host shortcut timeout: phase=${phase}, calls=${hostCalls}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun checkFirst(host: SurfaceHost, active: ActiveApplication) {
+        when (phase) {
+            case 1 -> {
+                assertEquals(1, localCalls)
+                assertEquals(0, hostCalls)
+                local!!.enabled = false
+                phase = 2
+            }
+            case 2 -> {
+                assertEquals(1, hostCalls)
+                firstSurface!!.input.handler =
+                    {
+                        context,
+                        event -> when (event) {
+                            case Keyboard(_) -> context.preventDefault()
+                            else -> {}
+                        }
+                    }
+                phase = 3
+            }
+            case 3 -> {
+                assertEquals(1, hostCalls)
+                firstSurface!!.input.handler = { _, _ -> Unit }
+                boundary = Some(InputBoundary(firstSurface!!.input))
+                phase = 4
+            }
+            case 4 -> {
+                assertEquals(1, hostCalls)
+                boundary!!.close()
+                shared!!.bindings = [binding(10)]
+                phase = 5
+            }
+            case 5 -> {
+                assertEquals(11, hostCalls)
+                shared!!.enabled = false
+                phase = 6
+            }
+            case 6 -> {
+                assertEquals(11, hostCalls)
+                shared!!.enabled = true
+                first!!.requestDestroy()
+                return
+            }
+            else -> fail(Some("unexpected first-window phase"))
+        }
+        sendCommand(first!!)
+        assertTrue(active.proxy().post { current -> checkFirst(host, current) })
+    }
+
+    private fun checkSecond(host: SurfaceHost, active: ActiveApplication) {
+        when (phase) {
+            case 8 -> {
+                assertEquals(21, hostCalls)
+                val old = shared!!
+                old.close()
+                shared = Some(HostShortcutScope(host, [binding(100)]))
+                old.close()
+                phase = 9
+            }
+            case 9 -> {
+                assertEquals(121, hostCalls)
+                shared!!.bindings =
+                    [
+                        ShortcutBinding(
+                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                            ShortcutModifiers(primary = true),
+                            action = { host.close() }
+                        )
+                    ]
+                phase = 10
+            }
+            case 10 -> {
+                assertTrue(shared!!.isClosed)
+                assertEquals(SurfaceWindowState.Closed, secondSurface!!.state)
+                assertTrue(secondView!!.restored())
+                phase = 11
+                second!!.requestDestroy()
+                return
+            }
+            else -> fail(Some("unexpected second-window phase"))
+        }
+        sendCommand(second!!)
+        assertTrue(active.proxy().post { current -> checkSecond(host, current) })
+    }
+
+    private fun sendCommand(window: Window) {
+        assertTrue(sendSurfaceKey(window, 1, true, command = true))
+        assertTrue(sendSurfaceKey(window, 1, false, command = true))
+    }
+    private fun waitFor(active: ActiveApplication, milliseconds: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(
+                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
+            )
+        )
+    }
+    public override fun close() {
+        boundary?.close()
+        local?.close()
+        shared?.close()
+        firstSurface?.close()
+        secondSurface?.close()
+        firstView?.close()
+        secondView?.close()
+    }
+}

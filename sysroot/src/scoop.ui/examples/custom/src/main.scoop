@@ -8,6 +8,20 @@ import scoop.window.*
 /** A complete self-drawn control without importing the standard component library. */
 internal class Counter: Component {
     private var count: Int by state(0)
+    public override fun onMount(scope: ComponentScope) {
+        scope.resource {
+            ShortcutScope(
+                scope.input,
+                [
+                    ShortcutBinding(
+                        ShortcutKey.Logical(LogicalKey.Character("i")),
+                        ShortcutModifiers(primary = true),
+                        action = { count += 1 }
+                    )
+                ]
+            )
+        }
+    }
     public override fun render(): View =
         element(CounterInput(count, { count += 1 }), { props -> CounterDrawing(props) })
 }
@@ -40,43 +54,70 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
         area =
             Some(
                 scope.createArea(focusable = true) {
-                    current, event ->
-                    when (event) {
-                        case Pointer(
-                            AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                        ) -> {
-                            pressed = true
-                            current.requestFocus()
-                            scope.requestFrame()
-                        }
-                        case Pointer(
-                            AreaPointerEvent.Button(
-                                pointer,
-                                MouseButton.Left,
-                                ElementState.Released,
-                                _
-                            )
-                        ) -> {
-                            val activate = pressed && bounds.contains(pointer.localPosition)
-                            pressed = false
-                            if (activate)
-                                props.value.increment()
-                            scope.requestFrame()
-                        }
-                        case Pointer(AreaPointerEvent.Cancelled(_, _)) -> {
-                            pressed = false
-                            if (scope.isMounted)
+                    current,
+                    event -> if (
+                        current.phase ==
+                            RoutedPhase.Default ||
+                            current.phase ==
+                            RoutedPhase.Notification
+                    ) {
+                        when (event) {
+                            case Pointer(
+                                InputPointerEvent.Button(
+                                    _,
+                                    MouseButton.Left,
+                                    ElementState.Pressed,
+                                    _
+                                )
+                            ) -> {
+                                pressed = true
+                                current.currentTarget.area!!.requestFocus()
                                 scope.requestFrame()
-                        }
-                        case FocusChanged(_) -> {
-                            if (scope.isMounted)
+                            }
+                            case Pointer(
+                                InputPointerEvent.Button(
+                                    pointer,
+                                    MouseButton.Left,
+                                    ElementState.Released,
+                                    _
+                                )
+                            ) -> {
+                                val activate = pressed && bounds.contains(current.localPosition!!)
+                                pressed = false
+                                if (activate)
+                                    props.value.increment()
                                 scope.requestFrame()
+                            }
+                            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
+                                pressed = false
+                                if (scope.isMounted)
+                                    scope.requestFrame()
+                            }
+                            case FocusChanged(_) -> {
+                                if (scope.isMounted)
+                                    scope.requestFrame()
+                            }
+                            else -> {}
                         }
-                        else -> {}
+                        current.consume()
                     }
-                    InputResult.Handled
                 }
             )
+        area!!.scope.defaultAction = area!!.scope.handler
+        area!!.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (pressed) {
+                            pressed = false
+                            scope.requestFrame()
+                        }
+                    }
+                    else -> {}
+                }
+            }
     }
     public override fun update() {
         val next = 84.0 + (props.value.count % 5).toDouble() * 16.0
@@ -85,39 +126,42 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(extent!!.value + 64.0, 240.0)))
-    public override fun paint(context: PaintContext) {
+    public override fun scene(context: SceneContext) {
         val width = extent!!.value
         val left = (context.size.width - width) / 2.0
         val top = (context.size.height - 84.0) / 2.0
         bounds = Rect(left, top, width, 84.0)
-        context.canvas.clear(Color(0.94, 0.96, 0.99))
-        val color =
-            if (pressed)
-                Color(0.12, 0.27, 0.65)
-            else
-                Color(0.18, 0.42, 0.85)
-        context.canvas.drawRoundRect(bounds, 16.0, 16.0, Paint(color))
         context.place(area!!, bounds)
-        context.canvas.save()
-        context.canvas.translate(left + width / 2.0, top + 42.0)
-        context.canvas.drawPath(outline!!, Paint(Color.White))
-        context.canvas.restore()
-        var index = 0
-        while (index < props.value.count % 12) {
-            context.canvas.drawCircle(
-                Point(context.size.width / 2.0 - 66.0 + index.toDouble() * 12.0, top + 116.0),
-                4.0,
-                Paint(color)
-            )
-            index += 1
+        context.draw {
+            paint ->
+            paint.canvas.clear(Color(0.94, 0.96, 0.99))
+            val color =
+                if (pressed)
+                    Color(0.12, 0.27, 0.65)
+                else
+                    Color(0.18, 0.42, 0.85)
+            paint.canvas.drawRoundRect(bounds, 16.0, 16.0, Paint(color))
+            paint.canvas.save()
+            paint.canvas.translate(left + width / 2.0, top + 42.0)
+            paint.canvas.drawPath(outline!!, Paint(Color.White))
+            paint.canvas.restore()
+            var index = 0
+            while (index < props.value.count % 12) {
+                paint.canvas.drawCircle(
+                    Point(paint.size.width / 2.0 - 66.0 + index.toDouble() * 12.0, top + 116.0),
+                    4.0,
+                    Paint(color)
+                )
+                index += 1
+            }
+            if (area!!.isFocusActive)
+                paint.canvas.drawRoundRect(
+                    Rect(left - 4.0, top - 4.0, width + 8.0, 92.0),
+                    20.0,
+                    20.0,
+                    Paint(color, PaintingStyle.Stroke, 2.0)
+                )
         }
-        if (area!!.isFocusActive)
-            context.canvas.drawRoundRect(
-                Rect(left - 4.0, top - 4.0, width + 8.0, 92.0),
-                20.0,
-                20.0,
-                Paint(color, PaintingStyle.Stroke, 2.0)
-            )
     }
 }
 

@@ -1,0 +1,89 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.text.TextEditorState
+
+@Test
+private class TextFieldStyleTest {
+    @Test
+    fun `validation follows all palettes while explicit field overrides remain authoritative`() {
+        val focused = InteractionVisual(focused = true)
+        val visual = SurfaceVisual(SurfaceKind.Plain, focused)
+        val bounds = Rect(0.0, 0.0, 240.0, 80.0)
+        val themes =
+            [
+                macosTheme(),
+                materialTheme(),
+                fluentTheme(),
+                macosTheme(ThemeMode.Dark),
+                materialTheme(ThemeMode.Dark),
+                fluentTheme(ThemeMode.Dark)
+            ]
+        val style = TextFieldStyle()
+        for (theme in themes) {
+            val ordinary =
+                theme.surfaceGeometry(bounds, visual, style.options(theme, focused, false))
+            val invalid = theme.surfaceGeometry(bounds, visual, style.options(theme, focused, true))
+            assertEquals(theme.tokens.palette.error, invalid.style.border!!.color)
+            assertEquals(theme.tokens.palette.error.withAlpha(0.72), invalid.focus!!.border.color)
+            assertTrue(ordinary.style.border!!.color != invalid.style.border!!.color)
+            val explicit =
+                TextFieldStyle(
+                    surface =
+                        SurfaceOptions(
+                            padding = Some(Insets.all(4.0)),
+                            style =
+                                StyleOverride(
+                                    border = StyleValue.Set(Some(Border(3.0, Color.White)))
+                                ),
+                            focus = Some(FocusStyle(Color.Black, 1.0, 3.0))
+                        ),
+                    states =
+                        InteractionStyles(disabled = StyleOverride(border = StyleValue.Set(None)))
+                )
+            val overridden =
+                theme.surfaceGeometry(bounds, visual, explicit.options(theme, focused, true))
+            assertEquals(Some(Border(3.0, Color.White)), overridden.style.border)
+            assertEquals(Color.Black, overridden.focus!!.border.color)
+            assertEquals(Rect(7.0, 7.0, 226.0, 66.0), overridden.content)
+            val disabled = InteractionVisual(enabled = false)
+            assertEquals(
+                None,
+                theme.surfaceGeometry(
+                    bounds,
+                    SurfaceVisual(SurfaceKind.Plain, disabled),
+                    explicit.options(theme, disabled, true)
+                ).style.border
+            )
+        }
+    }
+
+    @Test
+    fun `row sizing uses actual font metrics and rejects invalid row counts`() {
+        val model = TextEditorState()
+        assertEquals(4L, TextareaProps(model).rows)
+        assertFailsWith<IllegalArgumentException> { TextareaProps(model, rows = 0L) }
+        assertFailsWith<IllegalArgumentException> { TextareaProps(model, rows = -1L) }
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Field Test")
+            val cache = TextFieldLineHeight()
+            val small = TextStyle(["Field Test"], 12.0)
+            val large = TextStyle(["Field Test"], 24.0)
+            val first = cache.measure(fonts, small)
+            assertTrue(first > 0.0)
+            assertEquals(first, cache.measure(fonts, small))
+            val second = cache.measure(fonts, large)
+            assertEquals(first * 2.0, second)
+            assertEquals(first, cache.measure(fonts, small))
+            assertFalse(fonts.isClosed)
+        }
+    }
+}

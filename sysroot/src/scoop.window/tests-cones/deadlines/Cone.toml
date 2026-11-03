@@ -1,0 +1,16 @@
+schema = 1
+[cone]
+group = "scoop.tests"
+name = "window-deadlines"
+version = "0.1.0"
+kind = "library"
+
+[[test.sources]]
+path = "tests"
+when = { os = "darwin" }
+
+[test-dependencies]
+"scoop:scoop.window" = { version = "0.1.0", path = "../.." }
+"scoop:scoop.std" = "0.1.0"
+"scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.test" = "0.1.0"

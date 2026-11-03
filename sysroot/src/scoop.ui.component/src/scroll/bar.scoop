@@ -1,0 +1,234 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+/** Pointer state uses only the geometry of an accepted frame. */
+internal class ScrollBarControl(
+    private val scope: ComponentScope,
+    private val props: () -> ScrollControlProps,
+    parent: InputArea,
+    private val orientation: Orientation
+) {
+    private val area = scope.createArea { context, event -> handle(context, event) }
+    private var currentState = props().state
+    private var geometry: ScrollbarGeometry? = None
+    private var pointer: Point? = None
+    private var hovered = false
+    private var hover: ScrollbarRegion? = None
+    private var pressed: ScrollbarRegion? = None
+    private var grab = 0.0
+    init {
+        area.scope.parent = Some(parent.scope)
+        area.scope.defaultAction = { context, event -> handle(context, event) }
+        area.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> release()
+                    else -> {}
+                }
+            }
+    }
+    fun update() {
+        val value = props()
+        if (value.state !== currentState) {
+            release()
+            geometry = None
+            currentState = value.state
+        }
+        area.scope.enabled = value.enabled
+    }
+    fun scene(
+        context: SceneContext,
+        snapshot: ScrollSnapshot,
+        bounds: Rect?,
+        painter: ThemePainter
+    ) {
+        val value = props()
+        val range = scrollbarAxis(orientation, snapshot.maximum)
+        val extent =
+            if (orientation == Orientation.Horizontal)
+                snapshot.content.width
+            else
+                snapshot.content.height
+        val visible =
+            if (orientation == Orientation.Horizontal)
+                snapshot.viewport.width
+            else
+                snapshot.viewport.height
+        val visual =
+            ScrollbarVisual(
+                orientation,
+                if (range > 0.0)
+                    scrollbarAxis(orientation, snapshot.offset) / range
+                else
+                    0.0,
+                if (extent > 0.0)
+                    upperBound(visible / extent, 1.0)
+                else
+                    1.0,
+                value.enabled && range > 0.0,
+                hover,
+                pressed
+            )
+        val next =
+            when (bounds) {
+                case Some(rect) -> if (rect.width > 0.0 && rect.height > 0.0) {
+                    val shape = value.theme.scrollbarGeometry(rect, visual, value.scrollbar)
+                    if (visual.enabled)
+                        context.place(area, rect)
+                    context.draw { paint -> painter.drawScrollbar(paint.canvas, shape, visual) }
+                    Some(shape)
+                } else
+                    None
+                case None -> None
+            }
+        val state = currentState
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && currentState === state) {
+                geometry = next
+                pointer = area.pointerPosition
+                refreshHover()
+            }
+        }
+    }
+    private fun changed() {
+        if (scope.isMounted)
+            scope.requestFrame()
+    }
+    private fun refreshHover() {
+        val next =
+            when (geometry) {
+                case Some(shape) -> when (pointer) {
+                    case Some(point) -> if (hovered)
+                        scrollbarPart(shape, point)
+                    else
+                        None
+                    case None -> None
+                }
+                case None -> None
+            }
+        if (next != hover) {
+            hover = next;
+            changed()
+        }
+    }
+    private fun release() {
+        if (pressed != None) {
+            pressed = None;
+            changed()
+        }
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (context.phase == RoutedPhase.Notification) {
+            when (event) {
+                case Pointer(InputPointerEvent.Entered(_)) -> {
+                    hovered = true;
+                    pointer = context.localPosition;
+                    refreshHover()
+                }
+                case Pointer(InputPointerEvent.Left(_)) -> {
+                    hovered = false;
+                    pointer = None;
+                    refreshHover()
+                }
+                case Pointer(InputPointerEvent.Cancelled(_, _)) -> release()
+                else -> {}
+            }
+            return
+        }
+        if (context.phase == RoutedPhase.Target) {
+            pointer = context.localPosition
+            refreshHover()
+        }
+        if (context.phase != RoutedPhase.Default || !props().enabled)
+            return
+        val shape = geometry ?: return
+        val point = context.localPosition ?: return
+        when (event) {
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+            ) -> {
+                val part = scrollbarPart(shape, point) ?: return
+                currentState.cancelAnimation()
+                pressed = Some(part)
+                when (part) {
+                    case Thumb -> {
+                        val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
+                        grab =
+                            if (shape.thumbLength > 0.0)
+                                (
+                                    scrollbarAxis(orientation, point) -
+                                        scrollbarAxis(orientation, origin)
+                                ) /
+                                    shape.thumbLength
+                            else
+                                0.0
+                    }
+                    case Track -> {
+                        val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
+                        val distance =
+                            if (orientation == Orientation.Horizontal)
+                                currentState.viewport.width
+                            else
+                                currentState.viewport.height
+                        moveBy(
+                            if (
+                                scrollbarAxis(orientation, point) <
+                                    scrollbarAxis(orientation, origin)
+                            )
+                                -distance
+                            else
+                                distance
+                        )
+                    }
+                    case Decrement -> moveBy(-props().lineStep)
+                    case Increment -> moveBy(props().lineStep)
+                }
+                changed()
+                context.consume()
+            }
+            case Pointer(InputPointerEvent.Moved(_)) -> if (
+                pressed == Some(ScrollbarRegion.Thumb)
+            ) {
+                val offset = currentState.offset
+                val destination =
+                    scrollbarThumbOffset(
+                        shape,
+                        point,
+                        grab,
+                        scrollbarAxis(orientation, currentState.maximum)
+                    )
+                currentState.scrollTo(
+                    if (orientation == Orientation.Horizontal)
+                        Point(destination, offset.y)
+                    else
+                        Point(offset.x, destination)
+                )
+                context.consume()
+            }
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+            ) -> {
+                if (pressed != None) {
+                    release();
+                    context.consume()
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun moveBy(distance: Double) {
+        currentState.scrollBy(
+            if (orientation == Orientation.Horizontal)
+                Point(distance, 0.0)
+            else
+                Point(0.0, distance)
+        )
+    }
+}

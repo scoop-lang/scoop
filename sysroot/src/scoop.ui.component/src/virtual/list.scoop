@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class VirtualListProps public constructor(
+    public val source: ItemSource,
+    public val itemExtent: ItemExtent,
+    public val state: ScrollState? = None,
+    public val orientation: Orientation = Orientation.Vertical,
+    public val overscan: Double = 0.0,
+    public val width: Double? = None,
+    public val height: Double? = None,
+    public val lineStep: Double = 40.0,
+    public val chain: ScrollChain = ScrollChain.Chain,
+    public val scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    public val scrollbar: ScrollbarOptions = ScrollbarOptions(),
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val theme: ThemeSource? = None,
+    public val handle: VirtualListHandle? = None,
+    public val anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
+    public val retention: ItemRetention = ItemRetention.Dispose,
+    public val navigation: ItemNavigation = ItemNavigation.None,
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+)
+
+/** Creates item subtrees only for the viewport, overscan and existing input sessions. */
+public class VirtualList public constructor(private val props: Props<VirtualListProps>): Component {
+    private val local = ScrollState()
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val axes =
+            if (input.orientation == Orientation.Vertical)
+                ScrollAxes.Vertical
+            else
+                ScrollAxes.Horizontal
+        val controls =
+            ScrollControlProps(
+                input.state ?: local,
+                axes,
+                input.lineStep,
+                input.chain,
+                input.scrollbars,
+                input.scrollbar,
+                input.enabled,
+                FocusOptions(
+                    input.focus.handle,
+                    input.focus.tabStop && input.navigation == ItemNavigation.None,
+                    input.focus.order
+                ),
+                input.paintCache,
+                themes.read(input.theme)
+            )
+        return lazyElement(
+            input.source,
+            VirtualListInkProps(input, controls),
+            { value -> VirtualListInk(value) },
+            retention = input.retention
+        )
+    }
+}
+
+public fun virtualList(
+    source: ItemSource,
+    itemExtent: ItemExtent,
+    state: ScrollState? = None,
+    orientation: Orientation = Orientation.Vertical,
+    overscan: Double = 0.0,
+    width: Double? = None,
+    height: Double? = None,
+    lineStep: Double = 40.0,
+    chain: ScrollChain = ScrollChain.Chain,
+    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
+    scrollbar: ScrollbarOptions = ScrollbarOptions(),
+    enabled: Boolean = true,
+    focus: FocusOptions = FocusOptions(),
+    theme: ThemeSource? = None,
+    handle: VirtualListHandle? = None,
+    anchor: VirtualListAnchor = VirtualListAnchor.KeepVisible,
+    retention: ItemRetention = ItemRetention.Dispose,
+    navigation: ItemNavigation = ItemNavigation.None,
+    paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    key: ViewKey = ViewKey.Position
+): View =
+    component(
+        VirtualListProps(
+            source,
+            itemExtent,
+            state,
+            orientation,
+            overscan,
+            width,
+            height,
+            lineStep,
+            chain,
+            scrollbars,
+            scrollbar,
+            enabled,
+            focus,
+            theme,
+            handle,
+            anchor,
+            retention,
+            navigation,
+            paintCache
+        ),
+        { props -> VirtualList(props) },
+        key
+    )
+
+internal class VirtualListInkProps(val input: VirtualListProps, val controls: ScrollControlProps)

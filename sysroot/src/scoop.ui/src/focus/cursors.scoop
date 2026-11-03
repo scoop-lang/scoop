@@ -1,0 +1,152 @@
+package scoop.ui
+
+/** One finite mounted sequence, optionally wrapping once at its scope boundary. */
+internal class NodeFocusCursor(
+    val node: MountedNode,
+    val reverse: Boolean,
+    private val loop: Boolean,
+    private val excluded: MountedNode? = None
+) {
+    val stops = tabOrder(node)
+    private var index =
+        if (reverse)
+            stops.size
+        else
+            -1L
+    private var remaining = stops.size
+
+    fun seekAfter(position: Long) {
+        index = position
+        remaining =
+            if (loop)
+                stops.size
+            else
+                if (reverse)
+                    position
+                else
+                    stops.size - position - 1L
+    }
+    fun seekAfterSubtree(boundary: MountedNode) {
+        var found: Long? = None
+        for (position in 0L ..< stops.size) {
+            if (!withinFocusScope(focusStopNode(stops[position]), boundary))
+                continue
+            if (!reverse || found == None)
+                found = Some(position)
+        }
+        when (found) {
+            case Some(position) -> seekAfter(position)
+            case None -> {}
+        }
+    }
+    fun focusedPosition(): Long? {
+        for (position in 0L ..< stops.size) {
+            val focused =
+                when (stops[position]) {
+                    case Target(target) -> target.active && target.area.hasFocus
+                    case Items(owner) -> when (owner.focusedEntry()) {
+                        case Some(_) -> true
+                        case None -> false
+                    }
+                }
+            if (focused)
+                return Some(position)
+        }
+        return None
+    }
+    fun next(): FocusStop? {
+        if (!node.active || !node.scope.input.isInputAllowed)
+            return None
+        while (remaining > 0L) {
+            remaining -= 1L
+            index += if (reverse)
+                -1L
+            else
+                1L
+            if (index < 0L || index >= stops.size) {
+                if (!loop)
+                    return None
+                index =
+                    if (reverse)
+                        stops.size - 1L
+                    else
+                        0L
+            }
+            val stop = stops[index]
+            val skip =
+                when (excluded) {
+                    case Some(boundary) -> withinFocusScope(focusStopNode(stop), boundary)
+                    case None -> false
+                }
+            if (!skip)
+                return Some(stop)
+        }
+        return None
+    }
+}
+
+/** Stores only a stable current key and a finite scan length, never one slot per source item. */
+internal class ItemFocusCursor(
+    val owner: LazyFocus,
+    private val reverse: Boolean,
+    private val initialIndex: Long,
+    private var remaining: Long,
+    private val loop: Boolean,
+    val edge: ItemFocusEdge,
+    private var exact: ViewKey? = None
+) {
+    var current: ViewKey? = None
+
+    fun next(): ViewKey? {
+        if (!owner.available || remaining == 0L)
+            return None
+        when (exact) {
+            case Some(key) -> {
+                exact = None
+                remaining = 0L
+                current = Some(key)
+                return Some(key)
+            }
+            case None -> {}
+        }
+        val count = owner.count
+        if (count == 0L)
+            return None
+        var index = initialIndex
+        when (current) {
+            case Some(key) -> {
+                val previous = owner.indexOf(key) ?: return None
+                index =
+                    previous +
+                        if (reverse)
+                            -1L
+                        else
+                            1L
+            }
+            case None -> {}
+        }
+        if (index < 0L || index >= count) {
+            if (!loop)
+                return None
+            index =
+                if (reverse)
+                    count - 1L
+                else
+                    0L
+        }
+        remaining -= 1L
+        val key = owner.keyAt(index)
+        current = Some(key)
+        return Some(key)
+    }
+}
+
+internal enum FocusCursor {
+    Nodes(NodeFocusCursor), Items(ItemFocusCursor)
+}
+
+internal class FocusItemVisit(val owner: LazyFocus, val key: ViewKey, val edge: ItemFocusEdge)
+
+internal enum FocusSearchStep {
+    Target(FocusTarget), Item(FocusItemVisit), End
+}

@@ -1,0 +1,221 @@
+package scoop.ui.text
+
+import scoop.window.*
+
+internal enum EditorEditKind {
+    Separate, Typing, Backspace, Delete
+}
+
+/** Owns only the changed bytes and endpoint metadata, never a complete old document. */
+internal struct EditorDelta(
+    val start: Long,
+    val removed: String,
+    val inserted: String,
+    val before: EditorSelection,
+    val after: EditorSelection,
+    val kind: EditorEditKind
+)
+
+internal enum EditorHistoryChange {
+    Break, Reset, Undo, Redo,
+    Append(val edits: Array<EditorDelta>, val breakBefore: Boolean, val breakAfter: Boolean)
+}
+
+internal class EditorHistory {
+    private val entries = ArrayList<EditorDelta>()
+    private var position = 0L
+    private var mergeOpen = false
+    val undoDelta: EditorDelta? get() =
+        if (position > 0L)
+            Some(entries[position - 1L])
+        else
+            None
+    val redoDelta: EditorDelta? get() =
+        if (position < entries.size)
+            Some(entries[position])
+        else
+            None
+    fun breakGroup() {
+        mergeOpen = false
+    }
+    fun apply(change: EditorHistoryChange): Boolean {
+        when (change) {
+            case Break -> {
+                breakGroup();
+                return false
+            }
+            case Reset -> {
+                val changed = entries.size > 0L
+                entries.clear()
+                position = 0L
+                breakGroup()
+                return changed
+            }
+            case Undo -> {
+                position -= 1L;
+                breakGroup();
+                return true
+            }
+            case Redo -> {
+                position += 1L;
+                breakGroup();
+                return true
+            }
+            case Append(edits, before, after) -> {
+                if (before)
+                    breakGroup()
+                for (edit in edits)
+                    append(edit)
+                if (after)
+                    breakGroup()
+                return edits.size > 0L
+            }
+        }
+    }
+    private fun append(edit: EditorDelta) {
+        while (entries.size > position)
+            entries.removeAt(entries.size - 1L)
+        val previous =
+            if (mergeOpen && position > 0L)
+                Some(entries[position - 1L])
+            else
+                None
+        val merged =
+            when (previous) {
+                case Some(value) -> mergeEditorDelta(value, edit)
+                case None -> None
+            }
+        when (merged) {
+            case Some(value) -> entries[position - 1L] = value
+            case None -> {
+                entries.add(edit);
+                position += 1L
+            }
+        }
+        mergeOpen = edit.kind != EditorEditKind.Separate
+    }
+}
+
+private fun mergeEditorDelta(a: EditorDelta, b: EditorDelta): EditorDelta? {
+    if (
+        a.kind !=
+            b.kind ||
+            a.after !=
+            b.before ||
+            a.before.anchor.byteOffset !=
+            a.before.cursor.byteOffset ||
+            b.before.anchor.byteOffset !=
+            b.before.cursor.byteOffset
+    )
+        return None
+    when (a.kind) {
+        case Typing -> if (
+            a.removed.byteLength ==
+                0L &&
+                b.removed.byteLength ==
+                0L &&
+                a.start +
+                a.inserted.byteLength ==
+                b.start
+        )
+            return Some(
+                EditorDelta(a.start, "", a.inserted + b.inserted, a.before, b.after, a.kind)
+            )
+        case Backspace -> if (
+            a.inserted.byteLength ==
+                0L &&
+                b.inserted.byteLength ==
+                0L &&
+                b.start +
+                b.removed.byteLength ==
+                a.start
+        )
+            return Some(EditorDelta(b.start, b.removed + a.removed, "", a.before, b.after, a.kind))
+        case Delete -> if (
+            a.inserted.byteLength == 0L && b.inserted.byteLength == 0L && a.start == b.start
+        )
+            return Some(EditorDelta(a.start, a.removed + b.removed, "", a.before, b.after, a.kind))
+        case Separate -> {}
+    }
+    return None
+}
+
+internal fun appendEditorDelta(
+    edits: ArrayList<EditorDelta>,
+    before: EditorValue,
+    after: EditorValue,
+    kind: EditorEditKind
+) {
+    val old = before.input.surroundingText
+    val next = after.input.surroundingText
+    if (old == next)
+        return
+    val a = old.toByteArray()
+    val b = next.toByteArray()
+    var prefix = 0L
+    while (prefix < a.size && prefix < b.size && a[prefix] == b[prefix])
+        prefix += 1L
+    while (
+        prefix >
+            0L &&
+            (
+                (prefix < a.size && continuation(a[prefix])) ||
+                    (prefix < b.size && continuation(b[prefix]))
+            )
+    )
+        prefix -= 1L
+    var suffix = 0L
+    while (
+        suffix <
+            a.size -
+            prefix &&
+            suffix <
+            b.size -
+            prefix &&
+            a[a.size - suffix - 1L] ==
+            b[b.size - suffix - 1L]
+    )
+        suffix += 1L
+    while (suffix > 0L && (continuation(a[a.size - suffix]) || continuation(b[b.size - suffix])))
+        suffix -= 1L
+    edits.add(
+        EditorDelta(
+            prefix,
+            old.utf8Slice(Utf8Range(prefix, a.size - suffix)),
+            next.utf8Slice(Utf8Range(prefix, b.size - suffix)),
+            before.endpoints,
+            after.endpoints,
+            kind
+        )
+    )
+}
+
+private fun continuation(value: Byte): Boolean = value.toInt().and(192) == 128
+
+internal fun replayEditorDelta(value: EditorValue, delta: EditorDelta, undo: Boolean): EditorValue {
+    val removed =
+        if (undo)
+            delta.inserted
+        else
+            delta.removed
+    val inserted =
+        if (undo)
+            delta.removed
+        else
+            delta.inserted
+    val range = Utf8Range(delta.start, delta.start + removed.byteLength)
+    val input =
+        editorVersion(value, 0L).input.apply(
+            TextInputBatch(
+                None,
+                [TextInputOperation.Commit(inserted, TextReplacement.Range(range))]
+            )
+        )
+    return editorSelect(
+        input,
+        if (undo)
+            delta.before
+        else
+            delta.after
+    )
+}

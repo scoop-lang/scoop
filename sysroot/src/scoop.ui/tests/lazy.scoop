@@ -1,0 +1,79 @@
+package scoop.ui
+
+import scoop.test.*
+
+private class SourceProbe(
+    public override val count: Long,
+    private val key: (Long) -> ViewKey,
+    private val index: (ViewKey) -> Long?
+): ItemSource {
+    var keys = 0
+    var reverse = 0
+    var builds = 0
+    public override fun keyAt(index: Long): ViewKey {
+        keys += 1
+        return key(index)
+    }
+    public override fun indexOfKey(key: ViewKey): Long? {
+        reverse += 1
+        return index(key)
+    }
+    public override fun build(index: Long): View {
+        builds += 1
+        return empty()
+    }
+}
+
+@Test
+private class LazySourceTest {
+    @Test
+    fun `large sources validate accessed mappings without constructing any item views`() {
+        val source =
+            SourceProbe(
+                100000000L,
+                { index -> ViewKey.Number(index) },
+                {
+                    key -> when (key) {
+                        case Number(index) -> Some(index)
+                        else -> None
+                    }
+                }
+            )
+        val items = LazyChildren(source, 0L)
+        assertEquals(100000000L, items.count)
+        assertEquals(0, source.keys)
+        assertEquals(ViewKey.Number(99999999L), checkedItemKey(source, items.count, 99999999L))
+        assertEquals(1, source.keys)
+        assertEquals(1, source.reverse)
+        assertEquals(0, source.builds)
+        assertFailsWith<IllegalArgumentException> { checkedItemKey(source, items.count, -1L) }
+        assertFailsWith<IllegalArgumentException> {
+            checkedItemKey(source, items.count, items.count)
+        }
+        assertEquals(1, source.keys)
+    }
+
+    @Test
+    fun `sources reject ambiguous identity and mutation from read only key lookup`() {
+        val positional = SourceProbe(2L, { _ -> ViewKey.Position }, { _ -> Some(0L) })
+        assertFailsWith<IllegalArgumentException> { checkedItemKey(positional, 2L, 0L) }
+        val duplicate = SourceProbe(2L, { _ -> ViewKey.Text("same") }, { _ -> Some(0L) })
+        assertEquals(ViewKey.Text("same"), checkedItemKey(duplicate, 2L, 0L))
+        assertFailsWith<IllegalArgumentException> { checkedItemKey(duplicate, 2L, 1L) }
+        val negative = SourceProbe(-1L, { _ -> ViewKey.Number(0L) }, { _ -> None })
+        assertFailsWith<IllegalArgumentException> { LazyChildren(negative, 0L) }
+        val value = state(0)
+        val impure =
+            SourceProbe(
+                1L,
+                {
+                    _ ->
+                    value.value += 1;
+                    ViewKey.Number(0L)
+                },
+                { _ -> Some(0L) }
+            )
+        assertFailsWith<IllegalStateException> { checkedItemKey(impure, 1L, 0L) }
+        assertEquals(0, value.value)
+    }
+}

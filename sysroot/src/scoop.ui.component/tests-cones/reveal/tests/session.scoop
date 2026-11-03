@@ -1,0 +1,159 @@
+package scoop.tests.ui.reveal
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class FocusRevealTest {
+    @Test
+    fun `mounted targets reveal through submitted scroll viewports and newer requests cancel old focus`() {
+        val probe = RevealProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertEquals(6, probe.mounts)
+            assertEquals(probe.mounts, probe.unmounts)
+            for (handle in probe.handles) {
+                assertFalse(handle.isAttached)
+                assertFalse(handle.isPending)
+            }
+            assertFalse(probe.outerFocus.isAttached)
+            assertFalse(probe.innerFocus.isAttached)
+            assertFalse(probe.frames!!.snapshot().required)
+        } catch (failure: Exception) {
+            fail(
+                Some(f"reveal phase=${probe.phase}: " + (failure.message ?: "unspecified failure"))
+            )
+        } finally {
+            probe.frames?.close()
+        }
+    }
+}
+
+internal class RevealProbe {
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val outerFocus = FocusHandle()
+    val innerFocus = FocusHandle()
+    val handles = Array<FocusHandle>(6L) { _ -> FocusHandle() }
+    val areas = MutableArray<InputArea?>(6L) { _ -> None }
+    val targets = MutableArray<FocusTarget?>(6L) { _ -> None }
+    val revision = state(0)
+    val theme = ThemeSource(macosTheme())
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var scope: ComponentScope? = None
+    var group: FocusScope? = None
+    var frames: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var checkpointAction: () -> Unit = {}
+    var innerHeight = 80.0
+    var showPortal = false
+    var discardNext = false
+    var discarded = 0
+    var lateScroll = false
+    var lateApplied = false
+    var clippedAttempted = false
+    var mounts = 0
+    var unmounts = 0
+    var passes = 0
+    var accepted = 0
+    var phase = 0
+    var waiting = false
+    var retryFocus = false
+    var finished = false
+
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop focus reveal", LogicalSize(480.0, 360.0))
+                    )
+                window = Some(native)
+                frames = Some(observeFrames(native))
+                checkpoint =
+                    Some(
+                        native.createDeadline {
+                            val action = checkpointAction
+                            assertTrue(application.proxy().post { _ -> action() })
+                        }
+                    )
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { RevealScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (phase < 19 && !waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (settled())
+                                advanceReveal(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 19
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"focus reveal timeout phase=${phase}, frames=${passes}, accepted=${accepted}")
+            )
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean {
+        if (accepted == 0 || !window!!.isFocused || frames!!.snapshot().required)
+            return false
+        for (handle in handles)
+            if (handle.isPending)
+                return false
+        return !outerFocus.isPending && !innerFocus.isPending
+    }
+    fun assertFocus(index: Long) {
+        for (position in 0L ..< handles.size)
+            assertEquals(
+                position == index,
+                handles[position].hasFocus,
+                Some(f"reveal phase=${phase}, target=${position}")
+            )
+    }
+    fun next(action: () -> Unit) {
+        phase += 1
+        waiting = true
+        action()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun key(code: Int) {
+        assertTrue(sendSurfaceKey(window!!, code, true))
+        assertTrue(sendSurfaceKey(window!!, code, false))
+    }
+    fun reset() {
+        assertTrue(handles[0L].requestFocus())
+        outer.scrollTo(Point(0.0, 0.0))
+        inner.scrollTo(Point(0.0, 0.0))
+    }
+}

@@ -70,8 +70,8 @@ private class InputHandler: ApplicationHandler {
                 else
                     checkPointer(pointer)
             }
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled)) -> enabled += 1
-            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled)) -> disabled += 1
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(_))) -> enabled += 1
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(_))) -> disabled += 1
             case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
                 gcCollect()
                 batches += 1

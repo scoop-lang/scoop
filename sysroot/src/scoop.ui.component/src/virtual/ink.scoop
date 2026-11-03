@@ -1,0 +1,145 @@
+package scoop.ui.component
+
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+internal class VirtualListInk(private val props: Props<VirtualListInkProps>): LazyElement {
+    private var scope: ComponentScope? = None
+    private var control: ScrollControl? = None
+    private var focus: LazyFocus? = None
+    private var handle: VirtualListHandle? = None
+    private var state: ScrollState? = None
+    private val measurements = VirtualMeasurements()
+    private var committed: VirtualReadingPosition? = None
+    private var pending: ItemScrollRequest? = None
+    private var drawing: VirtualListFrame? = None
+
+    val active: Boolean get() = scope?.isMounted ?: false
+    val scrollPending: Boolean get() =
+        active && pending?.revision == Some(props.value.controls.state.requestRevision)
+    val focusPending: Boolean get() = focus?.isPending ?: false
+    fun focusItem(key: ViewKey, edge: ItemFocusEdge): Boolean {
+        if (!active)
+            return false
+        pending = None
+        return focus!!.requestFocus(key, edge)
+    }
+    fun requestItem(key: ViewKey, alignment: ScrollAlignment): Boolean {
+        if (!active)
+            return false
+        val current = props.value.controls.state
+        // This is a real new position intent: cancel old motion and supersede prior corrections.
+        current.scrollTo(current.offset)
+        pending = Some(ItemScrollRequest(key, alignment, current.requestRevision))
+        return true
+    }
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        control = Some(ScrollControl(scope) { props.value.controls })
+        focus = Some(scope.lazyFocus(control!!.viewport))
+    }
+    public override fun update() {
+        val input = props.value
+        itemEstimate(input.input.itemExtent)
+        nonnegative(input.input.overscan, "invalid virtual overscan")
+        control!!.update()
+        focus!!.options =
+            LazyFocusOptions(
+                input.input.navigation,
+                if (input.input.orientation == Orientation.Vertical)
+                    NavigationLayout.Vertical
+                else
+                    NavigationLayout.Horizontal,
+                input.input.focus.order
+            )
+        if (!input.input.enabled)
+            focus!!.cancelRequest()
+        val sameHandle =
+            when ((handle, input.input.handle)) {
+                case(Some(old), Some(next)) -> old === next
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameHandle) {
+            input.input.handle?.bind(this)
+            handle?.unbind(this)
+            handle = input.input.handle
+            pending = None
+            focus!!.cancelRequest()
+        }
+        val sameState =
+            when (state) {
+                case Some(old) -> old === input.controls.state
+                case None -> false
+            }
+        if (!sameState) {
+            state = Some(input.controls.state)
+            committed = None
+            pending = None
+            focus!!.cancelRequest()
+        }
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutMetrics {
+        val item =
+            when (focus!!.pendingItem) {
+                case Some(key) -> Some(
+                    ItemScrollRequest(
+                        key,
+                        ScrollAlignment.Nearest,
+                        props.value.controls.state.requestRevision
+                    )
+                )
+                case None -> pending
+            }
+        val frame =
+            VirtualListLayout(
+                context,
+                constraints,
+                props.value,
+                control!!,
+                measurements,
+                committed,
+                item
+            ).measure()
+        drawing = Some(frame)
+        return LayoutMetrics(frame.snapshot.viewport)
+    }
+    public override fun scene(context: SceneContext) {
+        val frame = drawing!!
+        control!!.scene(context, frame.snapshot, frame.snapshot.offset)
+        context.onFrameComplete {
+            result -> if (
+                result.submission ==
+                    FrameSubmission.Accepted &&
+                    active &&
+                    props.value ===
+                    frame.props &&
+                    frame.revision ==
+                    props.value.controls.state.requestRevision
+            ) {
+                if (frame.hasViewport)
+                    committed = Some(frame.reading)
+                val sameRequest =
+                    when ((pending, frame.request)) {
+                        case(Some(current), Some(previous)) -> current === previous
+                        else -> false
+                    }
+                if (sameRequest && frame.requestDone)
+                    pending = None
+                if (frame.recheck)
+                    scope!!.requestFrame()
+            }
+        }
+    }
+    public override fun onUnmount() {
+        handle?.unbind(this)
+        handle = None
+        pending = None
+        committed = None
+        drawing = None
+    }
+}

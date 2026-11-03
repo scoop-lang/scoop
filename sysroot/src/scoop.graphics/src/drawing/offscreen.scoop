@@ -1,0 +1,46 @@
+package scoop.graphics
+
+import scoop.graphics.native.RenderTarget
+
+/** Independent pixels compatible with the canvas that created this surface. */
+public class OffscreenSurface internal constructor(private val target: RenderTarget): Closeable {
+    public val pixelWidth: Int get() = target.pixelWidth
+    public val pixelHeight: Int get() = target.pixelHeight
+    public val scale: Double get() = target.scale
+    public val isClosed: Boolean get() = target.isClosed
+    public fun <T> draw(block: (Canvas) -> T): T = target.draw(block)
+    /** Keeps GPU pixels on their context; later draws cannot change this image. */
+    public fun snapshot(): Image = target.compositeSnapshot()
+    public fun readPixels(): Array<Byte> = target.readPixels()
+    public override fun close() {
+        target.close()
+    }
+}
+
+internal fun createOffscreen(
+    canvas: Ptr<Unit>,
+    width: Int,
+    height: Int,
+    scale: Double
+): OffscreenSurface {
+    pixelBytes(width, height)
+    checkScalar(scale)
+    requireGraphics(scale > 0.0 && scale.toFloat() > 0.0, "invalid offscreen scale")
+    @Unsafe
+    {
+        return OffscreenSurface(
+            RenderTarget(
+                ownedGraphics(
+                    offscreenCreate(canvas, width, height),
+                    "create compatible offscreen surface"
+                ),
+                width,
+                height,
+                scale
+            )
+        )
+    }
+}
+
+@Extern(name = "scoop_graphics_offscreen_create")
+private fun offscreenCreate(canvas: Ptr<Unit>, width: Int, height: Int): Ptr<Unit>?

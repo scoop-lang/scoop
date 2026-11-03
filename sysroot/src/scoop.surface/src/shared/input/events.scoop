@@ -1,38 +1,40 @@
 package scoop.surface
 
-import scoop.graphics.Point
 import scoop.window.*
 
-public enum InputResult {
-    Ignored, Handled
-}
-
 /** Native state is retained; time can describe a later geometry-driven hover transition. */
-public struct AreaPointer(
-    val target: InputArea,
-    val state: PointerState,
-    val localPosition: Point,
-    val time: InputTime
-)
+public struct InputPointer(val state: PointerState, val time: InputTime)
 
-public enum AreaCancelReason {
-    Window(PointerCancelReason), AreaChanged, Closed
+public enum InputCancelReason {
+    Window(PointerCancelReason), AreaChanged, BoundaryChanged, ScrollInterrupted, Closed
 }
 
 /** Pixel distances are logical; line distances retain their native unit. */
-public enum AreaScrollDelta {
+public enum InputScrollDelta {
     Lines(Double, Double), Pixels(Double, Double)
 }
 
-public enum AreaPointerEvent {
-    Entered(AreaPointer), Left(InputTime), Moved(AreaPointer),
-    Button(AreaPointer, MouseButton, ElementState, Int),
-    Wheel(AreaPointer, AreaScrollDelta, ScrollPhase, ScrollPhase),
-    Cancelled(AreaCancelReason, InputTime)
+public enum InputPointerEvent {
+    Entered(InputPointer), Left(InputTime), Moved(InputPointer),
+    Button(InputPointer, MouseButton, ElementState, Int),
+    Wheel(InputPointer, InputScrollDelta, ScrollPhase, ScrollPhase),
+    Cancelled(InputCancelReason, InputTime), ScrollCancelled(InputCancelReason, InputTime)
 }
 
+/** Snapshot for the current input domain's first-button decision, before route delivery. */
+public struct InputPress(
+    val target: InputScope,
+    val pointer: InputPointer,
+    val button: MouseButton,
+    val clickCount: Int
+)
+
 /** Text transactions and focus/hover transitions are delivered directly to their owner. */
-public enum AreaEvent {
-    Pointer(AreaPointerEvent), Keyboard(KeyEvent), ModifiersChanged(Modifiers),
+public enum InputEvent {
+    Pointer(InputPointerEvent), Keyboard(KeyEvent), ModifiersChanged(Modifiers),
     TextInput(TextInputEvent), FocusChanged(Boolean)
+}
+
+public enum RoutedPhase {
+    Capture, Target, Bubble, Default, Notification
 }

@@ -1,0 +1,148 @@
+package scoop.tests.surface.deadlines
+
+import scoop.graphics.Color
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class AnimationDeadlineWindowTest {
+    @Test
+    fun `hidden and offscreen animation completions share the window loop and leave display link paused`() {
+        val probe = DeadlineProbe()
+        val host =
+            SurfaceHost { owner, application, event -> probe.event(owner, application, event) }
+        try {
+            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            assertTrue(probe.finished)
+            assertTrue(probe.hiddenFinished)
+            assertTrue(probe.offscreenFinished)
+            assertTrue(probe.animatedFrames >= 2)
+            assertEquals(1, probe.contentClosed)
+            assertTrue(host.isClosed)
+        } finally {
+            host.close()
+            probe.monitor?.close()
+        }
+    }
+}
+
+internal enum DeadlinePhase {
+    Hidden, Presenting, Settle, Quiet, Animating, Closing, Done
+}
+
+internal class DeadlineProbe {
+    var phase = DeadlinePhase.Hidden
+    var window: Window? = None
+    var surface: SurfaceWindow? = None
+    var monitor: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var finite: Animatable<Double>? = None
+    var infinite: Animatable<Double>? = None
+    var baseline: FrameSnapshot? = None
+    var frames = 0
+    var quietFrames = 0
+    var animatedFrames = 0
+    var hiddenFinished = false
+    var offscreenFinished = false
+    var contentClosed = 0
+    var finished = false
+
+    fun event(host: SurfaceHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> start(host, application)
+            case NewEvents(StartCause.Deadline) -> fail(Some("animation deadline test timed out"))
+            case Exiting -> finished = phase == DeadlinePhase.Done
+            else -> {}
+        }
+    }
+    private fun start(host: SurfaceHost, application: ActiveApplication) {
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
+        )
+        val native =
+            application.createWindow(
+                WindowAttributes(
+                    title = "Scoop animation deadlines",
+                    size = LogicalSize(240.0, 120.0),
+                    visible = false
+                )
+            )
+        window = Some(native)
+        monitor = Some(observeFrames(native))
+        val attached = host.attach(native, DeadlineContent(this))
+        surface = Some(attached)
+        checkpoint = Some(native.createDeadline { inspectDeadline(this) })
+        val finiteValue = attached.animations.value(0.0)
+        val infiniteValue = attached.animations.value(0.0)
+        finite = Some(finiteValue)
+        infinite = Some(infiniteValue)
+        infiniteValue.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+        finiteValue.animateTo(
+            1.0,
+            AnimationSpec.Tween(Duration.milliseconds(60L)),
+            onFinished =
+                Some {
+                    _ ->
+                    assertEquals(0, frames)
+                    val snapshot = monitor!!.snapshot()
+                    assertFalse(snapshot.required)
+                    assertTrue(snapshot.paused)
+                    hiddenFinished = true
+                    finiteValue.isFrameEnabled = false
+                    infiniteValue.isFrameEnabled = false
+                    phase = DeadlinePhase.Presenting
+                    native.setVisible(true)
+                    attached.requestFrame()
+                }
+        )
+    }
+    fun waitFor(milliseconds: Long) {
+        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+    fun complete(completion: FrameCompletion) {
+        if (completion.submission != FrameSubmission.Accepted)
+            return
+        when (phase) {
+            case Presenting -> {
+                phase = DeadlinePhase.Settle
+                waitFor(200L)
+            }
+            case Animating -> {
+                animatedFrames += 1
+                if (animatedFrames >= 2) {
+                    infinite!!.isFrameEnabled = false
+                    phase = DeadlinePhase.Closing
+                    finite!!.animateTo(
+                        3.0,
+                        AnimationSpec.Tween(Duration.milliseconds(60L)),
+                        onFinished =
+                            Some {
+                                _ ->
+                                surface!!.close()
+                                assertEquals(SurfaceWindowState.Closing, surface!!.state)
+                            }
+                    )
+                    waitFor(250L)
+                }
+            }
+            else -> {}
+        }
+    }
+}
+
+private class DeadlineContent(private val probe: DeadlineProbe): SurfaceContent {
+    public override fun paint(frame: FrameContext) {
+        probe.frames += 1
+        frame.canvas.clear(Color.White)
+    }
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        probe.complete(frame)
+    }
+    public override fun close() {
+        probe.contentClosed += 1
+    }
+}

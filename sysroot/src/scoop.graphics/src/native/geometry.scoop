@@ -6,6 +6,28 @@ import scoop.graphics.*
 public class CanvasGeometry internal constructor(
     private val resource: GraphicsResource
 ): Closeable {
+    /** Window-logical bounds before clipping. */
+    public val bounds: Rect get() {
+        @Unsafe
+        {
+            val result = geometryBounds(resource.get())
+            checkRect(result)
+            return result
+        }
+    }
+    /** Exact shape/clip intersection bounds, including the target viewport. */
+    public val visibleBounds: Rect? get() {
+        @Unsafe
+        {
+            val result = geometryVisible(resource.get())
+            if (result.found < 0)
+                throw GraphicsException("query visible geometry")
+            return if (result.found == 0)
+                None
+            else
+                Some(result.rect)
+        }
+    }
     public fun hitTest(windowPoint: Point): Boolean {
         checkPoint(windowPoint)
         @Unsafe
@@ -80,3 +102,12 @@ private fun geometryPoint(geometry: Ptr<Unit>, point: Point, inverse: Boolean): 
 
 @Extern(name = "scoop_graphics_geometry_rect_map")
 private fun geometryRectMap(geometry: Ptr<Unit>, rect: Rect): Rect
+
+@CLayout
+private struct NativeGeometryBounds(val found: Int, val rect: Rect)
+
+@Extern(name = "scoop_graphics_geometry_bounds")
+private fun geometryBounds(geometry: Ptr<Unit>): Rect
+
+@Extern(name = "scoop_graphics_geometry_visible")
+private fun geometryVisible(geometry: Ptr<Unit>): NativeGeometryBounds

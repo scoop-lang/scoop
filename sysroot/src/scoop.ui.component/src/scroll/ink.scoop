@@ -1,0 +1,28 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal class ScrollAreaInk(private val props: Props<ScrollAreaInkProps>): Element {
+    private var control: ScrollControl? = None
+    private var drawing: ScrollSnapshot? = None
+
+    public override fun onMount(scope: ComponentScope) {
+        control = Some(ScrollControl(scope) { props.value.controls })
+    }
+    public override fun update() {
+        control!!.update()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value.input
+        val measure = ScrollMeasure(constraints, input.axes, input.width, input.height)
+        val child = context.measureChild(0L, measure.contentConstraints)
+        val size = measure.size(child.size)
+        drawing = Some(control!!.layout(size, child.size))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        control!!.scene(context, drawing!!)
+    }
+}

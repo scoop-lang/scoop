@@ -1,0 +1,200 @@
+package scoop.window
+
+import scoop.platform.concurrent.Thread
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.window.exerciseNativeSnapshot
+import scoop.time.Duration
+import scoop.window.native.*
+
+@Test
+private class NativeTextSnapshotTest {
+    @Test
+    fun `native document queries use applied revisions and explicit ranges remain atomic`() {
+        val handler = SnapshotHandler()
+        Application(ApplicationOptions(LastWindowPolicy.Exit)).run(handler)
+        assertTrue(handler.finished)
+        assertEquals(7, handler.edits)
+        assertEquals(2, handler.opens)
+        assertEquals(1, handler.closes)
+        assertFailsWith<WindowException> {
+            handler.window!!.publishTextInputState(handler.connection!!, handler.text)
+        }
+    }
+}
+
+private class SnapshotHandler: ApplicationHandler {
+    var window: Window? = None
+    var connection: TextInputConnection? = None
+    var text = TextInputState("A😀中BC\nD", Utf8Selection(10L, 5L), revision = 20L)
+    var started = false
+    var finished = false
+    var edits = 0
+    var opens = 0
+    var closes = 0
+    private val rect = LogicalRect(LogicalPosition(12.0, 34.0), LogicalSize(2.0, 18.0))
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val created =
+                    application.createWindow(
+                        WindowAttributes("Native text snapshot", LogicalSize(260.0, 120.0))
+                    )
+                window = Some(created)
+                created.setWindowLevel(WindowLevel.AlwaysOnTop)
+                created.requestFocus()
+                created.requestRedraw()
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("native snapshot deadline"))
+            case Window(_, WindowEvent.Focused(true)) -> if (!started)
+                window!!.requestRedraw()
+            case Window(_, WindowEvent.RedrawRequested) -> if (!started && window!!.isFocused) {
+                started = true
+                window!!.setImeAllowed(true)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(value))) -> opened(value!!)
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(value))) -> {
+                closes += 1
+                assertEquals(connection, value)
+                window!!.setImeAllowed(true)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> apply(batch)
+            else -> {}
+        }
+    }
+
+    private fun opened(value: TextInputConnection) {
+        opens += 1
+        val previous = connection
+        connection = Some(value)
+        if (opens == 1) {
+            assertTrue(window!!.publishTextInputState(value, text))
+            native(7)
+            assertTrue(window!!.publishTextInputCaret(value, text.revision, Some(rect)))
+            native(0)
+            native(1)
+        } else {
+            assertNotEquals(previous!!, value)
+            assertFalse(window!!.publishTextInputState(previous!!, text))
+            assertFalse(window!!.publishTextInputCaret(previous!!, text.revision, Some(rect)))
+            text = TextInputState("external😀", Utf8Selection(12L, 12L))
+            assertTrue(window!!.publishTextInputState(value, text))
+            native(7)
+            assertTrue(window!!.publishTextInputCaret(value, 0L, Some(rect)))
+            native(5)
+            assertFalse(window!!.publishTextInputCaret(value, 1L, Some(rect)))
+            native(5)
+            assertFailsWith<IllegalArgumentException> {
+                window!!.publishTextInputState(
+                    value,
+                    TextInputState("different", Utf8Selection(0L, 0L))
+                )
+            }
+            assertFailsWith<IllegalArgumentException> {
+                window!!.publishTextInputState(value, text, Some(TextInputOrigin(value, 20L)))
+            }
+            assertFailsWith<IllegalArgumentException> {
+                window!!.publishTextInputState(
+                    TextInputConnection(WindowId(value.window.value + 1L), value.generation),
+                    text
+                )
+            }
+            Thread.start {
+                assertFailsWith<IllegalStateException> {
+                    window!!.publishTextInputState(value, text)
+                }
+            }.join()
+            window!!.clearImeCursorArea()
+            native(7)
+            assertTrue(window!!.publishTextInputCaret(value, 0L, Some(rect)))
+            assertTrue(window!!.publishTextInputCaret(value, 0L, None))
+            native(7)
+            finished = true
+            window!!.requestDestroy()
+        }
+    }
+
+    private fun apply(batch: TextInputBatch) {
+        edits += 1
+        val origin = batch.origin!!
+        assertEquals(connection!!, origin.connection)
+        assertEquals(edits.toLong(), origin.sequence)
+        if (edits == 7) {
+            assertEquals(Some(26L), batch.baseRevision)
+            assertFailsWith<IllegalStateException> { text.apply(batch) }
+            assertEquals("external😀", text.surroundingText)
+            assertTrue(window!!.publishTextInputState(connection!!, text, Some(origin)))
+            window!!.setImeAllowed(false)
+            assertFalse(window!!.publishTextInputState(connection!!, text))
+            return
+        }
+        if (edits == 1) {
+            assertEquals(Some(20L), batch.baseRevision)
+            assertEquals(2L, batch.operations.size)
+            when (batch.operations[0L]) {
+                case Preedit(value, selection, replacement) -> {
+                    assertEquals("仮😀", value)
+                    assertEquals(Some(Utf8Selection(3L, 7L)), selection)
+                    assertEquals(TextReplacement.Range(Utf8Range(5L, 10L)), replacement)
+                }
+                else -> fail(Some("expected a document preedit"))
+            }
+            assertEquals(
+                TextInputOperation.Commit("文", TextReplacement.Range(Utf8Range(5L, 12L))),
+                batch.operations[1L]
+            )
+        } else {
+            assertEquals(None, batch.baseRevision)
+            assertEquals(1L, batch.operations.size)
+        }
+        text = text.apply(batch)
+        assertEquals(20L + edits.toLong(), text.revision)
+        assertTrue(window!!.publishTextInputState(connection!!, text, Some(origin)))
+        if (edits < 4 || edits == 5) {
+            assertFalse(window!!.publishTextInputCaret(connection!!, text.revision, Some(rect)))
+            native(6)
+        } else
+            if (edits == 4) {
+                assertEquals(TextInputOperation.ClearPreedit, batch.operations[0L])
+                assertEquals("A😀文日本語\nD", text.surroundingText)
+                assertEquals(None, text.markedRange)
+                assertTrue(window!!.publishTextInputCaret(connection!!, text.revision, Some(rect)))
+                native(2)
+                native(3)
+            } else
+                if (edits == 6) {
+                    assertEquals("A😀文日本語\nD", text.surroundingText)
+                    assertEquals(None, text.markedRange)
+                    assertTrue(
+                        window!!.publishTextInputCaret(connection!!, text.revision, Some(rect))
+                    )
+                    native(2)
+                    native(4)
+                    text = TextInputState("external😀", Utf8Selection(12L, 12L), revision = 27L)
+                    assertTrue(window!!.publishTextInputState(connection!!, text))
+                    native(6)
+                }
+    }
+
+    private fun native(phase: Int) {
+        @Unsafe
+        {
+            window!!.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    when (lease.handle) {
+                        case AppKit(_, view) -> assertEquals(
+                            0,
+                            exerciseNativeSnapshot(view, phase),
+                            Some("native snapshot phase " + phase.toString())
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

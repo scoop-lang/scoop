@@ -1,0 +1,205 @@
+package scoop.tests.ui.focus
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class FocusScene(private val probe: FocusProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        probe.rootScope =
+            Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[3L]))))
+        assertTrue(probe.rootScope!!.requestFocus())
+        assertTrue(probe.rootScope!!.isPending)
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (probe.preventTab && key.logicalKey == LogicalKey.Named(NamedKey.Tab))
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun render(): View {
+        val revision = probe.revision.value
+        val views = ArrayList<View>()
+        views.add(
+            cell(
+                if (probe.reversed)
+                    1L
+                else
+                    0L
+            )
+        )
+        views.add(
+            cell(
+                if (probe.reversed)
+                    0L
+                else
+                    1L
+            )
+        )
+        views.add(
+            element(
+                PanelProps(true, revision),
+                { props -> FocusPanel(probe, props) },
+                [cell(2L), cell(3L)],
+                ViewKey.Text("group")
+            )
+        )
+        views.add(cell(4L))
+        views.add(cell(5L))
+        if (!probe.removeHidden)
+            views.add(cell(6L))
+        views.add(cell(7L))
+        return element(
+            PanelProps(false, revision),
+            { props -> FocusPanel(probe, props) },
+            views.toArray()
+        )
+    }
+    private fun cell(index: Long): View =
+        element(
+            CellProps(
+                index,
+                FocusOptions(
+                    Some(
+                        if (index == 0L && probe.replaceHandle)
+                            probe.replacement
+                        else
+                            probe.handles[index]
+                    ),
+                    !probe.stopAll && index != 5L,
+                    if (index == 1L && probe.prioritize)
+                        -1
+                    else
+                        0
+                ),
+                index != 4L,
+                index != 6L || probe.showHidden,
+                index == 7L
+            ),
+            { props -> FocusCell(probe, props) },
+            key = ViewKey.Number(index)
+        )
+}
+
+private class CellProps(
+    val index: Long,
+    val focus: FocusOptions,
+    val enabled: Boolean,
+    val placed: Boolean,
+    val clipped: Boolean
+)
+
+private class FocusCell(
+    private val probe: FocusProbe,
+    private val props: Props<CellProps>
+): Element {
+    private var area: InputArea? = None
+    private var focus: FocusTarget? = None
+    public override fun onMount(scope: ComponentScope) {
+        val input = props.value
+        probe.mounts[input.index] += 1
+        val region = scope.createArea(focusable = true)
+        area = Some(region)
+        val target = scope.focusTarget(region, input.focus)
+        focus = Some(target)
+        probe.targets[input.index] = Some(target)
+        probe.areas[input.index] = Some(region)
+        probe.scopes[input.index] = Some(scope)
+        region.scope.defaultAction =
+            {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (
+                            input.index ==
+                                2L &&
+                                probe.localTab &&
+                                key.logicalKey ==
+                                LogicalKey.Named(NamedKey.Tab)
+                        )
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+        if (input.index == 0L) {
+            assertTrue(target.handle.requestFocus())
+            assertTrue(target.handle.isPending)
+            assertFalse(probe.rootScope!!.isPending)
+        }
+    }
+    public override fun update() {
+        area!!.scope.enabled = props.value.enabled
+        focus!!.options = props.value.focus
+    }
+    public override fun onUnmount() {
+        probe.unmounts[props.value.index] += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(40.0, 40.0)))
+    public override fun scene(context: SceneContext) {
+        if (!props.value.placed)
+            return
+        if (props.value.clipped)
+            context.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
+        context.draw {
+            paint -> paint.canvas.drawRect(Rect(2.0, 2.0, 32.0, 30.0), Paint(Color.Black))
+        }
+        context.place(area!!, Rect(2.0, 2.0, 32.0, 30.0))
+        assertFailsWith<IllegalStateException> { focus!!.handle.requestFocus() }
+    }
+}
+
+private class PanelProps(val group: Boolean, val revision: Int)
+
+private class FocusPanel(
+    private val probe: FocusProbe,
+    private val props: Props<PanelProps>
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        if (props.value.group)
+            probe.group = Some(scope.focusScope())
+        else
+            probe.panelScope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        var x = 0.0
+        for (index in 0L ..< context.childCount) {
+            val width =
+                if (!props.value.group && index == 2L)
+                    80.0
+                else
+                    40.0
+            context.measureChild(index, Constraints.tight(Size(width, 40.0)))
+            context.placeChild(index, Point(x, 0.0))
+            x += width
+        }
+        return LayoutMetrics(constraints.constrain(Size(x, 40.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        if (!props.value.group)
+            context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        if (!props.value.group) {
+            val revision = props.value.revision
+            context.onFrameComplete {
+                frame -> if (frame.submission == FrameSubmission.Accepted) {
+                    probe.frames += 1
+                    probe.committed = revision
+                    if (!probe.initialCommit) {
+                        assertTrue(probe.handles[0L].hasFocus)
+                        assertFalse(probe.handles[0L].isPending)
+                        probe.initialCommit = true
+                    }
+                }
+            }
+        }
+    }
+}

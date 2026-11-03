@@ -22,7 +22,8 @@ public fun macosTheme(mode: ThemeMode = ThemeMode.Light): Theme {
                 Color(0.04, 0.52, 1.0),
                 Color.White,
                 Color(0.20, 0.60, 1.0),
-                Color.Black.withAlpha(0.42)
+                Color.Black.withAlpha(0.42),
+                Color(1.0, 0.42, 0.38)
             )
         else
             ThemePalette(
@@ -36,7 +37,8 @@ public fun macosTheme(mode: ThemeMode = ThemeMode.Light): Theme {
                 Color(0.0, 0.48, 1.0),
                 Color.White,
                 Color(0.0, 0.48, 1.0),
-                Color.Black.withAlpha(0.18)
+                Color.Black.withAlpha(0.18),
+                Color(0.82, 0.14, 0.12)
             )
     val families = [".AppleSystemUIFont", "Helvetica Neue", "sans-serif"]
     val fonts =

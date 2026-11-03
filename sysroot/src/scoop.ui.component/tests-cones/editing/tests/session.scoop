@@ -1,0 +1,288 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class TextControlsTest {
+    @Test
+    fun `themed text controls retain models across focus themes modal input and virtual eviction`() {
+        val probe = FieldProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.source) {
+                host.use {
+                    owner -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(owner)
+                }
+            }
+            assertTrue(probe.finished)
+            assertEquals(1, probe.inputCreates)
+            assertEquals(1, probe.textareaCreates)
+            assertFalse(probe.fonts.isClosed)
+            assertFalse(probe.frames!!.snapshot().required)
+            for (focus in probe.focus)
+                assertFalse(focus.isAttached)
+            for (row in probe.rows) {
+                assertEquals(row.mounts, row.unmounts)
+                assertFalse(row.focus.isAttached)
+            }
+            for (theme in probe.themes)
+                for (painter in theme.painters)
+                    assertTrue(painter.isClosed)
+        } catch (error: Throwable) {
+            println(
+                "text controls phase=" +
+                    probe.phase.toString() +
+                    ", frames=" +
+                    probe.passes.toString()
+            )
+            fieldFailure(error)
+            throw error
+        } finally {
+            host.close()
+            probe.frames?.close()
+            probe.fonts.close()
+        }
+    }
+}
+
+private fun fieldFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        fieldFailure(error.primaryFailure)
+        fieldFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+            when (error.expected) {
+                case Text(value) -> println("expected: " + value);
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println("actual: " + value);
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "text controls failure")
+}
+
+internal class FieldProbe {
+    val primary = TextEditorState("Alpha😀")
+    val replacement = TextEditorState("replacement")
+    val secondary = TextEditorState("one\ntwo")
+    val dialog = TextEditorState("Dialog")
+    val focus = Array<FocusHandle>(4L) { _ -> FocusHandle() }
+    val version = state(0)
+    val listScroll = ScrollState()
+    val list = VirtualListHandle()
+    val rows = ArrayList<FieldRow>()
+    val items = FieldItems(this)
+    val overlay = OverlayHandle()
+    val fonts = FontCollection(false)
+    val themes =
+        [
+            FieldTheme(macosTheme(), this),
+            FieldTheme(materialTheme(), this),
+            FieldTheme(fluentTheme(), this),
+            FieldTheme(macosTheme(ThemeMode.Dark), this),
+            FieldTheme(materialTheme(ThemeMode.Dark), this),
+            FieldTheme(fluentTheme(ThemeMode.Dark), this)
+        ]
+    val source = ThemeSource(themes[0L])
+    var rebound = false
+    var readOnly = false
+    var enabled = true
+    var invalid = false
+    var ownedFonts = false
+    var description = "A shared editing model"
+    var wrap = true
+    var editorRows = 4L
+    var scrollbars = ScrollbarVisibility.Auto
+    var dialogOpen = false
+    var callbackVersion = 0
+    var editedVersion = -1
+    var edits = 0
+    var submits = 0
+    var inputCreates = 0
+    var textareaCreates = 0
+    var primaryMetrics: LayoutMetrics? = None
+    var primaryDrawing: FieldSurface? = None
+    var secondaryDrawing: FieldSurface? = None
+    var dialogDrawing: FieldSurface? = None
+    var horizontal: FieldBar? = None
+    var vertical: FieldBar? = None
+    var passes = 0
+    var accepted = 0
+    var savedPasses = 0
+    var phase = 0
+    var waiting = false
+    var retriedFocus = false
+    var finished = false
+    var native: Window? = None
+    var ui: UiWindow? = None
+    var active: ActiveApplication? = None
+    var scope: ComponentScope? = None
+    var frames: FrameProbe? = None
+    var checkpoint: WindowDeadline? = None
+    var action: () -> Unit = {}
+
+    init {
+        for (theme in themes)
+            for (style in [theme.tokens.typography.body, theme.tokens.typography.caption])
+                for (family in style.families)
+                    fonts.register(testSansBytes, family)
+    }
+    val main: TextEditorState get() =
+        if (rebound)
+            replacement
+        else
+            primary
+    fun change() {
+        version.value += 1
+    }
+    fun row(index: Long): FieldRow {
+        for (record in rows)
+            if (record.index == index)
+                return record
+        val record = FieldRow(index)
+        rows.add(record)
+        return record
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active = Some(application)
+                val window =
+                    application.createWindow(
+                        WindowAttributes("Scoop text controls", LogicalSize(760.0, 520.0))
+                    )
+                native = Some(window)
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                window.requestFocus()
+                frames = Some(observeFrames(window))
+                checkpoint =
+                    Some(
+                        window.createDeadline {
+                            val current = action
+                            assertTrue(application.proxy().post { _ -> current() })
+                        }
+                    )
+                ui = Some(host.attach(window, { FieldScene(this) }))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(50L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && accepted > 0 && !native!!.isFocused && !retriedFocus) {
+                    retriedFocus = true
+                    native!!.requestFocus()
+                }
+                if (!finished && phase < 45 && !waiting && settled()) {
+                    waiting = true
+                    assertTrue(
+                        application.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (settled())
+                                advanceFields(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 45
+                application.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                println(
+                    f"waiting: focused=${native!!.isFocused}, frame=${
+                        frames!!.snapshot().required
+                    }, list=${list.isPending}, accepted=${accepted}"
+                )
+                for (index in 0L ..< focus.size) {
+                    val target = focus[index]
+                    println(
+                        f"field ${index}: attached=${target.isAttached}, active=${
+                            target.isFocusActive
+                        }, pending=${target.isPending}"
+                    )
+                }
+                fail(Some("text controls timeout phase=" + phase.toString()))
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean {
+        if (accepted == 0 || !native!!.isFocused || frames!!.snapshot().required || list.isPending)
+            return false
+        for (target in focus)
+            if (target.isPending)
+                return false
+        for (row in rows)
+            if (row.focus.isPending)
+                return false
+        val model =
+            if (focus[0L].isFocusActive && enabled && !readOnly)
+                Some(main)
+            else
+                if (focus[1L].isFocusActive)
+                    Some(secondary)
+                else
+                    if (focus[3L].isFocusActive)
+                        Some(dialog)
+                    else {
+                        var selected: TextEditorState? = None
+                        for (row in rows)
+                            if (row.focus.isFocusActive)
+                                selected = Some(row.model)
+                        selected
+                    }
+        return when (model) {
+            case Some(value) -> editorDocument(native!!, value)
+            case None -> true
+        }
+    }
+    fun next(block: () -> Unit) {
+        phase += 1
+        waiting = true
+        block()
+        assertTrue(active!!.proxy().post { _ -> waiting = false })
+    }
+    fun later(block: () -> Unit) {
+        waiting = true
+        action =
+            {
+                block();
+                waiting = false
+            }
+        checkpoint!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(140L))
+    }
+    fun click(point: Point) {
+        editorPointer(native!!, point, true)
+        editorPointer(native!!, point, false)
+    }
+    fun paddingClick() {
+        val rect = primaryDrawing!!.bounds
+        click(Point(rect.x + 2.0, rect.y + 2.0))
+    }
+}

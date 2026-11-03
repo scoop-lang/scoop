@@ -1,0 +1,178 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+public enum ItemFocusEdge {
+    First, Last
+}
+
+/** Resolves one keyed item through its ordinary mounted focus targets. */
+public class LazyFocus internal constructor(
+    internal val node: MountedNode,
+    internal val viewport: ScrollViewport,
+    private val items: LazyChildren,
+    initial: LazyFocusOptions
+): Closeable {
+    private val input = node.scope.input
+    private var current = initial
+    private var closed = false
+    private var recent: ViewKey? = None
+    private var registration: Closeable? = None
+    private var observation: Closeable? = None
+
+    init {
+        checkLazyFocusOptions(initial)
+        registration = Some(input.addDefaultAction { context, event -> navigate(context, event) })
+        try {
+            observation = Some(input.observeActivity { remember() })
+        } catch (failure: Throwable) {
+            registration?.close()
+            throw failure
+        }
+    }
+
+    internal val active: Boolean get() =
+        !closed && node.active && node.root.isOpen && viewport.active && !input.isClosed
+    internal val available: Boolean get() = active && node.scope.forChildren().isInputAllowed
+    internal val usesItems: Boolean get() = active && current.navigation != ItemNavigation.None
+    internal val count: Long get() = items.count
+    public var options: LazyFocusOptions
+    get() {
+        node.root.checkThread()
+        return current
+    }
+    set(value) {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (!active)
+            throw IllegalStateException(Some("item focus is no longer mounted"))
+        checkLazyFocusOptions(value)
+        if (value != current) {
+            node.root.focus.cancel(this)
+            current = value
+        }
+    }
+    public val isClosed: Boolean get() {
+        node.root.checkThread()
+        return closed || !viewport.active || input.isClosed
+    }
+    public val isPending: Boolean get() {
+        node.root.checkThread()
+        return active && node.root.focus.isPending(this)
+    }
+    /** The item still requiring preparation; exact target reveal continues after this becomes None. */
+    public val pendingItem: ViewKey? get() {
+        node.root.checkThread()
+        return if (active)
+            node.root.focus.itemToPrepare(this)
+        else
+            None
+    }
+    public fun requestFocus(key: ViewKey, edge: ItemFocusEdge = ItemFocusEdge.First): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        requireUi(key != ViewKey.Position, "item focus requires an explicit key")
+        return node.root.focus.request(this, key, edge)
+    }
+    public fun cancelRequest() {
+        node.root.checkThread()
+        checkFocusMutation()
+        node.root.focus.cancel(this)
+    }
+    internal fun pendingIndex(): Long? {
+        val key = pendingItem ?: return None
+        return items.indexOf(key)
+    }
+    internal fun entry(key: ViewKey): LazyItemEntry? = items.entry(key)
+    internal fun keyAt(index: Long): ViewKey = items.keyAt(index)
+    internal fun indexOf(key: ViewKey): Long? = items.indexOf(key)
+    internal fun focusedEntry(): LazyItemEntry? = items.focusedEntry()
+    internal fun entryContaining(node: MountedNode): LazyItemEntry? = items.entryContaining(node)
+    internal fun preferredKey(): ViewKey? {
+        when (focusedEntry()) {
+            case Some(entry) -> return Some(entry.key)
+            case None -> {}
+        }
+        when (recent) {
+            case Some(key) -> if (items.indexOf(key) != None)
+                return Some(key)
+            case None -> {}
+        }
+        return if (count > 0L)
+            Some(items.keyAt(0L))
+        else
+            None
+    }
+    private fun primary(item: LazyItemEntry): FocusTarget? {
+        for (target in focusOrder(item.node))
+            if (target.acceptsTab)
+                return Some(target)
+        return None
+    }
+    private fun remember() {
+        if (!active)
+            return
+        when (focusedEntry()) {
+            case Some(entry) -> recent = Some(entry.key)
+            case None -> {}
+        }
+    }
+    private fun navigate(context: RoutedEventContext, event: InputEvent) {
+        if (!available)
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value
+                else -> return
+            }
+        val modifiers = key.modifiers
+        if (
+            key.state !=
+                ElementState.Pressed ||
+                key.synthetic ||
+                modifiers.control ||
+                modifiers.alt ||
+                modifiers.shift ||
+                modifiers.superKey ||
+                modifiers.function
+        )
+            return
+        when (current.navigation) {
+            case Roving(direction, loop) -> {
+                val step = navigationStep(current.layout, direction, key.logicalKey) ?: return
+                val entry = focusedEntry() ?: return
+                val target = primary(entry) ?: return
+                if (!target.area.hasFocus)
+                    return
+                context.consume()
+                node.root.focus.navigate(this, entry, step, loop)
+            }
+            else -> {}
+        }
+    }
+    internal fun sourceChanged() {
+        when (recent) {
+            case Some(key) -> if (items.indexOf(key) == None)
+                recent = None
+            case None -> {}
+        }
+        val key = node.root.focus.itemKey(this) ?: return
+        if (items.indexOf(key) == None)
+            node.root.focus.cancel(this)
+    }
+    public override fun close() {
+        node.root.checkThread()
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        node.root.focus.cancel(this)
+        node.lazyFocus = None
+        var failure = cleanupUi(None) { registration?.close() }
+        registration = None
+        failure = cleanupUi(failure) { observation?.close() }
+        observation = None
+        throwUi(failure)
+    }
+}

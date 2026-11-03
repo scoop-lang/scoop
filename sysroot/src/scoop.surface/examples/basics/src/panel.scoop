@@ -35,8 +35,22 @@ internal class DemoPanel(
             AnimationSpec.Tween(Duration.seconds(16L)),
             Some(Repeat())
         )
-        shape = Some(window.createArea { _, event -> shapeEvent(event) })
-        text = Some(window.createArea(textInput = true) { area, event -> textEvent(area, event) })
+        shape = Some(window.createArea { context, event -> shapeEvent(context, event) })
+        text =
+            Some(
+                window.createArea(textInput = true) { context, event -> textEvent(context, event) }
+            )
+        shape!!.scope.defaultAction = shape!!.scope.handler
+        shape!!.scope.onEventFinished =
+            {
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> drag!!.cancel(surfaceWindow!!.state)
+                    else -> {}
+                }
+            }
+        text!!.scope.defaultAction = text!!.scope.handler
     }
 
     public override fun paint(frame: FrameContext) {
@@ -95,13 +109,15 @@ internal class DemoPanel(
         val caret = editor.caret()
         if (text!!.isFocusActive)
             canvas.drawRect(caret, Paint(Color.Black))
-        text!!.setCaret(Rect(caret.x + 12.0, caret.y + 12.0, caret.width, caret.height))
+        text!!.setCaret(Some(Rect(caret.x + 12.0, caret.y + 12.0, caret.width, caret.height)))
         canvas.restore()
     }
 
-    private fun shapeEvent(event: AreaEvent): InputResult {
+    private fun shapeEvent(context: RoutedEventContext, event: InputEvent) {
+        if (context.phase != RoutedPhase.Default && context.phase != RoutedPhase.Notification)
+            return
         when (event) {
-            case Pointer(AreaPointerEvent.Entered(_)) -> {
+            case Pointer(InputPointerEvent.Entered(_)) -> {
                 if (isOpen()) {
                     color!!.animateTo(
                         Color(0.84, 0.34, 0.19),
@@ -110,7 +126,7 @@ internal class DemoPanel(
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Grab)
                 }
             }
-            case Pointer(AreaPointerEvent.Left(_)) -> {
+            case Pointer(InputPointerEvent.Left(_)) -> {
                 if (isOpen()) {
                     color!!.animateTo(
                         Color(0.15, 0.43, 0.72),
@@ -120,48 +136,51 @@ internal class DemoPanel(
                 }
             }
             case Pointer(
-                AreaPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
+                InputPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 drag!!.press(
                     Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y)
                 )
                 surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Grabbing)
             }
-            case Pointer(AreaPointerEvent.Moved(pointer)) -> {
+            case Pointer(InputPointerEvent.Moved(pointer)) -> {
                 drag!!.move(Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y))
             }
             case Pointer(
-                AreaPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
             ) -> {
                 drag!!.release()
                 surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Grab)
             }
-            case Pointer(AreaPointerEvent.Cancelled(_, _)) -> {
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> {
                 drag!!.cancel(surfaceWindow!!.state)
                 if (isOpen())
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Default)
             }
             else -> {}
         }
-        return InputResult.Handled
+        context.consume()
     }
 
-    private fun textEvent(area: InputArea, event: AreaEvent): InputResult {
+    private fun textEvent(context: RoutedEventContext, event: InputEvent) {
+        if (context.phase != RoutedPhase.Default && context.phase != RoutedPhase.Notification)
+            return
+        val area = context.currentTarget.area!!
         when (event) {
-            case Pointer(AreaPointerEvent.Entered(_)) -> {
+            case Pointer(InputPointerEvent.Entered(_)) -> {
                 if (isOpen())
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Text)
             }
-            case Pointer(AreaPointerEvent.Left(_)) -> {
+            case Pointer(InputPointerEvent.Left(_)) -> {
                 if (isOpen())
                     surfaceWindow!!.nativeWindow.setCursorIcon(CursorIcon.Default)
             }
             case Pointer(
-                AreaPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
+                InputPointerEvent.Button(pointer, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 if (area.requestFocus())
                     editor.choose(
-                        Point(pointer.localPosition.x - 12.0, pointer.localPosition.y - 12.0)
+                        Point(context.localPosition!!.x - 12.0, context.localPosition!!.y - 12.0)
                     )
                 repaint()
             }
@@ -188,7 +207,7 @@ internal class DemoPanel(
             case FocusChanged(_) -> repaint()
             else -> {}
         }
-        return InputResult.Handled
+        context.consume()
     }
     private fun isOpen(): Boolean =
         when (surfaceWindow) {

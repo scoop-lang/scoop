@@ -1,0 +1,137 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+@Test
+private class VirtualExtentTest {
+    @Test
+    fun `detached list handles reject positional keys and enforce their owner thread`() {
+        val handle = VirtualListHandle()
+        assertFalse(handle.isAttached)
+        assertFalse(handle.isPending)
+        assertFalse(handle.scrollToItem(ViewKey.Number(10L)))
+        assertFailsWith<IllegalArgumentException> { handle.scrollToItem(ViewKey.Position) }
+        Thread.start {
+            assertFailsWith<IllegalStateException> { handle.isAttached }
+            assertFailsWith<IllegalStateException> { handle.scrollToItem(ViewKey.Number(10L)) }
+        }.use { thread -> thread.join() }
+    }
+
+    @Test
+    fun `sparse variable measurements change prefixes without visiting an enormous source`() {
+        val index = ItemExtentIndex(100000000L, ItemExtent.Variable(20.0))
+        index.record(1L, 50.0)
+        index.record(50000000L, 0.0)
+        index.record(99999999L, 40.0)
+        assertEquals(20.0, index.prefix(1L))
+        assertEquals(70.0, index.prefix(2L))
+        assertEquals(1000000030.0, index.prefix(50000000L))
+        assertEquals(1000000030.0, index.prefix(50000001L))
+        assertEquals(2000000030.0, index.total)
+        assertEquals(1L, index.indexAt(20.0))
+        assertEquals(1L, index.indexAt(69.0))
+        assertEquals(2L, index.indexAt(70.0))
+        assertEquals(50000001L, index.indexAt(1000000030.0))
+        assertEquals(99999999L, index.indexAt(2000000029.0))
+        assertEquals(100000000L, index.indexAt(index.total))
+        index.record(1L, 10.0)
+        assertEquals(30.0, index.prefix(2L))
+        assertEquals(1999999990.0, index.total)
+    }
+
+    @Test
+    fun `zero measured lengths skip forward and preserve valid empty ranges`() {
+        val index = ItemExtentIndex(4L, ItemExtent.Variable(10.0))
+        index.record(0L, 0.0)
+        index.record(1L, 15.0)
+        index.record(2L, 0.0)
+        val geometry = ListGeometry(index, Orientation.Vertical, 0.0, Size(80.0, 15.0))
+        assertEquals(Constraints(minWidth = 80.0, maxWidth = Some(80.0)), geometry.itemConstraints)
+        assertEquals(ItemRange(1L, 2L), geometry.range(0.0))
+        assertEquals(ItemRange(3L, 4L), geometry.range(15.0))
+        assertEquals(Point(0.0, 15.0), geometry.origin(3L))
+        assertEquals(Rect(0.0, 15.0, 80.0, 10.0), geometry.bounds(3L))
+        index.record(1L, 0.0)
+        index.record(3L, 0.0)
+        assertEquals(0.0, index.total)
+        assertEquals(ItemRange(4L, 4L), geometry.range(0.0))
+        index.record(2L, 8.0)
+        assertEquals(ItemRange(2L, 3L), geometry.range(0.0))
+    }
+
+    @Test
+    fun `size estimates follow stable keys and reset when layout constraints change`() {
+        val cache = VirtualMeasurements()
+        val original = ExtentSource([10L, 20L, 30L])
+        val index =
+            cache.prepare(original, 3L, ItemExtent.Variable(20.0), Orientation.Vertical, 80.0)
+        cache.record(0L, 25.0)
+        cache.record(1L, 0.0)
+        assertEquals(45.0, index.total)
+        assertTrue(
+            cache.prepare(original, 3L, ItemExtent.Variable(20.0), Orientation.Vertical, 80.0) ===
+                index
+        )
+        val reordered = ExtentSource([30L, 10L, 20L])
+        val moved =
+            cache.prepare(reordered, 3L, ItemExtent.Variable(20.0), Orientation.Vertical, 80.0)
+        assertEquals(20.0, moved.prefix(1L))
+        assertEquals(45.0, moved.prefix(2L))
+        assertEquals(45.0, moved.total)
+        val deleted = ExtentSource([20L, 30L])
+        assertEquals(
+            20.0,
+            cache.prepare(deleted, 2L, ItemExtent.Variable(20.0), Orientation.Vertical, 80.0).total
+        )
+        val resized =
+            cache.prepare(deleted, 2L, ItemExtent.Variable(20.0), Orientation.Vertical, 100.0)
+        assertEquals(40.0, resized.total)
+        cache.record(0L, 60.0)
+        val rotated =
+            cache.prepare(deleted, 2L, ItemExtent.Variable(20.0), Orientation.Horizontal, 100.0)
+        assertEquals(40.0, rotated.total)
+        assertEquals(
+            80.0,
+            cache.prepare(deleted, 2L, ItemExtent.Fixed(40.0), Orientation.Horizontal, 100.0).total
+        )
+    }
+
+    @Test
+    fun `variable extent inputs reject invalid sizes and coordinate overflow`() {
+        for (estimate in [0.0, -1.0, 1.0e308 * 2.0])
+            assertFailsWith<IllegalArgumentException> {
+                ItemExtentIndex(3L, ItemExtent.Variable(estimate))
+            }
+        assertFailsWith<IllegalArgumentException> {
+            ItemExtentIndex(-1L, ItemExtent.Variable(20.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ItemExtentIndex(10L, ItemExtent.Variable(1.0e308))
+        }
+        val index = ItemExtentIndex(3L, ItemExtent.Variable(20.0))
+        assertFailsWith<IllegalArgumentException> { index.record(-1L, 10.0) }
+        assertFailsWith<IllegalArgumentException> { index.record(3L, 10.0) }
+        assertFailsWith<IllegalArgumentException> { index.record(1L, -1.0) }
+        assertFailsWith<IllegalArgumentException> { index.record(1L, 1.0e308 * 2.0) }
+        assertEquals(60.0, index.total)
+        index.record(0L, 1.0e308)
+        assertFailsWith<IllegalArgumentException> { index.record(1L, 1.0e308) }
+    }
+}
+
+private class ExtentSource(private val keys: Array<Long>): ItemSource {
+    public override val count: Long get() = keys.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(keys[index])
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< keys.size)
+            if (key == ViewKey.Number(keys[index]))
+                return Some(index)
+        return None
+    }
+    public override fun build(index: Long): View =
+        throw IllegalStateException(Some("geometry must not build items"))
+}

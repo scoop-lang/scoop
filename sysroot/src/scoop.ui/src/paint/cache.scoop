@@ -1,0 +1,150 @@
+package scoop.ui
+
+import scoop.graphics.*
+
+/** One element's small set of independently versioned drawing layers. */
+internal class PaintLayers: Closeable {
+    val entries = ArrayList<CachedPaintLayer>()
+
+    fun draw(
+        canvas: Canvas,
+        key: PaintKey,
+        input: PaintLayerInput,
+        policy: PaintCachePolicy,
+        block: (Canvas) -> Unit
+    ) {
+        input.check()
+        val grid =
+            when (policy) {
+                case None -> None
+                case Tiles(size, overscan) -> paintTileGrid(
+                    canvas.pixelTransform,
+                    input,
+                    size,
+                    overscan
+                )
+            }
+        when (grid) {
+            case Some(value) -> drawTiles(canvas, key, input, value, block)
+            case None -> drawUncached(canvas, key, input, block)
+        }
+    }
+    private fun drawTiles(
+        canvas: Canvas,
+        key: PaintKey,
+        input: PaintLayerInput,
+        grid: PaintTileGrid,
+        block: (Canvas) -> Unit
+    ) {
+        val range =
+            when (canvas.localClipBounds) {
+                case Some(clip) -> grid.range(input.bounds, clip)
+                case None -> None
+            }
+        when (range) {
+            case Some(value) -> {
+                if (!grid.representable(value)) {
+                    drawUncached(canvas, key, input, block)
+                    return
+                }
+                var found: CachedPaintLayer? = None
+                for (entry in entries) {
+                    if (
+                        entry.key ===
+                            key &&
+                            entry.input ==
+                            input &&
+                            entry.grid ==
+                            grid &&
+                            entry.compatible(canvas)
+                    ) {
+                        found = Some(entry)
+                        break
+                    }
+                }
+                val layer = found ?: (create(canvas, key, input, grid, block) ?: return)
+                try {
+                    layer.paint(canvas, value)
+                } catch (error: Throwable) {
+                    throwUi(cleanupUi(Some(error)) { remove(key) })
+                }
+            }
+            case None -> remove(key)
+        }
+    }
+    private fun drawUncached(
+        canvas: Canvas,
+        key: PaintKey,
+        input: PaintLayerInput,
+        block: (Canvas) -> Unit
+    ) {
+        remove(key)
+        canvas.recordDrawing(input.bounds, block).use {
+            drawing -> replayPaintLayer(canvas, drawing)
+        }
+    }
+    private fun create(
+        canvas: Canvas,
+        key: PaintKey,
+        input: PaintLayerInput,
+        grid: PaintTileGrid,
+        block: (Canvas) -> Unit
+    ): CachedPaintLayer? {
+        remove(key)
+        val drawing = canvas.recordDrawing(input.bounds, block)
+        if (!drawing.canRasterizeTiles) {
+            drawing.use { value -> replayPaintLayer(canvas, value) }
+            return None
+        }
+        val layer = CachedPaintLayer(key, input, grid, drawing)
+        try {
+            entries.add(layer)
+            return Some(layer)
+        } catch (error: Throwable) {
+            drawing.close()
+            throw error
+        }
+    }
+    fun retain(keys: ArrayList<PaintKey>) {
+        var index = entries.size
+        while (index > 0L) {
+            index -= 1L
+            val entry = entries[index]
+            var found = false
+            for (key in keys)
+                if (entry.key === key)
+                    found = true
+            if (!found) {
+                entries.removeAt(index)
+                entry.close()
+            }
+        }
+    }
+    private fun remove(key: PaintKey) {
+        var index = entries.size
+        while (index > 0L) {
+            index -= 1L
+            val entry = entries[index]
+            if (entry.key === key) {
+                entries.removeAt(index)
+                entry.close()
+                return
+            }
+        }
+    }
+    public override fun close() {
+        var failure: Throwable? = None
+        for (entry in entries)
+            failure = cleanupUi(failure) { entry.close() }
+        entries.clear()
+        throwUi(failure)
+    }
+}
+
+private fun replayPaintLayer(canvas: Canvas, drawing: Drawing) {
+    canvas.withState {
+        target ->
+        target.saveLayer()
+        target.drawDrawing(drawing)
+    }
+}

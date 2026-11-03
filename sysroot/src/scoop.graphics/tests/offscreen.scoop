@@ -1,0 +1,205 @@
+package scoop.graphics
+
+import scoop.math.abs
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class CompatibleSurfaceTest {
+    @Test
+    fun `compatible raster surfaces own independent pixels and immutable snapshots`() {
+        val images = ArrayList<Image>()
+        try {
+            val offscreen =
+                RasterSurface(8, 8).use {
+                    source -> source.draw {
+                        canvas ->
+                        canvas.translate(100.0, 80.0)
+                        canvas.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
+                        canvas.createSurface(24, 16, 2.0)
+                    }
+                }
+            offscreen.use {
+                surface ->
+                assertEquals(24, surface.pixelWidth)
+                assertEquals(16, surface.pixelHeight)
+                assertEquals(2.0, surface.scale)
+                surface.draw {
+                    canvas ->
+                    assertEquals(Transform.scale(2.0, 2.0), canvas.pixelTransform)
+                    val bounds = canvas.localClipBounds!!
+                    assertTrue(bounds.contains(Point(6.0, 4.0)))
+                    assertFailsWith<IllegalStateException> { surface.close() }
+                    assertFailsWith<IllegalStateException> { surface.snapshot() }
+                    canvas.clear(Color(1.0, 0.0, 0.0))
+                }
+                images.add(surface.snapshot())
+                surface.draw { canvas -> canvas.clear(Color(0.0, 1.0, 0.0)) }
+                images.add(surface.snapshot())
+                assertEquals(255, channel(surface.readPixels(), 24, 10, 8, 1))
+                Thread.start { assertFailsWith<IllegalStateException> { surface.snapshot() } }.use {
+                    thread -> thread.join()
+                }
+            }
+            RasterSurface(24, 16).use {
+                target ->
+                target.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    assertTrue(canvas.isCompatible(images[0L]))
+                    canvas.drawImageRegion(
+                        images[0L],
+                        Rect(1.0, 1.0, 10.0, 10.0),
+                        Rect(0.0, 0.0, 10.0, 10.0)
+                    )
+                    canvas.drawImageRegion(
+                        images[1L],
+                        Rect(2.0, 2.0, 10.0, 10.0),
+                        Rect(12.0, 0.0, 10.0, 10.0)
+                    )
+                    assertFailsWith<IllegalArgumentException> { canvas.createSurface(0, 8) }
+                    assertFailsWith<IllegalArgumentException> { canvas.createSurface(8, 8, 0.0) }
+                    assertFailsWith<IllegalArgumentException> {
+                        canvas.drawImageRegion(
+                            images[0L],
+                            Rect(-1.0, 0.0, 1.0, 1.0),
+                            Rect(0.0, 0.0, 1.0, 1.0)
+                        )
+                    }
+                    assertFailsWith<IllegalArgumentException> {
+                        canvas.drawImageRegion(
+                            images[0L],
+                            Rect(23.0, 0.0, 2.0, 1.0),
+                            Rect(0.0, 0.0, 1.0, 1.0)
+                        )
+                    }
+                }
+                val pixels = target.readPixels()
+                assertEquals(255, channel(pixels, 24, 4, 4, 0))
+                assertEquals(255, channel(pixels, 24, 16, 4, 1))
+                assertEquals(0, channel(pixels, 24, 11, 4, 3))
+            }
+            assertFailsWith<IllegalStateException> { offscreen.snapshot() }
+        } finally {
+            for (image in images)
+                image.close()
+        }
+    }
+
+    @Test
+    fun `expanded filtered recordings can be rasterized in tiles without seams`() {
+        for (scale in [1.0, 2.0]) {
+            val width = (96.0 * scale).toInt()
+            val height = (64.0 * scale).toInt()
+            ImageFilter.dropShadow(Point(8.0, 1.0), 3.0, 3.0, Color(0.0, 0.0, 1.0)).use {
+                filter ->
+                val scene: (Canvas) -> Unit =
+                    {
+                        canvas ->
+                        canvas.saveLayer(filter = Some(filter))
+                        canvas.drawRoundRect(
+                            Rect(18.0, 16.0, 40.0, 26.0),
+                            5.0,
+                            5.0,
+                            Paint(Color(1.0, 0.0, 0.0))
+                        )
+                        canvas.restore()
+                    }
+                val reference =
+                    RasterSurface(width, height).use {
+                        surface ->
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.scale(scale, scale)
+                            scene(canvas)
+                        }
+                        surface.readPixels()
+                    }
+                RasterSurface(width, height).use {
+                    target ->
+                    target.draw {
+                        canvas ->
+                        canvas.clear(Color.Transparent)
+                        canvas.scale(scale, scale)
+                        canvas.recordDrawing(Rect(0.0, 0.0, 96.0, 64.0), scene).use {
+                            drawing ->
+                            filter.close()
+                            drawRasterTiles(canvas, drawing, scale, 18.0)
+                        }
+                    }
+                    assertPremultipliedPixels(reference, target.readPixels(), width, height, 2)
+                }
+            }
+        }
+    }
+}
+
+internal fun drawRasterTiles(canvas: Canvas, drawing: Drawing, scale: Double, outset: Double) {
+    val pixels = (24.0 * scale).toInt()
+    val height = (64.0 * scale).toInt()
+    // Include the filter's sampling expansion as well as the image interpolation edge.
+    val padding = (outset * scale).toInt()
+    for (index in 0 ..< 4) {
+        val x = index.toDouble() * 24.0
+        canvas.createSurface(pixels + 2 * padding, height + 2 * padding, scale).use {
+            tile ->
+            tile.draw {
+                target ->
+                target.clear(Color.Transparent)
+                target.translate(outset - x, outset)
+                target.drawDrawing(drawing)
+            }
+            tile.snapshot().use {
+                image -> canvas.drawImageRegion(
+                    image,
+                    Rect(
+                        padding.toDouble(),
+                        padding.toDouble(),
+                        pixels.toDouble(),
+                        height.toDouble()
+                    ),
+                    Rect(x, 0.0, 24.0, 64.0)
+                )
+            }
+        }
+    }
+}
+
+internal fun assertPremultipliedPixels(
+    expected: Array<Byte>,
+    actual: Array<Byte>,
+    width: Int,
+    height: Int,
+    tolerance: Int,
+    label: String = "tiles"
+) {
+    var alphaError = 0
+    var colorError = 0
+    var worstX = 0
+    var worstY = 0
+    for (y in 0 ..< height)
+        for (x in 0 ..< width) {
+            val ea = channel(expected, width, x, y, 3)
+            val aa = channel(actual, width, x, y, 3)
+            if (abs(ea - aa) > alphaError) {
+                alphaError = abs(ea - aa)
+                worstX = x
+                worstY = y
+            }
+            for (c in 0 ..< 3) {
+                val e = channel(expected, width, x, y, c) * ea
+                val a = channel(actual, width, x, y, c) * aa
+                if (abs(e - a) > colorError)
+                    colorError = abs(e - a)
+            }
+        }
+    assertTrue(
+        alphaError <= tolerance && colorError <= tolerance * 255,
+        Some(
+            f"${label}: max alpha ${alphaError} at ${worstX},${worstY}; max premultiplied color ${
+                colorError
+            }"
+        )
+    )
+}

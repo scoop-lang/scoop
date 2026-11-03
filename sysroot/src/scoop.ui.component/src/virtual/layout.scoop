@@ -1,0 +1,81 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+internal struct ItemRange(val start: Long, val end: Long)
+
+internal fun virtualViewport(constraints: Constraints, width: Double?, height: Double?): Size {
+    val minimum = constraints.constrain(Size(0.0, 0.0))
+    return Size(
+        scrollExtent(width, minimum.width, constraints.maxWidth, true)!!,
+        scrollExtent(height, minimum.height, constraints.maxHeight, true)!!
+    )
+}
+
+internal class ListGeometry(
+    val index: ItemExtentIndex,
+    private val orientation: Orientation,
+    private val overscan: Double,
+    private val viewport: Size
+) {
+    private val vertical = orientation == Orientation.Vertical
+    val total: Double get() = index.total
+    private val visible =
+        if (vertical)
+            viewport.height
+        else
+            viewport.width
+    init {
+        nonnegative(overscan, "invalid virtual overscan")
+    }
+    val content: Size get() =
+        if (vertical)
+            Size(viewport.width, total)
+        else
+            Size(total, viewport.height)
+    val itemConstraints: Constraints get() =
+        when (index.mode) {
+            case Fixed(extent) -> Constraints.tight(
+                if (vertical)
+                    Size(viewport.width, extent)
+                else
+                    Size(extent, viewport.height)
+            )
+            case Variable(_) -> if (vertical)
+                Constraints(minWidth = viewport.width, maxWidth = Some(viewport.width))
+            else
+                Constraints(minHeight = viewport.height, maxHeight = Some(viewport.height))
+        }
+    fun range(offset: Double): ItemRange {
+        nonnegative(offset, "invalid virtual offset")
+        if (index.count == 0L || visible == 0.0)
+            return ItemRange(0L, 0L)
+        val at = upperBound(offset, total)
+        val start = index.indexAt(lowerBound(at - overscan, 0.0))
+        val endOfViewport = at + upperBound(visible, total - at)
+        val endPosition = endOfViewport + upperBound(overscan, total - endOfViewport)
+        val end = index.endBefore(endPosition)
+        return ItemRange(
+            start,
+            if (end >= start)
+                end
+            else
+                start
+        )
+    }
+    fun point(position: Double): Point =
+        if (vertical)
+            Point(0.0, position)
+        else
+            Point(position, 0.0)
+    fun origin(item: Long): Point = point(index.prefix(item))
+    fun bounds(item: Long): Rect {
+        val origin = origin(item)
+        return if (vertical)
+            Rect(origin.x, origin.y, viewport.width, index.extent(item))
+        else
+            Rect(origin.x, origin.y, index.extent(item), viewport.height)
+    }
+}

@@ -1,0 +1,167 @@
+package scoop.tests.ui.variable
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal class VariableScene(private val probe: VariableProbe): Component {
+    public override fun render(): View =
+        element(
+            probe.width.value,
+            { props -> VariablePanel(probe, props) },
+            [
+                if (probe.show.value)
+                    virtualList(
+                        probe.data!!.value,
+                        ItemExtent.Variable(20.0),
+                        state = Some(probe.scroll),
+                        overscan = 20.0,
+                        theme = Some(probe.theme),
+                        handle = Some(probe.handle.value),
+                        anchor = probe.anchor.value
+                    )
+                else
+                    empty()
+            ]
+        )
+}
+
+private class VariablePanel(
+    private val probe: VariableProbe,
+    private val width: Props<Double>
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(width.value, 60.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(220.0, 140.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val ticket = probe.ticket
+        val discard = probe.discardNext
+        val before = probe.scroll.offset
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && probe.lateRequest) {
+                probe.lateRequest = false
+                probe.scroll.scrollTo(Point(0.0, 0.0))
+            }
+        }
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        probe.passes += 1
+        if (discard) {
+            probe.discardNext = false
+            probe.window!!.requestSize(LogicalSize(260.0, 140.0))
+        }
+        context.onFrameComplete {
+            frame -> when (frame.submission) {
+                case Accepted -> probe.committed = ticket
+                case Discarded -> {
+                    assertTrue(discard)
+                    assertEquals(before, probe.scroll.offset)
+                    probe.discarded += 1
+                    probe.scope!!.requestFrame()
+                }
+            }
+        }
+    }
+}
+
+internal class VariableSource(
+    private val probe: VariableProbe,
+    private val order: Array<Long>? = None,
+    private val start: Long = 0L,
+    private val length: Long = 100000000L
+): ItemSource {
+    public override val count: Long get() = order?.size ?: length
+    private fun key(index: Long): Long = order?.get(index) ?: start + index
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(key(index))
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(id) -> when (order) {
+                case Some(keys) -> {
+                    var found: Long? = None
+                    for (at in 0L ..< keys.size)
+                        if (keys[at] == id)
+                            found = Some(at)
+                    found
+                }
+                case None -> {
+                    val at = id - start
+                    if (at >= 0L && at < length)
+                        Some(at)
+                    else
+                        None
+                }
+            }
+            else -> None
+        }
+    public override fun build(index: Long): View {
+        val id = key(index)
+        val height =
+            when (id) {
+                case 0L -> 0.0
+                case 1L -> 40.0
+                case 2L -> 10.0
+                case 3L -> 30.0
+                else -> 20.0
+            }
+        return component(VariableRowInput(id, height), { props -> VariableRow(probe, props) })
+    }
+}
+
+private class VariableRowInput(val key: Long, val height: Double)
+
+internal class VariableRecord(val key: Long) {
+    val growth = state(0.0)
+    var area: InputArea? = None
+    var mounts = 0
+    var unmounts = 0
+    var disposed = 0
+}
+
+private class VariableRow(
+    probe: VariableProbe,
+    private val props: Props<VariableRowInput>
+): Component {
+    private val record = VariableRecord(props.value.key)
+    init {
+        probe.rows.add(record)
+    }
+    public override fun render(): View =
+        element(props.value.height + record.growth.value, { height -> VariableInk(record, height) })
+    public override fun onMount(scope: ComponentScope) {
+        record.mounts += 1
+        record.area = Some(scope.createArea(focusable = true))
+        scope.onDispose { record.disposed += 1 }
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+        assertTrue(record.area!!.isClosed)
+    }
+}
+
+private class VariableInk(
+    private val record: VariableRecord,
+    private val height: Props<Double>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val width = constraints.maxWidth!!
+        val factor =
+            if (width < 100.0)
+                2.0
+            else
+                1.0
+        return LayoutMetrics(constraints.constrain(Size(width, height.value * factor)))
+    }
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(record.area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
+    }
+}

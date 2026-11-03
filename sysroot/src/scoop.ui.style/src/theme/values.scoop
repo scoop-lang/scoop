@@ -127,7 +127,8 @@ public class ThemePalette public constructor(
     public val accent: Color,
     public val onAccent: Color,
     public val focus: Color,
-    public val shadow: Color
+    public val shadow: Color,
+    public val error: Color
 )
 
 public class ThemeTypography public constructor(

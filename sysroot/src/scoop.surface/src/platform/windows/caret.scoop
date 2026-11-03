@@ -1,0 +1,12 @@
+package scoop.surface
+
+import scoop.window.*
+
+// IMM32 currently accepts pushed candidate positions; it has no document geometry query.
+internal fun publishWindowCaret(window: Window, caret: ImeCaret): Boolean {
+    val rect = caret.rect ?: return false
+    window.setImeCursorArea(
+        LogicalRect(LogicalPosition(rect.x, rect.y), LogicalSize(rect.width, rect.height))
+    )
+    return true
+}

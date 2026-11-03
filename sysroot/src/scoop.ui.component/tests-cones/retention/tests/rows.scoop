@@ -1,0 +1,173 @@
+package scoop.tests.ui.retention
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.ui.*
+
+internal struct RowInput(val id: Long, val index: Long, val variant: Int)
+
+internal class RowResource: Closeable {
+    var closes = 0
+    public override fun close() {
+        closes += 1
+    }
+}
+
+internal class RowRecord(probe: RetentionProbe, val id: Long) {
+    val local = state(0)
+    val openModal = state(false)
+    val extra = state(false)
+    val innerIndex = state(0L)
+    val innerRows = ArrayList<MiniRecord>()
+    val focus = FocusHandle()
+    val overlay = OverlayHandle()
+    var input = RowInput(id, -1L, -1)
+    var scope: ComponentScope? = None
+    var area: InputArea? = None
+    var resource: RowResource? = None
+    var infinite: Animatable<Double>? = None
+    var finite: Animatable<Double>? = None
+    var muted: Animatable<Double>? = None
+    var extraMotion: Animatable<Double>? = None
+    var observed = -1
+    var mounts = 0
+    var unmounts = 0
+    var renders = 0
+    var measures = 0
+    var draws = 0
+    var completions = 0
+    var extraCloses = 0
+    var dialogPaints = 0
+    init {
+        probe.rows.add(this)
+    }
+    fun mount(owner: ComponentScope) {
+        scope = Some(owner)
+        resource = Some(owner.resource { RowResource() })
+        area = Some(owner.createArea(focusable = true))
+        owner.focusTarget(area!!, FocusOptions(Some(focus)))
+        infinite = Some(owner.animation(0.0))
+        finite = Some(owner.animation(0.0))
+        muted = Some(owner.animation(0.0))
+        muted!!.isFrameEnabled = false
+        mounts += 1
+    }
+    fun unmount() {
+        unmounts += 1
+        assertTrue(area!!.isClosed)
+        assertEquals(AnimationState.Closed, infinite!!.state)
+        assertEquals(AnimationState.Closed, finite!!.state)
+        assertEquals(AnimationState.Closed, muted!!.state)
+        assertEquals(0, resource!!.closes)
+    }
+    fun measure(constraints: Constraints): LayoutMetrics {
+        measures += 1
+        return LayoutMetrics(constraints.constrain(Size(160.0, 24.0)))
+    }
+    fun scene(context: SceneContext) {
+        draws += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.4, 0.7))) }
+    }
+}
+
+internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowInput>): Component {
+    private val record = RowRecord(probe, props.value.id)
+    private val innerSource = MiniSource(record)
+    public override fun render(): View {
+        record.input = props.value
+        record.observed = record.local.value
+        record.renders += 1
+        return element(
+            { RowPanel() },
+            [
+                element({ RowInk(record) }),
+                if (record.openModal.value)
+                    portal(
+                        element({ DialogInk(record) }),
+                        PortalOptions(
+                            handle = Some(record.overlay),
+                            modal = Some(ModalOptions()),
+                            onClose = { _ -> record.openModal.value = false }
+                        )
+                    )
+                else
+                    empty(),
+                if (record.extra.value)
+                    element({ ExtraInk(record) })
+                else
+                    empty(),
+                if (record.id == 0L)
+                    lazyElement(
+                        innerSource,
+                        record.innerIndex.value,
+                        { input -> MiniList(input) },
+                        retention = ItemRetention.KeepAlive(1L)
+                    )
+                else
+                    empty()
+            ]
+        )
+    }
+    public override fun onMount(scope: ComponentScope) {
+        record.mount(scope)
+    }
+    public override fun onUnmount() {
+        record.unmount()
+    }
+}
+
+private class RowPanel: Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        for (index in 2L ..< 4L) {
+            context.measureChild(index, Constraints.tight(Size(1.0, 1.0)))
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class RowInk(private val record: RowRecord): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        record.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        record.scene(context)
+    }
+}
+
+internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowInput>): Element {
+    private val record = RowRecord(probe, props.value.id)
+    public override fun onMount(scope: ComponentScope) {
+        record.mount(scope)
+    }
+    public override fun update() {
+        record.input = props.value
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        record.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        record.scene(context)
+    }
+    public override fun onUnmount() {
+        record.unmount()
+    }
+}
+
+private class DialogInk(private val record: RowRecord): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(80.0, 60.0)))
+    public override fun scene(context: SceneContext) {
+        record.dialogPaints += 1
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.8, 0.2, 0.3))) }
+    }
+}

@@ -1,0 +1,256 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.max
+import scoop.window.*
+
+internal struct EditorNavigation(val selection: EditorSelection, val preferredX: Double?)
+
+/** A scalar IME position can be inside a grapheme without changing the canonical selection. */
+internal fun editorVisualPosition(layout: TextLayout, position: TextPosition): TextPosition {
+    val boundaries = layout.graphemeBoundaries
+    var first = 0L
+    var last = boundaries.size
+    while (first < last) {
+        val middle = first + (last - first) / 2L
+        if (boundaries[middle] < position.byteOffset)
+            first = middle + 1L
+        else
+            last = middle
+    }
+    if (first < boundaries.size && boundaries[first] == position.byteOffset)
+        return position
+    return TextPosition(
+        if (position.affinity == TextAffinity.Upstream && first > 0L)
+            boundaries[first - 1L]
+        else
+            if (first < boundaries.size)
+                boundaries[first]
+            else
+                layout.text.byteLength,
+        position.affinity
+    )
+}
+
+internal fun editorMove(
+    layout: TextLayout,
+    selection: EditorSelection,
+    movement: TextMovement,
+    extend: Boolean,
+    preferredX: Double?,
+    pageHeight: Double
+): EditorNavigation {
+    val anchor = editorVisualPosition(layout, selection.anchor)
+    val cursor = editorVisualPosition(layout, selection.cursor)
+    if (!extend && selection.anchor.byteOffset != selection.cursor.byteOffset) {
+        val collapse =
+            when (movement) {
+                case Backward -> Some(
+                    if (anchor.byteOffset < cursor.byteOffset)
+                        anchor
+                    else
+                        cursor
+                )
+                case Forward -> Some(
+                    if (anchor.byteOffset > cursor.byteOffset)
+                        anchor
+                    else
+                        cursor
+                )
+                case Left -> Some(editorVisualEdge(layout, anchor, cursor, false))
+                case Right -> Some(editorVisualEdge(layout, anchor, cursor, true))
+                else -> None
+            }
+        when (collapse) {
+            case Some(value) -> return EditorNavigation(EditorSelection(value, value), None)
+            case None -> {}
+        }
+    }
+    val vertical =
+        movement ==
+            TextMovement.Up ||
+            movement ==
+            TextMovement.Down ||
+            movement ==
+            TextMovement.PageUp ||
+            movement ==
+            TextMovement.PageDown
+    var column: Double? = None
+    val next =
+        if (movement == TextMovement.PageUp || movement == TextMovement.PageDown) {
+            val caret = layout.caret(cursor) ?: Rect(0.0, 0.0, 0.0, 0.0)
+            val x = preferredX ?: caret.x
+            column = Some(x)
+            val distance = max(pageHeight, caret.height)
+            layout.hitTest(
+                Point(
+                    x,
+                    caret.y +
+                        caret.height /
+                        2.0 +
+                        if (movement == TextMovement.PageUp)
+                            -distance
+                        else
+                            distance
+                )
+            )
+        } else
+            when (movement) {
+                case Backward -> TextPosition(
+                    layout.moveGrapheme(selection.cursor.byteOffset, false)
+                )
+                case Forward -> TextPosition(layout.moveGrapheme(selection.cursor.byteOffset, true))
+                case WordBackward -> TextPosition(
+                    layout.moveWord(selection.cursor.byteOffset, false)
+                )
+                case WordForward -> TextPosition(layout.moveWord(selection.cursor.byteOffset, true))
+                case ParagraphStart -> TextPosition(
+                    (layout.logicalLineRange(cursor) ?: TextRange(0L, 0L)).start
+                )
+                case ParagraphEnd -> TextPosition(
+                    editorParagraphEnd(layout, cursor),
+                    TextAffinity.Upstream
+                )
+                else -> {
+                    val result = layout.moveCaret(cursor, editorCaretMovement(movement), preferredX)
+                    when (result) {
+                        case Some(value) -> {
+                            if (vertical)
+                                column = Some(value.preferredX)
+                            value.position
+                        }
+                        case None -> cursor
+                    }
+                }
+            }
+    return EditorNavigation(
+        EditorSelection(
+            if (extend)
+                selection.anchor
+            else
+                next,
+            next
+        ),
+        if (vertical)
+            if (column != None)
+                column
+            else
+                preferredX
+        else
+            None
+    )
+}
+
+private fun editorCaretMovement(movement: TextMovement): CaretMovement =
+    when (movement) {
+        case Left -> CaretMovement.Left
+        case Right -> CaretMovement.Right
+        case Up -> CaretMovement.Up
+        case Down -> CaretMovement.Down
+        case WordLeft -> CaretMovement.WordLeft
+        case WordRight -> CaretMovement.WordRight
+        case LineStart -> CaretMovement.LineStart
+        case LineEnd -> CaretMovement.LineEnd
+        case LineLeft -> CaretMovement.LineLeft
+        case LineRight -> CaretMovement.LineRight
+        case DocumentStart -> CaretMovement.DocumentStart
+        case DocumentEnd -> CaretMovement.DocumentEnd
+        else -> throw IllegalArgumentException(Some("movement is not a visual caret command"))
+    }
+
+private fun editorVisualEdge(
+    layout: TextLayout,
+    a: TextPosition,
+    b: TextPosition,
+    forward: Boolean
+): TextPosition {
+    val left =
+        layout.caret(a) ?:
+            return if (forward)
+                b
+            else
+                a
+    val right =
+        layout.caret(b) ?:
+            return if (forward)
+                a
+            else
+                b
+    val before = left.y < right.y || (left.y == right.y && left.x <= right.x)
+    return if (before == forward)
+        b
+    else
+        a
+}
+
+internal fun editorParagraphEnd(layout: TextLayout, position: TextPosition): Long {
+    val range = layout.logicalLineRange(position) ?: return position.byteOffset
+    var end = range.start
+    for (line in layout.lines)
+        if (
+            line.range.start >=
+                range.start &&
+                line.range.start <
+                range.end &&
+                line.range.end <=
+                range.end
+        )
+            end = line.contentRange.end
+    return end
+}
+
+internal fun editorDeleteRange(
+    layout: TextLayout,
+    selection: Utf8Selection,
+    deletion: TextDeletion
+): Utf8Range {
+    val selected = selection.range
+    if (selected.start != selected.end)
+        return selected
+    val forward =
+        deletion ==
+            TextDeletion.Forward ||
+            deletion ==
+            TextDeletion.WordForward ||
+            deletion ==
+            TextDeletion.LineEnd ||
+            deletion ==
+            TextDeletion.ParagraphEnd
+    val before = editorVisualPosition(layout, TextPosition(selection.cursor, TextAffinity.Upstream))
+    val after =
+        editorVisualPosition(layout, TextPosition(selection.cursor, TextAffinity.Downstream))
+    if (
+        before.byteOffset !=
+            after.byteOffset &&
+            (deletion == TextDeletion.Backward || deletion == TextDeletion.Forward)
+    )
+        return Utf8Range(before.byteOffset, after.byteOffset)
+    val origin =
+        if (forward)
+            before
+        else
+            after
+    val end =
+        when (deletion) {
+            case Backward -> layout.moveGrapheme(origin.byteOffset, false)
+            case Forward -> layout.moveGrapheme(origin.byteOffset, true)
+            case WordBackward -> layout.moveWord(origin.byteOffset, false)
+            case WordForward -> layout.moveWord(origin.byteOffset, true)
+            case LineStart -> layout.moveCaret(
+                origin,
+                CaretMovement.LineStart
+            )?.position?.byteOffset ?:
+                origin.byteOffset
+            case LineEnd -> layout.moveCaret(origin, CaretMovement.LineEnd)?.position?.byteOffset ?:
+                origin.byteOffset
+            case ParagraphStart -> (
+                layout.logicalLineRange(origin) ?: TextRange(origin.byteOffset, origin.byteOffset)
+            ).start
+            case ParagraphEnd -> editorParagraphEnd(layout, origin)
+        }
+    return if (end < origin.byteOffset)
+        Utf8Range(end, origin.byteOffset)
+    else
+        Utf8Range(origin.byteOffset, end)
+}

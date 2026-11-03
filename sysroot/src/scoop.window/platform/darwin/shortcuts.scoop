@@ -1,0 +1,43 @@
+package scoop.window
+
+/** Compares received logical keys without deriving key events from input text. */
+public fun LogicalKey.matchesShortcut(other: LogicalKey): Boolean =
+    when ((this, other)) {
+        case(Character(left), Character(right)) -> shortcutCharactersEqual(left, right)
+        case(Dead(_), _) -> false
+        case(_, Dead(_)) -> false
+        else -> this == other
+    }
+
+private fun shortcutCharactersEqual(left: String, right: String): Boolean {
+    @Unsafe
+    {
+        return left.withUtf8Bytes {
+            a,
+            aSize -> @Unsafe
+            {
+                return@withUtf8Bytes right.withUtf8Bytes {
+                    b,
+                    bSize -> @Unsafe
+                    {
+                        val result = nativeShortcutEqual(a, aSize, b, bSize)
+                        if (result < 0)
+                            throw WindowException(
+                                "compare shortcut keys",
+                                WindowErrorKind.NativeFailure
+                            )
+                        return@withUtf8Bytes result != 0
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_shortcut_equal")
+private fun nativeShortcutEqual(
+    left: Ptr<UInt8>,
+    leftSize: Long,
+    right: Ptr<UInt8>,
+    rightSize: Long
+): Int

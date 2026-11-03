@@ -32,6 +32,13 @@ public class Window internal constructor(internal val owner: WindowOwner) {
         owner.application.checkThread();
         return owner.metrics
     }
+    /** Creates an inactive, owner-thread deadline that closes with this window. */
+    public fun createDeadline(callback: () -> Unit): WindowDeadline {
+        owner.requireOpen()
+        val value = WindowDeadline(owner, callback)
+        owner.application.deadlines.add(value)
+        return value
+    }
     /** Coalesces a redraw until this window can draw; never calls a handler recursively. */
     public fun requestRedraw() {
         owner.requireOpen();
@@ -147,6 +154,7 @@ internal class WindowOwner(val application: ApplicationOwner, val id: WindowId, 
             return
         phase = WindowState.Closing
         dirty = false
+        application.retireDeadlines(this)
         application.mailbox.wake()
     }
 }

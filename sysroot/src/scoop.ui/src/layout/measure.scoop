@@ -73,10 +73,16 @@ public class MeasureContext internal constructor(
 }
 
 internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): LayoutMetrics {
+    if (!root.isOpen)
+        throw UiLayoutEnded()
     constraints.check()
     val result =
         when (body) {
             case Empty -> {
+                placements = []
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
+            }
+            case Portal(_) -> {
                 placements = []
                 LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
             }
@@ -94,6 +100,20 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Layo
                         }
                     checkLayoutMetrics(measured, constraints)
                     placements = context.finish()
+                    measured
+                } finally {
+                    context.end()
+                }
+            }
+            case Lazy(instance, items) -> {
+                val context = LazyMeasureContext(this, items, time)
+                try {
+                    val measured =
+                        evaluateUi<LayoutMetrics>(None) {
+                            instance.value.measure(context, constraints)
+                        }
+                    checkLayoutMetrics(measured, constraints)
+                    context.finish()
                     measured
                 } finally {
                     context.end()

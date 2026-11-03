@@ -35,14 +35,21 @@ internal class DependencyCollector {
     fun collected(): Array<StateSignal> = sources.toArray()
 }
 
-internal class UiEvaluation(val collector: DependencyCollector? = None)
+internal class UiEvaluation(
+    val collector: DependencyCollector? = None,
+    val preparing: Boolean = false
+)
 
 context(evaluation: UiEvaluation)
 private fun boundEvaluation(): UiEvaluation = evaluation
 
 internal fun currentEvaluation(): UiEvaluation? {
     try {
-        return Some(boundEvaluation())
+        val current = boundEvaluation()
+        return if (current.preparing)
+            None
+        else
+            Some(current)
     }
     catch (_: MissingContextException) {
         return None
@@ -51,6 +58,14 @@ internal fun currentEvaluation(): UiEvaluation? {
 
 internal fun <T> evaluateUi(collector: DependencyCollector?, block: () -> T): T {
     val evaluation = UiEvaluation(collector)
+    context(evaluation) {
+        return block()
+    }
+}
+
+/** Item preparation is a lifecycle boundary, even when requested by a layout callback. */
+internal fun <T> prepareUi(block: () -> T): T {
+    val evaluation = UiEvaluation(preparing = true)
     context(evaluation) {
         return block()
     }

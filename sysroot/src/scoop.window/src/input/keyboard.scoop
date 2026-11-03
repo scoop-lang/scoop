@@ -79,5 +79,6 @@ public struct KeyEvent(
     val modifiers: Modifiers,
     val synthetic: Boolean,
     val time: InputTime,
-    val deviceId: DeviceId? = None
+    val deviceId: DeviceId? = None,
+    val textCommands: Array<TextEditCommand> = []
 )

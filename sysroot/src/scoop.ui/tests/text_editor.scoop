@@ -1,0 +1,406 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class TextEditorStateTest {
+    @Test
+    fun `one observable value preserves UTF-8 direction and affinity through replacement`() {
+        val editor = TextEditorState("A😀é界")
+        assertEquals(Utf8Selection(11L, 11L), editor.selection)
+        assertTrue(editor.setSelection(Utf8Selection(8L, 1L)))
+        assertEquals(1L, editor.revision)
+        assertTrue(editor.setSelection(TextPosition(8L, TextAffinity.Upstream), TextPosition(1L)))
+        assertEquals(1L, editor.revision)
+        val snapshot = editor.inputState
+        val collector = DependencyCollector()
+        evaluateUi(Some(collector)) {
+            assertEquals("A😀é界", editor.text)
+            assertEquals(Utf8Selection(8L, 1L), editor.selection)
+            assertFalse(editor.canUndo)
+        }
+        assertEquals(1L, collector.collected().size)
+        assertTrue(editor.replace(Utf8Range(1L, 5L), "中"))
+        assertEquals("A中é界", editor.text)
+        assertEquals(Utf8Selection(4L, 4L), editor.selection)
+        assertEquals("A😀é界", snapshot.surroundingText)
+        assertTrue(editor.undo())
+        assertEquals(snapshot.surroundingText, editor.text)
+        assertEquals(snapshot.selection, editor.selection)
+        assertEquals(TextPosition(8L, TextAffinity.Upstream), editor.anchor)
+        assertTrue(editor.redo())
+        assertEquals("A中é界", editor.text)
+    }
+
+    @Test
+    fun `continuous insertion coalesces until an explicit transaction boundary`() {
+        val editor = TextEditorState()
+        commit(editor, "a")
+        commit(editor, "😀")
+        commit(editor, "é")
+        assertEquals("a😀é", editor.text)
+        assertEquals(3L, editor.revision)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        editor.breakUndoGroup()
+        commit(editor, "!")
+        assertTrue(editor.undo())
+        assertEquals("a😀é", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertTrue(editor.redo())
+        assertTrue(editor.redo())
+        assertEquals("a😀é!", editor.text)
+    }
+
+    @Test
+    fun `backspace and forward deletion keep grapheme-sized deltas in a single history group`() {
+        val editor = TextEditorState("a😀é")
+        editor.edit(Utf8Range(5L, 8L), "", EditorEditKind.Backspace)
+        editor.edit(Utf8Range(1L, 5L), "", EditorEditKind.Backspace)
+        assertEquals("a", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("a😀é", editor.text)
+        assertEquals(Utf8Selection(8L, 8L), editor.selection)
+        assertTrue(editor.redo())
+        assertEquals("a", editor.text)
+        editor.replaceAll("a😀é", Some(Utf8Selection(0L, 0L)))
+        editor.edit(Utf8Range(0L, 1L), "", EditorEditKind.Delete)
+        editor.edit(Utf8Range(0L, 4L), "", EditorEditKind.Delete)
+        assertEquals("é", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("a😀é", editor.text)
+        assertEquals(Utf8Selection(0L, 0L), editor.selection)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `selection changes split typing and a new edit retires redo`() {
+        val editor = TextEditorState()
+        commit(editor, "a")
+        commit(editor, "b")
+        editor.setSelection(Utf8Selection(1L, 1L))
+        commit(editor, "x")
+        assertEquals("axb", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.text)
+        assertEquals(Utf8Selection(1L, 1L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertTrue(editor.redo())
+        assertTrue(editor.canRedo)
+        editor.replace(Utf8Range(0L, 0L), "Z")
+        assertEquals("Zab", editor.text)
+        assertFalse(editor.canRedo)
+        assertFalse(editor.redo())
+        assertTrue(editor.undo())
+        assertEquals("ab", editor.text)
+    }
+
+    @Test
+    fun `cancel restores a nonempty reversed selection and advances the current revision`() {
+        val editor = TextEditorState("A😀中B", Some(Utf8Selection(8L, 1L)))
+        editor.setSelection(TextPosition(8L, TextAffinity.Upstream), TextPosition(1L))
+        preedit(editor, "かな", Some(Utf8Selection(6L, 3L)))
+        assertEquals("AかなB", editor.text)
+        assertEquals(Some(Utf8Range(1L, 7L)), editor.markedRange)
+        assertEquals(Utf8Selection(7L, 4L), editor.selection)
+        assertTrue(editor.canUndo)
+        preedit(editor, "日本語")
+        assertEquals("A日本語B", editor.text)
+        preedit(editor, "")
+        assertEquals("A😀中B", editor.text)
+        assertEquals(Utf8Selection(8L, 1L), editor.selection)
+        assertEquals(TextPosition(8L, TextAffinity.Upstream), editor.anchor)
+        assertEquals(3L, editor.revision)
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.cancelComposition())
+    }
+
+    @Test
+    fun `composition commit and unmark each produce one history transaction`() {
+        val editor = TextEditorState("[]", Some(Utf8Selection(1L, 1L)))
+        preedit(editor, "中")
+        preedit(editor, "中文")
+        commit(editor, "中文字")
+        assertEquals("[中文字]", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("[]", editor.text)
+        assertEquals(Utf8Selection(1L, 1L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("[中文字]", editor.text)
+        editor.replaceAll("[]", Some(Utf8Selection(1L, 1L)))
+        preedit(editor, "字", Some(Utf8Selection(3L, 0L)))
+        val selection = editor.selection
+        editor.applyInput(editBatch([TextInputOperation.ClearPreedit]))
+        assertEquals("[字]", editor.text)
+        assertEquals(selection, editor.selection)
+        assertFalse(editor.isComposing)
+        assertTrue(editor.undo())
+        assertEquals("[]", editor.text)
+        assertTrue(editor.redo())
+        assertEquals(selection, editor.selection)
+    }
+
+    @Test
+    fun `completed edits in a batch are atomic while its final composition stays cancelable`() {
+        val editor = TextEditorState("X")
+        editor.applyInput(
+            TextInputBatch(
+                Some(0L),
+                [
+                    TextInputOperation.Preedit("a", None, TextReplacement.CurrentSelection),
+                    TextInputOperation.Commit("A", TextReplacement.CurrentSelection),
+                    TextInputOperation.Preedit("b", None, TextReplacement.CurrentSelection)
+                ]
+            )
+        )
+        assertEquals("XAb", editor.text)
+        assertEquals(Some(Utf8Range(2L, 3L)), editor.markedRange)
+        assertEquals(1L, editor.revision)
+        assertTrue(editor.cancelComposition())
+        assertEquals("XA", editor.text)
+        assertEquals(2L, editor.revision)
+        assertTrue(editor.undo())
+        assertEquals("X", editor.text)
+        assertTrue(editor.redo())
+        assertEquals("XA", editor.text)
+        assertFalse(editor.isComposing)
+    }
+
+    @Test
+    fun `ordered explicit ranges and surrounding deletion undo as one batch`() {
+        val editor = TextEditorState("A😀中B", Some(Utf8Selection(8L, 1L)))
+        editor.applyInput(
+            TextInputBatch(
+                Some(0L),
+                [
+                    TextInputOperation.Preedit("a", None, TextReplacement.Range(Utf8Range(1L, 8L))),
+                    TextInputOperation.Commit("xy", TextReplacement.Range(Utf8Range(1L, 2L))),
+                    TextInputOperation.DeleteSurrounding(1L, 1L)
+                ]
+            )
+        )
+        assertEquals("Ax", editor.text)
+        assertEquals(1L, editor.revision)
+        assertTrue(editor.undo())
+        assertEquals("A😀中B", editor.text)
+        assertEquals(Utf8Selection(8L, 1L), editor.selection)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `invalid or stale batches publish neither a prefix nor a changed history`() {
+        val editor = TextEditorState()
+        commit(editor, "A😀")
+        val original = editor.inputState
+        assertFailsWith<IllegalArgumentException> {
+            editor.applyInput(
+                editBatch(
+                    [
+                        TextInputOperation.Commit("x", TextReplacement.CurrentSelection),
+                        TextInputOperation.Commit("bad", TextReplacement.Range(Utf8Range(2L, 3L)))
+                    ]
+                )
+            )
+        }
+        assertEquals(original, editor.inputState)
+        assertFailsWith<IllegalStateException> {
+            editor.applyInput(TextInputBatch(Some(0L), [TextInputOperation.ClearPreedit]))
+        }
+        assertEquals(original, editor.inputState)
+        assertFailsWith<IllegalArgumentException> { editor.replace(Utf8Range(2L, 5L), "bad") }
+        assertFailsWith<IllegalArgumentException> { editor.setSelection(Utf8Selection(2L, 2L)) }
+        assertEquals(original, editor.inputState)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `a range after restoring different composition text is rejected without partial cancellation`() {
+        val editor = TextEditorState("abc", Some(Utf8Selection(2L, 1L)))
+        preedit(editor, "X")
+        val original = editor.inputState
+        assertFailsWith<IllegalStateException> {
+            editor.applyInput(
+                editBatch(
+                    [
+                        TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection),
+                        TextInputOperation.Commit("Y", TextReplacement.Range(Utf8Range(1L, 1L)))
+                    ]
+                )
+            )
+        }
+        assertEquals(original, editor.inputState)
+        assertTrue(editor.isComposing)
+        assertTrue(editor.cancelComposition())
+        assertEquals("abc", editor.text)
+        assertFalse(editor.canUndo)
+        editor.replaceAll("ac", Some(Utf8Selection(1L, 1L)))
+        preedit(editor, "X")
+        editor.applyInput(
+            editBatch(
+                [
+                    TextInputOperation.Preedit("", None, TextReplacement.CurrentSelection),
+                    TextInputOperation.Commit("Y", TextReplacement.Range(Utf8Range(1L, 1L)))
+                ]
+            )
+        )
+        assertEquals("aYc", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("ac", editor.text)
+    }
+
+    @Test
+    fun `cancel preserves redo and a committed composition retires it`() {
+        val editor = TextEditorState()
+        commit(editor, "a")
+        editor.undo()
+        preedit(editor, "仮")
+        assertTrue(editor.canRedo)
+        editor.cancelComposition()
+        assertTrue(editor.redo())
+        assertEquals("a", editor.text)
+        editor.undo()
+        preedit(editor, "候")
+        commit(editor, "文")
+        assertFalse(editor.canRedo)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+    }
+
+    @Test
+    fun `undo and redo resolve active composition against its original history baseline`() {
+        val editor = TextEditorState("[]", Some(Utf8Selection(1L, 1L)))
+        preedit(editor, "仮")
+        assertTrue(editor.undo())
+        assertEquals("[]", editor.text)
+        assertEquals(Utf8Selection(1L, 1L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.canRedo)
+        commit(editor, "a")
+        preedit(editor, "候")
+        assertTrue(editor.undo())
+        assertEquals("[]", editor.text)
+        assertTrue(editor.canRedo)
+        preedit(editor, "別")
+        assertTrue(editor.redo())
+        assertEquals("[a]", editor.text)
+        assertFalse(editor.isComposing)
+        preedit(editor, "未")
+        assertFalse(editor.redo())
+        assertEquals("[a未]", editor.text)
+        assertTrue(editor.isComposing)
+    }
+
+    @Test
+    fun `selection accepts composition and an explicit replacement remains a separate undo`() {
+        val editor = TextEditorState("abcdef", Some(Utf8Selection(4L, 1L)))
+        preedit(editor, "中")
+        editor.setSelection(Utf8Selection(1L, 1L))
+        assertFalse(editor.isComposing)
+        assertEquals("a中ef", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("abcdef", editor.text)
+        assertEquals(Utf8Selection(4L, 1L), editor.selection)
+        assertTrue(editor.redo())
+        assertEquals(Utf8Selection(4L, 4L), editor.selection)
+        editor.replaceAll("[]", Some(Utf8Selection(1L, 1L)))
+        preedit(editor, "中")
+        editor.replace(Utf8Range(4L, 4L), "!")
+        assertEquals("[中!]", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("[中]", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("[]", editor.text)
+    }
+
+    @Test
+    fun `text deltas do not split common UTF-8 prefixes or suffixes`() {
+        val editor = TextEditorState("XéY", Some(Utf8Selection(3L, 1L)))
+        editor.replace(Utf8Range(1L, 3L), "©")
+        assertEquals("X©Y", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("XéY", editor.text)
+        assertEquals(Utf8Selection(3L, 1L), editor.selection)
+        assertTrue(editor.redo())
+        assertEquals("X©Y", editor.text)
+        editor.replaceAll("😀")
+        editor.replace(Utf8Range(0L, 4L), "😃")
+        assertTrue(editor.undo())
+        assertEquals("😀", editor.text)
+        assertTrue(editor.redo())
+        assertEquals("😃", editor.text)
+    }
+
+    @Test
+    fun `whole replacement resets history while empty batches and unavailable history do nothing`() {
+        val editor = TextEditorState("ab", Some(Utf8Selection(0L, 2L)))
+        editor.replace(Utf8Range(0L, 2L), "ab")
+        assertEquals(Utf8Selection(2L, 2L), editor.selection)
+        assertFalse(editor.canUndo)
+        val revision = editor.revision
+        assertFalse(editor.applyInput(editBatch([])))
+        assertFalse(editor.undo())
+        assertFalse(editor.redo())
+        assertEquals(revision, editor.revision)
+        commit(editor, "c")
+        preedit(editor, "候")
+        editor.replaceAll("server😀")
+        assertEquals("server😀", editor.text)
+        assertEquals(Utf8Selection(10L, 10L), editor.selection)
+        assertFalse(editor.canUndo)
+        assertFalse(editor.canRedo)
+        assertFalse(editor.isComposing)
+        assertFalse(editor.replaceAll("server😀"))
+    }
+
+    @Test
+    fun `history guards run before phase or thread violations can mutate it`() {
+        val editor = TextEditorState()
+        commit(editor, "a")
+        val original = editor.inputState
+        evaluateUi(None) {
+            assertFailsWith<IllegalStateException> { editor.undo() }
+            assertFailsWith<IllegalStateException> { editor.replaceAll("bad") }
+            assertFailsWith<IllegalStateException> { commit(editor, "bad") }
+            assertFailsWith<IllegalStateException> { editor.setSelection(Utf8Selection(0L, 0L)) }
+            assertFailsWith<IllegalStateException> { editor.breakUndoGroup() }
+        }
+        Thread.start {
+            assertFailsWith<IllegalStateException> { editor.text }
+            assertFailsWith<IllegalStateException> { editor.canUndo }
+            assertFailsWith<IllegalStateException> { editor.replaceAll("bad") }
+            assertFailsWith<IllegalStateException> { editor.undo() }
+        }.use { thread -> thread.join() }
+        assertEquals(original, editor.inputState)
+        commit(editor, "b")
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertFalse(editor.canUndo)
+    }
+}
+
+private fun editBatch(operations: List<TextInputOperation>): TextInputBatch =
+    TextInputBatch(None, operations)
+
+private fun commit(editor: TextEditorState, text: String) {
+    editor.applyInput(
+        editBatch([TextInputOperation.Commit(text, TextReplacement.CurrentSelection)])
+    )
+}
+
+private fun preedit(editor: TextEditorState, text: String, selection: Utf8Selection? = None) {
+    editor.applyInput(
+        editBatch([TextInputOperation.Preedit(text, selection, TextReplacement.CurrentSelection)])
+    )
+}

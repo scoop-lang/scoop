@@ -1,0 +1,147 @@
+package scoop.tests.ui.scrollarea
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class ScrollAreaTest {
+    @Test
+    fun `native nested scrolling bars keyboard and reveal keep geometry focus and content lifetime coherent`() {
+        val probe = AreaProbe()
+        try {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.outer.isAttached)
+            assertFalse(probe.inner.isAttached)
+            assertEquals(1, probe.mounts)
+            assertEquals(1, probe.unmounts)
+            assertTrue(probe.view!!.restored())
+        } finally {
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+internal class AreaProbe {
+    val outer = ScrollState()
+    val inner = ScrollState()
+    val outerFocus = FocusHandle()
+    val innerFocus = FocusHandle()
+    val leafFocus = FocusHandle()
+    val theme = ThemeSource(macosTheme())
+    val generation = state(0)
+    var window: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ui: UiWindow? = None
+    var innerArea: InputArea? = None
+    var leafArea: InputArea? = None
+    var passes = 0
+    var renders = 0
+    var contentRenders = 0
+    var mounts = 0
+    var unmounts = 0
+    var committed = -1
+    var phase = 0
+    var waiting = false
+    var finished = false
+    var retryFocus = false
+    var preventWheel = false
+    var preventRelease = false
+    var childKeys = 0
+    var leafClicks = 0
+    var outsidePixel = -1L
+    var baselineRenders = 0
+    var baselineContent = 0
+    var previousOffset = Point(0.0, 0.0)
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop scroll area", LogicalSize(320.0, 180.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { AreaScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> {
+                if (phase == 0 && passes > 0 && !window!!.isFocused && !retryFocus) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (
+                    phase <
+                        28 &&
+                        !waiting &&
+                        committed ==
+                        generation.value &&
+                        window!!.isFocused &&
+                        !frames!!.snapshot().required
+                )
+                    advanceArea(this, active)
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"scroll area timeout phase=${phase}, passes=${passes}")
+            )
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 28;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun input(active: ActiveApplication, action: () -> Unit) {
+        waiting = true
+        action()
+        assertTrue(
+            active.proxy().post {
+                _ ->
+                phase += 1;
+                waiting = false
+            }
+        )
+    }
+    fun click(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun key(code: Int) {
+        assertTrue(sendSurfaceKey(window!!, code, true))
+        assertTrue(sendSurfaceKey(window!!, code, false))
+    }
+    fun bar(): ScrollbarGeometry {
+        val snapshot = outer.snapshot
+        val source = theme.current.value
+        val thickness = source.scrollbarMetrics().thickness
+        return source.scrollbarGeometry(
+            Rect(200.0 - thickness, 0.0, thickness, 120.0 - thickness),
+            ScrollbarVisual(
+                Orientation.Vertical,
+                snapshot.offset.y / snapshot.maximum.y,
+                snapshot.viewport.height / snapshot.content.height
+            )
+        )
+    }
+    fun at(rect: Rect): Point =
+        Point(20.0 + rect.x + rect.width / 2.0, 20.0 + rect.y + rect.height / 2.0)
+}
