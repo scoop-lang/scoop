@@ -43,8 +43,10 @@ impl NativeDebugTools {
         let definition = scoop_target_data::definition(target.id())
             .filter(|definition| definition.selection.target() == target)
             .ok_or_else(|| ToolchainError("a registered debug target is required".into()))?;
-        match (definition.os, target.native_object_format()) {
-            (scoop_target_data::TargetOs::Darwin, scoop_lir::NativeObjectFormat::MachO64) => {
+        match target.native_object_format() {
+            scoop_lir::NativeObjectFormat::MachO64
+                if definition.os == scoop_target_data::TargetOs::Darwin =>
+            {
                 let dsymutil = llvm_tool("dsymutil", &mut inputs)?;
                 let strip = PathBuf::from("/usr/bin/strip");
                 let codesign = PathBuf::from("/usr/bin/codesign");
@@ -56,17 +58,18 @@ impl NativeDebugTools {
                     inputs,
                 })
             }
-            (scoop_target_data::TargetOs::Linux, scoop_lir::NativeObjectFormat::Elf64) => {
-                Ok(Self::Elf {
-                    objcopy: llvm_tool("llvm-objcopy", &mut inputs)?,
-                    inputs,
-                })
-            }
-            (scoop_target_data::TargetOs::Windows, scoop_lir::NativeObjectFormat::Coff64) => {
+            scoop_lir::NativeObjectFormat::Elf64 => Ok(Self::Elf {
+                objcopy: llvm_tool("llvm-objcopy", &mut inputs)?,
+                inputs,
+            }),
+            scoop_lir::NativeObjectFormat::Coff64
+                if definition.os == scoop_target_data::TargetOs::Windows =>
+            {
                 Ok(Self::Windows)
             }
-            (os, format) => Err(ToolchainError(format!(
-                "no native debug tools for {os:?}/{format:?}"
+            format => Err(ToolchainError(format!(
+                "no native debug tools for {:?}/{format:?}",
+                definition.os
             ))),
         }
     }

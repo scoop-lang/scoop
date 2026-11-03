@@ -14,6 +14,14 @@ pub(crate) struct StartupObject {
     pub references: BTreeSet<String>,
 }
 
+fn startup_section(target: scoop_lir::LirTargetProfile) -> &'static str {
+    match target.native_object_format() {
+        scoop_lir::NativeObjectFormat::MachO64 => "__DATA_CONST,__const",
+        scoop_lir::NativeObjectFormat::Elf64 => ".data.rel.ro.scoop.startup",
+        scoop_lir::NativeObjectFormat::Coff64 => ".rdata$scoop_startup",
+    }
+}
+
 impl StartupObject {
     pub fn build(
         inputs: &ProgramInputs<'_>,
@@ -23,11 +31,7 @@ impl StartupObject {
     ) -> Result<Self, LinkError> {
         let mut source = String::from("#include <stddef.h>\n#include <stdint.h>\n");
         source.push_str(images::TYPES);
-        let section = match profile {
-            ValidatedFinalLinkProfile::Darwin(_) => "__DATA_CONST,__const",
-            ValidatedFinalLinkProfile::Linux(_) => ".data.rel.ro.scoop.startup",
-            ValidatedFinalLinkProfile::Windows(_) => ".rdata$scoop_startup",
-        };
+        let section = startup_section(profile.target());
         images::emit(&mut source, &inputs.final_images, section);
         Self::build_source(
             source,
@@ -70,11 +74,7 @@ impl StartupObject {
             "ScoopRootEntryDescriptorV1"
         };
         source.push_str(&format!("extern const {descriptor} root_entry __asm__(\"{root}\") __attribute__((visibility(\"hidden\")));\n"));
-        let section = match profile {
-            ValidatedFinalLinkProfile::Darwin(_) => "__DATA_CONST,__const",
-            ValidatedFinalLinkProfile::Linux(_) => ".data.rel.ro.scoop.startup",
-            ValidatedFinalLinkProfile::Windows(_) => ".rdata$scoop_startup",
-        };
+        let section = startup_section(profile.target());
         let windows = matches!(profile, ValidatedFinalLinkProfile::Windows(_));
         let (entry, runtime, argument_type) = if shared {
             ("scoop_app_init", "scoop_rt_init_native_app", "void")
@@ -115,7 +115,7 @@ impl StartupObject {
         let bytes = std::fs::read(object).map_err(error)?;
         let mut info =
             NativeObjectInfo::read_with_toolchain(&bytes, profile.startup_toolchain().profile())?;
-        if matches!(profile, ValidatedFinalLinkProfile::Linux(_)) {
+        if profile.target().native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
             // GNU as may retain this implicit linker symbol without a use.
             info.requirements.remove("_GLOBAL_OFFSET_TABLE_");
         }
