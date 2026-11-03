@@ -1,0 +1,17 @@
+package scoop.tests.window
+
+/** Saves every current pasteboard item and data type before a native clipboard test. */
+@Extern(name = "scoop_window_test_clipboard_save")
+public fun saveNativeClipboard(): Ptr<Unit>?
+
+/** Restores and releases the snapshot, also cancelling an unused failure injection. */
+@Extern(name = "scoop_window_test_clipboard_restore")
+public fun restoreNativeClipboard(snapshot: Ptr<Unit>): Int
+
+/** Installs a non-text item so readText can distinguish absence from empty text. */
+@Extern(name = "scoop_window_test_clipboard_nontext")
+public fun setNativeClipboardNonText(): Int
+
+/** Makes the next native writeObjects call fail once, without changing production code. */
+@Extern(name = "scoop_window_test_clipboard_fail_write")
+public fun failNextNativeClipboardWrite(): Int

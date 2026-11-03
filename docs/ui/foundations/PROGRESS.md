@@ -30,7 +30,9 @@
 | E1：绘制记录、兼容离屏图像与文字绘制边界 | 已完成 aarch64 实施和定向验证 |
 | E2：滚动容器分块像素缓存 | 已完成 aarch64 实施和定向验证 |
 | F1a：Unicode 词边界与视觉光标导航 | 已完成 aarch64 实施和定向验证 |
-| F1b：剪贴板、原生编辑命令与文本快照 | 待实施 |
+| F1b1：应用所属的 GUI 纯文本剪贴板 | 已完成 aarch64 实施和定向验证 |
+| F1b2：原生编辑命令 | 待实施 |
+| F1b3：原生文本快照与连接几何 | 待实施 |
 | F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
@@ -286,3 +288,11 @@ Scoop 格式检查、文本库生产／测试源码类型检查、C++ arm64 警�
 首轮发现 SkUnicode 的 isWhitespace 不包含不换行空格，改用同一 Unicode 服务的 isSpace；SkParagraph 的行尾可能只排除 CRLF 中的 LF，导航边界按已有 grapheme 收敛，逻辑行识别检查整个 grapheme 中的硬换行。原有断言保持，最终专项与回归全部通过。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。4 份一次性报告与 2 个被替代的测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。公共编辑事务和原生文档连接继续按后续批次实施。
+
+## F1b1：应用所属的 GUI 纯文本剪贴板
+
+macOS 的 ActiveApplication.clipboard 和 Window.clipboard 提供同一应用 owner 上的 Unicode 纯文本读写。没有文本与空文本分开返回，传递显式字节长度，保留非 BMP、组合字符、换行与 NUL；原生失败通过 WindowException 报告。入口不取得窗口 lease，窗口关闭后仍可由活动应用使用，应用退出和错误线程访问会被拒绝。
+
+Scoop 格式、窗口库生产／测试源码类型检查、Objective-C arm64 警告检查及窗口库 aarch64 release 构建通过。2 项真实 AppKit scoop.test 通过：ClipboardTest 和既有 AppKitApplicationTest。新用例覆盖 Unicode／空文本／无文本、原生 writeObjects 失败后继续写入、owner 线程、窗口销毁后的应用入口及退出失效；测试在 finally 恢复原有剪贴板全部 item／type 的数据，失败注入只替换一次测试进程中的原生方法，没有生产测试开关。已有键盘／IME 和窗口关闭回归通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。2 份一次性原生测试报告清理，当前测试产物及共享构建缓存保留。

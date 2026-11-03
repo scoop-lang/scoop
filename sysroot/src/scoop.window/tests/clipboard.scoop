@@ -1,0 +1,89 @@
+package scoop.window
+
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+import scoop.tests.window.*
+
+@Test
+private class ClipboardTest {
+    @Test
+    fun `native text clipboard preserves Unicode and obeys application ownership`() {
+        @Unsafe
+        {
+            val saved = saveNativeClipboard() ?: fail(Some("cannot save the system clipboard"))
+            try {
+                val handler = ClipboardHandler()
+                Application(ApplicationOptions(LastWindowPolicy.KeepRunning)).run(handler)
+                assertTrue(handler.destroyed)
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> { handler.clipboard!!.readText() }.kind
+                )
+                assertEquals(
+                    WindowErrorKind.InvalidState,
+                    assertFailsWith<WindowException> { handler.clipboard!!.writeText("late") }.kind
+                )
+                assertFailsWith<WindowException> { handler.application!!.clipboard }
+                assertFailsWith<WindowException> { handler.window!!.clipboard }
+            } finally {
+                assertEquals(0, restoreNativeClipboard(saved))
+            }
+        }
+    }
+}
+
+private class ClipboardHandler: ApplicationHandler {
+    var clipboard: Clipboard? = None
+    var application: ActiveApplication? = None
+    var window: Window? = None
+    var destroyed = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                this.application = Some(application)
+                val value = application.clipboard
+                clipboard = Some(value)
+                value.writeText("中文 / 日本語 / e\u{301} / 👩‍💻\r\nline\u{0}end")
+                assertEquals(Some("中文 / 日本語 / e\u{301} / 👩‍💻\r\nline\u{0}end"), value.readText())
+                value.writeText("")
+                assertEquals(Some(""), value.readText())
+                @Unsafe
+                {
+                    assertEquals(0, setNativeClipboardNonText())
+                }
+                assertEquals(None, value.readText())
+                @Unsafe
+                {
+                    assertEquals(0, failNextNativeClipboardWrite())
+                }
+                assertEquals(
+                    WindowErrorKind.NativeFailure,
+                    assertFailsWith<WindowException> { value.writeText("failed") }.kind
+                )
+                value.writeText("after failure")
+                assertEquals(Some("after failure"), value.readText())
+                val worker =
+                    Thread.start {
+                        assertFailsWith<IllegalStateException> { value.readText() }
+                        assertFailsWith<IllegalStateException> { value.writeText("wrong thread") }
+                        assertFailsWith<IllegalStateException> { application.clipboard }
+                    }
+                worker.join()
+                val created = application.createWindow(WindowAttributes(visible = false))
+                window = Some(created)
+                clipboard = Some(created.clipboard)
+                created.clipboard.writeText("window facade")
+                assertEquals(Some("window facade"), value.readText())
+                created.requestDestroy()
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                destroyed = true
+                clipboard!!.writeText("closed window")
+                assertEquals(Some("closed window"), window!!.clipboard.readText())
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

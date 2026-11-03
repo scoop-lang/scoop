@@ -57,6 +57,8 @@ macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到
 
 ## 文本输入
 
+macOS 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 
 应用只从编辑批次插入文字，不再从 `KeyEvent.logicalKey` 额外插入字符。输入法消耗的候选选择／确认键不会再作为普通按键交付；普通快捷键保留 Keyboard 事件。失焦会撤销 active preedit，并为已交付的按下状态补发 synthetic release。

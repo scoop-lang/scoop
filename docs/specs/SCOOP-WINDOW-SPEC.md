@@ -32,6 +32,14 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 回调沿同一业务派发入口恢复 run／附着 I/O Context，异常按普通 handler 失败开始完整关闭。窗口进入 Closing 时立即关闭其登记，取消未调用的快照；应用退出同样撤销全部排期。登记不取得 native window lease，不延迟窗口销毁。首批用于 UI 基础交互中的离屏动画完成和后续编辑定时工作，按该批次先验证 macOS aarch64，其余目标留到对应验收。
 
+### 2.2 GUI 纯文本剪贴板
+
+macOS 提供 `ActiveApplication.clipboard` 和 `Window.clipboard`，取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 general pasteboard 的 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 写入完整 UTF-8 文本，替换剪贴板当前内容；字符串长度显式传递，保留非 BMP 字符、换行及内嵌 NUL。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
+
+取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
+
+原生调用不把 NSPasteboard／NSString 借用泄漏给 managed 代码。读取结果独立复制，正常成功和异常路径均释放临时存储。首批只实现 macOS；Windows API 随该平台后续实施增加。剪切的上层编辑必须先成功写出，再修改文档。
+
 ## 3. 事件模型
 
 ApplicationEvent 类别为：NewEvents(StartCause)、Resumed、Suspended、MemoryWarning、Window(WindowId, WindowEvent)、MonitorsChanged、AboutToWait、ExitRequested(ExitReason)、Exiting。启动在创建业务窗口之前发送一次 Resumed；失焦不等于 Suspended，AppKit 不捏造没有收到的 suspended／memory warning。proxy 使用类型化闭包，不另设无类型 user-event payload。全局 Device 事件属于后续设备输入扩展。
