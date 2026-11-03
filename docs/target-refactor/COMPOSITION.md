@@ -1,6 +1,6 @@
 # Target 组合解耦后续重构设计
 
-状态：结构迁移与 macOS 集中回归完成；Linux／Windows 复验待完成。
+状态：结构迁移、macOS 与 Linux 集中回归完成；Windows 复验进行中。
 
 日期：2026-11-03。
 
@@ -678,7 +678,7 @@ C0～C5 的结构迁移已经完成，且没有把 Linux ARM64、Windows ARM64�
 
 ### 11.6 集中回归记录
 
-验证按“全部本地改动与验证 → Linux → Windows”的顺序进行，不按每个提交重复跨平台验证。原始日志和逐项报告保存在仓库外；完成批次清理不再需要的测试产物和依赖构建目录。
+全部本地改动与验证完成后，集中安排远端复验；不同平台和 target 可以并行，fixture 按机器资源多路执行，不按每个提交重复跨平台验证。原始日志和逐项报告保存在仓库外；完成批次清理不再需要的测试产物和依赖构建目录。
 
 macOS 27.2／SDK 27.2 的本地回归已完成：
 
@@ -689,7 +689,15 @@ macOS 27.2／SDK 27.2 的本地回归已完成：
 - ARM64 的 `exception-path-inlining` 在未打补丁的 Homebrew LLVM 下失败，显式链接项目已有补丁版 LLVM 后两个变体均通过。`scoop` 的编译子进程清理环境变量，因此这项复验使用临时配套 `scoopc` 的直接动态库依赖，不能仅依赖 `DYLD_LIBRARY_PATH`；
 - x86_64 程序在本机 Rosetta 下执行，不作为 Intel 硬件验收。
 
-Linux GNU／musl 和三种 Windows target 的集中复验将在同一实现版本上继续；完成前不宣称 C6 的七目标行为验收结束。
+Linux AMD64 使用 `/home/linuxbrew/.linuxbrew/opt/llvm@22` 的 Homebrew LLVM 22.1.8 完成 GNU／musl 集中复验：
+
+- Rust 格式检查、workspace／all-targets Clippy、Ruff、维护脚本和 fixture runner 规则测试通过；workspace 的 6,415 项 Rust／文档测试通过。仅 Windows statepoint 返回 PC 专测因宿主 LLVM 未含对应补丁而单列，已有 macOS 补丁版通过记录，并在 Windows 批次再次执行；
+- 两种 target 的系统库与四种 runtime 配置全部重新准备；GNU 动态、musl 静态／动态 LLVM unwind 的 cleanup、catch、delete 验证通过；
+- 正式 fixture 集中覆盖 driver、compiler-correctness、native、FFI、GC、platform、runtime 与 exceptions：GNU 888 项、musl 884 项适用用例全部闭合，另分别有 42／46 项不适用；
+- musl 首轮的 18 项 native 对象／archive 精确快照因 Homebrew Clang 的对象字节数与既有 Clang 基线不同而失败；使用该机 `musl-gcc` 与现有 GCC 基线复验全部通过，没有修改大小或布局断言。其余 musl 用例使用 Homebrew Clang 与显式 musl SDK；
+- 两种 target 各 18 个普通系统库／consumer Cone、各 691 项测试闭合。musl 首轮暴露 asyncio 测试的同步完成竞态：线程可能在挂起登记返回前恢复 continuation，测试却假定必然切换线程。测试改用现有事件队列在登记返回后启动工作线程，保留线程和 I/O 断言；两种 macOS target 的相关两项测试通过，Linux 两种 target 各连续 10 轮通过。生产协程与 I/O 语义不变。
+
+三种 Windows target 正在同一实现版本上集中复验；完成前不宣称 C6 的七目标行为验收结束。
 
 ## 12. 调研依据与当前结论
 
