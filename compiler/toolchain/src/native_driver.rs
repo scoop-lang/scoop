@@ -110,7 +110,7 @@ impl NativeDriver {
         c: &ValidatedCBridgeToolchainInvocation,
         language: scoop_manifest::NativeSourceLanguage,
     ) -> std::process::Command {
-        if crate::windows_native::is_windows(c) {
+        if crate::windows_native::is_windows_target(c) {
             crate::windows_native::command(c, &self.path, self.kind, language, false)
         } else {
             c.driver_command_for(&self.path, self.family)

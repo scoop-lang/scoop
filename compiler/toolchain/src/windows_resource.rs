@@ -36,10 +36,7 @@ pub(crate) fn source<'a>(
     purpose: CompilationPurpose,
 ) -> Option<&'a ConeRelativePath> {
     if purpose != CompilationPurpose::Production
-        || !target
-            .c_bridge_toolchain()
-            .native_environment()
-            .is_windows()
+        || target.c_bridge_toolchain().target_os() != scoop_target_data::TargetOs::Windows
     {
         return None;
     }

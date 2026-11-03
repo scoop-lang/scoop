@@ -222,20 +222,19 @@ fn runtime_input(
             Ok((objects, index.clone()))
         }
         RuntimeInput::SourceRoot(root) => {
-            let unwind = if target.c_bridge_toolchain().native_environment()
-                == scoop_target_data::NativeEnvironment::Darwin
-            {
-                final_link.unwind_prefix.clone()
-            } else {
-                Some(
-                    scoop_toolchain::selected_unwind_prefix(
-                        target.lir_target(),
-                        final_link.sysroot.as_deref(),
-                        final_link.unwind_prefix.as_deref(),
+            let unwind =
+                if target.c_bridge_toolchain().target_os() == scoop_target_data::TargetOs::Darwin {
+                    final_link.unwind_prefix.clone()
+                } else {
+                    Some(
+                        scoop_toolchain::selected_unwind_prefix(
+                            target.lir_target(),
+                            final_link.sysroot.as_deref(),
+                            final_link.unwind_prefix.as_deref(),
+                        )
+                        .map_err(|error| failure(error.to_string()))?,
                     )
-                    .map_err(|error| failure(error.to_string()))?,
-                )
-            };
+                };
             let runtime = build_runtime(RuntimeBuildRequest {
                 target,
                 runtime_root: root,

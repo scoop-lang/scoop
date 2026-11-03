@@ -435,6 +435,8 @@ NativeToolchainSelection
 
 未知 architecture 在对应工具入口明确报错，不回退到 x86_64。默认 C driver 只有在 host 与 target machine 相容时才能使用本机名称；交叉目标必须使用实际 cross driver 或显式 Clang target＋sysroot，不能静默调用宿主 `gcc`。
 
+当前实现已经删除 `NativeEnvironment::is_windows`／`is_linux` 这类把环境重新解释为 OS 的入口。native tool record、runtime unwind 头选择、Windows resource／native driver、final-link discovery cache 和 C++ SDK 输入先读取目录中的 `TargetOs`；进入已选平台实现后，才用 `NativeEnvironment` 区分 glibc／musl、Microsoft UCRT／LLVM-MinGW CRT 及相应 C++ driver／runtime。平台选择不再依赖当前环境枚举恰好与 OS 一一对应。
+
 ### 7.2 final link 分开 ELF 结构与 OS 环境
 
 `ValidatedFinalLinkProfile::{Darwin,Linux,Windows}` 当前把对象容器编排和 OS 环境放在同一层。重构后保持少量具体 profile，不建立 linker plugin，但拆开两类事实：

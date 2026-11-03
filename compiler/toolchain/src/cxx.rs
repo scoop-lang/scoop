@@ -63,7 +63,7 @@ impl ValidatedCxxToolchain {
         if c.native_environment() == scoop_target_data::NativeEnvironment::LinuxMusl {
             return Err(error("native.cxx = true is not supported for Linux musl"));
         }
-        if crate::windows_native::is_windows(c) {
+        if crate::windows_native::is_windows_target(c) {
             let default = crate::windows_native::paired_driver(
                 c,
                 scoop_manifest::NativeSourceLanguage::Cxx,

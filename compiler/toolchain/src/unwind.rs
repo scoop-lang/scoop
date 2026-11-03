@@ -20,10 +20,10 @@ pub fn runtime_unwind_include(
     target: LirTargetProfile,
     prefix: Option<&Path>,
 ) -> Result<Option<PathBuf>, ToolchainError> {
-    let environment = scoop_target_data::definition(target.id())
+    let os = scoop_target_data::definition(target.id())
         .ok_or_else(|| ToolchainError("unknown runtime target".into()))?
-        .native_environment;
-    if environment == scoop_target_data::NativeEnvironment::Darwin {
+        .os;
+    if os == scoop_target_data::TargetOs::Darwin {
         if prefix.is_some() {
             return Err(ToolchainError(
                 "Darwin runtime uses the SDK unwind headers".into(),

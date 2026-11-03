@@ -44,9 +44,8 @@ impl ValidatedCBridgeToolchainInvocation {
         sdk_root: PathBuf,
     ) -> Result<Self, CBridgeToolchainInvocationError> {
         if !matches!(
-            scoop_target_data::definition(target.id())
-                .map(|definition| definition.native_environment),
-            Some(scoop_target_data::NativeEnvironment::Darwin)
+            scoop_target_data::definition(target.id()).map(|definition| definition.os),
+            Some(scoop_target_data::TargetOs::Darwin)
         ) {
             return Err(CBridgeToolchainInvocationError::Platform(
                 scoop_lir::CBridgePlatformError::ExpectedDarwin,
@@ -94,6 +93,12 @@ impl ValidatedCBridgeToolchainInvocation {
         scoop_target_data::definition(self.target.id())
             .expect("validated target")
             .native_environment
+    }
+
+    pub fn target_os(&self) -> scoop_target_data::TargetOs {
+        scoop_target_data::definition(self.target.id())
+            .expect("validated target")
+            .os
     }
 
     pub const fn profile(&self) -> &CBridgeToolchainProfileV1 {

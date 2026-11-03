@@ -55,6 +55,11 @@ impl LinuxTarget {
     pub(crate) fn select(target: TargetProfileId) -> Result<Self, ToolchainError> {
         let definition = scoop_target_data::definition(target)
             .ok_or_else(|| ToolchainError("unknown Linux target".into()))?;
+        if definition.os != scoop_target_data::TargetOs::Linux {
+            return Err(ToolchainError(
+                "Linux toolchain requires a Linux target".into(),
+            ));
+        }
         let libc = match definition.native_environment {
             NativeEnvironment::LinuxGnu => LinuxLibc::Gnu,
             NativeEnvironment::LinuxMusl => LinuxLibc::Musl,

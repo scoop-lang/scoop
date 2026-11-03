@@ -33,24 +33,20 @@ pub(super) fn resolve(
     let path = |value: &Path| {
         HostPathCarrier::from_path(&std::path::absolute(value).map_err(error)?).map_err(error)
     };
-    let unwind = (target.c_bridge_toolchain().native_environment()
-        != scoop_target_data::NativeEnvironment::Darwin
-        && (!cxx
-            || target
-                .c_bridge_toolchain()
-                .native_environment()
-                .is_windows()))
-    .then(|| {
-        crate::selected_unwind_prefix(
-            target.lir_target(),
-            options.sysroot.as_deref(),
-            options.unwind_prefix.as_deref(),
-        )
-    })
-    .transpose()?
-    .as_deref()
-    .map(path)
-    .transpose()?;
+    let target_os = target.c_bridge_toolchain().target_os();
+    let unwind = (target_os != scoop_target_data::TargetOs::Darwin
+        && (!cxx || target_os == scoop_target_data::TargetOs::Windows))
+        .then(|| {
+            crate::selected_unwind_prefix(
+                target.lir_target(),
+                options.sysroot.as_deref(),
+                options.unwind_prefix.as_deref(),
+            )
+        })
+        .transpose()?
+        .as_deref()
+        .map(path)
+        .transpose()?;
     let key = build_record::fingerprint(&(
         crate::native_record::ResolvedRecord::cache_configuration(target)?,
         final_link,
