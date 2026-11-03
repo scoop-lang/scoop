@@ -27,7 +27,18 @@ pub(crate) struct CoffObject<'a> {
 }
 
 impl<'a> CoffObject<'a> {
-    pub(crate) fn read(bytes: &'a [u8]) -> Result<Self, CodegenError> {
+    pub(crate) fn read(
+        bytes: &'a [u8],
+        object_target: scoop_lir::ObjectTargetProfileV1,
+    ) -> Result<Self, CodegenError> {
+        let architecture = match object_target {
+            scoop_lir::ObjectTargetProfileV1::CoffAmd64 => object::Architecture::X86_64,
+            _ => {
+                return Err(error(format!(
+                    "atom materialization has no COFF implementation for {object_target:?}"
+                )));
+            }
+        };
         let (symbol_bytes, table_offset_field, table_count_field, sections_offset) =
             match object::FileKind::parse(bytes).map_err(error)? {
                 object::FileKind::Coff => (18, 8, 12, 20),
@@ -35,8 +46,10 @@ impl<'a> CoffObject<'a> {
                 _ => return Err(error("atom materialization requires COFF or bigobj")),
             };
         let file = object::File::parse(bytes).map_err(error)?;
-        if file.architecture() != object::Architecture::X86_64 {
-            return Err(error("atom materialization requires AMD64"));
+        if file.architecture() != architecture {
+            return Err(error(
+                "atom materialization requires the selected COFF object machine",
+            ));
         }
         let start = field(bytes, table_offset_field)? as usize;
         let count = field(bytes, table_count_field)? as usize;

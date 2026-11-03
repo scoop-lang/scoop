@@ -3,10 +3,11 @@ use crate::coff_object::{CoffObject, error};
 
 pub(super) fn materialize(
     bytes: &mut Vec<u8>,
+    object_target: scoop_lir::ObjectTargetProfileV1,
     surface: &ObjectSymbolSurfaceV1,
     definitions: &[scoop_lir::ObjectDefinitionPlanId],
 ) -> Result<(), CodegenError> {
-    let mut output = CoffObject::read(bytes)?;
+    let mut output = CoffObject::read(bytes, object_target)?;
     // Callable registrations are emitted in the same member as their body.
     // Their distinct logical definitions must follow that body's native
     // selection, including when duplicate ODR members are discarded.

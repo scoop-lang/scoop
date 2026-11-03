@@ -5,9 +5,10 @@ use crate::coff_object::{CoffObject, error};
 
 pub(super) fn materialize(
     bytes: &mut Vec<u8>,
+    object_target: scoop_lir::ObjectTargetProfileV1,
     plan: &DefinitionSymbolPlanV1,
 ) -> Result<(), CodegenError> {
-    let mut output = CoffObject::read(bytes)?;
+    let mut output = CoffObject::read(bytes, object_target)?;
     let (text, start) = output.extent(plan.primary_symbol().symbol().as_str())?;
     let mut associated = vec![text];
     let lsda = output

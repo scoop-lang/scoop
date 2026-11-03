@@ -15,10 +15,10 @@ pub(crate) fn materialize_v1(
     plan: &DefinitionSymbolPlanV1,
 ) -> Result<(), CodegenError> {
     if target.native_object_format() == scoop_lir::NativeObjectFormat::Elf64 {
-        return elf::materialize(bytes, plan);
+        return elf::materialize(bytes, target.object_target(), plan);
     }
     if target.native_object_format() == scoop_lir::NativeObjectFormat::Coff64 {
-        return coff::materialize(bytes, plan);
+        return coff::materialize(bytes, target.object_target(), plan);
     }
 
     let layout = MachOLayout::parse(bytes, target)?;
