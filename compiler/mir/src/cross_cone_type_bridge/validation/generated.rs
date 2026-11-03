@@ -102,6 +102,7 @@ impl MirTypeBridgeAuthority<'_> {
                 GeneratedNominalKey::ClosureEnvironment { .. }
                 | GeneratedNominalKey::CallableAdapterEnvironment { .. }
                 | GeneratedNominalKey::CoroutineFrame { .. }
+                | GeneratedNominalKey::CoroutineStartWork { .. }
                 | GeneratedNominalKey::ContinuationAdapterEnvironment { .. },
                 _,
             ) => {

@@ -66,6 +66,7 @@ impl GeneratedExactTypeIdentity {
                 GeneratedExactTypeKind::Closure
             }
             GeneratedNominalKey::CoroutineFrame { .. }
+            | GeneratedNominalKey::CoroutineStartWork { .. }
             | GeneratedNominalKey::ContinuationAdapterEnvironment { .. }
             | GeneratedNominalKey::BoxedValue { .. } => GeneratedExactTypeKind::Class,
             GeneratedNominalKey::CoroutineStep { .. }

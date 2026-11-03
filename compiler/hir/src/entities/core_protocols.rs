@@ -398,6 +398,12 @@ pub struct CompilerExceptionCore {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoroutineCore {
+    pub work: InterfaceId,
+    pub work_run: FunctionId,
+    pub execution: InterfaceId,
+    pub execution_start: FunctionId,
+    pub execution_resume: FunctionId,
+
     pub continuation: InterfaceId,
     pub continuation_resume: FunctionId,
     pub continuation_resume_with_exception: FunctionId,

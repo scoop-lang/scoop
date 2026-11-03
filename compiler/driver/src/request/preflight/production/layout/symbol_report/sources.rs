@@ -69,6 +69,7 @@ pub(super) fn generated_role(
         GeneratedCallableKey::ForeignCallbackManagedAdapter { .. } => "foreign-callback-adapter",
         GeneratedCallableKey::CoroutineDriver { .. } => "coroutine-driver",
         GeneratedCallableKey::CoroutineStart { .. } => "coroutine-start",
+        GeneratedCallableKey::CoroutineStartWork { .. } => "coroutine-start-work",
         GeneratedCallableKey::CoroutineAdapter { .. } => "coroutine-adapter",
         GeneratedCallableKey::FunctionBridge { .. } => "function-bridge",
         GeneratedCallableKey::DispatchAdjust { .. } => "dispatch-adjust",

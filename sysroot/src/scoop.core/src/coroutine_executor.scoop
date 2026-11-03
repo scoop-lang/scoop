@@ -1,0 +1,65 @@
+/** One managed coroutine drive, invoked exactly once after submission. */
+public interface CoroutineWork {
+    public fun run()
+}
+
+/** One ordinary managed computation that may block its worker thread. */
+public interface BlockingWork {
+    public fun run()
+}
+
+/** Owns task admission and the queues used by registered computations. */
+public interface CoroutineExecutor {
+    /** Registers a root task, or a child of an active task on this executor. */
+    public fun registerTask(parent: ExecutorTask?): ExecutorTask
+}
+
+/** Keeps an executor available until the task and its completion callback have exited. */
+public interface ExecutorTask {
+    public val executor: CoroutineExecutor
+
+    /** Enqueues one drive; it must never invoke work inline or reject an active task. */
+    public fun dispatch(work: CoroutineWork)
+
+    /** Enqueues one blocking computation with the same lifetime guarantee. */
+    public fun dispatchBlocking(work: BlockingWork)
+
+    /** Releases this registration exactly once, after all of its work has exited. */
+    public fun complete()
+}
+
+/** Raised when an executor can no longer admit the requested task. */
+public class ExecutorClosedException: Exception(Some("executor is closed"))
+
+// Compiler-generated work uses this ordinary dispatch boundary. The implementation
+// owns the drive state; continuations retain only its managed interface reference.
+internal interface CoroutineExecutionDriver {
+    public fun start(work: CoroutineWork, dispatched: Boolean)
+    public fun resume(work: CoroutineWork, external: Boolean)
+    public fun task(): ExecutorTask?
+}
+
+@Intrinsic("coroutine_current_execution")
+internal fun currentCoroutineExecution(): CoroutineExecutionDriver?
+
+internal fun currentExecutorTask(): ExecutorTask? =
+    when (currentCoroutineExecution()) {
+        case Some(execution) -> execution.task()
+        case None -> None
+    }
+
+internal fun executorParent(executor: CoroutineExecutor, parent: ExecutorTask?): ExecutorTask? =
+    when (parent) {
+        case Some(parent) -> if (parent.executor === executor)
+            Some(parent)
+        else
+            None
+        case None -> None
+    }
+
+/** Returns the executor selected for the current coroutine, or None for an independent entry. */
+public fun currentCoroutineExecutorOrNone(): CoroutineExecutor? =
+    when (currentExecutorTask()) {
+        case Some(task) -> Some(task.executor)
+        case None -> None
+    }

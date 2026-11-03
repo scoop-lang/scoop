@@ -87,6 +87,7 @@ pub struct GeneratedFieldKey(GeneratedFieldKeyKind);
 enum GeneratedFieldKeyKind {
     InterfaceDelegate(u32),
     ContextSlot(u32),
+    CoroutineStartSlot(u32),
     BoxPayload,
     ClosureCapture(PersistentLocalValueId),
     CallableReferenceReceiver(PersistentLocalValueId),
@@ -111,6 +112,12 @@ impl WireEncode for GeneratedFieldKey {
                 encode_tag(encoder, 16)?;
                 encoder.field(1)?;
                 encoder.unsigned(u64::from(ordinal))
+            }
+            GeneratedFieldKeyKind::CoroutineStartSlot(index) => {
+                encoder.map(2)?;
+                encode_tag(encoder, 17)?;
+                encoder.field(1)?;
+                encoder.unsigned(u64::from(index))
             }
             GeneratedFieldKeyKind::ContextSlot(index) => {
                 encoder.map(2)?;
@@ -155,6 +162,20 @@ enum FieldIdentityKeyKind {
 }
 
 impl FieldIdentityKey {
+    pub fn coroutine_start_slot(
+        owner: &GeneratedNominalKey,
+        index: u32,
+    ) -> Result<Self, FieldIdentityError> {
+        if !matches!(owner, GeneratedNominalKey::CoroutineStartWork { .. }) || index >= 3 {
+            return Err(FieldIdentityError::GeneratedOwnerMismatch);
+        }
+        Ok(Self(FieldIdentityKeyKind::Generated {
+            owner: PersistentTypeId::from_generated_key(owner)
+                .map_err(FieldIdentityError::GeneratedNominal)?,
+            key: GeneratedFieldKey(GeneratedFieldKeyKind::CoroutineStartSlot(index)),
+        }))
+    }
+
     pub fn context_slot(
         owner: &GeneratedNominalKey,
         index: u32,

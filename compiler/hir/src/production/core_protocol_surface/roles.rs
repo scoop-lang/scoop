@@ -65,6 +65,15 @@ pub struct CoreExceptionProtocolV1 {
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoreCoroutineProtocolV1 {
+    pub(crate) work: PersistentTypeId,
+    pub(crate) work_run: CoreProtocolCallableV1,
+    pub(crate) work_run_dispatch: PersistentDispatchSlotId,
+    pub(crate) execution: PersistentTypeId,
+    pub(crate) execution_start: CoreProtocolCallableV1,
+    pub(crate) execution_start_dispatch: PersistentDispatchSlotId,
+    pub(crate) execution_resume: CoreProtocolCallableV1,
+    pub(crate) execution_resume_dispatch: PersistentDispatchSlotId,
+
     pub(crate) continuation: PersistentGenericTypeId,
     pub(crate) continuation_resume: CoreProtocolCallableV1,
     pub(crate) continuation_resume_dispatch: PersistentDispatchSlotId,

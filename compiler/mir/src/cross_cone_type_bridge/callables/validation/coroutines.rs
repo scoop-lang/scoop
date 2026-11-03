@@ -11,14 +11,25 @@ impl MirCallableBridgeAuthority<'_> {
         if binding.semantic != binding.lowered
             || signature.effect() != Effect::Ordinary
             || signature.receiver().is_present()
-            || signature.parameters().len() != 2
-            || signature.parameters()[0] == signature.parameters()[1]
+            || signature.parameters().len() != 4
+            || signature.parameters()[2] == signature.parameters()[3]
             || !self.is_unit(signature.result())?
             || binding.semantic.gc_effect() != crate::GcEffect::Managed
         {
             return Err(MirCallableBridgeError::SignatureMismatch);
         }
-        for parameter in signature.parameters() {
+        if !matches!(
+            self.type_export(signature.parameters()[0])?
+                .representation(),
+            MirTypeRepresentationV1::Interface
+        ) || !matches!(
+            self.type_export(signature.parameters()[1])?
+                .representation(),
+            MirTypeRepresentationV1::Intrinsic(MirParamFreeIntrinsicV1::Boolean)
+        ) {
+            return Err(MirCallableBridgeError::SignatureMismatch);
+        }
+        for parameter in &signature.parameters()[2..] {
             let key = self
                 .identities
                 .canonical_key::<_, ExactTypeKey>(*parameter)?;

@@ -13,6 +13,9 @@ use crate::{
     CallableSignatureRecord, CallableSignatureSubject, ExactOwnerRoot, ExactOwnerRootError,
 };
 
+mod start_work;
+pub use start_work::CoroutineStartWorkIdentity;
+
 type ExactTypeRecord = CborIdentityRecord<PersistentExactTypeId, ExactTypeKey>;
 type GeneratedCallableRecord =
     CborIdentityRecord<PersistentGeneratedCallableId, GeneratedCallableKey>;
@@ -70,7 +73,7 @@ impl CoroutineStartIdentity {
     ) -> Result<Self, CoroutineSupportIdentityError> {
         if signature.effect() != Effect::Ordinary
             || signature.receiver().is_present()
-            || signature.parameters().len() != 2
+            || signature.parameters().len() != 4
         {
             return Err(CoroutineSupportIdentityError::InvalidStartSignature);
         }
@@ -104,6 +107,9 @@ impl CoroutineStartIdentity {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum CoroutineSupportIdentityError {
     InvalidStartSignature,
+    InvalidWorkSignature,
+    GeneratedType(scoop_identity::GeneratedNominalIdentityError),
+    Field(scoop_identity::FieldIdentityError),
     GeneratedCallable(GeneratedCallableIdentityError),
     Root(ExactOwnerRootError),
     OdrMember(OdrMemberIdentityError),
@@ -113,8 +119,13 @@ impl fmt::Display for CoroutineSupportIdentityError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidStartSignature => formatter.write_str(
-                "coroutine start must be an ordinary receiver-free two-parameter callable",
+                "coroutine start must be an ordinary receiver-free four-parameter callable",
             ),
+            Self::InvalidWorkSignature => formatter.write_str(
+                "coroutine work must be an ordinary receiver method with no value parameters",
+            ),
+            Self::GeneratedType(error) => error.fmt(formatter),
+            Self::Field(error) => error.fmt(formatter),
             Self::GeneratedCallable(error) => error.fmt(formatter),
             Self::Root(error) => error.fmt(formatter),
             Self::OdrMember(error) => error.fmt(formatter),
@@ -152,7 +163,7 @@ mod tests {
         ExactCallableSignature::new(
             Effect::Ordinary,
             None,
-            vec![any().id(), any().id()],
+            vec![any().id(), any().id(), any().id(), any().id()],
             unit().id(),
         )
     }

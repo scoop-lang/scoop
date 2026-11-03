@@ -27,3 +27,12 @@
 - typed fork 支持显式 execution 或独立入口；读取当前 execution 先判空，普通 binding snapshot/push/restore 保持原有职责。多操作数的访问、活跃度和 CFG 降低已同步。
 - 定向验证覆盖 debug/release 的分配后引用恢复、空入口判空，以及真实移动 GC 下父子任务的 binding/execution 保活。相关 Clippy 与 runtime/codegen Context 测试通过。
 - 这一子项建立表示与 GC 基础；协程入口、恢复 work 与 core 驱动状态仍在接入，尚不表示多 worker executor 已可用。
+
+## 执行协议与恢复驱动（2026-11-04）
+
+- core 提供 CoroutineWork、BlockingWork、CoroutineExecutor、ExecutorTask 及内部 execution 驱动；startCoroutine 继承当前 executor 并立即开始，startDispatchedCoroutine 登记后排队。完成通知及驱动退出后释放登记，回调抛出也只释放一次。
+- direct、virtual、closure 和原语挂起统一使用 Registering/Waiting 握手与成功/失败 latch；公开恢复先提交结果，再交给 continuation 保存的 execution。内部完成链迭代消费，外部恢复回到 executor 队列，驱动交接前完成 Context 和异常清理。
+- 编译器生成具有真实 managed 字段的 StartWork 和 adapter run 方法。跨 Cone 普通协议方法引用原定义，不重新单态化；仅实际协程选择这些依赖。对应 HIR/MIR/LIR 产物能力版本已同步，runtime ABI 保持 33。
+- 验证：Rust 格式化及受影响 crate 的 all-targets Clippy 通过；identity 361 项、core surface 10 项、MIR adapter 4 项和 coroutine 14 项、MIR lowering 22 项、HIR coroutine 3 项及 ordinary-core 导入 35 项通过。11 个 CLI fixture 覆盖同步/异步恢复、异常、泛型/成员、Context/外部线程、GC 根及跨 Cone 导出，全部通过。
+- 新增 5 项排队 executor 行为测试通过；其中挂起恢复、启动 work 和上下文保活用例单独开启移动 GC／minor GC stress 后通过。既有 nonCancellableScope 的取消与清理组合回归通过。本轮在 Darwin AArch64 release 验证。
+- 强制 yield、receiver scope、withExecutor、通用阻塞任务入口和实际 executor 仍待接入；上述验证使用手动排队的测试 executor。

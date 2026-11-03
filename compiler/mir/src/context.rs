@@ -75,6 +75,9 @@ pub enum ContextOperation<E> {
     Current,
     Snapshot,
     CurrentExecution,
+    Execution {
+        task: Box<E>,
+    },
     Fork {
         root: Box<E>,
         /// An independent invocation has no execution until a coroutine owns it.
@@ -106,7 +109,7 @@ impl<E> ContextOperation<E> {
             Self::Push { value, .. } => [Some(value.as_ref()), None],
             Self::Restore { mark } => [Some(mark.as_ref()), None],
             Self::Fork { root, execution } => [Some(root.as_ref()), execution.as_deref()],
-            Self::Enter { task } => [Some(task.as_ref()), None],
+            Self::Enter { task } | Self::Execution { task } => [Some(task.as_ref()), None],
             Self::Leave { guard } => [Some(guard.as_ref()), None],
             Self::IsPresent { binding } | Self::UnwrapBinding { binding } => {
                 [Some(binding.as_ref()), None]
@@ -125,7 +128,7 @@ impl<E> ContextOperation<E> {
             Self::Push { value, .. } => [Some(value.as_mut()), None],
             Self::Restore { mark } => [Some(mark.as_mut()), None],
             Self::Fork { root, execution } => [Some(root.as_mut()), execution.as_deref_mut()],
-            Self::Enter { task } => [Some(task.as_mut()), None],
+            Self::Enter { task } | Self::Execution { task } => [Some(task.as_mut()), None],
             Self::Leave { guard } => [Some(guard.as_mut()), None],
             Self::IsPresent { binding } | Self::UnwrapBinding { binding } => {
                 [Some(binding.as_mut()), None]
@@ -142,6 +145,7 @@ impl<E> ContextOperation<E> {
             Self::Current => "ContextCurrent",
             Self::Snapshot => "ContextSnapshot",
             Self::CurrentExecution => "ContextCurrentExecution",
+            Self::Execution { .. } => "ContextExecution",
             Self::Fork { .. } => "ContextFork",
             Self::Enter { .. } => "ContextEnter",
             Self::Leave { .. } => "ContextLeave",
@@ -164,6 +168,9 @@ impl<E> ContextOperation<E> {
             Self::Current => ContextOperation::Current,
             Self::Snapshot => ContextOperation::Snapshot,
             Self::CurrentExecution => ContextOperation::CurrentExecution,
+            Self::Execution { task } => ContextOperation::Execution {
+                task: Box::new(map(task)),
+            },
             Self::Fork { root, execution } => ContextOperation::Fork {
                 root: Box::new(map(root)),
                 execution: execution.as_ref().map(|value| Box::new(map(value))),

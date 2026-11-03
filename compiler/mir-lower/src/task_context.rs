@@ -58,6 +58,7 @@ impl TaskSwitch {
 
 pub(super) fn fork_current(
     core: mir::ConeIdentity,
+    execution: mir::Expr,
     locals: &mut Arena<mir::Local>,
 ) -> (mir::Statement, mir::Expr) {
     let root = mir::Expr::new(
@@ -67,12 +68,21 @@ pub(super) fn fork_current(
         )),
         mir::ExprKind::Context(mir::ContextOperation::Snapshot),
     );
-    fork(core, root, locals)
+    fork_with_execution(core, root, Some(execution), locals)
 }
 
 pub(super) fn fork(
     core: mir::ConeIdentity,
     root: mir::Expr,
+    locals: &mut Arena<mir::Local>,
+) -> (mir::Statement, mir::Expr) {
+    fork_with_execution(core, root, None, locals)
+}
+
+fn fork_with_execution(
+    core: mir::ConeIdentity,
+    root: mir::Expr,
+    execution: Option<mir::Expr>,
     locals: &mut Arena<mir::Local>,
 ) -> (mir::Statement, mir::Expr) {
     let ty = mir::Type::Context(mir::ContextStorageType::new(
@@ -91,7 +101,7 @@ pub(super) fn fork(
             ty.clone(),
             mir::ExprKind::Context(mir::ContextOperation::Fork {
                 root: Box::new(root),
-                execution: None,
+                execution: execution.map(Box::new),
             }),
         ),
     });

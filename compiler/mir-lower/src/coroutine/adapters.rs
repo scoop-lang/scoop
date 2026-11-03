@@ -1,18 +1,19 @@
 use super::*;
 
+mod completion;
+mod drive;
 mod exits;
-mod failure;
-mod resume;
 
+use completion::generate_completion_method;
+use drive::generate_work_method;
 use exits::drive_exit_blocks;
-use failure::generate_failure_method;
-use resume::generate_resume_method;
 
 pub(super) struct GeneratedAdapter {
     pub(super) class: mir::ClassId,
     continuation: mir::InterfaceId,
     pub(super) resume: mir::FunctionId,
     pub(super) resume_with_exception: mir::FunctionId,
+    pub(super) work_run: mir::FunctionId,
     pub(super) identity: mir::ContinuationAdapterIdentity,
 }
 
@@ -48,12 +49,23 @@ pub(super) fn generate_adapter(
     suspension_site: hir::StructuralDefinitionPath,
     state: mir::CoroutineSuspendStateId,
     result: &mir::Type,
-    safe_latches: Option<(FrameSlot, FrameSlot)>,
+    latches: (FrameSlot, FrameSlot),
+    external: bool,
 ) -> GeneratedAdapter {
     let protocol = lowerer.coroutine_protocol(module, result);
     let continuation = lowerer.interfaces.mir_id(protocol.continuation);
+    let work = lowerer.interfaces.mir_id(protocol.work);
+    let execution_resume = crate::coroutine_registry::drive_protocol_call(
+        module,
+        &lowerer.instances,
+        &lowerer.function_map,
+        &lowerer.interfaces,
+        &lowerer.external_callables,
+        protocol.execution_resume,
+        protocol.execution,
+    );
     let name = format!("CoroutineAdapter<{source_name}>${state}");
-    let mut fields = vec![
+    let fields = vec![
         mir::Field {
             name: "frame".to_string(),
             ty: mir::Type::Class(frame_class),
@@ -62,72 +74,77 @@ pub(super) fn generate_adapter(
             name: "status".to_string(),
             ty: mir::Type::MachineScalar(mir::MachineScalarKind::CoroutineAdapterState),
         },
-    ];
-    if let Some((success, failure)) = safe_latches.as_ref() {
-        fields.push(mir::Field {
+        mir::Field {
             name: "result".to_string(),
-            ty: success.slot_ty.clone(),
-        });
-        fields.push(mir::Field {
+            ty: latches.0.slot_ty.clone(),
+        },
+        mir::Field {
             name: "failure".to_string(),
-            ty: failure.slot_ty.clone(),
-        });
-    }
+            ty: latches.1.slot_ty.clone(),
+        },
+    ];
     let success_signature =
         crate::source_callables::exact_function_signature(module, protocol.continuation_resume);
     let failure_signature = crate::source_callables::exact_function_signature(
         module,
         protocol.continuation_resume_with_exception,
     );
-    let identity = if safe_latches.is_some() {
-        mir::ContinuationAdapterIdentity::latched(
-            source,
-            suspension_site,
-            success_signature,
-            failure_signature,
-            source_odr_group,
-        )
-    } else {
-        mir::ContinuationAdapterIdentity::direct(
-            source,
-            suspension_site,
-            success_signature,
-            failure_signature,
-            source_odr_group,
-        )
-    }
+    let work_signature = crate::coroutine_registry::drive_protocol_signature(
+        module,
+        protocol.work_run,
+        protocol.work,
+    );
+    let identity = mir::ContinuationAdapterIdentity::new(
+        source,
+        suspension_site,
+        success_signature,
+        failure_signature,
+        work_signature,
+        source_odr_group,
+    )
     .expect("a suspension site has one persistent continuation-adapter identity");
-    let class = generated_class(lowerer, name, fields, vec![continuation], Vec::new());
-    let resume = generate_resume_method(
+    let class = generated_class(lowerer, name, fields, vec![continuation, work], Vec::new());
+    let resume = generate_completion_method(
+        lowerer,
+        module,
+        class,
+        frame_class,
+        frame_layout,
+        state,
+        &latches.0,
+        false,
+        external,
+        work,
+        execution_resume,
+    );
+    let failure = generate_completion_method(
+        lowerer,
+        module,
+        class,
+        frame_class,
+        frame_layout,
+        state,
+        &latches.1,
+        true,
+        external,
+        work,
+        execution_resume,
+    );
+    let work_run = generate_work_method(
         lowerer,
         module,
         class,
         frame_class,
         frame_layout,
         destination,
+        &failure_slot,
+        &latches,
         outer_step,
         outer_continuation,
         outer_resume,
         outer_failure,
         driver,
         state,
-        result,
-        safe_latches.as_ref().map(|(success, _)| success.clone()),
-    );
-    let failure = generate_failure_method(
-        lowerer,
-        module,
-        class,
-        frame_class,
-        frame_layout,
-        failure_slot,
-        outer_step,
-        outer_continuation,
-        outer_resume,
-        outer_failure,
-        driver,
-        state,
-        safe_latches.as_ref().map(|(_, failure)| failure.clone()),
     );
     let mut slots = [
         (protocol.continuation_resume, resume),
@@ -144,15 +161,22 @@ pub(super) fn generate_adapter(
         (slot, mir::TableSlot::Function(function))
     });
     slots.sort_by_key(|(slot, _)| *slot);
-    lowerer.classes[class].itables = vec![mir::ItableRecord {
-        interface: continuation,
-        slots: slots.into_iter().map(|(_, target)| target).collect(),
-    }];
+    lowerer.classes[class].itables = vec![
+        mir::ItableRecord {
+            interface: continuation,
+            slots: slots.into_iter().map(|(_, target)| target).collect(),
+        },
+        mir::ItableRecord {
+            interface: work,
+            slots: vec![mir::TableSlot::Function(work_run)],
+        },
+    ];
     GeneratedAdapter {
         class,
         continuation,
         resume,
         resume_with_exception: failure,
+        work_run,
         identity,
     }
 }

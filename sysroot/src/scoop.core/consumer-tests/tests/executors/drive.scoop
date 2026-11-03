@@ -1,0 +1,287 @@
+package test.core.tests.executors
+
+import scoop.test.*
+
+private class QueueExecutor: CoroutineExecutor {
+    private val queue = ArrayList<() -> Unit>()
+    val parents = ArrayList<ExecutorTask?>()
+    var active: Int = 0
+    var submitted: Int = 0
+    var completed: Int = 0
+    val queued: Long get() = queue.size
+
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask {
+        parents.add(parent)
+        active = active + 1
+        return QueueTicket(this)
+    }
+
+    fun enqueue(work: () -> Unit) {
+        submitted = submitted + 1
+        queue.add(work)
+    }
+
+    fun runOne() {
+        queue.removeAt(0L)()
+    }
+}
+
+private class QueueTicket(val owner: QueueExecutor): ExecutorTask {
+    private var active: Boolean = true
+    public override val executor: CoroutineExecutor get() = owner
+
+    public override fun dispatch(work: CoroutineWork) {
+        assertTrue(active)
+        owner.enqueue { work.run() }
+    }
+
+    public override fun dispatchBlocking(work: BlockingWork) {
+        assertTrue(active)
+        owner.enqueue { work.run() }
+    }
+
+    public override fun complete() {
+        assertTrue(active)
+        active = false
+        owner.active = owner.active - 1
+        owner.completed = owner.completed + 1
+    }
+}
+
+private class DriveCompletion<T>(val onResult: (T) -> Unit = { _ -> }): Continuation<T> {
+    var value: T? = None
+    var failure: Throwable? = None
+    var calls: Int = 0
+    public override fun resume(value: T) {
+        calls = calls + 1
+        this.value = Some(value)
+        onResult(value)
+    }
+    public override fun resumeWithException(error: Throwable) {
+        calls = calls + 1
+        failure = Some(error)
+    }
+}
+
+private class DriveGate {
+    var waiter: Continuation<Int>? = None
+    suspend fun await(): Int = suspendCoroutine { next -> waiter = Some(next) }
+}
+
+private class DriveMarker(val number: Int)
+
+context(marker: DriveMarker)
+private fun markerNumber(): Int = marker.number
+
+private suspend fun callChain(gate: DriveGate, depth: Int): Int =
+    if (depth == 0)
+        gate.await()
+    else
+        callChain(gate, depth - 1) + 1
+
+@Test
+private class CoroutineExecutorDriveTest {
+    @Test
+    fun `external resumes queue once and internal completions share the drive`() {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val done =
+            DriveCompletion<Int> {
+                value ->
+                assertEquals(42, value)
+                assertEquals(7, markerNumber())
+                assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                assertEquals(1, executor.active)
+            }
+        context(DriveMarker(7)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    assertEquals(7, markerNumber())
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    callChain(gate, 32)
+                },
+                done
+            )
+        }
+        assertEquals(0, done.calls)
+        assertEquals(1L, executor.queued)
+        gcCollect()
+        context(DriveMarker(9)) {
+            executor.runOne()
+            assertEquals(9, markerNumber())
+            assertEquals(0L, executor.queued)
+            gcCollect()
+            gate.waiter!!.resume(10)
+            assertEquals(0, done.calls)
+            assertEquals(1L, executor.queued)
+            var duplicate = false
+            try {
+                gate.waiter!!.resume(99)
+            }
+            catch (error: IllegalStateException) {
+                duplicate = true
+            }
+            assertTrue(duplicate)
+            executor.runOne()
+            assertEquals(9, markerNumber())
+        }
+        assertEquals(1, done.calls)
+        assertEquals(42, done.value!!)
+        assertEquals(2, executor.submitted)
+        assertEquals(0, executor.active)
+        assertEquals(1, executor.completed)
+        assertTrue(
+            when (currentCoroutineExecutorOrNone()) {
+                case None -> true;
+                else -> false
+            }
+        )
+    }
+
+    @Test
+    fun `synchronous completion is consumed without a second dispatch`() {
+        val executor = QueueExecutor()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            executor,
+            { suspendCoroutine<Int> { next -> next.resume(42) } },
+            done
+        )
+        executor.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(1, done.calls)
+        assertEquals(1, executor.submitted)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `failed resume runs cleanup before releasing its registration`() {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val failure = Throwable()
+        val done = DriveCompletion<Int>()
+        val cleaned = AtomicBoolean(false)
+        startDispatchedCoroutine(
+            executor,
+            {
+                try {
+                    gate.await()
+                }
+                finally {
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    assertEquals(1, executor.active)
+                    cleaned.store(true)
+                }
+            },
+            done
+        )
+        executor.runOne()
+        gate.waiter!!.resumeWithException(failure)
+        assertFalse(cleaned.load())
+        assertEquals(1, executor.active)
+        executor.runOne()
+        assertTrue(cleaned.load())
+        assertSame(failure, done.failure!!)
+        assertEquals(1, done.calls)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `completion exceptions retire once and restore the caller context`() {
+        completionThrows(false)
+        completionThrows(true)
+    }
+
+    private fun completionThrows(delayed: Boolean) {
+        val executor = QueueExecutor()
+        val gate = DriveGate()
+        val failure = Throwable()
+        val done =
+            DriveCompletion<Int> {
+                _ ->
+                assertEquals(3, markerNumber())
+                assertEquals(1, executor.active)
+                throw failure
+            }
+        context(DriveMarker(3)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    if (delayed)
+                        gate.await()
+                    else
+                        42
+                },
+                done
+            )
+        }
+        var caught = false
+        context(DriveMarker(9)) {
+            try {
+                executor.runOne()
+                if (delayed) {
+                    assertEquals(0, done.calls)
+                    gate.waiter!!.resume(42)
+                    executor.runOne()
+                }
+            }
+            catch (error: Throwable) {
+                assertSame(failure, error);
+                caught = true
+            }
+            assertEquals(9, markerNumber())
+        }
+        assertTrue(caught)
+        assertEquals(1, done.calls)
+        assertEquals(0, executor.active)
+        assertEquals(1, executor.completed)
+        assertTrue(
+            when (done.failure) {
+                case None -> true;
+                else -> false
+            }
+        )
+    }
+
+    @Test
+    fun `nested starts inherit the executor and register a child`() {
+        val executor = QueueExecutor()
+        val child = DriveCompletion<Int>()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            executor,
+            {
+                startCoroutine(
+                    {
+                        assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(2, executor.active)
+                        40
+                    },
+                    child
+                )
+                assertEquals(1, executor.active)
+                child.value!! + 2
+            },
+            done
+        )
+        executor.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(2L, executor.parents.size)
+        assertTrue(
+            when (executor.parents[0L]) {
+                case None -> true;
+                else -> false
+            }
+        )
+        assertTrue(
+            when (executor.parents[1L]) {
+                case Some(_) -> true;
+                else -> false
+            }
+        )
+        assertEquals(1, executor.submitted)
+        assertEquals(2, executor.completed)
+        assertEquals(0, executor.active)
+    }
+}

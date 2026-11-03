@@ -367,9 +367,13 @@ CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置�
 
 语言规范 11.9.3 的执行协议使用 core 中实际声明的类型、普通 callable 与派发槽。HIR 的 core 协议及 LocalConcrete 协程协议完整携带执行所需的 typed 身份；跨 Cone 保存这些关系，MIR 不重新按名字搜索，也不依赖 hir-lower 实现。executor 队列、任务登记和结构化 Job 保持普通库职责；编译器负责进入/退出 execution、完整挂起握手、强制 yield 及已有 coroutine ABI。
 
+普通的 work／execution 方法沿既有普通依赖 callable 选择和接口派发路径导入；LocalConcrete 分别保存本地方法与依赖定义的 typed 身份及槽位，实际存在的协程协议沿既有 core function 选择路径请求机器依赖，MIR 消费相应本地或 external callee。不能把非泛型协议方法当作泛型模板重新发射到消费 Cone。泛型 Continuation／SuspendTask 等仍按实际类型实参具体化。
+
 direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；退役在 callee 返回前直接发布 Waiting 的路径。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。
 
 恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，公开外部恢复按 executor 队列调度。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
+
+执行协议的 core coroutine surface 在原有 13 个角色后保存 CoroutineWork、run callable／dispatch、CoroutineExecutionDriver、start callable／dispatch 与 resume callable／dispatch，共 21 项；这些身份由声明绑定，其他 stage 直接消费。内部启动 intrinsic 接受 execution、dispatched、task、completion 四个参数，先捕获绑定并分配 StartWork，再通过 execution.start 取得驱动权。读取当前 execution 的 intrinsic 使用 tag 36；读取已保存 TaskContext 的 execution 使用 typed MIR Context 操作。HIR core-bootstrap-interface／cross-cone-interface 分别升至 21／91。StartWork 的 generated nominal／callable 分别使用 tag 11／19，三个字段使用 generated field tag 17；continuation adapter 的 Run callable 使用 role tag 3，与 Success／Failure 分开。MIR／LIR identity-foundation 分别升至 10／14；HIR identity-foundation 保持 11。旧产物按普通版本边界重建，不保留双轨协议。
 
 生成类型、调用与字段角色按实际结构更新 coroutine metadata、core 协议、`.slib` profile 及 runtime ABI；不保留旧 adapter 或 TaskContext 布局的兼容分支。检查仍在实际声明、产物格式及 ABI 边界完成，不增加调度授权、独立证明记录或重复全图验证。
 
@@ -760,9 +764,9 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/19`、`cross-cone-interface/90`、`cross-cone-type-semantics/32` |
-| MIR / `org.scoop-lang.mir` | `identity-foundation/9`、`core-bootstrap-bridge/3`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
-| LIR / `org.scoop-lang.lir` | `identity-foundation/13`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/21`、`cross-cone-interface/91`、`cross-cone-type-semantics/32` |
+| MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
+| LIR / `org.scoop-lang.lir` | `identity-foundation/14`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
 
 本次原生函数指针调用演进采用上述 profile：HIR foundation 保存带模式的 exact/signature type key，core bootstrap 保存两个实际 intrinsic family 及转换，cross-cone interface/type-semantics 保存调用、转换与 TypeInfo；MIR 保存动态 native callee；LIR foundation/layout 保存 pointer destination 和完整 C ABI plan。旧 profile 按通常版本规则拒绝并重建，不从缺省字段把旧 `FunPtr` 猜成 NativeSafe，也不协商或混用两套类型身份。callable intrinsic tag 30 保留 main 的 `ThrowablePrintStackTrace`；`CompileEnv` 使用 tag 34，`IncludeStr`／`IncludeBytes`／`IncludeDir` 保持 31／32／33。
 

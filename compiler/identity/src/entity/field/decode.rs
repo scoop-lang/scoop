@@ -97,6 +97,7 @@ impl WireDecode for DecodedSourceFieldKey {
 pub enum DecodedGeneratedFieldKey {
     InterfaceDelegate(u32),
     ContextSlot(u32),
+    CoroutineStartSlot(u32),
     BoxPayload,
     ClosureCapture(DecodedPersistentId<PersistentLocalValueId>),
     CallableReferenceReceiver(DecodedPersistentId<PersistentLocalValueId>),
@@ -121,6 +122,12 @@ impl WireEncode for DecodedGeneratedFieldKey {
                 encode_tag(encoder, 16)?;
                 encoder.field(1)?;
                 encoder.unsigned(u64::from(*ordinal))
+            }
+            Self::CoroutineStartSlot(index) => {
+                encoder.map(2)?;
+                encode_tag(encoder, 17)?;
+                encoder.field(1)?;
+                encoder.unsigned(u64::from(*index))
             }
             Self::ContextSlot(index) => {
                 encoder.map(2)?;
@@ -171,6 +178,10 @@ impl WireDecode for DecodedGeneratedFieldKey {
             14 => {
                 expect_sum_length(decoder, fields, 2)?;
                 decoder.field(1, Decoder::u32).map(Self::ContextSlot)
+            }
+            17 => {
+                expect_sum_length(decoder, fields, 2)?;
+                decoder.field(1, Decoder::u32).map(Self::CoroutineStartSlot)
             }
             tag => Err(unknown_tag(decoder, tag)),
         }
@@ -358,6 +369,10 @@ where
                 FieldIdentityKey::callable_reference_receiver(owner, value)
                     .map_err(FieldIdentityResolutionError::Key)
             }),
+        DecodedGeneratedFieldKey::CoroutineStartSlot(index) => {
+            FieldIdentityKey::coroutine_start_slot(owner, index)
+                .map_err(FieldIdentityResolutionError::Key)
+        }
         DecodedGeneratedFieldKey::ContextSlot(index) => {
             FieldIdentityKey::context_slot(owner, index).map_err(FieldIdentityResolutionError::Key)
         }

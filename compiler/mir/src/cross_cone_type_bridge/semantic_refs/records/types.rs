@@ -35,7 +35,8 @@ impl MirTypeBridgeSemanticReferencesV1 {
                 GeneratedNominalKey::TaskContext(_) => {}
                 GeneratedNominalKey::ObjectBackingClass { object } => collector.nominal(*object)?,
                 GeneratedNominalKey::BoxedValue { payload } => collector.exact(*payload)?,
-                GeneratedNominalKey::CoroutineStep { result } => collector.exact(*result)?,
+                GeneratedNominalKey::CoroutineStep { result }
+                | GeneratedNominalKey::CoroutineStartWork { result } => collector.exact(*result)?,
                 GeneratedNominalKey::CoroutineSlot { value } => collector.exact(*value)?,
                 _ => return Err(MirTypeBridgeReferenceError::GeneratedExecutionGate),
             }

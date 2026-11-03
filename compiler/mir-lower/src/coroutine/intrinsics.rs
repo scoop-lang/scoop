@@ -1,7 +1,7 @@
 use super::*;
 
 #[allow(clippy::too_many_arguments)]
-pub(super) fn rewrite_intrinsic_site(
+pub(super) fn rewrite_suspension_site(
     lowerer: &mut Lowerer,
     module: &hir::Module,
     body: &mut mir::Body,
@@ -22,7 +22,7 @@ pub(super) fn rewrite_intrinsic_site(
     source: hir::CallableMaterialization,
     source_odr_group: Option<hir::OdrGroupId>,
     site: ResumeSite,
-    call: crate::cfg::SuspendCall,
+    kind: SuspendKind,
     post: mir::BlockId,
     unwind: Option<mir::BlockId>,
 ) -> GeneratedSite {
@@ -63,7 +63,8 @@ pub(super) fn rewrite_intrinsic_site(
         site.identity_path.clone(),
         site.state,
         &site.result,
-        Some((result_latch.clone(), failure_latch.clone())),
+        (result_latch.clone(), failure_latch.clone()),
+        matches!(&kind, SuspendKind::Intrinsic(_)),
     );
     let adapter_local = body.locals.alloc(local(
         &format!("$safe_adapter.{}", site.state),
@@ -112,16 +113,33 @@ pub(super) fn rewrite_intrinsic_site(
             slot_empty(&failure_latch),
         ],
     ));
-    let call = mir::Call {
-        target: call.method.call(*call.receiver),
-        args: vec![adapter.reference(adapter_local)],
+    let (call, returned) = match kind {
+        SuspendKind::Intrinsic(call) => (
+            mir::CallEffect::Unit(mir::Call {
+                target: call.method.call(*call.receiver),
+                args: vec![adapter.reference(adapter_local)],
+            }),
+            None,
+        ),
+        SuspendKind::Call(mut call) => {
+            let ty = callee_return_type(lowerer, &call.target);
+            let result = body
+                .locals
+                .alloc(local(&format!("$call_step.{}", site.state), ty.clone()));
+            call.args.push(adapter.reference(adapter_local));
+            (
+                mir::CallEffect::Value {
+                    destination: result,
+                    call,
+                },
+                Some((result, ty)),
+            )
+        }
     };
     let register_call = body.blocks.alloc(mir::BasicBlock {
         terminator_origin: Default::default(),
         name: format!("coroutine.register.{}", site.state),
-        statements: vec![statement(mir::StatementKind::Call(mir::CallEffect::Unit(
-            call,
-        )))],
+        statements: vec![statement(mir::StatementKind::Call(call))],
         terminator: mir::Terminator::Unreachable,
         unwind: None,
     });
@@ -512,7 +530,72 @@ pub(super) fn rewrite_intrinsic_site(
         },
         unwind: None,
     });
-    body.blocks[register_call].terminator = mir::Terminator::Goto(register_return);
+    body.blocks[register_call].terminator = match returned {
+        None => mir::Terminator::Goto(register_return),
+        Some((result, ty)) => {
+            let step = lowerer.coroutines.step_metadata_for_type(&ty);
+            let completed = step.completed();
+            let payload = step.completed_payload();
+            let ready = body.blocks.alloc(mir::BasicBlock {
+                terminator_origin: Default::default(),
+                name: format!("coroutine.returned_value.{}", site.state),
+                statements: vec![
+                    field_set(
+                        mir::Expr::local(adapter_local, mir::Type::Class(adapter.class)),
+                        result_latch.field,
+                        slot_value(
+                            &result_latch,
+                            mir::Expr::new(
+                                site.result.clone(),
+                                mir::ExprKind::EnumField {
+                                    operand: Box::new(mir::Expr::local(result, ty.clone())),
+                                    variant: payload.variant().variant_index(),
+                                    index: payload.field_index(),
+                                },
+                            ),
+                        ),
+                    ),
+                    atomic_field_store(
+                        mir::Expr::local(adapter_local, mir::Type::Class(adapter.class)),
+                        1,
+                        adapter_state(ADAPTER_LATCHED_SUCCESS),
+                    ),
+                ],
+                terminator: mir::Terminator::Goto(register_return),
+                unwind,
+            });
+            let claim = body.blocks.alloc(mir::BasicBlock {
+                terminator_origin: Default::default(),
+                name: format!("coroutine.returned_claim.{}", site.state),
+                statements: vec![statement(mir::StatementKind::ValDecl {
+                    local: registration_claim,
+                    init: atomic_field_compare_exchange(
+                        mir::Expr::local(adapter_local, mir::Type::Class(adapter.class)),
+                        1,
+                        adapter_state_value(ADAPTER_REGISTERING),
+                        adapter_state_value(ADAPTER_COMPLETING_SUCCESS),
+                    ),
+                })],
+                terminator: mir::Terminator::Branch {
+                    cond: machine_eq(
+                        mir::Expr::local(
+                            registration_claim,
+                            mir::Type::MachineScalar(mir::MachineScalarKind::CoroutineAdapterState),
+                        ),
+                        adapter_state_value(ADAPTER_REGISTERING),
+                    ),
+                    then_block: ready,
+                    else_block: registration_wait,
+                },
+                unwind,
+            });
+            mir::Terminator::Branch {
+                cond: is_completed(result, ty, completed),
+                then_block: claim,
+                else_block: register_return,
+            }
+        }
+    };
     body.blocks[register_call].unwind = Some(registration_failure);
 
     let mut resume_statements = Vec::new();

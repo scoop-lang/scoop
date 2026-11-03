@@ -143,6 +143,7 @@ fn every_field_shape_resolves_through_its_canonical_owner_key() {
         GeneratedNominalKey::ObjectBackingClass {
             object: PersistentTypeId([7; 32]),
         },
+        GeneratedNominalKey::CoroutineStartWork { result: exact },
     ];
     let fields = vec![
         FieldIdentityKey::source_declared(
@@ -172,6 +173,9 @@ fn every_field_shape_resolves_through_its_canonical_owner_key() {
         FieldIdentityKey::object_backing_property(&generated[5], property).unwrap(),
         FieldIdentityKey::object_interface_delegate(&generated[5], 0).unwrap(),
         FieldIdentityKey::object_interface_delegate(&generated[5], 1).unwrap(),
+        FieldIdentityKey::coroutine_start_slot(&generated[6], 0).unwrap(),
+        FieldIdentityKey::coroutine_start_slot(&generated[6], 1).unwrap(),
+        FieldIdentityKey::coroutine_start_slot(&generated[6], 2).unwrap(),
     ];
     let mut resolver = Resolver {
         source: vec![source_struct, source_class],
@@ -224,8 +228,8 @@ fn field_decoder_rejects_unknown_outer_and_generated_tags() {
     let outer = decode_canonical::<DecodedFieldIdentityKey>(b"\xa1\x00\x03").unwrap_err();
     assert_eq!(outer.kind(), &WireErrorKind::UnknownTag { tag: 3 });
 
-    let generated = decode_canonical::<DecodedGeneratedFieldKey>(b"\xa1\x00\x11").unwrap_err();
-    assert_eq!(generated.kind(), &WireErrorKind::UnknownTag { tag: 17 });
+    let generated = decode_canonical::<DecodedGeneratedFieldKey>(b"\xa1\x00\x12").unwrap_err();
+    assert_eq!(generated.kind(), &WireErrorKind::UnknownTag { tag: 18 });
 }
 
 fn source_nominal(

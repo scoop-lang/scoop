@@ -81,6 +81,7 @@ pub(super) fn expected_operation_owner(
         | IntrinsicFunctionKind::ThrowablePrintStackTrace
         | IntrinsicFunctionKind::CoroutineStart
         | IntrinsicFunctionKind::CoroutineSuspend
+        | IntrinsicFunctionKind::CoroutineCurrentExecution
         | IntrinsicFunctionKind::CurrentSourceLocation
         | IntrinsicFunctionKind::CompileEnv
         | IntrinsicFunctionKind::IncludeStr

@@ -38,6 +38,13 @@ impl FunctionLowerer<'_> {
             Op::Current => Ok(self.context_current()),
             Op::Snapshot => self.context_current_field(0),
             Op::CurrentExecution => self.context_current_field(1),
+            Op::Execution { task } => {
+                let task = self.lower_expr(task)?;
+                let storage = self.context_storage(mir::ContextStorageRole::Task);
+                let (fields, _, _) = context_object_shape(self.context, storage);
+                let value = self.load_at_offset(task, fields[1].offset, lir::MANAGED_PTR);
+                Ok(lir::Value::Temp(value))
+            }
             Op::Fork { root, execution } => {
                 let root = self.lower_expr(root)?;
                 let execution = match execution {

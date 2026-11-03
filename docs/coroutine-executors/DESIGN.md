@@ -35,7 +35,7 @@
 关键实现入口：
 
 - [core 协程入口](../../sysroot/src/scoop.core/src/coroutine.scoop)、[结构化并发](../../sysroot/src/scoop.core/src/coroutine_scope.scoop)、[可取消等待](../../sysroot/src/scoop.core/src/cancellable_coroutine.scoop)。
-- [直接 suspend 调用](../../compiler/mir-lower/src/coroutine/sites.rs)、[原语挂起 lowering](../../compiler/mir-lower/src/coroutine/intrinsics.rs)、[成功恢复](../../compiler/mir-lower/src/coroutine/adapters/resume.rs)、[启动 helper](../../compiler/mir-lower/src/coroutine_registry/start.rs)。
+- [suspend 调用](../../compiler/mir-lower/src/coroutine/sites.rs)、[挂起握手 lowering](../../compiler/mir-lower/src/coroutine/intrinsics.rs)、[完成发布](../../compiler/mir-lower/src/coroutine/adapters/completion.rs)、[恢复驱动](../../compiler/mir-lower/src/coroutine/adapters/drive.rs)、[启动 helper](../../compiler/mir-lower/src/coroutine_registry/start.rs)。
 - [LoopOwner](../../sysroot/src/scoop.asyncio/src/loop_owner.scoop)、[loop 驱动](../../sysroot/src/scoop.asyncio/src/loop_drive.scoop)、[I/O 操作仲裁](../../sysroot/src/scoop.asyncio/src/loop_operation.scoop)。
 - [managed Thread](../../sysroot/src/scoop.platform/src/concurrent/thread.scoop)、[阻塞条件变量](../../sysroot/src/scoop.platform/src/concurrent/condition.scoop)。
 - [NativeWork 资源](../../sysroot/src/scoop.asyncio/src/native/work.scoop)、[NativeWork 提交](../../sysroot/src/scoop.asyncio/src/native_work.scoop)、[Linux 工作池](../../sysroot/src/scoop.asyncio/native/linux/work.c)、[TLS 的实际调用方](../../sysroot/src/scoop.tls.asyncio/src/context.scoop)。

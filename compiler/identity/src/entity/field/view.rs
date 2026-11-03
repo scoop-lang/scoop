@@ -84,6 +84,7 @@ impl GeneratedFieldKey {
         match self.0 {
             GeneratedFieldKeyKind::ObjectBackingProperty(property) => Some(property),
             GeneratedFieldKeyKind::ContextSlot(_)
+            | GeneratedFieldKeyKind::CoroutineStartSlot(_)
             | GeneratedFieldKeyKind::InterfaceDelegate(_)
             | GeneratedFieldKeyKind::BoxPayload
             | GeneratedFieldKeyKind::ClosureCapture(_)
