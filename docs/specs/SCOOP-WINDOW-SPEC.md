@@ -4,6 +4,8 @@
 
 2026-11-01 补充第 4.1～4.3 节的多窗口、模态和窗框能力边界；本次是文档更新，没有新增窗口 API 或运行验收结论。
 
+后续公共键位、编辑命令、剪贴板与 IME 合同的演进见 [控件基础平台设计](../ui/component-foundations/PLATFORM.md)，当前仅完成设计；本文件中的现行合同在对应实施批次开始时先行修订。
+
 ## 1. 分层与目标
 
 window 依赖 core／std／platform；window.asyncio 另依赖 asyncio。Darwin AArch64／amd64 的 AppKit 后端和三个 Windows x86_64 target 的 Win32 后端已实现；Windows 窗口 API 要求 Windows 10 1703 起的 Per-Monitor V2。Linux Wayland／X11 及其他后端留待后续；不添加没有后端的 native handle 变体或假窗口实现。两个库及其原生薄层、测试、示例均以普通 Cone 组织，窗口逻辑不进入编译器或 runtime。

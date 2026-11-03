@@ -857,7 +857,14 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - LayoutMetrics 返回尺寸与可选基线；已测量子项允许不放置，被段落截断时保留挂载和 State，成功呈现后退出输入与焦点，恢复显示不重新构造。
 - window 已支持多窗口和装饰／缩放开关，UI 采用每窗口独立根；原生模态的窗口归属、输入范围与焦点恢复，以及自绘窗框的系统拖移／缩放仍须先补 window 能力，见[窗口规范第 4.1～4.3 节](specs/SCOOP-WINDOW-SPEC.md#41-多窗口)。这些能力单独接入，不作为普通自绘组件的交付前置。
 - 现有基础库已直接改名为 `scoop.surface`，公开类型、原生符号、测试和示例同步迁移。SurfaceContent 持有并安全关闭真实内容根；框架独立自绘闭环、公共段落与编辑、控件库、布局及生命周期组合均已交付，不增加 UI 专用编译器或 runtime 通道。
-- [接收者 DSL builder](ui/DSL-BUILDERS.md)的[迁移计划](ui/DSL-MIGRATION.md)已开始分批实施：D0a 已将 receiver function 隐式绑定外层 `this` 改为编译错误，允许显式 receiver 与普通词法捕获；JSON 已迁移为 jsonObject／jsonArray，URL 已迁移为 url／Url.copy 接收者构造入口，Path 已迁移为 path 作用域构造且追加操作返回 Unit，纯文本／文本样式已迁移为 styledText／textSpan／textStyle／spanStyle／paragraphStyle，公共 Style／StyleOverride、四类部件 Options、控件局部样式与完整主题已改用接收者工厂和 copy 配置，三套主题生产者已迁移，D1 文本和样式基础完成；URL 所涉及的普通认证 fixture 已先迁入 scoop.test。继续按新风格直接重设计 UI、行内 View 装配、交互配置及 HTTP 和同类应用配置 API。StringBuilder 和 ByteArrayBuilder 排除在迁移之外。Cone 改动只用 scoop.test 验证；受影响的 fixture 先评估迁移，仅在确有必要保留时更新。各批同步更新规范、实现、调用方与测试，删除被替换的旧签名，不保留历史兼容层；继续用普通库能力生成完整描述，复用实际状态与资源生命周期。`@DslMarker` 仍列为后续能力，仅限制 receiver 查找以减少误用，不改变 API 功能；全局禁止规则已覆盖的限制不重复实现，加入标记不作为本次迁移前置。
+- [接收者 DSL builder](ui/DSL-BUILDERS.md)的[迁移计划](ui/DSL-MIGRATION.md)已完成，2026-11-04 完成本机验证。UI、文本／样式／主题、交互配置及 JSON／URL／Path、HTTP 和同类应用配置已按接收者构造风格同步规范、实现、调用方与必要测试；旧签名直接移除。配置代码不隐式访问外层 receiver，显式 receiver 和普通词法捕获仍可用。StringBuilder／ByteArrayBuilder 保留原有增量构建方式；后续控件基础沿用已交付 DSL，不重复迁移。`@DslMarker` 仍是后续的查找约束，不作为 API 能力的前置。
+
+### UI 跨平台抽象与控件基础补齐（设计完成，未实施）
+
+- [设计](ui/component-foundations/DESIGN.md)承接已完成的基础交互 A–F 与接收者 DSL 迁移。先完成 window／surface 等基础库的公共平台合同和 UI 共用能力，再实施 shadcn 当前目录中排除 Code Block／Native Select 后的 64 个控件。
+- 保持 graphics、graphics.text、surface、window／window.asyncio 的分层；Primary／Super、键位标签、编辑命令、剪贴板和 IME 由底层抽象。UI、component、style、主题及后续控件使用同一份平台无关源码，不增加各自的 OS native 实现。
+- 按平台合同、重新测量与 Flex／Wrap／Grid、方向、激活／拖动、候选项／悬浮、弹层退出、编辑策略／显示投影、装饰／图像、阅读位置及组合验收分批推进，详见[实施记录](ui/component-foundations/PROGRESS.md)。各批先改所属 spec，再改实现、调用方和必要测试；不保留旧 API 兼容路径。
+- 本轮实现与验证使用 macOS aarch64，最后补验 x86_64 Rosetta；Windows native 由另一分支补齐共同合同后接入。accessibility、原生控件交互、控件皮肤和业务模型不属于本轮基础交付。
 
 ### UI 与图形后续增强（调研结论，未实施）
 

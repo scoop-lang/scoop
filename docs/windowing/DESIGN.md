@@ -1,5 +1,7 @@
 # 桌面窗口与事件库设计
 
+后续控件基础所需的公共键位、编辑命令、剪贴板与 IME 合同整理见 [跨平台抽象设计](../ui/component-foundations/PLATFORM.md)。该轮设计于 2026-11-04 完成，尚未实施；当前先做 macOS，Windows 分支随后满足同一公共合同，上层 UI 不另写平台代码。
+
 状态：基础架构、macOS 与 Windows GUI 骨架已实现。更新：2026-11-01，补充多窗口、模态与窗框边界，未新增实现。Windows 阶段复用两个普通 Cone，交付窗口、属性、基础输入／IME、显示器、native lease、DXGI renderer 和 asyncio；Linux Wayland／X11 及其他后端仍留待后续。实现、验收边界与硬件交互限制见 [PROGRESS.md](PROGRESS.md)，使用方式见[窗口库 README](../../sysroot/src/scoop.window/README.md)。
 
 本轮按 winit 的职责搭建可供 GUI 使用的骨架：真实窗口／主循环、显式生命周期与 proxy、基础窗口属性、DPI／显示器快照、键盘／指针／滚轮／文本输入、native lease、renderer 和 asyncio 接入。winit 的完整能力地图用于确定边界和后续扩展方向，不要求本轮复制它的全部平台扩展。全屏控制／显示模式切换、全局原始设备监听、触摸／高级手势、光标捕获、文件拖放及平台专有的复杂窗口交互分批补充；未实施项不以 Unsupported 伪装成平台不支持。控件、布局、菜单体系和应用编辑器仍由上层 GUI 实现。

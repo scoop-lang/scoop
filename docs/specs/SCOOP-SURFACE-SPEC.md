@@ -1,5 +1,7 @@
 # Scoop Surface 基础库规范
 
+后续共享 shortcut／caret 和输入序列归属的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，当前仅完成设计；下文仍描述现行合同，按对应实施批次先行修订。
+
 状态：第一期共享基础层及 macOS 后端已实现。更新：2026-11-03。本文件规定 window 输入前置、graphics 绘图／文本、Surface 宿主、动画和区域输入的当前合同；各项验证、执行环境和未测边界见 [实施记录](../surface/PROGRESS.md)。架构、平台接入和实施顺序见 [Surface 设计](../surface/DESIGN.md)。
 
 ## 1. 范围与依赖
