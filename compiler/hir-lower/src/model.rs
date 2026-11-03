@@ -326,6 +326,7 @@ pub(crate) struct ReceiverBinding {
 pub(crate) struct ReceiverScope {
     pub(crate) label: Option<String>,
     pub(crate) receiver: Option<ReceiverBinding>,
+    pub(crate) blocks_outer_lookup: bool,
 }
 
 #[derive(Clone)]

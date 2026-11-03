@@ -115,6 +115,7 @@ impl Lowerer {
         Ok(probes
             .into_iter()
             .map(|probe| NamedApplicable {
+                implicit_receiver: None,
                 commit: match probe {
                     NamedFunctionLikeProbe::ImportedDependency(_) => {
                         NamedFunctionCommit::ImportedDependency

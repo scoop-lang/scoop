@@ -202,6 +202,12 @@ impl Lowerer {
                                 self.diagnose_value_layer(name, layer.kind, &origins);
                                 return ImplicitValueSelection::Failed;
                             }
+                            if self
+                                .require_implicit_receiver(binding.binding, name.span)
+                                .is_none()
+                            {
+                                return ImplicitValueSelection::Failed;
+                            }
                             state.observe_import_lookup(name, layer.kind);
                             *self = state;
                             sink.extend(layer_sink);

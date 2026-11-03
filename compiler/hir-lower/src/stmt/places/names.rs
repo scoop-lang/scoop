@@ -106,7 +106,7 @@ impl Lowerer {
             if let Some((property, owner, ty)) =
                 self.find_accessible_nominal_property(receiver_ty, &name.text)
             {
-                let receiver = self.lower_receiver_binding(binding, name.span)?;
+                let receiver = self.lower_implicit_receiver_binding(binding, name.span)?;
                 let read = self.lower_property_read(
                     property,
                     Some(owner),
@@ -129,7 +129,7 @@ impl Lowerer {
                 .resolve_imported_member_property(receiver_ty, name)
                 .ok()?
             {
-                let receiver = self.lower_receiver_binding(binding, name.span)?;
+                let receiver = self.lower_implicit_receiver_binding(binding, name.span)?;
                 return self.imported_member_place(property, receiver, name, name.span);
             }
         }

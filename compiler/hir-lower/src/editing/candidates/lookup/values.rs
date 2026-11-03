@@ -54,6 +54,9 @@ impl Lowerer {
             .collect::<Vec<_>>();
         if !extension_properties.is_empty() {
             for binding in self.implicit_receivers() {
+                if !self.implicit_receiver_is_accessible(binding.binding) {
+                    continue;
+                }
                 let mut state = self.clone();
                 let receiver = state
                     .lower_receiver_binding(binding, name.span)

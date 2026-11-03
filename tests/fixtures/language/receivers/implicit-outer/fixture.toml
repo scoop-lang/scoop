@@ -1,0 +1,16 @@
+schema = 1
+name = "receivers-implicit-outer"
+root = "program.scoop"
+inputs = ["program.scoop"]
+tools = ["scoop", "scoopc"]
+tags = ["receivers", "negative", "language"]
+requires_target_execution = false
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "--release", {"each" = "${link_args}"}, "${root}", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--message-format", "json"]
+exit = 1
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = {file = "diagnostics.json"}

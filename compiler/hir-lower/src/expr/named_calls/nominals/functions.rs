@@ -59,6 +59,7 @@ impl Lowerer {
         applicable: &mut Vec<NamedApplicable>,
         failures: &mut Vec<Box<Lowerer>>,
     ) {
+        let implicit_receiver = receiver.map(|receiver| receiver.binding);
         if let NamedCallTarget::Function(function) = binding.target {
             let mut state = self.clone();
             let (candidate, receiver, commit) = if let Some(receiver) = receiver {
@@ -100,6 +101,7 @@ impl Lowerer {
                 Ok(probe) => applicable.push(NamedApplicable {
                     probe: NamedFunctionLikeProbe::Callable(Box::new(probe)),
                     commit,
+                    implicit_receiver,
                 }),
                 Err(failure) => failures.push(failure),
             }
@@ -142,6 +144,7 @@ impl Lowerer {
             Ok(probe) => applicable.push(NamedApplicable {
                 probe: NamedFunctionLikeProbe::ImportedDependency(Box::new(probe)),
                 commit: NamedFunctionCommit::ImportedDependency,
+                implicit_receiver,
             }),
             Err(failure) => failures.push(failure),
         }

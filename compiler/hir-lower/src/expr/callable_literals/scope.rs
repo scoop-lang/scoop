@@ -112,7 +112,7 @@ impl Lowerer {
         if let Some(ty) = receiver_ty {
             Some(self.bind_callable_receiver(ty, label.map(|label| label.text.clone()), span))
         } else {
-            self.push_receiver_scope(label.map(|label| label.text.clone()), None);
+            self.push_receiver_scope(label.map(|label| label.text.clone()), None, false);
             None
         }
     }

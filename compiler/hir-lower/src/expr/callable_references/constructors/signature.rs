@@ -106,12 +106,19 @@ impl ConstructorReferenceDeclaration {
                 .nominal_application(formal)
                 .expect("an inner constructor has a nominal outer type")
                 .template;
+            let diagnostics_before = state.diagnostics.len();
             let actual = match &candidate.enclosing {
                 Some(receiver) => state.enclosing_receiver_application(receiver.clone(), required),
                 None => state.implicit_enclosing_instance(required, span),
             }
             .ok_or_else(|| {
-                "inner constructor reference requires its declaring outer instance".to_owned()
+                state.diagnostics[diagnostics_before..]
+                    .first()
+                    .map(|diagnostic| diagnostic.message.clone())
+                    .unwrap_or_else(|| {
+                        "inner constructor reference requires its declaring outer instance"
+                            .to_owned()
+                    })
             })?;
             Some((actual, formal))
         } else {

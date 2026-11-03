@@ -5,18 +5,26 @@ use super::*;
 impl Lowerer {
     pub(super) fn probe_named_value_member(
         &self,
-        property: &SuccessfulExprLayer,
+        property: &NamedValueLayer,
         call: CallSite<'_>,
         expected: Option<TypeId>,
     ) -> PropertyExtensionInvokeOutcome {
-        match property.state.probe_property_member_invoke_partition(
-            property.expression.clone(),
+        match property.read.state.probe_property_member_invoke_partition(
+            property.read.expression.clone(),
             call,
             expected,
             false,
         ) {
             PropertyExtensionInvokeOutcome::Resolved(mut layer) => {
-                let mut setup = property.sink.clone();
+                if let Some(binding) = property.origin.implicit_receiver()
+                    && layer
+                        .state
+                        .require_implicit_receiver(binding, property.read.expression.span)
+                        .is_none()
+                {
+                    return PropertyExtensionInvokeOutcome::Failed(layer.state);
+                }
+                let mut setup = property.read.sink.clone();
                 setup.append(&mut layer.sink);
                 layer.sink = setup;
                 PropertyExtensionInvokeOutcome::Resolved(layer)

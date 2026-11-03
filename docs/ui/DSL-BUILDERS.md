@@ -89,9 +89,9 @@ Point、Size、Rect、Duration 等小值构造已经简洁。网络发送、文�
 
 ## 6. 与 Kotlin 的范围差异
 
-当前 Scoop 的隐式接收者从内向外查找，语言没有 `@DslMarker`。因此，在叶子 `label { ... }` 内仍可能找到外层容器的 `button` 或布局属性，意外把内容添加到外层。普通嵌套写法可以在库层实现，但禁止这种外层隐式访问需要真实的语言作用域规则。
+Scoop 还没有 `@DslMarker`。DSL 迁移的 D0a 已加入 receiver function 边界规则，叶子 `label { ... }` 不能隐式借用外层容器的 `button` 或布局属性。普通嵌套写法由库实现，外层隐式访问由编译器名称绑定规则限制。
 
-迁移计划新增 D0a：receiver function 已有自己的 receiver 时，裸成员访问隐式绑定外层 `this` 直接报编译错误，不设警告期。外层组件与外层 builder 一视同仁，receiver function 内定义的普通回调也不能恢复越过该边界的隐式查找。显式 `this@Outer`／`this@outer`、保存的对象引用和普通词法捕获仍可用；没有经过 receiver function 边界的普通闭包不受这条新增限制。完整规则及实现、验收范围见[迁移计划第 1.4 节](DSL-MIGRATION.md#14-禁止隐式使用外层-receiver)。当前编译器尚未实施此规则，先修订语言规范与 HIR，再按新规则迁移 API。
+D0a 的规则是：receiver function 已有自己的 receiver 时，裸成员访问隐式绑定外层 `this` 直接报编译错误，不设警告期。外层组件与外层 builder 一视同仁，receiver function 内定义的普通回调也不能恢复越过该边界的隐式查找。显式 `this@Outer`／`this@outer`、保存的对象引用和普通词法捕获仍可用；没有经过 receiver function 边界的普通闭包不受这条新增限制。完整规则及实现、验收范围见[迁移计划第 1.4 节](DSL-MIGRATION.md#14-禁止隐式使用外层-receiver)和[语言规范 §8.1.2](../specs/SCOOP-SPEC.md#812-lambda-与匿名函数)。
 
 `@DslMarker` 仍列为后续加入的能力，仅用于限制 receiver 查找、减少误用，不改变已经设计好的 API 功能。上述全局禁止规则比按标记限制更强，已经覆盖此处讨论的外层 receiver 误用；后续标记设计应说明与全局规则的关系，不放宽这条规则，也不为相同限制再增加一套检查。加入标记不作为本次迁移前置。
 

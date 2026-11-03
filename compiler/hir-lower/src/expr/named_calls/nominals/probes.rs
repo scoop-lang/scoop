@@ -56,6 +56,7 @@ impl Lowerer {
                         );
                     }
                     applicable.push(NamedApplicable {
+                        implicit_receiver: None,
                         probe: NamedFunctionLikeProbe::Nominal(Box::new(probe)),
                         commit: NamedFunctionCommit::Nominal,
                     });

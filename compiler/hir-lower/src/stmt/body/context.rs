@@ -110,6 +110,7 @@ impl Lowerer {
                     binding: self.locals[local].binding,
                     ty: host_ty,
                 }),
+                extension_receiver.is_some(),
             );
             params.push(hir::Param {
                 name: "this".to_string(),
@@ -118,7 +119,7 @@ impl Lowerer {
             });
         }
         if extension_receiver.is_none() {
-            self.push_receiver_scope(Some(name.to_owned()), None);
+            self.push_receiver_scope(Some(name.to_owned()), None, false);
         }
         for (index, param) in sig.params.iter().enumerate() {
             if self.scopes.is_declared_here(&param.name.text) {

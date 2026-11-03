@@ -13,6 +13,9 @@ impl Lowerer {
                 (NamedCallTarget::Function(function), _) => {
                     if self.extension_receivers.contains_key(function) {
                         for receiver in self.implicit_receivers() {
+                            if !self.implicit_receiver_is_accessible(receiver.binding) {
+                                continue;
+                            }
                             candidates.add(self.editing_source_call_candidate(
                                 call,
                                 &crate::CallableCandidate::function(*function, Vec::new()),
@@ -49,6 +52,9 @@ impl Lowerer {
                     };
                     if declaration.interface().owner() == hir::PublicDeclarationOwnerV1::Extension {
                         for receiver in self.implicit_receivers() {
+                            if !self.implicit_receiver_is_accessible(receiver.binding) {
+                                continue;
+                            }
                             candidates.add(self.editing_imported_call_candidate(
                                 call,
                                 &declaration,

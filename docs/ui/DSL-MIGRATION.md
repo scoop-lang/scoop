@@ -40,7 +40,7 @@
 
 ### 1.4 禁止隐式使用外层 receiver
 
-采用编译错误规则，不设置警告期或可关闭的兼容模式：receiver function 已有自己的 receiver 时，裸成员访问不得再隐式绑定外层 `this`。这同时适用于外层组件实例和外层 DSL builder，不依赖它们是否带 `@DslMarker`。当前语言规范及编译器仍允许此类访问；D0a 先修改规范与实现，再按新规则验收 API 迁移。
+采用编译错误规则，不设置警告期或可关闭的兼容模式：receiver function 已有自己的 receiver 时，裸成员访问不得再隐式绑定外层 `this`。这同时适用于外层组件实例和外层 DSL builder，不依赖它们是否带 `@DslMarker`。D0a 已在语言规范、HIR 与编辑查询中实施此规则，后续 API 迁移按新规则验收。
 
 - 在 receiver lambda、receiver 匿名函数及具有相同接收者边界的扩展函数中，隐式访问使用该边界内的 receiver。进入嵌套 receiver function 后，前一层 receiver 成为必须显式引用的外层；普通与 suspend 形式一致。
 - 对实际选中的接收者检查绑定身份，而不是只比较类型。属性读取、赋值／复合赋值、方法与扩展调用、函数属性 invoke，以及需要隐式外层实例的引用／构造入口都遵守这条规则。诊断指向发生隐式使用的源码位置，并提示显式 receiver。
@@ -203,7 +203,7 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 
 成员／顶层工厂与 alias 的组合放在真实跨 Cone 的 scoop.test 消费测试中。D0a 是编译器语言规则变更，其拒绝编译与诊断位置无法由 scoop.test 断言，因此保留代表性 expected-error fixture，覆盖外层 receiver 的隐式读取、赋值／复合赋值、方法／扩展／函数属性调用和必要的实例绑定；同类型不同 receiver、普通／suspend receiver、嵌套普通回调及泛型／跨 Cone 消费按实际语言规则覆盖。显式 `this@label`、对象别名、普通词法捕获和已有函数值适配为正例。
 
-现有 [nested](../../tests/fixtures/language/receivers/nested/program.scoop)、[lookup](../../tests/fixtures/language/receivers/lookup/program.scoop)、[initializers](../../tests/fixtures/language/receivers/initializers/program.scoop) 等 receiver fixture 含旧规则允许的隐式外层使用，修改前先确认每项断言的职责：普通行为迁到 scoop.test；编译器专测确需保留时才改为显式访问，并保留其必要功能断言。补充 HIR 与编辑查询的定向回归，验证诊断位置、候选探测不误报及两类入口一致；不以修改捕获或 runtime 协议实现此规则。后续 `@DslMarker` 不重复这些已覆盖的检查。
+原 nested、lookup、initializers 三组 receiver fixture 只断言运行结果，已将其嵌套接收者、成员优先级、扩展属性与初始化行为迁入 [receivers 测试 Cone](../../tests/cones/receivers/README.md)，并增加跨 Cone 与函数值适配覆盖。隐式外层使用的编译错误和诊断位置保留在 [implicit-outer fixture](../../tests/fixtures/language/receivers/implicit-outer/program.scoop)。HIR 与编辑查询的定向回归验证候选探测不误报、选中外层成员不能回退改绑及两类入口一致；不修改捕获或 runtime 协议。后续 `@DslMarker` 不重复这些已覆盖的检查。
 
 ### 7.2 执行方式
 
@@ -228,3 +228,4 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 | 日期 | 批次 | 完成内容与验证 |
 | --- | --- | --- |
 | 2026-11-03 | D0 公共约定 | 接收者构造入口、必需参数、快照、覆盖、子项与显式外层引用已写入 API 风格规范；StringBuilder／ByteArrayBuilder 排除，Cone 验证和 fixture 先评估规则已同步。各领域完整签名随对应批次先行落实；此批只改文档。 |
+| 2026-11-03 | D0a 外层 receiver | 语言规范、HIR 实际绑定和编辑查询统一禁止隐式外层 receiver；显式捕获与函数值适配保留。三组运行行为 fixture 迁入 receivers 测试 Cone；编译诊断保留必要 fixture。Rust 格式化与 workspace clippy 通过，HIR 全量 2,133 项及后补定向组 13 项通过；本机 aarch64 macOS release 的 7 项 scoop.test、47 个 receiver fixture 通过。未改 LIR／codegen。 |

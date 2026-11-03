@@ -11,6 +11,16 @@ pub(in crate::expr) enum PropertyExtensionInvokeOrigin {
     NamedValue(ValueTarget),
     DependencyValue(hir::ImportedTarget),
     Extension(ExtensionPropertyIdentity),
+    ImplicitExtension(ExtensionPropertyIdentity, hir::BindingId),
+}
+
+impl PropertyExtensionInvokeOrigin {
+    pub(in crate::expr) fn implicit_receiver(self) -> Option<hir::BindingId> {
+        match self {
+            Self::ImplicitMember(binding) | Self::ImplicitExtension(_, binding) => Some(binding),
+            _ => None,
+        }
+    }
 }
 
 pub(in crate::expr) struct PropertyExtensionInvokeInput {
@@ -146,7 +156,11 @@ impl Lowerer {
                         ) {
                             Ok(probe) => {
                                 probes.push(NamedFunctionLikeProbe::Callable(Box::new(probe)));
-                                setups.push(input.property.sink.clone());
+                                setups.push((
+                                    input.property.sink.clone(),
+                                    input.origin,
+                                    input.property.expression.span,
+                                ));
                             }
                             Err(failure) => {
                                 first_failure.get_or_insert(failure);
@@ -170,7 +184,11 @@ impl Lowerer {
                                 probes.push(NamedFunctionLikeProbe::ImportedDependency(Box::new(
                                     probe,
                                 )));
-                                setups.push(input.property.sink.clone());
+                                setups.push((
+                                    input.property.sink.clone(),
+                                    input.origin,
+                                    input.property.expression.span,
+                                ));
                             }
                             Err(failure) => {
                                 first_failure.get_or_insert(failure);
@@ -195,7 +213,14 @@ impl Lowerer {
             return PropertyExtensionInvokeOutcome::Failed(Box::new(state));
         };
         let probe = probes.swap_remove(winner);
-        let mut layer_sink = setups.swap_remove(winner);
+        let (mut layer_sink, origin, receiver_span) = setups.swap_remove(winner);
+        if let Some(binding) = origin.implicit_receiver()
+            && state
+                .require_implicit_receiver(binding, receiver_span)
+                .is_none()
+        {
+            return PropertyExtensionInvokeOutcome::Failed(Box::new(state));
+        }
         let expression = match probe {
             NamedFunctionLikeProbe::Callable(probe) => {
                 let Some(resolved) = state.commit_named_callable(*probe, &mut layer_sink) else {

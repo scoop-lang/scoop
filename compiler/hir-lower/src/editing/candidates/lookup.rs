@@ -131,6 +131,9 @@ impl Lowerer {
         }
         let mut implicit_properties = Vec::new();
         for binding in self.implicit_receivers() {
+            if !self.implicit_receiver_is_accessible(binding.binding) {
+                continue;
+            }
             super::super::receivers::check_cancelled(is_cancelled)?;
             let Some(receiver) = self.lower_receiver_binding(binding, name.span) else {
                 return Ok(V::Unavailable(U::BodyFailure));

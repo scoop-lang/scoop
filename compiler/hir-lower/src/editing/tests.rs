@@ -43,6 +43,7 @@ mod property_declarations;
 mod qualified_alias_candidates;
 mod qualified_candidates;
 mod qualified_imported_candidates;
+mod receiver_boundaries;
 mod receivers;
 mod recovered_classes;
 mod recovered_enums;
