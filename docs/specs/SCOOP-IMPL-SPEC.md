@@ -128,6 +128,8 @@ stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现
 
 AST 保留原始源码顺序、byte span、显式类型实参、位置／命名／spread／尾随 lambda 实参，以及独立的声明、表达式、模式和控制转移结构。文件至多有一个开头 package，其后为 import，再后为声明。qualified path 为非空 identifier sequence；package、静态 owner 与实体的分界由名称解析决定。
 
+lambda 的 AST 挂起标记只记录源码是否显式写出 `suspend`；未写时表示效果尚未指定。匿名函数使用独立节点，其普通/挂起标记始终是显式效果。HIR 按语言规范 8.1.2、8.6 为每个候选分别完成 lambda 的期望类型与效果推导，包括编辑态恢复；成功 HIR 中函数签名及函数类型的挂起性均为确定值。对称回调重载的缺省比较复用声明类型与精确 binder 重命名，不比较已推导的具体类型，不在候选之间泄漏实体或诊断。MIR/LIR 和跨 Cone 模板继续消费已绑定的唯一 callable 类型，不重新推导效果，也不增加运行时效果检测或普通到 suspend 的 adapter。
+
 driver 在完整解析后、HIR 前统一检查语言规范 12.1 的 manifest package/group 关系，生产、测试和文档路径共用此检查；只比较已经解析的实际名称段，不用字符串前缀或重新拆分转义段。core/std 豁免只按其 group/name 识别。单文件的 AST 与原文继续保留合法 package header，driver 产生 warning；HIR 创建当前 source namespace 时使用保留的 single-file 身份选择 RootPackage。AST 观察同样返回该 warning；HIR 失败时保留已经产生的源码 warning。后续 IR 不再重验 package/group，也不改源码或诊断偏移。
 
 AST 不包含依赖 locator 解析、构建顺序、已推断类型或实体身份猜测。词法与语法恢复收集 Error 级诊断；任何解析失败阻止成功 HIR 输出。面向编辑态的可恢复语法结果与成功编译 AST 分开，公共基础的合同见 2.20；保留错误语法不表示该程序可以进入后续编译阶段。

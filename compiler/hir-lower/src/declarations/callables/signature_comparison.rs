@@ -1,7 +1,7 @@
 use super::*;
 
 impl Lowerer {
-    fn same_parameter_conditions(
+    pub(crate) fn same_parameter_conditions(
         &self,
         left: &hir::TypeParamDecl,
         right: &hir::TypeParamDecl,
@@ -133,7 +133,7 @@ impl Lowerer {
                 .all(|(x, y)| self.overload_types_equal(x.ty, y.ty, &parameter_pairs))
     }
 
-    fn signature_types_equal(
+    pub(crate) fn signature_types_equal(
         &self,
         left: TypeId,
         right: TypeId,
@@ -147,6 +147,8 @@ impl Lowerer {
                     .any(|&(expected_left, expected_right)| {
                         expected_left == *left && expected_right == *right
                     })
+                    || (left == right
+                        && !parameter_pairs.iter().any(|(a, b)| a == left || b == right))
             }
             (Type::Struct(left), Type::Struct(right)) => {
                 let left = &self.struct_applications[*left];

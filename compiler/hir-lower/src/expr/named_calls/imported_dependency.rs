@@ -108,36 +108,12 @@ impl ImportedDependencyCallProbe {
     }
 
     pub(crate) fn forwarding(&self, state: &mut Lowerer) -> OwnedDeclarationForwarding {
-        let (signature, receiver) = match &self.implementation {
-            ImportedCallImplementation::Native => {
-                let signature = state
-                    .imported_native_signature(&self.candidate)
-                    .expect("an applicable imported candidate has a resolved signature");
-                let receiver = self.candidate.interface().receiver().map(|ty| {
-                    state
-                        .imported_signature_type(ty)
-                        .expect("an applicable extension has a resolved receiver")
-                });
-                (signature, receiver)
-            }
-            ImportedCallImplementation::Generic { template, .. }
-            | ImportedCallImplementation::Intrinsic { template, .. } => {
-                let declaration = template.declaration(&self.state);
-                let template = generic::ImportedGenericTarget::request(state, declaration)
-                    .expect("an applicable imported candidate has a resolved declaration");
-                let (loaded, _) = template.signature(state);
-                let receiver = self.candidate.interface().receiver().and(loaded.receiver);
-                (loaded.signature, receiver)
-            }
-        };
-        let signature = self.alias.as_ref().map_or(signature.clone(), |alias| {
-            state.alias_forwarding_signature(alias, &signature)
-        });
+        let (signature, receiver) = self.comparison_signature(state);
         let mut parameter_types = self
             .argument_map
             .mapping()
             .forwarding_parameter_types(&signature.value_parameters);
-        if let Some(receiver) = receiver {
+        if let Some(receiver) = self.candidate.interface().receiver().and(receiver) {
             parameter_types.insert(0, receiver);
         }
         DeclarationForwardingView::parameter_groups(
@@ -146,6 +122,80 @@ impl ImportedDependencyCallProbe {
             &parameter_types,
         )
         .to_owned()
+    }
+
+    fn comparison_signature(
+        &self,
+        state: &mut Lowerer,
+    ) -> (DependencySignature, Option<hir::TypeId>) {
+        let (signature, receiver) = match &self.implementation {
+            ImportedCallImplementation::Native => {
+                let signature = state
+                    .imported_native_signature(&self.candidate)
+                    .expect("an applicable imported candidate has a resolved signature");
+                let receiver = if let Some(ty) = self.candidate.interface().receiver() {
+                    Some(
+                        state
+                            .imported_signature_type(ty)
+                            .expect("an applicable extension has a resolved receiver"),
+                    )
+                } else if let hir::PublicDeclarationOwnerV1::Nominal(owner) =
+                    self.candidate.interface().owner()
+                {
+                    Some(
+                        state
+                            .imported_nominal_application(owner, Vec::new())
+                            .expect("a native member has a parameter-free owner"),
+                    )
+                } else {
+                    None
+                };
+                (signature, receiver)
+            }
+            ImportedCallImplementation::Generic { template, .. }
+            | ImportedCallImplementation::Intrinsic { template, .. } => {
+                let declaration = template.declaration(&self.state);
+                let template = generic::ImportedGenericTarget::request(state, declaration)
+                    .expect("an applicable imported candidate has a resolved declaration");
+                let (loaded, _) = template.signature(state);
+                (loaded.signature, loaded.receiver)
+            }
+        };
+        let signature = self.alias.as_ref().map_or(signature.clone(), |alias| {
+            state.alias_forwarding_signature(alias, &signature)
+        });
+        (signature, receiver)
+    }
+
+    pub(crate) fn lambda_effect_declaration(
+        &self,
+        state: &mut Lowerer,
+        arguments: &[ast::CallArgument],
+    ) -> crate::call_resolution::specificity::LambdaEffectDeclaration {
+        use crate::call_resolution::specificity::{LambdaEffectDeclaration, LambdaEffectReceiver};
+        let (signature, receiver) = self.comparison_signature(state);
+        let receiver = if matches!(
+            self.candidate.interface().declaration(),
+            scoop_identity::CallableTemplateOrigin::Constructor(_)
+                | scoop_identity::CallableTemplateOrigin::VariantConstructor(_)
+        ) {
+            LambdaEffectReceiver::None
+        } else if let Some(receiver) = receiver {
+            if self.candidate.interface().receiver().is_some() {
+                LambdaEffectReceiver::Extension(receiver)
+            } else {
+                LambdaEffectReceiver::Instance(receiver)
+            }
+        } else {
+            LambdaEffectReceiver::None
+        };
+        LambdaEffectDeclaration::new(
+            &signature,
+            receiver,
+            self.requirement_effects(),
+            self.argument_map.mapping(),
+            arguments,
+        )
     }
 
     pub(crate) fn parameterized(&self) -> bool {

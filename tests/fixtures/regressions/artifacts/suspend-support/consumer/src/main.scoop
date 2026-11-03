@@ -7,5 +7,8 @@ class Done : Continuation<Int> {
 }
 
 fun main() {
-    startCoroutine<Int>(suspend { direct(after(Counter(), 42)) }, Done())
+    startCoroutine<Int>({
+        val plain = choose(20) { it }
+        choose(plain) { throughLambda(direct(after(Counter(), it + 22))) }
+    }, Done())
 }

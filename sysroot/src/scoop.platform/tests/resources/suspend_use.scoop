@@ -9,13 +9,13 @@ private class SuspendResourceUseTest {
         val gate = ResourceGate<Int>()
         val resource = RecordingResource("close", ArrayList<String>())
         val completion = ResourceCompletion<Int>()
-        startCoroutine(suspend {
-            resource.use(suspend { current ->
+        startCoroutine({
+            resource.use { current ->
                 val first = awaitResource(gate)
                 assertFalse(current.released)
                 val second = awaitResource(gate)
                 current.number() + first + second
-            })
+            }
         }, completion)
         assertEquals(0, resource.calls)
         assertEquals(0, completion.calls)
@@ -37,7 +37,7 @@ private class SuspendResourceUseTest {
         val primary = Throwable()
         val resource = RecordingResource("close", ArrayList<String>())
         val completion = ResourceCompletion<Int>()
-        startCoroutine(suspend { resource.use(suspend { awaitResource(gate) }) }, completion)
+        startCoroutine({ resource.use { awaitResource(gate) } }, completion)
         assertEquals(0, resource.calls)
         gcCollect()
         gate.fail(primary)
@@ -81,7 +81,7 @@ private class SuspendResourceUseTest {
     fun `ordinary lambda stays ordinary inside a suspend caller`() {
         val resource = RecordingResource("close", ArrayList<String>())
         val completion = ResourceCompletion<Int>()
-        startCoroutine(suspend { resource.use { it.number() } }, completion)
+        startCoroutine({ resource.use { it.number() } }, completion)
         assertEquals(42, completion.value!!)
         assertEquals(1, resource.calls)
         assertEquals(1, completion.calls)

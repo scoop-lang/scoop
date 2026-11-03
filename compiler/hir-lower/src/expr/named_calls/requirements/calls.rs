@@ -28,6 +28,9 @@ impl Lowerer {
         let mut candidates = Vec::new();
         for requirement in requirements {
             if let Ok(layer) = self.probe_expr_layer(|state, sink| {
+                if requirement.contract.effects.is_suspend {
+                    state.check_suspend_context(name.unwrap_or("constructor"), call.span);
+                }
                 state.lower_requirement_invocation(&requirement, receiver.clone(), call, sink)
             }) {
                 candidates.push((requirement, layer));
@@ -57,6 +60,45 @@ impl Lowerer {
             })
             .collect::<Vec<_>>();
         let winners = self.most_specific_declarations(&pool);
+        let effects = candidates
+            .iter()
+            .map(|(requirement, _)| {
+                use crate::call_resolution::arguments::{CandidateArgumentMap, ReceiverInput};
+                use crate::call_resolution::candidates::{
+                    DeclarationSignature, ValueParameter, ValueParameterCalling,
+                };
+                use crate::call_resolution::specificity::{
+                    LambdaEffectDeclaration, LambdaEffectReceiver,
+                };
+                let contract = &requirement.contract;
+                let signature = DeclarationSignature {
+                    availability: None,
+                    owner_parameters: Vec::new(),
+                    callable_parameters: Vec::new(),
+                    value_parameters: contract
+                        .arguments
+                        .iter()
+                        .map(|argument| ValueParameter {
+                            name: argument.name.clone().unwrap_or_default(),
+                            calling: ValueParameterCalling::Required,
+                            ty: argument.ty,
+                        })
+                        .collect(),
+                    return_type: contract.result,
+                };
+                Some(LambdaEffectDeclaration::new(
+                    &signature,
+                    LambdaEffectReceiver::Instance(contract.subject),
+                    contract.effects,
+                    &CandidateArgumentMap::positional(
+                        contract.arguments.len(),
+                        ReceiverInput::Absent,
+                    ),
+                    call.args,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let winners = self.prefer_ordinary_lambdas(&winners, &effects);
         if winners.len() != 1 {
             self.error(call.span, "ambiguous member requirement invocation".into());
             return Some(None);

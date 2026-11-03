@@ -55,6 +55,10 @@ impl Lowerer {
         expected_signature: Option<CallableExpectation>,
         lower_body: impl FnOnce(&mut Self, Option<TypeId>) -> Option<crate::stmt::ValueBlock>,
     ) -> Option<hir::Expr> {
+        let is_suspend = is_suspend
+            || expected_signature
+                .as_ref()
+                .is_some_and(|signature| signature.is_suspend);
         let source_parameters = self.lambda_source_parameters(
             is_suspend,
             parameters,

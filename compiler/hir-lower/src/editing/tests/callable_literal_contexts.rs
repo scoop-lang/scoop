@@ -98,6 +98,19 @@ fn querying_one_literal_restores_outer_bindings_and_flow_for_sibling_branches() 
 }
 
 #[test]
+fn recovered_lambda_uses_the_expected_suspension_context() {
+    for text in [
+        "fun editing() { val action: suspend () -> String = { val value = load(); value. } }",
+        "fun editing(): suspend () -> String = { val value = load(); value. }",
+        "fun accept(block: suspend () -> String) {}\nfun editing() { accept { val value = load(); value. } }",
+    ] {
+        let mut analysis = analyze(&format!("suspend fun load(): String = \"ready\"\n{text}"));
+        let facts = receiver(&mut analysis);
+        assert_eq!(known_type(&mut analysis, &facts), "String", "{text}");
+    }
+}
+
+#[test]
 fn cancellation_discards_nested_literal_scopes_and_retries_cleanly() {
     let text = "fun editing(value: String) { val outer = fun() { val inner = { value. } } }";
     let mut analysis = analyze(text);
