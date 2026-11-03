@@ -117,6 +117,54 @@ internal fun advanceReveal(probe: RevealProbe) {
         }
         case 13 -> {
             probe.assertFocus(0L)
+            assertFalse(probe.targets[1L]!!.reveal(Rect(0.0, 0.0, 0.0, 10.0)))
+            assertFailsWith<IllegalArgumentException> {
+                probe.targets[1L]!!.reveal(Rect(0.0, 0.0, -1.0, 10.0))
+            }
+            probe.next {
+                assertTrue(probe.targets[1L]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0)))
+                // Restoring a hidden zero-height viewport may still await its first new frame.
+                assertTrue(probe.handles[1L].isPending)
+                probe.assertFocus(0L)
+            }
+        }
+        case 14 -> {
+            probe.assertFocus(0L)
+            assertTrue(probe.areas[1L]!!.canFocus)
+            assertEquals(Point(266.0, 289.0), probe.inner.offset)
+            assertEquals(Point(200.0, 340.0), probe.outer.offset)
+            probe.next {
+                probe.discardNext = true
+                assertTrue(probe.targets[1L]!!.reveal(Rect(22.0, 18.0, 1.0, 1.0)))
+            }
+        }
+        case 15 -> {
+            probe.assertFocus(0L)
+            assertEquals(2, probe.discarded)
+            assertEquals(Point(283.0, 299.0), probe.inner.offset)
+            probe.next { probe.reset() }
+        }
+        case 16 -> {
+            probe.assertFocus(0L)
+            probe.next {
+                assertTrue(probe.targets[1L]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0)))
+                probe.inner.scrollTo(Point(3.0, 4.0))
+                assertFalse(probe.handles[1L].isPending)
+            }
+        }
+        case 17 -> {
+            probe.assertFocus(0L)
+            assertEquals(Point(3.0, 4.0), probe.inner.offset)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            probe.next {
+                assertTrue(probe.targets[1L]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0)))
+                assertTrue(probe.handles[2L].requestFocus())
+                assertFalse(probe.handles[1L].isPending)
+            }
+        }
+        case 18 -> {
+            probe.assertFocus(2L)
+            assertEquals(Point(0.0, 0.0), probe.outer.offset)
             probe.next { probe.window!!.requestDestroy() }
         }
         else -> fail(Some("unexpected focus reveal phase"))

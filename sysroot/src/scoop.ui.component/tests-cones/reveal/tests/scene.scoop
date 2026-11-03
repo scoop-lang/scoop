@@ -76,14 +76,24 @@ private class RevealPanel(private val probe: RevealProbe, private val props: Pro
         val discard = probe.discardNext
         if (discard) {
             probe.discardNext = false
-            probe.window!!.requestSize(LogicalSize(500.0, 380.0))
+            probe.window!!.requestSize(
+                if (probe.phase == 15)
+                    LogicalSize(520.0, 400.0)
+                else
+                    LogicalSize(500.0, 380.0)
+            )
         }
         context.onFrameComplete {
             frame -> when (frame.submission) {
                 case Discarded -> {
                     assertTrue(discard)
-                    assertTrue(probe.handles[1L].hasFocus)
-                    assertTrue(probe.handles[5L].isPending)
+                    if (probe.phase == 15) {
+                        probe.assertFocus(0L)
+                        assertTrue(probe.handles[1L].isPending)
+                    } else {
+                        assertTrue(probe.handles[1L].hasFocus)
+                        assertTrue(probe.handles[5L].isPending)
+                    }
                     probe.discarded += 1
                     probe.scope!!.requestFrame()
                 }
@@ -146,7 +156,10 @@ private class InnerDocument(private val probe: RevealProbe): Element {
 
 private class RevealTile(private val probe: RevealProbe, private val index: Long): Element {
     private var area: InputArea? = None
+    private var owner: ComponentScope? = None
     public override fun onMount(scope: ComponentScope) {
+        owner = Some(scope)
+        assertSame(probe.window!!, scope.nativeWindow)
         probe.mounts += 1
         val input = scope.createArea(focusable = true)
         area = Some(input)
@@ -167,6 +180,9 @@ private class RevealTile(private val probe: RevealProbe, private val index: Long
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(40.0, 24.0)))
     public override fun scene(context: SceneContext) {
+        assertFailsWith<IllegalStateException> {
+            probe.targets[index]!!.reveal(Rect(5.0, 5.0, 1.0, 4.0))
+        }
         if (index == 4L)
             context.clipRect(Rect(0.0, 0.0, 1.0, 1.0))
         val bounds = Rect(2.0, 2.0, 26.0, 20.0)
@@ -174,6 +190,7 @@ private class RevealTile(private val probe: RevealProbe, private val index: Long
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.Black)) }
     }
     public override fun onUnmount() {
+        assertFailsWith<IllegalStateException> { owner!!.nativeWindow }
         probe.unmounts += 1
     }
 }

@@ -1,12 +1,21 @@
 package scoop.ui
 
 import scoop.graphics.Canvas
+import scoop.graphics.Rect
 import scoop.surface.*
 import scoop.window.*
 
 private enum FocusDestination {
-    Target(FocusTarget), Group(FocusScope, FocusSearch), Search(FocusSearch)
+    Target(FocusTarget), Region(FocusTarget, Rect), Group(FocusScope, FocusSearch), Search(
+        FocusSearch
+    )
 }
+
+private fun focusRegion(destination: FocusDestination): Rect? =
+    when (destination) {
+        case Region(_, rect) -> Some(rect)
+        else -> None
+    }
 
 private class PendingFocus(
     val destination: FocusDestination,
@@ -17,6 +26,7 @@ private class PendingFocus(
     val search: FocusSearch? get() =
         when (destination) {
             case Target(_) -> None
+            case Region(_, _) -> None
             case Group(_, value) -> Some(value)
             case Search(value) -> Some(value)
         }
@@ -87,6 +97,7 @@ internal class FocusController(private val root: UiRoot): Closeable {
         }
         return when (value.destination) {
             case Target(target) -> target.available && withinFocusScope(target.node, node)
+            case Region(target, _) -> target.available && withinFocusScope(target.node, node)
             case Group(scope, search) -> scope.available &&
                 (withinFocusScope(scope.node, node) || search.hasPendingIn(node))
             case Search(search) -> search.hasPendingIn(node)
@@ -140,6 +151,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
                 if (current === target)
                     clearPending()
             }
+            case Region(current, _) -> {
+                if (current === target)
+                    clearPending()
+            }
             else -> {}
         }
     }
@@ -166,6 +181,16 @@ internal class FocusController(private val root: UiRoot): Closeable {
             return false
         }
         return begin(FocusDestination.Target(target), Some(target))
+    }
+    fun reveal(target: FocusTarget, rect: Rect): Boolean {
+        clearPending()
+        if (!root.isOpen)
+            return false
+        if (!target.available) {
+            root.surface.reserveFocusRequest()
+            return false
+        }
+        return begin(FocusDestination.Region(target, rect), Some(target))
     }
     fun request(owner: LazyFocus, key: ViewKey, edge: ItemFocusEdge): Boolean {
         clearPending()
@@ -206,9 +231,17 @@ internal class FocusController(private val root: UiRoot): Closeable {
         }
     private fun begin(destination: FocusDestination, selected: FocusTarget?): Boolean {
         val reveal = RevealAttempt()
+        val region = focusRegion(destination)
         when (selected) {
-            case Some(target) -> if (reveal.advance(scene, target.area) == RevealProgress.Ready)
+            case Some(target) -> if (
+                reveal.advance(scene, target.area, region) == RevealProgress.Ready
+            ) {
+                if (region != None) {
+                    root.surface.reserveFocusRequest()
+                    return true
+                }
                 return target.area.requestFocus()
+            }
             case None -> {}
         }
         return adopt(destination, selected, reveal)
@@ -281,13 +314,18 @@ internal class FocusController(private val root: UiRoot): Closeable {
                 case Some(target) -> {
                     val progress =
                         if (target.available)
-                            value.reveal.advance(scene, target.area)
+                            value.reveal.advance(scene, target.area, focusRegion(value.destination))
                         else
                             RevealProgress.Unavailable
                     when (progress) {
                         case Ready -> {
                             clearPending()
-                            if (target.available && target.area.canFocus)
+                            if (
+                                focusRegion(value.destination) ==
+                                    None &&
+                                    target.available &&
+                                    target.area.canFocus
+                            )
                                 target.area.requestFocus()
                             return
                         }

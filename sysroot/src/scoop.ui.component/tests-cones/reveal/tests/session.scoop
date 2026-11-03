@@ -103,7 +103,7 @@ internal class RevealProbe {
                     retryFocus = true
                     window!!.requestFocus()
                 }
-                if (phase < 14 && !waiting && settled()) {
+                if (phase < 19 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -116,7 +116,7 @@ internal class RevealProbe {
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 14
+                finished = phase == 19
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(

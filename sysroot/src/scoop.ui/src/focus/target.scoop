@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.graphics.Rect
 import scoop.surface.InputArea
 
 /** One registration; its input area remains owned by ComponentScope. */
@@ -52,6 +53,15 @@ public class FocusTarget internal constructor(
             next.bind(this)
         }
         current = value
+    }
+    /** Reveals a local subregion through the submitted scroll path without moving focus. */
+    public fun reveal(rect: Rect): Boolean {
+        node.root.checkThread()
+        checkFocusMutation()
+        checkScrollRect(rect)
+        if (!active || rect.width == 0.0 || rect.height == 0.0)
+            return false
+        return node.root.focus.reveal(this, rect)
     }
     public override fun close() {
         node.root.checkThread()

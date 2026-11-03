@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.graphics.*
 import scoop.surface.*
+import scoop.window.Window
 
 /** Owns the resources of one mount; applications do not close individual components. */
 public class ComponentScope internal constructor(private val node: MountedNode) {
@@ -12,6 +13,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
+
+    /** The borrowed native owner; the mount does not acquire or transfer its lifetime. */
+    public val nativeWindow: Window get() {
+        checkMounted()
+        return root.window
+    }
 
     public val input: InputScope get() {
         checkMounted()

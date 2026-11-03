@@ -98,10 +98,15 @@ internal class RevealAttempt {
                 return false
         return true
     }
-    fun advance(scene: FocusScene, area: InputArea): RevealProgress {
+    fun advance(scene: FocusScene, area: InputArea, region: Rect? = None): RevealProgress {
         if (!isCurrent)
             return RevealProgress.Cancelled
-        var rect = area.windowBounds ?: return RevealProgress.Unavailable
+        var rect =
+            when (region) {
+                case Some(value) -> area.toWindow(value)
+                case None -> area.windowBounds
+            } ?:
+                return RevealProgress.Unavailable
         if (rect.width <= 0.0 || rect.height <= 0.0)
             return RevealProgress.Unavailable
         val route = scene.path(area)

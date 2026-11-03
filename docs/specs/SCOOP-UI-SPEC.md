@@ -392,6 +392,8 @@ FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点�
 
 ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
 
+`FocusTarget.reveal(rect: Rect): Boolean` 显露该区域局部坐标中的子矩形，不改变键盘焦点或激活 OS 窗口。它用于文本光标等小于整个控件的目标，沿第 7.7 节相同的成功场景及滚动路径逐层处理；矩形必须有限且非负，空矩形返回 false。该请求与普通聚焦共用一个待处理位置意图，handle.isPending 也反映尚未完成的局部显露。更新的显式焦点／显露、已调整视口的新滚动、目标退休或输入域变化取消旧请求；Discarded 不兑现。首次尚无几何时等待一次成功放置，之后仍不可达则结束，不轮询。
+
 每个 ComponentScope 可登记一个 focusScope(options: FocusScopeOptions)，返回 FocusScope。options 包含 loop=false、order=0、defaultFocus 与 fallback。scope 内目标按 order 升序、同值按当前逻辑挂载顺序排列；嵌套 FocusScope 是父序列中按自身 order 排列的一个连续分组，组内独立排序。keyed 子项重排后使用新逻辑顺序，不使用原注册时间或绘制顺序。负 order 只改变排序，tabStop=false 才退出 Tab，仍允许程序化请求。
 
 Tab／Shift+Tab 在内层默认行为未消费后导航。跳过禁用、未放置及不能显露的目标，已放置的滚动内容可以先显露再聚焦。普通 scope 到边界后让父继续，loop scope 在组内循环，窗口根始终在本窗口循环。没有已登记的当前焦点时，从首／末个可用停靠点开始。真实按下和重复按下可导航，合成按键或带 Command／Control／Alt／Function 的组合不作为普通 Tab。键盘导航不激活 OS 窗口，也不修改控件选择状态。
@@ -574,6 +576,7 @@ Roving 的方向键和 Home／End 只在事件仍未消费且当前焦点正是�
 - `resource<R : Closeable>(create: () -> R): R`：成功取得后立即登记为本组件拥有的资源。
 - `onDispose(action: () -> Unit)`：登记卸载时同步执行的清理动作，例如解除外部订阅或发出任务取消。
 - `isMounted`：当前挂载是否仍可接收业务工作。
+- `nativeWindow`：当前挂载所属的 Window，供公共适配接入窗口剪贴板、文本快照和一次性 deadline；不转移窗口所有权，挂载退休后读取报告状态错误。
 - `requestFrame()`：请求所属根再次呈现；不立即执行 render、measure 或 paint。
 - `createArea(...)`：创建并登记第 7 节的稳定 InputArea。
 - `animation(...)`：在所属 Surface 时间轴创建并登记第 7 节的 Animatable。
