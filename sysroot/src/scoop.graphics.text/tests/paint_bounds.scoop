@@ -110,6 +110,7 @@ private class TextPaintBoundsTest {
                 }
             }
         assertFailsWith<IllegalStateException> { layouts[0L].paintBounds }
+        assertTrue(drawing.canRasterizeTiles)
         drawing.use {
             record -> RasterSurface(128, 80).use {
                 surface ->

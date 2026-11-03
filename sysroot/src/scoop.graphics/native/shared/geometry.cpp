@@ -64,8 +64,11 @@ int32_t scoop_graphics_canvas_save(SGCanvas *value, double opacity, bool layer,
       SkPaint paint;
       paint.setAlphaf((float)opacity);
       paint.setBlendMode(mode);
-      if (filter)
+      if (filter) {
         paint.setImageFilter(filter->filter);
+        if (value->recording)
+          value->recording->independentTiles = false;
+      }
       value->canvas->saveLayer(nullptr, &paint);
     } else {
       value->canvas->save();

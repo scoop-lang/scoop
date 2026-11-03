@@ -1,0 +1,175 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+
+internal fun paintShadow(canvas: Canvas, filter: ImageFilter) {
+    canvas.saveLayer(filter = Some(filter))
+    paintShadowSource(canvas)
+    canvas.restore()
+}
+
+internal fun paintShadowSource(canvas: Canvas) {
+    canvas.drawRoundRect(Rect(18.0, 16.0, 40.0, 26.0), 5.0, 5.0, Paint(Color(1.0, 0.0, 0.0)))
+}
+
+@Test
+private class PaintPixelsTest {
+    @Test
+    fun `effects requiring a complete input replay normally without retaining partial pixels`() {
+        PaintLayers().use {
+            layers -> RasterSurface(192, 128).use {
+                surface -> ImageFilter.blur(3.0, 3.0).use {
+                    filter ->
+                    val key = PaintKey()
+                    val input =
+                        PaintLayerInput(Size(96.0, 64.0), Rect(0.0, 0.0, 96.0, 64.0), 0L, 18.0)
+                    val calls = ArrayList<Int>()
+                    val results = ArrayList<Array<Byte>>()
+                    for (
+                        policy in [
+                            PaintCachePolicy.None,
+                            PaintCachePolicy.Tiles(32, 0),
+                            PaintCachePolicy.Tiles(32, 0)
+                        ]
+                    ) {
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.scale(2.0, 2.0)
+                            layers.draw(canvas, key, input, policy) {
+                                record ->
+                                calls.add(1)
+                                paintShadow(record, filter)
+                            }
+                        }
+                        assertEquals(0L, layers.entries.size)
+                        results.add(surface.readPixels())
+                    }
+                    assertEquals(3L, calls.size)
+                    assertPaintPixels(results[0L], results[1L], 192, 128, 0)
+                    assertPaintPixels(results[0L], results[2L], 192, 128, 0)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `composed shadows keep cached input pixels under DPI and nonuniform scaling`() {
+        for (scale in [Point(1.0, 1.0), Point(2.0, 2.0), Point(2.0, 1.5)]) {
+            PaintLayers().use {
+                layers -> RasterSurface(192, 128).use {
+                    surface -> ImageFilter.dropShadow(
+                        Point(8.0, 1.0),
+                        3.0,
+                        3.0,
+                        Color(0.0, 0.0, 1.0)
+                    ).use {
+                        filter ->
+                        val key = PaintKey()
+                        val input =
+                            PaintLayerInput(Size(96.0, 64.0), Rect(0.0, 0.0, 96.0, 64.0), 0L, 18.0)
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.scale(scale.x, scale.y)
+                            canvas.saveLayer(filter = Some(filter))
+                            layers.draw(canvas, key, input, PaintCachePolicy.None) {
+                                record -> paintShadowSource(record)
+                            }
+                            canvas.restore()
+                        }
+                        val reference = surface.readPixels()
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.scale(scale.x, scale.y)
+                            canvas.saveLayer(filter = Some(filter))
+                            layers.draw(canvas, key, input, PaintCachePolicy.Tiles(32, 0)) {
+                                record -> paintShadowSource(record)
+                            }
+                            canvas.restore()
+                        }
+                        assertPaintPixels(reference, surface.readPixels(), 192, 128, 2)
+                        val retained = cachedPaint(layers, key)
+                        val first = retained.tiles[PaintTileIndex(0L, 0L)]!!.image
+                        surface.draw {
+                            canvas ->
+                            canvas.clear(Color.Transparent)
+                            canvas.scale(scale.x, scale.y)
+                            canvas.saveLayer(filter = Some(filter))
+                            layers.draw(canvas, key, input, PaintCachePolicy.Tiles(32, 0)) {
+                                _ -> fail(Some("unchanged filtered layer recorded again"))
+                            }
+                            canvas.restore()
+                        }
+                        assertSame(first, retained.tiles[PaintTileIndex(0L, 0L)]!!.image)
+                        assertPaintPixels(reference, surface.readPixels(), 192, 128, 2)
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `glyph overhang is preserved across tile edges and retained text outlives layout handles`() {
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Paint Test")
+            val content =
+                StyledText(
+                    [TextSpan.text("Áfj café\nMix ligatures")],
+                    TextStyle(["Paint Test"], 24.0)
+                )
+            Paragraph(fonts, content).use {
+                paragraph -> paragraph.layout(160.0).use {
+                    layout -> PaintLayers().use {
+                        layers -> RasterSurface(384, 160).use {
+                            surface ->
+                            val key = PaintKey()
+                            val ink = layout.paintBounds
+                            val bounds =
+                                Rect(ink.x - 1.0, ink.y - 1.0, ink.width + 2.0, ink.height + 2.0)
+                            val input = PaintLayerInput(layout.size, bounds, 0L, 1.0)
+                            surface.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.scale(2.0, 2.0)
+                                canvas.translate(8.0, 6.0)
+                                layers.draw(canvas, key, input, PaintCachePolicy.None) {
+                                    record -> record.drawText(layout)
+                                }
+                            }
+                            val reference = surface.readPixels()
+                            surface.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.scale(2.0, 2.0)
+                                canvas.translate(8.0, 6.0)
+                                layers.draw(canvas, key, input, PaintCachePolicy.Tiles(32, 0)) {
+                                    record -> record.drawText(layout)
+                                }
+                            }
+                            assertPaintPixels(reference, surface.readPixels(), 384, 160, 2)
+                            layout.close()
+                            paragraph.close()
+                            fonts.close()
+                            surface.draw {
+                                canvas ->
+                                canvas.clear(Color.Transparent)
+                                canvas.scale(2.0, 2.0)
+                                canvas.translate(8.0, 6.0)
+                                layers.draw(canvas, key, input, PaintCachePolicy.Tiles(32, 0)) {
+                                    _ -> fail(Some("retained text accessed a closed layout"))
+                                }
+                            }
+                            assertPaintPixels(reference, surface.readPixels(), 384, 160, 2)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

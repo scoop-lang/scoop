@@ -24,6 +24,7 @@ when = { os = "darwin" }
 "scoop:scoop.test" = "0.1.0"
 "scoop.tests:text-fonts" = { version = "0.1.0", path = "../scoop.graphics.text/tests/data" }
 "scoop.tests:surface-native" = { version = "0.1.0", path = "../scoop.surface/test-native" }
+"scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
 
 [[test.sources]]
 path = "tests"

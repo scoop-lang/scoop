@@ -1,0 +1,332 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+
+internal class PaintProbe {
+    val key = PaintKey()
+    var records = 0
+    var color = Color(0.8, 0.2, 0.1)
+    var expired: Canvas? = None
+    fun paint(canvas: Canvas, bounds: Rect) {
+        records += 1
+        expired = Some(canvas)
+        assertEquals(Transform(), canvas.pixelTransform)
+        canvas.drawRect(bounds, Paint(color))
+    }
+}
+
+internal fun cachedPaint(layers: PaintLayers, key: PaintKey): CachedPaintLayer {
+    for (entry in layers.entries)
+        if (entry.key === key)
+            return entry
+    throw IllegalStateException(Some("expected retained paint layer"))
+}
+
+internal fun paintInput(revision: Long = 0L): PaintLayerInput =
+    PaintLayerInput(Size(256.0, 64.0), Rect(0.0, 0.0, 256.0, 64.0), revision, 1.0)
+
+private fun paintFrame(
+    surface: RasterSurface,
+    layers: PaintLayers,
+    probe: PaintProbe,
+    input: PaintLayerInput = paintInput(),
+    policy: PaintCachePolicy = PaintCachePolicy.Tiles(32, 0),
+    offset: Double = 0.0,
+    scale: Double = 1.0
+) {
+    surface.draw {
+        canvas ->
+        canvas.clear(Color.Transparent)
+        canvas.scale(scale, scale)
+        canvas.translate(-offset, 0.0)
+        layers.draw(canvas, probe.key, input, policy) {
+            record -> probe.paint(record, input.bounds)
+        }
+    }
+}
+
+@Test
+private class PaintCacheTest {
+    @Test
+    fun `unchanged layers reuse actual pixels while scrolling retains overlap and closes evicted tiles`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val probe = PaintProbe()
+                paintFrame(surface, layers, probe)
+                val first = cachedPaint(layers, probe.key)
+                val left = first.tiles[PaintTileIndex(0L, 0L)]!!.image
+                val overlap = first.tiles[PaintTileIndex(1L, 0L)]!!.image
+                val expected = surface.readPixels()
+                paintFrame(surface, layers, probe)
+                assertSame(first, cachedPaint(layers, probe.key))
+                assertSame(left, first.tiles[PaintTileIndex(0L, 0L)]!!.image)
+                assertSame(overlap, first.tiles[PaintTileIndex(1L, 0L)]!!.image)
+                assertPaintPixels(expected, surface.readPixels(), 64, 32, 0)
+                paintFrame(surface, layers, probe, offset = 32.0)
+                assertSame(overlap, first.tiles[PaintTileIndex(1L, 0L)]!!.image)
+                assertPaintPixels(expected, surface.readPixels(), 64, 32, 0)
+                paintFrame(surface, layers, probe, offset = 128.0)
+                assertTrue(left.isClosed)
+                assertTrue(overlap.isClosed)
+                assertEquals(1, probe.records)
+                // A conservative clip may extend by one device pixel on each side.
+                assertTrue(first.tiles.size <= 8L)
+                assertFalse(first.drawing.isClosed)
+                layers.close()
+                assertTrue(first.drawing.isClosed)
+                assertEquals(0L, first.tiles.size)
+                assertFailsWith<IllegalStateException> { probe.expired!!.clear(Color.Black) }
+            }
+        }
+    }
+
+    @Test
+    fun `content bounds extent outset and quality changes retire only the affected layer`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val probe = PaintProbe()
+                val sibling = PaintProbe()
+                paintFrame(surface, layers, sibling)
+                val unchanged = cachedPaint(layers, sibling.key)
+                val variants =
+                    [
+                        paintInput(),
+                        paintInput(1L),
+                        PaintLayerInput(Size(257.0, 64.0), paintInput().bounds, 1L, 1.0),
+                        PaintLayerInput(Size(257.0, 64.0), Rect(-2.0, -2.0, 260.0, 68.0), 1L, 1.0),
+                        PaintLayerInput(Size(257.0, 64.0), Rect(-2.0, -2.0, 260.0, 68.0), 1L, 4.0)
+                    ]
+                var old: CachedPaintLayer? = None
+                for (input in variants) {
+                    paintFrame(surface, layers, probe, input)
+                    assertTrue(old?.drawing?.isClosed ?: true)
+                    old = Some(cachedPaint(layers, probe.key))
+                    assertSame(unchanged, cachedPaint(layers, sibling.key))
+                }
+                paintFrame(surface, layers, probe, variants[4L], scale = 2.0)
+                assertTrue(old!!.drawing.isClosed)
+                val scaled = cachedPaint(layers, probe.key)
+                assertEquals(2.0, scaled.grid.scaleX)
+                paintFrame(
+                    surface,
+                    layers,
+                    probe,
+                    variants[4L],
+                    PaintCachePolicy.Tiles(48, 1),
+                    scale = 2.0
+                )
+                assertTrue(scaled.drawing.isClosed)
+                assertEquals(7, probe.records)
+                assertEquals(1, sibling.records)
+                val keys = ArrayList<PaintKey>()
+                keys.add(probe.key)
+                layers.retain(keys)
+                assertTrue(unchanged.drawing.isClosed)
+                assertEquals(1L, layers.entries.size)
+            }
+        }
+    }
+
+    @Test
+    fun `uncached and unsupported transforms execute independent recordings without retained images`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val probe = PaintProbe()
+                paintFrame(surface, layers, probe)
+                val previous = cachedPaint(layers, probe.key)
+                paintFrame(surface, layers, probe, policy = PaintCachePolicy.None)
+                assertTrue(previous.drawing.isClosed)
+                paintFrame(surface, layers, probe, policy = PaintCachePolicy.None)
+                for (
+                    transform in [
+                        Transform.rotation(0.2),
+                        Transform(c = 0.25),
+                        Transform(a = -1.0, tx = 64.0)
+                    ]
+                ) {
+                    surface.draw {
+                        canvas ->
+                        canvas.concat(transform)
+                        layers.draw(
+                            canvas,
+                            probe.key,
+                            paintInput(),
+                            PaintCachePolicy.Tiles(32, 0)
+                        ) { record -> probe.paint(record, paintInput().bounds) }
+                    }
+                    assertEquals(0L, layers.entries.size)
+                }
+                assertEquals(6, probe.records)
+            }
+        }
+    }
+
+    @Test
+    fun `large content allocates visible tiles and fully clipped layers release their resources`() {
+        PaintLayers().use {
+            layers -> RasterSurface(32, 32).use {
+                surface ->
+                val probe = PaintProbe()
+                val huge =
+                    PaintLayerInput(Size(1.0e10, 1.0e10), Rect(0.0, 0.0, 1.0e10, 1.0e10), 0L, 1.0)
+                paintFrame(surface, layers, probe, huge, PaintCachePolicy.Tiles(32, 1))
+                val previous = cachedPaint(layers, probe.key)
+                assertTrue(previous.tiles.size <= 9L)
+                for (tile in previous.tiles.values) {
+                    assertEquals(34, tile.image.width)
+                    assertEquals(34, tile.image.height)
+                }
+                surface.draw {
+                    canvas ->
+                    canvas.clipRect(Rect(0.0, 0.0, 0.0, 0.0))
+                    layers.draw(canvas, probe.key, huge, PaintCachePolicy.Tiles(32, 1)) {
+                        _ -> fail(Some("invisible retained layer should not record"))
+                    }
+                }
+                assertTrue(previous.drawing.isClosed)
+                assertEquals(0L, layers.entries.size)
+                val overflow = PaintLayerInput(Size(64.0, 32.0), paintInput().bounds, 0L, 1.0e30)
+                paintFrame(surface, layers, probe, overflow)
+                assertEquals(0L, layers.entries.size)
+                assertEquals(2, probe.records)
+            }
+        }
+    }
+
+    @Test
+    fun `layer clearing is isolated from the backdrop for cached and uncached composition`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val key = PaintKey()
+                val input = PaintLayerInput(Size(64.0, 32.0), Rect(0.0, 0.0, 64.0, 32.0), 0L, 1.0)
+                for (policy in [PaintCachePolicy.None, PaintCachePolicy.Tiles(16, 0)]) {
+                    surface.draw {
+                        canvas ->
+                        canvas.clear(Color.White)
+                        layers.draw(canvas, key, input, policy) {
+                            record ->
+                            record.drawRect(input.bounds, Paint(Color.Black))
+                            record.withState {
+                                erase ->
+                                erase.clipRect(Rect(12.0, 4.0, 40.0, 24.0))
+                                erase.clear(Color.Transparent)
+                            }
+                        }
+                    }
+                    val pixels = surface.readPixels()
+                    assertEquals(255, paintChannel(pixels, 64, 30, 12, 0))
+                    assertEquals(255, paintChannel(pixels, 64, 30, 12, 3))
+                    assertEquals(0, paintChannel(pixels, 64, 4, 4, 0))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `failed replacement releases stale pixels and restores the borrowed canvas`() {
+        PaintLayers().use {
+            layers -> RasterSurface(64, 32).use {
+                surface ->
+                val probe = PaintProbe()
+                paintFrame(surface, layers, probe)
+                val previous = cachedPaint(layers, probe.key)
+                val pixels = previous.tiles[PaintTileIndex(0L, 0L)]!!.image
+                surface.draw {
+                    canvas ->
+                    assertFailsWith<IllegalStateException> {
+                        layers.draw(
+                            canvas,
+                            probe.key,
+                            paintInput(1L),
+                            PaintCachePolicy.Tiles(32, 0)
+                        ) {
+                            record ->
+                            record.saveLayer()
+                            record.translate(9.0, 2.0)
+                            throw IllegalStateException(Some("record failure"))
+                        }
+                    }
+                    assertEquals(Transform(), canvas.pixelTransform)
+                    canvas.clear(Color.White)
+                }
+                assertTrue(previous.drawing.isClosed)
+                assertTrue(pixels.isClosed)
+                assertEquals(0L, layers.entries.size)
+                paintFrame(surface, layers, probe, paintInput(1L))
+                assertEquals(2, probe.records)
+            }
+        }
+    }
+
+    @Test
+    fun `policy and layer geometry reject invalid values at their entry boundaries`() {
+        assertFailsWith<IllegalArgumentException> {
+            checkPaintCachePolicy(PaintCachePolicy.Tiles(0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            checkPaintCachePolicy(PaintCachePolicy.Tiles(16, -1))
+        }
+        for (
+            input in [
+                PaintLayerInput(Size(1.0, 1.0), Rect(0.0, 0.0, -1.0, 1.0), 0L, 1.0),
+                PaintLayerInput(Size(1.0, 1.0), Rect(0.0, 0.0, 1.0, 1.0), 0L, -1.0),
+                PaintLayerInput(Size(1.0, 1.0), Rect(0.0, 0.0, 1.0e300, 1.0), 0L, 1.0)
+            ]
+        )
+            assertFailsWith<IllegalArgumentException> { input.check() }
+    }
+}
+
+internal fun paintChannel(bytes: Array<Byte>, width: Int, x: Int, y: Int, channel: Int): Int =
+    bytes[(y.toLong() * width.toLong() + x.toLong()) * 4L + channel.toLong()].toUByte().toInt()
+
+internal fun assertPaintPixels(
+    expected: Array<Byte>,
+    actual: Array<Byte>,
+    width: Int,
+    height: Int,
+    tolerance: Int,
+    label: String = "paint pixels"
+) {
+    var alphaError = 0
+    var colorError = 0
+    var worstX = 0
+    var worstY = 0
+    for (y in 0 ..< height) {
+        for (x in 0 ..< width) {
+            val ea = paintChannel(expected, width, x, y, 3)
+            val aa = paintChannel(actual, width, x, y, 3)
+            val error = abs(ea - aa)
+            if (error > alphaError) {
+                alphaError = error
+                worstX = x
+                worstY = y
+            }
+            for (c in 0 ..< 3) {
+                val delta =
+                    abs(
+                        paintChannel(expected, width, x, y, c) *
+                            ea -
+                            paintChannel(actual, width, x, y, c) *
+                            aa
+                    )
+                if (delta > colorError)
+                    colorError = delta
+            }
+        }
+    }
+    assertTrue(
+        alphaError <= tolerance && colorError <= tolerance * 255,
+        Some(
+            f"${label}: alpha=${alphaError} at ${worstX},${worstY}, premultiplied color=${
+                colorError
+            }"
+        )
+    )
+}

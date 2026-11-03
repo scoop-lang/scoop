@@ -6,6 +6,13 @@ public class Drawing internal constructor(
     public val bounds: Rect
 ): Closeable {
     public val isClosed: Boolean get() = resource.isClosed
+    /** False for effects whose result can depend on the complete input's clipping. */
+    public val canRasterizeTiles: Boolean get() {
+        @Unsafe
+        {
+            return independentTiles(resource.get())
+        }
+    }
     public override fun close() {
         resource.close()
     }
@@ -41,3 +48,6 @@ private fun recordingCanvas(recording: Ptr<Unit>): Ptr<Unit>?
 
 @Extern(name = "scoop_graphics_recording_finish")
 private fun recordingFinish(recording: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_drawing_independent_tiles")
+private fun independentTiles(drawing: Ptr<Unit>): Boolean

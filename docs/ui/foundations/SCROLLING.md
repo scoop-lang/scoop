@@ -100,15 +100,19 @@ Pixel delta 复用 Surface 已完成的一次 DPI 归一，不再乘除 backing 
 
 不为整个超长内容分配一张 bitmap。Tiles 只保留 viewport 附近的有限内容坐标块，大小和 overscan 是本容器的参数；不在每次滚动时栅格化完整文档。离开缓存范围的图像正常释放。对于简单列表，None 仍是合理选择。
 
-graphics 的基础入口采用 `Canvas.recordDrawing(bounds, block)`、`createSurface(pixelWidth, pixelHeight, scale)` 与 OffscreenSurface.snapshot；记录明确裁剪到有限 bounds，来源 Canvas 的 transform／clip 不带入记录坐标。GPU 快照保持在同一实际 context 内，提交和采样顺序由现有后端协调，isCompatible 可用于拒绝过期后端资源；不把现有 RenderTarget.snapshot 的 CPU 读回放入滚动热路径。CPU Raster 路径使用同一可观察行为。关闭／目标重建／GPU 尚在使用时，资源沿 graphics 引用与完成规则释放；容器 Tiles 策略在基础接口之后接入。
+graphics 的基础入口采用 `Canvas.recordDrawing(bounds, block)`、`createSurface(pixelWidth, pixelHeight, scale)` 与 OffscreenSurface.snapshot；记录明确裁剪到有限 bounds，来源 Canvas 的 transform／clip 不带入记录坐标。GPU 快照保持在同一实际 context 内，提交和采样顺序由现有后端协调，isCompatible 可用于拒绝不兼容的后端资源；不把现有 RenderTarget.snapshot 的 CPU 读回放入滚动热路径。CPU Raster 路径使用同一可观察行为。关闭／目标重建／GPU 尚在使用时，资源沿 graphics 引用与完成规则释放。
+
+ScrollArea 与 VirtualList 的 paintCache 使用 `PaintCachePolicy.None` 或 `Tiles(tileSize = 256, overscan = 1)`，经 ScrollViewport 传到内容场景；嵌套视口自行选择，Portal 使用独立呈现场景。tileSize 为设备像素，overscan 为相邻块数，与列表按逻辑长度定义的 overscan 不同。
 
 ### 6.2 有效性与几何
 
-块以内容局部坐标定位，滚动只改变合成 transform。内容和布局、绘制资源、有效 scale、颜色空间或影响该块的效果改变时失效；resize 若改变子内容布局也必须失效。仅 viewport 平移或最终 clip 改变，不无条件重绘已有内容块。
+块以内容局部原点的设备像素网格定位，避免从任意字形边界起算而改变采样位置。滚动只改变合成 transform。内容、元素尺寸、绘制范围、采样边缘、实际像素缩放、策略或后端兼容性改变时失效；resize 改变子内容布局时也必须失效。仅 viewport 平移或最终 clip 改变，不重绘仍在保留范围内的块。旋转、错切、反射和不可表示的块使用正常图层重放。
 
-场景装配照常登记 InputArea、anchor、子项顺序和 caret，命中缓存只跳过绘图块／光栅步骤。公开 `draw` 块只有在提供可靠的绘制范围并满足缓存合成条件时才进入缓存；无界自绘或直接依赖目标背景的混合可以继续直绘，不能错误缓存后改变视觉。
+场景装配照常登记 InputArea、anchor、子项顺序和 caret，命中缓存只跳过绘图块／光栅步骤。可缓存内容通过 `drawLayer(key: PaintKey, bounds, revision, samplingOutset, block)` 声明；key 由元素持有，同一节点的一次 scene 只能使用一次。revision 覆盖 State、时间、动画和资源等全部绘图输入，框架不推测任意闭包依赖。回调始终在局部记录 Canvas 中执行，最终以 SrcOver 独立合成；None 每帧记录、重放并释放。原有 draw 保持直接执行，供无界内容、无法可靠提供版本或直接依赖背景的混合使用。
 
-布局 bounds 不是绘制 bounds。TextLayout.paintBounds 提供后端实际文字绘图的保守边界，包含字形 overhang，不包含外部行内对象。阴影、模糊和光晕也可能越界：缓存范围必须包含实际绘制及滤镜采样扩展，相邻块用扩展范围绘制后以 drawImageRegion 只合成核心区，避免边缘接缝。无法确定有限范围时回退该内容的直接绘制；不以 viewport 小矩形裁断本来可见的效果。原本的 Style／Canvas clip 与滤镜顺序保持不变。
+布局 bounds 不是绘制 bounds。TextLayout.paintBounds 提供后端实际文字绘图的保守边界，包含字形 overhang，不包含外部行内对象。公共 ParagraphHost 使用稳定 PaintKey、实际绘制边界和仅随新布局推进的版本。samplingOutset 描述采样边缘，每轴至少一个设备像素；各块绘制扩展范围，再以 drawImageRegion 合成核心区。
+
+独立分块还须满足 Drawing.canRasterizeTiles。Skia 的大模糊会随裁剪后的输入改变降采样位置，即使保留足够核邻域，也可能产生不同像素；包含 ImageFilter 的记录因此直接重放。滤镜可放在 SceneContext.saveLayer，使其在完整内容合成阶段执行，而正文等输入块继续复用像素。未声明可独立裁剪的 Unsafe 原生命令同样直接重放；graphics.text 的纯字形路径明确声明独立裁剪。普通滤镜、clip 与混合的先后顺序保持原语义。
 
 一个控件 hover 或 caret 闪烁只使包含它的相关内容缓存失效；纯滚动不使静态正文图像失效。缓存边界宜把频繁变化的选择／caret 与稳定正文分开，具体拆分由编辑适配完成，不让通用缓存识别“编辑器”类型。
 
@@ -117,10 +121,10 @@ graphics 的基础入口采用 `Canvas.recordDrawing(bounds, block)`、`createSu
 | 绘制策略 | 实例策略 | 离开并返回 viewport |
 | --- | --- | --- |
 | None | Dispose | 正常卸载／重建，进入后直绘 |
-| Tiles | Dispose | 实例正常重建；只有所属内容仍有效的块可复用，重新挂载改变内容时失效 |
+| Tiles | Dispose | 正常卸载时释放该节点的记录和像素；重新进入同时重建实例与绘图 |
 | None | KeepAlive | 复用原实例和局部状态，进入后直绘 |
-| Tiles | KeepAlive | 实例与有效图像分别复用；任一被淘汰不要求另一种同步淘汰 |
+| Tiles | KeepAlive | 局部状态与挂载资源保留；离屏像素可以释放，返回后重新绘制，视口附近的重叠块继续复用 |
 
-图像不保有输入处理器或 Component，从而不会反向延长已卸载组件生命周期。控件自身布局／绘制缓存随其实例正常销毁；由滚动容器拥有的块可以独立保留，但重建子项必须通过普通失效规则更新它，不能仅按相同 key 假定像素相同。
+图像不保有输入处理器、Component 或用户绘图回调。每个节点拥有自己的有限图层；scene 未再使用的 key、不参与帧的子树、无可见交集的图层和实际卸载均释放对应记录／像素。新实例不会只因使用相同 key 而继承旧像素。Discarded 的内部图像可以按内容版本复用，但不得发布该帧的输入或布局位置。
 
 覆盖固定／可变高度、零高度、插入／删除／重排、未知尺寸修正、key 对应实例和 onUnmount 计数；验证多层滚动残量、反向／双轴、DPI、phase、缓存图像的真实复用；覆盖活动编辑项暂留后淘汰、离屏动画停帧、内容带阴影／圆角／滤镜的边界及失败帧。计数只用于验证真实算法复杂度，不变成运行时的通用执行预算。

@@ -63,6 +63,7 @@ private class UiTextCacheTest {
                         [InlineMetrics(key, Size(20.0, 24.0))]
                     )
                 assertSame(first, same)
+                assertEquals(1L, cache.generation)
                 val larger =
                     cache.update(
                         fonts,
@@ -72,6 +73,7 @@ private class UiTextCacheTest {
                         [InlineMetrics(key, Size(36.0, 24.0))]
                     )
                 assertTrue(first.isClosed)
+                assertEquals(2L, cache.generation)
                 assertEquals(36.0, larger.inlineObjects[0L].box!!.rect.width)
                 val unwrapped =
                     cache.update(
@@ -82,6 +84,7 @@ private class UiTextCacheTest {
                         [InlineMetrics(key, Size(36.0, 24.0))]
                     )
                 assertTrue(larger.isClosed)
+                assertEquals(3L, cache.generation)
                 assertTrue(unwrapped.size.width < 160.0)
                 cache.close()
                 assertTrue(unwrapped.isClosed)
@@ -112,6 +115,7 @@ private class UiTextCacheTest {
                     cache.update(fonts, invalid, ParagraphStyle(), Some(200.0), [])
                 }
                 assertSame(first, cache.layout)
+                assertEquals(1L, cache.generation)
                 assertFalse(first.isClosed)
                 assertSame(first, cache.update(fonts, content, ParagraphStyle(), Some(200.0), []))
                 val replacement = StyledText([TextSpan.text("Replacement")], content.style)
@@ -121,6 +125,7 @@ private class UiTextCacheTest {
                 fonts.register(testSansBytes, "UI Other")
                 val afterFont = cache.update(fonts, replacement, ParagraphStyle(), Some(200.0), [])
                 assertTrue(next.isClosed)
+                assertEquals(3L, cache.generation)
                 assertFalse(afterFont.isClosed)
             }
         }

@@ -28,7 +28,7 @@
 | D2d2a：未挂载项的按 key 聚焦 | 已完成 aarch64 实施和定向验证 |
 | D2d2b：虚拟 Tab 与 roving 导航 | 已完成 aarch64 实施和定向验证 |
 | E1：绘制记录、兼容离屏图像与文字绘制边界 | 已完成 aarch64 实施和定向验证 |
-| E2：滚动容器分块像素缓存 | 待实施 |
+| E2：滚动容器分块像素缓存 | 已完成 aarch64 实施和定向验证 |
 | F：公共编辑与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
@@ -258,3 +258,17 @@ Scoop 格式检查、两库生产／测试源码类型检查、修改的 C++ arm
 首轮 Metal 分块测试仅留 1 像素插值边缘，完整离屏对照通过但分块 alpha 最大差 5；按滤镜范围保留扩展区域后，原 Raster／Metal 容差 2／3 均通过。文字截断用例最初没有产生足够行数，补足真实长文本后通过。最终产物上的全部用例与窗口回归通过，没有降低验证条件。
 
 没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。9 份一次性报告与 3 个被替代的旧测试输出清理；本批产物、独立 sysroot、配套命令和共享缓存保留。此批交付缓存所需底层能力，滚动容器的 Tiles 策略继续按 E2 实施。
+
+## E2：滚动容器分块像素缓存
+
+ScrollArea、VirtualList 与 ScrollViewport 接受 PaintCachePolicy.None／Tiles；它与 Dispose／KeepAlive 的实例策略独立。SceneContext.drawLayer 使用节点内稳定 PaintKey、显式 revision、绘制 bounds 和采样边缘，None 每帧独立重放，Tiles 保留实际 Drawing 与兼容后端的 Image。ParagraphHost 使用真实文字绘制边界与布局版本接入，普通 draw 继续逐帧执行。
+
+块网格按局部原点和设备像素对齐，支持正向轴对齐缩放及 DPI；只生成可见范围及有限 overscan 的像素，旋转、错切或无法可靠表示的范围回到完整重放。尺寸、内容、bounds、缩放、后端与策略改变按对应输入失效；退出可见范围、未放置、离屏实例保留和卸载均释放相应像素。缓存不持有组件、输入处理器或 Scoop 绘制回调，也不改变成功帧的输入几何。
+
+Metal 对照发现，Skia 图像滤镜的降采样原点受裁剪区域影响，单纯增加分块边缘不能稳定保持像素。Graphics 增加 Drawing.canRasterizeTiles；记录内的图像滤镜、未声明独立采样的 Unsafe native 绘图及其嵌套记录采用完整重放。外层 SceneContext.saveLayer 的滤镜在缓存输入合成后执行，仍能复用正文像素；graphics.text 的纯文字适配显式声明独立采样。Raster／Metal 对照保持原容差 2／3。
+
+Scoop 格式检查、修改库的生产／测试源码类型检查、C++ arm64 警告检查及 UI 依赖闭包的 aarch64 release 构建通过。87 项定向 scoop.test 通过：Graphics 35 项、Graphics.Text 32 项、UI 像素缓存 11 项、段落缓存 4 项，以及新的缓存组合与已有 UI drawing、UI text、ScrollArea、KeepAlive 原生窗口用例各 1 项。覆盖实际 Image 复用、滚动重叠与淘汰、DPI／非均匀缩放、后端切换、滤镜完整重放与合成、来源资源关闭、错误清理，以及四种像素／实例策略组合下的文本更新、输入坐标、局部状态、未放置恢复、卸载与停帧。
+
+初次像素测试修正了对 Skia 保守裁剪范围的过紧块数断言；Metal 差异按上述滤镜合成边界解决。原生组合的四组交互已通过后，测试收尾仍查询已关闭窗口焦点，限制查询只在场景推进阶段执行后通过；生产缓存逻辑没有为测试增加旁路。最终产物上的专项与回归全部通过。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。11 份一次性报告、6 个被替代的测试输出及原生采样诊断文件清理；本批产物、独立 sysroot、配套命令和共享缓存保留。后续进入公共编辑能力。

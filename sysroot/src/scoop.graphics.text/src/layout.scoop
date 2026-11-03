@@ -120,7 +120,7 @@ public fun Canvas.drawText(layout: TextLayout, origin: Point = Point(0.0, 0.0)) 
     @Unsafe
     {
         val pointer = layout.resource.get()
-        withSkiaCanvas {
+        withSkiaCanvas(independentTiles = true) {
             canvas -> @Unsafe
             {
                 textResult(textPaint(pointer, canvas, origin), "paint text layout")

@@ -21,6 +21,7 @@ public class ScrollViewport internal constructor(
     private var binding = 0UL
     private var staged: ScrollLayout? = None
     private var motion: ScrollMotion? = None
+    private var cachePolicy = PaintCachePolicy.None
 
     init {
         current.attach(this)
@@ -55,6 +56,20 @@ public class ScrollViewport internal constructor(
         ready = false
         staged = None
         current.attach(this)
+        requestFrame()
+    }
+    public var paintCache: PaintCachePolicy
+    get() {
+        node.root.checkThread()
+        return cachePolicy
+    }
+    set(value) {
+        checkOpen()
+        current.checkMutation()
+        checkPaintCachePolicy(value)
+        if (cachePolicy == value)
+            return
+        cachePolicy = value
         requestFrame()
     }
     private fun checkOpen() {

@@ -19,6 +19,10 @@ State 在创建它的线程读写；render／measure／scene／draw 不允许写
 
 Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
 
+有限且有可靠内容版本的绘图使用 `context.drawLayer(key, bounds, revision, samplingOutset = 1.0) { paint -> ... }`。PaintKey 由元素持有；回调使用独立局部坐标，结果以 SrcOver 合成。ScrollViewport.paintCache 默认 None，Tiles 按设备像素块复用实际图像；场景、输入和 children 每帧照常装配。版本必须覆盖 State、时间、动画与资源变化，普通 draw 仍直接执行。ParagraphHost 的正文已接入此协议。
+
+块采用与局部原点对齐的设备像素网格；纯平移复用重叠块，改变内容版本、尺寸、缩放或后端时重建。离开范围、未放置或卸载时及时释放。记录内的 ImageFilter 和未声明可独立裁剪的原生命令按 Drawing.canRasterizeTiles 结果直接重放；可把滤镜放到 SceneContext.saveLayer 的完整内容合成阶段，使其输入仍可缓存。
+
 `context.onFrameComplete { result -> ... }` 登记当前帧的一次性完成通知。Accepted 后可以使用已发布区域请求焦点，也可以写 State 或请求后续帧；Discarded 保留旧几何。通知执行前若节点卸载或根关闭则取消，不能把资源清理依赖在通知上；场景与绘图 context 的借用仍在同步回调结束时失效。
 
 在 onMount 中使用 ComponentScope.resource 登记 Path、Image 或缓存，使用 createArea 和 animation 登记稳定的输入区域与 Surface Animatable。应用不为每个组件 use；作用域按子先父的顺序退休输入／动画、调用 onUnmount，再逆序关闭资源。可替换缓存应自行及时关闭旧值，不能每帧登记一个新资源。

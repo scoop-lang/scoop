@@ -23,7 +23,8 @@ public class ScrollAreaProps public constructor(
     public val scrollbar: ScrollbarOptions = ScrollbarOptions(),
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
@@ -56,6 +57,7 @@ public fun scrollArea(
     enabled: Boolean = true,
     focus: FocusOptions = FocusOptions(),
     theme: ThemeSource? = None,
+    paintCache: PaintCachePolicy = PaintCachePolicy.None,
     key: ViewKey = ViewKey.Position
 ): View =
     component(
@@ -71,7 +73,8 @@ public fun scrollArea(
             scrollbar,
             enabled,
             focus,
-            theme
+            theme,
+            paintCache
         ),
         { props -> ScrollArea(props) },
         key
@@ -92,6 +95,7 @@ internal class ScrollAreaInkProps(
             input.scrollbar,
             input.enabled,
             input.focus,
+            input.paintCache,
             theme
         )
 }

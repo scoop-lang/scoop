@@ -8,6 +8,7 @@ import scoop.time.TimeMark
 
 internal class ScenePass {
     var presentedChildren = false
+    val paintKeys = ArrayList<PaintKey>()
 }
 
 /** Geometry, input and child presentation share one frame state, separate from pixel blocks. */
@@ -17,7 +18,8 @@ public class SceneContext internal constructor(
     private val extent: Size,
     private val overlay: OverlayLayout? = None,
     private val pass: ScenePass = ScenePass(),
-    private val scrollPath: Array<ScrollReveal> = []
+    private val scrollPath: Array<ScrollReveal> = [],
+    private val paintCache: PaintCachePolicy = PaintCachePolicy.None
 ) {
     private var active = true
     private var borrowed = false
@@ -72,10 +74,42 @@ public class SceneContext internal constructor(
             borrowed = false
         }
     }
+    /** Records a finite, isolated layer; revision covers every input affecting its pixels. */
+    public fun drawLayer(
+        key: PaintKey,
+        bounds: Rect,
+        revision: Long,
+        samplingOutset: Double = 1.0,
+        block: (PaintContext) -> Unit
+    ) {
+        checkActive()
+        for (previous in pass.paintKeys)
+            requireUi(previous !== key, "paint key was already used in this scene")
+        pass.paintKeys.add(key)
+        borrowed = true
+        try {
+            node.paintLayers.draw(
+                frame.canvas,
+                key,
+                PaintLayerInput(extent, bounds, revision, samplingOutset),
+                paintCache
+            ) {
+                canvas ->
+                val context = PaintContext(node.root, canvas, extent, frame.time)
+                try {
+                    block(context)
+                } finally {
+                    context.end()
+                }
+            }
+        } finally {
+            borrowed = false
+        }
+    }
     /** Shares the one child presentation pass while isolating scene state. */
     public fun <T> withState(block: (SceneContext) -> T): T {
         checkActive()
-        return withPath(scrollPath, block)
+        return withPath(scrollPath, paintCache, block)
     }
     internal fun scrollContent(
         viewport: ScrollViewport,
@@ -92,7 +126,7 @@ public class SceneContext internal constructor(
                 else
                     boundary
             }
-        withPath<Unit>(path) {
+        withPath<Unit>(path, viewport.paintCache) {
             child ->
             val snapshot = layout.snapshot
             child.clipRect(Rect(0.0, 0.0, snapshot.viewport.width, snapshot.viewport.height))
@@ -100,12 +134,16 @@ public class SceneContext internal constructor(
             block(child)
         }
     }
-    private fun <T> withPath(path: Array<ScrollReveal>, block: (SceneContext) -> T): T {
+    private fun <T> withPath(
+        path: Array<ScrollReveal>,
+        policy: PaintCachePolicy,
+        block: (SceneContext) -> T
+    ): T {
         borrowed = true
         try {
             return frame.withState {
                 childFrame ->
-                val child = SceneContext(node, childFrame, extent, overlay, pass, path)
+                val child = SceneContext(node, childFrame, extent, overlay, pass, path, policy)
                 try {
                     block(child)
                 } finally {
@@ -195,8 +233,14 @@ public class SceneContext internal constructor(
     }
     private fun presentChild(index: Long) {
         when (node.placements[index]) {
-            case Some(origin) -> node.children[index].scene(frame, origin, overlay, scrollPath)
-            case None -> {}
+            case Some(origin) -> node.children[index].scene(
+                frame,
+                origin,
+                overlay,
+                scrollPath,
+                paintCache
+            )
+            case None -> node.children[index].clearPaintSubtree()
         }
     }
     internal fun finish() {
@@ -205,6 +249,7 @@ public class SceneContext internal constructor(
                 if (origin != None)
                     throw IllegalStateException(Some("placed children must be presented"))
         }
+        node.paintLayers.retain(pass.paintKeys)
     }
     internal fun end() {
         active = false
@@ -215,18 +260,19 @@ internal fun MountedNode.scene(
     frame: FrameContext,
     origin: Point,
     overlay: OverlayLayout? = None,
-    scrollPath: Array<ScrollReveal> = []
+    scrollPath: Array<ScrollReveal> = [],
+    paintCache: PaintCachePolicy = PaintCachePolicy.None
 ) {
     if (!active || !root.isOpen)
         return
     when (body) {
         case Empty -> {}
-        case Component(_) -> children[0L].scene(frame, origin, overlay, scrollPath)
+        case Component(_) -> children[0L].scene(frame, origin, overlay, scrollPath, paintCache)
         case Portal(instance) -> root.overlays.include(instance)
-        case Element(instance) -> sceneElement(frame, origin, overlay, scrollPath) {
+        case Element(instance) -> sceneElement(frame, origin, overlay, scrollPath, paintCache) {
             context -> instance.value.scene(context)
         }
-        case Lazy(instance, _) -> sceneElement(frame, origin, overlay, scrollPath) {
+        case Lazy(instance, _) -> sceneElement(frame, origin, overlay, scrollPath, paintCache) {
             context -> instance.value.scene(context)
         }
     }
@@ -237,13 +283,22 @@ private fun MountedNode.sceneElement(
     origin: Point,
     overlay: OverlayLayout?,
     scrollPath: Array<ScrollReveal>,
+    paintCache: PaintCachePolicy,
     draw: (SceneContext) -> Unit
 ) {
     frame.withState {
         childFrame ->
         childFrame.canvas.translate(origin.x, origin.y)
         val result = metrics ?: throw IllegalStateException(Some("element has not been measured"))
-        val context = SceneContext(this, childFrame, result.size, overlay, scrollPath = scrollPath)
+        val context =
+            SceneContext(
+                this,
+                childFrame,
+                result.size,
+                overlay,
+                scrollPath = scrollPath,
+                paintCache = paintCache
+            )
         try {
             evaluateUi<Unit>(None) { draw(context) }
             if (active && root.isOpen)

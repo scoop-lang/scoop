@@ -64,6 +64,14 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         paintDomain(None, context)
         for (modal in modals)
             paintDomain(Some(modal), context)
+        for (portal in sessions) {
+            val included = portal.included
+            when (included) {
+                case Some(value) -> if (value !== frame)
+                    portal.node.clearPaintSubtree()
+                case None -> portal.node.clearPaintSubtree()
+            }
+        }
     }
     private fun paintDomain(domain: ModalSession?, context: FrameContext) {
         for (portal in sessions) {
@@ -82,6 +90,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                                 case None -> false
                             }
                         if (!usable) {
+                            portal.node.clearPaintSubtree()
                             if (portal.options.anchorVisibility != AnchorVisibility.Hide)
                                 frame.unavailable.add(portal)
                             continue

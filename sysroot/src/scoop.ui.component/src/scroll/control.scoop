@@ -16,6 +16,7 @@ internal class ScrollControlProps(
     val scrollbar: ScrollbarOptions,
     val enabled: Boolean,
     val focus: FocusOptions,
+    val paintCache: PaintCachePolicy,
     val theme: Theme
 )
 
@@ -43,6 +44,7 @@ internal class ScrollControl(
             "invalid scroll line step"
         )
         viewport.state = value.state
+        viewport.paintCache = value.paintCache
         focus.options = value.focus
         area.scope.enabled = value.enabled
         horizontal.update()

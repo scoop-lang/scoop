@@ -16,6 +16,7 @@ internal class MountedNode(
     val body: NodeBody
 ) {
     val scope = ComponentScope(this)
+    val paintLayers = PaintLayers()
     val focusTargets = ArrayList<FocusTarget>()
     var focusScope: FocusScope? = None
     var navigation: KeyNavigation? = None
@@ -42,9 +43,19 @@ internal class MountedNode(
         if (next == frameEnabled)
             return
         frameEnabled = next
+        if (!next)
+            paintLayers.close()
         scope.updateFrameParticipation()
         for (child in children)
             child.inheritFrameParticipation(next)
+    }
+
+    fun clearPaintSubtree() {
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { paintLayers.close() }
+        for (child in children)
+            failure = cleanupUi(failure) { child.clearPaintSubtree() }
+        throwUi(failure)
     }
 
     fun invalidate() {
@@ -186,6 +197,7 @@ internal class MountedNode(
                 }
         }
         failure = cleanupUi(failure) { throwUi(scope.release()) }
+        failure = cleanupUi(failure) { paintLayers.close() }
         failure = cleanupUi(failure) { releaseInstance(body) }
         metrics = None
         placements = []

@@ -7,6 +7,8 @@ import scoop.ui.throwUi
 /** Owns the two native snapshots; replacement publishes only fully built results. */
 internal class ParagraphCache: Closeable {
     private var current: CachedParagraph? = None
+    private var serial = 0L
+    val generation: Long get() = serial
 
     val layout: TextLayout get() =
         (current ?: throw IllegalStateException(Some("paragraph has not been measured"))).layout
@@ -28,6 +30,7 @@ internal class ParagraphCache: Closeable {
                     previous.layout = next
                     previous.width = width
                     previous.metrics = metrics
+                    serial += 1L
                     old.close()
                     return next
                 }
@@ -53,6 +56,7 @@ internal class ParagraphCache: Closeable {
             }
         val previous = current
         current = Some(next)
+        serial += 1L
         previous?.close()
         return next.layout
     }

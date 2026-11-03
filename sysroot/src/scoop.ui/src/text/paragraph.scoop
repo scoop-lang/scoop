@@ -1,6 +1,7 @@
 package scoop.ui.text
 
 import scoop.graphics.Point
+import scoop.graphics.Rect
 import scoop.graphics.text.*
 import scoop.platform.concurrent.currentThreadId
 import scoop.surface.InputArea
@@ -10,6 +11,7 @@ import scoop.ui.*
 public class ParagraphHost public constructor(): Closeable {
     private val thread = currentThreadId()
     private val cache = ParagraphCache()
+    private val paintKey = PaintKey()
     private var closed = false
 
     public val isClosed: Boolean get() {
@@ -72,7 +74,12 @@ public class ParagraphHost public constructor(): Closeable {
 
     public fun scene(context: SceneContext) {
         checkOpen()
-        context.draw { paint -> paint.canvas.drawText(cache.layout) }
+        val bounds = cache.layout.paintBounds
+        context.drawLayer(
+            paintKey,
+            Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0),
+            cache.generation
+        ) { paint -> paint.canvas.drawText(cache.layout) }
         context.children()
     }
 

@@ -40,6 +40,8 @@ ImageFilter、Path、PathBuilder、PathMeasure、Image、RasterSurface 与底层
 
 `canvas.recordDrawing(bounds) { record -> ... }` 返回不可变 Drawing，使用独立局部坐标、明确的 bounds 裁剪和正常 Canvas 借用规则；`canvas.drawDrawing(drawing)` 在当前坐标下重放。记录保留绘图资源而不保留用户回调，来源 Path／Image／TextLayout 包装关闭后仍可使用；重放仍会光栅化，不是像素缓存。
 
+`drawing.canRasterizeTiles` 区分可独立裁剪的记录和需要完整输入的效果。ImageFilter 可能随裁剪区域改变内部降采样位置，因此这类记录返回 false；它们仍能正常重放，或把滤镜留在缓存内容的合成阶段。嵌套记录继承限制。Unsafe withSkiaCanvas 默认不声明独立裁剪，原生适配方可按其绘图合同显式设置 `independentTiles = true`；graphics.text 的纯字形／装饰路径使用这个声明。
+
 `canvas.createSurface(pixelWidth, pixelHeight, scale)` 返回与当前真实目标兼容的 OffscreenSurface。其 `snapshot()` 保留 GPU 图像，不等待或读回 CPU；旧快照不随之后的 draw 改变。`canvas.isCompatible(image)`／`isCompatible(drawing)` 可在复用前判断实际 context 是否相同，不兼容的 GPU 资源拒绝绘制。普通 RenderTarget／RasterSurface 的 snapshot 仍返回 CPU 图像，readPixels 保持显式同步。
 
 `pixelTransform` 包含目标 DPI；`localClipBounds` 只是局部裁剪的保守矩形，精确命中仍使用 CanvasGeometry。分块绘图可用 `drawImageRegion(image, source, destination)` 合成扩展图像的核心区域；Linear 允许从相邻源像素采样，应按滤镜范围及插值需要保留扩展边缘。新能力本期先验证 macOS aarch64，x86_64 统一留到 UI 基础交互功能全部完成后，Windows 验收后续进行。

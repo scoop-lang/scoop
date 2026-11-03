@@ -3,6 +3,7 @@ package scoop.graphics
 import scoop.graphics.native.*
 import scoop.platform.concurrent.Thread
 import scoop.test.*
+import scoop.tests.graphics.drawNativeMarker
 
 @Test
 private class DrawingRecordTest {
@@ -142,5 +143,69 @@ private class DrawingRecordTest {
             assertEquals(255, channel(surface.readPixels(), 16, 6, 4, 1))
         }
         assertFailsWith<IllegalStateException> { expired[0L].pixelTransform }
+    }
+}
+
+@Test
+private class DrawingTilesTest {
+    @Test
+    fun `filter records and their nested replays require complete input while ordinary layers permit tiles`() {
+        RasterSurface(32, 32).use {
+            surface -> surface.draw {
+                canvas ->
+                val bounds = Rect(0.0, 0.0, 32.0, 32.0)
+                canvas.recordDrawing(bounds) {
+                    record ->
+                    record.saveLayer(opacity = 0.5)
+                    record.drawRect(bounds, Paint(Color.Black))
+                    record.restore()
+                }.use {
+                    plain ->
+                    assertTrue(plain.canRasterizeTiles)
+                    ImageFilter.blur(3.0, 3.0).use {
+                        filter -> canvas.recordDrawing(bounds) {
+                            record -> record.withState {
+                                child ->
+                                child.saveLayer(filter = Some(filter))
+                                child.drawDrawing(plain)
+                            }
+                        }.use {
+                            filtered ->
+                            assertFalse(filtered.canRasterizeTiles)
+                            canvas.recordDrawing(bounds) {
+                                record -> record.drawDrawing(filtered)
+                            }.use { nested -> assertFalse(nested.canRasterizeTiles) }
+                            canvas.drawDrawing(filtered)
+                        }
+                    }
+                    canvas.recordDrawing(bounds) { record -> record.drawDrawing(plain) }.use {
+                        nested -> assertTrue(nested.canRasterizeTiles)
+                    }
+                    plain.close()
+                    assertFailsWith<IllegalStateException> { plain.canRasterizeTiles }
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `native adapters explicitly declare independent clipping for recorded commands`() {
+        RasterSurface(32, 32).use {
+            surface -> surface.draw {
+                canvas -> for (independent in [false, true]) {
+                    canvas.recordDrawing(Rect(0.0, 0.0, 32.0, 32.0)) {
+                        record -> @Unsafe
+                        {
+                            record.withSkiaCanvas(independentTiles = independent) {
+                                native -> @Unsafe
+                                {
+                                    assertTrue(drawNativeMarker(native))
+                                }
+                            }
+                        }
+                    }.use { drawing -> assertEquals(independent, drawing.canRasterizeTiles) }
+                }
+            }
+        }
     }
 }

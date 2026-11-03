@@ -1,0 +1,141 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.math.*
+
+internal struct PaintTileIndex(val x: Long, val y: Long): Equals<PaintTileIndex>, Hash {
+    public override operator fun equals(other: PaintTileIndex): Boolean =
+        x == other.x && y == other.y
+    public override fun hash(): Long = x.hash() xor (y.hash() shl 1L)
+}
+
+internal struct PaintTileRange(val left: Long, val top: Long, val right: Long, val bottom: Long) {
+    fun contains(index: PaintTileIndex): Boolean =
+        index.x >= left && index.x < right && index.y >= top && index.y < bottom
+}
+
+/** Device-sized cells anchored to finite content, independent of scrolling translation. */
+internal struct PaintTileGrid(
+    val scaleX: Double,
+    val scaleY: Double,
+    val tileSize: Int,
+    val overscan: Int,
+    val paddingX: Int,
+    val paddingY: Int,
+    val firstColumn: Long,
+    val firstRow: Long,
+    val columns: Long,
+    val rows: Long
+) {
+    val pixelWidth: Int get() = (tileSize.toLong() + 2L * paddingX.toLong()).toInt()
+    val pixelHeight: Int get() = (tileSize.toLong() + 2L * paddingY.toLong()).toInt()
+    fun core(index: PaintTileIndex): Rect {
+        val x = (firstColumn + index.x).toDouble() * tileSize.toDouble() / scaleX
+        val y = (firstRow + index.y).toDouble() * tileSize.toDouble() / scaleY
+        return Rect(x, y, tileSize.toDouble() / scaleX, tileSize.toDouble() / scaleY)
+    }
+    fun range(bounds: Rect, clip: Rect): PaintTileRange? {
+        val left = max(bounds.x, clip.x)
+        val top = max(bounds.y, clip.y)
+        val right = min(bounds.x + bounds.width, clip.x + clip.width)
+        val bottom = min(bounds.y + bounds.height, clip.y + clip.height)
+        if (left >= right || top >= bottom)
+            return None
+        val extra = overscan.toLong()
+        return Some(
+            PaintTileRange(
+                max(0L, floor(left * scaleX / tileSize.toDouble()).toLong() - firstColumn - extra),
+                max(0L, floor(top * scaleY / tileSize.toDouble()).toLong() - firstRow - extra),
+                min(
+                    columns,
+                    ceil(right * scaleX / tileSize.toDouble()).toLong() - firstColumn + extra
+                ),
+                min(rows, ceil(bottom * scaleY / tileSize.toDouble()).toLong() - firstRow + extra)
+            )
+        )
+    }
+    fun representable(range: PaintTileRange): Boolean {
+        for (
+            index in [
+                PaintTileIndex(range.left, range.top),
+                PaintTileIndex(range.right - 1L, range.bottom - 1L)
+            ]
+        ) {
+            val rect = core(index)
+            if (
+                !rect.x.toFloat().isFinite() ||
+                    !rect.y.toFloat().isFinite() ||
+                    !(rect.x + rect.width).toFloat().isFinite() ||
+                    !(rect.y + rect.height).toFloat().isFinite() ||
+                    (rect.x + rect.width).toFloat() <=
+                    rect.x.toFloat() ||
+                    (rect.y + rect.height).toFloat() <=
+                    rect.y.toFloat()
+            )
+                return false
+        }
+        return true
+    }
+}
+
+internal fun paintTileGrid(
+    transform: Transform,
+    input: PaintLayerInput,
+    tileSize: Int,
+    overscan: Int
+): PaintTileGrid? {
+    if (transform.b != 0.0 || transform.c != 0.0 || transform.a <= 0.0 || transform.d <= 0.0)
+        return None
+    val x = max(1.0, ceil(input.samplingOutset * transform.a))
+    val y = max(1.0, ceil(input.samplingOutset * transform.d))
+    val width = tileSize.toDouble() + 2.0 * x
+    val height = tileSize.toDouble() + 2.0 * y
+    if (
+        !width.isFinite() ||
+            !height.isFinite() ||
+            width >
+            Int.MAX_VALUE.toDouble() ||
+            height >
+            Int.MAX_VALUE.toDouble() ||
+            width *
+            height >
+            (Long.MAX_VALUE / 4L).toDouble()
+    )
+        return None
+    val left = input.bounds.x * transform.a
+    val top = input.bounds.y * transform.d
+    val right = (input.bounds.x + input.bounds.width) * transform.a
+    val bottom = (input.bounds.y + input.bounds.height) * transform.d
+    // Above the exact integer range, adjacent device pixels cannot define a reliable grid.
+    val exactPixels = 9007199254740991.0
+    for (coordinate in [left, top, right, bottom])
+        if (!coordinate.isFinite() || abs(coordinate) > exactPixels)
+            return None
+    val cellX = tileSize.toDouble() / transform.a
+    val cellY = tileSize.toDouble() / transform.d
+    if (
+        !cellX.toFloat().isFinite() ||
+            !cellY.toFloat().isFinite() ||
+            cellX.toFloat() <=
+            0.0 ||
+            cellY.toFloat() <=
+            0.0
+    )
+        return None
+    val firstColumn = floor(left / tileSize.toDouble()).toLong()
+    val firstRow = floor(top / tileSize.toDouble()).toLong()
+    return Some(
+        PaintTileGrid(
+            transform.a,
+            transform.d,
+            tileSize,
+            overscan,
+            x.toInt(),
+            y.toInt(),
+            firstColumn,
+            firstRow,
+            ceil(right / tileSize.toDouble()).toLong() - firstColumn,
+            ceil(bottom / tileSize.toDouble()).toLong() - firstRow
+        )
+    )
+}

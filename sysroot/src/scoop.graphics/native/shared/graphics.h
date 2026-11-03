@@ -65,8 +65,9 @@ struct SGImage : SGObject {
 struct SGDrawing : SGObject {
   sk_sp<GrDirectContext> context;
   sk_sp<SkPicture> picture;
-  SGDrawing(sk_sp<SkPicture> p, sk_sp<GrDirectContext> c)
-      : context(std::move(c)), picture(std::move(p)) {}
+  bool independentTiles;
+  SGDrawing(sk_sp<SkPicture> p, sk_sp<GrDirectContext> c, bool tiles)
+      : context(std::move(c)), picture(std::move(p)), independentTiles(tiles) {}
 };
 struct SGFilter : SGObject {
   sk_sp<SkImageFilter> filter;
@@ -80,10 +81,14 @@ struct SGTarget : SGObject {
   sk_sp<GrDirectContext> context;
   bool external = true;
 };
+struct SGRecording {
+  SkPictureRecorder recorder;
+  bool independentTiles = true;
+};
 struct SGCanvas : SGObject {
   sk_sp<SkSurface> surface;
   sk_sp<GrDirectContext> context;
-  std::shared_ptr<SkPictureRecorder> recording;
+  std::shared_ptr<SGRecording> recording;
   SkCanvas *canvas;
   float scale;
   SkRect viewport;
@@ -106,10 +111,10 @@ struct SGCanvas : SGObject {
     canvas->save();
   }
   SGCanvas(sk_sp<SkSurface> s, sk_sp<GrDirectContext> c,
-           std::shared_ptr<SkPictureRecorder> r, SkRect bounds)
+           std::shared_ptr<SGRecording> r, SkRect bounds)
       : surface(std::move(s)), context(std::move(c)), recording(std::move(r)),
-        canvas(recording->getRecordingCanvas()), scale(1), viewport(bounds),
-        base(canvas->getSaveCount()), clips(1) {
+        canvas(recording->recorder.getRecordingCanvas()), scale(1),
+        viewport(bounds), base(canvas->getSaveCount()), clips(1) {
     canvas->save();
     canvas->clipRect(bounds);
   }

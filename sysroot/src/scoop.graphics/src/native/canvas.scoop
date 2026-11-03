@@ -3,10 +3,14 @@ package scoop.graphics.native
 import scoop.graphics.Canvas
 import scoop.graphics.ownedGraphics
 
-/** Borrows the actual SkCanvas synchronously and restores its state on every exit. */
+/** Declaring independentTiles promises that native commands can be clipped independently. */
 @Unsafe
-public fun <T> Canvas.withSkiaCanvas(block: (Ptr<Unit>) -> T): T {
-    val borrow = ownedGraphics(canvasBorrow(resource.get()), "borrow native canvas")
+public fun <T> Canvas.withSkiaCanvas(
+    independentTiles: Boolean = false,
+    block: (Ptr<Unit>) -> T
+): T {
+    val borrow =
+        ownedGraphics(canvasBorrow(resource.get(), independentTiles), "borrow native canvas")
     return borrow.use {
         value -> @Unsafe
         {
@@ -16,7 +20,7 @@ public fun <T> Canvas.withSkiaCanvas(block: (Ptr<Unit>) -> T): T {
 }
 
 @Extern(name = "scoop_graphics_canvas_borrow")
-private fun canvasBorrow(canvas: Ptr<Unit>): Ptr<Unit>?
+private fun canvasBorrow(canvas: Ptr<Unit>, independentTiles: Boolean): Ptr<Unit>?
 
 @Extern(name = "scoop_graphics_canvas_pointer")
 private fun canvasPointer(borrow: Ptr<Unit>): Ptr<Unit>

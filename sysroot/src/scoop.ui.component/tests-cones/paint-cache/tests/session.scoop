@@ -1,0 +1,198 @@
+package scoop.tests.ui.paintcache
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.ThemeSource
+import scoop.ui.style.macos.macosTheme
+import scoop.window.*
+
+@Test
+private class ScrollPaintCacheTest {
+    @Test
+    fun `paint and instance retention remain independent with live input text and quiet frames`() {
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Cache Test")
+            val probe = CacheProbe(fonts)
+            try {
+                UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                    host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                }
+                assertTrue(probe.finished)
+                assertTrue(probe.rows.size < 50L)
+                for (row in probe.rows) {
+                    assertEquals(1, row.unmounts)
+                    assertTrue(row.area!!.isClosed)
+                    assertTrue(row.text!!.isClosed)
+                    assertEquals(row.scenes, row.foregrounds)
+                }
+            } catch (error: Exception) {
+                fail(
+                    Some(
+                        f"paint cache mode=${probe.mode.value} step=${probe.step}: " +
+                            (error.message ?: "unspecified failure")
+                    )
+                )
+            } finally {
+                probe.frames?.close()
+                probe.view?.close()
+            }
+        }
+    }
+}
+
+internal class CacheProbe(val fonts: FontCollection) {
+    val mode = state(0)
+    val policy = state<PaintCachePolicy>(PaintCachePolicy.None)
+    val placed = state(true)
+    val scroll = ScrollState()
+    val eagerScroll = ScrollState()
+    val theme = ThemeSource(macosTheme())
+    val backgroundKey = PaintKey()
+    val rows = ArrayList<PaintRowRecord>()
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var scope: ComponentScope? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: WindowDeadline? = None
+    var first: PaintRowRecord? = None
+    var current: PaintRowRecord? = None
+    var paints = 0
+    var eagerPaints = 0
+    var scenes = 0
+    var quietPasses = 0
+    var passes = 0
+    var inside = 0L
+    var outside = 0L
+    var ticket = 0
+    var committed = -1
+    var step = 0
+    var waiting = false
+    var retryFocus = false
+    var finished = false
+    val cached: Boolean get() = policy.value != PaintCachePolicy.None
+    val kept: Boolean get() = mode.value >= 2
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        WindowAttributes("Scoop paint cache", LogicalSize(320.0, 120.0))
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                frames = Some(observeFrames(native))
+                quiet =
+                    Some(
+                        native.createDeadline {
+                            assertTrue(
+                                active.proxy().post {
+                                    _ ->
+                                    assertEquals(quietPasses, passes)
+                                    assertFalse(frames!!.snapshot().required)
+                                    finishCase()
+                                }
+                            )
+                        }
+                    )
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { CacheScene(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+            }
+            case AboutToWait -> if (step < 12) {
+                if (!retryFocus && passes > 0 && !window!!.isFocused) {
+                    retryFocus = true
+                    window!!.requestFocus()
+                }
+                if (
+                    !waiting &&
+                        committed ==
+                        ticket &&
+                        window!!.isFocused &&
+                        !frames!!.snapshot().required
+                ) {
+                    waiting = true
+                    assertTrue(
+                        active.proxy().post {
+                            _ ->
+                            waiting = false
+                            if (
+                                committed ==
+                                    ticket &&
+                                    window!!.isFocused &&
+                                    !frames!!.snapshot().required
+                            )
+                                advanceCache(this)
+                        }
+                    )
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = mode.value == 3 && step == 12
+                active.requestExit()
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"paint cache timed out at ${mode.value}/${step}")
+            )
+            else -> {}
+        }
+    }
+    fun row(id: Long): PaintRowRecord {
+        for (row in rows)
+            if (row.mode == mode.value && row.id == id && row.unmounts == 0)
+                return row
+        throw IllegalStateException(Some("paint row is not mounted"))
+    }
+    fun snapshot() {
+        val item = row(0L)
+        paints = item.paints
+        scenes = item.scenes
+        eagerPaints = row(-1L).paints
+    }
+    fun assertReuse(before: Int, after: Int) {
+        if (cached)
+            assertEquals(before, after)
+        else
+            assertTrue(after > before)
+    }
+    fun next(action: () -> Unit = {}) {
+        step += 1
+        ticket += 1
+        action()
+        scope!!.requestFrame()
+    }
+    fun click() {
+        assertTrue(view!!.button(24.0, 24.0, true))
+        assertTrue(view!!.button(24.0, 24.0, false))
+    }
+    fun finishCase() {
+        if (mode.value == 3) {
+            ui!!.close()
+            window!!.requestDestroy()
+            return
+        }
+        val nextMode = mode.value + 1
+        scroll.scrollTo(Point(0.0, 0.0))
+        eagerScroll.scrollTo(Point(0.0, 0.0))
+        policy.value =
+            if (nextMode % 2 == 1)
+                PaintCachePolicy.Tiles(32, 0)
+            else
+                PaintCachePolicy.None
+        mode.value = nextMode
+        step = 0
+        ticket += 1
+        waiting = false
+    }
+}

@@ -30,7 +30,7 @@ Canvas 是一次绘制作用域内的借用对象，不得跨帧保存或在其�
 
 `scoop.graphics.native` 提供当前 Surface renderer 实际需要的公开 Unsafe 接入：原生渲染目标、受控的 Canvas 借用、提交／中止，以及几何状态快照。Skia C++ 类型不进入普通公共 API；Metal 等句柄只出现在按目标选择的 native 子包。跨 Cone 调用不能依赖另一 Cone 的 internal 构造器。
 
-独立文本库使用同一 package 的 `@Unsafe fun <T> Canvas.withSkiaCanvas(block: (Ptr<Unit>) -> T): T`。它在当前有效 Canvas 的 owner 线程同步借出实际 SkCanvas 指针，调用前保存原生画布状态，正常返回或异常退出都恢复原状态；不施加第二次 DPI 变换。指针只在 block 内有效，不能保存、释放、跨线程或挂起使用。block 只通过该指针进行 Skia 绘制，不重入同一 Canvas 的 Scoop 操作或几何捕获，不恢复到借用入口保存层以下，不自行提交目标或变更 GPU context。调用方承担这项 Unsafe 约束；graphics 的私有包装、资源析构和 clip 记录不向另一 Cone 开放。
+独立文本库使用同一 package 的 `@Unsafe fun <T> Canvas.withSkiaCanvas(independentTiles: Boolean = false, block: (Ptr<Unit>) -> T): T`。它在当前有效 Canvas 的 owner 线程同步借出实际 SkCanvas 指针，调用前保存原生画布状态，正常返回或异常退出都恢复原状态；不施加第二次 DPI 变换。指针只在 block 内有效，不能保存、释放、跨线程或挂起使用。block 只通过该指针进行 Skia 绘制，不重入同一 Canvas 的 Scoop 操作或几何捕获，不恢复到借用入口保存层以下，不自行提交目标或变更 GPU context。调用方承担这项 Unsafe 约束；graphics 的私有包装、资源析构和 clip 记录不向另一 Cone 开放。
 
 SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL 设计](../graphics/sksl/DESIGN.md)。本期先按[图像滤镜与图层规范](SCOOP-GRAPHICS-EFFECTS-SPEC.md)补齐 Skia Gaussian blur、alpha 阴影、混合与图层滤镜，供离屏和公共 UI style 消费；这批已在 macOS aarch64 实现并通过 Raster／Metal 定向验证，x86_64 的 Rosetta 补验也已通过，详见 [UI 实施记录](../ui/PROGRESS.md)。RuntimeEffect／shader 填充仍未接入，不作为基础效果前置。后续实现通过既有 Skia 后端与普通 FFI 扩展，不隐式创建时间驱动器，也不改变 Canvas 借用或第 4.1 节的按需停帧规则。
 
@@ -39,6 +39,10 @@ SkSL／SkRuntimeEffect 的公开接入列为后续 graphics 增强，见[SkSL �
 `Canvas.recordDrawing(bounds, block)` 在独立局部坐标中记录不可变 Drawing。bounds 必须有限，作为该记录的明确裁剪范围；不继承来源 Canvas 的变换、clip 或 DPI，记录原点为 (0, 0)，一个单位为一个逻辑单位。来源 Canvas 在回调期间处于借用状态，只有回调取得的记录 Canvas 可用；正常或异常退出均结束借用，未配对的 save／saveLayer 正常收尾。记录不修改来源像素，不保存 Scoop 回调，也不分配覆盖 bounds 的 bitmap。
 
 Drawing 公开 bounds、isClosed 和 close；`Canvas.drawDrawing(drawing)` 在当前变换与 clip 下重放命令。它保留 Path、Image、字体和滤镜等实际原生依赖，来源包装或绘图回调结束不会使其失效。重放仍可能重新光栅化，不能替代像素缓存。记录与直接绘图使用相同混合语义；需要隔离的调用方显式使用 saveLayer。
+
+Drawing.canRasterizeTiles 表示记录能否在独立裁剪块中光栅化。常规形状、图像、文字及不带 ImageFilter 的图层可以；记录内的 ImageFilter 使该值为 false，因为后端可能根据裁剪后的输入选择不同降采样位置，扩大滤镜邻域不能消除这种差异。嵌套 Drawing 继承被重放记录的限制。false 不妨碍正常重放，调用方应把滤镜放在完整内容的合成阶段，或按实际目标重放整个记录。
+
+Unsafe withSkiaCanvas 增加可选 independentTiles 参数，默认 false；原生接入方只有在其命令可独立裁剪、没有依赖整层输入范围的效果时才声明 true。未声明的原生借用使当前记录的 canRasterizeTiles 为 false，不影响普通直接 Canvas。graphics.text 的纯字形／装饰绘图按此合同声明 true；行内组件仍由 UI 单独呈现。查询遵守 Drawing 的线程及关闭规则。
 
 `Canvas.createSurface(pixelWidth, pixelHeight, scale = 1.0)` 创建与来源真实绘图目标兼容的 OffscreenSurface，采用相同颜色空间、像素格式和 GPU context，独立拥有像素与画布状态，不继承来源变换或 clip。尺寸为正整数，scale 为可表示的正数，只在离屏 draw 根部施加一次。OffscreenSurface 提供 draw、snapshot、readPixels、isClosed 和 close，Canvas 有效期与普通目标一致，借用期间拒绝关闭目标。
 
