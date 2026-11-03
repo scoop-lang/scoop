@@ -30,6 +30,17 @@ class TargetRecipeTests(unittest.TestCase):
             self.assertEqual(microsoft, target["native_environment"] == "MicrosoftUcrt")
             self.assertEqual(target_cpu, gn_cpu(target["arch"]))
 
+    def test_windows_skia_driver_flag_uses_the_target_architecture(self):
+        target = {"arch": "aarch64"}
+        self.assertEqual(
+            build_skia_windows.compiler_arch_flag(target, "generic", True),
+            "/clang:-mcpu=generic",
+        )
+        self.assertEqual(
+            build_skia_windows.compiler_arch_flag(target, "generic", False),
+            "-mcpu=generic",
+        )
+
     def test_windows_unwind_recipe_uses_catalog_machine_facts(self):
         for target_name in WINDOWS_TARGETS:
             target, microsoft, processor = build_windows_unwind.target_recipe(target_name)

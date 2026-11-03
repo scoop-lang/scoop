@@ -5,7 +5,7 @@ import shutil
 import subprocess
 from pathlib import Path
 
-from build_support import gn_cpu
+from build_support import cpu_flag, gn_cpu
 from target_catalog import native_configuration
 
 D3D_ALLOCATOR = "169895d529dfce00390a20e69c2f516066fe7a3b"
@@ -32,8 +32,14 @@ def target_recipe(target_name):
     return target, target["native_environment"] == "MicrosoftUcrt", gn_cpu(target["arch"])
 
 
+def compiler_arch_flag(target, cpu, microsoft):
+    flag = cpu_flag(target["arch"], cpu)
+    return "/clang:" + flag if microsoft else flag
+
+
 def configuration(args, release):
     target, microsoft, target_cpu = target_recipe(args.target)
+    architecture_flag = compiler_arch_flag(target, release["cpu"], microsoft)
     compiler = args.cc or ("clang-cl" if microsoft else "clang")
     cc = shutil.which(compiler)
     if cc is None:
@@ -62,7 +68,7 @@ def configuration(args, release):
             win_sdk=Path(sdk).as_posix(),
             win_toolchain_version=release["msvc_toolset"],
             win_sdk_version=release["sdk"],
-            extra_cflags=["/MD", "/clang:-march=" + release["cpu"]],
+            extra_cflags=["/MD", architecture_flag],
         )
         tools = [cc, str(ar)]
     else:
@@ -73,7 +79,7 @@ def configuration(args, release):
             cc=Path(cc).as_posix(),
             cxx=Path(cxx).as_posix(),
             ar=ar.as_posix(),
-            extra_cflags=["-march=" + release["cpu"], "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX"],
+            extra_cflags=[architecture_flag, "-DWIN32_LEAN_AND_MEAN", "-DNOMINMAX"],
         )
         tools = [cc, cxx, str(ar)]
     return options, tools
