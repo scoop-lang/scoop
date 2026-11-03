@@ -64,7 +64,7 @@ files = [
 name = "prepare_incomplete_runtime"
 files = [
   {"copy" = {"from" = "${runtime}", "to" = "${work}/runtime-source"}},
-  {"replace" = {"path" = "${work}/runtime-source/src/startup.c", "old" = "scoop_image_collect(&loaded, images, image_count, root_entry)", "new" = "scoop_image_collect(&loaded, images, image_count - image_count, root_entry)"}},
+  {"replace" = {"path" = "${work}/runtime-source/src/startup.c", "old" = "scoop_image_collect(&loaded, images, image_count, entry.root.program)", "new" = "scoop_image_collect(&loaded, images, image_count - image_count, entry.root.program)"}},
 ]
 
 [[steps]]
