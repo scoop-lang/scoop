@@ -44,8 +44,6 @@ build_system = "Ubuntu 26.04.1"
 [targets.x86_64-pc-windows-msvc-ucrt]
 cpu = "x86-64"
 minimum_os = "10.0.26300"
-sdk = "10.0.26100.0"
-msvc_toolset = "14.44.35207"
 build_system = "Windows x64 10.0.26300"
 
 [targets.x86_64-w64-windows-llvm-mingw-ucrt]

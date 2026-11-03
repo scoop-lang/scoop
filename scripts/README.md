@@ -57,7 +57,7 @@ python3 scripts/prepare_sysroot.py \
   --work-dir "$PWD/tmp/sysroot/aarch64-apple-darwin"
 ```
 
-Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及发行配置的 x64 SDK／MSVC 环境，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
+Windows graphics／GUI 使用相同的 `build_skia.py` 入口。对 Microsoft UCRT、LLVM-MinGW UCRT 和 LLVM-MinGW MSVCRT 分别指定完整 `--target`、独立 `--build-dir`、`--gn` 与对应 `--cc`；Microsoft 使用 clang-cl 及当前 x64 SDK／MSVC 开发环境，toolset 与 SDK 版本取自该环境的 `VCToolsVersion`／`WindowsSDKVersion`，不在发行配置中固定，MinGW 使用所选 CRT prefix 的 clang。输出为 Ganesh D3D12、DirectWrite、段落和内嵌 ICU 数据的静态资源，不需要应用分发旁置 ICU 数据文件。完整 Windows 打包会按同一配置准备并收集这三套 Skia 资源。
 
 `--sysroot` 默认为仓库的 `sysroot`，`--runtime-root` 默认为仓库的 `runtime`；可显式选择 `--cache-dir`、`--scoopc` 和现有 native 工具参数。维护脚本默认将工作目录放在仓库已忽略的 `tmp` 下，避免占用 HOME 所在磁盘；也可显式指定其他磁盘。构建缓存、中间产物和辅助程序的 Rust target 目录保存在工作目录或显式 `CARGO_TARGET_DIR`，不要选择绝对路径 `/tmp`。目标输出为 `sysroot/lib/<triple>`，公开头文件为 `sysroot/include`。
 

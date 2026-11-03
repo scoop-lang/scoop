@@ -58,16 +58,19 @@ def configuration(args, release):
         "is_mingw": not microsoft,
     }
     if microsoft:
+        # Versions come from the active developer environment; upstream toolsets update freely.
         vc = os.environ.get("VCINSTALLDIR")
         sdk = os.environ.get("WINDOWSSDKDIR")
-        if not vc or not sdk:
+        toolset = os.environ.get("VCTOOLSVERSION", "").strip("\\")
+        sdk_version = os.environ.get("WINDOWSSDKVERSION", "").strip("\\")
+        if not all((vc, sdk, toolset, sdk_version)):
             raise ValueError("Microsoft Skia preparation requires an MSVC/Windows SDK environment")
         options.update(
             clang_win=binary.parent.as_posix(),
             win_vc=Path(vc).as_posix(),
             win_sdk=Path(sdk).as_posix(),
-            win_toolchain_version=release["msvc_toolset"],
-            win_sdk_version=release["sdk"],
+            win_toolchain_version=toolset,
+            win_sdk_version=sdk_version,
             extra_cflags=["/MD", architecture_flag],
         )
         tools = [cc, str(ar)]
