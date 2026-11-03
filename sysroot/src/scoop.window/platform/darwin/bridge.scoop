@@ -4,6 +4,12 @@ import scoop.window.native.NativeWindowHandle
 
 internal fun platformBackend(): WindowBackend = WindowBackend.AppKit
 
+internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
+    if (event.a > 0L)
+        Some(TextInputConnection(WindowId(event.window), event.a))
+    else
+        None
+
 internal fun platformPhysicalKey(code: Long): PhysicalKey = darwinPhysicalKey(code)
 
 internal fun platformNamedKey(scan: Long, virtual: Long): NamedKey? = darwinNamedKey(scan)

@@ -1,0 +1,40 @@
+package scoop.surface
+
+import scoop.window.*
+
+internal fun publishWindowCaret(window: Window, caret: ImeCaret): Boolean {
+    val rect = caret.rect
+    when (rect) {
+        case None -> {
+            window.clearImeCursorArea();
+            return true
+        }
+        case Some(value) -> {
+            val logical =
+                LogicalRect(
+                    LogicalPosition(value.x, value.y),
+                    LogicalSize(value.width, value.height)
+                )
+            when (caret.revision) {
+                case Some(revision) -> {
+                    val connection = caret.connection
+                    when (connection) {
+                        case Some(value) -> return window.publishTextInputCaret(
+                            value,
+                            revision,
+                            Some(logical)
+                        )
+                        case None -> {
+                            window.clearImeCursorArea();
+                            return false
+                        }
+                    }
+                }
+                case None -> {
+                    window.setImeCursorArea(logical);
+                    return true
+                }
+            }
+        }
+    }
+}

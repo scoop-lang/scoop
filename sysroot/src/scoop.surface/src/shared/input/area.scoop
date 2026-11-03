@@ -6,16 +6,38 @@ import scoop.graphics.Point
 /** Stable input identity; geometry is supplied by each successfully submitted frame. */
 public class InputArea internal constructor(
     internal val owner: InputRouter,
-    public val focusable: Boolean,
-    public val textInput: Boolean,
+    focusable: Boolean,
+    textInput: Boolean,
     parent: InputScope,
     handler: (RoutedEventContext, InputEvent) -> Unit
 ): Closeable {
-    internal var caret = Rect(0.0, 0.0, 0.0, 0.0)
+    internal var caret: Rect? = None
+    internal var caretRevision: Long? = None
+    internal var textInputRevision = 0UL
+    private var acceptsFocus = focusable
+    private var acceptsText = textInput
     internal var lastFocusRequest: ULong? = None
     public val scope: InputScope = InputScope(owner, Some(this), Some(parent), handler)
     internal val closed: Boolean get() = scope.closed
     private var ignored = false
+    public val focusable: Boolean get() {
+        owner.checkThread()
+        return acceptsFocus
+    }
+    public var textInput: Boolean
+    get() {
+        owner.checkThread();
+        return acceptsText
+    }
+    set(value) {
+        checkOpen()
+        if (acceptsText != value) {
+            acceptsText = value
+            if (value)
+                acceptsFocus = true
+            owner.changed()
+        }
+    }
     public val isClosed: Boolean get() {
         owner.checkThread();
         return closed
@@ -61,6 +83,32 @@ public class InputArea internal constructor(
         val placement = owner.scene.find(this) ?: return None
         return placement.geometry.visibleBounds
     }
+    /** The clipped caret from a successful frame that still matches the current document. */
+    public val visibleCaretBounds: Rect? get() {
+        owner.checkThread()
+        return if (closed)
+            None
+        else
+            owner.currentCaret(this).rect
+    }
+    /** Maps a window point through the current successful placement. */
+    public fun toLocal(windowPoint: Point): Point? {
+        owner.checkThread()
+        if (closed)
+            return None
+        val placement = owner.scene.find(this) ?: return None
+        return placement.geometry.toLocal(windowPoint)
+    }
+    /** Maps a local subregion without exposing a borrowed geometry object. */
+    public fun toWindow(localRect: Rect): Rect? {
+        owner.checkThread()
+        if (closed)
+            return None
+        val placement = owner.scene.find(this) ?: return None
+        if (placement.geometry.toLocal(Point(0.0, 0.0)) == None)
+            return None
+        return Some(placement.geometry.toWindow(localRect))
+    }
     public val canFocus: Boolean get() {
         owner.checkThread()
         return !closed && focusable && owner.path(scope).size > 0L && visibleBounds != None
@@ -89,24 +137,38 @@ public class InputArea internal constructor(
         else
             owner.reserveFocusRequest()
     }
-    /** Takes a value snapshot, normally obtained from TextLayout.caret. */
-    public fun setCaret(rect: Rect) {
+    /** Ends the old native connection before reopening this still-eligible area. */
+    public fun restartTextInput() {
         checkOpen()
-        requireInput(
-            rect.x.isFinite() &&
-                rect.y.isFinite() &&
-                rect.width.isFinite() &&
-                rect.height.isFinite() &&
-                rect.width >=
-                0.0 &&
-                rect.height >=
-                0.0 &&
-                (rect.x + rect.width).isFinite() &&
-                (rect.y + rect.height).isFinite(),
-            "invalid area caret rectangle"
-        )
-        if (caret != rect) {
+        textInputRevision += 1UL
+        owner.changed()
+    }
+    /** Stages a value for the next placement; None withdraws unavailable geometry. */
+    public fun setCaret(rect: Rect?, revision: Long? = None) {
+        checkOpen()
+        when (revision) {
+            case Some(value) -> requireInput(value >= 0L, "negative text revision");
+            case None -> {}
+        }
+        when (rect) {
+            case Some(value) -> requireInput(
+                value.x.isFinite() &&
+                    value.y.isFinite() &&
+                    value.width.isFinite() &&
+                    value.height.isFinite() &&
+                    value.width >=
+                    0.0 &&
+                    value.height >=
+                    0.0 &&
+                    (value.x + value.width).isFinite() &&
+                    (value.y + value.height).isFinite(),
+                "invalid area caret rectangle"
+            )
+            case None -> {}
+        }
+        if (caret != rect || caretRevision != revision) {
             caret = rect
+            caretRevision = revision
             owner.changed()
         }
     }

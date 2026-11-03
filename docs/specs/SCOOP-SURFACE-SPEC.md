@@ -154,6 +154,8 @@ InputArea.windowBounds／visibleBounds 返回最近成功帧的窗口逻辑坐�
 
 InputArea.pointerPosition 把窗口内最后观测的指针位置通过最近成功帧的几何映射为局部 Point。它不要求指针命中该区域；窗口尚无指针、指针已离开窗口、区域关闭／未放置或变换不可逆时返回 None。它供成功提交后刷新 hover 子部件等状态使用，不产生输入事件，不替代 RoutedEventContext.localPosition 固定的本次事件坐标，也不再次进行 DPI 换算。
 
+InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何，供拖选重定位和子区域显露使用；没有有效放置时返回 None，toLocal 对不可逆变换返回 None，不保存调用方的布局对象。visibleCaretBounds 返回当前文档／caret 对应成功帧中、经过区域形状和实际 clip 的窗口逻辑包围盒；尚无匹配帧、不可见或已经关闭时为 None。
+
 InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
 InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的模态。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
@@ -166,13 +168,17 @@ SurfaceWindow.focusRevision 是每窗口焦点请求序号。合法区域的显�
 
 InputArea.focusRevision 保存该区域最近一次成功聚焦请求的窗口序号，初始及关闭后为 None。鼠标默认聚焦与程序化请求使用同一记录；失败请求、失焦、clearFocus 和 OS 激活变化不重写该区域的成功历史。导航组据此恢复最近使用的有效成员，不安装第二套焦点处理器。比较同窗口记录时使用当前窗口序号减去记录的无符号距离，最近者距离最小。
 
-每个区域的 caret 保存为局部 Rect 值，应用可直接传入 TextLayout.caret 的结果，不让路由层保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
+每个区域用 `setCaret(rect: Rect?, revision: Long? = None)` 保存局部 caret 和可选文档修订；None 明确表示没有可用几何，初始为 None。应用可传入 TextLayout.caret 的结果，Surface 不保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
+
+InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法连接而保留仍可用的键盘焦点，供 readOnly 切换使用。`restartTextInput()` 结束当前输入连接，等待 Disabled 后重新接入同一仍合格区域；它不清除逻辑焦点，也不把旧连接的尾部 Edit 改投给新的连接。实际 native connection 随 Enabled／Disabled 保留，带 origin 的 Edit 必须匹配当前会话，迟到旧连接的批次丢弃。
 
 区域本帧不再放置时，在成功发布该帧几何后按区域缺席处理，退出命中并执行所需取消／失焦；失败帧继续保留最近已提交几何。区域对象本身不因此关闭。UI 可用这条既有放置规则处理被省略号隐藏的行内控件，无需给 Surface 增加文本对象或组件生命周期。
 
 更换文本接收者先关闭旧接收者的 IME，以 Disabled 为旧会话结束边界，再设置新候选窗位置并开启新接收者；没有活动旧接收者时直接开启。Enabled 先于新接收者的 Edit。结束前的 Edit 仍路由旧接收者，已注销则丢弃，不得写进新区域。逻辑 focus 可以先改变，排队编辑的归属不能随之被改写；窗口关闭的资源释放不等待业务 IME 通知。
 
-文本接收区域的 caret 经 TextLayout、区域变换转换为窗口逻辑矩形后调用 setImeCursorArea；使用轴对齐包围矩形，随布局、变换或窗口配置变化更新。编辑器仍拥有文字、selection 和 marked 状态。
+frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，macOS 原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
+
+基础接入调用 setImeCursorArea；带 revision 的 macOS 接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。此次补齐 macOS；Win32 继续使用现有候选位置推送，没有新增 surrounding 或几何查询实现。
 
 ### 6.1 组合默认行为
 

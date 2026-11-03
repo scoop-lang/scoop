@@ -68,7 +68,9 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 
 `HostShortcutScope(host, bindings)` 为宿主当前及后续附着的窗口共用一份应用快捷键，窗口根的普通行为与本地 ShortcutScope 先处理，宿主最后回退。登记可早于 Application.run；每个宿主只允许一个活动登记，支持 enabled 和 bindings 整体更新，关闭后可重新创建。关闭单个窗口不影响其他窗口，关闭宿主立即停用。任何 InputBoundary 都阻止宿主回退，包括窗口根本身作为边界；需要在模态内执行的动作应登记到该域。
 
-`createArea(focusable = true)` 允许逻辑焦点，`textInput = true` 同时允许焦点和 IME。区域已成功放置且有非空可见几何时，canFocus 为 true，requestFocus() 可以聚焦；它不抢占系统窗口焦点。windowBounds／visibleBounds 查询最近成功帧的窗口逻辑包围盒，后者计入路径裁剪及视口。已聚焦区域仅被 clip 裁掉时保持会话，移除、禁用或关闭仍清除焦点。`hasFocus` 表示保留的逻辑焦点，`isFocusActive` 还要求 OS 窗口当前获得焦点。文字只从 TextInputBatch 应用到编辑器自己的状态，不能再由 LogicalKey.Character 插入。用 `area.setCaret(rect)` 提交局部 caret，Surface 随已发布变换更新系统候选窗；同值设置不产生重绘。焦点切换等待旧 IME 的 Disabled 边界后再开启新接收者，已排队编辑保留原归属。
+`createArea(focusable = true)` 允许逻辑焦点，`textInput = true` 同时允许焦点和 IME。区域已成功放置且有非空可见几何时，canFocus 为 true，requestFocus() 可以聚焦；它不抢占系统窗口焦点。windowBounds／visibleBounds 查询最近成功帧的窗口逻辑包围盒，后者计入路径裁剪及视口。已聚焦区域仅被 clip 裁掉时保持会话，移除、禁用或关闭仍清除焦点。`hasFocus` 表示保留的逻辑焦点，`isFocusActive` 还要求 OS 窗口当前获得焦点。文字只从 TextInputBatch 应用到编辑器自己的状态，不能再由 LogicalKey.Character 插入。
+
+`area.setCaret(rect, revision)` 把可空的局部 caret 和文档修订随放置捕获；成功帧才发布其变换与实际区域／路径裁剪。新 caret 尚未成功呈现、几何失效或全部被裁掉时，macOS 候选框查询返回 unavailable；`visibleCaretBounds` 查询同一结果，`toLocal`／`toWindow` 用当前成功放置映射子区域。只读切换可设置 `textInput = false`，结束 IME 并保留键盘焦点；`restartTextInput()` 等待旧连接 Disabled 后重新开启。焦点切换和重启期间的已排队编辑保留原归属，旧连接尾部不会交给新接收者。
 
 [组合示例](examples/basics/README.md)演示旋转 Path、hover、拖动 spring、文本布局及 IME 接收。它是普通 executable Cone，编辑状态由示例管理，未依赖 component。
 
@@ -86,6 +88,7 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 - `tests-cones/content`：附着失败及错误线程的所有权边界、回调内关闭、原生关闭、重新附着、从未绘制的隐藏内容和退出收尾。
 - `tests-cones/errors`：paint 与多个 content.close 同时抛错、失败附着的回滚及全部 surface／lease 释放。
 - `tests-cones/input`：在真实输入宿主上组合动画帧、区域鼠标事件、平台 preedit／commit、候选窗坐标、IME 切换和回调内关闭。Windows 的协议注入复用 window 测试 Cone 的 UTF-16 边界；该测试与安装的真实 IME 桌面操作分别记录。
+- `tests-cones/text-caret`：macOS 原生文档查询与成功帧几何，覆盖文档修订、缩放／裁剪、Discarded、只读及连接重启。
 - `tests-cones/shortcuts`：macOS 原生 Command、修饰键精确匹配、重复抑制、禁用与默认动作取消；窗口没有区域焦点时仍可执行绑定。独立进程遵守每进程一个 Application 的合同。
 - `tests-cones/host-shortcuts`：macOS 的共享宿主登记、窗口本地优先、根模态边界、关闭首窗后附着第二窗口，以及动作内关闭宿主。
 - `tests-cones/scroll`：macOS 原生行／像素滚动、嵌套残量、区域移动后的连续 phase／momentum、源失效后抑制背景滚动与正常收尾。

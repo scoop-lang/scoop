@@ -70,7 +70,7 @@ private class InputFocusTest {
             val focused = rig.router.focusRevision
             assertTrue(area.requestFocus())
             assertEquals(focused + 1uL, rig.router.focusRevision)
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.frame {
                 frame, canvas ->
                 canvas.clipRect(Rect(0.0, 0.0, 5.0, 5.0))
@@ -145,8 +145,8 @@ private class InputFocusTest {
             val parent = rig.area("parent")
             val a = rig.area("a", text = true, parent = Some(parent.scope))
             val b = rig.area("b", text = true, parent = Some(parent.scope))
-            a.setCaret(Rect(1.0, 2.0, 1.0, 10.0))
-            b.setCaret(Rect(3.0, 4.0, 1.0, 12.0))
+            a.setCaret(Some(Rect(1.0, 2.0, 1.0, 10.0)))
+            b.setCaret(Some(Rect(3.0, 4.0, 1.0, 12.0)))
             rig.frame {
                 frame, canvas ->
                 frame.place(canvas, parent, Rect(0.0, 0.0, 300.0, 200.0))
@@ -162,7 +162,7 @@ private class InputFocusTest {
             assertEquals(1L, rig.log.ime.size)
             assertTrue(rig.log.ime[0L])
             assertEquals(Rect(12.0, 24.0, 2.0, 20.0), rig.log.carets[0L])
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(preeditBatch())))
             assertTrue(b.requestFocus())
             assertTrue(b.hasFocus && b.isFocusActive)
@@ -171,12 +171,12 @@ private class InputFocusTest {
             rig.log.events.clear()
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("a/edit", rig.log.trace())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertEquals("a/edit,a/disabled", rig.log.trace())
             assertEquals(3L, rig.log.ime.size)
             assertTrue(rig.log.ime[2L])
             assertEquals(Rect(153.0, 4.0, 1.0, 12.0), rig.log.carets[1L])
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("a/edit,a/disabled,b/enabled,b/edit", rig.log.trace())
             b.close()
@@ -184,8 +184,8 @@ private class InputFocusTest {
             rig.log.events.clear()
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(commitBatch())))
             assertEquals("", rig.log.trace())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("a/enabled", rig.log.trace())
         }
     }
@@ -208,19 +208,19 @@ private class InputFocusTest {
             assertTrue(c.requestFocus())
             assertEquals(2L, rig.log.ime.size)
             rig.log.events.clear()
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(preeditBatch())))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("a/enabled,a/edit,a/disabled,c/enabled", rig.log.trace())
             assertEquals(3L, rig.log.ime.size)
             rig.log.events.clear()
             rig.router.event(WindowEvent.Focused(false))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertEquals("c/blur,c/disabled", rig.log.trace())
             assertTrue(c.hasFocus)
             rig.router.event(WindowEvent.Focused(true))
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals("c/blur,c/disabled,c/focus,c/enabled", rig.log.trace())
             assertEquals(5L, rig.log.ime.size)
         }
@@ -238,7 +238,7 @@ private class InputFocusTest {
                         layout ->
                         val caret = layout.caret(TextPosition(2L))!!
                         carets.add(caret)
-                        area.setCaret(caret)
+                        area.setCaret(Some(caret))
                     }
                 }
             }
@@ -251,7 +251,7 @@ private class InputFocusTest {
             assertTrue(area.requestFocus())
             val caret = carets[0L]
             val invalidations = rig.log.invalidations
-            area.setCaret(caret)
+            area.setCaret(Some(caret))
             assertTrue(area.requestFocus())
             assertEquals(invalidations, rig.log.invalidations)
             val mapped = rig.log.carets[0L]
@@ -276,7 +276,7 @@ private class InputFocusTest {
             val area = rig.area("area", text = true)
             rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
             assertTrue(area.requestFocus())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             rig.move(10.0, 10.0)
             rig.button(10.0, 10.0, ElementState.Pressed)
             area.scope.handler =

@@ -67,7 +67,9 @@ macOS 把原生解释出的移动、删除、提交等语义保存在 `KeyEvent.
 
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit／IMM32 的 UTF-16 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
-本阶段的 AppKit／IMM32 桥只保存当前 native marked text 和候选窗矩形，不保存应用文档。它产生 `baseRevision=None`、`CurrentSelection` 的 Preedit／Commit；AppKit 已知 marked segment 内的原生替换先归一为整段替换。无效范围拒绝整批，只在应用已收到旧 preedit 时发一次撤销。文档 surrounding、重转换、purpose 和编辑器布局后续按实际需要扩展。
+macOS 的 Enabled／Disabled 带有 `TextInputConnection`，原生批次的 origin 标识连接和交付顺序。编辑器用 `publishTextInputState(connection, state, after)` 立即发布已生效的文档及已处理批次；AppKit 的同步 surrounding／selection 查询读取原生不可变副本。引用该快照的显式替换带实际 baseRevision，前序批次尚未处理时不生成猜测的文档范围。CurrentSelection 批次继续不依赖 revision；无效范围拒绝整批，旧连接的编辑不能落到新连接。
+
+`publishTextInputCaret` 单独接收当前连接和文档修订的候选框；没有匹配几何或仍有待处理编辑时，原生位置查询返回 unavailable。`None` 或 `clearImeCursorArea()` 撤回旧矩形。没有发布文档快照的基础 IME 接入继续只维护 marked segment；Windows 暂保留该接入方式，新增 surrounding 协议留待后续。
 
 ## renderer 与关闭顺序
 

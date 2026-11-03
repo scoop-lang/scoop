@@ -83,8 +83,8 @@ private class InputSession: Closeable {
                             input -> receive(area, input, false)
                         }
                     )
-                first!!.setCaret(Rect(12.0, 34.0, 2.0, 18.0))
-                second!!.setCaret(Rect(12.0, 34.0, 2.0, 18.0))
+                first!!.setCaret(Some(Rect(12.0, 34.0, 2.0, 18.0)))
+                second!!.setCaret(Some(Rect(12.0, 34.0, 2.0, 18.0)))
                 val value = attached.animations.value(0.0)
                 motion = Some(value)
                 value.animateTo(
@@ -168,7 +168,7 @@ private class InputSession: Closeable {
                 assertTrue(area.requestFocus())
             }
             case Pointer(InputPointerEvent.Button(_, _, ElementState.Released, _)) -> ups += 1
-            case TextInput(TextInputEvent.Enabled) -> {
+            case TextInput(TextInputEvent.Enabled(_)) -> {
                 if (isFirst) {
                     assertEquals(InputPhase.FirstEnabled, phase)
                     assertTrue(view!!.caretMatches(12.0, 34.0, 2.0, 18.0))
@@ -184,7 +184,7 @@ private class InputSession: Closeable {
                     assertTrue(view!!.commitText())
                 }
             }
-            case TextInput(TextInputEvent.Disabled) -> {
+            case TextInput(TextInputEvent.Disabled(_)) -> {
                 if (isFirst)
                     oldDisabled = true
             }

@@ -3,7 +3,13 @@ package scoop.surface
 import scoop.graphics.*
 import scoop.graphics.native.*
 
-internal class AreaPlacement(val area: InputArea, val geometry: CanvasGeometry)
+internal class AreaPlacement(
+    val area: InputArea,
+    val geometry: CanvasGeometry,
+    val localCaret: Rect?,
+    val caretRevision: Long?,
+    val visibleCaret: Rect?
+)
 
 /** Owns one published set of independent native geometry snapshots. */
 internal class AreaScene(val placements: Array<AreaPlacement>): Closeable {
@@ -29,14 +35,14 @@ internal class InputFrame(val owner: InputRouter): Closeable {
         check(area)
         @Unsafe
         {
-            append(area, captureGeometry(canvas, shape))
+            append(canvas, area, captureGeometry(canvas, shape)) { child -> child.clipRect(shape) }
         }
     }
     fun place(canvas: Canvas, area: InputArea, shape: Path) {
         check(area)
         @Unsafe
         {
-            append(area, captureGeometry(canvas, shape))
+            append(canvas, area, captureGeometry(canvas, shape)) { child -> child.clipPath(shape) }
         }
     }
     private fun check(area: InputArea) {
@@ -49,9 +55,29 @@ internal class InputFrame(val owner: InputRouter): Closeable {
             requireInput(placement.area !== area, "area placed twice in one frame")
         }
     }
-    private fun append(area: InputArea, geometry: CanvasGeometry) {
+    private fun append(
+        canvas: Canvas,
+        area: InputArea,
+        geometry: CanvasGeometry,
+        clip: (Canvas) -> Unit
+    ) {
         try {
-            placements.add(AreaPlacement(area, geometry))
+            val local = area.caret
+            val visible =
+                when (local) {
+                    case Some(rect) -> canvas.withState {
+                        child ->
+                        clip(child)
+                        @Unsafe
+                        {
+                            return@withState captureGeometry(child, rect).use {
+                                caret -> caret.visibleBounds
+                            }
+                        }
+                    }
+                    case None -> None
+                }
+            placements.add(AreaPlacement(area, geometry, local, area.caretRevision, visible))
         }
         catch (error: Throwable) {
             throwFailure(cleanupFailure(Some(error)) { geometry.close() });

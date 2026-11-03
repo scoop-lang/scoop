@@ -93,18 +93,40 @@ internal fun InputRouter.notifyFocused(event: InputEvent) {
 internal fun InputRouter.textEvent(event: TextInputEvent) {
     val previous = imeOwner(ime)
     when (event) {
-        case Enabled -> {
+        case Enabled(connection) -> {
             when (ime) {
                 case Opening(area) -> ime = ImeSession.On(area)
-                else -> {}
+                case Closing(_) -> {
+                    if (imeConnection != None && imeConnection != connection)
+                        return
+                }
+                else -> return
             }
-        }
-        case Disabled -> {
-            ime = ImeSession.Off;
-            imeCaret = None;
+            imeConnection = connection
             pending = true
         }
-        case Edit(_) -> {}
+        case Disabled(connection) -> {
+            if (imeConnection != None && imeConnection != connection)
+                return
+            ime = ImeSession.Off;
+            imeCaret = None;
+            imeConnection = None
+            pending = true
+        }
+        case Edit(batch) -> {
+            when (batch.origin) {
+                case Some(origin) -> if (imeConnection != Some(origin.connection))
+                    return
+                case None -> {}
+            }
+            when (previous) {
+                case Some(area) -> if (area.caretRevision != None) {
+                    imeCaret = None
+                    pending = true
+                }
+                case None -> {}
+            }
+        }
     }
     when (previous) {
         case Some(area) -> notify(area.scope, InputEvent.TextInput(event), inactive = true)
@@ -127,6 +149,7 @@ private fun InputRouter.reconcileIme() {
                 case Some(area) -> {
                     publishCaret(area)
                     ime = ImeSession.Opening(area)
+                    imeRequest = area.textInputRevision
                     imeAllowed(true)
                 }
                 case None -> {}
@@ -139,20 +162,11 @@ private fun InputRouter.reconcileIme() {
 }
 
 private fun InputRouter.continueIme(area: InputArea, desired: InputArea?) {
-    if (sameArea(Some(area), desired))
+    if (sameArea(Some(area), desired) && imeRequest == area.textInputRevision)
         publishCaret(area)
     else {
         ime = ImeSession.Closing(area);
         imeAllowed(false)
-    }
-}
-
-private fun InputRouter.publishCaret(area: InputArea) {
-    val placement = scene.find(area) ?: return
-    val rect = placement.geometry.toWindow(area.caret)
-    if (imeCaret != Some(rect)) {
-        imeCursor(rect);
-        imeCaret = Some(rect)
     }
 }
 

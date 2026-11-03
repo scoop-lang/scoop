@@ -14,7 +14,7 @@ internal class InputRouter(
     internal var osFocused: Boolean,
     private val invalidate: () -> Unit,
     internal val imeAllowed: (Boolean) -> Unit,
-    internal val imeCursor: (Rect) -> Unit
+    internal val imeCursor: (ImeCaret) -> Boolean
 ): Closeable {
     private val thread = currentThreadId()
     internal var closed = false
@@ -38,7 +38,10 @@ internal class InputRouter(
     internal var pendingBoundaryChange = false
     internal var boundaryRevision = 0uL
     internal var ime = ImeSession.Off
-    internal var imeCaret: Rect? = None
+    internal var imeCaret: ImeCaret? = None
+    internal var imeConnection: TextInputConnection? = None
+    internal var imeRequest = 0UL
+    internal var caretFrameValid = false
     internal val activityObservers = ArrayList<InputActivityObserver>()
     private var activityDirty = false
 
@@ -111,6 +114,7 @@ internal class InputRouter(
             throw error
         }
         scene = next
+        caretFrameValid = true
         pending = true
         activityDirty = true
         drain()
@@ -124,6 +128,7 @@ internal class InputRouter(
     }
     fun geometryChanged() {
         imeCaret = None;
+        caretFrameValid = false
         changed()
     }
     fun detached(scope: InputScope) {
@@ -232,6 +237,8 @@ internal class InputRouter(
         val session = ime
         ime = ImeSession.Off
         imeCaret = None
+        imeConnection = None
+        caretFrameValid = false
         when (session) {
             case Off -> {};
             else -> failure = cleanupFailure(failure) { imeAllowed(false) }

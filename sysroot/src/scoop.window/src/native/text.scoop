@@ -23,12 +23,7 @@ public fun Window.setImeAllowed(allowed: Boolean): RequestStatus {
 /** Publishes a candidate-window rectangle in logical content coordinates. */
 public fun Window.setImeCursorArea(area: LogicalRect) {
     owner.requireOpen()
-    checkRect(area)
-    requireWindow(
-        (area.origin.x + area.size.width).isFinite() &&
-            (area.origin.y + area.size.height).isFinite(),
-        "IME cursor rectangle overflow"
-    )
+    checkImeCursorArea(area)
     @Unsafe
     {
         checkNativeStatus(
@@ -44,13 +39,25 @@ public fun Window.setImeCursorArea(area: LogicalRect) {
     }
 }
 
+internal fun checkImeCursorArea(area: LogicalRect) {
+    checkRect(area)
+    requireWindow(
+        (area.origin.x + area.size.width).isFinite() &&
+            (area.origin.y + area.size.height).isFinite(),
+        "IME cursor rectangle overflow"
+    )
+}
+
 @CLayout
 internal struct NativeTextEdit(
     val kind: Int,
     val anchor: Long,
     val cursor: Long,
     val text: Ptr<UInt8>?,
-    val textLength: Long
+    val textLength: Long,
+    val hasReplacement: Int,
+    val replacementStart: Long,
+    val replacementEnd: Long
 )
 
 @Extern(name = "scoop_window_ime_allowed")
@@ -72,7 +79,7 @@ internal fun nativeTextCount(event: Ptr<Unit>): Long
 internal fun nativeTextEdit(event: Ptr<Unit>, index: Long): NativeTextEdit
 
 /** Copies native-owned strings before releasing the enclosing event. */
-internal fun copyNativeTextBatch(pointer: Ptr<Unit>): TextInputBatch {
+internal fun copyNativeTextBatch(pointer: Ptr<Unit>, event: NativeEvent): TextInputBatch {
     @Unsafe
     {
         val count = nativeTextCount(pointer)
@@ -84,6 +91,11 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>): TextInputBatch {
                     case Some(bytes) -> String.fromUtf8(bytes, edit.textLength)
                     case None -> ""
                 }
+            val replacement =
+                if (edit.hasReplacement != 0)
+                    TextReplacement.Range(Utf8Range(edit.replacementStart, edit.replacementEnd))
+                else
+                    TextReplacement.CurrentSelection
             operations.add(
                 when (edit.kind) {
                     0 -> TextInputOperation.Preedit(
@@ -92,9 +104,10 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>): TextInputBatch {
                             None
                         else
                             Some(Utf8Selection(edit.anchor, edit.cursor)),
-                        TextReplacement.CurrentSelection
+                        replacement
                     )
-                    1 -> TextInputOperation.Commit(text, TextReplacement.CurrentSelection)
+                    1 -> TextInputOperation.Commit(text, replacement)
+                    2 -> TextInputOperation.ClearPreedit
                     else -> throw WindowException(
                         "unknown native text operation",
                         WindowErrorKind.NativeFailure
@@ -102,6 +115,16 @@ internal fun copyNativeTextBatch(pointer: Ptr<Unit>): TextInputBatch {
                 }
             )
         }
-        return TextInputBatch(None, operations)
+        return TextInputBatch(
+            if (event.flags.and(1) != 0)
+                Some(event.b)
+            else
+                None,
+            operations,
+            when (platformTextConnection(event)) {
+                case Some(connection) -> Some(TextInputOrigin(connection, event.c))
+                case None -> None
+            }
+        )
     }
 }

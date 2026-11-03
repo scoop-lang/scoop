@@ -65,13 +65,13 @@ Copy 读取当前选区；Cut 在成功写出后删除；Paste 成为一个编�
 
 ## 5. Native surrounding 文本快照
 
-当前 AppKit 只掌握 marked segment 与候选框，完整的 attributed substring／selected range 查询没有文档快照。基础 preedit 演示能工作，但这不足以承诺普通原生文本服务完整可用。
+AppKit 的基础 IME 接入只掌握 marked segment；公共编辑器接入已新增的文档快照协议，以支持完整的 attributed substring／selected range 查询。
 
-Window 增加当前输入连接的只读快照入口，包含文档文本、selection、marked range、revision，以及该连接的有效身份。TextEditHost 在每次已生效编辑后立即更新这个快照，和有没有 drawable 无关；caret 几何在成功帧后单独更新。不能让输入法等 GPU 成功提交才读到新文本。
+Window 的 `publishTextInputState` 接收 TextInputConnection、规范 TextInputState，以及实际处理的批次 origin。原生只保留已交付／已处理序号和最新不可变文档，不猜测未来 revision，也不建立文档历史。TextEditHost 在每次已生效编辑后立即更新这个快照，和有没有 drawable 无关；caret 几何在成功帧后单独更新。不能让输入法等 GPU 成功提交才读到新文本。
 
 原生 `NSTextInputClient` 等同步查询只读原生持有的不可变副本，不在查询栈里任意回调托管 UI 或启动布局。UTF-16／UTF-8 换算复用现有桥，拒绝切断 surrogate 或引用未知范围。能提供精确结果的查询返回对应范围，尚无有效布局几何的查询明确返回 unavailable，不用编造坐标完成协议。
 
-只有引用实际文档快照的批次携带对应 baseRevision；CurrentSelection 的基础输入继续按现有合同处理。过期范围拒绝整批并按当前输入连接撤销／重建组合，不部分应用，也不把旧范围重新解释为新文档的位置。旧连接关闭到 Disabled 的队列仍由旧接收者处理，不能靠切换一个全局 editor 指针直接送给新目标。
+只有引用实际文档快照的批次携带对应 baseRevision；CurrentSelection 的基础输入继续按现有合同处理。前序批次尚未处理时，原生不接受新的显式文档范围；同批内按操作次序临时投影范围。过期范围拒绝整批并按当前输入连接撤销／重建组合，不部分应用，也不把旧范围重新解释为新文档的位置。旧连接关闭到 Disabled 的队列仍由旧接收者处理，Surface 依据 origin 丢弃旧连接尾部，不能靠切换一个全局 editor 指针直接送给新目标。
 
 普通 Input 的首批目标是纯文本。如果增加 password 模式，需要同时明确显示掩码到真实字节位置的映射、复制策略和原生 secure input／surrounding 暴露策略；不能只在 paint 中画圆点就宣布密码框完整。这一模式不作为普通文本闭环的隐含前置。
 

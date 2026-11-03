@@ -150,19 +150,19 @@ private class InputActivityTest {
             val observer = area.scope.observeActivity { changes.add(area.scope.activity) }
             area.requestFocus()
             assertTrue(area.scope.activity.hasFocus && area.scope.activity.hasTextInput)
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             assertEquals(1L, changes.size)
             area.clearFocus()
             assertFalse(area.scope.activity.hasFocus)
             assertTrue(area.scope.activity.hasTextInput)
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertTrue(area.scope.activity.isEmpty)
             assertEquals(3L, changes.size)
             area.close()
             observer.close()
             assertEquals(0L, rig.router.activityObservers.size)
             assertTrue(area.scope.activity.isEmpty)
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
             assertEquals(3L, changes.size)
         }
     }

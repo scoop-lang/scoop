@@ -276,12 +276,9 @@ private fun windowInputs(window: Window): InputRouter =
             }
         },
         {
-            rect -> if (window.state == WindowState.Open)
-                window.setImeCursorArea(
-                    LogicalRect(
-                        LogicalPosition(rect.x, rect.y),
-                        LogicalSize(rect.width, rect.height)
-                    )
-                )
+            caret -> if (window.state == WindowState.Open)
+                publishWindowCaret(window, caret)
+            else
+                false
         }
     )

@@ -207,3 +207,31 @@ bool scoop_surface_test_view_caret(void *pointer, double x, double y,
     }
   }
 }
+
+bool scoop_surface_test_document_caret(void *pointer, bool available, double x,
+                                       double y, double width, double height,
+                                       int64_t cursor) {
+  @autoreleasepool {
+    @try {
+      NSView *view = (__bridge NSView *)pointer;
+      id<NSTextInputClient> client = (id<NSTextInputClient>)view;
+      NSRange actual = NSMakeRange(0, 1);
+      NSRect result =
+          [client firstRectForCharacterRange:NSMakeRange((NSUInteger)cursor, 0)
+                                 actualRange:&actual];
+      if (!available)
+        return NSEqualRects(result, NSZeroRect) &&
+               actual.location == NSNotFound;
+      if (!view.window.keyWindow || view.window.firstResponder != view)
+        return false;
+      NSRect expected = [view.window
+          convertRectToScreen:[view convertRect:NSMakeRect(x, y, width, height)
+                                         toView:nil]];
+      return NSEqualRects(result, expected) &&
+             NSEqualRanges(actual, NSMakeRange((NSUInteger)cursor, 0));
+    } @catch (NSException *exception) {
+      (void)exception;
+      return false;
+    }
+  }
+}

@@ -1,0 +1,217 @@
+package scoop.tests.surface.textcaret
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class NativeCaretTest {
+    @Test
+    fun `native document geometry follows successful frames and text connections`() {
+        val probe = CaretSession()
+        SurfaceHost { host, application, event -> probe.event(host, application, event) }.use {
+            host ->
+            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            assertTrue(probe.finished)
+            assertEquals(1, probe.discarded)
+            assertEquals(3, probe.connections)
+            assertEquals(2, probe.disabled)
+            assertTrue(probe.closed)
+        }
+    }
+}
+
+private enum CaretPhase {
+    Initial, Focus, First, Discard, Accept, Clip, ReadOnly, Reenable, Restored, Restart, Final, Done
+}
+
+private class CaretSession: SurfaceContent {
+    var phase = CaretPhase.Initial
+    var painted = CaretPhase.Initial
+    var window: Window? = None
+    var surface: SurfaceWindow? = None
+    var area: InputArea? = None
+    var connection: TextInputConnection? = None
+    var document = TextInputState("abcd", Utf8Selection(2L, 2L), revision = 1L)
+    var accepted = 0
+    var discarded = 0
+    var connections = 0
+    var disabled = 0
+    var finished = false
+    var closed = false
+
+    fun event(host: SurfaceHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    application.createWindow(
+                        WindowAttributes("Scoop document caret", LogicalSize(320.0, 220.0))
+                    )
+                window = Some(native)
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                val attached = host.attach(native, this)
+                surface = Some(attached)
+                area = Some(attached.createArea(textInput = true) { _, input -> receive(input) })
+                area!!.setCaret(Some(Rect(2.0, 3.0, 1.0, 10.0)), Some(1L))
+                application.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+            }
+            case AboutToWait -> advance()
+            case NewEvents(StartCause.Deadline) -> fail(Some("native caret session timed out"))
+            case Exiting -> finished = phase == CaretPhase.Done
+            else -> {}
+        }
+    }
+
+    private fun advance() {
+        when (phase) {
+            case Initial -> if (accepted > 0 && window!!.isFocused) {
+                phase = CaretPhase.Focus
+                assertTrue(area!!.requestFocus())
+            }
+            case First -> {
+                expect(Some(Rect(24.0, 36.0, 2.0, 20.0)))
+                document = TextInputState("abcde", Utf8Selection(3L, 3L), revision = 2L)
+                assertTrue(window!!.publishTextInputState(connection!!, document))
+                area!!.setCaret(Some(Rect(5.0, 6.0, 1.0, 12.0)), Some(2L))
+                expect(None)
+                phase = CaretPhase.Discard
+                surface!!.requestFrame()
+            }
+            case ReadOnly -> if (disabled == 1) {
+                assertTrue(area!!.hasFocus && area!!.isFocusActive)
+                expect(None)
+                phase = CaretPhase.Reenable
+                area!!.textInput = true
+            }
+            case Final -> {
+                expect(Some(Rect(66.0, 68.0, 2.0, 12.0)))
+                phase = CaretPhase.Done
+                surface!!.close()
+                window!!.requestDestroy()
+            }
+            else -> {}
+        }
+    }
+
+    private fun receive(input: InputEvent) {
+        when (input) {
+            case TextInput(TextInputEvent.Enabled(value)) -> {
+                assertTrue(value != None)
+                assertTrue(value != connection)
+                connection = value
+                connections += 1
+                assertTrue(window!!.publishTextInputState(value!!, document))
+                when (phase) {
+                    case Focus -> phase = CaretPhase.First
+                    case Reenable -> {
+                        phase = CaretPhase.Restored
+                        area!!.setCaret(Some(Rect(8.0, 4.0, 1.0, 12.0)), Some(2L))
+                        surface!!.requestFrame()
+                    }
+                    case Restart -> phase = CaretPhase.Final
+                    else -> fail(Some("unexpected native text connection"))
+                }
+            }
+            case TextInput(TextInputEvent.Disabled(value)) -> {
+                assertEquals(connection, value)
+                disabled += 1
+            }
+            else -> {}
+        }
+    }
+
+    public override fun paint(frame: FrameContext) {
+        painted = phase
+        frame.canvas.clear(Color.White)
+        frame.withState {
+            child ->
+            val initial = document.revision == 1L
+            child.canvas.translate(
+                if (initial)
+                    20.0
+                else
+                    50.0,
+                if (initial)
+                    30.0
+                else
+                    60.0
+            )
+            child.canvas.scale(2.0, 2.0)
+            if (
+                phase ==
+                    CaretPhase.Clip ||
+                    phase ==
+                    CaretPhase.Restored ||
+                    phase ==
+                    CaretPhase.Restart ||
+                    phase ==
+                    CaretPhase.Final
+            )
+                child.canvas.clipRect(Rect(0.0, 0.0, 100.0, 10.0))
+            child.place(area!!, Rect(0.0, 0.0, 100.0, 70.0))
+        }
+        if (phase == CaretPhase.Discard)
+            window!!.requestSize(LogicalSize(360.0, 240.0))
+    }
+
+    public override fun onFrameComplete(frame: FrameCompletion) {
+        when (frame.submission) {
+            case Discarded -> {
+                assertEquals(CaretPhase.Discard, painted)
+                discarded += 1
+                expect(None)
+                phase = CaretPhase.Accept
+                surface!!.requestFrame()
+            }
+            case Accepted -> {
+                accepted += 1
+                when (painted) {
+                    case Accept -> {
+                        expect(Some(Rect(60.0, 72.0, 2.0, 24.0)))
+                        phase = CaretPhase.Clip
+                        surface!!.requestFrame()
+                    }
+                    case Clip -> {
+                        expect(Some(Rect(60.0, 72.0, 2.0, 8.0)))
+                        area!!.setCaret(None, Some(2L))
+                        expect(None)
+                        phase = CaretPhase.ReadOnly
+                        area!!.textInput = false
+                    }
+                    case Restored -> {
+                        expect(Some(Rect(66.0, 68.0, 2.0, 12.0)))
+                        phase = CaretPhase.Restart
+                        area!!.restartTextInput()
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+
+    private fun expect(rect: Rect?) {
+        assertEquals(rect, area!!.visibleCaretBounds)
+        val logical =
+            when (rect) {
+                case Some(value) -> Some(
+                    LogicalRect(
+                        LogicalPosition(value.x, value.y),
+                        LogicalSize(value.width, value.height)
+                    )
+                )
+                case None -> None
+            }
+        assertTrue(surfaceDocumentCaret(window!!, logical, document.selection.cursor))
+    }
+
+    public override fun close() {
+        closed = true
+    }
+}

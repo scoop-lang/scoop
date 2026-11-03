@@ -109,7 +109,7 @@ internal class DemoPanel(
         val caret = editor.caret()
         if (text!!.isFocusActive)
             canvas.drawRect(caret, Paint(Color.Black))
-        text!!.setCaret(Rect(caret.x + 12.0, caret.y + 12.0, caret.width, caret.height))
+        text!!.setCaret(Some(Rect(caret.x + 12.0, caret.y + 12.0, caret.width, caret.height)))
         canvas.restore()
     }
 

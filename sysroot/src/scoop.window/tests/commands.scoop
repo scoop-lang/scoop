@@ -75,8 +75,8 @@ private class CommandsHandler: ApplicationHandler {
             }
             case Window(_, WindowEvent.Keyboard(value)) -> keys.add(value)
             case Window(_, WindowEvent.TextInput(value)) -> when (value) {
-                case Enabled -> enabled += 1
-                case Disabled -> disabled += 1
+                case Enabled(_) -> enabled += 1
+                case Disabled(_) -> disabled += 1
                 case Edit(batch) -> {
                     text = text.apply(batch);
                     batches += 1

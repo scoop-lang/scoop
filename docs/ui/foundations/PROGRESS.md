@@ -32,7 +32,8 @@
 | F1a：Unicode 词边界与视觉光标导航 | 已完成 aarch64 实施和定向验证 |
 | F1b1：应用所属的 GUI 纯文本剪贴板 | 已完成 aarch64 实施和定向验证 |
 | F1b2：原生编辑命令 | 已完成 aarch64 实施和定向验证 |
-| F1b3：原生文本快照与连接几何 | 待实施 |
+| F1b3：原生文本快照与连接几何 | 已完成 aarch64 实施和定向验证 |
+| F1c：视觉词移动和物理行边界 | 待实施 |
 | F2：公共编辑状态、宿主与 Input／Textarea | 待实施 |
 
 每个完成的变更提交并推送，然后合并最新 origin/main。普通行为使用相关 Cone 的 scoop.test，不运行全量测试；遇到编译器或底层库缺口先在对应层修复。本次工作树使用独立的开发 sysroot 和构建缓存，原始构建输出保留在仓库外，临时文件在每批结束时清理。
@@ -306,3 +307,13 @@ KeyEvent.textCommands 保存原生按键解释中的有序语义命令，区分�
 Scoop 格式、Window／Surface 测试源码类型检查、Objective-C arm64 警告检查及 17 个 UI 依赖库的 aarch64 release 构建通过。4 项定向 scoop.test 通过：NativeTextCommandsTest、AppKitApplicationTest、InputDefaultsTest 的 2 项用例。覆盖真实系统 Option／Shift 词导航、多个 selector 的顺序、自有数据在 GC 后可读、重复／释放、未知回退、中文确认和日文取消、单次普通提交，以及同一路由的 capture／target／bubble 和 preventDefault。测试中 Array 的断言改为逐元素比较，Unsafe 构造回调使用显式返回；无需编译器或底层系统库修复。
 
 没有 fixture、全量或 x86_64 验证。3 份一次性报告与 5 个被当前主 Cone 产物替代的测试输出清理；独立 sysroot、本批产物及共享缓存保留。
+
+## F1b3：原生文本快照与连接几何
+
+macOS 的 TextInputConnection 与批次 origin 标识真实输入连接和已交付顺序；publishTextInputState 发布当前规范文档及实际处理的批次。AppKit 的同步 surrounding／selection 查询读取不可变副本，显式文档范围使用实际 baseRevision；前序批次尚未处理时不猜测新范围，同批操作按临时文档转换 UTF-16／UTF-8。原生只保留交付／处理序号和最新快照。unmarkText 清除标记并保留正文与选区，取消组合继续由空 preedit 表达，恢复编辑基线属于下一批公共编辑器。
+
+InputArea 的 textInput 可以随只读状态切换，restartTextInput 等待旧 Disabled 后重连，并保持逻辑焦点。Surface 依据 origin 隔离旧连接尾部；caret 的局部矩形及文档修订随成功放置捕获，匹配当前输入后才发布实际变换和区域／路径裁剪。新修订未呈现、Discarded、过期几何或完全裁剪都撤回候选框；toLocal／toWindow 和 visibleCaretBounds 提供同一成功场景的坐标结果。Windows 仅同步共享值结构与既有候选位置调用，本期没有新增 surrounding 实现。
+
+Scoop 格式、相关生产／测试源码类型检查、Objective-C arm64 警告检查和 17 个 UI 依赖库的 aarch64 release 构建通过。78 项定向 scoop.test 通过：Window 10 项、Surface 输入 65 项，以及新原生 caret、原有原生 IME 输入和 SurfaceHost 各 1 项。覆盖真实 NSTextInputClient Unicode 文档范围、排队批次、旧 revision／连接、逆向选区、unmark／取消、候选几何、缩放／路径裁剪、提交失败、只读重连和关闭。原有 IME 用例的预期按 unmark 保留选区调整；输入过滤器实际选中 65 项，首次计数预估修正后确认全部正常完成。
+
+没有编译器或 core／std／test 修改，没有 fixture、全量或 x86_64 验证。10 份一次性报告和 2 个被本批替代的测试输出已清理；独立 sysroot、本批测试产物及共享缓存保留。

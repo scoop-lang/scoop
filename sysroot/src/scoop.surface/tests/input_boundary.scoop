@@ -19,7 +19,7 @@ private class InputBoundaryTest {
                 frame.place(canvas, b, Rect(100.0, 0.0, 40.0, 40.0))
             }
             assertTrue(a.requestFocus())
-            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
             InputBoundary(group).use {
                 _ ->
                 assertFalse(a.hasFocus)
@@ -34,12 +34,12 @@ private class InputBoundaryTest {
                         [TextInputOperation.Commit("中", TextReplacement.CurrentSelection)]
                     )
                 rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(batch)))
-                rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled))
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(None)))
                 assertEquals("b/key,a/edit,a/disabled", rig.log.trace())
                 assertEquals(3L, rig.log.ime.size)
                 assertTrue(rig.log.ime[2L])
                 rig.log.events.clear()
-                rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled))
+                rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(None)))
                 rig.router.event(WindowEvent.TextInput(TextInputEvent.Edit(batch)))
                 assertEquals("b/enabled,b/edit", rig.log.trace())
             }

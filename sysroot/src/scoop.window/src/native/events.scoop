@@ -38,13 +38,15 @@ internal fun copyNativeEvent(pointer: Ptr<Unit>): ApplicationEvent {
                 10 -> WindowEvent.Keyboard(copyKeyEvent(pointer, event))
                 11 -> WindowEvent.ModifiersChanged(platformModifiers(event.a))
                 12 -> WindowEvent.Pointer(copyPointerEvent(event))
-                13 -> WindowEvent.TextInput(TextInputEvent.Edit(copyNativeTextBatch(pointer)))
+                13 -> WindowEvent.TextInput(
+                    TextInputEvent.Edit(copyNativeTextBatch(pointer, event))
+                )
                 15 -> WindowEvent.RedrawRequested
                 14 -> WindowEvent.TextInput(
                     if (event.flags != 0)
-                        TextInputEvent.Enabled
+                        TextInputEvent.Enabled(platformTextConnection(event))
                     else
-                        TextInputEvent.Disabled
+                        TextInputEvent.Disabled(platformTextConnection(event))
                 )
                 else -> throw WindowException(
                     "unknown native window event",
