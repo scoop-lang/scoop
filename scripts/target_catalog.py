@@ -28,6 +28,7 @@ NATIVE_TARGETS = {
 }
 WINDOWS_TARGETS = tuple(name for name, target in TARGETS.items() if target["os"] == "windows")
 _LLVM_COMPONENT_BY_ARCH = {"aarch64": "AArch64", "x86_64": "X86"}
+_LLVM_MINGW_RESOURCE_TRIPLE_BY_ARCH = {"x86_64": "x86_64-w64-mingw32"}
 
 
 def llvm_target_components(targets=None):
@@ -47,6 +48,15 @@ def llvm_target_components(targets=None):
     return tuple(components)
 
 
+def llvm_mingw_resource_triple(architecture):
+    try:
+        return _LLVM_MINGW_RESOURCE_TRIPLE_BY_ARCH[architecture]
+    except KeyError as error:
+        raise ValueError(
+            f"no LLVM-MinGW resource triple for target architecture {architecture!r}"
+        ) from error
+
+
 def native_configuration(target):
     return {
         key: TARGETS[target][key]
@@ -56,6 +66,16 @@ def native_configuration(target):
 
 def host_definition(rust_target):
     return next(host for host in HOSTS if host["rust_target"] == rust_target)
+
+
+def native_target_for_host(rust_target):
+    matches = [
+        name for name, target in TARGETS.items() if target["native_rust_target"] == rust_target
+    ]
+    if len(matches) != 1:
+        raise ValueError(f"host {rust_target!r} does not select exactly one native target")
+    name = matches[0]
+    return name, native_configuration(name)
 
 
 def current_host(system=None, machine=None, environment=""):

@@ -29,7 +29,7 @@ from build_skia import LIBRARY as SKIA_LIBRARY
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from prepare_sysroot import cone_order
-from target_catalog import TARGETS, current_host, host_definition
+from target_catalog import TARGETS, current_host, host_definition, native_target_for_host
 
 TOOLS = ("scoop", "scoopc", "scoop-link", "scoop-lsp", "scoop-pm")
 
@@ -549,9 +549,10 @@ def main():
     environment["LLVM_SYS_221_PREFIX"] = str(args.llvm_prefix)
     flags = []
     if windows:
+        host_target, _ = native_target_for_host(args.host)
         flags = [
             "-C",
-            "target-cpu=" + release["targets"]["x86_64-w64-windows-llvm-mingw-ucrt"]["cpu"],
+            "target-cpu=" + release["targets"][host_target]["cpu"],
         ]
     else:
         flags = ["-C", f"link-arg=-Wl,-rpath,{args.llvm_prefix / 'lib'}"]

@@ -9,8 +9,17 @@ import subprocess
 import tomllib
 from pathlib import Path
 
-from build_support import RELEASE_CONFIG, ROOT, metadata, reusable, save_record, source_metadata
+from build_support import (
+    RELEASE_CONFIG,
+    ROOT,
+    cpu_flag,
+    metadata,
+    reusable,
+    save_record,
+    source_metadata,
+)
 from target_catalog import TARGETS as CATALOG
+from target_catalog import native_configuration
 
 TARGETS = tuple(name for name, target in CATALOG.items() if target["os"] == "linux")
 PATCH = ROOT / "sysroot/vendor/llvm-project/22.1.8/patches/llvm-libunwind-eh-index-miss.patch"
@@ -70,7 +79,8 @@ def main():
     cc, cxx = shutil.which(args.cc), shutil.which(args.cxx)
     if not cc or not cxx:
         parser.error("--cc and --cxx must name installed Clang compilers")
-    musl = CATALOG[args.target]["env"] == "musl"
+    target = native_configuration(args.target)
+    musl = target["native_environment"] == "LinuxMusl"
     if musl and (args.musl_include is None or not (args.musl_include / "features.h").is_file()):
         parser.error("musl requires --musl-include pointing to its installed C headers")
     if not musl and args.musl_include is not None:
@@ -94,6 +104,7 @@ def main():
             )
         ],
         "target": args.target,
+        "target_configuration": target,
         "prefix": str(prefix),
         "musl_include": str(args.musl_include.resolve()) if musl else None,
     }
@@ -103,7 +114,7 @@ def main():
         print(f"Reusing {args.target} LLVM libunwind: {prefix}")
         return
     release = tomllib.loads(RELEASE_CONFIG.read_text())
-    cpu = "-march=" + release["targets"][args.target]["cpu"]
+    cpu = cpu_flag(target["arch"], release["targets"][args.target]["cpu"])
     temporary = build / "scratch"
     temporary.mkdir(parents=True, exist_ok=True)
     environment = dict(os.environ, TMPDIR=str(temporary))
@@ -137,7 +148,7 @@ def main():
         configure.extend(
             [
                 f"-DCMAKE_{language}_COMPILER={compiler}",
-                f"-DCMAKE_{language}_COMPILER_TARGET={args.target}",
+                f"-DCMAKE_{language}_COMPILER_TARGET={target['llvm_triple']}",
             ]
         )
     flags = [cpu]

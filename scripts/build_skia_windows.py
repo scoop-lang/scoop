@@ -5,6 +5,9 @@ import shutil
 import subprocess
 from pathlib import Path
 
+from build_support import gn_cpu
+from target_catalog import native_configuration
+
 D3D_ALLOCATOR = "169895d529dfce00390a20e69c2f516066fe7a3b"
 SPIRV_CROSS = "b8fcf307f1f347089e3c46eb4451d27f32ebc8d3"
 ZLIB = "646b7f569718921d7d4b5b8e22572ff6c76f2596"
@@ -24,8 +27,13 @@ PACKAGES = (
 ARCHIVES = ("d3d12allocator", "spirv_cross", "zlib")
 
 
+def target_recipe(target_name):
+    target = native_configuration(target_name)
+    return target, target["native_environment"] == "MicrosoftUcrt", gn_cpu(target["arch"])
+
+
 def configuration(args, release):
-    microsoft = args.target == "x86_64-pc-windows-msvc-ucrt"
+    target, microsoft, target_cpu = target_recipe(args.target)
     compiler = args.cc or ("clang-cl" if microsoft else "clang")
     cc = shutil.which(compiler)
     if cc is None:
@@ -36,7 +44,7 @@ def configuration(args, release):
         raise ValueError(f"Skia preparation requires {ar}")
     options = {
         "target_os": "win",
-        "target_cpu": "x64",
+        "target_cpu": target_cpu,
         "skia_use_metal": False,
         "skia_use_direct3d": True,
         "skia_use_system_zlib": False,
@@ -47,9 +55,7 @@ def configuration(args, release):
         vc = os.environ.get("VCINSTALLDIR")
         sdk = os.environ.get("WINDOWSSDKDIR")
         if not vc or not sdk:
-            raise ValueError(
-                "Microsoft Skia preparation requires an x64 MSVC/Windows SDK environment"
-            )
+            raise ValueError("Microsoft Skia preparation requires an MSVC/Windows SDK environment")
         options.update(
             clang_win=binary.parent.as_posix(),
             win_vc=Path(vc).as_posix(),
@@ -74,7 +80,8 @@ def configuration(args, release):
 
 
 def combine(args, objects, staged, names, ar):
-    if args.target == "x86_64-pc-windows-msvc-ucrt":
+    _, microsoft, _ = target_recipe(args.target)
+    if microsoft:
         prefixed = {"png", "jpeg", "jpeg12", "jpeg16"}
         libraries = [objects / f"{'lib' if name in prefixed else ''}{name}.lib" for name in names]
     else:

@@ -9,7 +9,7 @@ import tomllib
 from pathlib import Path
 
 from build_support import RELEASE_CONFIG, ROOT, build_lock, metadata, reusable, source_metadata
-from target_catalog import TARGETS, WINDOWS_TARGETS, native_configuration
+from target_catalog import TARGETS, native_configuration
 
 LIBRARY = "libscoop_text_backend.a"
 HEADER = "scoop_text_backend.h"
@@ -28,6 +28,7 @@ def prepare(args):
 
 def prepare_locked(args, source, archive, build):
     rust_target = TARGETS[args.target]["native_rust_target"]
+    target_configuration = native_configuration(args.target)
     inputs = {
         "source": source_metadata(source, ("src", "include")),
         "files": [
@@ -42,7 +43,7 @@ def prepare_locked(args, source, archive, build):
             )
         ],
         "target": args.target,
-        "target_configuration": native_configuration(args.target),
+        "target_configuration": target_configuration,
         "rust_target": rust_target,
         "prefix": str(args.prefix),
         "cc": args.cc,
@@ -70,7 +71,10 @@ def prepare_locked(args, source, archive, build):
         raise ValueError("preparing the Rust text backend requires Cargo and rustc")
     configuration = tomllib.loads(RELEASE_CONFIG.read_text())
     version = subprocess.check_output([rustc, "--version"], text=True)
-    if args.target in WINDOWS_TARGETS and version.split()[1] != configuration["rust_windows"]:
+    if (
+        target_configuration["os"] == "windows"
+        and version.split()[1] != configuration["rust_windows"]
+    ):
         raise ValueError("Windows text preparation requires Rust " + configuration["rust_windows"])
     rust_sysroot = Path(subprocess.check_output([rustc, "--print=sysroot"], text=True).strip())
     notices = [rust_sysroot / "share/doc/rust" / name for name in NOTICE_FILES]

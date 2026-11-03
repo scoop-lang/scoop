@@ -20,7 +20,13 @@ from build_support import (
     source_metadata,
     source_patch_environment,
 )
-from target_catalog import CATALOG_PATH, current_host, host_definition, llvm_target_components
+from target_catalog import (
+    CATALOG_PATH,
+    current_host,
+    host_definition,
+    llvm_target_components,
+    native_target_for_host,
+)
 
 VERSION = "22.1.8"
 STATEPOINT_PATCH = (
@@ -89,9 +95,12 @@ def patch_sources(source):
 
 
 def configure(source, build, prefix, cc, cxx, host, release):
-    windows = host.endswith("windows-gnullvm")
-    target = release["targets"]["x86_64-w64-windows-llvm-mingw-ucrt" if windows else host]
-    cpu = cpu_flag(host_definition(host)["arch"], target["cpu"])
+    host_configuration = host_definition(host)
+    target_name, target_configuration = native_target_for_host(host)
+    target = release["targets"][target_name]
+    windows = host_configuration["system"] == "Windows"
+    darwin = host_configuration["system"] == "Darwin"
+    cpu = cpu_flag(host_configuration["arch"], target["cpu"])
     options = {
         "CMAKE_BUILD_TYPE": "Release",
         "CMAKE_INSTALL_PREFIX": str(prefix),
@@ -143,18 +152,16 @@ def configure(source, build, prefix, cc, cxx, host, release):
     if windows:
         options.update(
             {
-                "CMAKE_C_COMPILER_TARGET": "x86_64-w64-windows-gnu",
-                "CMAKE_CXX_COMPILER_TARGET": "x86_64-w64-windows-gnu",
+                "CMAKE_C_COMPILER_TARGET": target_configuration["llvm_triple"],
+                "CMAKE_CXX_COMPILER_TARGET": target_configuration["llvm_triple"],
                 "CMAKE_AR": str(Path(cc).parent / "llvm-ar.exe"),
                 "CMAKE_RANLIB": str(Path(cc).parent / "llvm-ranlib.exe"),
                 "LLVM_USE_LINKER": "lld",
             }
         )
     else:
-        options["CMAKE_INSTALL_RPATH"] = (
-            "@loader_path/../lib" if host.endswith("darwin") else "$ORIGIN/../lib"
-        )
-    if host.endswith("darwin"):
+        options["CMAKE_INSTALL_RPATH"] = "@loader_path/../lib" if darwin else "$ORIGIN/../lib"
+    if darwin:
         options["CMAKE_OSX_DEPLOYMENT_TARGET"] = target["minimum_os"]
         options["CMAKE_OSX_ARCHITECTURES"] = apple_architecture(host_definition(host)["arch"])
     return [
@@ -194,7 +201,8 @@ def main():
     source = args.source.resolve()
     build = (args.build_dir or ROOT / "tmp/llvm" / host).resolve()
     prefix = (args.prefix or build / "installed").resolve()
-    windows = host.endswith("windows-gnullvm")
+    windows = host_config["system"] == "Windows"
+    darwin = host_config["system"] == "Darwin"
     suffix = ".exe" if windows else ""
     ninja = shutil.which("ninja") if windows else None
     if windows and ninja is None:
@@ -231,11 +239,7 @@ def main():
         outputs += [prefix / "lib/libLLVM-22.dll.a"]
     llvm_libraries = list(
         (prefix / ("bin" if windows else "lib")).glob(
-            "libLLVM*.dll"
-            if windows
-            else "libLLVM*.dylib"
-            if host.endswith("darwin")
-            else "libLLVM*.so*"
+            "libLLVM*.dll" if windows else "libLLVM*.dylib" if darwin else "libLLVM*.so*"
         )
     )
     clang_libraries = list(
@@ -243,7 +247,7 @@ def main():
             "libclang-cpp.dll"
             if windows
             else "libclang-cpp*.dylib"
-            if host.endswith("darwin")
+            if darwin
             else "libclang-cpp*.so*"
         )
     )
