@@ -1,6 +1,6 @@
 # Target 组合解耦后续重构设计
 
-状态：结构迁移、macOS 与 Linux 集中回归完成；Windows 复验进行中。
+状态：结构迁移、八个未来 target 的职责审查，以及现有七个 target 的集中回归已完成。
 
 日期：2026-11-03。
 
@@ -666,7 +666,7 @@ qualification 结果绑定 LLVM 版本、triple、CPU／features、pipeline、pr
 
 ### 11.5 实施结论
 
-C0～C5 的结构迁移已经完成，且没有把 Linux ARM64、Windows ARM64、Linux RV64、Linux LoongArch64、OpenHarmonyOS x86_64／ARM64 或 FreeBSD AMD64／ARM64 写入 target catalog、enum、脚本矩阵或资源清单。第 8 节压力审查得到的共同结论是：
+C0～C6 的结构迁移与集中回归已经完成，且没有把 Linux ARM64、Windows ARM64、Linux RV64、Linux LoongArch64、OpenHarmonyOS x86_64／ARM64 或 FreeBSD AMD64／ARM64 写入 target catalog、enum、脚本矩阵或资源清单。第 8 节压力审查得到的共同结论是：
 
 - 新 OS 只需增加其真实 OS services、loader、native environment、final-link、系统库与工具链环境实现；ELF 容器、已存在的 object machine、procedure ABI、frame 和 ISA helper 可按各自合同复用；
 - 新 ISA 只需增加实际 LLVM architecture／backend qualification、procedure ABI、object machine、frame、ManagedEntry／shim 与 toolchain machine；同一 OS 的 VM、loader、启动与系统库流程不随 ISA 复制；
@@ -682,7 +682,7 @@ C0～C5 的结构迁移已经完成，且没有把 Linux ARM64、Windows ARM64�
 
 macOS 27.2／SDK 27.2 的本地回归已完成：
 
-- Rust 格式检查、workspace／all-targets Clippy、Ruff 0.16.10 通过；维护脚本 41 项测试中 6 项宿主不适用，fixture runner 82 项测试中 4 项宿主不适用，其余通过；
+- Rust 格式检查、workspace／all-targets Clippy、Ruff 0.16.10 通过；维护脚本 42 项测试中 6 项宿主不适用，fixture runner 82 项测试中 4 项宿主不适用，其余通过；
 - workspace 的 6,386 项 Rust／文档测试已闭合。显式 debug format 改变缓存编码后的固定向量已更新；Windows statepoint 返回 PC 专测使用已有补丁版 LLVM 22.1.8 通过，未放宽断言；
 - ARM64 和 x86_64 的系统库与四种 runtime 配置全部重新准备；两种 target 各 4,317 项适用正式 fixture 通过，另各有 26 项目标不适用；
 - 两种 target 各 34 个普通系统库／consumer Cone 完成 release 运行，各 1,781 项通过、6 项显式忽略；图形文本测试使用按现有 `text-baselines.patch` 重建的 Skia 后达到各 28／28；
@@ -697,7 +697,19 @@ Linux AMD64 使用 `/home/linuxbrew/.linuxbrew/opt/llvm@22` 的 Homebrew LLVM 22
 - musl 首轮的 18 项 native 对象／archive 精确快照因 Homebrew Clang 的对象字节数与既有 Clang 基线不同而失败；使用该机 `musl-gcc` 与现有 GCC 基线复验全部通过，没有修改大小或布局断言。其余 musl 用例使用 Homebrew Clang 与显式 musl SDK；
 - 两种 target 各 18 个普通系统库／consumer Cone、各 691 项测试闭合。musl 首轮暴露 asyncio 测试的同步完成竞态：线程可能在挂起登记返回前恢复 continuation，测试却假定必然切换线程。测试改用现有事件队列在登记返回后启动工作线程，保留线程和 I/O 断言；两种 macOS target 的相关两项测试通过，Linux 两种 target 各连续 10 轮通过。生产协程与 I/O 语义不变。
 
-三种 Windows target 正在同一实现版本上集中复验；完成前不宣称 C6 的七目标行为验收结束。
+Windows AMD64 在独立的 E: 普通目录中，使用已有补丁版 LLVM 22.1.8 SDK、Visual Studio Build Tools 2026／SDK 10.0.26100.0 和各自的 LLVM-MinGW 工具链，集中复验 Microsoft UCRT、MinGW MSVCRT、MinGW UCRT：
+
+- Rust 格式检查、workspace／all-targets Clippy、Ruff、维护脚本和 fixture runner 规则测试通过；workspace 的 6,258 项 Rust／文档测试闭合，两个标记忽略的进程测试 helper 由父测试显式调用。Windows statepoint 返回 PC 专测使用补丁版 LLVM 通过，断言未改动；
+- Rust 测试先统一编译，再执行生成的测试程序；配套 CLI 使用固定副本，避免 Cargo 覆盖正在运行的 Windows 可执行文件。driver 保留先完成的 50 项结果，剩余 43 项分成三组、合计 12 路执行，93 项全部通过；文档测试另行通过；
+- 三种 target 的 30 个系统库与四种 runtime 配置全部重新准备。并行准备暴露了共享 sysroot 头文件发布竞争，现复用既有文件锁协调共享头文件与更新记录；新增并发／真实输入更新测试后，维护脚本的 42 项测试在 macOS、Linux、Windows 上通过适用项；
+- 正式 fixture 覆盖与 Linux 相同的类别，三种 target 各 150 项适用用例闭合，另各有 780 项不适用。三个 target 同时运行、每组四路并发；大型 Cone 编译单独控制并发，已通过项目不重复执行；
+- 三种 target 各 18 个普通系统库／consumer Cone、各 742 项测试全部闭合；
+- Microsoft 首轮的 41 项失败来自本轮测试环境误用 clang-cl 执行 GNU 风格 companion 参数，改用同一 SDK 的 clang 后全部通过；PE 链接单测同步使用正式 runtime profile 的目标编译参数，覆盖现有 LLVM／Microsoft linker 与两种 MinGW CRT；
+- TLS 的两个 OpenSSL 互操作用例被测试进程 PATH 中已有的失效路径阻断；本轮环境显式优先使用有效的 Git OpenSSL 后，三种 target 的这两项均通过。未创建 junction，也未改动用户的全局 PATH。
+
+C6 的现有七目标行为回归与第 8 节职责审查均已完成；未把未实现 target 登记为可构建或可运行。
+
+集中回归后的 `origin/main` 合并带入数组接口上下文推导与 UI 改动。本地追加通过 workspace／all-targets Clippy、Ruff、87 项相关 HIR 测试、维护脚本测试，以及两种 macOS target 的新增数组正式 fixture；这些增量检查单列，不把此前的全量记录解释为对新合入 UI 功能的全量验收。
 
 ## 12. 调研依据与当前结论
 
