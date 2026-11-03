@@ -2,7 +2,7 @@
 
 日期：2026-11-02。状态：`scoop.ui` 的独立自绘框架和公共文本适配、公共 `scoop.ui.style`、主题绘图／几何和三套风格、基础控件／容器、主题展示及后台下载组合已完成 macOS aarch64 实施与 x86_64 统一补验，范围见 [UI 实施记录](PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续接入。框架公开行为见 [UI 规范](../specs/SCOOP-UI-SPEC.md)，公共文本能力见 [文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与[文本排版设计](../graphics/text/DESIGN.md)，基础控件行为见 [控件库规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。现有 `scoop.gui` 已直接改名为 `scoop.surface`；底层实现与验证沿用 [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)及[实施记录](../surface/PROGRESS.md)。
 
-后续基础交互按 [基础能力设计](foundations/DESIGN.md) 演进；声明入口的接收者 DSL 及其他可复用此写法的 API 见 [DSL builder 设计建议](DSL-BUILDERS.md)。
+弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 及其他可复用此写法的 API 见 [DSL builder 设计建议](DSL-BUILDERS.md)；该文档属于 API 设计建议，生产构建入口尚未迁移。
 
 ## 1. 分层目标
 
@@ -17,7 +17,7 @@ UI 框架提供构建完全自绘控件的能力，应用可以只使用框架�
 | `scoop.ui` | Component／Element、状态、身份、挂载、测量／绘制接入、资源生命周期；text 子包提供公共段落适配 |
 | `scoop.ui.style` | 主题绘图协议／几何、视觉状态与语义参数；通用 Style、外框装饰、有序内容效果及自绘适配 |
 | `scoop.ui.style.macos／material／fluent` | 同一公共协议的三套自绘主题，各自支持 Light／Dark |
-| `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame 及控件专用样式和交互外观 |
+| `scoop.ui.component` | Label、Button、Checkbox、Input／Textarea、Row／Column／Stack、Frame、Absolute、ScrollArea／VirtualList 及控件专用样式和交互外观 |
 
 主要依赖方向为 `scoop.ui.component → scoop.ui.style → scoop.ui → scoop.surface → scoop.window + scoop.graphics`；三套主题实现分别依赖 style，component 不依赖具体主题，文本支路为 `scoop.ui → scoop.graphics.text → scoop.graphics`。使用下层类型的 Cone 同时声明实际直接依赖。框架不依赖或转导出 style／控件库，不根据 Label／Button 等具体类型做分派，不提供只有该库可以访问的控件入口。
 
@@ -459,7 +459,7 @@ SkSL 的职责、参数与资源模型、扫光示例及分批验证见 [graphic
 
 ## 15. 后续增强：基础交互与控件扩充
 
-弹层／模态／绝对定位、滚动、Tab／组内键盘导航、快捷键、事件路由和公共文本编辑的源码缺口与实施设计见 [基础交互能力设计](foundations/DESIGN.md)。该设计分批实施，范围见[基础交互实施记录](foundations/PROGRESS.md)，Code Block 不在范围内。
+弹层／模态／绝对定位、滚动、Tab／组内键盘导航、快捷键、事件路由和公共文本编辑的调研基线与实施设计见 [基础交互能力设计](foundations/DESIGN.md)。A–F 计划功能已完成 macOS 实施，实际交付与验证范围见[基础交互实施记录](foundations/PROGRESS.md)，Code Block 不在范围内。
 
 设计保留唯一挂载树，分离显示位置与逻辑路由；把场景几何登记与实际绘图分开，以支持 portal 和绘制缓存；另增公开的按需子项协议，以支持真正的虚拟列表。滚动的绘制缓存、离屏实例缓存和按需创建分别配置。焦点、模态、快捷键、嵌套滚动和文本编辑复用同一输入路径，Input／Textarea 复用 `scoop.ui.text` 的公共编辑适配。
 

@@ -1,5 +1,7 @@
 # UI 实施记录
 
+本文记录最初的框架、公共文本、样式／主题和简单控件批次。随后补齐的弹层、输入、滚动、缓存与公共编辑能力，以及该轮 macOS x86_64 统一验证，见 [基础交互实施记录](foundations/PROGRESS.md)。
+
 日期：2026-11-02。实施依据为 [UI 设计](DESIGN.md)、[框架规范](../specs/SCOOP-UI-SPEC.md)、[文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)、[图像滤镜规范](../specs/SCOOP-GRAPHICS-EFFECTS-SPEC.md)、[公共样式规范](../specs/SCOOP-UI-STYLE-SPEC.md)、[主题绘图规范](../specs/SCOOP-UI-THEME-SPEC.md)及[基础控件规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。本期已先在 macOS aarch64 完成全部实施批次，再完成 x86_64 的统一补验；x86_64 运行使用 Apple Silicon 上的 Rosetta，未在 Intel 实机验证。Windows 后续接入；图文绕排、GPU／3D／媒体互操作和 SkSL 仍属于设计中列出的后续增强。
 
 ## 1. 批次状态

@@ -106,24 +106,13 @@ internal class LazyProbe {
                     phase = 12
                     window!!.requestDestroy()
                 } else
-                    if (
-                        !waiting &&
-                            committed ==
-                            ticket &&
-                            window!!.isFocused &&
-                            !frames!!.snapshot().required
-                    ) {
+                    if (!waiting && canAdvance()) {
                         waiting = true
                         assertTrue(
                             active.proxy().post {
                                 owner ->
                                 waiting = false
-                                if (
-                                    committed ==
-                                        ticket &&
-                                        !frames!!.snapshot().required &&
-                                        window!!.isFocused
-                                )
+                                if (canAdvance())
                                     advance(owner)
                             }
                         )
@@ -139,6 +128,15 @@ internal class LazyProbe {
             else -> {}
         }
     }
+    // Paused native demand alone does not imply that queued layout work has finished.
+    private fun canAdvance(): Boolean =
+        committed ==
+            ticket &&
+            window!!.isFocused &&
+            window!!.isVisible &&
+            !window!!.isOccluded &&
+            !frames!!.snapshot().required
+
     private fun nextFrame() {
         ticket += 1
         scope!!.requestFrame()
@@ -217,7 +215,15 @@ internal class LazyProbe {
             }
             case 10 -> {
                 for (row in rows)
-                    assertEquals(1, row.unmounts)
+                    assertEquals(
+                        1,
+                        row.unmounts,
+                        Some(
+                            f"row=${row.id}, pending=${row.handle.isPending}, focus=${
+                                row.handle.hasFocus
+                            }, frames=${passes}, occluded=${window!!.isOccluded}"
+                        )
+                    )
                 source!!.value = ProtocolSource(this, Some([99L]), 4)
                 selected = [0L]
                 offscreen = None
