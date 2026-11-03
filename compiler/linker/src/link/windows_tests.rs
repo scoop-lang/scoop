@@ -305,6 +305,7 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
         requirement_origins: BTreeMap::new(),
         namespace,
         target: profile.target(),
+        target_os: scoop_target_data::TargetOs::Windows,
         images: images.iter().map(|image| image.name.clone()).collect(),
         final_images: images,
         selected: Default::default(),
