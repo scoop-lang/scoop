@@ -1,0 +1,48 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.window.*
+
+internal struct EditorValue(
+    val input: TextInputState,
+    val anchorAffinity: TextAffinity = TextAffinity.Downstream,
+    val cursorAffinity: TextAffinity = TextAffinity.Downstream
+) {
+    val endpoints: EditorSelection get() =
+        EditorSelection(
+            TextPosition(input.selection.anchor, anchorAffinity),
+            TextPosition(input.selection.cursor, cursorAffinity)
+        )
+}
+
+internal struct EditorSelection(val anchor: TextPosition, val cursor: TextPosition)
+
+internal fun editorInitial(text: String, selection: Utf8Selection?): EditorValue {
+    val input = TextInputState(text, selection ?: Utf8Selection(text.byteLength, text.byteLength))
+    input.validate()
+    return EditorValue(input)
+}
+
+internal fun editorVersion(value: EditorValue, revision: Long): EditorValue =
+    EditorValue(
+        TextInputState(
+            value.input.surroundingText,
+            value.input.selection,
+            value.input.markedRange,
+            revision = revision
+        ),
+        value.anchorAffinity,
+        value.cursorAffinity
+    )
+
+internal fun editorSelect(input: TextInputState, selection: EditorSelection): EditorValue =
+    EditorValue(
+        TextInputState(
+            input.surroundingText,
+            Utf8Selection(selection.anchor.byteOffset, selection.cursor.byteOffset),
+            input.markedRange,
+            revision = input.revision
+        ),
+        selection.anchor.affinity,
+        selection.cursor.affinity
+    )

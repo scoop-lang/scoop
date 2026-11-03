@@ -1,0 +1,84 @@
+package scoop.ui.text
+
+import scoop.ui.*
+import scoop.window.*
+
+internal fun applyEditorInput(editor: TextEditorState, batch: TextInputBatch): Boolean {
+    editor.storage.checkMutation()
+    val previous = editor.storage.value
+    when (batch.baseRevision) {
+        case Some(value) -> if (value != previous.input.revision)
+            throw IllegalStateException(Some("stale text input revision"))
+        case None -> {}
+    }
+    if (batch.operations.size == 0L)
+        return false
+    var current = editorVersion(previous, 0L)
+    var baseline = editor.composition
+    val historyStart = baseline ?: current
+    var restored = false
+    val continuous = batch.operations.size == 1L && baseline == None
+    var boundary = !continuous
+    for (operation in batch.operations) {
+        if (restored && explicitEditorRange(operation))
+            throw IllegalStateException(Some("text range predates composition cancellation"))
+        val applied = current.input.apply(TextInputBatch(None, [operation]))
+        val next = EditorValue(applied)
+        when (operation) {
+            case Preedit(text, _, _) -> {
+                boundary = true
+                if (text.byteLength == 0L) {
+                    when (baseline) {
+                        case Some(saved) -> {
+                            restored =
+                                restored || saved.input.surroundingText != applied.surroundingText
+                            current = editorVersion(saved, applied.revision)
+                        }
+                        case None -> {
+                            current = next
+                        }
+                    }
+                    baseline = None
+                } else {
+                    if (baseline == None)
+                        baseline = Some(current)
+                    current = next
+                }
+            }
+            case Commit(_, _) -> {
+                baseline = None
+                current = next
+            }
+            case ClearPreedit -> {
+                current = EditorValue(applied, current.anchorAffinity, current.cursorAffinity)
+                baseline = None
+                boundary = true
+            }
+            case DeleteSurrounding(_, _) -> {
+                baseline = None
+                current = next
+                boundary = true
+            }
+        }
+    }
+    val edits = ArrayList<EditorDelta>()
+    val kind =
+        if (!boundary && previous.input.selection.anchor == previous.input.selection.cursor)
+            EditorEditKind.Typing
+        else
+            EditorEditKind.Separate
+    appendEditorDelta(edits, historyStart, baseline ?: current, kind)
+    return editor.publish(
+        current,
+        baseline,
+        EditorHistoryChange.Append(edits.toArray(), boundary, boundary),
+        true
+    )
+}
+
+private fun explicitEditorRange(operation: TextInputOperation): Boolean =
+    when (operation) {
+        case Commit(_, TextReplacement.Range(_)) -> true
+        case Preedit(_, _, TextReplacement.Range(_)) -> true
+        else -> false
+    }

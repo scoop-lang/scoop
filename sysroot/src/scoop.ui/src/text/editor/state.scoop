@@ -1,0 +1,167 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Observable plain text and edit history, independent of any mounted editor. */
+public class TextEditorState public constructor(
+    text: String = "",
+    selection: Utf8Selection? = None
+) {
+    internal val storage = state(editorInitial(text, selection))
+    internal val history = EditorHistory()
+    internal var composition: EditorValue? = None
+
+    public val inputState: TextInputState get() = storage.value.input
+    public val text: String get() = inputState.surroundingText
+    public val selection: Utf8Selection get() = inputState.selection
+    public val markedRange: Utf8Range? get() = inputState.markedRange
+    public val revision: Long get() = inputState.revision
+    public val isComposing: Boolean get() = markedRange != None
+    public val anchor: TextPosition get() = storage.value.endpoints.anchor
+    public val cursor: TextPosition get() = storage.value.endpoints.cursor
+    public val canUndo: Boolean get() {
+        storage.value
+        return composition != None || history.undoDelta != None
+    }
+    public val canRedo: Boolean get() {
+        storage.value
+        return history.redoDelta != None
+    }
+
+    public fun setSelection(value: Utf8Selection): Boolean =
+        setSelection(TextPosition(value.anchor), TextPosition(value.cursor))
+
+    public fun setSelection(anchor: TextPosition, cursor: TextPosition): Boolean {
+        storage.checkMutation()
+        val previous = storage.value
+        val input =
+            TextInputState(
+                previous.input.surroundingText,
+                Utf8Selection(anchor.byteOffset, cursor.byteOffset)
+            )
+        input.validate()
+        val edits = endingComposition(previous)
+        return publish(
+            EditorValue(input, anchor.affinity, cursor.affinity),
+            None,
+            EditorHistoryChange.Append(edits.toArray(), true, true)
+        )
+    }
+
+    public fun replace(range: Utf8Range, text: String): Boolean =
+        edit(range, text, EditorEditKind.Separate)
+
+    internal fun edit(range: Utf8Range, text: String, kind: EditorEditKind): Boolean {
+        storage.checkMutation()
+        val previous = storage.value
+        val next =
+            EditorValue(
+                editorVersion(previous, 0L).input.apply(
+                    TextInputBatch(
+                        None,
+                        [TextInputOperation.Commit(text, TextReplacement.Range(range))]
+                    )
+                )
+            )
+        val edits = endingComposition(previous)
+        appendEditorDelta(edits, previous, next, kind)
+        val boundary = composition != None || kind == EditorEditKind.Separate
+        return publish(next, None, EditorHistoryChange.Append(edits.toArray(), boundary, boundary))
+    }
+
+    public fun replaceAll(text: String, selection: Utf8Selection? = None): Boolean {
+        storage.checkMutation()
+        return publish(editorInitial(text, selection), None, EditorHistoryChange.Reset)
+    }
+
+    public fun applyInput(batch: TextInputBatch): Boolean = applyEditorInput(this, batch)
+
+    public fun cancelComposition(): Boolean {
+        storage.checkMutation()
+        val baseline = composition ?: return false
+        return publish(baseline, None, EditorHistoryChange.Break)
+    }
+
+    public fun undo(): Boolean {
+        storage.checkMutation()
+        val value = composition ?: storage.value
+        when (history.undoDelta) {
+            case Some(delta) -> return publish(
+                replayEditorDelta(value, delta, true),
+                None,
+                EditorHistoryChange.Undo
+            )
+            case None -> return if (composition != None)
+                publish(value, None, EditorHistoryChange.Break)
+            else
+                false
+        }
+    }
+
+    public fun redo(): Boolean {
+        storage.checkMutation()
+        val delta = history.redoDelta ?: return false
+        return publish(
+            replayEditorDelta(composition ?: storage.value, delta, false),
+            None,
+            EditorHistoryChange.Redo
+        )
+    }
+
+    public fun breakUndoGroup() {
+        storage.checkMutation()
+        history.breakGroup()
+    }
+
+    private fun endingComposition(previous: EditorValue): ArrayList<EditorDelta> {
+        val edits = ArrayList<EditorDelta>()
+        when (composition) {
+            case Some(baseline) -> appendEditorDelta(
+                edits,
+                baseline,
+                previous,
+                EditorEditKind.Separate
+            )
+            case None -> {}
+        }
+        return edits
+    }
+
+    /** Preparation validates first; publication reuses the transaction's mutation guard. */
+    internal fun publish(
+        next: EditorValue,
+        baseline: EditorValue?,
+        change: EditorHistoryChange,
+        forceRevision: Boolean = false
+    ): Boolean {
+        val previous = storage.value
+        val a = previous.input
+        val b = next.input
+        val revise =
+            forceRevision ||
+                a.surroundingText !=
+                b.surroundingText ||
+                a.selection !=
+                b.selection ||
+                a.markedRange !=
+                b.markedRange
+        requireUi(!revise || a.revision < 9223372036854775807L, "text revision overflow")
+        val value =
+            editorVersion(
+                next,
+                a.revision +
+                    if (revise)
+                        1L
+                    else
+                        0L
+            )
+        val changed = value != previous || baseline != composition
+        val changedHistory = history.apply(change)
+        composition = baseline
+        if (changed || changedHistory)
+            storage.publish(value)
+        return changed || changedHistory
+    }
+}

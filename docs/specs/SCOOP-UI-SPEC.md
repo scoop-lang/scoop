@@ -451,6 +451,16 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 所有内容查询、metrics 和 placement 通过文本库的 public API 取得。公共适配不读取 graphics.text 的 internal 缓存，不把无匹配 box 的对象悄悄移除出 children，也不需要基础控件库来实现。
 
+#### 7.5.1 公共纯文本编辑状态
+
+`scoop.ui.text.TextEditorState(text = "", selection: Utf8Selection? = None)` 是 owner 线程上的可观察纯文本模型，可以独立于挂载存在。初始选区缺省位于文档末尾；显式范围沿 Window 的 UTF-8 标量边界规则验证。内部只有一份规范 TextInputState，公开 inputState／text／selection／markedRange／revision／isComposing 和 anchor／cursor（TextPosition）读取同一 State；canUndo／canRedo 也参与普通依赖观察。没有另一份可写字符串 binding 或另建订阅系统。
+
+`setSelection(Utf8Selection)` 或 `setSelection(anchor: TextPosition, cursor: TextPosition)` 保留方向与 affinity；`replace(range, text)` 完成一次可撤销替换。两者先明确结束已有组合并保留其显示文本，再操作当前文档。`replaceAll(text, selection = None)` 是外部整体替换，清除组合和旧历史，缺省把选区收敛到新文档末尾。修改正文／选区／marked range 单调推进 revision；只改变 affinity 不改变原生文档修订。非法参数、错误线程以及 render／measure／scene／draw 中的修改在改变历史之前拒绝。
+
+`applyInput(batch)` 复用 Window 的有序纯值操作，检查实际 baseRevision，全部合法后一次发布；同批已完成的编辑合为一个 undo 项，末尾仍在进行的 preedit 单独保留其基线。首次非空 preedit 保存替换前基线；更新不逐项入历史，Commit／ClearPreedit 把整个组合作为一次历史操作。空 preedit 和 `cancelComposition()` 恢复基线正文、方向选区与 affinity，使用新的 revision。恢复正文会改变原生临时文档的坐标依据；这时同批后续显式 Range 作为过期范围整批拒绝，接入宿主负责取消并重建连接，不把范围静默解释到恢复后的另一份文本上。CurrentSelection 沿当前临时选区继续应用。
+
+`undo()` 先取消仍在进行的组合，再撤销最近编辑；没有历史时仍可取消组合。`redo()` 在存在可重做项时先取消组合再重做，否则不改变状态。历史只保存必要的 UTF-8 文本差量及前后 TextPosition，不为普通键入保存全文；连续插入／退格／向前删除仅在种类、相邻范围及方向选区相符时合并。粘贴、剪切、显式替换、选择与焦点切换形成边界，`breakUndoGroup()` 可显式结束合并。新编辑丢弃旧 redo，取消组合不丢弃已有 redo。各编辑入口返回是否改变可观察状态；空批次与无效 undo／redo 返回 false。
+
 ### 7.6 同窗口 portal 与锚点
 
 UiRoot 在普通内容的测量和 scene 完成后处理同窗口层出口。Portal 在原容器中按 empty 的约束下限返回占位尺寸，不测量其内容，也不以弹层尺寸撑开父容器；内容在逻辑阶段正常挂载，获得有效层位置后才在本帧测量一次，并从窗口根的坐标与 clip 状态呈现。普通父容器不重复测量层内内容。未参与本帧正常场景的 Portal 不呈现；层内容的逻辑更新和资源归属仍按普通挂载处理。

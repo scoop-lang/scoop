@@ -18,6 +18,11 @@ public class State<T> internal constructor(initial: T) {
         return current
     }
     set(value) {
+        checkMutation()
+        publish(value)
+    }
+
+    internal fun checkMutation() {
         checkUiThread(thread)
         when (currentEvaluation()) {
             case Some(_) -> throw IllegalStateException(
@@ -25,6 +30,10 @@ public class State<T> internal constructor(initial: T) {
             )
             case None -> {}
         }
+    }
+
+    /** Publishes a synchronous transaction whose caller already passed checkMutation. */
+    internal fun publish(value: T) {
         current = value
         signal.changed()
     }
