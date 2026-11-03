@@ -11,7 +11,12 @@ private class JsonDomTests {
         assertTrue(value.kind == JsonValueKind.Object)
         assertEquals(2L, value.size)
         assertTrue(value.containsKey("b") && !value.containsKey("missing"))
-        assertTrue(when (value["missing"]) { case None -> true; case Some(_) -> false })
+        assertTrue(
+            when (value["missing"]) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
         assertTrue(value["b"]!!.kind == JsonValueKind.Null)
         assertEquals("b", value.keys()[0L])
         assertEquals("a", value.members()[1L]._1)
@@ -41,7 +46,8 @@ private class JsonDomTests {
         assertFailsWith<DecodingException> { Json.parse("\"true\"").asBoolean() }
         assertFailsWith<IndexOutOfBoundsException> { Json.parse("[]")[0L] }
         assertFailsWith<IndexOutOfBoundsException> { Json.parse("[1]")[-1L] }
-        val error = assertFailsWith<DecodingException> { Json.parse("{\"x\":null}")["x"]!!.asLong() }
+        val error =
+            assertFailsWith<DecodingException> { Json.parse("{\"x\":null}")["x"]!!.asLong() }
         assertEquals("", error.path)
     }
 
@@ -52,7 +58,9 @@ private class JsonDomTests {
             assertEquals(token, value.asNumberToken())
             assertEquals(token, Json.stringify(value))
         }
-        for (token in ["", " 1", "1 ", "1\n", "+1", "01", "1.", "1e", "NaN", "null", "1,2", "[1]"]) {
+        for (
+            token in ["", " 1", "1 ", "1\n", "+1", "01", "1.", "1e", "NaN", "null", "1,2", "[1]"]
+        ) {
             assertFailsWith<DecodingException> { JsonValue.fromNumberToken(token) }
         }
         assertFailsWith<DecodingException> { Json.parse("1.0").asLong() }
@@ -72,24 +80,14 @@ private class JsonDomTests {
     }
 
     @Test
-    fun factoriesAndBuildersPublishIndependentSnapshots() {
+    fun factoriesPublishIndependentSnapshots() {
         val children = ArrayList<JsonValue>()
         children.add(JsonValue.fromString("{\"x\":1}"))
         val array = JsonValue.fromArray(children)
         children.clear()
         assertEquals("{\"x\":1}", array[0L].asString())
-        val builder = JsonArrayBuilder().add(JsonValue.nullValue())
-        val first = builder.build()
-        builder.add(JsonValue.fromBoolean(true))
-        assertEquals("[null]", Json.stringify(first))
-        assertEquals("[null,true]", Json.stringify(builder.build()))
-        val objectBuilder = JsonObjectBuilder().add("a/~", first)
-        val objectFirst = objectBuilder.build()
-        val duplicate = assertFailsWith<EncodingException> { objectBuilder.add("a/~", array) }
-        assertEquals("/a~1~0", duplicate.path)
-        objectBuilder.add("next", builder.build())
-        assertEquals("{\"a/~\":[null]}", Json.stringify(objectFirst))
-        assertEquals("{\"a/~\":[null],\"next\":[null,true]}", Json.stringify(objectBuilder.build()))
+        val first = JsonValue.fromArray([JsonValue.nullValue()])
+        val objectFirst = JsonValue.fromObject([("a/~", first)])
         val members = ArrayList<(String, JsonValue)>()
         members.add(("first", objectFirst))
         val snapshot = JsonValue.fromObject(members)
@@ -97,17 +95,20 @@ private class JsonDomTests {
         assertEquals(1L, snapshot.size)
         assertEquals(1L, snapshot["first"]!!.size)
         assertFailsWith<EncodingException> { JsonValue.fromObject([("x", first), ("x", array)]) }
-        assertEquals("{}", Json.stringify(JsonObjectBuilder().build()))
-        assertEquals("[]", Json.stringify(JsonArrayBuilder().build()))
     }
 
     @Test
     fun typedConversionAndSubtreeReusePreserveValuesAndErrors() {
         val tree = Json.parse("{\"raw\":{\"n\":1e400},\"typed\":[1,2]}")
-        val output = JsonObjectBuilder().add("copy", tree["raw"]!!).add("typed", tree["typed"]!!).build()
+        val output =
+            jsonObject {
+                add("copy", tree["raw"]!!)
+                add("typed", tree["typed"]!!)
+            }
         assertEquals("{\"copy\":{\"n\":1e400},\"typed\":[1,2]}", Json.stringify(output))
         assertEquals(2, Json.decodeFromValue<Array<Int>>(tree["typed"]!!)[1L])
-        val shifted = ValueEncoderFunction<Int> { value, encoder -> Int.encode(value + 10, encoder) }
+        val shifted =
+            ValueEncoderFunction<Int> { value, encoder -> Int.encode(value + 10, encoder) }
         assertEquals("11", Json.stringify(Json.encodeToValue(1, shifted)))
         val reader = ValueDecoderFunction<Int> { decoder -> Int.decode(decoder) - 10 }
         assertEquals(1, Json.decodeFromValue(Json.parse("11"), reader))
@@ -115,6 +116,9 @@ private class JsonDomTests {
         assertFailsWith<DecodingException> { Json.parse("{} trailing") }
         val failure = IllegalStateException(Some("custom codec failure"))
         val failing = ValueDecoderFunction<Int> { _ -> throw failure }
-        assertSame(failure, assertFailsWith<IllegalStateException> { Json.decodeFromValue(tree, failing) })
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> { Json.decodeFromValue(tree, failing) }
+        )
     }
 }

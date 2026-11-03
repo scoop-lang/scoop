@@ -1,0 +1,112 @@
+package scoop.json.tests.values.builders
+
+import scoop.json.*
+import scoop.test.*
+
+@Test
+private class JsonBuilderTests {
+    @Test
+    fun emptyAndNestedConstructionKeepsOrder() {
+        assertEquals("{}", Json.stringify(jsonObject()))
+        assertEquals("[]", Json.stringify(jsonArray()))
+        val calls = ArrayList<String>()
+        val result =
+            jsonObject {
+                calls.add("object")
+                add("name", JsonValue.fromString("Scoop"))
+                add(
+                    "items",
+                    jsonArray {
+                        calls.add("array")
+                        for (value in [1L, 2L, 3L]) {
+                            if (value != 2L) {
+                                add(JsonValue.fromLong(value))
+                            }
+                        }
+                        add(JsonValue.nullValue())
+                    }
+                )
+                add("tail", JsonValue.fromNumberToken("1e400"))
+            }
+        assertEquals(
+            "{\"name\":\"Scoop\",\"items\":[1,3,null],\"tail\":1e400}",
+            Json.stringify(result)
+        )
+        assertEquals(2L, calls.size)
+        assertEquals("object", calls[0L])
+        assertEquals("array", calls[1L])
+    }
+
+    @Test
+    fun publishedValuesIgnoreLaterBuilderChanges() {
+        val arrays = ArrayList<JsonArrayBuilder>()
+        val objects = ArrayList<JsonObjectBuilder>()
+        val result =
+            jsonObject {
+                objects.add(this)
+                add(
+                    "items",
+                    jsonArray {
+                        arrays.add(this)
+                        add(JsonValue.nullValue())
+                    }
+                )
+            }
+        val child = result["items"]!!
+        arrays[0L].add(JsonValue.fromBoolean(true))
+        objects[0L].add("next", JsonValue.fromLong(2L))
+        assertEquals("{\"items\":[null]}", Json.stringify(result))
+        assertEquals("[null]", Json.stringify(child))
+        assertEquals(1L, arrays.size)
+        assertEquals(1L, objects.size)
+    }
+
+    @Test
+    fun duplicatesPreserveEarlierMembersAndAllowRecovery() {
+        val first = jsonArray { add(JsonValue.nullValue()) }
+        val result =
+            jsonObject {
+                add("a/~", first)
+                val duplicate =
+                    assertFailsWith<EncodingException> { add("a/~", JsonValue.fromBoolean(false)) }
+                assertEquals("/a~1~0", duplicate.path)
+                add("after", JsonValue.nullValue())
+            }
+        assertEquals("{\"a/~\":[null],\"after\":null}", Json.stringify(result))
+    }
+
+    @Test
+    fun configurationFailuresPropagateWithoutAResult() {
+        val failure = IllegalStateException(Some("configuration failed"))
+        val calls = ArrayList<String>()
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                jsonArray {
+                    calls.add("array")
+                    add(JsonValue.nullValue())
+                    throw failure
+                }
+            }
+        )
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                jsonObject {
+                    calls.add("object")
+                    add("first", JsonValue.nullValue())
+                    throw failure
+                }
+            }
+        )
+        assertEquals(2L, calls.size)
+        val duplicate =
+            assertFailsWith<EncodingException> {
+                jsonObject {
+                    add("x", JsonValue.nullValue())
+                    add("x", JsonValue.nullValue())
+                }
+            }
+        assertEquals("/x", duplicate.path)
+    }
+}

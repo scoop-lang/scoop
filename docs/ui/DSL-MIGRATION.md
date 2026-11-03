@@ -209,7 +209,7 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 
 1. 每批 Scoop 变更先对受影响 Cone 执行 `scoop fmt`。Rust／Python 若实际改动，先按 AGENTS.md 执行各自格式化和 lint，再运行相关验证。
 2. 内置库变化后，按[准备脚本说明](../../scripts/README.md)显式更新开发 sysroot，设置 `SCOOP_SYSROOT`，复用已有 native 资源和共享 Cone cache。准备与依赖编译使用正确的依赖顺序，测试不逐项复制 sysroot 或重建未变化的库。
-3. 对受影响 Cone 执行 `scoop check --release`，测试源码同时用 `--tests` 检查，再运行对应 `scoop test --release`。源码检查和测试消费本批更新后的依赖产物。
+3. 对受影响 Cone 执行 `scoop test --release`，由同一次测试构建检查生产与测试源码，并验证普通行为和实际库消费。测试消费本批更新后的依赖产物，不再为 Cone API 另设 fixture 验证入口。
 4. 未修改 LIR／codegen 的批次只做本地验证。UI、主题、Path 和相关图形组合在已支持的 macOS aarch64 release 上通过 scoop.test 分批验证；实际修改 LIR／codegen 时再按变更所影响的目标补充必要验证，不把本机结果宣称为全部平台结果。
 5. Cone 的定向组合通过 scoop.test 验证，覆盖主题、下载应用相关组合、HTTP loopback 及其他受影响库。fixture 先评估迁移，仅在确需保留的编译器／外部进程合同范围运行；不因新增配置块重跑编译器全量、全部系统库或普通功能的 GC stress 矩阵。
 6. 用新 API 生成并检查相关公共 API 文档；当前文档、可运行示例和库实现必须一致。原始日志、截图、JSON 报告置于仓库外，仓库只保存批次范围、结果、失败闭合和必要平台限制。
@@ -228,4 +228,5 @@ D0 清单记录旧声明到新入口的对应关系，实施时用 `rg` 结合�
 | 日期 | 批次 | 完成内容与验证 |
 | --- | --- | --- |
 | 2026-11-03 | D0 公共约定 | 接收者构造入口、必需参数、快照、覆盖、子项与显式外层引用已写入 API 风格规范；StringBuilder／ByteArrayBuilder 排除，Cone 验证和 fixture 先评估规则已同步。各领域完整签名随对应批次先行落实；此批只改文档。 |
-| 2026-11-03 | D0a 外层 receiver | 语言规范、HIR 实际绑定和编辑查询统一禁止隐式外层 receiver；显式捕获与函数值适配保留。三组运行行为 fixture 迁入 receivers 测试 Cone；编译诊断保留必要 fixture。Rust 格式化与 workspace clippy 通过，HIR 全量 2,133 项及后补定向组 13 项通过；本机 aarch64 macOS release 的 7 项 scoop.test、47 个 receiver fixture 通过。未改 LIR／codegen。 |
+| 2026-11-03 | D0a 外层 receiver | 语言规范、HIR 实际绑定和编辑查询统一禁止隐式外层 receiver；显式捕获与函数值适配保留。三组运行行为 fixture 迁入 receivers 测试 Cone；编译诊断保留必要 fixture。Rust 格式化与 workspace clippy 通过，HIR 全量 2,133 项及后补定向组 13 项通过；本机 aarch64 macOS release 的 7 项 scoop.test、47 个 receiver fixture 通过。合并 origin/main 的 target/runtime 重构后，重建配套工具、基础库与 runtime，Clippy 和同组 13／7／47 项增量复验通过。本任务未改 LIR／codegen。 |
+| 2026-11-03 | D4 JSON | jsonObject／jsonArray、Unit add、内部构造与快照已替换公开链式 builder；实现、测试、示例与当前文档同步更新。无受影响 fixture。本机 aarch64 macOS release 的 JSON 整库 105 项 scoop.test 通过；预编译库的 2 项临时消费测试覆盖默认配置与 value_tree 示例，公开 API 文档生成和签名检查通过。 |

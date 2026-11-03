@@ -185,7 +185,7 @@ M57 不改变 JSON 语法、字节读取、SSE／NDJSON 定界或工具参数增
 
 树保留 JSON 值、对象顺序和数值 token；仍不承诺保留原始空白、字符串转义拼写或签名所需的原始消息字节。应用需要原始字节时显式保存输入。
 
-JsonObjectBuilder／JsonArrayBuilder 的 build 发布独立结构快照；继续 add 不改变旧值。对象重复 key 报错，合法子树共享。本轮不包含 JSONPath、patch 或可变 DOM。
+接收者入口 `jsonObject { ... }`／`jsonArray { ... }` 发布独立结构快照；块内通过 add 收集成员或元素，保存 builder 后继续 add 不改变旧值。builder 的构造和快照方法仅供库内部使用。对象重复 key 报错，合法子树共享；不包含 JSONPath、patch 或可变 DOM。迁移范围见 [DSL 迁移计划](../ui/DSL-MIGRATION.md)。
 
 ### 5.2 本轮：泛型 object codec；其他组合保持显式
 

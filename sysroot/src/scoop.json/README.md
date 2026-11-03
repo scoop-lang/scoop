@@ -42,10 +42,10 @@ fun main() {
     println(tree["name"]!!.asString())
     println(Json.decodeFromValue<User>(tree).scores[1L])
 
-    val output = JsonObjectBuilder()
-        .add("user", tree)
-        .add("extra", JsonArrayBuilder().add(JsonValue.nullValue()).build())
-        .build()
+    val output = jsonObject {
+        add("user", tree)
+        add("extra", jsonArray { add(JsonValue.nullValue()) })
+    }
     println(Json.stringify(output))
 
     val values = Json.decodeFromString("{\"answer\":42}", Json.objectDecoder<Int>())
@@ -62,7 +62,9 @@ codec 或使用容器的 encoder／decoder 工厂。
 对象下标返回 Option：缺少字段为 None，显式 JSON null 是 Some，子值 kind 为
 JsonValueKind.Null。数组下标使用 Long；错误种类抛 DecodingException，越界抛
 IndexOutOfBoundsException。keys／members／elements 返回独立数组，子值保持不可变。
-builder 的 build 是快照，后续 add 不影响旧值，重复对象字段报错。
+`jsonObject { ... }`／`jsonArray { ... }` 同步执行配置块一次并返回结构快照。
+块内用 add 追加成员或元素；add 返回 Unit。保存 builder 后继续 add 不影响旧值，
+重复对象字段报错。builder 由这两个入口创建，不公开构造器或 build 方法。
 
 数字保留原 token，可用 asNumberToken 读取或 fromNumberToken 受检构造，不必转换成
 Double；typed 数值访问仍检查范围。fromNumberToken 不接受前后空白，parse 可接受文档

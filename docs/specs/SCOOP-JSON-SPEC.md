@@ -38,7 +38,26 @@ companion提供`nullValue()`、`fromBoolean(value)`、`fromString(value)`、`fro
 
 asIntegralLong 直接解释已经合法的十进制 number token：`12.0`、`1.2e1`、`9007199254740993.0` 保持精确；非整数、超出 Long 范围或非 number 抛根路径 DecodingException。正负零及带任意合法指数的零均为 0，不把非零小数下溢为零。处理不分配指数规模的缓冲、不按指数逐次乘除；工作量以已有 token 长度为界，最多累积 Long 容纳的十进制位数。原 token 不变，asLong／typed Long 解码仍执行原有不带小数或指数的词法合同。
 
-`JsonArrayBuilder()`提供可链式`add(value: JsonValue)`；`JsonObjectBuilder()`提供可链式`add(name: String, value: JsonValue)`并在重复name时抛EncodingException且不改变已有成员。两者的`build(): JsonValue`每次发布独立的结构快照，之后继续add或再次build不改变旧值；共享不可变子节点，不重复校验已经合法的子树。它们不提供可变DOM、JSONPath或patch协议。
+通过接收者构造入口按源码顺序收集数组元素或对象成员：
+
+```scoop
+public fun jsonArray(configure: JsonArrayBuilder.() -> Unit = {}): JsonValue
+public fun jsonObject(configure: JsonObjectBuilder.() -> Unit = {}): JsonValue
+
+public class JsonArrayBuilder internal constructor() {
+    public fun add(value: JsonValue): Unit
+}
+
+public class JsonObjectBuilder internal constructor() {
+    public fun add(name: String, value: JsonValue): Unit
+}
+```
+
+入口创建 builder，同步执行 configure 恰好一次，然后发布独立的结构快照；空配置分别生成空数组与空对象。条件、循环和嵌套 `jsonArray`／`jsonObject` 使用普通语言控制流，子值通过 add 显式加入。add 返回 Unit，builder 的构造和快照方法仅供库内部使用，不再公开直接构造、链式 add 或 build 入口。
+
+JsonObjectBuilder 按插入顺序保存成员；重复 name 抛 EncodingException，path 指向该字段并按 JSON Pointer 转义，已有成员不变。用户在 configure 内处理此异常后可继续添加其他成员；未处理的异常沿构造入口传播，不返回部分结果。configure 抛出的其他异常原样传播。
+
+快照复制容器结构并共享不可变子节点，不重复校验合法子树。即使调用方保存 builder 并在构造结束后继续 add，也不改变已发布的 JsonValue 或包含该值的父节点。构造入口不提供可变 DOM、JSONPath 或 patch 协议，标量与已有集合继续使用上述 JsonValue 工厂。
 
 ## 3. String键object codec
 
@@ -55,10 +74,10 @@ encoder按Map的迭代顺序写keyed字段，key直接作为字段名，value交
 val data = Json.parse("{\"answer\":42,\"note\":null}")
 val answer = data["answer"]!!.asLong()
 val hasNote = data.containsKey("note")
-val output = JsonObjectBuilder()
-    .add("answer", Json.encodeToValue(answer))
-    .add("items", JsonArrayBuilder().add(JsonValue.nullValue()).build())
-    .build()
+val output = jsonObject {
+    add("answer", Json.encodeToValue(answer))
+    add("items", jsonArray { add(JsonValue.nullValue()) })
+}
 val text = Json.stringify(output)
 
 val values = Json.decodeFromString("{\"answer\":42}", Json.objectDecoder<Int>())
