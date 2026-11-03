@@ -103,8 +103,6 @@ private fun editorFocused(host: TextEditHost, active: Boolean) {
     if (active) {
         host.current.attachHost(host)
         host.current.breakUndoGroup()
-        if (!host.options.readOnly && host.options.enabled)
-            host.sessionExpected = true
         host.invalidate()
         host.publishNative()
     } else {
@@ -125,7 +123,6 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
         case Enabled(connection) -> {
             host.connection = connection
             host.sessionEnabled = true
-            host.sessionExpected = true
             host.publishNative()
         }
         case Disabled(connection) -> {
@@ -133,12 +130,9 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                 return
             host.connection = None
             host.sessionEnabled = false
-            host.sessionExpected = false
             host.retiring = false
             if (host.current.ownsHost(host))
                 host.perform({ host.current.cancelComposition() })
-            if (host.area.isFocusActive && host.options.enabled && !host.options.readOnly)
-                host.sessionExpected = true
         }
         case Edit(batch) -> {
             if (

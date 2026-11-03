@@ -1,0 +1,129 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class TextFieldDrawing(
+    val geometry: SurfaceGeometry,
+    val horizontal: Rect?,
+    val vertical: Rect?
+)
+
+/** Only the scalar font metric is cached; both temporary native objects close immediately. */
+internal class TextFieldLineHeight {
+    private var fonts: FontCollection? = None
+    private var revision = -1L
+    private var style: TextStyle? = None
+    private var height = 0.0
+    fun measure(fonts: FontCollection, style: TextStyle): Double {
+        val sameFonts =
+            when (this.fonts) {
+                case Some(previous) -> previous === fonts
+                case None -> false
+            }
+        val sameStyle =
+            when (this.style) {
+                case Some(previous) -> previous === style
+                case None -> false
+            }
+        if (sameFonts && sameStyle && revision == fonts.revision)
+            return height
+        val next =
+            Paragraph(fonts, "", style).use {
+                paragraph -> paragraph.layoutUnwrapped().use { layout -> layout.size.height }
+            }
+        this.fonts = Some(fonts)
+        this.style = Some(style)
+        revision = fonts.revision
+        height = next
+        return next
+    }
+}
+
+internal fun measureTextField(
+    ink: TextFieldInk,
+    context: MeasureContext,
+    constraints: Constraints
+): LayoutMetrics {
+    val value = ink.props.value
+    val input = value.input
+    val metrics = value.theme.surfaceMetrics(value.visual, value.surface)
+    val insets = metrics.contentInsets.totals()
+    val naturalWidth = value.surface.suggestedSize?.width ?: 240.0
+    val width =
+        constraints.constrain(
+            Size(constraints.maxWidth ?: lowerBound(naturalWidth, metrics.minimumSize.width), 0.0)
+        ).width
+    val description =
+        if (context.childCount == 1L)
+            Some(context.measureChild(0L, Constraints(maxWidth = Some(width))))
+        else
+            None
+    val gap =
+        if (context.childCount == 1L)
+            value.theme.tokens.spacing.small
+        else
+            0.0
+    nonnegative(gap, "invalid text field description spacing")
+    val after = (description?.size?.height ?: 0.0) + gap
+    val bars = input.options.multiline && input.scrollbars != ScrollbarVisibility.Hidden
+    val thickness =
+        if (bars)
+            value.theme.scrollbarMetrics(input.style.scrollbar).thickness
+        else
+            0.0
+    val horizontal = bars && !input.options.wrap
+    val rowHeight = ink.lineHeight.measure(ink.fonts!!, value.text)
+    val naturalHeight =
+        lowerBound(
+            rowHeight *
+                input.rows.toDouble() +
+                insets.height +
+                if (horizontal)
+                    thickness
+                else
+                    0.0,
+            lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
+        )
+    val size = constraints.constrain(Size(width, naturalHeight + after))
+    val fieldHeight = lowerBound(size.height - after, 0.0)
+    val geometry =
+        value.theme.surfaceGeometry(
+            Rect(0.0, 0.0, size.width, fieldHeight),
+            value.visual,
+            value.surface
+        )
+    val content = geometry.content
+    val right =
+        if (bars)
+            upperBound(thickness, content.width)
+        else
+            0.0
+    val bottom =
+        if (horizontal)
+            upperBound(thickness, content.height)
+        else
+            0.0
+    val viewport = Size(content.width - right, content.height - bottom)
+    val text = ink.host!!.measure(Constraints.tight(viewport))
+    val snapshot = ink.host!!.scrollSnapshot
+    ink.drawing =
+        Some(
+            TextFieldDrawing(
+                geometry,
+                if (horizontal && showScrollbar(input.scrollbars, snapshot.maximum.x))
+                    Some(Rect(0.0, viewport.height, viewport.width, bottom))
+                else
+                    None,
+                if (bars && showScrollbar(input.scrollbars, snapshot.maximum.y))
+                    Some(Rect(viewport.width, 0.0, right, viewport.height))
+                else
+                    None
+            )
+        )
+    if (context.childCount == 1L)
+        context.placeChild(0L, Point(0.0, fieldHeight + gap))
+    return offsetMetrics(text, size, content.y)
+}

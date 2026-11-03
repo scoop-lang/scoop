@@ -22,7 +22,8 @@ public fun materialTheme(mode: ThemeMode = ThemeMode.Light): Theme {
                 Color(0.82, 0.74, 0.99),
                 Color(0.22, 0.15, 0.35),
                 Color(0.82, 0.74, 0.99),
-                Color.Black.withAlpha(0.5)
+                Color.Black.withAlpha(0.5),
+                Color(0.976, 0.71, 0.678)
             )
         else
             ThemePalette(
@@ -36,7 +37,8 @@ public fun materialTheme(mode: ThemeMode = ThemeMode.Light): Theme {
                 Color(0.40, 0.31, 0.68),
                 Color.White,
                 Color(0.40, 0.31, 0.68),
-                Color.Black.withAlpha(0.24)
+                Color.Black.withAlpha(0.24),
+                Color(0.70, 0.15, 0.12)
             )
     val families = ["Roboto", "Arial", "sans-serif"]
     val fonts =

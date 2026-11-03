@@ -90,6 +90,13 @@ internal fun InputRouter.notifyFocused(event: InputEvent) {
     throwFailure(failure)
 }
 
+internal fun InputRouter.restartTextInput(area: InputArea): Boolean {
+    val owned = sameArea(imeOwner(ime), Some(area))
+    area.textInputRevision += 1UL
+    changed()
+    return owned
+}
+
 internal fun InputRouter.textEvent(event: TextInputEvent) {
     val previous = imeOwner(ime)
     when (event) {

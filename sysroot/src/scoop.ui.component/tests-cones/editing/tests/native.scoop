@@ -1,0 +1,152 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+import scoop.window.native.*
+
+private fun <R> editorView(window: Window, action: (Ptr<Unit>) -> R): R {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> action(view)
+                }
+            }
+        }
+    }
+}
+
+internal fun editorText(
+    window: Window,
+    text: String = "",
+    kind: Int = 0,
+    selection: Long = 0L,
+    selectedLength: Long = 0L
+): Int =
+    editorView(window) {
+        view -> @Unsafe
+        {
+            return@editorView text.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorText(
+                        view,
+                        kind,
+                        bytes,
+                        length,
+                        selection,
+                        selectedLength,
+                        -1L,
+                        0L
+                    )
+                }
+            }
+        }
+    }
+
+internal fun editorDocument(window: Window, state: TextEditorState): Boolean {
+    val input = state.inputState
+    val selected = input.selection.range
+    val marked = input.markedRange
+    return editorView(window) {
+        view -> @Unsafe
+        {
+            return@editorView input.surroundingText.withUtf8Bytes {
+                bytes,
+                length -> @Unsafe
+                {
+                    return@withUtf8Bytes nativeEditorDocument(
+                        view,
+                        bytes,
+                        length,
+                        selected.start,
+                        selected.end,
+                        marked?.start ?: -1L,
+                        marked?.end ?: -1L
+                    )
+                }
+            }
+        }
+    }
+}
+
+internal fun editorKey(window: Window, code: Int, text: String, flags: Int = 0) {
+    val result =
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView text.withUtf8Bytes {
+                    bytes,
+                    length -> @Unsafe
+                    {
+                        return@withUtf8Bytes nativeEditorKey(view, code, bytes, length, flags)
+                    }
+                }
+            }
+        }
+    assertEquals(0, result)
+}
+
+internal fun editorInterpret(window: Window, scenario: Int) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView nativeEditorInterpret(view, scenario)
+            }
+        }
+    )
+}
+
+internal fun editorPointer(
+    window: Window,
+    point: Point,
+    pressed: Boolean,
+    clicks: Int = 1,
+    shift: Boolean = false
+) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView nativeEditorPointer(
+                    view,
+                    point.x,
+                    point.y,
+                    pressed,
+                    clicks,
+                    shift
+                )
+            }
+        }
+    )
+}
+
+internal fun editorNativeCaret(window: Window, state: TextEditorState, bounds: Rect?) {
+    var cursor = 0L
+    for (character in state.text.utf8Slice(Utf8Range(0L, state.selection.cursor)))
+        cursor += if (character.code > 65535)
+            2L
+        else
+            1L
+    val rect =
+        when (bounds) {
+            case Some(value) -> Some(
+                LogicalRect(
+                    LogicalPosition(value.x, value.y),
+                    LogicalSize(value.width, value.height)
+                )
+            )
+            case None -> None
+        }
+    assertTrue(surfaceDocumentCaret(window, rect, cursor))
+}

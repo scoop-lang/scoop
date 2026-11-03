@@ -1,0 +1,48 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.SpanStyle
+import scoop.ui.style.*
+
+public class TextFieldStyle public constructor(
+    public val surface: SurfaceOptions = SurfaceOptions(),
+    public val text: SpanStyle? = None,
+    public val placeholder: SpanStyle? = None,
+    public val description: SpanStyle? = None,
+    public val states: InteractionStyles = InteractionStyles(),
+    public val selectionColor: Color? = None,
+    public val inactiveSelectionColor: Color? = None,
+    public val caretColor: Color? = None,
+    public val markedColor: Color? = None,
+    public val caretWidth: Double = 1.0,
+    public val scrollbar: ScrollbarOptions = ScrollbarOptions()
+) {
+    internal fun options(
+        theme: Theme,
+        visual: InteractionVisual,
+        invalid: Boolean
+    ): SurfaceOptions {
+        val validation =
+            if (invalid)
+                StyleOverride(
+                    border = StyleValue.Set(Some(Border(1.0, theme.tokens.palette.error)))
+                )
+            else
+                StyleOverride()
+        val focus =
+            when (surface.focus) {
+                case Some(value) -> Some(value)
+                case None -> if (invalid)
+                    Some(FocusStyle(theme.tokens.palette.error.withAlpha(0.72), 2.0, 2.0))
+                else
+                    None
+            }
+        return SurfaceOptions(
+            surface.suggestedSize,
+            surface.minimumSize,
+            surface.padding,
+            states.apply(validation.then(surface.style), visual),
+            focus
+        )
+    }
+}

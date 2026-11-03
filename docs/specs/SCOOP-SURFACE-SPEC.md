@@ -170,7 +170,7 @@ InputArea.focusRevision 保存该区域最近一次成功聚焦请求的窗口�
 
 每个区域用 `setCaret(rect: Rect?, revision: Long? = None)` 保存局部 caret 和可选文档修订；None 明确表示没有可用几何，初始为 None。应用可传入 TextLayout.caret 的结果，Surface 不保留段落或编辑文档。区域因移除而取消的按钮序列在全部原生按钮释放前保持空路径，不能让剩余 Move／Up 或追加按钮突然命中其他区域。
 
-InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法连接而保留仍可用的键盘焦点，供 readOnly 切换使用。`restartTextInput()` 结束当前输入连接，等待 Disabled 后重新接入同一仍合格区域；它不清除逻辑焦点，也不把旧连接的尾部 Edit 改投给新的连接。实际 native connection 随 Enabled／Disabled 保留，带 origin 的 Edit 必须匹配当前会话，迟到旧连接的批次丢弃。
+InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法连接而保留仍可用的键盘焦点，供 readOnly 切换使用。`restartTextInput(): Boolean` 结束当前输入连接，等待 Disabled 后重新接入同一仍合格区域；返回值表示调用前该区域是否实际拥有正在开启、已开启或正在关闭的原生会话，需要等待其 Disabled。没有会话，或原生仍在关闭另一个区域的会话时返回 false，新区域随后首次 Enabled 可直接使用。入口不清除逻辑焦点，也不把旧连接的尾部 Edit 改投给新的连接。实际 native connection 随 Enabled／Disabled 保留，带 origin 的 Edit 必须匹配当前会话，迟到旧连接的批次丢弃。
 
 区域本帧不再放置时，在成功发布该帧几何后按区域缺席处理，退出命中并执行所需取消／失焦；失败帧继续保留最近已提交几何。区域对象本身不因此关闭。UI 可用这条既有放置规则处理被省略号隐藏的行内控件，无需给 Surface 增加文本对象或组件生命周期。
 

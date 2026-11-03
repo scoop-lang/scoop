@@ -23,6 +23,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | Label | 纯文本或 StyledText、字体／样式输入及行内 View 绑定，复用公共段落测量与绘制 |
 | Button | 标签、hover／pressed／focus／disabled 外观、指针与键盘激活 |
 | Checkbox | 布尔 checked、外部 Binding 或自有状态、指针与 Space 切换及 disabled 外观 |
+| Input／Textarea | 共享 TextEditorState 的单行／多行输入、主题表面、占位文本、验证说明与滚动条 |
 | Row／Column | 子项的单轴排列、spacing 与交叉轴对齐 |
 | Stack | 子项叠放和对齐 |
 | Absolute | 有限容器内的显式轴定位、拉伸及同层 zIndex |
@@ -271,3 +272,21 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 12. 控件消费公共 Theme／ThemePainter 的几何与绘图，三风格与明暗切换时未覆盖属性继续跟随主题；组合公共 Style 的外框装饰、内容效果与状态外观；样式切换保持内部 State、基线和点击区域，参数动画完成／暂停／取消后下层帧需求停止。
 
 控件库必须能作为独立 Cone 使用已编译的公开框架接口构建和测试；独立自绘示例继续只依赖框架。类型、可见性及链接规则使用现有编译器与 Cone 合同，不为本库引入专用编译规则或重复每个控件的通用负例。
+
+## 9. Input／Textarea
+
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink 和当前回调均经 Props 更新。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+
+Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
+
+组件 render 读取 model.inputState，并观察实际已挂载宿主的 interaction。内部只保存一个可观察的宿主挂载引用；Element 创建时登记，退休时解除对应实例，不复制 focus／hover 或另建文本订阅器。Host、字体、段落度量缓存及主题 painter 由 ComponentScope 管理；未传 fonts 时创建一次系统 fallback 字体集合，更换外部来源不关闭借用资源。
+
+TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和焦点来自 palette.error，description 使用错误色；明确的局部表面与焦点覆盖仍优先，禁用说明使用 disabledText。没有内置验证器或提交阻断。
+
+有界宽度占满父约束，无界宽度使用显式 SurfaceOptions.suggestedSize.width，缺省 240，再满足主题 minimumSize。Input 一行、Textarea rows 行的建议高度使用同一字体与正文样式下真实空段落的行高，合并 padding、边框和主题建议／最小高度，再按父约束收敛；不以字符数估算布局。Host 每帧只按最终内视口测量一次，基线来自该布局并加实际内容偏移。description 作为普通 Label 在边框外下方按同宽约束测量，不作为输入正文或滚动内容。
+
+Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固定预留主题垂直条宽；wrap=false 时另预留水平条高，避免文字溢出改变滚动条后再反复测量。Auto 只在实际范围非零时显示，Always 显示禁用的零范围外观，Hidden 不预留。复用已有 ScrollBarControl 与宿主本帧 scrollSnapshot，只有宿主持有 ScrollViewport。条的滚动和输入沿既有残量、捕获及成功几何规则；Input 只水平显露，不绘制滚动条。
+
+外框留白使用不参与 Tab 的区域，在正文之前放置；点击留白把焦点交给同一宿主，不建立第二个文本连接。正文区域仍执行普通定位和选择。主题／明暗、描述、只读或模型替换更新保留控件挂载；编辑模型替换按 TextEditHost 的旧组合／连接收尾规则生效。模态、虚拟项固定、外层显露和绘制缓存只沿框架既有能力组合。
+
+验收覆盖实际 Input／Textarea 的外部更新、模型／字体更换、说明与主题状态、正常和无效表面、只读／禁用、留白聚焦、Tab／提交、长文滚动条，以及模态 IME 取消和虚拟编辑项保留。原生窗口行为使用 scoop.test，与纯编辑事务和主题像素用例分层验证。

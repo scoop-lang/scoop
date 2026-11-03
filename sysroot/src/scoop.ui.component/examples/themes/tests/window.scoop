@@ -95,7 +95,7 @@ private class ShowcaseProbe {
                     active.createWindow(
                         WindowAttributes(
                             "Scoop theme showcase test",
-                            LogicalSize(1120.0, 670.0),
+                            LogicalSize(1120.0, 840.0),
                             theme = Some(WindowTheme.Light)
                         )
                     )

@@ -5,6 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
 import scoop.window.*
 
 internal class Showcase(
@@ -12,6 +13,8 @@ internal class Showcase(
     private val fonts: FontCollection
 ): Component {
     private var count: Int by state(0)
+    private val name = TextEditorState("Scoop")
+    private val notes = TextEditorState()
     private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
     public override fun onMount(scope: ComponentScope) {
         scope.keyNavigation(
@@ -135,6 +138,51 @@ internal class Showcase(
                         "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur.",
                         style = Some(SpanStyle(fontSize = Some(12.0))),
                         fonts = Some(fonts)
+                    ),
+                    row(
+                        [
+                            frame(
+                                column(
+                                    [
+                                        label("Project name", fonts = Some(fonts)),
+                                        input(
+                                            name,
+                                            placeholder = "Enter a name",
+                                            enabled = model.enabled.value,
+                                            invalid = name.text.byteLength == 0L,
+                                            description =
+                                                if (name.text.byteLength == 0L)
+                                                    "This field is required."
+                                                else
+                                                    "Enter submits the name.",
+                                            fonts = Some(fonts),
+                                            onSubmit = { _ -> count += 1 }
+                                        )
+                                    ],
+                                    spacing = 4.0
+                                ),
+                                width = Some(350.0)
+                            ),
+                            frame(
+                                column(
+                                    [
+                                        label("Notes", fonts = Some(fonts)),
+                                        textarea(
+                                            notes,
+                                            placeholder = "Add a note",
+                                            rows = 3L,
+                                            enabled = model.enabled.value,
+                                            description = "Enter adds a line. ⌘Enter submits.",
+                                            fonts = Some(fonts),
+                                            onSubmit = { _ -> count += 1 }
+                                        )
+                                    ],
+                                    spacing = 4.0
+                                ),
+                                width = Some(600.0)
+                            )
+                        ],
+                        spacing = 16.0
                     )
                 ],
                 spacing = 5.0
@@ -213,7 +261,7 @@ fun main() {
                     case Resumed -> {
                         val window =
                             active.createWindow(
-                                WindowAttributes("Scoop — themes", LogicalSize(1120.0, 670.0))
+                                WindowAttributes("Scoop — themes", LogicalSize(1120.0, 840.0))
                             )
                         model.systemTheme(window.observedTheme)
                         host.attach(window, { Showcase(model, fonts) })

@@ -26,7 +26,6 @@ public class TextEditHost public constructor(
     internal var performing = false
     internal var notifying = false
     internal var connection: TextInputConnection? = None
-    internal var sessionExpected = false
     internal var sessionEnabled = false
     internal var retiring = false
     internal var preferredX: Double? = None
@@ -81,6 +80,12 @@ public class TextEditHost public constructor(
     public val layout: TextLayout get() {
         checkOpen();
         return body.layout
+    }
+    /** The layout being presented, including offsets clamped for this measurement. */
+    public val scrollSnapshot: ScrollSnapshot get() {
+        checkOpen()
+        return measured?.snapshot ?:
+            throw IllegalStateException(Some("text editor has not been measured"))
     }
 
     internal fun checkOpen() {
@@ -192,10 +197,8 @@ public class TextEditHost public constructor(
             scope.requestFrame()
     }
     internal fun retireConnection() {
-        if (sessionExpected || sessionEnabled)
-            retiring = true
-        if (!area.isClosed && (sessionExpected || sessionEnabled))
-            area.restartTextInput()
+        if (!area.isClosed)
+            retiring = area.restartTextInput()
     }
     internal fun publishNative(after: TextInputOrigin? = None) {
         if (

@@ -1,0 +1,75 @@
+package scoop.tests.ui.textcontrols
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun advanceVirtualField(probe: FieldProbe) {
+    val window = probe.native!!
+    val row = probe.row(0L)
+    when (probe.phase) {
+        case 35 -> {
+            assertTrue(row.focus.hasFocus)
+            assertEquals(1, row.mounts)
+            assertEquals("row 0", row.model.text)
+            probe.next { assertEquals(0, editorText(window, "仮", 1, 1L)) }
+        }
+        case 36 -> {
+            assertTrue(row.model.isComposing)
+            probe.next { probe.listScroll.scrollTo(Point(0.0, 20.0 * 48.0)) }
+        }
+        case 37 -> {
+            assertEquals(20.0 * 48.0, probe.listScroll.offset.y)
+            assertEquals(1, row.mounts)
+            assertEquals(0, row.unmounts)
+            assertTrue(row.focus.hasFocus)
+            assertTrue(row.model.isComposing)
+            editorNativeCaret(window, row.model, None)
+            probe.next { assertEquals(0, editorText(window, "済")) }
+        }
+        case 38 -> {
+            assertFalse(row.model.isComposing)
+            assertEquals("row 0済", row.model.text)
+            assertTrue(row.focus.hasFocus)
+            assertTrue(probe.listScroll.offset.y < 48.0)
+            probe.next {
+                assertTrue(probe.focus[0L].requestFocus())
+                probe.listScroll.scrollTo(Point(0.0, 40.0 * 48.0))
+            }
+        }
+        case 39 -> {
+            assertTrue(probe.focus[0L].hasFocus)
+            probe.next { probe.listScroll.scrollTo(Point(0.0, 50.0 * 48.0)) }
+        }
+        case 40 -> {
+            assertEquals(1, row.unmounts)
+            assertFalse(row.focus.isAttached)
+            assertEquals("row 0済", row.model.text)
+            assertTrue(row.model.canUndo)
+            probe.next { assertTrue(probe.list.focusItem(ViewKey.Number(0L))) }
+        }
+        case 41 -> {
+            assertTrue(row.focus.hasFocus)
+            assertEquals(2, row.mounts)
+            assertEquals(1, row.unmounts)
+            assertTrue(editorDocument(window, row.model))
+            probe.next { editorKey(window, 6, "z", 8) }
+        }
+        case 42 -> {
+            assertEquals("row 0", row.model.text)
+            assertTrue(row.model.canRedo)
+            probe.next {}
+        }
+        case 43 -> {
+            probe.savedPasses = probe.passes
+            probe.phase += 1
+            probe.later {
+                assertEquals(probe.savedPasses, probe.passes)
+                assertFalse(probe.frames!!.snapshot().required)
+            }
+        }
+        case 44 -> probe.next { window.requestDestroy() }
+        else -> fail(Some("unexpected virtual editor phase"))
+    }
+}

@@ -137,11 +137,10 @@ public class InputArea internal constructor(
         else
             owner.reserveFocusRequest()
     }
-    /** Ends the old native connection before reopening this still-eligible area. */
-    public fun restartTextInput() {
+    /** Returns whether this area already owns the native cycle being retired. */
+    public fun restartTextInput(): Boolean {
         checkOpen()
-        textInputRevision += 1UL
-        owner.changed()
+        return owner.restartTextInput(this)
     }
     /** Stages a value for the next placement; None withdraws unavailable geometry. */
     public fun setCaret(rect: Rect?, revision: Long? = None) {

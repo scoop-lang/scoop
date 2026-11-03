@@ -121,7 +121,7 @@ private class InputCaretTest {
             val second = TextInputConnection(WindowId(1L), 2L)
             val third = TextInputConnection(WindowId(1L), 3L)
             rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(first))))
-            area.restartTextInput()
+            assertTrue(area.restartTextInput())
             assertTrue(area.hasFocus && area.isFocusActive)
             assertEquals(2L, rig.log.ime.size)
             assertFalse(rig.log.ime[1L])
@@ -153,6 +153,41 @@ private class InputCaretTest {
             assertFalse(later.focusable)
             later.textInput = true
             assertTrue(later.focusable)
+        }
+    }
+
+    @Test
+    fun `restart waits only for the native cycle actually owned by the area`() {
+        InputRig().use {
+            rig ->
+            val first = rig.area("first", true, true)
+            val next = rig.area("next", true, true)
+            assertFalse(next.restartTextInput())
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, first, Rect(0.0, 0.0, 30.0, 60.0))
+                frame.place(canvas, next, Rect(30.0, 0.0, 30.0, 60.0))
+            }
+            assertTrue(first.requestFocus())
+            val oldConnection = TextInputConnection(WindowId(1L), 1L)
+            val opening = TextInputConnection(WindowId(1L), 2L)
+            val ready = TextInputConnection(WindowId(1L), 3L)
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(oldConnection))))
+            assertTrue(next.requestFocus())
+            assertTrue(next.isFocusActive)
+            assertFalse(next.restartTextInput())
+            assertTrue(first.restartTextInput())
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(oldConnection))))
+            assertEquals("first/disabled", rig.log.trace())
+            assertTrue(next.restartTextInput())
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(opening))))
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Disabled(Some(opening))))
+            rig.log.events.clear()
+            rig.router.event(WindowEvent.TextInput(TextInputEvent.Enabled(Some(ready))))
+            rig.router.event(WindowEvent.TextInput(originEdit(ready, 1L)))
+            assertEquals("next/enabled,next/edit", rig.log.trace())
+            assertTrue(next.isFocusActive)
         }
     }
 }

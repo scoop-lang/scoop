@@ -70,7 +70,7 @@ macOS 可用 `ShortcutScope(input, bindings)` 在作用域内登记快捷键，U
 
 `createArea(focusable = true)` 允许逻辑焦点，`textInput = true` 同时允许焦点和 IME。区域已成功放置且有非空可见几何时，canFocus 为 true，requestFocus() 可以聚焦；它不抢占系统窗口焦点。windowBounds／visibleBounds 查询最近成功帧的窗口逻辑包围盒，后者计入路径裁剪及视口。已聚焦区域仅被 clip 裁掉时保持会话，移除、禁用或关闭仍清除焦点。`hasFocus` 表示保留的逻辑焦点，`isFocusActive` 还要求 OS 窗口当前获得焦点。文字只从 TextInputBatch 应用到编辑器自己的状态，不能再由 LogicalKey.Character 插入。
 
-`area.setCaret(rect, revision)` 把可空的局部 caret 和文档修订随放置捕获；成功帧才发布其变换与实际区域／路径裁剪。新 caret 尚未成功呈现、几何失效或全部被裁掉时，macOS 候选框查询返回 unavailable；`visibleCaretBounds` 查询同一结果，`toLocal`／`toWindow` 用当前成功放置映射子区域。只读切换可设置 `textInput = false`，结束 IME 并保留键盘焦点；`restartTextInput()` 等待旧连接 Disabled 后重新开启。焦点切换和重启期间的已排队编辑保留原归属，旧连接尾部不会交给新接收者。
+`area.setCaret(rect, revision)` 把可空的局部 caret 和文档修订随放置捕获；成功帧才发布其变换与实际区域／路径裁剪。新 caret 尚未成功呈现、几何失效或全部被裁掉时，macOS 候选框查询返回 unavailable；`visibleCaretBounds` 查询同一结果，`toLocal`／`toWindow` 用当前成功放置映射子区域。只读切换可设置 `textInput = false`，结束 IME 并保留键盘焦点；`restartTextInput()` 等待实际属于该区域的旧连接 Disabled 后重新开启，返回是否存在这一旧会话。返回 false 时，新区域的首次 Enabled 可以直接使用。焦点切换和重启期间的已排队编辑保留原归属，旧连接尾部不会交给新接收者。
 
 [组合示例](examples/basics/README.md)演示旋转 Path、hover、拖动 spring、文本布局及 IME 接收。它是普通 executable Cone，编辑状态由示例管理，未依赖 component。
 
