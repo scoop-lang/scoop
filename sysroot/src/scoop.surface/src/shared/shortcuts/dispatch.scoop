@@ -24,8 +24,7 @@ internal fun runShortcutBindings(
         if (
             binding.enabled &&
                 (!key.isRepeat || binding.allowRepeat) &&
-                binding.modifiers.matches(key.modifiers) &&
-                binding.key.matches(key) &&
+                binding.chord.matches(key) &&
                 binding.canExecute()
         ) {
             if (!isActive())

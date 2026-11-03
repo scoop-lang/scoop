@@ -64,9 +64,12 @@ private class NativeShortcutSession: Closeable {
                             attached.input,
                             [
                                 shortcutBinding(
-                                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                    ShortcutChord(
+                                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                        ShortcutModifiers(primary = true)
+                                    ),
                                     { calls += 1 }
-                                ) { this.modifiers = ShortcutModifiers(primary = true) }
+                                )
                             ]
                         )
                     )

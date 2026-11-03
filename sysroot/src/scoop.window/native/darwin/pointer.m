@@ -26,7 +26,7 @@ static void pointer(SWView *view, NSEvent *native, int32_t kind) {
     view.pointerInside = NSMouseInRect(logical, view.bounds, view.flipped);
     [view updateCursor];
   }
-  data.b = (int64_t)native.modifierFlags;
+  data.b = (int64_t)sw_input_modifiers(view, native.modifierFlags);
   if (kind == 3 || kind == 4) {
     data.a = native.buttonNumber;
     data.c = native.clickCount;

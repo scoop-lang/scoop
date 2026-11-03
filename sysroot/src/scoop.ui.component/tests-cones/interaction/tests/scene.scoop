@@ -26,9 +26,12 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                         scope.input,
                         [
                             shortcutBinding(
-                                ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyN)),
+                                ShortcutChord(
+                                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyN)),
+                                    ShortcutModifiers(primary = true)
+                                ),
                                 { probe.shortcutCalls += 1 }
-                            ) { this.modifiers = ShortcutModifiers(primary = true) }
+                            )
                         ]
                     )
                 }

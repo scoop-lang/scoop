@@ -85,19 +85,23 @@ private fun copyKeyEvent(pointer: Ptr<Unit>, event: NativeEvent): KeyEvent {
                 else
                     LogicalKey.Unidentified(platformUnknownLogicalKey(event.a, event.c))
         }
+    val state =
+        if (event.flags.and(1) != 0)
+            ElementState.Pressed
+        else
+            ElementState.Released
+    val modifiers = platformModifiers(event.b)
+    val synthetic = event.flags.and(4) != 0
     return KeyEvent(
         platformPhysicalKey(event.a),
         logical,
         platformKeyLocation(event.a),
-        if (event.flags.and(1) != 0)
-            ElementState.Pressed
-        else
-            ElementState.Released,
+        state,
         event.flags.and(2) != 0,
-        platformModifiers(event.b),
-        event.flags.and(4) != 0,
+        modifiers,
+        synthetic,
         copyInputTime(event),
-        textCommands = platformTextCommands(pointer)
+        textCommands = platformTextCommands(pointer, logical, modifiers, state, synthetic)
     )
 }
 

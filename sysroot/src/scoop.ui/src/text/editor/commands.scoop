@@ -108,16 +108,14 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
 }
 
 private fun editorSubmits(options: TextEditOptions, key: KeyEvent?): Boolean {
-    val modifiers = key?.modifiers
-    val shift = modifiers?.shift ?: false
-    val control = modifiers?.control ?: false
-    val alt = modifiers?.alt ?: false
-    val primary = modifiers?.superKey ?: false
-    if (shift || control || alt)
-        return false
-    return when (options.submit) {
-        case None -> false
-        case Enter -> !primary
-        case PrimaryEnter -> primary
-    }
+    val event = key ?: return options.submit == TextSubmitKeys.Enter
+    val modifiers =
+        when (options.submit) {
+            case None -> return false
+            case Enter -> ShortcutModifiers()
+            case PrimaryEnter -> ShortcutModifiers(primary = true)
+        }
+    return ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)), modifiers).matches(
+        event
+    )
 }

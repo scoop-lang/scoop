@@ -1,0 +1,131 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+
+@Test
+private class ShortcutChordTest {
+    @Test
+    fun `primary resolves without changing the identity of the raw modifiers`() {
+        val key = ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter))
+        val primary = ShortcutChord(key, ShortcutModifiers(primary = true))
+        val superKey = ShortcutChord(key, ShortcutModifiers(superKey = true))
+        val control = ShortcutChord(key, ShortcutModifiers(control = true))
+        assertTrue(equivalentChords(primary, superKey, PrimaryModifier.Super))
+        assertFalse(equivalentChords(primary, control, PrimaryModifier.Super))
+        assertTrue(equivalentChords(primary, control, PrimaryModifier.Control))
+        assertFalse(equivalentChords(primary, superKey, PrimaryModifier.Control))
+        val both = ShortcutChord(key, ShortcutModifiers(primary = true, superKey = true))
+        assertTrue(equivalentChords(both, superKey, PrimaryModifier.Super))
+        assertFalse(equivalentChords(both, superKey, PrimaryModifier.Control))
+        assertTrue(
+            chordMatches(primary, chordKey(darwinModifiers(1048576L)), PrimaryModifier.Super)
+        )
+        assertFalse(
+            chordMatches(primary, chordKey(darwinModifiers(1048576L)), PrimaryModifier.Control)
+        )
+        assertTrue(
+            chordMatches(primary, chordKey(darwinModifiers(262144L)), PrimaryModifier.Control)
+        )
+        assertFalse(
+            chordMatches(primary, chordKey(darwinModifiers(262144L)), PrimaryModifier.Super)
+        )
+        assertTrue(chordMatches(both, chordKey(darwinModifiers(1310720L)), PrimaryModifier.Control))
+    }
+
+    @Test
+    fun `matching uses complete modifiers but leaves event eligibility to the caller`() {
+        val key = ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter))
+        val primary = ShortcutChord(key, ShortcutModifiers(primary = true))
+        assertTrue(primary.matches(chordKey(darwinModifiers(1114112L))))
+        assertFalse(primary.matches(chordKey(darwinModifiers(1179648L))))
+        assertFalse(primary.matches(chordKey(darwinModifiers(1572864L))))
+        assertFalse(primary.matches(chordKey(darwinModifiers(9437184L))))
+        assertTrue(
+            primary.matches(chordKey(darwinModifiers(1048576L), ElementState.Released, true))
+        )
+        val physical =
+            ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.Enter)), primary.modifiers)
+        assertTrue(physical.matches(chordKey(darwinModifiers(1048576L))))
+        assertFalse(physical.equivalentTo(primary))
+    }
+
+    @Test
+    fun `chord construction validates keys and snapshots receiver configuration`() {
+        val captured = ArrayList<ShortcutModifiersBuilder>()
+        val chord =
+            shortcutChord(ShortcutKey.Logical(LogicalKey.Character("K"))) {
+                captured.add(this)
+                primary = true
+                shift = true
+            }
+        captured[0L].primary = false
+        assertTrue(chord.modifiers.primary)
+        assertTrue(chord.modifiers.shift)
+        assertTrue(
+            chord.equivalentTo(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("k")),
+                    ShortcutModifiers(shift = true, superKey = true)
+                )
+            )
+        )
+        assertFailsWith<IllegalArgumentException> {
+            ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("")))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ShortcutChord(ShortcutKey.Logical(LogicalKey.Dead(None)))
+        }
+    }
+
+    @Test
+    fun `platform editing maps commands without inventing inserted characters`() {
+        val command = darwinModifiers(1048576L)
+        val control = darwinModifiers(262144L)
+        assertEquals(
+            Some(TextEditCommand.Copy),
+            darwinEditingCommand(LogicalKey.Character("C"), command)
+        )
+        assertEquals(
+            Some(TextEditCommand.Redo),
+            darwinEditingCommand(LogicalKey.Character("z"), darwinModifiers(1179648L))
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.LineStart, false)),
+            darwinEditingCommand(LogicalKey.Character("a"), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.WordLeft, true)),
+            darwinEditingCommand(LogicalKey.Named(NamedKey.ArrowLeft), darwinModifiers(655360L))
+        )
+        assertEquals(
+            Some(TextEditCommand.InsertNewline),
+            darwinEditingCommand(LogicalKey.Named(NamedKey.Enter), command)
+        )
+        assertEquals(None, darwinEditingCommand(LogicalKey.Character("x"), darwinModifiers(0L)))
+        assertEquals(
+            None,
+            darwinEditingCommand(LogicalKey.Dead(Some("´")), darwinModifiers(524288L))
+        )
+        assertEquals(
+            None,
+            darwinEditingCommand(LogicalKey.Character("x"), darwinModifiers(786432L))
+        )
+    }
+}
+
+private fun chordKey(
+    modifiers: Modifiers,
+    state: ElementState = ElementState.Pressed,
+    synthetic: Boolean = false
+): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(KeyCode.Enter),
+        LogicalKey.Named(NamedKey.Enter),
+        KeyLocation.Standard,
+        state,
+        false,
+        modifiers,
+        synthetic,
+        InputTime.Observed(MonotonicTimeSource.markNow())
+    )

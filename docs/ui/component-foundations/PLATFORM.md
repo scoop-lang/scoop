@@ -1,6 +1,6 @@
 # 平台合同与源码边界
 
-本文属于 [控件基础设计](DESIGN.md)，规定 P1／P2 的目标合同，尚未实施。主要修改 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
+本文属于 [控件基础设计](DESIGN.md)，规定 P1／P2 的目标合同；实际交付范围见 [实施记录](PROGRESS.md)。主要修改 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
 
 ## 1. 原始按键与应用语义分开
 
@@ -46,7 +46,7 @@ Surface 继续负责 scope 优先级、target → ancestor 的默认行为、模
 
 ## 2. 编辑命令由 window 产生
 
-保留已有 `TextEditCommand`、`TextMovement`、`TextDeletion`。把 [editorFallbackKey](../../../sysroot/src/scoop.ui/src/text/editor/keyboard.scoop) 的 AppKit 键位表移入 window 的平台策略，UI 不再保存平台快捷键后备。
+保留已有 `TextEditCommand`、`TextMovement`、`TextDeletion`。把 [原 UI 编辑键位表](../../../sysroot/src/scoop.window/platform/darwin/editing_keys.scoop) 的 AppKit 键位表移入 window 的平台策略，UI 不再保存平台快捷键后备。
 
 `KeyEvent.textCommands` 的新合同为：当前后端针对该事件确定的有序语义编辑命令。优先使用原生编辑系统的命令；只有原生没有产生对应命令、没有通过 IME 消费该键时，才由同一 window 后端补充本平台的标准映射。没有编辑含义的键仍为空数组；空数组不再表示“请 UI 猜平台”。
 

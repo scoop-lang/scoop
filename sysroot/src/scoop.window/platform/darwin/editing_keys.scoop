@@ -1,13 +1,9 @@
-package scoop.ui.text
+package scoop.window
 
-import scoop.window.*
-
-/** Used only when AppKit did not attach a semantic command to this key. */
-internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
-    val modifiers = event.modifiers
-    val key = event.logicalKey
+/** Completes keys which the native interpreter left without an editing command. */
+internal fun darwinEditingCommand(key: LogicalKey, modifiers: Modifiers): TextEditCommand? {
     if (modifiers.superKey && !modifiers.control && !modifiers.alt && !modifiers.function) {
-        if (editorShortcut(key, "z"))
+        if (darwinShortcutCharacter(key, "z"))
             return Some(
                 if (modifiers.shift)
                     TextEditCommand.Redo
@@ -15,13 +11,13 @@ internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
                     TextEditCommand.Undo
             )
         if (!modifiers.shift) {
-            if (editorShortcut(key, "a"))
+            if (darwinShortcutCharacter(key, "a"))
                 return Some(TextEditCommand.SelectAll)
-            if (editorShortcut(key, "c"))
+            if (darwinShortcutCharacter(key, "c"))
                 return Some(TextEditCommand.Copy)
-            if (editorShortcut(key, "x"))
+            if (darwinShortcutCharacter(key, "x"))
                 return Some(TextEditCommand.Cut)
-            if (editorShortcut(key, "v"))
+            if (darwinShortcutCharacter(key, "v"))
                 return Some(TextEditCommand.Paste)
         }
         return when (key) {
@@ -44,22 +40,22 @@ internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
     }
     if (modifiers.control && !modifiers.superKey && !modifiers.alt && !modifiers.function) {
         val movement =
-            if (editorShortcut(key, "a"))
+            if (darwinShortcutCharacter(key, "a"))
                 Some(TextMovement.LineStart)
             else
-                if (editorShortcut(key, "e"))
+                if (darwinShortcutCharacter(key, "e"))
                     Some(TextMovement.LineEnd)
                 else
-                    if (editorShortcut(key, "b"))
+                    if (darwinShortcutCharacter(key, "b"))
                         Some(TextMovement.Backward)
                     else
-                        if (editorShortcut(key, "f"))
+                        if (darwinShortcutCharacter(key, "f"))
                             Some(TextMovement.Forward)
                         else
-                            if (editorShortcut(key, "p"))
+                            if (darwinShortcutCharacter(key, "p"))
                                 Some(TextMovement.Up)
                             else
-                                if (editorShortcut(key, "n"))
+                                if (darwinShortcutCharacter(key, "n"))
                                     Some(TextMovement.Down)
                                 else
                                     None
@@ -68,11 +64,11 @@ internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
             case None -> {}
         }
         if (!modifiers.shift) {
-            if (editorShortcut(key, "h"))
+            if (darwinShortcutCharacter(key, "h"))
                 return Some(TextEditCommand.Delete(TextDeletion.Backward))
-            if (editorShortcut(key, "d"))
+            if (darwinShortcutCharacter(key, "d"))
                 return Some(TextEditCommand.Delete(TextDeletion.Forward))
-            if (editorShortcut(key, "k"))
+            if (darwinShortcutCharacter(key, "k"))
                 return Some(TextEditCommand.Delete(TextDeletion.ParagraphEnd))
         }
         return None
@@ -147,5 +143,5 @@ internal fun editorFallbackKey(event: KeyEvent): TextEditCommand? {
     }
 }
 
-private fun editorShortcut(key: LogicalKey, text: String): Boolean =
+private fun darwinShortcutCharacter(key: LogicalKey, text: String): Boolean =
     LogicalKey.Character(text).matchesShortcut(key)

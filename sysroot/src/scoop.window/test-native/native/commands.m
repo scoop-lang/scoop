@@ -116,6 +116,36 @@ int32_t scoop_window_test_commands(void *pointer) {
       } @finally {
         method_setImplementation(method, original);
       }
+      // Shortcut keys bypass AppKit's text interpreter; window supplies their
+      // standard commands. Function-class flags must not invent a held Fn.
+      send_key(view, 8, @"c", NSEventModifierFlagCommand, NO, YES);
+      send_key(view, 123, @"\uf702",
+               NSEventModifierFlagCommand | NSEventModifierFlagFunction, NO,
+               YES);
+      NSEvent *fn_down = [NSEvent keyEventWithType:NSEventTypeFlagsChanged
+                                          location:NSZeroPoint
+                                     modifierFlags:NSEventModifierFlagFunction
+                                         timestamp:1.2
+                                      windowNumber:view.window.windowNumber
+                                           context:nil
+                                        characters:@""
+                       charactersIgnoringModifiers:@""
+                                         isARepeat:NO
+                                           keyCode:63];
+      [view flagsChanged:fn_down];
+      send_key(view, 123, @"\uf702", NSEventModifierFlagFunction, NO, YES);
+      NSEvent *fn_up = [NSEvent keyEventWithType:NSEventTypeFlagsChanged
+                                        location:NSZeroPoint
+                                   modifierFlags:0
+                                       timestamp:1.3
+                                    windowNumber:view.window.windowNumber
+                                         context:nil
+                                      characters:@""
+                     charactersIgnoringModifiers:@""
+                                       isARepeat:NO
+                                         keyCode:63];
+      [view flagsChanged:fn_up];
+      send_key(view, 123, @"\uf702", NSEventModifierFlagFunction, NO, YES);
       return 0;
     } @catch (NSException *exception) {
       return 3;

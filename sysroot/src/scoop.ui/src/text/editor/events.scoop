@@ -84,11 +84,6 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
                     if (editorCommand(host, command, Some(key)))
                         handled = true
                 }
-            } else {
-                when (editorFallbackKey(key)) {
-                    case Some(command) -> handled = editorCommand(host, command, Some(key))
-                    case None -> {}
-                }
             }
             if (handled) {
                 editorStopDrag(host, false)

@@ -1,6 +1,6 @@
 # UI 跨平台抽象与控件基础补齐
 
-日期：2026-11-04。状态：设计完成，尚未实施。本文定义复刻 shadcn 控件之前要完成的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论仍以各库 spec 和此前的实施记录为准。
+日期：2026-11-04。状态：实施中；逐批交付范围见实施记录。本文定义复刻 shadcn 控件之前要完成的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论仍以各库 spec 和此前的实施记录为准。
 
 本轮先整理平台合同，再补齐公共布局、交互、文本和绘制能力。沿用 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window`／`scoop.window.asyncio` 的分层，不新增统一 platform service、渲染框架或另一套 UI runtime。所有新增能力均为普通库能力，不修改语言、编译器阶段或 runtime ABI。
 
@@ -36,7 +36,7 @@
 
 关键源码依据：
 
-- [Surface 快捷键匹配](../../../sysroot/src/scoop.surface/src/platform/darwin/shortcuts/matching.scoop)、[UI 编辑键位](../../../sysroot/src/scoop.ui/src/text/editor/keyboard.scoop)、[提交键判断](../../../sysroot/src/scoop.ui/src/text/editor/commands.scoop)。
+- [Surface 快捷键匹配](../../../sysroot/src/scoop.surface/src/shared/shortcuts/matching.scoop)、[Window 编辑键位](../../../sysroot/src/scoop.window/platform/darwin/editing_keys.scoop)、[提交键判断](../../../sysroot/src/scoop.ui/src/text/editor/commands.scoop)。
 - [测量协议](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)、[线性布局](../../../sysroot/src/scoop.ui.component/src/layout/containers.scoop)、[lazy 子项收尾](../../../sysroot/src/scoop.ui/src/lazy/items.scoop)。
 - [弹层生命周期](../../../sysroot/src/scoop.ui/src/overlay/instance.scoop)、[成功帧与模态收尾](../../../sysroot/src/scoop.ui/src/overlay/controller.scoop)、[内部激活行为](../../../sysroot/src/scoop.ui.component/src/input/activation.scoop)。
 - [文本事务](../../../sysroot/src/scoop.ui/src/text/editor/input.scoop)、[现有单行归一化](../../../sysroot/src/scoop.ui/src/text/editor/normalize.scoop)、[Style](../../../sysroot/src/scoop.ui.style/src/style.scoop)、[内部阅读位置](../../../sysroot/src/scoop.ui.component/src/virtual/position.scoop)。

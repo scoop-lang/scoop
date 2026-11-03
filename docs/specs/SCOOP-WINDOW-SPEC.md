@@ -111,13 +111,19 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 
 ## 5. 输入与文本
 
-KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
 
 TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
 
-AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。未知 selector 保留已有按键信息供上层回退，不伪造语义。没有 AppKit selector 的平台保持空列表；此次没有增加 Windows 编辑实现。上层优先使用非空命令列表，空列表才使用平台缺省映射；两者必须沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑。
+AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。Window 在原生命令为空且该键未被输入法消费时，补充宿主的标准编辑映射；macOS 包括 Command 的复制／剪切／粘贴／选择／撤销／重做和行／文档导航、Control 编辑键、Option 词／段落导航以及普通编辑键。未知 selector 不伪造命令，但仍可使用该键已确定的标准映射。空列表表示没有编辑含义，上层不得再添加平台键位表；Windows 标准映射由该平台后续批次实现。所有命令沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑，字符插入仍只由 TextInputEvent 交付。
 
-macOS 提供 `LogicalKey.matchesShortcut(other)`，供上层匹配已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。实际匹配所需修饰键、重复及作用域由 Surface 的快捷键层处理。
+Window 公共 `LogicalKey.matchesShortcut(other)` 比较已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。
+
+`ShortcutKey` 为 Logical(LogicalKey)／Physical(PhysicalKey)。不可变 `ShortcutModifiers` 保存 primary、shift、control、alt、superKey、function 六个布尔值，默认均为 false。`ShortcutChord(key, modifiers = ShortcutModifiers())` 保存完整描述，构造时拒绝 Dead 和空 Character；`shortcutChord(key) { ... }` 用 ShortcutModifiersBuilder 同步构造同一描述，配置块不执行动作。Primary 在 macOS 展开为 Super，在 Windows 合同中展开为 Control；解析后按集合合并，不能要求同一个修饰键按两次。完整匹配忽略锁定及左右侧信息，未指定的其他修饰键不得出现。
+
+`ShortcutChord.matches(event)` 比较键和解析后的完整修饰集合，不判断 keydown、repeat、synthetic 或路由；`equivalentTo(other)` 比较同一种 logical／physical 语义下的解析后组合。两个操作复用同一平台解析，surface 负责绑定、冲突、输入资格和动作。
+
+`Window.shortcutLabel(chord): ShortcutLabel` 在 owner 线程和活动窗口上查询当前键盘布局，返回只读 `parts: Array<String>` 与 `separator: String` 值快照；不保留 native 借用。macOS 修饰键按 Control、Option、Shift、Command、Fn 排列，使用 ⌃／⌥／⇧／⌘／fn，separator 为空串，重复的 Primary／Super 只出现一次。Logical 字符保持绑定字符；Physical 字符按当前键盘布局查询，无字符映射时使用明确物理键名称；已知非字符键使用本平台标签，未知键使用 Unknown。查询不改变输入源、焦点或当前组合。此批先实施 macOS 标签，Windows 后端按同一入口补齐。
 
 AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／Control 快捷键不产生普通文本提交。无装饰窗口仍可成为 key／main window，接收键盘不依赖原生标题栏。已交付的按下状态在失焦时补发 synthetic release，清空按住的修饰键并保留已知锁定状态；没有硬件来源的设备 id 为 None。CapsLock 通知表达锁定状态，不伪造物理按键释放。指针同时携带同次 native 事件的逻辑／物理位置与 scale，两种位置均以内容区左上为原点，物理位置由该次窗口 backing scale 换算；不能直接混入 backing surface 的底部原点。精确滚轮的 AppKit points 转换为物理 PixelDelta，普通滚轮保持 LineDelta，普通 phase 和 momentumPhase 分别保留。光标基础图标使用 NSCursor，可见性只在本窗口内容区域生效，退出该区域、失焦或销毁时平衡系统 hide／unhide。
 

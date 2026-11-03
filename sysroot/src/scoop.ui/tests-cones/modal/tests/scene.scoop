@@ -258,9 +258,13 @@ private class ModalPane(
 }
 
 private fun saveBinding(action: () -> Unit): ShortcutBinding =
-    shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("s")), action) {
-        this.modifiers = ShortcutModifiers(primary = true)
-    }
+    shortcutBinding(
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character("s")),
+            ShortcutModifiers(primary = true)
+        ),
+        action
+    )
 
 private fun recordInput(
     probe: ModalProbe,

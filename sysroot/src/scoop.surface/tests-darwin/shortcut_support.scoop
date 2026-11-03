@@ -23,7 +23,8 @@ internal fun shortcutKey(
     capsLock: Boolean = false,
     repeat: Boolean = false,
     synthetic: Boolean = false,
-    state: ElementState = ElementState.Pressed
+    state: ElementState = ElementState.Pressed,
+    altGraph: Boolean? = None
 ): KeyEvent =
     KeyEvent(
         PhysicalKey.Code(physical),
@@ -41,16 +42,21 @@ internal fun shortcutKey(
             ModifierSides(None, None),
             ModifierSides(None, None),
             ModifierSides(None, None),
-            ModifierSides(None, None)
+            ModifierSides(None, None),
+            altGraph = altGraph
         ),
         synthetic,
         inputObservation()
     )
 
 internal fun commandBinding(text: String, action: () -> Unit): ShortcutBinding =
-    shortcutBinding(ShortcutKey.Logical(LogicalKey.Character(text)), action) {
-        this.modifiers = ShortcutModifiers(primary = true)
-    }
+    shortcutBinding(
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character(text)),
+            ShortcutModifiers(primary = true)
+        ),
+        action
+    )
 
 internal fun InputRig.key(event: KeyEvent) {
     router.event(WindowEvent.Keyboard(event))

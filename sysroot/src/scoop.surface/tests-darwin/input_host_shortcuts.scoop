@@ -130,10 +130,12 @@ private class InputHostShortcutTest {
                     shared.bindings =
                         [
                             shortcutBinding(
-                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutChord(
+                                    ShortcutKey.Logical(LogicalKey.Character("s")),
+                                    ShortcutModifiers(primary = true)
+                                ),
                                 { fail(Some("crossed the newly installed boundary")) }
                             ) {
-                                this.modifiers = ShortcutModifiers(primary = true)
                                 this.canExecute =
                                     {
                                         boundaries.add(InputBoundary(rig.router.rootScope));
@@ -149,10 +151,12 @@ private class InputHostShortcutTest {
                     shared.bindings =
                         [
                             shortcutBinding(
-                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutChord(
+                                    ShortcutKey.Logical(LogicalKey.Character("s")),
+                                    ShortcutModifiers(primary = true)
+                                ),
                                 { fail(Some("executed a closed registration")) }
                             ) {
-                                this.modifiers = ShortcutModifiers(primary = true)
                                 this.canExecute =
                                     {
                                         shared.close()
@@ -174,10 +178,12 @@ private class InputHostShortcutTest {
                     replacements[0L].bindings =
                         [
                             shortcutBinding(
-                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutChord(
+                                    ShortcutKey.Logical(LogicalKey.Character("s")),
+                                    ShortcutModifiers(primary = true)
+                                ),
                                 { fail(Some("executed after host closure")) }
                             ) {
-                                this.modifiers = ShortcutModifiers(primary = true)
                                 this.canExecute =
                                     {
                                         host.close();

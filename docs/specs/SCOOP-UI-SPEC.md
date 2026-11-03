@@ -1,6 +1,6 @@
 # Scoop 自绘 UI 框架规范
 
-后续测量、方向、公共交互、portal 退出及文本策略的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，当前仅完成设计；下文仍描述现行合同，按对应实施批次先行修订。
+后续测量、方向、公共交互、portal 退出及文本策略的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述对应批次的现行合同。
 
 日期：2026-11-03。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
 
@@ -478,7 +478,7 @@ TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selection
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
-默认行为使用同一 InputScope 路由。真实 key-down 优先执行 KeyEvent.textCommands 的有序命令，仅载荷为空时采用 macOS 编辑键位回退；从不根据 LogicalKey.Character 再插入正文。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
+默认行为使用同一 InputScope 路由。真实 key-down 只执行 window 已产生的 KeyEvent.textCommands 有序命令，UI 不再保存平台编辑键位表；从不根据 LogicalKey.Character 再插入正文。Enter／PrimaryEnter 提交使用 window 的 ShortcutChord 匹配实际组合，额外修饰键不触发提交。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作；没有实际键事件时，InsertNewline 只按普通 Enter 策略判断。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
 
 点击、Shift 点击、拖选、双击词和三击逻辑行均通过 TextLayout 命中与 Unicode 导航完成。选区保留方向和 TextPosition affinity；普通左右移动折叠非空选区到相应视觉边缘，逻辑前后移动使用相应字节边界；上下／翻页保留期望 x。删除单个字符使用完整 grapheme，word／行／段落／文档命令使用文本库实际范围，段落末端不删除硬换行。原生标量选区可以落在 grapheme 内部，显示 caret 临时收敛到对应 grapheme 边缘，不改写原生规范选区。
 

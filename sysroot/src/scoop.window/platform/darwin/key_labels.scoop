@@ -1,0 +1,26 @@
+package scoop.window
+
+internal fun darwinLayoutLabel(scan: UInt): String? {
+    @Unsafe
+    {
+        val result = nativeKeyLabel(scan)
+        try {
+            checkNativeStatus(result.error, "query shortcut key label")
+            return when (result.bytes) {
+                case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                case None -> None
+            }
+        } finally {
+            nativeKeyLabelRelease(result.bytes)
+        }
+    }
+}
+
+@CLayout
+private struct NativeKeyLabel(val bytes: Ptr<UInt8>?, val length: Long, val error: Long)
+
+@Extern(name = "scoop_window_key_label")
+private fun nativeKeyLabel(scan: UInt): NativeKeyLabel
+
+@Extern(name = "scoop_window_key_label_release")
+private fun nativeKeyLabelRelease(bytes: Ptr<UInt8>?)

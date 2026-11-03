@@ -208,7 +208,7 @@ InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在�
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
-### 6.3 作用域快捷键（macOS）
+### 6.3 作用域快捷键
 
 ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
 
@@ -216,11 +216,11 @@ HostShortcutScope(host: SurfaceHost, bindings: Array<ShortcutBinding> = []) 提�
 
 宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary 都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
 
-ShortcutBinding 使用 ShortcutKey.Logical(LogicalKey) 或 Physical(PhysicalKey)，并保存 ShortcutModifiers、enabled、allowRepeat、canExecute 和 action。logical 的 Character 由 Window.matchesShortcut 比较；Dead 和空 Character 不可登记。物理键只匹配位置及其原生 fallback。macOS 的 Primary 展开为 Super/Command；Shift、Control、Alt、Super 和 Function 按展开后的完整组合匹配，锁定状态及左右侧不参与普通组合。
+ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat、canExecute 和 action。key／modifiers 的描述、构造检查、Primary 解析、匹配及标签均由 window 提供；Surface 不保存平台键位表。绑定更新以 chord.equivalentTo 检查重复，派发以 chord.matches 匹配事件；通用作用域和派发位于共享源码。
 
 默认只响应真实 key-down；key-up 和 synthetic 不执行，repeat 必须显式允许。enabled=false 或 canExecute=false 继续向外层寻找。同一 scope 内同时启用的相同规范化组合在配置时报告参数错误，失败更新保留原集合；logical 与 physical 在实际布局下同时匹配且均可执行时报告歧义，不依赖登记顺序任选一个。成功执行前 consume，随后调用一次 action。
 
-控件 defaultAction 及额外行为先于本节点快捷键，内层先于外层。文本焦点下，祖先的普通快捷键要求明确 Command／Control 组合或非文本 NamedKey；裸字符、Space、Dead、未知文本键和可能用于 AltGr 的 Control+Alt 字符不能被祖先抢走。明确的 Command 组合仍可匹配，输入目标自身可定义本地快捷键。识别出的编辑命令由编辑目标认领；canExecute=false 的一般快捷键不等于已经被编辑目标消费的命令。
+控件 defaultAction 及额外行为先于本节点快捷键，内层先于外层。文本焦点下，祖先的普通快捷键要求明确 Super／Control 应用组合或非文本 NamedKey；裸字符、Space、Dead 和未知文本键不能被祖先抢走。altGraph=Some(true) 的文本输入受到保护；未知时保守保护可能的 Control+Alt 文本输入，已确定不是 AltGr 时允许明确的 Ctrl+Alt 绑定。输入目标自身可定义本地快捷键。识别出的编辑命令由编辑目标认领；canExecute=false 的一般快捷键不等于已经被编辑目标消费的命令。
 
 快捷键只处理 Window 实际交付的 Keyboard，不插入文字，也不在 interpretKeyEvents 之前截取 IME。没有焦点区域时可在活动窗口根工作；模态域的路由截断同样约束快捷键。系统未交付的组合不在本库控制范围内。本批提供 macOS 接入，Windows 后续补充。
 
@@ -277,4 +277,4 @@ Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换�
 
 ### 快捷键描述装配
 
-`shortcutBinding(key: ShortcutKey, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以键和动作作为必需参数，配置 modifiers=ShortcutModifiers()、enabled=true、allowRepeat=false、canExecute={ true }。modifiers 块基于当前六个布尔修饰键字段配置。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(key, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。
+`shortcutBinding(chord: ShortcutChord, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以完整组合和动作作为必需参数，配置 enabled=true、allowRepeat=false、canExecute={ true }。modifiers 配置归 window 的 shortcutChord，不再作为 Binding 的第二份键位状态。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(chord, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。
