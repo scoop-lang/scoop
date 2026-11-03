@@ -522,13 +522,13 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
 
 `requestShutdown` 幂等进入 Draining，不取消已接纳的任务；取消由拥有任务的 scope/Job 发起。raw `startCoroutine` 创建而永不完成的任务可能使关闭永远等待，这是低层非结构化使用者的生命周期责任。
 
-`awaitTermination` 可被等待者取消，但不会撤销关闭或破坏 executor；它只表示等待结束，不代替最终 OS thread join。`join` 要求已经请求 shutdown，等待线程退出、完成原生 join 并释放资源，可重复调用。不得从本 executor 的活动任务或 worker 调用依赖自身结束的等待/join，应立即报状态错误；普通跨 executor 的依赖循环仍由应用避免。
+`awaitTermination` 可被等待者取消，但不会撤销关闭或破坏 executor；它只表示工作排空、worker 退出执行循环，不代替最终 OS thread join。`join` 要求已经请求 shutdown，完成原生 join 并回收线程句柄，可重复和并发调用；保护最终状态的同步对象保留到对象 GC，供关闭后的并发检查使用。不得从本 executor 的活动任务或 worker 调用依赖自身结束的等待/join，应立即报状态错误；普通跨 executor 的依赖循环仍由应用避免。
 
-正式终止必须同时满足：没有活动任务登记、没有排队 coroutine work、没有正在执行的驱动，也没有本 executor 尚未退休或交付的阻塞 operation。拥有独立 blocking pool 时还须完成该池的关闭与 join；借用共享池时只等待自己的 operation，由共享池 owner 最后关闭池。单看队列为空不够，因为挂起任务仍可能需要外部 I/O、Channel 或取消来恢复。
+正式终止必须同时满足：没有活动任务登记、没有排队 coroutine work、没有正在执行的驱动，也没有本 executor 尚未退休或交付的阻塞 operation。拥有独立 blocking pool 时还须完成该池的关闭并等待 worker 退出执行循环；其 OS join 同样由 executor.join 完成。借用共享池时只等待自己的 operation，由共享池 owner 最后关闭池。单看队列为空不够，因为挂起任务仍可能需要外部 I/O、Channel 或取消来恢复。
 
 ### 9.2 正确性基线实现
 
-使用一个受平台 Mutex 保护的 `ArrayDeque<CoroutineWork>`，加一个平台 ConditionVariable。worker 取走一项 work 后解锁执行；队列为空时在谓词循环中 park。enqueue、终止判断和 signal/broadcast 使用同一把调度锁，避免检查为空与进入等待之间丢唤醒。
+使用一个受平台 Mutex 保护的 ArrayDeque，加一个平台 ConditionVariable。coroutine 与 blocking 池复用内部 managed work wrapper 队列，wrapper 保活实际工作和必要的退休逻辑。worker 取走一项 work 后解锁执行；队列为空时在谓词循环中 park。enqueue、终止判断和 signal/broadcast 使用同一把调度锁，避免检查为空与进入等待之间丢唤醒。
 
 worker 是 `Thread.start` 启动的长期 managed 入口。每项 work 自行进入目标 frame TaskContext 并在退出时恢复；worker 外层环境不能残留上一任务的 Job、binding 或 execution。等待路径 NativeSafe，运行路径保留普通 GC safepoint。
 

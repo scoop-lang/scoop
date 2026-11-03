@@ -1,0 +1,53 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+
+internal class WorkerGate {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private var entered = 0
+    private var opened = false
+
+    fun await() {
+        lock.withLock {
+            entered += 1
+            changed.broadcast()
+            while (!opened)
+                changed.await()
+        }
+    }
+
+    fun awaitEntered(count: Int) {
+        lock.withLock {
+            while (entered < count)
+                changed.await()
+        }
+    }
+
+    fun open() {
+        lock.withLock {
+            opened = true;
+            changed.broadcast()
+        }
+    }
+}
+
+internal fun <T> dispatch(executor: CoroutineExecutor, block: suspend () -> T): ThreadResult<T> {
+    val done = ThreadResult<T>()
+    startDispatchedCoroutine(executor, block, done)
+    return done
+}
+
+internal class FunctionBlockingWork(private val block: () -> Unit): BlockingWork {
+    public override fun run() {
+        block()
+    }
+}
+
+internal class FunctionCoroutineWork(private val block: () -> Unit): CoroutineWork {
+    public override fun run() {
+        block()
+    }
+}

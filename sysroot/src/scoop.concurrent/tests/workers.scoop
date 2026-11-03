@@ -1,0 +1,178 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class CoroutineWorkerTest {
+    @Test
+    fun `two workers run in parallel and preserve independent task contexts`() {
+        multiThreadExecutor {
+            workers = 2;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val gate = WorkerGate()
+            val first = ThreadResult<ThreadId>()
+            val second = ThreadResult<ThreadId>()
+            context(Label(11)) {
+                startDispatchedCoroutine(
+                    executor,
+                    {
+                        val id = currentThreadId()
+                        gate.await()
+                        assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(11, labelValue())
+                        yieldCoroutine()
+                        assertEquals(11, labelValue())
+                        id
+                    },
+                    first
+                )
+            }
+            context(Label(22)) {
+                startDispatchedCoroutine(
+                    executor,
+                    {
+                        val id = currentThreadId()
+                        gate.await()
+                        assertEquals(22, labelValue())
+                        yieldCoroutine()
+                        assertEquals(22, labelValue())
+                        id
+                    },
+                    second
+                )
+            }
+            gate.awaitEntered(2)
+            gate.open()
+            assertNotEquals(first.await(), second.await())
+        }
+    }
+
+    @Test
+    fun `yield gives already queued work a turn on a single worker`() {
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val gate = WorkerGate()
+            val order = ArrayList<Int>()
+            val first =
+                dispatch(executor) {
+                    order.add(1)
+                    gate.await()
+                    yieldCoroutine()
+                    order.add(3)
+                }
+            gate.awaitEntered(1)
+            val second = dispatch(executor) { order.add(2) }
+            gate.open()
+            first.await()
+            second.await()
+            assertEquals(3L, order.size)
+            assertEquals(1, order[0L])
+            assertEquals(2, order[1L])
+            assertEquals(3, order[2L])
+        }
+    }
+
+    @Test
+    fun `channel mutex and condition coordinate tasks across worker executors`() {
+        multiThreadExecutor {
+            workers = 2;
+            blocking { threads = 1 }
+        }.use {
+            producer -> multiThreadExecutor {
+                workers = 2;
+                blocking { threads = 1 }
+            }.use {
+                consumer ->
+                val channel = Channel<Int>(2L)
+                val state = WorkerState()
+                val sent =
+                    dispatch(producer) {
+                        coroutineScope {
+                            val sender =
+                                async {
+                                    var value = 1
+                                    while (value <= 64) {
+                                        channel.send(value);
+                                        value += 1
+                                    }
+                                    channel.close()
+                                }
+                            val observer =
+                                async {
+                                    state.mutex.withLock {
+                                        while (!state.done)
+                                            state.changed.await(this)
+                                        state.total
+                                    }
+                                }
+                            sender.await()
+                            observer.await()
+                        }
+                    }
+                val received =
+                    dispatch(consumer) {
+                        coroutineScope {
+                            val first = async { consume(channel, state) }
+                            val second = async { consume(channel, state) }
+                            first.await()
+                            second.await()
+                            state.mutex.withLock {
+                                state.done = true;
+                                state.changed.broadcast(this)
+                            }
+                        }
+                    }
+                received.await()
+                assertEquals(2080, sent.await())
+            }
+        }
+    }
+
+    @Test
+    fun `scope captured by blocking work still launches on coroutine workers`() {
+        multiThreadExecutor {
+            workers = 2;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val count = AtomicInt(0)
+            dispatch(executor) {
+                coroutineScope {
+                    val scope = this
+                    blocking {
+                        assertTrue(absent(currentCoroutineExecutorOrNone()))
+                        scope.launch {
+                            assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                            count.fetchAdd(1)
+                        }
+                    }
+                }
+            }.await()
+            assertEquals(1, count.load())
+        }
+    }
+}
+
+private class WorkerState {
+    val mutex = AsyncMutex()
+    val changed = AsyncConditionVariable(mutex)
+    var total = 0
+    var done = false
+}
+
+private suspend fun consume(channel: Channel<Int>, state: WorkerState) {
+    var receiving = true
+    while (receiving) {
+        when (channel.receiveOrNone()) {
+            case Some(value) -> state.mutex.withLock { state.total += value }
+            case None -> receiving = false
+        }
+    }
+}

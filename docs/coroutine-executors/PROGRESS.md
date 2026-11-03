@@ -7,7 +7,7 @@
 | lambda 按期望类型推导挂起性、对称重载消歧、跨 Cone 定型 | 已完成本地验收 |
 | core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成本地验收 |
 | Channel、AsyncMutex、AsyncConditionVariable | 已完成本地验收 |
-| MultiThreadExecutor、通用 managed BlockingTaskPool | 未开始 |
+| MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成本地验收 |
 | asyncio 接入、AsyncRuntime、三平台 native work 迁移与 API 收敛 | 未开始 |
 | Linux/Windows 组合验证及最终清理 | 未开始 |
 
@@ -67,3 +67,11 @@
 - 三个原语的等待、取消和所有权交付由各自同一状态锁仲裁，原始 continuation 保存实际 executor；锁外解除订阅并交付全部选中结果。内部可摘除链表用于实际等待队列，消息缓冲使用 ArrayDeque，终态解除 payload、continuation、订阅与节点链接。
 - 验证：Scoop 格式化及源码检查通过；29 项 release Cone tests 全部通过，涵盖跨 executor／Context 恢复、关闭与 FIFO、取消和提交先后、错误 guard、异常通知、真实线程 MPMC，以及取消与发送、解锁、条件通知各 24 轮竞争。含引用的 struct／tuple 消息与跨 executor mutex／condition 两项用例在移动 GC／minor GC stress 下通过。
 - 本轮在 Darwin AArch64 验证；普通线程行为与可控排队 executor 已覆盖，多 worker executor 的组合和 Linux／Windows 验收按后续大项集中进行。
+
+## 多 worker 与通用阻塞池（2026-11-04）
+
+- 实现 multiThreadExecutor receiver builder、MultiThreadExecutor 与 BlockingTaskPool。两类池使用固定 managed workers，复用受短 Mutex／ConditionVariable 保护的 FIFO managed work 队列；每项工作在锁外执行，coroutine 与 blocking 使用独立线程组。builder 执行一次并保存配置快照，支持自有或共享阻塞池。
+- executor 在 Draining 拒绝新根、接纳活动同 executor 父登记的子任务，活动登记排空后才停止内部队列。blocking 从投递计数到实际 runner 退出；正式终止还等待 coroutine workers 和自有池退出执行循环。awaitTermination 可取消但不隐含 OS join；join 回收线程句柄，状态同步对象保留到 GC，支持并发与重复关闭。物理 worker 和活动 execution 都参与自等待检查。
+- 未捕获 work／completion 异常在 worker 边界打印栈并以状态 1 退出；普通 blocking 闭包失败继续由 core 交付。部分创建失败的已建线程按关闭／join 回收。共享池 owner 负责在借用方关闭后关闭池，借用方不会关闭或 join 该池。
+- 验证：格式化及源码检查、release 库构建通过；52 项 Cone tests 全部通过（本轮新增 23 项），覆盖真实并行、yield、跨 executor 同步、binding 与 Job、阻塞成功资源／异常／取消、排空中的子任务、共享池、builder 快照、自等待和并发关闭。3 项真实 worker 的托管阻塞结果、运行中取消清理、跨 executor Channel／mutex／condition 在移动 GC／minor GC stress 下通过。
+- 新增一个正式 CLI fixture，消费预编译 concurrent 库并验证 queued completion 抛出后的进程退出码与栈诊断，通过。没有 runtime ABI、产物格式或 Rust 编译器改动。本轮平台为 Darwin AArch64；下一步为 asyncio 的 executor 接入、AsyncRuntime 和三平台 native work 迁移，然后集中验证 Linux／Windows。

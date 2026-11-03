@@ -1,0 +1,208 @@
+package scoop.concurrent
+
+import scoop.collections.ArrayDeque
+import scoop.platform.concurrent.ConditionVariable
+import scoop.platform.concurrent.Mutex
+import scoop.platform.concurrent.Thread
+import scoop.platform.concurrent.ThreadId
+import scoop.platform.concurrent.currentThreadId
+
+// Shared only by the coroutine executor and the managed blocking pool.
+internal class WorkerGroup private constructor() {
+    private val lock = Mutex()
+    private val changed = ConditionVariable(lock)
+    private val queue = ArrayDeque<() -> Unit>()
+    private val workers = ArrayList<WorkerRecord>()
+    private val terminated = Channel<Unit>(0L)
+    private val terminationListeners = ArrayList<() -> Unit>()
+    private var stopping = false
+    private var stopped = false
+    private var joining = false
+    private var joined = false
+    private var live = 0
+
+    internal companion object {
+        internal fun create(threads: Int): WorkerGroup {
+            if (threads <= 0)
+                throw IllegalArgumentException(Some("worker count must be positive"))
+            val group = WorkerGroup()
+            group.start(threads)
+            return group
+        }
+    }
+
+    private fun start(threads: Int) {
+        var index = 0
+        try {
+            while (index < threads) {
+                val record = WorkerRecord()
+                lock.withLock {
+                    workers.add(record)
+                    live += 1
+                }
+                try {
+                    val thread = Thread.start { run(record) }
+                    lock.withLock { record.thread = Some(thread) }
+                } catch (error: Throwable) {
+                    lock.withLock { live -= 1 }
+                    throw error
+                }
+                index += 1
+            }
+        } catch (error: Throwable) {
+            requestShutdown()
+            join()
+            throw error
+        }
+    }
+
+    internal fun ensureOpen() {
+        lock.withLock {
+            if (stopping)
+                throw ExecutorClosedException()
+            Unit
+        }
+    }
+
+    internal fun submit(work: () -> Unit) {
+        lock.withLock {
+            if (stopping)
+                throw ExecutorClosedException()
+            queue.addLast(work)
+            changed.signal()
+        }
+    }
+
+    internal val isTerminated: Boolean get() = lock.withLock { stopped }
+
+    internal fun onTermination(listener: () -> Unit) {
+        val callNow =
+            lock.withLock {
+                if (stopped)
+                    return@withLock true
+                terminationListeners.add(listener)
+                false
+            }
+        if (callNow)
+            listener()
+    }
+
+    internal fun requestShutdown() {
+        val notifications =
+            lock.withLock {
+                stopping = true
+                changed.broadcast()
+                finishIfEmpty()
+            }
+        notifications.deliver()
+    }
+
+    internal val isCurrentWorker: Boolean get() {
+        val current = currentThreadId()
+        return lock.withLock {
+            for (record in workers) {
+                when (record.id) {
+                    case Some(id) -> if (id == current)
+                        return@withLock true
+                    case None -> {}
+                }
+            }
+            false
+        }
+    }
+
+    internal fun checkNotWorker() {
+        if (isCurrentWorker)
+            throw IllegalStateException(Some("worker cannot wait for its own group"))
+    }
+
+    internal suspend fun awaitTermination() {
+        checkNotWorker()
+        terminated.receiveOrNone()
+    }
+
+    internal fun join() {
+        checkNotWorker()
+        val perform =
+            lock.withLock {
+                if (!stopping)
+                    throw IllegalStateException(Some("request shutdown before join"))
+                while (joining)
+                    changed.await()
+                if (joined)
+                    return@withLock false
+                joining = true
+                true
+            }
+        if (!perform)
+            return
+        try {
+            for (record in workers) {
+                val handle = lock.withLock { record.thread }
+                when (handle) {
+                    case Some(thread) -> {
+                        thread.join()
+                        lock.withLock {
+                            record.thread = None;
+                            record.id = None
+                        }
+                    }
+                    case None -> {}
+                }
+            }
+            lock.withLock { joined = true }
+        } finally {
+            lock.withLock {
+                joining = false;
+                changed.broadcast()
+            }
+        }
+    }
+
+    private fun run(record: WorkerRecord) {
+        try {
+            lock.withLock { record.id = Some(currentThreadId()) }
+            try {
+                while (true) {
+                    val next =
+                        lock.withLock {
+                            while (queue.size == 0L && !stopping)
+                                changed.await()
+                            queue.removeFirstOrNone()
+                        }
+                    when (next) {
+                        case Some(work) -> work()
+                        case None -> return
+                    }
+                }
+            } finally {
+                val notifications =
+                    lock.withLock {
+                        live -= 1;
+                        finishIfEmpty()
+                    }
+                notifications.deliver()
+            }
+        } catch (error: Throwable) {
+            error.printStackTrace()
+            exit(1)
+        }
+    }
+
+    private fun finishIfEmpty(): WaitNotifications {
+        val notifications = WaitNotifications()
+        if (stopping && live == 0 && !stopped) {
+            stopped = true
+            for (listener in terminationListeners)
+                notifications.add(listener)
+            terminationListeners.clear()
+            notifications.add { terminated.close() }
+        }
+        return notifications
+    }
+}
+
+private class WorkerRecord {
+    var thread: Thread? = None
+    var id: ThreadId? = None
+}

@@ -4,43 +4,47 @@ import scoop.concurrent.*
 import scoop.platform.concurrent.*
 import scoop.test.*
 
-private class ThreadResult: Continuation<Unit> {
+internal class ThreadResult<T>: Continuation<T> {
     private val mutex = Mutex()
     private val changed = ConditionVariable(mutex)
     private var finished = false
     private var error: Throwable? = None
+    private var value: T? = None
 
-    public override fun resume(value: Unit) {
-        finish(None)
+    val isDone: Boolean get() = mutex.withLock { finished }
+
+    public override fun resume(value: T) {
+        finish(Some(value), None)
     }
     public override fun resumeWithException(error: Throwable) {
-        finish(Some(error))
+        finish(None, Some(error))
     }
-    private fun finish(error: Throwable?) {
+    private fun finish(value: T?, error: Throwable?) {
         mutex.withLock {
             assertFalse(finished)
             this.error = error
+            this.value = value
             finished = true
-            changed.signal()
+            changed.broadcast()
         }
     }
-    fun await() {
-        val failure =
+    fun await(): T {
+        val(result, failure) =
             mutex.withLock {
                 while (!finished)
                     changed.await()
-                error
+                (value, error)
             }
         when (failure) {
             case Some(error) -> throw error
-            case None -> {}
+            case None -> return result!!
         }
     }
 }
 
 private fun coroutineThread(block: suspend () -> Unit): Thread =
     Thread.start {
-        val result = ThreadResult()
+        val result = ThreadResult<Unit>()
         startCoroutine(block, result)
         result.await()
     }

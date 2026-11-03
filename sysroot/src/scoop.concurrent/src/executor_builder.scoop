@@ -1,0 +1,77 @@
+package scoop.concurrent
+
+import scoop.platform.system.logicalProcessorCount
+
+/** Configuration shared by executor and I/O runtime builders. */
+public class BlockingPoolBuilder public constructor() {
+    /** Number of managed blocking workers; must be positive. */
+    public var threads: Int = 4
+}
+
+/** Configures a fixed coroutine executor and its owned or borrowed blocking pool. */
+public class ExecutorBuilder public constructor() {
+    /** Coroutine worker count, initially the platform's logical processor count. */
+    public var workers: Int = defaultWorkerCount()
+    private var pool: BlockingPoolConfig = BlockingPoolConfig.Owned(4)
+
+    /** Selects an owned pool, replacing any previous blocking configuration. */
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit) {
+        val builder = BlockingPoolBuilder()
+        configure(builder)
+        pool = BlockingPoolConfig.Owned(builder.threads)
+    }
+
+    /** Borrows a pool whose owner must keep it open until this executor has joined. */
+    public fun blocking(pool: BlockingTaskPool) {
+        this.pool = BlockingPoolConfig.Borrowed(pool)
+    }
+
+    internal fun snapshot(): ExecutorConfig {
+        if (workers <= 0)
+            throw IllegalArgumentException(Some("worker count must be positive"))
+        when (pool) {
+            case Owned(threads) -> if (threads <= 0)
+                throw IllegalArgumentException(Some("blocking thread count must be positive"))
+            case Borrowed(_) -> {}
+        }
+        return ExecutorConfig(workers, pool)
+    }
+}
+
+internal enum BlockingPoolConfig {
+    Owned(Int), Borrowed(BlockingTaskPool)
+}
+
+internal struct ExecutorConfig(val workers: Int, val pool: BlockingPoolConfig)
+
+private fun defaultWorkerCount(): Int {
+    val count = logicalProcessorCount
+    if (count < 1L)
+        return 1
+    if (count > 2147483647L)
+        return 2147483647
+    return count.toInt()
+}
+
+/** Creates workers immediately from a single immutable snapshot of the receiver builder. */
+public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): MultiThreadExecutor {
+    val builder = ExecutorBuilder()
+    configure(builder)
+    val configuration = builder.snapshot()
+    when (configuration.pool) {
+        case Borrowed(pool) -> {
+            pool.ensureOpen()
+            return MultiThreadExecutor(configuration.workers, pool, false)
+        }
+        case Owned(threads) -> {
+            val pool = BlockingTaskPool(threads)
+            try {
+                return MultiThreadExecutor(configuration.workers, pool, true)
+            }
+            catch (error: Throwable) {
+                pool.close();
+                throw error
+            }
+        }
+    }
+}

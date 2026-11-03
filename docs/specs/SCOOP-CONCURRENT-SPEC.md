@@ -82,6 +82,55 @@ signal 将最早 condition 节点选为成功并移到 mutex 重新获取队列�
 
 入口已取消时保留原 guard 并直接抛取消。登记期间取消先胜、尚未释放锁时同样保留 guard；已在 condition 队列的取消则摘除节点，携带取消结果进入 mutex 重新获取队列。通知先胜时，后续取消不能覆盖成功。重新获取不再接受取消，不调用公开 lock，也不创建额外 Job。仅在原 guard 恢复 Held 后交付成功或取消，所以 await 返回或抛出时仍持有同一个 guard，外层 finally 可以正常释放。
 
-## 5. 验证边界
+## 5. 多线程 executor 与通用阻塞池
 
-普通行为在本 Cone 测试：容量与 FIFO、关闭排空、可空消息、取消与交付竞争、跨 executor 恢复、mutex 直接交接、condition 通知／取消后的重新获取、错误 guard 和异常清理。真实 managed threads 验证并发状态转换；定向 GC stress 验证挂起消息、guard 与 continuation 的托管根。多 worker executor 和阻塞池按整体设计后续条目接入，实际可用范围以实施记录为准。
+```scoop
+public class MultiThreadExecutor : CoroutineExecutor, Closeable {
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask
+    public fun requestShutdown()
+    public suspend fun awaitTermination()
+    public fun join()
+    public override fun close()
+}
+public class BlockingTaskPool public constructor(threads: Int) : Closeable {
+    public fun submit(work: BlockingWork)
+    public fun requestShutdown()
+    public suspend fun awaitTermination()
+    public fun join()
+    public override fun close()
+}
+```
+
+MultiThreadExecutor 由第 6 节工厂建立固定数量的 managed coroutine workers；BlockingTaskPool 建立独立的固定 managed workers，执行任意普通 Scoop 闭包所产生的 BlockingWork，不限制为 GC-free。两类 worker 复用内部线程队列实现，队列中的普通 managed work wrapper 保活实际 CoroutineWork／BlockingWork。短平台 Mutex 保护 FIFO ArrayDeque 和关闭状态，ConditionVariable 在同一锁下检查谓词、等待与唤醒；锁外执行 work。没有隐式全局池、无限线程、调用线程 fallback 或任意队列数上限。
+
+每个 worker 使用平台 Thread.start 的长期 managed 入口，等待路径为 NativeSafe，执行路径保留普通 safepoint。每个 CoroutineWork 负责进入及恢复自己的 TaskContext；BlockingWork 遵守语言规范 11.9.3 的 binding 快照、独立 invocation 与结果交付合同。work 抛出的未捕获 completion／协议异常在 worker 边界打印异常栈并以退出码 1 终止进程，不能只结束一个 worker；普通任务正文／blocking 闭包的异常仍由 core 交给 completion／Job。
+
+executor 的 Open 接纳根和子任务，Draining 只接纳自身仍活动登记的 child，Terminated 全拒绝。登记检查、计数和 complete 在同一锁下处理。有效登记的 coroutine／blocking work 必须排队，Draining 也不得拒绝；已完成登记上的投递和重复 complete 报协议状态错误。blocking 工作单独跟踪从投递至实际 runner 退出的义务，不能仅因 ticket 已 complete 就忽略仍在执行的工作。
+
+requestShutdown 幂等请求排空，不取消 Job。executor 的活动登记为零后才停止 coroutine 队列和自有 blocking pool 的接纳；正式 Terminated 还须全部 coroutine workers 退出执行循环、自己的 blocking 工作实际退出，以及自有 blocking pool 全部退出执行循环。共享池不关闭，只等待本 executor 的工作完成。悬挂且永不恢复的原始任务可以使关闭无限等待，这是其调用者的生命周期责任。
+
+BlockingTaskPool 的 requestShutdown 停止接纳新 work，排空已接纳队列后退出；关闭后 submit 抛 ExecutorClosedException。借用共享池的 owner 必须在全部借用方关闭并 join 后关闭该池；提前关闭违反实际资源生命周期合同，不能指望活动 executor 的后续 blocking 投递仍可执行。借用方本身不关闭或 join 共享池。
+
+awaitTermination 可以被等待者取消，不撤销关闭，也不代替 OS thread join。join 要求先请求 shutdown，等待逻辑终止，再完成原生 join 和句柄回收；重复及多个外部线程并发 join 均安全。close 合并请求和 join。不得从本 executor 的活动任务、其 coroutine worker 或依赖本次阻塞工作退出的 worker 上等待自身终止；阻塞池也拒绝其 worker 的自等待／join。检查包含物理线程身份，不能只依赖在 blocking invocation 中为空的 currentCoroutineExecutorOrNone。
+
+逻辑终止在最后一个 work 返回且 worker 不再领取 work 后发布；线程的 managed gateway 尾部由 join 等待。因此 awaitTermination 对自有 blocking pool 也不隐含 OS join。join 回收线程句柄，保护最终状态的 Mutex／ConditionVariable 则随对象 GC 回收，关闭后的并发幂等操作和拒绝投递仍在有效同步对象上协调。部分线程创建失败时请求已创建 worker 退出、join 它们并传播原失败；不留下后台 worker。
+
+## 6. Executor 配置
+
+```scoop
+public class BlockingPoolBuilder public constructor() {
+    public var threads: Int
+}
+public class ExecutorBuilder public constructor() {
+    public var workers: Int
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
+    public fun blocking(pool: BlockingTaskPool)
+}
+public fun multiThreadExecutor(configure: ExecutorBuilder.() -> Unit = {}): MultiThreadExecutor
+```
+
+workers 默认取平台逻辑 CPU 数的合法正 Int 表示，blocking 默认 4 threads。配置函数执行一次，结束后复制为不可变配置；再次修改捕获的 builder 不影响已建立对象。blocking 的两种配置分别选择自有池／借用池，最后一次配置生效，不能同时存在两组池。全部数量在创建任何线程前校验，非正值抛 IllegalArgumentException。工厂立即创建可用 executor；失败清理自身创建的池与 worker，不关闭借用池。BlockingPoolBuilder 是可跨 Cone 复用的普通配置类，后续 event loop／runtime 使用同一配置语义。
+
+## 7. 验证边界
+
+普通行为在本 Cone 测试：容量与 FIFO、关闭排空、可空消息、取消与交付竞争、跨 executor 恢复、mutex 直接交接、condition 通知／取消后的重新获取、错误 guard 和异常清理。真实 managed threads 验证并发状态转换；定向 GC stress 验证挂起消息、guard 与 continuation 的托管根。两类线程池验证固定线程与真实并行、上下文隔离、排空期间的子任务、阻塞取消与退休、共享池归属、自等待拒绝和关闭并发；进程终止合同使用外部进程 fixture。实际可用范围以实施记录为准。
