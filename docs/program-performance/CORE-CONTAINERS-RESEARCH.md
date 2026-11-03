@@ -4,7 +4,7 @@
 
 调研覆盖普通库正文、HIR 插值下降、MIR 内联与范围证明、最终 ARM64 机器码，以及相关分配和 GC 合同。本轮调研没有修改生产实现或规范；下面明确区分当时的行为、实测结果和后续建议。ArrayList 与 StringBuilder 的后续实现见 [优化记录](ARRAYLIST-STRINGBUILDER.md)。
 
-结论：ArrayList 的存储表示合理，优先处理追加快路径与扩容初始化的生成质量；StringBuilder 适合将字节缓冲与 primitive 重载一起推进；HashMap 可以采用 Swiss table 式分组探测，但需要同时处理指纹分布、缓存 hash、删除和现有回调语义，不能只替换状态数组。
+结论：ArrayList 的存储表示合理，优先处理追加快路径与扩容初始化的生成质量；StringBuilder 适合将字节缓冲与 primitive 重载一起推进；HashMap 可以采用 Swiss table 式分组探测，但需要同时处理指纹分布、缓存 hash、删除和现有回调语义，不能只替换状态数组。HashMap 的后续具体方案和实现结果见[分组探测设计与实现](HASHMAP-SWISS-TABLE.md)。
 
 ## 1. 测量范围
 

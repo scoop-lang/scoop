@@ -1,57 +1,167 @@
 package scoop.collections
 
-internal struct HashEntry<K, V>(val key: K, val value: V, val hash: Long)
+internal struct HashEntry<K, V>(val key: K, val value: V, val mixedHash: ULong)
 
-// Empty terminates a probe; deleted slots preserve the remaining probe chain.
+internal fun hashMixed(hash: Long): ULong {
+    var value = hash.toULong()
+    value = (value xor (value shr 30L)) * 0xbf58476d1ce4e5b9uL
+    value = (value xor (value shr 27L)) * 0x94d049bb133111ebuL
+    return value xor (value shr 31L)
+}
+
+internal fun hashH2(mixedHash: ULong): ULong = mixedHash and 0x7fuL
+
+internal fun hashControlMatches(word: ULong, control: ULong): ULong {
+    val compared = word xor (control * 0x0101010101010101uL)
+    return (compared - 0x0101010101010101uL) and compared.inv() and 0x8080808080808080uL
+}
+
+internal fun hashLowestMatch(mask: ULong): Long {
+    var value = mask
+    var bits = 0L
+    if ((value and 0xffffffffuL) == 0uL) {
+        value = value shr 32L;
+        bits += 32L
+    }
+    if ((value and 0xffffuL) == 0uL) {
+        value = value shr 16L;
+        bits += 16L
+    }
+    if ((value and 0xffuL) == 0uL) {
+        bits += 8L
+    }
+    return bits / 8L
+}
+
+internal fun hashControlAt(word: ULong, offset: Long): ULong = (word shr (offset * 8L)) and 0xffuL
+
+internal fun hashFirstControl(word: ULong, expected: ULong): Long {
+    var candidates = hashControlMatches(word, expected)
+    while (candidates != 0uL) {
+        val offset = hashLowestMatch(candidates)
+        if (hashControlAt(word, offset) == expected)
+            return offset
+        candidates = candidates and (candidates - 1uL)
+    }
+    return -1L
+}
+
+// Each control word describes eight entries. Full controls are H2 values in 0..127.
 internal class HashStorage<K, V> internal constructor(capacity: Long) {
-    internal val states: MutableArray<Int> = MutableArray<Int>(capacity) { _ -> 0 }
+    private val controls: MutableArray<ULong> =
+        MutableArray<ULong>(capacity / 8L) { _ -> 0x8080808080808080uL }
     private val elements: MutableArray<MaybeUninit<HashEntry<K, V>>> =
-        MutableArray<MaybeUninit<HashEntry<K, V>>>(capacity) { _ -> MaybeUninit<HashEntry<K, V>>.uninit() }
+        MutableArray<MaybeUninit<HashEntry<K, V>>>(capacity) {
+            _ -> MaybeUninit<HashEntry<K, V>>.uninit()
+        }
 
-    internal val capacity: Long get() = states.size
+    internal val groupCount: Long get() = controls.size
+    internal val capacity: Long get() = elements.size
+    internal val groupMask: Long get() = groupCount - 1L
 
     internal fun read(index: Long): HashEntry<K, V> {
-        @Unsafe { return elements[index].assumeInit() }
+        @Unsafe
+        {
+            return elements[index].assumeInit()
+        }
+    }
+
+    internal fun word(group: Long): ULong = controls[group]
+
+    internal fun control(group: Long, offset: Long): ULong = hashControlAt(word(group), offset)
+
+    internal fun matches(group: Long, control: ULong): ULong =
+        hashControlMatches(controls[group], control)
+
+    internal fun first(group: Long, expected: ULong): Long = hashFirstControl(word(group), expected)
+
+    internal fun index(group: Long, offset: Long): Long = group * 8L + offset
+
+    internal fun startGroup(mixedHash: ULong): Long =
+        ((mixedHash shr 7L) and groupMask.toULong()).toLong()
+
+    internal fun isFull(index: Long): Boolean = control(index / 8L, index % 8L) < 0x80uL
+
+    internal fun isDeleted(index: Long): Boolean = control(index / 8L, index % 8L) == 0xfeuL
+
+    private fun setControl(index: Long, value: ULong) {
+        val group = index / 8L
+        val shift = (index % 8L) * 8L
+        val mask = 0xffuL shl shift
+        controls[group] = (controls[group] and mask.inv()) or (value shl shift)
     }
 
     internal fun write(index: Long, entry: HashEntry<K, V>) {
         elements[index] = MaybeUninit<HashEntry<K, V>>.initialized(entry)
-        states[index] = 1
+        setControl(index, hashH2(entry.mixedHash))
     }
 
-    internal fun erase(index: Long) {
+    internal fun replace(index: Long, entry: HashEntry<K, V>) {
+        elements[index] = MaybeUninit<HashEntry<K, V>>.initialized(entry)
+    }
+
+    // Returns true when a deleted slot could be restored to empty.
+    internal fun erase(index: Long): Boolean {
+        val group = index / 8L
+        val controls = word(group)
+        val canBeEmpty = hashControlMatches(controls, 0x80uL) != 0uL
         elements[index] = MaybeUninit<HashEntry<K, V>>.uninit()
-        states[index] = 2
+        val shift = (index % 8L) * 8L
+        val mask = 0xffuL shl shift
+        val value =
+            if (canBeEmpty)
+                0x80uL
+            else
+                0xfeuL
+        this.controls[group] = (controls and mask.inv()) or (value shl shift)
+        return canBeEmpty
     }
 
-    internal fun start(hash: Long): Long = (hash and 9223372036854775807L) % capacity
-
-    internal fun next(index: Long): Long = if (index + 1L == capacity) 0L else index + 1L
-
-    internal fun vacant(hash: Long): Long {
-        var index = start(hash)
-        while (states[index] == 1) index = next(index)
-        return index
+    internal fun vacant(mixedHash: ULong): Long {
+        var group = startGroup(mixedHash)
+        var step = 0L
+        var visited = 0L
+        while (visited < groupCount) {
+            val empty = hashControlMatches(word(group), 0x80uL)
+            if (empty != 0uL)
+                return index(group, hashLowestMatch(empty))
+            step += 1L
+            group = (group + step) and groupMask
+            visited += 1L
+        }
+        throw IllegalStateException(Some("hash table has no empty slot"))
     }
 
     internal fun cleared() {
-        var index = 0L
-        while (index < capacity) {
-            elements[index] = MaybeUninit<HashEntry<K, V>>.uninit()
-            states[index] = 0
-            index += 1L
+        var group = 0L
+        while (group < groupCount) {
+            val word = word(group)
+            var offset = 0L
+            while (offset < 8L) {
+                if (hashControlAt(word, offset) < 0x80uL) {
+                    elements[index(group, offset)] = MaybeUninit<HashEntry<K, V>>.uninit()
+                }
+                offset += 1L
+            }
+            controls[group] = 0x8080808080808080uL
+            group += 1L
         }
     }
 
     internal fun rehashed(capacity: Long): HashStorage<K, V> {
         val result = HashStorage<K, V>(capacity)
-        var index = 0L
-        while (index < this.capacity) {
-            if (states[index] == 1) {
-                val entry = read(index)
-                result.write(result.vacant(entry.hash), entry)
+        var group = 0L
+        while (group < groupCount) {
+            val word = word(group)
+            var offset = 0L
+            while (offset < 8L) {
+                if (hashControlAt(word, offset) < 0x80uL) {
+                    val entry = read(index(group, offset))
+                    result.write(result.vacant(entry.mixedHash), entry)
+                }
+                offset += 1L
             }
-            index += 1L
+            group += 1L
         }
         return result
     }
