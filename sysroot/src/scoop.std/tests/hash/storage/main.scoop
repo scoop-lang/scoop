@@ -1,0 +1,98 @@
+package scoop.std.tests.hash.storage
+
+import scoop.test.*
+import scoop.collections.*
+
+fun check(value: Boolean, label: String, location: SourceLocation = currentSourceLocation()) {
+    assertTrue(value, Some(label), location = location)
+}
+
+fun byteAt(word: ULong, offset: Long): ULong = (word shr (offset * 8L)) and 0xffuL
+
+private fun controlWords() {
+    var byte = 0
+    while (byte < 256) {
+        var offset = 0L
+        while (offset < 8L) {
+            val other = ((byte + 1) % 256).toULong()
+            var word = 0uL
+            var lane = 0L
+            while (lane < 8L) {
+                val value =
+                    if (lane == offset)
+                        byte.toULong()
+                    else
+                        other
+                word = word or (value shl (lane * 8L))
+                lane += 1L
+            }
+            var candidates = hashControlMatches(word, byte.toULong())
+            var found = false
+            while (candidates != 0uL) {
+                val candidate = hashLowestMatch(candidates)
+                if (byteAt(word, candidate) == byte.toULong())
+                    found = true
+                candidates = candidates and (candidates - 1uL)
+            }
+            check(found, "control match")
+            offset += 1L
+        }
+        byte += 1
+    }
+}
+
+private fun storageStates() {
+    val storage = HashStorage<Int, Int>(16L)
+    var offset = 0L
+    while (offset < 8L) {
+        val mixedHash = offset.toULong()
+        storage.write(offset, HashEntry<Int, Int>(offset.toInt(), offset.toInt(), mixedHash))
+        check(storage.control(0L, offset) == mixedHash, "control position")
+        check(storage.first(0L, mixedHash) == offset, "exact control")
+        offset += 1L
+    }
+    check(!storage.erase(3L) && storage.isDeleted(3L), "full group deletion")
+    val rehashed = storage.rehashed(16L)
+    var entries = 0L
+    offset = 0L
+    while (offset < rehashed.capacity) {
+        if (rehashed.isFull(offset)) {
+            val entry = rehashed.read(offset)
+            check(entry.key == entry.value && entry.key != 3, "rehash entry")
+            entries += 1L
+        }
+        offset += 1L
+    }
+    check(entries == 7L, "rehash count")
+
+    val sparse = HashStorage<Int, Int>(8L)
+    sparse.write(0L, HashEntry<Int, Int>(1, 2, 0uL))
+    check(sparse.erase(0L) && !sparse.isDeleted(0L) && !sparse.isFull(0L), "sparse deletion")
+
+    val wrapped = HashStorage<Int, Int>(32L)
+    offset = 24L
+    while (offset < 32L) {
+        wrapped.write(offset, HashEntry<Int, Int>(0, 0, 0uL))
+        offset += 1L
+    }
+    check(wrapped.vacant(3uL shl 7L) == 0L, "triangular wrap first step")
+    offset = 0L
+    while (offset < 8L) {
+        wrapped.write(offset, HashEntry<Int, Int>(0, 0, 0uL))
+        offset += 1L
+    }
+    check(wrapped.vacant(3uL shl 7L) == 16L, "triangular second step")
+}
+
+@Test
+private class StorageTests {
+    @Test
+    fun controls() {
+        controlWords()
+    }
+
+    @Test
+    fun states() {
+        storageStates()
+    }
+}
