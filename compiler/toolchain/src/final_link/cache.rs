@@ -34,8 +34,12 @@ pub(super) fn resolve(
         HostPathCarrier::from_path(&std::path::absolute(value).map_err(error)?).map_err(error)
     };
     let target_os = target.c_bridge_toolchain().target_os();
-    let unwind = (target_os != scoop_target_data::TargetOs::Darwin
-        && (!cxx || target_os == scoop_target_data::TargetOs::Windows))
+    let needs_unwind_prefix = match target_os {
+        scoop_target_data::TargetOs::Darwin => false,
+        scoop_target_data::TargetOs::Linux => !cxx,
+        scoop_target_data::TargetOs::Windows => true,
+    };
+    let unwind = needs_unwind_prefix
         .then(|| {
             crate::selected_unwind_prefix(
                 target.lir_target(),

@@ -23,13 +23,16 @@ pub fn runtime_unwind_include(
     let os = scoop_target_data::definition(target.id())
         .ok_or_else(|| ToolchainError("unknown runtime target".into()))?
         .os;
-    if os == scoop_target_data::TargetOs::Darwin {
-        if prefix.is_some() {
-            return Err(ToolchainError(
-                "Darwin runtime uses the SDK unwind headers".into(),
-            ));
+    match os {
+        scoop_target_data::TargetOs::Darwin => {
+            if prefix.is_some() {
+                return Err(ToolchainError(
+                    "Darwin runtime uses the SDK unwind headers".into(),
+                ));
+            }
+            return Ok(None);
         }
-        return Ok(None);
+        scoop_target_data::TargetOs::Linux | scoop_target_data::TargetOs::Windows => {}
     }
     let prefix = selected_unwind_prefix(target, None, prefix)?;
     let include = prefix.join("include");
