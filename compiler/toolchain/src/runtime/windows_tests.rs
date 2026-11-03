@@ -60,7 +60,7 @@ fn windows_numeric_parsing_rounds_directly_and_restores_native_locales() {
             "src/floating_parse.c",
             "src/platform/primitives/windows.c",
             "src/platform/numeric/windows.c",
-            "src/platform/arch/x86_64_floating.c",
+            "src/platform/abi/x86_64_tagged_floating.c",
             "src/platform/arch/x86_64_float_environment.c",
             "../sysroot/vendor/gdtoa/strtodg.c",
             "../sysroot/vendor/gdtoa/strtof.c",

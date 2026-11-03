@@ -341,7 +341,7 @@ stack trace 也采用相同边界：`stack_trace/elf.c` 只解析显式 image vi
 
 真正只依赖 ISA 的实现放在 `runtime/src/platform/arch/`，例如浮点控制环境。依赖 Scoop 返回约定和对象符号语法的汇编 shim 不属于纯 ISA helper，应移入明确的 ABI／entry source set。
 
-现有 `darwin_aarch64_floating.S` 同时依赖 AArch64 返回寄存器和 Mach-O 符号语法，不能作为通用 AArch64 源，也不能与 frame decoder 隐式绑定。以后出现 AArch64 ELF target 时，只应为尚无实现的对象语法／ABI shim 增加局部汇编，不复制浮点解析的普通 C 实现、AArch64 ISA helper 或 ABI planner。
+现有 Darwin AArch64 tagged-floating 返回汇编同时依赖 AArch64 返回寄存器和 Mach-O 符号语法，不能作为通用 AArch64 源，也不能与 frame decoder 隐式绑定。当前它与按 native C ABI 返回 tagged parts 的 x86_64 实现都已移入独立 `platform/abi` source set；`platform/arch` 只保留浮点环境等纯 ISA helper。以后出现 AArch64 ELF target 时，只应为尚无实现的对象语法／ABI shim 增加局部汇编，不复制浮点解析的普通 C 实现、AArch64 ISA helper 或 ABI planner。
 
 ### 5.6 runtime bundle 只有一个组合入口
 

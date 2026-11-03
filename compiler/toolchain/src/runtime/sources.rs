@@ -164,10 +164,7 @@ pub(super) const WINDOWS_OS: &[&str] = &[
     "vendor/gdtoa/hd_init.c",
 ];
 pub(super) const AARCH64: &[&str] = &["runtime/src/platform/arch/aarch64_float_environment.c"];
-pub(super) const X86_64: &[&str] = &[
-    "runtime/src/platform/arch/x86_64_floating.c",
-    "runtime/src/platform/arch/x86_64_float_environment.c",
-];
+pub(super) const X86_64: &[&str] = &["runtime/src/platform/arch/x86_64_float_environment.c"];
 pub(super) const DARWIN_AARCH64_FRAME: &[&str] = &["runtime/src/platform/frame/darwin_aarch64.c"];
 pub(super) const SYSV_AMD64_FRAME: &[&str] = &["runtime/src/platform/frame/sysv_amd64.c"];
 pub(super) const WINDOWS_AMD64_VIRTUAL_UNWIND: &[&str] =
@@ -183,4 +180,6 @@ pub(super) const WIN64_COFF_MANAGED_ENTRY: &[&str] =
     &["runtime/src/platform/frame/windows_amd64_coff_managed_entry.S"];
 
 pub(super) const DARWIN_AARCH64_MACHO_ABI_SHIM: &[&str] =
-    &["runtime/src/platform/arch/darwin_aarch64_floating.S"];
+    &["runtime/src/platform/abi/darwin_aarch64_macho_floating.S"];
+pub(super) const X86_64_TAGGED_FLOATING_ABI_SHIM: &[&str] =
+    &["runtime/src/platform/abi/x86_64_tagged_floating.c"];

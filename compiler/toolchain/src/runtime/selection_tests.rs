@@ -13,7 +13,7 @@ struct ExpectedComponents {
     arch: &'static str,
     frame: &'static str,
     managed_entry: &'static str,
-    abi_shim: Option<&'static str>,
+    abi_shim: &'static str,
     metadata_image_ops: &'static str,
     thread_vm_ops: &'static str,
     managed_frame_ops: &'static str,
@@ -61,12 +61,7 @@ fn assert_components(target: LirTargetProfile, expected: ExpectedComponents) {
         profile.canonical_triple()
     );
     assert!(
-        expected
-            .abi_shim
-            .map(|source| unique_sources.contains(source))
-            .unwrap_or_else(|| {
-                !unique_sources.contains("runtime/src/platform/arch/darwin_aarch64_floating.S")
-            }),
+        unique_sources.contains(expected.abi_shim),
         "{} selects the wrong Scoop ABI shim",
         profile.canonical_triple()
     );
@@ -117,7 +112,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             arch: "runtime/src/platform/arch/aarch64_float_environment.c",
             frame: "runtime/src/platform/frame/darwin_aarch64.c",
             managed_entry: "runtime/src/platform/frame/darwin_aarch64_macho.S",
-            abi_shim: Some("runtime/src/platform/arch/darwin_aarch64_floating.S"),
+            abi_shim: "runtime/src/platform/abi/darwin_aarch64_macho_floating.S",
             metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
             thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
             managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_darwin_aarch64_managed_frame_ops",
@@ -138,7 +133,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
             arch: "runtime/src/platform/arch/x86_64_float_environment.c",
             frame: "runtime/src/platform/frame/sysv_amd64.c",
             managed_entry: "runtime/src/platform/frame/sysv_amd64_macho.S",
-            abi_shim: None,
+            abi_shim: "runtime/src/platform/abi/x86_64_tagged_floating.c",
             metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_macho_metadata_image_ops",
             thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_darwin_thread_vm_ops",
             managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
@@ -163,7 +158,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/sysv_amd64.c",
                 managed_entry: "runtime/src/platform/frame/sysv_amd64_elf.S",
-                abi_shim: None,
+                abi_shim: "runtime/src/platform/abi/x86_64_tagged_floating.c",
                 metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_linux_elf_metadata_image_ops",
                 thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_linux_thread_vm_ops",
                 managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_sysv_amd64_managed_frame_ops",
@@ -190,7 +185,7 @@ fn current_targets_compose_runtime_from_independent_facts() {
                 arch: "runtime/src/platform/arch/x86_64_float_environment.c",
                 frame: "runtime/src/platform/frame/windows_amd64_virtual_unwind.c",
                 managed_entry: "runtime/src/platform/frame/windows_amd64_coff_managed_entry.S",
-                abi_shim: None,
+                abi_shim: "runtime/src/platform/abi/x86_64_tagged_floating.c",
                 metadata_image_ops: "-DSCOOP_PLATFORM_METADATA_IMAGE_OPS=scoop_pe_metadata_image_ops",
                 thread_vm_ops: "-DSCOOP_PLATFORM_THREAD_VM_OPS=scoop_windows_thread_vm_ops",
                 managed_frame_ops: "-DSCOOP_PLATFORM_MANAGED_FRAME_OPS=scoop_windows_amd64_managed_frame_ops",

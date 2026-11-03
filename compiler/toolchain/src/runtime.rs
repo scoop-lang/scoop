@@ -165,7 +165,22 @@ impl ValidatedRuntimeBuildProfile {
                 ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
                 ObjectTargetProfileV1::MachOAarch64,
             ) => sources::DARWIN_AARCH64_MACHO_ABI_SHIM,
-            _ => &[],
+            (
+                ProcedureAbi::SysvAmd64,
+                ScoopAbiClassifier::ScalarInterfaceAndSmallValueParts,
+                ObjectTargetProfileV1::MachOX86_64 | ObjectTargetProfileV1::ElfX86_64,
+            )
+            | (
+                ProcedureAbi::Win64,
+                ScoopAbiClassifier::Win64CallerCopyAndIndirectInterfaceResult,
+                ObjectTargetProfileV1::CoffAmd64,
+            ) => sources::X86_64_TAGGED_FLOATING_ABI_SHIM,
+            _ => {
+                return Err(crate::ToolchainError(
+                    "no runtime Scoop ABI shim for the selected procedure ABI, Scoop ABI and object target"
+                        .into(),
+                ));
+            }
         };
         let components = RuntimeComponents {
             os,
