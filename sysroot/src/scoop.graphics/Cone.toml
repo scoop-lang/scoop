@@ -141,3 +141,52 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "user32"
 when = { os = "windows" }
+
+[[sources]]
+path = "src/geometry"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/drawing"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/native"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/gles.cpp"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "EGL"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "GLESv2"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "fontconfig"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "freetype"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "z"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/gles.scoop"
+when = { os = "linux", env = "gnu" }

@@ -78,3 +78,112 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "user32"
 when = { os = "windows" }
+
+[[sources]]
+path = "src/shared"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/platform/linux"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/platform/desktop"
+when = { os = "linux", env = "gnu" }
+
+[[sources]]
+path = "src/platform/desktop"
+when = { os = "darwin" }
+
+[[native.sources]]
+path = "native/linux/renderer.c"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "EGL"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "GLESv2"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "wayland-egl"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "wayland-client"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "xcb"
+kind = "dynamic"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_demand.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/animation_group.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/dsl_builders.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_activity.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_boundary.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_caret.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_defaults.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_focus.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_pointer.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_press.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_routing.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_scroll.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_scroll_route.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_support.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests-linux"
+when = { os = "linux", env = "gnu" }

@@ -71,7 +71,8 @@ SGTarget *scoop_graphics_raster_create(int32_t width, int32_t height) {
 }
 SGCanvas *scoop_graphics_target_canvas(SGTarget *target, double scale) {
   try {
-    return new SGCanvas(target->surface, target->context, (float)scale);
+    return new SGCanvas(target->surface, target->context, (float)scale,
+                        target->gl, target->glSurface);
   } catch (...) {
     return nullptr;
   }

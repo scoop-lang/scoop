@@ -26,6 +26,7 @@ from build_llvm import VERSION
 from build_rust_text import HEADER as RUST_TEXT_HEADER
 from build_rust_text import LIBRARY as RUST_TEXT_LIBRARY
 from build_skia import LIBRARY as SKIA_LIBRARY
+from build_skia import TARGETS as SKIA_TARGETS
 from build_support import RELEASE_CONFIG, ROOT
 from compression_backends import PACKAGES as COMPRESSION_PACKAGES
 from prepare_sysroot import cone_order
@@ -83,7 +84,10 @@ def prepare_targets(args, targets, environment):
                 ],
                 environment,
             )
-        if facts["os"] in ("darwin", "windows"):
+        if target in SKIA_TARGETS:
+            skia_native = (
+                ["--cc", args.llvm_prefix / "bin/clang"] if facts["os"] == "linux" else native
+            )
             run_script(
                 "build_skia.py",
                 [
@@ -95,7 +99,7 @@ def prepare_targets(args, targets, environment):
                     args.gn,
                     "--jobs",
                     args.jobs,
-                    *native,
+                    *skia_native,
                 ],
                 environment,
             )
@@ -243,7 +247,7 @@ def assemble(root, targets, binaries, args, release, extension):
         shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
         shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
         shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
-        if TARGETS[target]["os"] in ("darwin", "windows"):
+        if target in SKIA_TARGETS:
             shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
             shutil.copytree(source / "include/skia", destination / "include/skia")
         for package in COMPRESSION_PACKAGES:
@@ -332,7 +336,7 @@ def assemble(root, targets, binaries, args, release, extension):
         manifest += [
             f"{name} = {json.dumps(release[name])}" for name in ("rust_windows", "llvm_mingw")
         ]
-    if any(TARGETS[target]["os"] in ("darwin", "windows") for target in targets):
+    if any(target in SKIA_TARGETS for target in targets):
         manifest.append(f"skia = {json.dumps(release['skia'])}")
     manifest += [
         f"{name} = {json.dumps(release[name])}"
@@ -405,9 +409,7 @@ def main():
         help="Use a local LLVM source archive instead of downloading the fixed release",
     )
     parser.add_argument("--llvm-prefix", type=Path, help="Reuse an installed matching LLVM version")
-    parser.add_argument(
-        "--gn", default="gn", help="GN executable used to prepare Darwin Skia resources"
-    )
+    parser.add_argument("--gn", default="gn", help="GN executable used to prepare Skia resources")
     parser.add_argument(
         "--prepared-sysroot",
         type=Path,

@@ -22,6 +22,8 @@ Cone 名称为 `scoop:scoop.graphics.text`，公共 package 为 `scoop.graphics.
 
 当前实施批次先以 macOS aarch64 的 CoreText 与真实离屏／Metal 绘图为验收目标，本期功能完成后统一补验 x86_64。拆分时一起移动已有的 DirectWrite 工厂及目标选择，避免保留两套文本所有权；Windows 的新增接入和运行验收留待后续。共享文本模型仍按本规范实现，目标平台的可用性以已交付的 Cone 源码和验证记录为准。
 
+Linux GNU 阶段使用 Skia 的 Fontconfig／FreeType 字体工厂，并沿用同一 HarfBuzz、ICU、段落布局和 UTF-8 索引合同；字体文件、集合和布局继续由所属资源持有。系统字体依 Fontconfig 查询，不能假定 macOS 字体名称存在。固定字体测试使用仓库已有字体输入，真实显示通过 GLES／EGL 的 Wayland 和 X11 Surface 验证；实施范围和结果见 [Linux GUI 记录](../linux-gui/PROGRESS.md)。
+
 本期支持段落内多字体／字号／样式混排，以及不可分割的行内图片和控件盒子。完整编辑文档、撤销、剪贴板系统接入、accessibility 树、分页、浮动元素和跨多行图文绕排不属于本库本期交付；文本位置、替代文字与选择几何则在本期有明确合同。
 
 图文绕排、分栏与区域续排列为后续增强，现有内容模型的复用范围、SkParagraph 的边界及实施方向见 [文本排版设计第 8 节](../graphics/text/DESIGN.md#8-后续增强图文绕排分栏与区域续排)。本期的 Paragraph.layout(width) 仍表示固定宽度的段落排版，不提前加入区域流式排版参数或空实现。

@@ -5,11 +5,11 @@ import scoop.window.*
 internal fun ShortcutModifiers.matches(event: Modifiers): Boolean =
     shift ==
         event.shift &&
-        control ==
+        (control || (primary && !primaryUsesSuper())) ==
         event.control &&
         alt ==
         event.alt &&
-        (superKey || primary) ==
+        (superKey || (primary && primaryUsesSuper())) ==
         event.superKey &&
         function ==
         event.function
@@ -17,12 +17,12 @@ internal fun ShortcutModifiers.matches(event: Modifiers): Boolean =
 private fun sameModifiers(left: ShortcutModifiers, right: ShortcutModifiers): Boolean =
     left.shift ==
         right.shift &&
-        left.control ==
-        right.control &&
+        (left.control || (left.primary && !primaryUsesSuper())) ==
+        (right.control || (right.primary && !primaryUsesSuper())) &&
         left.alt ==
         right.alt &&
-        (left.superKey || left.primary) ==
-        (right.superKey || right.primary) &&
+        (left.superKey || (left.primary && primaryUsesSuper())) ==
+        (right.superKey || (right.primary && primaryUsesSuper())) &&
         left.function ==
         right.function
 

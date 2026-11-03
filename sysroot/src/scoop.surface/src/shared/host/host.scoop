@@ -30,7 +30,15 @@ public class SurfaceHost public constructor(
         var target: WindowRenderer? = None
         var attached: SurfaceWindow? = None
         try {
-            if (closing || window.state != WindowState.Open)
+            if (
+                closing ||
+                    (
+                        window.state !=
+                            WindowState.Open &&
+                            window.state !=
+                            WindowState.PendingConfigure
+                    )
+            )
                 throw IllegalStateException(Some("Surface host or window is not open"))
             when (find(window.id)) {
                 case Some(_) -> throw IllegalStateException(Some("window is already attached"))

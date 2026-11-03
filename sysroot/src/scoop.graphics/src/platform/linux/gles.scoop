@@ -1,0 +1,130 @@
+package scoop.graphics.native.linux
+
+import scoop.graphics.*
+import scoop.graphics.native.RenderTarget
+
+/** Ganesh GLES state, shared by targets on one EGL display and owner thread. */
+public class GLESContext private constructor(private val resource: GraphicsResource): Closeable {
+    private var abandoned = false
+    /** Borrows EGL handles while this context is open; the caller owns window surfaces. */
+    public val display: Ptr<Unit> @Unsafe get() = glesDisplay(resource.get())
+    public val configuration: Ptr<Unit> @Unsafe get() = glesConfig(resource.get())
+    public val nativeContext: Ptr<Unit> @Unsafe get() = glesNative(resource.get())
+
+    /** Wraps framebuffer zero of a live EGLSurface belonging to this context's display. */
+    @Unsafe
+    public fun target(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): RenderTarget {
+        validateTarget(width, height, scale)
+        return RenderTarget(
+            ownedGraphics(
+                glesTarget(resource.get(), surface, width, height),
+                "wrap GLES window target"
+            ),
+            width,
+            height,
+            scale
+        )
+    }
+    /** Creates a GPU target without a native window. */
+    public fun offscreen(width: Int, height: Int, scale: Double = 1.0): RenderTarget {
+        validateTarget(width, height, scale)
+        @Unsafe
+        {
+            return RenderTarget(
+                ownedGraphics(
+                    glesOffscreen(resource.get(), width, height),
+                    "create GLES offscreen target"
+                ),
+                width,
+                height,
+                scale
+            )
+        }
+    }
+    public fun drain() {
+        @Unsafe
+        {
+            graphicsResult(glesDrain(resource.get()), "drain GLES context")
+        }
+    }
+    /** Releases native GPU resources before the borrowed display is disconnected. */
+    public fun abandon() {
+        val pointer = resource.getForClose()
+        if (abandoned)
+            return
+        abandoned = true
+        @Unsafe
+        {
+            graphicsResult(glesClose(pointer), "release GLES display resources")
+        }
+    }
+    /** Targets and GPU images retain the context; explicit abandon ends native display use. */
+    public override fun close() {
+        resource.checkThread()
+        if (resource.isClosed)
+            return
+        try {
+            if (!abandoned)
+                drain()
+        }
+        finally {
+            resource.close()
+        }
+    }
+    public companion object {
+        /** The XCB connection must outlive this context and all of its EGL surfaces. */
+        @Unsafe
+        public fun createX11(connection: Ptr<Unit>, visual: UInt): GLESContext =
+            GLESContext(
+                ownedGraphics(
+                    glesContext(1, Some(connection), visual),
+                    "create X11 EGL/GLES context"
+                )
+            )
+        /** The Wayland display must outlive this context and all of its EGL surfaces. */
+        @Unsafe
+        public fun createWayland(display: Ptr<Unit>): GLESContext =
+            GLESContext(
+                ownedGraphics(glesContext(2, Some(display), 0u), "create Wayland EGL/GLES context")
+            )
+        /** Uses Mesa's surfaceless EGL platform for explicit offscreen GPU work. */
+        public fun createOffscreen(): GLESContext {
+            @Unsafe
+            {
+                return GLESContext(
+                    ownedGraphics(glesContext(0, None, 0u), "create surfaceless EGL/GLES context")
+                )
+            }
+        }
+    }
+}
+
+private fun validateTarget(width: Int, height: Int, scale: Double) {
+    pixelBytes(width, height)
+    checkScalar(scale)
+    requireGraphics(scale > 0.0 && scale.toFloat() > 0.0, "invalid target scale")
+}
+
+@Extern(name = "scoop_graphics_gles_context")
+private fun glesContext(platform: Int, connection: Ptr<Unit>?, visual: UInt): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gles_display")
+private fun glesDisplay(context: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_graphics_gles_config")
+private fun glesConfig(context: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_graphics_gles_native")
+private fun glesNative(context: Ptr<Unit>): Ptr<Unit>
+
+@Extern(name = "scoop_graphics_gles_target")
+private fun glesTarget(context: Ptr<Unit>, surface: Ptr<Unit>, width: Int, height: Int): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gles_offscreen")
+private fun glesOffscreen(context: Ptr<Unit>, width: Int, height: Int): Ptr<Unit>?
+
+@Extern(name = "scoop_graphics_gles_drain")
+private fun glesDrain(context: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_gles_close")
+private fun glesClose(context: Ptr<Unit>): Int

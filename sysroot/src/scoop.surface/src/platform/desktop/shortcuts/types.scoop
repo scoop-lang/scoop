@@ -7,7 +7,7 @@ public enum ShortcutKey {
     Logical(LogicalKey), Physical(PhysicalKey)
 }
 
-/** Exact command modifiers; Primary means Command on macOS. Lock states are independent. */
+/** Exact command modifiers; Primary means Command on macOS and Control on Linux. Lock states are independent. */
 public struct ShortcutModifiers(
     val primary: Boolean = false,
     val shift: Boolean = false,

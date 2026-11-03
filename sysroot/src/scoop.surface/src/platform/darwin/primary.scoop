@@ -1,0 +1,3 @@
+package scoop.surface
+
+internal fun primaryUsesSuper(): Boolean = true

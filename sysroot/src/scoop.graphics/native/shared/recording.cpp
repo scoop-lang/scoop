@@ -16,6 +16,7 @@ SGObject *scoop_graphics_recording_create(SGCanvas *source, SGRect bounds) {
     auto result = std::make_unique<Recording>();
     result->surface = source->surface;
     result->context = source->context;
+    result->gl = source->gl;
     result->bounds = sg_rect(bounds);
     SkRTreeFactory factory;
     result->recording->recorder.beginRecording(result->bounds, &factory);
@@ -27,7 +28,7 @@ SGObject *scoop_graphics_recording_create(SGCanvas *source, SGRect bounds) {
 SGCanvas *scoop_graphics_recording_canvas(Recording *value) {
   try {
     return new SGCanvas(value->surface, value->context, value->recording,
-                        value->bounds);
+                        value->bounds, value->gl);
   } catch (...) {
     return nullptr;
   }
@@ -35,9 +36,10 @@ SGCanvas *scoop_graphics_recording_canvas(Recording *value) {
 SGDrawing *scoop_graphics_recording_finish(Recording *value) {
   try {
     auto picture = value->recording->recorder.finishRecordingAsPicture();
-    return picture ? new SGDrawing(std::move(picture), value->context,
-                                   value->recording->independentTiles)
-                   : nullptr;
+    return picture
+               ? new SGDrawing(std::move(picture), value->context,
+                               value->recording->independentTiles, value->gl)
+               : nullptr;
   } catch (...) {
     return nullptr;
   }

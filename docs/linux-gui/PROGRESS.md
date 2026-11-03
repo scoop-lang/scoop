@@ -21,6 +21,18 @@ window 阶段已完成原生 X11／Wayland 接入、文档输入、剪贴板、�
 
 测试使用独立 Xvfb／Openbox 和嵌套 Weston，未操作用户桌面。原生 IME 候选窗、实体键盘布局切换、显示器热插拔和桌面合成器间差异尚未进行人工验收；协议不提供的全局位置等能力明确返回未知或不支持。
 
-graphics／surface 和 UI 正在接入，后续验收结果在对应功能提交时更新。
+graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文本使用 Fontconfig／FreeType。首次 configure 后创建实际尺寸的 EGL surface；resize 排空旧目标的 GPU 使用并重建 EGL surface，避免 Wayland 首帧及 X11 resize 的旧 backbuffer。GPU context 在窗口 lease 结束前 drain／abandon，剩余 GPU 资源操作明确失败，close 仍安全。按需帧在隐藏和 idle 时停止，PendingConfigure 保留内容及 dirty。验证结果：
+
+- `scoop.graphics`：37／37，包含真实 GLES 离屏绘图、GPU 资源生命周期与 CPU 快照。
+- `scoop.graphics.text`：49／49，包含 Fontconfig 字体和共享文字布局合同。
+- `scoop.surface`：X11、Wayland、Wayland 2 倍缩放各 70／70；真实多窗口像素读回覆盖首次配置、resize、隐藏重显、idle、重附着及关闭，Linux Primary 为 Control。
+- `surface-errors`：X11、Wayland 各 1／1；绘制抛错时关闭可见与未配置窗口，并保留主错误及多个 cleanup 错误。
+- 工具链打包脚本：5／5；Linux GNU 包含 Skia archive／headers，musl 保持原目标范围。Python 使用 Ruff 0.16.10 格式化和检查；原生 C／C++ 完成格式化与警告检查。
+
+上述呈现测试通过真实显示协议，GPU 为 Mesa 软件渲染，未据此宣称硬件 GPU、真实 IME 或所有合成器验收通过。
+
+链接 Skia 时发现显式对象的 compiler builtin 与系统 C++ runtime 动态导出冲突，已修正 ELF 符号选择并补充 C++ 异常组合 fixture。`scoop-linker` 22／22，使用 fixture 默认 GCC 的原生链接验收 45 项通过、19 项不适用；workspace fmt／clippy 通过。五个 release 工具命令已重建并安装至 `~/.scoop/bin`。
+
+UI 正在完成组合验收，结果在对应功能提交时更新。
 
 原始构建和测试日志保存在仓库外 `/home/chenxu/repos/scoop-deps/logs`。本记录只保存验证范围、结果、失败闭合与实际限制。

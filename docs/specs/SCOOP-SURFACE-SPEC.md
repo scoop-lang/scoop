@@ -16,7 +16,7 @@
 - `scoop.surface` 是普通 Cone，依赖 graphics、window 及实际使用的 core／std／math／platform，提供 SurfaceHost、SurfaceWindow、帧调度、动画、InputArea 与区域焦点。两库的几何与动画所需数学函数复用 scoop.math。
 - window 继续拥有原生窗口、输入归一、IME 协议、事件循环和 native lease；Surface 的平台适配拥有 surface 与呈现。共享层不依赖 AppKit、Metal 或其他窗口／GPU API。
 
-当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，以及 Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`。Windows 阶段实现同一共享合同，Linux 留待后续；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
+当前实施目标为 `aarch64-apple-darwin`、`x86_64-apple-darwin`，Windows x64 的 `x86_64-pc-windows-msvc-ucrt`、`x86_64-w64-windows-llvm-mingw-ucrt`、`x86_64-w64-windows-llvm-mingw-msvcrt`，以及 Linux GNU 的 `x86_64-unknown-linux-gnu`。各平台实现同一共享合同；按 target 选择源码和原生依赖，不复制共享状态机，不为未实施平台加入空后端。采用现有语言、FFI、native 编译及资源释放规则，不新增编译器或 runtime 的 Surface 特殊通道。
 
 ## 2. 几何与绘制
 
@@ -208,7 +208,7 @@ InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在�
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
-### 6.3 作用域快捷键（macOS）
+### 6.3 作用域快捷键（macOS 与 Linux）
 
 ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
 
@@ -278,3 +278,17 @@ Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换�
 ### 快捷键描述装配
 
 `shortcutBinding(key: ShortcutKey, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以键和动作作为必需参数，配置 modifiers=ShortcutModifiers()、enabled=true、allowRepeat=false、canExecute={ true }。modifiers 块基于当前六个布尔修饰键字段配置。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(key, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。
+
+## 10. Linux GNU 呈现
+
+Linux 使用 Skia Ganesh GLES 与 EGL，目标为 `x86_64-unknown-linux-gnu`；musl 暂无本阶段需要的 C++ 资源。X11 从 window 的 XCB connection、window 与 visual 创建匹配的 EGL window surface；Wayland 从同一 lease 的 wl_display／wl_surface 创建 wl_egl_window。首次有效 configure 后才按实际像素尺寸创建 EGL window surface，不能用临时 1×1 backbuffer 绘制逻辑上的首帧。呈现对象不取得窗口事件循环的所有权，关闭 renderer 后再释放 lease。
+
+像素尺寸变化时先完成旧目标的 GPU 使用。两个后端都在旧目标退休后按新尺寸重建 EGL window surface，确保下一次绘制已经使用新 backbuffer，不能将仅在 swap 时生效的旧尺寸存储包装成新尺寸的 Skia target。尺寸未变时复用原 surface。
+
+graphics 的目标专用 Unsafe GLES 接入使用实际 GrDirectContext 和 EGL context，要求 EGL 1.5／GLES 3 与 surfaceless context。原生 context 以及 GPU 图像、绘图目标之间保持必要的共享持有，正常资源析构必须在相应 context 当前时执行。renderer 卸载 window surface 后，graphics 可通过 surfaceless context 收尾；普通 GLESContext.close 与其他后端一样允许目标和 GPU 图像保留 context；宿主结束对 borrowed display 的使用时显式 abandon，先排空 GPU、释放 Ganesh 资源，再关闭 EGL，不能保留指向已销毁显示连接的句柄。此后存活的 GPU 资源不可再绘制或读回，操作报 GraphicsException，close 仍安全幂等；独立 CPU 快照不受影响。GL framebuffer 使用真实 EGL 配置的颜色格式和 bottom-left origin，公开 Canvas 保持 top-left 逻辑坐标和既有预乘 alpha 合同。
+
+Wayland 等待首个 configure 后才建立有效帧尺寸，提交前按实际物理尺寸调整 wl_egl_window；整数和 fractional scale 由 window 配置，不在 renderer 重复设置 surface scale。按需 frame callback 和 EGL swap 驱动后续帧；撤销 demand、隐藏或关闭时取消本方尚未消费的 callback。X11 使用 EGL swap interval 与实际交换完成控制连续帧，在无绘图需求时不注册周期性定时器。不能以固定频率空回调轮询 drawable。未配置、隐藏、零尺寸或本帧已过期返回 Deferred；确定的 EGL／GL 失败报告 GraphicsException，不能隐式换后端。
+
+Skia 构建由既有维护脚本使用本地固定 vendor 输入完成，启用 GLES／EGL、Fontconfig／FreeType，继续复用共享 HarfBuzz／ICU／图像解码资源。普通应用只消费预编译 `.slib`、头文件和声明的 native 依赖。验收分别覆盖 Wayland 与 X11 的真实 GLES 绘制、resize、隐藏重显、多窗口、帧需求撤销、异常及资源关闭；离屏测试不能替代实际呈现。验证记录须区分真实显示服务器、软件 GPU、合成输入及实际硬件输入。
+
+Linux 的 Primary 快捷键使用 Control；macOS 使用 Command。两者沿同一 capture／target／bubble／default 路由，平台修饰键归一之后仍检查重复组合、编辑器让行和 preventDefault。SurfaceHost 可附着 PendingConfigure 窗口，首次配置前保留内容和 dirty；隐藏重显期间暂停 demand，新的配置到来后继续，不将等待配置当作关闭。

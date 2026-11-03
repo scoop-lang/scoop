@@ -116,7 +116,7 @@ class ToolchainArchiveTests(unittest.TestCase):
                 ]
                 if not host.endswith("darwin"):
                     target_files += ["unwind/include/unwind.h", "unwind/lib/libunwind.a"]
-                if not host.endswith("linux-gnu"):
+                if target in package_toolchain.SKIA_TARGETS:
                     target_files += [
                         package_toolchain.SKIA_LIBRARY,
                         "include/skia/include/core/SkCanvas.h",
@@ -214,7 +214,7 @@ class ToolchainArchiveTests(unittest.TestCase):
                     "libscoop_text_backend.a",
                 )
                 self.assertEqual(metadata["liburing"], "2.15")
-                if not host.endswith("linux-gnu"):
+                if target in package_toolchain.SKIA_TARGETS:
                     self.assertEqual(metadata["skia"], release["skia"])
                     self.assertEqual(
                         (installed / "lib" / target / package_toolchain.SKIA_LIBRARY).read_text(),
@@ -292,7 +292,12 @@ class ToolchainArchiveTests(unittest.TestCase):
                     self.assertEqual(list(commands.iterdir()), [])
 
     def test_packaging_prepares_only_native_resources_and_runtime(self):
-        for target in ("aarch64-apple-darwin", *WINDOWS_TARGETS):
+        for target in (
+            "aarch64-apple-darwin",
+            *WINDOWS_TARGETS,
+            "x86_64-unknown-linux-gnu",
+            "x86_64-unknown-linux-musl",
+        ):
             with self.subTest(target=target), tempfile.TemporaryDirectory() as temporary:
                 work = Path(temporary)
                 args = SimpleNamespace(
@@ -307,16 +312,24 @@ class ToolchainArchiveTests(unittest.TestCase):
                     msys_perl="perl",
                     msys_make="make",
                     msys_shell="sh",
+                    gnu_cc="gcc",
+                    musl_cc="musl-gcc",
+                    unwind_cc="clang",
+                    unwind_cxx="clang++",
+                    musl_include=work / "musl/include",
                 )
                 with patch.object(package_toolchain, "run_script") as run:
                     package_toolchain.prepare_targets(args, [target], {})
                 scripts = [call.args[0] for call in run.call_args_list]
                 self.assertIn("build_openssl.py", scripts)
                 self.assertIn("build_text_backends.py", scripts)
-                self.assertIn("build_skia.py", scripts)
                 self.assertEqual(scripts[-1], "prepare_sysroot.py")
                 self.assertIn("--runtime-only", run.call_args.args[1])
                 self.assertNotIn("--scoop", run.call_args.args[1])
+                if target == "x86_64-unknown-linux-musl":
+                    self.assertNotIn("build_skia.py", scripts)
+                    continue
+                self.assertIn("build_skia.py", scripts)
                 skia = next(
                     call.args[1] for call in run.call_args_list if call.args[0] == "build_skia.py"
                 )
@@ -326,6 +339,8 @@ class ToolchainArchiveTests(unittest.TestCase):
                         skia[skia.index("--cc") + 1],
                         package_toolchain.package_windows.compiler(args, target),
                     )
+                elif target == "x86_64-unknown-linux-gnu":
+                    self.assertEqual(skia[skia.index("--cc") + 1], args.llvm_prefix / "bin/clang")
 
     def test_extract_directly_into_installation_root(self):
         with tempfile.TemporaryDirectory() as temporary:

@@ -63,3 +63,7 @@ TextRange 和 TextPosition 使用 **UTF-8 字节偏移**，与 String 的标量�
 字体、Paragraph 和 TextLayout 限创建线程使用及关闭，通过 Closeable／use 管理。文本库拥有自己的 native 资源；Canvas.drawText 只在同步回调内借用 graphics 的公开原生画布接口，正常返回或异常退出后恢复调用方状态，不依赖 graphics 的私有包装或 internal 成员。
 
 准备[目标资源](../../../scripts/README.md)后运行 `scoop test sysroot/src/scoop.graphics.text --release --sysroot sysroot`。测试覆盖真实离屏文本、固定字体、Unicode／bidi、独立布局和资源边界；macOS 另验证真实 Metal 目标。字体来源与许可见 [FONTS.md](tests/data/FONTS.md)，运行结果和平台范围见 [UI 实施记录](../../../docs/ui/PROGRESS.md)。
+
+## Linux GNU
+
+系统字体使用 Fontconfig／FreeType，共享 SkParagraph、HarfBuzz 与 ICU 排版实现，可绘制到 RasterSurface 或 Skia Ganesh GLES 目标；文本库本身不依赖显示服务器。使用已准备的 GNU sysroot，运行 `scoop test sysroot/src/scoop.graphics.text --release --sysroot ~/.scoop`。依赖、测试范围及实际限制见 [Linux GUI 记录](../../../docs/linux-gui/PROGRESS.md)。

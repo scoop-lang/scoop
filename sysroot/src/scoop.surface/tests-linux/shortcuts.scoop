@@ -1,0 +1,83 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class LinuxShortcutTest {
+    @Test
+    fun `Primary routes Ctrl commands once and shares duplicate and default action rules`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("commands", focusable = true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 80.0, 40.0)) }
+            assertTrue(area.requestFocus())
+            val calls = ArrayList<Unit>()
+            val binding =
+                ShortcutBinding(
+                    ShortcutKey.Logical(LogicalKey.Character("c")),
+                    ShortcutModifiers(primary = true),
+                    action = { calls.add(Unit) }
+                )
+            ShortcutScope(area.scope, [binding]).use {
+                shortcuts ->
+                rig.router.event(WindowEvent.Keyboard(shortcutKey(control = true)))
+                assertEquals(1L, calls.size)
+                rig.router.event(WindowEvent.Keyboard(shortcutKey(superKey = true)))
+                rig.router.event(WindowEvent.Keyboard(shortcutKey(control = true, repeat = true)))
+                assertEquals(1L, calls.size)
+                assertFailsWith<IllegalArgumentException> {
+                    shortcuts.bindings =
+                        [
+                            binding,
+                            ShortcutBinding(
+                                binding.key,
+                                ShortcutModifiers(control = true),
+                                action = { fail() }
+                            )
+                        ]
+                }
+                rig.router.event(WindowEvent.Keyboard(shortcutKey(control = true)))
+                assertEquals(2L, calls.size)
+                area.scope.defaultAction =
+                    {
+                        context,
+                        event -> when (event) {
+                            case Keyboard(_) -> context.preventDefault()
+                            else -> {}
+                        }
+                    }
+                rig.router.event(WindowEvent.Keyboard(shortcutKey(control = true)))
+                assertEquals(2L, calls.size)
+            }
+        }
+    }
+}
+
+private fun shortcutKey(
+    control: Boolean = false,
+    superKey: Boolean = false,
+    repeat: Boolean = false
+): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(KeyCode.KeyC),
+        LogicalKey.Character("c"),
+        KeyLocation.Standard,
+        ElementState.Pressed,
+        repeat,
+        Modifiers(
+            false,
+            control,
+            false,
+            superKey,
+            false,
+            false,
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None),
+            ModifierSides(None, None)
+        ),
+        false,
+        inputObservation()
+    )
