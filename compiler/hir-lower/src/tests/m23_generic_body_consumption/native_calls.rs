@@ -41,6 +41,58 @@ fn ordinary_dependency_calls_preserve_callable_variance() {
     check_fixture("variance");
 }
 
+#[test]
+fn imported_callback_registration_retains_implicit_protocol_types() {
+    with_provider_consumer(
+        r#"
+        public fun <T> register(value: T): ForeignCallback<(Ptr<Unit>) -> Int> {
+            @Unsafe {
+                return foreignCallback<(Ptr<Unit>) -> Int>(
+                    { val captured = value; 42 }, 0, ForeignCallbackMode.OneShot
+                )
+            }
+        }
+        "#,
+        "public fun use(): ForeignCallback<(Ptr<Unit>) -> Int> = register(42)",
+        |output, _, _, _, _| {
+            let local = output.output().local.module();
+            assert_eq!(local.foreign_callback_registrations.len(), 1);
+            for name in ["ForeignCallbackMode", "ForeignCallbackState"] {
+                assert!(
+                    local
+                        .enums
+                        .iter()
+                        .any(|(_, enumeration)| enumeration.name == name)
+                );
+            }
+        },
+    )
+    .expect("an imported registration materializes its implicit protocol types");
+}
+
+#[test]
+fn imported_callback_operation_retains_support_without_a_registration() {
+    with_provider_consumer(
+        r#"
+        public fun <T> release(callback: ForeignCallback<(Ptr<Unit>) -> Int>, value: T) {
+            @Unsafe { releaseForeignCallback(callback) }
+        }
+        "#,
+        "public fun use(callback: ForeignCallback<(Ptr<Unit>) -> Int>) { release(callback, 42) }",
+        |output, _, _, _, _| {
+            let local = output.output().local.module();
+            assert!(local.foreign_callback_registrations.is_empty());
+            assert!(
+                local
+                    .enums
+                    .iter()
+                    .any(|(_, enumeration)| enumeration.name == "ForeignCallbackState")
+            );
+        },
+    )
+    .expect("an imported callback operation also retains its implicit protocol types");
+}
+
 fn check_fixture(name: &str) {
     let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/language/shared-native-calls");

@@ -2,7 +2,7 @@ package test.core.tests.executors
 
 import scoop.test.*
 
-internal class QueueExecutor: CoroutineExecutor {
+internal class QueueExecutor(private val beforeRegistration: () -> Unit = {}): CoroutineExecutor {
     private val queue = ArrayList<() -> Unit>()
     val parents = ArrayList<ExecutorTask?>()
     var active: Int = 0
@@ -12,6 +12,7 @@ internal class QueueExecutor: CoroutineExecutor {
     val queued: Long get() = queue.size
 
     public override fun registerTask(parent: ExecutorTask?): ExecutorTask {
+        beforeRegistration()
         if (draining) {
             val accepted =
                 when (parent) {

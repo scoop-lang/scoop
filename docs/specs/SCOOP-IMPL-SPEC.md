@@ -221,6 +221,8 @@ executable 的入口发现只检查 root Cone，并按语言规范 12.4.4 一次
 
 数据借用的源码和导出模板仍通过普通泛型调用保存声明与实参映射；HIR 具体化在解析实际 intrinsic 和完整实例签名的边界，将其形成具名 object／block、对象类别和 FunctionTypeId。对象类别及回调签名取自已决议形参，不能从可能为 Nothing 的实参结果猜测。无正文的源码 intrinsic 复用 source parameter interface 中的逻辑参数；导入模板复用其完整实例签名，不为不存在的正文生成参数 local。MIR 接收完整借用操作，先后求值 object 与 block，保留原 pin／finally cleanup 与异常传播，不重新按参数个数或值类型恢复关系。
 
+导入模板物化 foreign callback 注册或操作节点时，通过实际 core protocol 身份请求其模式、状态及精确 `Option<Throwable>` 支持类型；这些隐式类型依赖不能依赖 consumer 源码另行调用 callback intrinsic 才保留。请求复用普通导入类型物化缓存，进入具体化前已具备所需类型，不在后续 stage 按名称补建。
+
 LIR struct store 在创建 Scoop／C 表示时返回对应的窄引用，后续字段填充沿用该引用；C payload 的消费接口接收已选中的字段与布局。不可变类别的存储投影仍属于普通 arena 查询，不增加另一套身份或重复保存 nominal 数据。宽表示入口只完成一次实际分支选择，intrinsic 不以空 declared 字段参与源字段或 C payload 操作。
 
 MIR 中 intrinsic struct 与 intrinsic class 分别保存其允许的表示类别；例如 Array／Atomic 不可填入 struct 表示，Ptr／MaybeUninit 不可填入 class 表示。该区分沿既有 nominal 生产路径完成，后续物理类型与布局消费不再排除另一类 nominal 的变体。

@@ -28,6 +28,13 @@ impl Lowerer {
         use hir::DefaultExpressionKindV1 as Kind;
         if matches!(
             expression.kind(),
+            Kind::ForeignCallbackRegister { .. } | Kind::ForeignCallbackOperation { .. }
+        ) {
+            self.prepare_imported_foreign_callback_protocol()
+                .map_err(ImportedDefaultMaterializationError::Plan)?;
+        }
+        if matches!(
+            expression.kind(),
             Kind::Index { .. } | Kind::ArraySet { .. }
         ) {
             self.prepare_array_bounds_exception_type()

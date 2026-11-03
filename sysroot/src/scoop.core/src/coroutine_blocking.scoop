@@ -1,0 +1,224 @@
+/**
+ * Suspends while a synchronous managed function runs on the current executor's blocking pool.
+ * Cancellation can withdraw a queued call. Once the function starts, its actual result or failure
+ * is delivered after cleanup, even when the caller's job has been cancelled. Requires an executor.
+ */
+public suspend fun <T> blocking(block: () -> T): T =
+    when (currentCoroutineExecutorOrNone()) {
+        case Some(executor) -> executor.blocking(block)
+        case None -> throw IllegalStateException(Some("blocking requires a coroutine executor"))
+    }
+
+/**
+ * Runs a synchronous managed function on this executor and returns to the caller's execution.
+ * The function inherits context bindings and can allocate managed values, but cannot suspend.
+ * Cancellation and result delivery follow the same rules as the implicit-executor blocking call.
+ */
+public suspend fun <T> CoroutineExecutor.blocking(block: () -> T): T {
+    ensureActive()
+    val task = registerTask(executorParent(this, currentExecutorTask()))
+    return suspendCoroutine<T> {
+        continuation ->
+        val operation =
+            try {
+                BlockingOperation<T>(task, BlockingRequest<T>(continuation, block))
+            } catch (error: Throwable) {
+                task.complete()
+                throw error
+            }
+        operation.submit(currentJobOrNone())
+    }
+}
+
+private enum BlockingOperationState<T> {
+    Queued(BlockingRequest<T>)
+    Running
+    // Cancellation notification and shell retirement can finish in either order.
+    Cancelling(Boolean)
+    Cancelled
+    Finished
+}
+
+private class BlockingOperation<T>(
+    private val task: ExecutorTask,
+    request: BlockingRequest<T>
+): BlockingWork {
+    private val lock = CoroutineLock()
+    private var state: BlockingOperationState<T> = BlockingOperationState.Queued(request)
+    private var cancellation: Disposable? = None
+
+    fun submit(job: Job?) {
+        try {
+            when (job) {
+                case Some(job) -> {
+                    val listener = job.invokeOnCancellation { error -> cancel(error) }
+                    val installed =
+                        lock.withLock {
+                            when (state) {
+                                case BlockingOperationState.Queued(_) -> {
+                                    cancellation = Some(listener)
+                                    true
+                                }
+                                else -> false
+                            }
+                        }
+                    if (!installed)
+                        listener.dispose()
+                }
+                case None -> {}
+            }
+        } finally {
+            // Even a synchronously cancelled operation retires through its queued shell.
+            task.dispatchBlocking(this)
+        }
+    }
+
+    private fun cancel(error: CancellationException) {
+        val claimed: (BlockingRequest<T>, Disposable?)? =
+            lock.withLock {
+                when (state) {
+                    case BlockingOperationState.Queued(request) -> {
+                        state = BlockingOperationState.Cancelling(false)
+                        val listener = cancellation
+                        cancellation = None
+                        Some((request, listener))
+                    }
+                    else -> None
+                }
+            }
+        when (claimed) {
+            case Some((request, listener)) -> {
+                try {
+                    listener?.dispose()
+                    request.cancel(error)
+                } finally {
+                    finishCancellation()
+                }
+            }
+            case None -> {}
+        }
+    }
+
+    private fun finishCancellation() {
+        val retired =
+            lock.withLock {
+                when (state) {
+                    case BlockingOperationState.Cancelling(retired) -> {
+                        state =
+                            if (retired)
+                                BlockingOperationState.Finished
+                            else
+                                BlockingOperationState.Cancelled
+                        retired
+                    }
+                    else -> throw IllegalStateException(
+                        Some("blocking cancellation finished twice")
+                    )
+                }
+            }
+        if (retired)
+            task.complete()
+    }
+
+    public override fun run() {
+        val(request, listener, complete) =
+            lock.withLock {
+                var complete = true
+                val request: BlockingRequest<T>? =
+                    when (state) {
+                        case BlockingOperationState.Queued(request) -> {
+                            state = BlockingOperationState.Running
+                            Some(request)
+                        }
+                        case BlockingOperationState.Cancelled -> {
+                            state = BlockingOperationState.Finished
+                            None
+                        }
+                        case BlockingOperationState.Cancelling(false) -> {
+                            state = BlockingOperationState.Cancelling(true)
+                            complete = false
+                            None
+                        }
+                        else -> throw IllegalStateException(
+                            Some("blocking work ran more than once")
+                        )
+                    }
+                val listener = cancellation
+                cancellation = None;
+                (request, listener, complete)
+            }
+        try {
+            listener?.dispose()
+            request?.run()
+        } finally {
+            if (complete) {
+                lock.withLock { state = BlockingOperationState.Finished }
+                task.complete()
+            }
+        }
+    }
+}
+
+private enum BlockingResult<T> {
+    Value(T)
+    Failure(Throwable)
+}
+
+private class BlockingInvocation<T>(private val block: () -> T) {
+    private var result: MaybeUninit<BlockingResult<T>> = MaybeUninit<BlockingResult<T>>.uninit()
+
+    fun invoke(): Int {
+        val outcome: BlockingResult<T> =
+            try {
+                BlockingResult.Value(block())
+            }
+            catch (error: Throwable) {
+                BlockingResult.Failure(error)
+            }
+        result = MaybeUninit<BlockingResult<T>>.initialized(outcome)
+        return 0
+    }
+
+    fun deliver(continuation: Continuation<T>) {
+        @Unsafe
+        {
+            when (result.assumeInit()) {
+                case BlockingResult.Value(value) -> continuation.resume(value)
+                case BlockingResult.Failure(error) -> continuation.resumeWithException(error)
+            }
+        }
+    }
+}
+
+private class BlockingRequest<T>(private val continuation: Continuation<T>, block: () -> T) {
+    private val invocation = BlockingInvocation<T>(block)
+    private val callback = registerCallback()
+
+    private fun registerCallback(): ForeignCallback<(Ptr<Unit>) -> Int> {
+        @Unsafe
+        {
+            return foreignCallback<(Ptr<Unit>) -> Int>(
+                { invocation.invoke() },
+                0,
+                ForeignCallbackMode.OneShot
+            )
+        }
+    }
+
+    fun cancel(error: CancellationException) {
+        @Unsafe
+        {
+            releaseForeignCallback(callback)
+        }
+        continuation.resumeWithException(error)
+    }
+
+    fun run() {
+        @Unsafe
+        {
+            callback.function(callback.context)
+        }
+        // Invocation consumes the callback and restores Context before publishing the result.
+        invocation.deliver(continuation)
+    }
+}

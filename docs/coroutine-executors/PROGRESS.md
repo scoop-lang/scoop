@@ -5,7 +5,7 @@
 | 大项 | 状态 |
 | --- | --- |
 | lambda 按期望类型推导挂起性、对称重载消歧、跨 Cone 定型 | 已完成本地验收 |
-| core executor 协议、TaskContext、驱动边界、编译器挂起/恢复握手 | 实施中 |
+| core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成本地验收 |
 | Channel、AsyncMutex、AsyncConditionVariable | 未开始 |
 | MultiThreadExecutor、通用 managed BlockingTaskPool | 未开始 |
 | asyncio 接入、AsyncRuntime、三平台 native work 迁移与 API 收敛 | 未开始 |
@@ -52,3 +52,11 @@
 - 迁移 asyncio、HTTP、压缩、窗口和 UI 的调用方，显式限定原有外层 receiver。ExecutorClosedException 的构造器设为 public。原 5 组普通结构化并发 fixture 移入 core consumer 与 platform Cone tests；驱动、yield 和 scope 测试按行为拆分并共享排队 executor。
 - 验证：Scoop 格式化、diff 检查通过；15 项 executor/receiver/yield、8 项结构化行为、1 项非取消清理及 1 项真实线程竞争测试通过。全部系统库和 asyncio 测试程序 release 构建通过；HTTP asyncio/client/server、窗口 asyncio、Surface asyncio、无窗口宿主、下载示例的应用与测试源码，以及准备后的 SSE consumer 源码检查通过。
 - 本轮在 Darwin AArch64 release 验证；Windows 专有调用方已同步 receiver 写法，实际运行随两类 worker 闭环集中验收。
+
+## 通用 blocking 入口（2026-11-04）
+
+- core 实现 blocking 与 CoroutineExecutor.blocking，普通闭包及返回值不受 GC-free 限制。复用 OneShot foreignCallback 捕获 binding 快照，运行时不继承 caller execution；callback 和 Context 出口结束后才通过保存的 continuation 交付 typed 结果或异常。
+- 排队取消与 worker 领取由同一状态锁仲裁。取消先胜时立即释放 callback、用户捕获及 continuation，空队列工作保留必要登记；登记在队列退休与取消通知两者完成后释放。已经运行的闭包等待真实结束，运行中或结果发布后的取消不会覆盖其实际结果。
+- 修复导入泛型模板中 callback 注册／操作缺失隐式协议类型的问题：在 HIR 模板物化边界按已有 core 身份请求模式、状态与 Option<Throwable>，复用类型缓存。实现规范已同步；产物格式、runtime ABI 与 callback ownership 协议不变。
+- 验证：格式化、HIR lowering all-targets Clippy、5 项相关导入／native-call 测试通过；core/std/test release 构建及 27 项 executor 行为测试通过，其中新增 12 项 blocking 测试。托管结构体结果／Context 与异常交付两项用例在移动 GC／minor GC stress 下通过，平台为 Darwin AArch64 release。
+- 当前验证使用可控排队 executor，覆盖同步取消安装、出队与通知交错、成功资源与失败身份、跨 executor 返回、捕获 scope 发起 child 以及 completion 抛出后的退休。实际 managed blocking pool 和多 worker 组合仍待后续实现。
