@@ -1,5 +1,6 @@
 """Select the real target-specific built-in Cone graph for builds and documentation."""
 
+import concurrent.futures
 import sys
 import tempfile
 import unittest
@@ -18,6 +19,38 @@ WINDOWS = "x86_64-pc-windows-msvc-ucrt"
 
 
 class SysrootSelectionTests(unittest.TestCase):
+    def test_parallel_targets_share_header_publication_and_reuse(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            include = runtime / "include"
+            include.mkdir(parents=True)
+            names = ("scoop_rt.h", "scoop_runtime_metadata_v1.h", "scoop_app.h")
+            for name in names:
+                (include / name).write_text("/* Runtime header. */\n")
+            sysroot = root / "sysroot"
+            with (
+                patch.object(
+                    prepare_sysroot.shutil, "copy2", wraps=prepare_sysroot.shutil.copy2
+                ) as copy,
+                concurrent.futures.ThreadPoolExecutor(max_workers=3) as pool,
+            ):
+                futures = [
+                    pool.submit(prepare_sysroot.prepare_headers, runtime, sysroot) for _ in range(3)
+                ]
+                for future in futures:
+                    future.result()
+                self.assertEqual(copy.call_count, len(names))
+            for name in names:
+                self.assertEqual(
+                    (sysroot / "include" / name).read_text(), (include / name).read_text()
+                )
+            (include / "scoop_rt.h").write_text("/* Updated runtime header. */\n")
+            prepare_sysroot.prepare_headers(runtime, sysroot)
+            self.assertEqual(
+                (sysroot / "include/scoop_rt.h").read_text(), "/* Updated runtime header. */\n"
+            )
+
     def write_cone(self, root, name, extra=""):
         path = root / "src" / name / "Cone.toml"
         path.parent.mkdir(parents=True)

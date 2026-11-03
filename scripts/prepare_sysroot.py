@@ -11,6 +11,7 @@ import tempfile
 import tomllib
 from pathlib import Path
 
+from build_support import build_lock
 from target_catalog import TARGET_FACTS, TARGETS
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -127,6 +128,18 @@ def publish_files(source, destination, files, record):
             raise
     save_record(record, state)
     print(f"Prepared {destination}", flush=True)
+
+
+def prepare_headers(runtime_root, sysroot):
+    state = sysroot / "lib"
+    state.mkdir(parents=True, exist_ok=True)
+    with build_lock(state / ".prepare-headers.lock"):
+        publish_files(
+            runtime_root / "include",
+            sysroot / "include",
+            [Path("scoop_rt.h"), Path("scoop_runtime_metadata_v1.h"), Path("scoop_app.h")],
+            state / ".prepare-headers.json",
+        )
 
 
 def runtime(args, work, environment, native, enable_gc_stress=False, enable_startup_stats=False):
@@ -246,12 +259,7 @@ def main():
         if value is not None:
             native.extend([flag, str(value)])
 
-    publish_files(
-        args.runtime_root / "include",
-        args.sysroot / "include",
-        [Path("scoop_rt.h"), Path("scoop_runtime_metadata_v1.h"), Path("scoop_app.h")],
-        work / "headers.json",
-    )
+    prepare_headers(args.runtime_root, args.sysroot)
     if not args.runtime_only:
         scoop = args.scoop.resolve()
         scoopc = (
