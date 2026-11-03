@@ -136,14 +136,16 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                         [
                                             component(
                                                 ButtonProps(
-                                                    LabelProps(
-                                                        LabelText.Plain(
-                                                            f"Inline ${
-                                                                this @LayoutScene.probe.inlineClicks.value
-                                                            }",
-                                                            None
-                                                        ),
-                                                        Some(this @LayoutScene.probe.fonts)
+                                                    ButtonContent.Label(
+                                                        LabelProps(
+                                                            LabelText.Plain(
+                                                                f"Inline ${
+                                                                    this @LayoutScene.probe.inlineClicks.value
+                                                                }",
+                                                                None
+                                                            ),
+                                                            Some(this @LayoutScene.probe.fonts)
+                                                        )
                                                     ),
                                                     {
                                                         this @LayoutScene.probe.inlineClicks.value += 1

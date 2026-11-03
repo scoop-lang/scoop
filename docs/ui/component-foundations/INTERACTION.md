@@ -1,10 +1,10 @@
 # 公共交互、弹层退出与阅读位置
 
-本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，尚未实施。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
+本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，I1 已完成，当前实施 I2。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
 
 ## 1. 可组合的激活行为
 
-将 Button／Checkbox 内部 [Activation](../../../sysroot/src/scoop.ui.component/src/input/activation.scoop) 演进为 UI 的公共 Press 行为与 `InteractionState`。行为借用调用方创建的 InputArea 和 scope，拥有自己的处理器登记／临时状态；关闭行为不关闭调用方的 area。通过 ComponentScope 登记清理，更新时接收最新 enabled、按键策略和动作。
+Button／Checkbox 迁移到 UI 的公共 [Press](../../../sysroot/src/scoop.ui/src/interaction/press.scoop) 行为与 `InteractionState`。行为借用调用方创建的 InputArea 和 scope，拥有自己的处理器登记／临时状态；关闭行为不关闭调用方的 area。通过 ComponentScope 登记清理，更新时接收最新 enabled、按键策略和动作。
 
 `InteractionState` 提供 hovered、pressed、focused；选中／展开／校验错误仍是控件模型，不混入一次按下序列。行为使用已有默认动作和事件完成通知，不覆盖 area 唯一的 handler，不额外创建重叠命中区域。
 
@@ -18,7 +18,7 @@
 
 ## 2. 按下序列归属与拖动
 
-Surface 当前固定鼠标按下路径，能够派发取消，但没有让祖先拖动行为接管子项按下序列的公共合同。补充一次序列内的显式 claim：调用者必须是原按下路径上的活动 area／scope；只能接管当前窗口中仍按下的对应序列。
+Surface 以固定鼠标按下路径和取消通知为基础，提供一次序列内的显式 claim：调用者必须是原按下路径上的活动 area／scope；只能接管当前窗口中仍按下的对应序列。
 
 claim 成功时：
 

@@ -42,6 +42,8 @@ private class ControlUiTest {
             assertEquals(1, probe.scene!!.mounts)
             assertEquals(1, probe.scene!!.unmounts)
             assertEquals(1, probe.buttonCreates)
+            assertEquals(1, probe.contentMounts)
+            assertEquals(1, probe.contentUnmounts)
             assertEquals(1, probe.checkCreates)
             assertEquals(1, probe.labelCreates)
             for (theme in probe.themes)
@@ -158,6 +160,8 @@ internal class ControlProbe {
     var shortcuts: ShortcutScope? = None
     var shortcutCalls = 0
     var buttonCreates = 0
+    var contentMounts = 0
+    var contentUnmounts = 0
     var checkCreates = 0
     var labelCreates = 0
     var renders = 0

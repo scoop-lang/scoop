@@ -1,0 +1,205 @@
+package scoop.ui.component
+
+import scoop.math.*
+
+/** Numeric policy shared by range controls; no input, rendering or clock ownership. */
+public class RangeSpec public constructor(
+    public val minimum: Double,
+    public val maximum: Double,
+    public val step: Double? = None,
+    public val minimumGap: Double = 0.0,
+    public val reversed: Boolean = false
+) {
+    private val extent = maximum - minimum
+    init {
+        requireComponent(
+            minimum.isFinite() && maximum.isFinite() && extent.isFinite() && extent >= 0.0,
+            "invalid range bounds"
+        )
+        nonnegative(minimumGap, "invalid range minimum gap")
+        when (step) {
+            case Some(value) -> requireComponent(
+                value.isFinite() && value > 0.0,
+                "range step must be finite and positive"
+            )
+            case None -> {}
+        }
+    }
+    private val steps: Long? =
+        when (step) {
+            case Some(value) -> Some(rangeStepCount(extent / value))
+            case None -> None
+        }
+    private val gapSteps: Long =
+        when (step) {
+            case Some(value) -> rangeGapSteps(minimumGap / value)
+            case None -> 0L
+        }
+    public val lastValue: Double get() =
+        when (steps) {
+            case Some(value) -> fromStep(value)
+            case None -> maximum
+        }
+    public fun clamp(value: Double): Double {
+        requireComponent(value.isFinite(), "range value must be finite")
+        return when (steps) {
+            case Some(_) -> fromStep(stepIndex(value))
+            case None -> bound(value, minimum, maximum)
+        }
+    }
+    /** Position is normalized to 0..1 and can be mapped onto any committed track. */
+    public fun valueAt(position: Double): Double {
+        requireComponent(position.isFinite(), "range position must be finite")
+        val fraction = bound(position, 0.0, 1.0)
+        return clamp(
+            minimum +
+                extent *
+                (
+                    if (reversed)
+                        1.0 - fraction
+                    else
+                        fraction
+                )
+        )
+    }
+    public fun positionOf(value: Double): Double {
+        val selected = clamp(value)
+        val fraction =
+            if (extent == 0.0)
+                0.0
+            else
+                (selected - minimum) / extent
+        return if (reversed)
+            1.0 - fraction
+        else
+            fraction
+    }
+    /** Moves one stable thumb index without sorting or changing its neighbors. */
+    public fun move(values: Array<Double>, index: Long, value: Double): Array<Double> {
+        validate(values)
+        requireComponent(index >= 0L && index < values.size, "range thumb index is out of bounds")
+        requireComponent(value.isFinite(), "range value must be finite")
+        val selected =
+            when (steps) {
+                case Some(last) -> {
+                    val low =
+                        if (index == 0L)
+                            0L
+                        else
+                            stepIndex(values[index - 1L]) + gapSteps
+                    val high =
+                        if (index + 1L == values.size)
+                            last
+                        else
+                            stepIndex(values[index + 1L]) - gapSteps
+                    fromStep(min(max(stepIndex(value), low), high))
+                }
+                case None -> {
+                    val low =
+                        if (index == 0L)
+                            minimum
+                        else
+                            values[index - 1L] + minimumGap
+                    val high =
+                        if (index + 1L == values.size)
+                            maximum
+                        else
+                            values[index + 1L] - minimumGap
+                    bound(value, low, high)
+                }
+            }
+        return Array<Double>(values.size) {
+            position -> if (position == index)
+                selected
+            else
+                values[position]
+        }
+    }
+    public fun validate(values: Array<Double>) {
+        val count =
+            if (values.size == 0L)
+                0L
+            else
+                values.size - 1L
+        val required =
+            when (steps) {
+                case Some(last) -> count.toDouble() * gapSteps.toDouble() <= last.toDouble()
+                case None -> count.toDouble() * minimumGap <= extent
+            }
+        requireComponent(required, "range cannot contain all thumbs at the minimum gap")
+        for (index in 0L ..< values.size) {
+            val value = values[index]
+            requireComponent(
+                value.isFinite() && value >= minimum && value <= maximum,
+                "range thumb is outside its bounds"
+            )
+            when (steps) {
+                case Some(_) -> {
+                    val number = stepIndex(value)
+                    val canonical = fromStep(number)
+                    requireComponent(
+                        abs(value - canonical) <= step!! * 1.0e-10,
+                        "range thumb is not on a discrete step"
+                    )
+                    if (index > 0L)
+                        requireComponent(
+                            number - stepIndex(values[index - 1L]) >= gapSteps,
+                            "range thumbs violate their minimum gap"
+                        )
+                }
+                case None -> if (index > 0L)
+                    requireComponent(
+                        value - values[index - 1L] >= minimumGap,
+                        "range thumbs violate their minimum gap"
+                    )
+            }
+        }
+    }
+    private fun stepIndex(value: Double): Long {
+        val last = steps!!
+        val limited = bound(value, minimum, maximum)
+        val quotient = (limited - minimum) / step!!
+        val lower = floor(quotient)
+        val rounded =
+            if (quotient - lower >= 0.5)
+                lower + 1.0
+            else
+                lower
+        return min(rounded.toLong(), last)
+    }
+    private fun fromStep(index: Long): Double = min(maximum, minimum + index.toDouble() * step!!)
+}
+
+private fun bound(value: Double, low: Double, high: Double): Double = min(max(value, low), high)
+
+private fun checkedSteps(value: Double): Long {
+    requireComponent(
+        value.isFinite() && value <= 9007199254740991.0,
+        "range step count exceeds exact integer precision"
+    )
+    return value.toLong()
+}
+
+private fun rangeStepCount(quotient: Double): Long {
+    val lower = floor(quotient)
+    val fraction = quotient - lower
+    // Only compensate for the last arithmetic rounding, not an extra endpoint step.
+    val tolerance = min(1.0e-8, quotient * 8.881784197001252e-16)
+    val value =
+        if (fraction > 0.0 && 1.0 - fraction <= tolerance)
+            lower + 1.0
+        else
+            lower
+    return checkedSteps(value)
+}
+
+private fun rangeGapSteps(quotient: Double): Long {
+    val lower = floor(quotient)
+    val tolerance = min(1.0e-8, quotient * 8.881784197001252e-16)
+    return checkedSteps(
+        if (quotient - lower <= tolerance)
+            lower
+        else
+            ceil(quotient)
+    )
+}

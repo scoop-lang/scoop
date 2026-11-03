@@ -11,6 +11,9 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.KeyCode
 import scoop.window.PhysicalKey
+import scoop.window.ShortcutChord
+import scoop.window.ShortcutKey
+import scoop.window.ShortcutModifiers
 
 internal class ControlScene(private val probe: ControlProbe): Component {
     var count: Int by state(7)
@@ -96,9 +99,18 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                 styled(
                     component(
                         ButtonProps(
-                            LabelProps(
-                                LabelText.Plain(f"Count: ${this @ControlScene.count}", None),
-                                Some(probe.fonts)
+                            ButtonContent.Custom(
+                                component(
+                                    LabelProps(
+                                        LabelText.Plain(
+                                            f"Count: ${this @ControlScene.count}",
+                                            None
+                                        ),
+                                        Some(probe.fonts),
+                                        baseStyle = Some(theme.tokens.typography.action)
+                                    ),
+                                    { current -> CustomButtonContent(current, probe) }
+                                )
                             ),
                             { count += delta },
                             binding.value,
@@ -181,5 +193,18 @@ private class ControlPanel(
         }
         probe.paintedGeneration = props.value.generation
         probe.paintedCount = props.value.count
+    }
+}
+
+private class CustomButtonContent(
+    private val props: Props<LabelProps>,
+    private val probe: ControlProbe
+): Component {
+    public override fun onMount(scope: ComponentScope) {
+        probe.contentMounts += 1
+    }
+    public override fun render(): View = component(props.value, { current -> Label(current) })
+    public override fun onUnmount() {
+        probe.contentUnmounts += 1
     }
 }

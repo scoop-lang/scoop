@@ -1,0 +1,14 @@
+package scoop.ui
+
+import scoop.surface.InputArea
+
+internal fun ComponentScope.requireBehaviorArea(area: InputArea) {
+    requireUi(!area.isClosed, "interaction behavior requires an open area")
+    val local = input
+    val belongs =
+        when (area.scope.parent) {
+            case Some(parent) -> parent === local
+            case None -> false
+        }
+    requireUi(belongs, "interaction area must belong directly to this mount")
+}

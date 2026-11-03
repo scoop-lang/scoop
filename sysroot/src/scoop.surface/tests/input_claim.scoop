@@ -1,0 +1,186 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class InputClaimTest {
+    @Test
+    fun `an ancestor owns later moves and releases while a child is cancelled exactly once`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            val sibling = rig.area("sibling")
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 80.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 30.0))
+                frame.place(canvas, sibling, Rect(150.0, 0.0, 40.0, 30.0))
+            }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.log.events.clear()
+            assertFalse(sibling.scope.claimPointer())
+            assertTrue(parent.scope.claimPointer())
+            assertTrue(parent.scope.claimPointer())
+            assertFalse(child.scope.claimPointer())
+            assertTrue(parent.scope.activity.hasPress)
+            assertFalse(child.scope.activity.hasPress)
+            rig.move(200.0, 100.0)
+            rig.button(200.0, 100.0, ElementState.Released)
+            var cancelled = 0L
+            for (record in rig.log.events)
+                if (record.name == "child" && inputKind(record.event) == "cancel")
+                    cancelled += 1L
+            assertEquals(1L, cancelled)
+            for (record in rig.log.events)
+                if (inputKind(record.event) == "move" || inputKind(record.event) == "up")
+                    assertEquals("parent", record.name)
+            assertFalse(parent.scope.claimPointer())
+        }
+    }
+
+    @Test
+    fun `cancelling a claim keeps late release empty and permits the next independent press`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 30.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertTrue(area.scope.claimPointer())
+            area.scope.cancelPointerClaim()
+            rig.log.events.clear()
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("", boundaryTrace(rig.log))
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertEquals("area/Target,area/Target", boundaryTrace(rig.log))
+        }
+    }
+
+    @Test
+    fun `button chords share their first owner and cancellation can remove that owner`() {
+        InputRig().use {
+            rig ->
+            val parent = rig.area("parent")
+            val child = rig.area("child", parent = Some(parent.scope))
+            rig.frame {
+                frame, canvas ->
+                frame.place(canvas, parent, Rect(0.0, 0.0, 100.0, 80.0))
+                frame.place(canvas, child, Rect(0.0, 0.0, 40.0, 30.0))
+            }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            rig.button(10.0, 10.0, ElementState.Pressed, MouseButton.Right)
+            assertTrue(parent.scope.claimPointer())
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertFalse(parent.scope.claimPointer())
+            assertTrue(parent.scope.claimPointer(MouseButton.Right))
+            rig.button(10.0, 10.0, ElementState.Released, MouseButton.Right)
+            val subscription =
+                child.scope.addEventHandler {
+                    _,
+                    event -> when (event) {
+                        case Pointer(
+                            InputPointerEvent.Cancelled(InputCancelReason.Claimed, _)
+                        ) -> parent.close()
+                        else -> {}
+                    }
+                }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertFalse(parent.scope.claimPointer())
+            rig.button(10.0, 10.0, ElementState.Released)
+            subscription.close()
+            assertFalse(child.scope.activity.hasPress)
+        }
+    }
+
+    @Test
+    fun `independent subscriptions preserve handlers and finish a prevented release`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area")
+            val trace = ArrayList<String>()
+            val subscriptions = ArrayList<Closeable>()
+            subscriptions.add(
+                area.scope.addEventHandler {
+                    context,
+                    event -> if (
+                        context.phase == RoutedPhase.Target && inputKind(event) == "down"
+                    ) {
+                        trace.add("first")
+                        subscriptions[0L].close()
+                        subscriptions.add(
+                            area.scope.addEventHandler {
+                                next,
+                                _ -> if (next.phase == RoutedPhase.Target)
+                                    trace.add("next")
+                            }
+                        )
+                    }
+                }
+            )
+            val second =
+                area.scope.addEventHandler {
+                    context,
+                    _ -> if (context.phase == RoutedPhase.Target)
+                        trace.add("second")
+                }
+            val cleanup =
+                area.scope.addEventFinished {
+                    event -> if (inputKind(event) == "up")
+                        trace.add("finished")
+                }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 30.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertClaimValues(["first", "second"], trace.toArray())
+            rig.router.rootScope.captureHandler =
+                {
+                    context,
+                    event -> if (inputKind(event) == "up")
+                        context.consume()
+                }
+            rig.button(10.0, 10.0, ElementState.Released)
+            assertClaimValues(["first", "second", "finished"], trace.toArray())
+            assertTrue(rig.log.events.size > 0L)
+            second.close();
+            cleanup.close()
+            for (subscription in subscriptions)
+                subscription.close()
+            assertFalse(area.isClosed)
+        }
+    }
+
+    @Test
+    fun `terminal subscriptions finish before retirement even when another cancellation handler throws`() {
+        InputRig().use {
+            rig ->
+            val area = rig.area("area")
+            val cancelled = ArrayList<String>()
+            area.scope.addEventHandler {
+                _,
+                event -> if (inputKind(event) == "cancel") {
+                    cancelled.add("first");
+                    throw IllegalStateException(Some("expected cancellation"))
+                }
+            }
+            area.scope.addEventHandler {
+                _,
+                event -> if (inputKind(event) == "cancel")
+                    cancelled.add("second")
+            }
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 30.0)) }
+            rig.button(10.0, 10.0, ElementState.Pressed)
+            assertFailsWith<IllegalStateException> { area.close() }
+            assertClaimValues(["first", "second"], cancelled.toArray())
+            assertEquals(0L, area.scope.eventHandlers.size)
+            rig.button(10.0, 10.0, ElementState.Released)
+        }
+    }
+}
+
+private fun <T: Equals<T>> assertClaimValues(expected: Array<T>, actual: Array<T>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertEquals(expected[index], actual[index])
+}

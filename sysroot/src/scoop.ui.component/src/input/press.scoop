@@ -1,0 +1,7 @@
+package scoop.ui.component
+
+import scoop.surface.InputArea
+import scoop.ui.*
+
+/** Published once by the component mount, before its element mounts or updates. */
+internal class PressControl(val area: InputArea, val focus: FocusTarget, val press: Press)

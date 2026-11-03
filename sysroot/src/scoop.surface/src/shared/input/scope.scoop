@@ -10,6 +10,8 @@ public class InputScope internal constructor(
     internal var closed = false
     internal var accepts = true
     internal var defaultActions: Array<InputDefaultAction> = []
+    internal var eventHandlers: Array<InputEventHandler> = []
+    internal var finishedHandlers: Array<InputFinishedHandler> = []
     private var receive = handler
     private var capture: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
     private var action: (RoutedEventContext, InputEvent) -> Unit = { _, _ -> Unit }
@@ -36,6 +38,10 @@ public class InputScope internal constructor(
         return owner.allows(this)
     }
     public val activity: InputActivity get() = owner.activityFor(this).value
+    public val isHovered: Boolean get() {
+        owner.checkThread()
+        return !closed && containsScope(owner.hover, this)
+    }
     /** Notifies changes of the actual owners, including moves within this subtree. */
     public fun observeActivity(handler: () -> Unit): Closeable {
         checkOpen()

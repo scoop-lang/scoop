@@ -1,0 +1,91 @@
+package scoop.tests.ui.gestures
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class GestureRoot(private val probe: GestureProbe): Component {
+    private val content = element({ GestureChild(probe) })
+    public override fun render(): View =
+        element(probe.shift.value, { props -> GesturePanel(props, probe) }, [content])
+}
+
+private class GesturePanel(
+    private val props: Props<Double>,
+    private val probe: GestureProbe
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        probe.parent = Some(area)
+        probe.drag =
+            Some(
+                scope.drag(
+                    area,
+                    DragOptions(DragAxis.Horizontal, enabled = false),
+                    handler = { event -> probe.dragged(event) }
+                )
+            )
+        scope.routeChildren(area)
+        scope.resource { scope.input.addEventFinished { _ -> probe.completed += 1 } }
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (probe.preventRelease)
+                            context.consume()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(80.0, 40.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(240.0, 140.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val shift = props.value
+        context.translate(shift, 0.0)
+        context.place(probe.parent!!, Rect(0.0, 0.0, 220.0, 120.0))
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.committedShift = Some(shift)
+        }
+    }
+}
+
+private class GestureChild(private val probe: GestureProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+        probe.area =
+            Some(
+                scope.createArea(focusable = true) {
+                    context, event ->
+                    if (context.phase == RoutedPhase.Target)
+                        probe.originalCalls += 1
+                    when (event) {
+                        case Pointer(
+                            InputPointerEvent.Cancelled(InputCancelReason.Claimed, _)
+                        ) -> probe.childCancellations += 1
+                        else -> {}
+                    }
+                }
+            )
+        scope.focusTarget(probe.area!!)
+        probe.press = Some(scope.press(probe.area!!) { probe.clicks += 1 })
+        probe.mounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(80.0, 40.0)))
+    public override fun scene(context: SceneContext) {
+        context.place(probe.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+}

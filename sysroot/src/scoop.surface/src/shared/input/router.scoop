@@ -22,6 +22,7 @@ internal class InputRouter(
     private val owned = ArrayList<InputScope>()
     internal val rootScope = InputScope(this, None, None, { _, _ -> Unit })
     private val retired = ArrayList<AreaScene>()
+    private val retiredScopes = ArrayList<InputScope>()
     private var depth = 0
     private var draining = false
     internal var pending = false
@@ -29,6 +30,7 @@ internal class InputRouter(
     internal var inside = false
     internal var hover: Array<InputScope> = []
     internal var pressed: Array<InputScope>? = None
+    internal var pointerClaim: InputScope? = None
     internal var scrollRoute: InputScrollRoute? = None
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
@@ -132,6 +134,7 @@ internal class InputRouter(
         changed()
     }
     fun detached(scope: InputScope) {
+        retiredScopes.add(scope)
         var index = 0L
         while (index < owned.size) {
             if (owned[index] === scope) {
@@ -218,6 +221,9 @@ internal class InputRouter(
         for (old in retired)
             failure = cleanupFailure(failure) { old.close() }
         retired.clear()
+        for (scope in retiredScopes)
+            scope.retireEventHandlers()
+        retiredScopes.clear()
         throwFailure(failure)
     }
     private fun finishClose() {
@@ -245,6 +251,8 @@ internal class InputRouter(
         }
         failure = cleanupFailure(failure) { scene.close() }
         scene = AreaScene([])
+        for (scope in owned)
+            scope.retireEventHandlers()
         owned.clear()
         throwFailure(failure)
     }

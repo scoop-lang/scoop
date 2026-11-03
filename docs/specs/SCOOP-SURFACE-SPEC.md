@@ -236,6 +236,18 @@ Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines
 
 `InputPointerEvent.ScrollCancelled(InputCancelReason, InputTime)` 是独立的 Notification，向完整旧滚动路径交付，不取消鼠标按钮捕获；`InputCancelReason.ScrollInterrupted` 表示另一段滚动开始。区域缺席／关闭／禁用／重挂、模态边界切换、窗口失焦和关闭分别沿用 AreaChanged／BoundaryChanged／Window／Closed。处理器内发生这些变化时，立即停止旧滚动的后续普通交付，退出当前派发后再完整通知旧路径；一段已取消的 phase／momentum 保持空路径到结束，不在后续 Changed 或惯性阶段改投背景兄弟。原生 Wheel 自带 Ended／Cancelled 仍按原事件交付，onEventFinished 保证其收尾不会被传播或默认取消吞掉。
 
+### 6.5 可组合处理器与按下序列接管
+
+`InputScope.addEventHandler(handler)` 登记额外的 Target／Bubble／Notification 处理器；`addEventFinished(handler)` 登记额外的事件完成通知。两者返回只注销该登记的 Closeable，不覆盖原 handler／onEventFinished，也不关闭调用方 area。一次交付使用开始时的登记快照，已注销项跳过；本次回调中新登记的项从下一次交付生效。普通处理器服从现有异常规则；Notification 与完成通知按清理规则继续交付其他有效登记。关闭 scope 后，已排队的终结通知先完成，再释放登记。
+
+`InputScope.isHovered` 表示该 scope 是否在最近提交几何生成的逻辑 hover 路径中，关闭后为 false。它不从下一帧待提交矩形推算命中，也不把 hover 计入 InputActivity 的活动所有权。
+
+`InputScope.claimPointer(button = MouseButton.Left): Boolean` 只接管当前窗口已经按下的序列。调用方必须是原按下路径上的活动 scope，指定按钮仍处于按下状态；不在原路径、已经取消或其他 scope 已取得归属时返回 false。第一次成功后，同一 owner 重复调用返回 true，不重复发送取消。同一原生按钮组合仍沿用第一个按下时固定的一条路径，所有按钮释放后才结束该序列。
+
+接管先发布新的 owner 与路径，再对原路径中更深的节点各发送一次 `Cancelled(Claimed, time)`；回调可同步关闭／禁用／重挂节点，返回前重新确认新 owner 仍有效。当前事件已经冻结的坐标和完成通知保持不变，后续 move／release 从新 owner 向逻辑祖先路由。它不合成 Up，不把后续 release 投递到已取消子项，也不进行 OS 全局鼠标捕获。
+
+`InputScope.cancelPointerClaim()` 只撤销调用方已经取得的归属，以 `ClaimCancelled` 原因终止整条序列；不会交还原子项。未取得归属时为空操作。窗口失焦／关闭、原生取消、路径失效和边界变化继续使用现有终结合同；迟到的 release 不能重新命中另一目标。普通 claim 不改变焦点、IME 或滚轮序列归属。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。

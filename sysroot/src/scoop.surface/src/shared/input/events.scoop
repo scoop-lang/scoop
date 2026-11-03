@@ -6,7 +6,9 @@ import scoop.window.*
 public struct InputPointer(val state: PointerState, val time: InputTime)
 
 public enum InputCancelReason {
-    Window(PointerCancelReason), AreaChanged, BoundaryChanged, ScrollInterrupted, Closed
+    Window(
+        PointerCancelReason
+    ), AreaChanged, BoundaryChanged, ScrollInterrupted, Claimed, ClaimCancelled, Closed
 }
 
 /** Pixel distances are logical; line distances retain their native unit. */

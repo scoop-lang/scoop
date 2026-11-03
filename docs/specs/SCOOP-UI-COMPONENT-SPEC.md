@@ -8,7 +8,7 @@
 
 生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
 
-`scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
+`scoop.ui.component` 是独立的普通 Scoop Cone，提供基于 `scoop.ui` 的自绘基础控件。它依赖框架、公共 `scoop.ui.style` 及实际使用的 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window` 和 core／std／math／platform；使用下层类型的源码须声明相应直接依赖，不能借由框架的间接依赖访问它们。
 
 `scoop.ui` 的生产代码、测试和自绘示例不依赖本库。本库只调用框架及下层库的 public 接口，不使用 UI 的 internal 节点、特殊控件注册表或按控件类型分支的入口。任何应用自己的控件库都可以使用相同的 Component／Element、测量／绘制 context、输入区域和动画能力。
 
@@ -63,13 +63,14 @@ label／button／checkbox／row／column／stack／frame 都属于 `scoop.ui.com
 
 ### 2.1 接收者构造入口
 
-Label／Button／Checkbox 的文字、动作和外部 Binding 是必需参数；其余输入使用同步执行一次的接收者配置。入口返回普通 View，不挂载组件、运行事件回调或创建字体、painter、区域等资源。配置结果通过现有 LabelProps／ButtonProps／CheckboxProps 及自有勾选组件的 Props 发布，组件与 key 匹配方式保持不变，不保留原来的长参数函数重载。
+Label／Button／Checkbox 的文字或显式内容、动作和外部 Binding 是必需参数；其余输入使用同步执行一次的接收者配置。入口返回普通 View，不挂载组件、运行事件回调或创建字体、painter、区域等资源。配置结果通过现有 LabelProps／ButtonProps／CheckboxProps 及自有勾选组件的 Props 发布，组件与 key 匹配方式保持不变，不保留原来的长参数函数重载。
 
 ```scoop
 label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): View
 label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): View
 button(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = {}): View
 button(text: StyledText, onClick: () -> Unit, configure: StyledButtonBuilder.() -> Unit = {}): View
+button(content: View, onClick: () -> Unit, configure: ContentButtonBuilder.() -> Unit = {}): View
 checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
 checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit = {}): View
 ```
@@ -79,7 +80,8 @@ checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit 
 | LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle? = None；theme: ThemeSource? = None；key: ViewKey = Position |
 | PlainLabelBuilder : LabelBuilder | 继承上述字段；style: SpanStyle? = None |
 | StyledLabelBuilder : LabelBuilder | 继承上述字段；inlines: Array<InlineView> = [] |
-| ButtonBuilder | enabled: Boolean = true；style: ButtonStyle = buttonStyle()；fonts: FontCollection? = None；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| ButtonBuilder : ContentButtonBuilder | 继承上述字段；fonts: FontCollection? = None |
 | StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle? = None；inlines: Array<InlineView> = [] |
 | CheckboxBuilder | enabled: Boolean = true；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
 
@@ -136,11 +138,13 @@ Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；�
 
 ## 4. Button
 
-Button 的输入至少包括文字、onClick、enabled 及样式。它用普通状态保存 hover、pressed 和 focus 等交互表现，render 将这些值传给自己的 Element；文字可以组合 Label。绘制元素在 onMount 时取得 ComponentScope，创建一个允许焦点的 InputArea，在 scene 中使用实际布局矩形或明确的 Path 放置区域。
+Button 的输入包括内容 View、onClick、enabled 及样式。组件在 onMount 创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
 
-ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。内部 Element 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop 和 order。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。
+ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop 和 order。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。
 
-显式组件接收 `Props<ButtonProps>`，其中 label 是 LabelProps，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String 和 StyledText 入口，后者同样允许行内绑定。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
+首次 Component.render 使用未交互外观；onMount 在子 Element 挂载前创建 area／focus／Press，并通过普通 State 发布这组挂载资源。后续 render 读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不能在首次 render 解引用尚未挂载的 Press。
+
+显式组件接收 `Props<ButtonProps>`，其中 content 是 ButtonContent.Label(LabelProps) 或 ButtonContent.Custom(View)，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String、StyledText 和显式 View 入口。StyledText 允许行内绑定，Custom 内容由普通布局、图标和文字组合，三个入口共享同一个 Button／Press，不克隆 View 或合并隐藏属性。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
 
@@ -150,7 +154,7 @@ Button 的 LayoutMetrics 将标签基线加上实际垂直放置偏移，使整�
 
 Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存由最终 bounds 得到的 SurfaceGeometry 和同次视觉输入，scene 直接消费这份结果；不在 scene 另算一份可能不同的内容内缩。Checkbox 同样在 measure 保存本帧标记几何，scene 放置输入并在 draw 中绘制。采样不读取另一套时钟，普通几何快照无需关闭，输入仍在成功提交后发布。
 
-控件的普通传播处理器只观察事件，按压、释放和键盘激活登记在所属 InputScope.defaultAction。父级 preventDefault 可取消本次默认行为而不截断冒泡；Enter／Leave、FocusChanged 和 Cancelled 通过不可取消的 Notification 维护表现与清理。Surface 在默认阶段执行指针聚焦，控件不提前在传播阶段聚焦。onEventFinished 在释放的默认行为被取消时仍清除按下／按键状态，不产生点击。
+Button／Checkbox 复用 UI 的公共 Press；行为通过独立登记参与 Surface 的普通传播、默认动作和事件完成通知。父级 preventDefault 可取消本次默认行为而不截断冒泡；Enter／Leave、FocusChanged 和 Cancelled 通过不可取消的 Notification 维护表现与清理。Surface 在默认阶段执行指针聚焦，控件不提前在传播阶段聚焦。onEventFinished 在释放的默认行为被取消时仍清除按下／按键状态，不产生点击。
 
 指针激活采用以下规则：
 
@@ -159,7 +163,7 @@ Button 的 measure 使用本帧 Surface 动画采样查询 metrics，并保存�
 - Cancel、禁用、卸载或窗口失焦结束按下状态，不能合成会触发点击的普通 Up。
 - 普通重绘或 Props 更新不产生点击，也不重启已有按下序列。
 
-获得活动键盘焦点时，Enter／Space 的完整按下与释放激活一次；自动重复按键不产生额外激活。失焦、禁用或卸载取消键盘激活。指针和键盘激活状态须避免同一次交互重复调用回调。
+获得活动键盘焦点时，无额外修饰键的 Enter 在真实按下时激活、Space 在真实释放时激活；自动重复和 synthetic 不产生额外激活。失焦、禁用或卸载取消键盘激活。指针和键盘激活状态须避免同一次交互重复调用回调。
 
 指针进入／离开按 Surface 最近提交的命中路径维护，包含祖先 clip 和遮挡；不能只用本次测量矩形判断释放是否仍有效。键盘释放须匹配先前的物理键，synthetic 释放仅取消。一次激活序列只由指针或键盘其中一方持有；另一输入源不能在原序列中额外激活。控件不消费滚轮或无关按键。
 
@@ -194,7 +198,7 @@ CheckboxStyle 使用 CheckboxOptions 和同一 InteractionStyles，并可明确�
 
 自有状态入口由持久的内部组件在首次构造时创建 State，initialChecked 只决定首次值；普通父级重建或再次传入初始值不重置它。该组件把自己的 State 作为 Binding 交给相同的 Checkbox 实现，不复制绘制和输入逻辑。两种入口采用不同组件形状，切换外部绑定／自有状态模式时按框架第 5 节重新挂载；同一外部绑定入口更换 Binding 对象则沿通常 Props 更新保留实例。
 
-Checkbox 通过公开 Element 和 InputArea 自绘框、勾选标记及焦点外观。指针切换遵守 Button 的主按钮按下／区域内释放与取消规则；获得焦点后 Space 的一次完整按下／释放切换一次，自动重复不重复切换。禁用、失焦、卸载及区域取消结束活动序列，不改变 checked；Enter 不作为本控件的切换入口。enabled 和当前处理器在 Element.update 阶段生效，隐藏或没有 drawable 时同样处理。
+Checkbox 通过公开 Element 和 InputArea 自绘框、勾选标记及焦点外观。指针切换遵守 Button 的主按钮按下／区域内释放与取消规则；使用 acceptsEnter=false 的公共 Press，获得焦点后 Space 的一次完整按下／释放切换一次，自动重复不重复切换。禁用、失焦、卸载及区域取消结束活动序列，不改变 checked；Enter 不作为本控件的切换入口。enabled 和当前处理器在 Element.update 阶段生效，隐藏或没有 drawable 时同样处理。
 
 例如，同一个状态驱动勾选与另一个控件的 enabled：
 
@@ -269,7 +273,7 @@ Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, 
 
 滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
 
-条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和 onEventFinished 清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab 并显示主题焦点轮廓，PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab 并显示主题焦点轮廓，PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
 
 ### 6.3 VirtualList
 
@@ -310,6 +314,16 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 先确定最终列宽，再用每项实际跨度宽度重新测量高度；获得 Auto 行需求、分配行 Fraction 后施加最终单元格约束并放置。已知有限的行跨度用于初次测量需要有界视口的内容；Auto 轴没有可供虚拟列表查询的全数据自然尺寸，须由应用提供有限轨道。逻辑列起点与单元格横向对齐按 LayoutDirection 解析；行从上到下。
 
 表头和虚拟行共享的列宽是普通不可变 Array<Double>，各自转为 Fixed 轨道消费，不建立全局列登记或扫描／挂载虚拟数据。Grid 不承担排序、筛选、分页、拖列或二维虚拟化。所有布局仅调用 UI 的公开协议，独立 intrinsic 查询不在本轮范围。
+
+### 6.6 范围、相邻尺寸与吸附计算
+
+`RangeSpec(minimum, maximum, step=None, minimumGap=0, reversed=false)` 提供有限区间内的纯值计算。minimum／maximum 有限且有可表示的非负跨度，step 若指定必须有限为正；离散模式用整数步号计算，不持续累加浮点值。步数须能由 Double 精确表示整数；非整步 maximum 不增加一个特殊末端 step。连续模式不量化，退化区间返回唯一值。
+
+`clamp(value)` 返回可用值；`valueAt(position)`／`positionOf(value)` 在归一化 0～1 位置与数值之间转换，reversed 显式反转。`validate(values)` 检查当前有序 thumb、步对齐和 minimumGap 是否可满足；`move(values,index,value)` 只替换活动下标，限制在邻居及配置边界内，不排序、不换身份，不改变其他 thumb。配置更新前由调用方验证现有值，非法配置／当前值报告参数错误。
+
+`resizePair(first,second,delta,firstMin=0,firstMax=None,secondMin=0,secondMax=None)` 在两侧 min／max 内限制同一个位移，返回保留总长度的 SplitSizes；现有尺寸和位移必须可表示且满足配置。不会由两侧各自计算导致总量漂移。
+
+`snapTarget(position,velocity,anchors,projectionSeconds=0.15)` 从真实布局提供的有限锚点中，按释放速度投影后选择最近项，返回可选的 SnapTarget(index,position)；空锚点返回 None，同距离按速度方向选择、零速取较小位置。anchors 可保留调用方声明顺序，结果下标对应原数组。结果目标始终是实际有限锚点；函数不持有 Window、不启动动画、不管理条目模型。调用方在布局变化后重新解析锚点，用已有 Animatable／spring 推进，新拖动从当前值接管并取消旧目标。
 
 ## 7. 样式与资源归属
 

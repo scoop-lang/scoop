@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，当前进行 I1。
+日期：2026-11-04。状态：实施中，当前进行 I2。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -12,8 +12,8 @@
 | P2 文本服务与源码边界 | 已完成 |
 | L1 布局协议与空间分配 | 已完成 |
 | L2 方向、Wrap 和 Grid | 已完成 |
-| I1 公共激活与拖动 | 实施中 |
-| I2 弹层、候选项和悬浮 | 待实施 |
+| I1 公共激活与拖动 | 已完成 |
+| I2 弹层、候选项和悬浮 | 实施中 |
 | T1 编辑事务策略 | 待实施 |
 | T2 文本投影与选择 | 待实施 |
 | V1 装饰与图像 | 待实施 |
@@ -64,3 +64,12 @@
 - aarch64 macOS release：ui、style、三套主题和 component 共 6 个受影响生产库构建成功；58 个修改／新增 Scoop 源文件格式化通过，8 个相关 Cone 的 tests 类型检查通过，文档本地链接与 diff 检查通过。
 - 9 项定向测试全部通过：方向／逻辑弹层算法 2 项，Wrap／Grid／逻辑几何／配置 5 项，真实方向切换及布局各 1 项。窗口组合验证 LTR→RTL→LTR 后的同一焦点与局部状态、显式覆盖、portal、真实文本，以及两种方向下 Wrap 基线、Grid 跨列／文本换行和 Frame／Stack／Absolute 的提交位置。测试场景的锚点登记与 Closing 后查询问题已修正，无未闭合失败；未把 IME 方向组合记作已验收。
 - 清理本项独立检查锁文件和已使用的布局草稿，保留复用产物／缓存及下一项交互草稿。水平虚拟列表的方向与阅读位置一起在 S1 补齐；x86_64 仍在 C1 统一验收。
+
+## I1：公共激活与拖动
+
+- Surface 提供可独立关闭的事件／完成订阅、isHovered 和按下序列 claim。活动祖先接管后只取消一次更深候选，后续 move／release 沿所属路径交付；显式取消、多个按钮、关闭重入和终端通知共用原路由及清理边界。
+- UI 提供 scope 所有、借用 InputArea 的 Press／InteractionState 和轴向 Drag。激活使用真实快捷键规则、当前动作和 uncancellable release 清理；Drag 在阈值与轴向条件成立后接管，坐标取已提交变换，重复／倒退时间戳产生零速度，回调关闭 owner 时先收束序列。
+- Button／Checkbox 与滚动条接入公共行为；Button 增加普通 View 内容入口，文字入口共用实现。首次 render 与 onMount 之间通过普通 State 发布挂载资源，避免提前解引用 Press。component 增加连续／离散范围、thumb 最小间距、相邻区域 resize 和实际锚点 snap 的纯值计算。
+- aarch64 macOS release：surface、ui、style、三套主题及 component 共 7 个受影响生产库构建成功，Scoop 格式化、7 个相关 Cone 的 tests 类型检查、文档本地链接及 diff 检查通过。
+- 14 项定向测试全部通过：Surface claim／订阅 5 项，范围／尺寸／吸附 5 项，builder 1 项，真实 Press／Drag、控件和滚动条组合各 1 项。组合覆盖 disabled、键位修饰与 repeat、被阻止的释放、阈值和轴向拒绝、已提交变换、重复／倒退时间戳、显式取消、同步关闭窗口，以及自定义 Button 子树与六种主题状态。类型检查发现的 Option 比较及旧快捷键 import、控件首次 render 早于 onMount 的失败均已修正；修正后只复验受影响的控件组合，没有重跑已通过且未改动的部分。
+- 清理本项独立检查锁文件和已使用的交互草稿，保留后续会复用的产物、Cone cache 及 I2 草稿。Windows／Linux 和 x86_64 仍未在本项验收。

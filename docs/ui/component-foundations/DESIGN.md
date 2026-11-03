@@ -38,7 +38,7 @@
 
 - [Surface 快捷键匹配](../../../sysroot/src/scoop.surface/src/shared/shortcuts/matching.scoop)、[Window 编辑键位](../../../sysroot/src/scoop.window/platform/darwin/editing_keys.scoop)、[提交键判断](../../../sysroot/src/scoop.ui/src/text/editor/commands.scoop)。
 - [测量协议](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)、[线性布局](../../../sysroot/src/scoop.ui.component/src/layout/containers.scoop)、[lazy 子项收尾](../../../sysroot/src/scoop.ui/src/lazy/items.scoop)。
-- [弹层生命周期](../../../sysroot/src/scoop.ui/src/overlay/instance.scoop)、[成功帧与模态收尾](../../../sysroot/src/scoop.ui/src/overlay/controller.scoop)、[内部激活行为](../../../sysroot/src/scoop.ui.component/src/input/activation.scoop)。
+- [弹层生命周期](../../../sysroot/src/scoop.ui/src/overlay/instance.scoop)、[成功帧与模态收尾](../../../sysroot/src/scoop.ui/src/overlay/controller.scoop)、[公共激活行为](../../../sysroot/src/scoop.ui/src/interaction/press.scoop)。
 - [文本事务](../../../sysroot/src/scoop.ui/src/text/editor/input.scoop)、[现有单行归一化](../../../sysroot/src/scoop.ui/src/text/editor/normalize.scoop)、[Style](../../../sysroot/src/scoop.ui.style/src/style.scoop)、[内部阅读位置](../../../sysroot/src/scoop.ui.component/src/virtual/position.scoop)。
 
 ## 3. 各层职责

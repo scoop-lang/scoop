@@ -21,11 +21,21 @@ internal class ScrollBarControl(
     private var hover: ScrollbarRegion? = None
     private var pressed: ScrollbarRegion? = None
     private var grab = 0.0
+    private var drag: Drag? = None
     init {
+        drag =
+            Some(
+                scope.drag(
+                    area,
+                    dragOptions(),
+                    { point -> acceptsThumb(point) },
+                    { event -> handleDrag(event) }
+                )
+            )
         area.scope.parent = Some(parent.scope)
-        area.scope.defaultAction = { context, event -> handle(context, event) }
-        area.scope.onEventFinished =
-            {
+        scope.resource { area.scope.addDefaultAction { context, event -> handle(context, event) } }
+        scope.resource {
+            area.scope.addEventFinished {
                 event -> when (event) {
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
@@ -33,15 +43,22 @@ internal class ScrollBarControl(
                     else -> {}
                 }
             }
+        }
     }
     fun update() {
         val value = props()
         if (value.state !== currentState) {
+            drag!!.cancel()
             release()
             geometry = None
             currentState = value.state
         }
         area.scope.enabled = value.enabled
+        drag!!.update(
+            dragOptions(),
+            { point -> acceptsThumb(point) },
+            { event -> handleDrag(event) }
+        )
     }
     fun scene(
         context: SceneContext,
@@ -155,21 +172,12 @@ internal class ScrollBarControl(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
             ) -> {
                 val part = scrollbarPart(shape, point) ?: return
+                if (part == ScrollbarRegion.Thumb)
+                    return
                 currentState.cancelAnimation()
                 pressed = Some(part)
                 when (part) {
-                    case Thumb -> {
-                        val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
-                        grab =
-                            if (shape.thumbLength > 0.0)
-                                (
-                                    scrollbarAxis(orientation, point) -
-                                        scrollbarAxis(orientation, origin)
-                                ) /
-                                    shape.thumbLength
-                            else
-                                0.0
-                    }
+                    case Thumb -> return
                     case Track -> {
                         val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
                         val distance =
@@ -193,25 +201,6 @@ internal class ScrollBarControl(
                 changed()
                 context.consume()
             }
-            case Pointer(InputPointerEvent.Moved(_)) -> if (
-                pressed == Some(ScrollbarRegion.Thumb)
-            ) {
-                val offset = currentState.offset
-                val destination =
-                    scrollbarThumbOffset(
-                        shape,
-                        point,
-                        grab,
-                        scrollbarAxis(orientation, currentState.maximum)
-                    )
-                currentState.scrollTo(
-                    if (orientation == Orientation.Horizontal)
-                        Point(destination, offset.y)
-                    else
-                        Point(offset.x, destination)
-                )
-                context.consume()
-            }
             case Pointer(
                 InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
             ) -> {
@@ -222,6 +211,77 @@ internal class ScrollBarControl(
             }
             else -> {}
         }
+    }
+    private fun dragOptions(): DragOptions =
+        DragOptions(
+            if (orientation == Orientation.Horizontal)
+                DragAxis.Horizontal
+            else
+                DragAxis.Vertical,
+            threshold = 0.0,
+            enabled = props().enabled
+        )
+    private fun acceptsThumb(point: Point): Boolean =
+        when (geometry) {
+            case Some(shape) -> scrollbarPart(shape, point) == Some(ScrollbarRegion.Thumb)
+            case None -> false
+        }
+    private fun handleDrag(event: DragEvent) {
+        when (event) {
+            case Started(value) -> {
+                val shape =
+                    when (geometry) {
+                        case Some(value) -> value
+                        case None -> {
+                            drag!!.cancel();
+                            return
+                        }
+                    }
+                currentState.cancelAnimation()
+                pressed = Some(ScrollbarRegion.Thumb)
+                val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
+                grab =
+                    if (shape.thumbLength > 0.0)
+                        (
+                            scrollbarAxis(orientation, value.position) -
+                                scrollbarAxis(orientation, origin)
+                        ) /
+                            shape.thumbLength
+                    else
+                        0.0
+                changed()
+            }
+            case Moved(value) -> dragTo(value.position)
+            case Ended(value) -> {
+                dragTo(value.position);
+                release()
+            }
+            case Cancelled(_, _) -> release()
+        }
+    }
+    private fun dragTo(point: Point) {
+        val shape =
+            when (geometry) {
+                case Some(value) -> value
+                case None -> {
+                    drag!!.cancel();
+                    return
+                }
+            }
+        val offset = currentState.offset
+        val destination =
+            scrollbarThumbOffset(
+                shape,
+                point,
+                grab,
+                scrollbarAxis(orientation, currentState.maximum)
+            )
+        currentState.scrollTo(
+            if (orientation == Orientation.Horizontal)
+                Point(destination, offset.y)
+            else
+                Point(offset.x, destination)
+        )
     }
     private fun moveBy(distance: Double) {
         currentState.scrollBy(

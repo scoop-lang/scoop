@@ -1,0 +1,94 @@
+package scoop.ui.component
+
+import scoop.math.*
+
+public struct SplitSizes(val first: Double, val second: Double)
+
+/** Applies a single constrained displacement while retaining the pair's total extent. */
+public fun resizePair(
+    first: Double,
+    second: Double,
+    delta: Double,
+    firstMin: Double = 0.0,
+    firstMax: Double? = None,
+    secondMin: Double = 0.0,
+    secondMax: Double? = None
+): SplitSizes {
+    nonnegative(first, "invalid first pane extent")
+    nonnegative(second, "invalid second pane extent")
+    nonnegative(firstMin, "invalid first pane minimum")
+    nonnegative(secondMin, "invalid second pane minimum")
+    val total = first + second
+    nonnegative(total, "pane total overflow")
+    requireComponent(delta.isFinite(), "resize displacement must be finite")
+    val limitFirst = firstMax ?: total
+    val limitSecond = secondMax ?: total
+    nonnegative(limitFirst, "invalid first pane maximum")
+    nonnegative(limitSecond, "invalid second pane maximum")
+    requireComponent(
+        first >= firstMin && first <= limitFirst && second >= secondMin && second <= limitSecond,
+        "pane extents violate their constraints"
+    )
+    val low = max(firstMin - first, second - limitSecond)
+    val high = min(limitFirst - first, second - secondMin)
+    val value = first + min(max(delta, low), high)
+    return SplitSizes(value, total - value)
+}
+
+public struct SnapTarget(val index: Long, val position: Double)
+
+/** Resolves actual layout anchors; the caller drives its existing Animatable. */
+public fun snapTarget(
+    position: Double,
+    velocity: Double,
+    anchors: Array<Double>,
+    projectionSeconds: Double = 0.15
+): SnapTarget? {
+    requireComponent(
+        position.isFinite() && velocity.isFinite(),
+        "snap position and velocity must be finite"
+    )
+    nonnegative(projectionSeconds, "invalid snap projection duration")
+    for (anchor in anchors)
+        requireComponent(anchor.isFinite(), "snap anchor must be finite")
+    if (anchors.size == 0L)
+        return None
+    val projected = position + velocity * projectionSeconds
+    var selected = 0L
+    for (index in 1L ..< anchors.size) {
+        val previous = anchors[selected]
+        val current = anchors[index]
+        val distance = abs(current / 2.0 - projected / 2.0)
+        val best = abs(previous / 2.0 - projected / 2.0)
+        if (
+            (
+                !projected.isFinite() &&
+                    (
+                        if (velocity > 0.0)
+                            current > previous
+                        else
+                            current < previous
+                    )
+            ) ||
+                (
+                    projected.isFinite() &&
+                        (
+                            distance <
+                                best ||
+                                (
+                                    distance ==
+                                        best &&
+                                        (
+                                            if (velocity > 0.0)
+                                                current > previous
+                                            else
+                                                current < previous
+                                        )
+                                )
+                        )
+                )
+        )
+            selected = index
+    }
+    return Some(SnapTarget(selected, anchors[selected]))
+}

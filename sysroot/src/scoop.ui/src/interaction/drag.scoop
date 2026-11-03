@@ -1,0 +1,224 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.math.abs
+import scoop.surface.*
+import scoop.window.*
+
+/** An axis candidate becomes active only after claiming the original press path. */
+public class Drag internal constructor(
+    private val area: InputArea,
+    initial: DragOptions,
+    accepts: (Point) -> Boolean,
+    handler: (DragEvent) -> Unit
+): Closeable {
+    private var options = initial
+    private var accept = accepts
+    private var receive = handler
+    private var closed = false
+    private var start: InputPointer? = None
+    private var previous: InputPointer? = None
+    private var latest: DragSample? = None
+    private var claimed = false
+    private val events = area.scope.addEventHandler { context, event -> observe(context, event) }
+    private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
+    private val finished = area.scope.addEventFinished { event -> finish(event) }
+    public val isDragging: Boolean get() {
+        area.isClosed;
+        return claimed
+    }
+    public val isClosed: Boolean get() {
+        area.isClosed;
+        return closed
+    }
+
+    public fun update(
+        value: DragOptions,
+        accepts: (Point) -> Boolean,
+        handler: (DragEvent) -> Unit
+    ) {
+        requireUi(!closed && !area.isClosed, "drag behavior is closed")
+        val changed =
+            value.axis !=
+                options.axis ||
+                value.button !=
+                options.button ||
+                value.threshold !=
+                options.threshold
+        options = value
+        accept = accepts
+        receive = handler
+        if (!value.enabled)
+            cancel(DragCancelReason.Disabled)
+        else
+            if (changed)
+                cancel(DragCancelReason.ConfigurationChanged)
+    }
+    private fun observe(context: RoutedEventContext, event: InputEvent) {
+        if (closed)
+            return
+        if (context.phase == RoutedPhase.Notification) {
+            when (event) {
+                case Pointer(InputPointerEvent.Cancelled(reason, _)) -> cancel(
+                    DragCancelReason.Input(reason),
+                    false
+                )
+                else -> {}
+            }
+            return
+        }
+        when (event) {
+            case Pointer(InputPointerEvent.Button(point, button, ElementState.Pressed, _)) -> {
+                if (options.enabled && start == None && button == options.button) {
+                    val local = context.localPosition ?: return
+                    if (accept(local) && !closed && !area.isClosed) {
+                        start = Some(point);
+                        previous = Some(point);
+                        latest = sample(point)
+                    }
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (closed || !options.enabled || start == None)
+            return
+        when (event) {
+            case Pointer(InputPointerEvent.Button(point, button, ElementState.Pressed, _)) -> if (
+                button == options.button && options.threshold == 0.0
+            )
+                advance(context, point)
+            case Pointer(InputPointerEvent.Moved(point)) -> advance(context, point)
+            case Pointer(InputPointerEvent.Button(point, button, ElementState.Released, _)) -> {
+                if (button == options.button && claimed) {
+                    val value = sample(point)
+                    context.consume()
+                    if (value == None) {
+                        cancel(DragCancelReason.GeometryUnavailable);
+                        return
+                    }
+                    clear()
+                    receive(DragEvent.Ended(value!!))
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun advance(context: RoutedEventContext, point: InputPointer) {
+        val value = sample(point)
+        if (value == None) {
+            cancel(DragCancelReason.GeometryUnavailable);
+            return
+        }
+        val current = value!!
+        latest = value
+        if (!claimed) {
+            val cross =
+                if (options.axis == DragAxis.Horizontal)
+                    current.position.y - current.start.y
+                else
+                    current.position.x - current.start.x
+            if (abs(current.displacement) < options.threshold && abs(cross) < options.threshold) {
+                previous = Some(point);
+                return
+            }
+            if (abs(current.displacement) < abs(cross)) {
+                clear();
+                return
+            }
+            if (!area.scope.claimPointer(options.button) || closed || area.isClosed) {
+                clear();
+                return
+            }
+            claimed = true
+            previous = Some(point)
+            context.consume()
+            receive(DragEvent.Started(current))
+        } else {
+            previous = Some(point)
+            context.consume()
+            receive(DragEvent.Moved(current))
+        }
+    }
+    private fun sample(point: InputPointer): DragSample? {
+        val origin = start ?: return None
+        val before = previous ?: origin
+        val local = area.toLocal(windowPoint(point)) ?: return None
+        val beginning = area.toLocal(windowPoint(origin)) ?: return None
+        val prior = area.toLocal(windowPoint(before)) ?: return None
+        val duration = point.time.mark() - before.time.mark()
+        val seconds =
+            duration.floorSeconds.toDouble() +
+                duration.nanosecondsOfSecond.toDouble() /
+                1000000000.0
+        val displacement = axis(local) - axis(beginning)
+        val speed =
+            if (seconds > 0.0)
+                (axis(local) - axis(prior)) / seconds
+            else
+                0.0
+        if (!displacement.isFinite() || !speed.isFinite())
+            return None
+        return Some(DragSample(beginning, local, displacement, speed, point.time))
+    }
+    private fun axis(point: Point): Double =
+        if (options.axis == DragAxis.Horizontal)
+            point.x
+        else
+            point.y
+    private fun windowPoint(point: InputPointer): Point =
+        Point(point.state.logicalPosition.x, point.state.logicalPosition.y)
+    private fun finish(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Pointer(InputPointerEvent.Button(_, button, ElementState.Released, _)) -> {
+                if (button == options.button && start != None)
+                    cancel(DragCancelReason.PreventedRelease)
+            }
+            else -> {}
+        }
+    }
+    public fun cancel() {
+        area.isClosed
+        if (!closed)
+            cancel(DragCancelReason.Explicit)
+    }
+    private fun clear() {
+        start = None;
+        previous = None;
+        latest = None;
+        claimed = false
+    }
+    private fun cancel(reason: DragCancelReason, releaseClaim: Boolean = true) {
+        val active = claimed
+        val snapshot = latest
+        clear()
+        if (active && releaseClaim && !area.isClosed)
+            area.scope.cancelPointerClaim()
+        if (active && snapshot != None)
+            receive(DragEvent.Cancelled(snapshot!!, reason))
+    }
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { cancel(DragCancelReason.Closed) }
+        failure = cleanupUi(failure) { events.close() }
+        failure = cleanupUi(failure) { defaults.close() }
+        failure = cleanupUi(failure) { finished.close() }
+        throwUi(failure)
+    }
+}
+
+public fun ComponentScope.drag(
+    area: InputArea,
+    options: DragOptions,
+    accepts: (Point) -> Boolean = { _ -> true },
+    handler: (DragEvent) -> Unit
+): Drag {
+    requireBehaviorArea(area)
+    return resource { Drag(area, options, accepts, handler) }
+}

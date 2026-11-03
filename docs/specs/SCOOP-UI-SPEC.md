@@ -606,6 +606,26 @@ ComponentScope、MeasureContext、LazyMeasureContext 和 SceneContext 的 `layou
 
 ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以本次 MeasureContext 的方向生成段落设置，明确提供的 ParagraphStyle 保留其文本方向。TextEditOptions 同样缺省继承、显式覆盖，布局方向变化只改变排版，不改变正文、选区、组合基线或文本连接身份。
 
+### 7.10 公共 Press 与交互状态
+
+`InteractionState(hovered=false, pressed=false, focused=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
+
+Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
+
+键盘使用 window 的精确 ShortcutChord：普通 Space 在真实 key-up 激活，Enter 在真实 key-down 激活，acceptsEnter=false 时忽略 Enter；额外修饰键不匹配。重复按下不追加激活，synthetic 不激活，释放必须对应先前物理键。Enter 已触发的按键只等待释放收尾，Space 候选在释放前失焦／禁用即失效。指针与键盘候选互斥。
+
+触发动作前先收束本次激活资格并发布状态，再调用最新动作；动作可同步替换 Props、移除自身或关闭根，返回后不得继续假定原 area 存活。enabled=false 是行为输入，不替调用方决定整个 area 子树的可用性；控件自身仍显式设置 area.scope.enabled。
+
+### 7.11 公共轴向 Drag
+
+`ComponentScope.drag(area, options, accepts={ true }, handler)` 借用当前 mount 的区域并登记 Drag。`DragOptions(axis, threshold=4, enabled=true, button=Left)` 的 axis 为 Horizontal／Vertical，threshold 为有限非负逻辑距离。accepts 接收本次按下的已提交局部坐标，可用于同一条区域内区分 thumb／track。
+
+Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到阈值且主轴位移不少于交叉轴位移时调用 Surface claim。反向主导移动放弃候选，小幅移动继续保留原点击。threshold=0 可在按下默认阶段开始，例如滚动条 thumb。默认阶段仍按目标到祖先顺序决定谁先接管，不建立新的优先级或 gesture arena。
+
+`DragEvent` 包含 Started／Moved／Ended(DragSample) 和 Cancelled(DragSample, reason)。样本包含局部 start／position、主轴 displacement／velocity 和 InputTime；开始、上一位置和当前位置都由原窗口点通过当前已提交几何转换，避免布局／缩放变化后混用不同坐标系。速度按现有单调输入时间计算，重复或倒退时间为零；无可用几何或无法表示有限结果时取消，不输出无穷速度。不会从未提交布局推算拖动。
+
+`Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、Explicit、Closed 和 PreventedRelease；被阻止的 release 通过不可取消的完成通知收尾。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
+
 ## 8. 挂载与资源生命周期
 
 `ComponentScope` 是框架为每个 Component／Element／LazyElement 分别创建和关闭的引用对象，提供：

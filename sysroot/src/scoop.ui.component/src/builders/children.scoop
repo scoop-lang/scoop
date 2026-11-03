@@ -47,6 +47,14 @@ public open class ChildrenBuilder internal constructor() {
         add(makeStyledButton(text, onClick, configure))
     }
 
+    public fun button(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentButton(content, onClick, configure))
+    }
+
     public fun checkbox(
         checked: Binding<Boolean>,
         configure: CheckboxBuilder.() -> Unit = {}

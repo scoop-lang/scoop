@@ -2,15 +2,16 @@ package scoop.ui.component
 
 import scoop.graphics.*
 import scoop.graphics.text.*
-import scoop.surface.InputArea
-import scoop.surface.InputEvent
-import scoop.surface.RoutedEventContext
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.InlineView
 
+public enum ButtonContent {
+    Label(LabelProps), Custom(View)
+}
+
 public class ButtonProps public constructor(
-    public val label: LabelProps,
+    public val content: ButtonContent,
     public val onClick: () -> Unit,
     public val enabled: Boolean = true,
     public val style: ButtonStyle = buttonStyle(),
@@ -19,54 +20,61 @@ public class ButtonProps public constructor(
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
-    private val interaction = Activation(true)
+    private val control = state<PressControl?>(None)
     private val themes = ThemeAccess()
     private val text = ActionTextStyle()
     public override fun onMount(scope: ComponentScope) {
         themes.mount(props.value.theme)
+        val area = scope.createArea(focusable = true)
+        val focus = scope.focusTarget(area, props.value.focus)
+        val press = scope.press(area, PressOptions(props.value.enabled)) { props.value.onClick() }
+        scope.routeChildren(area)
+        control.value = Some(PressControl(area, focus, press))
     }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
-        val visual =
-            SurfaceVisual(input.style.kind, interaction.visual.value.asVisual(input.enabled))
+        val interaction =
+            when (control.value) {
+                case Some(value) -> value.press.interaction
+                case None -> InteractionState()
+            }
+        val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled))
         val base =
             text.resolve(
                 theme.tokens.typography.action,
                 theme.surfaceTextColor(visual),
                 input.style.text
             )
-        val label = input.label
-        val labelBase =
-            when (label.baseStyle) {
-                case Some(value) -> Some(value)
-                case None -> when (label.theme) {
-                    case Some(_) -> None;
-                    case None -> Some(base)
+        val content =
+            when (input.content) {
+                case Custom(view) -> view
+                case Label(label) -> {
+                    val labelBase =
+                        when (label.baseStyle) {
+                            case Some(value) -> Some(value)
+                            case None -> when (label.theme) {
+                                case Some(_) -> None
+                                case None -> Some(base)
+                            }
+                        }
+                    component(
+                        LabelProps(
+                            label.text,
+                            label.fonts,
+                            label.settings,
+                            label.inlines,
+                            label.theme,
+                            labelBase
+                        ),
+                        { current -> Label(current) }
+                    )
                 }
             }
         return element(
-            ButtonInkProps(
-                input,
-                theme,
-                interaction,
-                visual,
-                input.style.options(visual.interaction)
-            ),
+            ButtonInkProps(input, theme, control, visual, input.style.options(visual.interaction)),
             { current -> ButtonInk(current) },
-            [
-                component(
-                    LabelProps(
-                        label.text,
-                        label.fonts,
-                        label.settings,
-                        label.inlines,
-                        label.theme,
-                        labelBase
-                    ),
-                    { current -> Label(current) }
-                )
-            ]
+            [content]
         )
     }
 }
@@ -83,10 +91,16 @@ public fun button(
     configure: StyledButtonBuilder.() -> Unit = {}
 ): View = makeStyledButton(text, onClick, configure)
 
+public fun button(
+    content: View,
+    onClick: () -> Unit,
+    configure: ContentButtonBuilder.() -> Unit = {}
+): View = makeContentButton(content, onClick, configure)
+
 private class ButtonInkProps(
     val input: ButtonProps,
     val theme: Theme,
-    val interaction: Activation,
+    val control: State<PressControl?>,
     val visual: SurfaceVisual,
     val options: SurfaceOptions
 )
@@ -94,8 +108,6 @@ private class ButtonInkProps(
 private class ButtonDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)
 
 private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
-    private var area: InputArea? = None
-    private var focus: FocusTarget? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
@@ -104,23 +116,13 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
-        val handle: (RoutedEventContext, InputEvent) -> Unit =
-            {
-                current, event ->
-                val value = props.value
-                value.interaction.handle(area!!, current, event, value.input.onClick)
-            }
-        area = Some(scope.createArea(focusable = true, handler = handle))
-        focus = Some(scope.focusTarget(area!!, props.value.input.focus))
-        area!!.scope.defaultAction = handle
-        area!!.scope.onEventFinished = { event -> props.value.interaction.finish(event) }
-        scope.routeChildren(area!!)
     }
     public override fun update() {
         val value = props.value
-        value.interaction.update(value.input.enabled)
-        area!!.scope.enabled = value.input.enabled
-        focus!!.options = value.input.focus
+        val control = value.control.value!!
+        control.press.update(PressOptions(value.input.enabled), value.input.onClick)
+        control.area.scope.enabled = value.input.enabled
+        control.focus.options = value.input.focus
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
@@ -171,7 +173,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
-        context.place(area!!, geometry.bounds)
+        context.place(value.control.value!!.area, geometry.bounds)
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {
             children -> children.children()
         }
