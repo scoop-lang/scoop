@@ -1,5 +1,7 @@
 # Surface 基础架构与平台实现设计
 
+后续控件基础的 [平台合同整理](../ui/component-foundations/PLATFORM.md) 和 [公共交互设计](../ui/component-foundations/INTERACTION.md) 于 2026-11-04 完成，尚未实施。它们继续使用本层的输入路由、帧完成、焦点与动画，整理共享 shortcut／caret 接入并补充按下序列归属；该轮不实施 Windows native。
+
 日期：2026-11-02。状态：第一期共享架构与 macOS 后端已实现。公共合同见 [Surface 基础库规范](../specs/SCOOP-SURFACE-SPEC.md)；window 的输入与生命周期合同见 [窗口库规范](../specs/SCOOP-WINDOW-SPEC.md)。实际交付、验证环境和未测边界见 [实施记录](PROGRESS.md)。
 
 当前进入 Windows 阶段，方案与验收见第 13 节；第 1～12 节的“本期／第一期”保留为已交付的共享架构与 macOS 范围。Linux 留待后续。

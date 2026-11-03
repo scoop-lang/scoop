@@ -2,7 +2,9 @@
 
 日期：2026-11-02。状态：`scoop.ui` 的独立自绘框架和公共文本适配、公共 `scoop.ui.style`、主题绘图／几何和三套风格、基础控件／容器、主题展示及后台下载组合已完成 macOS aarch64 实施与 x86_64 统一补验，范围见 [UI 实施记录](PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续接入。框架公开行为见 [UI 规范](../specs/SCOOP-UI-SPEC.md)，公共文本能力见 [文本排版规范](../specs/SCOOP-GRAPHICS-TEXT-SPEC.md)与[文本排版设计](../graphics/text/DESIGN.md)，基础控件行为见 [控件库规范](../specs/SCOOP-UI-COMPONENT-SPEC.md)。现有 `scoop.gui` 已直接改名为 `scoop.surface`；底层实现与验证沿用 [Surface 规范](../specs/SCOOP-SURFACE-SPEC.md)及[实施记录](../surface/PROGRESS.md)。
 
-弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 及其他可复用此写法的 API 见 [DSL builder 设计建议](DSL-BUILDERS.md)；该文档属于 API 设计建议，生产构建入口尚未迁移。
+弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。
+
+2026-11-04 的后续工作见 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)：先整理 window／surface 等公共平台合同，再补齐布局、交互、文本及视觉基础，之后实施 shadcn 控件。该轮设计已完成、尚未实施；Windows native、accessibility、Code Block 和 Native Select 不在该轮范围。
 
 ## 1. 分层目标
 
