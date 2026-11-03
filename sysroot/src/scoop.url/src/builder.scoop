@@ -2,175 +2,242 @@ package scoop.url
 
 import scoop.text.*
 
+/** Configures an empty URI reference and returns an independent immutable URL. */
+public fun url(configure: UrlBuilder.() -> Unit = {}): Url {
+    val builder = UrlBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
 /**
- * Builds a URL from components. Ordinary setters accept raw text; encoded setters accept
- * already-escaped components. Build validates the assembled reference.
+ * Mutable URI components used by url and Url.copy. Encoded properties preserve escaped data;
+ * raw-text operations encode their input. Each entry point validates the assembled reference.
  */
-public class UrlBuilder public constructor() {
-    private var scheme: String? = None
-    private var host: String? = None
-    private var userInfo: String? = None
-    private var port: Int? = None
-    private var path: String = ""
-    private var query: String? = None
-    private var fragment: String? = None
+public class UrlBuilder internal constructor() {
+    private var configuredScheme: String? = None
+    private var configuredHost: String? = None
+    private var configuredUserInfo: String? = None
+    private var configuredPort: Int? = None
+    private var configuredPath: String = ""
+    private var configuredQuery: String? = None
+    private var configuredFragment: String? = None
     private val reusable: ArrayList<UrlAuthority> = ArrayList<UrlAuthority>()
 
-    /**
-     * Sets or clears the scheme; the result must be valid for the assembled reference.
-     */
-    public fun setScheme(value: String?): UrlBuilder {
-        scheme = if (value == None) None else Some(canonicalEncoded(value!!, UrlComponent.Scheme).lowercaseAscii())
-        return this
-    }
-    /**
-     * Sets a raw Unicode host using the URL host and IDNA rules.
-     */
-    public fun setHost(value: String): UrlBuilder {
-        val encoded = encodeUrlBytes(value.toByteArray(), false, "[]:")
-        host = Some(if (encoded.contains(':') && !encoded.startsWith('[')) "[" + encoded + "]" else encoded)
-        return this
-    }
-    /**
-     * Sets an already-encoded host, or clears the host component.
-     */
-    public fun setEncodedHost(value: String?): UrlBuilder {
-        host = encodedOptional(value, UrlComponent.Host)
-        return this
-    }
-    /**
-     * Replaces or clears the complete encoded authority.
-     */
-    public fun setEncodedAuthority(value: String?): UrlBuilder {
-        if (value == None) { host = None; userInfo = None; port = None; return this }
-        val parsed = Url.parse("//" + value!!)
-        if (parsed.encodedPath.charLength != 0L || parsed.encodedQuery != None || parsed.encodedFragment != None) {
-            urlError(UrlComponent.Authority, "authority must not contain a path, query or fragment")
-        }
-        copyAuthority(parsed.authority!!)
-        return this
-    }
-    /**
-     * Sets raw user information, percent-encoding data delimiters as needed.
-     */
-    public fun setUserInfo(value: String?): UrlBuilder =
-        setEncodedUserInfo(if (value == None) None else Some(PercentEncoding.encode(value!!)))
-    /**
-     * Sets or clears already-encoded user information.
-     */
-    public fun setEncodedUserInfo(value: String?): UrlBuilder {
-        userInfo = encodedOptional(value, UrlComponent.UserInfo)
-        return this
-    }
-    /**
-     * Sets or clears the explicit port.
-     */
-    public fun setPort(value: Int?): UrlBuilder {
-        if (value != None && (value!! < 0 || value!! > 65535)) urlError(UrlComponent.Port, "port must be in 0..65535")
-        port = value
-        return this
-    }
-    /**
-     * Replaces the path from raw text, preserving path separators as structure.
-     */
-    public fun setPath(value: String): UrlBuilder = setEncodedPath(encodeUrlBytes(value.toByteArray(), false, "/!$&'()*+,;=:@"))
-    /**
-     * Replaces the already-encoded path without treating encoded reserved characters as
-     * separators.
-     */
-    public fun setEncodedPath(value: String): UrlBuilder {
-        path = canonicalEncoded(value, UrlComponent.Path)
-        return this
-    }
-    /**
-     * Appends one raw path segment. Slashes and a segment equal to dot or dot-dot are encoded as
-     * data.
-     */
-    public fun appendPathSegment(value: String): UrlBuilder {
-        val encoded = if (value == ".") "%2E" else if (value == "..") "%2E%2E" else PercentEncoding.encode(value)
-        return appendEncodedPathSegment(encoded)
-    }
-    /**
-     * Appends one encoded segment; literal structural separators are rejected.
-     */
-    public fun appendEncodedPathSegment(value: String): UrlBuilder {
-        val segment = canonicalEncoded(value, UrlComponent.Path)
-        if (segment.contains('/') || segment.contains('?') || segment.contains('#')) {
-            urlError(UrlComponent.Path, "an encoded path segment cannot contain structural separators")
-        }
-        if ((path.charLength == 0L && host != None) || (path.charLength > 0L && !path.endsWith('/'))) path += "/"
-        path += segment
-        return this
-    }
-    /**
-     * Sets raw query text, or clears the query. This does not parse it as name/value pairs.
-     */
-    public fun setQuery(value: String?): UrlBuilder =
-        setEncodedQuery(if (value == None) None else Some(PercentEncoding.encode(value!!)))
-    /**
-     * Sets or clears the whole encoded query without requiring name/value pair syntax.
-     */
-    public fun setEncodedQuery(value: String?): UrlBuilder {
-        query = encodedOptional(value, UrlComponent.Query)
-        return this
-    }
-    /**
-     * Replaces the query using ordinary URI parameter serialization.
-     */
-    public fun setQueryParameters(value: UrlQuery): UrlBuilder = setEncodedQuery(Some(value.toString()))
-    /**
-     * Sets or clears a raw fragment, encoding it as needed.
-     */
-    public fun setFragment(value: String?): UrlBuilder =
-        setEncodedFragment(if (value == None) None else Some(PercentEncoding.encode(value!!)))
-    /**
-     * Sets or clears an already-encoded fragment.
-     */
-    public fun setEncodedFragment(value: String?): UrlBuilder {
-        fragment = encodedOptional(value, UrlComponent.Fragment)
-        return this
+    /** The scheme, normalized to ASCII lowercase; None produces a relative reference. */
+    public var scheme: String?
+    get() = configuredScheme
+    set(value) {
+        configuredScheme =
+            if (value == None)
+                None
+            else
+                Some(canonicalEncoded(value!!, UrlComponent.Scheme).lowercaseAscii())
     }
 
-    /**
-     * Validates and snapshots the current components as an immutable Url.
-     */
-    public fun build(): Url {
-        @Unsafe {
+    /** The encoded host, including brackets for IP literals; None removes the host. */
+    public var encodedHost: String?
+    get() = configuredHost
+    set(value) {
+        configuredHost = encodedOptional(value, UrlComponent.Host)
+    }
+
+    /** Encoded user information, or None to clear it. */
+    public var encodedUserInfo: String?
+    get() = configuredUserInfo
+    set(value) {
+        configuredUserInfo = encodedOptional(value, UrlComponent.UserInfo)
+    }
+
+    /** An explicit port in 0..65535, or None to omit it. */
+    public var port: Int?
+    get() = configuredPort
+    set(value) {
+        if (value != None && (value!! < 0 || value!! > 65535))
+            urlError(UrlComponent.Port, "port must be in 0..65535")
+        configuredPort = value
+    }
+
+    /** The complete encoded path, retaining escaped reserved characters as data. */
+    public var encodedPath: String
+    get() = configuredPath
+    set(value) {
+        configuredPath = canonicalEncoded(value, UrlComponent.Path)
+    }
+
+    /** The encoded query without a leading question mark; None differs from an empty query. */
+    public var encodedQuery: String?
+    get() = configuredQuery
+    set(value) {
+        configuredQuery = encodedOptional(value, UrlComponent.Query)
+    }
+
+    /** The encoded fragment without a leading hash; None differs from an empty fragment. */
+    public var encodedFragment: String?
+    get() = configuredFragment
+    set(value) {
+        configuredFragment = encodedOptional(value, UrlComponent.Fragment)
+    }
+
+    /** Encodes a raw Unicode host, adding brackets around a bare IPv6 address. */
+    public fun host(value: String) {
+        val encoded = encodeUrlBytes(value.toByteArray(), false, "[]:")
+        configuredHost =
+            Some(
+                if (encoded.contains(':') && !encoded.startsWith('['))
+                    "[" + encoded + "]"
+                else
+                    encoded
+            )
+    }
+
+    /** Replaces all authority components, or clears host, user information and port together. */
+    public fun encodedAuthority(value: String?) {
+        if (value == None) {
+            configuredHost = None
+            configuredUserInfo = None
+            configuredPort = None
+            return
+        }
+        val parsed = Url.parse("//" + value!!)
+        if (
+            parsed.encodedPath.charLength !=
+                0L ||
+                parsed.encodedQuery !=
+                None ||
+                parsed.encodedFragment !=
+                None
+        )
+            urlError(UrlComponent.Authority, "authority must not contain a path, query or fragment")
+        copyAuthority(parsed.authority!!)
+    }
+
+    /** Encodes raw user information, or clears it when value is None. */
+    public fun userInfo(value: String?) {
+        encodedUserInfo =
+            if (value == None)
+                None
+            else
+                Some(PercentEncoding.encode(value!!))
+    }
+
+    /** Encodes a complete raw path, preserving slashes as path separators. */
+    public fun path(value: String) {
+        encodedPath = encodeUrlBytes(value.toByteArray(), false, "/!$&'()*+,;=:@")
+    }
+
+    /** Appends one raw segment, encoding separators and dot or dot-dot segments as data. */
+    public fun appendPathSegment(value: String) {
+        val encoded =
+            if (value == ".")
+                "%2E"
+            else
+                if (value == "..")
+                    "%2E%2E"
+                else
+                    PercentEncoding.encode(value)
+        appendEncodedPathSegment(encoded)
+    }
+
+    /** Appends an encoded segment without accepting literal structural separators. */
+    public fun appendEncodedPathSegment(value: String) {
+        val segment = canonicalEncoded(value, UrlComponent.Path)
+        if (segment.contains('/') || segment.contains('?') || segment.contains('#'))
+            urlError(
+                UrlComponent.Path,
+                "an encoded path segment cannot contain structural separators"
+            )
+        if (
+            (configuredPath.charLength == 0L && configuredHost != None) ||
+                (configuredPath.charLength > 0L && !configuredPath.endsWith('/'))
+        )
+            configuredPath += "/"
+        configuredPath += segment
+    }
+
+    /** Encodes whole raw query text without interpreting name/value pairs; None clears it. */
+    public fun query(value: String?) {
+        encodedQuery =
+            if (value == None)
+                None
+            else
+                Some(PercentEncoding.encode(value!!))
+    }
+
+    /** Replaces the query using ordinary URI parameter serialization. */
+    public fun queryParameters(value: UrlQuery) {
+        encodedQuery = Some(value.toString())
+    }
+
+    /** Encodes a raw fragment, or clears it when value is None. */
+    public fun fragment(value: String?) {
+        encodedFragment =
+            if (value == None)
+                None
+            else
+                Some(PercentEncoding.encode(value!!))
+    }
+
+    internal fun snapshot(): Url {
+        @Unsafe
+        {
             val result = urlEmpty()
             checkUriCode(result.code, UrlComponent.Reference)
             val handle = result.value!!
             try {
-                if (scheme != None) setNativeUrlPart(handle, 0, scheme, UrlComponent.Scheme)
-                if (host != None) setNativeUrlPart(handle, 2, host, UrlComponent.Host)
-                if (userInfo != None) setNativeUrlPart(handle, 1, userInfo, UrlComponent.UserInfo)
-                if (port != None) setNativeUrlPart(handle, 3, Some(port!!.toString()), UrlComponent.Port)
-                setNativeUrlPart(handle, 4, Some(path), UrlComponent.Path)
-                if (query != None) setNativeUrlPart(handle, 5, query, UrlComponent.Query)
-                if (fragment != None) setNativeUrlPart(handle, 6, fragment, UrlComponent.Fragment)
+                if (configuredScheme != None)
+                    setNativeUrlPart(handle, 0, configuredScheme, UrlComponent.Scheme)
+                if (configuredHost != None)
+                    setNativeUrlPart(handle, 2, configuredHost, UrlComponent.Host)
+                if (configuredUserInfo != None)
+                    setNativeUrlPart(handle, 1, configuredUserInfo, UrlComponent.UserInfo)
+                if (configuredPort != None)
+                    setNativeUrlPart(
+                        handle,
+                        3,
+                        Some(configuredPort!!.toString()),
+                        UrlComponent.Port
+                    )
+                setNativeUrlPart(handle, 4, Some(configuredPath), UrlComponent.Path)
+                if (configuredQuery != None)
+                    setNativeUrlPart(handle, 5, configuredQuery, UrlComponent.Query)
+                if (configuredFragment != None)
+                    setNativeUrlPart(handle, 6, configuredFragment, UrlComponent.Fragment)
                 return snapshotUrl(handle, reusable)
-            } finally { urlFree(handle) }
+            } finally {
+                urlFree(handle)
+            }
         }
     }
 
     private fun copyAuthority(value: UrlAuthority) {
-        host = Some(if (value.hostKind == 2 || value.hostKind == 3) "[" + value.encodedHost + "]" else value.encodedHost)
-        userInfo = value.encodedUserInfo
-        port = value.port
+        configuredHost =
+            Some(
+                if (value.hostKind == 2 || value.hostKind == 3)
+                    "[" + value.encodedHost + "]"
+                else
+                    value.encodedHost
+            )
+        configuredUserInfo = value.encodedUserInfo
+        configuredPort = value.port
         reusable.add(value)
     }
 
     internal companion object {
         internal fun from(value: Url): UrlBuilder {
             val builder = UrlBuilder()
-            builder.scheme = value.scheme
-            builder.path = value.encodedPath
-            builder.query = value.encodedQuery
-            builder.fragment = value.encodedFragment
-            if (value.authority != None) builder.copyAuthority(value.authority!!)
+            builder.configuredScheme = value.scheme
+            builder.configuredPath = value.encodedPath
+            builder.configuredQuery = value.encodedQuery
+            builder.configuredFragment = value.encodedFragment
+            if (value.authority != None)
+                builder.copyAuthority(value.authority!!)
             return builder
         }
     }
 }
 
 private fun encodedOptional(value: String?, component: UrlComponent): String? =
-    if (value == None) None else Some(canonicalEncoded(value!!, component))
+    if (value == None)
+        None
+    else
+        Some(canonicalEncoded(value!!, component))

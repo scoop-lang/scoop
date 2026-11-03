@@ -10,8 +10,7 @@ import scoop.http.client.*
 internal fun basicSelection(trust: TrustStore) {
     withBasicRuntime suspend {
         _, scope, listener ->
-        val url =
-            basicUrl(listener).toBuilder().setEncodedUserInfo(Some("ignored:credentials")).build()
+        val url = basicUrl(listener).copy { encodedUserInfo = Some("ignored:credentials") }
         val realm = MutableArray<Byte>(Charset.Iso8859_1.encode("préféré"))
         val calls = AtomicLong(0L)
         val preferred =

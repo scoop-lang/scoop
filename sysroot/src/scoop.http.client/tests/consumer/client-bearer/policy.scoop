@@ -10,8 +10,7 @@ import scoop.url.Url
 internal fun bearerPolicies(trust: TrustStore, mode: String) {
     withBearerRuntime suspend {
         _, scope, listener ->
-        val url =
-            bearerUrl(listener).toBuilder().setEncodedUserInfo(Some("ignored:password")).build()
+        val url = bearerUrl(listener).copy { encodedUserInfo = Some("ignored:password") }
         val loads = AtomicLong(0L)
         val refreshes = AtomicLong(0L)
         val starts = AtomicLong(0L)

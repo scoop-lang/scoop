@@ -28,9 +28,9 @@ internal fun observedProxyTls(trust: TrustStore, port: Int, mode: String) {
         )
     val url = Url.parse("wss://localhost:9443/resource?q=%2f")
     val provider =
-        HttpAuthenticator.basic(
-            endpoint.toBuilder().setScheme(Some("http")).build().httpOrigin()
-        ) suspend { _ -> HttpPasswordCredentials("proxy", "secret") }
+        HttpAuthenticator.basic(endpoint.copy { scheme = Some("http") }.httpOrigin()) suspend {
+            _ -> HttpPasswordCredentials("proxy", "secret")
+        }
     PlatformEventLoop().run suspend {
         _ ->
         val tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))

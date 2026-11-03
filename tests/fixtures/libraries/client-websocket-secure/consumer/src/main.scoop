@@ -61,7 +61,7 @@ private fun runSecureWs(mode: String, port: Int) {
                     Url.parse("wss://127.0.0.1:" + port.toString() + "/start/%e9%9b%aa?x=%2f&x=2")
                 try {
                     if (mode == "coexist" || mode == "mutual") {
-                        val http = url.toBuilder().setScheme(Some("https")).build().resolve("/hold")
+                        val http = url.copy { scheme = Some("https") }.resolve("/hold")
                         client.withResponse(HttpRequest.get(http)) suspend {
                             held ->
                             assertEquals(HttpVersion.Http2, held.head.version)

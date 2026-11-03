@@ -1,6 +1,6 @@
 # 接收者 DSL builder 设计建议
 
-日期：2026-11-03。状态：API 调研与设计依据；[迁移计划](DSL-MIGRATION.md)已开始分批实施，JSON 构造入口已迁移，UI 和其余 API 继续按计划推进。迁移按新风格直接重设计公开入口并更新调用方，不承担历史版本兼容责任。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构；完整签名、必需参数与实施范围按迁移计划落实到对应规范。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
+日期：2026-11-03。状态：API 调研与设计依据；[迁移计划](DSL-MIGRATION.md)已开始分批实施，JSON 与 URL 构造入口已迁移，UI 和其余 API 继续按计划推进。迁移按新风格直接重设计公开入口并更新调用方，不承担历史版本兼容责任。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构；完整签名、必需参数与实施范围按迁移计划落实到对应规范。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
 
 ## 1. 建议
 
@@ -81,7 +81,7 @@ event routing 的 handler、capture、bubble 和 defaultAction 已经是普通�
 | [JSON 构造](../../sysroot/src/scoop.json/src/builders.scoop) | 已迁移为 `jsonObject { ... }`／`jsonArray { ... }`，add 返回 Unit，构造和快照方法仅供库内部使用 | 已完成：保留重复字段拒绝、插入顺序及已有 JsonValue；库测试与实际跨 Cone 示例通过 |
 | [HTTP 客户端配置](../../sysroot/src/scoop.http.client/src/config.scoop) | HttpClientConfig 含 TLS、超时、池、重试、代理等多层不可变值 | 高收益：分组配置 builder 生成同一 Config；原有验证仍在配置边界完成 |
 | [HTTP 请求](../../sysroot/src/scoop.http.client/src/request.scoop) | 不可变 HttpRequest 组合 URL、fields、body、options | 请求／头／multipart 的装配适合 builder；发送仍显式调用，保留请求体的资源与重放规则 |
-| [URL](../../sysroot/src/scoop.url/src/builder.scoop) | 已有 UrlBuilder 的链式 setter 和 build | 小改即可使用接收者入口；raw／encoded 和整条 path／segment 必须继续区分 |
+| [URL](../../sysroot/src/scoop.url/src/builder.scoop) | `url { ... }`／`base.copy { ... }` 配置独立快照，encoded 组件使用属性，原文编码与追加操作返回 Unit | 保留 raw／encoded、整条 path／segment、空与缺失组件及已有 authority 网络解释 |
 | [Graphics Path](../../sysroot/src/scoop.graphics/src/drawing/path.scoop) | 已有 Closeable PathBuilder 和独立 Path 快照 | 可添加 `path { ... }`，构建器在 use 中关闭，返回 Path 的所有权仍交给调用方 |
 | [CLI schema](../../sysroot/src/scoop.cli/src/cli.scoop) | 已有按类型元数据／注解生成 schema 的主路径 | 优先级低；只为实际手写 CliEntry 集合提供便捷入口，继续利用类型和注解 |
 

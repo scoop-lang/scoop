@@ -47,7 +47,7 @@ internal fun extensionWebSocket(trust: TrustStore, url: Url) {
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(extensionConfig(trust, [interceptor], Some(callback))) suspend {
             client ->
-            val target = url.toBuilder().setScheme(Some("ws")).build()
+            val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(HttpWebSocketRequest(target)) suspend {
                 result -> when (result) {
                     case Opened(session) -> {
@@ -105,7 +105,7 @@ internal fun extensionWebSocketValidation(trust: TrustStore, url: Url) {
                 )
             ) suspend {
                 client ->
-                val target = url.toBuilder().setScheme(Some("ws")).build()
+                val target = url.copy { scheme = Some("ws") }
                 assertTrue(
                     extensionFailure suspend {
                         client.openWebSocket(HttpWebSocketRequest(target));

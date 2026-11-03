@@ -14,7 +14,7 @@ internal fun observedWebSocket(trust: TrustStore, url: Url, opened: Boolean) {
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(observationConfig(trust, log)) suspend {
             client ->
-            val target = url.toBuilder().setScheme(Some("ws")).build()
+            val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(HttpWebSocketRequest(target)) suspend {
                 result -> when (result) {
                     case Opened(session) -> {
@@ -97,11 +97,7 @@ internal fun observedWebSocketFailure(trust: TrustStore, url: Url, timeout: Bool
                         else
                             None
                 )
-            val request =
-                HttpWebSocketRequest(
-                    url.toBuilder().setScheme(Some("ws")).build(),
-                    options = options
-                )
+            val request = HttpWebSocketRequest(url.copy { scheme = Some("ws") }, options = options)
             val selected =
                 observationFailure suspend {
                     client.openWebSocket(request);

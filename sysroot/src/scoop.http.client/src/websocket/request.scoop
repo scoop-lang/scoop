@@ -15,10 +15,11 @@ public class HttpWebSocketRequest public constructor(
      */
     public val url: Url,
     fields: List<HttpField> = emptyList<HttpField>(),
-        /**
+    /**
          * HTTP call policy used during the handshake.
          */
-        public val options: HttpCallOptions = HttpCallOptions()) {
+    public val options: HttpCallOptions = HttpCallOptions()
+) {
     /**
      * Copied caller fields for the upgrade request.
      */
@@ -29,10 +30,15 @@ public class HttpWebSocketRequest public constructor(
             throw IllegalArgumentException(Some("WebSocket request requires ws or wss"))
         if (options.duplex || options.expectContinue)
             throw IllegalArgumentException(Some("WebSocket handshake has an empty request body"))
-        if (options.cacheMode == HttpCacheMode.OnlyIfCached || HttpCacheControl.parseFields(this.fields).contains("only-if-cached"))
+        if (
+            options.cacheMode ==
+                HttpCacheMode.OnlyIfCached ||
+                HttpCacheControl.parseFields(this.fields).contains("only-if-cached")
+        )
             throw IllegalArgumentException(Some("WebSocket handshake cannot use only-if-cached"))
-        for (field in this.fields) if (field.hasName("Expect".toByteArray()))
-            throw IllegalArgumentException(Some("WebSocket handshake cannot wait for Continue"))
+        for (field in this.fields)
+            if (field.hasName("Expect".toByteArray()))
+                throw IllegalArgumentException(Some("WebSocket handshake cannot wait for Continue"))
     }
 }
 
@@ -40,12 +46,14 @@ public class HttpWebSocketRequest public constructor(
  * Offered subprotocols, permessage-deflate offers, and the asynchronous session's buffering/close
  * policy.
  */
-public class HttpWebSocketOptions public constructor(protocols: List<String> = emptyList<String>(),
+public class HttpWebSocketOptions public constructor(
+    protocols: List<String> = emptyList<String>(),
     deflateOffers: List<WebSocketDeflateOffer> = emptyList<WebSocketDeflateOffer>(),
     /**
      * Post-upgrade streaming, limits, and close policy.
      */
-    public val session: WebSocketSessionOptions = WebSocketSessionOptions()) {
+    public val session: WebSocketSessionOptions = WebSocketSessionOptions()
+) {
     /**
      * Subprotocol tokens offered in order.
      */
@@ -57,24 +65,45 @@ public class HttpWebSocketOptions public constructor(protocols: List<String> = e
 }
 
 internal fun clientWebSocketHttpUrl(url: Url): Url {
-    if (url.encodedFragment != None) throw IllegalArgumentException(Some("WebSocket URL cannot contain a fragment"))
-    val scheme = when (url.scheme) {
-        case Some("ws") -> "http"
-        case Some("http") -> "http"
-        case Some("wss") -> "https"
-        case Some("https") -> "https"
-        else -> throw IllegalArgumentException(Some("WebSocket handshake requires an HTTP or WebSocket URL"))
-    }
-    val result = url.toBuilder().setScheme(Some(scheme)).build()
+    if (url.encodedFragment != None)
+        throw IllegalArgumentException(Some("WebSocket URL cannot contain a fragment"))
+    val scheme =
+        when (url.scheme) {
+            case Some("ws") -> "http"
+            case Some("http") -> "http"
+            case Some("wss") -> "https"
+            case Some("https") -> "https"
+            else -> throw IllegalArgumentException(
+                Some("WebSocket handshake requires an HTTP or WebSocket URL")
+            )
+        }
+    val result = url.copy { this.scheme = Some(scheme) }
     result.httpOrigin()
     return result
 }
 
 internal fun clientWebSocketUrl(url: Url): Url =
-    url.toBuilder().setScheme(Some(if (url.scheme == Some("http")) "ws" else "wss")).build()
+    url.copy {
+        scheme =
+            Some(
+                if (url.scheme == Some("http"))
+                    "ws"
+                else
+                    "wss"
+            )
+    }
 
 internal fun clientWebSocketOptions(options: HttpCallOptions): HttpCallOptions =
-    HttpCallOptions(decoding = options.decoding, timeouts = options.timeouts, onInformational = options.onInformational,
-        redirects = options.redirects, retries = options.retries, authentication = options.authentication,
-        proxy = options.proxy, useCookies = options.useCookies, cookieContext = options.cookieContext,
-        cacheMode = HttpCacheMode.Bypass, observer = options.observer)
+    HttpCallOptions(
+        decoding = options.decoding,
+        timeouts = options.timeouts,
+        onInformational = options.onInformational,
+        redirects = options.redirects,
+        retries = options.retries,
+        authentication = options.authentication,
+        proxy = options.proxy,
+        useCookies = options.useCookies,
+        cookieContext = options.cookieContext,
+        cacheMode = HttpCacheMode.Bypass,
+        observer = options.observer
+    )

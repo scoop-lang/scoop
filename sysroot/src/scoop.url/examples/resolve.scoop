@@ -9,10 +9,13 @@ fun main() {
     println(page.toIriString())
     println(page.httpRequestTarget())
 
-    val edited = Url.parse("https://example.com/api")
-        .toBuilder()
-        .appendPathSegment("a/b")
-        .setQueryParameters(UrlQuery().add("q", Some("x+y")))
-        .build()
+    val edited =
+        url {
+            scheme = Some("https")
+            host("example.com")
+            path("/api")
+            appendPathSegment("a/b")
+            queryParameters(UrlQuery().add("q", Some("x+y")))
+        }
     println(edited.toString())
 }

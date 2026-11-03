@@ -42,7 +42,7 @@ private fun runAuthWs(mode: String, port: Int) {
             else
                 "http://127.0.0.1:" + port.toString() + "/resource?q=%2f"
         )
-    val websocket = target.toBuilder().setScheme(Some("ws")).build()
+    val websocket = target.copy { scheme = Some("ws") }
     TrustStore.fromPem(rootPem()).use {
         trust ->
         val loop: EventLoop = PlatformEventLoop()

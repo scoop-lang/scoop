@@ -55,9 +55,7 @@ private fun runProxyWs(mode: String, port: Int) {
             scope ->
             val credentials = AtomicLong(0L)
             val provider =
-                HttpAuthenticator.basic(
-                    proxy.toBuilder().setScheme(Some("http")).build().httpOrigin()
-                ) suspend {
+                HttpAuthenticator.basic(proxy.copy { scheme = Some("http") }.httpOrigin()) suspend {
                     request ->
                     assertEquals(Some(proxy), request.proxyUrl)
                     assertEquals(Some("https"), request.request.url.scheme)
