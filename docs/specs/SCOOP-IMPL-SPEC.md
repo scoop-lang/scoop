@@ -22,6 +22,8 @@ Windows 发行准备使用同一 GNU-LLVM Rust 宿主构建主命令、示例命
 
 静态目录是 OS、机器架构、对象目标、过程 ABI、backend、codegen deployment profile、machine frame、native environment 与 final-link profile 的唯一组合根。Rust 侧的 OS 与机器架构使用封闭的类型化值；对象目标是 `{format, machine, header ABI/flags, relocation profile, symbol normalization}` 的完整数据，不以单独的 format 代替 machine 与 ABI。目录只引用当前已有的实现，不为尚未支持的 OS、机器、ABI、triple、SDK 或资源保存占位值。consumer 只能读取自己负责的投影：runtime OS 服务不从 native environment 或对象格式推导，ABI planner 不从 ISA 或 OS 推导过程 ABI，对象 reader 不从 format 推导 machine，codegen deployment 与 final-link 都由目录显式选择，不从对象格式或 native environment 推导平台。目录构建边界一次检查这些投影相容，数据未变化的后续 stage 复用结果，不重复组合或重放全量检查。
 
+正式 fixture runner 同样消费目录投影：OS 选择平台 companion，native environment 选择 libc／CRT 方言，Clang 接收目录中的 LLVM triple。Windows 的 SDK library slice 由局部 toolchain-machine 映射提供，不能通过某个完整 target 名称选出 MSVC，也不能在公共 workflow 中固定 x86-64 triple。只实现当前已有 machine；未知 OS 或 machine 在对应 companion 入口报错，不回退到 Linux 或 x86-64。
+
 | canonical target triple | LIR target profile | 对象格式 | 平台契约 |
 | --- | --- | --- | --- |
 | `aarch64-apple-darwin` | `org.scoop-lang.target-profile/darwin-aarch64/1` | Mach-O relocatable | Darwin/AArch64 |

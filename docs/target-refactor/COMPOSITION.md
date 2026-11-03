@@ -470,6 +470,8 @@ Windows ARM64 要复用现有 MSVC／LLVM-MinGW 流程，当前 Windows 路径�
 
 `scripts/target_catalog.py` 继续是 `targets.toml` 的薄 reader。公共 helper 可以提供 canonical OS／arch／env 和被多个当前 recipe 实际使用的 CPU flag 拼写；各第三方 recipe 保留上游要求的局部 target mapping，例如某个库的 Configure 名称，不建立“所有工具统一 target”框架。
 
+正式 fixture runner 已按目录的 OS 选择 Darwin／Linux／Windows companion，按 `NativeEnvironment` 选择 musl 与 Microsoft CRT 方言，并把目录中的 LLVM triple 传给 Clang。Windows SDK library slice 只在 `windows_tools.py` 中按当前已实现的 x86_64 machine 映射为 `x64`；公共 workflow 不再列举完整 Windows target 或硬编码 x86_64 triple，未知 OS／machine 不回退到 Linux／x86_64。
+
 本轮审计并修正以下模式：
 
 - 固定 `x86_64-unknown-linux-*` 或 `x86_64-*-windows-*`；

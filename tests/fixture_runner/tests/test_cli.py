@@ -14,6 +14,8 @@ from fixture_runner.cli import arguments, can_execute, environment, selected_tar
 from fixture_runner.cores import prepare_test_core
 from fixture_runner.model import EnvironmentError
 
+from scripts.target_catalog import WINDOWS_TARGETS
+
 
 class EnvironmentTests(unittest.TestCase):
     def setUp(self):
@@ -336,8 +338,6 @@ class EnvironmentTests(unittest.TestCase):
     @patch("fixture_runner.cli.platform.machine", return_value="AMD64")
     @patch("fixture_runner.cli.platform.system", return_value="Windows")
     def test_windows_targets_keep_complete_identity_and_skip_unused_native_tools(self, *_):
-        from fixture_runner.cli import WINDOWS_TARGETS
-
         with tempfile.TemporaryDirectory() as directory:
             repo, work = self.prepare(directory)
             native = repo / "native 雪"
@@ -377,8 +377,6 @@ class EnvironmentTests(unittest.TestCase):
     @patch("fixture_runner.cli.platform.machine", return_value="AMD64")
     @patch("fixture_runner.cli.platform.system", return_value="Windows")
     def test_windows_companions_use_selected_crt_prefix_and_explicit_microsoft_sdk(self, *_):
-        from fixture_runner.cli import WINDOWS_TARGETS
-
         with tempfile.TemporaryDirectory() as directory:
             repo, work = self.prepare(directory)
             fixtures = [SimpleNamespace(data={"tools": ["cc", "ar"]})]
