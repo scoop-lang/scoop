@@ -12,31 +12,57 @@ import scoop.time.Duration
 private class HttpClientHttp1IdleTest {
     @Test
     fun `zero write idle leaves the producer unused and a full per-call replacement permits the next connection`() {
-        withClientTimeoutTest(HttpTimeoutOptions(writeIdle = Some(Duration.ZERO))) suspend { _, scope, listener, config ->
-            val serving = scope.launch suspend {
-                listener.accept().useAsync suspend { rejected ->
-                    NativeByteBuffer.allocate(1L).use suspend { buffer -> assertEquals(0L, rejected.readInto(buffer, 1L)) }
+        withClientTimeoutTest(httpTimeoutOptions { this.writeIdle = Some(Duration.ZERO) }) suspend {
+            _, scope, listener, config ->
+            val serving =
+                scope.launch suspend {
+                    listener.accept().useAsync suspend {
+                        rejected -> NativeByteBuffer.allocate(1L).use suspend {
+                            buffer -> assertEquals(0L, rejected.readInto(buffer, 1L))
+                        }
+                    }
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        connection ->
+                        assertEquals(
+                            "send",
+                            String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L))
+                        )
+                        sendClientTestText(connection, 200U, "ok")
+                    }
                 }
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { connection ->
-                    assertEquals("send", String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L)))
-                    sendClientTestText(connection, 200U, "ok")
-                }
-            }
-            withHttpClient(config) suspend { client ->
+            withHttpClient(config) suspend {
+                client ->
                 val started = AtomicBoolean(false)
-                val body = RequestBody.fromProducer(Some(4L)) suspend { output ->
-                    assertFalse(started.exchange(true)); writeBodyText(output, "send")
-                }
-                val error = expectBodyFailure<HttpTimeoutException> suspend {
-                    client.execute(HttpRequest.post(clientTestUrl(listener), body)); Unit
-                }
+                val body =
+                    RequestBody.fromProducer(Some(4L)) suspend {
+                        output ->
+                        assertFalse(started.exchange(true));
+                        writeBodyText(output, "send")
+                    }
+                val error =
+                    expectBodyFailure<HttpTimeoutException> suspend {
+                        client.execute(
+                            httpRequest(clientTestUrl(listener)) {
+                                this.method = "POST"
+                                this.body = body
+                            }
+                        );
+                        Unit
+                    }
                 checkClientTimeout(error, HttpTimeoutPhase.WriteIdle, Duration.ZERO)
                 checkClientIdleCause(error, HttpProtocol.Http1, 0)
                 assertFalse(started.load())
-                client.withResponse(HttpRequest.post(clientTestUrl(listener), body,
-                    options = HttpCallOptions(timeouts = Some(HttpTimeoutOptions())))) suspend { response ->
-                    assertEquals("ok", response.body.text(2L))
-                }
+                client.withResponse(
+                    httpRequest(clientTestUrl(listener)) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options =
+                            httpCallOptions { this.timeouts = Some(httpTimeoutOptions()) }
+                    }
+                ) suspend { response -> assertEquals("ok", response.body.text(2L)) }
             }
             serving.join()
             assertFalse(scope.job.isCancelled)
@@ -49,28 +75,71 @@ private class HttpClientHttp1IdleTest {
         val plain = "decoded".toByteArray()
         val compressed = compress(plain, CompressionOptions.Gzip(GzipOptions()))
         val prefix = Array<Byte>(compressed.size - 8L) { index -> compressed[index] }
-        val timeouts = HttpTimeoutOptions(resolve = None, connect = None, tlsHandshake = None, readIdle = Some(limit))
-        withClientTimeoutTest(timeouts) suspend { _, scope, listener, config ->
+        val timeouts =
+            httpTimeoutOptions {
+                this.resolve = None
+                this.connect = None
+                this.tlsHandshake = None
+                this.readIdle = Some(limit)
+            }
+        withClientTimeoutTest(timeouts) suspend {
+            _, scope, listener, config ->
             val done = BodyTestGate()
-            val serving = scope.launch suspend {
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { connection ->
-                    assertEquals("send", String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L)))
-                    connection.sendResponse(HttpResponseHead(HttpVersion.Http11, 200U,
-                        fields = [responseTestField("Content-Encoding", "gzip")]),
-                        Http1BodyFraming.Length(compressed.size)).useAsync suspend { output ->
-                        writeResponseTestBytes(output, prefix); output.flush(); done.await()
+            val serving =
+                scope.launch suspend {
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        connection ->
+                        assertEquals(
+                            "send",
+                            String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L))
+                        )
+                        connection.sendResponse(
+                            HttpResponseHead(
+                                HttpVersion.Http11,
+                                200U,
+                                fields = [responseTestField("Content-Encoding", "gzip")]
+                            ),
+                            Http1BodyFraming.Length(compressed.size)
+                        ).useAsync suspend {
+                            output ->
+                            writeResponseTestBytes(output, prefix);
+                            output.flush();
+                            done.await()
+                        }
                     }
                 }
-            }
             try {
-                withHttpClient(config) suspend { client ->
-                    val response = client.execute(HttpRequest.post(clientTestUrl(listener), RequestBody.fromText("send")))
-                    val error = expectBodyFailure<HttpTimeoutException> suspend { response.body.bytes(plain.size); Unit }
-                    checkClientTimeout(error, HttpTimeoutPhase.ReadIdle, limit, 4L, prefix.size, plain.size)
+                withHttpClient(config) suspend {
+                    client ->
+                    val response =
+                        client.execute(
+                            httpRequest(clientTestUrl(listener)) {
+                                this.method = "POST"
+                                this.body = RequestBody.fromText("send")
+                            }
+                        )
+                    val error =
+                        expectBodyFailure<HttpTimeoutException> suspend {
+                            response.body.bytes(plain.size);
+                            Unit
+                        }
+                    checkClientTimeout(
+                        error,
+                        HttpTimeoutPhase.ReadIdle,
+                        limit,
+                        4L,
+                        prefix.size,
+                        plain.size
+                    )
                     checkClientIdleCause(error, HttpProtocol.Http1, 0)
                     response.close()
                 }
-            } finally { done.signal() }
+            } finally {
+                done.signal()
+            }
             serving.join()
             assertFalse(scope.job.isCancelled)
         }

@@ -39,7 +39,11 @@ internal fun digestMetadata(url: Url, trust: TrustStore) {
         digestCheck(rejected && !body.isReplayable)
         withHttpClient(digestConfig(trust, provider)) suspend {
             client -> client.withResponse(
-                HttpRequest.post(url, body, options = HttpCallOptions(expectContinue = true))
+                httpRequest(url) {
+                    this.method = "POST"
+                    this.body = body
+                    this.options = httpCallOptions { this.expectContinue = true }
+                }
             ) suspend { response -> digestCheck(response.body.text(4L) == "done") }
         }
         digestFailure<RequestBodyConsumedException> suspend {

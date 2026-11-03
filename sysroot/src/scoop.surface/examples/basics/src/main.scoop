@@ -7,7 +7,8 @@ import scoop.math.*
 import scoop.window.*
 
 fun main() {
-    val application = Application(ApplicationOptions(LastWindowPolicy.Exit))
+    val application =
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
     SurfaceHost {
         host,
         active,
@@ -15,7 +16,10 @@ fun main() {
             case Resumed -> {
                 val window =
                     active.createWindow(
-                        WindowAttributes("Scoop Surface", LogicalSize(760.0, 540.0))
+                        windowAttributes {
+                            this.title = "Scoop Surface"
+                            this.size = LogicalSize(760.0, 540.0)
+                        }
                     )
                 val panel = createPanel()
                 panel.attach(host.attach(window, panel))

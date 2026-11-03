@@ -59,24 +59,24 @@ private fun exercise(mode: String, start: Url, final: Url, trust: TrustStore) {
     loop.run suspend {
         scope ->
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+            }
         withHttpClient(config) suspend {
             client ->
             val options =
-                HttpCallOptions(
-                    expectContinue = true,
-                    continueWait = Duration.seconds(30L),
-                    onInformational =
+                httpCallOptions {
+                    this.expectContinue = true
+                    this.continueWait = Duration.seconds(30L)
+                    this.onInformational =
                         suspend {
                             head ->
                             check(head.status == 100U && redirectContextText() == "live context")
                             informational.fetchAdd(1L)
                             Unit
                         }
-                )
+                }
             val fields =
                 [
                     HttpField("Authorization".toByteArray(), "Bearer secret".toByteArray()),
@@ -85,7 +85,14 @@ private fun exercise(mode: String, start: Url, final: Url, trust: TrustStore) {
                     HttpField("X-Keep".toByteArray(), "kept".toByteArray())
                 ]
             context(RedirectContext("live context")) {
-                client.withResponse(HttpRequest.post(start, body, fields, options)) suspend {
+                client.withResponse(
+                    httpRequest(start) {
+                        this.method = "POST"
+                        this.body = body
+                        this.fields = fields
+                        this.options = options
+                    }
+                ) suspend {
                     response ->
                     check(response.status == 200U)
                     check(

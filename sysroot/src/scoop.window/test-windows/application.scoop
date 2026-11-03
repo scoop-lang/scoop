@@ -152,16 +152,24 @@ private class WindowsHandler: ApplicationHandler {
 
     private fun start(application: ActiveApplication) {
         val attributes =
-            WindowAttributes("Scoop Win32 lifecycle", LogicalSize(320.0, 180.0), visible = false)
+            windowAttributes {
+                this.title = "Scoop Win32 lifecycle"
+                this.size = LogicalSize(320.0, 180.0)
+                this.visible = false
+            }
         val first = application.createWindow(attributes)
         window = Some(first)
-        attributes.title = "changed after creation"
         assertFalse(first.isVisible)
         assertEquals(LogicalSize(320.0, 180.0), first.metrics!!.logicalSize)
         checkMonitorSnapshots(application, first)
         assertEquals(RequestStatus.Unsupported, first.setBlur(true))
         assertFailsWith<WindowException> {
-            application.createWindow(WindowAttributes(visible = false, blur = true))
+            application.createWindow(
+                windowAttributes {
+                    this.visible = false
+                    this.blur = true
+                }
+            )
         }
         first.setSizeConstraints(
             WindowSizeConstraints(Some(LogicalSize(100.0, 80.0)), Some(LogicalSize(640.0, 480.0)))
@@ -201,7 +209,7 @@ private class WindowsHandler: ApplicationHandler {
         first.setImeAllowed(false)
         first.setImeCursorArea(LogicalRect(LogicalPosition(20.0, 10.0), LogicalSize(4.0, 18.0)))
         first.requestRedraw()
-        val second = application.createWindow(WindowAttributes(visible = false))
+        val second = application.createWindow(windowAttributes { this.visible = false })
         assertNotEquals(first.id, second.id)
         second.requestDestroy();
         second.requestDestroy()

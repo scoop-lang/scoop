@@ -8,7 +8,8 @@ fun main() {
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope -> HttpServer.listen(scope) {
-            routes -> routes.get("/", suspend { _ -> text("Hello, Scoop!") })
+            val routes = this
+            routes.get("/", suspend { _ -> text("Hello, Scoop!") })
         }.useAsync suspend {
             server ->
             println("Listening at http://" + server.localAddress.toString())

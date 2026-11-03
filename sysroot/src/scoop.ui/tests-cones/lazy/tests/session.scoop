@@ -14,7 +14,9 @@ private class LazyItemsTest {
         val probe = LazyProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertTrue(probe.ui!!.isClosed)
@@ -75,11 +77,11 @@ internal class LazyProbe {
                 source = Some(state<ItemSource>(ProtocolSource(this)))
                 val native =
                     active.createWindow(
-                        WindowAttributes(
-                            "Scoop lazy protocol",
-                            LogicalSize(240.0, 160.0),
-                            visible = false
-                        )
+                        windowAttributes {
+                            this.title = "Scoop lazy protocol"
+                            this.size = LogicalSize(240.0, 160.0)
+                            this.visible = false
+                        }
                     )
                 window = Some(native)
                 frames = Some(observeFrames(native))
@@ -123,7 +125,11 @@ internal class LazyProbe {
                 active.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"lazy protocol timeout phase=${phase}, frames=${passes}")
+                Some(
+                    f"lazy protocol timeout phase=${this @LazyProbe.phase}, frames=${
+                        this @LazyProbe.passes
+                    }"
+                )
             )
             else -> {}
         }
@@ -221,7 +227,9 @@ internal class LazyProbe {
                         Some(
                             f"row=${row.id}, pending=${row.handle.isPending}, focus=${
                                 row.handle.hasFocus
-                            }, frames=${passes}, occluded=${window!!.isOccluded}"
+                            }, frames=${this @LazyProbe.passes}, occluded=${
+                                this @LazyProbe.window!!.isOccluded
+                            }"
                         )
                     )
                 source!!.value = ProtocolSource(this, Some([99L]), 4)

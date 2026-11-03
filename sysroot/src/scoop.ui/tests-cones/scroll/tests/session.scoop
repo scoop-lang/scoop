@@ -16,7 +16,9 @@ private class ScrollViewportTest {
         val probe = ScrollProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertFalse(probe.first.isAttached)
@@ -65,7 +67,10 @@ internal class ScrollProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop scroll state", LogicalSize(300.0, 160.0))
+                        windowAttributes {
+                            this.title = "Scoop scroll state"
+                            this.size = LogicalSize(300.0, 160.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -78,7 +83,11 @@ internal class ScrollProbe {
             case AboutToWait -> if (!finished && committed == generation.value)
                 advance()
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"scroll state timeout phase=${phase}, passes=${passes}")
+                Some(
+                    f"scroll state timeout phase=${this @ScrollProbe.phase}, passes=${
+                        this @ScrollProbe.passes
+                    }"
+                )
             )
             case Window(_, WindowEvent.Destroyed) -> {
                 finished = phase == 11;

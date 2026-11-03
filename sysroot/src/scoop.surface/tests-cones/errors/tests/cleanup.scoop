@@ -50,7 +50,10 @@ private class ErrorProbe {
             case Resumed -> {
                 val first =
                     application.createWindow(
-                        WindowAttributes("Scoop Surface error", LogicalSize(320.0, 180.0))
+                        windowAttributes {
+                            this.title = "Scoop Surface error"
+                            this.size = LogicalSize(320.0, 180.0)
+                        }
                     )
                 first.setWindowLevel(WindowLevel.AlwaysOnTop)
                 first.requestFocus()
@@ -69,7 +72,7 @@ private class ErrorProbe {
                 val secondContent = FailingContent(secondCleanup) { _ -> fail() }
                 contents.add(secondContent)
                 host.attach(
-                    application.createWindow(WindowAttributes(visible = false)),
+                    application.createWindow(windowAttributes { this.visible = false }),
                     secondContent
                 )
                 val rejectedCleanup = IllegalStateException(Some("rejected content cleanup failed"))

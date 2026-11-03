@@ -1,0 +1,75 @@
+package scoop.http.client
+
+import scoop.http.*
+
+public fun requestBodyPart(
+    body: RequestBody,
+    configure: RequestBodyPartBuilder.() -> Unit = {}
+): RequestBodyPart {
+    val builder = RequestBodyPartBuilder()
+    builder.configure()
+    return builder.snapshot(body)
+}
+
+public fun formDataPart(
+    name: String,
+    body: RequestBody,
+    configure: FormDataPartBuilder.() -> Unit = {}
+): RequestBodyPart {
+    val builder = FormDataPartBuilder()
+    builder.configure()
+    return builder.snapshotForm(name, body)
+}
+
+public open class RequestBodyPartBuilder internal constructor() {
+    public var fields: List<HttpField> = []
+    public fun fields(configure: HttpFieldsBuilder.() -> Unit): Unit {
+        fields = fields.copyFields(configure)
+    }
+    internal fun snapshot(body: RequestBody): RequestBodyPart = RequestBodyPart(body, fields)
+}
+
+public class FormDataPartBuilder internal constructor(): RequestBodyPartBuilder() {
+    public var filename: String? = None
+    internal fun snapshotForm(name: String, body: RequestBody): RequestBodyPart {
+        val disposition = MultipartPartHead.formData(name, filename).fields
+        val additional = fields
+        return RequestBodyPart(
+            body,
+            httpFields {
+                addAll(disposition)
+                addAll(additional)
+            }
+        )
+    }
+}
+
+public fun multipartBody(configure: MultipartBodyBuilder.() -> Unit = {}): RequestBody {
+    val builder = MultipartBodyBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class MultipartBodyBuilder internal constructor() {
+    private val entries = ArrayList<RequestBodyPart>()
+    public var boundary: MultipartBoundary = MultipartBoundary.generate()
+    public var subtype: String = "form-data"
+    public fun add(part: RequestBodyPart): Unit {
+        entries.add(part)
+    }
+    public fun addAll(parts: List<RequestBodyPart>): Unit {
+        for (part in parts)
+            add(part)
+    }
+    public fun part(body: RequestBody, configure: RequestBodyPartBuilder.() -> Unit = {}): Unit {
+        add(requestBodyPart(body, configure))
+    }
+    public fun formData(
+        name: String,
+        body: RequestBody,
+        configure: FormDataPartBuilder.() -> Unit = {}
+    ): Unit {
+        add(formDataPart(name, body, configure))
+    }
+    internal fun snapshot(): RequestBody = multipartRequestBody(entries, boundary, subtype)
+}

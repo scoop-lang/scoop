@@ -70,7 +70,7 @@ TextStyleBuilder 的可写属性、类型和默认值如下，TextStyle 公开�
 
 SpanStyleBuilder 为上述每个字段增加一层 Option，全部默认 None；因此 lineHeight 为 Option<Option<Double>>。SpanStyle 公开对应的只读覆盖值。ParagraphStyleBuilder 的可写属性为 `alignment: TextAlignment = TextAlignment.Start`、`direction: TextDirection = TextDirection.Ltr`、`maxLines: Option<Long> = None`、`ellipsis: String = "…"`，ParagraphStyle 公开相应只读值。
 
-`TextStyle.copy(configure: TextStyleBuilder.() -> Unit = {}): TextStyle` 与 `SpanStyle.copy(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle` 以当前完整值或覆盖值初始化配置，供主题、控件等跨 Cone 的嵌套样式继续修改；空块保留全部字段，包括 SpanStyle.lineHeight 的继承／清除／设置区别。它们分别与 textStyle、spanStyle 工厂共用一次配置及快照实现，SpanStyle.copy 不解析或冻结父级 TextStyle。
+`TextStyle.copy(configure: TextStyleBuilder.() -> Unit = {}): TextStyle`、`SpanStyle.copy(configure: SpanStyleBuilder.() -> Unit = {}): SpanStyle` 与 `ParagraphStyle.copy(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle` 以当前完整值或覆盖值初始化配置，供主题、控件等跨 Cone 的嵌套样式继续修改；空块保留全部字段，包括 SpanStyle.lineHeight 的继承／清除／设置区别。它们分别与 textStyle、spanStyle、paragraphStyle 工厂共用一次配置及快照实现，SpanStyle.copy 不解析或冻结父级 TextStyle。
 
 子项收集在发布时转换为独立 Array；Array 的元素槽及这些描述本身不可变，可以共享已有数组、样式和片段，不增加额外复制协议。之后修改被捕获的 builder 不改变已发布内容或样式。回调或规范化失败不发布部分结果；InlineKey 唯一性仍在整个 StyledText 的规范化边界检查。builder 不承担持久编辑状态，也没有 native 生命周期。
 

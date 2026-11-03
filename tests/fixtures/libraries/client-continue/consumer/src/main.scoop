@@ -34,14 +34,14 @@ private suspend fun send(client: HttpClient, mode: String, url: Url, text: Strin
                 }
             }
     val options =
-        HttpCallOptions(
-            expectContinue = true,
-            continueWait =
+        httpCallOptions {
+            this.expectContinue = true
+            this.continueWait =
                 if (mode == "timeout")
                     Duration.milliseconds(2L)
                 else
-                    Duration.seconds(60L),
-            onInformational =
+                    Duration.seconds(60L)
+            this.onInformational =
                 suspend {
                     head ->
                     information.add(head.status)
@@ -52,12 +52,16 @@ private suspend fun send(client: HttpClient, mode: String, url: Url, text: Strin
                     }
                     Unit
                 }
-        )
+        }
     val request =
         if (mode == "empty")
-            HttpRequest.get(url, options = options)
+            httpRequest(url) { this.options = options }
         else
-            HttpRequest.post(url, body, options = options)
+            httpRequest(url) {
+                this.method = "POST"
+                this.body = body
+                this.options = options
+            }
     if (mode == "cancel") {
         var cancelled = false
         try {
@@ -127,11 +131,11 @@ private fun runClient(mode: String, base: Url, trust: TrustStore) {
                 else
                     HttpCleartextProtocol.Http1
         val config =
-            HttpClientConfig(
-                cleartext = cleartext,
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-            )
+            httpClientConfig {
+                this.cleartext = cleartext
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+            }
         withHttpClient(config) suspend {
             client -> if (mode == "h2") {
                 val first =

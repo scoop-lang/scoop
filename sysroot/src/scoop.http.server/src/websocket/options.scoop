@@ -5,14 +5,14 @@ import scoop.http.*
 import scoop.http.asyncio.*
 
 /** Explicit HTTP/1 upgrade policy and independent session configuration. */
-public class WebSocketOptions public constructor(
+public class WebSocketOptions internal constructor(
     protocols: List<String> = ArrayList<String>(),
     /** Rejects an upgrade when none of the configured protocols was offered. */
     public val requireProtocol: Boolean = false,
     /** Receives every original Origin field; absence, duplicates and invalid values remain explicit. */
     public val originAllowed: (List<HttpField>) -> Boolean = { _ -> true },
     /** Bounded frame buffers and the finite WebSocket close deadline. */
-    public val session: WebSocketSessionOptions = WebSocketSessionOptions(),
+    public val session: WebSocketSessionOptions = webSocketSessionOptions(),
     /** Optional compression response policy; unmatched offers leave compression disabled. */
     public val deflate: WebSocketDeflate? = None
 ) {
@@ -20,10 +20,13 @@ public class WebSocketOptions public constructor(
     public val protocols: Array<String> = protocols.toArray()
     init {
         val seen = HashSet<String>()
-        for (protocol in this.protocols) if (!isHttpToken(protocol) || !seen.add(protocol))
-            throw IllegalArgumentException(Some("invalid or duplicate WebSocket subprotocol"))
+        for (protocol in this.protocols)
+            if (!isHttpToken(protocol) || !seen.add(protocol))
+                throw IllegalArgumentException(Some("invalid or duplicate WebSocket subprotocol"))
         if (present(deflate) && deflate!!.serverMaxWindowBits == Some(8))
-            throw IllegalArgumentException(Some("WebSocket server compression requires window bits 9 through 15"))
+            throw IllegalArgumentException(
+                Some("WebSocket server compression requires window bits 9 through 15")
+            )
     }
 }
 
@@ -36,6 +39,12 @@ public class HttpWebSocketBody internal constructor(
 )
 
 /** Requests an HTTP/1.1 upgrade; the session callback starts only after the HTTP pipeline exits. */
-public fun webSocket(options: WebSocketOptions = WebSocketOptions(),
-    onSession: suspend (WebSocketContext, AsyncWebSocketSession) -> Unit): HttpResult =
-    HttpResult(101U, body = HttpBody.WebSocket(HttpWebSocketBody(options, onSession)), allowCompression = false)
+public fun webSocket(
+    options: WebSocketOptions = webSocketOptions(),
+    onSession: suspend (WebSocketContext, AsyncWebSocketSession) -> Unit
+): HttpResult =
+    httpResult {
+        this.status = 101U
+        this.body = HttpBody.WebSocket(HttpWebSocketBody(options, onSession))
+        this.allowCompression = false
+    }

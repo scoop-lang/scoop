@@ -77,8 +77,13 @@ internal fun digestExternal(mode: String, url: Url, trust: TrustStore) {
         ) suspend {
             client -> context(DigestContext("request context")) {
                 val body = digestBody(mode, producers)
-                val options = HttpCallOptions(expectContinue = mode != "provided-sent")
-                val request = HttpRequest.post(url, body, options = options)
+                val options = httpCallOptions { this.expectContinue = mode != "provided-sent" }
+                val request =
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options = options
+                    }
                 if (
                     mode ==
                         "nohash" ||
@@ -159,9 +164,7 @@ internal fun digestExternal(mode: String, url: Url, trust: TrustStore) {
                         ) {
                             if (mode == "clear")
                                 client.clearAuthenticationCache(provider)
-                            client.withResponse(
-                                HttpRequest.get(url.resolve("second?q=%2F"))
-                            ) suspend {
+                            client.withResponse(httpRequest(url.resolve("second?q=%2F"))) suspend {
                                 response ->
                                 digestCheck(
                                     response.authenticationCount ==

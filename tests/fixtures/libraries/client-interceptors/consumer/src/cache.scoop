@@ -32,12 +32,12 @@ internal fun extensionCache(trust: TrustStore, url: Url) {
         }
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                interceptors = [interceptor],
-                onAttempt = Some(callback),
-                cache = Some(HttpCacheOptions(storage))
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.interceptors = [interceptor]
+                this.onAttempt = Some(callback)
+                this.cache = Some(HttpCacheOptions(storage))
+            }
         ) suspend {
             client -> for (index in 0L ..< 6L) {
                 state.token =
@@ -50,7 +50,7 @@ internal fun extensionCache(trust: TrustStore, url: Url) {
                         "b"
                     else
                         "a"
-                client.withResponse(HttpRequest.get(url)) suspend {
+                client.withResponse(httpRequest(url)) suspend {
                     response ->
                     assertEquals(
                         if (index % 2L == 0L)
@@ -85,13 +85,13 @@ internal fun extensionExplicitAuthentication(trust: TrustStore, url: Url) {
         }
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                onAttempt = Some(callback),
-                authentication = HttpAuthenticationOptions([provider])
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.onAttempt = Some(callback)
+                this.authentication = httpAuthenticationOptions { this.providers = [provider] }
+            }
         ) suspend {
-            client -> client.withResponse(HttpRequest.get(url)) suspend {
+            client -> client.withResponse(httpRequest(url)) suspend {
                 response ->
                 assertEquals(401U, response.status)
                 assertEquals(0L, response.body.bytes(0L).size)

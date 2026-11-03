@@ -28,12 +28,12 @@ private class AsyncWebSocketTlsTests {
                 val httpClient = AsyncHttp1Connection.takeOwnershipAsClient(tlsClient, scope)
                 val httpServer = AsyncHttp1Connection.takeOwnershipAsServer(tlsServer, scope)
                 val options =
-                    WebSocketSessionOptions(
-                        WebSocketFrameLimits(dataChunkBytes = 5L),
-                        13L,
-                        7L,
-                        closeTimeout = Duration.seconds(60L)
-                    )
+                    webSocketSessionOptions {
+                        this.incomingLimits = WebSocketFrameLimits(dataChunkBytes = 5L)
+                        this.inputBufferBytes = 13L
+                        this.outgoingFrameBytes = 7L
+                        this.closeTimeout = Duration.seconds(60L)
+                    }
                 val offers = ArrayList<WebSocketDeflateOffer>()
                 if (compressed)
                     offers.add(

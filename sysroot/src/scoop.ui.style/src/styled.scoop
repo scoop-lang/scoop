@@ -14,8 +14,11 @@ public class Styled public constructor(private val props: Props<StyledProps>): C
         element(props.value.style, ::StyledInk, [props.value.content])
 }
 
-public fun styled(content: View, style: Style = style(), key: ViewKey = ViewKey.Position): View =
-    component(StyledProps(content, style), ::Styled, key)
+public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): View {
+    val builder = StyledBuilder()
+    builder.configure()
+    return component(StyledProps(content, builder.style), ::Styled, builder.key)
+}
 
 private class StyledInk(private val props: Props<Style>): Element {
     private var painter: StylePainter? = None

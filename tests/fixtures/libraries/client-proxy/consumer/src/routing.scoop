@@ -54,7 +54,7 @@ internal fun proxyRouting(mode: String, first: Url, second: Url, target: Url, tr
                 proxyDone(
                     client,
                     target,
-                    options = HttpCallOptions(proxy = Some(HttpProxySelector.direct()))
+                    options = httpCallOptions { this.proxy = Some(HttpProxySelector.direct()) }
                 )
                 proxyCheck(selections.load() == 1L)
             } else {
@@ -105,9 +105,14 @@ internal fun proxyDigest(proxy: Url, target: Url, trust: TrustStore) {
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         _ -> withHttpClient(
-            proxyConfig(trust, selector, "digest", HttpAuthenticationOptions([authenticator]))
+            proxyConfig(
+                trust,
+                selector,
+                "digest",
+                httpAuthenticationOptions { this.providers = [authenticator] }
+            )
         ) suspend {
-            client -> client.withResponse(HttpRequest.get(target)) suspend {
+            client -> client.withResponse(httpRequest(target)) suspend {
                 response -> proxyCheck(
                     response.authenticationCount == 1L && response.body.text(2L) == "ok"
                 )

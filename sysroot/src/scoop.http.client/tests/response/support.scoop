@@ -43,7 +43,7 @@ internal suspend fun sendResponseTestBytes(
 internal fun withResponseTestHttp1(
     serving: suspend (AsyncHttp1Connection) -> Unit,
     reading: suspend (HttpClient, Url) -> Unit,
-    decoding: HttpDecodingOptions = HttpDecodingOptions()
+    decoding: HttpDecodingOptions = httpDecodingOptions()
 ) {
     clientTestTrust().use {
         trust ->
@@ -65,10 +65,11 @@ internal fun withResponseTestHttp1(
                     }
                 try {
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            decoding = decoding
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.decoding = decoding
+                        }
                     withHttpClient(config) suspend {
                         client -> reading(client, clientTestUrl(listener))
                     }

@@ -16,7 +16,8 @@ public enum HttpBasicCharset {
     /**
      * Uses UTF-8 for Basic credential text.
      */
-    Utf8 }
+    Utf8
+}
 
 /**
  * The username and password returned by a password-based credential provider.
@@ -29,7 +30,8 @@ public class HttpPasswordCredentials public constructor(
     /**
      * The authentication password, retained for the selected provider operation.
      */
-    public val password: String)
+    public val password: String
+)
 
 /**
  * The request, optional challenge, authentication-attempt count, and optional proxy endpoint
@@ -58,7 +60,7 @@ public class HttpAuthenticationRequest internal constructor(
  * Ordered authentication providers and a finite retry limit. Origin and proxy authentication
  * maintain independent state.
  */
-public class HttpAuthenticationOptions public constructor(
+public class HttpAuthenticationOptions internal constructor(
     providers: List<HttpAuthenticator> = emptyList<HttpAuthenticator>(),
     /**
      * Maximum authentication retries; zero disables retries.
@@ -70,7 +72,8 @@ public class HttpAuthenticationOptions public constructor(
      */
     public val providers: Array<HttpAuthenticator> = providers.toArray()
     init {
-        if (maxAttempts < 0L) throw IllegalArgumentException(Some("negative authentication attempt limit"))
+        if (maxAttempts < 0L)
+            throw IllegalArgumentException(Some("negative authentication attempt limit"))
     }
 }
 
@@ -93,7 +96,11 @@ public class HttpAuthenticator private constructor(
     /**
      * The optional exact realm-byte restriction.
      */
-    public val realm: Array<Byte>? = when (realm) { case Some(value) -> Some(value.toArray()); case None -> None }
+    public val realm: Array<Byte>? =
+        when (realm) {
+            case Some(value) -> Some(value.toArray());
+            case None -> None
+        }
     init {
         if (origin.scheme != "http" && origin.scheme != "https")
             throw IllegalArgumentException(Some("authentication origin must use http or https"))
@@ -111,13 +118,26 @@ public class HttpAuthenticator private constructor(
             origin: UrlOrigin,
             realm: List<Byte>? = None,
             sendWithoutChallenge: Boolean = true,
-            algorithms: List<HttpDigestAlgorithm> = [HttpDigestAlgorithm.Sha512_256, HttpDigestAlgorithm.Sha512_256Sess,
-                HttpDigestAlgorithm.Sha256, HttpDigestAlgorithm.Sha256Sess, HttpDigestAlgorithm.Md5, HttpDigestAlgorithm.Md5Sess],
+            algorithms: List<HttpDigestAlgorithm> =
+                [
+                    HttpDigestAlgorithm.Sha512_256,
+                    HttpDigestAlgorithm.Sha512_256Sess,
+                    HttpDigestAlgorithm.Sha256,
+                    HttpDigestAlgorithm.Sha256Sess,
+                    HttpDigestAlgorithm.Md5,
+                    HttpDigestAlgorithm.Md5Sess
+                ],
             preferIntegrity: Boolean = false,
             credentials: suspend (HttpAuthenticationRequest) -> HttpPasswordCredentials
         ): HttpAuthenticator =
-            HttpAuthenticator(origin, realm, sendWithoutChallenge,
-                ClientAuthenticationProvider.Digest(ClientDigestAuthentication(algorithms, preferIntegrity, credentials)))
+            HttpAuthenticator(
+                origin,
+                realm,
+                sendWithoutChallenge,
+                ClientAuthenticationProvider.Digest(
+                    ClientDigestAuthentication(algorithms, preferIntegrity, credentials)
+                )
+            )
 
         /**
          * Creates a Bearer provider with suspend token loading and optional refresh after a
@@ -127,11 +147,18 @@ public class HttpAuthenticator private constructor(
             origin: UrlOrigin,
             realm: List<Byte>? = None,
             sendWithoutChallenge: Boolean = true,
-            refreshTokens: suspend (HttpBearerRefreshRequest) -> HttpBearerTokens? = suspend { _ -> None },
+            refreshTokens: suspend (HttpBearerRefreshRequest) -> HttpBearerTokens? =
+                suspend { _ -> None },
             loadTokens: suspend (HttpAuthenticationRequest) -> HttpBearerTokens
         ): HttpAuthenticator =
-            HttpAuthenticator(origin, realm, sendWithoutChallenge,
-                ClientAuthenticationProvider.Bearer(ClientBearerAuthentication(loadTokens, refreshTokens)))
+            HttpAuthenticator(
+                origin,
+                realm,
+                sendWithoutChallenge,
+                ClientAuthenticationProvider.Bearer(
+                    ClientBearerAuthentication(loadTokens, refreshTokens)
+                )
+            )
 
         /**
          * Creates a Basic provider with explicit charset, realm, and preemptive-send policy;
@@ -144,12 +171,20 @@ public class HttpAuthenticator private constructor(
             charset: HttpBasicCharset = HttpBasicCharset.Iso8859_1,
             credentials: suspend (HttpAuthenticationRequest) -> HttpPasswordCredentials
         ): HttpAuthenticator =
-            HttpAuthenticator(origin, realm, sendWithoutChallenge,
-                ClientAuthenticationProvider.Basic(ClientBasicAuthentication(charset, credentials)))
+            HttpAuthenticator(
+                origin,
+                realm,
+                sendWithoutChallenge,
+                ClientAuthenticationProvider.Basic(ClientBasicAuthentication(charset, credentials))
+            )
     }
 }
 
-internal enum ClientAuthenticationProvider { Basic(ClientBasicAuthentication), Bearer(ClientBearerAuthentication), Digest(ClientDigestAuthentication) }
+internal enum ClientAuthenticationProvider {
+    Basic(ClientBasicAuthentication), Bearer(ClientBearerAuthentication), Digest(
+        ClientDigestAuthentication
+    )
+}
 
 internal class ClientBasicAuthentication(
     val charset: HttpBasicCharset,

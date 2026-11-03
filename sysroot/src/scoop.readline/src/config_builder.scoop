@@ -1,0 +1,65 @@
+package scoop.readline
+
+/** Configures one complete value; execution remains explicit. */
+public fun readlineConfig(configure: ConfigBuilder.() -> Unit = {}): Config {
+    val builder = ConfigBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun Config.copy(configure: ConfigBuilder.() -> Unit = {}): Config {
+    val builder = ConfigBuilder()
+    builder.editMode = this.editMode
+    builder.maxHistorySize = this.maxHistorySize
+    builder.historyIgnoreDuplicates = this.historyIgnoreDuplicates
+    builder.historyIgnoreSpace = this.historyIgnoreSpace
+    builder.historyCaseSensitive = this.historyCaseSensitive
+    builder.autoAddHistory = this.autoAddHistory
+    builder.completionType = this.completionType
+    builder.completionPromptLimit = this.completionPromptLimit
+    builder.completionShowAllIfAmbiguous = this.completionShowAllIfAmbiguous
+    builder.bellStyle = this.bellStyle
+    builder.colorMode = this.colorMode
+    builder.tabStop = this.tabStop
+    builder.indentSize = this.indentSize
+    builder.bracketedPaste = this.bracketedPaste
+    builder.keySequenceTimeoutMilliseconds = this.keySequenceTimeoutMilliseconds
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ConfigBuilder internal constructor() {
+    public var editMode: EditMode = EditMode.Emacs
+    public var maxHistorySize: Long = 100L
+    public var historyIgnoreDuplicates: Boolean = true
+    public var historyIgnoreSpace: Boolean = false
+    public var historyCaseSensitive: Boolean = true
+    public var autoAddHistory: Boolean = false
+    public var completionType: CompletionType = CompletionType.Circular
+    public var completionPromptLimit: Long = 100L
+    public var completionShowAllIfAmbiguous: Boolean = false
+    public var bellStyle: BellStyle = BellStyle.Audible
+    public var colorMode: ColorMode = ColorMode.Enabled
+    public var tabStop: Long = 8L
+    public var indentSize: Long = 2L
+    public var bracketedPaste: Boolean = true
+    public var keySequenceTimeoutMilliseconds: Long = 500L
+    internal fun snapshot(): Config =
+        Config(
+            editMode,
+            maxHistorySize,
+            historyIgnoreDuplicates,
+            historyIgnoreSpace,
+            historyCaseSensitive,
+            autoAddHistory,
+            completionType,
+            completionPromptLimit,
+            completionShowAllIfAmbiguous,
+            bellStyle,
+            colorMode,
+            tabStop,
+            indentSize,
+            bracketedPaste,
+            keySequenceTimeoutMilliseconds
+        )
+}

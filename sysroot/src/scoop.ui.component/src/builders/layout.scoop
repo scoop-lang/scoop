@@ -1,0 +1,34 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class LinearBuilder internal constructor(): ChildrenBuilder() {
+    public var spacing: Double = 0.0
+    public var alignment: AxisAlignment = AxisAlignment.Start
+    internal fun snapshot(): LinearProps = LinearProps(childrenSnapshot(), spacing, alignment)
+}
+
+public class StackBuilder internal constructor(): ChildrenBuilder() {
+    public var alignment: Alignment = Alignment()
+    internal fun snapshot(): StackProps = StackProps(childrenSnapshot(), alignment)
+}
+
+internal fun makeRow(configure: LinearBuilder.() -> Unit): View {
+    val builder = LinearBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { props -> Row(props) }, builder.key)
+}
+
+internal fun makeColumn(configure: LinearBuilder.() -> Unit): View {
+    val builder = LinearBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { props -> Column(props) }, builder.key)
+}
+
+internal fun makeStack(configure: StackBuilder.() -> Unit): View {
+    val builder = StackBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { props -> Stack(props) }, builder.key)
+}

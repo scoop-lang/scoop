@@ -1,0 +1,19 @@
+package scoop.http
+
+public fun HttpHeaderLimits.copy(
+    configure: HttpHeaderLimitsBuilder.() -> Unit = {}
+): HttpHeaderLimits {
+    val builder = HttpHeaderLimitsBuilder()
+    builder.maxBytes = this.maxBytes
+    builder.maxFieldBytes = this.maxFieldBytes
+    builder.maxFields = this.maxFields
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpHeaderLimitsBuilder internal constructor() {
+    public var maxBytes: Long = 65536L
+    public var maxFieldBytes: Long = 16384L
+    public var maxFields: Long = 100L
+    internal fun snapshot(): HttpHeaderLimits = HttpHeaderLimits(maxBytes, maxFieldBytes, maxFields)
+}

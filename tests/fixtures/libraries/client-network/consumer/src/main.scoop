@@ -37,19 +37,19 @@ internal fun networkPhase(error: HttpTimeoutException, phase: HttpTimeoutPhase, 
 
 private fun exercise(mode: String, port: String, trust: TrustStore) {
     val lower =
-        TcpConnectOptions(
-            Duration.ZERO,
-            Duration.ZERO,
-            1L,
-            Some(Duration.ZERO),
-            Some(Duration.ZERO)
-        )
+        tcpConnectOptions {
+            this.resolutionDelay = Duration.ZERO
+            this.attemptDelay = Duration.ZERO
+            this.maxConcurrentAttempts = 1L
+            this.resolveTimeout = Some(Duration.ZERO)
+            this.connectTimeout = Some(Duration.ZERO)
+        }
     val config =
-        HttpClientConfig(
-            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-            tcpConnect = lower,
-            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-        )
+        httpClientConfig {
+            this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            this.tcpConnect = lower
+            this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+        }
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope ->

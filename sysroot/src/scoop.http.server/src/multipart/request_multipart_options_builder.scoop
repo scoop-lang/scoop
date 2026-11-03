@@ -1,0 +1,38 @@
+package scoop.http.server
+
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun requestMultipartOptions(
+    configure: RequestMultipartOptionsBuilder.() -> Unit = {}
+): RequestMultipartOptions {
+    val builder = RequestMultipartOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun RequestMultipartOptions.copy(
+    configure: RequestMultipartOptionsBuilder.() -> Unit = {}
+): RequestMultipartOptions {
+    val builder = RequestMultipartOptionsBuilder()
+    builder.limits = this.limits
+    builder.maxFieldBytes = this.maxFieldBytes
+    builder.maxPartBytes = this.maxPartBytes
+    builder.bufferSize = this.bufferSize
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class RequestMultipartOptionsBuilder internal constructor() {
+    public var limits: MultipartLimits = multipartLimits()
+    public var maxFieldBytes: Long = 65536L
+    public var maxPartBytes: Long = 8388608L
+    public var bufferSize: Long = 8192L
+
+    public fun limits(configure: MultipartLimitsBuilder.() -> Unit): Unit {
+        limits = limits.copy(configure)
+    }
+    internal fun snapshot(): RequestMultipartOptions =
+        RequestMultipartOptions(limits, maxFieldBytes, maxPartBytes, bufferSize)
+}

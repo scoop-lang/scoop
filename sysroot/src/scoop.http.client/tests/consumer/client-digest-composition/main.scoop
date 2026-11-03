@@ -1,0 +1,29 @@
+package scoop.http.client.tests.consumer.client_digest_composition
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+import scoop.platform.concurrent.Thread
+
+private fun withDigestThreads(block: (TrustStore) -> Unit) {
+    TrustStore.fromPem(rootPem()).use {
+        trust -> Thread.start { block(trust) }.use {
+            worker ->
+            block(trust);
+            worker.join()
+        }
+    }
+}
+
+@Test
+private class DigestCompositionTests {
+    @Test
+    fun credentials() {
+        for (mode in ["callback", "nested", "user", "password", "encoding"])
+            withDigestThreads { trust -> digestCredentials(trust, mode) }
+    }
+    @Test
+    fun http2() {
+        withDigestThreads { trust -> digestHttp2(trust) }
+    }
+}

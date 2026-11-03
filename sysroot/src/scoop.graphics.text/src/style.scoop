@@ -97,7 +97,13 @@ public class ParagraphStyle internal constructor(
     public val direction: TextDirection = TextDirection.Ltr,
     public val maxLines: Long? = None,
     public val ellipsis: String = "…"
-)
+) {
+    public fun copy(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle {
+        val builder = ParagraphStyleBuilder(this)
+        builder.configure()
+        return builder.snapshot()
+    }
+}
 
 private fun makeTextStyle(value: NativeTextStyleData): TextResource {
     @Unsafe

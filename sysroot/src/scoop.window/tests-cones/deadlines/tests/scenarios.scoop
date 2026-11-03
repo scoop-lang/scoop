@@ -6,8 +6,8 @@ import scoop.time.Duration
 import scoop.window.*
 
 internal fun installDeadlines(probe: DeadlineProbe, application: ActiveApplication) {
-    val first = application.createWindow(WindowAttributes(visible = false))
-    val second = application.createWindow(WindowAttributes(visible = false))
+    val first = application.createWindow(windowAttributes { this.visible = false })
+    val second = application.createWindow(windowAttributes { this.visible = false })
     probe.first = Some(first)
     probe.second = Some(second)
     application.setControlFlow(

@@ -1,0 +1,24 @@
+package scoop.http
+
+public fun Http2Limits.copy(configure: Http2LimitsBuilder.() -> Unit = {}): Http2Limits {
+    val builder = Http2LimitsBuilder()
+    builder.headers = this.headers
+    builder.maxContinuations = this.maxContinuations
+    builder.maxSendHeaderBlockBytes = this.maxSendHeaderBlockBytes
+    builder.maxPendingBodyBytes = this.maxPendingBodyBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class Http2LimitsBuilder internal constructor() {
+    public var headers: HttpHeaderLimits = HttpHeaderLimits()
+    public var maxContinuations: Long = 8L
+    public var maxSendHeaderBlockBytes: Long = 65536L
+    public var maxPendingBodyBytes: Long = 65536L
+
+    public fun headers(configure: HttpHeaderLimitsBuilder.() -> Unit): Unit {
+        headers = headers.copy(configure)
+    }
+    internal fun snapshot(): Http2Limits =
+        Http2Limits(headers, maxContinuations, maxSendHeaderBlockBytes, maxPendingBodyBytes)
+}

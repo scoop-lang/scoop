@@ -43,27 +43,27 @@ private class HttpRequestObservationCacheTest {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            cache = Some(HttpCacheOptions(MemoryHttpCache()))
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.cache = Some(HttpCacheOptions(MemoryHttpCache()))
+                        }
                     withHttpClient(config) suspend {
                         client ->
                         val url = clientTestUrl(listener)
-                        client.withResponse(HttpRequest.get(url)) suspend {
+                        client.withResponse(httpRequest(url)) suspend {
                             response -> assertEquals("ok", response.body.text(16L))
                         }
                         serving.join()
                         val log = RequestObservationLog()
                         client.withResponse(
-                            HttpRequest.get(
-                                url,
-                                options =
-                                    HttpCallOptions(
-                                        cacheMode = HttpCacheMode.OnlyIfCached,
-                                        observer = Some(log.observer)
-                                    )
-                            )
+                            httpRequest(url) {
+                                this.options =
+                                    httpCallOptions {
+                                        this.cacheMode = HttpCacheMode.OnlyIfCached
+                                        this.observer = Some(log.observer)
+                                    }
+                            }
                         ) suspend {
                             response ->
                             assertEquals("ok", response.body.text(16L))

@@ -65,7 +65,7 @@ private class AsyncWebSocketCancellationTests {
                     transport,
                     scope,
                     HttpRole.Client,
-                    WebSocketSessionOptions(outgoingFrameBytes = 2L)
+                    webSocketSessionOptions { this.outgoingFrameBytes = 2L }
                 )
             val writer = session.beginMessage(WebSocketMessageType.Text)
             NativeByteBuffer.allocate(3L).use suspend {
@@ -149,9 +149,9 @@ private class AsyncWebSocketCancellationTests {
                                     a,
                                     child,
                                     HttpRole.Client,
-                                    WebSocketSessionOptions(
-                                        closeTimeout = Duration.seconds(Long.MAX_VALUE)
-                                    )
+                                    webSocketSessionOptions {
+                                        this.closeTimeout = Duration.seconds(Long.MAX_VALUE)
+                                    }
                                 )
                             )
                         ready.signal()
@@ -177,12 +177,14 @@ private class AsyncWebSocketCancellationTests {
 
     @Test
     fun `invalid options and closed scope are rejected before ownership transfer`() {
-        assertFailsWith<IllegalArgumentException> { WebSocketSessionOptions(inputBufferBytes = 0L) }
         assertFailsWith<IllegalArgumentException> {
-            WebSocketSessionOptions(outgoingFrameBytes = Long.MAX_VALUE)
+            webSocketSessionOptions { this.inputBufferBytes = 0L }
         }
         assertFailsWith<IllegalArgumentException> {
-            WebSocketSessionOptions(closeTimeout = Duration.ZERO)
+            webSocketSessionOptions { this.outgoingFrameBytes = Long.MAX_VALUE }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            webSocketSessionOptions { this.closeTimeout = Duration.ZERO }
         }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {

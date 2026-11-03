@@ -36,10 +36,10 @@ private class HttpClientCloseFailureTest {
                         scope.launch suspend {
                             try {
                                 client.execute(
-                                    HttpRequest.post(
-                                        clientTestUrl(listener),
-                                        RequestBody.fromSourceFactory suspend { source }
-                                    )
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.method = "POST"
+                                        this.body = RequestBody.fromSourceFactory suspend { source }
+                                    }
                                 ).close()
                             }
                             catch (error: Throwable) {

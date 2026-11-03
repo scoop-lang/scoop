@@ -14,27 +14,29 @@ fun runExternalClient(url: Url) {
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             _ ->
-            val config = HttpClientConfig(tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)))
+            val config =
+                httpClientConfig {
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                }
             withHttpClient(config) suspend {
                 client ->
                 val information = ArrayList<UInt>()
                 val options =
-                    HttpCallOptions(
-                        onInformational = suspend { head -> information.add(head.status) }
-                    )
+                    httpCallOptions {
+                        this.onInformational = suspend { head -> information.add(head.status) }
+                    }
                 val fields =
                     [
                         HttpField("X-Repeat".toByteArray(), "one".toByteArray()),
                         HttpField("x-repeat".toByteArray(), "two".toByteArray())
                     ]
                 val request =
-                    HttpRequest(
-                        url,
-                        "PATCH",
-                        fields,
-                        RequestBody.fromText("external body 中文"),
-                        options
-                    )
+                    httpRequest(url) {
+                        this.method = "PATCH"
+                        this.fields = fields
+                        this.body = RequestBody.fromText("external body 中文")
+                        this.options = options
+                    }
                 client.withResponse(request) suspend {
                     response ->
                     check(response.status == 207U && response.version == HttpVersion.Http11)

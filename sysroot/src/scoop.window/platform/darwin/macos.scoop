@@ -14,19 +14,37 @@ public struct TitlebarOptions(
     val fullSizeContent: Boolean = false
 )
 
-/** Copies the desired AppKit activation policy into construction options. */
-public fun ApplicationOptions.setMacOSActivationPolicy(policy: ActivationPolicy) {
+/** Selects AppKit policy before the immutable application configuration is published. */
+public var ApplicationOptionsBuilder.macOSActivationPolicy: ActivationPolicy
+get() =
+    when (activationPolicy) {
+        case 1 -> ActivationPolicy.Accessory
+        case 2 -> ActivationPolicy.Prohibited
+        else -> ActivationPolicy.Regular
+    }
+set(value) {
     activationPolicy =
-        when (policy) {
-            case Regular -> 0;
-            case Accessory -> 1;
+        when (value) {
+            case Regular -> 0
+            case Accessory -> 1
             case Prohibited -> 2
         }
 }
 
-/** Copies AppKit titlebar settings before window creation. */
-public fun WindowAttributes.setMacOSTitlebar(options: TitlebarOptions) {
-    titlebarFlags = titlebarBits(options)
+/** Configures titlebar flags without changing an existing native window. */
+public fun WindowAttributesBuilder.macOSTitlebar(configure: TitlebarOptionsBuilder.() -> Unit) {
+    val builder = TitlebarOptionsBuilder(titlebarFlags)
+    builder.configure()
+    titlebarFlags =
+        titlebarBits(
+            TitlebarOptions(builder.transparent, builder.titleHidden, builder.fullSizeContent)
+        )
+}
+
+public class TitlebarOptionsBuilder internal constructor(flags: Int) {
+    public var transparent: Boolean = flags.and(1) != 0
+    public var titleHidden: Boolean = flags.and(2) != 0
+    public var fullSizeContent: Boolean = flags.and(4) != 0
 }
 
 /** Updates AppKit titlebar behavior on the owner thread. */

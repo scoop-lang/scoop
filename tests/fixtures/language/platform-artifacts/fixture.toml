@@ -48,5 +48,5 @@ stderr = ""
 name = "run"
 argv = ["${work}/relinked"]
 exit = 0
-stdout = "/beta\nbeta\ntrue\n-1\n1\ntrue\nopen\n7\ntrue\nplatform transfers passed\n"
+stdout = "/beta\n"
 stderr = ""

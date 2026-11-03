@@ -151,10 +151,10 @@ internal class LayoutProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes(
-                            "Scoop layout and inline controls",
-                            LogicalSize(600.0, 440.0)
-                        )
+                        windowAttributes {
+                            this.title = "Scoop layout and inline controls"
+                            this.size = LogicalSize(600.0, 440.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -319,9 +319,11 @@ internal class LayoutProbe {
             }
             else -> fail(
                 Some(
-                    f"layout UI timeout at ${phase}, focused=${window!!.isFocused}, visible=${
-                        window!!.isVisible
-                    }, frames=${frames!!.snapshot().presentations}"
+                    f"layout UI timeout at ${this @LayoutProbe.phase}, focused=${
+                        this @LayoutProbe.window!!.isFocused
+                    }, visible=${this @LayoutProbe.window!!.isVisible}, frames=${
+                        this @LayoutProbe.frames!!.snapshot().presentations
+                    }"
                 )
             )
         }

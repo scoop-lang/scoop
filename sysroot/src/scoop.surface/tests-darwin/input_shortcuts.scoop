@@ -40,14 +40,13 @@ private class InputShortcutTest {
                 [
                     commandBinding("s", { log.add("save") }),
                     commandBinding("é", { log.add("accent") }),
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
-                        ShortcutModifiers(primary = true),
-                        action = { log.add("physical") }
-                    ),
-                    ShortcutBinding(
+                        { log.add("physical") }
+                    ) { this.modifiers = ShortcutModifiers(primary = true) },
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
-                        action = { log.add("help") }
+                        { log.add("help") }
                     )
                 ]
             ).use {
@@ -67,12 +66,13 @@ private class InputShortcutTest {
                 assertEquals("save,save,physical,accent,help", log.trace)
                 shortcuts.bindings =
                     [
-                        ShortcutBinding(
+                        shortcutBinding(
                             ShortcutKey.Logical(LogicalKey.Character("s")),
-                            ShortcutModifiers(primary = true),
-                            allowRepeat = true,
-                            action = { log.add("repeat") }
-                        )
+                            { log.add("repeat") }
+                        ) {
+                            this.modifiers = ShortcutModifiers(primary = true)
+                            this.allowRepeat = true
+                        }
                     ]
                 rig.key(shortcutKey(command = true, repeat = true))
                 assertEquals("save,save,physical,accent,help,repeat", log.trace)
@@ -111,34 +111,34 @@ private class InputShortcutTest {
                 [
                     commandBinding("c", { log.add("outer-copy") }),
                     commandBinding("s", { log.add("outer-save") }),
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Character("x")),
-                        action = { log.add("typed-x") }
+                        { log.add("typed-x") }
                     ),
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
-                        ShortcutModifiers(control = true, alt = true),
-                        action = { log.add("altgr") }
-                    ),
-                    ShortcutBinding(
+                        { log.add("altgr") }
+                    ) { this.modifiers = ShortcutModifiers(control = true, alt = true) },
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)),
-                        action = { log.add("space") }
+                        { log.add("space") }
                     ),
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
-                        action = { log.add("help") }
+                        { log.add("help") }
                     )
                 ]
             ).use {
                 _ -> ShortcutScope(
                     group,
                     [
-                        ShortcutBinding(
+                        shortcutBinding(
                             ShortcutKey.Logical(LogicalKey.Character("s")),
-                            ShortcutModifiers(primary = true),
-                            canExecute = { log.ready },
-                            action = { log.add("inner-save") }
-                        )
+                            { log.add("inner-save") }
+                        ) {
+                            this.modifiers = ShortcutModifiers(primary = true)
+                            this.canExecute = { log.ready }
+                        }
                     ]
                 ).use {
                     inner ->
@@ -171,9 +171,9 @@ private class InputShortcutTest {
                     ShortcutScope(
                         area.scope,
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Logical(LogicalKey.Character("x")),
-                                action = { log.add("local-x") }
+                                { log.add("local-x") }
                             )
                         ]
                     ).use { _ -> rig.key(shortcutKey(LogicalKey.Character("x"), KeyCode.KeyX)) }
@@ -189,18 +189,16 @@ private class InputShortcutTest {
             rig ->
             val log = ShortcutLog()
             assertFailsWith<IllegalArgumentException> {
-                ShortcutBinding(ShortcutKey.Logical(LogicalKey.Dead(None)), action = {})
+                shortcutBinding(ShortcutKey.Logical(LogicalKey.Dead(None)), {})
             }
             assertFailsWith<IllegalArgumentException> {
-                ShortcutBinding(ShortcutKey.Logical(LogicalKey.Character("")), action = {})
+                shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("")), {})
             }
             val original = commandBinding("s", { log.add("original") })
             val duplicate =
-                ShortcutBinding(
-                    ShortcutKey.Logical(LogicalKey.Character("S")),
-                    ShortcutModifiers(superKey = true),
-                    action = {}
-                )
+                shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("S")), {}) {
+                    this.modifiers = ShortcutModifiers(superKey = true)
+                }
             assertFailsWith<IllegalArgumentException> {
                 ShortcutScope(rig.router.rootScope, [original, duplicate])
             }
@@ -217,12 +215,10 @@ private class InputShortcutTest {
                 scope.bindings =
                     [
                         original,
-                        ShortcutBinding(
-                            duplicate.key,
-                            duplicate.modifiers,
-                            enabled = false,
-                            action = {}
-                        )
+                        shortcutBinding(duplicate.key, {}) {
+                            this.modifiers = duplicate.modifiers
+                            this.enabled = false
+                        }
                     ]
                 rig.key(shortcutKey(command = true))
                 scope.close()
@@ -252,11 +248,10 @@ private class InputShortcutTest {
                 rig.router.rootScope,
                 [
                     commandBinding("s", { log.add("logical") }),
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
-                        ShortcutModifiers(primary = true),
-                        action = { log.add("physical") }
-                    )
+                        { log.add("physical") }
+                    ) { this.modifiers = ShortcutModifiers(primary = true) }
                 ]
             ).use {
                 shortcuts ->
@@ -306,16 +301,17 @@ private class InputShortcutTest {
             ShortcutScope(
                 rig.router.rootScope,
                 [
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Character("s")),
-                        ShortcutModifiers(primary = true),
-                        canExecute =
+                        { log.add("unexpected") }
+                    ) {
+                        this.modifiers = ShortcutModifiers(primary = true)
+                        this.canExecute =
                             {
                                 rig.router.rootScope.enabled = false;
                                 true
-                            },
-                        action = { log.add("unexpected") }
-                    )
+                            }
+                    }
                 ]
             ).use {
                 _ ->

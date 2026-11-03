@@ -25,11 +25,10 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                     ShortcutScope(
                         scope.input,
                         [
-                            ShortcutBinding(
+                            shortcutBinding(
                                 ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyN)),
-                                ShortcutModifiers(primary = true),
-                                action = { probe.shortcutCalls += 1 }
-                            )
+                                { probe.shortcutCalls += 1 }
+                            ) { this.modifiers = ShortcutModifiers(primary = true) }
                         ]
                     )
                 }
@@ -95,7 +94,7 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                     component(
                         ButtonProps(
                             LabelProps(
-                                LabelText.Plain(f"Count: ${count}", None),
+                                LabelText.Plain(f"Count: ${this @ControlScene.count}", None),
                                 Some(probe.fonts)
                             ),
                             { count += delta },
@@ -108,9 +107,8 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                             probe.buttonCreates += 1;
                             Button(props)
                         }
-                    ),
-                    effects
-                ),
+                    )
+                ) { this.style = effects },
                 component(
                     CheckboxProps(
                         binding,
@@ -123,7 +121,9 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                         Checkbox(props)
                     }
                 ),
-                checkbox(initialChecked = false, focus = FocusOptions(Some(probe.ownedFocus))),
+                checkbox(initialChecked = false) {
+                    this.focus = FocusOptions(Some(this @ControlScene.probe.ownedFocus))
+                },
                 component(
                     LabelProps(
                         LabelText.Plain("Theme body", Some(spanStyle { this.weight = Some(700) })),

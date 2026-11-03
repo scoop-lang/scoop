@@ -44,21 +44,28 @@ internal fun basicCancellation(
                 }
             }
         val client =
-            HttpClient.open(scope, basicConfig(trust, HttpAuthenticationOptions([provider])))
+            HttpClient.open(
+                scope,
+                basicConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+            )
         val failure = BasicFailureHolder()
         val closeFailure = BasicFailureHolder()
         val executing =
             scope.launch suspend {
                 try {
                     val options =
-                        HttpCallOptions(
-                            timeouts =
+                        httpCallOptions {
+                            this.timeouts =
                                 if (mode == "total")
-                                    Some(HttpTimeoutOptions(total = Some(Duration.seconds(15L))))
+                                    Some(
+                                        httpTimeoutOptions {
+                                            this.total = Some(Duration.seconds(15L))
+                                        }
+                                    )
                                 else
                                     None
-                        )
-                    client.execute(HttpRequest.get(url, options = options)).close()
+                        }
+                    client.execute(httpRequest(url) { this.options = options }).close()
                 } catch (error: Throwable) {
                     failure.value = Some(error)
                 }

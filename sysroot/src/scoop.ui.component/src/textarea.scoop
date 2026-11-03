@@ -73,54 +73,5 @@ public class Textarea public constructor(private val props: Props<TextareaProps>
     }
 }
 
-public fun textarea(
-    state: TextEditorState,
-    placeholder: String = "",
-    rows: Long = 4L,
-    wrap: Boolean = true,
-    tab: TextTabBehavior = TextTabBehavior.Navigate,
-    submit: TextSubmitKeys = TextSubmitKeys.PrimaryEnter,
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    invalid: Boolean = false,
-    description: String = "",
-    fonts: FontCollection? = None,
-    style: TextFieldStyle = textFieldStyle(),
-    theme: ThemeSource? = None,
-    focus: FocusOptions = FocusOptions(),
-    direction: TextDirection = TextDirection.Ltr,
-    alignment: TextAlignment = TextAlignment.Start,
-    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
-    paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    caretBlink: Duration = Duration.milliseconds(500L),
-    onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        TextareaProps(
-            state,
-            placeholder,
-            rows,
-            wrap,
-            tab,
-            submit,
-            enabled,
-            readOnly,
-            invalid,
-            description,
-            fonts,
-            style,
-            theme,
-            focus,
-            direction,
-            alignment,
-            scrollbars,
-            paintCache,
-            caretBlink,
-            onEdited,
-            onSubmit
-        ),
-        { props -> Textarea(props) },
-        key
-    )
+public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View =
+    makeTextarea(state, configure)

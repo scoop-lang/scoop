@@ -193,7 +193,7 @@ open／next／close 均由 worker 调用 platform 的目录 helper。next 在本
 
 选择一个成功连接后关闭其他未交付连接，等待竞速子任务和 native 结果收尾。候选普通失败在该任务内转成结果，不能传播并取消本来可能成功的候选。参数仍为 OsString，不隐式 IDNA；传入 SocketAddress 的既有接口保持不变。配置变化只影响本次连接，不建立全局 DNS 缓存、TTL 推测或 HTTPS records 实现。
 
-具体入口为 `EventLoop.connectTcp(host: OsString, port: Int, options: TcpConnectOptions = TcpConnectOptions()): AsyncTcpStream`。TcpConnectOptions 为不可变配置，包含 `resolutionDelay: Duration = Duration.milliseconds(50)`、`attemptDelay: Duration = Duration.milliseconds(250)`、`maxConcurrentAttempts: Long = 2L`，以及默认均为 None 的 `resolveTimeout: Duration?`／`connectTimeout: Duration?`。所有配置时长必须非负，并行数必须为正。零间隔允许立即推进，零超时表示进入该阶段即到期；实际在途数仍受并行数限制，单地址入口不应用这些竞速策略。
+具体入口为 `EventLoop.connectTcp(host: OsString, port: Int, options: TcpConnectOptions = tcpConnectOptions()): AsyncTcpStream`。TcpConnectOptions 为不可变配置，包含 `resolutionDelay: Duration = Duration.milliseconds(50)`、`attemptDelay: Duration = Duration.milliseconds(250)`、`maxConcurrentAttempts: Long = 2L`，以及默认均为 None 的 `resolveTimeout: Duration?`／`connectTimeout: Duration?`。所有配置时长必须非负，并行数必须为正。零间隔允许立即推进，零超时表示进入该阶段即到期；实际在途数仍受并行数限制，单地址入口不应用这些竞速策略。
 
 两族分别调用既有异步 resolve，族内保留系统结果顺序并去除重复地址。IPv6 已有结果时立即开始；IPv4 先到且 IPv6 未结束时，最多等待一次 resolutionDelay，IPv6 失败或空结果提前解除等待。开始后优先选上次尝试的另一族，不因尚未返回的族阻塞已有候选。相邻尝试默认间隔 attemptDelay；任何候选失败可以提前开始下一项，达到并行上限时等待空位，迟到的旧定时通知不能越过新间隔。
 
@@ -344,3 +344,14 @@ Windows 的异步数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP�
 timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿已有有限 NativeWork worker 边界执行，已开始的工作等真实返回，不因取消提前释放输入。
 
 Win32／IOCP 与 Winsock 错误分别保留真实 domain 和完整 32 位 code；CRT 的 errno 保留 PosixErrno。创建、等待和销毁的直接结果使用同次返回的错误记录，不以负 Int 编码 DWORD。详细执行与测试范围见[后端设计第 13 节](../asyncio-backends/DESIGN.md#13-windowsiocp-后端)。
+
+
+### TCP 连接配置
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| TcpConnectOptions | `tcpConnectOptions(configure: TcpConnectOptionsBuilder.() -> Unit = {})`；resolutionDelay: Duration = Duration.milliseconds(50L)；attemptDelay: Duration = Duration.milliseconds(250L)；maxConcurrentAttempts: Long = 2L；resolveTimeout: Duration? = None；connectTimeout: Duration? = None；onEvent: ((TcpConnectEvent) -> Unit)? = None |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。

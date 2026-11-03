@@ -300,7 +300,7 @@ Windows 没有对应的 Unix job-control 操作，该调用抛 PlatformException
 
 `scoop.platform.io.Pipe.open()` 返回 source: PipeSource 与 sink: PipeSink，分别实现 ByteSource／ByteSink 及 Closeable，各自拥有一个 close-on-exec 描述符。端点提供 isClosed、close；sink.flush 只检查状态。关闭最后一个写端后读取返回 EOF；读端全部关闭后写入按第 6.4 节报告 BrokenPipe。端点没有文件定位语义；借用视图只实现 IO 协议，关闭责任由 owner 保持。
 
-`scoop.platform.process.Command(executable: Path, arguments: Array<OsString> = [], environment: Map<OsString, OsString> = 当前环境快照, workingDirectory: Path = 当前目录, stdin: Stdio = Inherit, stdout: Stdio = Inherit, stderr: Stdio = Inherit, mergeError: Boolean = false)` 保存不可变配置与输入集合的副本。Stdio 区分 Inherit、Null、Pipe 和 Redirect(file: File)；File 只借用至 spawn 完成。mergeError 将 child fd 2 复制为配置后的 fd 1，与非 Inherit 的 stderr 配置冲突。
+`scoop.platform.process.command(executable: Path, configure: CommandBuilder.() -> Unit = {})` 保存不可变 Command 配置与输入集合的副本。CommandBuilder 的 arguments 默认为空，environment 默认当前环境快照，workingDirectory 默认当前目录，stdin／stdout／stderr 默认 Inherit，mergeError 默认 false；arg／args 有序追加，env 覆盖同名值，removeEnv／clearEnv 移除配置项。Stdio 区分 Inherit、Null、Pipe 和 Redirect(file: File)；File 只借用至 spawn 完成。mergeError 将 child fd 2 复制为配置后的 fd 1，与非 Inherit 的 stderr 配置冲突。
 
 spawn(searchPath: Boolean = false): ChildProcess 启动进程；默认按明确 executable 启动，传入 searchPath = true 才启用 PATH 搜索。搜索模式下含 `/` 的 executable 仍按路径启动，否则按命令环境中的 PATH 从左至右尝试，空项为 child cwd，缺失 PATH 使用 `/bin:/usr/bin`。NotFound／NotDirectory 继续，PermissionDenied 保留到全部候选失败后报告；其他错误立即报告。argv[0] 保留原始 executable，其余参数逐项传递，不拼接 shell 命令。环境名非空且不含 NUL／`=`，其他系统字符串不含 NUL；空参数与非 UTF-8 字节原样传递。
 
@@ -386,3 +386,16 @@ socket 输出在 Linux 使用 MSG_NOSIGNAL，Darwin 在新建／accept 后设置
 `copyNativeString(pointer: Ptr<Byte>): OsString` 同样是 fs package 的公开 Unsafe 同步函数。调用方保证指针指向在整个调用期间稳定、可读且以 NUL 终止的存储；函数复制首个 NUL 之前的原始字节，不做 UTF-8 转换、不保留指针、不释放输入，返回独立快照。原生结果的分配和释放继续由拥有该结果的库负责，asyncio 用此入口接收临时名称和目录项。
 
 `native/io.h` 声明 fd_read／fd_write／fd_close；`native/files.h` 声明 file_open／file_sync。read／write 使用 4～6 章的短传输及 EINTR 规则，close 只调用一次 raw close，syncData 在 Darwin 可用 fsync 实现。`socket_native.h` 还声明 resolve／resolve_next／resolve_address／resolve_free；ScoopResolution 保存 owned addrinfo 链、原始 EAI code、可选的同次 errno。以上函数不进入 managed 代码，可直接从工作线程调用；错误必须在返回时立即保存，资源只能释放一次。
+
+
+### 进程描述的接收者配置
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| Command | `command(executable: Path, configure: CommandBuilder.() -> Unit = {})`；arguments: Array<OsString> = []；environment: Map<OsString, OsString> = currentEnvironment()；workingDirectory: Path = currentDirectory()；stdin: Stdio = Stdio.Inherit；stdout: Stdio = Stdio.Inherit；stderr: Stdio = Stdio.Inherit；mergeError: Boolean = false |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+CommandBuilder 的 arg(OsString)／args(Array<OsString>) 有序追加；arguments 赋值整体替换。env(name, value) 覆盖同名环境项，removeEnv(name) 删除，clearEnv() 清空；environment 可完整替换。默认环境和目录在构造时读取，copy 沿用原配置而不重新读取环境或当前目录。可变 Map 在结果边界复制；配置块中改动 builder 不启动进程，spawn(searchPath) 继续是明确动作。可执行路径前置必需；重定向 File 按原合同借用到 spawn 完成。

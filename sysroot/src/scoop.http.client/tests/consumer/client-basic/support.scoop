@@ -39,21 +39,21 @@ internal suspend fun <E: Throwable> basicFailure(block: suspend () -> Unit): E {
 
 internal fun basicConfig(
     trust: TrustStore,
-    authentication: HttpAuthenticationOptions = HttpAuthenticationOptions(),
+    authentication: HttpAuthenticationOptions = httpAuthenticationOptions(),
     h2: Boolean = false,
-    retries: HttpRetryOptions = HttpRetryOptions(maxRetries = 0L)
+    retries: HttpRetryOptions = httpRetryOptions { this.maxRetries = 0L }
 ): HttpClientConfig =
-    HttpClientConfig(
-        tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-        authentication = authentication,
-        cleartext =
+    httpClientConfig {
+        this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+        this.authentication = authentication
+        this.cleartext =
             if (h2)
                 HttpCleartextProtocol.Http2PriorKnowledge
             else
-                HttpCleartextProtocol.Http1,
-        retries = retries,
-        pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-    )
+                HttpCleartextProtocol.Http1
+        this.retries = retries
+        this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+    }
 
 internal fun basicUrl(listener: AsyncTcpListener): Url =
     Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + "/private/start")

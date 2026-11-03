@@ -48,11 +48,9 @@ internal fun shortcutKey(
     )
 
 internal fun commandBinding(text: String, action: () -> Unit): ShortcutBinding =
-    ShortcutBinding(
-        ShortcutKey.Logical(LogicalKey.Character(text)),
-        ShortcutModifiers(primary = true),
-        action = action
-    )
+    shortcutBinding(ShortcutKey.Logical(LogicalKey.Character(text)), action) {
+        this.modifiers = ShortcutModifiers(primary = true)
+    }
 
 internal fun InputRig.key(event: KeyEvent) {
     router.event(WindowEvent.Keyboard(event))

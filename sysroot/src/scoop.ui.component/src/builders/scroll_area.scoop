@@ -1,0 +1,51 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ScrollAreaBuilder internal constructor() {
+    public var state: ScrollState? = None
+    public var axes: ScrollAxes = ScrollAxes.Vertical
+    public var width: Double? = None
+    public var height: Double? = None
+    public var lineStep: Double = 40.0
+    public var chain: ScrollChain = ScrollChain.Chain
+    public var scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto
+    public var scrollbar: ScrollbarOptions = scrollbarOptions()
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var theme: ThemeSource? = None
+    public var paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public var key: ViewKey = ViewKey.Position
+
+    public fun scrollbar(configure: ScrollbarOptionsBuilder.() -> Unit): Unit {
+        scrollbar = scrollbar.copy(configure)
+    }
+
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(content: View): ScrollAreaProps =
+        ScrollAreaProps(
+            content,
+            state,
+            axes,
+            width,
+            height,
+            lineStep,
+            chain,
+            scrollbars,
+            scrollbar,
+            enabled,
+            focus,
+            theme,
+            paintCache
+        )
+}
+
+internal fun makeScrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit): View {
+    val builder = ScrollAreaBuilder()
+    builder.configure()
+    return component(builder.snapshot(content), { props -> ScrollArea(props) }, builder.key)
+}

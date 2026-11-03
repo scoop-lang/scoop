@@ -65,7 +65,7 @@ internal fun cacheDigest(trust: TrustStore, url: Url) {
                 trust,
                 storage,
                 CacheClock(),
-                authentication = HttpAuthenticationOptions([provider])
+                authentication = httpAuthenticationOptions { this.providers = [provider] }
             )
         ) suspend {
             client ->

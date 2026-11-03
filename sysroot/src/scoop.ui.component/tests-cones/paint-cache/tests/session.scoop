@@ -22,7 +22,9 @@ private class ScrollPaintCacheTest {
             val probe = CacheProbe(fonts)
             try {
                 UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                    host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                    host -> Application(
+                        applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                    ).run(host)
                 }
                 assertTrue(probe.finished)
                 assertTrue(probe.rows.size < 50L)
@@ -85,7 +87,10 @@ internal class CacheProbe(val fonts: FontCollection) {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop paint cache", LogicalSize(320.0, 120.0))
+                        windowAttributes {
+                            this.title = "Scoop paint cache"
+                            this.size = LogicalSize(320.0, 120.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -143,7 +148,11 @@ internal class CacheProbe(val fonts: FontCollection) {
                 active.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"paint cache timed out at ${mode.value}/${step}")
+                Some(
+                    f"paint cache timed out at ${this @CacheProbe.mode.value}/${
+                        this @CacheProbe.step
+                    }"
+                )
             )
             else -> {}
         }

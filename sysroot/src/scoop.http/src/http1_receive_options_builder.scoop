@@ -1,0 +1,42 @@
+package scoop.http
+
+public fun Http1ReceiveOptions.copy(
+    configure: Http1ReceiveOptionsBuilder.() -> Unit = {}
+): Http1ReceiveOptions {
+    val builder = Http1ReceiveOptionsBuilder()
+    builder.legacyHeaderValues = this.legacyHeaderValues
+    builder.lenientChunkedLength = this.lenientChunkedLength
+    builder.lenientTransferEncoding = this.lenientTransferEncoding
+    builder.lenientTextVersion = this.lenientTextVersion
+    builder.optionalLfAfterCr = this.optionalLfAfterCr
+    builder.optionalCrBeforeLf = this.optionalCrBeforeLf
+    builder.optionalCrLfAfterChunk = this.optionalCrLfAfterChunk
+    builder.spacesAfterChunkSize = this.spacesAfterChunkSize
+    builder.afterClose = this.afterClose
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class Http1ReceiveOptionsBuilder internal constructor() {
+    public var legacyHeaderValues: Boolean = false
+    public var lenientChunkedLength: Boolean = false
+    public var lenientTransferEncoding: Boolean = false
+    public var lenientTextVersion: Boolean = false
+    public var optionalLfAfterCr: Boolean = false
+    public var optionalCrBeforeLf: Boolean = false
+    public var optionalCrLfAfterChunk: Boolean = false
+    public var spacesAfterChunkSize: Boolean = false
+    public var afterClose: Http1AfterClose = Http1AfterClose.Reject
+    internal fun snapshot(): Http1ReceiveOptions =
+        Http1ReceiveOptions(
+            legacyHeaderValues,
+            lenientChunkedLength,
+            lenientTransferEncoding,
+            lenientTextVersion,
+            optionalLfAfterCr,
+            optionalCrBeforeLf,
+            optionalCrLfAfterChunk,
+            spacesAfterChunkSize,
+            afterClose
+        )
+}

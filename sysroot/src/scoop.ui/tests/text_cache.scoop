@@ -21,13 +21,13 @@ private class UiTextCacheTest {
                 this.inlineObject(InlineKey.Number(1L), "B")
             }
         val view = component<UnbuiltInline>({ throw IllegalStateException(Some("must stay lazy")) })
-        val first = InlineView(InlineKey.Text("a"), view)
-        val second = InlineView(InlineKey.Number(1L), view)
+        val first = inlineView(InlineKey.Text("a"), view)
+        val second = inlineView(InlineKey.Number(1L), view)
         assertEquals(2L, inlineChildren(content, [second, first]).size)
         assertFailsWith<IllegalArgumentException> { inlineChildren(content, [first]) }
         assertFailsWith<IllegalArgumentException> { inlineChildren(content, [first, first]) }
         assertFailsWith<IllegalArgumentException> {
-            inlineChildren(content, [first, InlineView(InlineKey.Text("other"), view)])
+            inlineChildren(content, [first, inlineView(InlineKey.Text("other"), view)])
         }
         assertFailsWith<IllegalArgumentException> { inlineChildren(styledText(), [first]) }
     }

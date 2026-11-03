@@ -59,7 +59,7 @@ internal suspend fun wsClientProbe(client: HttpClient, url: Url) {
         else
             "http"
     val target = url.copy { this.scheme = Some(scheme) }.resolve(Url.parse("/probe"))
-    client.withResponse(HttpRequest.get(target)) suspend {
+    client.withResponse(httpRequest(target)) suspend {
         response -> assertEquals("probe", response.body.text(128L))
     }
 }

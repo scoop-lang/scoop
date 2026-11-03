@@ -16,7 +16,9 @@ private class AbsoluteUiTest {
         val probe = AbsoluteProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             for (index in 0L ..< probe.handles.size) {
@@ -60,7 +62,10 @@ internal class AbsoluteProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop absolute layout", LogicalSize(320.0, 180.0))
+                        windowAttributes {
+                            this.title = "Scoop absolute layout"
+                            this.size = LogicalSize(320.0, 180.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -80,7 +85,11 @@ internal class AbsoluteProbe {
                     advance(active)
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"absolute timeout phase=${phase}, passes=${passes}")
+                Some(
+                    f"absolute timeout phase=${this @AbsoluteProbe.phase}, passes=${
+                        this @AbsoluteProbe.passes
+                    }"
+                )
             )
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
             else -> {}

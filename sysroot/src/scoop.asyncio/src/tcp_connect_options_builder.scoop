@@ -1,0 +1,46 @@
+package scoop.asyncio
+
+import scoop.platform.net.*
+import scoop.platform.system.OsString
+import scoop.time.Duration
+
+/** Configures one complete value; execution remains explicit. */
+public fun tcpConnectOptions(
+    configure: TcpConnectOptionsBuilder.() -> Unit = {}
+): TcpConnectOptions {
+    val builder = TcpConnectOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun TcpConnectOptions.copy(
+    configure: TcpConnectOptionsBuilder.() -> Unit = {}
+): TcpConnectOptions {
+    val builder = TcpConnectOptionsBuilder()
+    builder.resolutionDelay = this.resolutionDelay
+    builder.attemptDelay = this.attemptDelay
+    builder.maxConcurrentAttempts = this.maxConcurrentAttempts
+    builder.resolveTimeout = this.resolveTimeout
+    builder.connectTimeout = this.connectTimeout
+    builder.onEvent = this.onEvent
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class TcpConnectOptionsBuilder internal constructor() {
+    public var resolutionDelay: Duration = Duration.milliseconds(50L)
+    public var attemptDelay: Duration = Duration.milliseconds(250L)
+    public var maxConcurrentAttempts: Long = 2L
+    public var resolveTimeout: Duration? = None
+    public var connectTimeout: Duration? = None
+    public var onEvent: ((TcpConnectEvent) -> Unit)? = None
+    internal fun snapshot(): TcpConnectOptions =
+        TcpConnectOptions(
+            resolutionDelay,
+            attemptDelay,
+            maxConcurrentAttempts,
+            resolveTimeout,
+            connectTimeout,
+            onEvent
+        )
+}

@@ -60,7 +60,7 @@ curl -i http://127.0.0.1:8080/outside
 # 404；正文 Page not found
 ```
 
-`/api` → `/v1` → `/teams/{team}` 的分组会组合成完整路径；子路由可读取各层参数，并继承外层 middleware 和 fallback。此例先用 `RouterBuilder.build()` 构造 application，再交给同一个 `HttpServer.listen`。
+`/api` → `/v1` → `/teams/{team}` 的分组会组合成完整路径；子路由可读取各层参数，并继承外层 middleware 和 fallback。此例先用 `routing { ... }` 构造 application，再交给同一个 `HttpServer.listen`。
 
 ## Query 与 JSON
 

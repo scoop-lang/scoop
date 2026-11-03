@@ -1,0 +1,163 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+@Test
+private class ComponentReceiverDslTests {
+    @Test
+    fun `children append once in source order and published arrays remain independent`() {
+        val captured = ArrayList<LinearBuilder>()
+        val first = empty()
+        val third = empty()
+        val calls = ArrayList<Int>()
+        column {
+            captured.add(this)
+            add(first)
+            if (true)
+                label("second") { calls.add(2) }
+            for (view in [third])
+                add(view)
+            row { label("nested") { calls.add(4) } }
+            spacing = 7.0
+        }
+        val builder = captured[0L]
+        val props = builder.snapshot()
+        builder.add(empty())
+        builder.spacing = 99.0
+        assertEquals(4L, props.children.size)
+        assertSame(first, props.children[0L])
+        assertSame(third, props.children[2L])
+        assertEquals(7.0, props.spacing)
+        assertEquals(2L, calls.size)
+        assertEquals(2, calls[0L])
+        assertEquals(4, calls[1L])
+        assertEquals(0L, LinearBuilder().snapshot().children.size)
+    }
+
+    @Test
+    fun `leaf descriptions retain the supplied model callbacks and current nested configuration`() {
+        val clicked = ArrayList<String>()
+        val buttons = ArrayList<ButtonBuilder>()
+        val action = { clicked.add("current") }
+        button("action", action) {
+            buttons.add(this)
+            enabled = false
+            style { text { weight = Some(700) } }
+            style { text { fontSize = Some(17.0) } }
+            focus { tabStop = false }
+            focus { order = 3 }
+        }
+        val original = buttons[0L].snapshot("action", action)
+        buttons[0L].enabled = true
+        assertFalse(original.enabled)
+        assertFalse(original.focus.tabStop)
+        assertEquals(3, original.focus.order)
+        assertEquals(Some(700), original.style.text!!.weight)
+        assertEquals(Some(17.0), original.style.text!!.fontSize)
+        assertEquals(TextAlignment.Center, original.label.settings.alignment)
+        assertEquals(0L, clicked.size)
+        original.onClick()
+        assertEquals(1L, clicked.size)
+        val model = state(false)
+        val binding = model.binding()
+        val options = CheckboxBuilder().snapshot(binding)
+        assertSame(binding, options.checked)
+        options.checked.value = true
+        assertTrue(model.value)
+    }
+
+    @Test
+    fun `text editor descriptions borrow state and preserve notification functions`() {
+        val model = TextEditorState()
+        val notifications = ArrayList<TextEditorState>()
+        val captured = ArrayList<TextareaBuilder>()
+        textarea(model) {
+            captured.add(this)
+            rows = 6L
+            wrap = false
+            readOnly = true
+            description = "details"
+            onEdited = { value -> notifications.add(value) }
+            style { text { weight = Some(500) } }
+            style { caretWidth = 2.0 }
+        }
+        val props = captured[0L].textareaProps(model)
+        captured[0L].rows = 2L
+        assertSame(model, props.state)
+        assertEquals(6L, props.rows)
+        assertFalse(props.wrap)
+        assertTrue(props.readOnly)
+        assertEquals("details", props.description)
+        assertEquals(0L, notifications.size)
+        props.onEdited(model)
+        assertSame(model, notifications[0L])
+        assertEquals(Some(500), props.style.text!!.weight)
+        assertEquals(2.0, props.style.caretWidth)
+        assertFailsWith<IllegalArgumentException> { textarea(model) { rows = 0L } }
+    }
+
+    @Test
+    fun `absolute items preserve logical order and scoped failures do not publish results`() {
+        val recorded = ArrayList<AbsoluteBuilder>()
+        val first = empty()
+        val second = empty()
+        absolute {
+            recorded.add(this)
+            item(first) {
+                zIndex = 9;
+                horizontal = AbsoluteAxis.End(4.0)
+            }
+            item(second) { zIndex = -2 }
+            width = Some(70.0)
+        }
+        val props = recorded[0L].snapshot()
+        recorded[0L].add(AbsoluteChild(empty()))
+        assertEquals(2L, props.children.size)
+        assertSame(first, props.children[0L].view)
+        assertSame(second, props.children[1L].view)
+        assertEquals(9, props.children[0L].zIndex)
+        val failure = IllegalStateException(Some("configuration"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                row {
+                    label("partial");
+                    throw failure
+                }
+            }
+        )
+        assertFailsWith<IllegalArgumentException> { frame(first) { width = Some(-1.0) } }
+    }
+
+    @Test
+    fun `virtual and scrolling descriptions perform no source traversal or state update`() {
+        val source = UnreadItemSource()
+        val model = ScrollState()
+        val captured = ArrayList<VirtualListBuilder>()
+        virtualList(source, ItemExtent.Variable(20.0)) {
+            captured.add(this)
+            state = Some(model)
+            overscan = 40.0
+            scrollbar { thickness = Some(6.0) }
+            scrollbar { minimumThumbLength = Some(12.0) }
+        }
+        val props = captured[0L].snapshot(source, ItemExtent.Variable(20.0))
+        assertSame(source, props.source)
+        assertSame(model, props.state!!)
+        assertEquals(40.0, props.overscan)
+        assertEquals(Some(6.0), props.scrollbar.thickness)
+        scrollArea(empty()) { state = Some(model) }
+    }
+}
+
+private class UnreadItemSource: ItemSource {
+    public override val count: Long get() =
+        throw IllegalStateException(Some("count read during configuration"))
+    public override fun keyAt(index: Long): ViewKey = throw IllegalStateException()
+    public override fun indexOfKey(key: ViewKey): Long? = throw IllegalStateException()
+    public override fun build(index: Long): View = throw IllegalStateException()
+}

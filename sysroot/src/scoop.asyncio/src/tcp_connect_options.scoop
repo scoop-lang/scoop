@@ -8,7 +8,7 @@ import scoop.time.Duration
  * Controls staggered address resolution and connection racing, concurrency, optional phase/overall
  * deadlines, and trace delivery.
  */
-public class TcpConnectOptions public constructor(
+public class TcpConnectOptions internal constructor(
     /**
      * The delay used to stagger address-family resolution.
      */
@@ -52,6 +52,7 @@ public class TcpConnectOptions public constructor(
  * A failed concrete address attempt and its original exception.
  */
 public struct TcpConnectionFailure(val address: SocketAddress, val cause: Throwable)
+
 /**
  * A failed address-family resolution and its original exception.
  */
@@ -77,7 +78,7 @@ public class TcpConnectException internal constructor(
      * Address-family lookup failures collected before termination.
      */
     public val resolutionFailures: Array<TcpResolutionFailure>
-) : Exception(Some("all TCP connection candidates failed"))
+): Exception(Some("all TCP connection candidates failed"))
 
 /**
  * Address resolution exceeded its configured time limit for the specified family.
@@ -87,23 +88,23 @@ public class TcpResolutionTimeoutException internal constructor(
      * The originally requested host name.
      */
     public val host: OsString,
-        /**
+    /**
          * The requested destination port.
          */
-        public val port: Int,
-        /**
+    public val port: Int,
+    /**
          * The address family whose lookup timed out.
          */
-        public val family: AddressFamily,
+    public val family: AddressFamily,
     /**
      * The configured timeout duration.
      */
     public val limit: Duration,
-        /**
+    /**
          * The measured elapsed time when the timeout was reported.
          */
-        public val elapsed: Duration
-) : Exception(Some("TCP address resolution timeout"))
+    public val elapsed: Duration
+): Exception(Some("TCP address resolution timeout"))
 
 /**
  * The connection procedure exceeded its configured limit; retains completed attempt and resolution
@@ -114,24 +115,24 @@ public class TcpConnectTimeoutException internal constructor(
      * The originally requested host name.
      */
     public val host: OsString,
-        /**
+    /**
          * The requested destination port.
          */
-        public val port: Int,
-        /**
+    public val port: Int,
+    /**
          * The configured timeout duration.
          */
-        public val limit: Duration,
-        /**
+    public val limit: Duration,
+    /**
          * The measured elapsed time when the timeout was reported.
          */
-        public val elapsed: Duration,
+    public val elapsed: Duration,
     /**
      * The concrete candidate failures collected before termination.
      */
     public val attempts: Array<TcpConnectionFailure>,
-        /**
+    /**
          * Address-family lookup failures collected before termination.
          */
-        public val resolutionFailures: Array<TcpResolutionFailure>
-) : Exception(Some("TCP connection timeout"))
+    public val resolutionFailures: Array<TcpResolutionFailure>
+): Exception(Some("TCP connection timeout"))

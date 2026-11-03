@@ -74,54 +74,14 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
 public fun button(
     text: String,
     onClick: () -> Unit,
-    enabled: Boolean = true,
-    style: ButtonStyle = buttonStyle(),
-    fonts: FontCollection? = None,
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position,
-    focus: FocusOptions = FocusOptions()
-): View =
-    component(
-        ButtonProps(
-            LabelProps(
-                LabelText.Plain(text, None),
-                fonts,
-                paragraphStyle { this.alignment = TextAlignment.Center }
-            ),
-            onClick,
-            enabled,
-            style,
-            theme,
-            focus
-        ),
-        { props -> Button(props) },
-        key
-    )
+    configure: ButtonBuilder.() -> Unit = {}
+): View = makeTextButton(text, onClick, configure)
 
 public fun button(
     text: StyledText,
     onClick: () -> Unit,
-    enabled: Boolean = true,
-    style: ButtonStyle = buttonStyle(),
-    fonts: FontCollection? = None,
-    settings: ParagraphStyle = paragraphStyle(),
-    inlines: Array<InlineView> = [],
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position,
-    focus: FocusOptions = FocusOptions()
-): View =
-    component(
-        ButtonProps(
-            LabelProps(LabelText.Styled(text), fonts, settings, inlines),
-            onClick,
-            enabled,
-            style,
-            theme,
-            focus
-        ),
-        { props -> Button(props) },
-        key
-    )
+    configure: StyledButtonBuilder.() -> Unit = {}
+): View = makeStyledButton(text, onClick, configure)
 
 private class ButtonInkProps(
     val input: ButtonProps,

@@ -242,3 +242,26 @@ H1／H2 异步连接须支持请求写入与响应头读取同时推进，暴露
 基础 HTTP Cone 按实际使用增加 url、charset 与 crypto 的普通依赖，仍不依赖 asyncio、TLS 或 socket。异步 HTTP Cone 增加 compression 依赖，用于 WebSocket 消息压缩；由于 compression 在一个 Cone 内交付异步适配，基础 HTTP 引擎不反向依赖它。HTTP client 只组合这些公开能力。
 
 这些新增能力分别验收后才作为 client 前置条件完成；M53 的历史验收不被改写为 M54 已通过。HTTP/2 WebSocket、Extended CONNECT 与 HTTP/3 明确留待后续。
+
+
+### 协议选项的分组配置
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| HttpHeaderLimits | `保留完整值构造；copy(HttpHeaderLimitsBuilder.() -> Unit)`；maxBytes: Long = 65536L；maxFieldBytes: Long = 16384L；maxFields: Long = 100L |
+| Http1Limits | `保留完整值构造；copy(Http1LimitsBuilder.() -> Unit)`；headers: HttpHeaderLimits = HttpHeaderLimits()；maxStartLineBytes: Long = 8192L |
+| Http1ReceiveOptions | `保留完整值构造；copy(Http1ReceiveOptionsBuilder.() -> Unit)`；legacyHeaderValues: Boolean = false；lenientChunkedLength: Boolean = false；lenientTransferEncoding: Boolean = false；lenientTextVersion: Boolean = false；optionalLfAfterCr: Boolean = false；optionalCrBeforeLf: Boolean = false；optionalCrLfAfterChunk: Boolean = false；spacesAfterChunkSize: Boolean = false；afterClose: Http1AfterClose = Http1AfterClose.Reject |
+| Http2ReceiveOptions | `保留完整值构造；copy(Http2ReceiveOptionsBuilder.() -> Unit)`；allowFieldValueEdgeWhitespace: Boolean = false；invalidRegularField: Http2InvalidRegularField = Http2InvalidRegularField.Ignore |
+| Http2Limits | `保留完整值构造；copy(Http2LimitsBuilder.() -> Unit)`；headers: HttpHeaderLimits = HttpHeaderLimits()；maxContinuations: Long = 8L；maxSendHeaderBlockBytes: Long = 65536L；maxPendingBodyBytes: Long = 65536L |
+| Http2Settings | `保留完整值构造；copy(Http2SettingsBuilder.() -> Unit)`；headerTableSize: UInt = 4096U；maxConcurrentStreams: UInt = 100U；initialWindowSize: UInt = 65535U；maxFrameSize: UInt = 16384U；maxHeaderListSize: UInt = 65536U |
+| MultipartLimits | `multipartLimits(configure: MultipartLimitsBuilder.() -> Unit = {})`；maxHeaderBytes: Long = 65536L；maxFields: Long = 100L；maxParts: Long = 1024L；maxBoundaryPaddingBytes: Long = 1024L；dataChunkBytes: Long = 8192L |
+| SseLimits | `保留完整值构造；copy(SseLimitsBuilder.() -> Unit)`；maxLineBytes: Long = 65536L；maxEventBytes: Long = 1048576L |
+| WebSocketFrameLimits | `保留完整值构造；copy(WebSocketFrameLimitsBuilder.() -> Unit)`；maxFrameBytes: Long = 16777216L；maxMessageBytes: Long = 67108864L；dataChunkBytes: Long = 8192L |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+`httpFields(configure: HttpFieldsBuilder.() -> Unit = {}): Array<HttpField>` 和 `List<HttpField>.copyFields(configure)` 发布独立有序字段数组。add(field)、add(nameBytes, valueBytes)、add(nameText, valueText) 验证并追加；addAll(fields) 顺序追加。set(field)／set(name, value) 删除同名字段后在原第一个同名位置写入一个值，没有旧项时追加；remove(nameBytes／nameText) 按 ASCII 忽略大小写移除全部同名项，clear 清空。操作返回 Unit，名称和值遵守 HttpField 普通字段规则；重复字段原样保留，Set-Cookie 不合并。字段收集不承担某个具体消息的 Host／framing 检查，消息构造仍执行自己的领域校验。
+
+HTTP/1／HTTP/2 limits 的 headers 块修改当前 HttpHeaderLimits；这些是普通协议配置数据，保留值类型与原有比较／消费规则。MultipartLimits 使用独立构造入口，因为它提供一组可复用的接收配置；SseLimits／WebSocketFrameLimits 以小型完整值或父级配置块表达。

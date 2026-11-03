@@ -49,7 +49,7 @@ private class HttpClientResponseDecodingCancellationTest {
                         try {
                             val executing =
                                 scope.async suspend {
-                                    client.execute(HttpRequest.get(clientTestUrl(listener)))
+                                    client.execute(httpRequest(clientTestUrl(listener)))
                                 }
                             val response = executing.await()
                             assertTrue(executing.isCompleted)

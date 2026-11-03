@@ -1,16 +1,27 @@
 package scoop.readline
 
 /** Selects the built-in key map. */
-public enum EditMode { Emacs, Vi }
+public enum EditMode {
+    Emacs, Vi
+}
+
 /** Selects cycling, common-prefix/list completion, or interactive fuzzy selection. */
-public enum CompletionType { Circular, List, Fuzzy }
+public enum CompletionType {
+    Circular, List, Fuzzy
+}
+
 /** Selects the feedback used for an unavailable editing operation. */
-public enum BellStyle { Audible, Visible, None }
+public enum BellStyle {
+    Audible, Visible, None
+}
+
 /** Controls ANSI decoration produced by highlighters. */
-public enum ColorMode { Enabled, Disabled, Forced }
+public enum ColorMode {
+    Enabled, Disabled, Forced
+}
 
 /** Immutable editor options. Indices, counts, and dimensions use Long. */
-public class Config public constructor(
+public class Config internal constructor(
     public val editMode: EditMode = EditMode.Emacs,
     public val maxHistorySize: Long = 100L,
     public val historyIgnoreDuplicates: Boolean = true,
@@ -28,14 +39,25 @@ public class Config public constructor(
     public val keySequenceTimeoutMilliseconds: Long = 500L
 ) {
     init {
-        if (maxHistorySize < 0L || completionPromptLimit < 0L || tabStop <= 0L ||
-            indentSize < 0L || keySequenceTimeoutMilliseconds < 0L) {
+        if (
+            maxHistorySize <
+                0L ||
+                completionPromptLimit <
+                0L ||
+                tabStop <=
+                0L ||
+                indentSize <
+                0L ||
+                keySequenceTimeoutMilliseconds <
+                0L
+        ) {
             throw IllegalArgumentException(Some("invalid readline configuration"))
         }
     }
 }
 
 /** Signals end of input, including Ctrl-D on an empty buffer. */
-public class ReadlineEofException public constructor() : Exception(Some("end of input"))
+public class ReadlineEofException public constructor(): Exception(Some("end of input"))
+
 /** Signals Ctrl-C without treating it as an accepted line. */
-public class ReadlineInterruptedException public constructor() : Exception(Some("input interrupted"))
+public class ReadlineInterruptedException public constructor(): Exception(Some("input interrupted"))

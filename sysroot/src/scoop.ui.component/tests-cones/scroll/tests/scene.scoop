@@ -18,14 +18,13 @@ internal class AreaScene(private val probe: AreaProbe): Component {
             { props -> AreaPanel(probe, props) },
             [
                 if (generation < 4)
-                    scrollArea(
-                        component(generation, { props -> AreaContent(probe, props) }),
-                        state = Some(probe.outer),
-                        axes = ScrollAxes.Both,
-                        lineStep = 20.0,
-                        focus = FocusOptions(Some(probe.outerFocus)),
-                        theme = Some(probe.theme)
-                    )
+                    scrollArea(component(generation, { props -> AreaContent(probe, props) })) {
+                        this.state = Some(this @AreaScene.probe.outer)
+                        this.axes = ScrollAxes.Both
+                        this.lineStep = 20.0
+                        this.focus = FocusOptions(Some(this @AreaScene.probe.outerFocus))
+                        this.theme = Some(this @AreaScene.probe.theme)
+                    }
                 else
                     empty()
             ]
@@ -92,17 +91,16 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
             props.value,
             { current -> ContentLayout(probe, current) },
             [
-                scrollArea(
-                    element({ ContentInput(probe, true) }),
-                    state = Some(probe.inner),
-                    lineStep = 10.0,
-                    chain =
-                        if (props.value == 1)
+                scrollArea(element({ ContentInput(probe, true) })) {
+                    this.state = Some(this @AreaContent.probe.inner)
+                    this.lineStep = 10.0
+                    this.chain =
+                        if (this @AreaContent.props.value == 1)
                             ScrollChain.Contain
                         else
-                            ScrollChain.Chain,
-                    theme = Some(probe.theme)
-                ),
+                            ScrollChain.Chain
+                    this.theme = Some(this @AreaContent.probe.theme)
+                },
                 element({ ContentInput(probe, false) })
             ]
         )

@@ -40,7 +40,7 @@ private class HttpClientResponseCancellationTest {
                         client ->
                         val executing =
                             scope.async suspend {
-                                client.execute(HttpRequest.get(clientTestUrl(listener)))
+                                client.execute(httpRequest(clientTestUrl(listener)))
                             }
                         val response = executing.await()
                         assertTrue(executing.isCompleted)
@@ -104,10 +104,10 @@ private class HttpClientResponseCancellationTest {
                         client ->
                         val response =
                             client.execute(
-                                HttpRequest.post(
-                                    clientTestUrl(listener),
-                                    RequestBody.fromSourceFactory suspend { source }
-                                )
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "POST"
+                                    this.body = RequestBody.fromSourceFactory suspend { source }
+                                }
                             )
                         val failure = ClientTestFailureHolder()
                         val closing =

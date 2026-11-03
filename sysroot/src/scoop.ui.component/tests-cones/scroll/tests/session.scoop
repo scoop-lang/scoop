@@ -18,7 +18,9 @@ private class ScrollAreaTest {
         val probe = AreaProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertFalse(probe.outer.isAttached)
@@ -71,7 +73,10 @@ internal class AreaProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop scroll area", LogicalSize(320.0, 180.0))
+                        windowAttributes {
+                            this.title = "Scoop scroll area"
+                            this.size = LogicalSize(320.0, 180.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -100,7 +105,11 @@ internal class AreaProbe {
                     advanceArea(this, active)
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"scroll area timeout phase=${phase}, passes=${passes}")
+                Some(
+                    f"scroll area timeout phase=${this @AreaProbe.phase}, passes=${
+                        this @AreaProbe.passes
+                    }"
+                )
             )
             case Window(_, WindowEvent.Destroyed) -> {
                 finished = phase == 28;

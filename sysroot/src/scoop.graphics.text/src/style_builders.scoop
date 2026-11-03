@@ -93,11 +93,8 @@ public class SpanStyleBuilder internal constructor(initial: SpanStyle) {
 }
 
 /** Runs the configuration once and returns an immutable ParagraphStyle description. */
-public fun paragraphStyle(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle {
-    val builder = ParagraphStyleBuilder(ParagraphStyle())
-    builder.configure()
-    return builder.snapshot()
-}
+public fun paragraphStyle(configure: ParagraphStyleBuilder.() -> Unit = {}): ParagraphStyle =
+    ParagraphStyle().copy(configure)
 
 /** Mutable configuration whose later changes do not alter published values. */
 public class ParagraphStyleBuilder internal constructor(initial: ParagraphStyle) {

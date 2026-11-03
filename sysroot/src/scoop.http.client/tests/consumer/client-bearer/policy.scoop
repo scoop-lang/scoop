@@ -134,7 +134,13 @@ internal fun bearerPolicies(trust: TrustStore, mode: String) {
                 else -> 3L
             }
         withHttpClient(
-            bearerConfig(trust, HttpAuthenticationOptions([provider], maxAttempts = attempts))
+            bearerConfig(
+                trust,
+                httpAuthenticationOptions {
+                    this.providers = [provider]
+                    this.maxAttempts = attempts
+                }
+            )
         ) suspend {
             client ->
             val fields: Array<HttpField> =
@@ -143,13 +149,13 @@ internal fun bearerPolicies(trust: TrustStore, mode: String) {
                 else
                     []
             val options =
-                HttpCallOptions(
-                    authentication =
+                httpCallOptions {
+                    this.authentication =
                         if (mode == "disabled")
-                            Some(HttpAuthenticationOptions())
+                            Some(httpAuthenticationOptions())
                         else
                             None
-                )
+                }
             val body =
                 if (mode == "sent")
                     RequestBody.fromProducer(Some(4L)) suspend {
@@ -160,16 +166,16 @@ internal fun bearerPolicies(trust: TrustStore, mode: String) {
                 else
                     RequestBody.Empty
             val request =
-                HttpRequest(
-                    url,
-                    if (mode == "sent")
-                        "POST"
-                    else
-                        "GET",
-                    fields,
-                    body,
-                    options
-                )
+                httpRequest(url) {
+                    this.method =
+                        if (mode == "sent")
+                            "POST"
+                        else
+                            "GET"
+                    this.fields = fields
+                    this.body = body
+                    this.options = options
+                }
             if (failed) {
                 val error =
                     bearerFailure<HttpAuthenticationException> suspend {

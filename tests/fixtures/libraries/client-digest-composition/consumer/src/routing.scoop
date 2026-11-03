@@ -26,24 +26,27 @@ internal fun digestRouting(mode: String, url: Url, trust: TrustStore) {
             }
         algorithms[0L] = HttpDigestAlgorithm.Md5
         withHttpClient(
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                authentication = HttpAuthenticationOptions([provider]),
-                retries =
-                    HttpRetryOptions(
-                        maxRetries = 1L,
-                        statuses = [503U],
-                        initialDelay = Duration.ZERO,
-                        maxDelay = Duration.ZERO
-                    )
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.authentication = httpAuthenticationOptions { this.providers = [provider] }
+                this.retries =
+                    httpRetryOptions {
+                        this.maxRetries = 1L
+                        this.statuses = [503U]
+                        this.initialDelay = Duration.ZERO
+                        this.maxDelay = Duration.ZERO
+                    }
+            }
         ) suspend {
             client -> context(DigestContext("route")) {
                 val request =
                     if (mode == "routing" || mode == "domain")
-                        HttpRequest.post(url, RequestBody.Empty)
+                        httpRequest(url) {
+                            this.method = "POST"
+                            this.body = RequestBody.Empty
+                        }
                     else
-                        HttpRequest.get(url)
+                        httpRequest(url)
                 client.withResponse(request) suspend {
                     response ->
                     digestCheck(response.body.text(4L) == "done")
@@ -64,7 +67,7 @@ internal fun digestRouting(mode: String, url: Url, trust: TrustStore) {
                     )
                 }
                 if (mode == "no-preempt")
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response -> digestCheck(
                             response.authenticationCount == 1L && response.body.text(4L) == "done"
                         )

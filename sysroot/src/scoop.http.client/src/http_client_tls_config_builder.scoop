@@ -1,0 +1,39 @@
+package scoop.http.client
+
+import scoop.asyncio.TcpConnectOptions
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.time.Duration
+import scoop.tls.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpClientTlsConfig(
+    configure: HttpClientTlsConfigBuilder.() -> Unit = {}
+): HttpClientTlsConfig {
+    val builder = HttpClientTlsConfigBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpClientTlsConfig.copy(
+    configure: HttpClientTlsConfigBuilder.() -> Unit = {}
+): HttpClientTlsConfig {
+    val builder = HttpClientTlsConfigBuilder()
+    builder.trust = this.trust
+    builder.minimum = this.minimum
+    builder.maximum = this.maximum
+    builder.identity = this.identity
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpClientTlsConfigBuilder internal constructor() {
+    public var trust: TlsTrustSource = TlsTrustSource.System
+    public var minimum: TlsVersion = TlsVersion.Tls12
+    public var maximum: TlsVersion = TlsVersion.Tls13
+    public var identity: TlsIdentity? = None
+    internal fun snapshot(): HttpClientTlsConfig =
+        HttpClientTlsConfig(trust, minimum, maximum, identity)
+}

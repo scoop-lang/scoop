@@ -43,23 +43,24 @@ private class HttpClientPoolHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxStreamsPerHttp2 = 2L
-                                )
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxStreamsPerHttp2 = 2L
+                                }
+                        }
                     withHttpClient(config) suspend {
                         client ->
-                        val first = client.execute(HttpRequest.get(clientTestUrl(listener)))
-                        val second = client.execute(HttpRequest.get(clientTestUrl(listener)))
+                        val first = client.execute(httpRequest(clientTestUrl(listener)))
+                        val second = client.execute(httpRequest(clientTestUrl(listener)))
                         first.close()
                         assertEquals("second", String.fromUtf8(second.body.readAllBytes(6L)))
                         second.close()
-                        client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                        client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                             response ->
                             assertEquals(204U, response.status)
                             response.body.readAllBytes(0L)
@@ -114,23 +115,22 @@ private class HttpClientPoolHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxStreamsPerHttp2 = local
-                                )
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxStreamsPerHttp2 = local
+                                }
+                        }
                     withHttpClient(config) suspend {
                         client ->
-                        val held = client.execute(HttpRequest.get(clientTestUrl(listener)))
+                        val held = client.execute(httpRequest(clientTestUrl(listener)))
                         val next =
                             scope.launch suspend {
-                                client.withResponse(
-                                    HttpRequest.get(clientTestUrl(listener))
-                                ) suspend {
+                                client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                                     response ->
                                     response.body.readAllBytes(1L);
                                     Unit
@@ -185,15 +185,17 @@ private class HttpClientPoolHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 2L)
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 2L }
+                        }
                     withHttpClient(config) suspend {
                         client -> try {
-                            val held = client.execute(HttpRequest.get(clientTestUrl(listener)))
-                            client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                            val held = client.execute(httpRequest(clientTestUrl(listener)))
+                            client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                                 response ->
                                 assertEquals(204U, response.status)
                                 response.body.readAllBytes(0L)

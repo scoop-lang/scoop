@@ -48,10 +48,11 @@ private class HttpClientIdleCancellationCleanupTest {
                             scope.launch suspend {
                                 try {
                                     client.withResponse(
-                                        HttpRequest.post(
-                                            clientTestUrl(listener),
-                                            RequestBody.fromSourceFactory suspend { source }
-                                        )
+                                        httpRequest(clientTestUrl(listener)) {
+                                            this.method = "POST"
+                                            this.body =
+                                                RequestBody.fromSourceFactory suspend { source }
+                                        }
                                     ) suspend {
                                         _ ->
                                         entered.signal();

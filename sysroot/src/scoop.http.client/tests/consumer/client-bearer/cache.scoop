@@ -36,7 +36,7 @@ internal fun bearerCache(trust: TrustStore) {
             }
         val other =
             HttpAuthenticator.bearer(url.httpOrigin()) suspend { _ -> HttpBearerTokens("other") }
-        val config = bearerConfig(trust, HttpAuthenticationOptions([provider]))
+        val config = bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
         val serving =
             scope.launch suspend {
                 val expected = ["token1", "token1", "token1", "token2", "token3", "other", "token2"]
@@ -65,7 +65,7 @@ internal fun bearerCache(trust: TrustStore) {
                 val first =
                     context(firstContext) {
                         scope.async<Unit> suspend {
-                            client.withResponse(HttpRequest.get(url)) suspend {
+                            client.withResponse(httpRequest(url)) suspend {
                                 response -> bearerCheck(
                                     response.body.text(4L) == "done" && bearerContext() == "first"
                                 )
@@ -77,7 +77,7 @@ internal fun bearerCache(trust: TrustStore) {
                 val second =
                     context(secondContext) {
                         scope.async<Unit> suspend {
-                            client.withResponse(HttpRequest.get(url.resolve("/else"))) suspend {
+                            client.withResponse(httpRequest(url.resolve("/else"))) suspend {
                                 response -> bearerCheck(
                                     response.body.text(4L) == "done" && bearerContext() == "second"
                                 )
@@ -88,26 +88,26 @@ internal fun bearerCache(trust: TrustStore) {
                 release.signal();
                 first.await();
                 second.await()
-                bearerDone(client, HttpRequest.get(url.resolve("/cached")))
+                bearerDone(client, httpRequest(url.resolve("/cached")))
                 bearerCheck(loads.load() == 1L)
                 client.clearAuthenticationCache(provider)
-                bearerDone(client, HttpRequest.get(url))
+                bearerDone(client, httpRequest(url))
                 bearerCheck(loads.load() == 2L)
                 withHttpClient(config) suspend {
-                    separate -> bearerDone(separate, HttpRequest.get(url))
+                    separate -> bearerDone(separate, httpRequest(url))
                 }
                 bearerCheck(loads.load() == 3L)
                 bearerDone(
                     client,
-                    HttpRequest.get(
-                        url,
-                        options =
-                            HttpCallOptions(
-                                authentication = Some(HttpAuthenticationOptions([other]))
-                            )
-                    )
+                    httpRequest(url) {
+                        this.options =
+                            httpCallOptions {
+                                this.authentication =
+                                    Some(httpAuthenticationOptions { this.providers = [other] })
+                            }
+                    }
                 )
-                bearerDone(client, HttpRequest.get(url))
+                bearerDone(client, httpRequest(url))
                 bearerCheck(loads.load() == 3L)
             }
         } finally {

@@ -20,7 +20,7 @@ private class MultipartSourceTests {
                 MultipartSource(
                     input,
                     MultipartBoundary("b"),
-                    MultipartLimits(dataChunkBytes = 2L),
+                    multipartLimits { this.dataChunkBytes = 2L },
                     3L
                 )
             assertEquals(0, input.reads)

@@ -1,0 +1,38 @@
+package scoop.http.client.tests.consumer.client_interceptors_lifetime
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+@Test
+private class InterceptorLifetimeTests {
+    @Test
+    fun cancellationAndCleanup() {
+        for (where in ["before", "after", "attempt"])
+            for (child in [false, true]) {
+                for (stop in ["caller", "client", "total"])
+                    TrustStore.fromPem(rootPem()).use {
+                        trust -> interceptorLifetime(trust, where, stop, child, true)
+                    }
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> interceptorLifetime(trust, where, "client", child, false)
+                }
+            }
+    }
+    @Test
+    fun selfWait() {
+        for (where in ["before", "after", "attempt"])
+            for (child in [false, true])
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> interceptorSelfWait(trust, where, child)
+                }
+    }
+    @Test
+    fun concurrentProceed() {
+        TrustStore.fromPem(rootPem()).use { trust -> interceptorConcurrentProceed(trust) }
+    }
+    @Test
+    fun http2Isolation() {
+        TrustStore.fromPem(rootPem()).use { trust -> interceptorHttp2(trust) }
+    }
+}

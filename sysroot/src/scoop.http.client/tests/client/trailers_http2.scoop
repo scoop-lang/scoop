@@ -73,11 +73,11 @@ private class HttpClientTrailersHttp2Test {
                                                 )
                                             ]
                                         client.withResponse(
-                                            HttpRequest.post(
-                                                clientTestUrl(listener, "/" + text),
-                                                body,
-                                                fields
-                                            )
+                                            httpRequest(clientTestUrl(listener, "/" + text)) {
+                                                this.method = "POST"
+                                                this.body = body
+                                                this.fields = fields
+                                            }
                                         ) suspend {
                                             response ->
                                             assertEquals(204U, response.status)

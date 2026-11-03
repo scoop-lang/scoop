@@ -1,0 +1,39 @@
+package scoop.http.server
+
+import scoop.http.*
+import scoop.platform.fs.Path
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun staticFileOptions(
+    configure: StaticFileOptionsBuilder.() -> Unit = {}
+): StaticFileOptions {
+    val builder = StaticFileOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun StaticFileOptions.copy(
+    configure: StaticFileOptionsBuilder.() -> Unit = {}
+): StaticFileOptions {
+    val builder = StaticFileOptionsBuilder()
+    builder.pathParameter = this.pathParameter
+    builder.indexDocument = this.indexDocument
+    builder.fileOptions = this.fileOptions
+    builder.fallbackFile = this.fallbackFile
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class StaticFileOptionsBuilder internal constructor() {
+    public var pathParameter: String = "path"
+    public var indexDocument: String? = None
+    public var fileOptions: FileResponseOptions = fileResponseOptions()
+    public var fallbackFile: Path? = None
+
+    public fun fileOptions(configure: FileResponseOptionsBuilder.() -> Unit): Unit {
+        fileOptions = fileOptions.copy(configure)
+    }
+    internal fun snapshot(): StaticFileOptions =
+        StaticFileOptions(pathParameter, indexDocument, fileOptions, fallbackFile)
+}

@@ -44,7 +44,9 @@ internal fun bearerSharedCancellation(trust: TrustStore, total: Boolean) {
                 }
             }
         try {
-            withHttpClient(bearerConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+            withHttpClient(
+                bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+            ) suspend {
                 client ->
                 val failure = BearerFailureHolder()
                 val firstContext = BearerContext("loading")
@@ -53,18 +55,18 @@ internal fun bearerSharedCancellation(trust: TrustStore, total: Boolean) {
                         scope.launch suspend {
                             try {
                                 val options =
-                                    HttpCallOptions(
-                                        timeouts =
+                                    httpCallOptions {
+                                        this.timeouts =
                                             if (total)
                                                 Some(
-                                                    HttpTimeoutOptions(
-                                                        total = Some(Duration.seconds(15L))
-                                                    )
+                                                    httpTimeoutOptions {
+                                                        this.total = Some(Duration.seconds(15L))
+                                                    }
                                                 )
                                             else
                                                 None
-                                    )
-                                client.execute(HttpRequest.get(url, options = options)).close()
+                                    }
+                                client.execute(httpRequest(url) { this.options = options }).close()
                             } catch (error: Throwable) {
                                 failure.value = Some(error)
                             }
@@ -76,7 +78,7 @@ internal fun bearerSharedCancellation(trust: TrustStore, total: Boolean) {
                 val second =
                     context(secondContext) {
                         scope.async<Unit> suspend {
-                            bearerDone(client, HttpRequest.get(url))
+                            bearerDone(client, httpRequest(url))
                             bearerCheck(bearerContext() == "waiting")
                         }
                     }

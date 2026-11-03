@@ -14,26 +14,28 @@ import scoop.test.*
 private class HttpServerConsumerTests {
     @Test
     fun `published server composes typed extraction and gzip responses through public APIs`() {
-        val routes = RouterBuilder()
-        routes.use(responseCompression(ResponseCompressionOptions(minimumBytes = 0L)))
-        routes.post(
-            "/hello/{id}",
-            adapt(
-                suspend {
-                    ctx ->
-                    val query = queryExtractor<ConsumerQuery>()(ctx)
-                    val name = jsonExtractor(String.Companion)(ctx)
-                    (name, query)
-                },
-                ::consumerHello
-            )
-        )
+        val routes =
+            routing {
+                this.use(responseCompression(responseCompressionOptions { this.minimumBytes = 0L }))
+                this.post(
+                    "/hello/{id}",
+                    adapt(
+                        suspend {
+                            ctx ->
+                            val query = queryExtractor<ConsumerQuery>()(ctx)
+                            val name = jsonExtractor(String.Companion)(ctx)
+                            (name, query)
+                        },
+                        ::consumerHello
+                    )
+                )
+            }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope ->
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val address = listener.localAddress
-            HttpServer.takeOwnership(listener, routes.build(), scope).useAsync suspend {
+            HttpServer.takeOwnership(listener, routes, scope).useAsync suspend {
                 _ ->
                 val stream = loop.connectTcp(address)
                 AsyncHttp1Connection.takeOwnershipAsClient(stream, scope).useAsync suspend {

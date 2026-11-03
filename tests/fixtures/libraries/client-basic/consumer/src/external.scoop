@@ -42,25 +42,27 @@ internal fun basicChallenge(url: Url, trust: TrustStore) {
                 basicWrite(output, "payload")
                 [basicField("X-Upload", "once")]
             }.compressed()
-        withHttpClient(basicConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+        withHttpClient(
+            basicConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+        ) suspend {
             client -> context(BasicContext("challenge")) {
                 client.withResponse(
-                    HttpRequest.post(
-                        url,
-                        body,
-                        options =
-                            HttpCallOptions(
-                                expectContinue = true,
-                                continueWait = Duration.seconds(3600L),
-                                onInformational =
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options =
+                            httpCallOptions {
+                                this.expectContinue = true
+                                this.continueWait = Duration.seconds(3600L)
+                                this.onInformational =
                                     suspend {
                                         head ->
                                         basicCheck(head.status == 100U || head.status == 103U)
                                         observed.fetchAdd(1L)
                                         Unit
                                     }
-                            )
-                    )
+                            }
+                    }
                 ) suspend {
                     response ->
                     basicCheck(
@@ -105,15 +107,21 @@ internal fun basicRedirect(first: Url, second: Url, trust: TrustStore) {
         withHttpClient(basicConfig(trust)) suspend {
             client -> context(BasicContext("redirect")) {
                 client.withResponse(
-                    HttpRequest.post(
-                        first,
-                        RequestBody.Empty,
-                        [basicField("Cookie", "caller=value"), basicField("X-Keep", "same")],
-                        HttpCallOptions(
-                            authentication =
-                                Some(HttpAuthenticationOptions([original, destination]))
-                        )
-                    )
+                    httpRequest(first) {
+                        this.method = "POST"
+                        this.body = RequestBody.Empty
+                        this.fields =
+                            [basicField("Cookie", "caller=value"), basicField("X-Keep", "same")]
+                        this.options =
+                            httpCallOptions {
+                                this.authentication =
+                                    Some(
+                                        httpAuthenticationOptions {
+                                            this.providers = [original, destination]
+                                        }
+                                    )
+                            }
+                    }
                 ) suspend {
                     response ->
                     basicCheck(response.authenticationCount == 3L && response.retryCount == 0L)

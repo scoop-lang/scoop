@@ -37,11 +37,11 @@ internal fun tcpTraceCallback(phase: TcpConnectPhase, kind: TcpConnectEventKind)
             try {
                 context(TcpTraceMarker("callback")) {
                     val options =
-                        TcpConnectOptions(
-                            resolutionDelay = Duration.ZERO,
-                            attemptDelay = Duration.ZERO,
-                            onEvent = Some(callback)
-                        )
+                        tcpConnectOptions {
+                            this.resolutionDelay = Duration.ZERO
+                            this.attemptDelay = Duration.ZERO
+                            this.onEvent = Some(callback)
+                        }
                     val failure =
                         tcpTraceFailure suspend {
                             loop.connectTcp(

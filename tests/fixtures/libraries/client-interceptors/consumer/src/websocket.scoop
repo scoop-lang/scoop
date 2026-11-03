@@ -48,7 +48,7 @@ internal fun extensionWebSocket(trust: TrustStore, url: Url) {
         _ -> withHttpClient(extensionConfig(trust, [interceptor], Some(callback))) suspend {
             client ->
             val target = url.copy { scheme = Some("ws") }
-            client.withWebSocket(HttpWebSocketRequest(target)) suspend {
+            client.withWebSocket(httpWebSocketRequest(target)) suspend {
                 result -> when (result) {
                     case Opened(session) -> {
                         assertEquals("intercepted", session.receive()!!.readText())
@@ -108,7 +108,7 @@ internal fun extensionWebSocketValidation(trust: TrustStore, url: Url) {
                 val target = url.copy { scheme = Some("ws") }
                 assertTrue(
                     extensionFailure suspend {
-                        client.openWebSocket(HttpWebSocketRequest(target));
+                        client.openWebSocket(httpWebSocketRequest(target));
                         Unit
                     } is
                         IllegalArgumentException

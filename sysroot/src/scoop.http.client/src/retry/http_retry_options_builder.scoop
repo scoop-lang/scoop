@@ -1,0 +1,53 @@
+package scoop.http.client
+
+import scoop.collections.emptyList
+import scoop.http.isHttpToken
+import scoop.time.Duration
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpRetryOptions(configure: HttpRetryOptionsBuilder.() -> Unit = {}): HttpRetryOptions {
+    val builder = HttpRetryOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpRetryOptions.copy(
+    configure: HttpRetryOptionsBuilder.() -> Unit = {}
+): HttpRetryOptions {
+    val builder = HttpRetryOptionsBuilder()
+    builder.maxRetries = this.maxRetries
+    builder.connectionFailures = this.connectionFailures
+    builder.methods = this.methods
+    builder.statuses = this.statuses
+    builder.initialDelay = this.initialDelay
+    builder.maxDelay = this.maxDelay
+    builder.jitter = this.jitter
+    builder.respectRetryAfter = this.respectRetryAfter
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpRetryOptionsBuilder internal constructor() {
+    public var maxRetries: Long = 2L
+    public var connectionFailures: Boolean = true
+    public var methods: List<String> = ["GET", "HEAD", "PUT", "DELETE", "OPTIONS", "TRACE"]
+    public var statuses: List<UInt> = emptyList<UInt>()
+    public var initialDelay: Duration = Duration.milliseconds(100L)
+    public var maxDelay: Duration = Duration.seconds(30L)
+    public var jitter: Boolean = true
+    public var respectRetryAfter: Boolean = true
+    internal fun snapshot(): HttpRetryOptions =
+        HttpRetryOptions(
+            maxRetries,
+            connectionFailures,
+            methods,
+            statuses,
+            initialDelay,
+            maxDelay,
+            jitter,
+            respectRetryAfter
+        )
+}

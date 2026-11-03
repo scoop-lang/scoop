@@ -169,7 +169,7 @@ private class HttpClientEnvironmentProxyTest {
                     HttpProxySelector.fromEnvironment(
                         mapOf(("ALL_PROXY", scheme + "://%00:%FF@localhost"))
                     )
-                when (socks.select(HttpRequest.get(Url.parse("https://example.test/")))) {
+                when (socks.select(httpRequest(Url.parse("https://example.test/")))) {
                     case Socks5(proxy) -> {
                         assertEquals(expected, proxy.resolution)
                         assertEquals(Some("socks5"), proxy.url.scheme)
@@ -232,13 +232,13 @@ private suspend fun environmentHttpEndpoint(
     selector: HttpProxySelector,
     text: String
 ): HttpProxyEndpoint =
-    when (selector.select(HttpRequest.get(Url.parse(text)))) {
+    when (selector.select(httpRequest(Url.parse(text)))) {
         case Http(endpoint) -> endpoint;
         else -> throw IllegalStateException()
     }
 
 private suspend fun environmentDirect(selector: HttpProxySelector, text: String): Boolean =
-    when (selector.select(HttpRequest.get(Url.parse(text)))) {
+    when (selector.select(httpRequest(Url.parse(text)))) {
         case Direct -> true;
         else -> false
     }

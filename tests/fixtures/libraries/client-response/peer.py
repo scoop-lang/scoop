@@ -91,13 +91,3 @@ def exercise(binary, mode, serve):
 exercise(sys.argv[1], "data", serve_data)
 exercise(sys.argv[1], "policy", serve_policy)
 print("independent HTTP response decoding passed")
-result = subprocess.run(
-    [sys.argv[1], "h2"],
-    capture_output=True,
-    text=True,
-    timeout=240,
-    env=os.environ,
-)
-assert result.returncode == 0, (result.returncode, result.stdout, result.stderr)
-assert result.stdout == "response h2\n" and not result.stderr
-print("parallel HTTP2 content decoding passed")

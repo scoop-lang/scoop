@@ -1,0 +1,55 @@
+package scoop.tests.ui.dsl
+
+import scoop.graphics.text.InlineKey
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as makeLabel
+import scoop.ui.text.inlineText
+
+@Test
+private class ReceiverDslConsumerTests {
+    @Test
+    fun `public inherited members and aliased factories compose without mounting`() {
+        val calls = ArrayList<String>()
+        val created = ArrayList<Unit>()
+        val custom =
+            component(
+                {
+                    created.add(Unit);
+                    CustomComponent()
+                }
+            )
+        val rich =
+            inlineText {
+                text("inline ")
+                inline(InlineKey.Text("custom"), custom, "[view]")
+            }
+        val existing: View = makeLabel("existing")
+        val result: View =
+            column {
+                spacing = 4.0
+                val appended: Unit = label("first") { calls.add("first") }
+                add(existing)
+                row {
+                    label(rich.content) {
+                        inlines = rich.inlines;
+                        calls.add("rich")
+                    }
+                    button("action", { calls.add("clicked") }) { enabled = false }
+                }
+                frame(makeLabel("single")) { padding = None }
+                styled(custom) { style {} }
+                portal(custom) { dismiss { escape = true } }
+                absolute { item(existing) { zIndex = 2 } }
+            }
+        assertEquals(0L, created.size)
+        assertEquals(2L, calls.size)
+        assertEquals("first", calls[0L])
+        assertEquals("rich", calls[1L])
+    }
+}
+
+private class CustomComponent: Component {
+    public override fun render(): View = empty()
+}

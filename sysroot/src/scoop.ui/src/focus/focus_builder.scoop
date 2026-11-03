@@ -1,0 +1,17 @@
+package scoop.ui
+
+public fun focusOptions(configure: FocusOptionsBuilder.() -> Unit = {}): FocusOptions =
+    FocusOptions().copy(configure)
+
+public fun FocusOptions.copy(configure: FocusOptionsBuilder.() -> Unit = {}): FocusOptions {
+    val builder = FocusOptionsBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class FocusOptionsBuilder internal constructor(value: FocusOptions) {
+    public var handle: FocusHandle? = value.handle
+    public var tabStop: Boolean = value.tabStop
+    public var order: Int = value.order
+    internal fun snapshot(): FocusOptions = FocusOptions(handle, tabStop, order)
+}

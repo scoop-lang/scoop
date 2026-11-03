@@ -161,10 +161,13 @@ internal class DownloadWindowProbe {
                                     phase = "client"
                                     HttpClient.open(
                                         scope,
-                                        HttpClientConfig(
-                                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                                            retries = HttpRetryOptions(maxRetries = 0L)
-                                        )
+                                        httpClientConfig {
+                                            this.tls =
+                                                httpClientTlsConfig {
+                                                    this.trust = TlsTrustSource.Store(trust)
+                                                }
+                                            this.retries = httpRetryOptions { this.maxRetries = 0L }
+                                        }
                                     ).useAsync suspend {
                                         http ->
                                         client = Some(http)
@@ -189,18 +192,20 @@ internal class DownloadWindowProbe {
         for (index in 0L ..< 2L) {
             val window =
                 active.createWindow(
-                    WindowAttributes(
-                        if (index == 0L)
-                            "Scoop download test"
-                        else
-                            "Shared progress observer",
-                        if (index == 0L)
-                            LogicalSize(580.0, 320.0)
-                        else
-                            LogicalSize(400.0, 200.0),
-                        position = Some(DesktopPosition(40.0 + index.toDouble() * 600.0, 80.0)),
-                        level = WindowLevel.AlwaysOnTop
-                    )
+                    windowAttributes {
+                        this.title =
+                            if (index == 0L)
+                                "Scoop download test"
+                            else
+                                "Shared progress observer"
+                        this.size =
+                            if (index == 0L)
+                                LogicalSize(580.0, 320.0)
+                            else
+                                LogicalSize(400.0, 200.0)
+                        this.position = Some(DesktopPosition(40.0 + index.toDouble() * 600.0, 80.0))
+                        this.level = WindowLevel.AlwaysOnTop
+                    }
                 )
             windows.add(window)
             views.add(observeWindow(window))

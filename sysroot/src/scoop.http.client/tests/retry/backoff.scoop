@@ -13,12 +13,12 @@ private class HttpClientRetryBackoffTest {
         for (mode in ["cancel", "close", "total"]) {
             val delay = Duration.seconds(3600L)
             val retry =
-                HttpRetryOptions(
-                    statuses = [503U],
-                    initialDelay = delay,
-                    maxDelay = delay,
-                    jitter = false
-                )
+                httpRetryOptions {
+                    this.statuses = [503U]
+                    this.initialDelay = delay
+                    this.maxDelay = delay
+                    this.jitter = false
+                }
             withClientRetryTest(retry) suspend {
                 loop, scope, listener, config ->
                 val ready = BodyTestGate()
@@ -49,28 +49,27 @@ private class HttpClientRetryBackoffTest {
                 val failure = ClientTestFailureHolder()
                 val limit = clientTimeoutTestDuration()
                 val options =
-                    HttpCallOptions(
-                        timeouts =
+                    httpCallOptions {
+                        this.timeouts =
                             Some(
-                                HttpTimeoutOptions(
-                                    total =
+                                httpTimeoutOptions {
+                                    this.total =
                                         if (mode == "total")
                                             Some(limit)
                                         else
                                             None
-                                )
+                                }
                             )
-                    )
+                    }
                 val executing =
                     scope.launch suspend {
                         try {
                             client.execute(
-                                HttpRequest(
-                                    clientTestUrl(listener),
-                                    "PUT",
-                                    body = RequestBody.fromText("sent"),
-                                    options = options
-                                )
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "PUT"
+                                    this.body = RequestBody.fromText("sent")
+                                    this.options = options
+                                }
                             ).close()
                         } catch (error: Throwable) {
                             failure.value = Some(error)
@@ -92,7 +91,7 @@ private class HttpClientRetryBackoffTest {
                         assertTrue(error is CancellationException)
                         assertFalse(client.isClosed)
                         proceed.signal()
-                        client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                        client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                             response ->
                             assertEquals(0L, response.retryCount);
                             assertEquals("next", response.body.text(4L))

@@ -93,11 +93,11 @@ private class ShowcaseProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes(
-                            "Scoop theme showcase test",
-                            LogicalSize(1120.0, 840.0),
-                            theme = Some(WindowTheme.Light)
-                        )
+                        windowAttributes {
+                            this.title = "Scoop theme showcase test"
+                            this.size = LogicalSize(1120.0, 840.0)
+                            this.theme = Some(WindowTheme.Light)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -236,8 +236,8 @@ private class ShowcaseProbe {
             }
             else -> fail(
                 Some(
-                    f"showcase deadline at phase ${phase}, presents=${
-                        frames!!.snapshot().presentations
+                    f"showcase deadline at phase ${this @ShowcaseProbe.phase}, presents=${
+                        this @ShowcaseProbe.frames!!.snapshot().presentations
                     }"
                 )
             )

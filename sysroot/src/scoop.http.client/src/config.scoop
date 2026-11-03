@@ -1,5 +1,7 @@
 package scoop.http.client
 
+import scoop.asyncio.tcpConnectOptions
+
 import scoop.asyncio.TcpConnectOptions
 import scoop.collections.emptyList
 import scoop.http.*
@@ -21,7 +23,9 @@ public enum HttpVersionPolicy {
     /**
      * Requires HTTP/2; cleartext must explicitly select prior knowledge or h2c upgrade.
      */
-    Http2Only }
+    Http2Only
+}
+
 /**
  * Selects how an unencrypted HTTP connection begins.
  */
@@ -37,13 +41,14 @@ public enum HttpCleartextProtocol {
     /**
      * Attempts an explicit HTTP/1.1 h2c upgrade.
      */
-    H2cUpgrade }
+    H2cUpgrade
+}
 
 /**
  * Origin or proxy TLS trust, protocol bounds, and optional client identity. Default trust uses the
  * system store.
  */
-public class HttpClientTlsConfig public constructor(
+public class HttpClientTlsConfig internal constructor(
     /**
      * System or explicit trust anchors used for certificate verification.
      */
@@ -66,7 +71,7 @@ public class HttpClientTlsConfig public constructor(
  * Immutable client defaults for protocols, pooling, transport, policy, storage, and callbacks.
  * Per-call options override selected policies.
  */
-public class HttpClientConfig public constructor(
+public class HttpClientConfig internal constructor(
     /**
      * Allowed protocol versions and TLS ALPN selection.
      */
@@ -82,15 +87,15 @@ public class HttpClientConfig public constructor(
     /**
      * Origin TLS trust, version bounds, and client identity.
      */
-    public val tls: HttpClientTlsConfig = HttpClientTlsConfig(),
+    public val tls: HttpClientTlsConfig = httpClientTlsConfig(),
     /**
      * Connection and HTTP/2 stream capacities and retirement policy.
      */
-    public val pool: HttpConnectionPoolOptions = HttpConnectionPoolOptions(),
+    public val pool: HttpConnectionPoolOptions = httpConnectionPoolOptions(),
     /**
      * Address selection and TCP connection-attempt options.
      */
-    public val tcpConnect: TcpConnectOptions = TcpConnectOptions(),
+    public val tcpConnect: TcpConnectOptions = tcpConnectOptions(),
     /**
      * HTTP/1 parser compatibility policy.
      */
@@ -114,23 +119,23 @@ public class HttpClientConfig public constructor(
     /**
      * Response content-decoding policy.
      */
-    public val decoding: HttpDecodingOptions = HttpDecodingOptions(),
+    public val decoding: HttpDecodingOptions = httpDecodingOptions(),
     /**
      * Call and phase timeouts, including body lifetime.
      */
-    public val timeouts: HttpTimeoutOptions = HttpTimeoutOptions(),
+    public val timeouts: HttpTimeoutOptions = httpTimeoutOptions(),
     /**
      * Redirect count, enablement, and HTTPS downgrade policy.
      */
-    public val redirects: HttpRedirectOptions = HttpRedirectOptions(),
+    public val redirects: HttpRedirectOptions = httpRedirectOptions(),
     /**
      * Retry conditions, method eligibility, and backoff policy.
      */
-    public val retries: HttpRetryOptions = HttpRetryOptions(),
+    public val retries: HttpRetryOptions = httpRetryOptions(),
     /**
      * Origin authentication providers and attempt limit.
      */
-    public val authentication: HttpAuthenticationOptions = HttpAuthenticationOptions(),
+    public val authentication: HttpAuthenticationOptions = httpAuthenticationOptions(),
     /**
      * Per-request proxy selection, direct by default.
      */
@@ -160,9 +165,18 @@ public class HttpClientConfig public constructor(
     init {
         if (http1RequestVersion == HttpVersion.Http2)
             throw IllegalArgumentException(Some("HTTP/1 request version must be 1.0 or 1.1"))
-        if (versionPolicy == HttpVersionPolicy.Http1Only && cleartext != HttpCleartextProtocol.Http1)
-            throw IllegalArgumentException(Some("HTTP/1-only policy conflicts with cleartext HTTP/2"))
-        if (cleartext == HttpCleartextProtocol.H2cUpgrade && http1RequestVersion != HttpVersion.Http11)
+        if (
+            versionPolicy == HttpVersionPolicy.Http1Only && cleartext != HttpCleartextProtocol.Http1
+        )
+            throw IllegalArgumentException(
+                Some("HTTP/1-only policy conflicts with cleartext HTTP/2")
+            )
+        if (
+            cleartext ==
+                HttpCleartextProtocol.H2cUpgrade &&
+                http1RequestVersion !=
+                HttpVersion.Http11
+        )
             throw IllegalArgumentException(Some("h2c upgrade requires HTTP/1.1"))
     }
 }
@@ -171,7 +185,7 @@ public class HttpClientConfig public constructor(
  * Per-call policy overrides and request-lifetime behavior. None inherits client defaults; duplex
  * requires HTTP/2.
  */
-public class HttpCallOptions public constructor(
+public class HttpCallOptions internal constructor(
     /**
      * Allows response processing while upload continues; requires HTTP/2.
      */
@@ -236,6 +250,7 @@ public class HttpCallOptions public constructor(
     public val observer: HttpObserver? = None
 ) {
     init {
-        if (continueWait < Duration.ZERO) throw IllegalArgumentException(Some("negative Continue wait duration"))
+        if (continueWait < Duration.ZERO)
+            throw IllegalArgumentException(Some("negative Continue wait duration"))
     }
 }

@@ -1,4 +1,5 @@
 package scoop.tests
+
 import scoop.tests.scoop.crypto.testdata.rootPem
 import scoop.crypto.x509.TrustStore
 import scoop.platform.fs.Path
@@ -7,16 +8,8 @@ import scoop.url.Url
 
 fun main(args: Array<String>) {
     val mode = args[1L]
-    TrustStore.fromPem(rootPem()).use { trust ->
-        when (mode) {
-            case "policies" -> {
-                try { cachePolicies(trust) }
-                catch (error: AssertionFailure) {
-                    println(error.kind + " " + (error.message ?: "failure") + " at " + error.location.line.toString())
-                    throw error
-                }
-            }
-            case "http2" -> cacheHttp2(trust)
+    TrustStore.fromPem(rootPem()).use {
+        trust -> when (mode) {
             case "identity" -> cacheIdentity(trust, Url.parse(args[2L]))
             case "disk" -> cacheDiskNetwork(trust, Url.parse(args[2L]), Path.fromString(args[3L]))
             case "cookies" -> cacheCookies(trust, Url.parse(args[2L]))

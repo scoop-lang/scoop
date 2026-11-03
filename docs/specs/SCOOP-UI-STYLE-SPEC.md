@@ -50,6 +50,8 @@ BoxShadow 沿填满的圆角外框 alpha 生成，与 background 是否存在、
 
 Glow(sigmaX, sigmaY, color) 等价于零 offset 的带源 DropShadow：对源 alpha 模糊后用 color 着色，再将原内容以 SrcOver 合成到光晕上。color.alpha 决定光晕不透明度，没有另一个不明单位的 strength，也不默认采用加色或 HDR。文字直接以实际 glyph 绘图结果为源，无需转 Path；透明图片、行内对象和子组件采用相同通路。
 
+Styled 的单内容入口为 `styled(content: View, configure: StyledBuilder.() -> Unit = {}): View`。StyledBuilder 提供 style: Style = style()、key: ViewKey = Position，并提供返回 Unit 的 style(StyleBuilder.() -> Unit) 成员；嵌套配置基于当前 Style.copy，完整赋值替换。构造器内部化，入口只产生现有 StyledProps／Styled 的 View 描述，保留空样式包装；不运行内容、创建 painter 或挂载组件。配置执行一次、异常直接传播，发布后修改 builder 不改变已产生的输入。
+
 ## 3. 绘制、布局与输入
 
 同一装饰节点依次执行：

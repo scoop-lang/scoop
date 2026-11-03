@@ -1,0 +1,20 @@
+package scoop.http.client.tests.consumer.client_download
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+import scoop.platform.fs.*
+
+@Test
+private class DownloadHttp2Tests {
+    @Test
+    fun `parallel HTTP2 downloads publish complete independent files`() {
+        val directory = createTempDirectory(prefix = "scoop-download-http2-")
+        try {
+            TrustStore.fromPem(rootPem()).use { trust -> downloadHttp2(trust, directory) }
+        }
+        finally {
+            directory.deleteRecursively()
+        }
+    }
+}

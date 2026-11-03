@@ -1,0 +1,49 @@
+package scoop.http.server
+
+import scoop.collections.HashSet
+import scoop.compression.*
+import scoop.http.HttpMediaType
+import scoop.text.endsWith
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun responseCompressionOptions(
+    configure: ResponseCompressionOptionsBuilder.() -> Unit = {}
+): ResponseCompressionOptions {
+    val builder = ResponseCompressionOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun ResponseCompressionOptions.copy(
+    configure: ResponseCompressionOptionsBuilder.() -> Unit = {}
+): ResponseCompressionOptions {
+    val builder = ResponseCompressionOptionsBuilder()
+    builder.encodings = this.encodings
+    builder.minimumBytes = this.minimumBytes
+    builder.bufferSize = this.bufferSize
+    builder.shouldCompress = this.shouldCompress
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ResponseCompressionOptionsBuilder internal constructor() {
+    public var encodings: List<CompressionOptions> = [CompressionOptions.Gzip(GzipOptions())]
+    public var minimumBytes: Long = 1024L
+    public var bufferSize: Long = 8192L
+    public var shouldCompress: (HttpMediaType) -> Boolean =
+        {
+            media -> media.type ==
+                "text" ||
+                (
+                    media.type ==
+                        "application" &&
+                        (media.subtype == "json" || media.subtype == "xml")
+                ) ||
+                media.subtype.endsWith("+json") ||
+                media.subtype.endsWith("+xml")
+        }
+    internal fun snapshot(): ResponseCompressionOptions =
+        ResponseCompressionOptions(encodings, minimumBytes, bufferSize, shouldCompress)
+}

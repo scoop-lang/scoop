@@ -1,25 +1,25 @@
 package scoop.window
 
 /** Mutable creation attributes, copied before creating the native object. */
-public class WindowAttributes public constructor(
-    public var title: String = "Scoop",
-    public var size: LogicalSize = LogicalSize(800.0, 600.0),
-    public var visible: Boolean = true,
-    public var decorations: Boolean = true,
-    public var resizable: Boolean = true,
-    public var transparent: Boolean = false,
-    public var requestActivation: Boolean = true,
-    public var constraints: WindowSizeConstraints = WindowSizeConstraints(),
-    public var position: DesktopPosition? = None,
-    public var resizeIncrements: LogicalSize? = None,
-    public var buttons: WindowButtons = WindowButtons(),
-    public var level: WindowLevel = WindowLevel.Normal,
-    public var theme: Theme? = None,
-    public var blur: Boolean = false,
-    public var contentProtected: Boolean = false
-) {
-    internal var titlebarFlags: Int = 0
-}
+public class WindowAttributes internal constructor(
+    public val title: String = "Scoop",
+    public val size: LogicalSize = LogicalSize(800.0, 600.0),
+    public val visible: Boolean = true,
+    public val decorations: Boolean = true,
+    public val resizable: Boolean = true,
+    public val transparent: Boolean = false,
+    public val requestActivation: Boolean = true,
+    public val constraints: WindowSizeConstraints = WindowSizeConstraints(),
+    public val position: DesktopPosition? = None,
+    public val resizeIncrements: LogicalSize? = None,
+    public val buttons: WindowButtons = WindowButtons(),
+    public val level: WindowLevel = WindowLevel.Normal,
+    public val theme: Theme? = None,
+    public val blur: Boolean = false,
+    public val contentProtected: Boolean = false
+    ,
+    internal val titlebarFlags: Int = 0
+)
 
 /** An explicitly destroyed native window owned by its application's thread. */
 public class Window internal constructor(internal val owner: WindowOwner) {

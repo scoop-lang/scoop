@@ -1,0 +1,39 @@
+package scoop.http.client
+
+import scoop.http.HttpField
+import scoop.http.HttpResponseHead
+import scoop.platform.fs.Path
+import scoop.url.Url
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpDownloadOptions(
+    configure: HttpDownloadOptionsBuilder.() -> Unit = {}
+): HttpDownloadOptions {
+    val builder = HttpDownloadOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpDownloadOptions.copy(
+    configure: HttpDownloadOptionsBuilder.() -> Unit = {}
+): HttpDownloadOptions {
+    val builder = HttpDownloadOptionsBuilder()
+    builder.replaceExisting = this.replaceExisting
+    builder.syncOnCommit = this.syncOnCommit
+    builder.bufferSize = this.bufferSize
+    builder.onProgress = this.onProgress
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpDownloadOptionsBuilder internal constructor() {
+    public var replaceExisting: Boolean = false
+    public var syncOnCommit: Boolean = false
+    public var bufferSize: Long = 8192L
+    public var onProgress: suspend (HttpDownloadProgress) -> Unit = suspend { _ -> }
+    internal fun snapshot(): HttpDownloadOptions =
+        HttpDownloadOptions(replaceExisting, syncOnCommit, bufferSize, onProgress)
+}

@@ -1,0 +1,36 @@
+package scoop.http.client.tests.consumer.client_response
+
+import scoop.test.Test
+import scoop.asyncio.*
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.crypto.x509.TrustStore
+import scoop.platform.concurrent.Thread
+import scoop.platform.memory.NativeByteBuffer
+import scoop.url.Url
+
+internal fun responseCheck(value: Boolean) {
+    if (!value)
+        throw IllegalStateException(Some("client response integration check failed"))
+}
+
+internal suspend fun writeResponseBytes(output: AsyncByteSink, bytes: List<Byte>) {
+    NativeByteBuffer.allocate(bytes.size).use suspend {
+        buffer ->
+        buffer.writeBytes(bytes)
+        output.writeFully(buffer)
+    }
+}
+
+@Test
+private class Http2ConsumerTests {
+    @Test
+    fun `HTTP2 retains parallel body and lifetime behavior`() {
+        TrustStore.fromPem(rootPem()).use {
+            trust -> Thread.start { exerciseResponseHttp2(trust) }.use {
+                worker ->
+                exerciseResponseHttp2(trust);
+                worker.join()
+            }
+        }
+    }
+}

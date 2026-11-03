@@ -78,7 +78,11 @@ internal fun bearerHttp2(trust: TrustStore) {
             }
         try {
             withHttpClient(
-                bearerConfig(trust, HttpAuthenticationOptions([provider]), h2 = true)
+                bearerConfig(
+                    trust,
+                    httpAuthenticationOptions { this.providers = [provider] },
+                    h2 = true
+                )
             ) suspend {
                 client ->
                 val failure = BearerFailureHolder()
@@ -92,15 +96,15 @@ internal fun bearerHttp2(trust: TrustStore) {
                     scope.launch suspend {
                         try {
                             client.withResponse(
-                                HttpRequest.post(
-                                    url,
-                                    body,
-                                    options =
-                                        HttpCallOptions(
-                                            expectContinue = true,
-                                            continueWait = Duration.seconds(3600L)
-                                        )
-                                )
+                                httpRequest(url) {
+                                    this.method = "POST"
+                                    this.body = body
+                                    this.options =
+                                        httpCallOptions {
+                                            this.expectContinue = true
+                                            this.continueWait = Duration.seconds(3600L)
+                                        }
+                                }
                             ) suspend {
                                 response -> bearerCheck(
                                     response.authenticationCount ==
@@ -114,7 +118,7 @@ internal fun bearerHttp2(trust: TrustStore) {
                         }
                     }
                 firstSeen.await()
-                client.withResponse(HttpRequest.get(url.resolve("/public"))) suspend {
+                client.withResponse(httpRequest(url.resolve("/public"))) suspend {
                     response ->
                     NativeByteBuffer.allocate(4L).use suspend {
                         buffer ->

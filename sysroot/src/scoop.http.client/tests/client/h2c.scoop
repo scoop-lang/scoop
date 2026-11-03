@@ -9,44 +9,68 @@ import scoop.test.*
 private class HttpClientH2cTest {
     @Test
     fun `h2c keeps a single POST on stream one and preserves both informational response Contexts`() {
-        withClientH2cTest suspend { _, scope, listener, config ->
-            val serving = scope.launch suspend {
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { h1 ->
-                    val incoming = h1.receiveRequest()!!
-                    assertEquals("POST", String.fromUtf8(incoming.head.method))
-                    h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 103U)).finish()
-                    assertEquals("sent", String.fromUtf8(incoming.body.readAllBytes(4L)))
-                    acceptClientTestUpgrade(h1, scope, incoming.head).useAsync suspend { h2 ->
-                        val first = h2.upgradedStream!!
-                        assertEquals(1, first.id)
-                        assertTrue(first.isReadComplete)
-                        first.sendResponse(HttpResponseHead(HttpVersion.Http2, 103U), false)
-                        first.sendResponse(HttpResponseHead(HttpVersion.Http2, 200U), false)
-                        writeBodyText(first, "upgraded")
-                        first.finish([HttpField("X-End".toByteArray(), "yes".toByteArray())])
-                        val next = h2.acceptRequest()!!
-                        assertEquals(3, next.stream.id)
-                        assertEquals("next", String.fromUtf8(next.stream.readAllBytes(4L)))
-                        next.stream.sendResponse(HttpResponseHead(HttpVersion.Http2, 204U))
+        withClientH2cTest suspend {
+            _, scope, listener, config ->
+            val serving =
+                scope.launch suspend {
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        h1 ->
+                        val incoming = h1.receiveRequest()!!
+                        assertEquals("POST", String.fromUtf8(incoming.head.method))
+                        h1.sendResponse(HttpResponseHead(HttpVersion.Http11, 103U)).finish()
+                        assertEquals("sent", String.fromUtf8(incoming.body.readAllBytes(4L)))
+                        acceptClientTestUpgrade(h1, scope, incoming.head).useAsync suspend {
+                            h2 ->
+                            val first = h2.upgradedStream!!
+                            assertEquals(1, first.id)
+                            assertTrue(first.isReadComplete)
+                            first.sendResponse(HttpResponseHead(HttpVersion.Http2, 103U), false)
+                            first.sendResponse(HttpResponseHead(HttpVersion.Http2, 200U), false)
+                            writeBodyText(first, "upgraded")
+                            first.finish([HttpField("X-End".toByteArray(), "yes".toByteArray())])
+                            val next = h2.acceptRequest()!!
+                            assertEquals(3, next.stream.id)
+                            assertEquals("next", String.fromUtf8(next.stream.readAllBytes(4L)))
+                            next.stream.sendResponse(HttpResponseHead(HttpVersion.Http2, 204U))
+                        }
                     }
                 }
-            }
-            val client = context(BodyTestContext("client")) { HttpClient.open(scope, config) }
+            val client =
+                context(BodyTestContext("client")) {
+                    HttpClient.open(scope, config)
+                }
             try {
                 val started = AtomicBoolean(false)
                 val observed = ArrayList<HttpVersion>()
-                val body = RequestBody.fromProducer(Some(4L)) suspend { output ->
-                    assertFalse(started.exchange(true))
-                    assertEquals("request", currentBodyTestContext())
-                    writeBodyText(output, "sent")
-                }
-                val options = HttpCallOptions(onInformational = suspend { head ->
-                    assertEquals(103U, head.status)
-                    assertEquals("request", currentBodyTestContext())
-                    observed.add(head.version)
-                })
+                val body =
+                    RequestBody.fromProducer(Some(4L)) suspend {
+                        output ->
+                        assertFalse(started.exchange(true))
+                        assertEquals("request", currentBodyTestContext())
+                        writeBodyText(output, "sent")
+                    }
+                val options =
+                    httpCallOptions {
+                        this.onInformational =
+                            suspend {
+                                head ->
+                                assertEquals(103U, head.status)
+                                assertEquals("request", currentBodyTestContext())
+                                observed.add(head.version)
+                            }
+                    }
                 context(BodyTestContext("request")) {
-                    client.withResponse(HttpRequest.post(clientTestUrl(listener), body, options = options)) suspend { response ->
+                    client.withResponse(
+                        httpRequest(clientTestUrl(listener)) {
+                            this.method = "POST"
+                            this.body = body
+                            this.options = options
+                        }
+                    ) suspend {
+                        response ->
                         assertTrue(response.version == HttpVersion.Http2)
                         assertEquals(200U, response.status)
                         assertEquals("upgraded", String.fromUtf8(response.body.readAllBytes(8L)))
@@ -55,14 +79,22 @@ private class HttpClientH2cTest {
                 }
                 assertEquals(2L, observed.size)
                 assertTrue(observed[0L] == HttpVersion.Http11 && observed[1L] == HttpVersion.Http2)
-                client.withResponse(HttpRequest.post(clientTestUrl(listener), RequestBody.fromText("next"),
-                    options = HttpCallOptions(duplex = true))) suspend { response ->
+                client.withResponse(
+                    httpRequest(clientTestUrl(listener)) {
+                        this.method = "POST"
+                        this.body = RequestBody.fromText("next")
+                        this.options = httpCallOptions { this.duplex = true }
+                    }
+                ) suspend {
+                    response ->
                     assertTrue(response.version == HttpVersion.Http2)
                     assertEquals(204U, response.status)
                     response.body.readAllBytes(0L)
                     Unit
                 }
-            } finally { client.close() }
+            } finally {
+                client.close()
+            }
             serving.join()
             assertFalse(scope.job.isCancelled)
         }
@@ -70,20 +102,40 @@ private class HttpClientH2cTest {
 
     @Test
     fun `upgraded HEAD uses its original method even with a nonzero content length`() {
-        withClientH2cTest(HttpVersionPolicy.Http2Only) suspend { _, scope, listener, config ->
-            val serving = scope.launch suspend {
-                AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { h1 ->
-                    val incoming = h1.receiveRequest()!!
-                    assertEquals("HEAD", String.fromUtf8(incoming.head.method))
-                    incoming.body.readAllBytes(0L)
-                    acceptClientTestUpgrade(h1, scope, incoming.head).useAsync suspend { h2 ->
-                        h2.upgradedStream!!.sendResponse(HttpResponseHead(HttpVersion.Http2, 200U,
-                            fields = [HttpField("Content-Length".toByteArray(), "123".toByteArray())]))
+        withClientH2cTest(HttpVersionPolicy.Http2Only) suspend {
+            _, scope, listener, config ->
+            val serving =
+                scope.launch suspend {
+                    AsyncHttp1Connection.takeOwnershipAsServer(
+                        listener.accept(),
+                        scope
+                    ).useAsync suspend {
+                        h1 ->
+                        val incoming = h1.receiveRequest()!!
+                        assertEquals("HEAD", String.fromUtf8(incoming.head.method))
+                        incoming.body.readAllBytes(0L)
+                        acceptClientTestUpgrade(h1, scope, incoming.head).useAsync suspend {
+                            h2 -> h2.upgradedStream!!.sendResponse(
+                                HttpResponseHead(
+                                    HttpVersion.Http2,
+                                    200U,
+                                    fields =
+                                        [
+                                            HttpField(
+                                                "Content-Length".toByteArray(),
+                                                "123".toByteArray()
+                                            )
+                                        ]
+                                )
+                            )
+                        }
                     }
                 }
-            }
-            withHttpClient(config) suspend { client ->
-                client.withResponse(HttpRequest.head(clientTestUrl(listener))) suspend { response ->
+            withHttpClient(config) suspend {
+                client -> client.withResponse(
+                    httpRequest(clientTestUrl(listener)) { this.method = "HEAD" }
+                ) suspend {
+                    response ->
                     assertTrue(response.version == HttpVersion.Http2)
                     assertTrue(response.wireContentLength == Some(123L))
                     assertEquals(0L, response.body.readAllBytes(0L).size)

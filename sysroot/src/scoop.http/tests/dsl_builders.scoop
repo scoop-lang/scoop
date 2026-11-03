@@ -1,0 +1,50 @@
+package scoop.http
+
+import scoop.test.*
+
+@Test
+private class HttpFieldsReceiverDslTests {
+    @Test
+    fun `field collection preserves duplicates and replaces at the first matching position`() {
+        val captured = ArrayList<HttpFieldsBuilder>()
+        val original =
+            httpFields {
+                captured.add(this)
+                add("X-Before", "a")
+                add("Set-Cookie", "one=1")
+                add("X-Middle", "b")
+                add("set-cookie", "two=2")
+            }
+        val updated =
+            original.copyFields {
+                set("SET-cookie", "replacement=3")
+                add("Set-Cookie", "four=4")
+                remove("x-before")
+            }
+        captured[0L].clear()
+        assertEquals(4L, original.size)
+        assertEquals(2L, original.findAll("set-cookie".toByteArray()).size)
+        assertEquals(3L, updated.size)
+        assertEquals("replacement=3", String.fromUtf8(updated[0L].value))
+        assertEquals("X-Middle", String.fromUtf8(updated[1L].name))
+        assertEquals("four=4", String.fromUtf8(updated[2L].value))
+        val bytes = httpFields { add("X-Bytes".toByteArray(), [-1.toByte()]) }
+        assertEquals(-1.toByte(), bytes[0L].value[0L])
+    }
+
+    @Test
+    fun `field syntax and callback errors fail without publishing partial arrays`() {
+        assertFailsWith<IllegalArgumentException> { httpFields { add("bad name", "x") } }
+        assertFailsWith<IllegalArgumentException> { httpFields { add("X-Value", "line\r\nbreak") } }
+        val failure = IllegalStateException(Some("fields"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                httpFields {
+                    add("X-Value", "valid");
+                    throw failure
+                }
+            }
+        )
+    }
+}

@@ -95,13 +95,20 @@ internal fun basicSourceCleanup(trust: TrustStore, fail: Boolean) {
                         basicRespond(connection, 200U, "done")
                     }
             }
-        withHttpClient(basicConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+        withHttpClient(
+            basicConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+        ) suspend {
             client ->
             val failure = BasicFailureHolder()
             val executing =
                 scope.launch suspend {
                     try {
-                        client.withResponse(HttpRequest.post(url, body)) suspend {
+                        client.withResponse(
+                            httpRequest(url) {
+                                this.method = "POST"
+                                this.body = body
+                            }
+                        ) suspend {
                             response -> basicCheck(
                                 response.authenticationCount ==
                                     1L &&

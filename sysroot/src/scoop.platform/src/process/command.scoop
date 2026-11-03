@@ -35,7 +35,7 @@ public enum Stdio {
  * directory, and standard-stream routing. Arguments are passed directly without shell
  * interpretation.
  */
-public class Command public constructor(
+public class Command internal constructor(
     /**
      * The executable path selected for spawning.
      */

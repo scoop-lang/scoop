@@ -44,7 +44,7 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
                                 1
                         )
                 ) {
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         digestCheck(response.body.text(4L) == "done")
                         digestCheck(

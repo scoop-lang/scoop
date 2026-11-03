@@ -22,7 +22,7 @@ beginPart 与 endPart 必须成对，前一 part 未结束时不能开始下一 
 
 ## 3. 增量解码与背压
 
-`MultipartDecoder(boundary, limits = MultipartLimits())` 为串行使用的 Closeable。`receive(buffer, count = buffer.readableBytes)` 消费实际前缀并返回字节数；`nextEvent()` 交付 MultipartEvent 的 PartStarted(head)、Data(bytes)、PartEnded、End。完整 head 之后才交付 part，Data 是独立字节快照；未知字段、非 UTF-8 字段值和正文不经 String 中转。嵌套内容保持为普通正文，可显式组合另一个 decoder。
+`MultipartDecoder(boundary, limits = multipartLimits())` 为串行使用的 Closeable。`receive(buffer, count = buffer.readableBytes)` 消费实际前缀并返回字节数；`nextEvent()` 交付 MultipartEvent 的 PartStarted(head)、Data(bytes)、PartEnded、End。完整 head 之后才交付 part，Data 是独立字节快照；未知字段、非 UTF-8 字段值和正文不经 String 中转。嵌套内容保持为普通正文，可显式组合另一个 decoder。
 
 至多有一个待取事件；待取事件存在时 receive 返回零。Data 每次最多 dataChunkBytes，未决 boundary 前缀最多 boundary 长度加四字节，内部正文暂存最多 dataChunkBytes 加一个 boundary 前缀。短输入在可确定的正文前缀形成后即可交付，不等整个 part 或整个消息。正文中的部分 boundary 匹配失败时完整归还那些字节；分块、CRLF 或二进制零字节不改变结果。
 
@@ -40,7 +40,7 @@ delimiter 只能出现在行首，包含其前面的 CRLF，该 CRLF 不属于�
 
 ## 5. 异步 part 源
 
-`scoop.http.asyncio.MultipartSource(source, boundary, limits = MultipartLimits(), bufferSize = 8192)` 借用 AsyncByteSource；takeOwnership 工厂另要求 AsyncCloseable，在成功返回时接管。bufferSize 须为正，当前 EventLoop、活动 Job、配置或登记前取消检查失败不移交端点。构造不读取输入、不启动后台预取。
+`scoop.http.asyncio.MultipartSource(source, boundary, limits = multipartLimits(), bufferSize = 8192)` 借用 AsyncByteSource；takeOwnership 工厂另要求 AsyncCloseable，在成功返回时接管。bufferSize 须为正，当前 EventLoop、活动 Job、配置或登记前取消检查失败不移交端点。构造不读取输入、不启动后台预取。
 
 `nextPart(): MultipartPart?` 可挂起；返回不可变 head 与 `MultipartBody`，后者实现 AsyncByteSource／AsyncCloseable。当前 body 须读取到返回零、完成 discard，或关闭整个消息，才能推进下一 part；不能静默跳过未消费正文。一个 source 的 nextPart、body.readInto 和 body.discard 合计至多一个应用读取，参数、同向并发、错误 loop 和登记前取消错误不损坏流。
 

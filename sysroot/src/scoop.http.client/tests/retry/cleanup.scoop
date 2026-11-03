@@ -10,40 +10,75 @@ private class HttpClientRetryCleanupTest {
     @Test
     fun `a network retry waits for an already running source close and preserves its independent cleanup error`() {
         for (failCleanup in [false, true]) {
-            withClientRetryTest suspend { _, scope, listener, config ->
+            withClientRetryTest suspend {
+                _, scope, listener, config ->
                 val first = BodyTestSource("sent".toByteArray())
-                first.holdClose = true; first.failClose = failCleanup
+                first.holdClose = true;
+                first.failClose = failCleanup
                 val watched = RedirectTestSource(first)
                 val next = BodyTestSource("sent".toByteArray())
                 val factories = AtomicLong(0L)
-                val body = RequestBody.fromSourceFactory(Some(4L)) suspend {
-                    if (factories.fetchAdd(1L) == 0L) watched else RedirectTestSource(next)
-                }
-                val serving = scope.launch suspend {
-                    AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { connection ->
-                        assertEquals("sent", String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L)))
-                        first.closeStarted.await()
+                val body =
+                    RequestBody.fromSourceFactory(Some(4L)) suspend {
+                        if (factories.fetchAdd(1L) == 0L)
+                            watched
+                        else
+                            RedirectTestSource(next)
                     }
-                    if (!failCleanup) {
-                        AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend { connection ->
-                            assertEquals("sent", String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L)))
-                            sendClientTestText(connection, 200U, "done")
+                val serving =
+                    scope.launch suspend {
+                        AsyncHttp1Connection.takeOwnershipAsServer(
+                            listener.accept(),
+                            scope
+                        ).useAsync suspend {
+                            connection ->
+                            assertEquals(
+                                "sent",
+                                String.fromUtf8(connection.receiveRequest()!!.body.readAllBytes(4L))
+                            )
+                            first.closeStarted.await()
+                        }
+                        if (!failCleanup) {
+                            AsyncHttp1Connection.takeOwnershipAsServer(
+                                listener.accept(),
+                                scope
+                            ).useAsync suspend {
+                                connection ->
+                                assertEquals(
+                                    "sent",
+                                    String.fromUtf8(
+                                        connection.receiveRequest()!!.body.readAllBytes(4L)
+                                    )
+                                )
+                                sendClientTestText(connection, 200U, "done")
+                            }
                         }
                     }
-                }
-                withHttpClient(config) suspend { client ->
+                withHttpClient(config) suspend {
+                    client ->
                     val failure = ClientTestFailureHolder()
-                    val executing = scope.launch suspend {
-                        try {
-                            client.withResponse(HttpRequest(clientTestUrl(listener), "PUT", body = body)) suspend { response ->
-                                assertEquals(1L, response.retryCount); assertEquals("done", response.body.text(4L))
+                    val executing =
+                        scope.launch suspend {
+                            try {
+                                client.withResponse(
+                                    httpRequest(clientTestUrl(listener)) {
+                                        this.method = "PUT"
+                                        this.body = body
+                                    }
+                                ) suspend {
+                                    response ->
+                                    assertEquals(1L, response.retryCount);
+                                    assertEquals("done", response.body.text(4L))
+                                }
+                            } catch (error: Throwable) {
+                                failure.value = Some(error)
                             }
-                        } catch (error: Throwable) { failure.value = Some(error) }
-                    }
+                        }
                     try {
                         watched.cancelled.await()
                         assertFalse(executing.isCompleted)
-                        assertEquals(1L, factories.load()); assertEquals(1L, first.closes)
+                        assertEquals(1L, factories.load());
+                        assertEquals(1L, first.closes)
                         first.closeRelease.signal()
                         executing.join()
                         assertTrue(first.buffer!!.isClosed)
@@ -57,9 +92,12 @@ private class HttpClientRetryCleanupTest {
                             assertEquals(1L, factories.load())
                         } else {
                             assertFalse(clientPresent(failure.value))
-                            assertEquals(2L, factories.load()); assertEquals(1L, next.closes)
+                            assertEquals(2L, factories.load());
+                            assertEquals(1L, next.closes)
                         }
-                    } finally { first.closeRelease.signal() }
+                    } finally {
+                        first.closeRelease.signal()
+                    }
                 }
                 serving.join()
                 assertFalse(scope.job.isCancelled)

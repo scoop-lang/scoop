@@ -21,15 +21,15 @@ internal fun observedHttp1(trust: TrustStore, url: Url) {
                             "/private/BODY_SECRET?q=QUERY_SECRET#FRAGMENT_SECRET"
                     )
                 val request =
-                    HttpRequest(
-                        privateUrl,
-                        "POST",
-                        [
-                            observationField("Authorization", "Bearer HEADER_SECRET"),
-                            observationField("Cookie", "private=HEADER_SECRET")
-                        ],
-                        RequestBody.fromText("BODY_SECRET 雪").compressed()
-                    )
+                    httpRequest(privateUrl) {
+                        this.method = "POST"
+                        this.fields =
+                            [
+                                observationField("Authorization", "Bearer HEADER_SECRET"),
+                                observationField("Cookie", "private=HEADER_SECRET")
+                            ]
+                        this.body = RequestBody.fromText("BODY_SECRET 雪").compressed()
+                    }
                 client.withResponse(request) suspend {
                     response ->
                     assertEquals(200U, response.status)
@@ -48,7 +48,7 @@ internal fun observedHttp1(trust: TrustStore, url: Url) {
                         metrics.responseBodyBytes
                     )
                 }
-                client.withResponse(HttpRequest.get(url.resolve("/reuse"))) suspend {
+                client.withResponse(httpRequest(url.resolve("/reuse"))) suspend {
                     response -> context(ObservationMarker("reader")) {
                         assertEquals("reuse", response.body.text(5L))
                     }
@@ -92,9 +92,11 @@ internal fun observedHttp1(trust: TrustStore, url: Url) {
 internal fun observationDisabled(trust: TrustStore, url: Url) {
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(
-            HttpClientConfig(tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)))
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            }
         ) suspend {
-            client -> client.withResponse(HttpRequest.get(url)) suspend {
+            client -> client.withResponse(httpRequest(url)) suspend {
                 response ->
                 assertEquals("probe", response.body.text(5L))
                 assertFalse(observationPresent(response.metrics))

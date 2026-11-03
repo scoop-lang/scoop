@@ -18,9 +18,14 @@ internal fun redirectTestRequest(
     method: String = "POST",
     body: RequestBody = RequestBody.fromText("body"),
     fields: List<HttpField> = emptyList<HttpField>(),
-    options: HttpCallOptions = HttpCallOptions()
+    options: HttpCallOptions = httpCallOptions()
 ): HttpRequest =
-    HttpRequest(Url.parse("http://example.test/before#saved"), method, fields, body, options)
+    httpRequest(Url.parse("http://example.test/before#saved")) {
+        this.method = method
+        this.fields = fields
+        this.body = body
+        this.options = options
+    }
 
 internal fun redirectTestPlan(
     request: HttpRequest,
@@ -30,28 +35,31 @@ internal fun redirectTestPlan(
     planClientRedirect(
         request,
         redirectTestHead(status, location),
-        HttpRedirectOptions(),
+        httpRedirectOptions(),
         emptyList<HttpRedirect>()
     )!!
 
 internal fun withClientRedirectTest(
     version: HttpVersion = HttpVersion.Http11,
-    redirects: HttpRedirectOptions = HttpRedirectOptions(),
-    timeouts: HttpTimeoutOptions = HttpTimeoutOptions(),
+    redirects: HttpRedirectOptions = httpRedirectOptions(),
+    timeouts: HttpTimeoutOptions = httpTimeoutOptions(),
     block: suspend (EventLoop, CoroutineScope, AsyncTcpListener, HttpClientConfig) -> Unit
 ) {
     clientTestTrust().use {
         trust ->
         val base = clientTestConfig(trust, version)
         val config =
-            HttpClientConfig(
-                cleartext = base.cleartext,
-                tls = base.tls,
-                redirects = redirects,
-                timeouts = timeouts,
-                pool =
-                    HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L, maxStreamsPerHttp2 = 1L)
-            )
+            httpClientConfig {
+                this.cleartext = base.cleartext
+                this.tls = base.tls
+                this.redirects = redirects
+                this.timeouts = timeouts
+                this.pool =
+                    httpConnectionPoolOptions {
+                        this.maxConnectionsPerOrigin = 1L
+                        this.maxStreamsPerHttp2 = 1L
+                    }
+            }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope -> clientTestListen(loop).useAsync suspend {

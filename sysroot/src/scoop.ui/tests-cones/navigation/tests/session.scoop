@@ -16,7 +16,9 @@ private class UiNavigationTest {
         val probe = NavigationProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertTrue(probe.group!!.isClosed)
@@ -60,29 +62,35 @@ internal class NavigationProbe {
         loop: Boolean = false,
         roving: Boolean = true
     ): NavigationOptions =
-        NavigationOptions(
-            [
-                NavigationItem(handles[1L], 0, 0),
-                NavigationItem(handles[2L], 0, 2),
-                NavigationItem(handles[3L], 1, 0),
-                NavigationItem(handles[4L], 1, 1),
-                NavigationItem(handles[5L], 2, 0)
-            ],
-            layout,
-            if (rtl)
-                TextDirection.Rtl
-            else
-                TextDirection.Ltr,
-            loop,
-            roving
-        )
+        navigationOptions {
+            this.addAll(
+                [
+                    NavigationItem(this @NavigationProbe.handles[1L], 0, 0),
+                    NavigationItem(this @NavigationProbe.handles[2L], 0, 2),
+                    NavigationItem(this @NavigationProbe.handles[3L], 1, 0),
+                    NavigationItem(this @NavigationProbe.handles[4L], 1, 1),
+                    NavigationItem(this @NavigationProbe.handles[5L], 2, 0)
+                ]
+            )
+            this.layout = layout
+            this.direction =
+                if (rtl)
+                    TextDirection.Rtl
+                else
+                    TextDirection.Ltr
+            this.loop = loop
+            this.roving = roving
+        }
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop key navigation", LogicalSize(340.0, 100.0))
+                        windowAttributes {
+                            this.title = "Scoop key navigation"
+                            this.size = LogicalSize(340.0, 100.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -103,9 +111,9 @@ internal class NavigationProbe {
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
-                    f"navigation timeout phase=${phase}, frames=${frames}, focused=${
-                        window!!.isFocused
-                    }"
+                    f"navigation timeout phase=${this @NavigationProbe.phase}, frames=${
+                        this @NavigationProbe.frames
+                    }, focused=${this @NavigationProbe.window!!.isFocused}"
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> active.requestExit()
@@ -122,7 +130,7 @@ internal class NavigationProbe {
             assertEquals(
                 position == index,
                 handle.hasFocus,
-                Some(f"phase=${phase}, target=${position}")
+                Some(f"phase=${this @NavigationProbe.phase}, target=${position}")
             )
         }
     }
@@ -158,23 +166,38 @@ internal class NavigationProbe {
         val previous = group!!.options
         assertFailsWith<IllegalArgumentException> {
             group!!.options =
-                NavigationOptions([NavigationItem(handles[1L]), NavigationItem(handles[1L])])
+                navigationOptions {
+                    this.addAll(
+                        [
+                            NavigationItem(this @NavigationProbe.handles[1L]),
+                            NavigationItem(this @NavigationProbe.handles[1L])
+                        ]
+                    )
+                }
         }
         assertFailsWith<IllegalArgumentException> {
             group!!.options =
-                NavigationOptions(
-                    [NavigationItem(handles[1L]), NavigationItem(handles[2L])],
-                    NavigationLayout.Grid
-                )
+                navigationOptions {
+                    this.addAll(
+                        [
+                            NavigationItem(this @NavigationProbe.handles[1L]),
+                            NavigationItem(this @NavigationProbe.handles[2L])
+                        ]
+                    )
+                    this.layout = NavigationLayout.Grid
+                }
         }
         assertFailsWith<IllegalArgumentException> {
-            group!!.options = NavigationOptions([NavigationItem(handles[0L])])
+            group!!.options =
+                navigationOptions {
+                    this.addAll([NavigationItem(this @NavigationProbe.handles[0L])])
+                }
         }
         assertEquals(previous.items.size, group!!.options.items.size)
         assertFailsWith<IllegalStateException> { groupScope!!.keyNavigation(previous) }
         assertFailsWith<IllegalArgumentException> { scopes[0L]!!.keyNavigation(previous) }
         val unbound = FocusHandle()
-        group!!.options = NavigationOptions([NavigationItem(unbound)])
+        group!!.options = navigationOptions { this.addAll([NavigationItem(unbound)]) }
         assertFailsWith<IllegalArgumentException> {
             targets[0L]!!.options = FocusOptions(Some(unbound))
         }
@@ -295,16 +318,18 @@ internal class NavigationProbe {
             }
             case 39 -> {
                 group!!.options =
-                    NavigationOptions(
-                        [
-                            NavigationItem(handles[4L]),
-                            NavigationItem(handles[2L]),
-                            NavigationItem(handles[1L]),
-                            NavigationItem(handles[3L]),
-                            NavigationItem(handles[5L])
-                        ],
-                        NavigationLayout.Horizontal
-                    )
+                    navigationOptions {
+                        this.addAll(
+                            [
+                                NavigationItem(this @NavigationProbe.handles[4L]),
+                                NavigationItem(this @NavigationProbe.handles[2L]),
+                                NavigationItem(this @NavigationProbe.handles[1L]),
+                                NavigationItem(this @NavigationProbe.handles[3L]),
+                                NavigationItem(this @NavigationProbe.handles[5L])
+                            ]
+                        )
+                        this.layout = NavigationLayout.Horizontal
+                    }
                 assertTrue(handles[1L].requestFocus())
                 key(active, 124, 5L)
             }
@@ -313,10 +338,15 @@ internal class NavigationProbe {
                 replaced = true
                 assertFalse(handles[2L].isAttached)
                 group!!.options =
-                    NavigationOptions(
-                        [NavigationItem(replacement), NavigationItem(handles[1L])],
-                        NavigationLayout.Horizontal
-                    )
+                    navigationOptions {
+                        this.addAll(
+                            [
+                                NavigationItem(this @NavigationProbe.replacement),
+                                NavigationItem(this @NavigationProbe.handles[1L])
+                            ]
+                        )
+                        this.layout = NavigationLayout.Horizontal
+                    }
                 assertTrue(replacement.requestFocus())
                 key(active, 124, 1L)
             }

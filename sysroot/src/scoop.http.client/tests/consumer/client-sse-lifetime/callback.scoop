@@ -48,33 +48,34 @@ internal fun sseCallbackCancellation(
         val failed = SseFailure()
         val closeFailure = SseFailure()
         val options =
-            HttpCallOptions(
-                timeouts =
+            httpCallOptions {
+                this.timeouts =
                     if (mode == "total")
-                        Some(HttpTimeoutOptions(total = Some(Duration.seconds(10L))))
+                        Some(httpTimeoutOptions { this.total = Some(Duration.seconds(10L)) })
                     else
                         None
-            )
+            }
         val reconnect =
-            HttpSseReconnectOptions(
-                Duration.ZERO,
-                Duration.ZERO,
-                Some(1L),
-                suspend {
-                    _ -> if (child)
-                        coroutineScope<Unit> suspend {
-                            children ->
-                            children.launch suspend { probe.waitInCallback() };
-                            Unit
-                        }
-                    else
-                        probe.waitInCallback()
-                }
-            )
+            httpSseReconnectOptions {
+                this.initialDelay = Duration.ZERO
+                this.maxDelay = Duration.ZERO
+                this.maxReconnects = Some(1L)
+                this.onReconnect =
+                    suspend {
+                        _ -> if (child)
+                            coroutineScope<Unit> suspend {
+                                children ->
+                                children.launch suspend { probe.waitInCallback() };
+                                Unit
+                            }
+                        else
+                            probe.waitInCallback()
+                    }
+            }
         val source =
             client.openSse(
-                HttpRequest.get(url, options = options),
-                HttpSseOptions(reconnect = Some(reconnect))
+                httpRequest(url) { this.options = options },
+                httpSseOptions { this.reconnect = Some(reconnect) }
             )
         assertEquals("body", source.next()!!.data)
         val reading =
@@ -161,7 +162,11 @@ internal fun sseDuplexUpload(trust: TrustStore) {
         val source =
             context(SseMarker("callback")) {
                 client.openSse(
-                    HttpRequest(url, "POST", body = body, options = HttpCallOptions(duplex = true))
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = body
+                        this.options = httpCallOptions { this.duplex = true }
+                    }
                 )
             }
         assertEquals("body", source.next()!!.data)

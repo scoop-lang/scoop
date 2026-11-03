@@ -6,7 +6,7 @@
 
 HttpHandler 是 `suspend (HttpContext) -> HttpResult`，HttpNext 是 `suspend () -> Unit`，HttpMiddleware 是 `suspend (HttpContext, HttpNext) -> Unit`。应用共享对象通过构造参数或闭包传递；请求对象通过 HttpContext 或语言规范 8.3 的精确类型 Context 绑定传递。框架不提供服务容器、运行期函数参数扫描或自动事务提交。
 
-RouterBuilder 配置路由、middleware、分组与 fallback；build 返回不可变 HttpApplication，并关闭该 builder 及其 RouteGroup 的修改入口。已注册的字段、路径和 middleware 列表保存快照。不同 application 互不修改配置；捕获的业务对象是否允许并发由应用负责。
+`routing { ... }` 通过 RouterBuilder 配置路由、middleware、分组与 fallback；配置结束后返回不可变 HttpApplication，并关闭该 builder 及其 RouteGroup 的修改入口。RouterBuilder 构造器与最终 build 为内部实现。已注册的字段、路径和 middleware 列表保存快照。不同 application 互不修改配置；捕获的业务对象是否允许并发由应用负责。
 
 HttpContext 属于一次请求，保存 request、response、route、pathParams 和 requestId。实际执行必须处于活动 Job 中，requestJob 为该请求任务。框架在执行全局 middleware 前绑定精确 HttpContext。离开请求管线恢复原绑定；挂起和恢复不结束绑定。应用 Context 的缺失是装配错误，默认 500，不是匿名用户的认证结果。
 
@@ -52,9 +52,9 @@ HttpRequestBody.json 使用显式 ValueDecoder 或 T.Companion；只接受 appli
 
 HttpServer.takeOwnership(listener, application, scope, options) 检查选项和当前／父 Job，在父 scope 中登记自己的所有者后接管 listener。登记前失败仍由调用方清理；登记后失败由 server 清理。返回表示接受循环已建立。application 和可共享的 TlsServerContext 由调用方持有，不随 server 自动关闭。一个连接的握手、业务和清理失败在连接边界隔离；不取消其他连接。
 
-HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=HttpServerOptions()) 在当前 EventLoop 上创建 TCP listener，再沿同一 takeOwnership 流程启动；创建的 listener 在任何启动失败时都由此入口关闭。host 可显式选择其他 IPv4／IPv6 地址，port=0 由 OS 选择端口；HttpServer.localAddress 保存实际监听地址，关闭后仍可读取。需要 backlog、reuseAddress 等底层选项时，仍可自行创建 listener 后接管。
+HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=httpServerOptions()) 在当前 EventLoop 上创建 TCP listener，再沿同一 takeOwnership 流程启动；创建的 listener 在任何启动失败时都由此入口关闭。host 可显式选择其他 IPv4／IPv6 地址，port=0 由 OS 选择端口；HttpServer.localAddress 保存实际监听地址，关闭后仍可读取。需要 backlog、reuseAddress 等底层选项时，仍可自行创建 listener 后接管。
 
-同名 listen(scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=HttpServerOptions(), applicationOptions=HttpApplicationOptions(), configure) 重载接收末尾的普通 `(RouterBuilder) -> Unit` 回调；先同步配置并 build，再调用上述 application 重载。配置异常不创建 listener。两种入口都返回同一 HttpServer，继续使用原有 awaitTermination／shutdownGracefully／close；scope 必须显式提供，EventLoop 的创建、run 和清理沿 asyncio 现有合同，不增加另一套 runner 或隐式事件循环。
+同名 listen(scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=httpServerOptions(), applicationOptions=httpApplicationOptions(), configure) 重载接收末尾的普通 `RouterBuilder.() -> Unit` 回调；先通过 routing 同步配置并冻结，再调用上述 application 重载。配置异常不创建 listener。两种入口都返回同一 HttpServer，继续使用原有 awaitTermination／shutdownGracefully／close；scope 必须显式提供，EventLoop 的创建、run 和清理沿 asyncio 现有合同，不增加另一套 runner 或隐式事件循环。
 
 明文默认 H1；allowCleartextHttp2 显式启用 prior-knowledge 探测，保留探测前缀后交给对应协议连接。TLS 在每条连接的独立任务完成握手，ALPN 支持 http/1.1 和 h2；allowTlsHttp2 可关闭 H2，allowHttp1Fallback 控制无 ALPN 的 H1 回退。证书／私钥及 ALPN 来自应用提供的 TlsServerContext；协商结果必须属于已启用协议。h2c Upgrade 不在当前接入范围。
 
@@ -187,3 +187,29 @@ onWebSocketCompleted 非挂起观察 HttpWebSocketCompletion，包含独立 cont
 ## 14. 分步交付与验证
 
 接入、超时与停机、SSE、multipart、WebSocket、压缩、文件和 DTO 的完整范围保持设计第 12～17 节，按完成的功能逐项扩充本规范。尚未实现的功能不公开占位 API。测试用所属 Cone 的 release 测试；只有 CLI／诊断／外部对端等必要边界使用 fixture。协议引擎的既有验证不在 server 重放。
+
+
+### 路由、结果与策略的接收者入口
+
+构造配置遵守 [库 API 风格](SCOOP-API-STYLE.md)：接收者回调同步执行一次，标量赋值替换、嵌套块基于当前值修改，异常不发布部分结果。以下结果的 copy(configure) 返回独立描述，原值不变；资源、模型与普通／suspend 函数按原有引用合同保存，构造不执行这些动作。
+
+| 结果 | 构造入口与全部配置字段 |
+| --- | --- |
+| HttpServerOptions | `httpServerOptions(configure: HttpServerOptionsBuilder.() -> Unit = {})`；tls: TlsServerContext? = None；allowHttp1Fallback: Boolean = true；allowCleartextHttp2: Boolean = false；allowTlsHttp2: Boolean = true；maxConnections: Long = 1024L；maxActiveRequests: Long = 256L；maxWebSocketSessions: Long = maxConnections；requestBodyLimit: Long? = Some(8388608L)；bufferedBodyLimit: Long = 2097152L；tlsHandshakeTimeout: Duration? = Some(Duration.seconds(10))；firstRequestHeadTimeout: Duration? = Some(Duration.seconds(10))；http2HeadTimeout: Duration? = Some(Duration.seconds(10))；keepAliveIdleTimeout: Duration? = Some(Duration.seconds(60))；bodyReadIdle: Duration? = Some(Duration.seconds(30))；responseWriteIdle: Duration? = Some(Duration.seconds(30))；requestDeadline: Duration? = None；gracefulShutdownTimeout: Duration = Duration.seconds(30)；http1Receive: Http1ReceiveOptions = Http1ReceiveOptions()；http1Limits: Http1Limits = Http1Limits()；http2Receive: Http2ReceiveOptions = Http2ReceiveOptions(invalidRegularField = Http2InvalidRegularField.RejectStream)；http2Limits: Http2Limits = Http2Limits()；http2Settings: Http2Settings = Http2Settings()；onRequestCompleted: ((HttpRequestCompletion) -> Unit)? = None；onWebSocketCompleted: ((HttpWebSocketCompletion) -> Unit)? = None；onConnectionError: ((HttpConnectionInfo, Throwable) -> Unit)? = None |
+| HttpApplicationOptions | `httpApplicationOptions(configure: HttpApplicationOptionsBuilder.() -> Unit = {})`；errorMapper: suspend (HttpContext, Throwable) -> HttpResult = suspend { ctx, _ ->         text("Internal Server Error\nRequest: " + ctx.requestId, 500U)     }；onError: ((HttpContext, Throwable) -> Unit)? = None |
+| HttpResult | `httpResult(configure: HttpResultBuilder.() -> Unit = {})`；status: UInt = 200U；fields: List<HttpField> = ArrayList<HttpField>()；body: HttpBody = HttpBody.Empty；allowCompression: Boolean = true |
+| FileResponseOptions | `fileResponseOptions(configure: FileResponseOptionsBuilder.() -> Unit = {})`；contentType: String? = None；entityTag: HttpEntityTag? = None；contentEncoding: String? = None；lastModifiedIsStrong: Boolean = false；bufferSize: Long = 8192L |
+| StaticFileOptions | `staticFileOptions(configure: StaticFileOptionsBuilder.() -> Unit = {})`；pathParameter: String = "path"；indexDocument: String? = None；fileOptions: FileResponseOptions = fileResponseOptions()；fallbackFile: Path? = None |
+| ResponseCompressionOptions | `responseCompressionOptions(configure: ResponseCompressionOptionsBuilder.() -> Unit = {})`；encodings: List<CompressionOptions> = [CompressionOptions.Gzip(GzipOptions())]；minimumBytes: Long = 1024L；bufferSize: Long = 8192L；shouldCompress: (HttpMediaType) -> Boolean = { media ->         media.type == "text" \|\| (media.type == "application" && (media.subtype == "json" \|\| media.subtype == "xml")) \|\|             media.subtype.endsWith("+json") \|\| media.subtype.endsWith("+xml")     } |
+| RequestDecompressionOptions | `requestDecompressionOptions(configure: RequestDecompressionOptionsBuilder.() -> Unit = {})`；allowedFormats: List<CompressionFormat> = [CompressionFormat.Gzip, CompressionFormat.Zlib,         CompressionFormat.Brotli, CompressionFormat.Zstd]；maxLayers: Long = 2L；decodedBodyLimit: Long? = Some(8388608L)；maxWindowBytes: Long? = Some(8388608L)；bufferSize: Long = 8192L |
+| RequestMultipartOptions | `requestMultipartOptions(configure: RequestMultipartOptionsBuilder.() -> Unit = {})`；limits: MultipartLimits = multipartLimits()；maxFieldBytes: Long = 65536L；maxPartBytes: Long = 8388608L；bufferSize: Long = 8192L |
+| WebSocketOptions | `webSocketOptions(configure: WebSocketOptionsBuilder.() -> Unit = {})`；protocols: List<String> = ArrayList<String>()；requireProtocol: Boolean = false；originAllowed: (List<HttpField>) -> Boolean = { _ -> true }；session: WebSocketSessionOptions = webSocketSessionOptions()；deflate: WebSocketDeflate? = None |
+| SseOptions | `保留完整值构造；copy(SseOptionsBuilder.() -> Unit)`；heartbeatInterval: Duration? = None；allowCompression: Boolean = false |
+
+表中有新构造入口的 class 构造器内部化，不保留长参数重载、旧 companion 方法工厂或转发别名。Builder 构造器内部化。协议 struct 与少量小型完整值保留普通构造，copy 和父级配置成员直接复用同一值模型，不为它们另设顶层工厂。所有字段类型、默认策略和非法组合的领域检查仍以上文合同为准。
+
+`routing(configure: RouterBuilder.() -> Unit = {}): HttpApplication` 执行配置后冻结原有路由结构。RouterBuilder 的构造和 build 内部化；route／get／post／put／patch／delete／head／options、use、fallback 返回 Unit，group(prefix, configure: RouteGroup.() -> Unit) 使用接收者。application: HttpApplicationOptions 可完整赋值，application 块基于当前值修改。路由和 group 共享同一次冻结，保存的 builder／group 发布后仍拒绝修改；配置不执行 HttpHandler。HttpServer.listen 的同步 configure 改为同一 RouterBuilder 接收者，并通过 routing 构造，listen／takeOwnership 的端口、scope 和所有权操作保持明确。
+
+HttpServerOptionsBuilder 的 http1Receive／http1Limits／http2Receive／http2Limits／http2Settings 嵌套配置基于当前值；maxWebSocketSessions 未赋值时随当前 maxConnections，显式赋值固定，copy 从已有完整值开始。TLS Context 继续由调用方提供，不在配置阶段握手。
+
+`httpResult { status = ...; fields { ... }; body = ...; allowCompression = ... }` 发布普通结果，复用 httpFields 的有序字段收集。text／bytes／json／redirect／stream 等表达具体内容的短入口继续保留，使用同一个结果模型；stream producer 不改为 receiver，也不在配置时调用。ResponseCompression、RequestDecompression、RequestMultipart、StaticFile 和 WebSocket 的嵌套选项用真实成员修改当前值；SseOptions 等小型完整值可以直接赋入或 copy。压缩／解压、multipart 读取、文件响应、SSE 和 WebSocket 的执行入口及资源关闭规则保持原合同。

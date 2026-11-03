@@ -14,7 +14,7 @@ internal fun ssePoolFailure(trust: TrustStore, url: Url, notifyPort: Int) {
     loop.run suspend {
         _ -> withHttpClient(sseConfig(trust, true)) suspend {
             client ->
-            val response = client.execute(HttpRequest.get(url))
+            val response = client.execute(httpRequest(url))
             try {
                 assertEquals(200U, response.status)
                 loop.connectTcp(
@@ -34,7 +34,7 @@ internal fun ssePoolFailure(trust: TrustStore, url: Url, notifyPort: Int) {
             } finally {
                 response.close()
             }
-            client.withResponse(HttpRequest.get(url)) suspend {
+            client.withResponse(httpRequest(url)) suspend {
                 next ->
                 assertEquals(204U, next.status)
                 assertEquals(0L, next.body.readAllBytes(0L).size)

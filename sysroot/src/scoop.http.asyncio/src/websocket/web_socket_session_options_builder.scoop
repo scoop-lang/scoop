@@ -1,0 +1,51 @@
+package scoop.http.asyncio
+
+import scoop.http.*
+import scoop.time.Duration
+
+/** Configures one complete value; execution remains explicit. */
+public fun webSocketSessionOptions(
+    configure: WebSocketSessionOptionsBuilder.() -> Unit = {}
+): WebSocketSessionOptions {
+    val builder = WebSocketSessionOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun WebSocketSessionOptions.copy(
+    configure: WebSocketSessionOptionsBuilder.() -> Unit = {}
+): WebSocketSessionOptions {
+    val builder = WebSocketSessionOptionsBuilder()
+    builder.incomingLimits = this.incomingLimits
+    builder.inputBufferBytes = this.inputBufferBytes
+    builder.outgoingFrameBytes = this.outgoingFrameBytes
+    builder.closeTimeout = this.closeTimeout
+    builder.maxDecompressedMessageBytes = this.maxDecompressedMessageBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class WebSocketSessionOptionsBuilder internal constructor() {
+    public var incomingLimits: WebSocketFrameLimits = WebSocketFrameLimits()
+    public var inputBufferBytes: Long = 8192L
+    public var outgoingFrameBytes: Long = 8192L
+    public var closeTimeout: Duration = Duration.seconds(5L)
+    private var configuredMaxDecompressedMessageBytes: Long? = None
+    public var maxDecompressedMessageBytes: Long
+    get() = configuredMaxDecompressedMessageBytes ?: incomingLimits.maxMessageBytes
+    set(value) {
+        configuredMaxDecompressedMessageBytes = Some(value)
+    }
+
+    public fun incomingLimits(configure: WebSocketFrameLimitsBuilder.() -> Unit): Unit {
+        incomingLimits = incomingLimits.copy(configure)
+    }
+    internal fun snapshot(): WebSocketSessionOptions =
+        WebSocketSessionOptions(
+            incomingLimits,
+            inputBufferBytes,
+            outgoingFrameBytes,
+            closeTimeout,
+            maxDecompressedMessageBytes
+        )
+}

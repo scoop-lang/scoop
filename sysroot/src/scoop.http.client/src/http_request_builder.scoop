@@ -1,0 +1,41 @@
+package scoop.http.client
+
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.url.Url
+import scoop.url.UrlOrigin
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpRequest(url: Url, configure: HttpRequestBuilder.() -> Unit = {}): HttpRequest {
+    val builder = HttpRequestBuilder()
+    builder.configure()
+    return builder.snapshot(url)
+}
+
+public fun HttpRequest.copy(configure: HttpRequestBuilder.() -> Unit = {}): HttpRequest {
+    val builder = HttpRequestBuilder()
+    builder.method = this.method
+    builder.fields = this.suppliedFields
+    builder.body = this.body
+    builder.options = this.options
+    builder.configure()
+    return builder.snapshot(this.url)
+}
+
+public class HttpRequestBuilder internal constructor() {
+    public var method: String = "GET"
+    public var fields: List<HttpField> = emptyList<HttpField>()
+    public var body: RequestBody = RequestBody.Empty
+    public var options: HttpCallOptions = httpCallOptions()
+
+    public fun options(configure: HttpCallOptionsBuilder.() -> Unit): Unit {
+        options = options.copy(configure)
+    }
+
+    public fun fields(configure: HttpFieldsBuilder.() -> Unit): Unit {
+        fields = fields.copyFields(configure)
+    }
+    internal fun snapshot(url: Url): HttpRequest = HttpRequest(url, method, fields, body, options)
+}

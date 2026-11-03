@@ -4,7 +4,7 @@ import scoop.readline.*
 import scoop.readline.history.MemoryHistory
 
 fun main() {
-    val editor = Editor(Config(editMode = EditMode.Vi), MemoryHistory())
+    val editor = Editor(readlineConfig { this.editMode = EditMode.Vi }, MemoryHistory())
     editor.completer = FilenameCompleter()
     editor.validator = MatchingBracketValidator()
     println("Enter balanced brackets; unfinished input continues on the next line.")

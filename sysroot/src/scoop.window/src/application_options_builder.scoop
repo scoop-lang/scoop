@@ -1,0 +1,31 @@
+package scoop.window
+
+import scoop.time.TimeMark
+import scoop.window.native.ApplicationAttachment
+import scoop.window.native.ApplicationHost
+
+/** Configures one complete value; execution remains explicit. */
+public fun applicationOptions(
+    configure: ApplicationOptionsBuilder.() -> Unit = {}
+): ApplicationOptions {
+    val builder = ApplicationOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun ApplicationOptions.copy(
+    configure: ApplicationOptionsBuilder.() -> Unit = {}
+): ApplicationOptions {
+    val builder = ApplicationOptionsBuilder()
+    builder.lastWindowPolicy = this.lastWindowPolicy
+    builder.activationPolicy = this.activationPolicy
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ApplicationOptionsBuilder internal constructor() {
+    internal var activationPolicy: Int = 0
+    public var lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning
+    internal fun snapshot(): ApplicationOptions =
+        ApplicationOptions(lastWindowPolicy, activationPolicy)
+}

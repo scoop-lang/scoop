@@ -5,7 +5,7 @@ import scoop.time.Duration
 /**
  * Positive connection/HTTP2 stream capacities plus idle and optional maximum connection lifetimes.
  */
-public class HttpConnectionPoolOptions public constructor(
+public class HttpConnectionPoolOptions internal constructor(
     /**
      * Maximum connections pooled or being established for one origin.
      */
@@ -30,8 +30,14 @@ public class HttpConnectionPoolOptions public constructor(
 ) {
     init {
         if (maxConnectionsPerOrigin <= 0L || maxConnections <= 0L || maxStreamsPerHttp2 <= 0L)
-            throw IllegalArgumentException(Some("HTTP connection and stream limits must be positive"))
-        if (idleTimeout < Duration.ZERO || (clientPresent(maxLifetime) && maxLifetime!! <= Duration.ZERO))
+            throw IllegalArgumentException(
+                Some("HTTP connection and stream limits must be positive")
+            )
+        if (
+            idleTimeout <
+                Duration.ZERO ||
+                (clientPresent(maxLifetime) && maxLifetime!! <= Duration.ZERO)
+        )
             throw IllegalArgumentException(Some("invalid HTTP connection lifetime"))
     }
 }

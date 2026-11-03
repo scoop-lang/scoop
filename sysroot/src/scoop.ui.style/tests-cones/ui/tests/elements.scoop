@@ -32,7 +32,10 @@ internal class StyleScene(private val probe: StyleProbe): Component {
             generation,
             { props -> StylePanel(props, probe) },
             [
-                styled(component({ StyleCounter(probe) }), style, ViewKey.Text("content")),
+                styled(component({ StyleCounter(probe) })) {
+                    this.style = style
+                    this.key = ViewKey.Text("content")
+                },
                 if (probe.showAnimation.value)
                     element({ AnimatedInk(probe) })
                 else

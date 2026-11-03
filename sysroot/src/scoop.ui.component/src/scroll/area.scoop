@@ -44,41 +44,8 @@ public class ScrollArea public constructor(private val props: Props<ScrollAreaPr
     }
 }
 
-public fun scrollArea(
-    content: View,
-    state: ScrollState? = None,
-    axes: ScrollAxes = ScrollAxes.Vertical,
-    width: Double? = None,
-    height: Double? = None,
-    lineStep: Double = 40.0,
-    chain: ScrollChain = ScrollChain.Chain,
-    scrollbars: ScrollbarVisibility = ScrollbarVisibility.Auto,
-    scrollbar: ScrollbarOptions = scrollbarOptions(),
-    enabled: Boolean = true,
-    focus: FocusOptions = FocusOptions(),
-    theme: ThemeSource? = None,
-    paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        ScrollAreaProps(
-            content,
-            state,
-            axes,
-            width,
-            height,
-            lineStep,
-            chain,
-            scrollbars,
-            scrollbar,
-            enabled,
-            focus,
-            theme,
-            paintCache
-        ),
-        { props -> ScrollArea(props) },
-        key
-    )
+public fun scrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit = {}): View =
+    makeScrollArea(content, configure)
 
 internal class ScrollAreaInkProps(
     val input: ScrollAreaProps,

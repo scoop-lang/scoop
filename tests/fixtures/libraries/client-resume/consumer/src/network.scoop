@@ -14,43 +14,48 @@ internal fun resumeNetwork(trust: TrustStore, mode: String, url: Url, directory:
         _ ->
         val target = directory.resolve(Path.fromString("result"))
         val resume =
-            HttpResumeOptions(
+            httpResumeOptions(
                 directory.resolve(Path.fromString("partial")),
-                directory.resolve(Path.fromString("metadata")),
-                if (mode == "restart" || mode == "mismatch")
-                    HttpResumeMismatch.Restart
-                else
-                    HttpResumeMismatch.Fail
-            )
+                directory.resolve(Path.fromString("metadata"))
+            ) {
+                this.mismatch =
+                    if (mode == "restart" || mode == "mismatch")
+                        HttpResumeMismatch.Restart
+                    else
+                        HttpResumeMismatch.Fail
+            }
         downloadStore(target, "original")
         val authentication =
             if (mode == "digest-incomplete" || mode == "digest-prefix")
-                HttpAuthenticationOptions(
-                    [
-                        HttpAuthenticator.digest(url.httpOrigin()) suspend {
-                            _ -> HttpPasswordCredentials("user", "password")
-                        }
-                    ]
-                )
+                httpAuthenticationOptions {
+                    this.providers =
+                        [
+                            HttpAuthenticator.digest(url.httpOrigin()) suspend {
+                                _ -> HttpPasswordCredentials("user", "password")
+                            }
+                        ]
+                }
             else
-                HttpAuthenticationOptions()
+                httpAuthenticationOptions()
         val config =
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                authentication = authentication,
-                retries = HttpRetryOptions(maxRetries = 0L),
-                cache =
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.authentication = authentication
+                this.retries = httpRetryOptions { this.maxRetries = 0L }
+                this.cache =
                     if (mode == "cache")
                         Some(HttpCacheOptions(MemoryHttpCache()))
                     else
                         None
-            )
+            }
         withHttpClient(config) suspend {
             client ->
             val request = resumeRequest(mode, url, false)
             if (mode == "cache") {
                 client.execute(
-                    HttpRequest.get(url, [downloadField("Accept-Encoding", "identity")])
+                    httpRequest(url) {
+                        this.fields = [downloadField("Accept-Encoding", "identity")]
+                    }
                 ).useAsync suspend {
                     value -> assertEquals(48L, value.body.readAllBytes(1024L).size)
                 }
@@ -92,5 +97,5 @@ private fun resumeRequest(mode: String, url: Url, changed: Boolean): HttpRequest
                     "Bearer one"
             )
         )
-    return HttpRequest.get(url, fields)
+    return httpRequest(url) { this.fields = fields }
 }

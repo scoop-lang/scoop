@@ -13,11 +13,10 @@ internal class Counter: Component {
             ShortcutScope(
                 scope.input,
                 [
-                    ShortcutBinding(
+                    shortcutBinding(
                         ShortcutKey.Logical(LogicalKey.Character("i")),
-                        ShortcutModifiers(primary = true),
-                        action = { count += 1 }
-                    )
+                        { count += 1 }
+                    ) { this.modifiers = ShortcutModifiers(primary = true) }
                 ]
             )
         }

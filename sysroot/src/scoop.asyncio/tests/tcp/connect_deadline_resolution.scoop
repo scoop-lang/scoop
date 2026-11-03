@@ -29,7 +29,7 @@ private class AsyncTcpResolutionDeadlineTest {
                         loop.connectTcp(
                             host,
                             listener.localAddress.port,
-                            TcpConnectOptions(resolveTimeout = Some(limit))
+                            tcpConnectOptions { this.resolveTimeout = Some(limit) }
                         )
                         fail(Some("blocked DNS connected"))
                     } catch (error: TcpConnectException) {
@@ -78,7 +78,10 @@ private class AsyncTcpResolutionDeadlineTest {
                             loop.connectTcp(
                                 OsString.fromString("localhost"),
                                 listener.localAddress.port,
-                                TcpConnectOptions(resolveTimeout = long, connectTimeout = long)
+                                tcpConnectOptions {
+                                    this.resolveTimeout = long
+                                    this.connectTimeout = long
+                                }
                             )
                         }
                     backend.state.post { connecting.cancel() }

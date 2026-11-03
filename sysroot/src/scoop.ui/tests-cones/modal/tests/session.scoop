@@ -15,7 +15,9 @@ private class ModalUiTest {
         val probe = ModalProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertTrue(probe.view!!.restored())
@@ -87,7 +89,10 @@ internal class ModalProbe {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop modal input", LogicalSize(400.0, 260.0))
+                        windowAttributes {
+                            this.title = "Scoop modal input"
+                            this.size = LogicalSize(400.0, 260.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -118,9 +123,11 @@ internal class ModalProbe {
                     } else {
                         fail(
                             Some(
-                                f"modal timeout phase=${phase}, frames=${passes}, committed=${
-                                    committed
-                                }, revision=${revision.value}"
+                                f"modal timeout phase=${this @ModalProbe.phase}, frames=${
+                                    this @ModalProbe.passes
+                                }, committed=${this @ModalProbe.committed}, revision=${
+                                    this @ModalProbe.revision.value
+                                }"
                             )
                         )
                     }

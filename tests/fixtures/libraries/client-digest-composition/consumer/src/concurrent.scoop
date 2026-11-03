@@ -24,7 +24,7 @@ internal fun digestConcurrent(mode: String, url: Url, trust: TrustStore) {
         withHttpClient(digestConfig(trust, provider)) suspend {
             client -> if (mode == "clear-active") {
                 context(DigestContext("start")) {
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         client.clearAuthenticationCache(provider)
                         val next =
@@ -77,7 +77,7 @@ internal fun digestConcurrent(mode: String, url: Url, trust: TrustStore) {
 }
 
 private suspend fun digestDone(client: HttpClient, url: Url, attempts: Long) {
-    client.withResponse(HttpRequest.get(url)) suspend {
+    client.withResponse(httpRequest(url)) suspend {
         response -> digestCheck(
             response.authenticationCount == attempts && response.body.text(4L) == "done"
         )

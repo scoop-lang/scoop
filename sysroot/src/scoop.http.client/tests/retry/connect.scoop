@@ -12,7 +12,12 @@ private class HttpClientRetryConnectTest {
     fun `direct and resolved connection refusal can recover without consuming a request body early`() {
         for (resolved in [false, true]) {
             val delay = Duration.seconds(2L)
-            val retries = HttpRetryOptions(initialDelay = delay, maxDelay = delay, jitter = false)
+            val retries =
+                httpRetryOptions {
+                    this.initialDelay = delay
+                    this.maxDelay = delay
+                    this.jitter = false
+                }
             withClientRetryTest(retries) suspend {
                 loop, scope, listener, config ->
                 val address = listener.localAddress
@@ -31,7 +36,14 @@ private class HttpClientRetryConnectTest {
                 withHttpClient(config) suspend {
                     client ->
                     val executing =
-                        scope.async suspend { client.execute(HttpRequest(url, "PUT", body = body)) }
+                        scope.async suspend {
+                            client.execute(
+                                httpRequest(url) {
+                                    this.method = "PUT"
+                                    this.body = body
+                                }
+                            )
+                        }
                     // Windows may take over two seconds to report a refused loopback connection.
                     waitForClientRetryBackoff(loop, client, clientTimeoutTestDuration() * 5L)
                     assertEquals(0L, started.load())

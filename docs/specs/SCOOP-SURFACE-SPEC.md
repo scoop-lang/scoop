@@ -271,3 +271,8 @@ Surface 在 owner 上创建并使用 GPU context、swapchain 和呈现资源；�
 Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换，再在同一 direct queue 的有序工作之后 Present。过期尺寸、暂不可呈现或未就绪返回 Deferred；设备移除及其他确定的 HRESULT 失败报告 GraphicsException，不能静默重试或切换 renderer。resize 退休旧 backbuffer，并在其实际 GPU 使用结束后重新配置；普通提交保持异步，显式读回、resize 和关闭才同步相关 GPU 使用。
 
 关闭先解除原生等待和消息通知，结束正在使用的 frame，再排空相关 GPU 工作、卸载自己的合成目标、释放 swapchain／context，最后关闭 lease。已排队通知不能访问已释放 surface；关闭不依赖 ApplicationProxy 再执行业务闭包。三个目标分别构建相容的 C++／CRT 资源，并用所属 Cone 的 scoop.test 运行离屏、真实 D3D12、窗口、IME 与收尾测试；Linux 不进入本阶段的发布或验收。
+
+
+### 快捷键描述装配
+
+`shortcutBinding(key: ShortcutKey, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以键和动作作为必需参数，配置 modifiers=ShortcutModifiers()、enabled=true、allowRepeat=false、canExecute={ true }。modifiers 块基于当前六个布尔修饰键字段配置。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(key, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。

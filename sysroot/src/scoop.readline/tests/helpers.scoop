@@ -31,7 +31,7 @@ private class HelperTest {
         assertEquals("help", session.line)
         val list =
             EditingSession(
-                Config(completionType = CompletionType.List),
+                readlineConfig { this.completionType = CompletionType.List },
                 initial = "he",
                 completer = Words()
             )
@@ -46,7 +46,7 @@ private class HelperTest {
         history.add("hello world")
         val session =
             EditingSession(
-                Config(autoAddHistory = true),
+                readlineConfig { this.autoAddHistory = true },
                 history,
                 initial = "hello",
                 hinter = HistoryHinter()
@@ -56,7 +56,7 @@ private class HelperTest {
         assertEquals("hello world", session.line)
         press(session, KeyCode.Enter)
         assertEquals(1L, history.size)
-        val caseless = MemoryHistory(Config(historyCaseSensitive = false))
+        val caseless = MemoryHistory(readlineConfig { this.historyCaseSensitive = false })
         caseless.add("straße")
         val expanding =
             EditingSession(history = caseless, initial = "STRASS", hinter = HistoryHinter())

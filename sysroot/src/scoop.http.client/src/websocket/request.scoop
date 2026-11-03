@@ -1,5 +1,7 @@
 package scoop.http.client
 
+import scoop.http.asyncio.webSocketSessionOptions
+
 import scoop.collections.emptyList
 import scoop.http.*
 import scoop.http.asyncio.WebSocketSessionOptions
@@ -9,7 +11,7 @@ import scoop.url.Url
  * A ws/wss upgrade request without URL fragment or request body. Handshake-specific fields are
  * managed by the client.
  */
-public class HttpWebSocketRequest public constructor(
+public class HttpWebSocketRequest internal constructor(
     /**
      * The validated ws or wss URL without a fragment.
      */
@@ -18,7 +20,7 @@ public class HttpWebSocketRequest public constructor(
     /**
          * HTTP call policy used during the handshake.
          */
-    public val options: HttpCallOptions = HttpCallOptions()
+    public val options: HttpCallOptions = httpCallOptions()
 ) {
     /**
      * Copied caller fields for the upgrade request.
@@ -46,13 +48,13 @@ public class HttpWebSocketRequest public constructor(
  * Offered subprotocols, permessage-deflate offers, and the asynchronous session's buffering/close
  * policy.
  */
-public class HttpWebSocketOptions public constructor(
+public class HttpWebSocketOptions internal constructor(
     protocols: List<String> = emptyList<String>(),
     deflateOffers: List<WebSocketDeflateOffer> = emptyList<WebSocketDeflateOffer>(),
     /**
      * Post-upgrade streaming, limits, and close policy.
      */
-    public val session: WebSocketSessionOptions = WebSocketSessionOptions()
+    public val session: WebSocketSessionOptions = webSocketSessionOptions()
 ) {
     /**
      * Subprotocol tokens offered in order.
@@ -94,16 +96,16 @@ internal fun clientWebSocketUrl(url: Url): Url =
     }
 
 internal fun clientWebSocketOptions(options: HttpCallOptions): HttpCallOptions =
-    HttpCallOptions(
-        decoding = options.decoding,
-        timeouts = options.timeouts,
-        onInformational = options.onInformational,
-        redirects = options.redirects,
-        retries = options.retries,
-        authentication = options.authentication,
-        proxy = options.proxy,
-        useCookies = options.useCookies,
-        cookieContext = options.cookieContext,
-        cacheMode = HttpCacheMode.Bypass,
-        observer = options.observer
-    )
+    httpCallOptions {
+        this.decoding = options.decoding
+        this.timeouts = options.timeouts
+        this.onInformational = options.onInformational
+        this.redirects = options.redirects
+        this.retries = options.retries
+        this.authentication = options.authentication
+        this.proxy = options.proxy
+        this.useCookies = options.useCookies
+        this.cookieContext = options.cookieContext
+        this.cacheMode = HttpCacheMode.Bypass
+        this.observer = options.observer
+    }

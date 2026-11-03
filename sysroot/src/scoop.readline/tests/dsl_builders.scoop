@@ -1,0 +1,27 @@
+package scoop.readline
+
+import scoop.test.*
+
+@Test
+private class ReadlineReceiverDslTests {
+    @Test
+    fun `editor configuration snapshots history and editing choices`() {
+        val captured = ArrayList<ConfigBuilder>()
+        val original =
+            readlineConfig {
+                captured.add(this)
+                editMode = EditMode.Vi
+                maxHistorySize = 2L
+                historyIgnoreDuplicates = false
+                tabStop = 4L
+            }
+        val changed = original.copy { editMode = EditMode.Emacs }
+        captured[0L].maxHistorySize = 100L
+        assertEquals(EditMode.Vi, original.editMode)
+        assertEquals(EditMode.Emacs, changed.editMode)
+        assertEquals(2L, changed.maxHistorySize)
+        assertFalse(changed.historyIgnoreDuplicates)
+        assertEquals(4L, changed.tabStop)
+        assertFailsWith<IllegalArgumentException> { readlineConfig { tabStop = 0L } }
+    }
+}

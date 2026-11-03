@@ -10,10 +10,10 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         case 0 -> {
             expectFocus(0L)
             assertFailsWith<IllegalArgumentException> {
-                PortalOptions(
-                    modal = Some(ModalOptions()),
-                    dismiss = OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue)
-                )
+                portalOptions {
+                    this.modal = Some(ModalOptions())
+                    this.dismiss = OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue)
+                }
             }
             waiting = true
             assertTrue(moveSurfacePointer(window!!, 20.0, 210.0))

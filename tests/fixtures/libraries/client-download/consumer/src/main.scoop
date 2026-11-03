@@ -1,4 +1,5 @@
 package scoop.tests
+
 import scoop.tests.scoop.crypto.testdata.rootPem
 import scoop.crypto.x509.TrustStore
 import scoop.platform.fs.Path
@@ -8,12 +9,17 @@ import scoop.url.Url
 fun main(args: Array<String>) {
     val mode = args[1L]
     try {
-        TrustStore.fromPem(rootPem()).use { trust ->
-            if (mode == "http2") downloadHttp2(trust, Path.fromString(args[2L]))
-            else downloadNetwork(trust, mode, Url.parse(args[2L]), Path.fromString(args[3L]))
+        TrustStore.fromPem(rootPem()).use {
+            trust -> downloadNetwork(trust, mode, Url.parse(args[2L]), Path.fromString(args[3L]))
         }
     } catch (error: AssertionFailure) {
-        println(error.kind + " " + (error.message ?: "failure") + " at " + error.location.line.toString())
+        println(
+            error.kind +
+                " " +
+                (error.message ?: "failure") +
+                " at " +
+                error.location.line.toString()
+        )
         throw error
     }
     println("client download " + mode)

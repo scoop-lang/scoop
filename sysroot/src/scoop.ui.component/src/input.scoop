@@ -60,44 +60,5 @@ public class Input public constructor(private val props: Props<InputProps>): Com
     }
 }
 
-public fun input(
-    state: TextEditorState,
-    placeholder: String = "",
-    enabled: Boolean = true,
-    readOnly: Boolean = false,
-    invalid: Boolean = false,
-    description: String = "",
-    fonts: FontCollection? = None,
-    style: TextFieldStyle = textFieldStyle(),
-    theme: ThemeSource? = None,
-    focus: FocusOptions = FocusOptions(),
-    direction: TextDirection = TextDirection.Ltr,
-    alignment: TextAlignment = TextAlignment.Start,
-    paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    caretBlink: Duration = Duration.milliseconds(500L),
-    onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        InputProps(
-            state,
-            placeholder,
-            enabled,
-            readOnly,
-            invalid,
-            description,
-            fonts,
-            style,
-            theme,
-            focus,
-            direction,
-            alignment,
-            paintCache,
-            caretBlink,
-            onEdited,
-            onSubmit
-        ),
-        { props -> Input(props) },
-        key
-    )
+public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View =
+    makeInput(state, configure)

@@ -110,11 +110,13 @@ internal fun bearerRefresh(trust: TrustStore, clearSame: Boolean) {
                 delayed.join()
             }
         try {
-            withHttpClient(bearerConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+            withHttpClient(
+                bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+            ) suspend {
                 client ->
                 val first =
                     scope.async<Unit> suspend {
-                        client.withResponse(HttpRequest.get(url)) suspend {
+                        client.withResponse(httpRequest(url)) suspend {
                             response -> bearerCheck(
                                 response.authenticationCount ==
                                     1L &&
@@ -126,7 +128,7 @@ internal fun bearerRefresh(trust: TrustStore, clearSame: Boolean) {
                 firstSeen.await()
                 if (clearSame) {
                     client.clearAuthenticationCache(provider)
-                    bearerDone(client, HttpRequest.get(url.resolve("/reload")))
+                    bearerDone(client, httpRequest(url.resolve("/reload")))
                     bearerCheck(loads.load() == 2L)
                     releaseOld.signal();
                     refreshing.await();
@@ -135,7 +137,7 @@ internal fun bearerRefresh(trust: TrustStore, clearSame: Boolean) {
                 } else {
                     val second =
                         scope.async<Unit> suspend {
-                            client.withResponse(HttpRequest.get(url.resolve("/refresh"))) suspend {
+                            client.withResponse(httpRequest(url.resolve("/refresh"))) suspend {
                                 response -> bearerCheck(
                                     response.authenticationCount ==
                                         1L &&
@@ -147,7 +149,7 @@ internal fun bearerRefresh(trust: TrustStore, clearSame: Boolean) {
                     refreshing.await()
                     val third =
                         scope.async<Unit> suspend {
-                            bearerDone(client, HttpRequest.get(url.resolve("/joining")))
+                            bearerDone(client, httpRequest(url.resolve("/joining")))
                         }
                     bearerCheck(!third.isCompleted && loads.load() == 1L && refreshes.load() == 1L)
                     allowRefresh.signal();

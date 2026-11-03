@@ -46,22 +46,8 @@ public class Frame public constructor(private val props: Props<FrameProps>): Com
     }
 }
 
-public fun frame(
-    content: View,
-    width: Double? = None,
-    height: Double? = None,
-    padding: Insets? = None,
-    alignment: Alignment = Alignment(),
-    style: StyleOverride = styleOverride(),
-    surface: SurfaceKind? = None,
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        FrameProps(content, width, height, padding, alignment, style, surface, theme),
-        { props -> Frame(props) },
-        key
-    )
+public fun frame(content: View, configure: FrameBuilder.() -> Unit = {}): View =
+    makeFrame(content, configure)
 
 private class FrameInput(val value: FrameProps, val theme: Theme?)
 

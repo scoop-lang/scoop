@@ -17,38 +17,35 @@ internal fun resumeValidation(trust: TrustStore, directory: Path) {
         val target = directory.resolve(Path.fromString("target"))
         val data = directory.resolve(Path.fromString("partial"))
         val metadata = directory.resolve(Path.fromString("metadata"))
-        val resume = HttpResumeOptions(data, metadata)
+        val resume = httpResumeOptions(data, metadata)
         assertFailsWith<IllegalArgumentException> {
-            HttpResumeOptions(data, metadata, maxMetadataBytes = 0L)
+            httpResumeOptions(data, metadata) { this.maxMetadataBytes = 0L }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpResumeOptions(data, metadata, maxMetadataBytes = -1L)
+            httpResumeOptions(data, metadata) { this.maxMetadataBytes = -1L }
         }
-        assertFailsWith<IllegalArgumentException> { HttpResumeOptions(data, data) }
+        assertFailsWith<IllegalArgumentException> { httpResumeOptions(data, data) }
         val url = Url.parse("http://127.0.0.1:9/")
         val requests = ArrayList<HttpRequest>()
-        requests.add(HttpRequest(url, "POST"))
-        requests.add(HttpRequest(url, body = RequestBody.fromText("content")))
+        requests.add(httpRequest(url) { this.method = "POST" })
+        requests.add(httpRequest(url) { this.body = RequestBody.fromText("content") })
         requests.add(
-            HttpRequest(
-                url,
-                body = RequestBody.fromProducer(contentLength = Some(0L)) suspend { _ -> Unit }
-            )
+            httpRequest(url) {
+                this.body = RequestBody.fromProducer(contentLength = Some(0L)) suspend { _ -> Unit }
+            }
         )
         requests.add(
-            HttpRequest(
-                url,
-                body = RequestBody.fromProducerFactory() suspend { suspend { _ -> Unit } }
-            )
+            httpRequest(url) {
+                this.body = RequestBody.fromProducerFactory() suspend { suspend { _ -> Unit } }
+            }
         )
         requests.add(
-            HttpRequest(
-                url,
-                body =
+            httpRequest(url) {
+                this.body =
                     RequestBody.fromProducerWithTrailersFactory(["Checksum"], Some(0L)) suspend {
                         suspend { _ -> emptyList<HttpField>() }
                     }
-            )
+            }
         )
         for (
             name in [
@@ -60,12 +57,16 @@ internal fun resumeValidation(trust: TrustStore, directory: Path) {
                 "If-Unmodified-Since"
             ]
         )
-            requests.add(HttpRequest.get(url, [downloadField(name, "unused")]))
-        requests.add(HttpRequest.get(url, [downloadField("Cache-Control", "only-if-cached")]))
+            requests.add(httpRequest(url) { this.fields = [downloadField(name, "unused")] })
         requests.add(
-            HttpRequest.get(url, options = HttpCallOptions(cacheMode = HttpCacheMode.OnlyIfCached))
+            httpRequest(url) { this.fields = [downloadField("Cache-Control", "only-if-cached")] }
         )
-        requests.add(HttpRequest.get(url, options = HttpCallOptions(duplex = true)))
+        requests.add(
+            httpRequest(url) {
+                this.options = httpCallOptions { this.cacheMode = HttpCacheMode.OnlyIfCached }
+            }
+        )
+        requests.add(httpRequest(url) { this.options = httpCallOptions { this.duplex = true } })
         withHttpClient(downloadConfig(trust)) suspend {
             client ->
             for (request in requests) {
@@ -79,7 +80,7 @@ internal fun resumeValidation(trust: TrustStore, directory: Path) {
             for (path in [data, metadata, Path.fromString("/")]) {
                 val error =
                     resumeFailure suspend {
-                        client.resumeDownload(HttpRequest.get(url), path, resume);
+                        client.resumeDownload(httpRequest(url), path, resume);
                         Unit
                     }
                 assertTrue(error is IllegalArgumentException)
@@ -107,9 +108,9 @@ internal fun resumeEmptyProducer(trust: TrustStore, directory: Path) {
             client ->
             val result =
                 client.resumeDownload(
-                    HttpRequest(url, body = body),
+                    httpRequest(url) { this.body = body },
                     directory.resolve(Path.fromString("result")),
-                    HttpResumeOptions(
+                    httpResumeOptions(
                         directory.resolve(Path.fromString("partial")),
                         directory.resolve(Path.fromString("metadata"))
                     )

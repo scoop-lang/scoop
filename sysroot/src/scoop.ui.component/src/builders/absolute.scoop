@@ -1,0 +1,48 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.Insets
+
+public class AbsoluteChildBuilder internal constructor() {
+    public var horizontal: AbsoluteAxis = AbsoluteAxis.Start()
+    public var vertical: AbsoluteAxis = AbsoluteAxis.Start()
+    public var zIndex: Int = 0
+    internal fun snapshot(content: View): AbsoluteChild =
+        AbsoluteChild(content, horizontal, vertical, zIndex)
+}
+
+public fun absoluteChild(
+    content: View,
+    configure: AbsoluteChildBuilder.() -> Unit = {}
+): AbsoluteChild {
+    val builder = AbsoluteChildBuilder()
+    builder.configure()
+    return builder.snapshot(content)
+}
+
+public class AbsoluteBuilder internal constructor() {
+    private val entries = ArrayList<AbsoluteChild>()
+    public var width: Double? = None
+    public var height: Double? = None
+    public var padding: Insets = Insets()
+    public var key: ViewKey = ViewKey.Position
+
+    public fun add(child: AbsoluteChild): Unit {
+        entries.add(child)
+    }
+    public fun addAll(children: Array<AbsoluteChild>): Unit {
+        for (child in children)
+            add(child)
+    }
+    public fun item(content: View, configure: AbsoluteChildBuilder.() -> Unit = {}): Unit {
+        add(absoluteChild(content, configure))
+    }
+    internal fun snapshot(): AbsoluteProps =
+        AbsoluteProps(entries.toArray(), width, height, padding)
+}
+
+internal fun makeAbsolute(configure: AbsoluteBuilder.() -> Unit): View {
+    val builder = AbsoluteBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { props -> Absolute(props) }, builder.key)
+}

@@ -17,34 +17,31 @@ internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
             generation,
             { props -> AbsoluteCanvas(probe, props) },
             [
-                absolute(
-                    [
-                        AbsoluteChild(
-                            box(0L),
-                            AbsoluteAxis.Start(-25.0, Some(100.0)),
-                            AbsoluteAxis.Start(10.0, Some(40.0)),
+                absolute {
+                    this.item(this @AbsoluteScene.box(0L)) {
+                        this.horizontal = AbsoluteAxis.Start(-25.0, Some(100.0))
+                        this.vertical = AbsoluteAxis.Start(10.0, Some(40.0))
+                        this.zIndex =
                             if (generation == 0)
                                 2
                             else
                                 0
-                        ),
-                        AbsoluteChild(
-                            box(1L),
-                            AbsoluteAxis.End(70.0, Some(80.0)),
-                            AbsoluteAxis.Center(-10.0, Some(40.0))
-                        ),
-                        AbsoluteChild(
-                            box(2L),
-                            AbsoluteAxis.Stretch(10.0, 20.0),
-                            AbsoluteAxis.Start(10.0, Some(40.0)),
+                    }
+                    this.item(this @AbsoluteScene.box(1L)) {
+                        this.horizontal = AbsoluteAxis.End(70.0, Some(80.0))
+                        this.vertical = AbsoluteAxis.Center(-10.0, Some(40.0))
+                    }
+                    this.item(this @AbsoluteScene.box(2L)) {
+                        this.horizontal = AbsoluteAxis.Stretch(10.0, 20.0)
+                        this.vertical = AbsoluteAxis.Start(10.0, Some(40.0))
+                        this.zIndex =
                             if (generation == 0)
                                 1
                             else
                                 0
-                        )
-                    ],
-                    padding = Insets.all(10.0)
-                )
+                    }
+                    this.padding = Insets.all(10.0)
+                }
             ]
         )
     }

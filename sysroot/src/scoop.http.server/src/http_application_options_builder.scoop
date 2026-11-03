@@ -1,0 +1,30 @@
+package scoop.http.server
+
+import scoop.http.*
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpApplicationOptions(
+    configure: HttpApplicationOptionsBuilder.() -> Unit = {}
+): HttpApplicationOptions {
+    val builder = HttpApplicationOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpApplicationOptions.copy(
+    configure: HttpApplicationOptionsBuilder.() -> Unit = {}
+): HttpApplicationOptions {
+    val builder = HttpApplicationOptionsBuilder()
+    builder.errorMapper = this.errorMapper
+    builder.onError = this.onError
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpApplicationOptionsBuilder internal constructor() {
+    public var errorMapper: suspend (HttpContext, Throwable) -> HttpResult =
+        suspend { ctx, _ -> text("Internal Server Error\nRequest: " + ctx.requestId, 500U) }
+    public var onError: ((HttpContext, Throwable) -> Unit)? = None
+    internal fun snapshot(): HttpApplicationOptions = HttpApplicationOptions(errorMapper, onError)
+}

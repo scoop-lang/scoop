@@ -16,7 +16,9 @@ private class NativeHostShortcutTest {
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
             host -> try {
                 probe.shared = Some(HostShortcutScope(host, [probe.binding(1)]))
-                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
                 assertTrue(probe.finished)
                 assertEquals(1, probe.localCalls)
                 assertEquals(121, probe.hostCalls)
@@ -47,26 +49,28 @@ private class HostShortcutSession: Closeable {
     var finished = false
 
     fun binding(amount: Int): ShortcutBinding =
-        ShortcutBinding(
+        shortcutBinding(
             ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
-            ShortcutModifiers(primary = true),
-            action = { hostCalls += amount }
-        )
+            { hostCalls += amount }
+        ) { this.modifiers = ShortcutModifiers(primary = true) }
 
     fun event(host: SurfaceHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
                 val a =
                     active.createWindow(
-                        WindowAttributes("Scoop host shortcuts", LogicalSize(240.0, 130.0))
+                        windowAttributes {
+                            this.title = "Scoop host shortcuts"
+                            this.size = LogicalSize(240.0, 130.0)
+                        }
                     )
                 val b =
                     active.createWindow(
-                        WindowAttributes(
-                            "Scoop second shortcuts",
-                            LogicalSize(240.0, 130.0),
-                            visible = false
-                        )
+                        windowAttributes {
+                            this.title = "Scoop second shortcuts"
+                            this.size = LogicalSize(240.0, 130.0)
+                            this.visible = false
+                        }
                     )
                 first = Some(a)
                 second = Some(b)
@@ -87,11 +91,10 @@ private class HostShortcutSession: Closeable {
                         ShortcutScope(
                             surface.input,
                             [
-                                ShortcutBinding(
+                                shortcutBinding(
                                     ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
-                                    ShortcutModifiers(primary = true),
-                                    action = { localCalls += 1 }
-                                )
+                                    { localCalls += 1 }
+                                ) { this.modifiers = ShortcutModifiers(primary = true) }
                             ]
                         )
                     )
@@ -143,7 +146,11 @@ private class HostShortcutSession: Closeable {
                 }
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"host shortcut timeout: phase=${phase}, calls=${hostCalls}")
+                Some(
+                    f"host shortcut timeout: phase=${this @HostShortcutSession.phase}, calls=${
+                        this @HostShortcutSession.hostCalls
+                    }"
+                )
             )
             else -> {}
         }
@@ -212,11 +219,10 @@ private class HostShortcutSession: Closeable {
                 assertEquals(121, hostCalls)
                 shared!!.bindings =
                     [
-                        ShortcutBinding(
+                        shortcutBinding(
                             ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
-                            ShortcutModifiers(primary = true),
-                            action = { host.close() }
-                        )
+                            { host.close() }
+                        ) { this.modifiers = ShortcutModifiers(primary = true) }
                     ]
                 phase = 10
             }

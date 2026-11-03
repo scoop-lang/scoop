@@ -1,0 +1,15 @@
+package scoop.http
+
+public fun SseLimits.copy(configure: SseLimitsBuilder.() -> Unit = {}): SseLimits {
+    val builder = SseLimitsBuilder()
+    builder.maxLineBytes = this.maxLineBytes
+    builder.maxEventBytes = this.maxEventBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class SseLimitsBuilder internal constructor() {
+    public var maxLineBytes: Long = 65536L
+    public var maxEventBytes: Long = 1048576L
+    internal fun snapshot(): SseLimits = SseLimits(maxLineBytes, maxEventBytes)
+}

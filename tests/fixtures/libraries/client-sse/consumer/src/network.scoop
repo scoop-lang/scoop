@@ -38,7 +38,7 @@ internal fun sseNetwork(trust: TrustStore, mode: String, url: Url) {
         ) suspend {
             client ->
             if (mode == "cache") {
-                client.withResponse(HttpRequest.get(url)) suspend {
+                client.withResponse(httpRequest(url)) suspend {
                     response -> assertEquals("cached", response.body.text(1024L))
                 }
                 assertEquals(1L, cache.entryCount)
@@ -63,50 +63,54 @@ internal fun sseNetwork(trust: TrustStore, mode: String, url: Url) {
                     else
                         RequestBody.Empty
             val request =
-                HttpRequest(
-                    url,
-                    if (post)
-                        "POST"
-                    else
-                        "GET",
-                    fields,
-                    body,
-                    HttpCallOptions(
-                        decoding = Some(HttpDecodingOptions(HttpContentDecoding.Raw)),
-                        expectContinue = post,
-                        onInformational =
-                            suspend {
-                                _ -> if (mode == "informational-error")
-                                    throw probe.error
-                            }
-                    )
-                )
-            val reconnect =
-                HttpSseReconnectOptions(
-                    Duration.ZERO,
-                    Duration.milliseconds(10L),
-                    Some(
-                        if (mode == "limit")
-                            1L
+                httpRequest(url) {
+                    this.method =
+                        if (post)
+                            "POST"
                         else
-                            4L
-                    ),
-                    suspend { event -> sseReconnecting(mode, client, probe, event) }
-                )
+                            "GET"
+                    this.fields = fields
+                    this.body = body
+                    this.options =
+                        httpCallOptions {
+                            this.decoding =
+                                Some(httpDecodingOptions { this.mode = HttpContentDecoding.Raw })
+                            this.expectContinue = post
+                            this.onInformational =
+                                suspend {
+                                    _ -> if (mode == "informational-error")
+                                        throw probe.error
+                                }
+                        }
+                }
+            val reconnect =
+                httpSseReconnectOptions {
+                    this.initialDelay = Duration.ZERO
+                    this.maxDelay = Duration.milliseconds(10L)
+                    this.maxReconnects =
+                        Some(
+                            if (mode == "limit")
+                                1L
+                            else
+                                4L
+                        )
+                    this.onReconnect =
+                        suspend { event -> sseReconnecting(mode, client, probe, event) }
+                }
             val options =
-                HttpSseOptions(
-                    limits =
+                httpSseOptions {
+                    this.limits =
                         if (mode == "line-limit")
                             SseLimits(8L, 1024L)
                         else
-                            SseLimits(),
-                    bufferSize = 3L,
-                    initialLastEventId =
+                            SseLimits()
+                    this.bufferSize = 3L
+                    this.initialLastEventId =
                         if (mode == "header")
                             None
                         else
-                            Some("seed"),
-                    reconnect =
+                            Some("seed")
+                    this.reconnect =
                         if (
                             mode ==
                                 "plain" ||
@@ -124,7 +128,7 @@ internal fun sseNetwork(trust: TrustStore, mode: String, url: Url) {
                             None
                         else
                             Some(reconnect)
-                )
+                }
             context(SseMarker("network")) {
                 if (sseInitialFailure(mode)) {
                     checkSseInitialFailure(client, request, options, mode);
@@ -136,7 +140,7 @@ internal fun sseNetwork(trust: TrustStore, mode: String, url: Url) {
                     source.useAsync suspend { stream -> consumeSseNetwork(stream, probe, mode) }
                 }
             }
-            client.withResponse(HttpRequest.get(Url.parse(url.toString() + "/probe"))) suspend {
+            client.withResponse(httpRequest(Url.parse(url.toString() + "/probe"))) suspend {
                 response -> assertEquals("ok", response.body.text(16L))
             }
             Unit

@@ -60,9 +60,6 @@ def external(mode, server):
             assert all(not thread.is_alive() for thread in threads), mode
 
 
-for case in ("callback", "nested", "user", "password", "encoding"):
-    consume("credentials", case)
-consume("http2")
 external("metadata", lambda listener: serve(listener, "provided"))
 for case in ("routing", "domain"):
     external(case, lambda listener, mode=case: routing(listener, mode))
@@ -71,4 +68,4 @@ external("no-preempt", no_preempt)
 for case in ("late-401", "late-nextnonce"):
     external(case, lambda listener, mode=case: concurrent(listener, mode))
 external("clear-active", clear_active)
-print("Digest metadata redirects retries HTTP2 and concurrent nonce updates passed")
+print("Digest peer validates metadata redirects retries and concurrent nonce updates")

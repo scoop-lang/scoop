@@ -56,15 +56,15 @@ private fun exercise(trust: TrustStore, producer: Boolean) {
                     }
                 }
             val config =
-                HttpClientConfig(
-                    tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                    cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                    pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-                )
+                httpClientConfig {
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                    this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                    this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                }
             try {
                 withHttpClient(config) suspend {
                     client ->
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         first ->
                         NativeByteBuffer.allocate(4L).use suspend {
                             buffer ->
@@ -86,12 +86,16 @@ private fun exercise(trust: TrustStore, producer: Boolean) {
                                             else
                                                 RequestBody.Empty
                                         val options =
-                                            HttpCallOptions(
-                                                onInformational =
+                                            httpCallOptions {
+                                                this.onInformational =
                                                     suspend { _ -> failInScope(failure) }
-                                            )
+                                            }
                                         client.execute(
-                                            HttpRequest.post(url, body, options = options)
+                                            httpRequest(url) {
+                                                this.method = "POST"
+                                                this.body = body
+                                                this.options = options
+                                            }
                                         ).close()
                                     } catch (error: Throwable) {
                                         failure.caught = Some(error)
@@ -123,7 +127,7 @@ private fun exercise(trust: TrustStore, producer: Boolean) {
                             "unrelated response did not finish"
                         )
                     }
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         next -> scopeCheck(
                             next.body.text(4L) == "next",
                             "client could not execute another request"

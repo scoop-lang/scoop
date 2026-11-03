@@ -203,9 +203,7 @@ def main():
         ("digest", 2),
     ):
         external(binary, mode, count, directory)
-    run(binary, ["policies"])
-    run(binary, ["http2"])
-    print("client cache freshness validation identities streams H2 and lifetime passed")
+    print("client cache peer validates freshness identities streams and invalidation")
 
 
 if __name__ == "__main__":

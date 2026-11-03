@@ -22,10 +22,12 @@ import scoop.url.Url
 
 fun main() {
     val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend { _ ->
-        withHttpClient suspend { client ->
-            val request = HttpRequest.get(Url.parse("https://example.com/"))
-            client.withResponse(request) suspend { response ->
+    loop.run suspend {
+        _ -> withHttpClient suspend {
+            client ->
+            val request = httpRequest(Url.parse("https://example.com/"))
+            client.withResponse(request) suspend {
+                response ->
                 response.requireSuccess()
                 println(response.body.text(1_048_576L))
             }
@@ -64,9 +66,27 @@ fun main() {
 | `withWebSocket`／`openWebSocket` | HTTP/1.1 WS／WSS、控制帧、分片、permessage-deflate 及可消费的握手拒绝响应 |
 | `interceptors`／`onAttempt`／`observer` | 有序 suspend 回调、尝试快照、实际阶段时间、进度与脱敏摘要 |
 
+配置使用接收者入口；重复的嵌套块保留先前字段，赋值则完整替换该字段。构造请求不发起连接，也不消费正文：
+
+```scoop
+val config =
+    httpClientConfig {
+        pool { maxConnections = 16L }
+        retries { maxRetries = 0L }
+    }
+
+val request =
+    httpRequest(Url.parse("https://example.com/upload")) {
+        method = "POST"
+        fields { add("X-Request-Source", "example") }
+        body = RequestBody.fromText("payload")
+        options { expectContinue = true }
+    }
+```
+
 直接使用 HTTP、TLS、文件或其他库的类型时，在应用 manifest 中声明相应直接依赖。配置对象、参数及错误语义见 [HTTP client 规范](../../../docs/specs/SCOOP-HTTP-CLIENT-SPEC.md)。
 
-共享 client 的单次调用可以通过 `HttpCallOptions(observer = Some(observer))` 取得自己的事件；它与 client observer 共存，覆盖该调用的所有尝试。`event.metrics.requestHeadersAtUtc` 是实际提交请求头时采集的 `Instant`；`finalResponseHeadersAtUtc` 是网络最终响应头的时间，不受 103 等信息响应或回调延迟影响。缓存命中没有网络发送／接收时间。用对应的 `TimeMark` 求耗时，不用可能回拨的 UTC 时钟相减。
+共享 client 的单次调用可以通过 `httpCallOptions { this.observer = Some(observer) }` 取得自己的事件；它与 client observer 共存，覆盖该调用的所有尝试。`event.metrics.requestHeadersAtUtc` 是实际提交请求头时采集的 `Instant`；`finalResponseHeadersAtUtc` 是网络最终响应头的时间，不受 103 等信息响应或回调延迟影响。缓存命中没有网络发送／接收时间。用对应的 `TimeMark` 求耗时，不用可能回拨的 UTC 时钟相减。
 
 `response.metrics` 在开启观察时提供不可变快照，关闭后仍可读取最终快照。失败在响应交付之前发生时，可从 observer 的 Completed 事件取得本次已发生的阶段；未发生的时间为 None。请求级观察不改变连接级首字节采样配置。具体组合见 [请求观测测试](tests/observability/request.scoop)。
 
@@ -82,4 +102,4 @@ fun main() {
 
 URL 采用独立库的 RFC 3986／3987 profile，IDNA 固定 Unicode 15.1；兼容边界见 [URL](../scoop.url/README.md) 和 [IDNA](../scoop.idna/README.md)。压缩流见 [compression](../scoop.compression/README.md)。
 
-可运行的跨库与网络组合见 `tests/fixtures/m54-http-client`、`m54-client-basic`、`m54-client-response`、`m54-client-download`、`m54-client-sse`、`m54-client-websocket` 和 `m54-client-observer`；实施与三目标验收状态见 [M54 进度](../../../docs/milestone54/PROGRESS.md)。
+普通 API 与跨库组合见 [Cone 测试](tests/client/dsl_builders.scoop)，独立外部协议 peer 见 [外部 HTTP peer](../../../tests/fixtures/libraries/client-network/peer.py)；实施与三目标验收状态见 [M54 进度](../../../docs/milestone54/PROGRESS.md)。

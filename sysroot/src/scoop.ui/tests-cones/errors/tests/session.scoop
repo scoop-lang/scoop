@@ -152,7 +152,11 @@ internal class FailureHarness: ApplicationHandler {
             }
         val native =
             application.createWindow(
-                WindowAttributes("Scoop UI failure", LogicalSize(160.0, 100.0), visible = visible)
+                windowAttributes {
+                    this.title = "Scoop UI failure"
+                    this.size = LogicalSize(160.0, 100.0)
+                    this.visible = visible
+                }
             )
         record.started = true
         record.window = Some(native)
@@ -170,7 +174,10 @@ internal class FailureHarness: ApplicationHandler {
         if (record.mode == FailureMode.LateUpdate) {
             val second =
                 application.createWindow(
-                    WindowAttributes("Scoop UI failure companion", visible = false)
+                    windowAttributes {
+                        this.title = "Scoop UI failure companion"
+                        this.visible = false
+                    }
                 )
             record.second = Some(second)
             host.attach(second, { SecondRoot(record) })

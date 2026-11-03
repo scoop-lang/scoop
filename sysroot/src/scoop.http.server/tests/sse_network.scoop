@@ -18,32 +18,34 @@ private class ServerSseNetworkTests {
             val finish = ServerTestGate();
             val finished = AtomicBoolean(false)
             val completed = ServerTestCompletions()
-            val routes = RouterBuilder()
-            routes.get(
-                "/",
-                suspend {
-                    ctx ->
-                    val id = ctx.request.lastEventId
-                    sse(
-                        produce =
-                            suspend {
-                                events ->
-                                send.await();
-                                events.send(SseMessage(Some("first"), id = id))
-                                finish.await();
-                                finished.store(true)
-                            }
+            val routes =
+                routing {
+                    this.get(
+                        "/",
+                        suspend {
+                            ctx ->
+                            val id = ctx.request.lastEventId
+                            sse(
+                                produce =
+                                    suspend {
+                                        events ->
+                                        send.await();
+                                        events.send(SseMessage(Some("first"), id = id))
+                                        finish.await();
+                                        finished.store(true)
+                                    }
+                            )
+                        }
                     )
                 }
-            )
             val expected = "id: resume\ndata: first\n\n"
             val options =
-                HttpServerOptions(
-                    allowCleartextHttp2 = true,
-                    onRequestCompleted = Some(completed::receive)
-                )
+                httpServerOptions {
+                    this.allowCleartextHttp2 = true
+                    this.onRequestCompleted = Some(completed::receive)
+                }
             withServer(
-                routes.build(),
+                routes,
                 options,
                 suspend {
                     scope, _, address ->
@@ -95,28 +97,30 @@ private class ServerSseNetworkTests {
     fun `batching is explicit and a writer cannot escape its producer`() {
         val output = TestOutput();
         val escaped = SseWriterHolder()
-        val routes = RouterBuilder()
-        routes.get(
-            "/",
-            suspend {
-                _ -> sse(
-                    produce =
-                        suspend {
-                            events ->
-                            escaped.value = Some(events)
-                            assertEquals(1, output.flushes)
-                            events.send(SseMessage(Some("one")), false)
-                            events.comment("batch", false)
-                            assertEquals(1, output.flushes)
-                            events.flush()
-                            assertEquals(2, output.flushes)
-                            events.send(SseMessage(Some("two")))
-                            assertEquals(3, output.flushes)
-                        }
+        val routes =
+            routing {
+                this.get(
+                    "/",
+                    suspend {
+                        _ -> sse(
+                            produce =
+                                suspend {
+                                    events ->
+                                    escaped.value = Some(events)
+                                    assertEquals(1, output.flushes)
+                                    events.send(SseMessage(Some("one")), false)
+                                    events.comment("batch", false)
+                                    assertEquals(1, output.flushes)
+                                    events.flush()
+                                    assertEquals(2, output.flushes)
+                                    events.send(SseMessage(Some("two")))
+                                    assertEquals(3, output.flushes)
+                                }
+                        )
+                    }
                 )
             }
-        )
-        val response = exercise(routes.build(), output = output)
+        val response = exercise(routes, output = output)
         assertEquals("data: one\n\n: batch\n\ndata: two\n\n", response.text())
         assertEquals(1, output.finishes)
         val loop: EventLoop = PlatformEventLoop()
@@ -138,23 +142,25 @@ private class ServerSseNetworkTests {
         expectArgument { SseOptions(Some(Duration.ZERO)) }
         expectArgument { SseOptions(Some(Duration.milliseconds(-1))) }
         val invoked = TestCounter()
-        val routes = RouterBuilder()
-        routes.get(
-            "/",
-            suspend {
-                ctx ->
-                val id = ctx.request.lastEventId
-                sse(
-                    SseOptions(Some(Duration.milliseconds(1))),
+        val routes =
+            routing {
+                this.get(
+                    "/",
                     suspend {
-                        events ->
-                        invoked.value += 1
-                        events.send(SseMessage(Some(id ?: "absent")))
+                        ctx ->
+                        val id = ctx.request.lastEventId
+                        sse(
+                            SseOptions(Some(Duration.milliseconds(1))),
+                            suspend {
+                                events ->
+                                invoked.value += 1
+                                events.send(SseMessage(Some(id ?: "absent")))
+                            }
+                        )
                     }
                 )
             }
-        )
-        val app = routes.build()
+        val app = routes
         val head = exercise(app, method = "HEAD")
         assertEquals(200U, head.status)
         assertEquals("", head.text())

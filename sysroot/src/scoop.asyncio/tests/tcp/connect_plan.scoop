@@ -8,15 +8,26 @@ import scoop.time.Duration
 private class AsyncTcpConnectPlanTest {
     @Test
     fun `connection options use RFC delays and reject invalid values`() {
-        val options = TcpConnectOptions()
+        val options = tcpConnectOptions()
         assertEquals(Duration.milliseconds(50L), options.resolutionDelay)
         assertEquals(Duration.milliseconds(250L), options.attemptDelay)
         assertEquals(2L, options.maxConcurrentAttempts)
-        val immediate = TcpConnectOptions(Duration.ZERO, Duration.ZERO, 1L)
+        val immediate =
+            tcpConnectOptions {
+                this.resolutionDelay = Duration.ZERO
+                this.attemptDelay = Duration.ZERO
+                this.maxConcurrentAttempts = 1L
+            }
         assertEquals(Duration.ZERO, immediate.attemptDelay)
-        assertFailsWith<IllegalArgumentException> { TcpConnectOptions(resolutionDelay = Duration.nanoseconds(-1L)) }
-        assertFailsWith<IllegalArgumentException> { TcpConnectOptions(attemptDelay = Duration.seconds(-1L)) }
-        assertFailsWith<IllegalArgumentException> { TcpConnectOptions(maxConcurrentAttempts = 0L) }
+        assertFailsWith<IllegalArgumentException> {
+            tcpConnectOptions { this.resolutionDelay = Duration.nanoseconds(-1L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            tcpConnectOptions { this.attemptDelay = Duration.seconds(-1L) }
+        }
+        assertFailsWith<IllegalArgumentException> {
+            tcpConnectOptions { this.maxConcurrentAttempts = 0L }
+        }
     }
 
     @Test

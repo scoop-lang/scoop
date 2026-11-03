@@ -69,11 +69,11 @@ private class HttpClientHttp2Test {
                             }
                         val response =
                             client.execute(
-                                HttpRequest.post(
-                                    clientTestUrl(listener),
-                                    body,
-                                    options = HttpCallOptions(duplex = true)
-                                )
+                                httpRequest(clientTestUrl(listener)) {
+                                    this.method = "POST"
+                                    this.body = body
+                                    this.options = httpCallOptions { this.duplex = true }
+                                }
                             )
                         holder.value = Some(response)
                         assertTrue(response.version == HttpVersion.Http2)

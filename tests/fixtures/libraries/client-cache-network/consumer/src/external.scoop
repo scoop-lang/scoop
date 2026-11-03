@@ -21,22 +21,22 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                 case "fresh" -> {
                     cacheGet(client, url, "encoded-cache", HttpCacheStatus.Network)
                     clock.advance(10L)
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         assertEquals(HttpCacheStatus.Hit, response.cacheStatus)
                         assertEquals(15L, HttpAge.parseFields(response.fields)!!.seconds)
                         assertEquals("encoded-cache", response.body.text(64L))
                     }
                     val raw =
-                        HttpCallOptions(
-                            decoding = Some(HttpDecodingOptions(HttpContentDecoding.Raw))
-                        )
+                        httpCallOptions {
+                            this.decoding =
+                                Some(httpDecodingOptions { this.mode = HttpContentDecoding.Raw })
+                        }
                     client.withResponse(
-                        HttpRequest.get(
-                            url,
-                            [cacheField("Accept-Encoding", "gzip, deflate, br, zstd")],
-                            raw
-                        )
+                        httpRequest(url) {
+                            this.fields = [cacheField("Accept-Encoding", "gzip, deflate, br, zstd")]
+                            this.options = raw
+                        }
                     ) suspend {
                         response ->
                         assertEquals(HttpCacheStatus.Hit, response.cacheStatus)
@@ -49,7 +49,7 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                 case "etag" -> {
                     cacheGet(client, url, "original", HttpCacheStatus.Network)
                     clock.advance(10L)
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         assertEquals(HttpCacheStatus.Revalidated, response.cacheStatus)
                         assertEquals("original", response.body.text(32L))
@@ -66,7 +66,7 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                 case "mismatch" -> {
                     cacheGet(client, url, "original", HttpCacheStatus.Network)
                     clock.advance(10L)
-                    client.withResponse(HttpRequest.get(url)) suspend {
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         assertEquals(HttpCacheStatus.Network, response.cacheStatus)
                         assertEquals(0L, response.retryCount)
@@ -81,7 +81,7 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                         url,
                         "bypass",
                         HttpCacheStatus.Network,
-                        options = HttpCallOptions(cacheMode = HttpCacheMode.Bypass)
+                        options = httpCallOptions { this.cacheMode = HttpCacheMode.Bypass }
                     )
                     cacheGet(client, url, "first", HttpCacheStatus.Hit)
                     cacheGet(
@@ -89,14 +89,14 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                         url,
                         "reload",
                         HttpCacheStatus.Network,
-                        options = HttpCallOptions(cacheMode = HttpCacheMode.Reload)
+                        options = httpCallOptions { this.cacheMode = HttpCacheMode.Reload }
                     )
                     cacheGet(
                         client,
                         url,
                         "reload",
                         HttpCacheStatus.Hit,
-                        options = HttpCallOptions(cacheMode = HttpCacheMode.OnlyIfCached)
+                        options = httpCallOptions { this.cacheMode = HttpCacheMode.OnlyIfCached }
                     )
                     cacheGet(
                         client,
@@ -115,10 +115,10 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                     )
                     cacheGet(client, url, "reload", HttpCacheStatus.Hit)
                     client.withResponse(
-                        HttpRequest.get(
-                            url.resolve("/missing"),
-                            options = HttpCallOptions(cacheMode = HttpCacheMode.OnlyIfCached)
-                        )
+                        httpRequest(url.resolve("/missing")) {
+                            this.options =
+                                httpCallOptions { this.cacheMode = HttpCacheMode.OnlyIfCached }
+                        }
                     ) suspend {
                         response ->
                         assertEquals(HttpCacheStatus.Unsatisfied, response.cacheStatus)
@@ -163,7 +163,7 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                 case "invalidate" -> {
                     cacheGet(client, url, "first", HttpCacheStatus.Network)
                     cacheGet(client, url.resolve("/linked"), "linked", HttpCacheStatus.Network)
-                    client.withResponse(HttpRequest(url, "POST")) suspend {
+                    client.withResponse(httpRequest(url) { this.method = "POST" }) suspend {
                         response -> assertEquals("changed", response.body.text(32L))
                     }
                     cacheGet(client, url, "updated", HttpCacheStatus.Network)
@@ -175,13 +175,13 @@ internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
                     )
                 }
                 case "abort" -> {
-                    client.execute(HttpRequest.get(url)).close()
+                    client.execute(httpRequest(url)).close()
                     assertEquals(0L, storage.entryCount)
                     cacheGet(client, url, "complete", HttpCacheStatus.Network)
                     cacheGet(client, url, "complete", HttpCacheStatus.Hit)
                     var failed = false
                     try {
-                        client.withResponse(HttpRequest.get(url.resolve("/bad-gzip"))) suspend {
+                        client.withResponse(httpRequest(url.resolve("/bad-gzip"))) suspend {
                             response -> response.body.bytes(64L)
                         }
                     }

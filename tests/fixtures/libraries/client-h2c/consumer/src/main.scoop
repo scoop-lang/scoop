@@ -35,12 +35,12 @@ private suspend fun reply(
 
 private suspend fun exercise(client: HttpClient, mode: String, base: Url) {
     if (mode == "cancel") {
-        val first = client.execute(HttpRequest.get(base.resolve("first")))
-        val second = client.execute(HttpRequest.get(base.resolve("second")))
+        val first = client.execute(httpRequest(base.resolve("first")))
+        val second = client.execute(httpRequest(base.resolve("second")))
         first.close()
         check(String.fromUtf8(second.body.readAllBytes(5L)) == "other")
         second.close()
-        client.withResponse(HttpRequest.get(base.resolve("third"))) suspend {
+        client.withResponse(httpRequest(base.resolve("third"))) suspend {
             response ->
             check(response.version == HttpVersion.Http2 && response.status == 204U)
             response.body.readAllBytes(0L)
@@ -62,9 +62,12 @@ private suspend fun exercise(client: HttpClient, mode: String, base: Url) {
         }
     val request =
         if (mode == "head")
-            HttpRequest.head(base)
+            httpRequest(base) { this.method = "HEAD" }
         else
-            HttpRequest.post(base, body)
+            httpRequest(base) {
+                this.method = "POST"
+                this.body = body
+            }
     if (mode == "required" || mode == "malformed") {
         var failed = false
         try {
@@ -92,7 +95,7 @@ private suspend fun exercise(client: HttpClient, mode: String, base: Url) {
                 else
                     "post-result"
         )
-        reply(client, HttpRequest.get(base.resolve("next")), version, "next")
+        reply(client, httpRequest(base.resolve("next")), version, "next")
     }
 }
 
@@ -101,17 +104,17 @@ private fun runClient(mode: String, base: Url, trust: TrustStore) {
     loop.run suspend {
         scope ->
         val config =
-            HttpClientConfig(
-                cleartext = HttpCleartextProtocol.H2cUpgrade,
-                versionPolicy =
+            httpClientConfig {
+                this.cleartext = HttpCleartextProtocol.H2cUpgrade
+                this.versionPolicy =
                     if (mode == "required")
                         HttpVersionPolicy.Http2Only
                     else
-                        HttpVersionPolicy.Auto,
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                http2Settings = Http2Settings(initialWindowSize = 32U),
-                pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-            )
+                        HttpVersionPolicy.Auto
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.http2Settings = Http2Settings(initialWindowSize = 32U)
+                this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+            }
         withHttpClient(config) suspend { client -> exercise(client, mode, base) }
         check(!scope.job.isCancelled)
     }

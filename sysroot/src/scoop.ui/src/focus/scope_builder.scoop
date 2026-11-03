@@ -1,0 +1,22 @@
+package scoop.ui
+
+public fun focusScopeOptions(
+    configure: FocusScopeOptionsBuilder.() -> Unit = {}
+): FocusScopeOptions = FocusScopeOptions().copy(configure)
+
+public fun FocusScopeOptions.copy(
+    configure: FocusScopeOptionsBuilder.() -> Unit = {}
+): FocusScopeOptions {
+    val builder = FocusScopeOptionsBuilder(this)
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class FocusScopeOptionsBuilder internal constructor(value: FocusScopeOptions) {
+    public var loop: Boolean = value.loop
+    public var order: Int = value.order
+    public var defaultFocus: FocusHandle? = value.defaultFocus
+    public var fallback: FocusHandle? = value.fallback
+    internal fun snapshot(): FocusScopeOptions =
+        FocusScopeOptions(loop, order, defaultFocus, fallback)
+}

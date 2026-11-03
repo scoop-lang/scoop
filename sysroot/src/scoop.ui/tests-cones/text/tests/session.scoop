@@ -104,7 +104,10 @@ internal class TextProbe(val fonts: FontCollection) {
             case Resumed -> {
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop inline text", LogicalSize(600.0, 240.0))
+                        windowAttributes {
+                            this.title = "Scoop inline text"
+                            this.size = LogicalSize(600.0, 240.0)
+                        }
                     )
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)

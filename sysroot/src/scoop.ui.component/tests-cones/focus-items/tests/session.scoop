@@ -19,7 +19,9 @@ private class VirtualFocusTest {
         val probe = ItemFocusProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertTrue(probe.rows.size < 40L)
@@ -86,7 +88,10 @@ internal class ItemFocusProbe {
                 data = Some(state<ItemSource>(FocusSource(this)))
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop keyed focus", LogicalSize(320.0, 220.0))
+                        windowAttributes {
+                            this.title = "Scoop keyed focus"
+                            this.size = LogicalSize(320.0, 220.0)
+                        }
                     )
                 window = Some(native)
                 frames = Some(observeFrames(native))
@@ -126,7 +131,11 @@ internal class ItemFocusProbe {
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"item focus timeout phase=${phase}, frames=${passes}, accepted=${accepted}")
+                Some(
+                    f"item focus timeout phase=${this @ItemFocusProbe.phase}, frames=${
+                        this @ItemFocusProbe.passes
+                    }, accepted=${this @ItemFocusProbe.accepted}"
+                )
             )
             else -> {}
         }
@@ -160,7 +169,7 @@ internal class ItemFocusProbe {
                 assertEquals(
                     row.id == id && row.unmounts == 0 && index == part,
                     row.handles[index].hasFocus,
-                    Some(f"phase=${phase}, row=${row.id}, part=${index}")
+                    Some(f"phase=${this @ItemFocusProbe.phase}, row=${row.id}, part=${index}")
                 )
     }
 }

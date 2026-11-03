@@ -16,7 +16,9 @@ private class AnimationDeadlineWindowTest {
         val host =
             SurfaceHost { owner, application, event -> probe.event(owner, application, event) }
         try {
-            Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+            Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+                host
+            )
             assertTrue(probe.finished)
             assertTrue(probe.hiddenFinished)
             assertTrue(probe.offscreenFinished)
@@ -65,11 +67,11 @@ internal class DeadlineProbe {
         )
         val native =
             application.createWindow(
-                WindowAttributes(
-                    title = "Scoop animation deadlines",
-                    size = LogicalSize(240.0, 120.0),
-                    visible = false
-                )
+                windowAttributes {
+                    this.title = "Scoop animation deadlines"
+                    this.size = LogicalSize(240.0, 120.0)
+                    this.visible = false
+                }
             )
         window = Some(native)
         monitor = Some(observeFrames(native))

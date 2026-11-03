@@ -42,9 +42,8 @@ private class ServerFileStaticTests {
                         throw error
                     false
                 }
-            val routes = RouterBuilder();
-            routes.get("/s/{*path}", staticFiles(directory.path))
-            val app = routes.build()
+            val routes = routing { this.get("/s/{*path}", staticFiles(directory.path)) }
+            val app = routes
             assertEquals("literal percent name", exercise(app, "/s/%252e%252e").text())
             val nativeResult =
                 exercise(
@@ -88,13 +87,21 @@ private class ServerFileStaticTests {
                 val target = outside.child("linked.txt");
                 target.writeText("linked content")
                 directory.child("link.txt").createSymbolicLink(target)
-                val routes = RouterBuilder()
-                routes.get("/default/{*path}", staticFiles(directory.path))
-                routes.get(
-                    "/index/{*asset}",
-                    staticFiles(directory.path, StaticFileOptions("asset", Some("index.html")))
-                )
-                val app = routes.build()
+                val routes =
+                    routing {
+                        this.get("/default/{*path}", staticFiles(directory.path))
+                        this.get(
+                            "/index/{*asset}",
+                            staticFiles(
+                                directory.path,
+                                staticFileOptions {
+                                    this.pathParameter = "asset"
+                                    this.indexDocument = Some("index.html")
+                                }
+                            )
+                        )
+                    }
+                val app = routes
                 assertEquals(404U, exercise(app, "/default/docs").status)
                 assertEquals(404U, exercise(app, "/default/docs/").status)
                 for (path in ["/index/docs", "/index/docs/"]) {
@@ -111,13 +118,12 @@ private class ServerFileStaticTests {
     @Test
     fun `invalid configured indexes and non wildcard mappings fail as application mistakes`() {
         for (index in ["", ".", "..", "../index", "/index", "a\\b", "C:index"])
-            expectArgument { StaticFileOptions(indexDocument = Some(index)) }
-        expectArgument { StaticFileOptions(pathParameter = "") }
+            expectArgument { staticFileOptions { this.indexDocument = Some(index) } }
+        expectArgument { staticFileOptions { this.pathParameter = "" } }
         UploadTestDirectory().use {
             directory ->
-            val routes = RouterBuilder();
-            routes.get("/s/{path}", staticFiles(directory.path))
-            assertEquals(500U, exercise(routes.build(), "/s/file").status)
+            val routes = routing { this.get("/s/{path}", staticFiles(directory.path)) }
+            assertEquals(500U, exercise(routes, "/s/file").status)
         }
     }
 }

@@ -17,7 +17,7 @@ fun main(args: Array<String>) {
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         _ -> withHttpClient suspend {
-            client -> client.withResponse(HttpRequest.get(url)) suspend {
+            client -> client.withResponse(httpRequest(url)) suspend {
                 response ->
                 response.requireSuccess()
                 println(response.status)

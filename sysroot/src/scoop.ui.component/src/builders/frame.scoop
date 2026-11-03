@@ -1,0 +1,28 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class FrameBuilder internal constructor() {
+    public var width: Double? = None
+    public var height: Double? = None
+    public var padding: Insets? = None
+    public var alignment: Alignment = Alignment()
+    public var style: StyleOverride = styleOverride()
+    public var surface: SurfaceKind? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: View): FrameProps =
+        FrameProps(content, width, height, padding, alignment, style, surface, theme)
+}
+
+internal fun makeFrame(content: View, configure: FrameBuilder.() -> Unit): View {
+    val builder = FrameBuilder()
+    builder.configure()
+    return component(builder.snapshot(content), { props -> Frame(props) }, builder.key)
+}

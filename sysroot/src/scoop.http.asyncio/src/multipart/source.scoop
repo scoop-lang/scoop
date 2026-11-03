@@ -8,9 +8,16 @@ import scoop.platform.memory.NativeByteBuffer
  * A sequential multipart reader over a borrowed source by default. Finish or explicitly discard
  * the current part before requesting another.
  */
-public class MultipartSource private constructor(private val reader: MultipartReader) : AsyncCloseable {
-    public constructor(source: AsyncByteSource, boundary: MultipartBoundary, limits: MultipartLimits = MultipartLimits(), bufferSize: Long = 8192L)
-        : this(createMultipartReader(source, None, boundary, limits, bufferSize)) {}
+public class MultipartSource private constructor(
+    private val reader: MultipartReader
+): AsyncCloseable {
+    public constructor(
+        source: AsyncByteSource,
+        boundary: MultipartBoundary,
+        limits: MultipartLimits = multipartLimits(),
+        bufferSize: Long = 8192L
+    )
+    : this(createMultipartReader(source, None, boundary, limits, bufferSize)) {}
 
     /**
      * Factories that transfer underlying endpoint cleanup responsibility.
@@ -20,9 +27,22 @@ public class MultipartSource private constructor(private val reader: MultipartRe
          * Creates the adapter and assumes cleanup responsibility for the supplied asynchronous
          * endpoint.
          */
-        public fun <T> takeOwnership(source: T, boundary: MultipartBoundary, limits: MultipartLimits = MultipartLimits(), bufferSize: Long = 8192L): MultipartSource
-            where T : AsyncByteSource, T : AsyncCloseable =
-            MultipartSource(createMultipartReader(source, Some<AsyncCloseable>(source), boundary, limits, bufferSize))
+        public fun <T> takeOwnership(
+            source: T,
+            boundary: MultipartBoundary,
+            limits: MultipartLimits = multipartLimits(),
+            bufferSize: Long = 8192L
+        ): MultipartSource
+        where T: AsyncByteSource, T: AsyncCloseable =
+            MultipartSource(
+                createMultipartReader(
+                    source,
+                    Some<AsyncCloseable>(source),
+                    boundary,
+                    limits,
+                    bufferSize
+                )
+            )
     }
 
     /**
@@ -45,7 +65,9 @@ public class MultipartSource private constructor(private val reader: MultipartRe
      * Closes parser/writer state and an endpoint whose ownership was transferred; borrowed
      * endpoints retain their own cleanup responsibility.
      */
-    public override suspend fun close() { reader.io.close() }
+    public override suspend fun close() {
+        reader.io.close()
+    }
 }
 
 /**
@@ -59,7 +81,9 @@ public class MultipartPart internal constructor(
     /**
      * The body that must be consumed or explicitly discarded before advancing.
      */
-    public val body: MultipartBody)
+    public val body: MultipartBody
+)
+
 /**
  * Discarding a multipart body exceeded the caller's explicit byte limit.
  */
@@ -67,17 +91,29 @@ public class MultipartDiscardLimitException public constructor(
     /**
      * The maximum permitted discarded byte count.
      */
-    public val maxBytes: Long)
-    : Exception(Some("multipart discard exceeds " + maxBytes.toString() + " bytes"))
+    public val maxBytes: Long
+)
+: Exception(Some("multipart discard exceeds " + maxBytes.toString() + " bytes"))
 
-private fun createMultipartReader(source: AsyncByteSource, owner: AsyncCloseable?, boundary: MultipartBoundary,
-    limits: MultipartLimits, bufferSize: Long): MultipartReader {
+private fun createMultipartReader(
+    source: AsyncByteSource,
+    owner: AsyncCloseable?,
+    boundary: MultipartBoundary,
+    limits: MultipartLimits,
+    bufferSize: Long
+): MultipartReader {
     val loop = currentEventLoop()
     val job = httpJob(loop, true)
-    if (bufferSize <= 0L) throw IllegalArgumentException(Some("multipart buffer size must be positive"))
+    if (bufferSize <= 0L)
+        throw IllegalArgumentException(Some("multipart buffer size must be positive"))
     val decoder = MultipartDecoder(boundary, limits)
-    val input = try { NativeByteBuffer.allocate(bufferSize) }
-        catch (error: Throwable) { throw messageCleanup(Some(error)) { decoder.close() }!! }
+    val input =
+        try {
+            NativeByteBuffer.allocate(bufferSize)
+        }
+        catch (error: Throwable) {
+            throw messageCleanup(Some(error)) { decoder.close() }!!
+        }
     try {
         job.ensureActive()
         return MultipartReader(source, owner, loop, MultipartReadState(decoder, input))

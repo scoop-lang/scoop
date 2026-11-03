@@ -11,22 +11,23 @@ private class HttpClientPoolLimitsTest {
     @Test
     fun `pool options reject nonpositive capacities and invalid lifetimes`() {
         assertFailsWith<IllegalArgumentException> {
-            HttpConnectionPoolOptions(maxConnectionsPerOrigin = 0L)
+            httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 0L }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpConnectionPoolOptions(maxConnections = -1L)
+            httpConnectionPoolOptions { this.maxConnections = -1L }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpConnectionPoolOptions(maxStreamsPerHttp2 = 0L)
+            httpConnectionPoolOptions { this.maxStreamsPerHttp2 = 0L }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpConnectionPoolOptions(idleTimeout = Duration.seconds(-1L))
+            httpConnectionPoolOptions { this.idleTimeout = Duration.seconds(-1L) }
         }
         assertFailsWith<IllegalArgumentException> {
-            HttpConnectionPoolOptions(maxLifetime = Some(Duration.ZERO))
+            httpConnectionPoolOptions { this.maxLifetime = Some(Duration.ZERO) }
         }
         assertTrue(
-            HttpConnectionPoolOptions(idleTimeout = Duration.ZERO).idleTimeout == Duration.ZERO
+            httpConnectionPoolOptions { this.idleTimeout = Duration.ZERO }.idleTimeout ==
+                Duration.ZERO
         )
     }
 
@@ -66,28 +67,27 @@ private class HttpClientPoolLimitsTest {
                                 }
                             }
                         val config =
-                            HttpClientConfig(
-                                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                                pool =
-                                    HttpConnectionPoolOptions(
-                                        maxConnectionsPerOrigin = 1L,
-                                        maxConnections = 2L
-                                    )
-                            )
+                            httpClientConfig {
+                                this.tls =
+                                    httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                                this.pool =
+                                    httpConnectionPoolOptions {
+                                        this.maxConnectionsPerOrigin = 1L
+                                        this.maxConnections = 2L
+                                    }
+                            }
                         withHttpClient(config) suspend {
                             client ->
-                            val held = client.execute(HttpRequest.get(clientTestUrl(first)))
+                            val held = client.execute(httpRequest(clientTestUrl(first)))
                             val queued =
                                 scope.launch suspend {
-                                    client.withResponse(
-                                        HttpRequest.get(clientTestUrl(first))
-                                    ) suspend {
+                                    client.withResponse(httpRequest(clientTestUrl(first))) suspend {
                                         response ->
                                         response.body.readAllBytes(1L);
                                         Unit
                                     }
                                 }
-                            client.withResponse(HttpRequest.get(clientTestUrl(second))) suspend {
+                            client.withResponse(httpRequest(clientTestUrl(second))) suspend {
                                 response -> assertEquals(
                                     "b",
                                     String.fromUtf8(response.body.readAllBytes(1L))
@@ -139,17 +139,18 @@ private class HttpClientPoolLimitsTest {
                                 }
                             }
                         val config =
-                            HttpClientConfig(
-                                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                                pool = HttpConnectionPoolOptions(maxConnections = 1L)
-                            )
+                            httpClientConfig {
+                                this.tls =
+                                    httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                                this.pool = httpConnectionPoolOptions { this.maxConnections = 1L }
+                            }
                         withHttpClient(config) suspend {
                             client ->
-                            val held = client.execute(HttpRequest.get(clientTestUrl(first)))
+                            val held = client.execute(httpRequest(clientTestUrl(first)))
                             val queued =
                                 scope.launch suspend {
                                     client.withResponse(
-                                        HttpRequest.get(clientTestUrl(second))
+                                        httpRequest(clientTestUrl(second))
                                     ) suspend {
                                         response -> assertEquals(
                                             "b",
@@ -194,20 +195,21 @@ private class HttpClientPoolLimitsTest {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool = HttpConnectionPoolOptions(maxConnections = 1L)
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool = httpConnectionPoolOptions { this.maxConnections = 1L }
+                        }
                     withHttpClient(config) suspend {
                         client ->
                         val failing =
                             scope.launch suspend {
                                 expectBodyFailure<Throwable> suspend {
-                                    client.execute(HttpRequest.get(missing));
+                                    client.execute(httpRequest(missing));
                                     Unit
                                 }
                             }
-                        client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                        client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                             response -> assertEquals(
                                 "ok",
                                 String.fromUtf8(response.body.readAllBytes(2L))

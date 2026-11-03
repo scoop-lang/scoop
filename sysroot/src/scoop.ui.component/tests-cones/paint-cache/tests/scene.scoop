@@ -16,26 +16,23 @@ internal class CacheScene(private val probe: CacheProbe): Component {
             probe.placed.value,
             { props -> CachePanel(probe, props) },
             [
-                virtualList(
-                    sources[mode.toLong()],
-                    ItemExtent.Fixed(24.0),
-                    Some(probe.scroll),
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    theme = Some(probe.theme),
-                    retention =
+                virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
+                    this.state = Some(this @CacheScene.probe.scroll)
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.theme = Some(this @CacheScene.probe.theme)
+                    this.retention =
                         if (mode >= 2)
                             ItemRetention.KeepAlive(3L)
                         else
-                            ItemRetention.Dispose,
-                    paintCache = policy
-                ),
-                scrollArea(
-                    paintRow(probe, mode, -1L),
-                    Some(probe.eagerScroll),
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    theme = Some(probe.theme),
-                    paintCache = policy
-                )
+                            ItemRetention.Dispose
+                    this.paintCache = policy
+                },
+                scrollArea(paintRow(probe, mode, -1L)) {
+                    this.state = Some(this @CacheScene.probe.eagerScroll)
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.theme = Some(this @CacheScene.probe.theme)
+                    this.paintCache = policy
+                }
             ],
             ViewKey.Number(mode.toLong())
         )

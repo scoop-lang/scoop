@@ -51,15 +51,15 @@ Use `MemoryHistory` for transient storage, or implement `History` to supply anot
 backend. File persistence is a separate `PersistentHistory` capability. FileHistory
 reads rustyline V1/V2 files and writes V2, including multiline entries.
 
-`Config(editMode = EditMode.Vi)` selects Vi. `Completer`, `Hinter`, `Highlighter`
+`readlineConfig { editMode = EditMode.Vi }` selects Vi. `Completer`, `Hinter`, `Highlighter`
 and `Validator` can be implemented independently. All public cursor positions are
 Unicode scalar indices; editing moves and deletes complete grapheme clusters.
 `Editor.start()` exposes the same `EditingSession` used by interactive input.
 `createExternalPrinter()` supplies thread-safe messages during editing. Ctrl-Z restores
 the terminal before suspension and resumes with the same input.
 
-`Config(completionType = CompletionType.Fuzzy)` enables interactive candidate
-filtering. `Config(historyCaseSensitive = false)` selects Unicode caseless history
+`readlineConfig { completionType = CompletionType.Fuzzy }` enables interactive candidate
+filtering. `readlineConfig { historyCaseSensitive = false }` selects Unicode caseless history
 search. The public API follows Scoop conventions: callbacks are independent
 interfaces, persistence is a separate capability, and indices count Unicode scalars
 instead of UTF-8 bytes. Fuzzy selection uses the same editor and a stable subsequence

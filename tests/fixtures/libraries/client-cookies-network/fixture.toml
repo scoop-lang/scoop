@@ -30,5 +30,5 @@ name = "run"
 timeout = 3600
 argv = ["${python}", "${work}/peer.py", "${build.result.output}"]
 exit = 0
-stdout = "client cookies network authentication redirects retries H2 and callback lifetime passed\n"
+stdout = "client cookie peer validates authentication redirects retries and field isolation\n"
 stderr = ""

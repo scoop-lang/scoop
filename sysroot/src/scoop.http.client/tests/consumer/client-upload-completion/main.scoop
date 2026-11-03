@@ -98,19 +98,19 @@ private fun exercise(trust: TrustStore, redirect: Boolean, fail: Boolean) {
                 else
                     [503U]
             val retries =
-                HttpRetryOptions(
-                    maxRetries = 1L,
-                    statuses = statuses,
-                    initialDelay = Duration.ZERO,
-                    maxDelay = Duration.ZERO,
-                    jitter = false
-                )
+                httpRetryOptions {
+                    this.maxRetries = 1L
+                    this.statuses = statuses
+                    this.initialDelay = Duration.ZERO
+                    this.maxDelay = Duration.ZERO
+                    this.jitter = false
+                }
             val config =
-                HttpClientConfig(
-                    tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                    retries = retries,
-                    pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-                )
+                httpClientConfig {
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                    this.retries = retries
+                    this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+                }
             try {
                 withHttpClient(config) suspend {
                     client ->
@@ -125,7 +125,12 @@ private fun exercise(trust: TrustStore, redirect: Boolean, fail: Boolean) {
                     val executing =
                         scope.launch suspend {
                             try {
-                                client.withResponse(HttpRequest.put(url, body)) suspend {
+                                client.withResponse(
+                                    httpRequest(url) {
+                                        this.method = "PUT"
+                                        this.body = body
+                                    }
+                                ) suspend {
                                     response ->
                                     completionCheck(response.body.text(4L) == "done")
                                     completionCheck(

@@ -39,11 +39,11 @@ private class AsyncWebSocketDeflateFailureTests {
     fun `compressed wire limits and decoded limits are enforced independently`() {
         val values: Array<WebSocketSessionOptions> =
             [
-                WebSocketSessionOptions(maxDecompressedMessageBytes = 4L),
-                WebSocketSessionOptions(
-                    WebSocketFrameLimits(maxFrameBytes = 2L),
-                    maxDecompressedMessageBytes = 100L
-                )
+                webSocketSessionOptions { this.maxDecompressedMessageBytes = 4L },
+                webSocketSessionOptions {
+                    this.incomingLimits = WebSocketFrameLimits(maxFrameBytes = 2L)
+                    this.maxDecompressedMessageBytes = 100L
+                }
             ]
         for (options in values) {
             withRawWebSocket(options, Some(negotiatedWsDeflate())) suspend {
@@ -63,12 +63,12 @@ private class AsyncWebSocketDeflateFailureTests {
         }
         assertEquals(
             7L,
-            WebSocketSessionOptions(
-                WebSocketFrameLimits(maxMessageBytes = 7L)
-            ).maxDecompressedMessageBytes
+            webSocketSessionOptions {
+                this.incomingLimits = WebSocketFrameLimits(maxMessageBytes = 7L)
+            }.maxDecompressedMessageBytes
         )
         assertFailsWith<IllegalArgumentException> {
-            WebSocketSessionOptions(maxDecompressedMessageBytes = -1L)
+            webSocketSessionOptions { this.maxDecompressedMessageBytes = -1L }
         }
     }
 

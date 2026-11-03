@@ -52,17 +52,17 @@ private class CompressedRequestBodyTest {
             )
         assertEquals("gzip", body.contentEncodings[0L])
         assertEquals("br", body.contentEncodings[1L])
-        val part = RequestBodyPart.formData("data", body)
+        val part = formDataPart("data", body)
         assertEquals(
             "gzip, br",
             String.fromUtf8(part.head.fields.findAll("Content-Encoding".toByteArray())[0L].value)
         )
         assertTrue(part.head.bodyLength == None)
         assertFailsWith<IllegalArgumentException> {
-            RequestBodyPart(
-                body,
-                [HttpField("CONTENT-ENCODING".toByteArray(), "gzip, br".toByteArray())]
-            )
+            requestBodyPart(body) {
+                this.fields =
+                    [HttpField("CONTENT-ENCODING".toByteArray(), "gzip, br".toByteArray())]
+            }
         }
         assertFailsWith<IllegalArgumentException> {
             body.compressed(CompressionOptions.RawDeflate(DeflateOptions()))

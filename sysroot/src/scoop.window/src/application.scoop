@@ -37,14 +37,14 @@ public interface ApplicationHandler {
 }
 
 /** Mutable construction options; Application copies their values. */
-public class ApplicationOptions public constructor(
-    public var lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning
-) {
-    internal var activationPolicy: Int = 0
-}
+public class ApplicationOptions internal constructor(
+    public val lastWindowPolicy: LastWindowPolicy = LastWindowPolicy.KeepRunning
+    ,
+    internal val activationPolicy: Int = 0
+)
 
 /** The one application and one native main-loop run owned by this process. */
-public class Application public constructor(options: ApplicationOptions = ApplicationOptions()) {
+public class Application public constructor(options: ApplicationOptions = applicationOptions()) {
     internal val owner: ApplicationOwner = createApplicationOwner(options)
     /** Runs the native loop until explicit, fully drained shutdown. */
     public fun run(handler: ApplicationHandler) {
@@ -57,7 +57,7 @@ public class Application public constructor(options: ApplicationOptions = Applic
 /** Owner-thread operations available while the native application is active. */
 public class ActiveApplication internal constructor(internal val owner: ApplicationOwner) {
     /** Creates an independent native window from a snapshot of these attributes. */
-    public fun createWindow(attributes: WindowAttributes = WindowAttributes()): Window =
+    public fun createWindow(attributes: WindowAttributes = windowAttributes()): Window =
         owner.createWindow(attributes)
     /** Selects native waiting behavior without introducing a periodic tick. */
     public fun setControlFlow(flow: ControlFlow) {

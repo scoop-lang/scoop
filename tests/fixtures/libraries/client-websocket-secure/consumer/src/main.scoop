@@ -36,33 +36,35 @@ private fun runSecureWs(mode: String, port: Int) {
                     else
                         TlsVersion.Tls13
                 val config =
-                    HttpClientConfig(
-                        versionPolicy =
+                    httpClientConfig {
+                        this.versionPolicy =
                             if (mode == "h2-only")
                                 HttpVersionPolicy.Http2Only
                             else
-                                HttpVersionPolicy.Auto,
-                        tls =
-                            HttpClientTlsConfig(
-                                TlsTrustSource.Store(trust),
-                                version,
-                                version,
-                                if (mode == "mutual")
-                                    Some(identity)
-                                else
-                                    None
-                            ),
-                        pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 2L),
-                        retries = HttpRetryOptions(maxRetries = 0L),
-                        timeouts = HttpTimeoutOptions(poolAcquire = Some(Duration.seconds(5L)))
-                    )
+                                HttpVersionPolicy.Auto
+                        this.tls =
+                            httpClientTlsConfig {
+                                this.trust = TlsTrustSource.Store(trust)
+                                this.minimum = version
+                                this.maximum = version
+                                this.identity =
+                                    if (mode == "mutual")
+                                        Some(identity)
+                                    else
+                                        None
+                            }
+                        this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 2L }
+                        this.retries = httpRetryOptions { this.maxRetries = 0L }
+                        this.timeouts =
+                            httpTimeoutOptions { this.poolAcquire = Some(Duration.seconds(5L)) }
+                    }
                 val client = HttpClient.open(scope, config)
                 val url =
                     Url.parse("wss://127.0.0.1:" + port.toString() + "/start/%e9%9b%aa?x=%2f&x=2")
                 try {
                     if (mode == "coexist" || mode == "mutual") {
                         val http = url.copy { scheme = Some("https") }.resolve("/hold")
-                        client.withResponse(HttpRequest.get(http)) suspend {
+                        client.withResponse(httpRequest(http)) suspend {
                             held ->
                             assertEquals(HttpVersion.Http2, held.head.version)
                             exerciseSecureWs(client, url, mode)
@@ -88,14 +90,20 @@ private suspend fun exerciseSecureWs(client: HttpClient, url: Url, mode: String)
         else
             Array<WebSocketDeflateOffer>(0L) { _ -> WebSocketDeflateOffer() }
     val request =
-        HttpWebSocketRequest(url, [HttpField("X-Client".toByteArray(), "scoop".toByteArray())])
+        httpWebSocketRequest(url) {
+            this.fields = [HttpField("X-Client".toByteArray(), "scoop".toByteArray())]
+        }
     client.withWebSocket(
         request,
-        HttpWebSocketOptions(
-            ["chat"],
-            offers,
-            WebSocketSessionOptions(outgoingFrameBytes = 7L, inputBufferBytes = 19L)
-        )
+        httpWebSocketOptions {
+            this.protocols = ["chat"]
+            this.deflateOffers = offers
+            this.session =
+                webSocketSessionOptions {
+                    this.outgoingFrameBytes = 7L
+                    this.inputBufferBytes = 19L
+                }
+        }
     ) suspend {
         result -> when (result) {
             case Opened(session) -> {

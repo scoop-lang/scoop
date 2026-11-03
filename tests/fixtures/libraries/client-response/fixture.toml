@@ -27,5 +27,5 @@ diagnostics = []
 name = "run"
 argv = ["${python}", "${fixture}/peer.py", "${build.result.output}"]
 exit = 0
-stdout = "independent HTTP response decoding passed\nparallel HTTP2 content decoding passed\n"
+stdout = "independent HTTP response decoding passed\n"
 stderr = ""

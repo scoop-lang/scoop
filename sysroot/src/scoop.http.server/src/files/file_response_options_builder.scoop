@@ -1,0 +1,43 @@
+package scoop.http.server
+
+import scoop.http.*
+import scoop.platform.fs.Path
+import scoop.http.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun fileResponseOptions(
+    configure: FileResponseOptionsBuilder.() -> Unit = {}
+): FileResponseOptions {
+    val builder = FileResponseOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun FileResponseOptions.copy(
+    configure: FileResponseOptionsBuilder.() -> Unit = {}
+): FileResponseOptions {
+    val builder = FileResponseOptionsBuilder()
+    builder.contentType = this.contentType
+    builder.entityTag = this.entityTag
+    builder.contentEncoding = this.contentEncoding
+    builder.lastModifiedIsStrong = this.lastModifiedIsStrong
+    builder.bufferSize = this.bufferSize
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class FileResponseOptionsBuilder internal constructor() {
+    public var contentType: String? = None
+    public var entityTag: HttpEntityTag? = None
+    public var contentEncoding: String? = None
+    public var lastModifiedIsStrong: Boolean = false
+    public var bufferSize: Long = 8192L
+    internal fun snapshot(): FileResponseOptions =
+        FileResponseOptions(
+            contentType,
+            entityTag,
+            contentEncoding,
+            lastModifiedIsStrong,
+            bufferSize
+        )
+}

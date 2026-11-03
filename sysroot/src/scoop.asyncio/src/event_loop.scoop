@@ -28,7 +28,9 @@ public interface EventLoop {
     /**
      * Resolves the host and port, optionally restricted to one address family.
      */
-    public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<SocketAddress>
+    public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<
+        SocketAddress
+    >
     /**
      * Opens an owned asynchronous file using explicit access, creation, and truncation options.
      */
@@ -56,7 +58,10 @@ public interface EventLoop {
     /**
      * Creates a unique temporary file and returns both its path and open handle.
      */
-    public suspend fun createTempFile(parent: Path? = None, prefix: String = "scoop-"): TemporaryFile
+    public suspend fun createTempFile(
+        parent: Path? = None,
+        prefix: String = "scoop-"
+    ): TemporaryFile
     /**
      * Opens an owned directory enumeration cursor.
      */
@@ -64,7 +69,10 @@ public interface EventLoop {
     /**
      * Binds an owned UDP socket, optionally enabling address reuse.
      */
-    public suspend fun bindUdp(address: SocketAddress, reuseAddress: Boolean = false): AsyncUdpSocket
+    public suspend fun bindUdp(
+        address: SocketAddress,
+        reuseAddress: Boolean = false
+    ): AsyncUdpSocket
     /**
      * Connects to an IP endpoint, or resolves and races candidates using the supplied host
      * connection options. The returned stream has independent ownership.
@@ -74,11 +82,19 @@ public interface EventLoop {
      * Connects to an IP endpoint, or resolves and races candidates using the supplied host
      * connection options. The returned stream has independent ownership.
      */
-    public suspend fun connectTcp(host: OsString, port: Int, options: TcpConnectOptions = TcpConnectOptions()): AsyncTcpStream
+    public suspend fun connectTcp(
+        host: OsString,
+        port: Int,
+        options: TcpConnectOptions = tcpConnectOptions()
+    ): AsyncTcpStream
     /**
      * Binds and listens for TCP connections with the requested backlog and address-reuse setting.
      */
-    public suspend fun listenTcp(address: SocketAddress, backlog: Int = 128, reuseAddress: Boolean = false): AsyncTcpListener
+    public suspend fun listenTcp(
+        address: SocketAddress,
+        backlog: Int = 128,
+        reuseAddress: Boolean = false
+    ): AsyncTcpListener
 }
 
 /**
@@ -88,11 +104,18 @@ context(loop: EventLoop)
 public fun currentEventLoop(): EventLoop = loop
 
 internal fun hasEventLoop(): Boolean {
-    try { currentEventLoop(); return true }
-    catch (_: MissingContextException) { return false }
+    try {
+        currentEventLoop();
+        return true
+    }
+    catch (_: MissingContextException) {
+        return false
+    }
 }
 
-private class LoopResult<T> { var value: MaybeUninit<T> = MaybeUninit<T>.uninit() }
+private class LoopResult<T> {
+    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
+}
 
 /**
  * Runs a structured event-loop scope and returns the block's eventual result after the loop
@@ -101,19 +124,26 @@ private class LoopResult<T> { var value: MaybeUninit<T> = MaybeUninit<T>.uninit(
 public fun <T> EventLoop.runWithResult(block: suspend (CoroutineScope) -> T): T {
     val result = LoopResult<T>()
     run suspend { scope -> result.value = MaybeUninit<T>.initialized(block(scope)) }
-    @Unsafe { return result.value.assumeInit() }
+    @Unsafe
+    {
+        return result.value.assumeInit()
+    }
 }
 
 /**
  * Reports an operation attempted on a closed I/O resource.
  */
-public class IoClosedException public constructor() : Exception(Some("I/O resource is closed"))
+public class IoClosedException public constructor(): Exception(Some("I/O resource is closed"))
 
 internal class IoLock {
     private val held: AtomicBoolean = AtomicBoolean(false)
     fun <T> withLock(block: () -> T): T {
         while (!held.compareAndSet(false, true, MemoryOrder.Acquire, MemoryOrder.Relaxed)) {}
-        try { return block() }
-        finally { held.store(false, MemoryOrder.Release) }
+        try {
+            return block()
+        }
+        finally {
+            held.store(false, MemoryOrder.Release)
+        }
     }
 }

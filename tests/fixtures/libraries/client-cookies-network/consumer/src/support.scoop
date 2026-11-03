@@ -59,17 +59,17 @@ internal fun cookieNetworkConfig(
     jar: CookieJar?,
     h2: Boolean = false
 ): HttpClientConfig =
-    HttpClientConfig(
-        tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-        cookieJar = jar,
-        cleartext =
+    httpClientConfig {
+        this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+        this.cookieJar = jar
+        this.cleartext =
             if (h2)
                 HttpCleartextProtocol.Http2PriorKnowledge
             else
-                HttpCleartextProtocol.Http1,
-        retries = HttpRetryOptions(maxRetries = 0L),
-        pool = HttpConnectionPoolOptions(maxConnectionsPerOrigin = 1L)
-    )
+                HttpCleartextProtocol.Http1
+        this.retries = httpRetryOptions { this.maxRetries = 0L }
+        this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
+    }
 
 internal fun withCookieRuntime(
     block: suspend (EventLoop, CoroutineScope, AsyncTcpListener, Url) -> Unit
@@ -118,7 +118,7 @@ internal suspend fun cookieRespond(
 
 internal suspend fun cookieSeed(jar: CookieJar, url: Url, text: String) {
     jar.save(
-        HttpRequest.get(url),
+        httpRequest(url),
         HttpResponseHead(HttpVersion.Http11, 200U, fields = [cookieField("Set-Cookie", text)])
     )
 }

@@ -65,7 +65,10 @@ private class AsyncProbe {
     private fun start(host: SurfaceHost, application: ActiveApplication) {
         val first =
             application.createWindow(
-                WindowAttributes("Scoop Surface asyncio", LogicalSize(320.0, 180.0))
+                windowAttributes {
+                    this.title = "Scoop Surface asyncio"
+                    this.size = LogicalSize(320.0, 180.0)
+                }
             )
         window = Some(first)
         first.setWindowLevel(WindowLevel.AlwaysOnTop)

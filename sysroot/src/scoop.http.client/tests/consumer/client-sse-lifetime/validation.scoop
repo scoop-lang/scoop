@@ -10,19 +10,19 @@ import scoop.url.Url
 
 internal fun sseValidation(trust: TrustStore) {
     assertFailsWith<IllegalArgumentException> {
-        val ignored = HttpSseOptions(bufferSize = 0L);
+        val ignored = httpSseOptions { this.bufferSize = 0L };
         Unit
     }
     assertFailsWith<IllegalArgumentException> {
-        val ignored = HttpSseReconnectOptions(initialDelay = Duration.milliseconds(-1L));
+        val ignored = httpSseReconnectOptions { this.initialDelay = Duration.milliseconds(-1L) };
         Unit
     }
     assertFailsWith<IllegalArgumentException> {
-        val ignored = HttpSseReconnectOptions(maxDelay = Duration.ZERO);
+        val ignored = httpSseReconnectOptions { this.maxDelay = Duration.ZERO };
         Unit
     }
     assertFailsWith<IllegalArgumentException> {
-        val ignored = HttpSseReconnectOptions(maxReconnects = Some(-1L));
+        val ignored = httpSseReconnectOptions { this.maxReconnects = Some(-1L) };
         Unit
     }
     val loop: EventLoop = PlatformEventLoop()
@@ -30,10 +30,13 @@ internal fun sseValidation(trust: TrustStore) {
         _ -> withHttpClient(sseConfig(trust)) suspend {
             client ->
             val url = Url.parse("http://127.0.0.1:1/")
-            val request = HttpRequest.get(url)
+            val request = httpRequest(url)
             assertTrue(
                 sseFailure suspend {
-                    client.openSse(request, HttpSseOptions(initialLastEventId = Some("x\r\ny")));
+                    client.openSse(
+                        request,
+                        httpSseOptions { this.initialLastEventId = Some("x\r\ny") }
+                    );
                     Unit
                 } is
                     IllegalArgumentException
@@ -41,11 +44,10 @@ internal fun sseValidation(trust: TrustStore) {
             assertTrue(
                 sseFailure suspend {
                     client.openSse(
-                        HttpRequest.get(
-                            url,
-                            fields =
+                        httpRequest(url) {
+                            this.fields =
                                 [sseField("Last-Event-ID", "a"), sseField("Last-Event-ID", "b")]
-                        )
+                        }
                     );
                     Unit
                 } is
@@ -54,8 +56,8 @@ internal fun sseValidation(trust: TrustStore) {
             assertTrue(
                 sseFailure suspend {
                     client.openSse(
-                        HttpRequest.get(url, fields = [sseField("Last-Event-ID", "a")]),
-                        HttpSseOptions(initialLastEventId = Some("b"))
+                        httpRequest(url) { this.fields = [sseField("Last-Event-ID", "a")] },
+                        httpSseOptions { this.initialLastEventId = Some("b") }
                     );
                     Unit
                 } is
@@ -64,10 +66,10 @@ internal fun sseValidation(trust: TrustStore) {
             assertTrue(
                 sseFailure suspend {
                     client.openSse(
-                        HttpRequest.get(
-                            url,
-                            options = HttpCallOptions(cacheMode = HttpCacheMode.OnlyIfCached)
-                        )
+                        httpRequest(url) {
+                            this.options =
+                                httpCallOptions { this.cacheMode = HttpCacheMode.OnlyIfCached }
+                        }
                     );
                     Unit
                 } is
@@ -76,7 +78,9 @@ internal fun sseValidation(trust: TrustStore) {
             assertTrue(
                 sseFailure suspend {
                     client.openSse(
-                        HttpRequest.get(url, fields = [sseField("Cache-Control", "only-if-cached")])
+                        httpRequest(url) {
+                            this.fields = [sseField("Cache-Control", "only-if-cached")]
+                        }
                     );
                     Unit
                 } is
@@ -87,8 +91,11 @@ internal fun sseValidation(trust: TrustStore) {
             val failure =
                 sseFailure suspend {
                     client.openSse(
-                        HttpRequest(url, "POST", body = body),
-                        HttpSseOptions(reconnect = Some(HttpSseReconnectOptions()))
+                        httpRequest(url) {
+                            this.method = "POST"
+                            this.body = body
+                        },
+                        httpSseOptions { this.reconnect = Some(httpSseReconnectOptions()) }
                     );
                     Unit
                 }

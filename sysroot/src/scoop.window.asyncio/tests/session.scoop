@@ -68,7 +68,10 @@ private class AsyncHandler: ApplicationHandler {
     private fun start(application: ActiveApplication) {
         val first =
             application.createWindow(
-                WindowAttributes("Scoop asyncio host test", LogicalSize(320.0, 180.0))
+                windowAttributes {
+                    this.title = "Scoop asyncio host test"
+                    this.size = LogicalSize(320.0, 180.0)
+                }
             )
         first.requestFocus()
         window = Some(first)

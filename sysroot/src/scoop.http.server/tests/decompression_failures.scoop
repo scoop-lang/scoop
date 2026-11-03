@@ -55,7 +55,7 @@ private class ServerDecompressionFailureTests {
             _ ->
             val input = DecompressionReadSource(TestSource(requestGzip("a".toByteArray())))
             val body = HttpRequestBody(input, fields = requestEncodedFields())
-            body.configureDecoding(RequestDecompressionOptions())
+            body.configureDecoding(requestDecompressionOptions())
             val source = body.openStream()
             try {
                 NativeByteBuffer.allocate(1L).use suspend {
@@ -93,7 +93,7 @@ private class ServerDecompressionFailureTests {
                 if (ioFailure)
                     input.failure = Some<Throwable>(original)
                 val body = HttpRequestBody(input, fields = requestEncodedFields())
-                body.configureDecoding(RequestDecompressionOptions(bufferSize = 1L))
+                body.configureDecoding(requestDecompressionOptions { this.bufferSize = 1L })
                 val source = body.openStream()
                 try {
                     var first: Throwable? = None

@@ -18,7 +18,9 @@ private class FocusRevealTest {
         val probe = RevealProbe()
         try {
             UiHost { host, active, event -> probe.event(host, active, event) }.use {
-                host -> Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                host -> Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
             }
             assertTrue(probe.finished)
             assertEquals(6, probe.mounts)
@@ -80,7 +82,10 @@ internal class RevealProbe {
                 active = Some(application)
                 val native =
                     application.createWindow(
-                        WindowAttributes("Scoop focus reveal", LogicalSize(480.0, 360.0))
+                        windowAttributes {
+                            this.title = "Scoop focus reveal"
+                            this.size = LogicalSize(480.0, 360.0)
+                        }
                     )
                 window = Some(native)
                 frames = Some(observeFrames(native))
@@ -120,7 +125,11 @@ internal class RevealProbe {
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
-                Some(f"focus reveal timeout phase=${phase}, frames=${passes}, accepted=${accepted}")
+                Some(
+                    f"focus reveal timeout phase=${this @RevealProbe.phase}, frames=${
+                        this @RevealProbe.passes
+                    }, accepted=${this @RevealProbe.accepted}"
+                )
             )
             else -> {}
         }
@@ -138,7 +147,7 @@ internal class RevealProbe {
             assertEquals(
                 position == index,
                 handles[position].hasFocus,
-                Some(f"reveal phase=${phase}, target=${position}")
+                Some(f"reveal phase=${this @RevealProbe.phase}, target=${position}")
             )
     }
     fun next(action: () -> Unit) {

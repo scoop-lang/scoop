@@ -1,0 +1,34 @@
+package scoop.http.client
+
+import scoop.compression.CompressionFormat
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpDecodingOptions(
+    configure: HttpDecodingOptionsBuilder.() -> Unit = {}
+): HttpDecodingOptions {
+    val builder = HttpDecodingOptionsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public fun HttpDecodingOptions.copy(
+    configure: HttpDecodingOptionsBuilder.() -> Unit = {}
+): HttpDecodingOptions {
+    val builder = HttpDecodingOptionsBuilder()
+    builder.mode = this.mode
+    builder.bufferSize = this.bufferSize
+    builder.maxWindowBytes = this.maxWindowBytes
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class HttpDecodingOptionsBuilder internal constructor() {
+    public var mode: HttpContentDecoding = HttpContentDecoding.Automatic
+    public var bufferSize: Long = 8192L
+    public var maxWindowBytes: Long? = None
+    internal fun snapshot(): HttpDecodingOptions =
+        HttpDecodingOptions(mode, bufferSize, maxWindowBytes)
+}

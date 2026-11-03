@@ -86,37 +86,40 @@ internal fun sseHttp2(trust: TrustStore, total: Boolean) {
                         Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + "/")
                     val limit = Duration.seconds(10L)
                     val request =
-                        HttpRequest.get(
-                            url,
-                            options =
-                                HttpCallOptions(
-                                    timeouts =
+                        httpRequest(url) {
+                            this.options =
+                                httpCallOptions {
+                                    this.timeouts =
                                         if (total)
-                                            Some(HttpTimeoutOptions(total = Some(limit)))
+                                            Some(httpTimeoutOptions { this.total = Some(limit) })
                                         else
                                             None
-                                )
-                        )
+                                }
+                        }
                     val reconnect =
-                        HttpSseReconnectOptions(
-                            Duration.ZERO,
-                            Duration.ZERO,
-                            Some(3L),
-                            suspend {
-                                event ->
-                                if (total)
-                                    loop.sleep(
-                                        Duration.seconds(
-                                            if (event.number == 1L)
-                                                6L
-                                            else
-                                                60L
+                        httpSseReconnectOptions {
+                            this.initialDelay = Duration.ZERO
+                            this.maxDelay = Duration.ZERO
+                            this.maxReconnects = Some(3L)
+                            this.onReconnect =
+                                suspend {
+                                    event ->
+                                    if (total)
+                                        loop.sleep(
+                                            Duration.seconds(
+                                                if (event.number == 1L)
+                                                    6L
+                                                else
+                                                    60L
+                                            )
                                         )
-                                    )
-                                Unit
-                            }
-                        )
-                    client.withSse(request, HttpSseOptions(reconnect = Some(reconnect))) suspend {
+                                    Unit
+                                }
+                        }
+                    client.withSse(
+                        request,
+                        httpSseOptions { this.reconnect = Some(reconnect) }
+                    ) suspend {
                         source ->
                         assertEquals(HttpVersion.Http2, source.head.version)
                         assertEquals("a", source.next()!!.data)

@@ -1,6 +1,6 @@
 # 接收者 DSL API 迁移计划
 
-日期：2026-11-03。状态：已开始分批实施。设计依据见 [DSL builder 调研](DSL-BUILDERS.md)，公共命名约定见 [库 API 风格](../specs/SCOOP-API-STYLE.md)。
+日期：2026-11-03。状态：计划内 API 已全部迁移，2026-11-04 完成本机验证。设计依据见 [DSL builder 调研](DSL-BUILDERS.md)，公共命名约定见 [库 API 风格](../specs/SCOOP-API-STYLE.md)。
 
 将 UI 和其他需要组合内容、收集条目或分组配置的公共 API 按接收者 DSL 风格重新设计，并更新规范、实现、调用方、测试和示例。一次构造得到完整描述或配置，执行动作继续由明确的操作入口承担。
 
@@ -152,23 +152,23 @@ Props、具体 Component／Element 类型和 View 仍是同一条构造与挂载
 
 ## 5 实施顺序与交付
 
-每批先修订正式规范，再改实现，随后同步迁移所有受影响的生产调用、测试和示例，格式化并完成该批检查与测试。删除旧签名和迁移调用方在同一批完成；最终清理批次不承担此前留下的旧 API 兼容负担。
+先修订正式规范，再改实现，并同步迁移所有受影响的生产调用、测试和示例。D0／D0a、D1 和 D4 已完成；按最新执行要求，将剩余 D2／D3／D5／D6／D7 合并为一次完整迁移：先完成全部源码、调用方和文档，再统一准备开发 sysroot、运行受影响的 scoop.test 和必要消费编译。中途只做源码检查与格式整理。统一验证发现失败后，只对修正项及其实际影响范围复验。
 
-工作分支为 `codex/receiver-dsl-migration`。每个可独立验收的变更完成后提交并推送，再合并最新的 `origin/main`，处理冲突并验证实际受影响部分后继续。每轮清理后续不再需要的临时源码、产物和日志；后续构建仍会使用的正常开发 sysroot 与共享缓存继续复用。
+工作分支为 `codex/receiver-dsl-migration`。剩余迁移和统一验证完成后提交并推送，再合并最新的 `origin/main`，处理实际冲突并检查其影响。交付时清理后续不再需要的临时源码、产物和日志；正常开发 sysroot 与共享缓存继续复用。下表保留能力之间的实施依赖，不再作为逐项构建、测试和提交的划分。
 
 | 批次 | 工作与依赖 | 本批完成标准 |
 | --- | --- | --- |
 | D0 公共约定与签名清单 | 先将第 1 节规则写入 SCOOP-API-STYLE；各 API 批次实现前在所属规范列全第 2／3 节目标入口的属性、默认值、必需参数、返回值、快照／所有权与旧入口替换关系 | 每项现有能力都有新 API 归属；确认真实成员、单内容槽和命名冲突处理；更新相应 spec 的示例与交叉引用 |
 | D0a 外层 receiver 显式访问 | 依赖 D0 公共约定；先修订语言 §8.1.2／8.1.3 及相关引用，再在 HIR 与编辑查询实施第 1.4 节的编译错误；迁移现有 receiver 用例 | 隐式外层读取／写入／调用被准确拒绝，显式访问和词法捕获正常；同类型 receiver、嵌套普通回调、泛型与跨 Cone 正反例通过 |
 | D1 UI 文本和样式基础 | 依赖 D0a；实现纯文本／span／TextStyle／SpanStyle／ParagraphStyle、Style／StyleOverride、主题部件和主题参数配置；迁移三个主题生产者 | 文本顺序和继承、覆盖三态、数组与嵌套快照测试通过；三个主题仍产生完整绘图数据 |
-| D2 常用 UI 声明 | 依赖 D1；实现 ChildrenBuilder、Row／Column／Stack、Label／Button／Checkbox、Frame／Styled、Input／Textarea；迁移主题展示及所有直接调用 | 新风格真实窗口运行；按 key 更新保留实例／状态；最新回调、文本模型和主题切换通过原有行为测试 |
-| D3 UI 组合与交互配置 | 依赖 D2；迁移 Absolute、Portal／modal、ScrollArea、VirtualList、行内 View 装配、shortcut／focus／navigation；更新相关 tests-cones 和下载 UI | 定位／弹层／焦点／滚动／编辑组合通过；虚拟列表不提前构建离屏项；关闭、缓存与停帧合同通过 |
+| D2 常用 UI 声明 | 依赖 D1；实现 ChildrenBuilder、Row／Column／Stack、Label／Button／Checkbox、Frame／Styled、Input／Textarea；迁移主题展示及所有直接调用 | 子项顺序、独立快照、完整 Props、回调／模型借用通过 scoop.test；仅更换工厂写法的窗口调用方完成消费编译 |
+| D3 UI 组合与交互配置 | 依赖 D2；迁移 Absolute、Portal／modal、ScrollArea、VirtualList、行内 View 装配、shortcut／focus／navigation；更新相关 tests-cones 和下载 UI | 定位／弹层／行内绑定及交互配置的构造组合通过；虚拟列表配置不读取 source；未改执行逻辑的窗口组合完成消费编译 |
 | D4 通用内容构造 | 依赖 D0a；按 JSON、URL、Path 分成独立改动，迁移各自一次性构造调用 | 独立快照、重复项／编码、异常和 Path 清理验证通过 |
 | D5 HTTP 装配 | 依赖 D4 的 JSON／URL 入口；先字段收集，再 client 配置／request／multipart，再 server routing／options／result 及附属配置；同步迁移下载示例网络层 | client/server 普通测试和 loopback 组合通过；构造没有发送／消费 body；middleware、重试／重放、取消与资源收尾正确 |
 | D6 其他应用配置 | 依赖 D0a；按 window、readline、platform.process 独立迁移，对已迁移 UI／HTTP 调用方作必要更新 | 创建配置快照、平台选项、Readline 配置、进程参数／环境与真实执行测试通过 |
 | D7 统一收尾 | 依赖 D1～D6；扫除遗漏的调用和说明，更新公共阅读材料及 API 文档，执行受影响范围的组合回归 | 被替换的旧签名和兼容转发为零；新入口覆盖完整；示例可构建运行；简洁记录验证结果与实际平台范围 |
 
-D4、D6 的代码工作不依赖 UI 实现完成，可以在主线批次之间安排。每批必须保持仓库中相应消费者可编译，不交付“新入口已添加、旧调用以后再迁”的中间终态。
+D6 的代码工作不依赖 UI 实现完成，可与其他剩余源码迁移协调推进。统一验证前完成所有被替换签名的调用方迁移，不交付只添加新入口而遗留旧调用的状态。
 
 正式规范按归属更新：UI、UI-COMPONENT、UI-STYLE、UI-THEME、GRAPHICS-TEXT、SURFACE、HTTP、HTTP-MESSAGE、HTTP-MULTIPART、HTTP-CLIENT、HTTP-SERVER、JSON、URL、WINDOW、READLINE、PLATFORM。语言规范先在 D0a 更新 receiver 查找与捕获边界；Path 更新 graphics 的现有设计与公共文档。相关附属协议规范在对应 options 变更时同步更新。不改三份基础规范中无关的 ABI／阶段合同。
 
@@ -214,6 +214,19 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 
 先完成上述普通行为的测试归位，再更新 URL 调用。保留 fixture 只在这些外部协议合同范围复验，不用它们代替新 URL API 的 scoop.test。
 
+剩余 UI／HTTP／应用配置迁移前，对全部直接受影响 fixture 再作如下评估，并同步处理共享源码引用：
+
+| 受影响组 | 处理与保留理由 |
+| --- | --- |
+| client-cache-lifetime、client-digest-lifetime、client-download-lifetime、client-interceptors-lifetime、client-observer-lifetime、client-proxy-authentication-lifetime、client-proxy-selector | Python 仅负责启动普通行为程序，移入 scoop.http.client/tests/consumer 并删除整组 fixture；保留原有模式组合、双线程执行和取消／清理断言。 |
+| http-client、client-download、client-response、client-trailers、client-cookies-network、client-cache-network、client-digest-composition | 将进程内 HTTP/2、策略、凭据、取消和错误行为拆入同一 Cone 的 tests/consumer；fixture 仅保留独立 Python／TLS peer 对线上协议、字段、压缩、文件内容、nonce 和连接行为的检查。HTTP/2 的普通行为不再由 Python 启动。 |
+| platform-artifacts | 普通 Path／文件／进程／线程与传输行为移入 scoop.platform/test-posix/consumer；fixture 仅保留最小平台库产物消费、重链接和缓存合同。 |
+| process-native | 保留原生 C probe 的故障注入、spawn 回滚和端点所有权 ABI 检查，普通命令构造由 scoop.test 覆盖。 |
+| request-composition、socks5、tls-identity、tls-system | 保留独立 gzip／MIME、SOCKS5、TLS／OpenSSL peer 的互操作和真实字节检查。 |
+| 其余直接受影响 client 外部 peer 组 | 保留 Basic／Bearer／Digest、代理、Continue／h2c、连接池、超时／重试／重定向、observer／interceptor、resume／SSE／WebSocket 的独立协议检查；只迁移必要调用。其普通 API 行为不新增 fixture。 |
+
+窗口激活与焦点测试按用户要求跳过，本次没有修改相应执行机制。只因调用方式变更而受影响的现有窗口测试和示例统一采用 scoop.test 的 --no-run 检查。
+
 成员／顶层工厂与 alias 的组合放在真实跨 Cone 的 scoop.test 消费测试中。D0a 是编译器语言规则变更，其拒绝编译与诊断位置无法由 scoop.test 断言，因此保留代表性 expected-error fixture，覆盖外层 receiver 的隐式读取、赋值／复合赋值、方法／扩展／函数属性调用和必要的实例绑定；同类型不同 receiver、普通／suspend receiver、嵌套普通回调及泛型／跨 Cone 消费按实际语言规则覆盖。显式 `this@label`、对象别名、普通词法捕获和已有函数值适配为正例。
 
 原 nested、lookup、initializers 三组 receiver fixture 只断言运行结果，已将其嵌套接收者、成员优先级、扩展属性与初始化行为迁入 [receivers 测试 Cone](../../tests/cones/receivers/README.md)，并增加跨 Cone 与函数值适配覆盖。隐式外层使用的编译错误和诊断位置保留在 [implicit-outer fixture](../../tests/fixtures/language/receivers/implicit-outer/program.scoop)。HIR 与编辑查询的定向回归验证候选探测不误报、选中外层成员不能回退改绑及两类入口一致；不修改捕获或 runtime 协议。后续 `@DslMarker` 不重复这些已覆盖的检查。
@@ -223,7 +236,7 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 1. 每批 Scoop 变更先对受影响 Cone 执行 `scoop fmt`。Rust／Python 若实际改动，先按 AGENTS.md 执行各自格式化和 lint，再运行相关验证。
 2. 内置库变化后，按[准备脚本说明](../../scripts/README.md)显式更新开发 sysroot，设置 `SCOOP_SYSROOT`，复用已有 native 资源和共享 Cone cache。准备与依赖编译使用正确的依赖顺序，测试不逐项复制 sysroot 或重建未变化的库。
 3. 对实际改变构造／配置行为的 Cone 执行 `scoop test --release`，覆盖新 API 的领域规则和必要组合。仅机械更新调用方式、运行逻辑未变的消费 Cone，使用 `scoop test --release --no-run` 检查生产与测试源码、类型及链接；不为这些调用迁移扩跑无关行为。测试消费本批更新后的依赖产物，不再为 Cone API 另设 fixture 验证入口。
-4. 未修改 LIR／codegen 的批次只做本地验证。UI、主题、Path 和相关图形组合在已支持的 macOS aarch64 release 上通过 scoop.test 分批验证；实际修改 LIR／codegen 时再按变更所影响的目标补充必要验证，不把本机结果宣称为全部平台结果。
+4. 未修改 LIR／codegen 的批次只做本地验证。UI、主题、Path 和相关图形组合在已支持的 macOS aarch64 release 上通过 scoop.test 验证；实际修改 LIR／codegen 时再按变更所影响的目标补充必要验证，不把本机结果宣称为全部平台结果。
 5. 只对本批实际影响的行为选择 scoop.test 定向组合，例如主题覆盖、下载请求装配或 HTTP loopback；不因改写构造调用排查无关的窗口激活、系统焦点等环境问题。fixture 先评估迁移，仅在确需保留的编译器／外部进程合同范围运行；不因新增配置块重跑编译器全量、全部系统库或普通功能的 GC stress 矩阵。
 6. 用新 API 生成并检查相关公共 API 文档；当前文档、可运行示例和库实现必须一致。原始日志、截图、JSON 报告置于仓库外，仓库只保存批次范围、结果、失败闭合和必要平台限制。
 
@@ -250,3 +263,4 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 | 2026-11-03 | D1 公共样式与部件选项 | Style／StyleOverride、Surface／Checkbox／Radio／Scrollbar Options 改为接收者工厂和 copy；构造器内部化，withBackground／withBorder 删除。嵌套 style 基于当前覆盖修改，类型化槽保留继承／清除／设置，数组保持顺序及独立快照。规范、控件调用与示例同步更新，无受影响 fixture。本机 aarch64 macOS release 的样式 16 项（含新增 5 项）、主题几何 4 项、控件样式 5 项，共 25 项 scoop.test 通过；样式 UI／错误收尾、控件布局／交互、主题／下载示例共 6 个消费 Cone 的 scoop test --no-run 编译／链接通过，未运行窗口测试。Scoop 格式、公共 API 文档与开发 sysroot 更新完成。控件样式、主题参数及部件外观继续推进；StringBuilder／ByteArrayBuilder 和 LIR／codegen 未改动。 |
 | 2026-11-03 | D1 控件局部样式 | ButtonStyle／CheckboxStyle／TextFieldStyle／InteractionStyles 改为接收者工厂和 copy，公开长参数构造删除；surface／marker／states／文字覆盖／scrollbar 的重复块保留当前值，完整赋值替换，动画槽保留继承／禁用／指定值。SpanStyle.copy 支持跨 Cone 的嵌套修改。规范、控件调用、主题展示与交互消费方同步更新，无受影响 fixture。本机 aarch64 macOS release 的文本构造 5 项、控件样式 9 项（含新增 4 项），共 14 项 scoop.test 通过；主题展示与控件交互两个消费 Cone 的 scoop test --no-run 编译／链接通过。Scoop 格式、公共 API 文档与开发 sysroot 更新完成，未运行窗口测试。后续继续主题参数与部件外观；StringBuilder／ByteArrayBuilder 和 LIR／codegen 未改动。 |
 | 2026-11-03 | D1 完整主题配置 | ShapeTheme、主题参数和部件外观统一使用完整必需数据、接收者工厂与 copy；三套预设接受 ShapeThemeBuilder 并迁移其生产代码。嵌套配置保留当前字段、完整赋值替换，配色修改不隐式重算其他描述。ThemePalette 保留定义十二个必需语义色的完整值构造并提供 copy；TextStyle.copy 支持跨 Cone 字体配置。无受影响 fixture。本机 aarch64 macOS release 的文本构造 5 项、主题配置 4 项、三套主题六种模式的几何 4 项，共 13 项 scoop.test 通过；公共样式与三套预设 API 文档和签名检查通过，README 的目录链接已修正。Scoop 格式与开发 sysroot 更新完成。D1 文本和样式基础全部完成，后续进入 UI 声明与组合；StringBuilder／ByteArrayBuilder 和 LIR／codegen 未改动。 |
+| 2026-11-04 | D2／D3／D5／D6／D7 统一完成 | UI 子项、控件、容器、Portal、行内 View、导航与快捷键，HTTP 字段、请求体、client 配置、路由与 server 配置，以及 TCP、进程、窗口和 readline 配置已集中迁移；规范、实现、调用方和示例同步更新，旧入口直接删除。7 组纯行为 fixture 删除并迁入 Cone；7 组 HTTP 混合 fixture 与 platform-artifacts 的普通行为拆入 Cone，独立 peer、故障注入和产物合同所需部分保留。本机 aarch64 macOS release 的 98 个目标通过 scoop.test 编译／链接检查，34 个定向测试组的 102 项行为测试全部通过，包含迁入用例的原有模式组合；13 个库的公共 API 文档检查通过。Scoop 格式、Python Ruff 和受影响 fixture 声明检查通过；调用迁移错误、文档链接、临时验证脚本与构建超时问题均已闭合。复验只处理未通过项；窗口焦点测试按用户要求跳过，Windows 专用示例未在本机运行。StringBuilder／ByteArrayBuilder 和 LIR／codegen 未改动，@DslMarker 仍只作为后续 receiver 查找限制。 |

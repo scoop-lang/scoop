@@ -45,10 +45,10 @@ private class HttpRequestObservationWebSocketTest {
                                     "ws://127.0.0.1:" + listener.localAddress.port.toString() + "/"
                                 )
                             client.withWebSocket(
-                                HttpWebSocketRequest(
-                                    url,
-                                    options = HttpCallOptions(observer = Some(log.observer))
-                                )
+                                httpWebSocketRequest(url) {
+                                    this.options =
+                                        httpCallOptions { this.observer = Some(log.observer) }
+                                }
                             ) suspend {
                                 result -> when (result) {
                                     case Opened(session) -> {

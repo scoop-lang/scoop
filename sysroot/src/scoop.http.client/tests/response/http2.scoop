@@ -64,22 +64,23 @@ private class HttpClientResponseHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxStreamsPerHttp2 = 2L
-                                ),
-                            http2Settings = Http2Settings(initialWindowSize = 3U),
-                            decoding = HttpDecodingOptions(bufferSize = 2L)
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxStreamsPerHttp2 = 2L
+                                }
+                            this.http2Settings = Http2Settings(initialWindowSize = 3U)
+                            this.decoding = httpDecodingOptions { this.bufferSize = 2L }
+                        }
                     try {
                         withHttpClient(config) suspend {
                             client ->
-                            val first = client.execute(HttpRequest.get(clientTestUrl(listener)))
-                            val second = client.execute(HttpRequest.get(clientTestUrl(listener)))
+                            val first = client.execute(httpRequest(clientTestUrl(listener)))
+                            val second = client.execute(httpRequest(clientTestUrl(listener)))
                             val failure =
                                 expectBodyFailure<CompressionException> suspend {
                                     first.body.bytes(16L);
@@ -90,7 +91,7 @@ private class HttpClientResponseHttp2Test {
                             assertEquals("second 中文", second.body.text(13L))
                             assertEquals("second", String.fromUtf8(second.trailers!![0L].value))
                             second.close()
-                            client.withResponse(HttpRequest.get(clientTestUrl(listener))) suspend {
+                            client.withResponse(httpRequest(clientTestUrl(listener))) suspend {
                                 response ->
                                 assertEquals(204U, response.status)
                                 assertEquals(0L, response.body.bytes(0L).size)
@@ -150,19 +151,20 @@ private class HttpClientResponseHttp2Test {
                             }
                         }
                     val config =
-                        HttpClientConfig(
-                            cleartext = HttpCleartextProtocol.Http2PriorKnowledge,
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            pool =
-                                HttpConnectionPoolOptions(
-                                    maxConnectionsPerOrigin = 1L,
-                                    maxStreamsPerHttp2 = 1L
-                                )
-                        )
+                        httpClientConfig {
+                            this.cleartext = HttpCleartextProtocol.Http2PriorKnowledge
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.pool =
+                                httpConnectionPoolOptions {
+                                    this.maxConnectionsPerOrigin = 1L
+                                    this.maxStreamsPerHttp2 = 1L
+                                }
+                        }
                     try {
                         withHttpClient(config) suspend {
                             client ->
-                            val first = client.execute(HttpRequest.get(clientTestUrl(listener)))
+                            val first = client.execute(httpRequest(clientTestUrl(listener)))
                             NativeByteBuffer.allocate(1L).use suspend {
                                 buffer ->
                                 first.body.readFully(buffer)
@@ -172,7 +174,7 @@ private class HttpClientResponseHttp2Test {
                             val next =
                                 scope.async suspend {
                                     client.withResponse(
-                                        HttpRequest.get(clientTestUrl(listener))
+                                        httpRequest(clientTestUrl(listener))
                                     ) suspend {
                                         response ->
                                         assertEquals(204U, response.status)

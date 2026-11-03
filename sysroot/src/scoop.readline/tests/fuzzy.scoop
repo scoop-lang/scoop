@@ -3,14 +3,23 @@ package scoop.readline
 import scoop.terminal.event.*
 import scoop.test.*
 
-private class FuzzyWords : Completer {
+private class FuzzyWords: Completer {
     public override fun complete(line: String, cursor: Long, context: Context): Completions =
-        Completions(0L, [Candidate("alpha", "alpha"), Candidate("help", "help"), Candidate("Straße", "Straße")])
+        Completions(
+            0L,
+            [Candidate("alpha", "alpha"), Candidate("help", "help"), Candidate("Straße", "Straße")]
+        )
 }
 
-@Test private class FuzzyTest {
-    @Test fun filterSelectAndUndo() {
-        val session = EditingSession(Config(completionType = CompletionType.Fuzzy), completer = FuzzyWords())
+@Test
+private class FuzzyTest {
+    @Test
+    fun filterSelectAndUndo() {
+        val session =
+            EditingSession(
+                readlineConfig { this.completionType = CompletionType.Fuzzy },
+                completer = FuzzyWords()
+            )
         press(session, KeyCode.Tab)
         typeText(session, "hl")
         assertEquals("", session.line)
@@ -23,8 +32,14 @@ private class FuzzyWords : Completer {
         press(session, KeyCode.Enter)
         assertEquals("Straße", session.line)
     }
-    @Test fun cancelNoMatchAndNavigation() {
-        val session = EditingSession(Config(completionType = CompletionType.Fuzzy), initial = "draft", completer = FuzzyWords())
+    @Test
+    fun cancelNoMatchAndNavigation() {
+        val session =
+            EditingSession(
+                readlineConfig { this.completionType = CompletionType.Fuzzy },
+                initial = "draft",
+                completer = FuzzyWords()
+            )
         press(session, KeyCode.Tab)
         typeText(session, "z")
         press(session, KeyCode.Enter)

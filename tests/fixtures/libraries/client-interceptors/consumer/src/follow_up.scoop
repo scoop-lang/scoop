@@ -51,14 +51,17 @@ internal fun extensionProxy(trust: TrustStore, peerUrl: Url) {
         _ ->
         val proxy =
             HttpProxy.Http(
-                HttpProxyEndpoint(endpoint, authentication = HttpAuthenticationOptions([provider]))
+                HttpProxyEndpoint(
+                    endpoint,
+                    authentication = httpAuthenticationOptions { this.providers = [provider] }
+                )
             )
         withHttpClient(
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                proxy = HttpProxySelector.fixed(proxy),
-                onAttempt = Some(callback)
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.proxy = HttpProxySelector.fixed(proxy)
+                this.onAttempt = Some(callback)
+            }
         ) suspend { client -> extensionGet(client, url, "proxy") }
     }
     assertEquals(2L, state.attempts);
@@ -90,11 +93,11 @@ internal fun extensionCacheRefresh(trust: TrustStore, url: Url) {
         }
     PlatformEventLoop().run suspend {
         _ -> withHttpClient(
-            HttpClientConfig(
-                tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                onAttempt = Some(callback),
-                cache = Some(HttpCacheOptions(storage))
-            )
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                this.onAttempt = Some(callback)
+                this.cache = Some(HttpCacheOptions(storage))
+            }
         ) suspend {
             client ->
             extensionGet(client, url, "old")

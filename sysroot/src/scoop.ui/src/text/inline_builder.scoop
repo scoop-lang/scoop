@@ -1,0 +1,74 @@
+package scoop.ui.text
+
+import scoop.graphics.Size
+import scoop.graphics.text.*
+import scoop.ui.View
+
+public fun inlineView(
+    key: InlineKey,
+    view: View,
+    configure: InlineViewBuilder.() -> Unit = {}
+): InlineView {
+    val builder = InlineViewBuilder()
+    builder.configure()
+    return builder.snapshot(key, view)
+}
+
+public class InlineViewBuilder internal constructor() {
+    public var size: Size? = None
+    public var alignment: InlineViewAlignment =
+        InlineViewAlignment.Baseline(TextBaseline.Alphabetic)
+    internal fun snapshot(key: InlineKey, view: View): InlineView =
+        InlineView(key, view, size, alignment)
+}
+
+public class InlineText internal constructor(
+    public val content: StyledText,
+    public val inlines: Array<InlineView>
+)
+
+public fun inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText {
+    val builder = InlineTextBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class InlineTextBuilder internal constructor() {
+    private val fragments = ArrayList<TextSpan>()
+    private val entries = ArrayList<InlineView>()
+    public var style: TextStyle = textStyle()
+
+    public fun style(configure: TextStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun add(fragment: TextSpan): Unit {
+        fragments.add(fragment)
+    }
+    public fun text(value: String): Unit {
+        add(textSpan { text(value) })
+    }
+    public fun span(configure: TextSpanBuilder.() -> Unit): Unit {
+        add(textSpan(configure))
+    }
+    public fun inline(
+        key: InlineKey,
+        view: View,
+        alternateText: String,
+        configure: InlineViewBuilder.() -> Unit = {}
+    ): Unit {
+        val item = inlineView(key, view, configure)
+        add(textSpan { inlineObject(key, alternateText) })
+        entries.add(item)
+    }
+    internal fun snapshot(): InlineText {
+        val spans = fragments.toArray()
+        val base = style
+        val content =
+            styledText {
+                style = base
+                for (fragment in spans)
+                    add(fragment)
+            }
+        return InlineText(content, orderedInlines(content, entries.toArray()))
+    }
+}

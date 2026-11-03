@@ -7,16 +7,22 @@ import scoop.platform.system.*
 import scoop.test.*
 
 internal fun os(value: String): OsString = OsString.fromString(value)
-internal fun shell(script: String, input: Stdio = Stdio.Null): Command = Command(
-    Path.fromString("/bin/sh"), [os("-c"), os(script)], stdin = input,
-    stdout = Stdio.Pipe, stderr = Stdio.Pipe
-)
+
+internal fun shell(script: String, input: Stdio = Stdio.Null): Command =
+    command(Path.fromString("/bin/sh")) {
+        this.arguments = [os("-c"), os(script)]
+        this.stdin = input
+        this.stdout = Stdio.Pipe
+        this.stderr = Stdio.Pipe
+    }
+
 internal fun exited(status: ExitStatus, expected: Int = 0) {
     when (status) {
         case ExitStatus.Exited(code) -> assertEquals(expected, code)
         case ExitStatus.Signaled(_) -> fail(Some("unexpected signal"))
     }
 }
+
 internal fun text(bytes: Array<Byte>): String = OsString.fromByteArray(bytes).decodeUtf8()
 
 @Test
@@ -24,10 +30,16 @@ private class CommandsTest {
     @Test
     fun `arguments retain empty strings spaces quotes and invalid UTF8 bytes`() {
         val raw = OsString.fromByteArray(Array<Byte>(1L) { -1.toByte() })
-        val command = Command(Path.fromString("/bin/sh"),
-            [os("-c"), os("printf '%s\\n' \"$@\""), os("args"), os(""), os("a ' b"), raw],
-            stdin = Stdio.Null, stdout = Stdio.Pipe, stderr = Stdio.Pipe)
-        command.spawn().use { child ->
+        val command =
+            command(Path.fromString("/bin/sh")) {
+                this.arguments =
+                    [os("-c"), os("printf '%s\\n' \"$@\""), os("args"), os(""), os("a ' b"), raw]
+                this.stdin = Stdio.Null
+                this.stdout = Stdio.Pipe
+                this.stderr = Stdio.Pipe
+            }
+        command.spawn().use {
+            child ->
             val result = child.communicate()
             exited(result.status)
             assertEquals(9L, result.stdout.size)
@@ -39,51 +51,75 @@ private class CommandsTest {
 
     @Test
     fun `environment is a snapshot and cwd is the requested child directory`() {
-        TestDirectory().use { tree ->
+        TestDirectory().use {
+            tree ->
             val environment = linkedMapOf((os("VALUE"), os("first")), (os("EMPTY"), os("")))
-            val command = Command(Path.fromString("/bin/sh"),
-                [os("-c"), os("printf '%s:%s:' \"$VALUE\" \"${EMPTY+x}\"; pwd -P")],
-                environment, tree.path, Stdio.Null, Stdio.Pipe, Stdio.Pipe)
+            val command =
+                command(Path.fromString("/bin/sh")) {
+                    this.arguments =
+                        [os("-c"), os("printf '%s:%s:' \"$VALUE\" \"${EMPTY+x}\"; pwd -P")]
+                    this.environment = environment
+                    this.workingDirectory = tree.path
+                    this.stdin = Stdio.Null
+                    this.stdout = Stdio.Pipe
+                    this.stderr = Stdio.Pipe
+                }
             environment[os("VALUE")] = os("changed")
-            command.spawn().use { child ->
+            command.spawn().use {
+                child ->
                 val result = child.communicate()
                 exited(result.status)
-                assertEquals("first:x:" + tree.path.canonicalize().decodeUtf8() + "\n", text(result.stdout))
+                assertEquals(
+                    "first:x:" + tree.path.canonicalize().decodeUtf8() + "\n",
+                    text(result.stdout)
+                )
             }
         }
     }
 
     @Test
     fun `PATH search uses child environment and resolves relative entries in child cwd`() {
-        TestDirectory().use { tree ->
+        TestDirectory().use {
+            tree ->
             tree.child("bin").createDirectory()
             val executable = tree.child("bin/helper")
             File.open(executable, OpenOptions(write = true, createNew = true, mode = 0x1ed)).use {
                 it.writeText("#!/bin/sh\nprintf searched\n")
             }
             val environment = linkedMapOf((os("PATH"), os("missing:bin")))
-            val command = Command(Path.fromString("helper"), environment = environment,
-                workingDirectory = tree.path, stdin = Stdio.Null, stdout = Stdio.Pipe, stderr = Stdio.Pipe)
+            val command =
+                command(Path.fromString("helper")) {
+                    this.environment = environment
+                    this.workingDirectory = tree.path
+                    this.stdin = Stdio.Null
+                    this.stdout = Stdio.Pipe
+                    this.stderr = Stdio.Pipe
+                }
             environment[os("PATH")] = os("nowhere")
             val missing = assertFailsWith<PlatformException> { command.spawn() }
             assertTrue(missing.kind == PlatformErrorKind.NotFound)
-            command.spawn(searchPath = true).use { child ->
+            command.spawn(searchPath = true).use {
+                child ->
                 val result = child.communicate()
                 exited(result.status)
                 assertEquals("searched", text(result.stdout))
             }
             tree.child("bin/blocked").writeText("not executable")
-            val error = assertFailsWith<PlatformException> {
-                Command(Path.fromString("blocked"), environment = mapOf((os("PATH"), os("bin:missing"))),
-                    workingDirectory = tree.path).spawn(searchPath = true)
-            }
+            val error =
+                assertFailsWith<PlatformException> {
+                    command(Path.fromString("blocked")) {
+                        this.environment = mapOf((os("PATH"), os("bin:missing")))
+                        this.workingDirectory = tree.path
+                    }.spawn(searchPath = true)
+                }
             assertTrue(error.kind == PlatformErrorKind.PermissionDenied)
         }
     }
 
     @Test
     fun `wait caches nonzero status and explicit signals target only live children`() {
-        shell("exit 7").spawn().use { child ->
+        shell("exit 7").spawn().use {
+            child ->
             exited(child.wait(), 7)
             exited(child.wait(), 7)
             exited(child.tryWait()!!, 7)
@@ -91,12 +127,27 @@ private class CommandsTest {
             child.kill()
         }
         for (force in [false, true]) {
-            shell("printf 'ready\\n'; read line", Stdio.Pipe).spawn().use { child ->
+            shell("printf 'ready\\n'; read line", Stdio.Pipe).spawn().use {
+                child ->
                 assertEquals("ready", child.stdout!!.readLine()!!)
-                assertTrue(when (child.tryWait()) { case None -> true; case Some(_) -> false })
-                if (force) child.kill() else child.terminate()
+                assertTrue(
+                    when (child.tryWait()) {
+                        case None -> true;
+                        case Some(_) -> false
+                    }
+                )
+                if (force)
+                    child.kill()
+                else
+                    child.terminate()
                 when (child.wait()) {
-                    case ExitStatus.Signaled(signal) -> assertEquals(if (force) 9 else 15, signal)
+                    case ExitStatus.Signaled(signal) -> assertEquals(
+                        if (force)
+                            9
+                        else
+                            15,
+                        signal
+                    )
                     case ExitStatus.Exited(_) -> fail(Some("expected signal exit"))
                 }
             }
@@ -108,7 +159,12 @@ private class CommandsTest {
         val child = shell("printf owned").spawn()
         assertFalse(child.stdout!! is Disposable)
         val output = child.takeStdout()!!
-        assertTrue(when (child.takeStdout()) { case None -> true; case Some(_) -> false })
+        assertTrue(
+            when (child.takeStdout()) {
+                case None -> true;
+                case Some(_) -> false
+            }
+        )
         assertFailsWith<IllegalStateException> { child.communicate() }
         exited(child.wait())
         child.dispose()
@@ -119,10 +175,19 @@ private class CommandsTest {
 
     @Test
     fun `file redirect is borrowed and merged stderr uses configured stdout`() {
-        TestDirectory().use { tree ->
-            File.open(tree.child("output"), OpenOptions(write = true, createNew = true)).use { file ->
-                Command(Path.fromString("/bin/sh"), [os("-c"), os("printf out; printf err >&2")],
-                    stdin = Stdio.Null, stdout = Stdio.Redirect(file), mergeError = true).spawn().use { child ->
+        TestDirectory().use {
+            tree -> File.open(
+                tree.child("output"),
+                OpenOptions(write = true, createNew = true)
+            ).use {
+                file ->
+                command(Path.fromString("/bin/sh")) {
+                    this.arguments = [os("-c"), os("printf out; printf err >&2")]
+                    this.stdin = Stdio.Null
+                    this.stdout = Stdio.Redirect(file)
+                    this.mergeError = true
+                }.spawn().use {
+                    child ->
                     val result = child.communicate()
                     exited(result.status)
                     assertEquals(0L, result.stdout.size)
@@ -139,20 +204,32 @@ private class CommandsTest {
     @Test
     fun `bad configuration and startup errors are reported before ownership transfer`() {
         assertFailsWith<IllegalArgumentException> {
-            Command(Path.fromString("/bin/sh"), stderr = Stdio.Pipe, mergeError = true)
+            command(Path.fromString("/bin/sh")) {
+                this.stderr = Stdio.Pipe
+                this.mergeError = true
+            }
         }
         assertFailsWith<IllegalArgumentException> {
-            Command(Path.fromString("/bin/sh"), [OsString.fromByteArray(Array<Byte>(1L) { 0.toByte() })]).spawn()
+            command(Path.fromString("/bin/sh")) {
+                this.arguments = [OsString.fromByteArray(Array<Byte>(1L) { 0.toByte() })]
+            }.spawn()
         }
         assertFailsWith<IllegalArgumentException> {
-            Command(Path.fromString("/bin/sh"), environment = mapOf((os("bad=name"), os("value")))).spawn()
+            command(Path.fromString("/bin/sh")) {
+                this.environment = mapOf((os("bad=name"), os("value")))
+            }.spawn()
         }
-        val missing = assertFailsWith<PlatformException> {
-            Command(Path.fromString("/scoop-test-missing-executable"), stdin = Stdio.Pipe,
-                stdout = Stdio.Pipe, stderr = Stdio.Pipe).spawn()
-        }
+        val missing =
+            assertFailsWith<PlatformException> {
+                command(Path.fromString("/scoop-test-missing-executable")) {
+                    this.stdin = Stdio.Pipe
+                    this.stdout = Stdio.Pipe
+                    this.stderr = Stdio.Pipe
+                }.spawn()
+            }
         assertTrue(missing.kind == PlatformErrorKind.NotFound)
-        shell("exit 0").spawn().use { child ->
+        shell("exit 0").spawn().use {
+            child ->
             assertFailsWith<IllegalArgumentException> { child.communicate(Some([1.toByte()])) }
             exited(child.wait())
         }

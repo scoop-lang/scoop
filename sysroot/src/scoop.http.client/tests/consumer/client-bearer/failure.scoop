@@ -47,13 +47,13 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
             withHttpClient(
                 bearerConfig(
                     trust,
-                    HttpAuthenticationOptions([provider]),
+                    httpAuthenticationOptions { this.providers = [provider] },
                     retries =
-                        HttpRetryOptions(
-                            maxRetries = 2L,
-                            initialDelay = Duration.ZERO,
-                            maxDelay = Duration.ZERO
-                        )
+                        httpRetryOptions {
+                            this.maxRetries = 2L
+                            this.initialDelay = Duration.ZERO
+                            this.maxDelay = Duration.ZERO
+                        }
                 )
             ) suspend {
                 client ->
@@ -62,7 +62,7 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                 val first =
                     scope.launch suspend {
                         try {
-                            client.execute(HttpRequest.get(url)).close()
+                            client.execute(httpRequest(url)).close()
                         }
                         catch (error: Throwable) {
                             firstFailure.value = Some(error)
@@ -72,7 +72,7 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                 val second =
                     scope.launch suspend {
                         try {
-                            client.execute(HttpRequest.get(url)).close()
+                            client.execute(httpRequest(url)).close()
                         }
                         catch (error: Throwable) {
                             secondFailure.value = Some(error)
@@ -85,7 +85,9 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                 bearerCheck(firstFailure.value!! === original && secondFailure.value!! === original)
                 bearerDone(
                     client,
-                    HttpRequest.get(url, fields = [bearerField("Authorization", "Bearer manual")])
+                    httpRequest(url) {
+                        this.fields = [bearerField("Authorization", "Bearer manual")]
+                    }
                 )
                 bearerCheck(loads.load() == 1L && !scope.job.isCancelled)
             }

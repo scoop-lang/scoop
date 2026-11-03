@@ -33,7 +33,7 @@ internal fun observedProxyTls(trust: TrustStore, port: Int, mode: String) {
         }
     PlatformEventLoop().run suspend {
         _ ->
-        val tls = HttpClientTlsConfig(TlsTrustSource.Store(trust))
+        val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
         val proxy: HttpProxy =
             if (socks)
                 HttpProxy.Socks5(HttpSocks5Endpoint(endpoint))
@@ -48,29 +48,30 @@ internal fun observedProxyTls(trust: TrustStore, port: Int, mode: String) {
                             else
                                 Some(HttpCredentials.withToken68("Basic", "cHJveHk6c2VjcmV0")),
                         authentication =
-                            HttpAuthenticationOptions(
-                                if (mode == "connect-auth")
-                                    [provider]
-                                else
-                                    emptyList<HttpAuthenticator>()
-                            )
+                            httpAuthenticationOptions {
+                                this.providers =
+                                    if (mode == "connect-auth")
+                                        [provider]
+                                    else
+                                        emptyList<HttpAuthenticator>()
+                            }
                     )
                 )
         val config =
-            HttpClientConfig(
-                tls = tls,
-                observer = Some(log.observer()),
-                proxy = HttpProxySelector.fixed(proxy)
-            )
+            httpClientConfig {
+                this.tls = tls
+                this.observer = Some(log.observer())
+                this.proxy = HttpProxySelector.fixed(proxy)
+            }
         withHttpClient(config) suspend {
             client -> client.withWebSocket(
-                HttpWebSocketRequest(
-                    url,
-                    [
-                        observationField("Authorization", "Bearer origin"),
-                        observationField("Cookie", "origin=cookie")
-                    ]
-                )
+                httpWebSocketRequest(url) {
+                    this.fields =
+                        [
+                            observationField("Authorization", "Bearer origin"),
+                            observationField("Cookie", "origin=cookie")
+                        ]
+                }
             ) suspend {
                 result -> when (result) {
                     case Opened(session) -> {

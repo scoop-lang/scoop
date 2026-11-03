@@ -4,30 +4,41 @@ package scoop.http
  * Local limits for part headers, field counts, part counts, boundary padding, and emitted
  * data-chunk size. Counts may be zero; chunk size must be positive.
  */
-public class MultipartLimits public constructor(
+public class MultipartLimits internal constructor(
     /**
      * Maximum bytes in a part's header block.
      */
     public val maxHeaderBytes: Long = 65536L,
-        /**
+    /**
          * Maximum fields in one part.
          */
-        public val maxFields: Long = 100L,
+    public val maxFields: Long = 100L,
     /**
      * Maximum parts in the message.
      */
     public val maxParts: Long = 1024L,
-        /**
+    /**
          * Maximum permitted padding bytes on a boundary line.
          */
-        public val maxBoundaryPaddingBytes: Long = 1024L,
+    public val maxBoundaryPaddingBytes: Long = 1024L,
     /**
      * Maximum size of an emitted body-data chunk; must be positive.
      */
     public val dataChunkBytes: Long = 8192L
 ) {
     init {
-        if (maxHeaderBytes < 0L || maxFields < 0L || maxParts < 0L || maxBoundaryPaddingBytes < 0L || dataChunkBytes <= 0L)
+        if (
+            maxHeaderBytes <
+                0L ||
+                maxFields <
+                0L ||
+                maxParts <
+                0L ||
+                maxBoundaryPaddingBytes <
+                0L ||
+                dataChunkBytes <=
+                0L
+        )
             throw IllegalArgumentException(Some("invalid multipart limits"))
     }
 }
@@ -51,7 +62,9 @@ public enum MultipartLimitKind {
     /**
      * Padding on a boundary line exceeded its byte limit.
      */
-    BoundaryPaddingBytes }
+    BoundaryPaddingBytes
+}
+
 /**
  * Multipart input exceeded a configured local limit.
  */
@@ -63,8 +76,10 @@ public class MultipartLimitException public constructor(
     /**
      * The configured maximum for that category.
      */
-    public val limit: Long)
-    : Exception(Some("multipart input exceeds its configured limit of " + limit.toString()))
+    public val limit: Long
+)
+: Exception(Some("multipart input exceeds its configured limit of " + limit.toString()))
+
 /**
  * Malformed multipart syntax at a zero-based stream byte offset.
  */
@@ -76,8 +91,10 @@ public class MultipartParseException public constructor(
     /**
      * The protocol failure explanation.
      */
-    public val detail: String)
-    : Exception(Some("multipart at byte " + byteOffset.toString() + ": " + detail))
+    public val detail: String
+)
+: Exception(Some("multipart at byte " + byteOffset.toString() + ": " + detail))
+
 /**
  * Ordered multipart part, data, and completion events.
  */
@@ -97,17 +114,24 @@ public enum MultipartEvent {
     /**
      * The multipart message reached its validated end.
      */
-    End }
+    End
+}
 
 internal class MultipartGuard {
     private val busy: AtomicBoolean = AtomicBoolean(false)
     fun <T> withUse(block: () -> T): T {
-        if (!busy.compareAndSet(false, true)) throw IllegalStateException(Some("multipart codec is already in use"))
-        try { return block() } finally { busy.store(false) }
+        if (!busy.compareAndSet(false, true))
+            throw IllegalStateException(Some("multipart codec is already in use"))
+        try {
+            return block()
+        } finally {
+            busy.store(false)
+        }
     }
 }
 
 internal fun multipartAdd(left: Long, right: Long): Long {
-    if (right > Long.MAX_VALUE - left) throw ArithmeticException()
+    if (right > Long.MAX_VALUE - left)
+        throw ArithmeticException()
     return left + right
 }

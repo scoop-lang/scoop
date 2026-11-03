@@ -1,0 +1,45 @@
+package scoop.platform.process
+
+import scoop.collections.HashMap
+import scoop.platform.fs.Path
+import scoop.platform.system.OsString
+import scoop.test.*
+
+@Test
+private class CommandReceiverDslTests {
+    @Test
+    fun `command construction snapshots ordered arguments and replaced environment entries`() {
+        val captured = ArrayList<CommandBuilder>()
+        val env = HashMap<OsString, OsString>()
+        val key = OsString.fromString("SCOOP_DSL_VALUE")
+        env.put(key, OsString.fromString("first"))
+        val original =
+            command(Path.fromString("tool")) {
+                captured.add(this)
+                environment = env
+                arg(OsString.fromString("first"))
+                args([OsString.fromString("second")])
+                stdout = Stdio.Pipe
+            }
+        env.put(key, OsString.fromString("later"))
+        captured[0L].arg(OsString.fromString("third"))
+        val changed =
+            original.copy {
+                env(key, OsString.fromString("copy"));
+                arg(OsString.fromString("last"))
+            }
+        assertEquals(2L, original.arguments.size)
+        assertEquals(3L, changed.arguments.size)
+        assertEquals("second", original.arguments[1L].decodeUtf8())
+        assertEquals("first", original.environment[key]!!.decodeUtf8())
+        assertEquals("copy", changed.environment[key]!!.decodeUtf8())
+        assertEquals(original.workingDirectory, changed.workingDirectory)
+        assertEquals(0L, changed.copy { clearEnv() }.environment.size)
+        assertFailsWith<IllegalArgumentException> {
+            original.copy {
+                mergeError = true;
+                stderr = Stdio.Null
+            }
+        }
+    }
+}

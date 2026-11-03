@@ -82,33 +82,11 @@ public class Label public constructor(private val props: Props<LabelProps>): Com
     }
 }
 
-public fun label(
-    text: String,
-    style: SpanStyle? = None,
-    fonts: FontCollection? = None,
-    settings: ParagraphStyle = paragraphStyle(),
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        LabelProps(LabelText.Plain(text, style), fonts, settings, theme = theme),
-        { props -> Label(props) },
-        key
-    )
+public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): View =
+    makePlainLabel(text, configure)
 
-public fun label(
-    content: StyledText,
-    fonts: FontCollection? = None,
-    settings: ParagraphStyle = paragraphStyle(),
-    inlines: Array<InlineView> = [],
-    theme: ThemeSource? = None,
-    key: ViewKey = ViewKey.Position
-): View =
-    component(
-        LabelProps(LabelText.Styled(content), fonts, settings, inlines, theme),
-        { props -> Label(props) },
-        key
-    )
+public fun label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): View =
+    makeStyledLabel(content, configure)
 
 private class PlainLabel(
     val text: String,

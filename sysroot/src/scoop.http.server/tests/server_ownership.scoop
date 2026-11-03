@@ -9,9 +9,8 @@ import scoop.text.contains
 private class ServerOwnershipTests {
     @Test
     fun `registration failure leaves the listener available to its caller`() {
-        val routes = RouterBuilder()
-        routes.get("/", suspend { _ -> text("owned") })
-        val app = routes.build()
+        val routes = routing { this.get("/", suspend { _ -> text("owned") }) }
+        val app = routes
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             scope ->
@@ -39,10 +38,9 @@ private class ServerOwnershipTests {
 
     @Test
     fun `a peer half close still permits its final HTTP response`() {
-        val routes = RouterBuilder()
-        routes.get("/", suspend { _ -> text("half-closed") })
+        val routes = routing { this.get("/", suspend { _ -> text("half-closed") }) }
         withServer(
-            routes.build(),
+            routes,
             block =
                 suspend {
                     _,

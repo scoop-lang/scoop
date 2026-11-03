@@ -1,0 +1,114 @@
+package scoop.http.client
+
+import scoop.http.*
+import scoop.http.asyncio.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.url.Url
+
+@Test
+private class ClientReceiverDslTests {
+    @Test
+    fun `nested defaults retain prior edits while per-call None restores inheritance`() {
+        val captured = ArrayList<HttpClientConfigBuilder>()
+        val defaults =
+            httpClientConfig {
+                captured.add(this)
+                timeouts { readIdle = Some(Duration.seconds(7L)) }
+                timeouts { writeIdle = Some(Duration.seconds(9L)) }
+                timeouts {}
+                pool { maxConnections = 12L }
+                pool { maxConnectionsPerOrigin = 3L }
+                http2Limits { headers { maxFields = 51L } }
+            }
+        captured[0L].timeouts { readIdle = None }
+        assertEquals(Some(Duration.seconds(7L)), defaults.timeouts.readIdle)
+        assertEquals(Some(Duration.seconds(9L)), defaults.timeouts.writeIdle)
+        assertEquals(12L, defaults.pool.maxConnections)
+        assertEquals(3L, defaults.pool.maxConnectionsPerOrigin)
+        assertEquals(51L, defaults.http2Limits.headers.maxFields)
+        val options =
+            httpCallOptions {
+                timeouts { readIdle = Some(Duration.seconds(2L)) }
+                timeouts { writeIdle = Some(Duration.seconds(3L)) }
+                retries { maxRetries = 0L }
+            }
+        val inherited = options.copy { timeouts = None }
+        assertEquals(Some(Duration.seconds(2L)), options.timeouts!!.readIdle)
+        assertEquals(Some(Duration.seconds(3L)), options.timeouts!!.writeIdle)
+        assertFalse(clientPresent(inherited.timeouts))
+        assertEquals(0L, inherited.retries!!.maxRetries)
+    }
+
+    @Test
+    fun `request copy recomputes derived body fields and preserves independent caller fields`() {
+        val values = ArrayList<HttpRequestBuilder>()
+        val original =
+            httpRequest(Url.parse("https://example.com/upload")) {
+                values.add(this)
+                method = "POST"
+                fields { add("X-Order", "one") }
+                fields { add("x-order", "two") }
+                body = RequestBody.fromText("text")
+                options { expectContinue = true }
+            }
+        val changed =
+            original.copy {
+                body = RequestBody.fromByteArray([1.toByte()], Some(HttpMediaType("image", "png")))
+                options { expectContinue = false }
+                fields { set("X-Order", "replaced") }
+            }
+        values[0L].fields = []
+        assertEquals(2L, original.fields.findAll("X-Order".toByteArray()).size)
+        assertEquals(1L, changed.fields.findAll("X-Order".toByteArray()).size)
+        assertEquals(
+            "image/png",
+            String.fromUtf8(changed.fields.findAll("Content-Type".toByteArray())[0L].value)
+        )
+        assertEquals(Some(1L), changed.contentLength)
+        assertFalse(changed.expectsContinue)
+        assertEquals(0L, changed.fields.findAll("Expect".toByteArray()).size)
+    }
+
+    @Test
+    fun `multipart construction collects plans without consuming a producer`() {
+        val called = ArrayList<Unit>()
+        val body =
+            RequestBody.fromProducer(contentLength = Some(0L)) suspend { _ -> called.add(Unit) }
+        val captured = ArrayList<MultipartBodyBuilder>()
+        val multipart =
+            multipartBody {
+                captured.add(this)
+                boundary = MultipartBoundary("receiver-dsl")
+                formData("upload", body) {
+                    filename = Some("file.txt");
+                    fields { add("X-Part", "one") }
+                }
+            }
+        captured[0L].add(formDataPart("late", RequestBody.fromText("late")))
+        assertEquals(0L, called.size)
+        assertFalse(multipart.isReplayable)
+        assertTrue(multipart.contentLength != None)
+        assertTrue(captured[0L].snapshot().contentLength!! > multipart.contentLength!!)
+    }
+
+    @Test
+    fun `session limits follow the configured wire limit until explicitly replaced`() {
+        val defaults = webSocketSessionOptions { incomingLimits { maxMessageBytes = 4096L } }
+        val explicit =
+            defaults.copy {
+                incomingLimits { maxMessageBytes = 8192L }
+                maxDecompressedMessageBytes = 2048L
+            }
+        assertEquals(4096L, defaults.maxDecompressedMessageBytes)
+        assertEquals(2048L, explicit.maxDecompressedMessageBytes)
+        assertEquals(8192L, explicit.incomingLimits.maxMessageBytes)
+        val failure = IllegalStateException(Some("request config"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                httpRequest(Url.parse("https://example.com/")) { fields { throw failure } }
+            }
+        )
+    }
+}

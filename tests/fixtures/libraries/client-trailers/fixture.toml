@@ -27,5 +27,5 @@ diagnostics = []
 name = "run"
 argv = ["${python}", "${fixture}/peer.py", "${build.result.output}"]
 exit = 0
-stdout = "independent chunked gzip Continue and h2c trailers passed\nparallel HTTP2 trailers passed\n"
+stdout = "independent chunked gzip Continue and h2c trailers passed\n"
 stderr = ""

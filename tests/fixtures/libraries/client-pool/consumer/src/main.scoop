@@ -13,7 +13,7 @@ private fun check(value: Boolean) {
 }
 
 private suspend fun readReply(client: HttpClient, url: Url, expected: String) {
-    client.withResponse(HttpRequest.get(url)) suspend {
+    client.withResponse(httpRequest(url)) suspend {
         response ->
         check(response.status == 200U)
         check(String.fromUtf8(response.body.readAllBytes(100L)) == expected)
@@ -26,13 +26,13 @@ private suspend fun exerciseHttp1(client: HttpClient, base: Url) {
         readReply(client, base.resolve("reuse/" + index.toString()), index.toString())
         index += 1L
     }
-    client.execute(HttpRequest.get(base.resolve("abandon"))).close()
+    client.execute(httpRequest(base.resolve("abandon"))).close()
     readReply(client, base.resolve("new"), "new")
 }
 
 private suspend fun exerciseHttp2(client: HttpClient, scope: CoroutineScope, base: Url) {
-    val first = client.execute(HttpRequest.get(base.resolve("first")))
-    val second = client.execute(HttpRequest.get(base.resolve("second")))
+    val first = client.execute(httpRequest(base.resolve("first")))
+    val second = client.execute(httpRequest(base.resolve("second")))
     val queued = scope.launch suspend { readReply(client, base.resolve("third"), "third") }
     check(!queued.isCompleted)
     first.close()
@@ -52,20 +52,20 @@ fun main(args: Array<String>) {
         loop.run suspend {
             scope ->
             val config =
-                HttpClientConfig(
-                    cleartext =
+                httpClientConfig {
+                    this.cleartext =
                         if (h2)
                             HttpCleartextProtocol.Http2PriorKnowledge
                         else
-                            HttpCleartextProtocol.Http1,
-                    tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                    pool =
-                        HttpConnectionPoolOptions(
-                            maxConnectionsPerOrigin = 1L,
-                            maxConnections = 2L,
-                            maxStreamsPerHttp2 = 8L
-                        )
-                )
+                            HttpCleartextProtocol.Http1
+                    this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                    this.pool =
+                        httpConnectionPoolOptions {
+                            this.maxConnectionsPerOrigin = 1L
+                            this.maxConnections = 2L
+                            this.maxStreamsPerHttp2 = 8L
+                        }
+                }
             withHttpClient(config) suspend {
                 client -> if (h2)
                     exerciseHttp2(client, scope, base)

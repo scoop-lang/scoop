@@ -78,7 +78,11 @@ internal fun basicHttp2(trust: TrustStore) {
             }
         try {
             withHttpClient(
-                basicConfig(trust, HttpAuthenticationOptions([provider]), h2 = true)
+                basicConfig(
+                    trust,
+                    httpAuthenticationOptions { this.providers = [provider] },
+                    h2 = true
+                )
             ) suspend {
                 client ->
                 val failure = BasicFailureHolder()
@@ -92,15 +96,15 @@ internal fun basicHttp2(trust: TrustStore) {
                     scope.launch suspend {
                         try {
                             client.withResponse(
-                                HttpRequest.post(
-                                    url,
-                                    body,
-                                    options =
-                                        HttpCallOptions(
-                                            expectContinue = true,
-                                            continueWait = Duration.seconds(3600L)
-                                        )
-                                )
+                                httpRequest(url) {
+                                    this.method = "POST"
+                                    this.body = body
+                                    this.options =
+                                        httpCallOptions {
+                                            this.expectContinue = true
+                                            this.continueWait = Duration.seconds(3600L)
+                                        }
+                                }
                             ) suspend {
                                 response -> basicCheck(
                                     response.authenticationCount ==
@@ -114,7 +118,7 @@ internal fun basicHttp2(trust: TrustStore) {
                         }
                     }
                 firstSeen.await()
-                client.withResponse(HttpRequest.get(url.resolve("/public"))) suspend {
+                client.withResponse(httpRequest(url.resolve("/public"))) suspend {
                     response ->
                     NativeByteBuffer.allocate(4L).use suspend {
                         buffer ->

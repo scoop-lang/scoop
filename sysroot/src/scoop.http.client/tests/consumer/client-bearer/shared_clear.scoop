@@ -27,14 +27,17 @@ internal fun bearerSharedClear(trust: TrustStore) {
                 }
             }
         val client =
-            HttpClient.open(scope, bearerConfig(trust, HttpAuthenticationOptions([provider])))
+            HttpClient.open(
+                scope,
+                bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+            )
         val firstFailure = BearerFailureHolder()
         val secondFailure = BearerFailureHolder()
         val closeFailure = BearerFailureHolder()
         val first =
             scope.launch suspend {
                 try {
-                    client.execute(HttpRequest.get(url)).close()
+                    client.execute(httpRequest(url)).close()
                 }
                 catch (error: Throwable) {
                     firstFailure.value = Some(error)
@@ -44,7 +47,7 @@ internal fun bearerSharedClear(trust: TrustStore) {
         val second =
             scope.launch suspend {
                 try {
-                    client.execute(HttpRequest.get(url)).close()
+                    client.execute(httpRequest(url)).close()
                 }
                 catch (error: Throwable) {
                     secondFailure.value = Some(error)

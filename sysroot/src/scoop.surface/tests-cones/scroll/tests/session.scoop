@@ -15,7 +15,9 @@ private class NativeScrollTest {
         val probe = NativeScrollSession()
         SurfaceHost { host, active, event -> probe.event(host, active, event) }.use {
             host -> try {
-                Application(ApplicationOptions(LastWindowPolicy.Exit)).run(host)
+                Application(
+                    applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                ).run(host)
                 assertTrue(probe.finished)
                 assertTrue(probe.contentClosed)
                 assertTrue(probe.view!!.restored())
@@ -55,7 +57,10 @@ internal class NativeScrollSession {
             case Resumed -> {
                 val native =
                     active.createWindow(
-                        WindowAttributes("Scoop native scroll", LogicalSize(260.0, 160.0))
+                        windowAttributes {
+                            this.title = "Scoop native scroll"
+                            this.size = LogicalSize(260.0, 160.0)
+                        }
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
@@ -160,9 +165,9 @@ internal class NativeScrollSession {
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(
-                    f"native scroll timeout: phase=${phase}, inner=${innerEvents}, outer=${
-                        outerEvents
-                    }"
+                    f"native scroll timeout: phase=${this @NativeScrollSession.phase}, inner=${
+                        this @NativeScrollSession.innerEvents
+                    }, outer=${this @NativeScrollSession.outerEvents}"
                 )
             )
             else -> {}

@@ -32,21 +32,28 @@ internal class RevealScene(private val probe: RevealProbe): Component {
                                         else
                                             empty()
                                     ]
-                                ),
-                                state = Some(probe.inner),
-                                axes = ScrollAxes.Both,
-                                scrollbars = ScrollbarVisibility.Hidden,
-                                focus = FocusOptions(Some(probe.innerFocus), tabStop = false),
-                                theme = Some(probe.theme)
-                            )
+                                )
+                            ) {
+                                this.state = Some(this @RevealScene.probe.inner)
+                                this.axes = ScrollAxes.Both
+                                this.scrollbars = ScrollbarVisibility.Hidden
+                                this.focus =
+                                    FocusOptions(
+                                        Some(this @RevealScene.probe.innerFocus),
+                                        tabStop = false
+                                    )
+                                this.theme = Some(this @RevealScene.probe.theme)
+                            }
                         ]
-                    ),
-                    state = Some(probe.outer),
-                    axes = ScrollAxes.Both,
-                    scrollbars = ScrollbarVisibility.Hidden,
-                    focus = FocusOptions(Some(probe.outerFocus), tabStop = false),
-                    theme = Some(probe.theme)
-                ),
+                    )
+                ) {
+                    this.state = Some(this @RevealScene.probe.outer)
+                    this.axes = ScrollAxes.Both
+                    this.scrollbars = ScrollbarVisibility.Hidden
+                    this.focus =
+                        FocusOptions(Some(this @RevealScene.probe.outerFocus), tabStop = false)
+                    this.theme = Some(this @RevealScene.probe.theme)
+                },
                 tile(probe, 2L)
             ]
         )
@@ -133,11 +140,16 @@ private class InnerDocument(private val probe: RevealProbe): Element {
         probe.group =
             Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[1L]))))
         scope.keyNavigation(
-            NavigationOptions(
-                [NavigationItem(probe.handles[5L]), NavigationItem(probe.handles[1L])],
-                layout = NavigationLayout.Vertical,
-                roving = false
-            )
+            navigationOptions {
+                this.addAll(
+                    [
+                        NavigationItem(this @InnerDocument.probe.handles[5L]),
+                        NavigationItem(this @InnerDocument.probe.handles[1L])
+                    ]
+                )
+                this.layout = NavigationLayout.Vertical
+                this.roving = false
+            }
         )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {

@@ -26,15 +26,16 @@ internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Comp
                             )
                                 ItemExtent.Fixed(24.0)
                             else
-                                ItemExtent.Variable(24.0),
-                            Some(probe.scroll),
-                            orientation = probe.orientation.value,
-                            enabled = probe.enabled.value,
-                            scrollbars = ScrollbarVisibility.Hidden,
-                            theme = Some(probe.theme),
-                            handle = Some(probe.list),
-                            navigation = probe.navigation.value
-                        )
+                                ItemExtent.Variable(24.0)
+                        ) {
+                            this.state = Some(this @ItemNavigationScene.probe.scroll)
+                            this.orientation = this @ItemNavigationScene.probe.orientation.value
+                            this.enabled = this @ItemNavigationScene.probe.enabled.value
+                            this.scrollbars = ScrollbarVisibility.Hidden
+                            this.theme = Some(this @ItemNavigationScene.probe.theme)
+                            this.handle = Some(this @ItemNavigationScene.probe.list)
+                            this.navigation = this @ItemNavigationScene.probe.navigation.value
+                        }
                     ]
                 ),
                 element({ NavigationEdge(probe.tail, false) })

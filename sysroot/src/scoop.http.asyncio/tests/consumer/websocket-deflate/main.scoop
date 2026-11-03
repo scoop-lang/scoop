@@ -41,12 +41,12 @@ fun check(value: Boolean, location: SourceLocation = currentSourceLocation()) {
 }
 
 fun sessionOptions(): WebSocketSessionOptions =
-    WebSocketSessionOptions(
-        WebSocketFrameLimits(dataChunkBytes = 31L),
-        inputBufferBytes = 97L,
-        outgoingFrameBytes = 31L,
-        closeTimeout = Duration.seconds(60L)
-    )
+    webSocketSessionOptions {
+        this.incomingLimits = WebSocketFrameLimits(dataChunkBytes = 31L)
+        this.inputBufferBytes = 97L
+        this.outgoingFrameBytes = 31L
+        this.closeTimeout = Duration.seconds(60L)
+    }
 
 private fun exerciseConsumer(args: Array<String>) {
     try {

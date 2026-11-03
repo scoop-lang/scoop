@@ -3,18 +3,27 @@ package scoop.http.server
 import scoop.test.*
 
 private class IsolationMarker(val value: String)
-private class ApplicationCounter(val label: String) { var count: Int = 0 }
+
+private class ApplicationCounter(val label: String) {
+    var count: Int = 0
+}
 
 context(marker: IsolationMarker)
 private fun markerValue(): String = marker.value
 
 private fun counterApplication(counter: ApplicationCounter): HttpApplication {
-    val routes = RouterBuilder()
-    routes.get("/", suspend { _ ->
-        counter.count += 1
-        text(counter.label + counter.count.toString())
-    })
-    return routes.build()
+    val routes =
+        routing {
+            this.get(
+                "/",
+                suspend {
+                    _ ->
+                    counter.count += 1
+                    text(counter.label + counter.count.toString())
+                }
+            )
+        }
+    return routes
 }
 
 @Test
@@ -31,16 +40,30 @@ private class ServerIsolationTests {
     @Test
     fun `nested middleware bindings restore their enclosing context`() {
         val order = StringBuilder()
-        val routes = RouterBuilder()
-        routes.use(suspend { _, next ->
-            context(IsolationMarker("request")) { next(); order.append(markerValue()) }
-            order.append(markerValue())
-        })
-        routes.get("/", suspend { _ ->
-            context(IsolationMarker("endpoint")) { order.append(markerValue()) }
-            text(markerValue())
-        })
-        val application = routes.build()
+        val routes =
+            routing {
+                this.use(
+                    suspend {
+                        _, next ->
+                        context(IsolationMarker("request")) {
+                            next();
+                            order.append(markerValue())
+                        }
+                        order.append(markerValue())
+                    }
+                )
+                this.get(
+                    "/",
+                    suspend {
+                        _ ->
+                        context(IsolationMarker("endpoint")) {
+                            order.append(markerValue())
+                        }
+                        text(markerValue())
+                    }
+                )
+            }
+        val application = routes
         context(IsolationMarker("caller")) {
             assertEquals("request", exercise(application).text())
             assertEquals("caller", markerValue())
@@ -52,12 +75,20 @@ private class ServerIsolationTests {
     fun `failed mapper aborts once and does not recursively map itself`() {
         val calls = TestCounter()
         val failure = IllegalStateException(Some("mapper failed"))
-        val routes = RouterBuilder()
-        routes.get("/", suspend { _ -> throw IllegalArgumentException() })
-        val app = routes.build(HttpApplicationOptions(errorMapper = suspend { _, _ ->
-            calls.value += 1
-            throw failure
-        }))
+        val routes =
+            routing {
+                this.application =
+                    httpApplicationOptions {
+                        this.errorMapper =
+                            suspend {
+                                _, _ ->
+                                calls.value += 1
+                                throw failure
+                            }
+                    }
+                this.get("/", suspend { _ -> throw IllegalArgumentException() })
+            }
+        val app = routes
         val result = exercise(app)
         assertSame(failure, result.failure!!)
         assertEquals(1, calls.value)
@@ -68,18 +99,37 @@ private class ServerIsolationTests {
     @Test
     fun `cleanup failure preserves completed status and bodyless responses skip producers`() {
         val calls = TestCounter()
-        val routes = RouterBuilder()
-        routes.use(suspend { _, next -> next(); throw IllegalStateException(Some("cleanup")) })
-        routes.get("/", suspend { _ -> text("sent", 201U) })
-        val result = exercise(routes.build())
+        val routes =
+            routing {
+                this.use(
+                    suspend {
+                        _, next ->
+                        next();
+                        throw IllegalStateException(Some("cleanup"))
+                    }
+                )
+                this.get("/", suspend { _ -> text("sent", 201U) })
+            }
+        val result = exercise(routes)
         assertEquals(201U, result.context.response.status!!)
         assertTrue(result.context.response.isFinished)
         assertFalse(result.context.response.isAborted)
         assertEquals("sent", result.text())
         for (status in [204U, 205U, 304U]) {
-            val bodyless = RouterBuilder()
-            bodyless.get("/", suspend { _ -> stream("text/plain", suspend { _ -> calls.value += 1 }, status = status) })
-            assertEquals("", exercise(bodyless.build()).text())
+            val bodyless =
+                routing {
+                    this.get(
+                        "/",
+                        suspend {
+                            _ -> stream(
+                                "text/plain",
+                                suspend { _ -> calls.value += 1 },
+                                status = status
+                            )
+                        }
+                    )
+                }
+            assertEquals("", exercise(bodyless).text())
         }
         assertEquals(0, calls.value)
     }

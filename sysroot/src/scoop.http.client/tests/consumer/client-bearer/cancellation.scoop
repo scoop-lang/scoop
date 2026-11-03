@@ -68,21 +68,28 @@ internal fun bearerCancellation(trust: TrustStore, mode: String, cleanup: String
                     }
                 )
         val client =
-            HttpClient.open(scope, bearerConfig(trust, HttpAuthenticationOptions([provider])))
+            HttpClient.open(
+                scope,
+                bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+            )
         val failure = BearerFailureHolder()
         val closeFailure = BearerFailureHolder()
         val executing =
             scope.launch suspend {
                 try {
                     val options =
-                        HttpCallOptions(
-                            timeouts =
+                        httpCallOptions {
+                            this.timeouts =
                                 if (mode == "total")
-                                    Some(HttpTimeoutOptions(total = Some(Duration.seconds(15L))))
+                                    Some(
+                                        httpTimeoutOptions {
+                                            this.total = Some(Duration.seconds(15L))
+                                        }
+                                    )
                                 else
                                     None
-                        )
-                    client.execute(HttpRequest.get(url, options = options)).close()
+                        }
+                    client.execute(httpRequest(url) { this.options = options }).close()
                 } catch (error: Throwable) {
                     failure.value = Some(error)
                 }
@@ -114,7 +121,7 @@ internal fun bearerCancellation(trust: TrustStore, mode: String, cleanup: String
                 if (mode == "client")
                     None
                 else
-                    Some(scope.async<Unit> suspend { bearerDone(client, HttpRequest.get(url)) })
+                    Some(scope.async<Unit> suspend { bearerDone(client, httpRequest(url)) })
             bearerCheck(loads.load() == 1L && !executing.isCompleted)
             if (bearerPresent(next))
                 bearerCheck(!next!!.isCompleted)
@@ -184,13 +191,15 @@ internal fun bearerClearInsideCallback(trust: TrustStore) {
                     bearerRespond(connection, 200U, "done")
                 }
             }
-        withHttpClient(bearerConfig(trust, HttpAuthenticationOptions([provider]))) suspend {
+        withHttpClient(
+            bearerConfig(trust, httpAuthenticationOptions { this.providers = [provider] })
+        ) suspend {
             client ->
             holder.client = Some(client)
             bearerFailure<CancellationException> suspend {
-                client.execute(HttpRequest.get(url)).close()
+                client.execute(httpRequest(url)).close()
             }
-            bearerDone(client, HttpRequest.get(url))
+            bearerDone(client, httpRequest(url))
             bearerCheck(loads.load() == 2L)
         }
         serving.join()

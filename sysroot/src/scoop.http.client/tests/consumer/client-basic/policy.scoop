@@ -87,14 +87,14 @@ internal fun basicPolicies(trust: TrustStore, mode: String) {
         withHttpClient(
             basicConfig(
                 trust,
-                HttpAuthenticationOptions(
-                    [provider],
-                    maxAttempts =
+                httpAuthenticationOptions {
+                    this.providers = [provider]
+                    this.maxAttempts =
                         if (mode == "limit")
                             1L
                         else
                             3L
-                )
+                }
             )
         ) suspend {
             client ->
@@ -113,24 +113,24 @@ internal fun basicPolicies(trust: TrustStore, mode: String) {
                 else
                     []
             val options =
-                HttpCallOptions(
-                    authentication =
+                httpCallOptions {
+                    this.authentication =
                         if (mode == "disabled")
-                            Some(HttpAuthenticationOptions())
+                            Some(httpAuthenticationOptions())
                         else
                             None
-                )
+                }
             val request =
-                HttpRequest(
-                    url,
-                    if (mode == "sent")
-                        "POST"
-                    else
-                        "GET",
-                    fields,
-                    body,
-                    options
-                )
+                httpRequest(url) {
+                    this.method =
+                        if (mode == "sent")
+                            "POST"
+                        else
+                            "GET"
+                    this.fields = fields
+                    this.body = body
+                    this.options = options
+                }
             if (mode == "manual" || mode == "disabled" || mode == "realm") {
                 client.withResponse(request) suspend {
                     response ->

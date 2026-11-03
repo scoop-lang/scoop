@@ -14,19 +14,19 @@ internal fun powerShellPath(): Path =
     .resolve(Path.fromString("System32/WindowsPowerShell/v1.0/powershell.exe"))
 
 internal fun windowsCommand(script: String, input: Stdio = Stdio.Null): Command =
-    Command(
-        powerShellPath(),
-        [
-            processOs("-NoLogo"),
-            processOs("-NoProfile"),
-            processOs("-NonInteractive"),
-            processOs("-Command"),
-            processOs(script)
-        ],
-        stdin = input,
-        stdout = Stdio.Pipe,
-        stderr = Stdio.Pipe
-    )
+    command(powerShellPath()) {
+        this.arguments =
+            [
+                processOs("-NoLogo"),
+                processOs("-NoProfile"),
+                processOs("-NonInteractive"),
+                processOs("-Command"),
+                processOs(script)
+            ]
+        this.stdin = input
+        this.stdout = Stdio.Pipe
+        this.stderr = Stdio.Pipe
+    }
 
 internal fun windowsExited(status: ExitStatus, expected: Int = 0) {
     when (status) {
@@ -82,31 +82,30 @@ private class WindowsCommandsTest {
                 (processOs("pAtH"), directory.toOsString())
             )
         val command =
-            Command(
-                Path.fromString("powershell"),
-                [
-                    processOs("-NoProfile"),
-                    processOs("-NonInteractive"),
-                    processOs("-Command"),
-                    processOs("exit 9")
-                ],
-                environment = environment,
-                stdin = Stdio.Null,
-                stdout = Stdio.Null,
-                stderr = Stdio.Null
-            )
+            command(Path.fromString("powershell")) {
+                this.arguments =
+                    [
+                        processOs("-NoProfile"),
+                        processOs("-NonInteractive"),
+                        processOs("-Command"),
+                        processOs("exit 9")
+                    ]
+                this.environment = environment
+                this.stdin = Stdio.Null
+                this.stdout = Stdio.Null
+                this.stderr = Stdio.Null
+            }
         environment[processOs("pAtH")] = processOs("missing")
         assertFailsWith<PlatformException> { command.spawn() }
         command.spawn(searchPath = true).use { windowsExited(it.wait(), 9) }
-        Command(
-            Path.fromString("powershell"),
-            command.arguments,
-            environment = mapOf((processOs("SystemRoot"), root)),
-            workingDirectory = directory,
-            stdin = Stdio.Null,
-            stdout = Stdio.Null,
-            stderr = Stdio.Null
-        )
+        command(Path.fromString("powershell")) {
+            this.arguments = command.arguments
+            this.environment = mapOf((processOs("SystemRoot"), root))
+            this.workingDirectory = directory
+            this.stdin = Stdio.Null
+            this.stdout = Stdio.Null
+            this.stderr = Stdio.Null
+        }
         .spawn(searchPath = true).use { windowsExited(it.wait(), 9) }
     }
 
@@ -128,24 +127,24 @@ private class WindowsCommandsTest {
                     (processOs("SCOOP_PROCESS_VALUE"), raw)
                 )
             val command =
-                Command(
-                    powerShellPath(),
-                    [
-                        processOs("-NoLogo"),
-                        processOs("-NoProfile"),
-                        processOs("-NonInteractive"),
-                        processOs("-Command"),
-                        processOs(script),
-                        processOs(""),
-                        processOs("a \"b\"\\"),
-                        raw
-                    ],
-                    environment = values,
-                    workingDirectory = tree.path,
-                    stdin = Stdio.Null,
-                    stdout = Stdio.Pipe,
-                    stderr = Stdio.Pipe
-                )
+                command(powerShellPath()) {
+                    this.arguments =
+                        [
+                            processOs("-NoLogo"),
+                            processOs("-NoProfile"),
+                            processOs("-NonInteractive"),
+                            processOs("-Command"),
+                            processOs(script),
+                            processOs(""),
+                            processOs("a \"b\"\\"),
+                            raw
+                        ]
+                    this.environment = values
+                    this.workingDirectory = tree.path
+                    this.stdin = Stdio.Null
+                    this.stdout = Stdio.Pipe
+                    this.stderr = Stdio.Pipe
+                }
             values[processOs("SCOOP_PROCESS_VALUE")] = processOs("changed")
             command.spawn().use {
                 child ->
@@ -187,13 +186,12 @@ private class WindowsCommandsTest {
                 file ->
                 val command =
                     windowsCommand("[Console]::Out.Write('out'); [Console]::Error.Write('err')")
-                Command(
-                    command.executable,
-                    command.arguments,
-                    stdin = Stdio.Null,
-                    stdout = Stdio.Redirect(file),
-                    mergeError = true
-                ).spawn().use {
+                command(command.executable) {
+                    this.arguments = command.arguments
+                    this.stdin = Stdio.Null
+                    this.stdout = Stdio.Redirect(file)
+                    this.mergeError = true
+                }.spawn().use {
                     process ->
                     val result = process.communicate()
                     windowsExited(result.status)
@@ -211,33 +209,36 @@ private class WindowsCommandsTest {
     fun invalidInputsAndMissingExecutablesPreserveTheWindowsErrorDomain() {
         val invalid =
             assertFailsWith<PlatformException> {
-                Command(
-                    powerShellPath(),
-                    environment =
+                command(powerShellPath()) {
+                    this.environment =
                         mapOf(
                             (processOs("PATH"), processOs("one")),
                             (processOs("Path"), processOs("two"))
                         )
-                ).spawn()
+                }.spawn()
             }
         assertTrue(invalid.nativeError!!.domain == NativeErrorDomain.Win32)
         assertEquals(87, invalid.nativeError!!.code)
         val missing =
             assertFailsWith<PlatformException> {
-                Command(
-                    Path.fromString("scoop-missing-process-test.exe"),
-                    stdin = Stdio.Pipe,
-                    stdout = Stdio.Pipe,
-                    stderr = Stdio.Pipe
-                ).spawn()
+                command(Path.fromString("scoop-missing-process-test.exe")) {
+                    this.stdin = Stdio.Pipe
+                    this.stdout = Stdio.Pipe
+                    this.stderr = Stdio.Pipe
+                }.spawn()
             }
         assertTrue(missing.kind == PlatformErrorKind.NotFound)
         assertTrue(missing.nativeError!!.domain == NativeErrorDomain.Win32)
         assertFailsWith<IllegalArgumentException> {
-            Command(powerShellPath(), [OsString.fromByteArray([0.toByte()])]).spawn()
+            command(powerShellPath()) {
+                this.arguments = [OsString.fromByteArray([0.toByte()])]
+            }.spawn()
         }
         assertFailsWith<IllegalArgumentException> {
-            Command(powerShellPath(), stderr = Stdio.Pipe, mergeError = true)
+            command(powerShellPath()) {
+                this.stderr = Stdio.Pipe
+                this.mergeError = true
+            }
         }
         val unsupported = assertFailsWith<PlatformException> { suspendCurrentProcess() }
         assertTrue(unsupported.kind == PlatformErrorKind.Unsupported)

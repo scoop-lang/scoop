@@ -14,7 +14,7 @@ private class MultipartRequestBodyTest {
         val fields = ArrayList<HttpField>()
         fields.add(HttpField("content-type".toByteArray(), "application/custom".toByteArray()))
         fields.add(HttpField("X-Part".toByteArray(), "retained".toByteArray()))
-        val part = RequestBodyPart(RequestBody.fromText("one"), fields)
+        val part = requestBodyPart(RequestBody.fromText("one")) { this.fields = fields }
         fields.clear()
         assertEquals(
             "application/custom",
@@ -23,8 +23,14 @@ private class MultipartRequestBodyTest {
         assertEquals(2L, part.head.fields.size)
         val parts = ArrayList<RequestBodyPart>()
         parts.add(part)
-        parts.add(RequestBodyPart.formData("中文", RequestBody.fromText("two"), Some("报告.txt")))
-        val body = RequestBody.fromMultipart(parts, MultipartBoundary("quoted boundary"))
+        parts.add(
+            formDataPart("中文", RequestBody.fromText("two")) { this.filename = Some("报告.txt") }
+        )
+        val body =
+            multipartBody {
+                this.addAll(parts)
+                this.boundary = MultipartBoundary("quoted boundary")
+            }
         parts.clear()
         assertTrue(body.isReplayable)
         val loop: EventLoop = PlatformEventLoop()
@@ -46,7 +52,7 @@ private class MultipartRequestBodyTest {
                 opened.add(input)
                 input
             }
-        val body = RequestBody.fromMultipart([RequestBodyPart.formData("file", source)])
+        val body = multipartBody { this.addAll([formDataPart("file", source)]) }
         assertTrue(body.isReplayable)
         assertTrue(body.contentLength == None)
         assertEquals(0L, opened.size)
@@ -65,12 +71,14 @@ private class MultipartRequestBodyTest {
     fun `a multipart body containing one single source rejects reuse before another delimiter`() {
         val source = BodyTestSource("once".toByteArray())
         val body =
-            RequestBody.fromMultipart(
-                [
-                    RequestBodyPart(RequestBody.fromText("before")),
-                    RequestBodyPart(RequestBody.fromSource(source))
-                ]
-            )
+            multipartBody {
+                this.addAll(
+                    [
+                        requestBodyPart(RequestBody.fromText("before")),
+                        requestBodyPart(RequestBody.fromSource(source))
+                    ]
+                )
+            }
         assertFalse(body.isReplayable)
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
@@ -85,14 +93,21 @@ private class MultipartRequestBodyTest {
     @Test
     fun `empty and nested multipart bodies use the same streaming encoding`() {
         val empty =
-            RequestBody.fromMultipart(emptyList<RequestBodyPart>(), MultipartBoundary("empty"))
+            multipartBody {
+                this.addAll(emptyList<RequestBodyPart>())
+                this.boundary = MultipartBoundary("empty")
+            }
         val inner =
-            RequestBody.fromMultipart(
-                [RequestBodyPart(RequestBody.fromText("inside"))],
-                MultipartBoundary("inner"),
-                "mixed"
-            )
-        val outer = RequestBody.fromMultipart([RequestBodyPart(inner)], MultipartBoundary("outer"))
+            multipartBody {
+                this.addAll([requestBodyPart(RequestBody.fromText("inside"))])
+                this.boundary = MultipartBoundary("inner")
+                this.subtype = "mixed"
+            }
+        val outer =
+            multipartBody {
+                this.addAll([requestBodyPart(inner)])
+                this.boundary = MultipartBoundary("outer")
+            }
         val loop: EventLoop = PlatformEventLoop()
         loop.run suspend {
             _ ->

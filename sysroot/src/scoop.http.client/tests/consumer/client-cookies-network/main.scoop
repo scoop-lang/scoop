@@ -1,0 +1,30 @@
+package scoop.http.client.tests.consumer.client_cookies_network
+
+import scoop.crypto.x509.TrustStore
+import scoop.tests.scoop.crypto.testdata.rootPem
+import scoop.test.*
+
+@Test
+private class CookieLifecycleTests {
+    @Test
+    fun http2() {
+        TrustStore.fromPem(rootPem()).use { trust -> cookieHttp2(trust) }
+    }
+    @Test
+    fun failures() {
+        for (saving in [false, true])
+            TrustStore.fromPem(rootPem()).use { trust -> cookieCallbackFailure(trust, saving) }
+    }
+    @Test
+    fun cancellation() {
+        for (saving in [false, true]) {
+            for (mode in ["caller", "client", "total"])
+                TrustStore.fromPem(rootPem()).use {
+                    trust -> cookieCancellation(trust, saving, mode, false)
+                }
+            TrustStore.fromPem(rootPem()).use {
+                trust -> cookieCancellation(trust, saving, "client", true)
+            }
+        }
+    }
+}

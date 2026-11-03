@@ -62,26 +62,28 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
         key: ViewKey = ViewKey.Text("second")
     ): View =
         portal(
-            element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children),
-            PortalOptions(
-                OverlayPlacement.Anchored(
-                    anchor,
-                    if (index == 1L)
-                        OverlaySide.Right
-                    else
-                        OverlaySide.Bottom
-                ),
-                Some(handle),
-                visibility,
-                onClose =
+            element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children)
+        ) {
+            this.options {
+                this.placement =
+                    OverlayPlacement.Anchored(
+                        anchor,
+                        if (index == 1L)
+                            OverlaySide.Right
+                        else
+                            OverlaySide.Bottom
+                    )
+                this.handle = Some(handle)
+                this.anchorVisibility = visibility
+                this.onClose =
                     {
                         reason ->
-                        probe.closed.add(CloseRecord(index, reason, generation))
-                        probe.closedState.value += 1
+                        this @OverlayScene.probe.closed.add(CloseRecord(index, reason, generation))
+                        this @OverlayScene.probe.closedState.value += 1
                     }
-            ),
-            key
-        )
+            }
+            this.key = key
+        }
 }
 
 private struct CanvasInput(

@@ -16,19 +16,28 @@ fun exerciseRedirectNetworkProgress(url: Url, trust: TrustStore) {
     val loop: EventLoop = PlatformEventLoop()
     loop.run suspend {
         scope ->
-        val config = HttpClientConfig(tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)))
+        val config =
+            httpClientConfig {
+                this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+            }
         withHttpClient(config) suspend {
             client ->
-            client.withResponse(HttpRequest.get(url)) suspend {
+            client.withResponse(httpRequest(url)) suspend {
                 response ->
                 response.body.bytes(0L);
                 Unit
             }
             val options =
-                HttpCallOptions(timeouts = Some(HttpTimeoutOptions(connect = Some(Duration.ZERO))))
+                httpCallOptions {
+                    this.timeouts = Some(httpTimeoutOptions { this.connect = Some(Duration.ZERO) })
+                }
             try {
                 client.execute(
-                    HttpRequest.post(url, RequestBody.fromText("sent"), options = options)
+                    httpRequest(url) {
+                        this.method = "POST"
+                        this.body = RequestBody.fromText("sent")
+                        this.options = options
+                    }
                 ).close()
                 progressCheck(false)
             } catch (error: HttpTimeoutException) {

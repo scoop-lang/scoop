@@ -6,38 +6,34 @@ import scoop.ui.*
 
 internal fun relationProbes(probe: OverlayProbe): Array<View> =
     [
-        portal(
-            element({ RelationAnchor(probe, probe.selfAnchor, true) }),
-            PortalOptions(
-                OverlayPlacement.Anchored(probe.selfAnchor),
-                anchorVisibility = AnchorVisibility.Hide
-            ),
-            ViewKey.Text("self")
-        ),
-        portal(
-            element({ RelationAnchor(probe, probe.cycleA, false) }),
-            PortalOptions(
-                OverlayPlacement.Anchored(probe.cycleB),
-                anchorVisibility = AnchorVisibility.Hide
-            ),
-            ViewKey.Text("cycle-a")
-        ),
-        portal(
-            element({ RelationAnchor(probe, probe.cycleB, true) }),
-            PortalOptions(
-                OverlayPlacement.Anchored(probe.cycleA),
-                anchorVisibility = AnchorVisibility.Hide
-            ),
-            ViewKey.Text("cycle-b")
-        ),
-        portal(
-            empty(),
-            PortalOptions(
-                OverlayPlacement.Anchored(probe.foreignAnchor),
-                anchorVisibility = AnchorVisibility.Hide
-            ),
-            ViewKey.Text("foreign")
-        )
+        portal(element({ RelationAnchor(probe, probe.selfAnchor, true) })) {
+            this.options {
+                this.placement = OverlayPlacement.Anchored(probe.selfAnchor)
+                this.anchorVisibility = AnchorVisibility.Hide
+            }
+            this.key = ViewKey.Text("self")
+        },
+        portal(element({ RelationAnchor(probe, probe.cycleA, false) })) {
+            this.options {
+                this.placement = OverlayPlacement.Anchored(probe.cycleB)
+                this.anchorVisibility = AnchorVisibility.Hide
+            }
+            this.key = ViewKey.Text("cycle-a")
+        },
+        portal(element({ RelationAnchor(probe, probe.cycleB, true) })) {
+            this.options {
+                this.placement = OverlayPlacement.Anchored(probe.cycleA)
+                this.anchorVisibility = AnchorVisibility.Hide
+            }
+            this.key = ViewKey.Text("cycle-b")
+        },
+        portal(empty()) {
+            this.options {
+                this.placement = OverlayPlacement.Anchored(probe.foreignAnchor)
+                this.anchorVisibility = AnchorVisibility.Hide
+            }
+            this.key = ViewKey.Text("foreign")
+        }
     ]
 
 private class RelationAnchor(

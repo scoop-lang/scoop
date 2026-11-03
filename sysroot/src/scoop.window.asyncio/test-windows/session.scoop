@@ -51,7 +51,10 @@ private class WindowsSessionHandler: ApplicationHandler {
     private fun start(application: ActiveApplication) {
         val window =
             application.createWindow(
-                WindowAttributes("Scoop Win32 asyncio", LogicalSize(320.0, 180.0))
+                windowAttributes {
+                    this.title = "Scoop Win32 asyncio"
+                    this.size = LogicalSize(320.0, 180.0)
+                }
             )
         window.requestFocus()
         @Unsafe

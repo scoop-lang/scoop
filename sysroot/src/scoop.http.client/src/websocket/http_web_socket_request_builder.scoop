@@ -1,0 +1,43 @@
+package scoop.http.client
+
+import scoop.collections.emptyList
+import scoop.http.*
+import scoop.http.asyncio.WebSocketSessionOptions
+import scoop.url.Url
+import scoop.http.asyncio.*
+import scoop.asyncio.*
+
+/** Configures one complete value; execution remains explicit. */
+public fun httpWebSocketRequest(
+    url: Url,
+    configure: HttpWebSocketRequestBuilder.() -> Unit = {}
+): HttpWebSocketRequest {
+    val builder = HttpWebSocketRequestBuilder()
+    builder.configure()
+    return builder.snapshot(url)
+}
+
+public fun HttpWebSocketRequest.copy(
+    configure: HttpWebSocketRequestBuilder.() -> Unit = {}
+): HttpWebSocketRequest {
+    val builder = HttpWebSocketRequestBuilder()
+    builder.fields = this.fields
+    builder.options = this.options
+    builder.configure()
+    return builder.snapshot(this.url)
+}
+
+public class HttpWebSocketRequestBuilder internal constructor() {
+    public var fields: List<HttpField> = emptyList<HttpField>()
+    public var options: HttpCallOptions = httpCallOptions()
+
+    public fun options(configure: HttpCallOptionsBuilder.() -> Unit): Unit {
+        options = options.copy(configure)
+    }
+
+    public fun fields(configure: HttpFieldsBuilder.() -> Unit): Unit {
+        fields = fields.copyFields(configure)
+    }
+    internal fun snapshot(url: Url): HttpWebSocketRequest =
+        HttpWebSocketRequest(url, fields, options)
+}

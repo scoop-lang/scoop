@@ -33,7 +33,7 @@ internal fun basicSelection(trust: TrustStore) {
         val providers = ArrayList<HttpAuthenticator>()
         providers.add(preferred);
         providers.add(fallback)
-        val options = HttpAuthenticationOptions(providers)
+        val options = httpAuthenticationOptions { this.providers = providers }
         providers.clear();
         providers.add(fallback)
         realm[0L] = 'x'.code.toByte()
@@ -78,7 +78,7 @@ internal fun basicSelection(trust: TrustStore) {
                 }
             }
         withHttpClient(basicConfig(trust, options)) suspend {
-            client -> client.withResponse(HttpRequest.get(url)) suspend {
+            client -> client.withResponse(httpRequest(url)) suspend {
                 response -> basicCheck(
                     response.authenticationCount == 1L && response.body.text(4L) == "done"
                 )

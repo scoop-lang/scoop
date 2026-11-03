@@ -92,14 +92,14 @@ internal fun resumeHttp2(trust: TrustStore, directory: Path, total: Boolean) {
                     client ->
                     val target = directory.resolve(Path.fromString("result"))
                     val resume =
-                        HttpResumeOptions(
+                        httpResumeOptions(
                             directory.resolve(Path.fromString("partial")),
                             directory.resolve(Path.fromString("metadata"))
                         )
                     downloadStore(target, "original")
                     val first =
                         resumeFailure suspend {
-                            client.resumeDownload(HttpRequest.get(url), target, resume);
+                            client.resumeDownload(httpRequest(url), target, resume);
                             Unit
                         }
                     assertTrue(first is PlatformException)
@@ -110,21 +110,20 @@ internal fun resumeHttp2(trust: TrustStore, directory: Path, total: Boolean) {
                     val delayed = AtomicBoolean(false)
                     val limit = Duration.seconds(10L)
                     val request =
-                        HttpRequest.get(
-                            url,
-                            options =
-                                HttpCallOptions(
-                                    timeouts =
+                        httpRequest(url) {
+                            this.options =
+                                httpCallOptions {
+                                    this.timeouts =
                                         if (total)
-                                            Some(HttpTimeoutOptions(total = Some(limit)))
+                                            Some(httpTimeoutOptions { this.total = Some(limit) })
                                         else
                                             None
-                                )
-                        )
+                                }
+                        }
                     val options =
-                        HttpDownloadOptions(
-                            replaceExisting = true,
-                            onProgress =
+                        httpDownloadOptions {
+                            this.replaceExisting = true
+                            this.onProgress =
                                 suspend {
                                     progress ->
                                     assertEquals(1L, progress.resumedBytes)
@@ -139,7 +138,7 @@ internal fun resumeHttp2(trust: TrustStore, directory: Path, total: Boolean) {
                                         loop.sleep(Duration.seconds(60L))
                                     Unit
                                 }
-                        )
+                        }
                     if (total) {
                         val error =
                             resumeFailure suspend {

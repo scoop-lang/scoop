@@ -35,7 +35,7 @@ private class HttpRequestObservationTest {
                     withHttpClient(clientTestConfig(trust)) suspend {
                         client ->
                         val url = clientTestUrl(listener)
-                        client.withResponse(HttpRequest.get(url)) suspend {
+                        client.withResponse(httpRequest(url)) suspend {
                             response ->
                             assertFalse(clientPresent(response.metrics))
                             response.body.text(32L)
@@ -43,9 +43,9 @@ private class HttpRequestObservationTest {
                         }
                         val log = RequestObservationLog()
                         val options =
-                            HttpCallOptions(
-                                observer = Some(log.observer),
-                                onInformational =
+                            httpCallOptions {
+                                this.observer = Some(log.observer)
+                                this.onInformational =
                                     suspend {
                                         _ ->
                                         val headers = log.ofKind(HttpCallEventKind.ResponseHeaders)
@@ -58,8 +58,8 @@ private class HttpRequestObservationTest {
                                             headers[0L].metrics.finalResponseHeadersAt == None
                                         )
                                     }
-                            )
-                        val response = client.execute(HttpRequest.get(url, options = options))
+                            }
+                        val response = client.execute(httpRequest(url) { this.options = options })
                         val initial = response.metrics!!
                         try {
                             assertTrue(initial.connectionReused == Some(true))
@@ -79,7 +79,7 @@ private class HttpRequestObservationTest {
                         assertTrue(initial.finishedAtUtc == None)
                         assertEquals(2L, log.ofKind(HttpCallEventKind.ResponseHeaders).size)
                         val eventCount = log.events.size
-                        client.withResponse(HttpRequest.get(url)) suspend {
+                        client.withResponse(httpRequest(url)) suspend {
                             next ->
                             assertFalse(clientPresent(next.metrics))
                             next.body.text(32L)
@@ -130,17 +130,18 @@ private class HttpRequestObservationTest {
                             }
                         )
                     val config =
-                        HttpClientConfig(
-                            tls = HttpClientTlsConfig(TlsTrustSource.Store(trust)),
-                            observer = Some(clientObserver)
-                        )
+                        httpClientConfig {
+                            this.tls =
+                                httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
+                            this.observer = Some(clientObserver)
+                        }
                     withHttpClient(config) suspend {
                         client ->
                         client.withResponse(
-                            HttpRequest.get(
-                                clientTestUrl(listener),
-                                options = HttpCallOptions(observer = Some(local.observer))
-                            )
+                            httpRequest(clientTestUrl(listener)) {
+                                this.options =
+                                    httpCallOptions { this.observer = Some(local.observer) }
+                            }
                         ) suspend {
                             response ->
                             response.body.text(32L)
@@ -152,10 +153,10 @@ private class HttpRequestObservationTest {
                         checkRequestObservation(local.completed())
                         val count = global.ofKind(HttpCallEventKind.Completed).size
                         client.withResponse(
-                            HttpRequest.get(
-                                clientTestUrl(listener),
-                                options = HttpCallOptions(observer = Some(clientObserver))
-                            )
+                            httpRequest(clientTestUrl(listener)) {
+                                this.options =
+                                    httpCallOptions { this.observer = Some(clientObserver) }
+                            }
                         ) suspend {
                             response ->
                             response.body.text(32L)

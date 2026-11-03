@@ -36,9 +36,9 @@ private class ErrorHandler: ApplicationHandler {
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
-                val window = application.createWindow(WindowAttributes(visible = false))
+                val window = application.createWindow(windowAttributes { this.visible = false })
                 first = Some(window)
-                application.createWindow(WindowAttributes(visible = false))
+                application.createWindow(windowAttributes { this.visible = false })
                 @Unsafe
                 {
                     lease = Some(window.acquireNativeWindow())
