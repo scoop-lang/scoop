@@ -114,6 +114,12 @@ private class TextBuilderTest {
                 lineHeight = Some(2.0)
                 features = [FontFeature("kern", 0)]
             }
+        val completeCopy = base.copy { fontSize = 22.0 }
+        assertEquals(22.0, completeCopy.fontSize)
+        assertEquals(Some(2.0), completeCopy.lineHeight)
+        assertEquals("kern", completeCopy.features[0L].tag)
+        assertEquals(14.0, base.fontSize)
+        assertEquals(Some(2.0), completeCopy.copy().lineHeight)
         val cleared =
             spanStyle {
                 styles.add(this)

@@ -35,9 +35,26 @@ Theme 提供普通 tokens 与各部件的 metrics／geometry，ThemePainter 消�
 
 | Cone | 工厂 | 参数 |
 | --- | --- | --- |
-| scoop.ui.style.macos | macosTheme | ThemeMode.Light／Dark |
-| scoop.ui.style.material | materialTheme | ThemeMode.Light／Dark |
-| scoop.ui.style.fluent | fluentTheme | ThemeMode.Light／Dark |
+| scoop.ui.style.macos | macosTheme | mode，ShapeThemeBuilder 配置块 |
+| scoop.ui.style.material | materialTheme | mode，ShapeThemeBuilder 配置块 |
+| scoop.ui.style.fluent | fluentTheme | mode，ShapeThemeBuilder 配置块 |
+
+预设返回实现 Theme 的 ShapeTheme，支持接收者配置与 copy。配置块在完整数据上同步执行一次，嵌套块保留当前字段，完整赋值替换：
+
+```scoop
+val theme = macosTheme(ThemeMode.Dark) {
+    tokens {
+        typography { body { fontSize = 15.0 } }
+        motion { hover = None }
+    }
+    surfaces { action { shadows = [] } }
+}
+val changed = theme.copy {
+    checkbox { appearance { mark = StateColors.solid(Color.White) } }
+}
+```
+
+独立主题用 shapeTheme(tokens, surfaces, checkbox, radio, scrollbar) 提供完整必需数据；themeTokens、themeTypography、themeEffects、themeMotion 以及 surfacePart／surfaceParts、markerAppearance、checkboxPart／radioPart、scrollbarPart 提供各组构造与 copy。ThemePalette 的十二个语义色没有通用默认值，完整配色仍一次给齐，后续通过 palette 块或 copy 修改。编辑配色、字体或某个部件只修改该字段，需要同步改变多个外观时显式配置它们。
 
 第三方 Element 在 onMount 中保存 `scope.resource { ThemePainterCache() }`，在 paint 中使用当前 Props 的 Theme：
 

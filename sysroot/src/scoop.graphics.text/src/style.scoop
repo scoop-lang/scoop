@@ -37,6 +37,9 @@ public class TextStyle internal constructor(
     public val features: Array<FontFeature> = [],
     public val variations: Array<FontVariation> = []
 ) {
+    public fun copy(configure: TextStyleBuilder.() -> Unit = {}): TextStyle =
+        configureTextStyle(this, configure)
+
     internal fun <T> withNative(block: (Ptr<Unit>) -> T): T {
         checkTextScalar(fontSize)
         checkTextScalar(letterSpacing)

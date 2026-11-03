@@ -129,39 +129,54 @@ public class ThemePalette public constructor(
     public val focus: Color,
     public val shadow: Color,
     public val error: Color
-)
+) {
+    public fun copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette =
+        configureThemePalette(this, configure)
+}
 
-public class ThemeTypography public constructor(
+public class ThemeTypography internal constructor(
     public val body: TextStyle,
     public val caption: TextStyle,
     public val action: TextStyle
-)
+) {
+    public fun copy(configure: ThemeTypographyBuilder.() -> Unit = {}): ThemeTypography =
+        configureThemeTypography(this, configure)
+}
 
 public struct ThemeSpacing(val small: Double, val medium: Double, val large: Double)
 
 public struct ThemeCorners(val small: Double, val medium: Double, val large: Double)
 
-public class ThemeEffects public constructor(
-    public val raised: Array<BoxShadow>,
-    public val floating: Array<BoxShadow>,
+public class ThemeEffects internal constructor(
+    public val raised: Array<BoxShadow> = [],
+    public val floating: Array<BoxShadow> = [],
     public val emphasis: Array<ContentEffect> = []
-)
+) {
+    public fun copy(configure: ThemeEffectsBuilder.() -> Unit = {}): ThemeEffects =
+        configureThemeEffects(this, configure)
+}
 
-public class ThemeMotion public constructor(
-    public val hover: AnimationSpec?,
-    public val press: AnimationSpec?,
-    public val selection: AnimationSpec?
-)
+public class ThemeMotion internal constructor(
+    public val hover: AnimationSpec? = None,
+    public val press: AnimationSpec? = None,
+    public val selection: AnimationSpec? = None
+) {
+    public fun copy(configure: ThemeMotionBuilder.() -> Unit = {}): ThemeMotion =
+        configureThemeMotion(this, configure)
+}
 
-public class ThemeTokens public constructor(
-    public val mode: ThemeMode,
+public class ThemeTokens internal constructor(
+    public val mode: ThemeMode = ThemeMode.Light,
     public val palette: ThemePalette,
     public val typography: ThemeTypography,
     public val spacing: ThemeSpacing,
-    public val motion: ThemeMotion,
+    public val motion: ThemeMotion = themeMotion(),
     public val corners: ThemeCorners,
-    public val effects: ThemeEffects
-)
+    public val effects: ThemeEffects = themeEffects()
+) {
+    public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
+        configureThemeTokens(this, configure)
+}
 
 public fun mixThemeColor(from: Color, to: Color, progress: Double): Color {
     val t = themeUnit(progress)

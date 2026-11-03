@@ -150,20 +150,26 @@ public class ScrollbarGeometry public constructor(
 )
 
 /** Concrete descriptions used by the three shape-based themes, also useful for custom presets. */
-public class SurfacePart public constructor(
+public class SurfacePart internal constructor(
     public val metrics: SurfaceMetrics,
     public val fill: StateColors,
     public val border: StateColors,
     public val foreground: StateColors,
     public val focus: FocusStyle,
     public val shadows: Array<BoxShadow> = []
-)
+) {
+    public fun copy(configure: SurfacePartBuilder.() -> Unit = {}): SurfacePart =
+        configureSurfacePart(this, configure)
+}
 
-public class SurfaceParts public constructor(
+public class SurfaceParts internal constructor(
     public val plain: SurfacePart,
     public val action: SurfacePart,
     public val elevated: SurfacePart
 ) {
+    public fun copy(configure: SurfacePartsBuilder.() -> Unit = {}): SurfaceParts =
+        configureSurfaceParts(this, configure)
+
     public fun get(kind: SurfaceKind): SurfacePart =
         when (kind) {
             case Plain -> plain;
@@ -172,7 +178,7 @@ public class SurfaceParts public constructor(
         }
 }
 
-public class MarkerAppearance public constructor(
+public class MarkerAppearance internal constructor(
     public val empty: StateColors,
     public val selected: StateColors,
     public val border: StateColors,
@@ -180,23 +186,35 @@ public class MarkerAppearance public constructor(
     public val mark: StateColors,
     public val focus: FocusStyle,
     public val shadows: Array<BoxShadow> = []
-)
+) {
+    public fun copy(configure: MarkerAppearanceBuilder.() -> Unit = {}): MarkerAppearance =
+        configureMarkerAppearance(this, configure)
+}
 
-public class CheckboxPart public constructor(
+public class CheckboxPart internal constructor(
     public val metrics: CheckboxMetrics,
     public val appearance: MarkerAppearance
-)
+) {
+    public fun copy(configure: CheckboxPartBuilder.() -> Unit = {}): CheckboxPart =
+        configureCheckboxPart(this, configure)
+}
 
-public class RadioPart public constructor(
+public class RadioPart internal constructor(
     public val metrics: RadioMetrics,
     public val appearance: MarkerAppearance
-)
+) {
+    public fun copy(configure: RadioPartBuilder.() -> Unit = {}): RadioPart =
+        configureRadioPart(this, configure)
+}
 
-public class ScrollbarPart public constructor(
+public class ScrollbarPart internal constructor(
     public val metrics: ScrollbarMetrics,
     public val track: StateColors,
     public val thumb: StateColors,
     public val button: StateColors,
     public val arrow: StateColors,
     public val arrowWidth: Double = 1.5
-)
+) {
+    public fun copy(configure: ScrollbarPartBuilder.() -> Unit = {}): ScrollbarPart =
+        configureScrollbarPart(this, configure)
+}

@@ -14,6 +14,7 @@ kind = "library"
 "scoop:scoop.test" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
 "scoop:scoop.graphics.text" = "0.1.0"
+"scoop:scoop.surface" = "0.1.0"
 "scoop:scoop.ui" = "0.1.0"
 "scoop:scoop.ui.style" = "0.1.0"
 "scoop:scoop.ui.style.macos" = { version = "0.1.0", path = "../../../scoop.ui.style.macos" }

@@ -61,6 +61,45 @@ Style 是完整的已确定描述；新增 `StyleOverride` 表达局部覆盖。
 
 SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configure: StyleOverrideBuilder.() -> Unit): Unit`。它基于当前 style 修改，重复块累积、空块不重置；给 style 属性赋入完整值表示替换。嵌套和外层配置都同步执行一次，结束后修改被捕获的 builder 不改变结果。回调异常不发布部分结果；选项构造不解析某个主题、不创建 native 资源，尺寸与颜色仍在实际 geometry／metrics 边界检查。
 
+### 3.2 完整主题与部件外观的接收者配置
+
+三套预设的入口为 `macosTheme(mode: ThemeMode = ThemeMode.Light, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`，materialTheme／fluentTheme 使用相同签名。先根据 mode 产生该风格的完整数据，再同步执行 configure 一次。返回的 ShapeTheme 继续实现 Theme；第三方 Theme 实现不需要采用这些 builder。
+
+独立主题使用 `shapeTheme(tokens: ThemeTokens, surfaces: SurfaceParts, checkbox: CheckboxPart, radio: RadioPart, scrollbar: ScrollbarPart, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme`。五个必需参数都是完整描述，不使用未初始化字段、None 或虚构部件补足必需数据。
+
+下列入口也接收尾随 `configure: 对应Builder.() -> Unit = {}` 并返回对应不可变值。表中的必需参数位于 configure 之前；其余可写属性从列出的领域默认值开始。
+
+| 工厂 | 必需参数 | 其他可写属性与默认值 |
+| --- | --- | --- |
+| themeTypography | body／caption／action: TextStyle | 无 |
+| themeEffects | 无 | raised／floating: Array<BoxShadow> = []；emphasis: Array<ContentEffect> = [] |
+| themeMotion | 无 | hover／press／selection: AnimationSpec? = None |
+| themeTokens | palette: ThemePalette；typography: ThemeTypography；spacing: ThemeSpacing；corners: ThemeCorners | mode: ThemeMode = Light；motion: ThemeMotion = themeMotion()；effects: ThemeEffects = themeEffects() |
+| surfacePart | metrics: SurfaceMetrics；fill／border／foreground: StateColors；focus: FocusStyle | shadows: Array<BoxShadow> = [] |
+| surfaceParts | plain／action／elevated: SurfacePart | 无 |
+| markerAppearance | empty／selected／border／selectedBorder／mark: StateColors；focus: FocusStyle | shadows: Array<BoxShadow> = [] |
+| checkboxPart | metrics: CheckboxMetrics；appearance: MarkerAppearance | 无 |
+| radioPart | metrics: RadioMetrics；appearance: MarkerAppearance | 无 |
+| scrollbarPart | metrics: ScrollbarMetrics；track／thumb／button／arrow: StateColors | arrowWidth: Double = 1.5 |
+
+每类 Builder 的全部可写属性就是对应值的字段，类型与表中参数／属性一致；ShapeThemeBuilder 的五个属性对应 shapeTheme 的必需参数。对应值均提供 `copy(configure: 对应Builder.() -> Unit = {})`，值和 builder 的构造器内部化。工厂和 copy 共用配置及快照实现。
+
+ThemePalette 的 canvas／surface／elevated／text／secondaryText／disabledText／border／accent／onAccent／focus／shadow／error 均为必需 Color，没有可适用于任意主题的缺省配色。它保留一次给齐这些字段的完整值构造，并提供 `copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette`；该 builder 的十二个可写 Color 从现有配色初始化。这一构造用于定义实际预设与独立主题的配色数据，不是旧配置 API 的兼容入口。StateColors、ThemeSpacing、ThemeCorners、FocusStyle 和各 Metrics 继续使用普通值构造。
+
+嵌套成员均为真实成员并返回 Unit：
+
+| Builder | 嵌套成员及 receiver |
+| --- | --- |
+| ShapeThemeBuilder | tokens: ThemeTokensBuilder；surfaces: SurfacePartsBuilder；checkbox: CheckboxPartBuilder；radio: RadioPartBuilder；scrollbar: ScrollbarPartBuilder |
+| ThemeTokensBuilder | palette: ThemePaletteBuilder；typography: ThemeTypographyBuilder；motion: ThemeMotionBuilder；effects: ThemeEffectsBuilder |
+| ThemeTypographyBuilder | body／caption／action: TextStyleBuilder |
+| SurfacePartsBuilder | plain／action／elevated: SurfacePartBuilder |
+| CheckboxPartBuilder／RadioPartBuilder | appearance: MarkerAppearanceBuilder |
+
+所有嵌套配置基于当前字段调用其 copy，重复块累积，空块保留已有设置；直接给属性赋完整值表示替换。模式参数只负责选择预设起点；之后编辑 palette、typography 或某个部件，就只改变该显式字段，不隐式重新计算其他已经生成的文字颜色或部件外观，也不重放回调。需要统一改变多个描述时，由同一配置块明确设置它们。
+
+构造仅发布普通描述，不读取 Context／State、不创建 painter／Path／字体资源或动画；回调异常沿普通调用传播，原值不变。Array 元素槽与子描述不可变，可安全共享；发布后修改被捕获的 builder 不改变结果。颜色、长度与视觉采样继续在原有实际消费边界检查，不增加另一套布局或绘图验证流程。
+
 ## 4. 公共绘图部件
 
 各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focused 数据，部件另带自身选择或滚动输入。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
