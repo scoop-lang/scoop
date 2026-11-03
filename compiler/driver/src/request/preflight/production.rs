@@ -53,13 +53,13 @@ impl ParsedSingleConeBuildRequest<'_, '_> {
         };
         let cone = cone
             .and_then(|cone| {
+                let target = self.request.target_selection().target();
+                let target_os = scoop_target_data::definition(target.id())
+                    .filter(|definition| definition.selection.target() == target)
+                    .expect("validated compiler target")
+                    .os;
                 if cone.kind() != scoop_slib::ConeKind::Executable
-                    || self
-                        .request
-                        .target_selection()
-                        .target()
-                        .native_object_format()
-                        != scoop_lir::NativeObjectFormat::Coff64
+                    || target_os != scoop_target_data::TargetOs::Windows
                 {
                     return Ok(cone);
                 }

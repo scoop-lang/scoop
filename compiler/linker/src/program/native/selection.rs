@@ -88,7 +88,7 @@ pub(super) fn resolve(
         if inputs.linker_defined(&symbol) {
             continue;
         }
-        if inputs.target.native_object_format() == scoop_lir::NativeObjectFormat::MachO64
+        if inputs.target_os == scoop_target_data::TargetOs::Darwin
             && !declarations.contains_key(&symbol)
             && !inputs.definitions.contains_key(&symbol)
             && symbol

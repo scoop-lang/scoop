@@ -303,15 +303,19 @@ fn output_path(
         let name = manifest.coordinate().name().to_owned();
         (root, name)
     };
+    let target_os = scoop_target_data::definition(target.id())
+        .filter(|definition| definition.selection.target() == target.lir_target())
+        .expect("resolved build target")
+        .os;
     if emit_slib || graph.root_kind() == RequestedConeKind::Library {
         name.push_str(".slib");
     } else if graph.root_kind() == RequestedConeKind::NativeApp {
-        name = match target.lir_target().native_object_format() {
-            scoop_lir::NativeObjectFormat::MachO64 => format!("lib{name}.dylib"),
-            scoop_lir::NativeObjectFormat::Elf64 => format!("lib{name}.so"),
-            scoop_lir::NativeObjectFormat::Coff64 => format!("{name}.dll"),
+        name = match target_os {
+            scoop_target_data::TargetOs::Darwin => format!("lib{name}.dylib"),
+            scoop_target_data::TargetOs::Linux => format!("lib{name}.so"),
+            scoop_target_data::TargetOs::Windows => format!("{name}.dll"),
         };
-    } else if target.lir_target().native_object_format() == scoop_lir::NativeObjectFormat::Coff64 {
+    } else if target_os == scoop_target_data::TargetOs::Windows {
         name.push_str(".exe");
     }
     let mut directory = target_dir
