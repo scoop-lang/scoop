@@ -55,6 +55,7 @@ pub(super) fn compile_and_run_configuration(
     }
     crate::tests::platform_support::native_trace_symbols(&mut compile, workspace);
     compile
+        .args(crate::tests::platform_support::native_runtime_c_flags())
         .args(flags)
         .args([
             "-std=c11",
