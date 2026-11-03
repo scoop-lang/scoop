@@ -13,13 +13,16 @@ private class ComponentStyleTest {
     fun `control state overrides combine in order without freezing theme defaults`() {
         val states =
             InteractionStyles(
-                hovered = StyleOverride(cornerRadius = StyleValue.Set(7.0)),
-                pressed = StyleOverride(background = StyleValue.Set(Some(Paint(Color.Black)))),
-                focused = StyleOverride(border = StyleValue.Set(Some(Border(3.0, Color.White)))),
-                disabled = StyleOverride(background = StyleValue.Set(None))
+                hovered = styleOverride { this.cornerRadius(7.0) },
+                pressed = styleOverride { this.background(Some(Paint(Color.Black))) },
+                focused = styleOverride { this.border(Some(Border(3.0, Color.White))) },
+                disabled = styleOverride { this.background(None) }
             )
         val style =
-            ButtonStyle(surface = SurfaceOptions(padding = Some(Insets.all(5.0))), states = states)
+            ButtonStyle(
+                surface = surfaceOptions { this.padding = Some(Insets.all(5.0)) },
+                states = states
+            )
         val active = InteractionVisual(hovered = true, pressed = true, focused = true)
         val options = style.options(active)
         for (theme in [macosTheme(), materialTheme()]) {

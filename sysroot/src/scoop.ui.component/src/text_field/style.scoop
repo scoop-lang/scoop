@@ -5,7 +5,7 @@ import scoop.graphics.text.SpanStyle
 import scoop.ui.style.*
 
 public class TextFieldStyle public constructor(
-    public val surface: SurfaceOptions = SurfaceOptions(),
+    public val surface: SurfaceOptions = surfaceOptions(),
     public val text: SpanStyle? = None,
     public val placeholder: SpanStyle? = None,
     public val description: SpanStyle? = None,
@@ -15,7 +15,7 @@ public class TextFieldStyle public constructor(
     public val caretColor: Color? = None,
     public val markedColor: Color? = None,
     public val caretWidth: Double = 1.0,
-    public val scrollbar: ScrollbarOptions = ScrollbarOptions()
+    public val scrollbar: ScrollbarOptions = scrollbarOptions()
 ) {
     internal fun options(
         theme: Theme,
@@ -24,11 +24,9 @@ public class TextFieldStyle public constructor(
     ): SurfaceOptions {
         val validation =
             if (invalid)
-                StyleOverride(
-                    border = StyleValue.Set(Some(Border(1.0, theme.tokens.palette.error)))
-                )
+                styleOverride { this.border(Some(Border(1.0, theme.tokens.palette.error))) }
             else
-                StyleOverride()
+                styleOverride()
         val focus =
             when (surface.focus) {
                 case Some(value) -> Some(value)
@@ -37,12 +35,10 @@ public class TextFieldStyle public constructor(
                 else
                     None
             }
-        return SurfaceOptions(
-            surface.suggestedSize,
-            surface.minimumSize,
-            surface.padding,
-            states.apply(validation.then(surface.style), visual),
-            focus
-        )
+        val localStyle = states.apply(validation.then(surface.style), visual)
+        return surface.copy {
+            this.style = localStyle
+            this.focus = focus
+        }
     }
 }

@@ -210,9 +210,10 @@ public class ShapeTheme public constructor(
                 visual.interaction,
                 options.focus ?: appearance.focus
             ),
-            style.withBackground(options.background.resolve(style.background)).withBorder(
-                options.border.resolve(style.border)
-            ),
+            style.copy {
+                this.background = options.background.resolve(this.background)
+                this.border = options.border.resolve(this.border)
+            },
             options.dotColor ?: appearance.mark.resolve(visual.interaction),
             amount
         )

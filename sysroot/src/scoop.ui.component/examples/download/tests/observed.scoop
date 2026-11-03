@@ -30,6 +30,7 @@ internal class DownloadObservedRoot(
         scope.onDispose { probe.counts[index].unmounts += 1 }
     }
     public override fun render(): View {
+        val owner = this
         assertEquals(probe.owner, currentThreadId())
         assertSame(probe.source, currentThemeSource())
         val counts = probe.counts[index]
@@ -84,12 +85,11 @@ internal class DownloadObservedRoot(
                     ),
                     padding = Some(Insets.all(16.0)),
                     style =
-                        StyleOverride(
-                            background =
-                                StyleValue.Set(
-                                    Some(Paint(probe.source.current.value.tokens.palette.canvas))
-                                )
-                        )
+                        styleOverride {
+                            this.background(
+                                Some(Paint(owner.probe.source.current.value.tokens.palette.canvas))
+                            )
+                        }
                 )
         return element(
             snapshot,

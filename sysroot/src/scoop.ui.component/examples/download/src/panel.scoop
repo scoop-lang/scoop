@@ -90,10 +90,10 @@ internal class DownloadPanel(
             padding = Some(Insets.all(16.0)),
             alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start),
             style =
-                StyleOverride(
-                    background = StyleValue.Set(Some(Paint(theme.tokens.palette.canvas))),
-                    clipContent = StyleValue.Set(true)
-                )
+                styleOverride {
+                    this.background(Some(Paint(theme.tokens.palette.canvas)))
+                    this.clipContent(true)
+                }
         )
     }
 }

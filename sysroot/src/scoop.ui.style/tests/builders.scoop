@@ -1,0 +1,184 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class StyleBuilderTest {
+    @Test
+    fun `style copies preserve unmodified fields and captured builders cannot change snapshots`() {
+        val captured = ArrayList<StyleBuilder>()
+        val calls = ArrayList<Int>()
+        val blur = ContentEffect.Blur(2.0, 3.0)
+        val glow = ContentEffect.Glow(4.0, 5.0, Color.White)
+        val original =
+            style {
+                calls.add(1)
+                captured.add(this)
+                background = Some(Paint(Color.White))
+                cornerRadius = 6.0
+                contentEffects = [blur, glow]
+                clipContent = true
+            }
+        val derived =
+            original.copy {
+                calls.add(2)
+                background = None
+                border = Some(Border(1.0, Color.Black))
+            }
+        captured[0L].cornerRadius = 20.0
+        captured[0L].contentEffects = []
+        assertEquals(2L, calls.size)
+        assertEquals(6.0, original.cornerRadius)
+        assertEquals(Some(Color.White), original.background?.color)
+        assertEquals(None, derived.background?.color)
+        assertEquals(Some(Border(1.0, Color.Black)), derived.border)
+        assertEquals(6.0, derived.cornerRadius)
+        assertTrue(derived.clipContent)
+        assertEquals(blur, derived.contentEffects[0L])
+        assertEquals(glow, derived.contentEffects[1L])
+        assertEquals(2L, original.copy().contentEffects.size)
+        assertEquals(None, style().background?.color)
+        assertFalse(style().clipContent)
+    }
+
+    @Test
+    fun `typed override slots distinguish inheritance clearing and replacement in order`() {
+        val captured = ArrayList<StyleOverrideBuilder>()
+        val base =
+            style {
+                border = Some(Border(2.0, Color.White))
+                cornerRadius = 8.0
+                contentEffects = [ContentEffect.Blur(1.0, 1.0)]
+            }
+        val clear =
+            styleOverride {
+                captured.add(this)
+                border(None)
+                cornerRadius(3.0)
+                contentEffects([])
+            }
+        val inherit =
+            clear.copy {
+                border = StyleValue.Inherit
+                cornerRadius = StyleValue.Inherit
+            }
+        captured[0L].border(Some(Border(9.0, Color.Black)))
+        assertEquals(None, clear.resolve(base).border)
+        assertEquals(3.0, clear.resolve(base).cornerRadius)
+        assertEquals(base.border, inherit.resolve(base).border)
+        assertEquals(8.0, inherit.resolve(base).cornerRadius)
+        assertEquals(0L, inherit.resolve(base).contentEffects.size)
+        val ordered = clear.then(styleOverride { border(Some(Border(1.0, Color.Black))) })
+        assertEquals(Some(Border(1.0, Color.Black)), ordered.resolve(base).border)
+        assertEquals(0L, ordered.resolve(base).contentEffects.size)
+        assertEquals(base.border, styleOverride().resolve(base).border)
+    }
+
+    @Test
+    fun `nested surface style blocks accumulate and full assignments replace the current override`() {
+        val captured = ArrayList<SurfaceOptionsBuilder>()
+        val nested = ArrayList<StyleOverrideBuilder>()
+        val options =
+            surfaceOptions {
+                captured.add(this)
+                suggestedSize = Some(Size(80.0, 28.0))
+                padding = Some(Insets.all(4.0))
+                style { cornerRadius(7.0) }
+                style {
+                    nested.add(this)
+                    border(None)
+                }
+                style {}
+            }
+        val changed =
+            options.copy {
+                style = styleOverride { clipContent(true) }
+                style { background(None) }
+            }
+        captured[0L].suggestedSize = None
+        nested[0L].cornerRadius(12.0)
+        assertEquals(Some(Size(80.0, 28.0)), options.suggestedSize)
+        assertEquals(options.suggestedSize, changed.suggestedSize)
+        assertEquals(options.padding, changed.padding)
+        assertEquals(StyleValue.Set(7.0), options.style.cornerRadius)
+        assertEquals(StyleValue.Set(None), options.style.border)
+        assertEquals(StyleValue.Inherit, changed.style.cornerRadius)
+        assertEquals(StyleValue.Set(true), changed.style.clipContent)
+        assertTrue(
+            when (changed.style.background) {
+                case Set(None) -> true;
+                else -> false
+            }
+        )
+        assertEquals(None, surfaceOptions().suggestedSize)
+    }
+
+    @Test
+    fun `marker and scrollbar copies preserve their option and explicit clearing semantics`() {
+        val marker =
+            checkboxOptions {
+                size = Some(18.0)
+                minimumSize = Some(12.0)
+                style { cornerRadius(3.0) }
+                style { border(None) }
+            }
+        val marked = marker.copy { markColor = Some(Color.White) }
+        assertEquals(marker.size, marked.size)
+        assertEquals(marker.minimumSize, marked.minimumSize)
+        assertEquals(StyleValue.Set(3.0), marked.style.cornerRadius)
+        assertEquals(StyleValue.Set(None), marked.style.border)
+        assertEquals(None, marker.markColor)
+        assertEquals(Some(Color.White), marked.markColor)
+        val radio =
+            radioOptions {
+                size = Some(20.0)
+                background(None)
+                border(Some(Border(2.0, Color.White)))
+            }
+        val inherited = radio.copy { background = StyleValue.Inherit }
+        assertTrue(
+            when (radio.background) {
+                case Set(None) -> true;
+                else -> false
+            }
+        )
+        assertTrue(
+            when (inherited.background) {
+                case Inherit -> true;
+                else -> false
+            }
+        )
+        assertEquals(radio.border, inherited.border)
+        assertEquals(radio.size, inherited.size)
+        val scrollbar =
+            scrollbarOptions {
+                thickness = Some(10.0)
+                buttonLength(None)
+            }
+        assertEquals(StyleValue.Set(None), scrollbar.buttonLength)
+        val buttons = scrollbar.copy { buttonLength(Some(12.0)) }
+        assertEquals(scrollbar.thickness, buttons.thickness)
+        assertEquals(StyleValue.Set(Some(12.0)), buttons.buttonLength)
+        assertEquals(StyleValue.Inherit, scrollbarOptions().buttonLength)
+    }
+
+    @Test
+    fun `configuration errors propagate without changing the source description`() {
+        val failure = IllegalStateException(Some("style configuration failed"))
+        val original = surfaceOptions { style { cornerRadius(4.0) } }
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                original.copy {
+                    style {
+                        cornerRadius(20.0)
+                        throw failure
+                    }
+                }
+            }
+        )
+        assertEquals(StyleValue.Set(4.0), original.style.cornerRadius)
+        assertSame(failure, assertFailsWith<IllegalStateException> { style { throw failure } })
+    }
+}

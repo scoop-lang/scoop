@@ -37,16 +37,12 @@ private class TextFieldStyleTest {
             val explicit =
                 TextFieldStyle(
                     surface =
-                        SurfaceOptions(
-                            padding = Some(Insets.all(4.0)),
-                            style =
-                                StyleOverride(
-                                    border = StyleValue.Set(Some(Border(3.0, Color.White)))
-                                ),
-                            focus = Some(FocusStyle(Color.Black, 1.0, 3.0))
-                        ),
-                    states =
-                        InteractionStyles(disabled = StyleOverride(border = StyleValue.Set(None)))
+                        surfaceOptions {
+                            this.padding = Some(Insets.all(4.0))
+                            style { this.border(Some(Border(3.0, Color.White))) }
+                            this.focus = Some(FocusStyle(Color.Black, 1.0, 3.0))
+                        },
+                    states = InteractionStyles(disabled = styleOverride { this.border(None) })
                 )
             val overridden =
                 theme.surfaceGeometry(bounds, visual, explicit.options(theme, focused, true))

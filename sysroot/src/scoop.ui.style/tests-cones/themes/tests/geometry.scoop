@@ -50,14 +50,13 @@ private class ThemeGeometryTest {
     @Test
     fun `local overrides feed the final border content and marker geometry and keep inheritance`() {
         val options =
-            SurfaceOptions(
-                padding = Some(Insets.all(7.0)),
-                style =
-                    StyleOverride(
-                        border = StyleValue.Set(Some(Border(3.0, Color.Black))),
-                        cornerRadius = StyleValue.Set(9.0)
-                    )
-            )
+            surfaceOptions {
+                this.padding = Some(Insets.all(7.0))
+                style {
+                    this.border(Some(Border(3.0, Color.Black)))
+                    this.cornerRadius(9.0)
+                }
+            }
         for (theme in themes()) {
             val visual = SurfaceVisual(SurfaceKind.Action)
             val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 80.0, 40.0), visual, options)
@@ -69,10 +68,10 @@ private class ThemeGeometryTest {
                 theme.checkboxGeometry(
                     Rect(5.0, 5.0, 24.0, 20.0),
                     CheckboxVisual(CheckMark.On),
-                    CheckboxOptions(
-                        markInset = Some(5.0),
-                        style = StyleOverride(border = StyleValue.Set(None))
-                    )
+                    checkboxOptions {
+                        this.markInset = Some(5.0)
+                        style { this.border(None) }
+                    }
                 )
             assertEquals(Rect(7.0, 5.0, 20.0, 20.0), mark.outline.bounds)
             assertEquals(mark.outline.bounds, mark.interior.bounds)
@@ -81,10 +80,10 @@ private class ThemeGeometryTest {
                 theme.radioGeometry(
                     Rect(10.0, 10.0, 20.0, 24.0),
                     RadioVisual(true),
-                    RadioOptions(
-                        dotInset = Some(4.0),
-                        border = StyleValue.Set(Some(Border(3.0, Color.Black)))
-                    )
+                    radioOptions {
+                        this.dotInset = Some(4.0)
+                        this.border(Some(Border(3.0, Color.Black)))
+                    }
                 )
             assertEquals(Circle(Point(20.0, 22.0), 10.0), radio.outer)
             assertEquals(7.0, radio.interior.radius)
@@ -145,7 +144,7 @@ private class ThemeGeometryTest {
             fluentTheme().scrollbarGeometry(
                 Rect(0.0, 0.0, 16.0, 180.0),
                 ScrollbarVisual(visibleFraction = 0.0),
-                ScrollbarOptions(buttonLength = StyleValue.Set(None))
+                scrollbarOptions { this.buttonLength(None) }
             )
         assertEquals(146.0, noButtons.travel)
     }
@@ -154,10 +153,10 @@ private class ThemeGeometryTest {
     fun `invalid lengths and nonfinite visual samples fail at geometry calculation`() {
         val theme = materialTheme()
         assertFailsWith<IllegalArgumentException> {
-            theme.checkboxMetrics(CheckboxOptions(size = Some(-1.0)))
+            theme.checkboxMetrics(checkboxOptions { this.size = Some(-1.0) })
         }
         assertFailsWith<IllegalArgumentException> {
-            theme.radioMetrics(RadioOptions(dotInset = Some(1.0 / 0.0)))
+            theme.radioMetrics(radioOptions { this.dotInset = Some(1.0 / 0.0) })
         }
         assertFailsWith<IllegalArgumentException> {
             theme.surfaceGeometry(Rect(0.0, 0.0, -2.0, 10.0))

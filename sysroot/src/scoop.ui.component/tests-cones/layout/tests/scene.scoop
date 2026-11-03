@@ -57,15 +57,14 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                         else
                             None,
                     style =
-                        StyleOverride(
-                            contentEffects =
-                                StyleValue.Set(
-                                    if (themed)
-                                        [ContentEffect.Glow(2.0, 2.0, Color(0.2, 0.3, 1.0))]
-                                    else
-                                        []
-                                )
-                        )
+                        styleOverride {
+                            this.contentEffects(
+                                if (themed)
+                                    [ContentEffect.Glow(2.0, 2.0, Color(0.2, 0.3, 1.0))]
+                                else
+                                    []
+                            )
+                        }
                 ),
                 frame(
                     element({ BaselineBox(probe) }),
@@ -85,10 +84,10 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                     width = Some(60.0),
                     height = Some(50.0),
                     style =
-                        StyleOverride(
-                            cornerRadius = StyleValue.Set(18.0),
-                            clipContent = StyleValue.Set(true)
-                        )
+                        styleOverride {
+                            this.cornerRadius(18.0)
+                            this.clipContent(true)
+                        }
                 ),
                 label(
                     text,

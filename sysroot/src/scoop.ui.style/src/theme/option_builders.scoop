@@ -1,0 +1,153 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun surfaceOptions(configure: SurfaceOptionsBuilder.() -> Unit = {}): SurfaceOptions =
+    configureSurfaceOptions(SurfaceOptions(), configure)
+
+internal fun configureSurfaceOptions(
+    initial: SurfaceOptions,
+    configure: SurfaceOptionsBuilder.() -> Unit
+): SurfaceOptions {
+    val builder = SurfaceOptionsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class SurfaceOptionsBuilder internal constructor(initial: SurfaceOptions) {
+    public var suggestedSize: Size? = initial.suggestedSize
+    public var minimumSize: Size? = initial.minimumSize
+    public var padding: Insets? = initial.padding
+    public var style: StyleOverride = initial.style
+    public var focus: FocusStyle? = initial.focus
+
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+
+    internal fun snapshot(): SurfaceOptions =
+        SurfaceOptions(
+            suggestedSize = suggestedSize,
+            minimumSize = minimumSize,
+            padding = padding,
+            style = style,
+            focus = focus
+        )
+}
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun checkboxOptions(configure: CheckboxOptionsBuilder.() -> Unit = {}): CheckboxOptions =
+    configureCheckboxOptions(CheckboxOptions(), configure)
+
+internal fun configureCheckboxOptions(
+    initial: CheckboxOptions,
+    configure: CheckboxOptionsBuilder.() -> Unit
+): CheckboxOptions {
+    val builder = CheckboxOptionsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class CheckboxOptionsBuilder internal constructor(initial: CheckboxOptions) {
+    public var size: Double? = initial.size
+    public var minimumSize: Double? = initial.minimumSize
+    public var markInset: Double? = initial.markInset
+    public var style: StyleOverride = initial.style
+    public var markColor: Color? = initial.markColor
+    public var focus: FocusStyle? = initial.focus
+
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+
+    internal fun snapshot(): CheckboxOptions =
+        CheckboxOptions(
+            size = size,
+            minimumSize = minimumSize,
+            markInset = markInset,
+            style = style,
+            markColor = markColor,
+            focus = focus
+        )
+}
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun radioOptions(configure: RadioOptionsBuilder.() -> Unit = {}): RadioOptions =
+    configureRadioOptions(RadioOptions(), configure)
+
+internal fun configureRadioOptions(
+    initial: RadioOptions,
+    configure: RadioOptionsBuilder.() -> Unit
+): RadioOptions {
+    val builder = RadioOptionsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class RadioOptionsBuilder internal constructor(initial: RadioOptions) {
+    public var size: Double? = initial.size
+    public var minimumSize: Double? = initial.minimumSize
+    public var dotInset: Double? = initial.dotInset
+    public var background: StyleValue<Paint?> = initial.background
+    public var border: StyleValue<Border?> = initial.border
+    public var dotColor: Color? = initial.dotColor
+    public var focus: FocusStyle? = initial.focus
+
+    public fun background(value: Paint?): Unit {
+        this.background = StyleValue.Set(value)
+    }
+
+    public fun border(value: Border?): Unit {
+        this.border = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): RadioOptions =
+        RadioOptions(
+            size = size,
+            minimumSize = minimumSize,
+            dotInset = dotInset,
+            background = background,
+            border = border,
+            dotColor = dotColor,
+            focus = focus
+        )
+}
+
+/** Configures one immutable description without creating drawing or UI resources. */
+public fun scrollbarOptions(configure: ScrollbarOptionsBuilder.() -> Unit = {}): ScrollbarOptions =
+    configureScrollbarOptions(ScrollbarOptions(), configure)
+
+internal fun configureScrollbarOptions(
+    initial: ScrollbarOptions,
+    configure: ScrollbarOptionsBuilder.() -> Unit
+): ScrollbarOptions {
+    val builder = ScrollbarOptionsBuilder(initial)
+    builder.configure()
+    return builder.snapshot()
+}
+
+/** Mutable configuration; published values remain independent of later changes. */
+public class ScrollbarOptionsBuilder internal constructor(initial: ScrollbarOptions) {
+    public var thickness: Double? = initial.thickness
+    public var minimumThumbLength: Double? = initial.minimumThumbLength
+    public var trackInset: Double? = initial.trackInset
+    public var thumbInset: Double? = initial.thumbInset
+    public var buttonLength: StyleValue<Double?> = initial.buttonLength
+
+    public fun buttonLength(value: Double?): Unit {
+        this.buttonLength = StyleValue.Set(value)
+    }
+
+    internal fun snapshot(): ScrollbarOptions =
+        ScrollbarOptions(
+            thickness = thickness,
+            minimumThumbLength = minimumThumbLength,
+            trackInset = trackInset,
+            thumbInset = thumbInset,
+            buttonLength = buttonLength
+        )
+}

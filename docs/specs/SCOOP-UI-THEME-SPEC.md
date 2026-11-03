@@ -1,6 +1,6 @@
 # Scoop 公共主题绘图与几何规范
 
-日期：2026-11-02。状态：公共主题协议、四类部件几何／绘图、三套风格及 Light／Dark、基础控件消费和完整展示已在 macOS aarch64 交付并完成 x86_64 补验，验证范围见 [UI 实施记录](../ui/PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续。本文扩展 [公共样式规范](SCOOP-UI-STYLE-SPEC.md)，保留其内容效果、资源、稳定身份与停帧合同。
+日期：2026-11-03。状态：公共主题协议、四类部件几何／绘图、三套风格及 Light／Dark、基础控件消费和完整展示已在 macOS aarch64 交付并完成 x86_64 补验，验证范围见 [UI 实施记录](../ui/PROGRESS.md)。x86_64 使用 Apple Silicon 上的 Rosetta，Windows 后续。本文扩展 [公共样式规范](SCOOP-UI-STYLE-SPEC.md)，保留其内容效果、资源、稳定身份与停帧合同。
 
 ## 1. 本轮调整与分层
 
@@ -45,6 +45,21 @@ Theme 提供以下公共语义参数，使没有标准绘图部件的第三方�
 Style 是完整的已确定描述；新增 `StyleOverride` 表达局部覆盖。未指定属性继续使用本轮主题，背景／边框等可空属性须区分“继承”和“显式清除”，采用类型化 `StyleValue<T>` 的 Inherit／Set，而不是用一个 None 混淆两者。数组效果显式覆盖时整体替换，顺序不变；需要组合时由调用者明确给出顺序。
 
 控件局部样式和主题默认值在本轮几何计算前解析。圆角、边框内缩、padding 或建议尺寸的覆盖必须进入同一份最终几何；不能只改变画出的尺寸，却让布局或拖动继续用主题默认值。纯阴影／glow／blur 仍不改变布局尺寸、基线或命中区域。
+
+### 3.1 部件选项的接收者配置
+
+部件选项通过 `surfaceOptions(configure: SurfaceOptionsBuilder.() -> Unit = {})`、`checkboxOptions(configure: CheckboxOptionsBuilder.() -> Unit = {})`、`radioOptions(configure: RadioOptionsBuilder.() -> Unit = {})`、`scrollbarOptions(configure: ScrollbarOptionsBuilder.() -> Unit = {})` 构造，分别返回对应不可变 Options。每类 Options 提供 `copy(configure: 对应Builder.() -> Unit = {})`，基于当前完整覆盖值派生新值；值与 builder 的构造器内部化。
+
+| Builder | 全部可写属性与默认值 |
+| --- | --- |
+| SurfaceOptionsBuilder | suggestedSize: Size? = None；minimumSize: Size? = None；padding: Insets? = None；style: StyleOverride = styleOverride()；focus: FocusStyle? = None |
+| CheckboxOptionsBuilder | size: Double? = None；minimumSize: Double? = None；markInset: Double? = None；style: StyleOverride = styleOverride()；markColor: Color? = None；focus: FocusStyle? = None |
+| RadioOptionsBuilder | size: Double? = None；minimumSize: Double? = None；dotInset: Double? = None；background: StyleValue<Paint?> = Inherit；border: StyleValue<Border?> = Inherit；dotColor: Color? = None；focus: FocusStyle? = None |
+| ScrollbarOptionsBuilder | thickness: Double? = None；minimumThumbLength: Double? = None；trackInset: Double? = None；thumbInset: Double? = None；buttonLength: StyleValue<Double?> = Inherit |
+
+普通可选字段的 None 继续表示使用当前主题；Radio 的 background／border 和 Scrollbar 的 buttonLength 保留 Inherit、Set(None)、Set(value)。这三个覆盖字段各提供同名 Unit 设置方法，把同一槽写为 Set(value)；显式赋入 Inherit 恢复继承。
+
+SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configure: StyleOverrideBuilder.() -> Unit): Unit`。它基于当前 style 修改，重复块累积、空块不重置；给 style 属性赋入完整值表示替换。嵌套和外层配置都同步执行一次，结束后修改被捕获的 builder 不改变结果。回调异常不发布部分结果；选项构造不解析某个主题、不创建 native 资源，尺寸与颜色仍在实际 geometry／metrics 边界检查。
 
 ## 4. 公共绘图部件
 

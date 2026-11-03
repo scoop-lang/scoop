@@ -381,7 +381,7 @@ internal class ControlProbe {
                 val expected =
                     themes[themeIndex.toLong()].surfaceMetrics(
                         SurfaceVisual(SurfaceKind.Action),
-                        SurfaceOptions()
+                        surfaceOptions()
                     )
                 assertEquals(expected.suggestedSize.height, buttonBounds.height)
                 assertTrue(previousPixel != buttonPixel)

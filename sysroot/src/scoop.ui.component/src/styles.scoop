@@ -6,10 +6,10 @@ import scoop.ui.style.*
 
 /** Explicit state overrides, composed before theme geometry is calculated. */
 public class InteractionStyles public constructor(
-    public val hovered: StyleOverride = StyleOverride(),
-    public val pressed: StyleOverride = StyleOverride(),
-    public val focused: StyleOverride = StyleOverride(),
-    public val disabled: StyleOverride = StyleOverride()
+    public val hovered: StyleOverride = styleOverride(),
+    public val pressed: StyleOverride = styleOverride(),
+    public val focused: StyleOverride = styleOverride(),
+    public val disabled: StyleOverride = styleOverride()
 ) {
     internal fun apply(base: StyleOverride, visual: InteractionVisual): StyleOverride {
         var result = base
@@ -28,35 +28,26 @@ public class InteractionStyles public constructor(
 
 public class ButtonStyle public constructor(
     public val kind: SurfaceKind = SurfaceKind.Action,
-    public val surface: SurfaceOptions = SurfaceOptions(),
+    public val surface: SurfaceOptions = surfaceOptions(),
     public val text: SpanStyle? = None,
     public val states: InteractionStyles = InteractionStyles(),
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
 ) {
-    internal fun options(visual: InteractionVisual): SurfaceOptions =
-        SurfaceOptions(
-            surface.suggestedSize,
-            surface.minimumSize,
-            surface.padding,
-            states.apply(surface.style, visual),
-            surface.focus
-        )
+    internal fun options(visual: InteractionVisual): SurfaceOptions {
+        val localStyle = states.apply(surface.style, visual)
+        return surface.copy { this.style = localStyle }
+    }
 }
 
 public class CheckboxStyle public constructor(
-    public val marker: CheckboxOptions = CheckboxOptions(),
+    public val marker: CheckboxOptions = checkboxOptions(),
     public val padding: Insets? = None,
     public val states: InteractionStyles = InteractionStyles(),
     public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
     public val selectionTransition: StyleValue<AnimationSpec?> = StyleValue.Inherit
 ) {
-    internal fun options(visual: InteractionVisual): CheckboxOptions =
-        CheckboxOptions(
-            marker.size,
-            marker.minimumSize,
-            marker.markInset,
-            states.apply(marker.style, visual),
-            marker.markColor,
-            marker.focus
-        )
+    internal fun options(visual: InteractionVisual): CheckboxOptions {
+        val localStyle = states.apply(marker.style, visual)
+        return marker.copy { this.style = localStyle }
+    }
 }

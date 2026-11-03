@@ -43,19 +43,24 @@ private class StyleCacheTest {
         DecorationGeometry().use {
             cache ->
             val bounds = Rect(0.0, 0.0, 32.0, 24.0)
-            val style = Style(Some(Paint(Color.White)), Some(Border(2.0, Color.Black)), 4.0)
+            val style =
+                style {
+                    this.background = Some(Paint(Color.White))
+                    this.border = Some(Border(2.0, Color.Black))
+                    this.cornerRadius = 4.0
+                }
             val first = cache.update(bounds, style)!!
             assertSame(
                 first,
-                cache.update(bounds, style.withBackground(Some(Paint(Color.Black))))!!
+                cache.update(bounds, style.copy { this.background = Some(Paint(Color.Black)) })!!
             )
             val second = cache.update(Rect(0.0, 0.0, 40.0, 24.0), style)!!
             assertTrue(first.outline.isClosed)
             assertTrue(first.border!!.isClosed)
             assertFalse(second.outline.isClosed)
-            cache.update(bounds, Style())
+            cache.update(bounds, style())
             assertTrue(second.outline.isClosed)
-            val clip = cache.update(bounds, Style(clipContent = true))!!
+            val clip = cache.update(bounds, style { this.clipContent = true })!!
             assertTrue(clip.outline.contains(Point(1.0, 1.0)))
             cache.close()
             assertTrue(clip.outline.isClosed)

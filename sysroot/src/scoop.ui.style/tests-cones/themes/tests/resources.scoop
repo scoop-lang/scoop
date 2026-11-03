@@ -57,13 +57,9 @@ private class ThemeResourceTest {
             theme.checkboxGeometry(
                 bounds,
                 visual,
-                CheckboxOptions(
-                    style =
-                        StyleOverride(
-                            contentEffects =
-                                StyleValue.Set([ContentEffect.Glow(-1.0, 2.0, Color.White)])
-                        )
-                )
+                checkboxOptions {
+                    style { this.contentEffects([ContentEffect.Glow(-1.0, 2.0, Color.White)]) }
+                }
             )
         val good = theme.checkboxGeometry(bounds, visual)
         val result =
