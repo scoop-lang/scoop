@@ -12,7 +12,7 @@ public enum LabelText {
 public class LabelProps public constructor(
     public val text: LabelText,
     public val fonts: FontCollection? = None,
-    public val settings: ParagraphStyle = ParagraphStyle(),
+    public val settings: ParagraphStyle = paragraphStyle(),
     public val inlines: Array<InlineView> = [],
     public val theme: ThemeSource? = None,
     public val baseStyle: TextStyle? = None
@@ -67,7 +67,16 @@ public class Label public constructor(private val props: Props<LabelProps>): Com
                 case Some(value) -> value.resolve(base);
                 case None -> base
             }
-        val next = PlainLabel(text, base, style, StyledText([TextSpan.text(text)], resolved))
+        val next =
+            PlainLabel(
+                text,
+                base,
+                style,
+                styledText {
+                    this.text(text)
+                    this.style = resolved
+                }
+            )
         plain = Some(next)
         return next.content
     }
@@ -77,7 +86,7 @@ public fun label(
     text: String,
     style: SpanStyle? = None,
     fonts: FontCollection? = None,
-    settings: ParagraphStyle = ParagraphStyle(),
+    settings: ParagraphStyle = paragraphStyle(),
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position
 ): View =
@@ -90,7 +99,7 @@ public fun label(
 public fun label(
     content: StyledText,
     fonts: FontCollection? = None,
-    settings: ParagraphStyle = ParagraphStyle(),
+    settings: ParagraphStyle = paragraphStyle(),
     inlines: Array<InlineView> = [],
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position

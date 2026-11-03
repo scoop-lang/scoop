@@ -179,7 +179,7 @@ private class ThemePaintingTest {
         FontCollection(systemFallback = false).use {
             fonts ->
             fonts.register(testSansBytes, "Theme Sans")
-            val local = SpanStyle(families = Some(["Theme Sans"]))
+            val local = spanStyle { this.families = Some(["Theme Sans"]) }
             var previousWidth = 0.0
             val all = themes()
             for (i in [0L, 2L, 4L]) {

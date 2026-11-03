@@ -86,7 +86,7 @@ public fun button(
             LabelProps(
                 LabelText.Plain(text, None),
                 fonts,
-                ParagraphStyle(alignment = TextAlignment.Center)
+                paragraphStyle { this.alignment = TextAlignment.Center }
             ),
             onClick,
             enabled,
@@ -104,7 +104,7 @@ public fun button(
     enabled: Boolean = true,
     style: ButtonStyle = ButtonStyle(),
     fonts: FontCollection? = None,
-    settings: ParagraphStyle = ParagraphStyle(),
+    settings: ParagraphStyle = paragraphStyle(),
     inlines: Array<InlineView> = [],
     theme: ThemeSource? = None,
     key: ViewKey = ViewKey.Position,

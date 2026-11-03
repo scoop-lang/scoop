@@ -34,7 +34,7 @@ private class PaintRowInk(
     private val record: PaintRowRecord,
     private val props: Props<Int>
 ): Element {
-    private var content = StyledText([])
+    private var content = styledText()
     private var checkedContract = false
     public override fun onMount(scope: ComponentScope) {
         record.text = Some(scope.resource { ParagraphHost() })
@@ -57,11 +57,15 @@ private class PaintRowInk(
         if (record.observed == props.value)
             return
         record.observed = props.value
+        val rowText = f"Row ${record.id}: ${props.value}"
         content =
-            StyledText(
-                [TextSpan.text(f"Row ${record.id}: ${props.value}")],
-                TextStyle(["Cache Test"], 14.0)
-            )
+            styledText {
+                this.text(rowText)
+                style {
+                    this.families = ["Cache Test"]
+                    this.fontSize = 14.0
+                }
+            }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         record.text!!.measure(context, Constraints(maxWidth = Some(120.0)), probe.fonts, content)

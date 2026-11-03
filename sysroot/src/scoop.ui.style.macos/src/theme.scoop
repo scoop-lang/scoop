@@ -43,9 +43,22 @@ public fun macosTheme(mode: ThemeMode = ThemeMode.Light): Theme {
     val families = [".AppleSystemUIFont", "Helvetica Neue", "sans-serif"]
     val fonts =
         ThemeTypography(
-            TextStyle(families, 13.0, palette.text),
-            TextStyle(families, 11.0, palette.secondaryText),
-            TextStyle(families, 13.0, palette.text, weight = 500)
+            textStyle {
+                this.families = families
+                this.fontSize = 13.0
+                this.color = palette.text
+            },
+            textStyle {
+                this.families = families
+                this.fontSize = 11.0
+                this.color = palette.secondaryText
+            },
+            textStyle {
+                this.families = families
+                this.fontSize = 13.0
+                this.color = palette.text
+                this.weight = 500
+            }
         )
     val effects =
         ThemeEffects(

@@ -1,6 +1,6 @@
 # 接收者 DSL builder 设计建议
 
-日期：2026-11-03。状态：API 调研与设计依据；[迁移计划](DSL-MIGRATION.md)已开始分批实施，JSON、URL 与 Path 构造入口已迁移，UI 和其余 API 继续按计划推进。迁移按新风格直接重设计公开入口并更新调用方，不承担历史版本兼容责任。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构；完整签名、必需参数与实施范围按迁移计划落实到对应规范。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
+日期：2026-11-03。状态：API 调研与设计依据；[迁移计划](DSL-MIGRATION.md)已开始分批实施，JSON、URL、Path 及纯文本／文本样式构造入口已迁移，UI 和其余 API 继续按计划推进。迁移按新风格直接重设计公开入口并更新调用方，不承担历史版本兼容责任。本文按现有模型讨论适用范围、构建协议和生命周期，代码用于解释结构；完整签名、必需参数与实施范围按迁移计划落实到对应规范。范围不包含 CodeBlock。语言已有的接收者函数类型、尾随 lambda 和隐式 this 足以支持基本写法，见 [语言规范 §8.1](../specs/SCOOP-SPEC.md)。
 
 ## 1. 建议
 
@@ -66,7 +66,7 @@ ScrollState、TextEditorState、FocusHandle、VirtualListHandle、LayoutAnchor �
 | ScrollArea | 内容、滚动参数、条样式和缓存选项可就近配置 | 绘制缓存与子项实例缓存保持独立；ScrollState 更新仍通过现有操作 |
 | VirtualList | 已有 ItemSource、ItemExtent、retention、navigation、paintCache 等 | builder 保存惰性 source／项构建回调，不枚举全量数据；实例创建仍由 lazyElement 决定 |
 | Style、SurfaceOptions、状态覆盖 | 不可变配置嵌套较深，适合局部配置块 | 保留 Inherit、Set(None)、Set(value) 三种意义；省略不能误变成清除继承值 |
-| StyledText、TextSpan 和行内内容 | 当前显式拼接文本段数组 | 同步生成现有富文本描述；排版、导航和行内 View 绑定继续走现有文字层 |
+| StyledText、TextSpan 和行内内容 | 已迁移为 styledText／textSpan 及文本样式接收者工厂，成员按顺序收集内容 | 生成不可变富文本描述，保持继承与 InlineKey；UI 行内 View 装配继续按计划推进 |
 | Shortcut、焦点／键盘导航配置 | 快捷键绑定、NavigationItem 数组和 options 可集中描述 | 只生成配置值；ShortcutScope、FocusScope 和监听器按挂载生命周期创建与更新 |
 
 event routing 的 handler、capture、bubble 和 defaultAction 已经是普通回调赋值。可以在需要组合输入容器的 API 中提供配置块，但没有必要为事件传播再造一套 DSL 执行器。`requestFocus`、`scrollTo`、文本编辑命令及 Canvas 绘图继续作为显式动作。

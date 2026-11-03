@@ -11,17 +11,15 @@ private class InlineTextTest {
         val photo = InlineKey.Text("photo")
         val empty = InlineKey.Number(2L)
         val content =
-            StyledText(
-                [
-                    TextSpan.text("A😀"),
-                    TextSpan.span(
-                        SpanStyle(fontSize = Some(32.0)),
-                        [TextSpan.inlineObject(photo, "[photo]")]
-                    ),
-                    TextSpan.text("\u{fffc}"),
-                    TextSpan.inlineObject(empty, "")
-                ]
-            )
+            styledText {
+                this.text("A😀")
+                this.span {
+                    style { this.fontSize = Some(32.0) }
+                    this.inlineObject(photo, "[photo]")
+                }
+                this.text("\u{fffc}")
+                this.inlineObject(empty, "")
+            }
         assertEquals("A😀\u{fffc}\u{fffc}\u{fffc}", content.text)
         assertEquals(2L, content.inlineObjects.size)
         assertEquals(InlineObject(photo, TextRange(5L, 8L), "[photo]"), content.inlineObjects[0L])
@@ -32,21 +30,20 @@ private class InlineTextTest {
         assertEquals("", content.toPlainText(TextRange(11L, 14L)))
         assertFailsWith<IllegalArgumentException> { content.toPlainText(TextRange(6L, 8L)) }
         assertFailsWith<IllegalArgumentException> {
-            StyledText(
-                [
-                    TextSpan.inlineObject(photo, "a"),
-                    TextSpan.span(
-                        SpanStyle(),
-                        [TextSpan.inlineObject(InlineKey.Text("photo"), "b")]
-                    )
-                ]
-            )
+            styledText {
+                this.inlineObject(photo, "a")
+                this.span {
+                    this.style = spanStyle()
+                    this.inlineObject(InlineKey.Text("photo"), "b")
+                }
+            }
         }
         assertEquals(
             2L,
-            StyledText(
-                [TextSpan.inlineObject(InlineKey.Text("2"), "a"), TextSpan.inlineObject(empty, "b")]
-            ).inlineObjects.size
+            styledText {
+                this.inlineObject(InlineKey.Text("2"), "a")
+                this.inlineObject(empty, "b")
+            }.inlineObjects.size
         )
     }
 
@@ -57,7 +54,9 @@ private class InlineTextTest {
             val a = InlineKey.Text("a")
             val b = InlineKey.Text("b")
             val content =
-                inlineContent([TextSpan.inlineObject(a, "a"), TextSpan.inlineObject(b, "b")])
+                inlineContent(
+                    [textSpan { this.inlineObject(a, "a") }, textSpan { this.inlineObject(b, "b") }]
+                )
             Paragraph(fonts, content).use {
                 paragraph ->
                 val first = InlineMetrics(a, Size(20.0, 30.0))
@@ -123,11 +122,11 @@ private class InlineTextTest {
             val content =
                 inlineContent(
                     [
-                        TextSpan.text("H"),
-                        TextSpan.inlineObject(photo, "photo"),
-                        TextSpan.text("H"),
-                        TextSpan.inlineObject(control, "control"),
-                        TextSpan.text("H")
+                        textSpan { this.text("H") },
+                        textSpan { this.inlineObject(photo, "photo") },
+                        textSpan { this.text("H") },
+                        textSpan { this.inlineObject(control, "control") },
+                        textSpan { this.text("H") }
                     ]
                 )
             Image.fromRgba(1, 1, [-1, 0, 0, -1]).use {
@@ -181,7 +180,11 @@ private class InlineTextTest {
             val key = InlineKey.Number(1L)
             val content =
                 inlineContent(
-                    [TextSpan.text("H"), TextSpan.inlineObject(key, "object"), TextSpan.text("H")]
+                    [
+                        textSpan { this.text("H") },
+                        textSpan { this.inlineObject(key, "object") },
+                        textSpan { this.text("H") }
+                    ]
                 )
             Paragraph(fonts, content).use {
                 paragraph ->
@@ -255,13 +258,30 @@ private class InlineTextTest {
             val a = InlineKey.Text("tall")
             val b = InlineKey.Text("short")
             for (objectsFirst in [false, true]) {
-                val objects = [TextSpan.inlineObject(a, "a"), TextSpan.inlineObject(b, "b")]
+                val objects =
+                    [textSpan { this.inlineObject(a, "a") }, textSpan { this.inlineObject(b, "b") }]
                 val content =
                     inlineContent(
                         if (objectsFirst)
-                            [TextSpan.span(SpanStyle(), objects), TextSpan.text("H")]
+                            [
+                                textSpan {
+                                    this.style = spanStyle()
+                                    for (fragment in objects) {
+                                        this.add(fragment)
+                                    }
+                                },
+                                textSpan { this.text("H") }
+                            ]
                         else
-                            [TextSpan.text("H"), TextSpan.span(SpanStyle(), objects)]
+                            [
+                                textSpan { this.text("H") },
+                                textSpan {
+                                    this.style = spanStyle()
+                                    for (fragment in objects) {
+                                        this.add(fragment)
+                                    }
+                                }
+                            ]
                     )
                 Paragraph(fonts, content).use {
                     paragraph -> paragraph.layoutUnwrapped(
@@ -300,12 +320,12 @@ private class InlineTextTest {
             val content =
                 inlineContent(
                     [
-                        TextSpan.text("אב "),
-                        TextSpan.inlineObject(a, "a"),
-                        TextSpan.text(" גד "),
-                        TextSpan.inlineObject(b, "b"),
-                        TextSpan.text(" הו AB "),
-                        TextSpan.inlineObject(c, "c")
+                        textSpan { this.text("אב ") },
+                        textSpan { this.inlineObject(a, "a") },
+                        textSpan { this.text(" גד ") },
+                        textSpan { this.inlineObject(b, "b") },
+                        textSpan { this.text(" הו AB ") },
+                        textSpan { this.inlineObject(c, "c") }
                     ]
                 )
             val metrics =
@@ -315,7 +335,7 @@ private class InlineTextTest {
                     InlineMetrics(b, Size(22.0, 16.0))
                 ]
             for (direction in [TextDirection.Ltr, TextDirection.Rtl]) {
-                Paragraph(fonts, content, ParagraphStyle(direction = direction)).use {
+                Paragraph(fonts, content, paragraphStyle { this.direction = direction }).use {
                     paragraph -> paragraph.layoutUnwrapped(metrics).use {
                         layout ->
                         assertEquals(3L, layout.inlineObjects.size)
@@ -350,14 +370,16 @@ private class InlineTextTest {
             for (index in 0L ..< 8L) {
                 val key = InlineKey.Number(index)
                 spans.add(
-                    TextSpan.text(
-                        if (index % 2L == 0L)
-                            "אב "
-                        else
-                            "AB "
-                    )
+                    textSpan {
+                        this.text(
+                            if (index % 2L == 0L)
+                                "אב "
+                            else
+                                "AB "
+                        )
+                    }
                 )
-                spans.add(TextSpan.inlineObject(key, "object"))
+                spans.add(textSpan { this.inlineObject(key, "object") })
                 metrics.add(InlineMetrics(key, Size(12.0 + index.toDouble(), 14.0)))
             }
             val content = inlineContent(spans.toArray())
@@ -366,11 +388,11 @@ private class InlineTextTest {
                     Paragraph(
                         fonts,
                         content,
-                        ParagraphStyle(
-                            direction = direction,
-                            maxLines = Some(2L),
-                            ellipsis = ellipsis
-                        )
+                        paragraphStyle {
+                            this.direction = direction
+                            this.maxLines = Some(2L)
+                            this.ellipsis = ellipsis
+                        }
                     ).use {
                         paragraph -> for (width in [0.0, 50.0, 100.0, 200.0, 600.0]) {
                             paragraph.layout(width, metrics.toArray()).use {
@@ -428,9 +450,9 @@ private class InlineTextTest {
             val content =
                 inlineContent(
                     [
-                        TextSpan.inlineObject(a, "a"),
-                        TextSpan.inlineObject(b, "b"),
-                        TextSpan.inlineObject(c, "c")
+                        textSpan { this.inlineObject(a, "a") },
+                        textSpan { this.inlineObject(b, "b") },
+                        textSpan { this.inlineObject(c, "c") }
                     ]
                 )
             Paragraph(fonts, content).use {
@@ -476,11 +498,11 @@ private class InlineTextTest {
             val content =
                 inlineContent(
                     [
-                        TextSpan.text("e\u{301}"),
-                        TextSpan.inlineObject(a, "a"),
-                        TextSpan.text("\u{301}"),
-                        TextSpan.inlineObject(b, "b"),
-                        TextSpan.text("😀")
+                        textSpan { this.text("e\u{301}") },
+                        textSpan { this.inlineObject(a, "a") },
+                        textSpan { this.text("\u{301}") },
+                        textSpan { this.inlineObject(b, "b") },
+                        textSpan { this.text("😀") }
                     ]
                 )
             Paragraph(fonts, content).use {
@@ -527,7 +549,11 @@ private class InlineTextTest {
             val key = InlineKey.Text("item")
             val content =
                 inlineContent(
-                    [TextSpan.text("HH"), TextSpan.inlineObject(key, "item"), TextSpan.text("HH")]
+                    [
+                        textSpan { this.text("HH") },
+                        textSpan { this.inlineObject(key, "item") },
+                        textSpan { this.text("HH") }
+                    ]
                 )
             Paragraph(fonts, content).use {
                 paragraph ->
@@ -560,7 +586,15 @@ private class InlineTextTest {
 }
 
 private fun inlineContent(spans: Array<TextSpan>): StyledText =
-    StyledText(spans, TextStyle(["Test Sans", "Test CJK"], 20.0))
+    styledText {
+        for (fragment in spans) {
+            this.add(fragment)
+        }
+        style {
+            this.families = ["Test Sans", "Test CJK"]
+            this.fontSize = 20.0
+        }
+    }
 
 private fun assertNear(expected: Double, actual: Double) {
     assertTrue(

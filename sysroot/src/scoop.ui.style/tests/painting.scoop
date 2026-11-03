@@ -135,7 +135,15 @@ private class StylePaintTest {
         FontCollection(false).use {
             fonts ->
             fonts.register(testSansBytes, "Style Sans")
-            Paragraph(fonts, "UI", TextStyle(["Style Sans"], 22.0, Color(1.0, 0.0, 0.0))).use {
+            Paragraph(
+                fonts,
+                "UI",
+                textStyle {
+                    this.families = ["Style Sans"]
+                    this.fontSize = 22.0
+                    this.color = Color(1.0, 0.0, 0.0)
+                }
+            ).use {
                 paragraph -> paragraph.layoutUnwrapped().use {
                     layout ->
                     val text: (Canvas) -> Unit =

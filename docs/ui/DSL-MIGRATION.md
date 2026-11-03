@@ -222,9 +222,9 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 
 1. 每批 Scoop 变更先对受影响 Cone 执行 `scoop fmt`。Rust／Python 若实际改动，先按 AGENTS.md 执行各自格式化和 lint，再运行相关验证。
 2. 内置库变化后，按[准备脚本说明](../../scripts/README.md)显式更新开发 sysroot，设置 `SCOOP_SYSROOT`，复用已有 native 资源和共享 Cone cache。准备与依赖编译使用正确的依赖顺序，测试不逐项复制 sysroot 或重建未变化的库。
-3. 对受影响 Cone 执行 `scoop test --release`，由同一次测试构建检查生产与测试源码，并验证普通行为和实际库消费。测试消费本批更新后的依赖产物，不再为 Cone API 另设 fixture 验证入口。
+3. 对实际改变构造／配置行为的 Cone 执行 `scoop test --release`，覆盖新 API 的领域规则和必要组合。仅机械更新调用方式、运行逻辑未变的消费 Cone，使用 `scoop test --release --no-run` 检查生产与测试源码、类型及链接；不为这些调用迁移扩跑无关行为。测试消费本批更新后的依赖产物，不再为 Cone API 另设 fixture 验证入口。
 4. 未修改 LIR／codegen 的批次只做本地验证。UI、主题、Path 和相关图形组合在已支持的 macOS aarch64 release 上通过 scoop.test 分批验证；实际修改 LIR／codegen 时再按变更所影响的目标补充必要验证，不把本机结果宣称为全部平台结果。
-5. Cone 的定向组合通过 scoop.test 验证，覆盖主题、下载应用相关组合、HTTP loopback 及其他受影响库。fixture 先评估迁移，仅在确需保留的编译器／外部进程合同范围运行；不因新增配置块重跑编译器全量、全部系统库或普通功能的 GC stress 矩阵。
+5. 只对本批实际影响的行为选择 scoop.test 定向组合，例如主题覆盖、下载请求装配或 HTTP loopback；不因改写构造调用排查无关的窗口激活、系统焦点等环境问题。fixture 先评估迁移，仅在确需保留的编译器／外部进程合同范围运行；不因新增配置块重跑编译器全量、全部系统库或普通功能的 GC stress 矩阵。
 6. 用新 API 生成并检查相关公共 API 文档；当前文档、可运行示例和库实现必须一致。原始日志、截图、JSON 报告置于仓库外，仓库只保存批次范围、结果、失败闭合和必要平台限制。
 
 ## 8 完成条件
@@ -246,3 +246,4 @@ URL 迁移涉及的九组 HTTP fixture 及共享 helper 的一个调用组已按
 | 2026-11-03 | D4 URL 前置测试归位 | 评估九组直接受影响的 HTTP fixture 及一个共享源码调用组。Basic／Bearer 的普通认证行为与 lifetime 独有用例迁入 scoop.http.client，19 个 scoop.test 入口覆盖 79 个场景并保留双线程组合；先验 17 项、再验新增 2 项，全部通过。删除 client-bearer-lifetime；保留的 Basic／Bearer HTTP/1 peer fixture 共 2 项通过。Scoop 格式化与 Python Ruff 检查通过，正式 API 尚未在此批修改。已用当前配套工具完整准备本机 aarch64 macOS 开发 sysroot。 |
 | 2026-11-03 | D4 URL | url／Url.copy、可写 encoded 组件与 Unit 原文／追加操作替换公开链式 builder；规范、HTTP／client／charset 调用方、示例和文档同步更新。构造和快照内部化，复制复用已有 authority 解释，raw／encoded 与空／缺失区别保留。本机 aarch64 macOS release 的 scoop.test：URL 整库 22 项、HTTP 整库 303 项、charset 整库 18 项、client 定向 10 项、预编译库实际示例与导入 2 项均通过；已评估保留的外部协议 fixture 7 项通过。Scoop 格式化、公共 API 文档与签名检查通过，开发 sysroot 按依赖顺序更新；本任务未改 LIR／codegen。 |
 | 2026-11-03 | D4 Path | path 作用域入口自动关闭临时 builder，追加／reset 改为 Unit；增量 PathBuilder 继续按明确生命周期产生独立快照，reset 保留填充规则。规范、graphics／Surface／style／UI 消费方与示例同步更新，无受影响 fixture。本机 aarch64 macOS release 的 scoop.test：graphics 39 项、Surface 79 项、基础示例 4 项、UI 自绘 1 项、style 11 项、三套主题 13 项和临时消费示例 2 项，共 149 项全部通过。Scoop 格式与公共 API 文档检查通过；按现有脚本更新 Skia 的 PathOps 资源及开发 sysroot，链接失败已闭合。本任务未改 LIR／codegen。 |
+| 2026-11-03 | D1 纯文本与文本样式 | styledText／textSpan、TextStyle／SpanStyle／ParagraphStyle 接收者工厂已替换公开长参数构造和 TextSpan companion 工厂；追加成员返回 Unit，重复样式块基于当前值修改，显式赋值替换。规范、文本／UI／控件／主题消费方及示例同步更新，无受影响 fixture。文本整库 51 项（含新增 5 项构造语义）、临时实际文档消费 3 项及已执行的调用组合共 177 项 scoop.test 通过；布局窗口测试因未获系统焦点按用户要求跳过。绘制缓存、主题示例和下载示例的调用通过 scoop test --no-run 编译／链接检查；迁移中的同名帮助函数和隐式外层引用错误已修正。Scoop 格式、公共 API 文档及开发 sysroot 更新完成。公共 Style、主题配置与 UI 行内 View 装配继续按后续批次实施；StringBuilder／ByteArrayBuilder 未改动，本任务未改 LIR／codegen。 |

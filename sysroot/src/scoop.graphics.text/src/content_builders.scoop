@@ -1,0 +1,54 @@
+package scoop.graphics.text
+
+/** Collects text and inline objects, then normalizes one immutable description. */
+public fun styledText(configure: StyledTextBuilder.() -> Unit = {}): StyledText {
+    val builder = StyledTextBuilder()
+    builder.configure()
+    return StyledText(builder.snapshotSpans(), builder.style)
+}
+
+/** Creates a reusable styled fragment without allocating native text resources. */
+public fun textSpan(configure: TextSpanBuilder.() -> Unit = {}): TextSpan = buildTextSpan(configure)
+
+private fun buildTextSpan(configure: TextSpanBuilder.() -> Unit): TextSpan {
+    val builder = TextSpanBuilder()
+    builder.configure()
+    return TextSpan(SpanContent.Styled(builder.style, builder.snapshotSpans()))
+}
+
+/** Ordered content operations shared by complete text and nested fragments. */
+public open class TextChildrenBuilder internal constructor() {
+    private val entries = ArrayList<TextSpan>()
+
+    public fun add(value: TextSpan): Unit {
+        entries.add(value)
+    }
+    public fun text(value: String): Unit {
+        add(TextSpan(SpanContent.Plain(value)))
+    }
+    public fun span(configure: TextSpanBuilder.() -> Unit = {}): Unit {
+        add(buildTextSpan(configure))
+    }
+    public fun inlineObject(key: InlineKey, alternateText: String): Unit {
+        add(TextSpan(SpanContent.Object(key, alternateText)))
+    }
+    internal fun snapshotSpans(): Array<TextSpan> = entries.toArray()
+}
+
+/** Configures the complete base style and collects the paragraph's content. */
+public class StyledTextBuilder internal constructor(): TextChildrenBuilder() {
+    public var style: TextStyle = textStyle()
+
+    public fun style(configure: TextStyleBuilder.() -> Unit): Unit {
+        style = configureTextStyle(style, configure)
+    }
+}
+
+/** Configures inherited overrides and collects one nested fragment. */
+public class TextSpanBuilder internal constructor(): TextChildrenBuilder() {
+    public var style: SpanStyle = spanStyle()
+
+    public fun style(configure: SpanStyleBuilder.() -> Unit): Unit {
+        style = configureSpanStyle(style, configure)
+    }
+}

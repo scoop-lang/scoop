@@ -176,7 +176,14 @@ private fun withEditLayout(text: String, width: Double?, action: (TextLayout) ->
     FontCollection(false).use {
         fonts ->
         fonts.register(testSansBytes, "Editor Test")
-        Paragraph(fonts, text, TextStyle(["Editor Test"], 20.0)).use {
+        Paragraph(
+            fonts,
+            text,
+            textStyle {
+                this.families = ["Editor Test"]
+                this.fontSize = 20.0
+            }
+        ).use {
             paragraph ->
             val layout =
                 when (width) {

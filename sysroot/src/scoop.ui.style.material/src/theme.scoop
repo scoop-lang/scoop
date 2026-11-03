@@ -43,9 +43,23 @@ public fun materialTheme(mode: ThemeMode = ThemeMode.Light): Theme {
     val families = ["Roboto", "Arial", "sans-serif"]
     val fonts =
         ThemeTypography(
-            TextStyle(families, 14.0, palette.text),
-            TextStyle(families, 12.0, palette.secondaryText),
-            TextStyle(families, 14.0, palette.text, weight = 500, letterSpacing = 0.1)
+            textStyle {
+                this.families = families
+                this.fontSize = 14.0
+                this.color = palette.text
+            },
+            textStyle {
+                this.families = families
+                this.fontSize = 12.0
+                this.color = palette.secondaryText
+            },
+            textStyle {
+                this.families = families
+                this.fontSize = 14.0
+                this.color = palette.text
+                this.weight = 500
+                this.letterSpacing = 0.1
+            }
         )
     val effects =
         ThemeEffects(

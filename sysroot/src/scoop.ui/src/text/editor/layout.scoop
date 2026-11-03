@@ -28,14 +28,23 @@ private fun editorLayout(host: TextEditHost, width: Double?): TextLayout {
             case Some(previous) -> if (previous.text == text && previous.style === style)
                 previous
             else
-                StyledText([TextSpan.text(text)], style)
-            case None -> StyledText([TextSpan.text(text)], style)
+                styledText {
+                    this.text(text)
+                    this.style = style
+                }
+            case None -> styledText {
+                this.text(text)
+                this.style = style
+            }
         }
     host.content = Some(content)
     return host.body.update(
         host.appearance.fonts,
         content,
-        ParagraphStyle(host.options.alignment, host.options.direction),
+        paragraphStyle {
+            this.alignment = host.options.alignment
+            this.direction = host.options.direction
+        },
         width,
         []
     )
@@ -55,15 +64,24 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
             case Some(previous) -> if (previous.text == text && previous.style === style)
                 previous
             else
-                StyledText([TextSpan.text(text)], style)
-            case None -> StyledText([TextSpan.text(text)], style)
+                styledText {
+                    this.text(text)
+                    this.style = style
+                }
+            case None -> styledText {
+                this.text(text)
+                this.style = style
+            }
         }
     host.hintContent = Some(content)
     return Some(
         host.hint.update(
             host.appearance.fonts,
             content,
-            ParagraphStyle(host.options.alignment, host.options.direction),
+            paragraphStyle {
+                this.alignment = host.options.alignment
+                this.direction = host.options.direction
+            },
             width,
             []
         )

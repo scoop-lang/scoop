@@ -129,7 +129,7 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                 checkbox(initialChecked = false, focus = FocusOptions(Some(probe.ownedFocus))),
                 component(
                     LabelProps(
-                        LabelText.Plain("Theme body", Some(SpanStyle(weight = Some(700)))),
+                        LabelText.Plain("Theme body", Some(spanStyle { this.weight = Some(700) })),
                         Some(probe.fonts)
                     ),
                     {

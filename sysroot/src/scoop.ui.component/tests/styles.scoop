@@ -61,7 +61,7 @@ private class ComponentStyleTest {
         val cache = ActionTextStyle()
         val first = macosTheme().tokens.typography.action
         val second = materialTheme().tokens.typography.action
-        val local = SpanStyle(weight = Some(700))
+        val local = spanStyle { this.weight = Some(700) }
         val a = cache.resolve(first, Color.White, Some(local))
         assertSame(a, cache.resolve(first, Color.White, Some(local)))
         assertEquals(first.fontSize, a.fontSize)
@@ -72,7 +72,7 @@ private class ComponentStyleTest {
         assertEquals(second.families[0L], b.families[0L])
         assertEquals(700, b.weight)
         assertEquals(Color.Black, b.color)
-        val colored = SpanStyle(color = Some(Color(1.0, 0.0, 0.0)))
+        val colored = spanStyle { this.color = Some(Color(1.0, 0.0, 0.0)) }
         assertEquals(Color(1.0, 0.0, 0.0), cache.resolve(second, Color.White, Some(colored)).color)
     }
 

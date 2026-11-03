@@ -16,12 +16,10 @@ private class UiTextCacheTest {
     @Test
     fun `inline binding validates occurrence keys without constructing components`() {
         val content =
-            StyledText(
-                [
-                    TextSpan.inlineObject(InlineKey.Text("a"), "A"),
-                    TextSpan.inlineObject(InlineKey.Number(1L), "B")
-                ]
-            )
+            styledText {
+                this.inlineObject(InlineKey.Text("a"), "A")
+                this.inlineObject(InlineKey.Number(1L), "B")
+            }
         val view = component<UnbuiltInline>({ throw IllegalStateException(Some("must stay lazy")) })
         val first = InlineView(InlineKey.Text("a"), view)
         val second = InlineView(InlineKey.Number(1L), view)
@@ -31,7 +29,7 @@ private class UiTextCacheTest {
         assertFailsWith<IllegalArgumentException> {
             inlineChildren(content, [first, InlineView(InlineKey.Text("other"), view)])
         }
-        assertFailsWith<IllegalArgumentException> { inlineChildren(StyledText([]), [first]) }
+        assertFailsWith<IllegalArgumentException> { inlineChildren(styledText(), [first]) }
     }
 
     @Test
@@ -40,17 +38,21 @@ private class UiTextCacheTest {
             fonts ->
             val key = InlineKey.Text("image")
             val content =
-                StyledText(
-                    [TextSpan.text("A "), TextSpan.inlineObject(key, "image")],
-                    TextStyle(["UI Test"], 20.0)
-                )
+                styledText {
+                    this.text("A ")
+                    this.inlineObject(key, "image")
+                    style {
+                        this.families = ["UI Test"]
+                        this.fontSize = 20.0
+                    }
+                }
             ParagraphCache().use {
                 cache ->
                 val first =
                     cache.update(
                         fonts,
                         content,
-                        ParagraphStyle(),
+                        paragraphStyle(),
                         Some(160.0),
                         [InlineMetrics(key, Size(20.0, 24.0))]
                     )
@@ -58,7 +60,7 @@ private class UiTextCacheTest {
                     cache.update(
                         fonts,
                         content,
-                        ParagraphStyle(),
+                        paragraphStyle(),
                         Some(160.0),
                         [InlineMetrics(key, Size(20.0, 24.0))]
                     )
@@ -68,7 +70,7 @@ private class UiTextCacheTest {
                     cache.update(
                         fonts,
                         content,
-                        ParagraphStyle(),
+                        paragraphStyle(),
                         Some(160.0),
                         [InlineMetrics(key, Size(36.0, 24.0))]
                     )
@@ -79,7 +81,7 @@ private class UiTextCacheTest {
                     cache.update(
                         fonts,
                         content,
-                        ParagraphStyle(),
+                        paragraphStyle(),
                         None,
                         [InlineMetrics(key, Size(36.0, 24.0))]
                     )
@@ -99,31 +101,42 @@ private class UiTextCacheTest {
         adapterFonts().use {
             fonts -> ParagraphCache().use {
                 cache ->
-                val content = StyledText([TextSpan.text("Original")], TextStyle(["UI Test"], 18.0))
-                val first = cache.update(fonts, content, ParagraphStyle(), Some(200.0), [])
+                val content =
+                    styledText {
+                        this.text("Original")
+                        style {
+                            this.families = ["UI Test"]
+                            this.fontSize = 18.0
+                        }
+                    }
+                val first = cache.update(fonts, content, paragraphStyle(), Some(200.0), [])
                 assertFailsWith<IllegalArgumentException> {
                     cache.update(
                         fonts,
                         content,
-                        ParagraphStyle(maxLines = Some(0L)),
+                        paragraphStyle { this.maxLines = Some(0L) },
                         Some(200.0),
                         []
                     )
                 }
-                val invalid = StyledText([TextSpan.inlineObject(InlineKey.Number(4L), "missing")])
+                val invalid = styledText { this.inlineObject(InlineKey.Number(4L), "missing") }
                 assertFailsWith<IllegalArgumentException> {
-                    cache.update(fonts, invalid, ParagraphStyle(), Some(200.0), [])
+                    cache.update(fonts, invalid, paragraphStyle(), Some(200.0), [])
                 }
                 assertSame(first, cache.layout)
                 assertEquals(1L, cache.generation)
                 assertFalse(first.isClosed)
-                assertSame(first, cache.update(fonts, content, ParagraphStyle(), Some(200.0), []))
-                val replacement = StyledText([TextSpan.text("Replacement")], content.style)
-                val next = cache.update(fonts, replacement, ParagraphStyle(), Some(200.0), [])
+                assertSame(first, cache.update(fonts, content, paragraphStyle(), Some(200.0), []))
+                val replacement =
+                    styledText {
+                        this.text("Replacement")
+                        this.style = content.style
+                    }
+                val next = cache.update(fonts, replacement, paragraphStyle(), Some(200.0), [])
                 assertTrue(first.isClosed)
                 assertSame(replacement, next.content)
                 fonts.register(testSansBytes, "UI Other")
-                val afterFont = cache.update(fonts, replacement, ParagraphStyle(), Some(200.0), [])
+                val afterFont = cache.update(fonts, replacement, paragraphStyle(), Some(200.0), [])
                 assertTrue(next.isClosed)
                 assertEquals(3L, cache.generation)
                 assertFalse(afterFont.isClosed)
@@ -153,11 +166,17 @@ private class UiTextCacheTest {
             fonts ->
             val cache = ParagraphCache()
             val content =
-                StyledText([TextSpan.text("first second third")], TextStyle(["UI Test"], 20.0))
-            val old = cache.update(fonts, content, ParagraphStyle(), Some(180.0), [])
+                styledText {
+                    this.text("first second third")
+                    style {
+                        this.families = ["UI Test"]
+                        this.fontSize = 20.0
+                    }
+                }
+            val old = cache.update(fonts, content, paragraphStyle(), Some(180.0), [])
             val accepted = cache.retainLayout()
             val retainedAgain = cache.retainLayout()
-            val next = cache.update(fonts, content, ParagraphStyle(), Some(65.0), [])
+            val next = cache.update(fonts, content, paragraphStyle(), Some(65.0), [])
             assertFalse(old.isClosed)
             assertTrue(next.lines.size > old.lines.size)
             assertTrue(accepted.layout.caret(TextPosition(0L)) != None)

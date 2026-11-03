@@ -21,7 +21,7 @@ internal class DemoEditor(private val fonts: FontCollection, initial: String = "
             case None -> {}
         }
         val next =
-            Paragraph(fonts, snapshot.surroundingText, TextStyle(fontSize = 22.0)).use {
+            Paragraph(fonts, snapshot.surroundingText, textStyle { this.fontSize = 22.0 }).use {
                 paragraph -> paragraph.layout(availableWidth)
             }
         when (cached) {

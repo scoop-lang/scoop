@@ -41,7 +41,12 @@ internal class DownloadPanel(
                 [
                     label(
                         "Download + background SHA-256",
-                        Some(SpanStyle(fontSize = Some(24.0), weight = Some(700))),
+                        Some(
+                            spanStyle {
+                                this.fontSize = Some(24.0)
+                                this.weight = Some(700)
+                            }
+                        ),
                         Some(fonts)
                     ),
                     label(phaseText(value.phase), fonts = Some(fonts)),

@@ -5,7 +5,11 @@ import scoop.math.abs
 import scoop.platform.concurrent.Thread
 import scoop.test.*
 
-private fun navigationStyle(): TextStyle = TextStyle(["Test Sans", "Test CJK"], 20.0)
+private fun navigationStyle(): TextStyle =
+    textStyle {
+        this.families = ["Test Sans", "Test CJK"]
+        this.fontSize = 20.0
+    }
 
 @Test
 private class TextNavigationTest {
@@ -53,7 +57,7 @@ private class TextNavigationTest {
                 fonts,
                 "שלום",
                 navigationStyle(),
-                ParagraphStyle(direction = TextDirection.Rtl)
+                paragraphStyle { this.direction = TextDirection.Rtl }
             ).use {
                 paragraph -> paragraph.layout(200.0).use {
                     layout ->
@@ -105,13 +109,13 @@ private class TextNavigationTest {
                     else
                         "HHHH",
                     navigationStyle(),
-                    ParagraphStyle(
-                        direction =
+                    paragraphStyle {
+                        this.direction =
                             if (rtl)
                                 TextDirection.Rtl
                             else
                                 TextDirection.Ltr
-                    )
+                    }
                 ).use {
                     paragraph -> paragraph.layout(30.0).use {
                         layout ->
@@ -234,14 +238,12 @@ private class TextNavigationTest {
             fonts ->
             val key = InlineKey.Text("object")
             val content =
-                StyledText(
-                    [
-                        TextSpan.text("ab"),
-                        TextSpan.inlineObject(key, "image"),
-                        TextSpan.text("cdef")
-                    ],
-                    navigationStyle()
-                )
+                styledText {
+                    this.text("ab")
+                    this.inlineObject(key, "image")
+                    this.text("cdef")
+                    this.style = navigationStyle()
+                }
             Paragraph(fonts, content).use {
                 paragraph -> paragraph.layout(200.0, [InlineMetrics(key, Size(20.0, 20.0))]).use {
                     layout ->
@@ -258,7 +260,7 @@ private class TextNavigationTest {
                 fonts,
                 "Hello world more words",
                 navigationStyle(),
-                ParagraphStyle(maxLines = Some(1L))
+                paragraphStyle { this.maxLines = Some(1L) }
             ).use {
                 paragraph -> paragraph.layout(45.0).use {
                     layout ->

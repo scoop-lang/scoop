@@ -11,7 +11,14 @@ private class MetalTextTest {
     @Test
     fun `independent text library draws into Metal through the scoped canvas bridge`() {
         testFonts().use {
-            fonts -> Paragraph(fonts, "HHHH", TextStyle(["Test Sans"], 20.0)).use {
+            fonts -> Paragraph(
+                fonts,
+                "HHHH",
+                textStyle {
+                    this.families = ["Test Sans"]
+                    this.fontSize = 20.0
+                }
+            ).use {
                 paragraph -> paragraph.layout(80.0).use {
                     layout -> TestMetalSurface.create(160, 100).use {
                         objects -> @Unsafe

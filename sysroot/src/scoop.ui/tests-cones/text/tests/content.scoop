@@ -73,18 +73,18 @@ private class SelfDrawnParagraph(
         val input = props.value
         val narrow = input.generation == 2
         val settings =
-            ParagraphStyle(
-                direction =
+            paragraphStyle {
+                this.direction =
                     if (input.generation >= 4)
                         TextDirection.Rtl
                     else
-                        TextDirection.Ltr,
-                maxLines =
+                        TextDirection.Ltr
+                this.maxLines =
                     if (narrow)
                         Some(1L)
                     else
                         None
-            )
+            }
         val metrics =
             host!!.measure(
                 context,

@@ -44,7 +44,12 @@ internal class Showcase(
                             frame(
                                 label(
                                     "S",
-                                    Some(SpanStyle(fontSize = Some(22.0), weight = Some(700))),
+                                    Some(
+                                        spanStyle {
+                                            this.fontSize = Some(22.0)
+                                            this.weight = Some(700)
+                                        }
+                                    ),
                                     Some(fonts)
                                 ),
                                 width = Some(42.0),
@@ -86,7 +91,12 @@ internal class Showcase(
                 [
                     label(
                         "Scoop themes",
-                        Some(SpanStyle(fontSize = Some(22.0), weight = Some(700))),
+                        Some(
+                            spanStyle {
+                                this.fontSize = Some(22.0)
+                                this.weight = Some(700)
+                            }
+                        ),
                         Some(fonts)
                     ),
                     label(
@@ -136,7 +146,7 @@ internal class Showcase(
                     ),
                     label(
                         "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur.",
-                        style = Some(SpanStyle(fontSize = Some(12.0))),
+                        style = Some(spanStyle { this.fontSize = Some(12.0) }),
                         fonts = Some(fonts)
                     ),
                     row(

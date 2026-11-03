@@ -1,0 +1,156 @@
+package scoop.graphics.text
+
+import scoop.graphics.Color
+import scoop.test.*
+
+@Test
+private class TextBuilderTest {
+    @Test
+    fun `default factories produce empty content and complete or inherited styles`() {
+        val content = styledText()
+        assertEquals("", content.text)
+        assertEquals(0L, content.spans.size)
+        assertEquals("sans-serif", content.style.families[0L])
+        assertEquals(14.0, content.style.fontSize)
+        assertEquals(None, content.style.lineHeight)
+        val inherited = spanStyle().resolve(content.style)
+        assertEquals(content.style.fontSize, inherited.fontSize)
+        assertEquals(None, spanStyle().lineHeight)
+        val paragraph = paragraphStyle()
+        assertEquals(TextAlignment.Start, paragraph.alignment)
+        assertEquals(TextDirection.Ltr, paragraph.direction)
+        assertEquals(None, paragraph.maxLines)
+        assertEquals("", styledText { add(textSpan()) }.text)
+    }
+
+    @Test
+    fun `nested callbacks append in order and captured builders cannot change published text`() {
+        val order = ArrayList<Int>()
+        val roots = ArrayList<StyledTextBuilder>()
+        val fragments = ArrayList<TextSpanBuilder>()
+        val styles = ArrayList<TextStyleBuilder>()
+        val shared =
+            textSpan {
+                fragments.add(this)
+                text("B")
+            }
+        val content =
+            styledText {
+                roots.add(this)
+                style {
+                    styles.add(this)
+                    fontSize = 20.0
+                }
+                order.add(1)
+                text("A")
+                span {
+                    order.add(2)
+                    style { fontSize = Some(28.0) }
+                    text("é")
+                }
+                order.add(3)
+                add(shared)
+                inlineObject(InlineKey.Text("asset"), "<asset>")
+            }
+        roots[0L].text("late root")
+        fragments[0L].text("late fragment")
+        styles[0L].fontSize = 64.0
+        assertEquals(3L, order.size)
+        assertEquals(1, order[0L])
+        assertEquals(2, order[1L])
+        assertEquals(3, order[2L])
+        assertEquals("AéB\u{fffc}", content.text)
+        assertEquals("AéB<asset>", content.toPlainText())
+        assertEquals(20.0, content.style.fontSize)
+        assertEquals(4L, content.spans.size)
+        assertEquals(TextRange(4L, 7L), content.inlineObjects[0L].range)
+        assertEquals("B", styledText { add(shared) }.text)
+    }
+
+    @Test
+    fun `repeated style blocks preserve settings while assigning a complete value replaces them`() {
+        val captured = ArrayList<SpanStyle>()
+        val content =
+            styledText {
+                style { fontSize = 24.0 }
+                style { weight = 700 }
+                style {}
+                span {
+                    style { fontSize = Some(28.0) }
+                    style { lineHeight = Some(None) }
+                    style {}
+                    captured.add(this.style)
+                    this.style = spanStyle { color = Some(Color.White) }
+                    style { wordSpacing = Some(2.0) }
+                    captured.add(this.style)
+                    text("x")
+                }
+            }
+        assertEquals(24.0, content.style.fontSize)
+        assertEquals(700, content.style.weight)
+        assertEquals(Some(28.0), captured[0L].fontSize)
+        assertEquals(Some(None), captured[0L].lineHeight)
+        assertEquals(None, captured[1L].fontSize)
+        assertEquals(Some(Color.White), captured[1L].color)
+        assertEquals(Some(2.0), captured[1L].wordSpacing)
+        val replaced =
+            styledText {
+                style { fontSize = 30.0 }
+                this.style = content.style
+                style { letterSpacing = 1.0 }
+            }
+        assertEquals(24.0, replaced.style.fontSize)
+        assertEquals(700, replaced.style.weight)
+        assertEquals(1.0, replaced.style.letterSpacing)
+        assertEquals(0.0, content.style.letterSpacing)
+    }
+
+    @Test
+    fun `style snapshots preserve optional clearing and paragraph settings`() {
+        val styles = ArrayList<SpanStyleBuilder>()
+        val paragraphs = ArrayList<ParagraphStyleBuilder>()
+        val base =
+            textStyle {
+                lineHeight = Some(2.0)
+                features = [FontFeature("kern", 0)]
+            }
+        val cleared =
+            spanStyle {
+                styles.add(this)
+                lineHeight = Some(None)
+                features = Some([])
+            }
+        styles[0L].lineHeight = Some(Some(3.0))
+        styles[0L].features = None
+        assertEquals(None, cleared.resolve(base).lineHeight)
+        assertEquals(0L, cleared.resolve(base).features.size)
+        assertEquals(Some(2.0), spanStyle().resolve(base).lineHeight)
+        val paragraph =
+            paragraphStyle {
+                paragraphs.add(this)
+                direction = TextDirection.Rtl
+                maxLines = Some(2L)
+                ellipsis = "..."
+            }
+        paragraphs[0L].maxLines = None
+        assertEquals(TextDirection.Rtl, paragraph.direction)
+        assertEquals(Some(2L), paragraph.maxLines)
+        assertEquals("...", paragraph.ellipsis)
+    }
+
+    @Test
+    fun `callback errors propagate and duplicate inline keys fail at complete text normalization`() {
+        val failure = IllegalStateException(Some("configuration failed"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> { styledText { span { throw failure } } }
+        )
+        val shared = textSpan { inlineObject(InlineKey.Number(1L), "image") }
+        assertFailsWith<IllegalArgumentException> {
+            styledText {
+                add(shared)
+                add(shared)
+            }
+        }
+    }
+}

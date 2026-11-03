@@ -58,8 +58,15 @@ internal class EditProbe(val fonts: FontCollection) {
     val appearance =
         TextEditAppearance(
             fonts,
-            TextStyle(["Host Test"], 20.0),
-            TextStyle(["Host Test"], 20.0, Color(0.5, 0.5, 0.5))
+            textStyle {
+                this.families = ["Host Test"]
+                this.fontSize = 20.0
+            },
+            textStyle {
+                this.families = ["Host Test"]
+                this.fontSize = 20.0
+                this.color = Color(0.5, 0.5, 0.5)
+            }
         )
     var readonly = false
     var showObserver = true
