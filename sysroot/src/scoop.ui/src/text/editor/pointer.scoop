@@ -32,8 +32,10 @@ internal fun editorDragging(host: TextEditHost): Boolean =
 internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point?, clicks: Int) {
     val point = local ?: return
     host.area.requestFocus()
-    val layout = editorInputLayout(host)
-    val position = layout.hitTest(point)
+    val input = editorInputText(host)
+    val layout = input.layout
+    val displayed = layout.hitTest(point)
+    val position = input.display.documentPosition(input.display.mapping.reverse(displayed))
     val shift = pointer.state.modifiers.shift
     val unit =
         if (shift || clicks < 2)
@@ -43,7 +45,7 @@ internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point
                 EditorDragUnit.Word
             else
                 EditorDragUnit.Line
-    val range = editorDragRange(layout, position, unit)
+    val range = editorProjectedRange(input, editorDragRange(layout, displayed, unit))
     val anchor =
         if (shift)
             host.current.anchor
@@ -94,9 +96,11 @@ private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement:
             min(max(point.x, offset.x), offset.x + viewport.width) + displacement.x,
             min(max(point.y, offset.y), offset.y + viewport.height) + displacement.y
         )
-    val layout = editorInputLayout(host)
-    val position = layout.hitTest(hit)
-    val range = editorDragRange(layout, position, drag.unit)
+    val input = editorInputText(host)
+    val layout = input.layout
+    val displayed = layout.hitTest(hit)
+    val position = input.display.documentPosition(input.display.mapping.reverse(displayed))
+    val range = editorProjectedRange(input, editorDragRange(layout, displayed, drag.unit))
     val selection =
         if (drag.unit == EditorDragUnit.Character)
             EditorSelection(drag.anchor, position)
@@ -115,7 +119,7 @@ private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement:
     host.revealNeeded = false
 }
 
-private fun editorDragRange(
+internal fun editorDragRange(
     layout: TextLayout,
     position: TextPosition,
     unit: EditorDragUnit

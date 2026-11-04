@@ -1,0 +1,148 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.window.*
+
+/** Navigation consumes a layout and its own interval mapping as one snapshot. */
+internal fun editorProjectedMove(
+    input: EditorInputLayout,
+    selection: EditorSelection,
+    movement: TextMovement,
+    extend: Boolean,
+    preferredX: Double?,
+    pageHeight: Double
+): EditorNavigation {
+    val display = input.display
+    if (movement == TextMovement.Backward || movement == TextMovement.Forward) {
+        val forward = movement == TextMovement.Forward
+        val next =
+            if (!extend && selection.anchor.byteOffset != selection.cursor.byteOffset) {
+                val before = selection.anchor.byteOffset < selection.cursor.byteOffset
+                if (before == forward)
+                    selection.cursor
+                else
+                    selection.anchor
+            } else
+                TextPosition(
+                    editorAdjacentGrapheme(
+                        display.source.text,
+                        selection.cursor.byteOffset,
+                        forward
+                    )
+                )
+        val cursor = display.documentPosition(next)
+        return EditorNavigation(
+            EditorSelection(
+                if (extend)
+                    selection.anchor
+                else
+                    cursor,
+                cursor
+            ),
+            None
+        )
+    }
+    var shown = display.forward(selection)
+    var result = editorMove(input.layout, shown, movement, extend, preferredX, pageHeight)
+    var mapped = display.reverse(result.selection)
+    // Separator-only caret stops do not trap navigation at the same document position.
+    while (
+        (extend || selection.anchor.byteOffset == selection.cursor.byteOffset) &&
+            mapped.cursor ==
+            selection.cursor &&
+            result.selection.cursor !=
+            shown.cursor
+    ) {
+        shown = EditorSelection(result.selection.cursor, result.selection.cursor)
+        result = editorMove(input.layout, shown, movement, false, result.preferredX, pageHeight)
+        val next = display.toDocument(result.selection.cursor)
+        mapped =
+            EditorSelection(
+                if (extend)
+                    selection.anchor
+                else
+                    next,
+                next
+            )
+    }
+    val cursor = display.documentPosition(mapped.cursor)
+    return EditorNavigation(
+        EditorSelection(
+            if (extend)
+                selection.anchor
+            else
+                display.documentPosition(mapped.anchor),
+            cursor
+        ),
+        result.preferredX
+    )
+}
+
+internal fun editorProjectedDelete(
+    input: EditorInputLayout,
+    selection: Utf8Selection,
+    deletion: TextDeletion
+): Utf8Range {
+    val selected = selection.range
+    if (selected.start != selected.end)
+        return selected
+    if (deletion == TextDeletion.Backward || deletion == TextDeletion.Forward) {
+        val text = input.display.source.text
+        val cursor = selection.cursor
+        val boundaries = editorGraphemeBytes(text)
+        var before = 0L
+        for (after in boundaries) {
+            if (after > cursor) {
+                if (before != cursor)
+                    return Utf8Range(before, after)
+                if (deletion == TextDeletion.Forward)
+                    return Utf8Range(cursor, after)
+                break
+            }
+            before = after
+        }
+        val next = editorAdjacentGrapheme(text, cursor, deletion == TextDeletion.Forward)
+        return if (next < cursor)
+            Utf8Range(next, cursor)
+        else
+            Utf8Range(cursor, next)
+    }
+    val shown = input.display.toDisplay(TextPosition(selection.cursor))
+    val range =
+        editorDeleteRange(input.layout, Utf8Selection(shown.byteOffset, shown.byteOffset), deletion)
+    val mapped = editorProjectedRange(input, TextRange(range.start, range.end))
+    val start = mapped.start
+    val end = mapped.end
+    if (end > start)
+        return Utf8Range(start, end)
+    return selected
+}
+
+private fun editorAdjacentGrapheme(text: String, offset: Long, forward: Boolean): Long {
+    var previous = 0L
+    for (boundary in editorGraphemeBytes(text)) {
+        if (forward && boundary > offset)
+            return boundary
+        if (!forward && boundary >= offset)
+            return previous
+        previous = boundary
+    }
+    return text.byteLength
+}
+
+internal fun editorProjectedRange(input: EditorInputLayout, range: TextRange): TextRange {
+    val display = input.display
+    val first = display.mapping.reverse(TextPosition(range.start, TextAffinity.Downstream))
+    val last = display.mapping.reverse(TextPosition(range.end, TextAffinity.Upstream))
+    val start =
+        display.documentPosition(TextPosition(first.byteOffset, TextAffinity.Upstream)).byteOffset
+    val end =
+        display.documentPosition(TextPosition(last.byteOffset, TextAffinity.Downstream)).byteOffset
+    return TextRange(
+        start,
+        if (end >= start)
+            end
+        else
+            start
+    )
+}

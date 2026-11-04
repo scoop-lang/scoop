@@ -27,6 +27,13 @@ public open class ChildrenBuilder internal constructor() {
         add(makePlainLabel(text, configure))
     }
 
+    public fun selectableStyledText(
+        content: StyledText,
+        configure: SelectableStyledTextBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSelectableStyledText(content, configure))
+    }
+
     public fun label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): Unit {
         add(makeStyledLabel(content, configure))
     }

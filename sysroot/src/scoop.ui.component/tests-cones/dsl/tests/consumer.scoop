@@ -40,6 +40,7 @@ private class ReceiverDslConsumerTests {
                 }
                 frame(makeLabel("single")) { padding = None }
                 styled(custom) { style {} }
+                selectableStyledText(rich.content) { inlines = rich.inlines }
                 portal(state(true).binding(), custom) { dismiss { escape = true } }
                 absolute { item(existing) { zIndex = 2 } }
             }

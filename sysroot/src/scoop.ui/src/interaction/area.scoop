@@ -1,14 +1,21 @@
 package scoop.ui
 
 import scoop.surface.InputArea
+import scoop.surface.InputScope
 
+/** Area nesting stays within one mount; a child mount introduces a separate non-area scope. */
 internal fun ComponentScope.requireBehaviorArea(area: InputArea) {
     requireUi(!area.isClosed, "interaction behavior requires an open area")
     val local = input
-    val belongs =
-        when (area.scope.parent) {
-            case Some(parent) -> parent === local
-            case None -> false
+    var cursor: InputScope? = Some(area.scope)
+    while (true) {
+        val current = cursor ?: break
+        if (current === local)
+            return
+        when (current.area) {
+            case Some(_) -> cursor = current.parent
+            case None -> break
         }
-    requireUi(belongs, "interaction area must belong directly to this mount")
+    }
+    throw IllegalArgumentException(Some("interaction area must belong to this mount"))
 }

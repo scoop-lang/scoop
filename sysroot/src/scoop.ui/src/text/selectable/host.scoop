@@ -1,0 +1,253 @@
+package scoop.ui.text
+
+import scoop.collections.HashSet
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Read-only directional selection over a real styled paragraph, without an editing document. */
+public class SelectableTextHost public constructor(
+    internal val scope: ComponentScope,
+    initialFonts: FontCollection,
+    initialContent: StyledText,
+    initialOptions: SelectableTextOptions = SelectableTextOptions()
+): Closeable {
+    private val thread = currentThreadId()
+    internal val paragraph = ParagraphHost()
+    internal var fonts = initialFonts
+    internal var content = initialContent
+    internal var options = initialOptions
+    internal var closed = false
+    internal val selected = state(EditorSelection(TextPosition(0L), TextPosition(0L)))
+    internal var preferredX: Double? = None
+    internal var changed: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
+    internal var actions: Array<SelectableAction> = []
+    internal var decorations: Array<TextRangeDecoration> = []
+    internal var accepted: SelectableFrame? = None
+    internal var staged: SelectableFrame? = None
+    internal var drag: SelectableDrag? = None
+    public val area =
+        scope.createArea(focusable = true) {
+            context,
+            event -> selectableHandle(this, context, event)
+        }
+    public val focus = scope.focusTarget(area)
+    private val activity =
+        area.scope.observeActivity {
+            if (!closed && scope.isMounted) {
+                if (!area.scope.activity.hasFocus)
+                    selectableStopDrag(this)
+                scope.requestFrame()
+            }
+        }
+
+    init {
+        options.check()
+        requireUi(!fonts.isClosed, "selectable text fonts are closed")
+        area.scope.captureHandler = { context, event -> selectableHandle(this, context, event) }
+        area.scope.defaultAction = { context, event -> selectableHandle(this, context, event) }
+        area.scope.onEventFinished = { event -> selectableFinished(this, event) }
+        area.scope.enabled = options.enabled
+        scope.routeChildren(area)
+    }
+
+    public val isClosed: Boolean get() {
+        checkUiThread(thread);
+        return closed
+    }
+    public val anchor: TextPosition get() {
+        checkOpen();
+        return selected.value.anchor
+    }
+    public val cursor: TextPosition get() {
+        checkOpen();
+        return selected.value.cursor
+    }
+    public val selection: Utf8Selection get() {
+        checkOpen();
+        return Utf8Selection(anchor.byteOffset, cursor.byteOffset)
+    }
+    /** Borrowed until the next successful measurement or close. */
+    public val layout: TextLayout get() {
+        checkOpen();
+        return paragraph.layout
+    }
+    public fun selectionBounds(): Array<TextBox> {
+        checkOpen()
+        val frame = inputFrame() ?: return []
+        val range = selection.range
+        return frame.layout.selection(TextRange(range.start, range.end))
+    }
+    public fun actionInteraction(key: String): InteractionState? {
+        checkOpen()
+        for (action in actions)
+            if (action.input.key == key)
+                return Some(action.press.interaction)
+        return None
+    }
+    internal fun checkOpen() {
+        checkUiThread(thread)
+        if (closed || !scope.isMounted)
+            throw IllegalStateException(Some("selectable text host is no longer mounted"))
+    }
+    internal fun inputFrame(): SelectableFrame? {
+        val frame = accepted ?: return None
+        return if (frame.content.text == content.text)
+            Some(frame)
+        else
+            None
+    }
+    public fun update(
+        fonts: FontCollection,
+        content: StyledText,
+        options: SelectableTextOptions = SelectableTextOptions(),
+        focus: FocusOptions = FocusOptions(),
+        actions: Array<TextRangeAction> = [],
+        decorations: Array<TextRangeDecoration> = [],
+        onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
+    ) {
+        checkOpen()
+        checkFocusMutation()
+        options.check()
+        requireUi(!fonts.isClosed, "selectable text fonts are closed")
+        val bytes = content.text.toByteArray()
+        val keys = HashSet<String>()
+        for (action in actions) {
+            requireUi(keys.add(action.key), "duplicate text range action key")
+            checkEditorRange(bytes, Utf8Range(action.range.start, action.range.end))
+            requireUi(action.range.start < action.range.end, "empty text range action")
+        }
+        for (decoration in decorations) {
+            checkEditorRange(bytes, Utf8Range(decoration.range.start, decoration.range.end))
+            for (color in [decoration.background, decoration.underline])
+                when (color) {
+                    case Some(value) -> checkSelectableColor(value)
+                    case None -> {}
+                }
+        }
+        this.focus.options = focus
+        val textChanged = this.content.text != content.text
+        this.fonts = fonts
+        this.content = content
+        this.options = options
+        this.decorations = decorations
+        changed = onSelectionChanged
+        selectableActions(this, actions)
+        if (textChanged || !options.enabled) {
+            selectableStopDrag(this)
+            preferredX = None
+        }
+        if (textChanged) {
+            val current = selected.value
+            val boundaries = editorGraphemeBytes(content.text)
+            publishSelection(
+                EditorSelection(
+                    selectableClamp(boundaries, current.anchor),
+                    selectableClamp(boundaries, current.cursor)
+                )
+            )
+        }
+        if (!closed) {
+            refreshAdmission()
+            scope.requestFrame()
+        }
+    }
+    internal fun refreshAdmission() {
+        if (closed)
+            return
+        val available =
+            when (inputFrame()) {
+                case Some(_) -> options.enabled;
+                case None -> false
+            }
+        // Pending text blocks selection through inputFrame without retiring the existing focus.
+        area.scope.enabled = options.enabled
+        for (action in actions)
+            action.refresh(available, accepted)
+    }
+    public fun setSelection(anchor: TextPosition, cursor: TextPosition): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        val bytes = content.text.toByteArray()
+        requireUi(
+            editorScalar(bytes, anchor.byteOffset) && editorScalar(bytes, cursor.byteOffset),
+            "invalid text selection"
+        )
+        preferredX = None
+        return publishSelection(EditorSelection(anchor, cursor))
+    }
+    internal fun publishSelection(value: EditorSelection): Boolean {
+        if (selected.value == value)
+            return false
+        selected.value = value
+        scope.requestFrame()
+        changed(value.anchor, value.cursor)
+        return true
+    }
+    public fun execute(command: TextEditCommand): Boolean {
+        checkOpen()
+        checkFocusMutation()
+        if (
+            !options.enabled ||
+                !scope.nativeWindow.isFocused ||
+                !area.scope.isInputAllowed ||
+                !area.scope.activity.hasFocus
+        )
+            return false
+        selectableStopDrag(this)
+        return selectableCommand(this, command)
+    }
+    public fun measure(
+        context: MeasureContext,
+        constraints: Constraints,
+        settings: ParagraphStyle? = None,
+        inlines: Array<InlineView> = []
+    ): LayoutMetrics {
+        checkOpen()
+        return paragraph.measure(context, constraints, fonts, content, settings, inlines)
+    }
+    public fun scene(context: SceneContext) {
+        checkOpen()
+        selectableScene(this, context)
+    }
+    public override fun close() {
+        checkUiThread(thread)
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        selectableStopDrag(this)
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { activity.close() }
+        for (action in actions)
+            failure = cleanupUi(failure) { action.close() }
+        actions = []
+        failure = cleanupUi(failure) { focus.close() }
+        failure = cleanupUi(failure) { area.close() }
+        failure = cleanupUi(failure) { staged?.close() }
+        staged = None
+        failure = cleanupUi(failure) { accepted?.close() }
+        accepted = None
+        failure = cleanupUi(failure) { paragraph.close() }
+        throwUi(failure)
+    }
+}
+
+private fun selectableClamp(boundaries: Array<Long>, position: TextPosition): TextPosition {
+    var previous = 0L
+    for (boundary in boundaries) {
+        if (boundary >= position.byteOffset)
+            return TextPosition(
+                if (boundary == position.byteOffset || position.affinity == TextAffinity.Downstream)
+                    boundary
+                else
+                    previous,
+                position.affinity
+            )
+        previous = boundary
+    }
+    return TextPosition(previous, position.affinity)
+}

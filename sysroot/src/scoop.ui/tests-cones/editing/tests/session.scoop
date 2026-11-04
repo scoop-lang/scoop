@@ -34,12 +34,21 @@ private class PublicTextEditHostTest {
                         assertTrue(probe.finished)
                         assertEquals(3, probe.mounts)
                         assertEquals(probe.mounts, probe.unmounts)
+                        assertEquals(1, probe.displayTest.mounts)
+                        assertEquals(1, probe.displayTest.unmounts)
+                        assertEquals(1, probe.displayTest.inlineMounts)
+                        assertEquals(1, probe.displayTest.inlineUnmounts)
+                        assertTrue(probe.displayTest.host!!.isClosed)
                         for (host in probe.fields)
                             assertTrue(host!!.isClosed)
                         for (focus in probe.focus)
                             assertFalse(focus.isAttached)
                         assertFalse(probe.frames!!.snapshot().required)
                         assertFalse(fonts.isClosed)
+                    } catch (error: Throwable) {
+                        println("editing phase=" + probe.phase.toString())
+                        editingFailure(error)
+                        throw error
                     } finally {
                         probe.frames?.close()
                     }
@@ -52,6 +61,7 @@ private class PublicTextEditHostTest {
 }
 
 internal class EditProbe(val fonts: FontCollection) {
+    val displayTest = DisplayProbe()
     val primary = TextEditorState("A😀éZ")
     val multiline = TextEditorState("one two\nthree")
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
@@ -124,7 +134,9 @@ internal class EditProbe(val fonts: FontCollection) {
                     TextSubmitKeys.Enter,
             paintCache = PaintCachePolicy.Tiles(64, 0),
             caretBlink = blink,
-            policy = policy
+            policy = policy,
+            projection = displayTest.projection,
+            copy = displayTest.copy
         )
     fun model(index: Long): TextEditorState =
         if (index == 1L)
@@ -177,7 +189,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     retriedFocus = true
                     window!!.requestFocus()
                 }
-                if (!finished && phase < 49 && !waiting && settled()) {
+                if (!finished && phase < 75 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -190,7 +202,7 @@ internal class EditProbe(val fonts: FontCollection) {
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 49
+                finished = phase == 75
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(
@@ -206,6 +218,8 @@ internal class EditProbe(val fonts: FontCollection) {
     private fun nativeFocused(): Boolean = window!!.isFocused
     private fun settled(): Boolean {
         if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
+            return false
+        if (displayTest.focus.isPending || displayTest.actionFocus.isPending)
             return false
         for (target in focus)
             if (target.isPending)
@@ -234,7 +248,7 @@ internal class EditProbe(val fonts: FontCollection) {
     }
     fun point(index: Long, byte: Long): Point {
         val host = field(index)
-        val caret = host.layout.caret(TextPosition(byte))!!
+        val caret = host.caret(TextPosition(byte))!!
         val rect = host.area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
         return Point(rect.x, rect.y)
     }
@@ -243,4 +257,30 @@ internal class EditProbe(val fonts: FontCollection) {
         editorPointer(window!!, point, true, count, shift)
         editorPointer(window!!, point, false, count, shift)
     }
+}
+
+private fun editingFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        editingFailure(error.primaryFailure)
+        editingFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                error.location.file +
+                    ":" +
+                    error.location.line.toString() +
+                    ": " +
+                    (error.message ?: "assertion")
+            )
+            when (error.expected) {
+                case Text(value) -> println("expected: " + value);
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println("actual: " + value);
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "editing failure")
 }

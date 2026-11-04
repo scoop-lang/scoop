@@ -1,6 +1,6 @@
 # 编辑策略、显示投影与文本选择
 
-本文属于 [控件基础设计](DESIGN.md)，规定 T1／T2 的合同；T1 已完成，T2 尚未实施。继续使用 `scoop.ui.text` 中的 TextEditorState／TextEditHost、window 的 TextInputState 事务和 graphics.text 的 Unicode／布局查询；`scoop.ui.text` 仍是 UI Cone 内的公共 package。
+本文属于 [控件基础设计](DESIGN.md)，规定 T1／T2 的合同；T1／T2 已完成，验证范围见实施记录。继续使用 `scoop.ui.text` 中的 TextEditorState／TextEditHost、window 的 TextInputState 事务和 graphics.text 的 Unicode／布局查询；`scoop.ui.text` 仍是 UI Cone 内的公共 package。
 
 ## 1. 保留一份编辑模型
 

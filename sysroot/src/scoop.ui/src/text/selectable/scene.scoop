@@ -1,0 +1,106 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+
+internal class SelectableFrame(
+    private val retained: RetainedParagraphLayout,
+    val content: StyledText,
+    val ranges: Array<SelectableRange>
+): Closeable {
+    val paths = ArrayList<Path>()
+    val layout: TextLayout get() = retained.layout
+    public override fun close() {
+        for (value in paths)
+            value.close()
+        paths.clear()
+        retained.close()
+    }
+}
+
+internal fun selectableScene(host: SelectableTextHost, context: SceneContext) {
+    val ranges =
+        Array<SelectableRange>(host.actions.size) {
+            index ->
+            val input = host.actions[index].input
+            SelectableRange(input.key, input.range)
+        }
+    val frame = SelectableFrame(host.paragraph.retainLayout(), host.content, ranges)
+    host.staged?.close()
+    host.staged = Some(frame)
+    val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+    val selected = host.selection.range
+    val boxes = frame.layout.selection(TextRange(selected.start, selected.end))
+    val color =
+        if (host.area.scope.activity.hasFocus)
+            host.options.selectionColor
+        else
+            host.options.inactiveSelectionColor
+    context.withState {
+        scene ->
+        if (host.options.clip)
+            scene.clipRect(bounds)
+        scene.place(host.area, bounds)
+        for (decoration in host.decorations) {
+            val regions = frame.layout.selection(decoration.range)
+            when (decoration.background) {
+                case Some(value) -> scene.draw {
+                    paint -> for (box in regions)
+                        paint.canvas.drawRect(box.rect, Paint(value))
+                }
+                case None -> {}
+            }
+        }
+        scene.draw {
+            paint -> for (box in boxes)
+                paint.canvas.drawRect(box.rect, Paint(color))
+        }
+        for (action in host.actions) {
+            val regions = frame.layout.selection(action.input.range)
+            val shape =
+                path {
+                    for (box in regions)
+                        addRect(box.rect)
+                }
+            frame.paths.add(shape)
+            scene.place(action.area, shape)
+        }
+        host.paragraph.scene(scene)
+        for (decoration in host.decorations) {
+            val regions = frame.layout.selection(decoration.range)
+            when (decoration.underline) {
+                case Some(value) -> scene.draw {
+                    paint -> for (box in regions)
+                        paint.canvas.drawRect(
+                            Rect(
+                                box.rect.x,
+                                box.rect.y + box.rect.height - 1.0,
+                                box.rect.width,
+                                1.0
+                            ),
+                            Paint(value)
+                        )
+                }
+                case None -> {}
+            }
+        }
+    }
+    context.onFrameComplete {
+        completion ->
+        when (host.staged) {
+            case Some(value) -> if (value === frame)
+                host.staged = None
+            case None -> {}
+        }
+        if (host.closed || completion.submission == FrameSubmission.Discarded) {
+            frame.close()
+            return@onFrameComplete
+        }
+        val previous = host.accepted
+        host.accepted = Some(frame)
+        previous?.close()
+        host.refreshAdmission()
+    }
+}

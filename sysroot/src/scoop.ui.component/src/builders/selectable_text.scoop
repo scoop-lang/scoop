@@ -1,0 +1,35 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+public class SelectableStyledTextBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var settings: ParagraphStyle? = None
+    public var inlines: Array<InlineView> = []
+    public var options: SelectableTextOptions = SelectableTextOptions()
+    public var focus: FocusOptions = FocusOptions()
+    public var actions: Array<TextRangeAction> = []
+    public var decorations: Array<TextRangeDecoration> = []
+    public var onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
+    public var key: ViewKey = ViewKey.Position
+    public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
+        settings = Some((settings ?: paragraphStyle()).copy(configure))
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(content: StyledText): SelectableStyledTextProps =
+        SelectableStyledTextProps(
+            content,
+            fonts,
+            settings,
+            inlines,
+            options,
+            focus,
+            actions,
+            decorations,
+            onSelectionChanged
+        )
+}

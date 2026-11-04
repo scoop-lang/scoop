@@ -387,9 +387,9 @@ internal fun advanceEditing(probe: EditProbe) {
             assertEquals("[]", first.text)
             assertEquals(Some("2"), window.clipboard.readText())
             assertTrue(editorDocument(window, first))
-            probe.next { window.requestDestroy() }
+            probe.next { prepareTextDisplay(probe) }
         }
-        else -> fail(Some(f"unexpected editing phase ${probe.phase}"))
+        else -> advanceTextDisplay(probe)
     }
 }
 

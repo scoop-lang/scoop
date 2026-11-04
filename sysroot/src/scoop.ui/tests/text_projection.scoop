@@ -1,0 +1,246 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class TextProjectionTest {
+    @Test
+    fun `mask units follow graphemes and keep newline and source snapshots`() {
+        val family = "👩‍👩‍👧‍👦"
+        val raw = "A" + family + "é\r\nאב😀"
+        val snapshot =
+            TextEditSnapshot(
+                raw,
+                TextPosition(raw.byteLength),
+                TextPosition(1L),
+                Some(Utf8Range(1L, 1L + family.byteLength))
+            )
+        val display = projectText(snapshot, textMask())
+        assertEquals("•••\r\n•••", display.text)
+        assertEquals(snapshot, display.source)
+        assertEquals(TextPosition(6L), display.toDisplay(TextPosition(1L + family.byteLength)))
+        assertEquals(TextRange(3L, 9L), display.displayRange(Utf8Range(1L, 4L + family.byteLength)))
+        assertEquals(
+            TextPosition(3L, TextAffinity.Upstream),
+            display.toDisplay(TextPosition(5L, TextAffinity.Upstream))
+        )
+        assertEquals(TextPosition(6L), display.toDisplay(TextPosition(5L)))
+        val combining =
+            projectText(TextEditSnapshot("A😀", TextPosition(0L), TextPosition(5L)), textMask("ẍ"))
+        assertEquals(
+            TextPosition(0L, TextAffinity.Upstream),
+            combining.toDocument(TextPosition(1L, TextAffinity.Upstream))
+        )
+        assertEquals(TextPosition(1L), combining.toDocument(TextPosition(1L)))
+    }
+
+    @Test
+    fun `display separators use affinity without becoming copied source characters`() {
+        val raw = TextEditSnapshot("ab😀", TextPosition(0L), TextPosition(6L))
+        val display =
+            projectText(
+                raw,
+                textProjection {
+                    _ -> [
+                        TextEditReplacement(Utf8Range(0L, 0L), "["),
+                        TextEditReplacement(Utf8Range(1L, 1L), "-"),
+                        TextEditReplacement(Utf8Range(6L, 6L), "]")
+                    ]
+                }
+            )
+        assertEquals("[a-b😀]", display.text)
+        assertEquals(
+            TextPosition(0L, TextAffinity.Upstream),
+            display.toDisplay(TextPosition(0L, TextAffinity.Upstream))
+        )
+        assertEquals(TextPosition(1L), display.toDisplay(TextPosition(0L)))
+        assertEquals(
+            TextPosition(2L, TextAffinity.Upstream),
+            display.toDisplay(TextPosition(1L, TextAffinity.Upstream))
+        )
+        assertEquals(TextPosition(3L), display.toDisplay(TextPosition(1L)))
+        assertEquals(TextPosition(1L), display.toDocument(TextPosition(2L)))
+        assertEquals(TextPosition(1L), display.toDocument(TextPosition(3L)))
+        assertEquals(TextRange(1L, 8L), display.displayRange(Utf8Range(0L, 6L)))
+        assertEquals(raw, display.source)
+    }
+
+    @Test
+    fun `zero width display keeps both source edges and permits whole grapheme deletion`() {
+        val hidden =
+            textProjection {
+                input -> [TextEditReplacement(Utf8Range(0L, input.text.byteLength), "")]
+            }
+        withProjectedText("Aé😀Z", hidden) {
+            input ->
+            assertEquals("", input.layout.text)
+            assertEquals(
+                TextPosition(0L, TextAffinity.Upstream),
+                input.display.toDocument(TextPosition(0L, TextAffinity.Upstream))
+            )
+            assertEquals(TextPosition(9L), input.display.toDocument(TextPosition(0L)))
+            assertEquals(
+                Utf8Range(1L, 4L),
+                editorProjectedDelete(input, Utf8Selection(4L, 4L), TextDeletion.Backward)
+            )
+            assertEquals(
+                Utf8Range(4L, 8L),
+                editorProjectedDelete(input, Utf8Selection(4L, 4L), TextDeletion.Forward)
+            )
+            assertEquals(
+                Utf8Range(1L, 4L),
+                editorProjectedDelete(input, Utf8Selection(2L, 2L), TextDeletion.Forward)
+            )
+            assertEquals(
+                4L,
+                editorProjectedMove(
+                    input,
+                    EditorSelection(TextPosition(2L), TextPosition(2L)),
+                    TextMovement.Forward,
+                    false,
+                    None,
+                    20.0
+                ).selection.cursor.byteOffset
+            )
+        }
+    }
+
+    @Test
+    fun `visual motion crosses inserted separators and respects bidi display order`() {
+        withProjectedText(
+            "ab",
+            textProjection { _ -> [TextEditReplacement(Utf8Range(1L, 1L), "-----")] }
+        ) {
+            input ->
+            val first =
+                editorProjectedMove(
+                    input,
+                    EditorSelection(
+                        TextPosition(1L, TextAffinity.Upstream),
+                        TextPosition(1L, TextAffinity.Upstream)
+                    ),
+                    TextMovement.Right,
+                    false,
+                    None,
+                    20.0
+                )
+            val second =
+                editorProjectedMove(
+                    input,
+                    first.selection,
+                    TextMovement.Right,
+                    false,
+                    first.preferredX,
+                    20.0
+                )
+            assertEquals(2L, second.selection.cursor.byteOffset)
+        }
+        withProjectedText("ab😀", textMask("א")) {
+            input ->
+            val selection = EditorSelection(TextPosition(0L), TextPosition(6L))
+            assertEquals(
+                6L,
+                editorProjectedMove(
+                    input,
+                    selection,
+                    TextMovement.Left,
+                    false,
+                    None,
+                    20.0
+                ).selection.cursor.byteOffset
+            )
+            assertEquals(
+                0L,
+                editorProjectedMove(
+                    input,
+                    selection,
+                    TextMovement.Right,
+                    false,
+                    None,
+                    20.0
+                ).selection.cursor.byteOffset
+            )
+        }
+    }
+
+    @Test
+    fun `invalid projections and impure callbacks cannot change the editing document`() {
+        val editor = TextEditorState("A😀Z")
+        val before = editor.inputState
+        val snapshot = editorSnapshot(editor.storage.value)
+        assertFailsWith<IllegalArgumentException> {
+            projectText(
+                snapshot,
+                textProjection { _ -> [TextEditReplacement(Utf8Range(2L, 5L), "x")] }
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            projectText(
+                snapshot,
+                textProjection {
+                    _ -> [
+                        TextEditReplacement(Utf8Range(0L, 5L), "x"),
+                        TextEditReplacement(Utf8Range(1L, 6L), "y")
+                    ]
+                }
+            )
+        }
+        assertFailsWith<IllegalStateException> {
+            projectText(
+                snapshot,
+                textProjection {
+                    _ ->
+                    editor.replaceAll("bad");
+                    []
+                }
+            )
+        }
+        val failure = IllegalStateException(Some("projection failure"))
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                projectText(snapshot, textProjection { _ -> throw failure })
+            }
+        )
+        assertEquals(before, editor.inputState)
+        assertFalse(editor.canUndo)
+        assertFailsWith<IllegalArgumentException> { textMask("") }
+        assertFailsWith<IllegalArgumentException> { textMask("ab") }
+        assertFailsWith<IllegalArgumentException> { textMask("\n") }
+        val display = projectText(snapshot)
+        assertFailsWith<IllegalArgumentException> { display.toDisplay(TextPosition(2L)) }
+        assertFailsWith<IllegalArgumentException> { display.toDocument(TextPosition(2L)) }
+    }
+}
+
+private fun withProjectedText(
+    text: String,
+    projection: TextProjection,
+    action: (EditorInputLayout) -> Unit
+) {
+    val display =
+        projectText(
+            TextEditSnapshot(text, TextPosition(0L), TextPosition(text.byteLength)),
+            projection
+        )
+    FontCollection(false).use {
+        fonts ->
+        fonts.register(testSansBytes, "Projection Test")
+        Paragraph(
+            fonts,
+            display.text,
+            textStyle {
+                this.families = ["Projection Test"];
+                this.fontSize = 20.0
+            }
+        ).use {
+            paragraph -> paragraph.layoutUnwrapped().use {
+                layout -> action(EditorInputLayout(layout, display))
+            }
+        }
+    }
+}

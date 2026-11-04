@@ -8,8 +8,8 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
     when (command) {
         case Move(movement, extend) -> {
             val result =
-                editorMove(
-                    editorInputLayout(host),
+                editorProjectedMove(
+                    editorInputText(host),
                     state.storage.value.endpoints,
                     movement,
                     extend,
@@ -23,7 +23,7 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
         case Delete(deletion) -> {
             if (host.options.readOnly)
                 return true
-            val range = editorDeleteRange(editorInputLayout(host), state.selection, deletion)
+            val range = editorProjectedDelete(editorInputText(host), state.selection, deletion)
             val kind =
                 when (deletion) {
                     case Backward -> EditorEditKind.Backspace
@@ -36,12 +36,14 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
             )
         }
         case Copy -> {
+            if (!host.copyAllowed)
+                return true
             val range = state.selection.range
             if (range.start != range.end)
                 host.window.clipboard.writeText(state.text.utf8Slice(range))
         }
         case Cut -> {
-            if (host.options.readOnly)
+            if (host.options.readOnly || !host.copyAllowed)
                 return true
             val range = state.selection.range
             if (range.start != range.end) {

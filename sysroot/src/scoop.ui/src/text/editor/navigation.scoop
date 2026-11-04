@@ -9,7 +9,10 @@ internal struct EditorNavigation(val selection: EditorSelection, val preferredX:
 
 /** A scalar IME position can be inside a grapheme without changing the canonical selection. */
 internal fun editorVisualPosition(layout: TextLayout, position: TextPosition): TextPosition {
-    val boundaries = layout.graphemeBoundaries
+    return editorBoundaryPosition(layout.graphemeBoundaries, position)
+}
+
+internal fun editorBoundaryPosition(boundaries: Array<Long>, position: TextPosition): TextPosition {
     var first = 0L
     var last = boundaries.size
     while (first < last) {
@@ -28,7 +31,7 @@ internal fun editorVisualPosition(layout: TextLayout, position: TextPosition): T
             if (first < boundaries.size)
                 boundaries[first]
             else
-                layout.text.byteLength,
+                boundaries[boundaries.size - 1L],
         position.affinity
     )
 }

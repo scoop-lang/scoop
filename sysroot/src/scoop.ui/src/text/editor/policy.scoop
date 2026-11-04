@@ -10,7 +10,12 @@ public enum TextEditSource {
 
 public struct TextEditReplacement(val range: Utf8Range, val text: String)
 
-public struct TextEditSnapshot(val text: String, val anchor: TextPosition, val cursor: TextPosition)
+public struct TextEditSnapshot(
+    val text: String,
+    val anchor: TextPosition,
+    val cursor: TextPosition,
+    val markedRange: Utf8Range? = None
+)
 
 /** UTF-8 ranges refer to after.text, including changes made by earlier policy stages. */
 public class TextEditCandidate internal constructor(
@@ -63,4 +68,9 @@ public fun textEditPolicy(configure: TextEditPolicyBuilder.() -> Unit = {}): Tex
 }
 
 internal fun editorSnapshot(value: EditorValue): TextEditSnapshot =
-    TextEditSnapshot(value.input.surroundingText, value.endpoints.anchor, value.endpoints.cursor)
+    TextEditSnapshot(
+        value.input.surroundingText,
+        value.endpoints.anchor,
+        value.endpoints.cursor,
+        value.input.markedRange
+    )

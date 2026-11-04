@@ -21,6 +21,8 @@ public open class InputBuilder internal constructor() {
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
     public var caretBlink: Duration = Duration.milliseconds(500L)
     public var policy: TextEditPolicy = textEditPolicy()
+    public var projection: TextProjection = textProjection()
+    public var copy: TextCopyPolicy = TextCopyPolicy.Default
     public var onEdited: (TextEditorState) -> Unit = { _ -> Unit }
     public var onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
     public var key: ViewKey = ViewKey.Position
@@ -49,7 +51,9 @@ public open class InputBuilder internal constructor() {
             caretBlink,
             onEdited,
             onSubmit,
-            policy
+            policy,
+            projection,
+            copy
         )
 }
 
@@ -83,7 +87,9 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             caretBlink,
             onEdited,
             onSubmit,
-            policy
+            policy,
+            projection,
+            copy
         )
 }
 

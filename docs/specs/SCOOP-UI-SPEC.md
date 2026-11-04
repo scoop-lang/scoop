@@ -373,11 +373,11 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 
 ### 7.3 输入与焦点接入
 
-Element 在 onMount 中通过 `scope.createArea(focusable, textInput, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
+Element 在 onMount 中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
 
-ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 默认连接本挂载的 input。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
+ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
 
-容器可以用 `scope.routeChildren(area)` 将自己创建、且直接连接自身 input 的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。方法先检查区域归属及其直接父关系，因此不能借此把后代节点变成本挂载子项的共同父节点。
+容器可以用 `scope.routeChildren(area)` 将同一挂载拥有的区域作为直接子挂载的输入父节点；缺省为自身 input。该选择属于挂载逻辑，与当前布局、clip 和显示层无关。更新此选择时重新连接已经存在的直接子 scope，后续创建的子 scope 使用同一选择。createArea、routeChildren、focusTarget 和 Press／Drag 使用同一归属检查：沿区域父链可到本挂载 input，中间不得经过其他挂载作用域，因此不能借此把后代挂载节点变成本挂载子项的共同父节点。
 
 UI 管理的 scope.parent 由挂载和 routeChildren 维护，调用方通过这两个入口改变关系，不在框架外手工重接这些 scope。
 
@@ -387,7 +387,7 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应
 
 由于行内截断等布局原因不再放置的区域，在该帧成功提交后按 Surface 的区域缺席规则退出命中、取消指针序列并清除焦点；组件本身仍挂载。失败／中止帧保留此前已提交的几何，不能提前使用未提交的可见性。恢复放置不重新创建组件，也不自动恢复已经清除的逻辑焦点。布局可见性不替代逻辑 enabled 或卸载。
 
-移除子树时，框架先使其退出业务交互并注销登记区域，完成必要的取消／离开／失焦收尾，再释放处理器和组件资源。布局尚未提交时不能为新区域强行成功请求焦点。完整文本编辑控件的文档、selection、marked range、剪贴板和撤销行为不进入框架。
+移除子树时，框架先使其退出业务交互并注销登记区域，完成必要的取消／离开／失焦收尾，再释放处理器和组件资源。布局尚未提交时不能为新区域强行成功请求焦点。文本编辑的正文、selection、marked range、剪贴板和撤销由第 7.5 节公共文本宿主维护，不进入底层路由或组件匹配机制。
 
 #### 7.3.1 FocusHandle、FocusScope 与 Tab
 
@@ -470,7 +470,7 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
 
-paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文及 anchor／cursor TextPosition）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
+paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文、anchor／cursor TextPosition 及可选 markedRange）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
 
 maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过限制时本次结果只要求不再增加长度。按候选从后往前删去超出的完整新增 grapheme，保留原有尾部及多操作之间的未改内容；原选择被替换后自然释放容量。若必须切开含保留正文的 grapheme 才能满足限制，则拒绝该次编辑。显式自定义替换的输出属于新增内容，相同内容替换省略。此规则不会截断 UTF-8、组合字符或 emoji ZWJ，也不会因为普通输入而静默裁去旧正文。
 
@@ -482,7 +482,7 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 `TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
-TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms 和 policy=textEditPolicy()。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
+TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
@@ -499,6 +499,30 @@ TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selection
 输入区域在 ScrollViewport 内以当前内容坐标放置完整视口，使局部输入与 caret 使用文档坐标。光标变化通过 FocusTarget.reveal 在成功帧后显露，同一次请求沿内外层滚动推进；自动显露不覆盖另一个目标正在等待的焦点请求。宿主保留最后 Accepted 帧的 TextLayout 所有权；失败的新布局不能替换输入所依据的旧几何。文档已更新而尚未呈现时，命中／导航使用新正文与最近成功视口宽度，候选框仍不可用。原生 TextInputState 在操作生效后立即按实际 origin 确认发布，不等待 drawable；成功场景单独发布当前 revision 的 caret。过期／非法原生批次整批拒绝并重建连接，关闭中的旧连接批次不进入恢复或新绑定的编辑器。
 
 caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠选区、非组合、窗口可见且实际 caret 可见时预约下一次闪烁；输入重置可见阶段，失焦／隐藏／不可见／关闭停止预约。拖选出视口时才预约边缘滚动，按实际可滚范围推进，每次滚动等 Accepted 后再继续；被阻止的释放也通过 onEventFinished 结束拖选。普通滚轮复用残量消费和祖先链，宿主没有永久轮询或第二个场景坐标系统。
+
+#### 7.5.3 编辑显示投影
+
+`textProjection(callback)` 构造不可变 TextProjection，回调收到包含 text、anchor、cursor 和 markedRange 的 TextEditSnapshot，返回原文上有序、不重叠的 TextEditReplacement。缺省回调返回空数组，即恒等投影；可以在空范围插入显示分隔符或将原文范围替换为不同长度的显示单元。复用第 7.5.1 节区间验证与单调映射，禁止原文重排。回调在现有纯求值边界运行，异常或非法范围不发布新的布局／映射组合。
+
+`textMask(glyph = "•")` 对每个原文 grapheme 生成一个显示单元并保留换行；glyph 必须是一个不含换行的 grapheme。`projectText(snapshot, projection)` 返回不可变 TextDisplay，含 source、text、toDisplay(TextPosition)、toDocument(TextPosition) 和 displayRange(Utf8Range)。公共位置使用 UTF-8 标量边界，保留 affinity；被替换片段内部落到对应边缘，不建立逐字节位置表。选区范围排除两端仅用于显示的分隔符，包含内部显示内容。
+
+TextEditOptions 的 projection 缺省恒等投影，copy 为 TextCopyPolicy.Default／Allow／Deny。Default 在内置遮罩时禁止 Copy／Cut，其他投影允许；Allow 明确允许复制原文，Deny 消费命令但不改剪贴板或文档。Paste 与正常编辑不受复制策略影响，允许的 Cut 继续遵守第 7.5.2 节发布原子性。显示开关只更新 projection，不替换 TextEditorState、不追加历史、不重建 IME 连接，也不声称提供平台 secure-input 能力。
+
+TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。RTL 视觉次序由 TextLayout 决定。
+
+Native surrounding text、selection、marked range、策略过滤和 undo／redo 始终使用真实正文。成功帧只将投影后的 caret 几何反馈原生，不以遮罩文字替换输入法文档；活动 preedit 继续保留一份原文模型。
+
+#### 7.5.4 可选择的 StyledText
+
+`SelectableTextHost(scope, fonts, content, options)` 是独立的只读宿主，拥有 ParagraphHost、一个方向选区、输入区域和 FocusTarget，借用字体并沿 InlineView 协议保留行内对象。它不创建 TextEditorState、undo 历史或可写 IME 连接。update 接收字体、StyledText、SelectableTextOptions、FocusOptions、范围动作／装饰和 onSelectionChanged(anchor, cursor)；measure 接收段落设置及 inlines，scene 呈现同一测量结果。公开 anchor／cursor、selection、layout、selectionBounds、setSelection 和 execute 提供明确的观察及程序入口。
+
+SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活动／非活动选择颜色，默认启用选择、复制和裁剪。字符／词／逻辑行选择、Shift 扩展及方向移动复用公共文本导航；键盘只消费 Move、SelectAll、Copy，其他编辑命令留给外层。Copy 使用 Accepted StyledText.toPlainText(range)，包括行内对象 alternateText，不丢失原始逻辑范围。选择活动状态包括自身范围动作的焦点。
+
+`TextRangeAction(key, range, onActivate, enabled, focus)` 按稳定 key 保留嵌套区域、FocusTarget 和 Press；缺省焦点顺序跟随动作数组，显式 FocusOptions 独立。范围可以跨行，由布局 selection 返回的矩形合成一个 Path 命中区域，支持显式激活且不自行调用 URL 或 OS 服务。`TextRangeDecoration(range, background, underline)` 只画范围装饰，不创建交互区域。范围均为原始 StyledText 的合法 UTF-8 标量区间，动作非空且 key 唯一。
+
+文本区域在捕获阶段准备拖选候选，不提前吞掉范围动作的点击；达到阈值后通过同一 Surface 指针序列认领取消 Press，转为文本拖选。失焦、取消、被阻止的释放及卸载均收尾。行内子挂载通过 routeChildren 接到文本区域，继续使用普通输入协议。
+
+宿主保留 Accepted 布局、内容和范围描述；失败的新布局／绘制不让新范围套到旧几何。正文变化时将选区收敛到新文档的合法边界，等待新内容 Accepted 后恢复选择输入；范围变化或移除立即撤销旧动作资格，新范围等待自己的成功几何。相同正文的字体／宽度更新仍沿旧成功布局命中，截断与裁剪使用同一段落可见矩形。只保证本宿主内部的选择，不建立跨组件全局文档或富文本编辑器。
 
 ### 7.6 同窗口 portal 与锚点
 
