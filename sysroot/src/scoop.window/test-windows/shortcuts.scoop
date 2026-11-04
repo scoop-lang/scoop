@@ -52,61 +52,6 @@ private class WindowsShortcutTest {
             windowsEditingCommand(LogicalKey.Named(NamedKey.Home), platformModifiers(0L))
         )
     }
-
-    @Test
-    fun `Windows shortcut labels use modifiers and the active keyboard layout`() {
-        val handler = ShortcutLabelHandler()
-        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
-            handler
-        )
-        assertTrue(handler.finished)
-    }
-}
-
-private class ShortcutLabelHandler: ApplicationHandler {
-    var finished = false
-
-    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
-        when (event) {
-            case Resumed -> {
-                val window = application.createWindow(windowAttributes { this.visible = false })
-                val logical =
-                    window.shortcutLabel(
-                        ShortcutChord(
-                            ShortcutKey.Logical(LogicalKey.Character("a")),
-                            ShortcutModifiers(primary = true)
-                        )
-                    )
-                assertEquals("+", logical.separator)
-                assertEquals(2L, logical.parts.size)
-                assertEquals("Ctrl", logical.parts[0L])
-                assertEquals("a", logical.parts[1L])
-                val named =
-                    window.shortcutLabel(
-                        ShortcutChord(
-                            ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)),
-                            ShortcutModifiers(primary = true, shift = true)
-                        )
-                    )
-                assertEquals("Ctrl", named.parts[0L])
-                assertEquals("Shift", named.parts[1L])
-                assertEquals("Enter", named.parts[2L])
-                val physical =
-                    window.shortcutLabel(
-                        ShortcutChord(
-                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyA)),
-                            ShortcutModifiers(primary = true)
-                        )
-                    )
-                assertEquals(2L, physical.parts.size)
-                assertEquals("Ctrl", physical.parts[0L])
-                assertTrue(physical.parts[1L].byteLength > 0L)
-                window.requestDestroy()
-            }
-            case Window(_, WindowEvent.Destroyed) -> finished = true
-            else -> {}
-        }
-    }
 }
 
 private fun chordKey(modifiers: Modifiers): KeyEvent =

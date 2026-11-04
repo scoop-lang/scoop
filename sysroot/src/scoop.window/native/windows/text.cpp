@@ -159,14 +159,28 @@ HRESULT sw_text_replace(SWTextState *state, LONG start, LONG end,
   const WCHAR *insertion = text ? text : L"";
   int32_t kind = state->composing ? 0 : 1;
   bool empty_preedit = kind == 0 && length == 0 && !marked(state->projection);
+  std::wstring updated;
+  const WCHAR *emitted = insertion;
+  ULONG emitted_length = length;
+  LONG selection_offset = (LONG)length;
+  if (kind == 0 && !state->projection.present) {
+    updated = state->projection.text;
+    updated.replace((size_t)start, (size_t)(end - start), insertion,
+                    (size_t)length);
+    if (updated.size() > LONG_MAX)
+      return TF_E_INVALIDPOS;
+    emitted = updated.data();
+    emitted_length = (ULONG)updated.size();
+    selection_offset = start + (LONG)length;
+  }
   int64_t selection = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
-                                          insertion, (int)length, NULL, 0, NULL,
-                                          NULL);
-  if (length && !selection)
+                                          emitted, (int)selection_offset, NULL,
+                                          0, NULL, NULL);
+  if (selection_offset && !selection)
     return E_INVALIDARG;
   bool use_range = explicit_range && state->projection.present;
   if (!empty_preedit &&
-      !append(state, kind, insertion, (int)length,
+      !append(state, kind, emitted, (int)emitted_length,
               kind == 0 ? selection : -1, kind == 0 ? selection : -1,
               use_range, start, end))
     return E_OUTOFMEMORY;
@@ -259,6 +273,8 @@ void sw_text_end_edit(SWTextState *state, bool invalid) {
     state->local.marked_start = state->local.marked_end = -1;
     if (!state->document.present)
       state->local = SWTextDocument{};
+  } else if (!state->document.present && !marked(state->projection)) {
+    state->local = SWTextDocument{};
   } else {
     state->local = state->projection;
   }

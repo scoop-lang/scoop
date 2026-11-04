@@ -19,8 +19,31 @@ static int normalize(const WCHAR *text, int length, WCHAR **result,
     free(value);
     return 0;
   }
-  *result = value;
-  *result_length = count;
+  int upper = LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, value, count,
+                           NULL, 0, NULL, NULL, 0);
+  if (!upper) {
+    free(value);
+    return 0;
+  }
+  WCHAR *folded = malloc((size_t)upper * sizeof(WCHAR));
+  if (!folded) {
+    free(value);
+    return 0;
+  }
+  if (LCMapStringEx(LOCALE_NAME_INVARIANT, LCMAP_UPPERCASE, value, count, folded,
+                   upper, NULL, NULL, 0) != upper) {
+    free(folded);
+    free(value);
+    return 0;
+  }
+  free(value);
+  for (int index = 0; index < upper; ++index) {
+    // Windows case mapping does not fold final sigma to capital sigma.
+    if (folded[index] == 0x03c2)
+      folded[index] = 0x03a3;
+  }
+  *result = folded;
+  *result_length = upper;
   return 1;
 }
 

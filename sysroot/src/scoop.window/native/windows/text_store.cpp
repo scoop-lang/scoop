@@ -96,7 +96,7 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
     return guarded([&] {
       if (!sink || state->closed)
         return TF_E_DISCONNECTED;
-      bool write = (flags & TS_LF_READWRITE) != 0;
+      bool write = (flags & TS_LF_READWRITE) == TS_LF_READWRITE;
       if (write && !sw_text_begin_edit(state))
         return TF_E_NOOBJECT;
       lock = flags;
@@ -124,7 +124,8 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
         return S_OK;
       }
       if (pending)
-        requested = (pending_flags & TS_LF_READWRITE) || (flags & TS_LF_READWRITE)
+        requested = (pending_flags & TS_LF_READWRITE) == TS_LF_READWRITE ||
+                        (flags & TS_LF_READWRITE) == TS_LF_READWRITE
                         ? TS_LF_READWRITE
                         : TS_LF_READ;
       pending = true;
@@ -195,7 +196,7 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
 
   HRESULT STDMETHODCALLTYPE SetSelection(ULONG count,
                                          const TS_SELECTION_ACP *selection) override {
-    if (!(lock & TS_LF_READWRITE))
+    if (!((lock & TS_LF_READWRITE) == TS_LF_READWRITE))
       return TF_E_NOLOCK;
     if (count != 1 || !selection)
       return E_NOTIMPL;
@@ -249,7 +250,7 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
                                     const WCHAR *text, ULONG length,
                                     TS_TEXTCHANGE *change) override {
     return guarded([&] {
-      if (!(lock & TS_LF_READWRITE) || !change)
+      if (!((lock & TS_LF_READWRITE) == TS_LF_READWRITE) || !change)
         return TF_E_NOLOCK;
       HRESULT hr =
           sw_text_replace(state, start, end, text, length, true, change);
@@ -290,11 +291,15 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
                                                   LONG *end,
                                                   TS_TEXTCHANGE *change) override {
     return guarded([&] {
-      if (!(lock & TS_LF_READWRITE) || !start || !end || !change)
+      if (!((lock & TS_LF_READWRITE) == TS_LF_READWRITE) || !start || !end || !change)
         return TF_E_NOLOCK;
       const SWTextDocument &document = state->projection;
-      LONG first = std::min(document.anchor, document.cursor);
-      LONG last = std::max(document.anchor, document.cursor);
+      LONG first = document.marked_start >= 0
+                       ? document.marked_start
+                       : std::min(document.anchor, document.cursor);
+      LONG last = document.marked_start >= 0
+                      ? document.marked_end
+                      : std::max(document.anchor, document.cursor);
       HRESULT hr =
           sw_text_replace(state, first, last, text, length, false, change);
       if (FAILED(hr))

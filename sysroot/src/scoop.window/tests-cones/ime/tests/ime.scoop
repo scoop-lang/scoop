@@ -1,6 +1,7 @@
-package scoop.window
+package scoop.tests.window.ime
 
 import scoop.test.*
+import scoop.window.*
 import scoop.tests.window.exerciseNativeText
 import scoop.window.native.*
 
@@ -106,7 +107,8 @@ private class WindowsImeHandler: ApplicationHandler {
                 when (held.handle) {
                     case Win32(value, _) -> value
                 }
-            assertEquals(0, exerciseNativeText(hwnd))
+            val result = exerciseNativeText(hwnd)
+            assertEquals(0, result)
         }
         created.setImeAllowed(false)
         created.setImeAllowed(false)

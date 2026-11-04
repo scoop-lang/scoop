@@ -85,10 +85,6 @@ path = "windows/text.cpp"
 when = { os = "windows" }
 
 [[native.libraries]]
-name = "msctf"
-when = { os = "windows" }
-
-[[native.libraries]]
 name = "ole32"
 when = { os = "windows" }
 

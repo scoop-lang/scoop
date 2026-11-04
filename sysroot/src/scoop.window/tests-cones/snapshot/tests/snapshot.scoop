@@ -1,5 +1,6 @@
-package scoop.window
+package scoop.tests.window.snapshot
 
+import scoop.window.*
 import scoop.platform.concurrent.Thread
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*

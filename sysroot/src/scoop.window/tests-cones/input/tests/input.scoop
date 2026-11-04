@@ -130,6 +130,37 @@ private class InputHandler: ApplicationHandler {
 
     private fun start(application: ActiveApplication) {
         val window = application.createWindow(windowAttributes { this.visible = false })
+        val logical =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("a")),
+                    ShortcutModifiers(primary = true)
+                )
+            )
+        assertEquals("+", logical.separator)
+        assertEquals(2L, logical.parts.size)
+        assertEquals("Ctrl", logical.parts[0L])
+        assertEquals("a", logical.parts[1L])
+        val named =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)),
+                    ShortcutModifiers(primary = true, shift = true)
+                )
+            )
+        assertEquals("Ctrl", named.parts[0L])
+        assertEquals("Shift", named.parts[1L])
+        assertEquals("Enter", named.parts[2L])
+        val physical =
+            window.shortcutLabel(
+                ShortcutChord(
+                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyA)),
+                    ShortcutModifiers(primary = true)
+                )
+            )
+        assertEquals(2L, physical.parts.size)
+        assertEquals("Ctrl", physical.parts[0L])
+        assertTrue(physical.parts[1L].byteLength > 0L)
         @Unsafe
         {
             val held = window.acquireNativeWindow()
@@ -150,7 +181,7 @@ private class InputHandler: ApplicationHandler {
             window.setImeAllowed(false)
             sendMessage(hwnd, 258u, 55357uL, 0L)
             sendMessage(hwnd, 258u, 56832uL, 0L)
-            sendMessage(hwnd, 262u, 122uL, 0L)
+            sendMessage(hwnd, 265u, 122uL, 0L)
         }
         application.setControlFlow(
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
