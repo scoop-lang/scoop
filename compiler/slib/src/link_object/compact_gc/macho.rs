@@ -11,6 +11,7 @@ pub(super) fn replace(input: &[u8], map: &[u8]) -> Result<Vec<u8>, CompactGcMapE
     let mut sections = Vec::new();
     let mut segment = None;
     let mut symtab = None;
+    let mut linkedit = Vec::new();
     for _ in 0..u32_at(input, 16)? {
         match u32_at(input, cursor)? {
             macho::LC_SEGMENT_64 => {
@@ -20,6 +21,9 @@ pub(super) fn replace(input: &[u8], map: &[u8]) -> Result<Vec<u8>, CompactGcMapE
                 }
             }
             macho::LC_SYMTAB => symtab = Some(cursor),
+            macho::LC_DATA_IN_CODE | macho::LC_LINKER_OPTIMIZATION_HINT => {
+                linkedit.push(cursor);
+            }
             _ => {}
         }
         cursor += u32_at(input, cursor + 4)? as usize;
@@ -86,6 +90,21 @@ pub(super) fn replace(input: &[u8], map: &[u8]) -> Result<Vec<u8>, CompactGcMapE
         put(
             &mut output,
             header + 56,
+            u32::try_from(offset).map_err(error)?.to_le_bytes(),
+        )?;
+    }
+    // LLVM emits these outside the sections. Their MH_OBJECT entries refer to
+    // unchanged section addresses, while their load-command file offsets move.
+    for command in linkedit {
+        let data = span(
+            input,
+            u32_at(input, command + 8)? as u64,
+            u32_at(input, command + 12)? as u64,
+        )?;
+        let offset = append(&mut output, data, 8)?;
+        put(
+            &mut output,
+            command + 8,
             u32::try_from(offset).map_err(error)?.to_le_bytes(),
         )?;
     }
