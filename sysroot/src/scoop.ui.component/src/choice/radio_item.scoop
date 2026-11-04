@@ -1,0 +1,115 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class RadioItemProps(
+    val label: String,
+    val selected: Boolean,
+    val enabled: Boolean,
+    val invalid: Boolean,
+    val focus: FocusOptions,
+    val labelTarget: FieldTarget?,
+    val marker: RadioOptions,
+    val content: ((RadioItemContent) -> View)?,
+    val fonts: FontCollection?,
+    val theme: Theme,
+    val activate: () -> Unit
+)
+
+internal class RadioItem(private val props: Props<RadioItemProps>): Component {
+    private val control = state<PressControl?>(None)
+    private val text = ActionTextStyle()
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea(focusable = true)
+        val focus = scope.focusTarget(area, props.value.focus)
+        val press =
+            scope.press(area, PressOptions(props.value.enabled, false)) { props.value.activate() }
+        scope.routeChildren(area)
+        control.value = Some(PressControl(area, focus, press))
+    }
+    public override fun render(): View {
+        val input = props.value
+        val interaction = control.value?.press?.interaction ?: InteractionState()
+        val visual = interaction.asVisual(input.enabled, input.invalid)
+        val base =
+            text.resolve(
+                input.theme.tokens.typography.body,
+                input.theme.tokens.palette.background.foreground,
+                None,
+                lineHeight = Some(20.0 / 14.0)
+            )
+        val indicator =
+            element(
+                RadioIndicatorProps(input.theme, input.marker, RadioVisual(input.selected, visual)),
+                { current -> RadioIndicator(current) }
+            )
+        val content =
+            when (input.content) {
+                case Some(render) -> render(
+                    RadioItemContent(indicator, input.selected, input.enabled, input.invalid, base)
+                )
+                case None -> {
+                    val label =
+                        component(
+                            LabelProps(
+                                LabelText.Plain(input.label, None),
+                                input.fonts,
+                                baseStyle = Some(base)
+                            ),
+                            { current -> Label(current) }
+                        )
+                    val layout =
+                        LinearProps(
+                            [FlexItem(indicator, FlexItemOptions(shrink = 0.0)), FlexItem(label)],
+                            spacing = 8.0,
+                            alignment = CrossAlignment.Center
+                        )
+                    component(layout, { current -> Row(current) })
+                }
+            }
+        return element(RadioInkProps(input, control), { current -> RadioInk(current) }, [content])
+    }
+}
+
+private class RadioInkProps(val input: RadioItemProps, val control: State<PressControl?>)
+
+private class RadioInk(private val props: Props<RadioInkProps>): Element {
+    private var field: FieldLink? = None
+    public override fun onMount(scope: ComponentScope) {
+        val control = props.value.control.value!!
+        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
+    }
+    public override fun update() {
+        val input = props.value.input
+        val control = props.value.control.value!!
+        control.press.update(PressOptions(input.enabled, false), input.activate)
+        control.area.scope.enabled = input.enabled
+        control.focus.options = input.focus
+        field!!.update(input.labelTarget, input.enabled, input.activate)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints)
+        val width = constraints.maxWidth ?: child.size.width
+        val size = constraints.constrain(Size(width, child.size.height))
+        context.placeChild(
+            0L,
+            Point(logicalX(0.0, child.size.width, size.width, context.layoutDirection), 0.0)
+        )
+        return LayoutMetrics(size, child.alphabeticBaseline, child.ideographicBaseline)
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value.input
+        if (!input.enabled)
+            context.saveLayer(input.theme.tokens.disabledOpacity)
+        context.children()
+        if (!input.enabled)
+            context.restore()
+        context.place(
+            props.value.control.value!!.area,
+            Rect(0.0, 0.0, context.size.width, context.size.height)
+        )
+    }
+}

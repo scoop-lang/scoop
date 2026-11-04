@@ -549,7 +549,7 @@ Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见
 
 默认尺寸按主题 body 字号相对 14 缩放，使用其字体族和当前语义前景：H1 为 36／40、800，H2 为 30／36、600，H3 为 24／32、600，H4 为 20／28、600；标题字距为字号的 -0.025。P 为 16／28、400；Blockquote 为 16／24、斜体；InlineCode 为 14／20、600、monospace；Lead 为 20／28、muted 前景；Large 为 18／28、600；Small 为 14／14、500；Muted 为 14／20、muted 前景。没有浏览器视口断点，H1 的更大字号由显式文字覆盖表达。段落外间距由父布局决定，不推断相邻节点或 CSS margin collapse。
 
-H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: SpanStyle 覆盖最终基础样式，不重写嵌套 span。
+H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: TextStyle 覆盖最终基础样式，不重写嵌套 span。
 
 builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
 
@@ -565,7 +565,7 @@ TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKe
 
 ### 14.3 Kbd 与 KbdGroup
 
-`kbd(content, configure: KbdBuilder.() -> Unit = {})` 接受 String、View、ShortcutChord 或 ShortcutLabel，创建 KbdProps／Kbd。builder 提供 fonts／theme、textStyle: SpanStyle?、style、key。默认使用 muted 颜色对、small 圆角，最小宽与高度 20、水平留白 4，文字 12／16、500；数值按 body 字号相对 14 缩放。宽度来自内容自然测量并满足父约束，不把普通 Label 的有限段落宽当作键帽的自然宽。
+`kbd(content, configure: KbdBuilder.() -> Unit = {})` 接受 String、View、ShortcutChord 或 ShortcutLabel，创建 KbdProps／Kbd。builder 提供 fonts／theme、textStyle: TextStyle?、style、key。默认使用 muted 颜色对、small 圆角，最小宽与高度 20、水平留白 4，文字 12／16、500；数值按 body 字号相对 14 缩放。宽度来自内容自然测量并满足父约束，不把普通 Label 的有限段落宽当作键帽的自然宽。
 
 ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取得当前平台／键盘布局的 parts 与 separator，单键帽按原顺序连接。`kbdGroup(chord／label, configure: KbdBuilder.() -> Unit = {})` 为各 part 分别创建键帽，并在 separator 非空时绘制原分隔文字；顺序始终按平台标签保持 LTR，外层布局可为 RTL。显式 ShortcutLabel 使用调用方已有结果。后续 Props 或主题更新重新查询当前窗口标签；没有键盘布局轮询或自动绑定注册。
 
@@ -575,7 +575,7 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 
 `FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps／SwitchProps 及对应 builder 提供 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
 
-`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
+`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: TextStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
 
 标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
 
@@ -640,7 +640,7 @@ track 使用公共 SurfaceKind.Plain 的几何和 painter；focus、invalid、di
 
 ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed 是业务选择值；鼠标或 Space／Enter 的短暂按下仍由 Press.interaction.pressed 表达，两者独立。每次有效激活读取最新 Binding 并取反一次，setter 可拒绝；外部更新、更换绑定和普通重建不生成第二份状态。取消、重复键、禁用、失焦、卸载和子动作消费遵守 Button 的输入规则，复用同一 ActionInk／内容解析路径。
 
-默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；瞬态 pressed 在 muted 背景上混入 8% background.foreground，松开后恢复对应选择／悬停状态；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。现阶段 Toggle 只承担独立控件语义，分组选择策略属于 ToggleGroup。
+默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；瞬态 pressed 在 muted 背景上混入 8% background.foreground，松开后恢复对应选择／悬停状态；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。ToggleProps／builder 可接收 group: GroupPosition? = None，沿 ButtonGroup 的圆角、单接缝及焦点绘制合同；分组选择策略属于 ToggleGroup。
 
 ## 19. Input OTP
 
@@ -655,3 +655,28 @@ onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操�
 InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／caretColor／markedColor: Color?、caretWidth=1。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。Dark 底色为 input 的 0.3 倍 alpha；Light 透明。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
 
 槽位、间隙、鼠标命中、方向导航、选区、marked 装饰与原生 caret 共享 UI 规范第 7.5.3.1 节的 TextEditLayout。空槽中的可见 caret 居中，已有字符处使用真实插入边缘；只在 caret 确实可见时闪烁。临时超长 preedit 或外部超长正文按同一槽几何向逻辑末尾扩展，延续末组边框并可滚动显露；不改写模型来凑固定槽数。测量为外侧焦点环预留空间；有限窄宽和零尺寸沿同一视口裁剪，主题／分组／方向变化保留输入宿主与选区；卸载释放排版、取消闪烁及输入连接，字体由调用方持有。
+
+
+## 20. Radio Group 与 Toggle Group
+
+### 20.1 选择项及分组协议
+
+`Choice<T: Equals<T>>(key: ViewKey, value: T, label: String, enabled: Boolean = true)` 是两类分组共用的不可变领域元数据。key 必须显式；同组 key 和 value 均唯一，新的 Props 快照接入时检查，报告 IllegalArgumentException；普通内部交互重绘不重复校验。选择值使用 Equals<T>，不转换为字符串、反射类型或挂载 key。外部绑定值不在当前条目中时保留；空条目合法且不产生 Tab 停靠点。
+
+组按条目 key 保留内部 FocusHandle，重排不重新挂载项；可通过项 focus 提供外部 handle，替换遵循 FocusTarget 合同。组只有一个 roving Tab 停靠点，默认循环；方向及 Home／End 复用 KeyNavigation，跳过 disabled／不可达项，水平轴继承 RTL。组的 enabled=false 禁用整个输入子树；条目可独立禁用，组 invalid 与项 invalid 合并。绑定 setter 可拒绝写入；渲染不调用 setter，不保存选择镜像，激活使用最新绑定。
+
+### 20.2 Radio Group
+
+`radioGroup(selected: Binding<T?>, configure: RadioGroupBuilder<T>.() -> Unit = {}): View` 及 ChildrenBuilder 成员使用 RadioGroupProps／RadioGroup。builder 的 `item(choice: Choice<T>, configure: RadioItemBuilder.() -> Unit = {})` 收集 RadioGroupEntry<T>，`add(entry)` 接受完整值。组属性为 entries、selected、axis=Vertical、spacing=8、loop=true、enabled=true、invalid=false、fonts=None、theme=None、style=styleOverride()，builder 另有 key。项属性为 choice、focus=FocusOptions()、labelTarget=None、invalid=false、marker=radioOptions()、content=None。
+
+默认项使用 16 单位圆形 indicator（尺寸由主题 RadioMetrics 决定），与 14／20 的标签相隔 8；选择圆点 8、边框 1、focus-visible 和 invalid 使用主题 ring，颜色／选择动画复用主题及 Surface 时间轴。禁用透明度只对整项叠加一次，包含 indicator 与文字。默认纵向项占用可用宽度，横向按内容布局；spacing 有限非负，父约束和 RTL 优先。所有主题使用既有 radioMetrics／radioGeometry／drawRadio 路径。
+
+项的自定义 `content: ((RadioItemContent) -> View)?` 收到 indicator: View、selected、enabled、invalid、textStyle: TextStyle，可组合说明与 choice card。indicator 是普通非交互绘制描述，整项拥有一套 Press／FocusTarget，子动作消费仍能取消整项动作；不检查或改写不透明 View。Pointer／Space／FieldLabel 激活选择该项，已选项不清空、不重复写入；Enter 不选择。方向／Home／End 接受组内焦点请求后选择目标；Tab 优先已选有效项，当前仍持有焦点的有效项优先，未知或禁用选择回退到历史／首项。直接请求焦点不改变选择。FieldTarget 关联使用与整项相同的最新选择动作。
+
+### 20.3 Toggle Group
+
+`toggleGroup(selected: Binding<T?>, configure: ToggleGroupBuilder<T>.() -> Unit = {})` 与 `toggleGroup(selected: Binding<Array<T>>, configure)` 及 ChildrenBuilder 对应成员提供单／多选。完整 ToggleGroupProps 使用 `ToggleGroupSelection<T>.Single(binding)`／`.Multiple(binding)`。builder 以 `item(choice, configure: ToggleGroupItemBuilder.() -> Unit = {})` 或 add(ToggleGroupEntry<T>) 收集项；项默认使用 choice.label，可提供 ButtonContent（包括 Resolved 自定义图标／文字），以及 focus、invalid、可选 ButtonStyle。
+
+组属性为 entries、selected、axis=Horizontal、spacing=8、loop=true、enabled=true、invalid=false、variant=Default、size=Default、fonts=None、theme=None、style=styleOverride()，builder 另有 key。每项复用 Toggle／ActionInk。单选再次激活清空，多选按当前数组追加／删除本值，保留未知值及其顺序；重复本值删除全部。方向键只移动焦点，Space／Enter／指针更改选择，Tab 遵循当前／历史焦点，不因外部选择变化合成焦点请求。
+
+spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，首末保留外角，焦点项最后绘制；默认左右 padding=8，独立或有间距项保持 Toggle 的 padding=10，显式项样式优先。横向按内容宽度，纵向按最宽内容宽度并拉齐各项；样式、尺寸、禁用透明度和主题更新沿 Toggle 合同，不新建绘图或按压状态机。

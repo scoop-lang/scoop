@@ -1,0 +1,84 @@
+package scoop.ui.component
+
+import scoop.graphics.Point
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.style as baseStyle
+
+internal fun choiceLayout(
+    children: Array<View>,
+    keys: Array<ViewKey>,
+    handles: Array<FocusHandle>,
+    axis: FlexAxis,
+    spacing: Double,
+    loop: Boolean,
+    enabled: Boolean,
+    style: StyleOverride,
+    preferred: FocusHandle? = None,
+    navigate: (FocusHandle) -> Unit = {},
+    fitCross: Boolean = true
+): View {
+    val slots = Array<GroupSlot>(children.size) { _ -> GroupSlot() }
+    val layout =
+        LinearProps(
+            Array<FlexItem>(children.size) {
+                index -> FlexItem(
+                    element(
+                        slots[index],
+                        { current -> GroupSlotInk(current) },
+                        [children[index]],
+                        keys[index]
+                    )
+                )
+            },
+            spacing = spacing,
+            alignment = CrossAlignment.Stretch
+        )
+    val options =
+        NavigationOptions(
+            Array<NavigationItem>(handles.size) { index -> NavigationItem(handles[index]) },
+            if (axis == FlexAxis.Horizontal)
+                NavigationLayout.Horizontal
+            else
+                NavigationLayout.Vertical,
+            loop = loop,
+            preferredTab = preferred,
+            onNavigate = navigate
+        )
+    return styled(
+        element(
+            ChoiceNavigationProps(options, enabled),
+            { current -> ChoiceNavigation(current) },
+            [
+                element(
+                    GroupLayoutProps(layout, axis, slots, fitCross),
+                    { current -> GroupLayout(current) },
+                    layout.children
+                )
+            ]
+        )
+    ) { this.style = style.resolve(baseStyle()) }
+}
+
+private class ChoiceNavigationProps(val navigation: NavigationOptions, val enabled: Boolean)
+
+private class ChoiceNavigation(private val props: Props<ChoiceNavigationProps>): Element {
+    private var navigation: KeyNavigation? = None
+    private var scope: ComponentScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        navigation = Some(scope.keyNavigation(props.value.navigation))
+    }
+    public override fun update() {
+        scope!!.input.enabled = props.value.enabled
+        navigation!!.options = props.value.navigation
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}

@@ -71,6 +71,25 @@ public open class ChildrenBuilder internal constructor() {
         add(makeStyledLabel(content, configure))
     }
 
+    public fun <T: Equals<T>> radioGroup(
+        selected: Binding<T?>,
+        configure: RadioGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeRadioGroup(selected, configure))
+    }
+    public fun <T: Equals<T>> toggleGroup(
+        selected: Binding<T?>,
+        configure: ToggleGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeToggleGroup(ToggleGroupSelection.Single(selected), configure))
+    }
+    public fun <T: Equals<T>> toggleGroup(
+        selected: Binding<Array<T>>,
+        configure: ToggleGroupBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeToggleGroup(ToggleGroupSelection.Multiple(selected), configure))
+    }
+
     public fun button(
         text: String,
         onClick: () -> Unit,

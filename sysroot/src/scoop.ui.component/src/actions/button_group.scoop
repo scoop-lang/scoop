@@ -120,11 +120,11 @@ private fun groupContent(
 }
 
 /** Records only the current wrapper's input subtree, never the opaque child's internals. */
-private class GroupSlot {
+internal class GroupSlot {
     var input: InputScope? = None
 }
 
-private class GroupSlotInk(private val props: Props<GroupSlot>): Element {
+internal class GroupSlotInk(private val props: Props<GroupSlot>): Element {
     private var input: InputScope? = None
     public override fun onMount(scope: ComponentScope) {
         input = Some(scope.input)
@@ -142,13 +142,14 @@ private class GroupSlotInk(private val props: Props<GroupSlot>): Element {
     }
 }
 
-private class GroupLayoutProps(
+internal class GroupLayoutProps(
     val layout: LinearProps,
     val axis: FlexAxis,
-    val slots: Array<GroupSlot>
+    val slots: Array<GroupSlot>,
+    val fitCross: Boolean = axis == FlexAxis.Vertical
 )
 
-private class GroupLayout(private val props: Props<GroupLayoutProps>): Element {
+internal class GroupLayout(private val props: Props<GroupLayoutProps>): Element {
     private var input: InputScope? = None
     public override fun onMount(scope: ComponentScope) {
         val route = scope.input
@@ -166,7 +167,7 @@ private class GroupLayout(private val props: Props<GroupLayoutProps>): Element {
             constraints,
             props.value.layout,
             props.value.axis == FlexAxis.Vertical,
-            fitCross = props.value.axis == FlexAxis.Vertical
+            fitCross = props.value.fitCross
         )
     public override fun scene(context: SceneContext) {
         val input = props.value

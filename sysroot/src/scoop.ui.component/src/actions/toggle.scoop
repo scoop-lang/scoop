@@ -21,7 +21,8 @@ public class ToggleProps public constructor(
     public val size: ToggleSize = ToggleSize.Default,
     public val style: ButtonStyle = buttonStyle { kind = SurfaceKind.Plain },
     public val theme: ThemeSource? = None,
-    public val focus: FocusOptions = FocusOptions()
+    public val focus: FocusOptions = FocusOptions(),
+    public val group: GroupPosition? = None
 )
 
 public class Toggle public constructor(private val props: Props<ToggleProps>): Component {
@@ -66,7 +67,8 @@ public class Toggle public constructor(private val props: Props<ToggleProps>): C
                 ButtonVariant.Ghost,
                 input.style,
                 visual,
-                ActionBehavior.Press(control, { activate() }, input.focus)
+                ActionBehavior.Press(control, { activate() }, input.focus),
+                input.group
             ),
             { current -> ActionInk(current) },
             [

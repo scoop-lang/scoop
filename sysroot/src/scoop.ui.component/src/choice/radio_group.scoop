@@ -1,0 +1,117 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class RadioItemContent internal constructor(
+    public val indicator: View,
+    public val selected: Boolean,
+    public val enabled: Boolean,
+    public val invalid: Boolean,
+    public val textStyle: TextStyle
+)
+
+public class RadioGroupEntry<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val focus: FocusOptions = FocusOptions(),
+    public val labelTarget: FieldTarget? = None,
+    public val invalid: Boolean = false,
+    public val marker: RadioOptions = radioOptions(),
+    public val content: ((RadioItemContent) -> View)? = None
+)
+
+public class RadioGroupProps<T: Equals<T>> public constructor(
+    public val entries: Array<RadioGroupEntry<T>>,
+    public val selected: Binding<T?>,
+    public val axis: FlexAxis = FlexAxis.Vertical,
+    public val spacing: Double = 8.0,
+    public val loop: Boolean = true,
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(spacing, "radio group spacing must be finite and nonnegative")
+        validateChoices(Array<Choice<T>>(entries.size) { index -> entries[index].choice })
+    }
+}
+
+public class RadioGroup<T: Equals<T>> public constructor(
+    private val props: Props<RadioGroupProps<T>>
+): Component {
+    private val handles = ChoiceHandles()
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    private fun select(key: ViewKey) {
+        val input = props.value
+        if (!input.enabled)
+            return
+        for (entry in input.entries)
+            if (
+                entry.choice.key ==
+                    key &&
+                    entry.choice.enabled &&
+                    input.selected.value !=
+                    Some(entry.choice.value)
+            )
+                input.selected.value = Some(entry.choice.value)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val keys = Array<ViewKey>(input.entries.size) { index -> input.entries[index].choice.key }
+        val focus =
+            handles.resolve(
+                keys,
+                Array<FocusOptions>(keys.size) { index -> input.entries[index].focus }
+            )
+        val selected = input.selected.value
+        var preferred: FocusHandle? = None
+        for (index in 0L ..< keys.size)
+            if (selected == Some(input.entries[index].choice.value))
+                preferred = Some(focus[index])
+        val children =
+            Array<View>(keys.size) {
+                index ->
+                val entry = input.entries[index]
+                component(
+                    RadioItemProps(
+                        entry.choice.label,
+                        selected == Some(entry.choice.value),
+                        input.enabled && entry.choice.enabled,
+                        input.invalid || entry.invalid,
+                        choiceFocus(entry.focus, focus[index]),
+                        entry.labelTarget,
+                        entry.marker,
+                        entry.content,
+                        input.fonts,
+                        theme,
+                        { select(entry.choice.key) }
+                    ),
+                    { current -> RadioItem(current) }
+                )
+            }
+        return choiceLayout(
+            children,
+            keys,
+            focus,
+            input.axis,
+            input.spacing,
+            input.loop,
+            input.enabled,
+            input.style,
+            preferred,
+            {
+                handle -> for (index in 0L ..< focus.size)
+                    if (focus[index] === handle)
+                        select(keys[index])
+            },
+            fitCross = false
+        )
+    }
+}

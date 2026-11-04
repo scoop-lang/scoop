@@ -13,6 +13,7 @@ public open class ContentToggleBuilder internal constructor() {
     public var style: ButtonStyle = buttonStyle { kind = SurfaceKind.Plain }
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
+    public var group: GroupPosition? = None
     public var key: ViewKey = ViewKey.Position
     public fun style(configure: ButtonStyleBuilder.() -> Unit): Unit {
         style = style.copy(configure)
@@ -21,7 +22,7 @@ public open class ContentToggleBuilder internal constructor() {
         focus = focus.copy(configure)
     }
     internal fun properties(content: ButtonContent, pressed: Binding<Boolean>): ToggleProps =
-        ToggleProps(content, pressed, enabled, invalid, variant, size, style, theme, focus)
+        ToggleProps(content, pressed, enabled, invalid, variant, size, style, theme, focus, group)
 }
 
 public open class ToggleBuilder internal constructor(): ContentToggleBuilder() {

@@ -1,0 +1,223 @@
+package scoop.tests.ui.choices
+
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ChoiceGroupWindowTest {
+    @Test
+    fun `native groups distinguish navigation selection binding changes keyed reuse and cancellation`() {
+        val probe = ChoiceProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(probe.finished)
+            assertFalse(probe.frames!!.snapshot().attached)
+            assertFalse(probe.target.isAttached)
+            assertFalse(probe.newTarget.isAttached)
+            for (index in 0L ..< 3L) {
+                assertEquals(2, probe.mounts[index])
+                assertEquals(2, probe.unmounts[index])
+                assertFalse(probe.radioHandles[index].isAttached)
+                assertFalse(probe.toggles[index].isAttached)
+                assertFalse(probe.multiHandles[index].isAttached)
+            }
+            assertFalse(probe.replacement.isAttached)
+        } catch (error: Throwable) {
+            println(f"choice group phase=${probe.phase}")
+            reportChoiceFailure(error)
+            throw error
+        } finally {
+            host.close()
+            probe.frames?.close()
+            probe.view?.close()
+            probe.fonts.close()
+        }
+    }
+}
+
+internal class ChoiceProbe {
+    val fonts = FontCollection(false)
+    val theme = ThemeSource(shadcnTheme())
+    val lead = FocusHandle()
+    val tail = FocusHandle()
+    val radioHandles = [FocusHandle(), FocusHandle(), FocusHandle()]
+    val replacement = FocusHandle()
+    val toggles = [FocusHandle(), FocusHandle(), FocusHandle()]
+    val multiHandles = [FocusHandle(), FocusHandle(), FocusHandle()]
+    val target = FieldTarget()
+    val newTarget = FieldTarget()
+    val radio = state<Int?>(Some(2))
+    val second = state<Int?>(None)
+    val single = state<Int?>(None)
+    val multiple = state<Array<Int>>([0])
+    val generation = state(0)
+    val mounts = MutableArray<Int>(3L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(3L) { _ -> 0 }
+    var radioWrites = 0
+    var secondWrites = 0
+    var singleWrites = 0
+    var reject = false
+    var reversed = false
+    var replaced = false
+    var enabled = true
+    var gone = false
+    var rtl = false
+    var rendered = -1
+    var phase = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(75L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun radioBinding(): Binding<Int?> =
+        if (replaced)
+            binding(
+                { second.value },
+                {
+                    next ->
+                    secondWrites += 1;
+                    second.value = next
+                }
+            )
+        else
+            binding(
+                { radio.value },
+                {
+                    next ->
+                    radioWrites += 1;
+                    if (!reject)
+                        radio.value = next
+                }
+            )
+    fun radioHandle(index: Long): FocusHandle =
+        if (replaced && index == 2L)
+            replacement
+        else
+            radioHandles[index]
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop choice groups test"
+                            this.size = LogicalSize(500.0, 500.0)
+                        }
+                    )
+                native = Some(window)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { ChoiceScene(this) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("choice groups timeout"))
+                if (settled())
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 43)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 43;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean {
+        if (!native!!.isFocused || rendered < generation.value || frames!!.snapshot().required)
+            return false
+        for (handle in [lead, tail, replacement])
+            if (handle.isPending)
+                return false
+        for (handles in [radioHandles, toggles, multiHandles])
+            for (handle in handles)
+                if (handle.isPending)
+                    return false
+        return true
+    }
+    private fun advance() {
+        when (phase / 8) {
+            case 0 -> radioKeys(this)
+            case 1 -> toggleKeys(this)
+            case 2 -> selectionChanges(this)
+            case 3 -> replacementAndPointer(this)
+            case 4 -> cancellationAndRtl(this)
+            case 5 -> {
+                if (phase == 40) {
+                    assertFalse(replacement.isAttached)
+                    quiet = Some(frames!!.snapshot())
+                } else
+                    if (phase == 41)
+                        assertEquals(quiet!!, frames!!.snapshot())
+                    else
+                        native!!.requestDestroy()
+            }
+            else -> fail(Some("unexpected group phase"))
+        }
+        if (phase < 39)
+            generation.value += 1
+        phase += 1
+    }
+    fun key(code: Int, shift: Boolean = false) {
+        assertTrue(sendSurfaceKey(native!!, code, true, shift = shift))
+        assertTrue(sendSurfaceKey(native!!, code, false, shift = shift))
+    }
+    fun focus(handle: FocusHandle) {
+        assertTrue(handle.requestFocus())
+    }
+    fun press(x: Double, y: Double, down: Boolean) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, down))
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}
+
+private fun reportChoiceFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportChoiceFailure(error.primaryFailure)
+        reportChoiceFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "choice group failure")
+}

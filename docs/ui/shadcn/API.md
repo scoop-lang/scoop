@@ -13,6 +13,9 @@ button(content: View, onClick: () -> Unit, configure: ContentButtonBuilder.() ->
 checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
 checkbox(checked: Binding<CheckState>, configure: CheckboxBuilder.() -> Unit = {}): View
 input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View
+radioGroup(selected: Binding<T?>, configure: RadioGroupBuilder<T>.() -> Unit = {}): View
+toggleGroup(selected: Binding<T?>, configure: ToggleGroupBuilder<T>.() -> Unit = {}): View
+toggleGroup(selected: Binding<Array<T>>, configure: ToggleGroupBuilder<T>.() -> Unit = {}): View
 inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View
 slider(values: Binding<Array<Double>>, range: RangeSpec, configure: SliderBuilder.() -> Unit = {}): View
 fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {}): View

@@ -1,0 +1,214 @@
+package scoop.tests.ui.choices
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.radioGroup as makeRadioGroup
+import scoop.ui.component.toggleGroup as makeToggleGroup
+import scoop.ui.style.*
+
+internal class ChoiceScene(private val p: ChoiceProbe): Component {
+    public override fun render(): View {
+        val probe = p
+        val generation = probe.generation.value
+        val order =
+            if (probe.reversed)
+                [2L, 1L, 0L]
+            else
+                [0L, 1L, 2L]
+        val children = ArrayList<View>()
+        children.add(
+            button("Before", {}) {
+                this.fonts = Some(probe.fonts);
+                focus { this.handle = Some(probe.lead) }
+            }
+        )
+        if (!probe.gone) {
+            children.add(
+                makeRadioGroup(probe.radioBinding()) {
+                    this.enabled = probe.enabled
+                    this.axis =
+                        if (probe.rtl)
+                            FlexAxis.Horizontal
+                        else
+                            FlexAxis.Vertical
+                    this.invalid = probe.rtl
+                    for (index in order)
+                        this.item(
+                            Choice(
+                                ViewKey.Number(index),
+                                index.toInt(),
+                                f"Radio ${index}",
+                                index != 1L
+                            )
+                        ) {
+                            this.focus = FocusOptions(Some(probe.radioHandle(index)))
+                            if (index == 0L)
+                                this.labelTarget =
+                                    Some(
+                                        if (probe.replaced)
+                                            probe.newTarget
+                                        else
+                                            probe.target
+                                    )
+                            this.content =
+                                Some {
+                                    appearance ->
+                                    val view =
+                                        makeRow {
+                                            this.add(appearance.indicator)
+                                            this.label(f"Radio ${index}") {
+                                                this.fonts = Some(probe.fonts)
+                                            }
+                                            this.spacing = 8.0
+                                            this.alignment = CrossAlignment.Center
+                                        }
+                                    component(
+                                        view,
+                                        { current -> RadioWitness(probe, index, current) }
+                                    )
+                                }
+                        }
+                }
+            )
+            children.add(
+                makeToggleGroup(
+                    binding(
+                        { probe.single.value },
+                        {
+                            next ->
+                            probe.singleWrites += 1;
+                            probe.single.value = next
+                        }
+                    )
+                ) {
+                    this.fonts = Some(probe.fonts)
+                    this.spacing = 0.0
+                    this.variant = ToggleVariant.Outline
+                    this.axis =
+                        if (probe.rtl)
+                            FlexAxis.Vertical
+                        else
+                            FlexAxis.Horizontal
+                    for (index in order)
+                        this.item(
+                            Choice(
+                                ViewKey.Number(index),
+                                index.toInt(),
+                                f"Toggle ${index}",
+                                index != 1L
+                            )
+                        ) { this.focus = FocusOptions(Some(probe.toggles[index])) }
+                }
+            )
+            children.add(
+                makeToggleGroup(probe.multiple.binding()) {
+                    this.fonts = Some(probe.fonts)
+                    for (index in 0L ..< 3L)
+                        this.item(Choice(ViewKey.Number(index), index.toInt(), f"Multi ${index}")) {
+                            this.focus = FocusOptions(Some(probe.multiHandles[index]))
+                        }
+                }
+            )
+            children.add(
+                fieldLabel(
+                    "Choose first radio",
+                    if (probe.replaced)
+                        probe.newTarget
+                    else
+                        probe.target
+                ) { this.fonts = Some(probe.fonts) }
+            )
+            children.add(
+                button("After", {}) {
+                    this.fonts = Some(probe.fonts);
+                    focus { this.handle = Some(probe.tail) }
+                }
+            )
+            children.add(
+                makeRadioGroup(probe.radioBinding()) {
+                    this.fonts = Some(probe.fonts)
+                    this.item(Choice(ViewKey.Text("zero"), 0, "Constrained"))
+                }
+            )
+            children.add(
+                makeToggleGroup(probe.single.binding()) {
+                    this.fonts = Some(probe.fonts)
+                    this.item(Choice(ViewKey.Text("zero"), 0, "Constrained"))
+                }
+            )
+        }
+        return direction(
+            element(generation, { current -> ChoiceLayout(probe, current) }, children.toArray()),
+            if (probe.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class RadioWitness(
+    private val p: ChoiceProbe,
+    private val index: Long,
+    private val props: Props<View>
+): Component {
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts[index] += 1
+    }
+    public override fun render(): View = props.value
+    public override fun onUnmount() {
+        p.unmounts[index] += 1
+    }
+}
+
+private class ChoiceLayout(
+    private val p: ChoiceProbe,
+    private val generation: Props<Int>
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        assertFailsWith<IllegalArgumentException> {
+            scope.keyNavigation(NavigationOptions([], preferredTab = Some(FocusHandle())))
+        }
+        val navigation = scope.keyNavigation(NavigationOptions([]))
+        assertFailsWith<IllegalArgumentException> {
+            navigation.options = NavigationOptions([], preferredTab = Some(FocusHandle()))
+        }
+        assertEquals(0L, navigation.options.items.size)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val positions = [20.0, 60.0, 170.0, 300.0, 380.0, 430.0, 0.0, 0.0]
+        for (index in 0L ..< context.childCount) {
+            val limits =
+                if (index >= 6L)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    Constraints(maxWidth = Some(320.0))
+            val size = context.measureChild(index, limits).size
+            if (index >= 6L)
+                assertEquals(Size(0.0, 0.0), size)
+            if (index == 2L) {
+                if (p.rtl) {
+                    assertTrue(size.height >= 96.0)
+                    assertTrue(size.width < 160.0)
+                } else {
+                    assertEquals(32.0, size.height)
+                    assertTrue(size.width > 180.0)
+                }
+            }
+            context.placeChild(index, Point(20.0, positions[index]))
+        }
+        return LayoutMetrics(constraints.constrain(Size(500.0, 500.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val current = generation.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = current
+        }
+    }
+}

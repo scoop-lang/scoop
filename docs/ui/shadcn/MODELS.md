@@ -6,7 +6,9 @@
 
 Select、Combobox、RadioGroup、ToggleGroup 共用有序的 Choice 元数据，单选值使用 `Binding<T?>`，多选使用 `Binding<Array<T>>`；需要比较值的泛型入口明确要求 `T: Equals<T>`，不退回 Any 或显示字符串。每个 Choice 有稳定显式 ViewKey、领域值、显示文字、enabled 和必要的分组／搜索文字。显示文字不是身份，相同标题合法。
 
-小数据入口接收不可变 `Array<Choice<T>>`；大数据使用实际的 ChoiceSource，提供 count、按索引取得元数据、按 key 定位。导航适配现有 NavigationSource，呈现适配 ItemSource，条目 View 只在需要时创建。source 是本次元数据快照，流式正文／进度可以独立 State 更新，不为一个字的变化重新构造所有选项。
+RadioGroup／ToggleGroup 的项描述在 Choice 之外保存各自的内容、样式与焦点选项，以不可变 entries 数组或 builder.item(choice) 接入；每个新 Props 快照检查一次 key／value 唯一性。Radio 使用 KeyNavigation.preferredTab 与 onNavigate 表达已选入口和方向选择，ToggleGroup 只使用同一导航的焦点行为，不共享选择策略。
+
+其他小数据入口接收不可变 `Array<Choice<T>>`；大数据使用实际的 ChoiceSource，提供 count、按索引取得元数据、按 key 定位。导航适配现有 NavigationSource，呈现适配 ItemSource，条目 View 只在需要时创建。source 是本次元数据快照，流式正文／进度可以独立 State 更新，不为一个字的变化重新构造所有选项。
 
 | 状态 | 行为 |
 | --- | --- |

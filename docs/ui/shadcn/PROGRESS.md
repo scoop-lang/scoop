@@ -120,3 +120,12 @@
 - 候选节点仍按直接父级下的 key／位置选择；匹配只返回布尔值，后续 Props 更新、卸载与挂载流程不变。Empty、Direction、Portal 及模态类别保持既有区别，同类型替换工厂闭包保留实例。三个公开协议仍为接口，具体 class 静态类型与每次新挂载创建新实例改为明确 API 使用约定，活动实例重复挂载检测保留。UI 规范和设计已先行同步，原反射拒绝值类型的专门错误场景已删除。
 - macOS aarch64 release：格式、相关 tests 静态检查、7 个受影响生产库及 3 个定向测试程序构建通过；13 项测试全部通过。新增 4 项纯匹配测试和 1 项真实隐藏窗口生命周期测试覆盖三类节点、完整泛型实参、判断无副作用、工厂次数、不同局部状态的 keyed 重排与位置复用、类型变化重挂载及 36 次实例资源释放；既有组合状态与 5 项 Portal 测试、包含 21 个场景的错误清理回归，以及 32 阶段 OTP 实窗回归通过。
 - 本批不增加控件目录项，仍为 **20／64**，随后继续 P2。一次性检查锁和错误回归输出目录已清理，继续保留共享缓存、OTP／UI 测试产物和外部依赖；没有重建 LLVM、编译器或执行全仓／全部控件测试。
+
+
+## P2c：Radio Group 与 Toggle Group
+
+- 先修订 UI／控件规范及选择模型。KeyNavigation 增加可选 preferredTab 和接受导航请求后的 onNavigate，默认仍保持原焦点导航行为；Radio 用它表达已选 Tab 入口和方向选择。没有新增反射、类型身份、选择镜像或导航状态机。
+- 新增普通泛型 Choice、RadioGroup／ToggleGroup、完整 Props 和 DSL。Radio 提供单选／空选、说明与自定义 indicator 卡片、FieldTarget、禁用／invalid；Toggle Group 提供可清空单选、多选、两种变体、三种尺寸、横纵、间距／连边及自定义图标正文。两者保留 keyed 实例与内部焦点句柄，更新时读取最新绑定；同值、重复 key、位置 key 在新元数据快照入口报告配置错误。
+- 复用 Press、Theme Radio 几何／painter、Toggle／ActionInk 和原 ButtonGroup 的接缝及焦点层级。Radio 禁用透明度覆盖整项一次；移除外部 FocusHandle 时恢复该 key 的内部 handle。Gallery 增加两页，实际检查 System／Neutral、明暗、LTR／RTL、选择、卡片、连边、间距和键盘 focus-visible。
+- macOS aarch64 release：先格式化和静态检查 UI、component、Gallery 及新窗口 Cone，再定向运行 **6 个测试全部通过**：ChoiceGroupTest 4 项、新 ChoiceGroupWindowTest 1 项（43 步）、既有 VirtualNavigationTest 1 项。覆盖元数据错误、未知值及顺序保留、拒绝 setter、keyed 复用、外部 handle／标签／绑定替换、Radio 与 Toggle 的键盘差异、禁用跳过、拖出／禁用／卸载取消、零尺寸、RTL、明暗切换及资源收尾。7 个受影响生产库和 Gallery 构建成功；UI 库仍无 typeInfo／TypeInfo／TypeRef／TypeShape 直接引用。
+- 本批完成两项，目录累计 **22／64**；P2 继续 Slider、Input／Textarea、InputGroup 与 Field。一次性检查锁、导航回归输出与手工窗口已清理，保留共享缓存、分组回归／Gallery 产物和 `../scoop-dep` 参考。没有重建编译器或 LLVM，也未扩大到全仓／全部控件测试；x86_64 留在整体收尾，Windows／Linux 未验证。
