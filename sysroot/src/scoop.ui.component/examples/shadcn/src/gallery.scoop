@@ -94,7 +94,7 @@ internal class Gallery(
                                             )
                                             this.add(
                                                 this @Gallery.text(
-                                                    "Try Button, Input, or Checkbox.",
+                                                    "Try Button, Badge, Spinner, Input, or Checkbox.",
                                                     14.0,
                                                     400,
                                                     true
@@ -159,8 +159,27 @@ internal class Gallery(
     }
 
     private fun demo(value: Demo): View =
+        when (value) {
+            case Button -> controlDemo(ControlDemo.Button)
+            case Input -> controlDemo(ControlDemo.Input)
+            case Checkbox -> controlDemo(ControlDemo.Checkbox)
+            case Badge -> badgeExamples(model, fonts)
+            case Spinner -> spinnerExamples(model, fonts)
+        }
+
+    private fun controlDemo(value: ControlDemo): View =
         makeColumn {
-            this.add(this @Gallery.text(demoTitle(value), 32.0, 650))
+            this.add(
+                this @Gallery.text(
+                    when (value) {
+                        case Button -> "Button";
+                        case Input -> "Input";
+                        case Checkbox -> "Checkbox"
+                    },
+                    32.0,
+                    650
+                )
+            )
             this.add(
                 this @Gallery.text(
                     when (value) {
@@ -223,12 +242,14 @@ internal class Gallery(
                     true
                 )
             )
+            if (value == ControlDemo.Button)
+                this.add(buttonExamples(this @Gallery.model, this @Gallery.fonts))
             this.spacing = 24.0
             this.padding = Insets(6.0, 6.0, 12.0, 12.0)
             this.alignment = CrossAlignment.Stretch
         }
 
-    private fun preview(value: Demo, state: PreviewState): View {
+    private fun preview(value: ControlDemo, state: PreviewState): View {
         val palette = model.source.current.value.tokens.palette
         return makeFrame(
             makeColumn {

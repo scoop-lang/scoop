@@ -8,6 +8,10 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 
 internal enum Demo {
+    Button, Input, Checkbox, Badge, Spinner
+}
+
+internal enum ControlDemo {
     Button, Input, Checkbox
 }
 
@@ -16,6 +20,8 @@ internal fun demoTitle(value: Demo): String =
         case Button -> "Button"
         case Input -> "Input"
         case Checkbox -> "Checkbox"
+        case Badge -> "Badge"
+        case Spinner -> "Spinner"
     }
 
 internal class GalleryModel {
@@ -30,6 +36,14 @@ internal class GalleryModel {
     val clicks = state(0)
     val checked = state(false)
     val invalidChecked = state(false)
+    val busy = state(false)
+    val spinnerScroll = ScrollState()
+    val reduced = state(false)
+    val badgeEnabled = state(true)
+    val badgeAction = state(true)
+    val badgeStep = state(1)
+    val badgeClicks = state(0)
+    val badgeFocus = FocusHandle()
     val buttonFocus = FocusHandle()
     val inputFocus = FocusHandle()
     val checkboxFocus = FocusHandle()
@@ -41,7 +55,20 @@ internal class GalleryModel {
             else
                 ThemeMode.Light
         mode.value = next
-        source.current.value = shadcnTheme(next)
+        refreshTheme()
+    }
+    fun refreshTheme() {
+        val preference =
+            if (reduced.value)
+                MotionPreference.Reduced
+            else
+                MotionPreference.Full
+        source.current.value =
+            shadcnTheme(mode.value) { tokens { motion { this.preference = preference } } }
+    }
+    fun toggleMotion() {
+        reduced.value = !reduced.value
+        refreshTheme()
     }
     fun toggleDirection() {
         direction.value =
@@ -53,7 +80,7 @@ internal class GalleryModel {
     fun entries(): Array<Demo> {
         val search = unicodeCasefold(query.text)
         val result = ArrayList<Demo>()
-        for (entry in [Demo.Button, Demo.Input, Demo.Checkbox])
+        for (entry in [Demo.Button, Demo.Input, Demo.Checkbox, Demo.Badge, Demo.Spinner])
             if (unicodeCasefold(demoTitle(entry)).contains(search))
                 result.add(entry)
         return result.toArray()
@@ -67,7 +94,7 @@ internal class GalleryModel {
         else
             Some(entries[0L])
     }
-    fun focus(value: Demo): FocusHandle =
+    fun focus(value: ControlDemo): FocusHandle =
         when (value) {
             case Button -> buttonFocus
             case Input -> inputFocus

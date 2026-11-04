@@ -78,6 +78,32 @@ public open class ChildrenBuilder internal constructor() {
         add(makeContentButton(content, onClick, configure))
     }
 
+    public fun button(
+        content: (ActionContentStyle) -> View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeResolvedButton(content, onClick, configure))
+    }
+    public fun badge(text: String, configure: BadgeBuilder.() -> Unit = {}): Unit {
+        add(makeTextBadge(text, configure))
+    }
+    public fun badge(text: StyledText, configure: StyledBadgeBuilder.() -> Unit = {}): Unit {
+        add(makeStyledBadge(text, configure))
+    }
+    public fun badge(content: View, configure: ContentBadgeBuilder.() -> Unit = {}): Unit {
+        add(makeContentBadge(content, configure))
+    }
+    public fun badge(
+        content: (ActionContentStyle) -> View,
+        configure: ContentBadgeBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeResolvedBadge(content, configure))
+    }
+    public fun spinner(configure: SpinnerBuilder.() -> Unit = {}): Unit {
+        add(makeSpinner(configure))
+    }
+
     public fun checkbox(
         checked: Binding<Boolean>,
         configure: CheckboxBuilder.() -> Unit = {}

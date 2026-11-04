@@ -38,11 +38,6 @@ public class ButtonStyle internal constructor(
 ) {
     public fun copy(configure: ButtonStyleBuilder.() -> Unit = {}): ButtonStyle =
         configureButtonStyle(this, configure)
-
-    internal fun options(visual: InteractionVisual): SurfaceOptions {
-        val localStyle = states.apply(surface.style, visual)
-        return surface.copy { this.style = localStyle }
-    }
 }
 
 public class CheckboxStyle internal constructor(

@@ -16,7 +16,7 @@ import scoop.window.*
 @Test
 private class GalleryWindowTest {
     @Test
-    fun `real gallery retains models through theme direction pages and native composition then stops frames`() {
+    fun `real gallery retains input and actions while theme direction and animation changes preserve lifecycle`() {
         val probe = GalleryProbe()
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
         try {
@@ -30,6 +30,7 @@ private class GalleryWindowTest {
             assertFalse(probe.model.buttonFocus.isAttached)
             assertFalse(probe.model.inputFocus.isAttached)
             assertFalse(probe.model.checkboxFocus.isAttached)
+            assertFalse(probe.model.badgeFocus.isAttached)
         } catch (error: Throwable) {
             println(f"gallery phase=${probe.phase}, paints=${probe.paints}")
             galleryFailure(error)
@@ -79,10 +80,9 @@ internal class GalleryProbe {
     var invalidFocus = false
     var disabledSeen = false
     var disabledRing: OutlineRing? = None
+    private val actions = GalleryActions(this)
     private var afterPaint = 0
     private var waiting = false
-    private var quiet: FrameSnapshot? = None
-    private var quietPaints = 0
     init {
         for (family in model.source.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
@@ -108,20 +108,24 @@ internal class GalleryProbe {
                 window.requestFocus()
                 waitFor(active, 25000L)
             }
-            case AboutToWait -> if (phase < 14 && native!!.isFocused)
+            case AboutToWait -> if (phase < 43 && native!!.isFocused)
                 advance(active)
             case NewEvents(StartCause.Deadline) -> deadline(active)
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 16
+                finished = phase == 43
                 active.requestExit()
             }
             else -> {}
         }
     }
     private fun advance(active: ActiveApplication) {
-        if (phase >= 14 || waiting || paints <= afterPaint || pixel < 0L)
+        if (phase >= 43 || waiting || paints <= afterPaint || pixel < 0L)
             return
         afterPaint = paints
+        if (phase >= 14) {
+            actions.advance(active)
+            return
+        }
         when (phase) {
             case 0 -> {
                 assertValidation()
@@ -207,8 +211,8 @@ internal class GalleryProbe {
                 assertEquals("你好", model.name.text)
                 assertTrue(model.checked.value)
                 assertEquals(1, model.clicks.value)
+                model.selected.value = Demo.Badge
                 phase = 14
-                waitFor(active, 400L)
             }
             else -> fail(Some("unexpected gallery phase"))
         }
@@ -226,7 +230,7 @@ internal class GalleryProbe {
             assertTrue(delta >= -1.0 && delta <= 1.0)
         }
     }
-    private fun key(active: ActiveApplication, code: Int) {
+    internal fun key(active: ActiveApplication, code: Int) {
         waiting = true
         assertTrue(sendSurfaceKey(native!!, code, true))
         assertTrue(sendSurfaceKey(native!!, code, false))
@@ -239,26 +243,12 @@ internal class GalleryProbe {
         )
     }
     private fun deadline(active: ActiveApplication) {
-        when (phase) {
-            case 14 -> {
-                val snapshot = frames!!.snapshot()
-                assertFalse(snapshot.required)
-                assertTrue(snapshot.paused)
-                quiet = Some(snapshot)
-                quietPaints = paints
-                phase = 15
-                waitFor(active, 180L)
-            }
-            case 15 -> {
-                assertEquals(quiet!!, frames!!.snapshot())
-                assertEquals(quietPaints, paints)
-                phase = 16
-                native!!.requestDestroy()
-            }
-            else -> fail(Some(f"gallery timed out at phase ${phase}"))
-        }
+        if (phase >= 14)
+            actions.deadline(active)
+        else
+            fail(Some(f"gallery timed out at phase ${phase}"))
     }
-    private fun waitFor(active: ActiveApplication, milliseconds: Long) {
+    internal fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
             ControlFlow.WaitUntil(
                 MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)

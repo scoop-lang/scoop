@@ -27,3 +27,12 @@
 - 新增 `scoop.ui.component/examples/shadcn` 的实际原生窗口、搜索与三类控件状态预览。主题、方向、页面和搜索切换保持应用模型；正文使用同一 TextEditorState 与原生 IME，未建立另一套绘制或交互实现。实际窗口核对了明暗模式、紧凑按钮、侧栏顶对齐和 RTL 布局。
 - macOS aarch64 release：6 个受影响生产库重建通过；控件测试、主题测试、Gallery、既有主题示例和文本控件测试类型检查通过；24 项主题测试及 2 项 Gallery 测试全部通过。真实窗口测试覆盖 Space 激活、焦点、中文 marked／commit、主题／方向／页面切换、选择保持、停帧及资源释放。42 个 Scoop 文件格式检查及 diff 检查通过。
 - 首轮窗口测试暴露的销毁后焦点查询已修复；低 alpha 像素检查按预乘通道比较，避免反预乘放大 8 位舍入，容差保持 2。一次性检查锁已清理，继续复用外部依赖与共享编译缓存。P0 已闭合，64 项目录完成数仍为 0；后续从 P1 基本内容与操作开始，x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P1a：Button、Badge 与 Spinner
+
+- Button 增加六种视觉变体和八种尺寸，保留 String／StyledText／View 内容；新增 ActionContentStyle 回调，让 Button／Badge 的自定义图标、文字和 Spinner 使用同一解析结果。局部尺寸、文字和状态覆盖继续优先；四套主题保持可用。
+- Badge 提供六种变体及纯展示／显式动作入口，动作模式复用 Press、焦点和最新回调；撤销动作立即解除原目标。Button 与 Badge 共用表面布局和 painter，未保留平行绘制实现。Link 的文字下划线复用实际段落选择几何。
+- Spinner 使用带来源许可的 Lucide loader-circle 路径与 scope-owned Animatable；停止、Reduced、零尺寸、透明、视口裁剪、窗口隐藏和卸载均收束帧需求。普通滚动区按成功帧的保守 clip 交集设置既有 isFrameEnabled，滚回后沿原时间轴恢复，不增加 UI 调度机制。
+- macOS aarch64 release：生产控件库、Gallery 和原有交互测试构建通过；13 项控件变体／样式／DSL 测试、2 项 Gallery 测试及 1 项原有控件窗口回归全部通过。Gallery 的 43 阶段窗口用例覆盖 IME、回调替换、禁用／撤销目标、减少动态、离屏／恢复、隐藏／恢复、停止及卸载；实际窗口复查六变体、八尺寸、明暗、Badge 与 RTL。末次示例内边距调整另经格式／类型检查与窗口复查。
+- 首轮 Spinner 绘制在借用子 Canvas 时访问 SceneContext 的错误已修复。此环境的后台窗口请求未取得系统键盘焦点，显式激活测试窗口后两项窗口测试通过，未放宽断言。原有低 alpha／主题回归继续复用已完成结果，没有全仓复验。
+- 本批完成 Button、Badge、Spinner，目录累计 **3／64**；其余 P1 与 P2–P9 继续实施。一次性检查锁清理，外部 Lucide 文件保存在 `../scoop-dep/lucide`，生产与后续复用的测试缓存保留。x86_64 留在整体收尾，Windows／Linux 未验证。

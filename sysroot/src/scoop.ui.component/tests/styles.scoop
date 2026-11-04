@@ -24,8 +24,15 @@ private class ComponentStyleTest {
                 this.states = states
             }
         val active = InteractionVisual(hovered = true, pressed = true, focusVisible = true)
-        val options = style.options(active)
         for (theme in [macosTheme(), materialTheme()]) {
+            val options =
+                actionOptions(
+                    theme,
+                    ActionShape.Button(ButtonSize.Default),
+                    ButtonVariant.Default,
+                    style,
+                    active
+                )
             val geometry =
                 theme.surfaceGeometry(
                     Rect(0.0, 0.0, 80.0, 40.0),
@@ -51,7 +58,13 @@ private class ComponentStyleTest {
                 theme.surfaceGeometry(
                     Rect(0.0, 0.0, 80.0, 40.0),
                     SurfaceVisual(SurfaceKind.Action, disabled),
-                    style.options(disabled)
+                    actionOptions(
+                        theme,
+                        ActionShape.Button(ButtonSize.Default),
+                        ButtonVariant.Default,
+                        style,
+                        disabled
+                    )
                 )
             when (result.style.background) {
                 case None -> {};

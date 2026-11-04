@@ -19,7 +19,7 @@ internal fun previewTitle(value: PreviewState): String =
 internal fun previewControl(
     model: GalleryModel,
     fonts: FontCollection,
-    value: Demo,
+    value: ControlDemo,
     state: PreviewState
 ): View {
     val enabled = state != PreviewState.Disabled
