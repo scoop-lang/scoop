@@ -178,6 +178,7 @@ internal class Gallery(
             case Progress -> progressExamples(model, fonts)
             case Typography -> typographyExamples(model, fonts)
             case Kbd -> component({ KbdExamples(model, fonts) })
+            case Label -> fieldLabelExamples(model.fields, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

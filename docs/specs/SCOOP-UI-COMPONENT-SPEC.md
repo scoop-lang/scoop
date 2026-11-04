@@ -85,7 +85,7 @@ checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit 
 | ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；invalid: Boolean = false；variant: ButtonVariant = Default；size: ButtonSize = Default；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
 | ButtonBuilder : ContentButtonBuilder | 继承上述字段；fonts: FontCollection? = None |
 | StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle? = None；inlines: Array<InlineView> = [] |
-| CheckboxBuilder | enabled: Boolean = true；invalid: Boolean = false；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| CheckboxBuilder | enabled: Boolean = true；invalid: Boolean = false；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions()；labelTarget: FieldTarget? = None（第 15 节） |
 
 LabelBuilder／StyledButtonBuilder 的 settings 成员接受 ParagraphStyleBuilder；PlainLabelBuilder 的 style 接受 SpanStyleBuilder；ButtonBuilder／CheckboxBuilder 的 style 接受各自样式 Builder。真实嵌套成员返回 Unit，基于当前值继续修改，空块保留配置；完整赋值替换。PlainLabelBuilder.style 的 None 表示没有局部覆盖，第一次 style 块从全部继承的 spanStyle() 开始。String Button 的标签段落继续默认居中，StyledText Button 使用其 settings；不为某种文字模式暴露没有意义的输入。
 
@@ -399,7 +399,7 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy 和当前回调均经 Props 更新。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget 和当前回调均经 Props 更新；标签关联遵守第 15 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
@@ -565,3 +565,11 @@ TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKe
 ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取得当前平台／键盘布局的 parts 与 separator，单键帽按原顺序连接。`kbdGroup(chord／label, configure: KbdBuilder.() -> Unit = {})` 为各 part 分别创建键帽，并在 separator 非空时绘制原分隔文字；顺序始终按平台标签保持 LTR，外层布局可为 RTL。显式 ShortcutLabel 使用调用方已有结果。后续 Props 或主题更新重新查询当前窗口标签；没有键盘布局轮询或自动绑定注册。
 
 `kbdGroup(configure: KbdGroupBuilder.() -> Unit)` 则收集普通 ChildrenBuilder 子项，以中心交叉对齐和默认 4 的 spacing 排列，支持组合快捷键、说明文字或自定义键图标；spacing 必须有限非负。Kbd 自身只绘制，不创建 Press、焦点或快捷键注册。实际动作与提示由调用方复用同一个 ShortcutChord；嵌入 Button、文字行内对象或其他区域不改变其事件归属。资源沿普通 Label／Frame 与作用域管理，借用字体不关闭。
+
+## 15. FieldLabel 与控件关联
+
+`FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps 及对应 builder 增加 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
+
+`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
+
+标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。

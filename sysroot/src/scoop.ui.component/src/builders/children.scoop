@@ -30,6 +30,21 @@ public open class ChildrenBuilder internal constructor() {
         add(makePlainLabel(text, configure))
     }
 
+    public fun fieldLabel(
+        text: String,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(LabelText.Plain(text, None), target, configure))
+    }
+    public fun fieldLabel(
+        text: StyledText,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(LabelText.Styled(text), target, configure))
+    }
+
     public fun imageView(
         image: Image,
         naturalSize: Size,

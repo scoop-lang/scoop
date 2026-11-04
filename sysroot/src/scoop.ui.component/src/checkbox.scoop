@@ -11,7 +11,8 @@ public class CheckboxProps public constructor(
     public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val invalid: Boolean = false
+    public val invalid: Boolean = false,
+    public val labelTarget: FieldTarget? = None
 )
 
 public class Checkbox public constructor(private val props: Props<CheckboxProps>): Component {
@@ -84,7 +85,8 @@ internal fun makeOwnedCheckbox(
             builder.style,
             builder.theme,
             builder.focus,
-            builder.invalid
+            builder.invalid,
+            builder.labelTarget
         ),
         { props -> OwnedCheckbox(props) },
         builder.key
@@ -97,7 +99,8 @@ private class OwnedCheckboxProps(
     val style: CheckboxStyle,
     val theme: ThemeSource?,
     val focus: FocusOptions,
-    val invalid: Boolean
+    val invalid: Boolean,
+    val labelTarget: FieldTarget?
 )
 
 private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Component {
@@ -109,6 +112,7 @@ private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Compo
             this.theme = this @OwnedCheckbox.props.value.theme
             this.focus = this @OwnedCheckbox.props.value.focus
             this.invalid = this @OwnedCheckbox.props.value.invalid
+            this.labelTarget = this @OwnedCheckbox.props.value.labelTarget
         }
 }
 
@@ -130,7 +134,10 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
     private var drawing: CheckboxDrawing? = None
+    private var field: FieldLink? = None
     public override fun onMount(scope: ComponentScope) {
+        val control = props.value.control.value!!
+        field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, props.value.visual))
         selection =
@@ -149,6 +156,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         control.press.update(PressOptions(value.input.enabled, false), value.activate)
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
+        field!!.update(value.input.labelTarget, value.input.enabled, value.activate)
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,

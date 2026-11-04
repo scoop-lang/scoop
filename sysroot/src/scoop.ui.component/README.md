@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／SelectableStyledText、Typography／Kbd、Button／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -26,6 +26,8 @@ fun main() {
 ```
 
 控件挂载时保存来源，在 render 中订阅 `source.current.value`。应用在 UI owner 线程更新这一个 State 即可切换风格或明暗；工厂、内部 State 和焦点保留，尺寸及文字按新主题重新布局。可通过控件的 `theme` 参数明确使用另一来源。临时 Context 不会自动成为 View 子树的主题 Provider。
+
+`FieldTarget()` 把 `fieldLabel("名称", target)` 与 Input／Textarea／Checkbox 的 `labelTarget = Some(target)` 关联。标签不占 Tab 停靠点；文本标签请求聚焦，Checkbox 标签聚焦并执行一次当前选择动作。禁用、隐藏、卸载、跨窗口或模态域外目标不能由标签激活；换绑更新当前关联，按下期间换绑会取消该次点击。普通 `label` 仍是展示文字。
 
 `typography("标题", TypographyRole.H1)` 提供 H1–H4、P、Blockquote、InlineCode、Lead／Large／Small／Muted 角色，默认可选择和复制。`typography { text("运行 "); code("scoop build") }` 使用真实行内代码 View，复制结果保留代码文字；span、inline、actions 和 decorations 继续使用公共富文本 API。`typographyList { item("第一项") }` 和 `typographyTable { header { cell("名称") }; row { cell("Scoop") } }` 提供项目符号与共享列宽的静态文字排版，段落间距由父布局控制。
 

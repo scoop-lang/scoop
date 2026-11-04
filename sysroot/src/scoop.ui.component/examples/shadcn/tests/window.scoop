@@ -82,7 +82,7 @@ private class GalleryWindowTest {
     }
 }
 
-private fun galleryFailure(error: Throwable) {
+internal fun galleryFailure(error: Throwable) {
     if (error is ResourceUseException) {
         galleryFailure(error.primaryFailure)
         galleryFailure(error.cleanupFailure)
