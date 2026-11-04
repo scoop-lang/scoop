@@ -8,7 +8,7 @@ import scoop.window.*
 internal struct EditorNavigation(val selection: EditorSelection, val preferredX: Double?)
 
 /** A scalar IME position can be inside a grapheme without changing the canonical selection. */
-internal fun editorVisualPosition(layout: TextLayout, position: TextPosition): TextPosition {
+internal fun editorVisualPosition(layout: TextEditLayout, position: TextPosition): TextPosition {
     return editorBoundaryPosition(layout.graphemeBoundaries, position)
 }
 
@@ -37,7 +37,7 @@ internal fun editorBoundaryPosition(boundaries: Array<Long>, position: TextPosit
 }
 
 internal fun editorMove(
-    layout: TextLayout,
+    layout: TextEditLayout,
     selection: EditorSelection,
     movement: TextMovement,
     extend: Boolean,
@@ -163,7 +163,7 @@ private fun editorCaretMovement(movement: TextMovement): CaretMovement =
     }
 
 private fun editorVisualEdge(
-    layout: TextLayout,
+    layout: TextEditLayout,
     a: TextPosition,
     b: TextPosition,
     forward: Boolean
@@ -187,7 +187,7 @@ private fun editorVisualEdge(
         a
 }
 
-internal fun editorParagraphEnd(layout: TextLayout, position: TextPosition): Long {
+internal fun editorParagraphEnd(layout: TextEditLayout, position: TextPosition): Long {
     val range = layout.logicalLineRange(position) ?: return position.byteOffset
     var end = range.start
     for (line in layout.lines)
@@ -204,7 +204,7 @@ internal fun editorParagraphEnd(layout: TextLayout, position: TextPosition): Lon
 }
 
 internal fun editorDeleteRange(
-    layout: TextLayout,
+    layout: TextEditLayout,
     selection: Utf8Selection,
     deletion: TextDeletion
 ): Utf8Range {

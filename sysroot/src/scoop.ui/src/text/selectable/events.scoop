@@ -123,7 +123,7 @@ private fun selectablePrepareDrag(
                 EditorDragUnit.Word
             else
                 EditorDragUnit.Line
-    val range = editorDragRange(frame.layout, position, unit)
+    val range = editorDragRange(TextEditLayout(frame.layout), position, unit)
     val anchor =
         if (shift)
             host.anchor
@@ -168,7 +168,7 @@ private fun selectableStartDrag(host: SelectableTextHost): Boolean {
 private fun selectableExtend(host: SelectableTextHost, drag: SelectableDrag, point: Point) {
     val frame = host.inputFrame() ?: return
     val position = frame.layout.hitTest(point)
-    val range = editorDragRange(frame.layout, position, drag.unit)
+    val range = editorDragRange(TextEditLayout(frame.layout), position, drag.unit)
     val value =
         if (drag.unit == EditorDragUnit.Character)
             EditorSelection(drag.anchor, position)
@@ -221,7 +221,7 @@ internal fun selectableCommand(host: SelectableTextHost, command: TextEditComman
         case Move(movement, extend) -> {
             val result =
                 editorMove(
-                    frame.layout,
+                    TextEditLayout(frame.layout),
                     host.selected.value,
                     movement,
                     extend,
@@ -232,7 +232,11 @@ internal fun selectableCommand(host: SelectableTextHost, command: TextEditComman
             host.setSelection(result.selection.anchor, result.selection.cursor)
             if (!host.closed) {
                 host.preferredX = result.preferredX
-                when (frame.layout.caret(editorVisualPosition(frame.layout, host.cursor))) {
+                when (
+                    frame.layout.caret(
+                        editorVisualPosition(TextEditLayout(frame.layout), host.cursor)
+                    )
+                ) {
                     case Some(rect) -> host.focus.reveal(rect)
                     case None -> {}
                 }

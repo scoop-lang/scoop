@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox／Switch／Toggle、Input／Textarea、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox／Switch／Toggle、Input／Textarea／InputOtp、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -29,7 +29,7 @@ fun main() {
 
 `buttonGroup { button("保存", onSave); input(editor); text(".com") }` 收集带明确类型的条目，支持横向／纵向、嵌套组及分隔线。相邻表面共享接缝，Input 默认占用剩余空间；焦点项最后绘制，Tab 顺序保持声明顺序。自定义条目用 `item({ position -> ... })` 把 `GroupPosition` 明确传给控件的 `group`，`add(View)` 保留已有外观；组不增加动作或选择语义。根 fonts／theme 为内置条目提供默认值，嵌套组独立配置。
 
-`FieldTarget()` 把 `fieldLabel("名称", target)` 与 Input／Textarea／Checkbox／Switch 的 `labelTarget = Some(target)` 关联。标签不占 Tab 停靠点；文本标签请求聚焦，Checkbox／Switch 标签聚焦并执行一次当前选择动作。禁用、隐藏、卸载、跨窗口或模态域外目标不能由标签激活；换绑更新当前关联，按下期间换绑会取消该次点击。普通 `label` 仍是展示文字。
+`FieldTarget()` 把 `fieldLabel("名称", target)` 与 Input／Textarea／InputOtp／Checkbox／Switch 的 `labelTarget = Some(target)` 关联。标签不占 Tab 停靠点；文本标签请求聚焦，Checkbox／Switch 标签聚焦并执行一次当前选择动作。禁用、隐藏、卸载、跨窗口或模态域外目标不能由标签激活；换绑更新当前关联，按下期间换绑会取消该次点击。普通 `label` 仍是展示文字。
 
 `typography("标题", TypographyRole.H1)` 提供 H1–H4、P、Blockquote、InlineCode、Lead／Large／Small／Muted 角色，默认可选择和复制。`typography { text("运行 "); code("scoop build") }` 使用真实行内代码 View，复制结果保留代码文字；span、inline、actions 和 decorations 继续使用公共富文本 API。`typographyList { item("第一项") }` 和 `typographyTable { header { cell("名称") }; row { cell("Scoop") } }` 提供项目符号与共享列宽的静态文字排版，段落间距由父布局控制。
 
@@ -107,3 +107,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `switchControl(checked) { size = SwitchSize.Sm; labelTarget = Some(target) }` 提供两种尺寸，标签／指针／Space 读写同一 Boolean 绑定，Enter 不切换。`switchStyle { track { ... }; thumb { ... }; selectionTransition(None) }` 覆盖轨道、滑块与选择动画；默认扩大点击区不占布局，RTL 反向滑块位置。
 
 `toggle("Bold", pressed) { variant = ToggleVariant.Outline; size = ToggleSize.Sm }` 支持文字、StyledText、自定义 View 和 ActionContentStyle 内容回调。按住时的临时状态与已选中的 pressed 分开，Space／Enter 激活后切换；外部 setter 可拒绝，控件不保存镜像值。通过现有 ButtonStyle 覆盖表面、文字、状态和过渡。
+
+`inputOtp(editor, 6L)` 使用同一 TextEditorState 与 TextEditHost，把 grapheme 放进固定槽。`group { slot(0L); slot(1L) }` 与 `separator()` 显式组合分组，索引须依序覆盖 length；不配置时为单组。默认 ASCII 数字，Alphanumeric 接受 ASCII 字母数字，Custom(TextEditPolicy) 保留自定义策略并收紧长度。onComplete 只在实际接受的编辑达到完整长度时通知，外部 replaceAll 不触发。支持 FieldTarget、只读、禁用、invalid、局部槽样式、RTL 和窄视口；复制不包含分隔图形。

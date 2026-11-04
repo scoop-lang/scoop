@@ -1,0 +1,170 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class TextEditCellsTest {
+    @Test
+    fun `fixed cells map graphemes empty cells gaps and scalar selections to shared geometry`() {
+        withCellLayout("1é😀W", TextEditCells(6L, Size(32.0, 32.0), [0.0, 12.0, 0.0, 0.0, 0.0])) {
+            layout ->
+            assertEquals(Size(204.0, 32.0), layout.size)
+            assertEquals(6L, layout.cellRects.size)
+            assertEquals(Rect(76.0, 0.0, 32.0, 32.0), layout.cellRects[2L])
+            for (cell in layout.cellRects)
+                assertEquals(32.0, cell.width)
+            for (boundary in layout.graphemeBoundaries) {
+                val position = TextPosition(boundary)
+                val caret = layout.caret(position, 0.0)!!
+                assertEquals(boundary, layout.hitTest(Point(caret.x, 16.0)).byteOffset)
+            }
+            assertEquals(156.0, layout.caret(TextPosition(9L), 0.0)!!.x)
+            assertEquals(9L, layout.hitTest(Point(200.0, 16.0)).byteOffset)
+            assertEquals(Some(4L), layout.cellIndex(TextPosition(9L)))
+            val selection = layout.selection(TextRange(1L, 8L))
+            assertEquals(2L, selection.size)
+            assertEquals(layout.cellRects[1L], selection[0L].rect)
+            assertEquals(layout.cellRects[2L], selection[1L].rect)
+            assertEquals(1L, layout.selection(TextRange(2L, 4L)).size)
+            assertFailsWith<IllegalArgumentException> { layout.caret(TextPosition(2L)) }
+            assertEquals(
+                TextPosition(1L, TextAffinity.Upstream),
+                editorVisualPosition(layout, TextPosition(2L, TextAffinity.Upstream))
+            )
+            assertEquals(TextPosition(4L), editorVisualPosition(layout, TextPosition(2L)))
+            val a = layout.caret(TextPosition(4L), 0.0)!!.x
+            val b = layout.caret(TextPosition(1L), 0.0)!!.x
+            assertEquals(1L, layout.hitTest(Point(b + (a - b) * 0.49, 16.0)).byteOffset)
+            assertEquals(4L, layout.hitTest(Point(b + (a - b) * 0.51, 16.0)).byteOffset)
+        }
+    }
+
+    @Test
+    fun `rtl cells retain logical identity and invert physical navigation once`() {
+        withCellLayout(
+            "12",
+            TextEditCells(4L, Size(32.0, 32.0), [0.0, 16.0, 0.0], LayoutDirection.Rtl)
+        ) {
+            layout ->
+            assertEquals(Rect(112.0, 0.0, 32.0, 32.0), layout.cellRects[0L])
+            assertEquals(Rect(32.0, 0.0, 32.0, 32.0), layout.cellRects[2L])
+            assertEquals(48.0, layout.caret(TextPosition(2L), 0.0)!!.x)
+            assertEquals(2L, layout.hitTest(Point(0.0, 16.0)).byteOffset)
+            assertEquals(
+                1L,
+                layout.moveCaret(TextPosition(0L), CaretMovement.Left)!!.position.byteOffset
+            )
+            assertEquals(
+                0L,
+                layout.moveCaret(TextPosition(1L), CaretMovement.Right)!!.position.byteOffset
+            )
+            assertEquals(
+                2L,
+                layout.moveCaret(TextPosition(1L), CaretMovement.LineLeft)!!.position.byteOffset
+            )
+            assertEquals(
+                0L,
+                layout.moveCaret(TextPosition(1L), CaretMovement.LineRight)!!.position.byteOffset
+            )
+            assertEquals(
+                0L,
+                layout.moveCaret(
+                    TextPosition(1L),
+                    CaretMovement.DocumentStart
+                )!!.position.byteOffset
+            )
+            assertEquals(TextDirection.Rtl, layout.selection(TextRange(0L, 1L))[0L].direction)
+        }
+    }
+
+    @Test
+    fun `temporary overflow stays visible and empty input has a real centered caret`() {
+        withCellLayout("1234", TextEditCells(2L, Size(32.0, 32.0), [10.0])) {
+            layout ->
+            assertEquals(Size(138.0, 32.0), layout.size)
+            assertEquals(4L, layout.cellRects.size)
+            assertEquals(Rect(106.0, 0.0, 32.0, 32.0), layout.cellRects[3L])
+            assertEquals(Some(3L), layout.cellIndex(TextPosition(4L)))
+            val caret = layout.caret(TextPosition(4L))!!
+            assertTrue(caret.x >= 106.0 && caret.x + caret.width <= 138.0)
+            assertEquals(4L, layout.hitTest(Point(150.0, 16.0)).byteOffset)
+            assertEquals(0L, layout.hitTest(Point(-50.0, 16.0)).byteOffset)
+            assertEquals(4L, layout.moveWord(0L, true))
+        }
+        withCellLayout("", TextEditCells(4L, Size(32.0, 32.0))) {
+            layout ->
+            assertEquals(16.0, layout.caret(TextPosition(0L), 0.0)!!.x)
+            assertEquals(0L, layout.hitTest(Point(125.0, 16.0)).byteOffset)
+            assertEquals(0L, layout.selection(TextRange(0L, 0L)).size)
+        }
+    }
+
+    @Test
+    fun `retained editor geometry owns the original immutable paragraph until release`() {
+        FontCollection(false).use {
+            fonts ->
+            fonts.register(testSansBytes, "Cell Test")
+            ParagraphCache().use {
+                cache ->
+                val original =
+                    cache.update(fonts, styledText { this.text("12") }, paragraphStyle(), None, [])
+                val layout = TextEditLayout(original, resources = [cache.retainLayout()])
+                val frame = layout.retain()
+                layout.release()
+                cache.update(fonts, styledText { this.text("34") }, paragraphStyle(), None, [])
+                assertFalse(layout.isClosed)
+                assertFalse(original.isClosed)
+                assertEquals("12", frame.layout.text)
+                assertEquals(original.caret(TextPosition(1L)), frame.layout.caret(TextPosition(1L)))
+                frame.close()
+                assertTrue(layout.isClosed)
+                assertTrue(original.isClosed)
+                assertFailsWith<IllegalStateException> { layout.hitTest(Point(0.0, 0.0)) }
+            }
+        }
+        assertFailsWith<IllegalArgumentException> { TextEditCells(0L, Size(32.0, 32.0)) }
+        assertFailsWith<IllegalArgumentException> { TextEditCells(2L, Size(0.0, 32.0)) }
+        assertFailsWith<IllegalArgumentException> { TextEditCells(3L, Size(32.0, 32.0), [2.0]) }
+        assertFailsWith<IllegalArgumentException> { TextEditCells(2L, Size(32.0, 32.0), [-2.0]) }
+    }
+}
+
+private fun withCellLayout(text: String, plan: TextEditCells, action: (TextEditLayout) -> Unit) {
+    FontCollection(false).use {
+        fonts ->
+        fonts.register(testSansBytes, "Cell Test")
+        val style =
+            textStyle {
+                this.families = ["Cell Test"];
+                this.fontSize = 14.0
+            }
+        Paragraph(fonts, text, style).use {
+            paragraph -> paragraph.layoutUnwrapped().use {
+                source ->
+                val glyphs = ArrayList<TextLayout>()
+                try {
+                    val bytes = text.toByteArray()
+                    val boundaries = source.graphemeBoundaries
+                    for (index in 0L ..< boundaries.size - 1L) {
+                        val glyph =
+                            editorSlice(bytes, Utf8Range(boundaries[index], boundaries[index + 1L]))
+                        Paragraph(fonts, glyph, style).use {
+                            current -> glyphs.add(current.layoutUnwrapped())
+                        }
+                    }
+                    action(
+                        TextEditLayout(source, Some(EditorCells(source, glyphs.toArray(), plan)))
+                    )
+                } finally {
+                    for (glyph in glyphs)
+                        glyph.close()
+                }
+            }
+        }
+    }
+}

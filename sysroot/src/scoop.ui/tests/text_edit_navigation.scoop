@@ -172,7 +172,7 @@ private class TextEditNavigationTest {
     }
 }
 
-private fun withEditLayout(text: String, width: Double?, action: (TextLayout) -> Unit) {
+private fun withEditLayout(text: String, width: Double?, action: (TextEditLayout) -> Unit) {
     FontCollection(false).use {
         fonts ->
         fonts.register(testSansBytes, "Editor Test")
@@ -190,7 +190,7 @@ private fun withEditLayout(text: String, width: Double?, action: (TextLayout) ->
                     case Some(value) -> paragraph.layout(value)
                     case None -> paragraph.layoutUnwrapped()
                 }
-            layout.use(action)
+            layout.use { current -> action(TextEditLayout(current)) }
         }
     }
 }

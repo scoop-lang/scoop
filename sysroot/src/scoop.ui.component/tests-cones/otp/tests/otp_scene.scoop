@@ -1,0 +1,133 @@
+package scoop.tests.ui.otp
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class OtpScene(private val probe: OtpProbe): Component {
+    public override fun render(): View {
+        val generation = probe.generation.value
+        val parts: Array<InputOtpPart> =
+            if (probe.regroup)
+                []
+            else
+                [
+                    InputOtpPart.Group(InputOtpGroup([InputOtpSlot(0L), InputOtpSlot(1L)])),
+                    InputOtpPart.Separator(
+                        frame(empty()) {
+                            this.width = Some(16.0);
+                            this.height = Some(16.0)
+                        }
+                    ),
+                    InputOtpPart.Group(InputOtpGroup([InputOtpSlot(2L), InputOtpSlot(3L)]))
+                ]
+        val input =
+            InputOtpProps(
+                probe.model,
+                4L,
+                parts,
+                if (probe.custom)
+                    InputOtpPattern.Custom(textEditPolicy())
+                else
+                    InputOtpPattern.Digits,
+                probe.enabled,
+                probe.readonly,
+                caretBlink = Duration.milliseconds(0L),
+                fonts = Some(probe.fonts),
+                labelTarget = Some(probe.target),
+                focus = FocusOptions(Some(probe.focus)),
+                onEdited =
+                    {
+                        state ->
+                        probe.edits += 1;
+                        if (probe.clearOnEdit)
+                            state.replaceAll("")
+                    },
+                onComplete = { _ -> probe.completions += 1 }
+            )
+        val children: Array<View> =
+            if (probe.gone)
+                []
+            else
+                [
+                    fieldLabel("Verification code", probe.target) {
+                        this.fonts = Some(this @OtpScene.probe.fonts)
+                    },
+                    component(
+                        input,
+                        {
+                            current ->
+                            probe.mounts += 1;
+                            InputOtp(current)
+                        }
+                    ),
+                    inputOtp(probe.model, 4L) { this.fonts = Some(this @OtpScene.probe.fonts) }
+                ]
+        return direction(
+            element(generation, { current -> OtpTestLayout(probe, current) }, children),
+            if (probe.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class OtpTestLayout(
+    private val probe: OtpProbe,
+    private val generation: Props<Int>
+): Element {
+    private var scope: ComponentScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            val limit =
+                if (index == 2L)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    if (index == 1L && probe.narrow)
+                        Constraints(maxWidth = Some(80.0))
+                    else
+                        Constraints()
+            val metrics = context.measureChild(index, limit)
+            if (index == 2L)
+                assertEquals(Size(0.0, 0.0), metrics.size)
+            if (index == 1L) {
+                assertTrue(metrics.size.height >= 32.0)
+                if (probe.narrow)
+                    assertEquals(80.0, metrics.size.width)
+                else
+                    assertTrue(metrics.size.width > 128.0)
+            }
+            context.placeChild(index, Point(20.0, 20.0 + index.toDouble() * 40.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(460.0, 240.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val discarded = probe.discard
+        if (discarded) {
+            probe.discard = false;
+            probe.native!!.requestSize(LogicalSize(470.0, 240.0))
+        }
+        val current = generation.value
+        val revision = probe.model.revision
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted) {
+                probe.rendered = current
+                probe.renderedRevision = revision
+            } else {
+                assertTrue(discarded);
+                probe.discarded += 1;
+                scope!!.requestFrame()
+            }
+        }
+    }
+}

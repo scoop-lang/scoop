@@ -641,3 +641,17 @@ track 使用公共 SurfaceKind.Plain 的几何和 painter；focus、invalid、di
 ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed 是业务选择值；鼠标或 Space／Enter 的短暂按下仍由 Press.interaction.pressed 表达，两者独立。每次有效激活读取最新 Binding 并取反一次，setter 可拒绝；外部更新、更换绑定和普通重建不生成第二份状态。取消、重复键、禁用、失焦、卸载和子动作消费遵守 Button 的输入规则，复用同一 ActionInk／内容解析路径。
 
 默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；瞬态 pressed 在 muted 背景上混入 8% background.foreground，松开后恢复对应选择／悬停状态；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。现阶段 Toggle 只承担独立控件语义，分组选择策略属于 ToggleGroup。
+
+## 19. Input OTP
+
+`inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 的同名成员创建一个 InputOtpProps／InputOtp。length 必须为正；Props 包含 state、length、parts: Array<InputOtpPart>=[]、pattern=Digits、enabled=true、readOnly=false、invalid=false、fonts／theme／labelTarget=None、focus=FocusOptions()、style=inputOtpStyle()、caretBlink=500ms、onEdited／onComplete 两个默认空回调。所有编辑、选区、composition 和撤销历史只有一份 TextEditorState；整体只有一个 Tab 目标和 TextEditHost，FieldTarget 沿现有输入标签关联。
+
+InputOtpPart 为 Group(InputOtpGroup)／Separator(View)。InputOtpGroup 保存非空的 Array<InputOtpSlot>，slot 包含 index 和 invalid=false；全部 group 的索引必须按正文逻辑顺序恰好覆盖 0..<length。parts 为空时使用一个默认组。显式描述必须以组开始和结束，不能出现连续 separator；相邻组可直接相连。builder 的 `group { slot(index, invalid=false) }` 和 `separator(content: View)` 构建描述，`separator()` 使用 16 单位的减号图形。分隔内容是正常 View，保留其 key 与挂载；槽和组是同一编辑表面的几何，不各自挂载输入控件。方向改变按逻辑起止侧翻转布局，组和分隔符不进入正文、粘贴结果或复制文本。
+
+InputOtpPattern 为 Digits／Alphanumeric／Custom(TextEditPolicy)。前两者只接受 ASCII 数字／ASCII 数字与字母，粘贴先移除新增片段中的 ASCII 空白和连字符；新增片段中的其他非法字符使本次提交拒绝，不顺带清理外部写入的旧正文。Custom 保留调用方的 paste／transform／accepts，长度上限取其明确 maxLength 与 length 的较小值；未设上限时使用 length。统一通过 TextEditPolicy 处理过滤、grapheme 计数和截断，一次粘贴只产生一个撤销项。preedit 不提前过滤或截断，最终提交使用当前策略；外部模型更新不触发完成通知。
+
+onEdited 沿 TextEditHost 的正文通知；onComplete 只在宿主接受的操作改变已提交正文、组合已经结束且新正文恰为 length 个 grapheme 时调用。满长度下真正替换内容可再次完成；纯选择、主题／方向／分组变化、重复 render、取消或拒绝后恢复原基线不重复通知。回调读取最新 Props，允许调用方替换正文或移除控件，不自动提交表单或移走焦点。
+
+InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: SpanStyle?、focusOutline／validation: OutlineStyle?、selectionColor／inactiveSelectionColor／caretColor／markedColor: Color?、caretWidth=1。提供 inputOtpStyle、copy 和对应 builder；surface 只覆盖槽的装饰，text 覆盖主题正文。默认槽为 32×32，按主题正文大小／14 缩放；组内接缝只画一条 input 边框，组首尾使用 medium 圆角。Dark 底色为 input 的 0.3 倍 alpha；Light 透明。活动槽按统一焦点规则显示 ring，invalid 优先，局部装饰继续优先。禁用透明度作用于整个组合，readonly 仍允许选择、复制和导航。
+
+槽位、间隙、鼠标命中、方向导航、选区、marked 装饰与原生 caret 共享 UI 规范第 7.5.3.1 节的 TextEditLayout。空槽中的可见 caret 居中，已有字符处使用真实插入边缘；只在 caret 确实可见时闪烁。临时超长 preedit 或外部超长正文按同一槽几何向逻辑末尾扩展，延续末组边框并可滚动显露；不改写模型来凑固定槽数。测量为外侧焦点环预留空间；有限窄宽和零尺寸沿同一视口裁剪，主题／分组／方向变化保留输入宿主与选区；卸载释放排版、取消闪烁及输入连接，字体由调用方持有。

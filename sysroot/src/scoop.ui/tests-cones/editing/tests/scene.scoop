@@ -111,6 +111,8 @@ private class EditPanel(private val probe: EditProbe, private val props: Props<I
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.scale(probe.scale, probe.scale)
         context.children()
+        val version = props.value
+        val revisions = Array<Long>(2L) { index -> probe.model(index).revision }
         val displayDiscard = probe.displayTest.discard
         if (displayDiscard != 0) {
             probe.displayTest.discard = 0
@@ -130,8 +132,11 @@ private class EditPanel(private val probe: EditProbe, private val props: Props<I
             probe.window!!.requestSize(LogicalSize(540.0, 420.0))
         }
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted)
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
                 probe.accepted += 1
+                probe.acceptedVersion = version
+                probe.acceptedRevisions = revisions
+            }
             else {
                 if (displayDiscard != 0) {
                     displayFrameDiscarded(probe, displayDiscard)

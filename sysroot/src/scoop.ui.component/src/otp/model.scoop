@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+public struct InputOtpSlot(val index: Long, val invalid: Boolean = false)
+
+public class InputOtpGroup public constructor(public val slots: Array<InputOtpSlot>) {
+    init {
+        requireComponent(slots.size > 0L, "OTP groups must contain a slot")
+    }
+}
+
+public enum InputOtpPart {
+    Group(val group: InputOtpGroup), Separator(val content: View)
+}
+
+public enum InputOtpPattern {
+    Digits, Alphanumeric, Custom(val policy: TextEditPolicy)
+}
+
+public class InputOtpProps public constructor(
+    public val state: TextEditorState,
+    public val length: Long,
+    public val parts: Array<InputOtpPart> = [],
+    public val pattern: InputOtpPattern = InputOtpPattern.Digits,
+    public val enabled: Boolean = true,
+    public val readOnly: Boolean = false,
+    public val invalid: Boolean = false,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val labelTarget: FieldTarget? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: InputOtpStyle = inputOtpStyle(),
+    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
+    public val onComplete: (TextEditorState) -> Unit = { _ -> Unit }
+) {
+    init {
+        requireComponent(length > 0L, "OTP length must be positive")
+        if (parts.size > 0L) {
+            var next = 0L
+            var afterGroup = false
+            for (part in parts) {
+                when (part) {
+                    case Group(group) -> {
+                        for (slot in group.slots) {
+                            requireComponent(
+                                slot.index == next,
+                                "OTP slots must follow logical order"
+                            )
+                            next += 1L
+                        }
+                        afterGroup = true
+                    }
+                    case Separator(_) -> {
+                        requireComponent(afterGroup, "OTP separators must be between groups")
+                        afterGroup = false
+                    }
+                }
+            }
+            requireComponent(afterGroup && next == length, "OTP groups must cover every slot")
+        }
+    }
+    internal fun groups(): Array<InputOtpPart> =
+        if (parts.size == 0L)
+            [
+                InputOtpPart.Group(
+                    InputOtpGroup(Array<InputOtpSlot>(length) { index -> InputOtpSlot(index) })
+                )
+            ]
+        else
+            parts
+}
+
+public class InputOtp public constructor(private val props: Props<InputOtpProps>): Component {
+    private val themes = ThemeAccess()
+    private val body = ActionTextStyle()
+    private val mounted: State<TextEditHost?> = state(None)
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val snapshot = input.state.inputState
+        val interaction = mounted.value?.interaction ?: TextEditInteraction()
+        val theme = themes.read(input.theme)
+        val children = ArrayList<View>()
+        for (part in input.parts)
+            when (part) {
+                case Separator(content) -> children.add(content)
+                case Group(_) -> {}
+            }
+        return element(
+            OtpInkProps(
+                input,
+                theme,
+                interaction,
+                body.resolve(
+                    theme.tokens.typography.body,
+                    theme.tokens.palette.background.foreground,
+                    input.style.text
+                ),
+                mounted
+            ),
+            { current -> OtpInk(current) },
+            children.toArray()
+        )
+    }
+}
+
+internal class OtpInkProps(
+    val input: InputOtpProps,
+    val theme: Theme,
+    val interaction: TextEditInteraction,
+    val text: TextStyle,
+    val mounted: State<TextEditHost?>
+)
+
+public fun inputOtp(
+    state: TextEditorState,
+    length: Long,
+    configure: InputOtpBuilder.() -> Unit = {}
+): View = makeInputOtp(state, length, configure)

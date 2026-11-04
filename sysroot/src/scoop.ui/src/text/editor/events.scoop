@@ -171,6 +171,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                 return
             }
             val before = host.current.text
+            val beforeCommitted = host.current.committedText
             host.performing = true
             val changed =
                 try {
@@ -189,7 +190,7 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
             if (changed)
                 host.invalidate()
             host.publishNative(batch.origin)
-            host.notifyEdited(before)
+            host.notifyEdited(before, beforeCommitted)
         }
     }
 }

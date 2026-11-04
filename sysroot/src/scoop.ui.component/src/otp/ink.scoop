@@ -1,0 +1,156 @@
+package scoop.ui.component
+
+import scoop.charset.graphemeBoundaries
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class OtpInk(internal val props: Props<OtpInkProps>): Element {
+    private var scope: ComponentScope? = None
+    private var ownedFonts: FontCollection? = None
+    private var fonts: FontCollection? = None
+    internal var host: TextEditHost? = None
+    internal var drawing: OtpDrawing? = None
+    private var field: FieldLink? = None
+    private var painters: ThemePainterCache? = None
+
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        fonts = Some(resolveFonts())
+        painters = Some(scope.resource { ThemePainterCache() })
+        val adapter =
+            scope.resource { TextEditHost(scope, props.value.input.state, appearance(), options()) }
+        host = Some(adapter)
+        field = Some(scope.resource { FieldLink(scope, adapter.area, adapter.focus) })
+        props.value.mounted.value = Some(adapter)
+        scope.routeChildren(adapter.area)
+    }
+    private fun resolveFonts(): FontCollection =
+        when (props.value.input.fonts) {
+            case Some(value) -> value
+            case None -> when (ownedFonts) {
+                case Some(value) -> value
+                case None -> {
+                    val value = scope!!.resource { FontCollection() }
+                    ownedFonts = Some(value)
+                    value
+                }
+            }
+        }
+    private fun appearance(): TextEditAppearance {
+        val value = props.value
+        val style = value.input.style
+        val colors = value.theme.tokens.palette
+        return TextEditAppearance(
+            fonts!!,
+            value.text,
+            value.text,
+            style.selectionColor ?: colors.primary.background.withAlpha(0.30),
+            style.inactiveSelectionColor ?: colors.muted.foreground.withAlpha(0.20),
+            style.caretColor ?: colors.background.foreground,
+            style.markedColor ?: colors.primary.background,
+            style.caretWidth
+        )
+    }
+    private fun options(): TextEditOptions {
+        val input = props.value.input
+        return TextEditOptions(
+            readOnly = input.readOnly,
+            enabled = input.enabled,
+            submit = TextSubmitKeys.None,
+            caretBlink = input.caretBlink,
+            policy = otpPolicy(input.pattern, input.length)
+        )
+    }
+    public override fun update() {
+        fonts = Some(resolveFonts())
+        val input = props.value.input
+        host!!.update(
+            input.state,
+            appearance(),
+            options(),
+            input.focus,
+            onEdited = { state -> props.value.input.onEdited(state) },
+            onCommitted =
+                {
+                    state ->
+                    val current = props.value.input
+                    if (
+                        state ===
+                            current.state &&
+                            graphemeBoundaries(state.text).size -
+                            1L ==
+                            current.length
+                    )
+                        current.onComplete(state)
+                }
+        )
+        field!!.update(input.labelTarget, input.enabled)
+        painters!!.get(props.value.theme)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureOtp(this, context, constraints)
+    public override fun scene(context: SceneContext) {
+        val value = props.value
+        val current = drawing!!
+        val painter = painters!!.get(value.theme)
+        val adapter = host!!
+        val offset = adapter.scrollSnapshot.offset
+        if (!value.input.enabled)
+            context.saveLayer(value.theme.tokens.disabledOpacity)
+        context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.translate(current.origin.x, current.origin.y)
+        context.draw {
+            paint ->
+            paint.canvas.translate(-offset.x, -offset.y)
+            for (slot in current.slots)
+                painter.drawSurface(
+                    paint.canvas,
+                    slot.geometry,
+                    slot.visual,
+                    SurfaceLayer.Background
+                )
+        }
+        adapter.scene(context)
+        context.withState<Unit> {
+            content ->
+            val viewport = adapter.scrollSnapshot.viewport
+            content.clipRect(Rect(0.0, -current.origin.y, viewport.width, content.size.height))
+            content.translate(-offset.x, -offset.y)
+            content.children()
+        }
+        context.draw {
+            paint ->
+            paint.canvas.translate(-offset.x, -offset.y)
+            for (index in 0L ..< current.slots.size)
+                if (index != current.active)
+                    painter.drawSurface(
+                        paint.canvas,
+                        current.slots[index].geometry,
+                        current.slots[index].visual,
+                        SurfaceLayer.Foreground
+                    )
+            val active = current.slots[current.active]
+            painter.drawSurface(
+                paint.canvas,
+                active.geometry,
+                active.visual,
+                SurfaceLayer.Foreground
+            )
+        }
+        if (!value.input.enabled)
+            context.restore()
+    }
+    public override fun onUnmount() {
+        when (props.value.mounted.value) {
+            case Some(current) -> when (host) {
+                case Some(owned) -> if (current === owned)
+                    props.value.mounted.value = None
+                case None -> {}
+            }
+            case None -> {}
+        }
+    }
+}

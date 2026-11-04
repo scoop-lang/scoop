@@ -1,0 +1,151 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+
+/** Borrowed geometry shared by editing, painting and native caret publication. */
+public class TextEditLayout internal constructor(
+    internal val paragraph: TextLayout,
+    internal val cells: EditorCells? = None,
+    private val resources: Array<RetainedParagraphLayout> = [],
+    internal val generation: Long = 0L
+) {
+    private var owners = 1L
+    public val text: String get() = paragraph.text
+    public val size: Size get() = cells?.size ?: paragraph.size
+    public val alphabeticBaseline: Double get() =
+        cells?.alphabeticBaseline ?: paragraph.alphabeticBaseline
+    public val ideographicBaseline: Double get() =
+        cells?.ideographicBaseline ?: paragraph.ideographicBaseline
+    public val graphemeBoundaries: Array<Long> get() = paragraph.graphemeBoundaries
+    public val lines: Array<TextLine> get() = cells?.lines ?: paragraph.lines
+    public val cellRects: Array<Rect> get() = cells?.rects ?: []
+    public val isClosed: Boolean get() = owners == 0L || paragraph.isClosed
+    public val paintBounds: Rect get() {
+        checkOpen()
+        return when (cells) {
+            case Some(value) -> Rect(0.0, 0.0, value.size.width, value.size.height)
+            case None -> paragraph.paintBounds
+        }
+    }
+    public fun cellIndex(position: TextPosition): Long? {
+        checkOpen()
+        return cells?.index(position)
+    }
+    public fun caret(position: TextPosition, thickness: Double = 1.0): Rect? {
+        checkOpen()
+        requireUi(thickness.isFinite() && thickness >= 0.0, "invalid caret thickness")
+        return when (cells) {
+            case Some(value) -> Some(value.caret(position, thickness))
+            case None -> paragraph.caret(position, thickness)
+        }
+    }
+    public fun selection(range: TextRange): Array<TextBox> {
+        checkOpen()
+        return when (cells) {
+            case Some(value) -> value.selection(range)
+            case None -> paragraph.selection(range)
+        }
+    }
+    public fun hitTest(point: Point): TextPosition {
+        checkOpen()
+        requireUi(point.x.isFinite() && point.y.isFinite(), "invalid text hit point")
+        return when (cells) {
+            case Some(value) -> value.hitTest(point)
+            case None -> paragraph.hitTest(point)
+        }
+    }
+    public fun wordRange(position: TextPosition): TextRange {
+        checkOpen()
+        return paragraph.wordRange(position)
+    }
+    public fun moveGrapheme(byteOffset: Long, forward: Boolean): Long {
+        checkOpen()
+        return paragraph.moveGrapheme(byteOffset, forward)
+    }
+    public fun moveWord(byteOffset: Long, forward: Boolean): Long {
+        checkOpen()
+        return paragraph.moveWord(byteOffset, forward)
+    }
+    public fun logicalLineRange(position: TextPosition): TextRange? {
+        checkOpen()
+        return when (cells) {
+            case Some(value) -> {
+                value.checkPosition(position)
+                Some(TextRange(0L, text.byteLength))
+            }
+            case None -> paragraph.logicalLineRange(position)
+        }
+    }
+    public fun moveCaret(
+        position: TextPosition,
+        movement: CaretMovement,
+        preferredX: Double? = None
+    ): CaretMove? {
+        checkOpen()
+        when (preferredX) {
+            case Some(value) -> requireUi(value.isFinite(), "invalid caret column")
+            case None -> {}
+        }
+        return when (cells) {
+            case Some(value) -> Some(value.move(paragraph, position, movement, preferredX))
+            case None -> paragraph.moveCaret(position, movement, preferredX)
+        }
+    }
+    internal fun checkOpen() {
+        if (isClosed)
+            throw IllegalStateException(Some("text edit layout is closed"))
+    }
+    internal fun retain(): RetainedEditorLayout {
+        checkOpen()
+        owners += 1L
+        return RetainedEditorLayout(this)
+    }
+    internal fun release() {
+        owners -= 1L
+        if (owners != 0L)
+            return
+        var failure: Throwable? = None
+        for (resource in resources)
+            failure = cleanupUi(failure) { resource.close() }
+        throwUi(failure)
+    }
+}
+
+internal class RetainedEditorLayout(private val owner: TextEditLayout): Closeable {
+    private var closed = false
+    val layout: TextEditLayout get() {
+        if (closed)
+            throw IllegalStateException(Some("retained editor layout is closed"))
+        return owner
+    }
+    public override fun close() {
+        if (closed)
+            return
+        closed = true
+        owner.release()
+    }
+}
+
+/** Uses exactly the same cell placements as caret, selection and hit testing. */
+public fun Canvas.drawText(layout: TextEditLayout, origin: Point = Point(0.0, 0.0)) {
+    layout.checkOpen()
+    requireUi(origin.x.isFinite() && origin.y.isFinite(), "invalid text origin")
+    when (layout.cells) {
+        case Some(value) -> {
+            for (index in 0L ..< value.glyphs.size) {
+                val cell = value.rects[index]
+                val offset = value.origins[index]
+                save()
+                try {
+                    clipRect(Rect(cell.x + origin.x, cell.y + origin.y, cell.width, cell.height))
+                    drawText(value.glyphs[index], Point(offset.x + origin.x, offset.y + origin.y))
+                } finally {
+                    restore()
+                }
+            }
+        }
+        case None -> drawText(layout.paragraph, origin)
+    }
+}

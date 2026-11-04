@@ -201,7 +201,7 @@ Select 的选中项对齐采用公共内容锚点：Popup 根布局在测量中�
 
 ## 6. OTP 与消息列表所需的局部适配
 
-OTP 的专用槽布局属于 component，但编辑命中、光标／选择、视觉导航与原生 caret 快照必须消费同一份排版结果。拟在 TextEditHost 的排版接入处允许实际布局提供上述几何操作：默认适配现有 TextLayout，OTP 适配固定槽。几何以同一 TextDisplay、版本、约束和方向构造，提供完整的 caret、selection、hit-test 与导航结果；保留到 Accepted 后再替换输入使用结果。正文事务、过滤、撤销、IME／clipboard 继续由原宿主执行。
+OTP 的专用槽布局属于 component，但编辑命中、光标／选择、视觉导航与原生 caret 快照必须消费同一份排版结果。TextEditHost.measure(constraints, cells: TextEditCells? = None) 接入实际布局，借用的 TextEditLayout 默认适配现有 TextLayout，cells 模式提供固定槽。TextEditCells 只包含 count、cellSize、gaps 和明确方向；组件把分组和分隔内容测量成这些几何输入。几何以同一 TextDisplay、版本、约束和方向构造，提供完整的 caret、selection、hit-test 与导航结果；保留到 Accepted 后再替换输入使用结果。正文事务、过滤、撤销、IME／clipboard 继续由原宿主执行。
 
 这只服务已有段落和 OTP 两个实际布局，不公开 renderer 工厂、编辑插件链或第二个文本事件入口。槽间隙映射到最近合法插入点，空槽映射到当前正文末端，不能出现不存在的 UTF-8 位置；组成分隔符不进入正文或复制文本。隐藏一个真正输入框再画一排无法对应 caret 的假输入框，不满足交付条件。
 
@@ -213,3 +213,7 @@ Sidebar 的宽／窄宿主改变、Tabs 的 Dispose 模式等遵守既有挂载�
 ### P2a 已实现入口
 
 三态 Checkbox 及 Switch／Toggle 的实际合同见[组件规范第 5、18 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。CheckboxProps.checked 为 Binding<CheckState>，Boolean 工厂只做同一绑定的值映射。`switchControl(checked)` 支持 Default／Sm、track／thumb 样式、命中扩展量、invalid、FieldTarget 和 FocusOptions。`toggle(content, pressed)` 有 String／StyledText／View／解析后内容四种入口，支持 Default／Outline、Sm／Default／Lg，复用 ButtonStyle 与 ActionContentStyle；业务 pressed 与临时 Press 状态独立。两者均通过当前 Binding 写入，不增加独立状态容器。
+
+### P2b 已实现入口
+
+`inputOtp(state, length)`、InputOtpProps 和 ChildrenBuilder.inputOtp 共享一个编辑宿主。group／slot／separator、Digits／Alphanumeric／Custom 策略、InputOtpStyle、onEdited／onComplete 的完整合同见[组件规范第 19 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。完成通知使用 TextEditHost.onCommitted；不从 render 推断完成，也不在回调里进行字符过滤。

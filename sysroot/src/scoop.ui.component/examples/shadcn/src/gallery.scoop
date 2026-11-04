@@ -189,6 +189,7 @@ internal class Gallery(
             case Item -> component(model.items, { _ -> ItemExamples(model.items, fonts) })
             case Switch -> switchExamples(model, fonts)
             case Toggle -> toggleExamples(model.selection, fonts)
+            case InputOtp -> otpExamples(model.otp, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

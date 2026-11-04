@@ -294,6 +294,14 @@ public open class ChildrenBuilder internal constructor() {
         add(makeInput(state, configure))
     }
 
+    public fun inputOtp(
+        state: TextEditorState,
+        length: Long,
+        configure: InputOtpBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeInputOtp(state, length, configure))
+    }
+
     public fun textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): Unit {
         add(makeTextarea(state, configure))
     }

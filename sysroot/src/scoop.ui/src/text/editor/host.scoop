@@ -22,6 +22,7 @@ public class TextEditHost public constructor(
     internal var placeholder = ""
     internal var edited: (TextEditorState) -> Unit = { _ -> Unit }
     internal var submitted: (TextEditorState) -> Unit = { _ -> Unit }
+    private var committed: (TextEditorState) -> Unit = { _ -> Unit }
     internal var closed = false
     internal var performing = false
     internal var notifying = false
@@ -31,6 +32,9 @@ public class TextEditHost public constructor(
     internal var preferredX: Double? = None
     internal val visual = State<TextEditInteraction>(TextEditInteraction())
     internal val body = ParagraphCache()
+    internal val glyphs = ArrayList<EditorGlyphCache>()
+    internal var currentLayout: TextEditLayout? = None
+    internal var geometryGeneration = 0L
     internal val hint = ParagraphCache()
     internal val bodyKey = PaintKey()
     internal val hintKey = PaintKey()
@@ -79,9 +83,10 @@ public class TextEditHost public constructor(
         return visual.value
     }
     /** Borrowed until the next measurement or close; callers must not close it. */
-    public val layout: TextLayout get() {
+    public val layout: TextEditLayout get() {
         checkOpen();
-        return body.layout
+        return currentLayout ?:
+            throw IllegalStateException(Some("text editor has not been measured"))
     }
     public val display: TextDisplay get() {
         checkOpen()
@@ -90,14 +95,14 @@ public class TextEditHost public constructor(
     }
     public fun caret(position: TextPosition): Rect? {
         checkOpen()
-        return body.layout.caret(
-            editorVisualPosition(body.layout, display.toDisplay(position)),
+        return layout.caret(
+            editorVisualPosition(layout, display.toDisplay(position)),
             appearance.caretWidth
         )
     }
     public fun selectionBounds(range: Utf8Range): Array<TextBox> {
         checkOpen()
-        return body.layout.selection(display.displayRange(range))
+        return layout.selection(display.displayRange(range))
     }
     internal val copyAllowed: Boolean get() =
         when (options.copy) {
@@ -131,7 +136,8 @@ public class TextEditHost public constructor(
         focus: FocusOptions = FocusOptions(),
         placeholder: String = "",
         onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-        onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+        onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
+        onCommitted: (TextEditorState) -> Unit = { _ -> Unit }
     ) {
         checkOpen()
         checkFocusMutation()
@@ -172,6 +178,7 @@ public class TextEditHost public constructor(
         this.placeholder = placeholder
         edited = onEdited
         submitted = onSubmit
+        committed = onCommitted
         if (blinkChanged) {
             blink.cancel()
             caretVisible = true
@@ -187,9 +194,16 @@ public class TextEditHost public constructor(
         scope.requestFrame()
     }
 
-    public fun measure(constraints: Constraints): LayoutMetrics {
+    public fun measure(constraints: Constraints, cells: TextEditCells? = None): LayoutMetrics {
         checkOpen()
-        return editorMeasure(this, constraints)
+        when (cells) {
+            case Some(_) -> requireUi(
+                !options.multiline,
+                "cell layout requires a single-line editor"
+            )
+            case None -> {}
+        }
+        return editorMeasure(this, constraints, cells)
     }
     public fun scene(context: SceneContext) {
         checkOpen()
@@ -249,6 +263,7 @@ public class TextEditHost public constructor(
         notify: Boolean = true
     ): Boolean {
         val before = current.text
+        val beforeCommitted = current.committedText
         val composing = current.isComposing
         performing = true
         val changed =
@@ -263,15 +278,22 @@ public class TextEditHost public constructor(
             retireConnection()
         publishNative()
         if (notify)
-            notifyEdited(before)
+            notifyEdited(before, beforeCommitted)
         return changed
     }
-    internal fun notifyEdited(before: String) {
-        if (before == current.text || notifying || closed)
+    internal fun notifyEdited(before: String, beforeCommitted: String) {
+        if (notifying || closed)
             return
+        val state = current
+        val revision = state.revision
+        val after = state.committedText
+        val completed = !state.isComposing && beforeCommitted != after
         notifying = true
         try {
-            edited(current)
+            if (before != state.text)
+                edited(state)
+            if (completed && !closed && current === state && state.revision == revision)
+                committed(state)
         } finally {
             notifying = false
         }
@@ -297,6 +319,13 @@ public class TextEditHost public constructor(
         staged = None
         failure = cleanupUi(failure) { accepted?.close() }
         accepted = None
+        failure = cleanupUi(failure) { measured?.retained?.close() }
+        measured = None
+        failure = cleanupUi(failure) { currentLayout?.release() }
+        currentLayout = None
+        for (glyph in glyphs)
+            failure = cleanupUi(failure) { glyph.close() }
+        glyphs.clear()
         failure = cleanupUi(failure) { body.close() }
         failure = cleanupUi(failure) { hint.close() }
         throwUi(failure)

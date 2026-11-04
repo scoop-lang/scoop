@@ -472,7 +472,7 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
 
-`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
+`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。`policy.copy { … }` 从原策略继续配置，未修改的回调及字段保留；用于 OTP 在调用方策略上收紧长度上限，仍只运行同一条事务。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
 
 paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文、anchor／cursor TextPosition 及可选 markedRange）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
 
@@ -489,6 +489,8 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+
+update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主接受的操作改变已提交正文且本次结束后没有活动 preedit 时调用；选择、临时 preedit、取消／拒绝后恢复原基线及外部模型更新不触发。它在 onEdited 之后执行；若前一个回调已关闭宿主、替换绑定或改写该次结果，则不回放过期完成通知。该入口供 OTP 的完整长度通知使用，不另建完成状态镜像。
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
 
@@ -512,9 +514,21 @@ caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠
 
 TextEditOptions 的 projection 缺省恒等投影，copy 为 TextCopyPolicy.Default／Allow／Deny。Default 在内置遮罩时禁止 Copy／Cut，其他投影允许；Allow 明确允许复制原文，Deny 消费命令但不改剪贴板或文档。Paste 与正常编辑不受复制策略影响，允许的 Cut 继续遵守第 7.5.2 节发布原子性。显示开关只更新 projection，不替换 TextEditorState、不追加历史、不重建 IME 连接，也不声称提供平台 secure-input 能力。
 
-TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。RTL 视觉次序由 TextLayout 决定。
+TextEditHost.layout 与 display 是最近成功测量的同一借用组合；caret(position)／selectionBounds(range) 把原文范围投影到该布局的内容坐标，供 OTP 等后续控件绘制。Accepted 帧另行保留自己的布局和投影，命中、拖选、视觉移动、选择背景及 marked 装饰必须使用同一快照。原文未变的新字体／宽度／投影失败时继续使用旧 Accepted 组合；原文变化后的即时导航沿既有最后成功视口规则排版新文档。公共逆映射保持标量位置，用户指针选择收敛到原文 grapheme 边界；逻辑逐字移动及逐字删除使用原文 grapheme，纯显示分隔符不会成为不可越过的光标停点。普通段落的 RTL 视觉次序由 TextLayout 决定；固定槽按第 7.5.3.1 节的明确方向排列。
 
 Native surrounding text、selection、marked range、策略过滤和 undo／redo 始终使用真实正文。成功帧只将投影后的 caret 几何反馈原生，不以遮罩文字替换输入法文档；活动 preedit 继续保留一份原文模型。
+
+##### 7.5.3.1 固定槽排版
+
+`TextEditHost.measure(constraints, cells: TextEditCells? = None)` 在同一宿主中选择普通段落或水平固定槽。TextEditCells 是不可变的几何输入，包含正的 count、有限正 cellSize、相邻槽间的非负 gaps（空数组表示全零，否则恰为 count−1 项）和明确的 LayoutDirection。它不包含主题、边框、分组语义、编辑策略或回调；OTP 在 component 层把 group／separator 布局换算为这些间距。固定槽仅用于单行宿主。
+
+`TextEditHost.layout` 直接演进为借用的 TextEditLayout，提供 text、size、paintBounds、基线、lines、graphemeBoundaries、caret／selection／hitTest、词／grapheme／方向导航及 isClosed；段落模式适配同一 TextLayout，不改变其布局结果。cells 模式另提供按逻辑顺序排列的 cellRects 和 cellIndex(position)，普通段落的 cellRects 为空、cellIndex 为 None。`Canvas.drawText(TextEditLayout)` 绘制同一结果；调用方不能关闭借用布局。
+
+每个显示 grapheme 使用真实字体单独 shaping，在等宽槽中居中并裁剪到槽内；布局与绘图共享同一槽矩形。单行槽按显式方向排列，不根据字符的 bidi 分类交换槽的逻辑身份。caret 位于相应字符前沿，正文末尾位于第一个空槽中心；已填满时位于最后字符后沿。间隙命中选择最近的合法插入点，空槽命中映射到正文末尾；选区与 marked 装饰使用同一槽几何，逻辑字词操作仍使用文本库的 Unicode 边界。标量位置在显示时按原有 affinity 规则收敛到 grapheme 边界，不重写原生选区。
+
+count 是配置的可见槽数，不是模型修改入口。原始 preedit 或外部正文超过槽数时，临时按相同槽尺寸向逻辑末尾扩展，后续间隙为零；实际内容、边框装饰和输入沿同一 ScrollSnapshot 显露，不能截断或隐藏输入法的临时文档。提交长度由 TextEditPolicy 处理。窄宽／零尺寸约束只改变视口，槽几何仍有效，沿既有裁剪与滚动处理。
+
+测量、当前借用布局、staged 和 Accepted 帧各自持有所需不可变布局资源；发布后输入只消费对应帧的槽、投影与滚动快照。新字体／间距／正文排版失败时释放新取得的资源，保留前一成功组合。选择、闪烁和未变输入不重新 shaping；没有第二个文本输入区域、renderer 工厂或编辑插件链。
 
 #### 7.5.4 可选择的 StyledText
 

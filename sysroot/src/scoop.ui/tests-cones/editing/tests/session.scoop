@@ -100,7 +100,7 @@ internal class EditProbe(val fonts: FontCollection) {
     var checkSnapshot = false
     var discarded = 0
     var discardNext = false
-    var savedLayout: TextLayout? = None
+    var savedLayout: TextEditLayout? = None
     var expectedMove: TextPosition? = None
     var savedEdits = 0
     var savedPasses = 0
@@ -112,6 +112,8 @@ internal class EditProbe(val fonts: FontCollection) {
     var unmounts = 0
     var passes = 0
     var accepted = 0
+    var acceptedVersion = -1
+    var acceptedRevisions: Array<Long> = [-1L, -1L]
     var phase = 0
     var waiting = false
     var retriedFocus = false
@@ -226,12 +228,16 @@ internal class EditProbe(val fonts: FontCollection) {
     private fun settled(): Boolean {
         if (accepted == 0 || !nativeFocused() || frames!!.snapshot().required)
             return false
+        if (acceptedVersion != revision.value)
+            return false
         if (displayTest.focus.isPending || displayTest.actionFocus.isPending)
             return false
         for (target in focus)
             if (target.isPending)
                 return false
         for (index in 0L ..< 2L) {
+            if (acceptedRevisions[index] != model(index).revision)
+                return false
             val host = fields[index] ?: return false
             if (host.area.isFocusActive && !readonly && !editorDocument(window!!, model(index)))
                 return false

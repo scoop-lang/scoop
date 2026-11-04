@@ -1,0 +1,126 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.inputOtp as makeInputOtp
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class OtpExamplesModel {
+    val digits = TextEditorState()
+    val letters = TextEditorState("Ab12")
+    val custom = TextEditorState("é😀")
+    val disabled = TextEditorState("123456")
+    val readonly = TextEditorState("654321")
+    val invalid = TextEditorState("12")
+    val target = FieldTarget()
+    val focus = FocusHandle()
+    val completions = state(0)
+    val enabled = state(true)
+    val narrow = state(false)
+}
+
+internal fun otpExamples(model: OtpExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        this.typography("Input OTP", TypographyRole.H2) { this.fonts = Some(fonts) }
+        this.typography(
+            "One editing model, grouped slots, native selection and composition.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.fieldLabel("Verification code", model.target) { this.fonts = Some(fonts) }
+        this.frame(
+            makeInputOtp(model.digits, 6L) {
+                this.fonts = Some(fonts)
+                this.enabled = model.enabled.value
+                this.labelTarget = Some(model.target)
+                this.focus = FocusOptions(Some(model.focus))
+                this.onComplete = { _ -> model.completions.value += 1 }
+                group {
+                    for (index in 0L ..< 3L)
+                        this.slot(index)
+                }
+                separator()
+                group {
+                    for (index in 3L ..< 6L)
+                        this.slot(index)
+                }
+            }
+        ) {
+            this.width =
+                if (model.narrow.value)
+                    Some(125.0)
+                else
+                    None
+            this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Center)
+        }
+        this.typography(
+            f"Value: ${model.digits.text}   Completed edits: ${model.completions.value}",
+            TypographyRole.Small
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button(
+                "Focus code",
+                {
+                    model.focus.requestFocus();
+                    Unit
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                "Clear",
+                {
+                    model.digits.replaceAll("");
+                    Unit
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle narrow", { model.narrow.value = !model.narrow.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Toggle enabled", { model.enabled.value = !model.enabled.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.typography("Alphanumeric / four slots", TypographyRole.H4) { this.fonts = Some(fonts) }
+        this.inputOtp(model.letters, 4L) {
+            this.fonts = Some(fonts);
+            this.pattern = InputOtpPattern.Alphanumeric
+        }
+        this.typography("Custom Unicode policy / one grapheme per slot", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        this.inputOtp(model.custom, 4L) {
+            this.fonts = Some(fonts);
+            this.pattern = InputOtpPattern.Custom(textEditPolicy())
+        }
+        this.typography("Disabled, read only, and invalid", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        this.inputOtp(model.disabled, 6L) {
+            this.fonts = Some(fonts);
+            this.enabled = false
+        }
+        this.inputOtp(model.readonly, 6L) {
+            this.fonts = Some(fonts);
+            this.readOnly = true
+        }
+        this.inputOtp(model.invalid, 6L) {
+            this.fonts = Some(fonts)
+            group {
+                for (index in 0L ..< 6L)
+                    this.slot(index, index == 2L)
+            }
+        }
+        this.spacing = 12.0
+        this.alignment = CrossAlignment.Start
+    }

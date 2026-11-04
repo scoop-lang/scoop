@@ -241,7 +241,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
             assertFalse(host.layout.didExceedMaxLines)
             assertTrue(test.inlineArea!!.visibleBounds != None)
             host.setSelection(TextPosition(0L), TextPosition(0L))
-            test.oldLayout = Some(host.layout)
+            test.oldSelectableLayout = Some(host.layout)
             test.expectedEnd = host.layout.lines[0L].contentRange.end
             probe.next {
                 test.width = 50.0;
@@ -251,7 +251,7 @@ internal fun advanceSelectableText(probe: EditProbe) {
         }
         case 71 -> {
             assertEquals(2, test.discards)
-            assertTrue(test.oldLayout!!.isClosed)
+            assertTrue(test.oldSelectableLayout!!.isClosed)
             host.setSelection(TextPosition(test.content.text.byteLength), TextPosition(0L))
             probe.next {
                 test.short = true;
