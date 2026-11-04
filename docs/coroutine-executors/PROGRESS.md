@@ -12,7 +12,7 @@
 | AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
 | 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin 本地验收，其他平台待运行 |
 | HTTP 等上层消费者审计与验收 | 已完成 Darwin 本地验收；Surface 运行受本机 Skia 资源限制 |
-| Linux/Windows 组合验证及最终清理 | 进行中；Linux 基础库已构建，Windows 编译器构建中 |
+| Linux/Windows 组合验证及最终清理 | 进行中；Linux 基础行为已通过，Windows 运行时已准备 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
 
@@ -106,3 +106,9 @@
 - 更新 HTTP 相关规范及调用方；共享认证、SSE、压缩和 WebSocket 的时序测试通过实际开始通知或显式 yield 建立被测操作的先后关系。新增启动前取消后 transport/listener 仍可复用的测试，以及真实多 worker HTTP/1、HTTP/2 consumer。
 - 验证：Scoop 格式化、diff 检查及全部系统库 release 构建通过。HTTP asyncio 146 项、Client 254 项、Server 151 项分批覆盖全部通过；Server consumer 6 项通过，其中真实 runtime 用例另在移动 GC／minor GC stress 下通过。Compression 49 项、Terminal asyncio 3 项、真实 PTY fixture 2 项、Window 宿主 1 项和系统 TLS/mTLS fixture 1 项通过。
 - Surface asyncio 源码检查通过，运行验收被本机已有 Skia archive 缺少 PathOps 符号阻断；仓库已有对应 vendor 补丁，本轮未扩展修改图形库。实际执行平台为 Darwin AArch64；Linux／Windows 按完整能力闭环集中验证。
+
+## Linux 基础闭环（2026-11-04）
+
+- 在独立工作目录构建 release 工具与新 ABI 运行时，复用已准备的目标 native 依赖。27 项 executor、8 项结构化并发、55 项 concurrent、23 项 TLS asyncio 和 2 项 asyncio consumer 测试通过。
+- asyncio 165 项分批覆盖全部通过。删除已退役 C worker 的创建失败测试；原生排队拒绝／取消及完整关闭由现有 managed pool 组合用例覆盖。Linux 文件 CQE 测试补上排队启动后的交接，继续验证真实内核完成先于取消时的字节数和文件偏移。
+- Linux HTTP 等上层验证与 Windows 构建验收仍在进行；本节不代表两平台全部完成。

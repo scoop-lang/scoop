@@ -19,6 +19,7 @@ private class LinuxFileCompletionTest {
                     file -> NativeByteBuffer.allocate(3L).use suspend {
                         bytes ->
                         val reading = scope.launch suspend { file.readInto(bytes, 3L) }
+                        yieldCoroutine()
                         awaitDataBeforeCancel(backend, reading)
                         reading.join()
                         assertTrue(reading.isCancelled)
