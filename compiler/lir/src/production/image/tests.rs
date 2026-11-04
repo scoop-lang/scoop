@@ -183,10 +183,6 @@ fn image_atoms(
             ),
             (
                 DefinitionAtomRole::RuntimeRecord,
-                ConeImageSupportRole::Safepoints,
-            ),
-            (
-                DefinitionAtomRole::RuntimeRecord,
                 ConeImageSupportRole::Callables,
             ),
             (

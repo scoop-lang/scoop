@@ -9,7 +9,7 @@ use super::RuntimeMetadataV1Types;
 
 const METADATA_ABI_VERSION: u64 = scoop_lir::RUNTIME_METADATA_ABI_VERSION_V1 as u64;
 const IMAGE_DESCRIPTOR_MAGIC: u64 = 0x5343_4f4f_5049_4d47;
-const IMAGE_DESCRIPTOR_SIZE: u64 = 208;
+const IMAGE_DESCRIPTOR_SIZE: u64 = 192;
 
 #[derive(Clone, Copy, Debug)]
 pub struct EmittedConeImageSupportAtomV1<'ctx> {
@@ -37,7 +37,6 @@ pub struct EmittedConeImageSupportAtomsV1<'ctx> {
     immortal_objects: EmittedConeImageSupportAtomV1<'ctx>,
     initialization_units: EmittedConeImageSupportAtomV1<'ctx>,
     type_registrations: EmittedConeImageSupportAtomV1<'ctx>,
-    safepoints: EmittedConeImageSupportAtomV1<'ctx>,
     callables: EmittedConeImageSupportAtomV1<'ctx>,
     array_bounds_message: EmittedConeImageSupportAtomV1<'ctx>,
     array_size_overflow_message: EmittedConeImageSupportAtomV1<'ctx>,
@@ -74,10 +73,6 @@ impl<'ctx> EmittedConeImageSupportAtomsV1<'ctx> {
 
     pub const fn type_registrations(self) -> EmittedConeImageSupportAtomV1<'ctx> {
         self.type_registrations
-    }
-
-    pub const fn safepoints(self) -> EmittedConeImageSupportAtomV1<'ctx> {
-        self.safepoints
     }
 
     pub const fn callables(self) -> EmittedConeImageSupportAtomV1<'ctx> {
@@ -203,12 +198,6 @@ pub(crate) fn emit_cone_image_v1<'ctx>(
         &format!("{prefix}.type_registrations"),
         registrations.type_registration_symbol_requests(),
     );
-    let safepoints = emit_registration_table(
-        llvm,
-        types.safepoint_registration_descriptor,
-        &format!("{prefix}.safepoints"),
-        registrations.safepoint_symbol_requests(),
-    );
     let callables = emit_registration_table(
         llvm,
         types.callable_registration_descriptor,
@@ -240,9 +229,6 @@ pub(crate) fn emit_cone_image_v1<'ctx>(
             .into(),
         type_registrations.as_pointer_value().into(),
         i64.const_int(tables.type_registrations().len() as u64, false)
-            .into(),
-        safepoints.as_pointer_value().into(),
-        i64.const_int(tables.safepoints().len() as u64, false)
             .into(),
         callables.as_pointer_value().into(),
         i64.const_int(tables.callables().len() as u64, false).into(),
@@ -277,7 +263,6 @@ pub(crate) fn emit_cone_image_v1<'ctx>(
                 support_atoms.type_registrations(),
                 type_registrations,
             ),
-            safepoints: emitted_support_atom(support_atoms.safepoints(), safepoints),
             callables: emitted_support_atom(support_atoms.callables(), callables),
             array_bounds_message: emitted_support_atom(
                 support_atoms.array_bounds_message(),

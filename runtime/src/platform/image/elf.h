@@ -31,8 +31,6 @@ static inline bool scoop_elf_loaded_segment_range(const ScoopElfLoadedImageView 
 }
 
 bool scoop_elf_metadata_images_from_view(const ScoopElfLoadedImageView *view,
-                                         const uint8_t *stackmaps_start,
-                                         const uint8_t *stackmaps_end,
                                          ScoopPlatformMetadataImages *images);
 void scoop_elf_dispose_metadata_images(ScoopPlatformMetadataImages *images);
 

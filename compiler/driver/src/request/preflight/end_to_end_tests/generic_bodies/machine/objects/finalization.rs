@@ -12,7 +12,6 @@ pub(in super::super) struct CallableFingerprints {
     pub(in super::super) registration: RegistrationAbiV1,
     pub(in super::super) safepoints: Vec<(
         PersistentSafepointSiteId,
-        RegistrationAbiV1,
         scoop_slib::StackmapRecordFingerprintV1,
     )>,
 }
@@ -25,10 +24,9 @@ impl CallableFingerprints {
         };
         append_member(definition, records);
         append_registration(self.registration, records);
-        for (site, fingerprint, stackmap) in &self.safepoints {
+        for (site, stackmap) in &self.safepoints {
             records.push(stackmap.as_array().to_vec());
             records.push(site.as_array().to_vec());
-            append_registration(*fingerprint, records);
         }
     }
 }
@@ -100,15 +98,13 @@ pub(super) fn check(
     for (computed, plan) in safepoints
         .fingerprints()
         .iter()
-        .zip(safepoints.registrations().plan().registrations())
+        .zip(safepoints.production().plan().sites())
     {
-        let fingerprint = computed.registration();
-        check_identity(plan.definition_owner(), fingerprint);
         fingerprints
             .get_mut(&plan.owner())
             .unwrap()
             .safepoints
-            .push((plan.site(), fingerprint, computed.stackmap()));
+            .push((plan.site(), computed.stackmap()));
     }
     assert_ne!(image.fingerprint().as_array(), &[0; 32]);
     fingerprints

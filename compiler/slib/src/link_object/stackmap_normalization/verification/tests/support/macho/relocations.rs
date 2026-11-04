@@ -5,7 +5,6 @@ pub(super) fn push_relocations(
     bytes: &mut Vec<u8>,
     symbols: &PlannedMemberStrongObjectSymbolsV1,
     stackmap: &[u8],
-    registrations: &StrongSafepointRegistrationPlanSetV1,
     callable_registrations: &StrongCallableRegistrationPlanSetV1,
     type_registrations: &StrongTypeRegistrationPlanSetV1,
     immortal_registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -41,11 +40,9 @@ pub(super) fn push_relocations(
     push_u32(bytes, planned_index(target) | 3 << 25 | 1 << 27);
     if registration_relocation_count != 0 {
         for (index, _) in callable_registrations.registrations().iter().enumerate() {
-            let safepoint_bytes = u32::try_from(registrations.registrations().len()).unwrap()
-                * u32::try_from(SAFEPOINT_REGISTRATION_SIZE).unwrap();
             let callable_bytes =
                 u32::try_from(index).unwrap() * u32::try_from(CALLABLE_REGISTRATION_SIZE).unwrap();
-            push_u32(bytes, safepoint_bytes + callable_bytes + 120);
+            push_u32(bytes, callable_bytes + 120);
             let relocation_target = target;
             push_u32(bytes, planned_index(relocation_target) | 3 << 25 | 1 << 27);
         }
@@ -53,7 +50,6 @@ pub(super) fn push_relocations(
             let descriptor_start = type_descriptor_start(
                 registration.descriptor_definition_plan(),
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
             );
@@ -71,7 +67,6 @@ pub(super) fn push_relocations(
             let type_start = type_registration_start(
                 registration.definition_plan(),
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
             );
@@ -99,7 +94,6 @@ pub(super) fn push_relocations(
             let object_start = immortal_object_start(
                 registration.object_definition_plan(),
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -107,7 +101,6 @@ pub(super) fn push_relocations(
             let record_start = immortal_registration_start(
                 registration.registration_definition_plan(),
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -186,7 +179,6 @@ pub(super) fn push_relocations(
             let record_start = static_registration_start(
                 registration,
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -235,7 +227,6 @@ pub(super) fn push_relocations(
             let relocation_start = static_relocation_start(
                 registration,
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,

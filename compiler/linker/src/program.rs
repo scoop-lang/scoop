@@ -298,10 +298,7 @@ impl<'a> ProgramInputs<'a> {
         symbol == self.symbol("scoop_td_String")
             || symbol == self.symbol("__dso_handle")
             || (self.target.native_object_format() == scoop_lir::NativeObjectFormat::Elf64
-                && matches!(
-                    symbol,
-                    "_GLOBAL_OFFSET_TABLE_" | "__scoop_stackmaps_start" | "__scoop_stackmaps_end"
-                ))
+                && matches!(symbol, "_GLOBAL_OFFSET_TABLE_"))
     }
 }
 

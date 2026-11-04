@@ -5,11 +5,9 @@ use super::*;
 #[test]
 fn pruning_foundation_atoms_updates_queries_and_preserves_the_original() {
     let fixture = fixture(true);
-    let filtered = fixture.foundation.without_codegen_records(
-        &BTreeSet::new(),
-        &BTreeSet::new(),
-        &BTreeSet::from([fixture.eh_frame.id()]),
-    );
+    let filtered = fixture
+        .foundation
+        .without_codegen_records(&BTreeSet::new(), &BTreeSet::from([fixture.eh_frame.id()]));
     assert_eq!(
         filtered.resolve_definition_atom(fixture.plan.id(), DefinitionAtomRole::EhFrame),
         Err(crate::DefinitionAtomResolutionError::Missing)
@@ -50,7 +48,7 @@ fn removing_codegen_records_updates_boundary_queries_without_changing_wire() {
     let absent = atom(&fixture.plan, DefinitionAtomRole::Stackmap).id();
     assert_eq!(surface.atom_boundary(absent), None);
 
-    surface.remove_codegen_records(&BTreeSet::new(), &BTreeSet::from([fixture.eh_frame.id()]));
+    surface.remove_codegen_atoms(&BTreeSet::from([fixture.eh_frame.id()]));
     assert_eq!(surface.atom_boundary(fixture.eh_frame.id()), None);
     assert_eq!(surface.atom_boundary(fixture.primary.id()), Some(primary));
     assert_eq!(
@@ -69,13 +67,5 @@ fn removing_codegen_records_updates_boundary_queries_without_changing_wire() {
     assert_eq!(
         ObjectSymbolSurfaceV1::read_foundation(&foundation).unwrap(),
         expected
-    );
-
-    surface.remove_codegen_records(&BTreeSet::from([fixture.plan.id()]), &BTreeSet::new());
-    assert!(surface.plans().is_empty());
-    assert_eq!(surface.atom_boundary(fixture.primary.id()), None);
-    assert_eq!(
-        surface.definition(owner, StrongDefinitionRole::CallableBody),
-        None
     );
 }

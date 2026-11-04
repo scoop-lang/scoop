@@ -6,8 +6,8 @@ use crate::{
     ObjectDefinitionPlanKey, ObjectDefinitionPlanOwner, ObjectDefinitionPlanRole, OdrMemberId,
     PersistentCallableBodyId, PersistentDispatchSlotId, PersistentDispatchTableId,
     PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
-    StrongDefinitionEntity, StrongDefinitionRole,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId, StrongDefinitionEntity,
+    StrongDefinitionRole,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -21,7 +21,6 @@ pub enum DecodedStrongDefinitionEntity {
     DispatchTable(DecodedPersistentId<PersistentDispatchTableId>),
     DispatchSlot(DecodedPersistentId<PersistentDispatchSlotId>),
     InitializationUnit(DecodedPersistentId<PersistentInitializationUnitId>),
-    SafepointSite(DecodedPersistentId<PersistentSafepointSiteId>),
     ConeImage(DecodedPersistentId<ConeIdentity>),
     GeneratedBridgeAtom(DecodedPersistentId<GeneratedBridgeAtomId>),
     RootEntry(DecodedPersistentId<ConeIdentity>),
@@ -73,10 +72,6 @@ impl DecodedStrongDefinitionEntity {
                 .resolve(id)
                 .map(StrongDefinitionEntity::initialization_unit)
                 .map_err(ObjectDefinitionResolutionError::Reference),
-            Self::SafepointSite(id) => resolver
-                .resolve(id)
-                .map(StrongDefinitionEntity::safepoint_site)
-                .map_err(ObjectDefinitionResolutionError::Reference),
             Self::ConeImage(id) => resolver
                 .resolve(id)
                 .map(StrongDefinitionEntity::cone_image)
@@ -112,7 +107,6 @@ impl WireEncode for DecodedStrongDefinitionEntity {
             Self::DispatchTable(id) => encode_value_sum(encoder, 7, id),
             Self::DispatchSlot(id) => encode_value_sum(encoder, 8, id),
             Self::InitializationUnit(id) => encode_value_sum(encoder, 9, id),
-            Self::SafepointSite(id) => encode_value_sum(encoder, 10, id),
             Self::ConeImage(id) => encode_value_sum(encoder, 11, id),
             Self::GeneratedBridgeAtom(id) => encode_value_sum(encoder, 12, id),
             Self::RootEntry(id) => encode_value_sum(encoder, 13, id),
@@ -134,7 +128,6 @@ impl WireDecode for DecodedStrongDefinitionEntity {
             7 => decode_id_variant(decoder, fields, Self::DispatchTable),
             8 => decode_id_variant(decoder, fields, Self::DispatchSlot),
             9 => decode_id_variant(decoder, fields, Self::InitializationUnit),
-            10 => decode_id_variant(decoder, fields, Self::SafepointSite),
             11 => decode_id_variant(decoder, fields, Self::ConeImage),
             12 => decode_id_variant(decoder, fields, Self::GeneratedBridgeAtom),
             13 => decode_id_variant(decoder, fields, Self::RootEntry),
@@ -232,7 +225,6 @@ impl WireDecode for StrongDefinitionRole {
             12 => Ok(Self::ImmortalRegistration),
             13 => Ok(Self::InitializationRegistration),
             14 => Ok(Self::TypeRegistration),
-            15 => Ok(Self::SafepointRegistration),
             16 => Ok(Self::CallableRegistration),
             17 => Ok(Self::ImageDescriptor),
             18 => Ok(Self::GeneratedBridge),

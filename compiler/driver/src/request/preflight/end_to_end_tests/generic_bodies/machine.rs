@@ -332,11 +332,10 @@ fn actual_generic_library_emits_shared_odr_objects() {
                         if role == DefinitionAtomRole::Stackmap {
                             assert!(!original.safepoints.is_empty());
                             assert_eq!(original.safepoints.len(), changed[body].safepoints.len());
-                            for ((site, before, stackmap), (other_site, after, other_stackmap)) in
+                            for ((site, stackmap), (other_site, other_stackmap)) in
                                 original.safepoints.iter().zip(&changed[body].safepoints)
                             {
                                 assert_eq!(site, other_site);
-                                assert_eq!(before, after);
                                 assert_ne!(stackmap, other_stackmap);
                             }
                         } else {
@@ -430,19 +429,9 @@ fn actual_generic_library_emits_shared_odr_objects() {
                 records.push(encode(atom).unwrap());
             }
             for site in function.safepoints.iter() {
-                let registration = members
-                    .iter()
-                    .find(|record| {
-                        record.key().role() == OdrMemberRole::RegistrationRecord
-                            && record.key().discriminator()
-                                == &OdrMemberDiscriminator::SafepointSite(site.site_id())
-                    })
-                    .expect("every ODR safepoint has a registration member");
-                assert_eq!(registration.key().group(), source_group);
-                assert!(plans.iter().any(|plan| {
-                    *plan.key() == ObjectDefinitionPlanKey::odr(registration.id())
-                }));
-                records.push(encode(registration).unwrap());
+                records.push(encode(site.site_record()).unwrap());
+                records
+                    .push(encode(&scoop_lir::SafepointMappingRecord::from_identity(site)).unwrap());
             }
             if core_bodies.contains(&body.id()) {
                 support_bodies.insert(body.id(), records);

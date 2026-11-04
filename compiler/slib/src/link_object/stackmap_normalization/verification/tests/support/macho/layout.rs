@@ -1,24 +1,8 @@
 use super::*;
 
-pub(super) fn registration_start(
-    definition: ObjectDefinitionPlanId,
-    stackmap_size: usize,
-    registrations: &StrongSafepointRegistrationPlanSetV1,
-) -> u64 {
-    let index = registrations
-        .registrations()
-        .iter()
-        .position(|registration| registration.definition_plan() == definition)
-        .unwrap();
-    TEXT_SIZE
-        + u64::try_from(stackmap_size).unwrap()
-        + u64::try_from(index).unwrap() * SAFEPOINT_REGISTRATION_SIZE
-}
-
 pub(super) fn callable_registration_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     registrations: &StrongCallableRegistrationPlanSetV1,
 ) -> u64 {
     let index = registrations
@@ -28,25 +12,21 @@ pub(super) fn callable_registration_start(
         .unwrap();
     TEXT_SIZE
         + u64::try_from(stackmap_size).unwrap()
-        + u64::try_from(safepoints.registrations().len()).unwrap() * SAFEPOINT_REGISTRATION_SIZE
         + u64::try_from(index).unwrap() * CALLABLE_REGISTRATION_SIZE
 }
 
 pub(super) fn type_descriptor_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
 ) -> u64 {
     TEXT_SIZE
         + u64::try_from(stackmap_size).unwrap()
-        + u64::try_from(safepoints.registrations().len()).unwrap() * SAFEPOINT_REGISTRATION_SIZE
         + u64::try_from(callables.registrations().len()).unwrap() * CALLABLE_REGISTRATION_SIZE
 }
 
 pub(super) fn type_descriptor_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
@@ -55,17 +35,16 @@ pub(super) fn type_descriptor_start(
         .iter()
         .position(|registration| registration.descriptor_definition_plan() == definition)
         .unwrap();
-    type_descriptor_base(stackmap_size, safepoints, callables)
+    type_descriptor_base(stackmap_size, callables)
         + u64::try_from(index).unwrap() * TYPE_DESCRIPTOR_SIZE
 }
 
 pub(super) fn layout_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
-    type_diagnostic_base(stackmap_size, safepoints, callables, registrations)
+    type_diagnostic_base(stackmap_size, callables, registrations)
         + type_diagnostic_region_size(registrations)
 }
 
@@ -80,18 +59,16 @@ pub(super) fn type_diagnostic_region_size(registrations: &StrongTypeRegistration
 
 pub(super) fn type_diagnostic_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
-    type_descriptor_base(stackmap_size, safepoints, callables)
+    type_descriptor_base(stackmap_size, callables)
         + u64::try_from(registrations.registrations().len()).unwrap() * TYPE_DESCRIPTOR_SIZE
 }
 
 pub(super) fn type_diagnostic_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
@@ -100,7 +77,7 @@ pub(super) fn type_diagnostic_start(
         .iter()
         .position(|registration| registration.descriptor_definition_plan() == definition)
         .unwrap();
-    type_diagnostic_base(stackmap_size, safepoints, callables, registrations)
+    type_diagnostic_base(stackmap_size, callables, registrations)
         + registrations.registrations()[..index]
             .iter()
             .map(|registration| {
@@ -112,7 +89,6 @@ pub(super) fn type_diagnostic_start(
 pub(super) fn type_diagnostic_end(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
@@ -121,19 +97,13 @@ pub(super) fn type_diagnostic_end(
         .iter()
         .find(|registration| registration.descriptor_definition_plan() == definition)
         .unwrap();
-    type_diagnostic_start(
-        definition,
-        stackmap_size,
-        safepoints,
-        callables,
-        registrations,
-    ) + u64::try_from(registration.semantic().diagnostic_name().len()).unwrap()
+    type_diagnostic_start(definition, stackmap_size, callables, registrations)
+        + u64::try_from(registration.semantic().diagnostic_name().len()).unwrap()
 }
 
 pub(super) fn layout_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
@@ -142,24 +112,22 @@ pub(super) fn layout_start(
         .iter()
         .position(|registration| registration.layout_definition_plan() == definition)
         .unwrap();
-    layout_base(stackmap_size, safepoints, callables, registrations)
+    layout_base(stackmap_size, callables, registrations)
         + u64::try_from(index).unwrap() * LAYOUT_SIZE
 }
 
 pub(super) fn type_registration_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
-    layout_base(stackmap_size, safepoints, callables, registrations)
+    layout_base(stackmap_size, callables, registrations)
         + u64::try_from(registrations.registrations().len()).unwrap() * LAYOUT_SIZE
 }
 
 pub(super) fn type_registration_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     registrations: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
@@ -168,24 +136,22 @@ pub(super) fn type_registration_start(
         .iter()
         .position(|registration| registration.definition_plan() == definition)
         .unwrap();
-    type_registration_base(stackmap_size, safepoints, callables, registrations)
+    type_registration_base(stackmap_size, callables, registrations)
         + u64::try_from(index).unwrap() * TYPE_REGISTRATION_SIZE
 }
 
 pub(super) fn immortal_object_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
 ) -> u64 {
-    type_registration_base(stackmap_size, safepoints, callables, types)
+    type_registration_base(stackmap_size, callables, types)
         + u64::try_from(types.registrations().len()).unwrap() * TYPE_REGISTRATION_SIZE
 }
 
 pub(super) fn immortal_object_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -195,7 +161,7 @@ pub(super) fn immortal_object_start(
         .iter()
         .position(|registration| registration.object_definition_plan() == definition)
         .unwrap();
-    immortal_object_base(stackmap_size, safepoints, callables, types)
+    immortal_object_base(stackmap_size, callables, types)
         + registrations.registrations()[..index]
             .iter()
             .map(|registration| registration.object_size())
@@ -204,12 +170,11 @@ pub(super) fn immortal_object_start(
 
 pub(super) fn immortal_registration_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     registrations: &StrongImmortalObjectRegistrationPlanSetV1,
 ) -> u64 {
-    immortal_object_base(stackmap_size, safepoints, callables, types)
+    immortal_object_base(stackmap_size, callables, types)
         + registrations
             .registrations()
             .iter()
@@ -220,7 +185,6 @@ pub(super) fn immortal_registration_base(
 pub(super) fn immortal_registration_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -230,30 +194,28 @@ pub(super) fn immortal_registration_start(
         .iter()
         .position(|registration| registration.registration_definition_plan() == definition)
         .unwrap();
-    immortal_registration_base(stackmap_size, safepoints, callables, types, registrations)
+    immortal_registration_base(stackmap_size, callables, types, registrations)
         + u64::try_from(index).unwrap() * IMMORTAL_REGISTRATION_SIZE
 }
 
 pub(super) fn static_sentinel_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
 ) -> u64 {
-    immortal_registration_base(stackmap_size, safepoints, callables, types, immortals)
+    immortal_registration_base(stackmap_size, callables, types, immortals)
         + u64::try_from(immortals.registrations().len()).unwrap() * IMMORTAL_REGISTRATION_SIZE
 }
 
 pub(super) fn static_readonly_base(
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
     statics: &StrongStaticStorageRegistrationPlanSetV1,
 ) -> u64 {
-    static_sentinel_base(stackmap_size, safepoints, callables, types, immortals)
+    static_sentinel_base(stackmap_size, callables, types, immortals)
         + u64::from(!statics.registrations().is_empty()) * STATIC_EMPTY_SENTINELS_SIZE
 }
 
@@ -318,7 +280,6 @@ pub(super) fn static_readonly_group_size(
 pub(super) fn static_readonly_group_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -329,23 +290,16 @@ pub(super) fn static_readonly_group_start(
         .iter()
         .position(|candidate| candidate.semantic().storage() == registration.semantic().storage())
         .unwrap();
-    static_readonly_base(
-        stackmap_size,
-        safepoints,
-        callables,
-        types,
-        immortals,
-        statics,
-    ) + statics.registrations()[..index]
-        .iter()
-        .map(static_readonly_group_size)
-        .sum::<u64>()
+    static_readonly_base(stackmap_size, callables, types, immortals, statics)
+        + statics.registrations()[..index]
+            .iter()
+            .map(static_readonly_group_size)
+            .sum::<u64>()
 }
 
 pub(super) fn static_layout_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -354,7 +308,6 @@ pub(super) fn static_layout_start(
     static_readonly_group_start(
         registration,
         stackmap_size,
-        safepoints,
         callables,
         types,
         immortals,
@@ -365,7 +318,6 @@ pub(super) fn static_layout_start(
 pub(super) fn static_scan_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -374,7 +326,6 @@ pub(super) fn static_scan_start(
     static_layout_start(
         registration,
         stackmap_size,
-        safepoints,
         callables,
         types,
         immortals,
@@ -385,7 +336,6 @@ pub(super) fn static_scan_start(
 pub(super) fn static_template_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -394,7 +344,6 @@ pub(super) fn static_template_start(
     static_scan_start(
         registration,
         stackmap_size,
-        safepoints,
         callables,
         types,
         immortals,
@@ -405,7 +354,6 @@ pub(super) fn static_template_start(
 pub(super) fn static_relocation_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -414,7 +362,6 @@ pub(super) fn static_relocation_start(
     static_template_start(
         registration,
         stackmap_size,
-        safepoints,
         callables,
         types,
         immortals,
@@ -425,7 +372,6 @@ pub(super) fn static_relocation_start(
 pub(super) fn static_registration_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -434,7 +380,6 @@ pub(super) fn static_registration_start(
     static_relocation_start(
         registration,
         stackmap_size,
-        safepoints,
         callables,
         types,
         immortals,
@@ -445,7 +390,6 @@ pub(super) fn static_registration_start(
 pub(super) fn static_template_target_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -453,13 +397,12 @@ pub(super) fn static_template_target_start(
 ) -> u64 {
     match registration.initial_artifacts() {
         StrongStaticStorageInitialArtifactPlanV1::ZeroedForRuntimeUnit => {
-            static_sentinel_base(stackmap_size, safepoints, callables, types, immortals)
+            static_sentinel_base(stackmap_size, callables, types, immortals)
         }
         StrongStaticStorageInitialArtifactPlanV1::EncodedStaticValue { .. } => {
             static_template_start(
                 registration,
                 stackmap_size,
-                safepoints,
                 callables,
                 types,
                 immortals,
@@ -472,7 +415,6 @@ pub(super) fn static_template_target_start(
 pub(super) fn static_relocation_target_start(
     registration: &StrongStaticStorageRegistrationPlanV1,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -485,7 +427,6 @@ pub(super) fn static_relocation_target_start(
         } => static_relocation_start(
             registration,
             stackmap_size,
-            safepoints,
             callables,
             types,
             immortals,
@@ -495,7 +436,7 @@ pub(super) fn static_relocation_target_start(
         | StrongStaticStorageInitialArtifactPlanV1::EncodedStaticValue {
             relocation_table: scoop_lir::StaticStorageRelocationTableArtifactV1::SharedEmptySentinel,
             ..
-        } => static_sentinel_base(stackmap_size, safepoints, callables, types, immortals) + 8,
+        } => static_sentinel_base(stackmap_size, callables, types, immortals) + 8,
     }
 }
 
@@ -516,7 +457,6 @@ macro_rules! static_start_for_definition {
         pub(super) fn $name(
             definition: ObjectDefinitionPlanId,
             stackmap_size: usize,
-            safepoints: &StrongSafepointRegistrationPlanSetV1,
             callables: &StrongCallableRegistrationPlanSetV1,
             types: &StrongTypeRegistrationPlanSetV1,
             immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -529,7 +469,6 @@ macro_rules! static_start_for_definition {
             $start(
                 registration,
                 stackmap_size,
-                safepoints,
                 callables,
                 types,
                 immortals,
@@ -568,7 +507,6 @@ static_start_for_definition!(
 pub(super) fn static_storage_start(
     definition: ObjectDefinitionPlanId,
     stackmap_size: usize,
-    safepoints: &StrongSafepointRegistrationPlanSetV1,
     callables: &StrongCallableRegistrationPlanSetV1,
     types: &StrongTypeRegistrationPlanSetV1,
     immortals: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -579,18 +517,12 @@ pub(super) fn static_storage_start(
         .iter()
         .position(|registration| registration.storage_definition_plan() == definition)
         .unwrap();
-    static_readonly_base(
-        stackmap_size,
-        safepoints,
-        callables,
-        types,
-        immortals,
-        statics,
-    ) + statics
-        .registrations()
-        .iter()
-        .map(static_readonly_group_size)
-        .sum::<u64>()
+    static_readonly_base(stackmap_size, callables, types, immortals, statics)
+        + statics
+            .registrations()
+            .iter()
+            .map(static_readonly_group_size)
+            .sum::<u64>()
         + statics.registrations()[..index]
             .iter()
             .map(|registration| registration.semantic().allocation_extent())

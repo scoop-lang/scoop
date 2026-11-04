@@ -7,9 +7,8 @@ pub use scoop_identity::{
 use scoop_identity::{
     ConeIdentity, DecodedPersistentId, DecodedPersistentSymbolRequest, DefinitionAtomRole,
     LinkageClass, ObjectDefinitionAtomId, PersistentCallableBodyId, PersistentExactTypeId,
-    PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentSafepointSiteId,
-    PersistentStaticStorageId, PersistentSymbolError, PersistentSymbolRequest,
-    StrongDefinitionEntity, StrongDefinitionRole,
+    PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentStaticStorageId,
+    PersistentSymbolError, PersistentSymbolRequest, StrongDefinitionEntity, StrongDefinitionRole,
 };
 use scoop_wire::{
     Decoder, Encoder, HashError, RuntimeEncode, RuntimeEncodeError, RuntimeEncoder, WireDecode,
@@ -67,7 +66,6 @@ pub struct ConeRegistrationTablesV1 {
     immortal_objects: Vec<PersistentImmortalObjectId>,
     initialization_units: Vec<PersistentInitializationUnitId>,
     type_registrations: Vec<PersistentExactTypeId>,
-    safepoints: Vec<PersistentSafepointSiteId>,
     callables: Vec<PersistentCallableBodyId>,
 }
 
@@ -78,7 +76,6 @@ impl ConeRegistrationTablesV1 {
             immortal_objects: semantic_ids(registrations.immortal_objects()),
             initialization_units: semantic_ids(registrations.initialization_units()),
             type_registrations: semantic_ids(registrations.type_registrations()),
-            safepoints: semantic_ids(registrations.safepoints()),
             callables: semantic_ids(registrations.callables()),
         }
     }
@@ -99,10 +96,6 @@ impl ConeRegistrationTablesV1 {
         &self.type_registrations
     }
 
-    pub fn safepoints(&self) -> &[PersistentSafepointSiteId] {
-        &self.safepoints
-    }
-
     pub fn callables(&self) -> &[PersistentCallableBodyId] {
         &self.callables
     }
@@ -116,7 +109,6 @@ impl WireEncode for ConeRegistrationTablesV1 {
             &self.immortal_objects,
             &self.initialization_units,
             &self.type_registrations,
-            &self.safepoints,
             &self.callables,
         )
     }
@@ -156,14 +148,13 @@ fn semantic_ids<I: scoop_identity::PersistentId>(
     entries.iter().map(|entry| entry.semantic_id()).collect()
 }
 
-fn encode_registration_tables<A, B, C, D, E, F>(
+fn encode_registration_tables<A, B, C, D, E>(
     encoder: &mut Encoder,
     static_storages: &[A],
     immortal_objects: &[B],
     initialization_units: &[C],
     type_registrations: &[D],
-    safepoints: &[E],
-    callables: &[F],
+    callables: &[E],
 ) -> Result<(), scoop_wire::cbor::EncodeError>
 where
     A: WireEncode,
@@ -171,9 +162,8 @@ where
     C: WireEncode,
     D: WireEncode,
     E: WireEncode,
-    F: WireEncode,
 {
-    encoder.map(6)?;
+    encoder.map(5)?;
     encoder.field(1)?;
     encode_array(encoder, static_storages)?;
     encoder.field(2)?;
@@ -183,8 +173,6 @@ where
     encoder.field(4)?;
     encode_array(encoder, type_registrations)?;
     encoder.field(5)?;
-    encode_array(encoder, safepoints)?;
-    encoder.field(6)?;
     encode_array(encoder, callables)
 }
 

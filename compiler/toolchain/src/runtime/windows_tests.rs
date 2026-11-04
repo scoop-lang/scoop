@@ -1,3 +1,6 @@
+#[path = "../../../../runtime/tests/compact_frame_fixture.rs"]
+mod compact_frame_fixture;
+
 use crate::{
     FinalLinkOptions, ValidatedRuntimeBuildProfile, WindowsFinalLinkProfile,
     resolve_windows_c_toolchain,
@@ -92,9 +95,6 @@ fn windows_seh_frames_relocate_real_roots_through_entry_anchors() {
             "src/platform/image/pe.c",
             "src/image/ranges.c",
             "src/gc_binding/stackmap.c",
-            "src/gc_binding/stackmap/parser.c",
-            "src/gc_binding/stackmap/records.c",
-            "src/gc_binding/stackmap/payload.c",
             "tests/windows_frames_test.ll",
         ],
         &["-O0", "-O2"],
@@ -201,7 +201,9 @@ fn run_windows_runtime_test_with_optimizations(
                                 .arg("-I")
                                 .arg(runtime.join("include"))
                                 .arg("-I")
-                                .arg(runtime.join("src"));
+                                .arg(runtime.join("src"))
+                                .arg("-I")
+                                .arg(directory.path());
                             command
                         } else {
                             let mut command = startup.driver_command();
@@ -218,6 +220,15 @@ fn run_windows_runtime_test_with_optimizations(
                             command
                         };
                     checked(command.arg(optimization));
+                    if source
+                        .extension()
+                        .is_some_and(|extension| extension == "ll")
+                    {
+                        compact_frame_fixture::write(
+                            &object,
+                            &directory.path().join("compact_frames.h"),
+                        );
+                    }
                     object
                 })
                 .collect();
@@ -225,16 +236,6 @@ fn run_windows_runtime_test_with_optimizations(
                 .path()
                 .join(format!("runtime-{index}-{optimization}.exe"));
             let mut command = profile.command(directory.path(), &binary).unwrap();
-            for argument in ["/merge:.llvm_stackmaps=.smap", "/section:.smap,R"] {
-                profile.linker_arg(
-                    &mut command,
-                    if profile.microsoft() {
-                        argument.to_owned()
-                    } else {
-                        format!("--Xlink={argument}")
-                    },
-                );
-            }
             checked(command.args(objects));
             checked(&mut Command::new(binary));
         }

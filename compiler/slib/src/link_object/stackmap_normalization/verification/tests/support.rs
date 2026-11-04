@@ -3,7 +3,7 @@ use scoop_lir::{
     DarwinCBridgeDeploymentContractV1, DarwinPackedVersionV1, GeneratedBridgePlanSetV1,
     ObjectSymbolSurfaceV1, ProducerUnitPartitionV1, StrongCallableRegistrationPlanSetV1,
     StrongImmortalObjectRegistrationPlanSetV1, StrongInitializationUnitRegistrationPlanSetV1,
-    StrongSafepointRegistrationPlanSetV1, StrongSafepointSemanticPlanSetV1,
+    StrongSafepointProductionPlanSetV1, StrongSafepointSemanticPlanSetV1,
     StrongStaticStorageRegistrationPlanSetV1, StrongTypeRegistrationPlanSetV1,
 };
 
@@ -29,7 +29,7 @@ pub(crate) struct Fixture {
     pub(crate) semantic_plan: StrongSafepointSemanticPlanSetV1,
     pub(crate) canonical_callables: scoop_lir::CanonicalCallableAbisV1,
     pub(crate) canonical_shapes: scoop_lir::CanonicalShapeAbisV1,
-    pub(crate) registration_plan: StrongSafepointRegistrationPlanSetV1,
+    pub(crate) registration_plan: StrongSafepointProductionPlanSetV1,
     pub(crate) callable_registration_plan: StrongCallableRegistrationPlanSetV1,
     pub(crate) type_registration_plan: StrongTypeRegistrationPlanSetV1,
     pub(crate) immortal_registration_plan: StrongImmortalObjectRegistrationPlanSetV1,
@@ -82,7 +82,6 @@ impl Fixture {
             &inputs.module,
             symbol_plan.member(member).unwrap(),
             &inputs.safepoint_ids,
-            &inputs.registration_plan,
             &inputs.callable_registration_plan,
             &inputs.type_registration_plan,
             &inputs.immortal_registration_plan,

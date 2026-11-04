@@ -8,6 +8,8 @@ use inkwell::targets::{
     CodeModel, FileType, InitializationConfig, RelocMode, Target, TargetTriple,
 };
 
+#[path = "../../../../runtime/tests/compact_frame_fixture.rs"]
+mod compact_frame_fixture;
 mod images;
 
 fn workspace() -> PathBuf {
@@ -55,14 +57,10 @@ fn emit_frame_probe(workspace: &Path, object: &Path, triple: &str, opt: Optimiza
     machine
         .write_to_file(&module, FileType::Object, object)
         .unwrap();
-    // Function addresses require loader relocations in PIE. This test retains
-    // the stackmap blob in writable data; image tests use the normal linker script.
+    compact_frame_fixture::write(object, &object.with_file_name("compact_frames.h"));
     checked(
         Command::new("objcopy")
-            .args([
-                "--set-section-flags",
-                ".llvm_stackmaps=alloc,load,data,contents",
-            ])
+            .args(["--remove-section", ".llvm_stackmaps"])
             .arg(object),
     );
 }
@@ -73,12 +71,6 @@ fn linux_amd64_anchors_relocate_real_llvm_roots_and_preserve_sret() {
     let root = workspace.join("target/linux-runtime-tests");
     std::fs::create_dir_all(&root).unwrap();
     let directory = tempfile::tempdir_in(root).unwrap();
-    let script = directory.path().join("stackmaps.ld");
-    std::fs::write(
-        &script,
-        "SECTIONS { .test_stackmaps : ALIGN(8) { test_stackmaps_start = .; KEEP(*(.llvm_stackmaps)) test_stackmaps_end = .; } } INSERT AFTER .data;\n",
-    )
-    .unwrap();
     for (libc, compiler, mode, flags) in [
         ("gnu", "gcc", "dynamic", ["-fPIE", "-pie"]),
         ("musl", "musl-gcc", "static", ["-static", "-no-pie"]),
@@ -118,8 +110,8 @@ fn linux_amd64_anchors_relocate_real_llvm_roots_and_preserve_sret() {
                 .args(flags)
                 .arg("-I")
                 .arg(workspace.join("runtime/include"))
-                .arg("-Wl,-T")
-                .arg(&script)
+                .arg("-I")
+                .arg(directory.path())
                 .arg(&object);
             for source in [
                 "runtime/tests/linux_frames_test.c",
@@ -127,8 +119,6 @@ fn linux_amd64_anchors_relocate_real_llvm_roots_and_preserve_sret() {
                 "runtime/src/platform/frame/sysv_amd64_elf.S",
                 "runtime/src/platform/os/linux.c",
                 "runtime/src/gc_binding/stackmap.c",
-                "runtime/src/gc_binding/stackmap/parser.c",
-                "runtime/src/gc_binding/stackmap/records.c",
             ] {
                 command.arg(workspace.join(source));
             }
@@ -204,7 +194,7 @@ fn linux_thread_publications_refresh_growing_main_stack_bounds() {
 }
 
 #[test]
-fn shared_stackmap_decoder_keeps_darwin_frame_alignment_in_its_adapter() {
+fn compact_root_decoder_keeps_darwin_frame_alignment_in_its_adapter() {
     let workspace = workspace();
     let root = workspace.join("target/linux-runtime-tests");
     std::fs::create_dir_all(&root).unwrap();
@@ -218,8 +208,6 @@ fn shared_stackmap_decoder_keeps_darwin_frame_alignment_in_its_adapter() {
         "runtime/tests/stackmap_test.c",
         "runtime/src/platform/frame/darwin_aarch64.c",
         "runtime/src/gc_binding/stackmap.c",
-        "runtime/src/gc_binding/stackmap/parser.c",
-        "runtime/src/gc_binding/stackmap/records.c",
     ] {
         command.arg(workspace.join(source));
     }

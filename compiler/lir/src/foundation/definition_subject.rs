@@ -116,10 +116,6 @@ pub(super) fn member_subject(key: &OdrMemberKey) -> Option<(StrongDefinitionEnti
             StrongDefinitionEntity::callable_body(*id),
             S::CallableRegistration,
         ),
-        (R::RegistrationRecord, D::SafepointSite(id)) => (
-            StrongDefinitionEntity::safepoint_site(*id),
-            S::SafepointRegistration,
-        ),
         (R::RegistrationRecord, D::ExactType(id)) => {
             (StrongDefinitionEntity::exact_type(*id), S::TypeRegistration)
         }

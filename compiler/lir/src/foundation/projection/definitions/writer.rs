@@ -60,13 +60,6 @@ impl DefinitionWriter {
                 )?;
             }
             writer.materialization(&root, R::RegistrationRecord, D::CallableBody(body.id()))?;
-            for safepoint in function.safepoints.iter() {
-                writer.materialization(
-                    &root,
-                    R::RegistrationRecord,
-                    D::SafepointSite(safepoint.site_id()),
-                )?;
-            }
         }
         for (_, unit) in module.initialization_units.iter() {
             if let Some(key) = unit.identity.key().specialization_key() {

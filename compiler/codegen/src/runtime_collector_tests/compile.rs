@@ -118,8 +118,6 @@ pub(super) fn compile_and_run_configuration(
         "runtime/src/gc_binding/root_frames.c",
         "runtime/src/gc_binding/roots.c",
         "runtime/src/gc_binding/stackmap.c",
-        "runtime/src/gc_binding/stackmap/parser.c",
-        "runtime/src/gc_binding/stackmap/records.c",
         "runtime/src/gc_binding/stack_roots.c",
         "runtime/src/thread.c",
         "runtime/src/platform/primitives/posix.c",

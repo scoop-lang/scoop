@@ -27,12 +27,13 @@ void scoop_elf_dispose_metadata_images(ScoopPlatformMetadataImages *images) {
         return;
     }
     free((void *)images->ranges);
-    free((void *)images->images);
+    free((void *)images->code_ranges);
     *images = (ScoopPlatformMetadataImages){0};
 }
 
 static bool collect_ranges(const ScoopElfLoadedImageView *view,
-                           ScoopPlatformMetadataImages *images, ScoopStackMapImage *stackmaps) {
+                           ScoopPlatformMetadataImages *images,
+                           ScoopPlatformCodeRange *stackmaps) {
     ScoopPlatformImageRange *ranges = NULL;
     for (size_t index = 0; index < view->program_header_count; ++index) {
         const Elf64_Phdr *header = &view->program_headers[index];
@@ -60,7 +61,7 @@ static bool collect_ranges(const ScoopElfLoadedImageView *view,
 }
 
 static bool validate_ranges(ScoopPlatformMetadataImages *images,
-                            const ScoopStackMapImage *stackmaps) {
+                            const ScoopPlatformCodeRange *stackmaps) {
     if (images->range_count == 0) {
         return false;
     }
@@ -75,43 +76,27 @@ static bool validate_ranges(ScoopPlatformMetadataImages *images,
                                       stackmaps->text_end - stackmaps->text_start, 1);
 }
 
-static bool attach_stackmaps(const uint8_t *stackmaps_start, const uint8_t *stackmaps_end,
-                             ScoopPlatformMetadataImages *images, ScoopStackMapImage stackmaps) {
-    uintptr_t start = (uintptr_t)stackmaps_start;
-    uintptr_t end = (uintptr_t)stackmaps_end;
-    if (start > end) {
+static bool attach_code_range(ScoopPlatformMetadataImages *images,
+                              ScoopPlatformCodeRange code) {
+    ScoopPlatformCodeRange *owned = malloc(sizeof *owned);
+    if (owned == NULL)
         return false;
-    }
-    if (start == end) {
-        return true;
-    }
-    stackmaps.section = stackmaps_start;
-    stackmaps.section_size = end - start;
-    if (!scoop_image_range_contains(images, stackmaps.section, stackmaps.section_size, 8)) {
-        return false;
-    }
-    ScoopStackMapImage *owned = malloc(sizeof *owned);
-    if (owned == NULL) {
-        return false;
-    }
-    *owned = stackmaps;
-    images->images = owned;
-    images->count = 1;
+    *owned = code;
+    images->code_ranges = owned;
+    images->code_range_count = 1;
     return true;
 }
 
 bool scoop_elf_metadata_images_from_view(const ScoopElfLoadedImageView *view,
-                                         const uint8_t *stackmaps_start,
-                                         const uint8_t *stackmaps_end,
                                          ScoopPlatformMetadataImages *images) {
     if (view == NULL || images == NULL ||
         (view->program_header_count != 0 && view->program_headers == NULL)) {
         return false;
     }
     *images = (ScoopPlatformMetadataImages){0};
-    ScoopStackMapImage stackmaps = {0};
+    ScoopPlatformCodeRange stackmaps = {0};
     if (!collect_ranges(view, images, &stackmaps) || !validate_ranges(images, &stackmaps) ||
-        !attach_stackmaps(stackmaps_start, stackmaps_end, images, stackmaps)) {
+        !attach_code_range(images, stackmaps)) {
         scoop_elf_dispose_metadata_images(images);
         return false;
     }

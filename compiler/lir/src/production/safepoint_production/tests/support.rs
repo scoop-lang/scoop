@@ -1,14 +1,11 @@
 use la_arena::Arena;
 use scoop_identity::{
-    CanonicalIdentifier, CborIdentityRecord, ConeIdentity, DeclarationScope, DefinitionAtomRole,
-    DefinitionAtomSubkey, DefinitionOwnerChain, DigestNodeKey, ExactTypeKey, LinkageClass,
-    ObjectDefinitionAtomId, ObjectDefinitionAtomKey, ObjectDefinitionPlanKey, PackagePath,
-    PersistentExactTypeId, PersistentFunctionId, PersistentSymbolKey, PersistentSymbolRequest,
-    PersistentSymbolRequestTable, PersistentTypeId, SourceDeclarationKey, SourceDeclarationSite,
-    SourceNominalKind, StrongDefinitionEntity, StrongDefinitionRole,
+    CanonicalIdentifier, ConeIdentity, DeclarationScope, DefinitionOwnerChain, DigestNodeKey,
+    ExactTypeKey, PackagePath, PersistentExactTypeId, PersistentFunctionId, PersistentTypeId,
+    SourceDeclarationKey, SourceDeclarationSite, SourceNominalKind,
 };
 
-use super::StrongSafepointRegistrationPlanSetV1;
+use super::StrongSafepointProductionPlanSetV1;
 use crate::{
     AbiReturn, BasicBlock, CallTarget, CallTargets, CallableBodyIdentity, CanonicalCAbiMetadata,
     CanonicalLirFoundation, ConeLirFoundation, DigestFinalizationPlanV1, DigestInputRefV1,
@@ -16,138 +13,61 @@ use crate::{
     IntrinsicTypeRepresentation, Layout, LayoutIdentity, LayoutKind, LirMeta,
     LocalFunctionIdentities, LocalFunctionRef, ManagedCallDestination, ManagedLeafPath,
     ManagedLeafPaths, ManagedPollSite, ManagedRuntimeFunction, MaterializationRoot, Module,
-    NativeExternalMetadata, NativeGlobalBridges, RegistrationIdentitySurfaceV1,
-    RuntimeTypeMappingRecord, SafepointIdentities, SafepointIdentity, SafepointMappingRecord,
-    SafepointSiteRef, SafepointSiteRole, ScoopAbiSignature, StatepointLiveSet, StatepointLiveValue,
-    StrongSafepointSemanticPlanSetV1, StructDefs, Terminator, TypeDescriptor,
-    TypeDescriptorIdentity, TypeDescriptorRef, TypeInstanceShapeV1, VoidCallSignature,
-    VtableRecord, WellKnownTypeDescriptors,
+    NativeExternalMetadata, NativeGlobalBridges, RuntimeTypeMappingRecord, SafepointIdentities,
+    SafepointIdentity, SafepointMappingRecord, SafepointSiteRef, SafepointSiteRole,
+    ScoopAbiSignature, StatepointLiveSet, StatepointLiveValue, StrongSafepointSemanticPlanSetV1,
+    StructDefs, Terminator, TypeDescriptor, TypeDescriptorIdentity, TypeDescriptorRef,
+    TypeInstanceShapeV1, VoidCallSignature, VtableRecord, WellKnownTypeDescriptors,
 };
-
-#[derive(Clone, Copy)]
-pub(super) struct FixtureOptions {
-    pub(super) semantic_producer: ConeIdentity,
-    pub(super) registration_count: usize,
-    pub(super) include_runtime_mappings: bool,
-    pub(super) include_callable_owner: bool,
-    pub(super) include_primary_atoms: bool,
-    pub(super) include_symbols: bool,
-
-    pub(super) include_stackmap_nodes: bool,
-}
-
-impl Default for FixtureOptions {
-    fn default() -> Self {
-        Self {
-            semantic_producer: ConeIdentity::SINGLE_FILE,
-            registration_count: 2,
-            include_runtime_mappings: true,
-            include_callable_owner: true,
-            include_primary_atoms: true,
-            include_symbols: true,
-
-            include_stackmap_nodes: true,
-        }
-    }
-}
 
 pub(super) struct Fixture {
     pub(super) foundation: ConeLirFoundation,
-    pub(super) identities: RegistrationIdentitySurfaceV1,
     pub(super) semantics: StrongSafepointSemanticPlanSetV1,
     pub(super) digests: DigestFinalizationPlanV1,
 }
 
 impl Fixture {
-    pub(super) fn new(options: FixtureOptions) -> Self {
-        assert!(options.registration_count <= 2);
-        let (module, body, safepoints) = semantic_module(options.semantic_producer);
+    pub(super) fn new() -> Self {
+        let (module, body, sites) = semantic_module(ConeIdentity::SINGLE_FILE);
         let semantics = StrongSafepointSemanticPlanSetV1::from_module(&module).unwrap();
-        let registrations = safepoints
-            .iter()
-            .take(options.registration_count)
-            .map(|identity| registration_artifacts(identity.site_id()))
-            .collect::<Vec<_>>();
-
         let mut canonical = CanonicalLirFoundation::empty();
-        if options.include_callable_owner {
-            canonical
-                .set_callable_bodies(vec![body.identity_record().clone()])
-                .unwrap();
-        }
+        canonical
+            .set_callable_bodies(vec![body.identity_record().clone()])
+            .unwrap();
         canonical
             .set_safepoint_sites(
-                safepoints
+                sites
                     .iter()
-                    .map(|identity| identity.site_record().clone())
+                    .map(|site| site.site_record().clone())
                     .collect(),
             )
             .unwrap();
-        if options.include_runtime_mappings {
-            canonical
-                .set_safepoints(
-                    safepoints
-                        .iter()
-                        .map(SafepointMappingRecord::from_identity)
-                        .collect(),
-                )
-                .unwrap();
-        }
         canonical
-            .set_definition_plans(
-                registrations
+            .set_safepoints(
+                sites
                     .iter()
-                    .map(|registration| registration.plan.clone())
+                    .map(SafepointMappingRecord::from_identity)
                     .collect(),
             )
             .unwrap();
-        if options.include_primary_atoms {
-            canonical
-                .set_definition_atoms(
-                    registrations
-                        .iter()
-                        .map(|registration| registration.primary.clone())
-                        .collect(),
-                )
-                .unwrap();
-        }
-        if options.include_symbols {
-            canonical.set_symbol_requests(
-                PersistentSymbolRequestTable::new(
-                    registrations
-                        .iter()
-                        .map(|registration| registration.symbol)
-                        .collect(),
-                )
-                .unwrap(),
-            );
-        }
         let foundation = ConeLirFoundation::try_new(ConeIdentity::SINGLE_FILE, canonical).unwrap();
-
-        let mut nodes = Vec::new();
-        let mut image_inputs = Vec::new();
-        for registration in &registrations {
-            if !options.include_stackmap_nodes {
-                continue;
-            }
-            let key = DigestNodeKey::stackmap_record(registration.site);
-
-            let stackmap = DigestNodeV1::new(key, Vec::new()).unwrap();
-            image_inputs.push(DigestInputRefV1::from_node(&stackmap));
-            nodes.push(stackmap);
-        }
+        let mut nodes = sites
+            .iter()
+            .map(|site| {
+                DigestNodeV1::new(DigestNodeKey::stackmap_record(site.site_id()), Vec::new())
+                    .unwrap()
+            })
+            .collect::<Vec<_>>();
         nodes.push(
             DigestNodeV1::new(
                 DigestNodeKey::runtime_image(ConeIdentity::SINGLE_FILE),
-                image_inputs,
+                nodes.iter().map(DigestInputRefV1::from_node).collect(),
             )
             .unwrap(),
         );
         let digests = DigestFinalizationPlanV1::new(nodes, &foundation).unwrap();
-        let identities = RegistrationIdentitySurfaceV1::from_foundation(&foundation).unwrap();
         Self {
             foundation,
-            identities,
             semantics,
             digests,
         }
@@ -155,57 +75,9 @@ impl Fixture {
 
     pub(super) fn build(
         &self,
-    ) -> Result<
-        StrongSafepointRegistrationPlanSetV1,
-        super::StrongSafepointRegistrationPlanBuildError,
-    > {
-        StrongSafepointRegistrationPlanSetV1::new(
-            &self.foundation,
-            &self.identities,
-            &self.semantics,
-            &self.digests,
-        )
-    }
-}
-
-struct RegistrationArtifacts {
-    site: scoop_identity::PersistentSafepointSiteId,
-    plan: CborIdentityRecord<
-        scoop_identity::ObjectDefinitionPlanId,
-        scoop_identity::ObjectDefinitionPlanKey,
-    >,
-    primary: CborIdentityRecord<ObjectDefinitionAtomId, ObjectDefinitionAtomKey>,
-    symbol: PersistentSymbolRequest,
-}
-
-fn registration_artifacts(
-    site: scoop_identity::PersistentSafepointSiteId,
-) -> RegistrationArtifacts {
-    let plan = CborIdentityRecord::from_key(
-        ObjectDefinitionPlanKey::strong(
-            ConeIdentity::SINGLE_FILE,
-            StrongDefinitionEntity::safepoint_site(site),
-            StrongDefinitionRole::SafepointRegistration,
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let primary = CborIdentityRecord::from_key(ObjectDefinitionAtomKey::new(
-        plan.id(),
-        DefinitionAtomRole::Primary,
-        DefinitionAtomSubkey::Singleton,
-    ))
-    .unwrap();
-    let symbol = PersistentSymbolRequest::new(
-        PersistentSymbolKey::SafepointRegistration(site),
-        LinkageClass::ConeStrong,
-    )
-    .unwrap();
-    RegistrationArtifacts {
-        site,
-        plan,
-        primary,
-        symbol,
+    ) -> Result<StrongSafepointProductionPlanSetV1, super::StrongSafepointProductionPlanBuildError>
+    {
+        StrongSafepointProductionPlanSetV1::new(&self.semantics, &self.digests)
     }
 }
 

@@ -22,12 +22,6 @@ mod entry;
 pub(crate) use entry::emit_entry_production_v1;
 pub use entry::{EmittedEntryProductionV1, EmittedRootEntryV1};
 
-mod safepoint;
-pub(crate) use safepoint::emit_strong_safepoint_registrations_v1;
-pub use safepoint::{
-    EmittedStrongSafepointRegistrationSetV1, EmittedStrongSafepointRegistrationV1,
-};
-
 mod callable;
 pub(crate) use callable::emit_strong_callable_registrations_v1;
 pub use callable::{EmittedStrongCallableRegistrationSetV1, EmittedStrongCallableRegistrationV1};
@@ -57,7 +51,7 @@ pub use static_storage::{
 
 mod production;
 pub(crate) use production::{
-    emit_callable_metadata_v1, emit_callable_safepoints, emit_strong_runtime_metadata_v1,
+    bind_callable_gc_map, emit_callable_metadata_v1, emit_strong_runtime_metadata_v1,
 };
 
 mod registration_identity;
@@ -205,7 +199,7 @@ const TYPE_REGISTRATION_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
 };
 const CALLABLE_REGISTRATION_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
     name: "ScoopCallableRegistrationDescriptorV1",
-    size: 144,
+    size: 152,
     alignment: 8,
     fields: expected_fields!(
         "prefix" => 0,
@@ -213,6 +207,7 @@ const CALLABLE_REGISTRATION_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
         "entry" => 120,
         "context_keys" => 128,
         "context_key_count" => 136,
+        "gc_map" => 144,
     ),
 };
 const IMMORTAL_OBJECT_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
@@ -249,19 +244,6 @@ const INITIALIZATION_UNIT_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
         "startup_gateway" => 280,
     ),
 };
-const SAFEPOINT_REGISTRATION_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
-    name: "ScoopSafepointRegistrationDescriptorV1",
-    size: 168,
-    alignment: 8,
-    fields: expected_fields!(
-        "prefix" => 0,
-        "registration" => 16,
-        "safepoint_id" => 120,
-        "site_role" => 128,
-        "root_pair_count" => 132,
-        "owner_callable_id" => 136,
-    ),
-};
 const ROOT_ENTRY_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
     name: "ScoopRootEntryDescriptorV1",
     size: 128,
@@ -277,7 +259,7 @@ const ROOT_ENTRY_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
 };
 const IMAGE_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
     name: "ScoopImageDescriptorV1",
-    size: 208,
+    size: 192,
     alignment: 8,
     fields: expected_fields!(
         "prefix" => 0,
@@ -292,10 +274,8 @@ const IMAGE_DESCRIPTOR: ExpectedStruct = ExpectedStruct {
         "initialization_unit_count" => 152,
         "type_registrations" => 160,
         "type_registration_count" => 168,
-        "safepoints" => 176,
-        "safepoint_count" => 184,
-        "callables" => 192,
-        "callable_count" => 200,
+        "callables" => 176,
+        "callable_count" => 184,
     ),
 };
 /// All LLVM aggregate types in the private runtime metadata ABI.
@@ -315,7 +295,6 @@ pub(crate) struct RuntimeMetadataV1Types<'ctx> {
     callable_registration_descriptor: StructType<'ctx>,
     immortal_object_descriptor: StructType<'ctx>,
     initialization_unit_descriptor: StructType<'ctx>,
-    safepoint_registration_descriptor: StructType<'ctx>,
     root_entry_descriptor: StructType<'ctx>,
     native_app_entry_descriptor: StructType<'ctx>,
     image_descriptor: StructType<'ctx>,
@@ -417,6 +396,7 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
                 ptr.into(),
                 ptr.into(),
                 i64.into(),
+                ptr.into(),
             ],
             false,
         );
@@ -450,17 +430,6 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
             ],
             false,
         );
-        let safepoint_registration_descriptor = context.struct_type(
-            &[
-                descriptor_prefix.into(),
-                registration_identity.into(),
-                i64.into(),
-                i32.into(),
-                i32.into(),
-                digest.into(),
-            ],
-            false,
-        );
         let root_entry_descriptor = context.struct_type(
             &[
                 descriptor_prefix.into(),
@@ -476,8 +445,6 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
             &[
                 descriptor_prefix.into(),
                 cone_record.into(),
-                ptr.into(),
-                i64.into(),
                 ptr.into(),
                 i64.into(),
                 ptr.into(),
@@ -509,7 +476,6 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
             callable_registration_descriptor,
             immortal_object_descriptor,
             initialization_unit_descriptor,
-            safepoint_registration_descriptor,
             root_entry_descriptor,
             native_app_entry_descriptor: root_entry_descriptor,
             image_descriptor,
@@ -541,10 +507,6 @@ impl<'ctx> RuntimeMetadataV1Types<'ctx> {
             (
                 INITIALIZATION_UNIT_DESCRIPTOR,
                 self.initialization_unit_descriptor,
-            ),
-            (
-                SAFEPOINT_REGISTRATION_DESCRIPTOR,
-                self.safepoint_registration_descriptor,
             ),
             (ROOT_ENTRY_DESCRIPTOR, self.root_entry_descriptor),
             (

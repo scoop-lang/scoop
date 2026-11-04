@@ -7,8 +7,8 @@ use crate::{
     PersistentExactTypeId, PersistentExtensionPropertyId, PersistentFunctionId,
     PersistentGeneratedCallableId, PersistentGenericFunctionId, PersistentGenericTypeId,
     PersistentIdResolver, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentPropertyAccessorId, PersistentSafepointSiteId, PersistentScanId,
-    PersistentStaticStorageId, PersistentTypeId,
+    PersistentLayoutId, PersistentPropertyAccessorId, PersistentScanId, PersistentStaticStorageId,
+    PersistentTypeId,
 };
 
 mod member;
@@ -59,7 +59,6 @@ pub trait OdrMemberResolver<E>:
     + PersistentIdResolver<PersistentImmortalObjectId, Error = E>
     + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
     + PersistentIdResolver<PersistentCallableBodyId, Error = E>
-    + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
 {
 }
 
@@ -77,7 +76,6 @@ impl<T, E> OdrMemberResolver<E> for T where
         + PersistentIdResolver<PersistentImmortalObjectId, Error = E>
         + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
         + PersistentIdResolver<PersistentCallableBodyId, Error = E>
-        + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
 {
 }
 

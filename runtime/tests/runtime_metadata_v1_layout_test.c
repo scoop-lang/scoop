@@ -9,8 +9,8 @@ int main(void) {
         (uint32_t)sizeof(ScoopImageDescriptorV1),
     };
 
-    if (prefix.magic != UINT64_C(0x53434f4f50494d47) || prefix.abi_version != 10 ||
-        prefix.struct_size != 208) {
+    if (prefix.magic != UINT64_C(0x53434f4f50494d47) || prefix.abi_version != 11 ||
+        prefix.struct_size != 192) {
         return 2;
     }
     if (SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f50454e54) ||
@@ -19,7 +19,7 @@ int main(void) {
         SCOOP_IMMORTAL_OBJECT_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f50494d4d) ||
         SCOOP_INITIALIZATION_UNIT_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f50494e49) ||
         SCOOP_TYPE_REGISTRATION_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f50545950) ||
-        SCOOP_SAFEPOINT_REGISTRATION_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f50535054) ||
+        SCOOP_CALLABLE_GC_MAP_MAGIC_V1 != UINT64_C(0x53434f4f5047434d) ||
         SCOOP_CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC_V1 != UINT64_C(0x53434f4f5043414c)) {
         return 3;
     }

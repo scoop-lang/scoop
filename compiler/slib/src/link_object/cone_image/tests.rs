@@ -217,10 +217,6 @@ fn support_roles() -> impl Iterator<Item = (DefinitionAtomRole, ConeImageSupport
         ),
         (
             DefinitionAtomRole::RuntimeRecord,
-            ConeImageSupportRole::Safepoints,
-        ),
-        (
-            DefinitionAtomRole::RuntimeRecord,
             ConeImageSupportRole::Callables,
         ),
         (
@@ -260,7 +256,7 @@ fn image_object(
     let locations = image_locations(plan, type_registration.map(|(_, atom)| atom));
     let section_size = locations.values().map(|(_, end)| *end).max().unwrap();
     let mut section = vec![0; usize::try_from(section_size).unwrap()];
-    section[..208].copy_from_slice(&expected_image_record(plan));
+    section[..192].copy_from_slice(&expected_image_record(plan));
     copy_atom_bytes(
         &mut section,
         locations[&support.coordinate_group()].0,
@@ -309,13 +305,12 @@ fn image_object(
         support.immortal_objects(),
         support.initialization_units(),
         support.type_registrations(),
-        support.safepoints(),
         support.callables(),
         support.array_bounds_message(),
         support.array_size_overflow_message(),
     ];
-    let mut relocation_targets = vec![0_u32, 1, 2, 3, 4, 5, 6, 7, 8, 9];
-    let mut relocation_offsets = vec![16_u32, 32, 48, 96, 112, 128, 144, 160, 176, 192];
+    let mut relocation_targets = vec![0_u32, 1, 2, 3, 4, 5, 6, 7, 8];
+    let mut relocation_offsets = vec![16_u32, 32, 48, 96, 112, 128, 144, 160, 176];
     if let Some((definition, _)) = type_registration {
         relocation_offsets.push(u32::try_from(locations[&support.type_registrations()].0).unwrap());
         let target = definition;
@@ -381,7 +376,6 @@ fn image_locations(
         (support.immortal_objects(), 8, 8),
         (support.initialization_units(), 8, 8),
         (support.type_registrations(), 8, 8),
-        (support.safepoints(), 8, 8),
         (support.callables(), 8, 8),
         (support.array_bounds_message(), 26, 1),
         (support.array_size_overflow_message(), 20, 1),

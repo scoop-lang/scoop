@@ -22,7 +22,7 @@ impl DecodedStrongRegistrationProductionSurface {
         [Vec<(
             scoop_identity::ObjectDefinitionPlanId,
             scoop_identity::PersistentSymbolRequest,
-        )>; 6],
+        )>; 5],
         crate::LinkDataError,
     > {
         self.identities.read_link(foundation, identities)

@@ -20,8 +20,7 @@ typedef struct Metadata {
     const void *empty[1];
     char group[8], names[IMAGE_COUNT][8], version[8];
     ScoopCallableRegistrationDescriptorV1 callables[4];
-    const ScoopCallableRegistrationDescriptorV1
-        *callable_tables[IMAGE_COUNT][3];
+    const ScoopCallableRegistrationDescriptorV1 *callable_tables[IMAGE_COUNT][3];
     ScoopStaticStorageDescriptorV1 storage;
     const ScoopStaticStorageDescriptorV1 *storages[1];
     ScoopImmortalObjectDescriptorV1 immortal;
@@ -30,8 +29,6 @@ typedef struct Metadata {
     const ScoopInitializationUnitDescriptorV1 *units[1];
     ScoopTypeRegistrationDescriptorV1 type;
     const ScoopTypeRegistrationDescriptorV1 *types[1];
-    ScoopSafepointRegistrationDescriptorV1 site;
-    const ScoopSafepointRegistrationDescriptorV1 *sites[1];
 } Metadata;
 
 typedef struct Fixture {
@@ -42,15 +39,15 @@ typedef struct Fixture {
 } Fixture;
 
 static ScoopDescriptorPrefixV1 prefix(uint64_t magic, size_t size) {
-    return (ScoopDescriptorPrefixV1){
-        magic, SCOOP_RUNTIME_METADATA_ABI_VERSION_V1, (uint32_t)size};
+    return (ScoopDescriptorPrefixV1){magic, SCOOP_RUNTIME_METADATA_ABI_VERSION_V1,
+                                     (uint32_t)size};
 }
 
 static ScoopRegistrationIdentityV1 identity(uint8_t id, bool odr) {
-    ScoopRegistrationIdentityV1 result = {
-        .linkage_kind = odr ? SCOOP_REGISTRATION_LINKAGE_ODR_V1
-                            : SCOOP_REGISTRATION_LINKAGE_STRONG_V1,
-        .semantic_id = {{id}}};
+    ScoopRegistrationIdentityV1 result = {.linkage_kind =
+                                              odr ? SCOOP_REGISTRATION_LINKAGE_ODR_V1
+                                                  : SCOOP_REGISTRATION_LINKAGE_STRONG_V1,
+                                          .semantic_id = {{id}}};
     if (odr) {
         result.odr_group_id.bytes[0] = 42;
         result.odr_member_id.bytes[0] = id;
@@ -65,15 +62,15 @@ static ScoopByteSpanV1 bytes(char *text) {
 static void setup(Fixture *fixture) {
     size_t page = (size_t)sysconf(_SC_PAGESIZE);
     fixture->size = (sizeof(Metadata) + page - 1) / page * page;
-    fixture->metadata = mmap(NULL, fixture->size + page, PROT_READ | PROT_WRITE,
-                             MAP_PRIVATE | MAP_ANON, -1, 0);
+    fixture->metadata =
+        mmap(NULL, fixture->size + page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     assert(fixture->metadata != MAP_FAILED);
-    assert(mprotect((uint8_t *)fixture->metadata + fixture->size, page,
-                    PROT_NONE) == 0);
+    assert(mprotect((uint8_t *)fixture->metadata + fixture->size, page, PROT_NONE) == 0);
     Metadata *data = fixture->metadata;
-    fixture->range = (ScoopPlatformImageRange){(uintptr_t)data, (uintptr_t)data + fixture->size};
-    fixture->loaded = (ScoopPlatformMetadataImages){.ranges = &fixture->range,
-                                                    .range_count = 1};
+    fixture->range =
+        (ScoopPlatformImageRange){(uintptr_t)data, (uintptr_t)data + fixture->size};
+    fixture->loaded =
+        (ScoopPlatformMetadataImages){.ranges = &fixture->range, .range_count = 1};
     strcpy(data->group, "test");
     strcpy(data->version, "1.0.0");
     const char *names[] = {"root", "z", "b", "a", "c"};
@@ -86,16 +83,12 @@ static void setup(Fixture *fixture) {
                                           bytes(data->version),
                                           {{(uint8_t)(i + 1)}}};
         image->dependencies = data->dependencies[i];
-        image->static_storages =
-            (const ScoopStaticStorageDescriptorV1 *const *)data->empty;
-        image->immortal_objects =
-            (const ScoopImmortalObjectDescriptorV1 *const *)data->empty;
+        image->static_storages = (const ScoopStaticStorageDescriptorV1 *const *)data->empty;
+        image->immortal_objects = (const ScoopImmortalObjectDescriptorV1 *const *)data->empty;
         image->initialization_units =
             (const ScoopInitializationUnitDescriptorV1 *const *)data->empty;
         image->type_registrations =
             (const ScoopTypeRegistrationDescriptorV1 *const *)data->empty;
-        image->safepoints =
-            (const ScoopSafepointRegistrationDescriptorV1 *const *)data->empty;
         image->callables = data->callable_tables[i];
         data->input[i] = image;
     }
@@ -107,15 +100,13 @@ static void setup(Fixture *fixture) {
     data->dependencies[B][0] = data->images[A].cone.identity;
     data->images[B].dependency_count = 1;
     data->root = (ScoopRootEntryDescriptorV1){
-        .prefix =
-            prefix(SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof data->root),
+        .prefix = prefix(SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof data->root),
         .owner_cone_identity = data->images[ROOT].cone.identity,
         .callable_id = {{1}},
         .gateway_callable_id = {{3}}};
     for (size_t i = 0; i < 4; i++) {
         data->callables[i].prefix =
-            prefix(SCOOP_CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC_V1,
-                   sizeof data->callables[i]);
+            prefix(SCOOP_CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC_V1, sizeof data->callables[i]);
         data->callables[i].registration = identity((uint8_t)(i + 1), true);
     }
     data->callable_tables[B][0] = &data->callables[0];
@@ -124,11 +115,11 @@ static void setup(Fixture *fixture) {
     data->callable_tables[C][0] = &data->callables[0];
     data->callable_tables[C][1] = &data->callables[2];
     data->images[C].callable_count = 2;
-#define SINGLE_RECORD(field, table, image_field, count_field, magic)           \
-    data->field.prefix = prefix(magic, sizeof data->field);                    \
-    data->field.registration = identity(1, false);                             \
-    data->table[0] = &data->field;                                             \
-    data->images[ROOT].image_field = data->table;                              \
+#define SINGLE_RECORD(field, table, image_field, count_field, magic)                           \
+    data->field.prefix = prefix(magic, sizeof data->field);                                    \
+    data->field.registration = identity(1, false);                                             \
+    data->table[0] = &data->field;                                                             \
+    data->images[ROOT].image_field = data->table;                                              \
     data->images[ROOT].count_field = 1
     SINGLE_RECORD(storage, storages, static_storages, static_storage_count,
                   SCOOP_STATIC_STORAGE_DESCRIPTOR_MAGIC_V1);
@@ -138,14 +129,12 @@ static void setup(Fixture *fixture) {
                   SCOOP_INITIALIZATION_UNIT_DESCRIPTOR_MAGIC_V1);
     SINGLE_RECORD(type, types, type_registrations, type_registration_count,
                   SCOOP_TYPE_REGISTRATION_DESCRIPTOR_MAGIC_V1);
-    SINGLE_RECORD(site, sites, safepoints, safepoint_count,
-                  SCOOP_SAFEPOINT_REGISTRATION_DESCRIPTOR_MAGIC_V1);
 #undef SINGLE_RECORD
 }
 
 static ScoopImageRegistry *collect(Fixture *fixture) {
-    return scoop_image_collect(&fixture->loaded, fixture->metadata->input,
-                               IMAGE_COUNT, &fixture->metadata->root);
+    return scoop_image_collect(&fixture->loaded, fixture->metadata->input, IMAGE_COUNT,
+                               &fixture->metadata->root);
 }
 
 static void positive(bool reversed) {
@@ -164,14 +153,11 @@ static void positive(bool reversed) {
     }
     /* Equal bytes in different semantic ID namespaces are valid. */
     for (size_t kind = 0; kind < SCOOP_RECORD_KIND_COUNT; kind++) {
-        assert(registry->tables[kind].count ==
-               (kind == SCOOP_RECORD_CALLABLE ? 3 : 1));
+        assert(registry->tables[kind].count == (kind == SCOOP_RECORD_CALLABLE ? 3 : 1));
         ScoopDigest256V1 id = {{1}};
-        const ScoopRegisteredRecord *record =
-            scoop_record_by_id(registry, kind, &id);
+        const ScoopRegisteredRecord *record = scoop_record_by_id(registry, kind, &id);
         assert(record != NULL);
-        assert(scoop_record_by_address(registry, kind, record->record) ==
-               record);
+        assert(scoop_record_by_address(registry, kind, record->record) == record);
         id.bytes[0] = 250;
         assert(scoop_record_by_id(registry, kind, &id) == NULL);
         assert(scoop_record_by_address(registry, kind, data->empty) == NULL);
@@ -187,8 +173,7 @@ static const char *corrupt(Fixture *fixture, unsigned test) {
         data->root.prefix.abi_version--;
         return "prefix magic, ABI or exact size";
     case 1:
-        data->input[0] =
-            (const void *)((const uint8_t *)data + fixture->size - 8);
+        data->input[0] = (const void *)((const uint8_t *)data + fixture->size - 8);
         return "prefix range";
     case 2:
         data->images[0].prefix.struct_size--;
@@ -246,8 +231,7 @@ static const char *corrupt(Fixture *fixture, unsigned test) {
         data->dependencies[ROOT][2] = data->dependencies[ROOT][0];
         return "duplicate image dependency";
     case 19:
-        data->storages[0] =
-            (const void *)((const uint8_t *)data + fixture->size);
+        data->storages[0] = (const void *)((const uint8_t *)data + fixture->size);
         return "prefix range";
     case 20:
         data->images[ROOT].cone.name.data =
@@ -282,8 +266,7 @@ static void negative(unsigned test) {
     char message[1024] = {0};
     size_t used = 0;
     ssize_t amount;
-    while ((amount = read(output[0], message + used,
-                          sizeof message - used - 1)) > 0) {
+    while ((amount = read(output[0], message + used, sizeof message - used - 1)) > 0) {
         used += (size_t)amount;
     }
     close(output[0]);
@@ -292,12 +275,10 @@ static void negative(unsigned test) {
     if (!WIFSIGNALED(status) || WTERMSIG(status) != SIGABRT ||
         strstr(message, "scoop runtime metadata:") == NULL ||
         strstr(message, expected) == NULL) {
-        fprintf(stderr, "case %u expected %s, status %d: %s", test, expected,
-                status, message);
+        fprintf(stderr, "case %u expected %s, status %d: %s", test, expected, status, message);
         abort();
     }
-    assert(munmap(fixture.metadata,
-                  fixture.size + (size_t)sysconf(_SC_PAGESIZE)) == 0);
+    assert(munmap(fixture.metadata, fixture.size + (size_t)sysconf(_SC_PAGESIZE)) == 0);
 }
 
 int main(void) {
