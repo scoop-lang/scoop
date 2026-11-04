@@ -22,7 +22,8 @@ internal class VariableScene(private val probe: VariableProbe): Component {
                         this.anchor = this @VariableScene.probe.anchor.value
                     }
                 else
-                    empty()
+                    empty(),
+                component({ ReadingObserver(probe) })
             ]
         )
 }
@@ -33,16 +34,37 @@ private class VariablePanel(
 ): Element {
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
+        assertEquals(None, probe.handle.value.reading)
+        scope.resource {
+            probe.scroll.observeIntent {
+                event ->
+                probe.intents.add(event)
+                when (event) {
+                    case User(_) -> probe.userIntents += 1
+                    case LayoutCorrection(revision) -> {
+                        assertEquals(revision, probe.scroll.requestRevision)
+                        probe.corrections += 1
+                    }
+                    case Programmatic(_) -> if (probe.overrideRestore) {
+                        probe.overrideRestore = false
+                        probe.scroll.scrollTo(Point(0.0, 0.0), ScrollOrigin.User)
+                    }
+                }
+            }
+        }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         context.measureChild(0L, Constraints.tight(Size(width.value, 60.0)))
         context.placeChild(0L, Point(20.0, 20.0))
+        context.measureChild(1L, Constraints.tight(Size(0.0, 0.0)))
+        context.placeChild(1L, Point(0.0, 0.0))
         return LayoutMetrics(constraints.constrain(Size(220.0, 140.0)))
     }
     public override fun scene(context: SceneContext) {
         val ticket = probe.ticket
         val discard = probe.discardNext
         val before = probe.scroll.offset
+        val beforeReading = probe.handle.value.reading
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted && probe.lateRequest) {
                 probe.lateRequest = false
@@ -62,6 +84,7 @@ private class VariablePanel(
                 case Discarded -> {
                     assertTrue(discard)
                     assertEquals(before, probe.scroll.offset)
+                    assertEquals(beforeReading, probe.handle.value.reading)
                     probe.discarded += 1
                     probe.scope!!.requestFrame()
                 }
@@ -124,15 +147,22 @@ internal class VariableRecord(val key: Long) {
 }
 
 private class VariableRow(
-    probe: VariableProbe,
+    private val probe: VariableProbe,
     private val props: Props<VariableRowInput>
 ): Component {
     private val record = VariableRecord(props.value.key)
     init {
         probe.rows.add(record)
     }
-    public override fun render(): View =
-        element(props.value.height + record.growth.value, { height -> VariableInk(record, height) })
+    public override fun render(): View {
+        val height = props.value.height + record.growth.value
+        val children: Array<View> =
+            if (record.key == 50L)
+                [imageView(probe.image, Size(160.0, height))]
+            else
+                []
+        return element(height, { value -> VariableInk(record, value) }, children)
+    }
     public override fun onMount(scope: ComponentScope) {
         record.mounts += 1
         record.area = Some(scope.createArea(focusable = true))
@@ -149,6 +179,11 @@ private class VariableInk(
     private val height: Props<Double>
 ): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        if (context.childCount > 0L) {
+            val image = context.measureChild(0L, constraints)
+            context.placeChild(0L, Point(0.0, 0.0))
+            return image
+        }
         val width = constraints.maxWidth!!
         val factor =
             if (width < 100.0)
@@ -161,5 +196,14 @@ private class VariableInk(
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.5, 0.8))) }
+        context.children()
+    }
+}
+
+private class ReadingObserver(private val probe: VariableProbe): Component {
+    public override fun render(): View {
+        probe.readingRenders += 1
+        probe.observed = probe.handle.value.reading
+        return empty()
     }
 }

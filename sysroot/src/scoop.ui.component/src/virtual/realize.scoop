@@ -20,11 +20,7 @@ internal class VirtualListLayout(
     private val revision = state.requestRevision
     private val size = virtualViewport(constraints, input.width, input.height)
     private val vertical = input.orientation == Orientation.Vertical
-    private val visible =
-        if (vertical)
-            size.height
-        else
-            size.width
+    private val hasViewport = size.width > 0.0 && size.height > 0.0
     private val index =
         measurements.prepare(
             input.source,
@@ -34,9 +30,11 @@ internal class VirtualListLayout(
             if (vertical)
                 size.width
             else
-                size.height
+                size.height,
+            context.layoutDirection
         )
-    private val geometry = ListGeometry(index, input.orientation, input.overscan, size)
+    private val geometry =
+        ListGeometry(index, input.orientation, input.overscan, size, context.layoutDirection)
     private val measured = HashSet<Long>()
     private val requestActive = request?.revision == Some(revision)
     private val destination: Long? =
@@ -56,7 +54,14 @@ internal class VirtualListLayout(
             case None -> false
         }
     private val followEnd =
-        mayAnchor && input.anchor == VirtualListAnchor.FollowEnd && previous!!.atEnd
+        mayAnchor && input.anchor == VirtualListAnchor.FollowEnd && previous!!.snapshot.atEnd
+    private val initialStart =
+        geometry.reversed &&
+            !state.hasPositionRequest &&
+            when (previous) {
+                case None -> !state.hasSnapshot || state.viewport.width == 0.0
+                case Some(_) -> false
+            }
     private val anchor: VirtualItemAnchor? =
         if (mayAnchor && !followEnd)
             previous!!.anchor
@@ -78,7 +83,7 @@ internal class VirtualListLayout(
         }
 
     fun measure(): VirtualListFrame {
-        if (visible > 0.0) {
+        if (hasViewport) {
             when (destination) {
                 case Some(at) -> ensure(at)
                 case None -> when (anchorIndex) {
@@ -106,7 +111,7 @@ internal class VirtualListLayout(
             }
         }
         val final = snapshot()
-        val range = geometry.range(scrollbarAxis(input.orientation, final.offset))
+        val range = geometry.range(geometry.logicalOffset(final.offset))
         val pinned = HashSet<Long>()
         for (at in context.pinnedItems)
             pinned.add(at)
@@ -117,10 +122,10 @@ internal class VirtualListLayout(
             if ((at < range.start || at >= range.end) && !pinned.contains(at))
                 recheck = true
         }
-        val offset = scrollbarAxis(input.orientation, final.offset)
+        val offset = geometry.logicalOffset(final.offset)
         val first = index.indexAt(offset)
         val nextAnchor =
-            if (visible > 0.0 && first < index.count)
+            if (hasViewport && first < index.count)
                 Some(
                     VirtualItemAnchor(
                         input.source.keyAt(first),
@@ -136,14 +141,21 @@ internal class VirtualListLayout(
                 input.orientation,
                 revision,
                 nextAnchor,
-                offset == scrollbarAxis(input.orientation, final.maximum)
+                VirtualReadingSnapshot(
+                    geometry.visibleRange(offset),
+                    when (nextAnchor) {
+                        case Some(value) -> Some(VirtualReadingAnchor(value.key, value.inside))
+                        case None -> None
+                    },
+                    offset == geometry.maximum
+                )
             )
-        val requestDone = requestActive && (destination == None || visible > 0.0)
+        val requestDone = requestActive && (destination == None || hasViewport)
         return VirtualListFrame(
             props,
             final,
             revision,
-            visible > 0.0,
+            hasViewport,
             reading,
             request,
             requestDone,
@@ -164,8 +176,8 @@ internal class VirtualListLayout(
         )
         return true
     }
-    private fun currentRange(): ItemRange =
-        geometry.range(scrollbarAxis(input.orientation, snapshot().offset))
+    private fun currentRange(): VirtualRange =
+        geometry.range(geometry.logicalOffset(snapshot().offset))
     private fun snapshot(): ScrollSnapshot {
         val base = control.layout(size, geometry.content)
         var adjustment: ScrollAdjustment? = None
@@ -174,35 +186,33 @@ internal class VirtualListLayout(
                 Some(
                     ScrollAdjustment(
                         revision,
-                        base.revealedOffset(
-                            geometry.bounds(at),
-                            if (vertical)
-                                ScrollAlignment.Nearest
-                            else
-                                request!!.alignment,
-                            if (vertical)
-                                request!!.alignment
-                            else
-                                ScrollAlignment.Nearest
-                        )
+                        when (request!!.position) {
+                            case Item(alignment) -> geometry.alignedOffset(base, at, alignment)
+                            case Reading(inside) -> geometry.scrollOffset(
+                                index.prefix(at) + upperBound(inside, index.extent(at))
+                            )
+                        }
                     )
                 )
             case None -> {
                 if (followEnd)
-                    adjustment = Some(ScrollAdjustment(revision, base.maximum))
+                    adjustment =
+                        Some(ScrollAdjustment(revision, geometry.scrollOffset(geometry.maximum)))
                 else
                     when (anchorIndex) {
                         case Some(at) -> adjustment =
                             Some(
                                 ScrollAdjustment(
                                     revision,
-                                    geometry.point(
+                                    geometry.scrollOffset(
                                         index.prefix(at) +
                                             upperBound(anchor!!.inside, index.extent(at))
                                     )
                                 )
                             )
-                        case None -> {}
+                        case None -> if (initialStart || mayAnchor)
+                            adjustment =
+                                Some(ScrollAdjustment(revision, geometry.scrollOffset(0.0)))
                     }
             }
         }

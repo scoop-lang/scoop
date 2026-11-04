@@ -1,14 +1,13 @@
 package scoop.ui.component
 
 import scoop.platform.concurrent.currentThreadId
-import scoop.ui.ScrollAlignment
-import scoop.ui.ItemFocusEdge
-import scoop.ui.ViewKey
+import scoop.ui.*
 
 /** A stable reference to one mounted list; the associated ScrollState owns its position. */
 public class VirtualListHandle public constructor() {
     private val thread = currentThreadId()
     private var target: VirtualListInk? = None
+    private val snapshot = state<VirtualReadingSnapshot?>(None)
 
     private fun checkThread() {
         if (currentThreadId() != thread)
@@ -21,6 +20,19 @@ public class VirtualListHandle public constructor() {
     public val isPending: Boolean get() {
         checkThread()
         return (target?.scrollPending ?: false) || (target?.focusPending ?: false)
+    }
+    public val reading: VirtualReadingSnapshot? get() {
+        checkThread()
+        return snapshot.value
+    }
+    public fun restore(anchor: VirtualReadingAnchor): Boolean {
+        checkThread()
+        requireComponent(
+            anchor.key != ViewKey.Position,
+            "reading restoration requires an explicit key"
+        )
+        nonnegative(anchor.offset, "invalid reading offset")
+        return target?.restore(anchor) ?: false
     }
     public fun scrollToItem(
         key: ViewKey,
@@ -48,19 +60,39 @@ public class VirtualListHandle public constructor() {
             case None -> {}
         }
         target = Some(value)
+        replaceSnapshot(None)
     }
     internal fun unbind(value: VirtualListInk) {
         checkThread()
         when (target) {
-            case Some(current) -> if (current === value)
+            case Some(current) -> if (current === value) {
                 target = None
+                replaceSnapshot(None)
+            }
             case None -> {}
         }
     }
+    internal fun publish(owner: VirtualListInk, value: VirtualReadingSnapshot) {
+        checkThread()
+        when (target) {
+            case Some(current) -> if (current === owner && current.active)
+                replaceSnapshot(Some(value))
+            case None -> {}
+        }
+    }
+    private fun replaceSnapshot(value: VirtualReadingSnapshot?) {
+        if (snapshot.value != value)
+            snapshot.value = value
+    }
+}
+
+internal enum VirtualPosition {
+    Item(val alignment: ScrollAlignment), Reading(val offset: Double)
 }
 
 internal class ItemScrollRequest(
     val key: ViewKey,
-    val alignment: ScrollAlignment,
-    val revision: ULong
+    val position: VirtualPosition,
+    val revision: ULong,
+    val source: ItemSource
 )

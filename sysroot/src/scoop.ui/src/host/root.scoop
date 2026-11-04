@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.collections.sortedBy
 import scoop.graphics.Point
 import scoop.surface.*
 import scoop.window.Window
@@ -59,22 +60,16 @@ internal class UiRoot(
         if (!isOpen)
             return
         val turn = UpdateTurn()
-        val work = pending.toArray()
+        val work = pending.toArray().sortedBy<MountedNode, Long> { value -> value.depth }
         pending.clear()
         var repaint = false
         for (value in work) {
             value.queued = false
-            value.scheduled = Some(turn)
             if (value.active && value.frameEnabled)
                 repaint = true
         }
         for (value in work) {
-            if (
-                value.active &&
-                    isOpen &&
-                    !sameTurn(value.updated, turn) &&
-                    !value.hasScheduledAncestor(turn)
-            ) {
+            if (value.active && isOpen && !sameTurn(value.updated, turn)) {
                 value.rebuild(turn)
                 value.mountPending()
             }

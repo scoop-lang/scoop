@@ -80,13 +80,13 @@ internal class RevealAttempt {
     }
     fun positionItem(viewport: ScrollViewport) {
         val state = viewport.state
-        state.scrollTo(state.offset)
+        val revision = state.beginLayoutRequest()
         for (move in moves)
             if (move.viewport === viewport) {
-                move.revision = state.requestRevision
+                move.revision = revision
                 return
             }
-        moves.add(RevealMove(viewport, state, viewport.bindingRevision, state.requestRevision))
+        moves.add(RevealMove(viewport, state, viewport.bindingRevision, revision))
     }
     val isCurrent: Boolean get() {
         for (move in moves)
@@ -120,8 +120,9 @@ internal class RevealAttempt {
             if (!boundary.current)
                 return RevealProgress.Waiting
             if (boundary.needsMove(local)) {
-                boundary.state.scrollTo(boundary.layout.snapshot.revealedOffset(local))
-                remember(boundary)
+                val revision =
+                    boundary.state.position(boundary.layout.snapshot.revealedOffset(local))
+                remember(boundary, revision)
                 return RevealProgress.Moved
             }
             rect =
@@ -132,20 +133,13 @@ internal class RevealAttempt {
         else
             RevealProgress.Unavailable
     }
-    private fun remember(boundary: ScrollReveal) {
+    private fun remember(boundary: ScrollReveal, revision: ULong) {
         for (move in moves)
             if (move.viewport === boundary.viewport) {
-                move.revision = boundary.state.requestRevision
+                move.revision = revision
                 return
             }
-        moves.add(
-            RevealMove(
-                boundary.viewport,
-                boundary.state,
-                boundary.layout.binding,
-                boundary.state.requestRevision
-            )
-        )
+        moves.add(RevealMove(boundary.viewport, boundary.state, boundary.layout.binding, revision))
     }
 }
 

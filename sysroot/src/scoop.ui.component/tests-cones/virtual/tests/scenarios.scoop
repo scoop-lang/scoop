@@ -3,10 +3,15 @@ package scoop.tests.ui.virtual
 import scoop.graphics.*
 import scoop.test.*
 import scoop.tests.surface.*
+import scoop.ui.*
 import scoop.ui.style.Orientation
 import scoop.window.*
 
 internal fun advanceList(probe: ListProbe, active: ActiveApplication) {
+    if (probe.phase >= 14) {
+        advanceRtlList(probe, active)
+        return
+    }
     when (probe.phase) {
         case 0 -> {
             assertEquals(Size(160.0, 60.0), probe.scroll.viewport)
@@ -114,16 +119,11 @@ internal fun advanceList(probe: ListProbe, active: ActiveApplication) {
             assertEquals(Size(40.0, 60.0), probe.scroll.content)
             assertEquals(Point(0.0, 0.0), probe.scroll.maximum)
             assertEquals(Point(0.0, 0.0), probe.scroll.offset)
-            probe.show.value = false
+            probe.zero = Some(probe.row(0L))
+            probe.zero!!.local.value = 23
+            assertTrue(probe.zero!!.area!!.requestFocus())
+            probe.direction.value = LayoutDirection.Rtl
             probe.refresh()
-        }
-        case 14 -> {
-            probe.assertLive([])
-            assertFalse(probe.scroll.isAttached)
-            assertTrue(probe.frames!!.snapshot().paused)
-            probe.phase = 15
-            probe.ui!!.close()
-            probe.window!!.requestDestroy()
         }
         else -> fail(Some("unexpected virtual list phase"))
     }

@@ -15,6 +15,7 @@ internal class MountedNode(
     var view: View,
     val body: NodeBody
 ) {
+    val depth: Long = (parent?.depth ?: -1L) + 1L
     var layoutDirection: LayoutDirection =
         view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
     val scope = ComponentScope(this)
@@ -28,7 +29,6 @@ internal class MountedNode(
     var mounted = false
     var retired = false
     var queued = false
-    var scheduled: UpdateTurn? = None
     var updated: UpdateTurn? = None
     var dependencies: Array<StateSignal> = []
     var metrics: LayoutMetrics? = None
@@ -82,6 +82,7 @@ internal class MountedNode(
         if (!active || !root.isOpen)
             return
         updated = Some(turn)
+        val previousDirection = layoutDirection
         layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
         when (body) {
             case Empty -> {}
@@ -120,6 +121,9 @@ internal class MountedNode(
                         Some("lazy description was replaced by another shape")
                     )
                 }
+                if (layoutDirection != previousDirection)
+                    for (child in children)
+                        child.refreshDirection(turn)
                 if (active && root.isOpen && mounted)
                     instance.value.update()
             }
@@ -202,19 +206,6 @@ internal class MountedNode(
         metrics = None
         placements = []
         throwUi(failure)
-    }
-    fun hasScheduledAncestor(turn: UpdateTurn): Boolean {
-        var cursor = parent
-        while (true) {
-            when (cursor) {
-                case Some(node) -> {
-                    if (sameTurn(node.scheduled, turn) && !sameTurn(node.updated, turn))
-                        return true
-                    cursor = node.parent
-                }
-                case None -> return false
-            }
-        }
     }
 }
 

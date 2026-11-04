@@ -49,7 +49,7 @@ Row／Column 按主轴排列，spacing 与交叉轴 AxisAlignment 通过 Props �
 
 有限宽度的 Label 使用定宽段落排版，无界宽度使用 layoutUnwrapped。行内按钮需要限定宽度时，可用 Frame.width 明确指定；文本行内子项仍只测量一次，不能要求先得到所在行的剩余宽度。
 
-`scrollArea(content, state = Some(scroll), height = Some(240.0))` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。整个内容树保持挂载，offset 变化不重建其描述。
+`scrollArea(content) { state = Some(scroll); height = Some(240.0) }` 给普通内容提供垂直滚动；ScrollState 可由组件或业务 Store 持有。axes 可选 Horizontal／Vertical／Both，滚动轴没有有限父约束时须提供明确尺寸。lineStep 默认 40，链式滚动在各轴边界把未用的原始残量交给父容器，`chain = ScrollChain.Contain` 可停止交接。offset 只发布最近 Accepted 的画面位置，wheel、拖动及翻页通过 `scroll.observeIntent` 交付 User 来源；整个内容树保持挂载，滚动不重建其描述。
 
 滚动条使用当前主题，默认覆盖在视口边缘，支持拖 thumb、轨道翻页和主题可选箭头。ScrollbarVisibility.Auto／Always／Hidden 控制显示；点击条保留内容焦点，视口自身聚焦时可以用 PageUp／PageDown／Home／End。程序可用 scrollTo／scrollBy、内容局部 Rect 的 reveal，或显式 animateTo；用户滚动会取消旧平滑动画。`tests-cones/scroll` 通过真实窗口验证嵌套残量、双轴、取消、滚动条、主题切换、焦点和裁剪。
 
@@ -57,7 +57,7 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 
 已放置的内容目标通过 FocusHandle、Tab 或 KeyNavigation 聚焦时会自动显露；嵌套 ScrollArea 每次调整最近一层，等成功帧后继续外层。滚动条与 Portal 按自己的实际场景路径处理。`tests-cones/reveal` 用真实键盘和窗口覆盖这条路径、失败帧、不可显露目标、新位置请求与隐藏时取消。
 
-`virtualList(source, itemExtent = ItemExtent.Fixed(24.0), state = Some(scroll), height = Some(240.0))` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
+`virtualList(source, ItemExtent.Fixed(24.0)) { state = Some(scroll); height = Some(240.0) }` 使用 ItemSource 按需创建固定高度项，orientation 可选 Vertical／Horizontal；两轴须有界或提供明确尺寸。overscan 是视口前后额外实现的逻辑长度，默认 0。列表复用同一套滚轮、键盘、主题滚动条与视口 clip，只为可见范围、overscan 和活动交互实现条目。水平 RTL 从右侧排列，默认首屏显示逻辑首项；方向切换保留阅读 key 和已保留的条目实例，图片和文字不镜像。离开范围且无活动交互的项正常卸载，再进入时创建新实例；数据本身可以保存在外部模型。
 
 条目的焦点、按下序列和等待惯性的路由在滚出屏幕后继续有效，交互结束后恢复淘汰；真实删除不受这种保留阻止。固定范围算法、零视口和参数检查在本 Cone 测试；`tests-cones/virtual` 用一亿条的数据源验证实际构建数、Dispose、横纵轴、缩小范围以及跨帧的指针／焦点／惯性行为。`tests-cones/variable` 覆盖可变 extent、按 key 对齐、阅读锚点、FollowEnd 与失败帧。
 
@@ -74,6 +74,8 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `ItemExtent.Variable(estimate = 24.0)` 按视口逐项测量可变高度内容，允许实际高度为零。尺寸索引只保存访问过的 key，未知高度仍为估计；前方插入或测量变化时保留首个可见 key 和项内位置。`anchor = VirtualListAnchor.FollowEnd` 只在原先已到末端时跟随新增内容，向上阅读时保持阅读位置。
 
 把稳定的 `VirtualListHandle` 传给 `handle`，挂载后可调用 `handle.scrollToItem(key, ScrollAlignment.Center)`。列表用实际测量修正位置，`isPending` 在成功帧后清除；更新的普通 ScrollState 定位优先。handle 不另存 offset，ScrollState 继续用于观察位置、滚轮和滚动条。
+
+`handle.reading` 是最近 Accepted 的 `VirtualReadingSnapshot?`，包含排除 overscan 的可见半开区间、首个实际阅读项的 `VirtualReadingAnchor(key, offset)` 及 atEnd；首帧之前和解绑后为 None，读取可建立 State 依赖。保存 anchor 后可调用 `handle.restore(anchor)`，当前源不存在该 key 时返回 false。有效恢复只测量必要项，用户新请求或源替换会取消旧恢复；显式恢复不按旧索引猜另一条数据。阅读偏移沿逻辑排列方向计量，ScrollState 仍使用物理坐标。窗口测试覆盖历史 prepend、图片自然尺寸更新、恢复中断、失败帧和水平 RTL。
 
 `handle.focusItem(key, ItemFocusEdge.First)` 按需实现并定位条目，再聚焦行内首个可用 Tab 目标；Last 选择末个目标。isPending 也包含这个聚焦过程。未知 key、没有可用目标、真实删除、禁用或更新的焦点／滚动请求会结束旧等待；外层缓存的列表可以因待聚焦归属恢复布局。`tests-cones/focus-items` 检查真实按 key 聚焦与实例数量。
 

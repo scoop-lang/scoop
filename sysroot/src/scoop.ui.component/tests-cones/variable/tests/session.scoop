@@ -33,9 +33,18 @@ private class VariableListTest {
                 assertEquals(1, row.disposed)
             }
             assertTrue(probe.view!!.restored())
+            assertTrue(probe.corrections > 0)
+            assertTrue(probe.userIntents > 0)
+            assertTrue(probe.readingRenders > 1)
+            assertEquals(None, probe.observed)
+            assertFalse(probe.image.isClosed)
+            val count = probe.intents.size
+            probe.scroll.scrollTo(Point(0.0, 0.0))
+            assertEquals(count, probe.intents.size)
         } finally {
             probe.frames?.close()
             probe.view?.close()
+            probe.image.close()
         }
     }
 }
@@ -66,6 +75,14 @@ internal class VariableProbe {
     var two: VariableRecord? = None
     var oldHandle: VirtualListHandle? = None
     var savedOffset = Point(0.0, 0.0)
+    val image = Image.fromRgba(1, 1, [0.toByte(), 100.toByte(), 200.toByte(), 255.toByte()])
+    val intents = ArrayList<ScrollIntent>()
+    var corrections = 0
+    var userIntents = 0
+    var overrideRestore = false
+    var checkpoint: VirtualReadingAnchor? = None
+    var observed: VirtualReadingSnapshot? = None
+    var readingRenders = 0
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -88,21 +105,21 @@ internal class VariableProbe {
             }
             case AboutToWait -> {
                 if (
-                    phase < 18 && !waiting && committed == ticket && !frames!!.snapshot().required
+                    phase < 29 && !waiting && committed == ticket && !frames!!.snapshot().required
                 ) {
                     waiting = true
                     assertTrue(
                         active.proxy().post {
-                            _ ->
+                            owner ->
                             waiting = false
                             if (committed == ticket && !frames!!.snapshot().required)
-                                advanceVariable(this)
+                                advanceVariable(this, owner)
                         }
                     )
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 18
+                finished = phase == 29
                 active.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(

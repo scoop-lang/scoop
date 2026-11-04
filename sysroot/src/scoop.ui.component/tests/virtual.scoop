@@ -19,10 +19,10 @@ private class VirtualLayoutTest {
             )
         assertEquals(Size(180.0, 2000000000.0), exact.content)
         assertEquals(Constraints.tight(Size(180.0, 20.0)), exact.itemConstraints)
-        assertEquals(ItemRange(0L, 3L), exact.range(0.0))
-        assertEquals(ItemRange(1L, 4L), exact.range(20.0))
-        assertEquals(ItemRange(1L, 5L), exact.range(21.0))
-        assertEquals(ItemRange(99999997L, 100000000L), exact.range(1999999940.0))
+        assertEquals(VirtualRange(0L, 3L), exact.range(0.0))
+        assertEquals(VirtualRange(1L, 4L), exact.range(20.0))
+        assertEquals(VirtualRange(1L, 5L), exact.range(21.0))
+        assertEquals(VirtualRange(99999997L, 100000000L), exact.range(1999999940.0))
         assertEquals(Point(0.0, 24680.0), exact.origin(1234L))
         val extra =
             ListGeometry(
@@ -31,9 +31,9 @@ private class VirtualLayoutTest {
                 25.0,
                 size
             )
-        assertEquals(ItemRange(0L, 5L), extra.range(0.0))
-        assertEquals(ItemRange(2L, 9L), extra.range(80.0))
-        assertEquals(ItemRange(5L, 10L), extra.range(140.0))
+        assertEquals(VirtualRange(0L, 5L), extra.range(0.0))
+        assertEquals(VirtualRange(2L, 9L), extra.range(80.0))
+        assertEquals(VirtualRange(5L, 10L), extra.range(140.0))
         val large =
             ListGeometry(
                 ItemExtentIndex(10L, ItemExtent.Fixed(20.0)),
@@ -41,7 +41,7 @@ private class VirtualLayoutTest {
                 1.0e308,
                 size
             )
-        assertEquals(ItemRange(0L, 10L), large.range(80.0))
+        assertEquals(VirtualRange(0L, 10L), large.range(80.0))
     }
 
     @Test
@@ -56,7 +56,7 @@ private class VirtualLayoutTest {
         assertEquals(Size(200.0, 40.0), horizontal.content)
         assertEquals(Constraints.tight(Size(25.0, 40.0)), horizontal.itemConstraints)
         assertEquals(Point(75.0, 0.0), horizontal.origin(3L))
-        assertEquals(ItemRange(2L, 6L), horizontal.range(50.0))
+        assertEquals(VirtualRange(2L, 6L), horizontal.range(50.0))
         val empty =
             ListGeometry(
                 ItemExtentIndex(0L, ItemExtent.Fixed(20.0)),
@@ -65,7 +65,7 @@ private class VirtualLayoutTest {
                 Size(80.0, 40.0)
             )
         assertEquals(Size(80.0, 0.0), empty.content)
-        assertEquals(ItemRange(0L, 0L), empty.range(0.0))
+        assertEquals(VirtualRange(0L, 0L), empty.range(0.0))
         val zero =
             ListGeometry(
                 ItemExtentIndex(500L, ItemExtent.Fixed(20.0)),
@@ -73,7 +73,7 @@ private class VirtualLayoutTest {
                 300.0,
                 Size(80.0, 0.0)
             )
-        assertEquals(ItemRange(0L, 0L), zero.range(100.0))
+        assertEquals(VirtualRange(0L, 0L), zero.range(100.0))
     }
 
     @Test

@@ -54,18 +54,18 @@ internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event
             host.scroll.cancelAnimation()
             context.consumeScroll(host.appearance.textStyle.fontSize) {
                 amount ->
-                val before = host.scroll.offset
-                host.scroll.scrollBy(
-                    Point(
-                        -amount.x,
-                        if (host.options.multiline)
-                            -amount.y
-                        else
-                            0.0
+                val consumed =
+                    host.scroll.scrollBy(
+                        Point(
+                            -amount.x,
+                            if (host.options.multiline)
+                                -amount.y
+                            else
+                                0.0
+                        ),
+                        ScrollOrigin.User
                     )
-                )
-                val after = host.scroll.offset
-                Point(before.x - after.x, before.y - after.y)
+                Point(-consumed.x, -consumed.y)
             }
         }
         case Keyboard(key) -> {

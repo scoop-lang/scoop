@@ -34,6 +34,8 @@ internal class AreaScene(private val probe: AreaProbe): Component {
 
 private class AreaPanel(private val probe: AreaProbe, private val props: Props<Int>): Element {
     public override fun onMount(scope: ComponentScope) {
+        scope.resource { probe.outer.observeIntent { event -> probe.outerIntents.add(event) } }
+        scope.resource { probe.inner.observeIntent { event -> probe.innerIntents.add(event) } }
         scope.input.captureHandler =
             {
                 context,

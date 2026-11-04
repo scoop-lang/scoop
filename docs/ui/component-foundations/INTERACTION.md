@@ -1,6 +1,6 @@
 # 公共交互、弹层退出与阅读位置
 
-本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，I1／I2 已完成，S1 尚未实施。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
+本文属于 [控件基础设计](DESIGN.md)，规定已完成的 I1／I2／S1 合同。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
 
 ## 1. 可组合的激活行为
 
@@ -120,6 +120,8 @@ owner 在窗口仍存活时卸载，会立即取消退出动画并收束内容�
 - 观察通过现有 scope／状态订阅模式管理，不建立全局事件总线。普通 ScrollState 方法保留明确的调用含义，内部修正不借用公开滚动操作制造虚假意图。
 
 VirtualListHandle 提供最后已提交的阅读快照，包括可见范围、首个实际阅读项的稳定 key、项内逻辑偏移和 atEnd。首帧之前没有快照；快照是值，不暴露内部 MountedNode、Canvas 或借用排版。
+
+ScrollState 的请求与画面快照分开：scrollBy 返回按最近范围收敛的请求位移，嵌套 wheel 用它计算残量；offset 只随 Accepted 更新。水平虚拟列表按 LayoutDirection 排列，ScrollState 保留物理偏移，阅读锚点从逻辑起点计量；切换方向保留阅读 key，默认首屏位于逻辑起点。
 
 补充按阅读锚点恢复的请求：key 仍存在时，先按现有 extent 估计定位，再按真实测量修正项内偏移；key 不存在时返回明确未找到，交由控件决定回退，不能悄悄用旧 index 指向另一条数据。用户新请求、关闭或数据源替换取消旧恢复。只修正必要项，不为了恢复位置预先测量整张列表。
 

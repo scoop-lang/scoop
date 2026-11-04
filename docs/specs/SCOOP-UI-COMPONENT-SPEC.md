@@ -293,11 +293,19 @@ ItemExtent.Fixed(value) 要求有限正值，按 count × value 计算总长，�
 
 布局以本帧 snapshot.offset 为内容原点，在 Double 中计算条目前缀减去原点后的放置位置，并通过 ScrollViewport.present 的 contentOrigin 呈现。完整前缀、范围和阅读锚点仍使用逻辑内容坐标；可见条目的绘制、输入与锚点几何保持在视口附近，一亿项等超长列表不会因图形后端的巨大平移相消丢失局部位置。
 
+水平列表按继承的 LayoutDirection 排列，RTL 的第一项位于逻辑起点即物理右侧，条目绘图不镜像；不足一屏的内容也在逻辑起点对齐。ScrollState.offset 仍是从物理左侧计量的偏移，阅读锚点则使用逻辑排列方向。默认零位置首次呈现从逻辑首项开始；非零构造位置或显式 scrollTo 等请求按物理位置处理。方向热切换按稳定 key 保持阅读位置，重新测量依赖方向的条目，不重新创建同一 key。scrollToItem 的 Start／End 和横向 PageUp／PageDown／Home／End 按逻辑起终点解析，wheel 与滚动条继续使用物理位移。
+
 KeepVisible 记录最近 Accepted 帧中首个可见 key 及项内偏移。前方插入／删除或尺寸变化时，使用当前尺寸索引保持该 key 的阅读位置；key 被删除则使用原索引附近的存活项。项缩小时收敛项内偏移。FollowEnd 仅在最近成功位置已处于末端时保持新末端，否则沿 KeepVisible；初始定位及较新的 scrollTo／wheel／动画意图优先，不能被旧阅读锚点覆盖。Discarded 不替换阅读锚点。
 
 VirtualListHandle 是对一个挂载列表的稳定线程内引用，提供 isAttached、isPending 和 scrollToItem(key, alignment = Nearest)。key 必须显式，未挂载返回 false；true 表示请求已接收，key 在下一布局中解析，不存在时结束请求。请求先使 ScrollState 停止旧动画并登记新的定位意图，再按估计前缀定位并测量目标，以实际尺寸修正；一次布局不重复测量同一项，需要补足范围时请求后续帧，Accepted 后结束。更新的列表请求或普通 ScrollState 定位、handle／state 替换及卸载使旧请求失效。一个 handle 不能同时绑定两个活动列表。
 
 handle 另提供 `focusItem(key, edge = ItemFocusEdge.First)`，通过 UI 的 LazyFocus 按需实现并定位 key，再聚焦行内首／末个可用 Tab 目标。isPending 包括当前滚动定位或聚焦请求。它先停止旧动画与定位，后续具体目标的显露继续复用同一 ScrollState；新 focusItem、普通 FocusHandle 请求、显式滚动、handle／state 替换、禁用及卸载使旧请求失效。未知 key 或没有可用目标结束请求，真实删除在隐藏状态下也取消；已有有效区域焦点不因取消而主动清除。此接口不要求提前取得未挂载项的 FocusHandle。
+
+`VirtualListHandle.reading: VirtualReadingSnapshot?` 返回最近 Accepted 的可观察值，首帧之前及解绑后为 None。`VirtualReadingSnapshot(visible: VirtualRange, anchor: VirtualReadingAnchor?, atEnd: Boolean)` 的 visible 为排除 overscan 的逻辑索引半开区间 `VirtualRange(start, end)`；anchor 为首个实际阅读项的 `VirtualReadingAnchor(key, offset)`，offset 从该项的逻辑起点计量。空数据、零视口或没有实际可见长度时 anchor 为 None，visible 为空。快照不持有 MountedNode、排版或 Canvas；较新请求尚未呈现时仍保留最后画面位置，Discarded 不更新。
+
+`handle.restore(anchor): Boolean` 按稳定 key 和项内偏移恢复阅读位置。key 须显式，offset 须有限且非负；未挂载或当前数据源不存在该 key 时返回 false，不用旧索引替代，也不发起定位。有效请求登记 Programmatic 意图，以 extent 估计定位、按需测量目标及视口、按实际尺寸收敛项内偏移；Accepted 后结束。更新的请求、handle／state 替换、源对象替换或卸载取消旧恢复。已有 KeepVisible 在删除锚点后的相邻项回退只服务自动保持位置，不用于显式 restore。
+
+ScrollArea／VirtualList 的 wheel、滚动条按下／拖动和键盘翻页使用 User 来源，即使到达边界也可观察；普通公开定位和焦点自动显露使用 Programmatic。布局保持锚点、prepend、图片等内容重新测量产生的位移只在 Accepted 后通知 LayoutCorrection，沿用原请求序号。观察由调用方通过 ScrollState 登记并随 scope 关闭，不把聊天、未读或会话跟随策略加入控件。
 
 navigation 使用 UI 的 ItemNavigation，默认 None。Sequential 按数据顺序访问行内各个有效 Tab 目标，跨过行尾才按需准备下一行；`Roving(direction = None, loop = false)` 让列表只占一个条目 Tab 停靠点，方向键和 Home／End 切换实际行目标。导航轴来自 orientation，条目入口顺序来自 focus.order。两种模式均关闭视口自身独立的 Tab 停靠点，保留其显式 FocusHandle 和鼠标／程序聚焦用途；空列表没有虚拟条目停靠点。focus.tabStop 在 None 模式下仍只控制视口自身。键盘导航不选择或激活数据，具体菜单／表格语义由组合控件实现。
 

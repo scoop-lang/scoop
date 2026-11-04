@@ -51,16 +51,16 @@ private class VirtualExtentTest {
         index.record(2L, 0.0)
         val geometry = ListGeometry(index, Orientation.Vertical, 0.0, Size(80.0, 15.0))
         assertEquals(Constraints(minWidth = 80.0, maxWidth = Some(80.0)), geometry.itemConstraints)
-        assertEquals(ItemRange(1L, 2L), geometry.range(0.0))
-        assertEquals(ItemRange(3L, 4L), geometry.range(15.0))
+        assertEquals(VirtualRange(1L, 2L), geometry.range(0.0))
+        assertEquals(VirtualRange(3L, 4L), geometry.range(15.0))
         assertEquals(Point(0.0, 15.0), geometry.origin(3L))
         assertEquals(Rect(0.0, 15.0, 80.0, 10.0), geometry.bounds(3L))
         index.record(1L, 0.0)
         index.record(3L, 0.0)
         assertEquals(0.0, index.total)
-        assertEquals(ItemRange(4L, 4L), geometry.range(0.0))
+        assertEquals(VirtualRange(4L, 4L), geometry.range(0.0))
         index.record(2L, 8.0)
-        assertEquals(ItemRange(2L, 3L), geometry.range(0.0))
+        assertEquals(VirtualRange(2L, 3L), geometry.range(0.0))
     }
 
     @Test

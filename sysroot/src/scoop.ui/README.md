@@ -55,7 +55,9 @@ open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHa
 
 无状态失效、显式帧请求或活动动画时，框架不遍历树、不投递空任务；Surface 停止请求原生帧。动画通过 Surface 同一时间轴采样，直接参与本帧测量与绘制，不逐帧重跑未失效的 render。
 
-`ScrollState` 保存可观察的 offset、viewport、content 和 maximum，支持 scrollTo／scrollBy／reveal。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`；成功提交才发布范围，被丢弃帧不覆盖旧结果。一个 State 同时只能绑定一个视口，登记可以整体替换 state，关闭立即解绑，业务 State 保留最后位置。
+`ScrollState` 保存最近 Accepted 的 offset、viewport、content 和 maximum，hasSnapshot 区分首个成功帧前的零值。scrollTo／scrollBy／reveal 立即登记请求，画面快照等成功呈现后更新；scrollBy 返回按最近范围收敛的请求位移，供嵌套 wheel 计算残量，连续请求在尚未呈现的目标上累积。自绘容器在 onMount 登记 `scope.scrollViewport(state)`，在 measure 调用其 `layout(viewport, content)` 取得本帧快照，在自己的 scene 调用 `present(context)`。被丢弃帧不覆盖旧结果，成功帧也不会吞掉期间发出的新请求。一个 State 同时只能绑定一个视口，关闭立即解绑，业务 State 保留最后位置。
+
+定位方法的 origin 默认为 `ScrollOrigin.Programmatic`，输入行为使用 User。`scope.resource { scroll.observeIntent { event -> ... } }` 观察带 requestRevision 的 User／Programmatic／LayoutCorrection：用户在边界滚动仍有意图通知，自动保持阅读位置只在 Accepted 后通知修正。订阅可独立关闭，回调内新请求优先；不用全局事件总线。
 
 呈现滚动内容时使用 `viewport.present(context, Some { content -> content.children() })`。内容回调自动获得统一的视口 clip 和负 offset 平移，也登记实际滚动路径；滚动条或固定装饰在回调外绘制。省略回调只发布布局。焦点显露按同一成功帧的几何从内向外进行，每次只调整一层并等待提交；Portal 在层出口建立自己的场景路径。更新的焦点或已调整视口上的滚动请求会取消旧显露，隐藏时等待正常恢复。
 
@@ -113,7 +115,7 @@ OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay
 
 UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；text Cone 通过框架公开 API 验证富文本、固定尺寸图片、自然尺寸交互子项、动画重排、截断／恢复、RTL 和内部 key 更换。固定字体由 [text-fonts 测试数据 Cone](../scoop.graphics.text/tests/data/FONTS.md) 提供，不加入生产默认字体。
 
-自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
+自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。按 key 主动定位先用 `beginLayoutRequest()` 登记请求，通知返回后检查返回的 revision 仍为最新，再保存待布局解析的目标；数据变化后的自动修正沿用已有 revision。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
 
 输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。
 

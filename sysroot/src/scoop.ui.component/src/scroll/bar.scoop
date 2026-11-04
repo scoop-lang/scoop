@@ -174,7 +174,6 @@ internal class ScrollBarControl(
                 val part = scrollbarPart(shape, point) ?: return
                 if (part == ScrollbarRegion.Thumb)
                     return
-                currentState.cancelAnimation()
                 pressed = Some(part)
                 when (part) {
                     case Thumb -> return
@@ -237,7 +236,6 @@ internal class ScrollBarControl(
                             return
                         }
                     }
-                currentState.cancelAnimation()
                 pressed = Some(ScrollbarRegion.Thumb)
                 val origin = Point(shape.thumb.bounds.x, shape.thumb.bounds.y)
                 grab =
@@ -250,6 +248,7 @@ internal class ScrollBarControl(
                     else
                         0.0
                 changed()
+                currentState.beginLayoutRequest(ScrollOrigin.User)
             }
             case Moved(value) -> dragTo(value.position)
             case Ended(value) -> {
@@ -280,7 +279,8 @@ internal class ScrollBarControl(
             if (orientation == Orientation.Horizontal)
                 Point(destination, offset.y)
             else
-                Point(offset.x, destination)
+                Point(offset.x, destination),
+            ScrollOrigin.User
         )
     }
     private fun moveBy(distance: Double) {
@@ -288,7 +288,8 @@ internal class ScrollBarControl(
             if (orientation == Orientation.Horizontal)
                 Point(distance, 0.0)
             else
-                Point(0.0, distance)
+                Point(0.0, distance),
+            ScrollOrigin.User
         )
     }
 }

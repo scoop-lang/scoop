@@ -274,7 +274,7 @@ key 的有效范围仅为直接父级，不是全局 ID；移动到另一父级�
 
 ## 6. 重建、布局与呈现
 
-State 变化合并到 owner 上的 UI 工作队列。事件／业务回调退出后，经现有 ApplicationProxy 投递处理；不在活动输入派发、render、layout 或 paint 内递归重建。祖先和后代同时失效时，由祖先处理同轮子描述，并避免重复执行后代 render。没有排队更新时不投递任务，也不在 AboutToWait 遍历树。
+State 变化合并到 owner 上的 UI 工作队列。事件／业务回调退出后，经现有 ApplicationProxy 投递处理；不在活动输入派发、render、layout 或 paint 内递归重建。祖先和后代同时失效时，先处理祖先，已被该轮协调实际更新的后代不重复 render；未访问的失效后代仍须完成自身更新，不能因祖先复用 lazy 数据源或同一 View 而丢失通知，也不依赖失效入队顺序。没有排队更新时不投递任务，也不在 AboutToWait 遍历树。
 
 UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
@@ -564,11 +564,13 @@ ModalOptions 为 initialFocus=None、restoreFocus=true。一次实际打开建�
 
 ### 7.7 滚动状态与视口登记
 
-`ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回 `ScrollSnapshot(offset: Point, viewport: Size, content: Size)`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
+`ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回最近 Accepted 的 `ScrollSnapshot(offset: Point, viewport: Size, content: Size)`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，hasSnapshot 区分首个 Accepted 前的零值，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
 
-`scrollTo(Point)`、`scrollBy(Point)` 和 `reveal(Rect, horizontal = Nearest, vertical = Nearest)` 更新位置意图。ScrollAlignment 支持 Nearest／Start／Center／End，Rect 使用内容局部坐标；Nearest 对已完整可见或已包含视口的超大目标保持原位置。范围未建立前 offset／extent 为零，构造位置、绝对定位和 reveal 延迟到首个成功布局；此时 scrollBy 在已有位置意图上累加。范围改变时位置收敛；State 脱离视口后保留最后结果供再次挂载。
+`scrollTo(Point, origin = Programmatic)`、`scrollBy(Point, origin = Programmatic)` 和 `reveal(Rect, horizontal = Nearest, vertical = Nearest, origin = Programmatic)` 更新位置意图，origin 的类型为 `ScrollOrigin.User／Programmatic`。请求立即生效并安排帧，但不提前改写可观察的 snapshot。ScrollAlignment 支持 Nearest／Start／Center／End，Rect 使用物理内容局部坐标；Nearest 对已完整可见或已包含视口的超大目标保持原位置。范围未建立前 offset／extent 为零，构造位置、绝对定位和 reveal 延迟到首个成功布局；scrollBy 在当前尚未呈现的位置请求上累加，活动动画则从最后 Accepted 位置接管。它返回本次按最近已知范围收敛的实际请求位移，供 wheel 计算残量；首个范围之前返回零，不把尚未呈现的位置作为画面快照。范围改变时位置收敛；State 脱离视口后保留最后结果供再次挂载。
 
-`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先，按新范围收敛并请求必要的下一帧，旧位置不得覆盖它。
+`observeIntent(handler: (ScrollIntent) -> Unit): Closeable` 登记线程内观察，通常经 `ComponentScope.resource` 管理；独立 close 后不再通知。ScrollIntent 为 `User(requestRevision)`、`Programmatic(requestRevision)`、`LayoutCorrection(requestRevision)`，并提供统一的 requestRevision 读取。前两种在实际请求时交付，即使已经到达边界；布局保持阅读锚点或范围收敛引起的位移在 Accepted 后交付 LayoutCorrection，不推进意图序号。仅尺寸改变、动画采样及一个新定位请求的首次呈现不伪造布局修正。登记和关闭遵守 owner 线程及纯度约束；同一次通知使用订阅快照，关闭立即生效，回调中的新请求依发生顺序继续交付。回调可以关闭挂载或发起更新的请求，旧动作不得随后覆盖它；通知异常不撤销已经生效的位置请求。
+
+`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
 
 present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
@@ -576,9 +578,9 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
 
-`animateTo(Point, AnimationSpec)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
+`animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
-布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、动画定位及取消活动动画推进序号，范围发布不推进。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
+布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。`ScrollState.beginLayoutRequest(origin = Programmatic): ULong` 为这些尚需布局解析的主动定位登记一次新意图，停止旧动画并保留 Accepted 位置作为基点，返回该请求的序号；调用方在通知返回后检查它仍为最新，再保存待解析目标。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、beginLayoutRequest、动画定位及取消活动动画推进序号，范围发布不推进。hasPositionRequest 查询是否已经登记构造或主动位置请求，同样不建立订阅；默认零构造位置尚未登记显式请求，非零构造位置已登记请求。不得依赖序号的具体数值或增量。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
 
 上述位置写操作遵守 State 的纯度约束，render／measure／scene／draw 中拒绝调用；present 仍只用于当前场景登记。几何和位移须有限，尺寸须非负，派生坐标溢出按普通参数错误报告。ScrollAxes 的 Horizontal／Vertical／Both 提供公开 horizontal／vertical 查询，供容器选择约束和交互轴；具体 ScrollArea 布局、滚动条与默认 lineStep 属于独立控件库。按需子项与实例保留见第 7.8 节，虚拟导航见第 7.8.2 节，绘制缓存按后续批次扩展。
 
@@ -634,7 +636,7 @@ Roving 的方向键和 Home／End 只在事件仍未消费且当前焦点正是�
 
 LayoutDirection 为 Ltr／Rtl。`direction(content: View, value: LayoutDirection, key = Position): View` 创建一个透明的单内容方向作用域；根缺省 Ltr，其他节点沿逻辑挂载父级继承，portal 在窗口出口呈现时仍继承逻辑祖先。它不读取系统 locale，不改变子项 key、Tab 顺序或绘制内容自身的变换。
 
-ComponentScope、MeasureContext、LazyMeasureContext 和 SceneContext 的 `layoutDirection` 读取当前有效方向；context getter 沿用同步借用期限，scope getter 沿用挂载检查。`LayoutDirection.textDirection()` 显式转换为 graphics.text.TextDirection。只改变方向时更新继承节点并请求布局，Element／LazyElement 重新 update，Component 可重新 render；不卸载实例、重建输入区域或丢弃编辑状态。纯方向传播遇到已有明确覆盖即停止；真实 Props／content 变化仍执行普通协调。该专门机制不改变 Context 的挂载时绑定合同，也不建立任意动态环境框架。
+ComponentScope、MeasureContext、LazyMeasureContext 和 SceneContext 的 `layoutDirection` 读取当前有效方向；context getter 沿用同步借用期限，scope getter 沿用挂载检查。`LayoutDirection.textDirection()` 显式转换为 graphics.text.TextDirection。只改变方向时更新继承节点并请求布局，Element／LazyElement 重新 update，Component 可重新 render；不卸载实例、重建输入区域或丢弃编辑状态。方向随普通 Props 协调一同改变时，同样传播到保留的 lazy 条目，即使 ItemSource 身份未变。纯方向传播遇到已有明确覆盖即停止；真实 Props／content 变化仍执行普通协调。该专门机制不改变 Context 的挂载时绑定合同，也不建立任意动态环境框架。
 
 方向只影响逻辑几何：水平布局从逻辑起边排列，纵向布局的交叉轴 Start／End 按方向解析。物理 Left／Right 不变；Canvas、图片、Path 和文字不整体镜像。NavigationOptions／ItemNavigation.Roving 的 None 方向在事件时读取所属挂载的有效值，显式值覆盖；方向改变不替换导航登记或焦点 handle。
 

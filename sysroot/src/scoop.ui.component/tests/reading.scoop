@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.Orientation
+
+@Test
+private class VirtualReadingGeometryTest {
+    @Test
+    fun `horizontal RTL keeps physical offsets and logical ranges distinct including short content`() {
+        val index = ItemExtentIndex(10L, ItemExtent.Fixed(20.0))
+        val geometry =
+            ListGeometry(index, Orientation.Horizontal, 20.0, Size(60.0, 40.0), LayoutDirection.Rtl)
+        assertEquals(Point(180.0, 0.0), geometry.origin(0L))
+        assertEquals(Point(0.0, 0.0), geometry.origin(9L))
+        assertEquals(Point(140.0, 0.0), geometry.scrollOffset(0.0))
+        assertEquals(25.0, geometry.logicalOffset(Point(115.0, 0.0)))
+        assertEquals(VirtualRange(1L, 5L), geometry.visibleRange(25.0))
+        assertEquals(VirtualRange(0L, 6L), geometry.range(25.0))
+        val snapshot = ScrollSnapshot(Point(140.0, 0.0), Size(60.0, 40.0), Size(200.0, 40.0))
+        assertEquals(Point(80.0, 0.0), geometry.alignedOffset(snapshot, 3L, ScrollAlignment.Start))
+        assertEquals(Point(120.0, 0.0), geometry.alignedOffset(snapshot, 3L, ScrollAlignment.End))
+        assertEquals(
+            Point(100.0, 0.0),
+            geometry.alignedOffset(snapshot, 3L, ScrollAlignment.Center)
+        )
+        assertEquals(
+            Point(120.0, 0.0),
+            geometry.alignedOffset(snapshot, 3L, ScrollAlignment.Nearest)
+        )
+        val short =
+            ListGeometry(
+                ItemExtentIndex(2L, ItemExtent.Fixed(20.0)),
+                Orientation.Horizontal,
+                0.0,
+                Size(100.0, 40.0),
+                LayoutDirection.Rtl
+            )
+        assertEquals(Point(80.0, 0.0), short.origin(0L))
+        assertEquals(Point(60.0, 0.0), short.origin(1L))
+        assertEquals(0.0, short.maximum)
+        assertEquals(VirtualRange(0L, 2L), short.visibleRange(0.0))
+    }
+
+    @Test
+    fun `visible ranges omit overscan and zero length items while direction invalidates measured estimates`() {
+        val source = ReadingSource()
+        val measurements = VirtualMeasurements()
+        val first =
+            measurements.prepare(
+                source,
+                source.count,
+                ItemExtent.Variable(20.0),
+                Orientation.Vertical,
+                100.0
+            )
+        measurements.record(0L, 0.0)
+        measurements.record(1L, 50.0)
+        val geometry = ListGeometry(first, Orientation.Vertical, 30.0, Size(100.0, 40.0))
+        assertEquals(VirtualRange(1L, 3L), geometry.visibleRange(15.0))
+        assertEquals(VirtualRange(1L, 4L), geometry.range(15.0))
+        val same =
+            measurements.prepare(
+                source,
+                source.count,
+                ItemExtent.Variable(20.0),
+                Orientation.Vertical,
+                100.0
+            )
+        assertSame(first, same)
+        val flipped =
+            measurements.prepare(
+                source,
+                source.count,
+                ItemExtent.Variable(20.0),
+                Orientation.Vertical,
+                100.0,
+                LayoutDirection.Rtl
+            )
+        assertNotSame(first, flipped)
+        assertEquals(20.0, flipped.extent(1L))
+        val zero = ListGeometry(first, Orientation.Vertical, 20.0, Size(0.0, 40.0))
+        assertEquals(VirtualRange(0L, 0L), zero.visibleRange(0.0))
+    }
+
+    @Test
+    fun `detached handles have no reading snapshot and restoration validates explicit anchors`() {
+        val handle = VirtualListHandle()
+        assertEquals(None, handle.reading)
+        assertFalse(handle.restore(VirtualReadingAnchor(ViewKey.Number(9L), 4.0)))
+        assertFailsWith<IllegalArgumentException> {
+            handle.restore(VirtualReadingAnchor(ViewKey.Position, 0.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            handle.restore(VirtualReadingAnchor(ViewKey.Number(9L), -1.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            handle.restore(VirtualReadingAnchor(ViewKey.Number(9L), 1.0 / 0.0))
+        }
+    }
+}
+
+private class ReadingSource: ItemSource {
+    public override val count: Long get() = 5L
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(value) -> if (value >= 0L && value < count)
+                Some(value)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View = empty()
+}

@@ -212,13 +212,11 @@ internal fun editorDragTick(host: TextEditHost) {
             host.window.isOccluded
     )
         return
-    val before = host.scroll.offset
-    host.scroll.scrollBy(editorDragDelta(host, drag))
-    val after = host.scroll.offset
-    if (before == after)
+    val consumed = host.scroll.scrollBy(editorDragDelta(host, drag), ScrollOrigin.User)
+    if (consumed == Point(0.0, 0.0) || host.closed || !host.scope.isMounted)
         return
     drag.waiting = true
-    editorUpdateDrag(host, drag, Point(after.x - before.x, after.y - before.y))
+    editorUpdateDrag(host, drag, consumed)
 }
 
 internal fun editorDragAccepted(host: TextEditHost) {
