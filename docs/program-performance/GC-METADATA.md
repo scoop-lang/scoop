@@ -1,6 +1,6 @@
 # 紧凑 GC 元数据设计
 
-状态：实施中。调研基线为 2026 年 11 月的 runtime contract 33、metadata ABI 10；编译器和 runtime 已接通 contract 34／metadata ABI 11，Darwin AArch64 的 GC 与混合 profile 产物专项通过，UI 体积及其他目标正在验收。
+状态：已实现并完成本项验收（2026-11-05）。调研基线为 runtime contract 33、metadata ABI 10；编译器和 runtime 现使用 contract 34／metadata ABI 11。Darwin 两种架构、Linux GNU／musl AMD64 及三种 Windows AMD64 native environments 的定向正确性验证通过；Darwin AArch64 的 UI 文件实测缩小 39.9%／43.5%，空间、运行与构建结果见第 11 节。
 
 本项将 LLVM 的通用 stackmap 转换为 Scoop 的紧凑机器根表，并通过已有 callable 登记引用该表，取消独立的逐 safepoint 运行时登记。完整类型化身份继续保存在编译产物中，程序链接负责所选定义的身份与 ODR 关系；runtime 按实际 PC 和根位置扫描。第一版采用 4 字节定长根位置、函数内布局共享和轻量 PC 索引。
 
@@ -284,11 +284,11 @@ compiler、runtime、系统库及含机器正文的 `.slib` 需要配套重建�
 
 跨函数字典、整段压缩、位图和减少 safepoint／根生命周期不进入本次交付。后者改变的是代码生成和活跃性问题，应有独立的具体需求与设计。
 
-## 11 调研记录
+## 11 调研与实施记录
 
 2026 年 11 月 5 日的原始解析、编码脚本、C 交叉核对和布局推算保存在仓库外的本机临时目录 `/var/folders/6k/02kz7z0s7nxc1m0gg3xj99c40000gn/T/scoop-gc-metadata-zz59jyea/`，主要结果为 `summary.json`、`c-parser-results.json` 和 `design-layout-results.json`。临时文件不承担设计有效性的前提；可复核的字段、布局、样本位置和计算口径已在本文保留。
 
-本文件只保存设计与必要结果概要，完整日志、逐次 JSON、可执行文件和压缩数据不进入仓库。正式实现后以相同口径追加简短的验收结果，替换未实现状态。
+本文件只保存设计与必要结果概要，完整日志、逐次 JSON、可执行文件和压缩数据不进入仓库。下列实现记录沿用设计阶段的配对口径，区分实际文件、运行观测与测试覆盖范围。
 
 ### 11.1 首轮实现验证
 
@@ -337,3 +337,23 @@ RSS 包含映像、UI 与其他进程分配，不等同于单独 GC 索引；PC 
 | 原请求缓存命中 | 0.0083 | 0.0086 |
 
 缓存命中的子编译调用为空，root 指纹保持，源码、工具和原产物始终存在。该测量覆盖小型实际 consumer，不代表完整 UI 冷构建或系统库重建时间；未以 debug Rust CLI 的构建耗时与 release CLI 作比较。
+
+### 11.4 跨目标正确性与收尾
+
+各目标显式准备新版 runtime 及相应系统库后，使用正式 CLI 构建和运行。下表的 fixture 数只统计本项选中的 GC 用例；除 Darwin AArch64 外均为按 frame／EH／容器差异选择的定向验证，不代表该平台全部 fixtures 已运行。
+
+| 完整 target | GC fixtures／变体 | 主要覆盖 |
+| --- | ---: | --- |
+| `aarch64-apple-darwin` | 71／150 | 完整适用 GC 专项；另有 ODR selection、coroutine mixed profiles 的 4 个变体 |
+| `x86_64-apple-darwin` | 4／18 | Rosetta 运行；接口根、协程跨挂起与异常、moving GC 回写 |
+| `x86_64-unknown-linux-gnu` | 5／20 | 接口根、协程挂起与异常、深帧、moving GC 回写 |
+| `x86_64-unknown-linux-musl` | 6／21 | GNU 项目的对应路径及 musl static PIE 深帧 |
+| `x86_64-pc-windows-msvc-ucrt` | 1／2 | debug／release 协程异常路径与 moving GC |
+| `x86_64-w64-windows-llvm-mingw-msvcrt` | 1／2 | debug／release 协程异常路径与 moving GC |
+| `x86_64-w64-windows-llvm-mingw-ucrt` | 1／2 | debug／release 协程异常路径与 moving GC |
+
+Linux 的 runtime C 与真实机器帧专项另覆盖 GNU dynamic、musl static／static PIE、O0／O2、实际根槽搬迁回写及 sret。Windows 的真实帧专项在三种 native environments 的 O0／O2 下通过，配套 LLVM 的 WinEH 精确 PC 项通过；PE 专项同时覆盖 LLVM／微软链接器、三种运行库、只读 GC 数据、映像边界、启动与 PDB。
+
+Darwin AMD64 的协程异常用例暴露了重排 Mach-O section 时遗漏 linker data 载荷的问题。转换器现保留并重定位 `LC_DATA_IN_CODE` 与 `LC_LINKER_OPTIMIZATION_HINT` 的文件载荷及命令偏移，原代码地址保持；触发问题的 debug／release 用例复验通过。Linux ELF 映像 C fixture 已迁移到新的 code-range API 并重新编译运行。系统库准备与测试工具路径的缺项也已补齐，上述验收没有未闭合的失败。
+
+本项不含其他目标的 UI 体积或性能数据，也不将 Rosetta 结果作为原生 Intel 性能结论。旧 runtime、系统库与 `.slib` 必须按新版本重建；实际 cache key／产物版本随合同更新，无旧格式并行消费者。完整原始记录保留在仓库外，各轮不再需要的构建缓存、测试程序和临时 sysroot 在验收后清理。
