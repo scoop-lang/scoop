@@ -13,9 +13,10 @@ private class DarwinQueuedFileTest {
             tree ->
             val path = tree.child("data")
             path.writeText("data")
-            val backend = PlatformEventLoop()
-            backend.run suspend {
-                scope -> backend.openFile(path).useAsync suspend {
+            val backend = eventLoop()
+            backend.run {
+                val scope = this;
+                backend.openFile(path).useAsync suspend {
                     file ->
                     val fence = WorkFence(backend)
                     fence.start()

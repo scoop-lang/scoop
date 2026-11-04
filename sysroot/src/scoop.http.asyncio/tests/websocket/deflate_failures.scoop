@@ -111,9 +111,10 @@ private class AsyncWebSocketDeflateFailureTests {
 
     @Test
     fun `local encoding window eight is rejected before ownership while receiving window eight is allowed`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> for (role in [HttpRole.Client, HttpRole.Server]) {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            for (role in [HttpRole.Client, HttpRole.Server]) {
                 val(a, b) = rawPair(loop, scope)
                 val parameters =
                     if (role == HttpRole.Client)

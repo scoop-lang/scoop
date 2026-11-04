@@ -12,9 +12,9 @@ private class AsyncPipeControlTest {
             tree ->
             val fifo = tree.child("fifo")
             makeFifo(fifo)
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(fifo, OpenOptions(write = true)).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(fifo, OpenOptions(write = true)).useAsync suspend {
                     file ->
                     assertTrue(file.metadata().kind == FileKind.Fifo)
                     try {

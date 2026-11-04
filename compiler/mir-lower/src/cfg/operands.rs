@@ -92,6 +92,7 @@ fn emits_cfg(expr: &smir::Expr) -> bool {
         ExprKind::StringByte(operation) => operation.operands().any(emits_cfg),
         ExprKind::Call(_)
         | ExprKind::CoroutineSuspend { .. }
+        | ExprKind::CoroutineYield
         | ExprKind::ClassNew { .. }
         | ExprKind::ShortCircuit { .. }
         | ExprKind::Unreachable
@@ -99,7 +100,7 @@ fn emits_cfg(expr: &smir::Expr) -> bool {
         ExprKind::MaybeUninit { operation, .. } => {
             operation.operand().is_some_and(|value| emits_cfg(value))
         }
-        ExprKind::Context(operation) => operation.operand().is_some_and(emits_cfg),
+        ExprKind::Context(operation) => operation.operands().any(emits_cfg),
         ExprKind::DataBorrow(operation) => emits_cfg(&operation.operand),
         ExprKind::Atomic(atomic) => atomic.operands().any(emits_cfg),
         ExprKind::TupleLiteral(values)

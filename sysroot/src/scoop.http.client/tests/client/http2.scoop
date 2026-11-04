@@ -12,9 +12,10 @@ private class HttpClientHttp2Test {
     fun `HTTP2 duplex keeps uploading after execute returns and consumes trailers`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serverDone = BodyTestGate()
                     val serving =

@@ -11,8 +11,7 @@ import scoop.url.Url
 
 internal fun cacheDiskNetwork(trust: TrustStore, url: Url, directory: Path) {
     val clock = CacheClock()
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val first = DiskHttpCache.open(directory)
         withHttpClient(cacheConfig(trust, first, clock, Some("persistent"))) suspend {
             client -> cacheGet(client, url, "on-disk", HttpCacheStatus.Network)
@@ -38,8 +37,8 @@ internal fun cacheCookies(trust: TrustStore, url: Url) {
     val storage = MemoryHttpCache()
     val clock = CacheClock()
     val jar = CacheCookieObserver()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(cacheConfig(trust, storage, clock, jar = Some(jar))) suspend {
+    eventLoop().run {
+        withHttpClient(cacheConfig(trust, storage, clock, jar = Some(jar))) suspend {
             client ->
             cacheGet(client, url, "original", HttpCacheStatus.Network)
             clock.advance(10L)
@@ -59,8 +58,8 @@ internal fun cacheDigest(trust: TrustStore, url: Url) {
             credentials = suspend { _ -> HttpPasswordCredentials("Mufasa", "Circle of Life") }
         )
     val storage = MemoryHttpCache()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(
+    eventLoop().run {
+        withHttpClient(
             cacheConfig(
                 trust,
                 storage,

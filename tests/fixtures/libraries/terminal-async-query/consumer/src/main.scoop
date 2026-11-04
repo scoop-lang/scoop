@@ -10,9 +10,10 @@ import scoop.terminal.screen.SetTitle
 import scoop.time.Duration
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> AsyncTerminalSession.open(loop).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        AsyncTerminalSession.open(loop).useAsync suspend {
             session ->
             @Unsafe
             {

@@ -10,9 +10,9 @@ import scoop.tls.*
 private class AsyncTlsCancellationTests {
     @Test
     fun `cancellation waits for close and releases borrows before resuming`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, clientRaw, serverRaw)
             val buffer = NativeByteBuffer.allocate(1L)
@@ -66,9 +66,9 @@ private class AsyncTlsCancellationTests {
 
     @Test
     fun `cancellation also drains an in-flight transport flush`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, a, b)
             a.flushGate = Some(AsyncGate())
@@ -98,9 +98,9 @@ private class AsyncTlsCancellationTests {
 
     @Test
     fun `pre-cancelled handshake and invalid peer retain caller ownership`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val context = clientContext(TlsOptions())
             try {
@@ -138,9 +138,9 @@ private class AsyncTlsCancellationTests {
 
     @Test
     fun `accepted write prefix and both failures survive asynchronous cleanup`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, clientRaw, serverRaw)
             val buffer = NativeByteBuffer.allocate(5L)

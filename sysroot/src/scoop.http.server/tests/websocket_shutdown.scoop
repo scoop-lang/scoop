@@ -78,8 +78,7 @@ private class ServerWebSocketShutdownTests {
                                             never.await()
                                         }
                                         finally {
-                                            nonCancellableScope<Unit> suspend {
-                                                _ ->
+                                            nonCancellableScope<Unit> {
                                                 cleaning.signal();
                                                 release.await()
                                             }

@@ -45,9 +45,9 @@ private fun runAuthWs(mode: String, port: Int) {
     val websocket = target.copy { scheme = Some("ws") }
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val probe =
                 WsAuthProbe(
                     loop,

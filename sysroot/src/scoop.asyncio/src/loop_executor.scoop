@@ -1,0 +1,147 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingTaskPool
+
+// User execution is separate from the owner's I/O commands and cleanup callbacks.
+internal class LoopExecutor(
+    private val owner: LoopOwner,
+    private val pool: BlockingTaskPool
+): CoroutineExecutor {
+    private val lock = IoLock()
+    private var phase = LoopExecutorPhase.Open
+    private var tasks = 0L
+    private var work = 0L
+
+    val isTerminated: Boolean get() = lock.withLock { phase == LoopExecutorPhase.Terminated }
+
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask =
+        lock.withLock {
+            if (phase == LoopExecutorPhase.Terminated)
+                throw ExecutorClosedException()
+            if (phase == LoopExecutorPhase.Draining) {
+                val accepted =
+                    when (parent) {
+                        case Some(parent) -> parent is
+                            LoopTask &&
+                            parent.owner ===
+                            this &&
+                            parent.active
+                        case None -> false
+                    }
+                if (!accepted)
+                    throw ExecutorClosedException()
+            }
+            tasks += 1L
+            LoopTask(this)
+        }
+
+    fun requestShutdown() {
+        lock.withLock {
+            if (phase == LoopExecutorPhase.Open)
+                phase = LoopExecutorPhase.Draining
+            finishIfIdle()
+        }
+        owner.wakeExecution()
+    }
+
+    fun dispatch(task: LoopTask, next: CoroutineWork) {
+        lock.withLock {
+            requireActive(task);
+            work += 1L
+        }
+        owner.enqueueExecution {
+            try {
+                try {
+                    next.run()
+                }
+                finally {
+                    retireWork()
+                }
+            } catch (error: Throwable) {
+                error.printStackTrace()
+                exit(1)
+            }
+        }
+    }
+
+    fun dispatchBlocking(task: LoopTask, next: BlockingWork) {
+        lock.withLock {
+            requireActive(task);
+            work += 1L
+        }
+        try {
+            pool.submit(LoopBlockingWork(this, next))
+        }
+        catch (error: Throwable) {
+            retireWork();
+            throw error
+        }
+    }
+
+    fun complete(task: LoopTask) {
+        val finished =
+            lock.withLock {
+                requireActive(task)
+                task.active = false
+                tasks -= 1L
+                finishIfIdle()
+            }
+        if (finished)
+            owner.wakeExecution()
+    }
+
+    fun retireWork() {
+        val finished =
+            lock.withLock {
+                work -= 1L;
+                finishIfIdle()
+            }
+        if (finished)
+            owner.wakeExecution()
+    }
+
+    private fun requireActive(task: LoopTask) {
+        if (task.owner !== this || !task.active)
+            throw IllegalStateException(Some("loop task is already complete"))
+    }
+
+    private fun finishIfIdle(): Boolean {
+        if (phase == LoopExecutorPhase.Draining && tasks == 0L && work == 0L) {
+            phase = LoopExecutorPhase.Terminated
+            return true
+        }
+        return false
+    }
+}
+
+private enum LoopExecutorPhase {
+    Open, Draining, Terminated
+}
+
+internal class LoopTask(val owner: LoopExecutor): ExecutorTask {
+    var active = true
+    public override val executor: CoroutineExecutor get() = owner
+    public override fun dispatch(work: CoroutineWork) {
+        owner.dispatch(this, work)
+    }
+    public override fun dispatchBlocking(work: BlockingWork) {
+        owner.dispatchBlocking(this, work)
+    }
+    public override fun complete() {
+        owner.complete(this)
+    }
+}
+
+private class LoopBlockingWork(
+    private val owner: LoopExecutor,
+    private val work: BlockingWork
+): BlockingWork {
+    public override fun run() {
+        try {
+            work.run()
+        }
+        finally {
+            owner.retireWork()
+        }
+    }
+}

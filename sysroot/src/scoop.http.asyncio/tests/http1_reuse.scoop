@@ -9,7 +9,8 @@ import scoop.test.*
 private class AsyncHttp1ReuseTests {
     @Test
     fun `reuse requires complete output request context final response and trailers`() {
-        withHttp1 suspend { _, _, _, client, server ->
+        withHttp1 suspend {
+            _, _, _, client, server ->
             assertTrue(client.isReusable && server.isReusable)
             val writing = client.sendRequest(request("POST"), Http1BodyFraming.Length(2L))
             assertFalse(client.isReusable)
@@ -29,23 +30,27 @@ private class AsyncHttp1ReuseTests {
             assertTrue(server.isReusable)
             val answer = client.receiveResponse()
             assertFalse(client.isReusable)
-            NativeByteBuffer.allocate(1L).use suspend { buffer ->
+            NativeByteBuffer.allocate(1L).use suspend {
+                buffer ->
                 assertEquals(1L, answer.body.readInto(buffer, 1L))
                 assertFalse(client.isReusable)
             }
             assertEquals("k", String.fromUtf8(answer.body.readAllBytes(1L)))
             assertEquals("yes", String.fromUtf8(answer.body.trailers!![0L].value))
             assertTrue(client.isReusable)
-            client.close(); server.close()
+            client.close();
+            server.close()
             assertFalse(client.isReusable || server.isReusable)
         }
     }
 
     @Test
     fun `a pending receive operation is not an idle reusable connection`() {
-        withHttp1 suspend { scope, _, _, client, server ->
+        withHttp1 suspend {
+            scope, _, _, client, server ->
             assertTrue(server.isReusable)
             val receiving = scope.async suspend { server.receiveRequest()!! }
+            yieldCoroutine()
             assertFalse(server.isReusable)
             client.sendRequest(request()).finish()
             receiving.await().body.readAllBytes(0L)

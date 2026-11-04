@@ -240,6 +240,7 @@ impl<'a> OriginRequirements<'a> {
                         | GeneratedCallableKey::DynamicFunctionAdapter { .. }
                         | GeneratedCallableKey::ForeignCallbackManagedAdapter { .. }
                         | GeneratedCallableKey::CoroutineStart { .. }
+                        | GeneratedCallableKey::CoroutineStartWork { .. }
                         | GeneratedCallableKey::FunctionBridge { .. }
                         | GeneratedCallableKey::BoxingAdjust { .. }
                         | GeneratedCallableKey::TestEntry { .. } => return Ok(None),

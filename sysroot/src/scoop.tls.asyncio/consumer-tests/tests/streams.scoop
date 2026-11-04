@@ -22,9 +22,9 @@ private class AsyncTlsConsumerTests {
      */
     @Test
     fun `published async wrappers compose with M49 scopes and resource helpers`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val root = Certificate.fromPem(rootPem())
             val leaf = Certificate.fromPem(serverPem())
             val chain = Certificate.fromPem(intermediatePem())

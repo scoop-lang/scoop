@@ -20,9 +20,8 @@ private class AsyncFileMetadataTest {
             path.writeText("test")
             val link = tree.child("link")
             link.createSymbolicLink(path)
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 val info = loop.metadata(path)
                 assertTrue(info.kind == FileKind.Regular)
                 assertEquals(4L, info.size)
@@ -61,9 +60,9 @@ private class AsyncFileMetadataTest {
             val path = tree.child("original")
             val moved = tree.child("moved")
             path.writeText("original")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
                     file ->
                     path.moveTo(moved)
                     path.writeText("new")

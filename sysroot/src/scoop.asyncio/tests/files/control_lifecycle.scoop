@@ -12,9 +12,9 @@ private class AsyncFileControlLifecycleTest {
             tree ->
             val path = tree.child("data")
             path.writeText("data")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val file = loop.openFile(path, OpenOptions(write = true))
                 val querying =
                     scope.launch suspend {
@@ -24,6 +24,7 @@ private class AsyncFileControlLifecycleTest {
                         }
                         catch (_: IoClosedException) {}
                     }
+                yieldCoroutine()
                 try {
                     file.seek(1L);
                     fail(Some("concurrent seek accepted"))
@@ -89,10 +90,10 @@ private class AsyncFileControlLifecycleTest {
             tree ->
             val path = tree.child("data")
             path.writeText("data")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val file = loop.openFile(path, OpenOptions(write = true))
                 file.seek(1L)
                 val fence = WorkFence(backend)

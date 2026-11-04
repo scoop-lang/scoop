@@ -37,7 +37,7 @@ pub(super) fn address_taken(function: &mir::Function) -> HashSet<mir::LocalId> {
             }
             mir::ExprKind::DataBorrow(operation) => collect_expr(&operation.operand, out),
             mir::ExprKind::Context(operation) => {
-                if let Some(operand) = operation.operand() {
+                for operand in operation.operands() {
                     collect_expr(operand, out);
                 }
             }

@@ -33,9 +33,8 @@ private class MultipartRequestBodyTest {
             }
         parts.clear()
         assertTrue(body.isReplayable)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val encoded = collectRequestBody(body, 1L)
             assertTrue(body.contentLength == Some(encoded.size))
             assertTrue(String.fromUtf8(encoded).contains("name=\"中文\"; filename=\"报告.txt\""))
@@ -56,9 +55,8 @@ private class MultipartRequestBodyTest {
         assertTrue(body.isReplayable)
         assertTrue(body.contentLength == None)
         assertEquals(0L, opened.size)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             readBodyParts(body, ["stream"])
             readBodyParts(body, ["stream"])
             assertEquals(2L, opened.size)
@@ -80,9 +78,8 @@ private class MultipartRequestBodyTest {
                 )
             }
         assertFalse(body.isReplayable)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             readBodyParts(body, ["before", "once"])
             val output = BodyTestSink()
             expectBodyFailure<RequestBodyConsumedException> suspend { body.writeTo(output) }
@@ -108,9 +105,8 @@ private class MultipartRequestBodyTest {
                 this.addAll([requestBodyPart(inner)])
                 this.boundary = MultipartBoundary("outer")
             }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val encodedEmpty = collectRequestBody(empty)
             assertEquals("--empty--\r\n", String.fromUtf8(encodedEmpty))
             assertTrue(empty.contentLength == Some(encodedEmpty.size))

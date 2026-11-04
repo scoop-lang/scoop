@@ -39,8 +39,9 @@ internal fun observerSourceCleanup(trust: TrustStore) {
         val body =
             RequestBody.fromProducer(Some(1L)) suspend {
                 output -> try {
-                    coroutineScope<Unit> suspend {
-                        children ->
+                    coroutineScope<Unit> {
+                        val children = this
+
                         children.launch suspend {
                             childStarted.signal();
                             release.await();

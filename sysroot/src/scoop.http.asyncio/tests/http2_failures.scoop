@@ -20,9 +20,9 @@ private fun wireFrame(
 private class AsyncHttp2FailureTests {
     @Test
     fun `a later receive failure preserves the completed response earlier in the same input`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             a.readLimit = 16384L
             val client =
@@ -32,6 +32,7 @@ private class AsyncHttp2FailureTests {
                     limits = Http2Limits(maxContinuations = 1L)
                 )
             try {
+                yieldCoroutine()
                 sendBytes(b, wireFrame(4, 0, 0))
                 val first = client.openRequest(request2())
                 val second = client.openRequest(request2())
@@ -64,9 +65,9 @@ private class AsyncHttp2FailureTests {
 
     @Test
     fun `notices run outside the connection lock and observer failure closes outstanding work`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val slot = Http2Slot()
             val client =

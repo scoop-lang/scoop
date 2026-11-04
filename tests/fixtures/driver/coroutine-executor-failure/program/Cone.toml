@@ -1,0 +1,11 @@
+schema = 1
+
+[cone]
+group = "dev.executor"
+name = "fatal-completion"
+version = "0.1.0"
+kind = "executable"
+
+[dependencies]
+"scoop:scoop.core" = "0.1.0"
+"scoop:scoop.concurrent" = "0.1.0"

@@ -11,8 +11,8 @@ import scoop.url.Url
 
 internal fun observedHttp1(trust: TrustStore, url: Url) {
     val log = ObservationLog(true)
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(observationConfig(trust, log)) suspend {
+    eventLoop().run {
+        withHttpClient(observationConfig(trust, log)) suspend {
             client -> context(ObservationMarker("caller")) {
                 val privateUrl =
                     Url.parse(
@@ -90,8 +90,8 @@ internal fun observedHttp1(trust: TrustStore, url: Url) {
 }
 
 internal fun observationDisabled(trust: TrustStore, url: Url) {
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(
+    eventLoop().run {
+        withHttpClient(
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
             }

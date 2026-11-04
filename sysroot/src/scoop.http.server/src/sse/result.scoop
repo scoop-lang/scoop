@@ -44,8 +44,9 @@ private suspend fun produceSse(
         val writer = SseWriter(sink)
         try {
             writer.flush()
-            coroutineScope<Unit> suspend {
-                scope ->
+            coroutineScope<Unit> {
+                val scope = this
+
                 val heartbeat: Job? =
                     when (options.heartbeatInterval) {
                         case None -> None
@@ -55,14 +56,14 @@ private suspend fun produceSse(
                     }
                 var completed = false
                 try {
-                    coroutineScope<Unit> suspend { _ -> produce(writer) }
+                    coroutineScope<Unit> { produce(writer) }
                     completed = true
                 } finally {
                     writer.invalidate()
                     if (present(heartbeat)) {
                         if (!completed)
                             heartbeat!!.cancel()
-                        nonCancellableScope<Unit> suspend { _ -> heartbeat!!.join() }
+                        nonCancellableScope<Unit> { heartbeat!!.join() }
                     }
                 }
             }

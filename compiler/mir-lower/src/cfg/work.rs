@@ -22,9 +22,12 @@ pub(crate) enum CallSiteKind {
 }
 
 #[derive(Clone)]
-pub(crate) struct SuspendCall {
-    pub(crate) method: ProtocolMethod,
-    pub(crate) receiver: Box<mir::Expr>,
-    /// Unit has no destination; every other result has its typed CFG local.
-    pub(crate) destination: Option<mir::LocalId>,
+pub(crate) enum SuspendCall {
+    Registration {
+        method: ProtocolMethod,
+        receiver: Box<mir::Expr>,
+        /// Unit has no destination; every other result has its typed CFG local.
+        destination: Option<mir::LocalId>,
+    },
+    Yield,
 }

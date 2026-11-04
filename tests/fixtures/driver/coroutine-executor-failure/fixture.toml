@@ -1,0 +1,21 @@
+schema = 1
+name = "coroutine-executor-fatal-completion"
+inputs = ["program"]
+tools = ["scoop", "scoopc"]
+tags = ["coroutines", "concurrency", "exceptions", "driver"]
+
+[[steps]]
+name = "build"
+argv = ["${scoop}", "build", "${fixture}/program", {each = "${link_args}"}, "--release", "--sysroot", "${sysroot}", "--scoopc", "${scoopc}", "--cache-dir", "${cache}", "--target-dir", "${work}/target", "--lockfile", "${work}/program.lock", "--message-format", "json"]
+exit = 0
+stdout = ""
+stderr = ""
+json = "stderr"
+diagnostics = []
+
+[[steps]]
+name = "run"
+argv = ["${build.result.output}"]
+exit = 1
+stdout = ""
+stderr = { regex = '[^\r\n]*x=IllegalStateException\)\r?\n  <stack trace unavailable: disabled>\r?\n' }

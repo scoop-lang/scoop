@@ -63,8 +63,9 @@ internal fun sseCallbackCancellation(
                 this.onReconnect =
                     suspend {
                         _ -> if (child)
-                            coroutineScope<Unit> suspend {
-                                children ->
+                            coroutineScope<Unit> {
+                                val children = this
+
                                 children.launch suspend { probe.waitInCallback() };
                                 Unit
                             }

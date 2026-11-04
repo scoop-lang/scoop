@@ -47,8 +47,7 @@ internal fun extensionProxy(trust: TrustStore, peerUrl: Url) {
                 )
             ]
         }
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val proxy =
             HttpProxy.Http(
                 HttpProxyEndpoint(
@@ -91,8 +90,8 @@ internal fun extensionCacheRefresh(trust: TrustStore, url: Url) {
             )
             [extensionField("X-Attempt", attempt.number.toString())]
         }
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(
+    eventLoop().run {
+        withHttpClient(
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
                 this.onAttempt = Some(callback)

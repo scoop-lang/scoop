@@ -19,9 +19,9 @@ private class RequestBodyTrailersLifecycleTest {
                     [HttpField("X-End".toByteArray(), "done".toByteArray())]
                 }
             }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val output = BodyTestSink()
             val sending =
                 scope.launch suspend {

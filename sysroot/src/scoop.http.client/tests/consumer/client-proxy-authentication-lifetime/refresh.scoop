@@ -163,10 +163,12 @@ internal fun lifeSharedRefresh(trust: TrustStore, clearSame: Boolean) {
                             }
                         }
                     refreshing.await()
+                    val joining = LifeGate()
                     val third =
                         scope.async<Unit> suspend {
-                            lifeDone(client, httpRequest(url.resolve("/joining")))
+                            lifeDone(client, lifeWaitingRequest(url.resolve("/joining"), joining))
                         }
+                    joining.await()
                     lifeCheck(!third.isCompleted && loads.load() == 1L && refreshes.load() == 1L)
                     allowRefresh.signal();
                     second.await()

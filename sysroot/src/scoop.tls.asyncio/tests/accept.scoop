@@ -10,9 +10,9 @@ import scoop.tls.*
 private class AsyncTlsAcceptTests {
     @Test
     fun `a stalled handshake does not block another accept and cancellation closes its transport`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val config = serverContext(TlsOptions())
             val firstConnect =

@@ -8,9 +8,8 @@ import scoop.platform.memory.NativeByteBuffer
 import scoop.url.Url
 
 internal fun digestMetadata(url: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val starts = AtomicLong(0L)
         val provider =
             HttpAuthenticator.digest(url.httpOrigin()) suspend {

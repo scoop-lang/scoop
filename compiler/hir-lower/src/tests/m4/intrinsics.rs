@@ -9,8 +9,8 @@ fn intrinsic_functions_are_marked() {
         .top_level
         .iter()
         .map(|id| &module.functions[*id])
-        .find(|f| f.name == "startCoroutine")
-        .expect("core declares startCoroutine");
+        .find(|f| f.name == "startCoroutineExecution")
+        .expect("core declares startCoroutineExecution");
     assert!(matches!(
         start_coroutine.kind,
         FunctionKind::Intrinsic(intrinsic)
@@ -182,7 +182,7 @@ fn a_typed_intrinsic_kind_has_one_defining_provider() {
     assert!(errors.iter().any(|error| {
         error.file == 1
             && error.message
-                == "intrinsic `coroutine_start` is already defined by provider 3 as `startCoroutine`; provider 7 cannot define it again"
+                == "intrinsic `coroutine_start` is already defined by provider 3 as `startCoroutineExecution`; provider 7 cannot define it again"
     }));
 }
 

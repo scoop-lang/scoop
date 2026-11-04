@@ -50,6 +50,8 @@ HttpRequestBody.json 使用显式 ValueDecoder 或 T.Companion；只接受 appli
 
 ## 5. 连接接入、限制与停机
 
+启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
+
 HttpServer.takeOwnership(listener, application, scope, options) 检查选项和当前／父 Job，在父 scope 中登记自己的所有者后接管 listener。登记前失败仍由调用方清理；登记后失败由 server 清理。返回表示接受循环已建立。application 和可共享的 TlsServerContext 由调用方持有，不随 server 自动关闭。一个连接的握手、业务和清理失败在连接边界隔离；不取消其他连接。
 
 HttpServer.listen(application, scope, port=8080, host=IpAddress.IPV4_LOOPBACK, options=httpServerOptions()) 在当前 EventLoop 上创建 TCP listener，再沿同一 takeOwnership 流程启动；创建的 listener 在任何启动失败时都由此入口关闭。host 可显式选择其他 IPv4／IPv6 地址，port=0 由 OS 选择端口；HttpServer.localAddress 保存实际监听地址，关闭后仍可读取。需要 backlog、reuseAddress 等底层选项时，仍可自行创建 listener 后接管。

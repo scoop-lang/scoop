@@ -48,9 +48,9 @@ fun main(args: Array<String>) {
     val base = Url.parse(args[2L])
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val config =
                 httpClientConfig {
                     this.cleartext =

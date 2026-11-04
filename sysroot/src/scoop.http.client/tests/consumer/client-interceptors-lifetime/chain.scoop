@@ -15,9 +15,10 @@ private class InterceptorChecks {
     var checked: Boolean = false
     suspend fun check(child: Boolean) {
         if (child)
-            coroutineScope<Unit> suspend {
-                scope ->
-                scope.launch suspend { check(false) };
+            coroutineScope<Unit> {
+                val scope = this
+
+                scope.launch { this @InterceptorChecks.check(false) };
                 Unit
             }
         else {
@@ -124,8 +125,9 @@ internal fun interceptorConcurrentProceed(trust: TrustStore) {
             HttpInterceptor(
                 suspend {
                     chain ->
-                    coroutineScope<Unit> suspend {
-                        nested ->
+                    coroutineScope<Unit> {
+                        val nested = this
+
                         val first = nested.launch suspend { state.result = Some(chain.proceed()) }
                         received.await()
                         assertTrue(

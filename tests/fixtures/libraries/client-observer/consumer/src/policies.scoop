@@ -15,8 +15,7 @@ internal fun observedFollowUp(trust: TrustStore, url: Url) {
         HttpAuthenticator.basic(url.httpOrigin()) suspend {
             _ -> HttpPasswordCredentials("user", "secret")
         }
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
@@ -81,8 +80,7 @@ internal fun observedFollowUp(trust: TrustStore, url: Url) {
 
 internal fun observedCache(trust: TrustStore, url: Url) {
     val log = ObservationLog()
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

@@ -7,9 +7,9 @@ import scoop.http.asyncio.*
 import scoop.platform.net.*
 
 internal fun wsPeerClose() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
         try {
             val accepting = scope.async suspend { listener.accept() }

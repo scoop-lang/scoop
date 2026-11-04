@@ -34,14 +34,14 @@ private class MainDispatchHostTest {
         assertTrue(host.isCurrentThread())
         val owner = currentThreadId()
         val session =
-            PlatformEventLoop().attach(host) {
+            eventLoop().attach(host) {
                 error ->
                 assertEquals(owner, currentThreadId())
                 result.closed += 1
                 result.failure = error
             }
         session.post {
-            scope ->
+            val scope = this;
             assertEquals(owner, currentThreadId())
             gcCollect()
             scope.launch suspend {
@@ -74,7 +74,7 @@ private class MainDispatchHostTest {
     fun `onClosed exception is contained by the native callback bridge`() {
         val result = HostResult()
         val session =
-            PlatformEventLoop().attach(MainDispatchHost()) {
+            eventLoop().attach(MainDispatchHost()) {
                 _ ->
                 result.closed += 1
                 throw IllegalStateException(Some("expected onClosed test failure"))
@@ -91,7 +91,7 @@ private class MainDispatchHostTest {
             nativeTestMainTurn()
         }
         assertEquals(1, result.closed)
-        assertFalse(session.post { _ -> fail(Some("closed session accepted post")) })
+        assertFalse(session.post { fail(Some("closed session accepted post")) })
     }
 }
 

@@ -13,9 +13,9 @@ private class AsyncFileControlTest {
             tree ->
             val path = tree.child("data")
             path.writeText("abcdef")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
                     file ->
                     val before = file.metadata()
                     assertTrue(before.kind == FileKind.Regular)
@@ -70,12 +70,9 @@ private class AsyncFileControlTest {
             tree ->
             val path = tree.child("append")
             path.writeText("ab")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(
-                    path,
-                    OpenOptions(write = true, append = true)
-                ).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(path, OpenOptions(write = true, append = true)).useAsync suspend {
                     file ->
                     file.seek(0L)
                     NativeByteBuffer.allocate(1L).use suspend {
@@ -117,9 +114,9 @@ private class AsyncFileControlTest {
             tree ->
             val path = tree.child("readonly")
             path.writeText("abc")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(path).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(path).useAsync suspend {
                     file ->
                     try {
                         file.seek(-1L);

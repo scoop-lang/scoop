@@ -22,9 +22,6 @@ c_flags = ["-Wextra", "-Werror"]
 path = "native/trust.c"
 
 [[native.sources]]
-path = "native/pool.c"
-
-[[native.sources]]
 path = "native/isolated_work.c"
 
 [[native.sources]]

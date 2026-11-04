@@ -25,9 +25,10 @@ private class AsyncTcpConnectDeadlineTest {
 
     @Test
     fun `zero resolution deadline records both families without starting a connection`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val host = OsString.fromString("localhost")
                 try {
@@ -48,9 +49,10 @@ private class AsyncTcpConnectDeadlineTest {
 
     @Test
     fun `zero connection deadline begins after resolution and submits no candidate socket`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val host = OsString.fromString("127.0.0.1")
                 try {
@@ -75,9 +77,10 @@ private class AsyncTcpConnectDeadlineTest {
 
     @Test
     fun `successful fallback cancels long resolution and connection timers before returning`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val long = Some(Duration.seconds(3600L))
                 val options =

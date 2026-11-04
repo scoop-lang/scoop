@@ -1,0 +1,12 @@
+package scoop.concurrent
+
+internal class ChannelSender<T>(value: T, continuation: Continuation<Unit>) {
+    internal var value: T? = Some(value)
+    internal val result = PendingResume(continuation)
+    internal var link: WaitLink<ChannelSender<T>>? = None
+}
+
+internal class ChannelReceiver<T>(continuation: Continuation<T?>) {
+    internal val result = PendingResume(continuation)
+    internal var link: WaitLink<ChannelReceiver<T>>? = None
+}

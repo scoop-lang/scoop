@@ -13,10 +13,10 @@ private class AsyncTemporaryFileCancellationTest {
     fun `queued temporary creation cancels before acquiring a path or handle`() {
         IoTestDirectory().use {
             tree ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val fence = WorkFence(backend)
                 fence.start()
                 fence.waitStarted()
@@ -38,12 +38,13 @@ private class AsyncTemporaryFileCancellationTest {
     fun `late cancellation closes and deletes the unreturned temporary file`() {
         IoTestDirectory().use {
             tree ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
+            val backend = eventLoop()
+            val loop = backend
             val observed = ObservedTemporary()
-            loop.run suspend {
-                scope ->
+            loop.run {
+                val scope = this;
                 val creating = scope.launch suspend { loop.createTempFile(Some(tree.path)) }
+                yieldCoroutine()
                 backend.state.post {
                     observed.path = Some(awaitTemporaryFile(tree.path))
                     gcCollect()
@@ -64,11 +65,11 @@ private class AsyncTemporaryFileCancellationTest {
             val directory = tree.child("creating")
             directory.createDirectory()
             val moved = tree.child("moved")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
+            val backend = eventLoop()
+            val loop = backend
             val observed = ObservedTemporary()
-            loop.run suspend {
-                scope ->
+            loop.run {
+                val scope = this;
                 val creating =
                     scope.launch suspend {
                         try {
@@ -84,6 +85,7 @@ private class AsyncTemporaryFileCancellationTest {
                             observed.cleanupFailed = true
                         }
                     }
+                yieldCoroutine()
                 backend.state.post {
                     val path = awaitTemporaryFile(directory)
                     observed.path = Some(path)

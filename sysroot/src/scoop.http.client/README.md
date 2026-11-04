@@ -21,12 +21,11 @@ import scoop.http.client.*
 import scoop.url.Url
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient suspend {
+    eventLoop().run {
+        withHttpClient {
             client ->
             val request = httpRequest(Url.parse("https://example.com/"))
-            client.withResponse(request) suspend {
+            client.withResponse(request) {
                 response ->
                 response.requireSuccess()
                 println(response.body.text(1_048_576L))

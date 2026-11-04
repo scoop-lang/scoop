@@ -55,9 +55,9 @@ private fun exercise(mode: String, start: Url, final: Url, trust: TrustStore) {
                     [HttpField("X-Attempt".toByteArray(), attempt.toString().toByteArray())]
                 }
             }.compressed()
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

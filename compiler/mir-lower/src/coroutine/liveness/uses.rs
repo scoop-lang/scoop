@@ -141,7 +141,7 @@ pub(super) fn expr_uses(expr: &mir::Expr, uses: &mut HashSet<mir::LocalId>) {
         }
         mir::ExprKind::DataBorrow(operation) => expr_uses(&operation.operand, uses),
         mir::ExprKind::Context(operation) => {
-            if let Some(operand) = operation.operand() {
+            for operand in operation.operands() {
                 expr_uses(operand, uses);
             }
         }

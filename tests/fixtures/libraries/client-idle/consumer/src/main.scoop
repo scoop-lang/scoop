@@ -103,9 +103,9 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
                             1L
                 }
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         withHttpClient(config) suspend {
             client -> when (mode) {
                 case "h1-progress" -> idleProgress(client, url, loop)

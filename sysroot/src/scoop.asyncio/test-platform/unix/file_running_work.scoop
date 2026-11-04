@@ -33,10 +33,10 @@ private class AsyncFileRunningWorkTest {
             tree ->
             val path = tree.child("fifo")
             makeFifo(path)
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val file = loop.openFile(path, OpenOptions(write = true))
                 File.open(path, OpenOptions(read = false, write = true)).use suspend {
                     writer -> NativeByteBuffer.allocate(4L).use suspend {
@@ -79,12 +79,14 @@ private class AsyncFileRunningWorkTest {
             tree ->
             val path = tree.child("fifo")
             makeFifo(path)
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val output = OpenedFifo()
                 val opening = scope.launch suspend { loop.openFile(path) }
+                // Let the dispatched child enqueue its open before the owner-side rendezvous.
+                yieldCoroutine()
                 backend.state.post {
                     // O_WRONLY rendezvous proves that the real blocking O_RDONLY open ran.
                     output.file = Some(File.open(path, OpenOptions(read = false, write = true)))

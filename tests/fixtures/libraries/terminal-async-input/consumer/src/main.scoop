@@ -9,9 +9,10 @@ import scoop.terminal.screen.SetTitle
 import scoop.time.Duration
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> AsyncTerminalSession.open(loop, Duration.milliseconds(250L)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        AsyncTerminalSession.open(loop, Duration.milliseconds(250L)).useAsync suspend {
             session ->
             session.withRawMode suspend {
                 prefix(loop, scope, session)
@@ -32,9 +33,9 @@ fun main() {
             cancellation(loop, scope, session)
         }
     }
-    val end: EventLoop = PlatformEventLoop()
-    end.run suspend {
-        _ -> AsyncTerminalSession.open(end).useAsync suspend {
+    val end = eventLoop()
+    end.run {
+        AsyncTerminalSession.open(end).useAsync suspend {
             session ->
             stage(session, "async-eof")
             var disconnected = false

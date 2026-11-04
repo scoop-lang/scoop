@@ -17,8 +17,7 @@ private class HttpClientEnvironmentProxyTest {
         values.put("ALL_PROXY", "http://localhost:1080")
         val selector = HttpProxySelector.fromEnvironment(values)
         values.clear()
-        PlatformEventLoop().run suspend {
-            _ ->
+        eventLoop().run {
             val first = environmentHttpEndpoint(selector, "http://example.test/")
             assertEquals(Some(3128), first.url.authority!!.port)
             assertTrue(first === environmentHttpEndpoint(selector, "http://other.test/"))
@@ -49,8 +48,7 @@ private class HttpClientEnvironmentProxyTest {
 
     @Test
     fun `CGI ignores uppercase HTTP proxy without discarding explicit lower case or HTTPS`() {
-        PlatformEventLoop().run suspend {
-            _ ->
+        eventLoop().run {
             val ignored =
                 HttpProxySelector.fromEnvironment(
                     mapOf(("REQUEST_METHOD", "GET"), ("HTTP_PROXY", "invalid://ignored"))
@@ -96,8 +94,7 @@ private class HttpClientEnvironmentProxyTest {
                 (" , ", "http://localhost/", false),
                 ("*", "https://anywhere.test/", true)
             ]
-        PlatformEventLoop().run suspend {
-            _ ->
+        eventLoop().run {
             for ((rule, url, expected) in cases) {
                 val selector =
                     HttpProxySelector.fromEnvironment(
@@ -134,8 +131,8 @@ private class HttpClientEnvironmentProxyTest {
                 ("::/0", "http://192.0.2.1/", false),
                 ("::/0", "http://[::1]/", true)
             ]
-        PlatformEventLoop().run suspend {
-            _ -> for ((rule, url, expected) in cases) {
+        eventLoop().run {
+            for ((rule, url, expected) in cases) {
                 val selector =
                     HttpProxySelector.fromEnvironment(
                         mapOf(("ALL_PROXY", "localhost:3128"), ("NO_PROXY", rule))
@@ -147,8 +144,7 @@ private class HttpClientEnvironmentProxyTest {
 
     @Test
     fun `userinfo is decoded once and kept out of proxy URL and SOCKS DNS policy is explicit`() {
-        PlatformEventLoop().run suspend {
-            _ ->
+        eventLoop().run {
             val selector =
                 HttpProxySelector.fromEnvironment(
                     mapOf(("HTTP_PROXY", "http://Jose%CC%81:p%C3%A4ss%3A%40@localhost:3128"))

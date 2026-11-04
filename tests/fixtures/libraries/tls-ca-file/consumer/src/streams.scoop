@@ -39,9 +39,8 @@ fun synchronousCaFile(path: Path, port: Int, version: TlsVersion) {
 }
 
 fun asynchronousCaFile(path: Path, port: Int, version: TlsVersion) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val context =
             TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem()).use suspend {
                 identity -> openTlsClientContext(path, TlsOptions(version, version), Some(identity))

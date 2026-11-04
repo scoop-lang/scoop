@@ -49,6 +49,7 @@ private class ServerWebSocketHandoffTests {
                     assertEquals(0L, http.snapshot().size)
                     val stopping =
                         scope.async<Unit> suspend { server.shutdownGracefully(Duration.seconds(1)) }
+                    yieldCoroutine()
                     assertTrue(server.isDraining);
                     release.signal()
                     client.takeTransport().useAsync suspend {
@@ -142,6 +143,7 @@ private class ServerWebSocketHandoffTests {
                     entered.await()
                     val stopping =
                         scope.async<Unit> suspend { server.shutdownGracefully(Duration.seconds(1)) }
+                    yieldCoroutine()
                     assertTrue(server.isDraining);
                     release.signal()
                     val response = client.receiveResponse();

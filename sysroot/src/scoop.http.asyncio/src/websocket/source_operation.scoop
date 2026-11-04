@@ -1,20 +1,32 @@
 package scoop.http.asyncio
 
-private class WsSourceOperation(val state: WsState) { var active: Boolean = true }
+private class WsSourceOperation(val state: WsState) {
+    var active: Boolean = true
+}
 
 internal suspend fun <T> runWsSource(state: WsState, block: suspend () -> T): T {
     val operation = WsSourceOperation(state)
     try {
         return context(operation) {
-            coroutineScope<T> suspend { scope ->
-                val closing = state.lock.withLock { state.sourceJob = Some(scope.job); state.closing }
-                if (closing) scope.job.cancel()
+            coroutineScope<T> {
+                val scope = this
+
+                val closing =
+                    state.lock.withLock {
+                        state.sourceJob = Some(scope.job);
+                        state.closing
+                    }
+                if (closing)
+                    scope.job.cancel()
                 ensureActive()
                 block()
             }
         }
     } finally {
-        state.lock.withLock { state.sourceJob = None; operation.active = false }
+        state.lock.withLock {
+            state.sourceJob = None;
+            operation.active = false
+        }
     }
 }
 
@@ -22,7 +34,19 @@ context(operation: WsSourceOperation)
 private fun currentWsSourceOperation(): WsSourceOperation = operation
 
 internal fun checkWsCloseContext(state: WsState) {
-    val operation = try { Some(currentWsSourceOperation()) } catch (_: MissingContextException) { None }
-    if (present(operation) && operation!!.state === state && state.lock.withLock { operation!!.active })
-        throw IllegalStateException(Some("cannot await WebSocket closure from its active send source"))
+    val operation =
+        try {
+            Some(currentWsSourceOperation())
+        } catch (_: MissingContextException) {
+            None
+        }
+    if (
+        present(operation) &&
+            operation!!.state ===
+            state &&
+            state.lock.withLock { operation!!.active }
+    )
+        throw IllegalStateException(
+            Some("cannot await WebSocket closure from its active send source")
+        )
 }

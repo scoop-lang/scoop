@@ -47,9 +47,10 @@ internal fun withResponseTestHttp1(
 ) {
     clientTestTrust().use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> clientTestListen(loop).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            clientTestListen(loop).useAsync suspend {
                 listener ->
                 val done = BodyTestGate()
                 val server =

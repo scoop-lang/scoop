@@ -10,9 +10,9 @@ private class ServerListenTests {
     @Test
     fun `listen accepts an existing application and exposes its actual address through shutdown`() {
         val routes = routing { this.get("/", suspend { _ -> text("listening") }) }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val server = HttpServer.listen(routes, scope, port = 0)
             val address = server.localAddress
             try {
@@ -34,9 +34,9 @@ private class ServerListenTests {
     @Test
     fun `route configuration overload forwards application and transport options before freezing`() {
         val builders = ArrayList<RouterBuilder>()
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val server =
                 HttpServer.listen(
                     scope,
@@ -80,9 +80,9 @@ private class ServerListenTests {
 
     @Test
     fun `configuration fails before binding and failed ownership releases the new listener`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val reserved = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val address = reserved.localAddress
             val failure = IllegalStateException(Some("configuration failed"))
@@ -98,7 +98,11 @@ private class ServerListenTests {
             } finally {
                 reserved.close()
             }
-            val ended = coroutineScope<CoroutineScope> suspend { child -> child }
+            val ended =
+                coroutineScope<CoroutineScope> {
+                    val child = this
+                    child
+                }
             var rejected = false
             try {
                 HttpServer.listen(routing(), ended, port = address.port)

@@ -488,6 +488,13 @@ impl Lowerer {
                 frame.identity().odr_member_record(),
             );
         }
+        for start in &self.coroutines.start_helpers {
+            register(
+                mir::GeneratedExactTypeLocation::Class(start.work_class()),
+                start.work_identity().generated_type_record(),
+                start.work_identity().type_root().member_record(),
+            );
+        }
         for (_, point) in self.coroutines.resume_points.iter() {
             register(
                 mir::GeneratedExactTypeLocation::Class(point.adapter()),
@@ -576,6 +583,11 @@ fn generated_callables(module: &mir::Module) -> mir::MirGeneratedCallableIdentit
             start.identity().callable_record(),
             start.identity().signature_record().subject(),
         );
+        register(
+            start.work_run(),
+            start.work_identity().callable_record(),
+            start.work_identity().signature_record().subject(),
+        );
     }
     for (_, point) in module.meta.coroutine_resume_points.iter() {
         register(
@@ -587,6 +599,11 @@ fn generated_callables(module: &mir::Module) -> mir::MirGeneratedCallableIdentit
             point.resume_with_exception(),
             point.identity().failure().callable_record(),
             point.identity().failure().signature_record().subject(),
+        );
+        register(
+            point.work_run(),
+            point.identity().work().callable_record(),
+            point.identity().work().signature_record().subject(),
         );
     }
     for adjust in &module.meta.interface_adjusts {
@@ -640,10 +657,12 @@ fn callable_signatures(module: &mir::Module) -> mir::MirCallableSignatures {
     }
     for start in &module.meta.coroutine_starts {
         register(start.identity().signature_record());
+        register(start.work_identity().signature_record());
     }
     for (_, point) in module.meta.coroutine_resume_points.iter() {
         register(point.identity().success().signature_record());
         register(point.identity().failure().signature_record());
+        register(point.identity().work().signature_record());
     }
     for adjust in &module.meta.interface_adjusts {
         register(adjust.identity().signature_record());

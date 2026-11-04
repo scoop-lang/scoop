@@ -50,9 +50,8 @@ private class ServerDecompressionFailureTests {
 
     @Test
     fun `zero reads do not touch input and decoded EOF requires final validation`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = DecompressionReadSource(TestSource(requestGzip("a".toByteArray())))
             val body = HttpRequestBody(input, fields = requestEncodedFields())
             body.configureDecoding(requestDecompressionOptions())
@@ -84,9 +83,8 @@ private class ServerDecompressionFailureTests {
 
     @Test
     fun `decoder input rejection retains its cause while underlying IO failures stay unchanged`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val original = IoClosedException()
             for (ioFailure in [false, true]) {
                 val input = DecompressionReadSource(TestSource("broken".toByteArray()))

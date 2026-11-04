@@ -14,9 +14,9 @@ private class AsyncUdpCombinationTest {
         IoTestDirectory().use {
             tree ->
             val path = tree.child("packets")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val left = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val right = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val addresses =

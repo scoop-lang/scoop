@@ -26,8 +26,7 @@ private class ServerDecompressionLifecycleTests {
                             read.signal()
                             text(networkText(source))
                         } finally {
-                            nonCancellableScope<Unit> suspend {
-                                _ ->
+                            nonCancellableScope<Unit> {
                                 cleaning.signal();
                                 release.await()
                             }

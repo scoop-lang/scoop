@@ -61,7 +61,7 @@ pub(super) fn dump_expr(
                 out.push_str(&format!(" {}", key.0));
             }
             out.push('\n');
-            if let Some(operand) = operation.operand() {
+            for operand in operation.operands() {
                 dump_expr(module, locals, operand, indent + 1, out);
             }
         }

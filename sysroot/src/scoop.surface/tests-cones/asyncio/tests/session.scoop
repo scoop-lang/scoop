@@ -103,17 +103,16 @@ private class AsyncProbe {
             try {
                 loop.sleep(Duration.seconds(20L))
             } finally {
-                nonCancellableScope<Unit> suspend {
-                    _ ->
+                nonCancellableScope<Unit> {
                     loop.sleep(Duration.milliseconds(10L))
-                    assertTrue(closing)
-                    assertEquals(SurfaceWindowState.Closed, surfaceWindow!!.state)
-                    childFinished = true
+                    assertTrue(this @AsyncProbe.closing)
+                    assertEquals(SurfaceWindowState.Closed, this @AsyncProbe.surfaceWindow!!.state)
+                    this @AsyncProbe.childFinished = true
                 }
             }
         }
         scope.launch suspend {
-            while (frames < 3)
+            while (this @AsyncProbe.frames < 3)
                 loop.sleep(Duration.milliseconds(10L))
             scheduleSurfaceNativeMode(first, 1)
             var scheduled = 1

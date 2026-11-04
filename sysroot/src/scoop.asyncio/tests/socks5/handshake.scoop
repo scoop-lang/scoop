@@ -11,9 +11,8 @@ private class AsyncSocks5HandshakeTest {
     @Test
     fun `short transfers retain the complete tunnel suffix and decode IPv4 binding`() {
         val script = Socks5Script(socks5Joined(socks5SuccessInput(), [42, 73]))
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val tunnel = AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget())
             assertEquals(12L, script.position)
             when (tunnel.boundAddress) {
@@ -47,9 +46,8 @@ private class AsyncSocks5HandshakeTest {
 
     @Test
     fun `proxy DNS sends the ASCII name while local DNS sends an actual IP address`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val remote = Socks5Script(socks5SuccessInput())
             AsyncSocks5Tunnel.takeOwnership(
                 remote,
@@ -75,9 +73,8 @@ private class AsyncSocks5HandshakeTest {
 
     @Test
     fun `IPv6 and domain bound addresses retain their wire values`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bytes = ByteArrayBuilder()
             bytes.append(listOf<Byte>(5, 0, 5, 0, 0, 4)).append(
                 IpAddress.IPV6_LOOPBACK.toByteArray()
@@ -118,9 +115,8 @@ private class AsyncSocks5HandshakeTest {
     fun `UTF8 credentials authenticate with byte lengths and no method downgrade`() {
         val identity = Socks5Credentials.fromUtf8("用户", "口令")
         val script = Socks5Script([5, 2, 1, 0, 5, 0, 0, 1, 127, 0, 0, 1, 0, 80])
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget(), Some(identity)).close()
             val expected = ByteArrayBuilder()
             expected.append(listOf<Byte>(5, 1, 2, 1, 6)).append("用户".toByteArray())
@@ -138,9 +134,8 @@ private class AsyncSocks5HandshakeTest {
         val identity = Socks5Credentials(username, password)
         val script = Socks5Script([5, 2, 1, 0, 5, 0, 0, 1, 127, 0, 0, 1, 0, 80])
         script.writeSize = 1024L
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget(), Some(identity)).close()
             val actual = script.sent.toByteArray()
             assertEquals(526L, actual.size)

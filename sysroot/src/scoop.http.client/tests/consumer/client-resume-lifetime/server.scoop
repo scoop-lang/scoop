@@ -15,9 +15,9 @@ internal fun resumeWithServer(
     responses: Long,
     block: suspend (EventLoop, CoroutineScope, Url, DownloadGate) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         loop.createDirectories(directory)
         loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->

@@ -46,8 +46,7 @@ private class ServerSseLifecycleTests {
                                         never.await()
                                     }
                                     finally {
-                                        nonCancellableScope<Unit> suspend {
-                                            _ ->
+                                        nonCancellableScope<Unit> {
                                             cleaning.signal();
                                             release.await()
                                         }
@@ -141,8 +140,9 @@ private class ServerSseLifecycleTests {
                         _ -> sse(
                             produce =
                                 suspend {
-                                    events -> coroutineScope<Unit> suspend {
-                                        scope ->
+                                    events -> coroutineScope<Unit> {
+                                        val scope = this
+
                                         val sending =
                                             scope.launch suspend {
                                                 events.send(SseMessage(Some("kept")))

@@ -19,9 +19,9 @@ private fun publish(parent: Path) {
         val nested = directory.resolve(Path.fromString("缓存 空格/body"))
         val output = nested.resolve(Path.fromString("data"))
         val staging = directory.resolve(Path.fromString("data.part"))
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val first = scope.launch suspend { loop.createDirectories(nested) }
             val second = scope.launch suspend { loop.createDirectories(nested) }
             first.join()

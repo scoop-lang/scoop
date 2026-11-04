@@ -68,6 +68,23 @@ pub(crate) enum DeclarationDiagnosticOrder {
 }
 
 impl NamedFunctionLikeProbe {
+    fn lambda_effect_declaration(
+        &self,
+        state: &mut Lowerer,
+        arguments: &[ast::CallArgument],
+    ) -> Option<super::specificity::LambdaEffectDeclaration> {
+        match self {
+            Self::Callable(probe) => probe.lambda_effect_declaration(state, arguments),
+            Self::ImportedDependency(probe) => {
+                Some(probe.lambda_effect_declaration(state, arguments))
+            }
+            Self::Nominal(probe) => Some(probe.lambda_effect_declaration(state, arguments)),
+            Self::ImportedDerivedEquality(_)
+            | Self::ImportedDependencyProperty(_)
+            | Self::IntrinsicStruct(_) => None,
+        }
+    }
+
     fn forwarding(&self, state: &mut Lowerer) -> super::specificity::OwnedDeclarationForwarding {
         match self {
             Self::Callable(probe) => probe.forwarding().to_owned(),
@@ -242,6 +259,18 @@ impl Lowerer {
                 arguments,
                 |candidate, index| probes[candidate].source_argument_numeric(index),
             );
+            if pool.len() > 1 {
+                let declarations = probes
+                    .iter()
+                    .enumerate()
+                    .map(|(index, probe)| {
+                        pool.contains(&index)
+                            .then(|| probe.lambda_effect_declaration(&mut comparison, arguments))
+                            .flatten()
+                    })
+                    .collect::<Vec<_>>();
+                pool = comparison.prefer_ordinary_lambdas(&pool, &declarations);
+            }
         }
         if let [winner] = pool.as_slice() {
             return Some(*winner);

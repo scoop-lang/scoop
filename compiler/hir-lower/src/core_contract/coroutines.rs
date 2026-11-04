@@ -8,6 +8,23 @@ impl Lowerer {
         let continuation = self.require_core_interface("Continuation", files);
         let suspend_task = self.require_core_interface("SuspendTask", files);
         let suspend_registration = self.require_core_interface("SuspendRegistration", files);
+        let work = self.require_core_interface("CoroutineWork", files)?;
+        let execution = self.require_core_interface("CoroutineExecutionDriver", files)?;
+        let work_ty =
+            self.interface_applications[self.interfaces[work].self_application].canonical_type;
+        let work_run = self.require_coroutine_drive_method(work, "run", &[])?;
+        if self.interface_methods[&work].len() != 1 {
+            self.error(
+                self.interfaces[work].span,
+                "interface `CoroutineWork` in scoop.core must declare exactly `fun run()`"
+                    .to_string(),
+            );
+            return None;
+        }
+        let execution_start =
+            self.require_coroutine_drive_method(execution, "start", &[work_ty, self.boolean])?;
+        let execution_resume =
+            self.require_coroutine_drive_method(execution, "resume", &[work_ty, self.boolean])?;
 
         let continuation_methods =
             continuation.and_then(|id| self.validate_continuation_contract(id));
@@ -25,7 +42,7 @@ impl Lowerer {
         if let (Some(id), Some(continuation), Some(suspend_task)) =
             (start_coroutine, continuation, suspend_task)
         {
-            self.validate_coroutine_start(id, continuation, suspend_task);
+            self.validate_coroutine_start(id, continuation, suspend_task, execution);
         }
         if let (Some(id), Some(suspend_registration)) = (suspend_coroutine, suspend_registration) {
             self.validate_coroutine_suspend(id, suspend_registration);
@@ -60,6 +77,11 @@ impl Lowerer {
             return None;
         };
         Some(hir::CoroutineCore {
+            work,
+            work_run,
+            execution,
+            execution_start,
+            execution_resume,
             continuation,
             continuation_resume,
             continuation_resume_with_exception,
@@ -70,6 +92,41 @@ impl Lowerer {
             start_coroutine,
             suspend_coroutine,
         })
+    }
+
+    fn require_coroutine_drive_method(
+        &mut self,
+        interface: InterfaceId,
+        name: &str,
+        params: &[TypeId],
+    ) -> Option<FunctionId> {
+        self.current_file = self.interface_files[&interface];
+        let method = self.interface_methods[&interface]
+            .iter()
+            .copied()
+            .find(|function| self.source_function_name(*function) == name);
+        let valid = self.interfaces[interface].type_params.is_empty()
+            && method.is_some_and(|id| {
+                let method = &self.functions[id];
+                let signature = &self.signatures[&id];
+                !method.is_suspend
+                    && signature.type_params.is_empty()
+                    && method.return_ty == self.unit
+                    && method
+                        .params
+                        .iter()
+                        .skip(1)
+                        .map(|param| param.ty)
+                        .eq(params.iter().copied())
+            });
+        if !valid {
+            self.error(self.interfaces[interface].span, format!(
+                "core coroutine interface `{}` must declare ordinary method `{name}` with its required parameter types and Unit result",
+                self.interfaces[interface].name
+            ));
+            return None;
+        }
+        method
     }
 
     pub(crate) fn require_core_interface(
@@ -195,21 +252,26 @@ impl Lowerer {
         id: FunctionId,
         continuation: InterfaceId,
         suspend_task: InterfaceId,
+        execution: InterfaceId,
     ) {
         self.current_file = self.function_files[&id];
         let function = &self.functions[id];
         let sig = &self.signatures[&id];
-        let valid = function.name == "startCoroutine"
+        let execution_ty =
+            self.interface_applications[self.interfaces[execution].self_application].canonical_type;
+        let valid = function.name == "startCoroutineExecution"
             && !sig.is_suspend
             && sig.type_params.len() == 1
-            && sig.params.len() == 2
-            && self.is_interface_param(sig.params[0].ty, suspend_task, 0)
-            && self.is_interface_param(sig.params[1].ty, continuation, 0)
+            && sig.params.len() == 4
+            && sig.params[0].ty == execution_ty
+            && sig.params[1].ty == self.boolean
+            && self.is_interface_param(sig.params[2].ty, suspend_task, 0)
+            && self.is_interface_param(sig.params[3].ty, continuation, 0)
             && sig.return_ty == self.unit;
         if !valid {
             self.error(
                 function.span,
-                "intrinsic `coroutine_start` must have signature `fun <T> startCoroutine(task: SuspendTask<T>, completion: Continuation<T>): Unit`"
+                "intrinsic `coroutine_start` must have signature `fun <T> startCoroutineExecution(execution: CoroutineExecutionDriver, dispatched: Boolean, task: SuspendTask<T>, completion: Continuation<T>): Unit`"
                     .to_string(),
             );
         }

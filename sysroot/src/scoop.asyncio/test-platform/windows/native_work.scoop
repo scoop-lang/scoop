@@ -1,0 +1,27 @@
+package scoop.asyncio
+
+import scoop.test.*
+
+// Standalone native tests drive work directly; managed pool behavior has separate tests.
+@Unsafe
+internal fun executeNativeTestWork(loop: Ptr<Unit>) {
+    while (true) {
+        val task = takeNativeTestTask(loop) ?: return
+        runNativeTestTask(task)
+    }
+}
+
+@Unsafe
+internal fun nextNativeTestResult(loop: Ptr<Unit>): NativeRecord {
+    while (nativeLoopBatchSize(loop) == 0L) {
+        executeNativeTestWork(loop)
+        assertEquals(0, nativeLoopPoll(loop, true).code)
+    }
+    return nativeLoopNext(loop)
+}
+
+@Extern(name = "scoop_io_work_take")
+private fun takeNativeTestTask(loop: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_io_work_run")
+private fun runNativeTestTask(task: Ptr<Unit>)

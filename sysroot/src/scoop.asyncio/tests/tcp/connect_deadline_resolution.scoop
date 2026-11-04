@@ -10,15 +10,16 @@ import scoop.time.Duration
 private class AsyncTcpResolutionDeadlineTest {
     @Test
     fun `queued DNS timeout cancels both native work items without cancelling the caller`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
+        val backend = eventLoop()
+        val loop = backend
         val limit =
             when (environmentVariable("SCOOP_GC_STRESS_MOVE")) {
                 case Some(_) -> Duration.seconds(3L)
                 case None -> Duration.milliseconds(50L)
             }
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val fence = WorkFence(backend)
                 fence.start();
@@ -63,10 +64,11 @@ private class AsyncTcpResolutionDeadlineTest {
 
     @Test
     fun `caller cancellation retains its type and closes both configured deadline tasks`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val fence = WorkFence(backend)
                 fence.start();

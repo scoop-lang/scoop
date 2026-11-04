@@ -186,6 +186,8 @@ pub(super) fn expected_operation_signature(
             (
                 Effect::Ordinary,
                 vec![
+                    SignatureTypeKey::Nominal(coroutine.execution),
+                    SignatureTypeKey::Nominal(surface.fundamental_types.boolean),
                     signature_application(coroutine.suspend_task, binder.clone()),
                     signature_application(coroutine.continuation, binder.clone()),
                 ],
@@ -203,6 +205,15 @@ pub(super) fn expected_operation_signature(
                 binder.clone(),
             )
         }
+        IntrinsicFunctionKind::CoroutineYield => (Effect::Suspend, Vec::new(), unit.clone()),
+        IntrinsicFunctionKind::CoroutineCurrentExecution => (
+            Effect::Ordinary,
+            Vec::new(),
+            signature_application(
+                surface.option_protocol.option,
+                SignatureTypeKey::Nominal(surface.coroutine_protocol.execution),
+            ),
+        ),
         IntrinsicFunctionKind::CurrentSourceLocation => (
             Effect::Ordinary,
             Vec::new(),
@@ -454,6 +465,8 @@ pub(super) fn operation_own_type_parameter_count(kind: IntrinsicFunctionKind) ->
         IntrinsicFunctionKind::GcCollect
         | IntrinsicFunctionKind::GcStats
         | IntrinsicFunctionKind::ThrowablePrintStackTrace
+        | IntrinsicFunctionKind::CoroutineCurrentExecution
+        | IntrinsicFunctionKind::CoroutineYield
         | IntrinsicFunctionKind::CurrentSourceLocation
         | IntrinsicFunctionKind::CompileEnv
         | IntrinsicFunctionKind::IncludeStr

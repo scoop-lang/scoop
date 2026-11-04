@@ -17,9 +17,9 @@ private suspend fun writeSent(writer: AsyncHttp1Writer) {
 }
 
 private fun exercise(mode: String) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val body =
             if (mode == "length" || mode == "eof")
                 "no"

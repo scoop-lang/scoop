@@ -41,6 +41,14 @@ impl Lowerer {
             span,
         } = context;
         debug_assert_eq!(failures.len(), prepared.len());
+        if let [failure] = failures
+            && let CandidateProbeFailureKind::Context { span, reason } = &failure.kind
+        {
+            // A single context-forbidden declaration needs the direct effect
+            // diagnostic; overload sets still retain each candidate's reason.
+            self.error(*span, reason.clone());
+            return true;
+        }
         if failures.iter().any(|failure| {
             matches!(failure.kind, CandidateProbeFailureKind::Expression { .. })
                 && failure.state(self).diagnostics.len() == self.diagnostics.len()
@@ -218,7 +226,8 @@ fn render_candidate_failure(
                 None => format!("{parameter}: {reason}"),
             }
         }
-        CandidateProbeFailureKind::Declaration { reason, .. } => reason.clone(),
+        CandidateProbeFailureKind::Declaration { reason, .. }
+        | CandidateProbeFailureKind::Context { reason, .. } => reason.clone(),
         CandidateProbeFailureKind::Constraint(constraint) => render_callable_constraint_failure(
             state,
             &candidate.view,
@@ -306,7 +315,8 @@ fn candidate_failure_span(
 ) -> Span {
     match &failure.kind {
         CandidateProbeFailureKind::Shape(_) => fallback,
-        CandidateProbeFailureKind::Declaration { span, .. } => *span,
+        CandidateProbeFailureKind::Declaration { span, .. }
+        | CandidateProbeFailureKind::Context { span, .. } => *span,
         CandidateProbeFailureKind::Expression { span, .. } => *span,
         CandidateProbeFailureKind::Constraint(failure) => constraint_failure_span(
             arguments,

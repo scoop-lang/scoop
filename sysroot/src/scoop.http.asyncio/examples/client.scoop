@@ -15,9 +15,9 @@ fun main(args: Array<String>) {
             args[1L].toInt()
         else
             8081
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val socket = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
         AsyncHttp1Connection.takeOwnershipAsClient(socket, scope).useAsync suspend {
             connection ->

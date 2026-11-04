@@ -151,9 +151,9 @@ private class AsyncHttp1CancellationTests {
 
     @Test
     fun `adoption validation and pre-cancellation retain caller ownership`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             try {
                 try {

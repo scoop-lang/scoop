@@ -18,6 +18,10 @@ impl Lowerer {
         };
         match &literal.header {
             RecoveredCallableHeader::Lambda { parameters } => {
+                let is_suspend = is_suspend
+                    || signature
+                        .as_ref()
+                        .is_some_and(|signature| signature.is_suspend);
                 let parameters = self.lambda_source_parameters(
                     is_suspend,
                     parameters.as_deref(),

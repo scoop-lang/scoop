@@ -71,8 +71,7 @@ private class ServerRequestDeadlineTests {
                             currentEventLoop().sleep(Duration.milliseconds(10))
                             text("deadline incorrectly restarted")
                         } finally {
-                            nonCancellableScope<Unit> suspend {
-                                _ ->
+                            nonCancellableScope<Unit> {
                                 cleaning.signal();
                                 release.await()
                             }

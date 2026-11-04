@@ -123,9 +123,8 @@ private class ServerSseNetworkTests {
         val response = exercise(routes, output = output)
         assertEquals("data: one\n\n: batch\n\ndata: two\n\n", response.text())
         assertEquals(1, output.finishes)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             var rejected = false
             try {
                 escaped.value!!.comment("late")

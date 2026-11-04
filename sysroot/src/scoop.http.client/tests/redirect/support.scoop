@@ -60,9 +60,10 @@ internal fun withClientRedirectTest(
                         this.maxStreamsPerHttp2 = 1L
                     }
             }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> clientTestListen(loop).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            clientTestListen(loop).useAsync suspend {
                 listener -> block(loop, scope, listener, config)
             }
         }

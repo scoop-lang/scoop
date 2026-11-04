@@ -19,7 +19,7 @@ struct ScoopIoLoop {
     pthread_mutex_t mutex;
     dispatch_queue_t queue;
     int wake_read, wake_write, failure;
-    unsigned actions, workers;
+    unsigned actions, work_runners;
     int64_t completions;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests;
@@ -33,7 +33,6 @@ void scoop_io_request_submit(ScoopIoRequest *request, ScoopIoLoop *loop, int64_t
 bool scoop_io_request_start(ScoopIoRequest *request);
 void scoop_io_request_finish(ScoopIoRequest *request);
 void scoop_io_request_cancel(ScoopIoLoop *loop, int64_t id);
-void scoop_io_work_poll(ScoopIoLoop *loop);
 void scoop_io_notify_locked(ScoopIoLoop *loop);
 
 #endif

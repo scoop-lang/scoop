@@ -46,9 +46,9 @@ class Signal {
 }
 
 private fun exercise(mode: String, address: SocketAddress) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         if (mode == "h1-progress" || mode == "h1-stall")
             exerciseH1(loop, scope, address, mode)
         else

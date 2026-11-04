@@ -41,9 +41,10 @@ private fun exercise(ip: IpAddress) {
         val address = listener.localAddress()
         Thread.start { serve(listener) }.use {
             server ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> for (maximum in [1L, 2L]) {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                for (maximum in [1L, 2L]) {
                     val options =
                         tcpConnectOptions {
                             this.resolutionDelay = Duration.ZERO

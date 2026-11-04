@@ -10,9 +10,9 @@ private class AsyncHttpTlsModeTests {
     @Test
     fun `HTTP1 uses the actual TLS ALPN or an explicit absent ALPN fallback`() {
         for (selected in [false, true]) {
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val(a, b) = rawPair(loop, scope)
                 val protocols = ArrayList<Array<Byte>>()
                 if (selected)

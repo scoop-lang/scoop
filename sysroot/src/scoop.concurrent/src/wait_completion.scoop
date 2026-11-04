@@ -1,0 +1,70 @@
+package scoop.concurrent
+
+import scoop.collections.ArrayDeque
+
+// Collect while locked, then deliver every selected result outside the lock.
+internal class WaitNotifications {
+    private val actions = ArrayDeque<() -> Unit>()
+
+    internal fun add(action: () -> Unit) {
+        actions.addLast(action)
+    }
+
+    internal fun deliver() {
+        var failure: Throwable? = None
+        while (actions.size > 0L) {
+            val action = actions.removeFirst()
+            try {
+                action()
+            }
+            catch (error: Throwable) {
+                if (!waitPresent(failure))
+                    failure = Some(error)
+            }
+        }
+        when (failure) {
+            case Some(error) -> throw error
+            case None -> {}
+        }
+    }
+}
+
+// This is not an independent arbiter: its owner holds the same lock as the queues.
+internal class PendingResume<T>(continuation: Continuation<T>) {
+    private var continuation: Continuation<T>? = Some(continuation)
+    private var cancellation: Disposable? = None
+
+    internal val isPending: Boolean get() = waitPresent(continuation)
+
+    internal fun bind(registration: Disposable?, notifications: WaitNotifications) {
+        if (isPending)
+            cancellation = registration
+        else
+            when (registration) {
+                case Some(listener) -> notifications.add { listener.dispose() }
+                case None -> {}
+            }
+    }
+
+    internal fun detachCancellation(notifications: WaitNotifications) {
+        when (cancellation) {
+            case Some(listener) -> notifications.add { listener.dispose() }
+            case None -> {}
+        }
+        cancellation = None
+    }
+
+    internal fun succeed(value: T, notifications: WaitNotifications) {
+        val target = continuation!!
+        continuation = None
+        detachCancellation(notifications)
+        notifications.add { target.resume(value) }
+    }
+
+    internal fun fail(error: Throwable, notifications: WaitNotifications) {
+        val target = continuation!!
+        continuation = None
+        detachCancellation(notifications)
+        notifications.add { target.resumeWithException(error) }
+    }
+}

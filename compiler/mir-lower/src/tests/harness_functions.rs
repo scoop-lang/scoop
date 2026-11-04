@@ -89,6 +89,37 @@ impl Harness {
 
     pub(super) fn test_coroutine_core(&mut self, throwable: hir::ClassId) -> hir::CoroutineCore {
         let throwable_ty = self.class_ty(throwable);
+        let work = self.interface("CoroutineWork", &["run"]);
+        let work_ty = self.interface_ty(work);
+        let work_run = self.interface_methods[self.interfaces[work].methods[0]].function;
+        let execution = self.declare_interface(
+            "CoroutineExecutionDriver",
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+        );
+        for name in ["start", "resume"] {
+            self.add_interface_method_signature(
+                execution,
+                hir::MethodSig {
+                    name: name.into(),
+                    is_suspend: false,
+                    attributes: Default::default(),
+                    type_params: Vec::new(),
+                    params: vec![
+                        param("work", work_ty, hir::LocalId::from_raw(0.into())),
+                        param("queued", self.boolean, hir::LocalId::from_raw(1.into())),
+                    ],
+                    return_ty: self.unit,
+                    span: SPAN,
+                },
+            );
+        }
+        let execution_start =
+            self.interface_methods[self.interfaces[execution].methods[0]].function;
+        let execution_resume =
+            self.interface_methods[self.interfaces[execution].methods[1]].function;
+
         let t = self
             .types
             .alloc(hir::Type::Param(hir::TypeParamId::from_raw(0)));
@@ -304,7 +335,7 @@ impl Harness {
             signature: hir::CallableSignature {
                 context_parameters: Vec::new(),
                 release_callability: Default::default(),
-                name: "startCoroutine".to_string(),
+                name: "startCoroutineExecution".to_string(),
                 is_suspend: false,
                 modifiers: hir::CallableModifiers::default(),
                 params: Vec::new(),
@@ -345,6 +376,11 @@ impl Harness {
             self.top_level.push(function);
         }
         hir::CoroutineCore {
+            work,
+            work_run,
+            execution,
+            execution_start,
+            execution_resume,
             continuation,
             continuation_resume,
             continuation_resume_with_exception,

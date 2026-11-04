@@ -443,6 +443,12 @@ pub enum ForeignCallbackOperation {
 /// export-side protocol templates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CoroutineProtocol {
+    pub work: InterfaceId,
+    pub work_run: CoroutineDispatch,
+    pub execution: InterfaceId,
+    pub execution_start: CoroutineDispatch,
+    pub execution_resume: CoroutineDispatch,
+
     pub result_type: TypeId,
     pub continuation: InterfaceId,
     pub suspend_task: InterfaceId,
@@ -455,7 +461,35 @@ pub struct CoroutineProtocol {
     pub suspend_registration_register: FunctionId,
 }
 
+/// Ordinary protocol methods keep their normal local or dependency definition.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CoroutineDispatch {
+    Local(FunctionId),
+    Imported {
+        function: scoop_identity::PersistentFunctionId,
+        slot: InterfaceMethodSlot,
+    },
+}
+
 impl Module {
+    /// Only a concrete coroutine protocol needs these ordinary core functions.
+    pub fn imported_coroutine_drive_functions(
+        &self,
+    ) -> impl Iterator<Item = &crate::ImportedCoreProtocolCallable> {
+        let functions = match &self.core_protocols {
+            ConcreteCoreProtocols::Imported(core) if !self.coroutine_protocols.is_empty() => {
+                let core = core.coroutines();
+                Some([
+                    core.work_run(),
+                    core.execution_start(),
+                    core.execution_resume(),
+                ])
+            }
+            _ => None,
+        };
+        functions.into_iter().flatten()
+    }
+
     pub fn callable_function(&self, callable: Callable) -> FunctionId {
         match callable {
             Callable::Function(function) => function,

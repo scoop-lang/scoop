@@ -16,7 +16,7 @@ private class EventLoopSessionTest {
     fun `first callback close discards accepted posts and retires the watch before the descriptor`() {
         val result = HostResult()
         val host = PollHost()
-        val loop = PlatformEventLoop()
+        val loop = eventLoop()
         val session =
             loop.attach(host) {
                 error ->
@@ -24,17 +24,17 @@ private class EventLoopSessionTest {
                 result.closed += 1
             }
         assertEquals(0L, host.callbacks)
-        assertTrue(session.post { _ -> fail(Some("discarded callback ran")) })
+        assertTrue(session.post { fail(Some("discarded callback ran")) })
         Thread.start {
             session.requestClose();
             session.requestClose()
         }.use { it.join() }
-        assertFalse(session.post { _ -> fail(Some("rejected callback ran")) })
+        assertFalse(session.post { fail(Some("rejected callback ran")) })
         assertFalse(session.isClosed)
         host.drain(session)
         assertTrue(session.isClosed)
         assertEquals(1, result.closed)
-        assertFailsWith<IllegalStateException> { loop.run suspend { _ -> } }
+        assertFailsWith<IllegalStateException> { loop.run {} }
         assertFailsWith<IllegalStateException> { loop.attach(host) { _ -> } }
     }
 
@@ -45,14 +45,14 @@ private class EventLoopSessionTest {
         val origin = AttachMarker(42)
         val session =
             context(origin) {
-                PlatformEventLoop().attach(host) { error -> assertNoHostFailure(error) }
+                eventLoop().attach(host) { error -> assertNoHostFailure(error) }
             }
         Thread.start {
             val foreign = AttachMarker(99)
             context(foreign) {
                 assertTrue(
                     session.post {
-                        scope ->
+                        val scope = this;
                         assertEquals(42, attachMarker())
                         assertSame(session.loop, currentEventLoop())
                         result.job = Some(scope.job)
@@ -61,7 +61,7 @@ private class EventLoopSessionTest {
                 )
                 assertTrue(
                     session.post {
-                        scope ->
+                        val scope = this;
                         assertSame(result.job!!, scope.job)
                         assertEquals(42, attachMarker())
                         result.seen += 1
@@ -85,10 +85,11 @@ private class EventLoopSessionTest {
         val result = HostResult()
         val host = PollHost()
         val problem = IllegalArgumentException(Some("post failed"))
-        val session = PlatformEventLoop().attach(host) { error -> result.failure = error }
+        val session = eventLoop().attach(host) { error -> result.failure = error }
         session.post {
-            scope ->
+            val scope = this;
             scope.launch suspend {
+                result.completed = true
                 try {
                     currentEventLoop().sleep(Duration.seconds(100L))
                 }
@@ -96,9 +97,11 @@ private class EventLoopSessionTest {
                     result.cleaned = true
                 }
             }
-            throw problem
         }
-        session.post { _ -> fail(Some("callback after failure ran")) }
+        while (!result.completed)
+            host.step()
+        session.post { throw problem }
+        session.post { fail(Some("callback after failure ran")) }
         host.drain(session)
         assertTrue(result.cleaned)
         assertSame(problem, result.failure!!)
@@ -108,11 +111,9 @@ private class EventLoopSessionTest {
     fun `nested host entry defers state machine work and leaves host turns between posts`() {
         val result = HostResult()
         val host = PollHost()
-        val session = PlatformEventLoop().attach(host) { error -> assertNoHostFailure(error) }
+        val session = eventLoop().attach(host) { error -> assertNoHostFailure(error) }
         session.post {
-            _ ->
             session.post {
-                _ ->
                 result.second = true;
                 session.requestClose()
             }
@@ -130,7 +131,7 @@ private class EventLoopSessionTest {
         val result = HostResult()
         val problem = IllegalArgumentException(Some("watch failed"))
         val host = FailingHost(problem)
-        val loop = PlatformEventLoop()
+        val loop = eventLoop()
         assertSame(
             problem,
             assertFailsWith<IllegalArgumentException> {
@@ -141,7 +142,7 @@ private class EventLoopSessionTest {
         {
             assertFalse(testNotificationOpen(host.notification!!))
         }
-        assertFailsWith<IllegalStateException> { loop.run suspend { _ -> } }
+        assertFailsWith<IllegalStateException> { loop.run {} }
     }
 }
 

@@ -74,15 +74,14 @@ private class WindowsSessionHandler: ApplicationHandler {
                 loop.sleep(Duration.seconds(30L))
             }
             finally {
-                nonCancellableScope<Unit> suspend {
-                    _ ->
+                nonCancellableScope<Unit> {
                     loop.sleep(Duration.milliseconds(20L))
                     try {
-                        assertTrue(closing)
+                        assertTrue(this @WindowsSessionHandler.closing)
                     }
                     finally {
-                        finished = true;
-                        lease!!.close()
+                        this @WindowsSessionHandler.finished = true;
+                        this @WindowsSessionHandler.lease!!.close()
                     }
                 }
             }
@@ -90,7 +89,7 @@ private class WindowsSessionHandler: ApplicationHandler {
         scope.launch suspend {
             @Unsafe
             {
-                assertTrue(scheduleNativeMode(hwnd!!, 1, 250) != 0)
+                assertTrue(scheduleNativeMode(this @WindowsSessionHandler.hwnd!!, 1, 250) != 0)
             }
             var scheduled = 1
             while (true) {
@@ -98,9 +97,9 @@ private class WindowsSessionHandler: ApplicationHandler {
                 @Unsafe
                 {
                     when (activeNativeMode()) {
-                        1 -> modalTicks += 1
-                        2 -> menuTicks += 1
-                        3 -> resizeTicks += 1
+                        1 -> this @WindowsSessionHandler.modalTicks += 1
+                        2 -> this @WindowsSessionHandler.menuTicks += 1
+                        3 -> this @WindowsSessionHandler.resizeTicks += 1
                         else -> {}
                     }
                     val done = completedNativeModes()
@@ -108,7 +107,14 @@ private class WindowsSessionHandler: ApplicationHandler {
                         break
                     if (done == scheduled) {
                         scheduled += 1
-                        assertTrue(scheduleNativeMode(hwnd!!, scheduled, 250) != 0)
+                        assertTrue(
+                            scheduleNativeMode(
+                                this @WindowsSessionHandler.hwnd!!,
+                                scheduled,
+                                250
+                            ) !=
+                                0
+                        )
                     }
                 }
             }

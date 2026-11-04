@@ -12,9 +12,10 @@ private class HttpClientPoolHttp2Test {
     fun `cancelling one HTTP2 response preserves other streams and the pooled connection`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -87,9 +88,10 @@ private class HttpClientPoolHttp2Test {
     private fun checkStreamLimit(peer: UInt, local: Long) {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -151,9 +153,10 @@ private class HttpClientPoolHttp2Test {
     fun `GOAWAY drains an accepted stream while a new connection serves the next request`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val finish = BodyTestGate()
                     val serving =

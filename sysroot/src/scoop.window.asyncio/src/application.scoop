@@ -30,17 +30,24 @@ private class WindowAttachment(private val host: ApplicationHost): ApplicationAt
     private var cancellation: Disposable? = None
 
     fun install() {
-        val value = PlatformEventLoop().attach(WindowLoopHost(host)) { error -> closed(error) }
+        val value = eventLoop().attach(WindowLoopHost(host)) { error -> closed(error) }
         session = Some(value)
         value.post {
-            scope -> cancellation =
-                Some(scope.job.invokeOnCancellation { host.postControl { host.requestExit() } })
+            val scope = this;
+            val attachment = this @WindowAttachment
+            attachment.cancellation =
+                Some(
+                    scope.job.invokeOnCancellation {
+                        attachment.host.postControl { attachment.host.requestExit() }
+                    }
+                )
         }
     }
 
     public override fun post(block: () -> Unit): Boolean =
         session!!.post {
-            scope -> context(ScopeBinding(scope)) {
+            val scope = this;
+            context(ScopeBinding(scope)) {
                 block()
             }
         }

@@ -23,7 +23,7 @@ internal class UploadTestDirectory: Disposable {
 
 internal suspend fun deleteUnpublishedUpload(path: Path, published: Boolean) {
     if (!published)
-        nonCancellableScope<Unit> suspend { _ -> currentEventLoop().deleteFile(path) }
+        nonCancellableScope<Unit> { currentEventLoop().deleteFile(path) }
 }
 
 private suspend fun sendMultipartFiles(sink: AsyncByteSink, data: Array<Byte>) {

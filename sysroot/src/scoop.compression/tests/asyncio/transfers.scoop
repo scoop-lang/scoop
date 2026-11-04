@@ -8,9 +8,9 @@ import scoop.test.*
 private class AsyncCompressionTransferTests {
     @Test
     fun `sources stream every format through suspending short reads`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (options in compressionCases()) {
+        val loop = eventLoop()
+        loop.run {
+            for (options in compressionCases()) {
                 val input = ShortAsyncCompressionSource("Hello, Scoop!".toByteArray())
                 AsyncCompressionSource(input, options, 1L).useAsync suspend {
                     source ->
@@ -42,9 +42,9 @@ private class AsyncCompressionTransferTests {
 
     @Test
     fun `sinks finish each format with bounded output and short suspended writes`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (options in compressionCases())
+        val loop = eventLoop()
+        loop.run {
+            for (options in compressionCases())
                 for (text in ["", "Hello, Scoop!"]) {
                     val output = ShortAsyncCompressionSink()
                     AsyncCompressionSink(output, options, 1L).useAsync suspend {
@@ -82,9 +82,9 @@ private class AsyncCompressionTransferTests {
 
     @Test
     fun `flush composes two suspending adapters without ending the message`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (options in compressionCases()) {
+        val loop = eventLoop()
+        loop.run {
+            for (options in compressionCases()) {
                 val output = ShortAsyncCompressionSink()
                 AsyncDecompressionSink(
                     output,
@@ -109,9 +109,9 @@ private class AsyncCompressionTransferTests {
 
     @Test
     fun `copy extensions count completed streams and keep borrowed endpoints open`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (options in compressionCases()) {
+        val loop = eventLoop()
+        loop.run {
+            for (options in compressionCases()) {
                 val input = ShortAsyncCompressionSource("中文日本".toByteArray())
                 val output = ShortAsyncCompressionSink()
                 val forward = input.compressTo(output, options, 3L)

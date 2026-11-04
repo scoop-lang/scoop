@@ -7,9 +7,9 @@ import scoop.http.asyncio.*
 import scoop.platform.memory.NativeByteBuffer
 
 private fun exerciseConsumer() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         runHttp1(loop, scope);
         runHttp2(loop, scope)
     }

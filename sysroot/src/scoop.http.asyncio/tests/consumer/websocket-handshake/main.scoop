@@ -15,9 +15,10 @@ private fun exerciseConsumer(args: Array<String>) {
         runOracle(Path.fromString(args[1L]));
         return
     }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> if (args.size == 3L) {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        if (args.size == 3L) {
             useWebSocket(loop, scope, SocketAddress(IpAddress.IPV4_LOOPBACK, args[2L].toInt()))
         } else {
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))

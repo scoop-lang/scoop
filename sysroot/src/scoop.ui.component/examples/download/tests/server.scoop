@@ -19,14 +19,16 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
     fun request(path: String): HttpRequest =
         httpRequest(Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + path))
     fun start(): Job =
-        jobs.launch suspend {
-            coroutineScope suspend {
-                scope -> while (true) {
-                    val socket = listener.accept()
+        jobs.launch {
+            val server = this @DownloadServer
+            coroutineScope {
+                val scope = this
+                while (true) {
+                    val socket = server.listener.accept()
                     scope.launch suspend {
                         AsyncHttp1Connection.takeOwnershipAsServer(socket, scope).useAsync suspend {
                             connection ->
-                            connections.add(connection)
+                            server.connections.add(connection)
                             val request = connection.receiveRequest()!!
                             val target =
                                 when (request.head.target) {
@@ -37,14 +39,29 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
                                 }
                             request.body.close()
                             when (target) {
-                                case "/known" -> respond(connection, known, false, false)
-                                case "/unknown" -> respond(connection, unknown, true, false)
-                                case "/slow" -> respond(connection, known, false, true)
+                                case "/known" -> server.respond(
+                                    connection,
+                                    server.known,
+                                    false,
+                                    false
+                                )
+                                case "/unknown" -> server.respond(
+                                    connection,
+                                    server.unknown,
+                                    true,
+                                    false
+                                )
+                                case "/slow" -> server.respond(
+                                    connection,
+                                    server.known,
+                                    false,
+                                    true
+                                )
                                 case "/error" -> connection.sendResponse(
                                     HttpResponseHead(
                                         HttpVersion.Http11,
                                         503U,
-                                        fields = closeFields()
+                                        fields = server.closeFields()
                                     ),
                                     Http1BodyFraming.Empty
                                 ).useAsync suspend { writer -> writer.finish() }

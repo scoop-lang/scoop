@@ -8,9 +8,9 @@ import scoop.terminal.asyncio.*
 import scoop.terminal.event.*
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> AsyncTerminalSession.open(loop).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        AsyncTerminalSession.open(loop).useAsync suspend {
             terminal -> terminal.withRawMode suspend {
                 terminal.execute(Print("Press keys; Escape exits.\r\n"))
                 while (true) {

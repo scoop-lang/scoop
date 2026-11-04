@@ -10,9 +10,10 @@ import scoop.test.*
 import scoop.text.endsWith
 
 internal fun eofAsync(truncated: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             val server =
                 scope.launch suspend {

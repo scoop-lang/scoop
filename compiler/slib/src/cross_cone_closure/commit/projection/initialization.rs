@@ -35,7 +35,8 @@ impl ValidatedCrossConeSemanticClosure {
                 concrete::InitializationCycleThrower::Imported(callable) => Some(callable),
                 concrete::InitializationCycleThrower::Local(_) => None,
             })
-            .chain(arguments);
+            .chain(arguments)
+            .chain(module.imported_coroutine_drive_functions());
         for callable in callables {
             let ImportedCoreProtocolCallableDefinition::Function(definition) =
                 callable.definition()
@@ -52,24 +53,35 @@ impl ValidatedCrossConeSemanticClosure {
             let artifact = self
                 .provider(provider)
                 .ok_or(Error::MissingProvider { provider })?;
-            let export = artifact
-                .production()
-                .mir_cross_cone()
-                .export(DependencyCallableDeclarationId::Function(
-                    definition.persistent(),
-                ))
-                .ok_or(Error::MissingExport { provider, target })?;
-            if export.implementation() != target {
-                return Err(Error::ImplementationMismatch { provider, target });
+            let export = artifact.production().mir_cross_cone().export(
+                DependencyCallableDeclarationId::Function(definition.persistent()),
+            );
+            if let Some(export) = export {
+                if export.implementation() != target {
+                    return Err(Error::ImplementationMismatch { provider, target });
+                }
+                let record = SelectedDependencyMirCallableV1::try_new(
+                    provider,
+                    export.declaration(),
+                    target,
+                    export.signature().clone(),
+                )
+                .map_err(Error::Record)?;
+                selected.push(SelectedExternalMirCallable::dependency(record));
+            } else {
+                let method = artifact
+                    .production()
+                    .layout()
+                    .mir_type_bridge()
+                    .exports()
+                    .callables()
+                    .get(target)
+                    .ok_or(Error::MissingExport { provider, target })?;
+                selected.push(
+                    SelectedExternalMirCallable::from_lowered(provider, method.clone())
+                        .map_err(|_| Error::SignatureMismatch { provider, target })?,
+                );
             }
-            let record = SelectedDependencyMirCallableV1::try_new(
-                provider,
-                export.declaration(),
-                target,
-                export.signature().clone(),
-            )
-            .map_err(Error::Record)?;
-            selected.push(SelectedExternalMirCallable::dependency(record));
         }
         Ok(())
     }

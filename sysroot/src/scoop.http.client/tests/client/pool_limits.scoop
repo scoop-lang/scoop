@@ -35,9 +35,10 @@ private class HttpClientPoolLimitsTest {
     fun `an origin without capacity does not block another origin`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     first -> clientTestListen(loop).useAsync suspend {
                         second ->
                         val a =
@@ -110,9 +111,10 @@ private class HttpClientPoolLimitsTest {
     fun `the global limit waits for active responses then evicts an idle different origin`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     first -> clientTestListen(loop).useAsync suspend {
                         second ->
                         val a =
@@ -175,9 +177,9 @@ private class HttpClientPoolLimitsTest {
     fun `failed connection attempts release the reserved global capacity`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val unavailable = clientTestListen(loop)
                 val missing = clientTestUrl(unavailable)
                 unavailable.close()

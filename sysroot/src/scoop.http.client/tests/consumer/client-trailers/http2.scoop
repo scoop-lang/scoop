@@ -34,9 +34,10 @@ private class TrailerGate {
 }
 
 internal fun exerciseTrailerHttp2(trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             val done = TrailerGate()
             val serving =

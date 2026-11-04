@@ -50,9 +50,10 @@ private class AsyncSocks5ParameterTest {
                     )
                 )
             ]
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> for (target in invalid) {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            for (target in invalid) {
                 val script = Socks5Script(socks5SuccessInput())
                 try {
                     AsyncSocks5Tunnel.takeOwnership(script, target);

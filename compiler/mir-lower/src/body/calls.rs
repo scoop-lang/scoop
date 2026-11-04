@@ -232,6 +232,12 @@ impl BodyLowerer<'_> {
             | hir::IntrinsicFunctionKind::CoroutineSuspend => {
                 unreachable!("coroutine intrinsics are lowered through the typed protocol")
             }
+            hir::IntrinsicFunctionKind::CoroutineCurrentExecution => {
+                return self.lower_current_execution(result_ty);
+            }
+            hir::IntrinsicFunctionKind::CoroutineYield => {
+                return smir::Expr::new(mir::Type::Unit, smir::ExprKind::CoroutineYield);
+            }
             hir::IntrinsicFunctionKind::DataBorrow(_)
             | hir::IntrinsicFunctionKind::Float(_)
             | hir::IntrinsicFunctionKind::Char(_)

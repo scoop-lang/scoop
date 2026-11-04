@@ -91,21 +91,20 @@ private class AsyncHandler: ApplicationHandler {
             }
         }
         scope.launch suspend {
-            childStarted = true
+            this @AsyncHandler.childStarted = true
             try {
                 loop.sleep(Duration.seconds(10L))
             }
             finally {
                 // Root cancellation reaches the window control source before this suspended cleanup.
-                nonCancellableScope<Unit> suspend {
-                    _ ->
+                nonCancellableScope<Unit> {
                     loop.sleep(Duration.milliseconds(10L))
                     try {
-                        assertTrue(closing)
+                        assertTrue(this @AsyncHandler.closing)
                     }
                     finally {
-                        childFinished = true;
-                        lease!!.close()
+                        this @AsyncHandler.childFinished = true;
+                        this @AsyncHandler.lease!!.close()
                     }
                 }
             }
@@ -118,15 +117,15 @@ private class AsyncHandler: ApplicationHandler {
                 {
                     val mode = activeNativeMode()
                     if (mode == 1)
-                        modalTicks += 1
+                        this @AsyncHandler.modalTicks += 1
                     if (mode == 2)
-                        menuTicks += 1
+                        this @AsyncHandler.menuTicks += 1
                     val count = completedNativeModes()
                     if (count == 2)
                         break
                     if (count == 1 && !menuStarted) {
                         menuStarted = true
-                        when (lease!!.handle) {
+                        when (this @AsyncHandler.lease!!.handle) {
                             case AppKit(window, _) -> scheduleNativeMode(window, 2, 0.15)
                         }
                     }

@@ -11,9 +11,9 @@ import scoop.tls.*
 import scoop.url.Url
 
 internal fun sseTransport(trust: TrustStore, mode: String, url: Url, notifyPort: Int) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient(sseConfig(trust, mode == "h2-eof" || mode == "h2-protocol")) suspend {
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient(sseConfig(trust, mode == "h2-eof" || mode == "h2-protocol")) suspend {
             client ->
             val calls = AtomicLong(0L)
             val reconnect =

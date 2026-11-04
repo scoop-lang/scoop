@@ -17,7 +17,8 @@ typedef struct Payload {
     uint64_t value;
 } Payload;
 
-static const uint64_t task_scan[] = {1, offsetof(ScoopTaskContext, root)};
+static const uint64_t task_scan[] = {
+    2, offsetof(ScoopTaskContext, root), offsetof(ScoopTaskContext, execution)};
 static const uint64_t node_scan[] = {4, 16, 24, 32, 40};
 #define FIXED_SHAPE(type)                                                       \
     { .instance_kind = SCOOP_TYPE_INSTANCE_FIXED_OBJECT_V1,                      \
@@ -54,6 +55,26 @@ static uint64_t lookup(uint64_t cell) {
     Payload *payload = scoop_rt_context_try_get(&cell);
     assert(payload != NULL);
     return payload->value;
+}
+
+static void install_execution(void **rooted_task, uint64_t value) {
+    _Alignas(16) uintptr_t frame[4];
+    frame_init(frame);
+    ScoopManagedAnchor anchor;
+    scoop_thread_push_managed_anchor(&anchor, 0x1010, (uintptr_t)frame,
+                                      (uintptr_t)&frame[2]);
+    Payload *execution = scoop_gc_alloc_internal(&payload_td, sizeof *execution);
+    execution->value = value;
+    ScoopTaskContext *task = *rooted_task;
+    task->execution = execution;
+    scoop_rt_gc_write_barrier(&task->execution, sizeof task->execution);
+    scoop_thread_pop_managed_anchor(&anchor);
+}
+
+static uint64_t execution_value(void *task) {
+    Payload *execution = ((ScoopTaskContext *)task)->execution;
+    assert(execution != NULL);
+    return execution->value;
 }
 
 /* Model the typed heap write performed by a generated Context restore. */
@@ -95,6 +116,8 @@ static void exercise_context(void) {
     for (size_t index = 0; index < 7; index++) slots[index + 5] = &marks[index];
     ScoopNativeRootFrame roots;
     scoop_rt_push_native_roots(&roots, slots, 12);
+    assert(((ScoopTaskContext *)task)->execution == NULL);
+    install_execution(&task, 777);
     const uint64_t cells[] = {1, 2, 4, 5, 16, 17, UINT64_C(1) << 32};
     uint64_t absent = 18;
     assert(scoop_rt_context_try_get(&absent) == NULL);
@@ -112,6 +135,8 @@ static void exercise_context(void) {
     scoop_rt_gc_write_barrier(&((ScoopTaskContext *)child)->root, sizeof(void *));
     scoop_thread_pop_managed_anchor(&anchor);
     assert(child != task && ((ScoopTaskContext *)child)->root == snapshot);
+    assert(((ScoopTaskContext *)child)->execution == NULL);
+    install_execution(&child, 888);
     guard = *context_slot;
     *context_slot = child;
     assert(guard == task);
@@ -125,14 +150,17 @@ static void exercise_context(void) {
     assert(scoop_rt_context_slot == context_slot && *context_slot == child);
     assert(lookup(cells[0]) == 999 && lookup(cells[6]) == 106);
     assert(((ScoopTaskContext *)task)->root == snapshot);
+    assert(execution_value(task) == 777 && execution_value(child) == 888);
     *context_slot = guard;
     assert(*context_slot == task);
     assert(lookup(cells[0]) == 100);
     restore(child, mark);
     assert(((ScoopTaskContext *)child)->root == snapshot);
+    assert(execution_value(task) == 777 && execution_value(child) == 888);
     for (size_t index = 7; index != 0; index--) {
         restore(task, marks[index - 1]);
         collect();
+        assert(execution_value(task) == 777 && execution_value(child) == 888);
         assert(scoop_rt_context_try_get(&cells[index - 1]) == NULL);
         for (size_t prior = 0; prior + 1 < index; prior++) {
             assert(lookup(cells[prior]) == 100 + prior);
@@ -173,6 +201,7 @@ int main(void) {
     assert(scoop_rt_context_slot == context_slot);
     assert(*context_slot == (*scoop_rt_context_slot));
     assert(lookup(UINT64_C(1) << 32) == 1234);
+    assert(execution_value(*scoop_rt_context_slot) == 777);
     scoop_thread_leave_managed();
     scoop_thread_prepare_shutdown();
     scoop_thread_detach_main();

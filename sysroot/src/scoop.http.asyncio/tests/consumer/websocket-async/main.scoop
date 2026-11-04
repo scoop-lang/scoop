@@ -50,9 +50,9 @@ fun sessionOptions(): WebSocketSessionOptions =
     }
 
 private fun runPair() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
         try {
             val serving = scope.launch suspend { serveUpgrade(listener.accept(), scope) }
@@ -65,16 +65,17 @@ private fun runPair() {
 }
 
 private fun runClient(port: Int) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> useUpgrade(loop, scope, SocketAddress(IpAddress.IPV4_LOOPBACK, port))
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        useUpgrade(loop, scope, SocketAddress(IpAddress.IPV4_LOOPBACK, port))
     }
 }
 
 private fun runServer(port: Int) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
         try {
             println("PORT|" + listener.localAddress.port.toString())

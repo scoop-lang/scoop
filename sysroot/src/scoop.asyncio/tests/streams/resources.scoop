@@ -7,20 +7,15 @@ private class AsyncResourceUseTest {
     @Test
     fun `use returns typed results and preserves both body and cleanup errors`() {
         val success = ShortSink()
-        val loop: EventLoop = PlatformEventLoop()
-        assertEquals(
-            42,
-            loop.runWithResult<Int> suspend { _ -> success.useAsync suspend { _ -> 42 } }
-        )
+        val loop = eventLoop()
+        assertEquals(42, loop.run<Int> { success.useAsync suspend { _ -> 42 } })
         assertEquals(1, success.closes)
         val failed = ShortSink()
         failed.failClose = true
-        val failureLoop: EventLoop = PlatformEventLoop()
+        val failureLoop = eventLoop()
         val error =
             assertFailsWith<ResourceUseException> {
-                failureLoop.run suspend {
-                    _ -> failed.useAsync suspend { _ -> throw failed.failure }
-                }
+                failureLoop.run { failed.useAsync suspend { _ -> throw failed.failure } }
             }
         assertSame(failed.failure, error.primaryFailure)
         assertSame(failed.cleanup, error.cleanupFailure)
@@ -30,10 +25,11 @@ private class AsyncResourceUseTest {
     @Test
     fun `use still performs cleanup after current job cancellation`() {
         val resource = ShortSink()
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         assertFailsWith<CancellationException> {
-            loop.run suspend {
-                scope -> resource.useAsync suspend {
+            loop.run {
+                val scope = this;
+                resource.useAsync suspend {
                     _ ->
                     scope.job.cancel();
                     ensureActive()

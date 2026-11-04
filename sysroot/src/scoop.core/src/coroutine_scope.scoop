@@ -1,7 +1,10 @@
 /**
  * A structured child job carrying one eventual result or failure.
  */
-public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: Boolean = true) : Job(parent, propagatesFailure) {
+public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: Boolean = true): Job(
+    parent,
+    propagatesFailure
+) {
     private var result: MaybeUninit<T> = MaybeUninit<T>.uninit()
 
     internal fun succeed(value: T) {
@@ -12,7 +15,10 @@ public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: B
     internal fun getCompleted(): T {
         when (finalFailure()) {
             case Some(error) -> throw error
-            case None -> @Unsafe { return result.assumeInit() }
+            case None -> @Unsafe
+            {
+                return result.assumeInit()
+            }
         }
     }
 
@@ -25,23 +31,69 @@ public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: B
     }
 }
 
-/**
- * Launches child computations associated with one parent job.
- */
+private enum CoroutineScopeState {
+    Open(ExecutorTask?)
+    Closed
+}
+
+/** Launches child computations associated with one parent job and a default executor. */
 public class CoroutineScope internal constructor(
     /**
      * The parent used for children launched through this scope.
      */
-    public val job: Job) {
+    public val job: Job,
+    private val executor: CoroutineExecutor?
+) {
+    private val lock: CoroutineLock = CoroutineLock()
+    private var state: CoroutineScopeState = CoroutineScopeState.Open(None)
+
+    internal fun enter() {
+        val registration = currentExecutorTask()
+        lock.withLock { state = CoroutineScopeState.Open(registration) }
+    }
+
+    internal fun close() {
+        lock.withLock { state = CoroutineScopeState.Closed }
+    }
+
+    private fun parentRegistration(): ExecutorTask? =
+        lock.withLock {
+            when (state) {
+                case CoroutineScopeState.Open(parent) -> parent
+                case CoroutineScopeState.Closed -> throw IllegalStateException(
+                    Some("coroutine scope is closed")
+                )
+            }
+        }
+
     /**
      * Starts a child returning Unit and returns its job for cancellation or joining.
      */
-    public fun launch(block: suspend () -> Unit): Job = async(block)
+    public fun launch(block: suspend CoroutineScope.() -> Unit): Job = async(block)
+
+    /** Starts a child on the selected executor while retaining this scope's job parent. */
+    public fun launch(executor: CoroutineExecutor, block: suspend CoroutineScope.() -> Unit): Job =
+        async(executor, block)
 
     /**
      * Starts a child that produces a result and returns a deferred handle.
      */
-    public fun <T> async(block: suspend () -> T): Deferred<T> = startStructuredTask(Some(job), block)
+    public fun <T> async(block: suspend CoroutineScope.() -> T): Deferred<T> =
+        startStructuredTask(
+            Some(job),
+            executor,
+            parentRegistration(),
+            !coroutineAbsent(executor),
+            true,
+            block
+        )
+
+    /** Starts a child returning a result on the selected executor. */
+    public fun <T> async(
+        executor: CoroutineExecutor,
+        block: suspend CoroutineScope.() -> T
+    ): Deferred<T> =
+        startStructuredTask(Some(job), Some(executor), parentRegistration(), true, true, block)
 }
 
 context(job: Job)
@@ -51,8 +103,12 @@ private fun boundCoroutineJob(): Job = job
  * Returns the job installed for the currently running coroutine, or None outside a job context.
  */
 public fun currentJobOrNone(): Job? {
-    try { return Some(boundCoroutineJob()) }
-    catch (_: MissingContextException) { return None }
+    try {
+        return Some(boundCoroutineJob())
+    }
+    catch (_: MissingContextException) {
+        return None
+    }
 }
 
 /**
@@ -65,48 +121,89 @@ public fun ensureActive() {
     }
 }
 
-internal fun <T> startStructuredTask(parent: Job?, block: suspend () -> T): Deferred<T> {
-    val task = Deferred<T>(parent)
+private fun <T> startStructuredTask(
+    parent: Job?,
+    executor: CoroutineExecutor?,
+    preferredRegistration: ExecutorTask?,
+    dispatched: Boolean,
+    propagatesFailure: Boolean,
+    block: suspend CoroutineScope.() -> T
+): Deferred<T> {
+    val task = Deferred<T>(parent, propagatesFailure)
     when (parent) {
         case Some(owner) -> owner.attach(task)
         case None -> {}
     }
     val job: Job = task
+    val scope = CoroutineScope(job, executor)
+    val execution =
+        try {
+            prepareCoroutineExecution(executor, preferredRegistration)
+        } catch (error: Throwable) {
+            scope.close()
+            task.finishBody(Some(error))
+            throw error
+        }
     context(job) {
-        startCoroutine<T>(suspend { job.ensureActive(); block() }, StructuredCompletion<T>(task))
+        startCoroutineExecution(
+            execution,
+            dispatched,
+            FunctionSuspendTask<T>({ runScopeBody(scope, block) }),
+            ExecutionCompletion(execution, StructuredCompletion<T>(task))
+        )
     }
     return task
 }
 
-private class StructuredCompletion<T>(val task: Deferred<T>) : Continuation<T> {
-    public override fun resume(value: T) { task.succeed(value) }
-    public override fun resumeWithException(exception: Throwable) { task.finishBody(Some(exception)) }
+private suspend fun <T> runScopeBody(
+    scope: CoroutineScope,
+    block: suspend CoroutineScope.() -> T
+): T {
+    scope.enter()
+    try {
+        scope.job.ensureActive()
+        return block(scope)
+    } finally {
+        scope.close()
+    }
+}
+
+private class StructuredCompletion<T>(val task: Deferred<T>): Continuation<T> {
+    public override fun resume(value: T) {
+        task.succeed(value)
+    }
+    public override fun resumeWithException(exception: Throwable) {
+        task.finishBody(Some(exception))
+    }
 }
 
 /**
  * Runs a block in a child scope and waits for its children before returning the block's result.
  */
-public suspend fun <T> coroutineScope(block: suspend (CoroutineScope) -> T): T =
-    runCoroutineScope(currentJobOrNone(), block)
+public suspend fun <T> coroutineScope(block: suspend CoroutineScope.() -> T): T =
+    runCoroutineScope(currentJobOrNone(), currentCoroutineExecutorOrNone(), false, block)
 
 /**
  * Runs a structured scope detached from parent cancellation. The scope still owns a job whose own
  * cancellation and child completion rules apply.
  */
-public suspend fun <T> nonCancellableScope(block: suspend (CoroutineScope) -> T): T =
-    runCoroutineScope(None, block)
+public suspend fun <T> nonCancellableScope(block: suspend CoroutineScope.() -> T): T =
+    runCoroutineScope(None, currentCoroutineExecutorOrNone(), false, block)
 
-private suspend fun <T> runCoroutineScope(parent: Job?, block: suspend (CoroutineScope) -> T): T {
-    val task = Deferred<T>(parent, false)
-    when (parent) {
-        case Some(owner) -> owner.attach(task)
-        case None -> {}
-    }
-    val job: Job = task
-    val scope = CoroutineScope(job)
-    context(job) {
-        startCoroutine<T>(suspend { job.ensureActive(); block(scope) }, StructuredCompletion<T>(task))
-    }
+/** Runs a structured child scope on the selected executor and waits for all of its children. */
+public suspend fun <T> withExecutor(
+    executor: CoroutineExecutor,
+    block: suspend CoroutineScope.() -> T
+): T = runCoroutineScope(currentJobOrNone(), Some(executor), true, block)
+
+private suspend fun <T> runCoroutineScope(
+    parent: Job?,
+    executor: CoroutineExecutor?,
+    dispatched: Boolean,
+    block: suspend CoroutineScope.() -> T
+): T {
+    val task =
+        startStructuredTask(parent, executor, currentExecutorTask(), dispatched, false, block)
     task.joinUncancelled()
     return task.getCompleted()
 }

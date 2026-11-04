@@ -26,9 +26,8 @@ private class AsyncDirectoryCreationTest {
             val invalid = tree.child("invalid")
             val file = tree.child("file")
             file.writeText("ordinary file")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 try {
                     loop.createDirectories(invalid, -1);
                     fail(Some("negative mode accepted"))
@@ -75,9 +74,9 @@ private class AsyncDirectoryCreationTest {
         IoTestDirectory().use {
             tree ->
             val nested = tree.child("shared/a/b/c")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val first = scope.launch suspend { loop.createDirectories(nested) }
                 val second = scope.launch suspend { loop.createDirectories(nested) }
                 first.join()

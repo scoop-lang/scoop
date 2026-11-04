@@ -82,6 +82,9 @@ pub enum GeneratedNominalKey {
     CoroutineStep {
         result: PersistentExactTypeId,
     },
+    CoroutineStartWork {
+        result: PersistentExactTypeId,
+    },
     BoxedValue {
         payload: PersistentExactTypeId,
     },
@@ -125,6 +128,7 @@ impl WireEncode for GeneratedNominalKey {
                 suspension_site.encode(encoder)
             }
             Self::CoroutineStep { result } => encode_value_sum(encoder, 5, result),
+            Self::CoroutineStartWork { result } => encode_value_sum(encoder, 11, result),
             Self::BoxedValue { payload } => encode_value_sum(encoder, 6, payload),
             Self::CoroutineSlot { value } => encode_value_sum(encoder, 7, value),
             Self::ObjectBackingClass { object } => encode_value_sum(encoder, 8, object),

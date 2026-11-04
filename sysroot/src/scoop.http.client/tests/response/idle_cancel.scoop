@@ -12,9 +12,10 @@ private class HttpClientIdleResponseCancellationTest {
     fun `withResponse preserves cancellation while its body waits outside a read`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val release = BodyTestGate()
                     val entered = BodyTestGate()
@@ -70,9 +71,10 @@ private class HttpClientIdleResponseCancellationTest {
     fun `another closer still observes cancellation from the original caller`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val release = BodyTestGate()
                     val entered = BodyTestGate()

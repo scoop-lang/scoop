@@ -11,9 +11,8 @@ import scoop.asyncio.*
 import scoop.http.server.*
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> HttpServer.listen(scope) {
+    eventLoop().run {
+        HttpServer.listen(this) {
             get("/", suspend { _ -> text("Hello") })
             group("/api") { group("/v1") { get("/status", suspend { _ -> text("ok") }) } }
         }.useAsync suspend { server -> server.awaitTermination() }

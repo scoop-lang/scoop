@@ -1029,6 +1029,9 @@ pub struct CoroutineStart {
     result: Type,
     function: FunctionId,
     identity: CoroutineStartIdentity,
+    work_class: ClassId,
+    work_run: FunctionId,
+    work_identity: crate::CoroutineStartWorkIdentity,
 }
 
 impl CoroutineStart {
@@ -1037,19 +1040,31 @@ impl CoroutineStart {
         result: Type,
         function: FunctionId,
         identity: CoroutineStartIdentity,
+        work_class: ClassId,
+        work_run: FunctionId,
+        work_identity: crate::CoroutineStartWorkIdentity,
     ) -> Option<Self> {
         let definition = arena_get(functions, function)?;
-        let [task, completion] = definition.params.as_slice() else {
+        let [execution, dispatched, task, completion] = definition.params.as_slice() else {
             return None;
         };
+        let work = arena_get(functions, work_run)?;
         (definition.gc_effect == GcEffect::Managed
             && definition.return_ty == Type::Unit
+            && matches!(execution.ty, Type::Interface(_))
+            && dispatched.ty == Type::Boolean
             && matches!(task.ty, Type::Interface(_))
-            && matches!(completion.ty, Type::Interface(_)))
+            && matches!(completion.ty, Type::Interface(_))
+            && work.gc_effect == GcEffect::Managed
+            && work.return_ty == Type::Unit
+            && matches!(work.params.as_slice(), [receiver] if receiver.ty == Type::Class(work_class)))
         .then_some(Self {
             result,
             function,
             identity,
+            work_class,
+            work_run,
+            work_identity,
         })
     }
 
@@ -1063,6 +1078,16 @@ impl CoroutineStart {
 
     pub const fn identity(&self) -> &CoroutineStartIdentity {
         &self.identity
+    }
+
+    pub const fn work_class(&self) -> ClassId {
+        self.work_class
+    }
+    pub const fn work_run(&self) -> FunctionId {
+        self.work_run
+    }
+    pub const fn work_identity(&self) -> &crate::CoroutineStartWorkIdentity {
+        &self.work_identity
     }
 }
 
@@ -1290,6 +1315,7 @@ pub struct CoroutineResumePoint {
     adapter: ClassId,
     resume: FunctionId,
     resume_with_exception: FunctionId,
+    work_run: FunctionId,
     parents: Vec<CoroutinePendingTransfer>,
     success: CoroutineResumeSuccess,
     failure: CoroutineResumeFailure,
@@ -1305,6 +1331,7 @@ impl CoroutineResumePoint {
         adapter: ClassId,
         resume: FunctionId,
         resume_with_exception: FunctionId,
+        work_run: FunctionId,
         parents: Vec<CoroutinePendingTransfer>,
         success: CoroutineResumeSuccess,
         failure: CoroutineResumeFailure,
@@ -1317,6 +1344,7 @@ impl CoroutineResumePoint {
             adapter,
             resume,
             resume_with_exception,
+            work_run,
             parents,
             success,
             failure,
@@ -1354,6 +1382,10 @@ impl CoroutineResumePoint {
 
     pub const fn resume_with_exception(&self) -> FunctionId {
         self.resume_with_exception
+    }
+
+    pub const fn work_run(&self) -> FunctionId {
+        self.work_run
     }
 
     pub fn parents(&self) -> &[CoroutinePendingTransfer] {

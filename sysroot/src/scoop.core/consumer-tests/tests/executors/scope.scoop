@@ -1,0 +1,246 @@
+package test.core.tests.executors
+
+import scoop.test.*
+
+private class SavedScope {
+    var value: CoroutineScope? = None
+    var job: Job? = None
+}
+
+private class RejectExecutor: CoroutineExecutor {
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask =
+        throw ExecutorClosedException()
+}
+
+@Test
+private class CoroutineScopeExecutorTest {
+    @Test
+    fun `captured scope retains its executor and child receiver`() {
+        val first = QueueExecutor()
+        val second = QueueExecutor()
+        val saved = SavedScope()
+        val gate = DriveGate()
+        val root = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            first,
+            {
+                coroutineScope {
+                    saved.value = Some(this)
+                    saved.job = Some(job)
+                    gate.await()
+                }
+            },
+            root
+        )
+        first.runOne()
+        first.draining = true
+        val called = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            second,
+            {
+                val child =
+                    saved.value!!.async {
+                        assertSame(first, currentCoroutineExecutorOrNone()!!)
+                        assertSame(job, currentJobOrNone()!!)
+                        assertFalse(job === saved.job!!)
+                        42
+                    }
+                child.await()
+            },
+            called
+        )
+        second.runOne()
+        assertEquals(0, called.calls)
+        assertEquals(1L, first.queued)
+        first.runOne()
+        assertEquals(0, called.calls)
+        second.runOne()
+        assertEquals(42, called.value!!)
+        gate.waiter!!.resume(7)
+        while (first.queued > 0L)
+            first.runOne()
+        assertEquals(7, root.value!!)
+        assertEquals(0, first.active)
+        assertEquals(0, second.active)
+        var closed = false
+        try {
+            saved.value!!.launch {}
+        }
+        catch (_: IllegalStateException) {
+            closed = true
+        }
+        assertTrue(closed)
+    }
+
+    @Test
+    fun `explicit child executor becomes the nested scope default`() {
+        val first = QueueExecutor()
+        val second = QueueExecutor()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            first,
+            {
+                coroutineScope {
+                    val child =
+                        async(second) {
+                            val parent = job
+                            val nested =
+                                async {
+                                    assertSame(second, currentCoroutineExecutorOrNone()!!)
+                                    assertFalse(job === parent)
+                                    42
+                                }
+                            nested.await()
+                        }
+                    child.await()
+                }
+            },
+            done
+        )
+        first.runOne()
+        assertEquals(1L, second.queued)
+        while (second.queued > 0L)
+            second.runOne()
+        assertEquals(0, done.calls)
+        while (first.queued > 0L)
+            first.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(0, first.active)
+        assertEquals(0, second.active)
+    }
+
+    @Test
+    fun `withExecutor queues even when the executor is unchanged`() {
+        val executor = QueueExecutor()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            executor,
+            {
+                withExecutor(executor) {
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    assertSame(job, currentJobOrNone()!!)
+                    42
+                }
+            },
+            done
+        )
+        executor.runOne()
+        assertEquals(0, done.calls)
+        assertEquals(1L, executor.queued)
+        while (executor.queued > 0L)
+            executor.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(3, executor.submitted)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `withExecutor failure returns to an active caller scope`() {
+        val first = QueueExecutor()
+        val second = QueueExecutor()
+        val failure = Throwable()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            first,
+            {
+                coroutineScope {
+                    val parent = job
+                    try {
+                        withExecutor<Unit>(second) {
+                            assertSame(second, currentCoroutineExecutorOrNone()!!)
+                            assertFalse(job === parent)
+                            throw failure
+                        }
+                        fail()
+                    } catch (error: Throwable) {
+                        assertSame(failure, error)
+                        assertSame(first, currentCoroutineExecutorOrNone()!!)
+                        assertFalse(parent.isCancelled)
+                    }
+                    ensureActive()
+                    42
+                }
+            },
+            done
+        )
+        first.runOne()
+        second.runOne()
+        assertEquals(0, done.calls)
+        while (first.queued > 0L)
+            first.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(0, first.active)
+        assertEquals(0, second.active)
+    }
+
+    @Test
+    fun `cancelled withExecutor waits for child cleanup`() {
+        val first = QueueExecutor()
+        val second = QueueExecutor()
+        val saved = SavedScope()
+        val gate = DriveGate()
+        val cleaned = AtomicBoolean(false)
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            first,
+            {
+                coroutineScope {
+                    saved.job = Some(job)
+                    withExecutor(second) {
+                        launch {
+                            try {
+                                gate.await()
+                            }
+                            finally {
+                                cleaned.store(true)
+                            }
+                        }
+                    }
+                }
+            },
+            done
+        )
+        first.runOne()
+        second.runOne()
+        second.runOne()
+        saved.job!!.cancel()
+        assertEquals(0, done.calls)
+        assertFalse(cleaned.load())
+        gate.waiter!!.resume(1)
+        while (second.queued > 0L)
+            second.runOne()
+        assertTrue(cleaned.load())
+        assertEquals(0, done.calls)
+        while (first.queued > 0L)
+            first.runOne()
+        assertEquals(1, done.calls)
+        assertTrue(done.failure!! is CancellationException)
+        assertEquals(0, first.active)
+        assertEquals(0, second.active)
+    }
+
+    @Test
+    fun `admission failure completes attached children`() {
+        val rejected = RejectExecutor()
+        val caught = DriveCompletion<Int>()
+        startCoroutine(
+            {
+                coroutineScope {
+                    try {
+                        withExecutor(rejected) {}
+                    }
+                    catch (_: ExecutorClosedException) {
+                        assertFalse(job.isCancelled)
+                    }
+                    42
+                }
+            },
+            caught
+        )
+        assertEquals(42, caught.value!!)
+        val propagated = DriveCompletion<Unit>()
+        startCoroutine({ coroutineScope { launch(rejected) {} } }, propagated)
+        assertEquals(1, propagated.calls)
+        assertTrue(propagated.failure!! is ExecutorClosedException)
+    }
+}

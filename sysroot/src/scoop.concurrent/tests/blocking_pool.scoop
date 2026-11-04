@@ -1,0 +1,99 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class BlockingPoolTest {
+    @Test
+    fun `blocking pool preserves fifo and drains accepted work before termination`() {
+        val pool = BlockingTaskPool(1)
+        val gate = WorkerGate()
+        val order = ArrayList<Int>()
+        pool.submit(
+            FunctionBlockingWork {
+                gate.await();
+                order.add(0)
+            }
+        )
+        gate.awaitEntered(1)
+        pool.submit(FunctionBlockingWork { order.add(Label(1).value) })
+        pool.submit(FunctionBlockingWork { order.add(Label(2).value) })
+        assertFailsWith<IllegalStateException> { pool.join() }
+        val ended = ThreadResult<Unit>()
+        startCoroutine({ pool.awaitTermination() }, ended)
+        pool.requestShutdown()
+        assertFalse(ended.isDone)
+        assertFailsWith<ExecutorClosedException> { pool.submit(FunctionBlockingWork {}) }
+        gate.open()
+        ended.await()
+        pool.join()
+        pool.close()
+        assertEquals(3L, order.size)
+        assertEquals(0, order[0L])
+        assertEquals(1, order[1L])
+        assertEquals(2, order[2L])
+    }
+
+    @Test
+    fun `blocking pool runs its configured number of managed workers`() {
+        BlockingTaskPool(2).use {
+            pool ->
+            val gate = WorkerGate()
+            val first = ThreadResult<ThreadId>()
+            val second = ThreadResult<ThreadId>()
+            pool.submit(
+                FunctionBlockingWork {
+                    gate.await();
+                    first.resume(currentThreadId())
+                }
+            )
+            pool.submit(
+                FunctionBlockingWork {
+                    gate.await();
+                    second.resume(currentThreadId())
+                }
+            )
+            gate.awaitEntered(2)
+            gate.open()
+            assertNotEquals(first.await(), second.await())
+        }
+    }
+
+    @Test
+    fun `blocking pool rejects worker self waits without shutting down on rejected close`() {
+        val pool = BlockingTaskPool(1)
+        val result = ThreadResult<Unit>()
+        pool.submit(
+            FunctionBlockingWork {
+                assertFailsWith<IllegalStateException> { pool.close() }
+                val rejected = TestResult<Unit>()
+                startCoroutine({ pool.awaitTermination() }, rejected)
+                assertTrue(rejected.error!! is IllegalStateException)
+                pool.requestShutdown()
+                assertFailsWith<IllegalStateException> { pool.join() }
+                result.resume(Unit)
+            }
+        )
+        result.await()
+        pool.join()
+        pool.close()
+    }
+
+    @Test
+    fun `blocking pool supports concurrent repeated close`() {
+        val pool = BlockingTaskPool(2)
+        val gate = WorkerGate()
+        pool.submit(FunctionBlockingWork { gate.await() })
+        gate.awaitEntered(1)
+        val closers = Array<Thread>(4L) { _ -> Thread.start { pool.close() } }
+        gate.open()
+        for (thread in closers)
+            thread.use { it.join() }
+        pool.requestShutdown()
+        pool.join()
+        pool.close()
+        assertFailsWith<ExecutorClosedException> { pool.submit(FunctionBlockingWork {}) }
+    }
+}

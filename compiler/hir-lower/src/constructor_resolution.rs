@@ -129,7 +129,7 @@ impl Lowerer {
                 return None;
             }
             1 => 0,
-            _ => self.most_specific_nominal_constructor(name, &applicable, span)?,
+            _ => self.most_specific_nominal_constructor(name, &applicable, arguments, span)?,
         };
         Some(applicable.swap_remove(winner))
     }
@@ -138,6 +138,7 @@ impl Lowerer {
         &mut self,
         name: &str,
         applicable: &[ApplicableConstructor],
+        arguments: &[ast::CallArgument],
         span: ast::Span,
     ) -> Option<usize> {
         let declarations = applicable
@@ -155,6 +156,36 @@ impl Lowerer {
             })
             .collect::<Vec<_>>();
         let pool = self.most_specific_declarations(&declarations);
+        let effects = applicable
+            .iter()
+            .map(|candidate| {
+                use crate::call_resolution::specificity::{
+                    LambdaEffectDeclaration, LambdaEffectReceiver,
+                };
+                let (safety, gc_effect) = match candidate.source {
+                    NominalConstructorSource::Struct(id) => (
+                        self.struct_constructors[id].safety,
+                        self.struct_constructors[id].source_gc_effect(),
+                    ),
+                    NominalConstructorSource::Class(id) => {
+                        (self.class_constructors[id].safety, hir::GcEffect::Managed)
+                    }
+                    _ => (hir::Safety::Safe, hir::GcEffect::Managed),
+                };
+                Some(LambdaEffectDeclaration::new(
+                    &candidate.view.signature,
+                    LambdaEffectReceiver::None,
+                    hir::RequiredCallEffects {
+                        is_suspend: false,
+                        safety,
+                        gc_effect,
+                    },
+                    &candidate.argument_map,
+                    arguments,
+                ))
+            })
+            .collect::<Vec<_>>();
+        let pool = self.prefer_ordinary_lambdas(&pool, &effects);
         if let [winner] = pool.as_slice() {
             return Some(*winner);
         }

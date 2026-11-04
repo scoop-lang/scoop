@@ -16,10 +16,10 @@ private fun breakOutput(stream: AsyncTcpStream) {
 }
 
 private fun exerciseBrokenOutput() {
-    val backend = PlatformEventLoop()
-    val loop: EventLoop = backend
-    loop.run suspend {
-        scope ->
+    val backend = eventLoop()
+    val loop = backend
+    loop.run {
+        val scope = this;
         val(_, client, _) = tcpPair(loop, scope)
         breakOutput(client)
         NativeByteBuffer.allocate(1L).use suspend {
