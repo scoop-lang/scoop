@@ -96,7 +96,7 @@ private class AsyncTlsSystemTests {
         loop.run {
             val scope = this;
             val identity = TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem())
-            val pool = HeldNativePool()
+            val pool = HeldBlockingPool()
             try {
                 pool.start(scope, loop)
                 val opening =
@@ -135,7 +135,7 @@ private class AsyncTlsSystemTests {
             val scope = this;
             val context = openTlsClientContext()
             val config = systemServerContext(TlsOptions())
-            val pool = HeldNativePool()
+            val pool = HeldBlockingPool()
             val releaseClose = AsyncGate()
             try {
                 pool.start(scope, loop)

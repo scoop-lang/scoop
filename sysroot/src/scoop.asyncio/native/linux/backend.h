@@ -33,9 +33,8 @@ struct ScoopIoLoop {
     struct io_uring ring;
     int notification, failure;
     pthread_mutex_t mutex;
-    pthread_cond_t work_ready;
-    unsigned workers;
-    bool stopping, workers_started, failure_reported, submission_blocked;
+    unsigned work_runners;
+    bool failure_reported, submission_blocked;
     int64_t completions;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests;
@@ -54,7 +53,5 @@ void scoop_io_request_end(ScoopIoRequest *request);
 void scoop_io_request_cancel(ScoopIoLoop *loop, int64_t id);
 void scoop_io_request_error(ScoopIoRequest *request, int error);
 void scoop_io_entry_complete(RingEntry *entry, int result);
-int scoop_io_workers_start(ScoopIoLoop *loop);
-void scoop_io_work_poll(ScoopIoLoop *loop);
 
 #endif

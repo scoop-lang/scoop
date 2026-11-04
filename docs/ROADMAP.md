@@ -1,6 +1,6 @@
 # Scoop 实现路线图
 
-Coroutine executor 与异步同步原语改造进行中（2026-11-04，见[设计](coroutine-executors/DESIGN.md)与[实施进度](coroutine-executors/PROGRESS.md)）。lambda 的期望挂起性、对称重载规则、编译器执行协议、receiver scope、blocking 入口，以及[并发库](specs/SCOOP-CONCURRENT-SPEC.md)的 Channel／AsyncMutex／AsyncConditionVariable、MultiThreadExecutor、通用 managed BlockingTaskPool，I/O LoopExecutor 和共享池 AsyncRuntime 已完成本地验收；接下来迁移三平台旧 native work 调度并验收上层消费者。每项实际验收结果单独记录，尚未完成的 API 不视为可用。
+Coroutine executor 与异步同步原语改造进行中（2026-11-04，见[设计](coroutine-executors/DESIGN.md)与[实施进度](coroutine-executors/PROGRESS.md)）。lambda 的期望挂起性、对称重载规则、编译器执行协议、receiver scope、blocking 入口，以及[并发库](specs/SCOOP-CONCURRENT-SPEC.md)的 Channel／AsyncMutex／AsyncConditionVariable、MultiThreadExecutor、通用 managed BlockingTaskPool，I/O LoopExecutor、共享池 AsyncRuntime、原生阻塞任务和 TLS 迁移已完成 Darwin 本地验收；接下来审计 HTTP 等上层消费者，并集中运行 Linux／Windows 验证。每项实际验收结果单独记录，尚未完成的 API 不视为可用。
 
 原生基础调试及程序栈诊断已实现（2026-10-29，见 [设计](debugging/DESIGN.md) 与 [实施记录](debugging/IMPLEMENTATION.md)）：按实现规范 2.22 贯通共享源码记录、静态变量和 moving GC 后的位置，生成 dSYM／ELF 分离调试文件，迁移 map 消费者，并集成 LLDB、lldb-dap、VS Code 与发行打包。2.21 的 Throwable 首次抛出栈、重抛保留、printStackTrace 及 trap 栈打印已完成三目标定向验收。GNU／musl 实际 DAP 会话通过；macOS 本机 launch 的环境限制及其他验证边界记在实施记录中。完整 Scoop 求值与协程逻辑栈留待后续，较大 `.slib` 优化见[体积调查](slib-storage/FOLLOW_UP.md)。
 

@@ -1,6 +1,5 @@
 package scoop.asyncio
 
-import scoop.asyncio.native.NativeWork
 import scoop.asyncio.host.EventLoopHost
 import scoop.time.Duration
 import scoop.platform.net.*
@@ -112,15 +111,6 @@ public class PlatformEventLoop internal constructor(
     public override suspend fun resolve(host: OsString, port: Int, family: AddressFamily?): Array<
         SocketAddress
     > = resolveOnLoop(state, host, port, family)
-
-    /**
-     * Runs a single-use native payload on a worker and waits for completion before releasing its
-     * active borrow.
-     */
-    @Unsafe
-    public override suspend fun runNativeWork(work: NativeWork) {
-        runNativeWorkOnLoop(state, work)
-    }
 
     /**
      * Opens an owned asynchronous file using explicit access, creation, and truncation options.

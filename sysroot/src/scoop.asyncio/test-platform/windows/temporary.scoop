@@ -88,9 +88,6 @@ private class WindowsTemporaryCompletionTest {
                 val created = nativeLoopCreate()
                 assertEquals(0, created.status.code)
                 val loop = created.pointer!!
-                val stopped = temporaryFence(loop, 100L, 0u)
-                assertEquals(0, stopped.status.code)
-                waitTemporaryFence(stopped.pointer!!)
                 assertEquals(
                     0,
                     startTemporaryFile(loop, 1L, parent, temporaryPathPattern(parent, "queued-"))
@@ -102,15 +99,11 @@ private class WindowsTemporaryCompletionTest {
                 assertEquals(5, cancelled.kind)
                 assertTrue(cancelled.code != 0)
                 parent.entries().use { entries -> assertTrue(entries.next() == None) }
-                releaseTemporaryFence(stopped.pointer!!)
-                assertEquals(100L, nextTemporaryResult(loop).id)
                 assertEquals(
                     0,
                     startTemporaryFile(loop, 2L, parent, temporaryPathPattern(parent, "late-"))
                 )
-                val finished = temporaryFence(loop, 101L, 0u)
-                assertEquals(0, finished.status.code)
-                waitTemporaryFence(finished.pointer!!)
+                executeTemporaryWork(loop)
                 cancelTemporaryWork(loop, 2L)
                 val event = nextTemporaryResult(loop)
                 assertEquals(2L, event.id)
@@ -118,8 +111,6 @@ private class WindowsTemporaryCompletionTest {
                 val file = takeTemporaryFile(event.resource!!)
                 assertEquals(0, file.status.code)
                 assertTrue(file.path.exists())
-                releaseTemporaryFence(finished.pointer!!)
-                assertEquals(101L, nextTemporaryResult(loop).id)
                 assertEquals(0, nativeFileClose(file.file, 3L))
                 assertEquals(0, nextTemporaryResult(loop).kind)
                 file.path.delete()
@@ -163,19 +154,25 @@ private fun createTemporary(loop: Ptr<Unit>, parent: Path, prefix: String): Crea
 
 @Unsafe
 private fun nextTemporaryResult(loop: Ptr<Unit>): NativeRecord {
+    executeTemporaryWork(loop)
     while (nativeLoopBatchSize(loop) == 0L)
         assertEquals(0, nativeLoopPoll(loop, true).code)
     return nativeLoopNext(loop)
 }
 
-@Extern(name = "scoop_test_fence_create")
-private fun temporaryFence(loop: Ptr<Unit>, id: Long, spare: UInt): NativeCreated
+@Unsafe
+private fun executeTemporaryWork(loop: Ptr<Unit>) {
+    while (true) {
+        val task = takeTemporaryTask(loop) ?: return
+        runTemporaryTask(task)
+    }
+}
 
-@Extern(name = "scoop_test_fence_wait")
-private fun waitTemporaryFence(fence: Ptr<Unit>)
+@Extern(name = "scoop_io_work_take")
+private fun takeTemporaryTask(loop: Ptr<Unit>): Ptr<Unit>?
 
-@Extern(name = "scoop_test_fence_release")
-private fun releaseTemporaryFence(fence: Ptr<Unit>)
+@Extern(name = "scoop_io_work_run")
+private fun runTemporaryTask(task: Ptr<Unit>)
 
 @Extern(name = "scoop_io_work_cancel")
 private fun cancelTemporaryWork(loop: Ptr<Unit>, id: Long)

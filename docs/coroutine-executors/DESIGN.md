@@ -22,7 +22,9 @@
 
 ## 2. 现状与调研依据
 
-### 2.1 仓库现状
+### 2.1 设计提出时的仓库基线
+
+本节记录改造前的能力；实际实施状态以 [PROGRESS.md](PROGRESS.md) 为准。
 
 | 层次 | 已有能力 | 本次需要补齐的部分 |
 | --- | --- | --- |
@@ -38,7 +40,7 @@
 - [suspend 调用](../../compiler/mir-lower/src/coroutine/sites.rs)、[挂起握手 lowering](../../compiler/mir-lower/src/coroutine/intrinsics.rs)、[完成发布](../../compiler/mir-lower/src/coroutine/adapters/completion.rs)、[恢复驱动](../../compiler/mir-lower/src/coroutine/adapters/drive.rs)、[启动 helper](../../compiler/mir-lower/src/coroutine_registry/start.rs)。
 - [LoopOwner](../../sysroot/src/scoop.asyncio/src/loop_owner.scoop)、[loop 驱动](../../sysroot/src/scoop.asyncio/src/loop_drive.scoop)、[I/O 操作仲裁](../../sysroot/src/scoop.asyncio/src/loop_operation.scoop)。
 - [managed Thread](../../sysroot/src/scoop.platform/src/concurrent/thread.scoop)、[阻塞条件变量](../../sysroot/src/scoop.platform/src/concurrent/condition.scoop)。
-- [NativeWork 资源](../../sysroot/src/scoop.asyncio/src/native/work.scoop)、[NativeWork 提交](../../sysroot/src/scoop.asyncio/src/native_work.scoop)、[Linux 工作池](../../sysroot/src/scoop.asyncio/native/linux/work.c)、[TLS 的实际调用方](../../sysroot/src/scoop.tls.asyncio/src/context.scoop)。
+- 原 NativeWork 与三平台独立阻塞池已由[原生任务退休](../../sysroot/src/scoop.asyncio/native/common/work.c)、[managed 阻塞投递](../../sysroot/src/scoop.asyncio/src/native_blocking.scoop)和 [TLS 类型化工作](../../sysroot/src/scoop.tls.asyncio/src/blocking.scoop)接替。
 
 当前没有通用 async executor。I/O 挂起点由 loop owner 恢复，但第三方 `suspendCoroutine` 可以从其他线程恢复；已有 native work 的并发执行也不代表协程正文能在多个 managed worker 上执行。
 
@@ -635,7 +637,7 @@ GC-free native 代码也不等于 GCLeaf：可能阻塞的 syscall、DNS、系�
 
 I/O 适配的取消仍由该操作自己的选择状态决定：取消可以先选为最终失败，但必须等工作退出、提交实际进度、解除借用和关闭迟到资源后才恢复。这种带 native 退休责任的适配使用同一池的 BlockingWork 协议，不能无条件套用通用 blocking 的“开始后交付实际返回值”并改变 I/O 合同。反之，通用池也不能对所有 T 套用 I/O 的丢弃/清理规则。
 
-具体改动包括退役 `EventLoop.runNativeWork`、公开 NativeWork 资源及仅为它存在的 execute/release 指针工厂；TLS 等消费者直接使用同步 FFI 与 typed managed 工作对象。C 中现有 execute/finish 逻辑保留必要的系统调用、错误提取和释放，但拆除 `scoop_io_work_submit/cancel` 的平台线程/队列调度职责。原本由 native worker 提交的 finished 记录改由受控完成入口交给 owner，不能从 worker 修改 owner-only 容器。
+具体改动包括退役 `EventLoop.runNativeWork`、公开 NativeWork 资源及仅为它存在的 execute/release 指针工厂；TLS 等消费者直接使用同步 FFI 与 typed managed 工作对象。C 中现有 execute/finish 逻辑保留必要的系统调用、错误提取和释放，但拆除 `scoop_io_work_submit/cancel` 的平台线程调度职责，仅保留原生登记、owner 提取与取消仲裁。每份已投递 BlockingWork 持有独立 native task：Queued 取消可切断 payload 并立即发布取消完成，task 实际出队后再退休；native idle 同时计入尚未退休的 task，避免阻塞池满时取消等待空槽或访问已销毁的 loop。原本由 native worker 提交的 finished 记录改由受控完成入口交给 owner，不能从 worker 修改 owner-only 容器。
 
 关闭行为需要把两种池都算入：先让活动 coroutine、阻塞 operation、I/O 退休和清理完成，再关闭阻塞池；join 不得发生在该池自己的 worker，也不得发生在仍需推进完成消息的 owner 回调中。AsyncRuntime 的共享池直到 worker executor 与 loop 清理均不再提交工作后才停止接纳。
 

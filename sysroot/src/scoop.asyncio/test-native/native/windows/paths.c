@@ -1,5 +1,4 @@
 #include "../../../native/common/directory.h"
-#include "../fence_work.h"
 #include "loop_test.h"
 
 int scoop_io_path_mkdir(ScoopIoLoop *loop, int64_t id, const wchar_t *path, int mode);
@@ -98,18 +97,15 @@ int scoop_test_iocp_queued_paths(const wchar_t *base) {
     ScoopIoEvent event;
     CHECK(!test_result(loop, &event) && event.kind == SCOOP_IO_RESOURCE);
     ScoopIoDirectory *directory = event.resource;
-    created = scoop_test_fence_create(loop, 100, 0);
-    CHECK(!created.status.code);
-    TestWorkFence *fence = created.pointer;
-    scoop_test_fence_wait(fence);
     wchar_t *path = child(base, L"queued-\xd800");
     CHECK(path);
     CHECK(!scoop_io_path_mkdir(loop, 2, path, 0700));
     CHECK(!scoop_io_resolve(loop, 3, L"127.0.0.1", 42, 4));
     CHECK(!scoop_io_directory_open(loop, 4, base));
     CHECK(!scoop_io_directory_next(directory, 5));
-    for (int id = 2; id <= 5; ++id) {
+    for (int id = 2; id <= 5; ++id)
         scoop_io_work_cancel(loop, id);
+    for (int id = 2; id <= 5; ++id) {
         CHECK(!test_result(loop, &event) && event.id == id && event.kind == SCOOP_IO_POSIX_ERROR &&
               event.code == ECANCELED);
     }
@@ -117,14 +113,7 @@ int scoop_test_iocp_queued_paths(const wchar_t *base) {
     CHECK(!scoop_io_path_mkdir(loop, 6, path, 0700));
     wchar_t saved = path[0];
     path[0] = L'!';
-    scoop_test_fence_release(fence);
-    unsigned seen = 0;
-    for (unsigned i = 0; i < 2; ++i) {
-        CHECK(!test_result(loop, &event) && event.kind == SCOOP_IO_DONE);
-        unsigned bit = event.id == 6 ? 1u : event.id == 100 ? 2u : 0u;
-        CHECK(bit && !(seen & bit));
-        seen |= bit;
-    }
+    CHECK(!test_result(loop, &event) && event.kind == SCOOP_IO_DONE && event.id == 6);
     path[0] = saved;
     CHECK(is_directory(path));
     CHECK(!scoop_io_directory_close(directory, 7) && !completed(loop, 7, 0));

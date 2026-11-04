@@ -46,6 +46,7 @@ private class AsyncTlsTransferTests {
                     expected,
                     digest(DigestAlgorithm.Sha256, input.readBytes(bytes.size)).toHexString()
                 )
+                assertEquals(ownerThread, clientRaw.resumedThread!!)
                 assertTrue(clientRaw.foreignThread!! != ownerThread)
                 reading.cancel()
                 assertFalse(client.isClosed)

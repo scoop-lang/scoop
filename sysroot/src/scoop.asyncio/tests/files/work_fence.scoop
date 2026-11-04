@@ -23,19 +23,24 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
                         native,
                         id -> @Unsafe
                         {
-                            val result = createFence(native, id, spare)
+                            val result = createFence(native, id, testPoolSize(), spare)
                             if (result.status.code != 0)
                                 return@LoopOperation nativeStatus(id, result.status)
                             pointer = result.pointer
-                            when (cancelAfterPriorWork) {
-                                case Some(job) -> {
-                                    // All gates running means earlier work has returned, before loop delivery.
-                                    waitFence(pointer!!)
-                                    job.cancel()
+                            loop.state.post {
+                                when (cancelAfterPriorWork) {
+                                    case Some(job) -> {
+                                        // The prior turn submitted all gates to the managed pool.
+                                        @Unsafe
+                                        {
+                                            waitFence(pointer!!)
+                                        }
+                                        job.cancel()
+                                    }
+                                    case None -> {}
                                 }
-                                case None -> {}
+                                loop.state.ready.add { continuation.resume(Unit) }
                             }
-                            loop.state.ready.add { continuation.resume(Unit) }
                             return@LoopOperation IoStart.Pending
                         }
                     },
@@ -84,7 +89,7 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
 }
 
 @Extern(name = "scoop_test_fence_create")
-private fun createFence(loop: Ptr<Unit>, id: Long, spare: UInt): NativeCreated
+private fun createFence(loop: Ptr<Unit>, id: Long, pool: UInt, spare: UInt): NativeCreated
 
 @Extern(name = "scoop_test_fence_wait")
 private fun waitFence(fence: Ptr<Unit>)
@@ -92,5 +97,5 @@ private fun waitFence(fence: Ptr<Unit>)
 @Extern(name = "scoop_test_fence_release")
 private fun releaseFence(fence: Ptr<Unit>)
 
-@Extern(name = "scoop_test_pool_size")
-internal fun testPoolSize(): UInt
+// These tests use the default four-thread managed pool.
+internal fun testPoolSize(): UInt = 4u

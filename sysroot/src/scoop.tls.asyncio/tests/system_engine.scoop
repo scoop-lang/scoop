@@ -1,7 +1,6 @@
 package scoop.tls.asyncio
 
 import scoop.asyncio.*
-import scoop.asyncio.native.NativeWork
 import scoop.crypto.native.certificateHandle
 import scoop.crypto.PrivateKey
 import scoop.tests.scoop.crypto.testdata.rootPem
@@ -87,13 +86,8 @@ private suspend fun platformHandshake(loop: EventLoop, client: TlsEngine, server
                         gcCollect()
                         @Unsafe
                         {
-                            loop.runNativeWork(work)
-                            work.withResult<Unit> {
-                                pointer -> @Unsafe
-                                {
-                                    client.completeVerification(isolatedResult(pointer))
-                                }
-                            }
+                            loop.executor.blocking { work.run() }
+                            client.completeVerification(isolatedResult(work.pointer))
                         }
                     }
                     verified = true
@@ -133,12 +127,12 @@ private fun transferEngine(from: TlsEngine, to: TlsEngine, buffer: NativeByteBuf
     return taken
 }
 
-private fun isolatedWork(client: TlsEngine): NativeWork =
+private fun isolatedWork(client: TlsEngine): IsolatedVerification =
     Certificate.fromPem(rootPem()).use {
         root -> @Unsafe
         {
             val pointer = newIsolated(client.takeVerification(), certificateHandle(root))
-            return@use NativeWork.takeOwnership(pointer, isolatedExecutor(), isolatedReleaser())
+            return@use IsolatedVerification(pointer)
         }
     }
 
@@ -148,8 +142,23 @@ private fun newIsolated(work: Ptr<Unit>, root: ULong): Ptr<Unit>
 @Extern(name = "scoop_test_tls_isolated_work_result")
 private fun isolatedResult(work: Ptr<Unit>): Ptr<Unit>
 
-@Extern(name = "scoop_test_tls_isolated_work_executor")
-private fun isolatedExecutor(): FunPtr<(Ptr<Unit>) -> Unit>
+@Extern(name = "scoop_test_tls_isolated_work_run")
+private fun isolatedRun(work: Ptr<Unit>)
 
-@Extern(name = "scoop_test_tls_isolated_work_releaser")
-private fun isolatedReleaser(): FunPtr<(Ptr<Unit>) -> Unit>
+@Extern(name = "scoop_test_tls_isolated_work_free")
+private fun isolatedFree(work: Ptr<Unit>)
+
+private class IsolatedVerification(val pointer: Ptr<Unit>): Closeable {
+    fun run() {
+        @Unsafe
+        {
+            isolatedRun(pointer)
+        }
+    }
+    public override fun close() {
+        @Unsafe
+        {
+            isolatedFree(pointer)
+        }
+    }
+}

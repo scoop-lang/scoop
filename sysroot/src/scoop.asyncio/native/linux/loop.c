@@ -12,15 +12,8 @@ ScoopIoCreated scoop_io_loop_create(void) {
         free(loop);
         return (ScoopIoCreated){NULL, scoop_io_errno(-status)};
     }
-    status = pthread_cond_init(&loop->work_ready, NULL);
-    if (status) {
-        pthread_mutex_destroy(&loop->mutex);
-        free(loop);
-        return (ScoopIoCreated){NULL, scoop_io_errno(-status)};
-    }
     status = scoop_io_ring_create(loop);
     if (status < 0) {
-        pthread_cond_destroy(&loop->work_ready);
         pthread_mutex_destroy(&loop->mutex);
         free(loop);
         return (ScoopIoCreated){NULL, scoop_io_errno(status)};
@@ -129,12 +122,7 @@ bool scoop_io_loop_idle(ScoopIoLoop *loop) {
         io_uring_sq_ready(&loop->ring) || io_uring_cq_ready(&loop->ring))
         return false;
     pthread_mutex_lock(&loop->mutex);
-    bool idle = !loop->head && !loop->work;
-    if (idle && !loop->stopping) {
-        loop->stopping = true;
-        pthread_cond_broadcast(&loop->work_ready);
-    }
-    idle = idle && !loop->workers;
+    bool idle = !loop->head && !loop->work && !loop->work_runners;
     pthread_mutex_unlock(&loop->mutex);
     return idle;
 }
@@ -144,7 +132,6 @@ ScoopIoStatus scoop_io_loop_destroy(ScoopIoLoop *loop) {
     io_uring_unregister_eventfd(&loop->ring);
     io_uring_queue_exit(&loop->ring);
     int status = close(loop->notification) < 0 ? -errno : 0;
-    pthread_cond_destroy(&loop->work_ready);
     pthread_mutex_destroy(&loop->mutex);
     free(loop);
     return scoop_io_errno(status);

@@ -1,0 +1,47 @@
+package scoop.tls.asyncio
+
+import scoop.tls.*
+import scoop.tls.native.*
+
+// Captures native ownership before queuing; cancellation can release an unstarted job.
+internal class SystemTrustWork(options: TlsOptions, identity: TlsIdentity?): Closeable {
+    private val pointer = prepare(options, identity)
+
+    fun load(): TlsClientContext {
+        @Unsafe
+        {
+            runSystemContext(pointer)
+            return takeSystemContext(pointer)
+        }
+    }
+
+    public override fun close() {
+        @Unsafe
+        {
+            freeSystemContext(pointer)
+        }
+    }
+}
+
+private fun prepare(options: TlsOptions, identity: TlsIdentity?): Ptr<Unit> {
+    @Unsafe
+    {
+        return prepareSystemContext(options, identity)
+    }
+}
+
+internal class VerificationWork(val pointer: Ptr<Unit>): Closeable {
+    fun run() {
+        @Unsafe
+        {
+            runVerification(pointer)
+        }
+    }
+
+    public override fun close() {
+        @Unsafe
+        {
+            freeVerification(pointer)
+        }
+    }
+}

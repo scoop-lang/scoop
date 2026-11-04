@@ -49,6 +49,10 @@ internal class LoopOwner {
     val executor: LoopExecutor get() = currentExecution().executor
     val rootExecutor: CoroutineExecutor get() = currentExecution().rootExecutor
 
+    fun dispatchBlocking(native: Ptr<Unit>) {
+        dispatchNativeWork(native, currentExecution().pool)
+    }
+
     fun activeExecutor(): CoroutineExecutor {
         val state =
             lock.withLock {
@@ -134,6 +138,7 @@ internal class LoopOwner {
         post {
             operations.put(operation.id, operation)
             operation.begin(pointer!!)
+            dispatchBlocking(pointer!!)
         }
     }
 

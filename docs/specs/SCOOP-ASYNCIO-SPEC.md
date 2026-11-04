@@ -10,7 +10,7 @@
 
 库内 C shim 的完成记录 kind 与 Scoop 解码保持一致：既有通用／网络事件保留原编号，使用 `0x000–0x0ff` 段；文件／目录事件使用 `0x100–0x1ff` 段，依次为 Metadata `0x100`、Position `0x101`、Temporary `0x102`、DirectoryName `0x103`；TTY 事件使用 `0x200–0x2ff` 段，Resize 为 `0x200`、Timeout 为 `0x201`。两类新增事件分别在自己的段内追加，保留已有编号；未分配值仍按非法完成记录处理。此编号仅用于该 Cone 的 native 接口，不属于 runtime ABI 或公共 Scoop 枚举身份。
 
-首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，worker／callback 不进入 managed 代码。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
+首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
 
 Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Linux UAPI 头文件（包括 linux/errqueue.h）。只带 musl libc 的 musl-gcc 包装器须补齐内核头文件搜索路径，可通过普通 --cc 包装脚本配置；不把 glibc 用户态头文件加入 musl 的搜索路径。
 
@@ -154,7 +154,7 @@ Windows 的单次数据请求通过 CancelIoEx 撤销，真实 packet 到达后�
 
 ## 7. DNS 与文件
 
-resolve 保留 OsString 原始名称字节，port 检查 0..65535，family None 表示双族。使用后端 native worker 调用 platform 的 getaddrinfo helper，保留 AddressResolution code 和 EAI_SYSTEM 的立即 errno；不执行额外 IDNA 转换。无效内嵌 NUL 在提交 worker 前报参数错误。
+resolve 保留 OsString 原始名称字节，port 检查 0..65535，family None 表示双族。使用共享 managed 阻塞池调用 platform 的 getaddrinfo helper，保留 AddressResolution code 和 EAI_SYSTEM 的立即 errno；不执行额外 IDNA 转换。无效内嵌 NUL 在提交 worker 前报参数错误。
 
 Windows 的 DNS、路径与目录请求在提交时取得独立 UTF-16 副本，保留非配对 surrogate；POSIX 保持原始字节。DNS worker 复用 platform 的 GetAddrInfoW／FreeAddrInfoW，地址解码失败保留 Winsock。路径修改及目录 open／next／close 复用 platform 的 wide helper 和同次 Win32 error，目录名称按实际 UTF-16 长度复制后交付。已开始的 worker 不因取消提前释放名称或句柄，迟到结果仍按第 3 节消费／清理；排队取消不执行 OS 操作。
 
@@ -170,7 +170,7 @@ public interface AsyncFile : AsyncByteSource, AsyncByteSink, AsyncCloseable {
 }
 ```
 
-openFile 使用 Path／OpenOptions 的已有合同。Darwin 的文件操作在后台 dispatch work 调用 platform 的 GC-free helper；Linux 的 read／write／sync 使用 ring，其余文件操作使用 native worker。错误保留 PosixErrno。顺序 read／write 共用文件位置，同一文件的读写、查询、位置／长度控制与 sync 同时最多一个。flush 不等于 sync；不增加额外的 close／sync 语义。worker 只接收 native 存储，立即记录错误。已开始的阻塞操作可能推迟取消和 run 退出，不承诺固定时延。
+openFile 使用 Path／OpenOptions 的已有合同。Darwin 的文件操作在 managed 阻塞池调用 platform 的同步 helper；Linux 的 read／write／sync 使用 ring，其余文件操作使用同一阻塞池。错误保留 PosixErrno。顺序 read／write 共用文件位置，同一文件的读写、查询、位置／长度控制与 sync 同时最多一个。flush 不等于 sync；不增加额外的 close／sync 语义。worker 只接收 native 存储，立即记录错误。已开始的阻塞操作可能推迟取消和 run 退出，不承诺固定时延。
 
 Windows 普通文件由 worker 以不可继承的 FILE_FLAG_OVERLAPPED HANDLE 打开并关联 IOCP；ReadFile／WriteFile 使用该 owner 的 64 位位置，真实完成时按已知传输量推进，EOF／broken pipe 读取返回零。Windows 不维护 overlapped handle 的文件位置，因此 seek／position 使用同一串行 owner 的位置，并由实际 seek 检查设备能力；truncate 不修改该位置。append 文件以同步 FILE_APPEND_DATA 句柄打开，读写进入已有 worker，保留 OS 的追加原子性和追加后的真实位置，不用另一次文件大小查询推测写入位置。metadata、truncate、sync、close 均复用 platform helper；文件错误保留 Win32。取消在途 overlapped 请求等实际 packet，运行中的同步 worker 等实际返回，close 等操作与借用退休后关闭一次句柄。
 
@@ -210,7 +210,7 @@ Windows 临时文件在 worker 内规范化父目录，保留完整前缀并以�
 
 open／next／close 均由 worker 调用 platform 的目录 helper。next 在本次工作内复制一个名称，managed 取得独立快照并释放原生副本；关闭等待正在进行的 readdir 及结果消费结束。排队取消不推进目录，已经执行的 next 不回退 OS 位置，迟到名称仍被释放。open 取消后取得的句柄必须在恢复调用方前关闭；循环退出也收尾未关闭的目录，不把所有名称预先收集进数组。
 
-上述工作使用 native worker 和 platform 的 GC-free 文件 helper；必要 helper 先在 platform 补齐，再由 asyncio 调度。路径、输入数据和输出存储在提交前取得稳定 native 副本，errno 在 worker 内立即记录。已开始的 syscall 取消仍等真实返回；迟到结果和 close 按第 3 节收尾。
+上述工作使用共享 managed 阻塞池和 platform 的同步文件 helper；必要 helper 先在 platform 补齐，再由 asyncio 调度。路径、输入数据和输出存储在提交前取得稳定 native 副本，errno 在 worker 内立即记录。已开始的 syscall 取消仍等真实返回；迟到结果和 close 按第 3 节收尾。
 
 ### 9.2 地址族竞速与 SOCKS5
 
@@ -244,25 +244,21 @@ Proxy 模式把域名原样放入 CONNECT，Local 模式在写出握手前以当
 
 Socks5Exception 保存 phase（Method／Authentication／Connect）及可选 replyCode；拒绝的方法、认证状态和 CONNECT REP 保留实际协议字节。非法版本、保留字段、地址类型或绑定域名报对应阶段的格式错误；底层 I/O、解析和取消保持原异常。交付后的流沿普通 AsyncByteStream 的双向、取消与背压合同；close 固定 loop 归属，可在取消 finally 中完成，并发关闭等待同一次底层收尾，之后幂等。
 
-### 9.3 领域库的 native 阻塞工作
+### 9.3 通用阻塞池与原生操作适配
 
-TLS 的系统信任装载及平台验证需要能够挂起等待 native 工作。为这一实际使用者，在 `scoop.asyncio.native` 提供受 Unsafe 约束的 NativeWork 资源与 `EventLoop.runNativeWork(work)`；它复用现有 DNS／文件的后端 work 提交、取消与完成机制，不建立第二个线程池。
+领域库使用 core 的 `blocking { ... }` 或显式 `executor.blocking { ... }`，执行普通 Scoop 闭包、同步库和 FFI，返回类型化值或异常；不再提供 `scoop.asyncio.native.NativeWork`、`EventLoop.runNativeWork` 或 execute/release 指针工厂。TLS 系统信任装载和验证使用有明确释放责任的工作对象，正常结果、取消和关闭仍遵守 TLS 资源合同。
 
-NativeWork 持有调用库构造的稳定 native 参数、GC-free 执行入口、结果存储和释放入口。worker 不调用 Scoop 回调、分配 managed 对象或恢复 continuation；结果的实际类型与提取由调用库的普通 FFI 声明负责。工作返回后，managed 调用方才能取得结果并构造 Scoop 值。它不是可执行任意 suspend／Scoop lambda 的 runBlocking 或通用调度框架。
+文件、目录、路径、DNS 及 Windows TTY 的阻塞部分由 EventLoop 的 managed BlockingTaskPool 执行，与通用 blocking 共享配置和线程。三个 backend 不再创建专用阻塞 worker；io_uring、IOCP、dispatch source/timer 和只发布完成记录的 OS 通知机制保持原职责。
 
-runNativeWork 期间借用 work，禁止重复提交和关闭；登记前失败不转移所有权。取消获胜也须等执行结束、复制错误和解除借用后返回，调用方在 finally 关闭 work。外部通知、Job 取消与 continuation 恢复保持锁外；native ABI 是普通库间接口，不新增 runtime functions 或 compiler-known 类型。
+原生 shim 保留稳定参数、同步 execute、owner 上的 finish、错误提取与释放。owner 提取待投递工作并包装为 BlockingWork；原生登记不负责启动线程。每份投递使用独立小型 native task，原生锁仲裁 Queued→Running 与取消：取消先胜时撤销 payload 关联并发布取消完成，即使 managed 池所有线程都被占用也能解除借用；已投递 task 作为空工作在实际出队时退休。Running 后等待真实 syscall 返回，owner 才处理完成、实际进度及迟到资源。取消结果选择沿第 3 节，不套用通用 blocking 的运行后保留 T 规则。
 
-具体入口为 Unsafe 的 `NativeWork.takeOwnership(payload: Ptr<Unit>, execute: FunPtr<(Ptr<Unit>) -> Unit>, release: FunPtr<(Ptr<Unit>) -> Unit>)` 和 `EventLoop.runNativeWork(work): Unit`。payload 由领域库原生代码分配，执行／释放指针必须来自可在对应线程调用的原生函数；不能使用仅支持已注册 Scoop 线程同步调用的静态 Scoop callback，也不能把 ForeignCallback 的 trampoline 单独交给 worker。执行函数在 payload 中保存结果及错误，不跨 C 边界展开异常；释放函数销毁同一份输入与未交付结果。
-
-work 是一次性资源：开始提交后，不论完成、提交失败或取消都不能再次运行；loop／Job 的前置检查失败不开始提交。正常等待返回后，通过 Unsafe 的 `work.withResult(block: (Ptr<Unit>) -> R): R` 在 managed 侧读取领域结果；回调不能挂起或让借出的指针逃逸。结果读取期间也禁止再次读取、提交或关闭，回调结束后解除借用。没有成功等待结果时 withResult 报状态错误；领域工作自身的失败仍由领域库从结果中解释。
-
-work 实现 Closeable，提供 isClosed；未使用、完成或失败的 work 均可关闭，释放入口恰好调用一次。其本地状态采用普通同步保护；执行与释放原生入口、结果回调及 continuation 恢复均不在状态锁内运行。runNativeWork 不接管关闭责任，EventLoop 通过既有在途操作等待实际 worker 完成，调用者在 finally 中关闭 work。
+原生 idle 同时等待 operation 和所有已投递 task 退休，保证取消后尚在 managed 队列中的 task 不引用已销毁 loop。owner 在每次 operation 登记后投递其原生工作，并在完成与清理之后投递本轮新增工作；池拒绝投递时以普通 I/O 失败完成该原生工作，并沿既有收尾路径释放它，不遗留登记。finish 与 managed continuation 交付均在锁外，worker 不修改 owner-only 容器。
 
 ### 9.4 验证
 
 文件能力独立验证真实 metadata／seek／truncate、排他临时创建、同文件系统替换、目录分批遍历、worker 取消与迟到结果；组合磁盘缓存和下载续传。连接竞速验证单族迟到／失败、不同候选交错、成功竞争、总取消及失败不污染父 scope。SOCKS5 使用独立 loopback 对端覆盖分段、认证和两种 DNS 模式。
 
-NativeWork 验证正常完成、登记失败、未开始撤销、运行中取消、异常清理和 moving GC，实际消费者包含 TLS 系统验证；不为仅存在于测试中的虚构工作扩展接口。三个目标运行对应库测试和生产消费者。
+测试覆盖真实文件／DNS／TTY、共享池排队与取消、Running 后等待真实返回、buffer 进度、迟到资源释放和 loop 关闭。通用 managed 闭包／结果及线程池生命周期由 core 和 concurrent 测试覆盖；TLS 使用真实系统装载与隔离信任验证。普通行为使用 Cone tests，平台 shim 的独立测试只验证原生操作与退休协议，不另建测试专用线程池。
 
 ## 10. 自有 TTY
 
@@ -286,7 +282,7 @@ public interface AsyncTty : AsyncByteSink, AsyncCloseable {
 openTty 通过 platform 的共同 owner 取得实际终端与 resize 通知，每进程最多
 一个活动 owner，包括同步 terminal 会话。失败清理所有已取得的资源；取消
 选定后才完成的 open 先关闭未交付 owner。库不接管调用者 fd，不改变 stdin
-的 O_NONBLOCK。POSIX 不增加后台读取线程；Windows 复用已有 native worker。
+的 O_NONBLOCK。POSIX 不增加后台读取线程；Windows 使用共享 managed 阻塞池。
 
 receive 同时等待字节与 resize；POSIX 使用平台后端观察自有 fd，实际 read 为
 非阻塞 syscall。Windows worker 等待自有 console input HANDLE 与本次请求的取消 event，
@@ -354,7 +350,7 @@ onClosed 执行时 isClosed 为真，参数为运行／清理失败或 None。�
 
 ### 11.5 平台能力与错误
 
-Darwin 的 libdispatch 通过系统 libSystem 的标准 re-export 链接，不另要求 SDK 默认库目录中存在名为 dispatch 的独立库。Darwin 用 dispatch source 驱动 nonblocking 网络／TTY 与单调 timer，后台 work 处理普通文件、DNS、目录、路径与 NativeWork；source 全部退休后才消费其 fd。Linux 用 ring 完成网络、文件数据 I/O、fsync、timer 与 TTY readiness，其余阻塞工作使用 native worker。两者复用 GC-free 平台 helper 和同一资源语义。
+Darwin 的 libdispatch 通过系统 libSystem 的标准 re-export 链接，不另要求 SDK 默认库目录中存在名为 dispatch 的独立库。Darwin 用 dispatch source 驱动 nonblocking 网络／TTY 与单调 timer，共享 managed 阻塞池处理普通文件、DNS、目录与路径；source 全部退休后才消费其 fd。Linux 用 ring 完成网络、文件数据 I/O、fsync、timer 与 TTY readiness，其余阻塞工作使用共享 managed 阻塞池。两者复用 GC-free 平台 helper 和同一资源语义。
 
 Linux 新后端支持基线为内核 6.1，初始化实际探测所需操作与 feature；ring 不可用或能力不足明确失败，不静默回退其他后端。此要求仅针对 asyncio 新后端。worker 启动中途失败时，已启动的空闲线程异步退出，owner 不 join 等待；完全退休后允许后续操作重试启动。完整操作集、队列满时的处理、取消退休、提交失败与 ring 销毁见[设计第 8 节](../asyncio-backends/DESIGN.md#8-linuxio_uring-后端)。
 
@@ -366,7 +362,7 @@ Windows 的异步数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP�
 
 同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
 
-timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿已有有限 NativeWork worker 边界执行，已开始的工作等真实返回，不因取消提前释放输入。
+timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿共享 managed 阻塞池执行，已开始的工作等真实返回，不因取消提前释放输入。
 
 Win32／IOCP 与 Winsock 错误分别保留真实 domain 和完整 32 位 code；CRT 的 errno 保留 PosixErrno。创建、等待和销毁的直接结果使用同次返回的错误记录，不以负 Int 编码 DWORD。详细执行与测试范围见[后端设计第 13 节](../asyncio-backends/DESIGN.md#13-windowsiocp-后端)。
 

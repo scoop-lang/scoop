@@ -1,6 +1,5 @@
 package scoop.asyncio
 
-import scoop.asyncio.native.NativeWork
 import scoop.time.Duration
 import scoop.platform.net.*
 import scoop.platform.system.OsString
@@ -15,7 +14,6 @@ public interface EventLoop {
      * Runs a single-use native payload on a worker and waits for completion before releasing its
      * active borrow.
      */
-    @Unsafe public suspend fun runNativeWork(work: NativeWork)
     /** The active owner executor. Access before startup or after its termination is rejected. */
     public val executor: CoroutineExecutor
     /**

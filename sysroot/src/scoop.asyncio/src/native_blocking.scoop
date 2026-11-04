@@ -1,0 +1,36 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingTaskPool
+
+internal fun dispatchNativeWork(native: Ptr<Unit>, pool: BlockingTaskPool) {
+    @Unsafe
+    {
+        while (true) {
+            val task = nativeWorkTake(native) ?: return
+            try {
+                pool.submit(NativeBlockingWork(task))
+            } catch (error: ExecutorClosedException) {
+                // Retire a rejected task through the same owner completion path.
+                nativeWorkReject(task)
+            }
+        }
+    }
+}
+
+private class NativeBlockingWork(private val task: Ptr<Unit>): BlockingWork {
+    public override fun run() {
+        @Unsafe
+        {
+            nativeWorkRun(task)
+        }
+    }
+}
+
+@Extern(name = "scoop_io_work_take")
+private fun nativeWorkTake(loop: Ptr<Unit>): Ptr<Unit>?
+
+@Extern(name = "scoop_io_work_run")
+private fun nativeWorkRun(task: Ptr<Unit>)
+
+@Extern(name = "scoop_io_work_reject")
+private fun nativeWorkReject(task: Ptr<Unit>)

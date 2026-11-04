@@ -10,7 +10,8 @@
 | MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成本地验收 |
 | LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 本地验收 |
 | AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
-| 三平台 native work 迁移与上层消费者验收 | 未开始 |
+| 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin 本地验收，其他平台待运行 |
+| HTTP 等上层消费者审计与验收 | 未开始 |
 | Linux/Windows 组合验证及最终清理 | 未开始 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
@@ -91,3 +92,10 @@
 - asyncRuntime receiver builder 保存 coroutine／blocking 线程数快照，接受单次 run 后才创建线程；根及默认子任务运行于 MultiThreadExecutor，调用线程驱动原生 I/O owner。worker 与 LoopExecutor 共享同一 managed BlockingTaskPool，泛型 run 在完整收尾后返回 T 或异常。
 - 根结束先关闭 worker executor 的新根接纳，等待所有执行登记和驱动退出，再使 LoopExecutor draining；独立 owner 任务及遗留 I/O 资源继续完成，最后停止共享阻塞池并 join 两组线程。初始化失败逆序回收；被拒绝的嵌套启动不消费实例。
 - 验证：格式化、源码检查、release 库构建通过；165 项 asyncio Cone tests 全部通过。新增 5 项覆盖线程归属、binding、共享单线程阻塞池、真实文件／目录／DNS／UDP、资源自动关闭、异常 finally、独立登记排空及 builder 快照，并在移动 GC／minor GC stress 下全部通过。独立 consumer 的 2 项测试通过，包含跨产物泛型 managed 结果、worker／owner 切换与阻塞闭包。本轮平台为 Darwin AArch64；三平台旧 native work 调度仍待迁入共享池。
+
+## 原生阻塞任务与 TLS 迁移（2026-11-04）
+
+- 删除 Darwin／Linux／Windows 各自的阻塞 worker 调度，文件、目录、路径、DNS 和 Windows TTY 统一投递至 loop 的 managed BlockingTaskPool。原生部分保留系统调用、错误提取、取消仲裁与 owner 完成；operation 登记后立即投递，清理产生的新工作在本轮结束前继续投递。
+- 独立 native task 保留已投递工作的退休责任。Queued 取消可立即释放 payload 与借用，已投递空任务实际出队后才退出 native idle 计数；Running 仍等待真实 syscall 返回。共享池拒绝时沿正常失败／释放路径退休。两项新增行为测试覆盖普通 blocking 与文件工作共用单线程池、排队取消和拒绝后的完整关闭。
+- 退役公开 NativeWork、runNativeWork 及 TLS execute/release 指针工厂。TLS 使用类型化 managed 工作对象与同步 FFI；系统装载在交付前检查取消并关闭未交付结果，验证继续在引擎锁内应用结果。测试占用真实 managed 池，原生独立测试显式驱动任务，不保留另一套测试线程池。外部线程恢复的 TLS 断言同步为返回原 executor。
+- 验证：Scoop／C 格式化、diff 检查、release 库构建通过；163 项 asyncio tests、23 项 TLS asyncio tests 及 2 项独立 consumer tests 全部通过。移动 GC／minor GC stress 的 10 项定向测试通过，覆盖共享池、真实 FIFO 退休、AsyncRuntime 与跨 executor TLS。原生三平台源码和 Windows 专有测试已迁移；本轮实际运行平台为 Darwin AArch64，Linux／Windows 和 HTTP 等上层消费者仍待集中验收。
