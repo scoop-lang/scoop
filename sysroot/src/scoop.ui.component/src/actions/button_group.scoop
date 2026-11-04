@@ -1,0 +1,263 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.InputScope
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ButtonGroupContent {
+    Button(ButtonProps), Input(InputProps), Text(PanelContent, FontCollection?, StyleOverride),
+    Separator(Color?), Custom((GroupPosition) -> View), Plain(View), Nested(View)
+}
+
+public class ButtonGroupEntry public constructor(
+    public val content: ButtonGroupContent,
+    public val key: ViewKey = ViewKey.Position,
+    public val layout: FlexItemOptions = FlexItemOptions()
+)
+
+public class ButtonGroupProps public constructor(
+    public val entries: Array<ButtonGroupEntry>,
+    public val axis: FlexAxis = FlexAxis.Horizontal,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class ButtonGroup public constructor(private val props: Props<ButtonGroupProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val value = props.value
+        val theme = themes.read(value.theme)
+        val nested = buttonGroupHasNested(value.entries)
+        val slots = Array<GroupSlot>(value.entries.size) { _ -> GroupSlot() }
+        val items =
+            Array<FlexItem>(value.entries.size) {
+                index ->
+                val entry = value.entries[index]
+                val position =
+                    GroupPosition(
+                        value.axis,
+                        nested || index == 0L,
+                        nested || index == value.entries.size - 1L
+                    )
+                val child = groupContent(entry.content, position, !nested, value, theme)
+                FlexItem(
+                    element(slots[index], { current -> GroupSlotInk(current) }, [child], entry.key),
+                    entry.layout
+                )
+            }
+        val layout =
+            LinearProps(
+                items,
+                spacing =
+                    if (nested)
+                        8.0 * theme.tokens.typography.body.fontSize / 14.0
+                    else
+                        0.0,
+                alignment = CrossAlignment.Stretch
+            )
+        val decoration = value.style.resolve(style())
+        return styled(
+            element(
+                GroupLayoutProps(layout, value.axis, slots),
+                { current -> GroupLayout(current) },
+                layout.children
+            )
+        ) { this.style = decoration }
+    }
+}
+
+internal fun buttonGroupHasNested(entries: Array<ButtonGroupEntry>): Boolean {
+    for (entry in entries)
+        when (entry.content) {
+            case Nested(_) -> return true
+            else -> {}
+        }
+    return false
+}
+
+private fun groupContent(
+    content: ButtonGroupContent,
+    position: GroupPosition,
+    connected: Boolean,
+    props: ButtonGroupProps,
+    theme: Theme
+): View {
+    val group =
+        if (connected)
+            Some(position)
+        else
+            None
+    return when (content) {
+        case Button(value) -> component(
+            groupButtonProps(value, group, props.fonts, props.theme),
+            { current -> Button(current) }
+        )
+        case Input(value) -> component(
+            groupInputProps(value, group, props.fonts, props.theme),
+            { current -> Input(current) }
+        )
+        case Text(value, fonts, style) -> groupText(
+            value,
+            if (panelPresent(fonts))
+                fonts
+            else
+                props.fonts,
+            style,
+            group,
+            theme
+        )
+        case Separator(color) -> groupSeparator(position.axis, color ?: theme.tokens.palette.input)
+        case Custom(render) -> render(position)
+        case Plain(view) -> view
+        case Nested(view) -> view
+    }
+}
+
+/** Records only the current wrapper's input subtree, never the opaque child's internals. */
+private class GroupSlot {
+    var input: InputScope? = None
+}
+
+private class GroupSlotInk(private val props: Props<GroupSlot>): Element {
+    private var input: InputScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        input = Some(scope.input)
+    }
+    public override fun update() {
+        props.value.input = input
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return child
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class GroupLayoutProps(
+    val layout: LinearProps,
+    val axis: FlexAxis,
+    val slots: Array<GroupSlot>
+)
+
+private class GroupLayout(private val props: Props<GroupLayoutProps>): Element {
+    private var input: InputScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        val route = scope.input
+        input = Some(route)
+        scope.resource {
+            route.observeActivity {
+                if (scope.isMounted)
+                    scope.requestFrame()
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureFlex(
+            context,
+            constraints,
+            props.value.layout,
+            props.value.axis == FlexAxis.Vertical,
+            fitCross = props.value.axis == FlexAxis.Vertical
+        )
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        if (!this.input!!.activity.hasFocus) {
+            context.children()
+            return
+        }
+        val order = ArrayList<Long>()
+        for (index in 0L ..< input.slots.size)
+            if (!(input.slots[index].input?.activity?.hasFocus ?: false))
+                order.add(index)
+        for (index in 0L ..< input.slots.size)
+            if (input.slots[index].input?.activity?.hasFocus ?: false)
+                order.add(index)
+        context.children(order.toArray())
+    }
+}
+
+internal fun groupButtonProps(
+    input: ButtonProps,
+    group: GroupPosition?,
+    fonts: FontCollection?,
+    theme: ThemeSource?
+): ButtonProps {
+    val content =
+        when (input.content) {
+            case Label(value) -> ButtonContent.Label(
+                LabelProps(
+                    value.text,
+                    if (panelPresent(value.fonts))
+                        value.fonts
+                    else
+                        fonts,
+                    value.settings,
+                    value.inlines,
+                    value.theme,
+                    value.baseStyle,
+                    value.underline
+                )
+            )
+            else -> input.content
+        }
+    return ButtonProps(
+        content,
+        input.onClick,
+        input.enabled,
+        input.style,
+        if (panelPresent(input.theme))
+            input.theme
+        else
+            theme,
+        input.focus,
+        input.invalid,
+        input.variant,
+        input.size,
+        group
+    )
+}
+
+internal fun groupInputProps(
+    input: InputProps,
+    group: GroupPosition?,
+    fonts: FontCollection?,
+    theme: ThemeSource?
+): InputProps =
+    InputProps(
+        input.state,
+        input.placeholder,
+        input.enabled,
+        input.readOnly,
+        input.invalid,
+        input.description,
+        if (panelPresent(input.fonts))
+            input.fonts
+        else
+            fonts,
+        input.style,
+        if (panelPresent(input.theme))
+            input.theme
+        else
+            theme,
+        input.focus,
+        input.direction,
+        input.alignment,
+        input.paintCache,
+        input.caretBlink,
+        input.onEdited,
+        input.onSubmit,
+        input.policy,
+        input.projection,
+        input.copy,
+        input.labelTarget,
+        group
+    )

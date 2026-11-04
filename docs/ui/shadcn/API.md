@@ -143,7 +143,7 @@ FieldTarget 是为 Label 关联新增的窄句柄：包含稳定的焦点目标�
 
 ButtonGroup 和 InputGroup 不能通过检查不透明 View 来修改子组件样式：
 
-- ButtonGroup 的 button／separator／text 等成员收集明确条目，render 按位置生成各条目的边角与接缝覆盖。外部自定义条目可以接收 `GroupPosition` 值构建内容；plain `add(View)` 保留调用方已经完成的外观。没有为每个子项偷偷加一份激活行为。
+- ButtonGroup 的 button／input／separator／text 成员收集明确条目，render 按位置生成各条目的边角与接缝。`item({ position -> ... })` 用 `GroupPosition` 明确配置实际控件的 group，plain `add(View)` 保留调用方已完成的外观；group 成员创建独立嵌套组。根 fonts／theme 为未明确配置的内置条目提供默认值。它不增加激活行为，焦点项最后绘制但不改变 Tab 顺序；现行合同见控件规范第 16 节。
 - InputGroup 拥有一个外框和一个实际编辑宿主；input／textarea 槽采用共享文本控件的无外框内容模式，addon 和独立按钮正常参与布局／路由。自定义输入必须显式提供自己的 FocusHandle／FieldTarget，不靠遍历后代查找编辑器。
 - Item／Attachment 等“整行可打开，右侧又有按钮”的结构让行 Press 在 bubble/default 阶段处理；子动作消费激活，拖选／Drag 接管取消行点击。动作区不会因覆盖整行透明按钮而不可用。
 

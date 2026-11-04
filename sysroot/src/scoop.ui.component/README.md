@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -26,6 +26,8 @@ fun main() {
 ```
 
 控件挂载时保存来源，在 render 中订阅 `source.current.value`。应用在 UI owner 线程更新这一个 State 即可切换风格或明暗；工厂、内部 State 和焦点保留，尺寸及文字按新主题重新布局。可通过控件的 `theme` 参数明确使用另一来源。临时 Context 不会自动成为 View 子树的主题 Provider。
+
+`buttonGroup { button("保存", onSave); input(editor); text(".com") }` 收集带明确类型的条目，支持横向／纵向、嵌套组及分隔线。相邻表面共享接缝，Input 默认占用剩余空间；焦点项最后绘制，Tab 顺序保持声明顺序。自定义条目用 `item({ position -> ... })` 把 `GroupPosition` 明确传给控件的 `group`，`add(View)` 保留已有外观；组不增加动作或选择语义。根 fonts／theme 为内置条目提供默认值，嵌套组独立配置。
 
 `FieldTarget()` 把 `fieldLabel("名称", target)` 与 Input／Textarea／Checkbox 的 `labelTarget = Some(target)` 关联。标签不占 Tab 停靠点；文本标签请求聚焦，Checkbox 标签聚焦并执行一次当前选择动作。禁用、隐藏、卸载、跨窗口或模态域外目标不能由标签激活；换绑更新当前关联，按下期间换绑会取消该次点击。普通 `label` 仍是展示文字。
 

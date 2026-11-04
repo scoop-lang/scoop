@@ -19,7 +19,8 @@ internal class TextFieldInput(
     val scrollbars: ScrollbarVisibility,
     val onEdited: (TextEditorState) -> Unit,
     val onSubmit: (TextEditorState) -> Unit,
-    val labelTarget: FieldTarget?
+    val labelTarget: FieldTarget?,
+    val group: GroupPosition?
 )
 
 /** Shares composition while keeping the two public component identities distinct. */

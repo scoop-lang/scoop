@@ -14,7 +14,8 @@ internal class ActionInkProps(
     val variant: ButtonVariant,
     val style: ButtonStyle,
     val visual: SurfaceVisual,
-    val behavior: ActionBehavior
+    val behavior: ActionBehavior,
+    val group: GroupPosition? = None
 )
 
 private class ActionDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)
@@ -54,7 +55,16 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element {
         val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
         val options =
             actionOptions(value.theme, value.shape, value.variant, value.style, visual.interaction)
-        val metrics = value.theme.surfaceMetrics(visual, options, context.layoutDirection)
+        val metrics =
+            groupSurfaceMetrics(
+                value.theme.surfaceMetrics(visual, options, context.layoutDirection),
+                value.group,
+                groupEndRadius(
+                    value.theme,
+                    value.style.states.apply(value.style.surface.style, visual.interaction)
+                ),
+                context.layoutDirection
+            )
         val inset = metrics.contentInsets.totals()
         val child = context.measureChild(0L, childConstraints(constraints, inset))
         var width =
@@ -79,11 +89,13 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element {
                 options,
                 context.layoutDirection
             )
-        drawing = Some(ActionDrawing(geometry, visual))
+        val connected =
+            groupSurfaceGeometry(geometry, metrics, value.group, context.layoutDirection)
+        drawing = Some(ActionDrawing(connected, visual))
         val origin =
             Point(
-                geometry.content.x + (geometry.content.width - child.size.width) / 2.0,
-                geometry.content.y + (geometry.content.height - child.size.height) / 2.0
+                connected.content.x + (connected.content.width - child.size.width) / 2.0,
+                connected.content.y + (connected.content.height - child.size.height) / 2.0
             )
         context.placeChild(0L, origin)
         return offsetMetrics(child, size, origin.y)

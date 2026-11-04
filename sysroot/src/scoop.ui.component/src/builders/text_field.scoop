@@ -17,6 +17,7 @@ public open class InputBuilder internal constructor() {
     public var theme: ThemeSource? = None
     public var focus: FocusOptions = FocusOptions()
     public var labelTarget: FieldTarget? = None
+    public var group: GroupPosition? = None
     public var direction: TextDirection? = None
     public var alignment: TextAlignment = TextAlignment.Start
     public var paintCache: PaintCachePolicy = PaintCachePolicy.None
@@ -55,7 +56,8 @@ public open class InputBuilder internal constructor() {
             policy,
             projection,
             copy,
-            labelTarget
+            labelTarget,
+            group
         )
 }
 
@@ -92,7 +94,8 @@ public class TextareaBuilder internal constructor(): InputBuilder() {
             policy,
             projection,
             copy,
-            labelTarget
+            labelTarget,
+            group
         )
 }
 

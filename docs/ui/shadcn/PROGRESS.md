@@ -70,3 +70,12 @@
 - macOS aarch64 release：生产组件库、Gallery 程序与测试构建通过；新增 32 阶段双窗口用例、原有控件窗口回归和搜索测试共 3 项全部通过。覆盖真实指针、Tab／Space、选区保留、最新 Binding／FocusHandle、按压换绑取消、禁用／隐藏／卸载、模态域外与跨窗口拒绝、只读 IME、资源释放及停帧。最终相关 tests 类型检查、136 个 Scoop 文件格式及 diff 检查通过；实窗复查排版、标签点击、明暗／RTL、禁用和加载恢复。
 - 首轮测试的系统焦点与双窗口呈现准备问题已闭合；浮动测试窗口按实际窗口 ID 激活。只读输入按既有合同不开启 IME，原生文本注入应被拒绝，测试预期已修正；没有更改焦点或 IME 生产策略。没有重建编译器／图形后端或扩大全仓测试，一次性检查锁、手工窗口日志和测试窗口已清理，保留后续复用的产物及共享缓存。
 - 本批完成 Label，目录累计 **14／64**。P1 剩余 ButtonGroup、Item，P2–P9 继续实施；x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P1f：ButtonGroup 与连接表面
+
+- 新增 ButtonGroup／ButtonGroupProps、明确类型的 ButtonGroupEntry 及接收者 DSL；button 的四种内容、input、text、separator、显式位置的 item、原样 add 和嵌套 group 均有实际入口。Button／Input／Textarea 的 group 接收普通 GroupPosition，不读取不透明 View 的内部结构。规范第 16 节、公共 API 和库／Gallery README 已同步。
+- 横纵连接共用边框内缩、圆角、内容区域和焦点环几何；RTL 按逻辑起止侧处理，明确的局部外侧圆角保留。排列复用 Flex，纵向按条目自然宽度受约束拉伸；输入框可增长，空／零尺寸合法。InputScope 活动观察只请求必要重绘，焦点条目最后呈现，Tab 顺序和原控件动作保持声明顺序。
+- Gallery 增加 Button Group 页面，包含横纵切换、禁用、文字前缀加 Input、Sm／IconSm split action 和嵌套自定义条目。手工检查明暗／RTL、自然宽度、接缝焦点环、输入及 Tab／Space 提交；地址前缀显式使用 LTR 文本方向。
+- macOS aarch64：连接几何／圆角优先级／DSL 配置 3 项测试通过；新原生窗口测试的 17 阶段通过，覆盖实际测量、焦点绘制顺序、Tab、中文组合输入、方向／主题更新、按 key 重排、最新回调、禁用、移除和卸载停帧。既有 Gallery 输入／按钮窗口回归及搜索测试各 1 项通过；组件与 Gallery 静态检查、生产库／应用／测试构建、144 个 Scoop 文件格式检查及 diff 检查通过。
+- 复核中修正了 activity 快照被当成响应式读取、纵向文字使组撑满父宽的问题；测试将固定高度断言放到足够宽的场景，窄宽继续验证合法收缩。一次性检查锁、手工窗口日志和测试窗口已清理，保留共享编译缓存与后续复用产物；未重建编译器或外部图形依赖，未重复全仓测试。
+- 本批完成 Button Group，目录累计 **15／64**。P1 剩余 Item，后续 P2–P9 继续实施；x86_64 留在整体收尾，Windows／Linux 未验证。

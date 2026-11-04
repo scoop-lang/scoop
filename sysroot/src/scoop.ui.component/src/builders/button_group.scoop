@@ -1,0 +1,170 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+public class ButtonGroupTextBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+}
+
+public class ButtonGroupBuilder internal constructor() {
+    private val entries = ArrayList<ButtonGroupEntry>()
+    public var axis: FlexAxis = FlexAxis.Horizontal
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun button(
+        text: String,
+        onClick: () -> Unit,
+        configure: ButtonBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = ButtonBuilder()
+        builder.configure()
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Button(builder.snapshot(text, onClick)),
+                builder.key
+            )
+        )
+    }
+    public fun button(
+        text: StyledText,
+        onClick: () -> Unit,
+        configure: StyledButtonBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = StyledButtonBuilder()
+        builder.configure()
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Button(builder.snapshot(text, onClick)),
+                builder.key
+            )
+        )
+    }
+    public fun button(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        appendButton(ButtonContent.Custom(content), onClick, configure)
+    }
+    public fun button(
+        content: (ActionContentStyle) -> View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        appendButton(ButtonContent.Resolved(content), onClick, configure)
+    }
+    private fun appendButton(
+        content: ButtonContent,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit
+    ) {
+        val builder = ContentButtonBuilder()
+        builder.configure()
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Button(
+                    ButtonProps(
+                        content,
+                        onClick,
+                        builder.enabled,
+                        builder.style,
+                        builder.theme,
+                        builder.focus,
+                        builder.invalid,
+                        builder.variant,
+                        builder.size,
+                        builder.group
+                    )
+                ),
+                builder.key
+            )
+        )
+    }
+    public fun input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): Unit {
+        val builder = InputBuilder()
+        builder.configure()
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Input(builder.inputProps(state)),
+                builder.key,
+                FlexItemOptions(grow = 1.0)
+            )
+        )
+    }
+    public fun text(text: String, configure: ButtonGroupTextBuilder.() -> Unit = {}): Unit {
+        appendText(PanelContent.Label(LabelProps(LabelText.Plain(text, None))), configure)
+    }
+    public fun text(text: StyledText, configure: ButtonGroupTextBuilder.() -> Unit = {}): Unit {
+        appendText(PanelContent.Label(LabelProps(LabelText.Styled(text))), configure)
+    }
+    public fun text(content: View, configure: ButtonGroupTextBuilder.() -> Unit = {}): Unit {
+        appendText(PanelContent.Custom(content), configure)
+    }
+    private fun appendText(content: PanelContent, configure: ButtonGroupTextBuilder.() -> Unit) {
+        val builder = ButtonGroupTextBuilder()
+        builder.configure()
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Text(content, builder.fonts, builder.style),
+                builder.key
+            )
+        )
+    }
+    public fun separator(color: Color? = None, key: ViewKey = ViewKey.Position): Unit {
+        entries.add(
+            ButtonGroupEntry(
+                ButtonGroupContent.Separator(color),
+                key,
+                FlexItemOptions(shrink = 0.0)
+            )
+        )
+    }
+    public fun item(
+        render: (GroupPosition) -> View,
+        key: ViewKey = ViewKey.Position,
+        configure: FlexItemBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = FlexItemBuilder()
+        builder.configure()
+        entries.add(ButtonGroupEntry(ButtonGroupContent.Custom(render), key, builder.snapshot()))
+    }
+    public fun add(
+        view: View,
+        key: ViewKey = ViewKey.Position,
+        configure: FlexItemBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = FlexItemBuilder()
+        builder.configure()
+        entries.add(ButtonGroupEntry(ButtonGroupContent.Plain(view), key, builder.snapshot()))
+    }
+    public fun group(configure: ButtonGroupBuilder.() -> Unit): Unit {
+        val builder = ButtonGroupBuilder()
+        builder.configure()
+        entries.add(ButtonGroupEntry(ButtonGroupContent.Nested(builder.build()), builder.key))
+    }
+    internal fun snapshot(): ButtonGroupProps =
+        ButtonGroupProps(entries.toArray(), axis, fonts, theme, style)
+    internal fun build(): View = component(snapshot(), { current -> ButtonGroup(current) }, key)
+}
+
+public fun buttonGroup(configure: ButtonGroupBuilder.() -> Unit): View = makeButtonGroup(configure)
+
+internal fun makeButtonGroup(configure: ButtonGroupBuilder.() -> Unit): View {
+    val builder = ButtonGroupBuilder()
+    builder.configure()
+    return builder.build()
+}

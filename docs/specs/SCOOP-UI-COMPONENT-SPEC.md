@@ -82,7 +82,7 @@ checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit 
 | LabelBuilder（两种 Label 的共享基类） | fonts: FontCollection? = None；settings: ParagraphStyle? = None；theme: ThemeSource? = None；key: ViewKey = Position |
 | PlainLabelBuilder : LabelBuilder | 继承上述字段；style: SpanStyle? = None |
 | StyledLabelBuilder : LabelBuilder | 继承上述字段；inlines: Array<InlineView> = [] |
-| ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；invalid: Boolean = false；variant: ButtonVariant = Default；size: ButtonSize = Default；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
+| ContentButtonBuilder（显式 View 及文字入口的共有配置） | enabled: Boolean = true；invalid: Boolean = false；variant: ButtonVariant = Default；size: ButtonSize = Default；group: GroupPosition? = None（第 16 节）；style: ButtonStyle = buttonStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions() |
 | ButtonBuilder : ContentButtonBuilder | 继承上述字段；fonts: FontCollection? = None |
 | StyledButtonBuilder : ButtonBuilder | 继承上述字段；settings: ParagraphStyle? = None；inlines: Array<InlineView> = [] |
 | CheckboxBuilder | enabled: Boolean = true；invalid: Boolean = false；style: CheckboxStyle = checkboxStyle()；theme: ThemeSource? = None；key: ViewKey = Position；focus: FocusOptions = FocusOptions()；labelTarget: FieldTarget? = None（第 15 节） |
@@ -399,7 +399,7 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget 和当前回调均经 Props 更新；标签关联遵守第 15 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy、projection、copy、labelTarget、group 和当前回调均经 Props 更新；标签关联遵守第 15 节，连接位置遵守第 16 节。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
@@ -573,3 +573,15 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 `fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
 
 标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
+
+## 16. ButtonGroup
+
+`buttonGroup(configure: ButtonGroupBuilder.() -> Unit)` 创建 ButtonGroupProps／ButtonGroup，ChildrenBuilder 提供同名成员。根字段为 entries: Array<ButtonGroupEntry>、axis: FlexAxis = Horizontal、fonts／theme: None、style: StyleOverride = styleOverride()；builder 另有 key。ButtonGroupEntry 保存明确的 ButtonGroupContent、key: ViewKey = Position 和 layout: FlexItemOptions = FlexItemOptions()。ButtonGroupContent 区分 Button(ButtonProps)、Input(InputProps)、Text(PanelContent, FontCollection?, StyleOverride)、Separator(Color?)、Custom((GroupPosition) -> View)、Plain(View)、Nested(View)，不检查或克隆不透明 View。空组自然尺寸为零。
+
+builder 的 button 提供现有四种内容重载及相同配置，input 接收 TextEditorState／InputBuilder，text 接受 String／StyledText／View 和 ButtonGroupTextBuilder（fonts、style、key）。separator(color: Color? = None, key = Position) 创建内部接缝；item(render: (GroupPosition) -> View, key = Position, configure: FlexItemBuilder.() -> Unit = {}) 接入自定义条目；add(View, key = Position, configure: FlexItemBuilder.() -> Unit = {}) 保留调用方已完成的外观；group(configure: ButtonGroupBuilder.() -> Unit) 加入嵌套组。Button／Input 的 key 来自自己的 builder，其他条目使用明确的外层 key；不读取 View 的内部 key。根 fonts／theme 为未明确指定的内置条目提供默认来源，嵌套组拥有自己的配置。
+
+GroupPosition 是含 axis、first、last 的普通值。ButtonProps、InputProps／TextareaProps 及对应 builder 增加 group: GroupPosition? = None，自定义条目可把当前位置明确传给实际控件。组内没有选择状态、roving 导航或额外 Press。没有嵌套组时，按条目位置连接相邻表面；含嵌套组时各直接条目保持独立边角并使用 8 的间隔，按 body 字号相对 14 缩放。Plain 始终保留原外观，Custom 自行使用位置值；多个窗口和主题不共享可变位置上下文。
+
+连接表面去掉内部圆角和后项逻辑起端边框，垂直组去掉后项上边框；第一项起端保持原圆角，末项末端默认使用主题 large 圆角，明确的局部圆角覆盖保留外侧值。测量、内容内缩、边框内轮廓、绘制和焦点环使用同一连接结果，RTL 只解析逻辑起止侧。父约束继续优先，零尺寸合法。文本条目使用 muted 背景、border、14／20 的 medium 文字和水平内缩 10；内部分隔线使用 input 颜色、主轴厚度 1、交叉轴两端各留白 1。尺寸随正文密度缩放，细线保持 1。
+
+排列复用现有 Flex 测量、收缩及交叉轴 Stretch。纵向先取条目自然宽度，再受父宽约束统一拉伸；普通有限宽上限不把组撑满，明确的最小宽仍生效。builder 的内置 Input 默认 grow=1，其余条目默认 grow=0。本组中含实际焦点的条目最后呈现，保证接缝上的焦点环可见；这只改变绘制顺序，不改变布局、Tab 顺序或子组件动作。组默认不裁剪溢出的环，显式根 style 仍可裁剪。移除、增添、重排和方向／主题更新沿普通 key 匹配保留仍存在的控件及文本模型。

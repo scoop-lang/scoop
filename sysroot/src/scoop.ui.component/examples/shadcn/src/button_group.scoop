@@ -1,0 +1,113 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.direction as makeDirection
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.buttonGroup as makeButtonGroup
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.Insets
+import scoop.ui.text.TextEditorState
+
+internal class ButtonGroupExamplesModel {
+    val query = TextEditorState()
+    val vertical = state(false)
+    val enabled = state(true)
+    val clicks = state(0)
+    val submitted = state("")
+}
+
+internal fun buttonGroupExamples(model: ButtonGroupExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        this.typography("Button Group", TypographyRole.H1) { this.fonts = Some(fonts) }
+        this.typography(
+            "Connected actions keep their own focus and keyboard behavior.",
+            TypographyRole.Lead
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button("Change orientation", { model.vertical.value = !model.vertical.value }) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.enabled.value)
+                    "Disable action"
+                else
+                    "Enable action",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.buttonGroup {
+            this.fonts = Some(fonts)
+            this.axis =
+                if (model.vertical.value)
+                    FlexAxis.Vertical
+                else
+                    FlexAxis.Horizontal
+            this.button("Archive", { model.clicks.value += 1 }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Report", { model.clicks.value += 1 }) {
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Delete", { model.clicks.value += 1 }) {
+                this.variant = ButtonVariant.Outline
+                this.enabled = model.enabled.value
+            }
+        }
+        this.frame(
+            makeButtonGroup {
+                this.fonts = Some(fonts)
+                this.text(
+                    makeDirection(
+                        makeLabel("https://") {
+                            this.fonts = Some(fonts)
+                            this.style { this.weight = Some(500) }
+                        },
+                        LayoutDirection.Ltr
+                    )
+                ) {}
+                this.input(model.query) { this.placeholder = "example.com" }
+                this.button("Go", { model.submitted.value = model.query.text }) {}
+            }
+        ) { this.width = Some(480.0) }
+        this.buttonGroup {
+            this.fonts = Some(fonts)
+            this.button("Follow", { model.clicks.value += 1 }) { this.size = ButtonSize.Sm }
+            this.separator()
+            this.button("+", { model.clicks.value += 1 }) { this.size = ButtonSize.IconSm }
+        }
+        this.buttonGroup {
+            this.group {
+                this.fonts = Some(fonts)
+                this.button("Previous", { model.clicks.value += 1 }) {
+                    this.variant = ButtonVariant.Outline
+                }
+                this.button("Next", { model.clicks.value += 1 }) {
+                    this.variant = ButtonVariant.Outline
+                }
+            }
+            this.item(
+                {
+                    position -> makeButton("Custom action", { model.clicks.value += 1 }) {
+                        this.fonts = Some(fonts)
+                        this.variant = ButtonVariant.Secondary
+                        this.group = Some(position)
+                    }
+                }
+            ) {}
+        }
+        this.typography(
+            f"Actions: ${model.clicks.value}. Address: ${model.submitted.value}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.spacing = 24.0
+        this.padding = Insets(6.0, 6.0, 12.0, 12.0)
+        this.alignment = CrossAlignment.Start
+    }

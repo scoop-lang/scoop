@@ -102,6 +102,9 @@ public open class ChildrenBuilder internal constructor() {
     ): Unit {
         add(makeResolvedButton(content, onClick, configure))
     }
+    public fun buttonGroup(configure: ButtonGroupBuilder.() -> Unit): Unit {
+        add(makeButtonGroup(configure))
+    }
     public fun badge(text: String, configure: BadgeBuilder.() -> Unit = {}): Unit {
         add(makeTextBadge(text, configure))
     }

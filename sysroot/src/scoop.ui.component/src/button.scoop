@@ -19,7 +19,8 @@ public class ButtonProps public constructor(
     public val focus: FocusOptions = FocusOptions(),
     public val invalid: Boolean = false,
     public val variant: ButtonVariant = ButtonVariant.Default,
-    public val size: ButtonSize = ButtonSize.Default
+    public val size: ButtonSize = ButtonSize.Default,
+    public val group: GroupPosition? = None
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
@@ -60,7 +61,8 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
                 input.variant,
                 input.style,
                 visual,
-                ActionBehavior.Press(control, input.onClick, input.focus)
+                ActionBehavior.Press(control, input.onClick, input.focus),
+                input.group
             ),
             { current -> ActionInk(current) },
             [

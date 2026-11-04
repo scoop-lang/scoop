@@ -1,7 +1,7 @@
 # shadcn Gallery
 
 真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。
-当前展示 Button、Input、Checkbox 的普通、invalid、disabled 和真实焦点状态，以及 Button 的六种变体／八种尺寸、Badge 的展示与动作模式、Spinner 的运行与减少动态模式。内容页面包含 Card、Alert、Empty、横纵 Separator、图片 Aspect Ratio、Avatar、Skeleton、Progress、Typography、Kbd 和 Label。目录随控件批次扩充，尚不代表完整 64 项已交付。
+当前展示 Button、Input、Checkbox 的普通、invalid、disabled 和真实焦点状态，以及 Button 的六种变体／八种尺寸、Badge 的展示与动作模式、Spinner 的运行与减少动态模式。内容页面包含 Card、Alert、Empty、横纵 Separator、图片 Aspect Ratio、Avatar、Skeleton、Progress、Typography、Kbd、Label 和 Button Group。目录随控件批次扩充，尚不代表完整 64 项已交付。
 
 在准备好开发 sysroot 后运行：
 
@@ -20,3 +20,5 @@ Avatar 页面提供三种尺寸、角标、分组和计数，切换两张本地�
 Typography 页面包含所有文字角色、可切换宽度的列表／表格、中英混排与行内 code；选择首段后使用平台 Select All／Copy 可复制完整文字，open help 是独立行内动作。Kbd 页面展示原生单键帽／分组、方向键以及 Button 组合；聚焦 Increment 按钮后使用显示的快捷键会执行同一个计数动作，离开页面后解除绑定。
 
 Label 页面把名称、备注和订阅标签关联到真实 Input／Textarea／Checkbox；标签点击保留输入选区，Checkbox 与 Space 使用同一个选择动作。可以切换整组禁用或加载状态，再恢复原表单内容。
+
+Button Group 页面提供横纵按钮组、文字前缀加 Input、split action、Sm／IconSm 和嵌套组。切换明暗／RTL 后接缝跟随逻辑方向；点击与键盘操作保持原按钮动作，地址输入使用同一编辑模型。

@@ -26,7 +26,8 @@ public class InputProps public constructor(
     public val policy: TextEditPolicy = textEditPolicy(),
     public val projection: TextProjection = textProjection(),
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
-    public val labelTarget: FieldTarget? = None
+    public val labelTarget: FieldTarget? = None,
+    public val group: GroupPosition? = None
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -62,7 +63,8 @@ public class Input public constructor(private val props: Props<InputProps>): Com
                 ScrollbarVisibility.Hidden,
                 input.onEdited,
                 input.onSubmit,
-                input.labelTarget
+                input.labelTarget,
+                input.group
             )
         )
     }
