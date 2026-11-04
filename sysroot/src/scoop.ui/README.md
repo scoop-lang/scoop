@@ -114,3 +114,5 @@ OverlayPlacementTest 检查有界定位、flip／shift 和参数错误；overlay
 UiTextCacheTest 使用真实字体／段落验证缓存替换与失败恢复；text Cone 通过框架公开 API 验证富文本、固定尺寸图片、自然尺寸交互子项、动画重排、截断／恢复、RTL 和内部 key 更换。固定字体由 [text-fonts 测试数据 Cone](../scoop.graphics.text/tests/data/FONTS.md) 提供，不加入生产默认字体。
 
 自定义可变尺寸滚动容器可在布局中提供 `ScrollAdjustment(scroll.requestRevision, offset)`，交给 `ScrollViewport.layout`。调整只在定位意图仍相同时应用，成功帧才更新 ScrollState；新请求和活动动画优先。`ScrollSnapshot.revealedOffset` 纯计算指定矩形的显露位置，可复用同一套对齐规则。
+
+输入限制使用 `scoop.ui.text.textEditPolicy { … }`，通过 TextEditOptions.policy 或 Input／Textarea builder 的 policy 传入。策略在编辑事务发布之前处理已提交文字，可组合单行归一化、粘贴变换、字符接受与 grapheme 长度限制；未提交 preedit 原样保留。策略回调返回带 UTF-8 区间的变换或拒绝，`onEdited` 只接收最终模型；普通 replace／replaceAll 不隐式读取宿主策略，显式程序过滤使用 `applyEdit(range, text, policy)`。

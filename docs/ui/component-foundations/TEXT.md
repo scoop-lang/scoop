@@ -1,6 +1,6 @@
 # 编辑策略、显示投影与文本选择
 
-本文属于 [控件基础设计](DESIGN.md)，规定 T1／T2 的目标合同，尚未实施。继续使用 `scoop.ui.text` 中的 TextEditorState／TextEditHost、window 的 TextInputState 事务和 graphics.text 的 Unicode／布局查询；`scoop.ui.text` 仍是 UI Cone 内的公共 package。
+本文属于 [控件基础设计](DESIGN.md)，规定 T1／T2 的合同；T1 已完成，T2 尚未实施。继续使用 `scoop.ui.text` 中的 TextEditorState／TextEditHost、window 的 TextInputState 事务和 graphics.text 的 Unicode／布局查询；`scoop.ui.text` 仍是 UI Cone 内的公共 package。
 
 ## 1. 保留一份编辑模型
 
@@ -24,7 +24,7 @@ TextEditorState 的普通 `replace` 仍表示调用者明确编辑模型，`repl
 - `maxLength` 按 Unicode grapheme 计数。截取只发生在 grapheme 边界，并计算本次替换的选区释放出的长度；不能把组合字符、emoji ZWJ 或 UTF-8 字节切断。
 - 自定义纯变换与拒绝。配置顺序有明确含义：换行处理、来源特定变换、字符约束、长度约束。built-in 与自定义变换在同一事务内生成最终映射。
 
-已经由程序放入的超长正文不会在首次普通输入时被无提示地截掉尾部。长度限制约束新增内容；删除或减少长度的修改仍能进行。需要规范化整份既有文档时，调用显式程序编辑。
+已经由程序放入的超长正文不会在首次普通输入时被无提示地截掉尾部。长度限制约束新增内容；当前已超限时允许本次长度不增加，删除或减少长度的修改仍能进行。按候选从后往前去掉超出的完整新增 grapheme，保留原有尾部及多操作之间未改的内容；若必须切开含保留正文的 grapheme 则拒绝。需要规范化整份既有文档时，调用显式程序编辑。
 
 策略回调在同步准备阶段执行，不能写 State、重入同一 editor 或启动任务。使用现有 UI 求值／修改规则，不增加编译期纯度系统。回调异常和非法变换在发布前失败，不改变正文、历史、composition 或原生快照。
 

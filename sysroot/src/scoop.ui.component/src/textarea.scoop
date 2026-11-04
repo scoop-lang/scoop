@@ -27,7 +27,8 @@ public class TextareaProps public constructor(
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
     public val caretBlink: Duration = Duration.milliseconds(500L),
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+    public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
+    public val policy: TextEditPolicy = textEditPolicy()
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -62,7 +63,8 @@ public class Textarea public constructor(private val props: Props<TextareaProps>
                     direction = input.direction,
                     alignment = input.alignment,
                     paintCache = input.paintCache,
-                    caretBlink = input.caretBlink
+                    caretBlink = input.caretBlink,
+                    policy = input.policy
                 ),
                 input.rows,
                 input.scrollbars,

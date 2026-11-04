@@ -1,0 +1,270 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class TextEditPolicyTest {
+    @Test
+    fun `paste transformation acceptance and grapheme limits publish one history entry`() {
+        val editor = TextEditorState()
+        val policy =
+            textEditPolicy {
+                this.maxLength = Some(4L)
+                paste {
+                    candidate ->
+                    val edits = ArrayList<TextEditReplacement>()
+                    var offset = 0L
+                    for (character in candidate.after.text) {
+                        if (character == '-')
+                            edits.add(TextEditReplacement(Utf8Range(offset, offset + 1L), ""))
+                        offset += character.toString().byteLength
+                    }
+                    TextEditDecision.Transform(edits.toArray())
+                }
+                accepts { text -> asciiDigits(text) }
+            }
+        assertTrue(editor.applyEdit(Utf8Range(0L, 0L), "12-345", policy, TextEditSource.Paste))
+        assertEquals("1234", editor.text)
+        assertEquals(Utf8Selection(4L, 4L), editor.selection)
+        assertEquals(1L, editor.revision)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.redo())
+        assertEquals("1234", editor.text)
+        val revision = editor.revision
+        editor.applyInput(policyCommit("A"), policy)
+        assertEquals("1234", editor.text)
+        assertEquals(revision + 1L, editor.revision)
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+    }
+
+    @Test
+    fun `length limiting preserves old suffixes and the middle of a multi-operation batch`() {
+        val editor = TextEditorState("ABCD")
+        val policy = textEditPolicy { this.maxLength = Some(6L) }
+        editor.applyInput(
+            TextInputBatch(
+                None,
+                [
+                    TextInputOperation.Commit("xy", TextReplacement.Range(Utf8Range(1L, 1L))),
+                    TextInputOperation.Commit("zqw", TextReplacement.Range(Utf8Range(5L, 5L)))
+                ]
+            ),
+            policy
+        )
+        assertEquals("AxyBCD", editor.text)
+        assertEquals(Utf8Selection(5L, 5L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("ABCD", editor.text)
+        assertFalse(editor.canUndo)
+        val family = "👩‍👩‍👧‍👦"
+        editor.setSelection(Utf8Selection(3L, 1L))
+        editor.applyInput(
+            policyCommit(family + "éZ"),
+            textEditPolicy { this.maxLength = Some(4L) }
+        )
+        assertEquals("A" + family + "éD", editor.text)
+        assertEquals(4L, editorGraphemeBytes(editor.text).size - 1L)
+        assertEquals(1L + family.byteLength + 3L, editor.cursor.byteOffset)
+    }
+
+    @Test
+    fun `already overlong text can shrink without silently losing its old tail`() {
+        val editor = TextEditorState("abcd")
+        val policy = textEditPolicy { this.maxLength = Some(2L) }
+        assertFalse(editor.applyEdit(Utf8Range(4L, 4L), "X", policy))
+        assertEquals("abcd", editor.text)
+        assertFalse(editor.canUndo)
+        assertTrue(editor.applyEdit(Utf8Range(1L, 2L), "", policy))
+        assertEquals("acd", editor.text)
+        editor.applyEdit(Utf8Range(3L, 3L), "e", policy)
+        assertEquals("acd", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("abcd", editor.text)
+    }
+
+    @Test
+    fun `preedit stays raw and final rejection restores the committed baseline`() {
+        val editor = TextEditorState("AB", Some(Utf8Selection(2L, 1L)))
+        editor.setSelection(TextPosition(2L, TextAffinity.Upstream), TextPosition(1L))
+        val before = editor.inputState
+        val policy =
+            textEditPolicy {
+                this.singleLine = true
+                this.maxLength = Some(2L)
+                accepts { text -> asciiDigits(text) }
+            }
+        editor.applyInput(policyPreedit("候\n👩‍👩‍👧‍👦"), policy)
+        assertEquals("A候\n👩‍👩‍👧‍👦", editor.text)
+        assertTrue(editor.isComposing)
+        val revision = editor.revision
+        editor.applyInput(policyCommit("x"), policy)
+        assertEquals(before.surroundingText, editor.text)
+        assertEquals(before.selection, editor.selection)
+        assertEquals(TextPosition(2L, TextAffinity.Upstream), editor.anchor)
+        assertEquals(revision + 1L, editor.revision)
+        assertFalse(editor.isComposing)
+        assertFalse(editor.canUndo)
+        editor.applyInput(policyPreedit("仮"), policy)
+        editor.applyInput(policyCommit("7"), policy)
+        assertEquals("A7", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("AB", editor.text)
+        assertEquals(before.selection, editor.selection)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `committed prefixes are transformed before a trailing raw composition is attached`() {
+        val editor = TextEditorState("Z", Some(Utf8Selection(0L, 0L)))
+        val policy = textEditPolicy { this.singleLine = true }
+        editor.applyInput(
+            TextInputBatch(
+                None,
+                [
+                    TextInputOperation.Commit("A\r\n", TextReplacement.CurrentSelection),
+                    TextInputOperation.Preedit("仮", None, TextReplacement.Range(Utf8Range(3L, 3L))),
+                    TextInputOperation.Preedit(
+                        "候😀",
+                        Some(Utf8Selection(7L, 3L)),
+                        TextReplacement.Range(Utf8Range(3L, 6L))
+                    )
+                ]
+            ),
+            policy
+        )
+        assertEquals("A 候😀Z", editor.text)
+        assertEquals(Some(Utf8Range(2L, 9L)), editor.markedRange)
+        assertEquals(Utf8Selection(9L, 5L), editor.selection)
+        assertEquals(1L, editor.revision)
+        assertTrue(editor.cancelComposition())
+        assertEquals("A Z", editor.text)
+        assertEquals(Utf8Selection(2L, 2L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("Z", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `normalization and custom transforms preserve directional endpoints and affinity`() {
+        val editor = TextEditorState("Z", Some(Utf8Selection(0L, 0L)))
+        editor.applyInput(policyPreedit("a😀b", Some(Utf8Selection(5L, 1L))))
+        val policy =
+            textEditPolicy {
+                transform {
+                    _ -> TextEditDecision.Transform([TextEditReplacement(Utf8Range(1L, 5L), "xy")])
+                }
+            }
+        editor.applyInput(TextInputBatch(None, [TextInputOperation.ClearPreedit]), policy)
+        assertEquals("axybZ", editor.text)
+        assertEquals(Utf8Selection(3L, 1L), editor.selection)
+        assertTrue(editor.undo())
+        assertEquals("Z", editor.text)
+        assertTrue(editor.redo())
+        assertEquals(Utf8Selection(3L, 1L), editor.selection)
+        val mapped = mapEditorText("Aé中B", [TextEditReplacement(Utf8Range(1L, 6L), "x")])
+        assertEquals(
+            TextPosition(1L, TextAffinity.Upstream),
+            mapped.mapping.forward(TextPosition(3L, TextAffinity.Upstream))
+        )
+        assertEquals(
+            TextPosition(2L, TextAffinity.Downstream),
+            mapped.mapping.forward(TextPosition(3L, TextAffinity.Downstream))
+        )
+    }
+
+    @Test
+    fun `invalid callbacks and reentrant mutations fail before model or history publication`() {
+        val editor = TextEditorState("AB", Some(Utf8Selection(1L, 1L)))
+        editor.applyInput(policyPreedit("仮"))
+        val before = editor.inputState
+        val badRange =
+            textEditPolicy {
+                transform {
+                    _ -> TextEditDecision.Transform([TextEditReplacement(Utf8Range(2L, 3L), "bad")])
+                }
+            }
+        assertFailsWith<IllegalArgumentException> { editor.applyInput(policyCommit("😀"), badRange) }
+        assertEquals(before, editor.inputState)
+        assertTrue(editor.isComposing)
+        val overlapping =
+            textEditPolicy {
+                transform {
+                    _ -> TextEditDecision.Transform(
+                        [
+                            TextEditReplacement(Utf8Range(0L, 2L), "x"),
+                            TextEditReplacement(Utf8Range(1L, 2L), "y")
+                        ]
+                    )
+                }
+            }
+        assertFailsWith<IllegalArgumentException> {
+            editor.applyInput(policyCommit("x"), overlapping)
+        }
+        assertEquals(before, editor.inputState)
+        val mutation =
+            textEditPolicy {
+                transform {
+                    _ ->
+                    editor.replaceAll("bad");
+                    TextEditDecision.Accept
+                }
+            }
+        assertFailsWith<IllegalStateException> { editor.applyInput(policyCommit("x"), mutation) }
+        assertEquals(before, editor.inputState)
+        val failure = IllegalStateException(Some("policy failure"))
+        val throwing = textEditPolicy { transform { _ -> throw failure } }
+        assertSame(
+            failure,
+            assertFailsWith<IllegalStateException> {
+                editor.applyInput(policyCommit("x"), throwing)
+            }
+        )
+        assertEquals(before, editor.inputState)
+        assertTrue(editor.cancelComposition())
+        assertEquals("AB", editor.text)
+        assertFalse(editor.canUndo)
+    }
+
+    @Test
+    fun `history replays accepted text without invoking a changed input policy`() {
+        val editor = TextEditorState()
+        val reject = textEditPolicy { transform { _ -> TextEditDecision.Reject } }
+        editor.applyInput(policyCommit("A"))
+        editor.applyInput(policyCommit("B"))
+        editor.applyInput(policyCommit("x"), reject)
+        editor.applyInput(policyCommit("C"))
+        assertTrue(editor.undo())
+        assertEquals("", editor.text)
+        assertTrue(editor.redo())
+        assertEquals("ABC", editor.text)
+        editor.replace(Utf8Range(0L, 3L), "program")
+        assertEquals("program", editor.text)
+        assertFalse(editor.applyEdit(Utf8Range(0L, 7L), "blocked", reject))
+        assertEquals("program", editor.text)
+        assertTrue(editor.undo())
+        assertEquals("ABC", editor.text)
+        assertFailsWith<IllegalArgumentException> { textEditPolicy { this.maxLength = Some(-1L) } }
+    }
+}
+
+private fun asciiDigits(text: String): Boolean {
+    for (character in text)
+        if (character.code < 48 || character.code > 57)
+            return false
+    return true
+}
+
+private fun policyCommit(text: String): TextInputBatch =
+    TextInputBatch(None, [TextInputOperation.Commit(text, TextReplacement.CurrentSelection)])
+
+private fun policyPreedit(text: String, selection: Utf8Selection? = None): TextInputBatch =
+    TextInputBatch(
+        None,
+        [TextInputOperation.Preedit(text, selection, TextReplacement.CurrentSelection)]
+    )

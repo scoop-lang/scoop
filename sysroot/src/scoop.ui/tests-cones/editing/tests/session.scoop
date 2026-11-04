@@ -70,6 +70,7 @@ internal class EditProbe(val fonts: FontCollection) {
                 this.color = Color(0.5, 0.5, 0.5)
             }
         )
+    var policy = textEditPolicy()
     var readonly = false
     var showObserver = true
     var tab = TextTabBehavior.Navigate
@@ -122,7 +123,8 @@ internal class EditProbe(val fonts: FontCollection) {
                 else
                     TextSubmitKeys.Enter,
             paintCache = PaintCachePolicy.Tiles(64, 0),
-            caretBlink = blink
+            caretBlink = blink,
+            policy = policy
         )
     fun model(index: Long): TextEditorState =
         if (index == 1L)
@@ -175,7 +177,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     retriedFocus = true
                     window!!.requestFocus()
                 }
-                if (!finished && phase < 37 && !waiting && settled()) {
+                if (!finished && phase < 49 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -188,7 +190,7 @@ internal class EditProbe(val fonts: FontCollection) {
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 37
+                finished = phase == 49
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(

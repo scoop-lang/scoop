@@ -24,7 +24,8 @@ public class TextEditOptions public constructor(
     public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
-    public val caretBlink: Duration = Duration.milliseconds(500L)
+    public val caretBlink: Duration = Duration.milliseconds(500L),
+    public val policy: TextEditPolicy = textEditPolicy()
 ) {
     internal fun check() {
         requireUi(caretBlink.floorSeconds >= 0L, "negative caret blink interval")

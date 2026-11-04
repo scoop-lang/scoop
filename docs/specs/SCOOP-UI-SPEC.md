@@ -462,15 +462,27 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 `setSelection(Utf8Selection)` 或 `setSelection(anchor: TextPosition, cursor: TextPosition)` 保留方向与 affinity；`replace(range, text)` 完成一次可撤销替换。两者先明确结束已有组合并保留其显示文本，再操作当前文档。`replaceAll(text, selection = None)` 是外部整体替换，清除组合和旧历史，缺省把选区收敛到新文档末尾。修改正文／选区／marked range 单调推进 revision；只改变 affinity 不改变原生文档修订。非法参数、错误线程以及 render／measure／scene／draw 中的修改在改变历史之前拒绝。
 
-`applyInput(batch)` 复用 Window 的有序纯值操作，检查实际 baseRevision，全部合法后一次发布；同批已完成的编辑合为一个 undo 项，末尾仍在进行的 preedit 单独保留其基线。首次非空 preedit 保存替换前基线；更新不逐项入历史，Commit／ClearPreedit 把整个组合作为一次历史操作。空 preedit 和 `cancelComposition()` 恢复基线正文、方向选区与 affinity，使用新的 revision。恢复正文会改变原生临时文档的坐标依据；这时同批后续显式 Range 作为过期范围整批拒绝，接入宿主负责取消并重建连接，不把范围静默解释到恢复后的另一份文本上。CurrentSelection 沿当前临时选区继续应用。
+`applyInput(batch, policy = textEditPolicy(), source = NativeInput)` 复用 Window 的有序纯值操作，检查实际 baseRevision，全部合法并经过策略后一次发布；同批已完成的编辑合为一个 undo 项，末尾仍在进行的 preedit 单独保留其基线。首次非空 preedit 保存替换前基线；更新不逐项入历史，Commit／ClearPreedit 把整个组合作为一次历史操作。空 preedit 和 `cancelComposition()` 恢复基线正文、方向选区与 affinity，使用新的 revision。恢复正文会改变原生临时文档的坐标依据；这时同批后续显式 Range 作为过期范围整批拒绝，接入宿主负责取消并重建连接，不把范围静默解释到恢复后的另一份文本上。CurrentSelection 沿当前临时选区继续应用。
 
 `undo()` 先取消仍在进行的组合，再撤销最近编辑；没有历史时仍可取消组合。`redo()` 在存在可重做项时先取消组合再重做，否则不改变状态。历史只保存必要的 UTF-8 文本差量及前后 TextPosition，不为普通键入保存全文；连续插入／退格／向前删除仅在种类、相邻范围及方向选区相符时合并。粘贴、剪切、显式替换、选择与焦点切换形成边界，`breakUndoGroup()` 可显式结束合并。新编辑丢弃旧 redo，取消组合不丢弃已有 redo。各编辑入口返回是否改变可观察状态；空批次与无效 undo／redo 返回 false。
+
+`applyEdit(range, text, policy, source = Programmatic)` 是显式遵循输入策略的程序编辑入口。普通 replace／replaceAll／setSelection 继续表示明确的模型操作，不读取活动宿主的 policy；宿主发起的粘贴、删除、换行、制表符和结束组合的选择操作统一走策略事务。
+
+`textEditPolicy { … }` 构造不可变 TextEditPolicy，builder 提供 singleLine=false、maxLength: Long?=None、paste(callback)、transform(callback) 和 accepts(callback)。长度非负；来源 TextEditSource 为 NativeInput／Paste／EditCommand／Programmatic。顺序为单行换行处理、仅 Paste 来源的 paste、所有来源的 transform、accepts、grapheme 长度。宿主 multiline=false 强制启用第一个阶段。
+
+paste／transform 收到 TextEditCandidate，含 before／after（TextEditSnapshot 的正文及 anchor／cursor TextPosition）、source 和当前候选中本次新增内容的 insertedRanges。回调返回 TextEditDecision.Accept／Reject／Transform；Transform 只接受候选上的有序、不重叠、位于 UTF-8 标量边界的 TextEditReplacement(range, text)，允许同位置按顺序插入。引擎验证这些实际区间并生成位置映射：保留片段保持相对位置，被替换片段内部按 affinity 落到替换边缘，端点仍在合法边界。accepts 逐一检查当前新增片段，不隐式选择 ASCII／Unicode 数字或重写整份既有正文；需要完整候选检查时使用 transform 返回 Reject。
+
+maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过限制时本次结果只要求不再增加长度。按候选从后往前删去超出的完整新增 grapheme，保留原有尾部及多操作之间的未改内容；原选择被替换后自然释放容量。若必须切开含保留正文的 grapheme 才能满足限制，则拒绝该次编辑。显式自定义替换的输出属于新增内容，相同内容替换省略。此规则不会截断 UTF-8、组合字符或 emoji ZWJ，也不会因为普通输入而静默裁去旧正文。
+
+原生 batch 先按原始操作顺序完整准备，再将已提交部分交给策略。末尾 preedit 的正文和选区保持原样，单行、字符和长度限制均不应用到临时组合；一个 batch 中先 Commit 后 Preedit 时，前面的提交照常过滤，后面的 preedit 通过区间映射重新接到过滤后的基线上。跨批更新保留同一组合基线；当前 policy 更新不改写活动 preedit，最终 Commit／ClearPreedit 使用当前策略。最终结果一次发布正文、方向选区、affinity、marked range、revision 和历史；一次接受的批次只产生一个最终编辑差量。显式变换及组合边界结束连续键入合并。
+
+拒绝普通编辑保留原文档和历史；拒绝已有组合的最终提交则恢复组合基线并结束 marked 状态。有效原生批次即使被拒绝也推进确认所需的 revision 并向相同 origin 发布真实快照，不依赖正文通知。Undo／Redo 回放已接受的差量，不重新运行策略。回调在现有 UI 纯求值边界执行，不能写 State 或重入编辑器；回调异常、非法区间在发布前失败，保留正文、组合、历史和原生快照，不将策略异常当作过期原生批次而重建连接。
 
 #### 7.5.2 公共纯文本编辑宿主
 
 `TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
-TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None 和 caretBlink=500ms。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部正文不得含硬换行；粘贴和原生输入把硬换行转为空格，CRLF 作为一个换行。原生批次先按原始有序范围完整应用，再统一转换最终正文、选区、标记和仍活动的组合基线，不在每个操作之间改变后续原生范围的坐标依据。活动单行宿主在模型发布前验证这一条件，失败不改变正文或历史。
+TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms 和 policy=textEditPolicy()。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
 TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
@@ -480,7 +492,7 @@ TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selection
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
-默认行为使用同一 InputScope 路由。真实 key-down 只执行 window 已产生的 KeyEvent.textCommands 有序命令，UI 不再保存平台编辑键位表；从不根据 LogicalKey.Character 再插入正文。Enter／PrimaryEnter 提交使用 window 的 ShortcutChord 匹配实际组合，额外修饰键不触发提交。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作；没有实际键事件时，InsertNewline 只按普通 Enter 策略判断。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 成功写出后才删除，Paste 是一个历史边界。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
+默认行为使用同一 InputScope 路由。真实 key-down 只执行 window 已产生的 KeyEvent.textCommands 有序命令，UI 不再保存平台编辑键位表；从不根据 LogicalKey.Character 再插入正文。Enter／PrimaryEnter 提交使用 window 的 ShortcutChord 匹配实际组合，额外修饰键不触发提交。`execute(TextEditCommand)` 供当前活动编辑目标执行相同动作；没有实际键事件时，InsertNewline 只按普通 Enter 策略判断。Copy／Cut／Paste 使用所属窗口的 GUI 剪贴板；Cut 先准备并接受策略删除，再写出原选择文本，成功后发布删除；拒绝或剪贴板写入失败均不改文档或历史。Paste 在一个事务内变换并作为一个历史边界，不修改剪贴板。readOnly 仍可聚焦、选择、复制和移动，消费会修改正文的编辑命令；disabled 通过普通 scope.enabled 禁用。Cancel 只在存在组合时消费，其余继续冒泡到弹层等默认动作。
 
 点击、Shift 点击、拖选、双击词和三击逻辑行均通过 TextLayout 命中与 Unicode 导航完成。选区保留方向和 TextPosition affinity；普通左右移动折叠非空选区到相应视觉边缘，逻辑前后移动使用相应字节边界；上下／翻页保留期望 x。删除单个字符使用完整 grapheme，word／行／段落／文档命令使用文本库实际范围，段落末端不删除硬换行。原生标量选区可以落在 grapheme 内部，显示 caret 临时收敛到对应 grapheme 边缘，不改写原生规范选区。
 

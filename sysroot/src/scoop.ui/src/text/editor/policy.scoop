@@ -1,0 +1,66 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+
+public enum TextEditSource {
+    NativeInput, Paste, EditCommand, Programmatic
+}
+
+public struct TextEditReplacement(val range: Utf8Range, val text: String)
+
+public struct TextEditSnapshot(val text: String, val anchor: TextPosition, val cursor: TextPosition)
+
+/** UTF-8 ranges refer to after.text, including changes made by earlier policy stages. */
+public class TextEditCandidate internal constructor(
+    public val before: TextEditSnapshot,
+    public val after: TextEditSnapshot,
+    public val source: TextEditSource,
+    public val insertedRanges: Array<Utf8Range>
+)
+
+public enum TextEditDecision {
+    Accept, Reject, Transform(val replacements: Array<TextEditReplacement>)
+}
+
+public class TextEditPolicy internal constructor(
+    public val singleLine: Boolean,
+    public val maxLength: Long?,
+    internal val paste: ((TextEditCandidate) -> TextEditDecision)?,
+    internal val transform: ((TextEditCandidate) -> TextEditDecision)?,
+    internal val accepts: ((String) -> Boolean)?
+)
+
+public class TextEditPolicyBuilder internal constructor() {
+    public var singleLine: Boolean = false
+    public var maxLength: Long? = None
+    private var pasteTransform: ((TextEditCandidate) -> TextEditDecision)? = None
+    private var editTransform: ((TextEditCandidate) -> TextEditDecision)? = None
+    private var acceptance: ((String) -> Boolean)? = None
+    public fun paste(value: (TextEditCandidate) -> TextEditDecision) {
+        pasteTransform = Some(value)
+    }
+    public fun transform(value: (TextEditCandidate) -> TextEditDecision) {
+        editTransform = Some(value)
+    }
+    public fun accepts(value: (String) -> Boolean) {
+        acceptance = Some(value)
+    }
+    internal fun snapshot(): TextEditPolicy {
+        when (maxLength) {
+            case Some(value) -> requireUi(value >= 0L, "negative text length limit")
+            case None -> {}
+        }
+        return TextEditPolicy(singleLine, maxLength, pasteTransform, editTransform, acceptance)
+    }
+}
+
+public fun textEditPolicy(configure: TextEditPolicyBuilder.() -> Unit = {}): TextEditPolicy {
+    val builder = TextEditPolicyBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+internal fun editorSnapshot(value: EditorValue): TextEditSnapshot =
+    TextEditSnapshot(value.input.surroundingText, value.endpoints.anchor, value.endpoints.cursor)

@@ -1,0 +1,202 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+
+/** Maps scalar endpoints across prepared interval replacements, without a per-byte table. */
+internal interface EditorOffsetMap {
+    fun forward(position: TextPosition): TextPosition
+    fun reverse(position: TextPosition): TextPosition
+}
+
+internal class EditorIdentityMap: EditorOffsetMap {
+    public override fun forward(position: TextPosition): TextPosition = position
+    public override fun reverse(position: TextPosition): TextPosition = position
+}
+
+internal class EditorReplacementMap(
+    private val edits: Array<TextEditReplacement>
+): EditorOffsetMap {
+    public override fun forward(position: TextPosition): TextPosition = map(position, false)
+    public override fun reverse(position: TextPosition): TextPosition = map(position, true)
+    private fun map(position: TextPosition, backwards: Boolean): TextPosition {
+        val offset = position.byteOffset
+        var delta = 0L
+        for (edit in edits) {
+            val removed = edit.range.end - edit.range.start
+            val inserted = edit.text.byteLength
+            val start =
+                edit.range.start +
+                    if (backwards)
+                        delta
+                    else
+                        0L
+            val length =
+                if (backwards)
+                    inserted
+                else
+                    removed
+            val replacement =
+                if (backwards)
+                    removed
+                else
+                    inserted
+            val shift =
+                if (backwards)
+                    -delta
+                else
+                    delta
+            if (offset < start)
+                return TextPosition(offset + shift, position.affinity)
+            if (offset == start) {
+                if (length != 0L || position.affinity == TextAffinity.Upstream)
+                    return TextPosition(start + shift, position.affinity)
+            } else
+                if (offset < start + length) {
+                    return TextPosition(
+                        start +
+                            shift +
+                            if (position.affinity == TextAffinity.Upstream)
+                                0L
+                            else
+                                replacement,
+                        position.affinity
+                    )
+                }
+            delta += inserted - removed
+        }
+        return TextPosition(
+            offset +
+                if (backwards)
+                    -delta
+                else
+                    delta,
+            position.affinity
+        )
+    }
+}
+
+internal class EditorComposedMap(
+    private val first: EditorOffsetMap,
+    private val second: EditorOffsetMap
+): EditorOffsetMap {
+    public override fun forward(position: TextPosition): TextPosition =
+        second.forward(first.forward(position))
+    public override fun reverse(position: TextPosition): TextPosition =
+        first.reverse(second.reverse(position))
+}
+
+/** The same raw preedit is spliced into both sides of a mapping. */
+internal class EditorPreeditMap(
+    private val previous: EditorOffsetMap,
+    private val raw: Utf8Range,
+    private val mapped: Utf8Range,
+    private val length: Long
+): EditorOffsetMap {
+    public override fun forward(position: TextPosition): TextPosition =
+        map(position, raw, mapped, false)
+    public override fun reverse(position: TextPosition): TextPosition =
+        map(position, mapped, raw, true)
+    private fun map(
+        position: TextPosition,
+        source: Utf8Range,
+        target: Utf8Range,
+        backwards: Boolean
+    ): TextPosition {
+        val offset = position.byteOffset
+        if (offset >= source.start && offset <= source.start + length)
+            return TextPosition(target.start + offset - source.start, position.affinity)
+        val before = offset < source.start
+        val original =
+            TextPosition(
+                if (before)
+                    offset
+                else
+                    offset - length + source.end - source.start,
+                position.affinity
+            )
+        val result =
+            if (backwards)
+                previous.reverse(original)
+            else
+                previous.forward(original)
+        return TextPosition(
+            result.byteOffset +
+                if (before)
+                    0L
+                else
+                    length - target.end + target.start,
+            result.affinity
+        )
+    }
+}
+
+internal fun editorScalar(bytes: Array<Byte>, offset: Long): Boolean =
+    offset >=
+        0L &&
+        offset <=
+        bytes.size &&
+        (offset == bytes.size || bytes[offset].toInt().and(192) != 128)
+
+internal fun checkEditorRange(bytes: Array<Byte>, range: Utf8Range) {
+    requireUi(
+        range.start <=
+            range.end &&
+            editorScalar(bytes, range.start) &&
+            editorScalar(bytes, range.end),
+        "invalid UTF-8 edit range"
+    )
+}
+
+internal fun editorSlice(bytes: Array<Byte>, range: Utf8Range): String =
+    String.fromUtf8(Array<Byte>(range.end - range.start) { index -> bytes[range.start + index] })
+
+internal struct EditorMappedText(
+    val text: String,
+    val mapping: EditorOffsetMap,
+    val edits: Array<TextEditReplacement>
+)
+
+internal fun mapEditorText(
+    text: String,
+    replacements: Array<TextEditReplacement>
+): EditorMappedText {
+    val bytes = text.toByteArray()
+    val edits = ArrayList<TextEditReplacement>()
+    var previous = 0L
+    for (replacement in replacements) {
+        val range = replacement.range
+        checkEditorRange(bytes, range)
+        requireUi(range.start >= previous, "text edit replacements overlap or are unordered")
+        previous = range.end
+        if (editorSlice(bytes, range) != replacement.text)
+            edits.add(replacement)
+    }
+    if (edits.size == 0L)
+        return EditorMappedText(text, EditorIdentityMap(), [])
+    val result = StringBuilder(text.byteLength)
+    var offset = 0L
+    for (edit in edits) {
+        result.append(editorSlice(bytes, Utf8Range(offset, edit.range.start)))
+        result.append(edit.text)
+        offset = edit.range.end
+    }
+    result.append(editorSlice(bytes, Utf8Range(offset, bytes.size)))
+    val snapshot = edits.toArray()
+    return EditorMappedText(result.toString(), EditorReplacementMap(snapshot), snapshot)
+}
+
+internal fun mapEditorSelection(value: EditorValue, mapped: EditorMappedText): EditorValue {
+    val anchor = mapped.mapping.forward(value.endpoints.anchor)
+    val cursor = mapped.mapping.forward(value.endpoints.cursor)
+    return EditorValue(
+        TextInputState(
+            mapped.text,
+            Utf8Selection(anchor.byteOffset, cursor.byteOffset),
+            revision = value.input.revision
+        ),
+        anchor.affinity,
+        cursor.affinity
+    )
+}

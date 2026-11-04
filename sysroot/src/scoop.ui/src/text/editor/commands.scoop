@@ -1,6 +1,7 @@
 package scoop.ui.text
 
 import scoop.window.*
+import scoop.graphics.text.*
 
 internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: KeyEvent?): Boolean {
     val state = host.current
@@ -15,10 +16,7 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                     host.preferredX,
                     host.scroll.viewport.height
                 )
-            host.perform(
-                { state.setSelection(result.selection.anchor, result.selection.cursor) },
-                endComposition = true
-            )
+            host.perform({ editorSetSelection(host, result.selection) }, endComposition = true)
             host.invalidate()
             host.preferredX = result.preferredX
         }
@@ -32,7 +30,10 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                     case Forward -> EditorEditKind.Delete
                     else -> EditorEditKind.Separate
                 }
-            host.perform({ state.edit(range, "", kind) }, endComposition = true)
+            host.perform(
+                { editorApplyEdit(host, range, "", TextEditSource.EditCommand, kind) },
+                endComposition = true
+            )
         }
         case Copy -> {
             val range = state.selection.range
@@ -44,8 +45,19 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                 return true
             val range = state.selection.range
             if (range.start != range.end) {
-                host.window.clipboard.writeText(state.text.utf8Slice(range))
-                host.perform({ state.replace(range, "") }, endComposition = true)
+                val prepared =
+                    prepareEditorEdit(
+                        state,
+                        range,
+                        "",
+                        host.options.policy,
+                        TextEditSource.EditCommand,
+                        !host.options.multiline
+                    )
+                if (prepared.accepted) {
+                    host.window.clipboard.writeText(state.text.utf8Slice(range))
+                    host.perform({ prepared.publish(state, false) }, endComposition = true)
+                }
             }
         }
         case Paste -> {
@@ -53,13 +65,15 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
                 return true
             when (host.window.clipboard.readText()) {
                 case Some(value) -> {
-                    val text =
-                        if (host.options.multiline)
-                            value
-                        else
-                            EditorSingleLine.from(value).text
                     host.perform(
-                        { state.replace(state.selection.range, text) },
+                        {
+                            editorApplyEdit(
+                                host,
+                                state.selection.range,
+                                value,
+                                TextEditSource.Paste
+                            )
+                        },
                         endComposition = true
                     )
                 }
@@ -67,7 +81,12 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
             }
         }
         case SelectAll -> host.perform(
-            { state.setSelection(Utf8Selection(0L, state.text.byteLength)) },
+            {
+                editorSetSelection(
+                    host,
+                    EditorSelection(TextPosition(0L), TextPosition(state.text.byteLength))
+                )
+            },
             endComposition = true
         )
         case Undo -> {
@@ -87,7 +106,14 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
             } else
                 if (host.options.multiline && !host.options.readOnly)
                     host.perform(
-                        { state.replace(state.selection.range, "\n") },
+                        {
+                            editorApplyEdit(
+                                host,
+                                state.selection.range,
+                                "\n",
+                                TextEditSource.EditCommand
+                            )
+                        },
                         endComposition = true
                     )
         }
@@ -95,7 +121,17 @@ internal fun editorCommand(host: TextEditHost, command: TextEditCommand, key: Ke
             if (host.options.tab == TextTabBehavior.Navigate)
                 return false
             if (!host.options.readOnly)
-                host.perform({ state.replace(state.selection.range, "\t") }, endComposition = true)
+                host.perform(
+                    {
+                        editorApplyEdit(
+                            host,
+                            state.selection.range,
+                            "\t",
+                            TextEditSource.EditCommand
+                        )
+                    },
+                    endComposition = true
+                )
         }
         case InsertBacktab -> return false
         case Cancel -> {
@@ -118,4 +154,36 @@ private fun editorSubmits(options: TextEditOptions, key: KeyEvent?): Boolean {
     return ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)), modifiers).matches(
         event
     )
+}
+
+internal fun editorApplyEdit(
+    host: TextEditHost,
+    range: Utf8Range,
+    text: String,
+    source: TextEditSource,
+    kind: EditorEditKind = EditorEditKind.Separate
+): Boolean =
+    prepareEditorEdit(
+        host.current,
+        range,
+        text,
+        host.options.policy,
+        source,
+        !host.options.multiline,
+        kind
+    ).publish(host.current, false)
+
+internal fun editorSetSelection(host: TextEditHost, selection: EditorSelection): Boolean {
+    val state = host.current
+    if (!state.isComposing)
+        return state.setSelection(selection.anchor, selection.cursor)
+    val raw = prepareEditorInput(state, TextInputBatch(None, [TextInputOperation.ClearPreedit]))!!
+    return finishEditorInput(
+        raw,
+        host.options.policy,
+        TextEditSource.EditCommand,
+        !host.options.multiline,
+        EditorEditKind.Separate,
+        Some(selection)
+    ).publish(state, false)
 }

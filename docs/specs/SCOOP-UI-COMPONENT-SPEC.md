@@ -381,7 +381,9 @@ Element 构造、update、measure、paint 或回调失败沿框架与 Surface �
 
 ## 9. Input／Textarea
 
-InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink 和当前回调均经 Props 更新。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Component 入口，必须显式接收 TextEditorState。它是唯一可写正文与选区；控件不保存 String binding 副本，onEdited 交付已生效的模型，外部 replaceAll 不回放用户编辑通知。placeholder、enabled、readOnly、invalid、description、fonts、style、theme、focus、direction、alignment、paintCache、caretBlink、policy 和当前回调均经 Props 更新。direction 为 TextDirection?，None 继承挂载方向，显式值独立于布局方向。默认 caretBlink 为 500ms，零表示保持可见，paintCache 缺省 None。卸载保留外部模型和借用字体。
+
+InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 

@@ -58,16 +58,20 @@ internal fun editorPress(host: TextEditHost, pointer: InputPointer, local: Point
         else
             TextPosition(range.end, TextAffinity.Upstream)
     editorStopDrag(host, false)
+    host.perform(
+        { editorSetSelection(host, EditorSelection(anchor, cursor)) },
+        endComposition = true
+    )
+    val selected = host.current.selection.range
     host.drag =
         Some(
             EditorDrag(
                 Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y),
                 unit,
-                range,
-                anchor
+                TextRange(selected.start, selected.end),
+                host.current.anchor
             )
         )
-    host.perform({ host.current.setSelection(anchor, cursor) }, endComposition = true)
     host.invalidate()
     host.revealNeeded = false
 }
@@ -107,10 +111,7 @@ private fun editorUpdateDrag(host: TextEditHost, drag: EditorDrag, displacement:
                     TextPosition(drag.initial.start),
                     TextPosition(range.end, TextAffinity.Upstream)
                 )
-    host.perform(
-        { host.current.setSelection(selection.anchor, selection.cursor) },
-        endComposition = true
-    )
+    host.perform({ editorSetSelection(host, selection) }, endComposition = true)
     host.revealNeeded = false
 }
 

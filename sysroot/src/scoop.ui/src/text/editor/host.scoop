@@ -57,7 +57,7 @@ public class TextEditHost public constructor(
     init {
         initialOptions.check()
         initialAppearance.check()
-        checkDocument(initialState.text)
+        checkDocument(initialState.committedText)
         area.scope.defaultAction = { context, event -> editorHandle(this, context, event) }
         area.scope.onEventFinished = { event -> editorFinish(this, event) }
         area.scope.enabled = initialOptions.enabled
@@ -114,7 +114,7 @@ public class TextEditHost public constructor(
         options.check()
         appearance.check()
         requireUi(
-            options.multiline || !editorHasLineBreak(state.text),
+            options.multiline || !editorHasLineBreak(state.committedText),
             "single-line editor contains a hard line break"
         )
         if (area.isFocusActive && options.enabled)

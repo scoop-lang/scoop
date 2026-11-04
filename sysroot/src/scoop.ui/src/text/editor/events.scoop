@@ -144,25 +144,38 @@ private fun editorNative(host: TextEditHost, event: TextInputEvent) {
                 case None -> {}
             }
             editorStopDrag(host, false)
-            val before = host.current.text
-            var changed = false
-            host.performing = true
-            val valid =
+            var invalid = false
+            val raw =
                 try {
-                    changed = applyEditorInput(host.current, batch, !host.options.multiline)
-                    true
+                    prepareEditorInput(host.current, batch)
                 } catch (failure: IllegalArgumentException) {
-                    false
+                    invalid = true
+                    None
                 } catch (failure: IllegalStateException) {
-                    false
-                } finally {
-                    host.performing = false
+                    invalid = true
+                    None
                 }
-            if (!valid) {
+            if (invalid) {
                 host.retireConnection()
                 host.perform({ host.current.cancelComposition() })
                 return
             }
+            val before = host.current.text
+            host.performing = true
+            val changed =
+                try {
+                    when (raw) {
+                        case Some(prepared) -> finishEditorInput(
+                            prepared,
+                            host.options.policy,
+                            TextEditSource.NativeInput,
+                            !host.options.multiline
+                        ).publish(host.current, true)
+                        case None -> false
+                    }
+                } finally {
+                    host.performing = false
+                }
             if (changed)
                 host.invalidate()
             host.publishNative(batch.origin)

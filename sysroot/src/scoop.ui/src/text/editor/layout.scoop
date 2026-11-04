@@ -21,7 +21,7 @@ internal class EditorFrame(
 
 private fun editorLayout(host: TextEditHost, width: Double?): TextLayout {
     val text = host.current.text
-    host.checkDocument(text)
+    host.checkDocument(host.current.committedText)
     val style = host.appearance.textStyle
     val content =
         when (host.content) {
@@ -57,7 +57,7 @@ private fun editorHint(host: TextEditHost, width: Double?): TextLayout? {
         if (host.options.multiline)
             host.placeholder
         else
-            EditorSingleLine.from(host.placeholder).text
+            mapEditorText(host.placeholder, editorNewlineEdits(host.placeholder)).text
     val style = host.appearance.placeholderStyle
     val content =
         when (host.hintContent) {
