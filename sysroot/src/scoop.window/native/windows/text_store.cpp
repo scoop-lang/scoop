@@ -1,6 +1,7 @@
 #include "text_internal.h"
 
 #include <algorithm>
+#include <cmath>
 #include <utility>
 
 namespace {
@@ -375,8 +376,8 @@ struct SWTextStore : ITextStoreACP, ITfContextOwnerCompositionSink {
     if (!rect || !state->caret_known)
       return TF_E_INVALIDPOINT;
     const SWTextDocument *document = sw_text_query(state);
-    if (!document ||
-        (document->present && state->caret_revision != document->revision))
+    if (!document || (document->present && state->caret_revision >= 0 &&
+                      state->caret_revision != document->revision))
       return TF_E_INVALIDPOINT;
     double scale = GetDpiForWindow(state->window->hwnd) / 96.0;
     POINT first = {(LONG)std::lround(state->caret_x * scale),

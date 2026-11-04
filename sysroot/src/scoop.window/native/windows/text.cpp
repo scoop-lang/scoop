@@ -205,8 +205,18 @@ HRESULT sw_text_replace(SWTextState *state, LONG start, LONG end,
 
 HRESULT sw_text_select(SWTextState *state,
                        const TS_SELECTION_ACP &selection) {
-  if (!state->editing || !state->composing)
+  if (!state->editing)
     return E_NOTIMPL;
+  if (!state->composing) {
+    LONG anchor = selection.style.ase == TS_AE_START ? selection.acpEnd
+                                                     : selection.acpStart;
+    LONG cursor = selection.style.ase == TS_AE_START ? selection.acpStart
+                                                     : selection.acpEnd;
+    if (selection.acpStart <= selection.acpEnd &&
+        anchor == state->projection.anchor && cursor == state->projection.cursor)
+      return S_OK;
+    return E_NOTIMPL;
+  }
   if (!marked(state->projection) ||
       selection.acpStart < state->projection.marked_start ||
       selection.acpEnd > state->projection.marked_end ||

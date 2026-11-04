@@ -228,6 +228,9 @@ int32_t snapshot(HWND hwnd, int32_t phase) {
   case 10:
     hr = edit(hwnd, true, [&] { return replace(store, 0, 1, L"R", 1); });
     break;
+  case 11:
+    hr = edit(hwnd, false, [&] { return caret(store, 3); });
+    break;
   default:
     return 2;
   }

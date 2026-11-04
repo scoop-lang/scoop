@@ -73,6 +73,8 @@ private class WindowsSnapshotHandler: ApplicationHandler {
         if (opens == 1) {
             assertTrue(window!!.publishTextInputState(value, text))
             native(7)
+            window!!.setImeCursorArea(rect)
+            native(11)
             assertTrue(window!!.publishTextInputCaret(value, text.revision, Some(rect)))
             native(0)
             native(1)
