@@ -118,7 +118,7 @@ Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: 
 
 ## 4. 公共绘图部件
 
-各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focused 数据，部件另带自身选择或滚动输入。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
+各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focusVisible 数据，部件另带自身选择或滚动输入。focusVisible 由统一焦点合同提供，不用逻辑 focused 推测；disabled 时不绘制焦点环。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
 
 ### 4.1 外框／表面
 

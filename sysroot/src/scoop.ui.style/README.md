@@ -64,7 +64,7 @@ val changed = theme.copy {
 第三方 Element 在 onMount 中保存 `scope.resource { ThemePainterCache() }`，在 paint 中使用当前 Props 的 Theme：
 
 ```scoop
-val visual = CheckboxVisual(CheckMark.Mixed, InteractionVisual(focused = true))
+val visual = CheckboxVisual(CheckMark.Mixed, InteractionVisual(focusVisible = true))
 val geometry = theme.checkboxGeometry(bounds, visual)
 painters.get(theme).drawCheckbox(context.canvas, geometry, visual)
 ```

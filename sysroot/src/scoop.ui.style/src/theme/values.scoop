@@ -63,7 +63,7 @@ public struct InteractionVisual(
     val enabled: Boolean = true,
     val hovered: Boolean = false,
     val pressed: Boolean = false,
-    val focused: Boolean = false,
+    val focusVisible: Boolean = false,
     val hoverProgress: Double? = None,
     val pressProgress: Double? = None
 )

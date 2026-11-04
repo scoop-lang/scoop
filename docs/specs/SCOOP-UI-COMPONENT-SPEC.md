@@ -146,7 +146,7 @@ SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content)
 
 Button 的输入包括内容 View、onClick、enabled 及样式。组件在 onMount 创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
 
-ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop 和 order。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。
+ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop、order 和 visibility。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。InteractionVisual.focusVisible 消费公共焦点指示；普通指针聚焦不画键盘焦点环，实际焦点与按键接收仍有效。Input／Textarea 沿 TextEditHost 的文本指示策略，局部 InteractionStyles.focused 也只按可见焦点应用。
 
 首次 Component.render 使用未交互外观；onMount 在子 Element 挂载前创建 area／focus／Press，并通过普通 State 发布这组挂载资源。后续 render 读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不能在首次 render 解引用尚未挂载的 Press。
 

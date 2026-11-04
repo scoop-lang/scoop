@@ -23,7 +23,7 @@ private class ComponentStyleTest {
                 surface { this.padding = Some(Insets.all(5.0)) }
                 this.states = states
             }
-        val active = InteractionVisual(hovered = true, pressed = true, focused = true)
+        val active = InteractionVisual(hovered = true, pressed = true, focusVisible = true)
         val options = style.options(active)
         for (theme in [macosTheme(), materialTheme()]) {
             val geometry =
@@ -41,7 +41,12 @@ private class ComponentStyleTest {
                 theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action), options).suggestedSize
             )
             val disabled =
-                InteractionVisual(enabled = false, hovered = true, pressed = true, focused = true)
+                InteractionVisual(
+                    enabled = false,
+                    hovered = true,
+                    pressed = true,
+                    focusVisible = true
+                )
             val result =
                 theme.surfaceGeometry(
                     Rect(0.0, 0.0, 80.0, 40.0),

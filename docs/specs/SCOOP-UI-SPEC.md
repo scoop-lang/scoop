@@ -391,9 +391,13 @@ update 在逻辑阶段修改处理器和 enabled 等属性，不等 scene 才应
 
 #### 7.3.1 FocusHandle、FocusScope 与 Tab
 
+FocusOptions 增加 `visibility: FocusVisibility = Automatic`，其 builder 同步提供该属性并写入所属 Surface InputArea。FocusHandle 的 `isFocusVisible` 查询同一区域；`requestFocus(origin: FocusOrigin = Programmatic)` 保留来源，延迟显露的 PendingFocus 保存来源直到 Accepted 后兑现。Tab、roving 和 lazy 键盘导航传 Keyboard；Portal 恢复沿目标的既有来源，不把指针触发器恢复成键盘指示。真实焦点与其视觉指示独立，Never 不妨碍键盘输入或 IME。
+
+InteractionState 和 TextEditInteraction 同时包含 focused 与 focusVisible。Press／TextEditHost 订阅 Surface 的统一指示变化，不各自保存最近输入设备。TextEditHost 将 Automatic 解析为 Always，使可编辑及只读正文的指针聚焦均有明确指示；调用者的 Always／Never 原样保留。仅 focusVisible 变化不得重新建立编辑会话、改变选区或结束 composition。
+
 FocusHandle 是 owner 线程上的稳定目标引用，不保存第二份焦点状态。isAttached 表示当前仍登记到活动挂载且区域未关闭；hasFocus／isFocusActive 查询所属 Surface 区域；isPending 表示等待提交的当前请求。requestFocus 返回是否接受请求：已显露目标立即聚焦，滚动内容中的目标先按第 7.7 节显露，再在成功帧聚焦；已登记但等待首次／恢复放置的目标请求一帧并等待成功提交。未登记、已退休或逻辑禁用的目标返回 false。clearFocus 取消该 handle 的待处理请求，并在它是当前焦点时清除焦点。提前关闭 InputArea 使其旧句柄失效；随后可将同一句柄登记到新的活动目标，旧登记的晚到清理不能解除新绑定。
 
-ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
+ComponentScope.focusTarget(area, options: FocusOptions = FocusOptions()) 将本挂载直接拥有的可聚焦区域登记为焦点目标，返回随挂载退休的 FocusTarget。同一区域只登记一次，一个 FocusHandle 同时只属于一个活动目标。FocusOptions 包含可选外部 handle、tabStop=true、order=0、visibility=Automatic；没有外部 handle 时目标拥有自己的稳定 handle。FocusTarget.options 在逻辑阶段整体更新，外部 handle 改变时解除旧引用并取消旧请求，区域及其已有焦点不被重建。区域及逻辑祖先的 enabled 是唯一启用状态来源。
 
 `FocusTarget.reveal(rect: Rect): Boolean` 显露该区域局部坐标中的子矩形，不改变键盘焦点或激活 OS 窗口。它用于文本光标等小于整个控件的目标，沿第 7.7 节相同的成功场景及滚动路径逐层处理；矩形必须有限且非负，空矩形返回 false。该请求与普通聚焦共用一个待处理位置意图，handle.isPending 也反映尚未完成的局部显露。更新的显式焦点／显露、已调整视口的新滚动、目标退休或输入域变化取消旧请求；Discarded 不兑现。首次尚无几何时等待一次成功放置，之后仍不可达则结束，不轮询。
 
@@ -484,7 +488,7 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
-TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered 投影，实际焦点与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
+TextEditAppearance 显式提供 fonts、textStyle、placeholderStyle、selectionColor、inactiveSelectionColor、caretColor、markedColor、caretWidth；字体由调用方保持有效，caretWidth 为有限正值。宿主不读取主题。TextEditInteraction 是可观察的 focused／hovered／focusVisible 投影，实际焦点、指示与命中仍以 InputArea 为准。正文缓存按文本与字体／样式／排版输入复用，选择、标记装饰和 caret 独立绘制；闪烁不重建正文排版或像素缓存。
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
 
@@ -644,7 +648,7 @@ ParagraphHost.measure 的 settings 为 `ParagraphStyle? = None`；缺省时以�
 
 ### 7.10 公共 Press 与交互状态
 
-`InteractionState(hovered=false, pressed=false, focused=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
+`InteractionState(hovered=false, pressed=false, focused=false, focusVisible=false)` 是按下行为的只读表现值；选中、展开和校验状态继续归调用方模型。`ComponentScope.press(area, options=PressOptions(), onPress)` 创建并登记公共 Press，借用当前 mount 创建的 InputArea。`PressOptions(enabled=true, acceptsEnter=true)` 配置可用性和 Enter 激活；`Press.interaction` 是会被 render 依赖追踪的当前状态，`update(options, onPress)` 同步最新配置与动作。关闭 Press 注销其处理器并清空临时序列，不关闭 area；scope 销毁自动关闭行为。
 
 Press 通过 Surface 的独立事件／默认动作／完成登记组合，不替换调用方原 handler。鼠标主按钮在已提交 hover 路径内按下建立候选，移出暂停 pressed、移回恢复；同一有效序列在区域内释放后激活。取消、禁用、失焦和卸载立即清理。传播中止或默认行为取消时，完成通知仍清除已经结束的序列，不补做激活。
 

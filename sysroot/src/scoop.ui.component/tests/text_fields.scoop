@@ -15,7 +15,7 @@ import scoop.ui.text.TextEditorState
 private class TextFieldStyleTest {
     @Test
     fun `validation follows all palettes while explicit field overrides remain authoritative`() {
-        val focused = InteractionVisual(focused = true)
+        val focused = InteractionVisual(focusVisible = true)
         val visual = SurfaceVisual(SurfaceKind.Plain, focused)
         val bounds = Rect(0.0, 0.0, 240.0, 80.0)
         val themes =

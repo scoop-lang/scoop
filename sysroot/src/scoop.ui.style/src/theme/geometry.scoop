@@ -108,7 +108,7 @@ internal fun focusTheme(
 ): FocusOutline? {
     themeLength(style.outset);
     themeLength(style.width)
-    if (!visual.enabled || !visual.focused || style.width == 0.0)
+    if (!visual.enabled || !visual.focusVisible || style.width == 0.0)
         return None
     return Some(FocusOutline(outline.expanded(style.outset), BorderEdge(style.width, style.color)))
 }

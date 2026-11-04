@@ -53,7 +53,7 @@ private class ShadcnThemeTest {
             assertEquals(Insets(10.0, 4.0, 10.0, 4.0), metrics.padding)
             assertEquals(CornerRadii.all(10.0), metrics.corners)
             val normal = SurfaceVisual(SurfaceKind.Action)
-            val focused = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focused = true))
+            val focused = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
             val bounds = Rect(20.0, 20.0, 80.0, 32.0)
             val geometry = theme.surfaceGeometry(bounds, focused)
             assertEquals(3.0, geometry.focus!!.border.width)
@@ -66,7 +66,7 @@ private class ShadcnThemeTest {
                         enabled = false,
                         hovered = true,
                         pressed = true,
-                        focused = true
+                        focusVisible = true
                     )
                 )
             val disabledGeometry = theme.surfaceGeometry(bounds, disabled)

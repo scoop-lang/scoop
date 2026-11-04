@@ -14,7 +14,7 @@ private class ThemeGeometryTest {
         val all = themes()
         for (theme in all) {
             val metrics = theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action))
-            val visual = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focused = true))
+            val visual = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
             val geometry = theme.surfaceGeometry(Rect(10.0, 20.0, 80.0, 40.0), visual)
             contains(geometry.bounds, geometry.content)
             contains(geometry.bounds, geometry.borderInner.bounds)

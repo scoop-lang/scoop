@@ -53,7 +53,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                     geometry.outline.bounds,
                     Style(border = style.border, corners = Corners.Physical(geometry.outline.radii))
                 ) { _ -> }
-                if (visual.interaction.enabled && visual.interaction.focused)
+                if (visual.interaction.enabled && visual.interaction.focusVisible)
                     drawFocus(local, geometry.focus, focusPainter)
             }
         }
@@ -75,7 +75,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                     }
                 }
             }
-            if (visual.interaction.enabled && visual.interaction.focused)
+            if (visual.interaction.enabled && visual.interaction.focusVisible)
                 drawFocus(local, geometry.focus, focusPainter)
         }
     }
@@ -94,7 +94,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                         )
                     )
             }
-            if (visual.interaction.enabled && visual.interaction.focused)
+            if (visual.interaction.enabled && visual.interaction.focusVisible)
                 drawFocus(local, geometry.focus, focusPainter)
         }
     }

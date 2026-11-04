@@ -44,7 +44,7 @@ internal class TextFieldRenderer {
                 InteractionVisual(
                     input.options.enabled,
                     interaction.hovered,
-                    focused = interaction.focused
+                    focusVisible = interaction.focusVisible
                 )
             )
         val theme = themes.read(input.theme)

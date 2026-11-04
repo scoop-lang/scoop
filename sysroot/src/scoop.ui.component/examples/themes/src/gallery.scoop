@@ -191,7 +191,7 @@ private fun sampleInteraction(column: Long): InteractionVisual =
         case 1L -> InteractionVisual(hovered = true)
         case 2L -> InteractionVisual(hovered = true, pressed = true)
         case 3L -> InteractionVisual(enabled = false)
-        case 6L -> InteractionVisual(focused = true)
+        case 6L -> InteractionVisual(focusVisible = true)
         else -> InteractionVisual()
     }
 

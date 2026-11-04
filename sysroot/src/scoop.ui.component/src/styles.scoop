@@ -21,7 +21,7 @@ public class InteractionStyles internal constructor(
                 result = result.then(hovered)
             if (visual.pressed)
                 result = result.then(pressed)
-            if (visual.focused)
+            if (visual.focusVisible)
                 result = result.then(focused)
         } else
             result = result.then(disabled)

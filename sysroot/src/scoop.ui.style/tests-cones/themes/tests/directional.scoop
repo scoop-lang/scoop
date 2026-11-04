@@ -31,7 +31,7 @@ private class DirectionalThemeTest {
                 )
             }
         val ringFocus = FocusStyle(Color.Black, 2.0, 3.0)
-        val visual = SurfaceVisual(interaction = InteractionVisual(focused = true))
+        val visual = SurfaceVisual(interaction = InteractionVisual(focusVisible = true))
         for (theme in themes())
             for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl]) {
                 val options =
@@ -64,7 +64,7 @@ private class DirectionalThemeTest {
                 val mark =
                     theme.checkboxGeometry(
                         Rect(0.0, 0.0, 50.0, 50.0),
-                        CheckboxVisual(CheckMark.On, InteractionVisual(focused = true)),
+                        CheckboxVisual(CheckMark.On, InteractionVisual(focusVisible = true)),
                         markOptions,
                         direction
                     )
