@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -46,6 +46,8 @@ Button／Checkbox 默认参与 Tab／Shift+Tab 遍历。`focus = FocusOptions(So
 Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体、字号、颜色等属性；完整 StyledText 使用公共富文本模型。Button 的标签复用 Label 与主题 action 字体，其基线来自实际文字布局。外部 FontCollection 只借用，默认字体资源由挂载作用域管理。
 
 `card(content)`、`alert(content)`、`emptyState(content)` 接收完整正文 View，配置块中的 title／description 支持 String、StyledText 和 View。其余区域通过 header／action／footer／icon／media 成员组合；仅对应控件实际使用的区域有公开入口。可选区域撤销、动作换行和主题切换保留正文挂载。Card 提供 Default／Sm，Alert 提供 Default／Destructive，EmptyState 提供可选虚线边框及 Default／Icon 媒体。
+
+`item { title("Project"); description("Updated just now") }` 提供 Default／Outline／Muted 外观和 Default／Sm／Xs 尺寸；`item(content)` 可放可选择正文，media／actions／header／footer 组合其他 View。`media(image)` 使用借用图片的 Cover 适配和圆角裁剪；独立动作在窄宽时移到下一行。可选 onClick 为行提供键盘与指针动作，内部按钮和文本选择保有输入；enabled=false 禁用整行。`itemGroup(ItemSize.Sm) { item { title("First") }; itemSeparator() }` 收集条目和普通子项，普通容器中的成员名为 contentItem。
 
 `separator { axis = FlexAxis.Vertical; length = Some(24.0) }` 绘制逻辑尺寸的细线；默认横向填满可用宽度。`aspectRatio(content, 16.0 / 9.0)` 在父约束内计算比例外框并裁剪同一范围，可与 ImageView 的 Cover／Contain 组合。独立用法、明暗及 RTL 可在 [shadcn Gallery](examples/shadcn/README.md) 中操作；逐批交付范围见 [shadcn 实施记录](../../../docs/ui/shadcn/PROGRESS.md)。
 

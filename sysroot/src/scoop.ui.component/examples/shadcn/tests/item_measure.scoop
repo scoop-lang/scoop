@@ -1,0 +1,155 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.graphics.text.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal fun itemBox(width: Double, height: Double): View =
+    element(Size(width, height), { current -> ItemTestBox(current) })
+
+private class ItemTestBox(private val props: Props<Size>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(props.value))
+    public override fun scene(context: SceneContext) {}
+}
+
+internal fun itemMeasurements(probe: ItemProbe): Array<View> {
+    val fonts = probe.fonts
+    return [
+        itemMeasured(
+            item(itemBox(80.0, 20.0)) {
+                this.media(itemBox(40.0, 40.0));
+                this.mediaVariant = ItemMediaVariant.Image
+                this.actions(
+                    itemMeasured(itemBox(60.0, 32.0), { bounds -> probe.actionBounds = bounds })
+                );
+                this.header(itemBox(100.0, 18.0));
+                this.footer(
+                    itemMeasured(itemBox(110.0, 12.0), { bounds -> probe.footerBounds = bounds })
+                )
+            },
+            { bounds -> probe.naturalBounds = bounds }
+        ),
+        itemGroup {},
+        itemGroup {
+            this.item {};
+            this.item {};
+            this.item {}
+        },
+        item {},
+        itemSeparator {},
+        item {
+            this.fonts = Some(fonts);
+            this.title("A long item title that should stay on one line even in a narrow view")
+        },
+        item {
+            this.fonts = Some(fonts);
+            this.description(
+                "A long description contains more than two lines of text when the view is narrow and should be truncated after the second line."
+            )
+        },
+        component(
+            ItemProps(
+                title =
+                    Some(
+                        PanelContent.Label(
+                            LabelProps(
+                                LabelText.Plain(
+                                    "A long title with explicitly unrestricted lines wraps to many lines in a narrow view",
+                                    None
+                                ),
+                                Some(fonts),
+                                Some(paragraphStyle())
+                            )
+                        )
+                    )
+            ),
+            { current -> Item(current) }
+        ),
+        item(itemBox(10.0, 20.0)) {
+            this.media(itemBox(1.0, 1.0));
+            this.mediaVariant = ItemMediaVariant.Image
+        },
+        item(itemBox(10.0, 20.0)) {
+            this.media(itemBox(1.0, 1.0));
+            this.mediaVariant = ItemMediaVariant.Image;
+            this.size = ItemSize.Sm
+        },
+        item(itemBox(10.0, 20.0)) {
+            this.media(itemBox(1.0, 1.0));
+            this.mediaVariant = ItemMediaVariant.Image;
+            this.size = ItemSize.Xs
+        },
+        item(itemBox(80.0, 20.0)) {
+            this.header(itemMeasured(separator(), { bounds -> probe.fillHeaderBounds = bounds }))
+            this.footer(itemMeasured(separator(), { bounds -> probe.fillFooterBounds = bounds }))
+        }
+    ]
+}
+
+private fun itemMeasured(content: View, record: (Rect) -> Unit): View =
+    element(record, { current -> ItemGeometryMarker(current) }, [content])
+
+private class ItemGeometryMarker(private val record: Props<(Rect) -> Unit>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return child
+    }
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(
+                    paint.canvas,
+                    Rect(0.0, 0.0, paint.size.width, paint.size.height)
+                ).use { geometry -> record.value(geometry.bounds) }
+            }
+        }
+        context.children()
+    }
+}
+
+internal fun measureItems(context: MeasureContext) {
+    assertEquals(Size(226.0, 112.0), context.measureChild(1L, Constraints()).size)
+    assertEquals(
+        Size(400.0, 112.0),
+        context.measureChild(1L, Constraints(maxWidth = Some(400.0))).size
+    )
+    assertEquals(
+        Size(180.0, 134.0),
+        context.measureChild(1L, Constraints(maxWidth = Some(180.0))).size
+    )
+    assertEquals(Size(0.0, 0.0), context.measureChild(1L, Constraints.tight(Size(0.0, 0.0))).size)
+    assertEquals(
+        Size(300.0, 0.0),
+        context.measureChild(2L, Constraints(maxWidth = Some(300.0))).size
+    )
+    assertEquals(
+        Size(300.0, 98.0),
+        context.measureChild(3L, Constraints(maxWidth = Some(300.0))).size
+    )
+    assertEquals(Size(26.0, 22.0), context.measureChild(4L, Constraints()).size)
+    assertEquals(
+        Size(300.0, 17.0),
+        context.measureChild(5L, Constraints(maxWidth = Some(300.0))).size
+    )
+    val title = context.measureChild(6L, Constraints(maxWidth = Some(120.0)))
+    val titleNatural = context.measureChild(6L, Constraints())
+    assertEquals(titleNatural.size.height, title.size.height)
+    val description = context.measureChild(7L, Constraints(maxWidth = Some(120.0)))
+    val descriptionNatural = context.measureChild(7L, Constraints())
+    assertTrue(description.size.height > descriptionNatural.size.height)
+    assertTrue(description.size.height <= 64.01)
+    assertTrue(
+        context.measureChild(8L, Constraints(maxWidth = Some(120.0))).size.height >
+            title.size.height
+    )
+    assertEquals(Size(86.0, 62.0), context.measureChild(9L, Constraints()).size)
+    assertEquals(Size(78.0, 54.0), context.measureChild(10L, Constraints()).size)
+    assertEquals(Size(64.0, 42.0), context.measureChild(11L, Constraints()).size)
+    assertEquals(Size(106.0, 64.0), context.measureChild(12L, Constraints()).size)
+}

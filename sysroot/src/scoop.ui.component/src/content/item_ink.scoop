@@ -1,0 +1,154 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class ItemInkProps(
+    val input: ItemProps,
+    val theme: Theme,
+    val visual: InteractionVisual,
+    val behavior: ActionBehavior
+)
+
+internal fun itemOptions(
+    input: ItemProps,
+    theme: Theme,
+    visual: InteractionVisual,
+    actionable: Boolean
+): SurfaceOptions {
+    val colors = theme.tokens.palette
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val fill =
+        if (input.variant == ItemVariant.Muted)
+            colors.muted.background.withAlpha(colors.muted.background.alpha * 0.5)
+        else
+            Color.Transparent
+    val hover =
+        if (actionable)
+            colors.muted.background
+        else
+            fill
+    val background = StateColors(fill, hover, hover, fill).resolve(visual)
+    val border =
+        if (visual.enabled && visual.focusVisible)
+            when (input.focusOutline) {
+                case Some(value) -> value.borderColor ?: colors.ring
+                case None -> colors.ring
+            }
+        else
+            if (input.variant == ItemVariant.Outline)
+                colors.border
+            else
+                Color.Transparent
+    val local =
+        styleOverride {
+            this.background(Some(Paint(background)))
+            this.border(Some(Border.all(1.0, border)))
+            this.corners(Corners.all(theme.tokens.corners.large))
+            this.boxShadows([])
+        }.then(input.style)
+    return surfaceOptions {
+        this.suggestedSize = Some(Size(0.0, 0.0))
+        this.minimumSize = Some(Size(0.0, 0.0))
+        this.padding =
+            Some(
+                if (input.size == ItemSize.Xs)
+                    Insets(10.0 * density, 8.0 * density, 10.0 * density, 8.0 * density)
+                else
+                    Insets(12.0 * density, 10.0 * density, 12.0 * density, 10.0 * density)
+            )
+        this.style = input.states.apply(local, visual)
+        this.focus = input.focusOutline
+    }
+}
+
+internal class ItemInk(private val props: Props<ItemInkProps>): Element {
+    private var input: InputScope? = None
+    private var motion: InteractionMotion? = None
+    private var painters: ThemePainterCache? = None
+    private var content: StylePainter? = None
+    private var geometry: SurfaceGeometry? = None
+    private var visual = SurfaceVisual(SurfaceKind.Plain)
+    public override fun onMount(scope: ComponentScope) {
+        input = Some(scope.input)
+        motion = Some(InteractionMotion(scope, props.value.visual))
+        painters = Some(scope.resource { ThemePainterCache() })
+        content = Some(scope.resource { StylePainter() })
+    }
+    public override fun update() {
+        val value = props.value
+        when (value.behavior) {
+            case Passive -> input!!.enabled = value.input.enabled
+            case Press(owner, action, focus) -> {
+                val control = owner.value!!
+                control.press.update(PressOptions(value.input.enabled), action)
+                control.area.scope.enabled = value.input.enabled
+                control.focus.options = focus
+            }
+        }
+        val transition =
+            value.theme.tokens.motion.resolve(
+                value.input.transition.resolve(
+                    Some(AnimationSpec.Tween(Duration.milliseconds(100L)))
+                )
+            )
+        motion!!.update(value.visual, transition, transition)
+        painters!!.get(value.theme)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val value = props.value
+        visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
+        val actionable =
+            when (value.behavior) {
+                case Passive -> false;
+                case Press(_, _, _) -> true
+            }
+        val options = itemOptions(value.input, value.theme, visual.interaction, actionable)
+        val metrics = value.theme.surfaceMetrics(visual, options, context.layoutDirection)
+        val inset = metrics.contentInsets.totals()
+        val child = context.measureChild(0L, childConstraints(constraints, inset))
+        val size =
+            constraints.constrain(
+                Size(
+                    constraints.maxWidth ?: (child.size.width + inset.width),
+                    child.size.height + inset.height
+                )
+            )
+        val surface =
+            value.theme.surfaceGeometry(
+                Rect(0.0, 0.0, size.width, size.height),
+                visual,
+                options,
+                context.layoutDirection
+            )
+        geometry = Some(surface)
+        context.placeChild(0L, Point(surface.content.x, surface.content.y))
+        return offsetMetrics(child, size, surface.content.y)
+    }
+    public override fun scene(context: SceneContext) {
+        val value = props.value
+        val surface = geometry!!
+        val painter = painters!!.get(value.theme)
+        val state = visual
+        if (surface.opacity < 1.0)
+            context.saveLayer(surface.opacity)
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, surface, state, SurfaceLayer.Background)
+        }
+        when (value.behavior) {
+            case Passive -> {}
+            case Press(owner, _, _) -> context.place(owner.value!!.area, surface.bounds)
+        }
+        content!!.scene(context, surface.bounds, surface.contentStyle) {
+            children -> children.children()
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, surface, state, SurfaceLayer.Foreground)
+        }
+        if (surface.opacity < 1.0)
+            context.restore()
+    }
+}

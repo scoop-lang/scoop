@@ -10,11 +10,18 @@ private enum PanelAsideShape {
 private struct PanelAsideProps(
     val shape: PanelAsideShape,
     val gap: Double,
-    val minimumContent: Double
+    val minimumContent: Double,
+    val alignment: AxisAlignment
 )
 
 /** Keeps the same content and action mounts when a narrow panel moves the action below. */
-internal fun panelAside(content: View?, action: View?, gap: Double, minimumContent: Double): View {
+internal fun panelAside(
+    content: View?,
+    action: View?,
+    gap: Double,
+    minimumContent: Double,
+    alignment: AxisAlignment = AxisAlignment.Start
+): View {
     val children = ArrayList<View>()
     when (content) {
         case Some(value) -> children.add(panelSlot(value, 0L));
@@ -36,7 +43,7 @@ internal fun panelAside(content: View?, action: View?, gap: Double, minimumConte
             else
                 PanelAsideShape.Empty
     return element(
-        PanelAsideProps(shape, gap, minimumContent),
+        PanelAsideProps(shape, gap, minimumContent, alignment),
         { current -> PanelAside(current) },
         children.toArray()
     )
@@ -59,6 +66,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
                     )
                 val end = props.value.shape == PanelAsideShape.Action
                 val right = (context.layoutDirection == LayoutDirection.Ltr) == end
+                val y = alignmentOffset(props.value.alignment, size.height, child.size.height)
                 context.placeChild(
                     0L,
                     Point(
@@ -66,10 +74,10 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
                             size.width - child.size.width
                         else
                             0.0,
-                        0.0
+                        y
                     )
                 )
-                return offsetMetrics(child, size, 0.0)
+                return offsetMetrics(child, size, y)
             }
         }
     }
@@ -102,6 +110,11 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
         val size =
             constraints.constrain(Size(constraints.maxWidth ?: natural.width, natural.height))
         val rtl = context.layoutDirection == LayoutDirection.Rtl
+        val contentY =
+            if (stacked)
+                0.0
+            else
+                alignmentOffset(input.alignment, size.height, content.size.height)
         context.placeChild(
             0L,
             Point(
@@ -109,7 +122,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
                     size.width - content.size.width
                 else
                     0.0,
-                0.0
+                contentY
             )
         )
         context.placeChild(
@@ -122,10 +135,10 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
                 if (stacked)
                     content.size.height + input.gap
                 else
-                    0.0
+                    alignmentOffset(input.alignment, size.height, action.size.height)
             )
         )
-        return offsetMetrics(content, size, 0.0)
+        return offsetMetrics(content, size, contentY)
     }
     public override fun scene(context: SceneContext) {
         context.children()

@@ -180,6 +180,7 @@ internal class Gallery(
             case Kbd -> component({ KbdExamples(model, fonts) })
             case Label -> fieldLabelExamples(model.fields, fonts)
             case ButtonGroup -> buttonGroupExamples(model.groups, fonts)
+            case Item -> component(model.items, { _ -> ItemExamples(model.items, fonts) })
         }
 
     private fun controlDemo(value: ControlDemo): View =

@@ -212,6 +212,21 @@ public open class ChildrenBuilder internal constructor() {
     public fun separator(configure: SeparatorBuilder.() -> Unit = {}): Unit {
         add(makeSeparator(configure))
     }
+    public fun contentItem(configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(None, ItemSize.Default, configure))
+    }
+    public fun contentItem(content: View, configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(Some(content), ItemSize.Default, configure))
+    }
+    public fun itemGroup(
+        size: ItemSize = ItemSize.Default,
+        configure: ItemGroupBuilder.() -> Unit
+    ): Unit {
+        add(makeItemGroup(size, configure))
+    }
+    public fun itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {}): Unit {
+        add(makeItemSeparator(configure))
+    }
     public fun aspectRatio(
         content: View,
         ratio: Double,

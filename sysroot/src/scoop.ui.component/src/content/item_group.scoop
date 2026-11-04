@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.graphics.Color
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ItemGroupProps public constructor(
+    public val children: Array<View>,
+    public val size: ItemSize = ItemSize.Default,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class ItemGroup public constructor(private val props: Props<ItemGroupProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val density = themes.read(input.theme).tokens.typography.body.fontSize / 14.0
+        val layout =
+            LinearProps(
+                Array<FlexItem>(input.children.size) { index -> FlexItem(input.children[index]) },
+                itemGroupGap(input.size) * density,
+                CrossAlignment.Stretch
+            )
+        return styled(element(layout, { current -> ItemGroupLayout(current) }, input.children)) {
+            this.style = input.style.resolve(style())
+        }
+    }
+}
+
+private class ItemGroupLayout(private val props: Props<LinearProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureFlex(
+            context,
+            Constraints(
+                constraints.maxWidth ?: constraints.minWidth,
+                constraints.maxWidth,
+                constraints.minHeight,
+                constraints.maxHeight
+            ),
+            props.value,
+            true
+        )
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+internal fun itemGroupGap(size: ItemSize): Double =
+    when (size) {
+        case Default -> 16.0
+        case Sm -> 10.0
+        case Xs -> 8.0
+    }
+
+public class ItemGroupBuilder internal constructor(private val size: ItemSize): ChildrenBuilder() {
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun item(configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(None, size, configure))
+    }
+    public fun item(content: View, configure: ItemBuilder.() -> Unit = {}): Unit {
+        add(makeItem(Some(content), size, configure))
+    }
+    internal fun snapshot(): ItemGroupProps = ItemGroupProps(childrenSnapshot(), size, theme, style)
+}
+
+public fun itemGroup(
+    size: ItemSize = ItemSize.Default,
+    configure: ItemGroupBuilder.() -> Unit
+): View = makeItemGroup(size, configure)
+
+internal fun makeItemGroup(size: ItemSize, configure: ItemGroupBuilder.() -> Unit): View {
+    val builder = ItemGroupBuilder(size)
+    builder.configure()
+    return component(builder.snapshot(), { current -> ItemGroup(current) }, builder.key)
+}
+
+public class ItemSeparatorProps public constructor(
+    public val color: Color? = None,
+    public val theme: ThemeSource? = None
+)
+
+public class ItemSeparator public constructor(
+    private val props: Props<ItemSeparatorProps>
+): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val density = themes.read(input.theme).tokens.typography.body.fontSize / 14.0
+        return panelFrame(
+            component(
+                SeparatorProps(color = input.color, theme = input.theme),
+                { current -> Separator(current) }
+            ),
+            Insets(0.0, 8.0 * density, 0.0, 8.0 * density)
+        )
+    }
+}
+
+public class ItemSeparatorBuilder internal constructor() {
+    public var color: Color? = None
+    public var theme: ThemeSource? = None
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {}): View =
+    makeItemSeparator(configure)
+
+internal fun makeItemSeparator(configure: ItemSeparatorBuilder.() -> Unit): View {
+    val builder = ItemSeparatorBuilder()
+    builder.configure()
+    return component(
+        ItemSeparatorProps(builder.color, builder.theme),
+        { current -> ItemSeparator(current) },
+        builder.key
+    )
+}

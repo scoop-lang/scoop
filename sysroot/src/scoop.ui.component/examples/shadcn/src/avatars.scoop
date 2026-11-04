@@ -140,7 +140,7 @@ internal class AvatarExamples(
     }
 }
 
-private fun avatarPortrait(alternate: Boolean): Image =
+internal fun avatarPortrait(alternate: Boolean): Image =
     RasterSurface(128, 128).use {
         raster ->
         raster.draw {

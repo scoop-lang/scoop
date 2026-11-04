@@ -460,7 +460,7 @@ LabelProps／LabelBuilder 增加 underline: Color? = None。它是纯绘制装�
 
 ### 12.1 类型化内容与公共组合
 
-Card、Alert、EmptyState 的必需 body 是 View。标题／说明使用 `PanelContent.Label(LabelProps)／Custom(View)`，可分别提供纯文字、StyledText 或完整 View；普通文字接受根的字体与当前角色样式，StyledText 和显式 baseStyle 保留自身样式，Custom 不被检查或修改。三个 builder 的 title／description 成员各有 String、StyledText、View 重载，直接赋入 None 撤销该可选区；fonts、theme、style、key 的约定与现有控件一致。PanelBuilder 仅复用这三个实际消费者的字段和成员，不建立插槽注册表或挂载树上下文。
+Card、Alert、EmptyState 的必需 body 是 View。标题／说明使用 `PanelContent.Label(LabelProps)／Custom(View)`，可分别提供纯文字、StyledText 或完整 View；普通文字接受根的字体与当前角色样式，StyledText 和显式 baseStyle 保留自身样式，Custom 不被检查或修改。三个 builder 的 title／description 成员各有 String、StyledText、View 重载，直接赋入 None 撤销该可选区；fonts、theme、style、key 的约定与现有控件一致。PanelBuilder 仅复用这些实际消费者及第 17 节 Item 的字段和成员，不建立插槽注册表或挂载树上下文。
 
 无内容的可选区域不产生节点、间距或边框。各区域有稳定的局部 key；移除 header／description／action 等相邻区域，或窄宽换行，不重新挂载仍存在的 body 与其状态。header、action、footer、media 等 View 都是调用方内容，既不克隆，也不偷偷增加输入行为；root 的显式 theme 只用于自身表面与便利文字，任意子 View 保留自己的主题选择。构造和配置只发布描述，字体、Path 和 painter 的所有权仍沿第 7 节。
 
@@ -585,3 +585,31 @@ GroupPosition 是含 axis、first、last 的普通值。ButtonProps、InputProps
 连接表面去掉内部圆角和后项逻辑起端边框，垂直组去掉后项上边框；第一项起端保持原圆角，末项末端默认使用主题 large 圆角，明确的局部圆角覆盖保留外侧值。测量、内容内缩、边框内轮廓、绘制和焦点环使用同一连接结果，RTL 只解析逻辑起止侧。父约束继续优先，零尺寸合法。文本条目使用 muted 背景、border、14／20 的 medium 文字和水平内缩 10；内部分隔线使用 input 颜色、主轴厚度 1、交叉轴两端各留白 1。尺寸随正文密度缩放，细线保持 1。
 
 排列复用现有 Flex 测量、收缩及交叉轴 Stretch。纵向先取条目自然宽度，再受父宽约束统一拉伸；普通有限宽上限不把组撑满，明确的最小宽仍生效。builder 的内置 Input 默认 grow=1，其余条目默认 grow=0。本组中含实际焦点的条目最后呈现，保证接缝上的焦点环可见；这只改变绘制顺序，不改变布局、Tab 顺序或子组件动作。组默认不裁剪溢出的环，显式根 style 仍可裁剪。移除、增添、重排和方向／主题更新沿普通 key 匹配保留仍存在的控件及文本模型。
+
+## 17. Item
+
+### 17.1 内容、尺寸与排列
+
+`item(configure: ItemBuilder.() -> Unit = {})` 与 `item(content: View, configure: ItemBuilder.() -> Unit = {})` 创建同一个 ItemProps／Item。content: View? 默认 None；title／description: PanelContent?、media／actions／header／footer: View? 也均默认 None。标题／说明已经足以组成条目，不为未提供的正文创建空 View 或间距。ItemBuilder 继承 PanelBuilder，提供 media／actions／header／footer 的同名 View 成员；title／description 沿用 String、StyledText、View 重载，正文由所选工厂重载提供。ChildrenBuilder 使用 `contentItem` 的两个重载，避免与现有 LinearBuilder.item 的 Flex 配置产生歧义；顶层工厂仍为 item。
+
+其余字段为 variant: ItemVariant = Default（另有 Outline／Muted）、size: ItemSize = Default（另有 Sm／Xs）、mediaVariant: ItemMediaVariant = Default（另有 Icon／Image）、onClick: (() -> Unit)? = None、enabled: Boolean = true、focus: FocusOptions = FocusOptions()、focusOutline: OutlineStyle? = None、states: InteractionStyles = interactionStyles()、transition: StyleValue<AnimationSpec?> = Inherit、fonts／theme: None、style: StyleOverride = styleOverride()；builder 另有 key。style／states／focus 提供既有接收者配置，transition 明确 Set(None) 关闭过渡。
+
+默认外框为 large 圆角、1 单位透明边框与透明背景；Outline 使用 border 颜色，Muted 使用 muted 背景的 0.5 透明度。Default／Sm 水平内缩 12、垂直 10、区域间距 10；Xs 为 10／8／8。尺寸按主题 body 字号相对 14 缩放，细边保持 1。条目填满有限父宽，无界时取内容自然宽；父约束和零尺寸沿普通布局合同处理。
+
+header 和 footer 独占全宽，中心区域按逻辑方向排列 media、content 和 actions。content 依次包含实际存在的 title、description 与正文，Default／Sm 间距 4，Xs 为 0。标题普通文字为 body 字体族的 14／19.25、500，默认一行省略；说明为 muted 前景的 14／21、400，Xs 为 12／18，默认两行省略。普通文字方向随挂载方向；明确的 LabelProps.settings、StyledText 基础样式和自定义 View 保留自身配置，正文可直接使用 Typography／SelectableStyledText 提供选择与复制。
+
+动作区域先取自然宽度；留给内容不足当前 body 字号的 8 倍时，动作移到下一行的逻辑末端。并排时正文和动作垂直居中；media 在有说明时顶端对齐并下移 2，其他情况居中。Default 媒体保持自然尺寸，可放 Avatar 或任意 View；Icon 使用 16 方框，Image 使用 Default／Sm／Xs 对应的 40／32／24 方框与 small 圆角裁剪，内容按实际方框紧约束测量。`media(image: Image)` 便利成员创建借用该图片的 Cover ImageView 并选择 Image 变体，不读取文件或下载资源；`media(View)` 不检查图片或修改其适配方式。
+
+可选区域使用稳定的局部 key；标题／说明、媒体、动作、头尾的增删及窄宽换行，保留仍存在的正文与内部控件。Group 与 Item 都不推断列表选择、导航目的地或数据源，不自行打开 URL。
+
+### 17.2 行动作与输入归属
+
+无 onClick 时只展示，不建立行 Press 或 Tab 目标，正文和动作里的控件仍保有自己的输入行为。有动作时建立一个可聚焦区域，使用同一 Press 的 default 阶段与 routeChildren；行空白或非交互文字可点击，Space／Enter 可激活。子按钮消费激活，选择文字与 Drag 接管指针序列时取消行点击，不在整行上覆盖透明按钮，也不合成子输入事件。事件读取最新回调和 FocusOptions。
+
+动作行的 hover／press 默认过渡为 100ms，hover 使用 muted 背景；局部 style／states 覆盖默认表面，focusOutline 可覆盖当前主题焦点环，Reduced 最终关闭过渡。enabled=false 禁用本行及其子树，并采用主题 disabledOpacity；展示模式也可禁用内部控件。禁用、移除及卸载取消未完成的行输入。onClick 有无变化按普通子树替换规则建立／撤销行为；同一动作模式内的 Props 更新不重新挂载行内容。借用字体、图片、FocusHandle 和业务模型不随行关闭。
+
+### 17.3 ItemGroup 与 ItemSeparator
+
+`itemGroup(size: ItemSize = Default, configure: ItemGroupBuilder.() -> Unit)` 收集普通 ChildrenBuilder 子项，并提供 `item(configure)`／`item(content, configure)` 成员。size 决定组间距并作为这些条目的初始尺寸，明确条目 size 可覆盖；Default／Sm／Xs 间距为 16／10／8，按 body 字号缩放。ItemGroupProps 保存 children、size、theme 和 style；builder 的 theme／style／key 只配置容器，条目字体与主题继续显式配置或取 ambient。组填满有限宽度并按声明顺序排列，不增加焦点、选择或输入行为；key 沿普通子项匹配。
+
+`itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {})` 创建 ItemSeparatorProps／ItemSeparator；Props 保存 color: Color? = None、theme: ThemeSource? = None，builder 另有 key。内容为水平 Separator，颜色默认 border，上下各留白 8 并随 body 字号缩放。ChildrenBuilder 提供同名成员，ItemGroup 可混排分隔线和自定义内容。实现复用原 Separator 的有限／无界测量与绘制，不另建分隔线或列表框架。

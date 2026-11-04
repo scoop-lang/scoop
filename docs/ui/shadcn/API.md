@@ -16,6 +16,9 @@ input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View
 inputOtp(state: TextEditorState, length: Long, configure: InputOtpBuilder.() -> Unit = {}): View
 slider(values: Binding<Array<Double>>, range: RangeSpec, configure: SliderBuilder.() -> Unit = {}): View
 fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {}): View
+item(configure: ItemBuilder.() -> Unit = {}): View
+item(content: View, configure: ItemBuilder.() -> Unit = {}): View
+itemGroup(size: ItemSize = ItemSize.Default, configure: ItemGroupBuilder.() -> Unit): View
 collapsible(open: Binding<Boolean>, content: View, configure: CollapsibleBuilder.() -> Unit = {}): View
 dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {}): View
 popover(open: Binding<Boolean>, anchor: LayoutAnchor, content: View, configure: PopoverBuilder.() -> Unit = {}): View
@@ -145,7 +148,9 @@ ButtonGroup 和 InputGroup 不能通过检查不透明 View 来修改子组件�
 
 - ButtonGroup 的 button／input／separator／text 成员收集明确条目，render 按位置生成各条目的边角与接缝。`item({ position -> ... })` 用 `GroupPosition` 明确配置实际控件的 group，plain `add(View)` 保留调用方已完成的外观；group 成员创建独立嵌套组。根 fonts／theme 为未明确配置的内置条目提供默认值。它不增加激活行为，焦点项最后绘制但不改变 Tab 顺序；现行合同见控件规范第 16 节。
 - InputGroup 拥有一个外框和一个实际编辑宿主；input／textarea 槽采用共享文本控件的无外框内容模式，addon 和独立按钮正常参与布局／路由。自定义输入必须显式提供自己的 FocusHandle／FieldTarget，不靠遍历后代查找编辑器。
-- Item／Attachment 等“整行可打开，右侧又有按钮”的结构让行 Press 在 bubble/default 阶段处理；子动作消费激活，拖选／Drag 接管取消行点击。动作区不会因覆盖整行透明按钮而不可用。
+- Item／Attachment 等“整行可打开，右侧又有按钮”的结构让行 Press 在 default 阶段处理；子动作消费激活，拖选／Drag 接管取消行点击。动作区不会因覆盖整行透明按钮而不可用。
+
+Item 的 title／description、media／actions、header／footer 都可选；String、StyledText 和自定义 View 共用 PanelContent。`media(image)` 借用图片并创建 Cover 适配，Image／Icon 媒体各自有明确尺寸。窄宽时独立动作移到下一行，可选区域变化保留正文；onClick 有无变化才切换展示／动作子树。`itemGroup(ItemSize.Sm) { item { title("Title") }; itemSeparator() }` 收集普通子项，组尺寸为内置条目提供初始值。普通 ChildrenBuilder 用 `contentItem` 避免与 Flex 的 item 成员冲突。完整字段、尺寸、裁剪和输入合同见控件规范第 17 节。
 
 ## 4. 键盘、焦点与隐藏内容
 
