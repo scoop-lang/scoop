@@ -25,7 +25,7 @@ fn elf_image_parser_consumes_an_explicit_loaded_image_view() {
 }
 
 #[test]
-fn elf_images_use_loaded_segments_and_stackmap_bounds() {
+fn elf_images_use_loaded_segments_and_code_bounds() {
     let workspace = workspace();
     let profile = scoop_toolchain::ValidatedRuntimeBuildProfile::for_target(
         scoop_target_data::LINUX_X86_64_GNU,
