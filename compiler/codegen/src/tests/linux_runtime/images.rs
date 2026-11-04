@@ -76,7 +76,7 @@ fn elf_images_use_loaded_segments_and_stackmap_bounds() {
         if mode == "static" {
             assert!(!headers.contains("NEEDED"));
         }
-        let expected = b"ELF load bias, stackmap bounds and metadata ranges passed\n";
+        let expected = b"ELF load bias, code bounds and metadata ranges passed\n";
         assert_eq!(checked(&mut Command::new(&binary)).stdout, expected);
         // The kernel and runtime need program headers only. Remove the section
         // table locator to exercise this on the same executable without a reader.

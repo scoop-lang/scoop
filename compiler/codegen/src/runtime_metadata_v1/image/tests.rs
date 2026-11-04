@@ -77,7 +77,7 @@ fn image_emission_preserves_the_complete_plan() {
             .get_value_type()
             .into_struct_type()
             .count_fields(),
-        16
+        14
     );
     assert!(
         image_ir.contains(&IMAGE_DESCRIPTOR_SIZE.to_string()),
@@ -223,10 +223,6 @@ fn image_atoms(
             (
                 DefinitionAtomRole::RuntimeRecord,
                 ConeImageSupportRole::TypeRegistrations,
-            ),
-            (
-                DefinitionAtomRole::RuntimeRecord,
-                ConeImageSupportRole::Safepoints,
             ),
             (
                 DefinitionAtomRole::RuntimeRecord,

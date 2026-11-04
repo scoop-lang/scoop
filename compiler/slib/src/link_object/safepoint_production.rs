@@ -1,8 +1,6 @@
 //! Safepoint registration data and fingerprint calculation.
 
-pub(in crate::link_object) mod record;
-
-mod fingerprints;
+pub(in crate::link_object) mod fingerprints;
 pub use fingerprints::*;
 
 mod verification;

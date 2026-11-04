@@ -4,7 +4,7 @@ use scoop_identity::{
     DecodedPersistentId, DecodedPersistentSymbolRequest, DigestNodeId, ObjectDefinitionAtomId,
     ObjectDefinitionPlanId, PersistentCallableBodyId, PersistentDispatchTableId,
     PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId,
 };
 use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError};
 

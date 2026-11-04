@@ -51,8 +51,8 @@ fn layout_profile_validates_all_foundations_before_exposing_new_payloads() {
 
     assert_eq!(sections.coordinate(), cone().coordinate());
     assert_eq!(sections.identity(), cone().identity());
-    assert_eq!(sections.identity_count(), 18);
-    assert_eq!(sections.declared_identity_count(), 16);
+    assert_eq!(sections.identity_count(), 17);
+    assert_eq!(sections.declared_identity_count(), 15);
     assert_eq!(sections.hir_foundation().counts().odr_groups, 0);
     assert_eq!(sections.mir_foundation().counts().odr_groups, 0);
     assert_eq!(
@@ -85,7 +85,7 @@ fn layout_profile_resolves_both_hir_transports_with_one_identity_graph() {
 
     assert_eq!(sections.coordinate(), cone().coordinate());
     assert_eq!(sections.identity(), cone().identity());
-    assert_eq!(sections.identity_count(), 18);
+    assert_eq!(sections.identity_count(), 17);
     assert!(
         sections
             .hir_interface()
@@ -143,7 +143,7 @@ fn layout_profile_replays_the_legacy_hir_production_before_new_semantics() {
 
     assert_eq!(sections.coordinate(), cone().coordinate());
     assert_eq!(sections.identity(), cone().identity());
-    assert_eq!(sections.identity_count(), 18);
+    assert_eq!(sections.identity_count(), 17);
     assert!(
         sections
             .hir_core_production()

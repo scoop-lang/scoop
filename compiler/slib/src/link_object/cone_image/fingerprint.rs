@@ -9,8 +9,7 @@ use scoop_wire::{HashError, RuntimeEncode, RuntimeEncodeError, RuntimeEncoder};
 
 use super::ConeImageDataV1;
 use crate::link_object::{
-    runtime_encode_callable_record_v1, runtime_encode_safepoint_record_v1,
-    runtime_encode_strong_immortal_object_record_v1,
+    runtime_encode_callable_record_v1, runtime_encode_strong_immortal_object_record_v1,
     runtime_encode_strong_initialization_record_v1, runtime_encode_strong_static_storage_record_v1,
     runtime_encode_type_record_v1,
 };

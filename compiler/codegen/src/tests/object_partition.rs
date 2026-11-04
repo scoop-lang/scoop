@@ -36,10 +36,7 @@ fn partitions_callables_and_type_metadata_away_from_static_storage() {
             use scoop_lir::StrongDefinitionRole::*;
             let plan = surface.plan(*definition).unwrap();
             let role = plan.definition_role();
-            assert!(!matches!(
-                role,
-                CallableBody | CallableRegistration | SafepointRegistration
-            ));
+            assert!(!matches!(role, CallableBody | CallableRegistration));
             if matches!(role, TypeDescriptor | TypeRegistration)
                 && plan.primary_symbol().linkage() != scoop_lir::LinkageClass::OdrWeak
             {
@@ -82,19 +79,6 @@ fn partitions_callables_and_type_metadata_away_from_static_storage() {
                 match plan.owner().kind() {
                     scoop_lir::StrongDefinitionEntityKind::CallableBody(owner) => {
                         assert_eq!(owner, body)
-                    }
-                    scoop_lir::StrongDefinitionEntityKind::SafepointSite(site) => {
-                        let function = input
-                            .module()
-                            .callable_bodies()
-                            .find(|function| function.callable_body.id() == body)
-                            .unwrap();
-                        assert!(
-                            function
-                                .safepoints
-                                .iter()
-                                .any(|entry| entry.site_id() == site)
-                        );
                     }
                     other => panic!("unrelated definition in callable object: {other:?}"),
                 }

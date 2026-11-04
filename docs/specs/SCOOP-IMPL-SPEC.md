@@ -567,7 +567,7 @@ Scoop 的 LLVM 对象以拥有所有权的原生字节交接，在内存中完�
 
 独立 callable 可在多个编译 worker 中并行发射。每个 worker 独占 LLVM Context 与 TargetMachine，逐对象独立运行 LLVM passes；LIR、符号规划和 GC effect 表只读共享。TargetMachine 可持有 Context 中的调试 metadata，必须先于所使用的 Context 销毁；callable、元数据和 IR 输出入口的正常返回、错误返回与栈展开均遵守这一生命周期。完成的对象及生产记录按原 canonical 身份顺序合并，worker 数和任务分配顺序不改变产物、诊断选择或 GC／ABI 合同。元数据分区在 callable 生产记录完成后发射，两者共用本次编译的 jobs 上限。
 
-ELF callable module 在普通优化、statepoint lowering 与实际 safepoint 登记完成后，先用 LLVM 的全局死引用清理去除无实际使用的声明及其孤立常量使用链，再准备最终 visibility／COMDAT 并发射对象。清理覆盖当前 module 的全部声明，包括不在当前 Cone 定义计划中的外部声明；不能仅凭原始 use-list 非空推断仍有代码或数据引用。真实引用、Strong／ODR 定义、alias owner 和登记数据保持原链接合同；不可达的 TD 不因无重定位的残留 hidden 声明而成为链接根。元数据 module 复用既有分区清理，不增加链接期保留全部声明或 TD 的规则。
+ELF callable module 在普通优化、statepoint lowering 与实际 safepoint 确定后，先用 LLVM 的全局死引用清理去除无实际使用的声明及其孤立常量使用链，再准备最终 visibility／COMDAT 并发射对象。清理覆盖当前 module 的全部声明，包括不在当前 Cone 定义计划中的外部声明；不能仅凭原始 use-list 非空推断仍有代码或数据引用。真实引用、Strong／ODR 定义、alias owner 和登记数据保持原链接合同；不可达的 TD 不因无重定位的残留 hidden 声明而成为链接根。元数据 module 复用既有分区清理，不增加链接期保留全部声明或 TD 的规则。
 
 元数据对象按已经确定的物理定义集合投影。实现先按对象序列逐层拆分候选模块，再从较小的模块生成最终对象，避免为每个对象重复复制全部 LLVM 元数据。每层只保留所选定义及其实际引用声明，沿用同一别名、TLS 边界与可见性处理；拆分过程不改变最终对象划分、符号、布局、注册内容或 ABI。并行发射先沿同一拆分树形成不超过 worker 份额的独立子树，经内存中的 LLVM bitcode 转交各 worker 的独立 Context 与 TargetMachine，再沿原树完成裁剪和发射。转交保留模块标识、source filename、布局及调试 metadata；结果与错误按原对象顺序汇集。单 worker 继续使用原串行路径。
 
@@ -699,7 +699,7 @@ Mach-O／ELF 对象按实际目标格式读取 section、符号及 relocation，
 
 ### 2.6 `.slib` 格式与指纹
 
-紧凑 GC 元数据使用 runtime contract 34／metadata ABI 11。实际受影响的 LIR production、symbol、definition role 与 Link 投影按当前格式直接演进：删除独立 SafepointRegistration，保留完整语义 site 与映射，登记表为五组。最终对象与所属 GC 表由已有 body／Code／Artifact 内容指纹覆盖；RuntimeImage 使用运行时规范 2.8 的五表 v3 编码。backend、runtime 配置及 Code、Artifact、Link 更新键随实际 ABI 变化失效，缓存命中仍先判断更新，不读取对象复核。旧编译器、runtime、系统库与含机器正文的产物配套重建，不保留旧 runtime 解码路径。
+紧凑 GC 元数据使用 runtime contract 34／metadata ABI 11。LIR `identity-foundation` 升至 15、`cone-production` 升至 18，共用生产投影的 `strong-production` 升至 28；容器、manifest 和 metadata 外层格式不变。实际受影响的 LIR production、symbol、definition role 与 Link 投影按当前格式直接演进：删除独立 SafepointRegistration 及只服务该记录的 Strong entity、ODR discriminator、atom subkey，保留完整语义 site 与映射，登记表为五组。生产边界保留 `scoop-stackmap-record-v1` 域的归一化记录指纹：对既有 typed site／owner、LLVM v3 记录头、规范化位置及 live-out 按固定 little-endian runtime 编码计算，ConstantIndex 先还原常量；该指纹只参与 callable 内容归属，不发射运行时字段。最终对象与所属 GC 表由已有 body／Code／Artifact 内容指纹覆盖；RuntimeImage 使用运行时规范 2.8 的五表 v3 编码。backend、runtime 配置及 Code、Artifact、Link 更新键随实际 ABI 变化失效，缓存命中仍先判断更新，不读取对象复核。旧编译器、runtime、系统库与含机器正文的产物配套重建，不保留旧 runtime 解码路径。
 
 `.slib` 是 target-specific、bitwise reproducible 的 self-contained indexed container。容器 schema 与 manifest schema 的格式版本为 6，mangling schema 为 1；persistent identity schema 为 2，HIR／MIR／LIR metadata outer schema 均为 4。函数声明 key 增加规范化条件集合及 companion 存在条件，签名类型增加固定 companion 投影，binder 增加负向接口集合与独立 companion 条件；默认表达式保存依赖 companion 值访问。空集合在 wire 中省略对应字段，解码后仍是完整集合，无条件声明保持原身份。旧产物按格式版本拒绝，重建得到新产物。它不使用外部成员引用或相邻文件 payload。
 
@@ -772,7 +772,7 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
 | HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/92`、`cross-cone-type-semantics/32` |
 | MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
-| LIR / `org.scoop-lang.lir` | `identity-foundation/14`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
+| LIR / `org.scoop-lang.lir` | `identity-foundation/15`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/18`、`link-identity-closure/22`、`link-support/1` |
 
 本次原生函数指针调用演进采用上述 profile：HIR foundation 保存带模式的 exact/signature type key，core bootstrap 保存两个实际 intrinsic family 及转换，cross-cone interface/type-semantics 保存调用、转换与 TypeInfo；MIR 保存动态 native callee；LIR foundation/layout 保存 pointer destination 和完整 C ABI plan。旧 profile 按通常版本规则拒绝并重建，不从缺省字段把旧 `FunPtr` 猜成 NativeSafe，也不协商或混用两套类型身份。callable intrinsic tag 30 保留 main 的 `ThrowablePrintStackTrace`；`CompileEnv` 使用 tag 34，`IncludeStr`／`IncludeBytes`／`IncludeDir` 保持 31／32／33。
 
@@ -798,7 +798,7 @@ production 与 Link metadata 保存消费方实际使用的 body/type/site ID、
 
 生产期的各类注册构造按完整 typed key 复用同一计划的 digest 节点查询索引，保留节点既有排序与身份；索引不进入持久化数据。codegen 删除不再发射的 safepoint 节点时，同步更新查询索引及其输入边。
 
-`cone-production/17` 仅保存字段 5 registration production、6 image plan、7 entry plan。共用该生产投影的 `strong-production` section 编码为 27；旧 Strong profile 仍不作为消费入口。字段 2 canonical definitions 与 LIR foundation 已保存的 definition plans、atoms 及 typed symbol requests 重复，不再落盘。Compile 直接从已解析的 foundation 投影所需定义；Link 只投影 owner、entity、role 和实际 image trap 符号，不重建完整 codegen symbol surface。该投影只做现有 key 的机械转换，不重放生产阶段的符号、布局或对象校验。registration production 仅保存字段 1 identities、6 static storages、7 initialization units；image plan 仅保存字段 4 symbol、6 support atoms，support atoms 仅保存字段 11 array-bounds message 和 12 array-size-overflow message。其余生产字段没有下游消费者，当前格式不编码也不解码这些副本。
+`cone-production/18` 仅保存字段 5 registration production、6 image plan、7 entry plan。共用该生产投影的 `strong-production` section 编码为 28；旧 Strong profile 仍不作为消费入口。字段 2 canonical definitions 与 LIR foundation 已保存的 definition plans、atoms 及 typed symbol requests 重复，不再落盘。Compile 直接从已解析的 foundation 投影所需定义；Link 只投影 owner、entity、role 和实际 image trap 符号，不重建完整 codegen symbol surface。该投影只做现有 key 的机械转换，不重放生产阶段的符号、布局或对象校验。registration production 仅保存字段 1 identities、6 static storages、7 initialization units；image plan 仅保存字段 4 symbol、6 support atoms，support atoms 仅保存字段 11 array-bounds message 和 12 array-size-overflow message。其余生产字段没有下游消费者，当前格式不编码也不解码这些副本。
 
 `link-identity-closure/22` 的字段 5 保存全部跨物理 member 符号使用，按目标符号原始 bytes 排序、分组，每组仅有字段 1 target 和 2 按 ID 排序、去重的 source members。target 为封闭和类型：tag 1 保存字段 1 的 defined symbol owner 目录下标，tag 2 保存字段 1 的外部符号原始 bytes。同 Cone 目标直接引用已有目录；跨 Cone 和普通 native 名称每个不同符号只保存一次。生产时直接投影已经解析的实际 relocation，包含同 Cone、跨 Cone callable／shape、ODR、generated-C、runtime 和 native 引用；不能只投影 legacy undefined requirement 子集而遗漏跨 Cone 使用。对象内部已经闭合的引用不重复保存。完整 relocation 和 requirement 继续用于生产阶段的对象处理与 Code 指纹，不作为链接器不消费的副本落盘。
 

@@ -3,7 +3,6 @@ use super::*;
 pub(super) fn symbol_location(
     role: PlannedStrongObjectSymbolRoleV1,
     stackmap_size: usize,
-    registrations: &StrongSafepointRegistrationPlanSetV1,
     callable_registrations: &StrongCallableRegistrationPlanSetV1,
     type_registrations: &StrongTypeRegistrationPlanSetV1,
     immortal_registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -37,28 +36,6 @@ pub(super) fn symbol_location(
             (2, TEXT_SIZE + u64::try_from(stackmap_size).unwrap())
         }
         PlannedStrongObjectSymbolRoleV1::PrimaryDefinition {
-            definition_role: StrongDefinitionRole::SafepointRegistration,
-            definition,
-            ..
-        }
-        | PlannedStrongObjectSymbolRoleV1::AtomBoundaryStart {
-            definition,
-            atom_role: DefinitionAtomRole::Primary,
-            ..
-        } if is_safepoint_registration_definition(definition, registrations) => (
-            3,
-            registration_start(definition, stackmap_size, registrations),
-        ),
-        PlannedStrongObjectSymbolRoleV1::AtomBoundaryEnd {
-            definition,
-            atom_role: DefinitionAtomRole::Primary,
-            ..
-        } if is_safepoint_registration_definition(definition, registrations) => (
-            3,
-            registration_start(definition, stackmap_size, registrations)
-                + SAFEPOINT_REGISTRATION_SIZE,
-        ),
-        PlannedStrongObjectSymbolRoleV1::PrimaryDefinition {
             definition_role: StrongDefinitionRole::CallableRegistration,
             definition,
             ..
@@ -69,12 +46,7 @@ pub(super) fn symbol_location(
             ..
         } if is_callable_registration_definition(definition, callable_registrations) => (
             3,
-            callable_registration_start(
-                definition,
-                stackmap_size,
-                registrations,
-                callable_registrations,
-            ),
+            callable_registration_start(definition, stackmap_size, callable_registrations),
         ),
         PlannedStrongObjectSymbolRoleV1::AtomBoundaryEnd {
             definition,
@@ -82,12 +54,8 @@ pub(super) fn symbol_location(
             ..
         } if is_callable_registration_definition(definition, callable_registrations) => (
             3,
-            callable_registration_start(
-                definition,
-                stackmap_size,
-                registrations,
-                callable_registrations,
-            ) + CALLABLE_REGISTRATION_SIZE,
+            callable_registration_start(definition, stackmap_size, callable_registrations)
+                + CALLABLE_REGISTRATION_SIZE,
         ),
         PlannedStrongObjectSymbolRoleV1::PrimaryDefinition {
             definition_role: StrongDefinitionRole::TypeDescriptor,
@@ -103,7 +71,6 @@ pub(super) fn symbol_location(
             type_descriptor_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -117,7 +84,6 @@ pub(super) fn symbol_location(
             type_descriptor_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ) + TYPE_DESCRIPTOR_SIZE,
@@ -131,7 +97,6 @@ pub(super) fn symbol_location(
             type_diagnostic_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -145,7 +110,6 @@ pub(super) fn symbol_location(
             type_diagnostic_end(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -164,7 +128,6 @@ pub(super) fn symbol_location(
             layout_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -178,7 +141,6 @@ pub(super) fn symbol_location(
             layout_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ) + LAYOUT_SIZE,
@@ -197,7 +159,6 @@ pub(super) fn symbol_location(
             type_registration_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -211,7 +172,6 @@ pub(super) fn symbol_location(
             type_registration_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
             ) + TYPE_REGISTRATION_SIZE,
@@ -230,7 +190,6 @@ pub(super) fn symbol_location(
             immortal_object_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -245,7 +204,6 @@ pub(super) fn symbol_location(
             immortal_object_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -270,7 +228,6 @@ pub(super) fn symbol_location(
             immortal_registration_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -285,7 +242,6 @@ pub(super) fn symbol_location(
             immortal_registration_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -305,7 +261,6 @@ pub(super) fn symbol_location(
             static_storage_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -321,7 +276,6 @@ pub(super) fn symbol_location(
             static_storage_start(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -343,7 +297,6 @@ pub(super) fn symbol_location(
             static_template_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -359,7 +312,6 @@ pub(super) fn symbol_location(
             static_template_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -380,7 +332,6 @@ pub(super) fn symbol_location(
             static_relocation_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -396,7 +347,6 @@ pub(super) fn symbol_location(
             static_relocation_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -422,7 +372,6 @@ pub(super) fn symbol_location(
             static_registration_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -438,7 +387,6 @@ pub(super) fn symbol_location(
             static_registration_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -459,7 +407,6 @@ pub(super) fn symbol_location(
             static_layout_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -475,7 +422,6 @@ pub(super) fn symbol_location(
             static_layout_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -496,7 +442,6 @@ pub(super) fn symbol_location(
             static_scan_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -512,7 +457,6 @@ pub(super) fn symbol_location(
             static_scan_start_for_definition(
                 definition,
                 stackmap_size,
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -536,16 +480,6 @@ pub(super) fn is_callable_body_definition(
         .registrations()
         .iter()
         .any(|registration| registration.body_definition_plan() == definition)
-}
-
-pub(super) fn is_safepoint_registration_definition(
-    definition: ObjectDefinitionPlanId,
-    registrations: &StrongSafepointRegistrationPlanSetV1,
-) -> bool {
-    registrations
-        .registrations()
-        .iter()
-        .any(|registration| registration.definition_plan() == definition)
 }
 
 pub(super) fn is_callable_registration_definition(

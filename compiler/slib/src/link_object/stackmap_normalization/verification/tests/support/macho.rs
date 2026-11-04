@@ -6,7 +6,6 @@ use scoop_identity::{
 use scoop_lir::{
     StrongCallableRegistrationPlanSetV1, StrongCallableRegistrationPlanV1,
     StrongImmortalObjectRegistrationPlanSetV1, StrongImmortalObjectRegistrationPlanV1,
-    StrongSafepointRegistrationPlanSetV1, StrongSafepointRegistrationPlanV1,
     StrongStaticStorageInitialArtifactPlanV1, StrongStaticStorageRegistrationPlanSetV1,
     StrongStaticStorageRegistrationPlanV1, StrongTypeRegistrationPlanSetV1,
     StrongTypeRegistrationPlanV1,
@@ -34,8 +33,7 @@ use symbols::*;
 
 const TEXT_SIZE: u64 = 16;
 const STACK_SIZE: u64 = 64;
-const SAFEPOINT_REGISTRATION_SIZE: u64 = 168;
-const CALLABLE_REGISTRATION_SIZE: u64 = 144;
+const CALLABLE_REGISTRATION_SIZE: u64 = 152;
 const TYPE_DESCRIPTOR_SIZE: u64 = 152;
 const LAYOUT_SIZE: u64 = 8;
 const TYPE_REGISTRATION_SIZE: u64 = 144;
@@ -53,7 +51,6 @@ pub(crate) fn object_bytes(
     module: &scoop_lir::Module,
     symbols: &PlannedMemberStrongObjectSymbolsV1,
     safepoints: &[u64],
-    registrations: &StrongSafepointRegistrationPlanSetV1,
     callable_registrations: &StrongCallableRegistrationPlanSetV1,
     type_registrations: &StrongTypeRegistrationPlanSetV1,
     immortal_registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -71,7 +68,6 @@ pub(crate) fn object_bytes(
         symbols,
         &text,
         &stackmap,
-        registrations,
         callable_registrations,
         type_registrations,
         immortal_registrations,

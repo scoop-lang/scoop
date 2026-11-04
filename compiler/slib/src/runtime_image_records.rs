@@ -6,7 +6,7 @@ use scoop_wire::{
 
 pub(crate) struct RuntimeImageRecords {
     prefix: Vec<u8>,
-    tables: [Vec<Vec<u8>>; 6],
+    tables: [Vec<Vec<u8>>; 5],
 }
 impl RuntimeImageRecords {
     pub(crate) fn new(prefix: Vec<u8>) -> Self {
@@ -19,7 +19,7 @@ impl RuntimeImageRecords {
         self.tables[table].push(bytes);
     }
     pub(crate) fn fingerprint(&self) -> Result<crate::RuntimeImageFingerprint, HashError> {
-        domain_separated_runtime_hash("scoop-runtime-image-v2", self)
+        domain_separated_runtime_hash("scoop-runtime-image-v3", self)
             .map(|digest| crate::RuntimeImageFingerprint::from_array(*digest.as_array()))
     }
 }

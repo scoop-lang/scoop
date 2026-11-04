@@ -34,12 +34,8 @@ pub(super) fn verify(
             .len()
     );
     assert_eq!(
-        safepoints.plan().registrations().len(),
-        prepared
-            .production
-            .safepoint_registrations()
-            .registrations()
-            .len()
+        safepoints.plan().sites().len(),
+        prepared.production.safepoint_production().sites().len()
     );
     let actual_odr = callables
         .plan()
@@ -240,20 +236,7 @@ pub(super) fn check(
                         .iter()
                         .find(|registration| registration.body() == body)
                         .unwrap();
-                    check_registration(data, body.as_array(), registration.definition_owner(), 144);
-                }
-                (
-                    StrongDefinitionRole::SafepointRegistration,
-                    StrongDefinitionEntityKind::SafepointSite(site),
-                ) => {
-                    let registration = production
-                        .registration_production()
-                        .safepoints()
-                        .registrations()
-                        .iter()
-                        .find(|registration| registration.site() == site)
-                        .unwrap();
-                    check_registration(data, site.as_array(), registration.definition_owner(), 168);
+                    check_registration(data, body.as_array(), registration.definition_owner(), 152);
                 }
                 _ => {}
             }

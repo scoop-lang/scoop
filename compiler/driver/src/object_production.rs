@@ -26,7 +26,7 @@ use scoop_slib::{
     StrongStaticStorageShapeFingerprintError, StrongTypeFingerprintError, UncompressedObjectMember,
     UndefinedSymbolRequirementFinalizationError, VerifiedBuiltinObjectStrongRelocationSetV1,
     bind_callable_registrations_v1, bind_cone_image_v1, bind_entry_production_v1,
-    bind_safepoint_registrations_v1, compute_strong_callable_fingerprints_v1,
+    bind_safepoint_production_v1, compute_strong_callable_fingerprints_v1,
     compute_strong_immortal_object_fingerprints_v1, compute_strong_safepoint_fingerprints_v1,
     compute_strong_static_storage_fingerprints_v1,
     compute_strong_static_storage_shape_fingerprints_v1, read_generated_c_objects_v1,

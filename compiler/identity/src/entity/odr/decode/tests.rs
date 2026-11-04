@@ -13,9 +13,9 @@ use crate::{
     PersistentExtensionPropertyId, PersistentFunctionId, PersistentGeneratedCallableId,
     PersistentGenericFunctionId, PersistentGenericTypeId, PersistentIdMismatch,
     PersistentIdResolver, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentPropertyAccessorId, PersistentSafepointSiteId, PersistentScanId,
-    PersistentStaticStorageId, PersistentTypeId, SpecializationKey, StructuralDefinitionPath,
-    StructuralDefinitionSiteRole, StructuralPathSegment,
+    PersistentLayoutId, PersistentPropertyAccessorId, PersistentScanId, PersistentStaticStorageId,
+    PersistentTypeId, SpecializationKey, StructuralDefinitionPath, StructuralDefinitionSiteRole,
+    StructuralPathSegment,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -83,7 +83,6 @@ id_resolver!(PersistentDispatchSlotId, dispatch_slot);
 id_resolver!(PersistentStaticStorageId, static_storage);
 id_resolver!(PersistentImmortalObjectId, immortal_object);
 id_resolver!(PersistentCallableBodyId, callable_body);
-id_resolver!(PersistentSafepointSiteId, safepoint_site);
 
 impl PersistentIdResolver<OdrGroupId> for Resolver {
     type Error = ResolutionError;
@@ -243,7 +242,6 @@ fn member_cases() -> Vec<(OdrMemberRole, OdrMemberDiscriminator)> {
             D::InitializationUnit(initialization_unit()),
         ),
         (R::RegistrationRecord, D::CallableBody(callable_body())),
-        (R::RegistrationRecord, D::SafepointSite(safepoint_site())),
         (R::DiagnosticBytes, D::StructuralPath(structural_path())),
         (
             R::AddressTakenConstant,
@@ -335,10 +333,6 @@ const fn immortal_object() -> PersistentImmortalObjectId {
 
 const fn callable_body() -> PersistentCallableBodyId {
     PersistentCallableBodyId([18; 32])
-}
-
-const fn safepoint_site() -> PersistentSafepointSiteId {
-    PersistentSafepointSiteId([19; 32])
 }
 
 const fn group() -> OdrGroupId {

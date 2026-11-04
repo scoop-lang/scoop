@@ -43,15 +43,12 @@ pub(super) fn link(
         // @ argument is expanded earlier by Clang's GNU response parser.
         command.arg(format!("-Wl,@{}", response::FILE_NAME));
     }
-    for argument in [
-        format!(
+    {
+        let argument = format!(
             "/alternatename:{}={}",
             inputs.symbol("scoop_td_String"),
             inputs.string_target
-        ),
-        "/merge:.llvm_stackmaps=.smap".into(),
-        "/section:.smap,R".into(),
-    ] {
+        );
         profile.linker_arg(
             &mut command,
             if profile.microsoft() {

@@ -13,9 +13,9 @@ typedef struct ScoopImageDescriptorV1 {
     uint8_t cone[32];
     const uint8_t (*dependencies)[32];
     uint64_t dependency_count;
-    ScoopImageTableV1 tables[6];
+    ScoopImageTableV1 tables[5];
 } ScoopImageDescriptorV1;
-_Static_assert(sizeof(ScoopImageDescriptorV1) == 208, "image ABI size");
+_Static_assert(sizeof(ScoopImageDescriptorV1) == 192, "image ABI size");
 _Static_assert(offsetof(ScoopImageDescriptorV1, tables) == 112, "image tables offset");
 typedef struct ScoopRootEntryDescriptorV1 ScoopRootEntryDescriptorV1;
 typedef struct ScoopNativeAppEntryDescriptorV1 ScoopNativeAppEntryDescriptorV1;
@@ -67,7 +67,7 @@ pub(super) fn emit(source: &mut String, images: &[SelectedImage], section: &str)
         writeln!(source, "const ScoopImageDescriptorV1 image_{index} __asm__(\"{}\") __attribute__((used, visibility(\"hidden\"), section(\"{section}\"))) = {{", image.name).unwrap();
         writeln!(
             source,
-            "    UINT64_C(0x53434f4f50494d47), {}, 208,\n    {{",
+            "    UINT64_C(0x53434f4f50494d47), {}, 192,\n    {{",
             scoop_lir::RUNTIME_METADATA_ABI_VERSION_V1
         )
         .unwrap();

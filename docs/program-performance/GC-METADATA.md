@@ -1,6 +1,6 @@
 # 紧凑 GC 元数据设计
 
-状态：实施中。调研基线为 2026 年 11 月的 runtime contract 33、metadata ABI 10；权威规范已按第 8 节修订为 contract 34／metadata ABI 11，编译器和 runtime 正在配套迁移。
+状态：实施中。调研基线为 2026 年 11 月的 runtime contract 33、metadata ABI 10；编译器和 runtime 已接通 contract 34／metadata ABI 11，Darwin AArch64 的 GC 与混合 profile 产物专项通过，UI 体积及其他目标正在验收。
 
 本项将 LLVM 的通用 stackmap 转换为 Scoop 的紧凑机器根表，并通过已有 callable 登记引用该表，取消独立的逐 safepoint 运行时登记。完整类型化身份继续保存在编译产物中，程序链接负责所选定义的身份与 ODR 关系；runtime 按实际 PC 和根位置扫描。第一版采用 4 字节定长根位置、函数内布局共享和轻量 PC 索引。
 
@@ -21,7 +21,7 @@
 | 按第 3 节数据替换推算的完整文件 | 50.45 | 67.75 |
 | 推算节约 | 32.42 | 50.30 |
 
-机器根表已经离线编码，逐项还原了每个 site、指令偏移、帧大小和有序根位置。文件大小推算计入取消 168 字节登记及其 8 字节表指针、为每个 callable 增加一个 8 字节指针；未计入 image 固定头缩减、最终重定位、段对齐、签名和新 runtime 代码的变化。新 ABI 尚未接入真实链接与运行，因此这些数值是数据规模依据，不是已交付的 executable 测量。
+机器根表已经离线编码，逐项还原了每个 site、指令偏移、帧大小和有序根位置。文件大小推算计入取消 168 字节登记及其 8 字节表指针、为每个 callable 增加一个 8 字节指针；未计入 image 固定头缩减、最终重定位、段对齐、签名和新 runtime 代码的变化。这些数值是设计阶段的数据规模依据；真实链接与运行的结果单独记录于第 11 节，不将推算冒充 executable 实测。
 
 此前的通用紧凑编码实验还完整还原了原始记录头与 live-out，并由现有 C stackmap parser 和独立 C decoder 交叉核对。另一个实验在保留全部 site／owner／ODR 身份的情况下，将控件示例的登记表从 14.60 MiB 编为 6.48 MiB；它说明重复字段的成本，本设计直接按实际消费者划分运行时字段，不发布这一中间格式。
 
@@ -241,7 +241,7 @@ Mach-O、ELF 和 COFF 的工作是存放普通 metadata、绑定 callable 引用
 | [实现规范](../specs/SCOOP-IMPL-SPEC.md) 2.5、2.6 | 原始机器对象到最终 GC 表的生产边界、对象 atom 和产物字段 |
 | 实现规范 2.8、2.14、2.19 | Link site 投影、最终 image、正文与 GC 表同选、更新判断 |
 
-以当前基线规划 runtime contract **33 → 34**、metadata ABI **10 → 11**，统一更新公共 C 头、LLVM 布局、启动代码、目标合同和实际受影响的 meta section 版本。具体版本在实施提交中与其他已经落地的 ABI 变更顺序衔接，不预先占用版本号。
+当前实现采用 runtime contract **33 → 34**、metadata ABI **10 → 11**，同步更新公共 C 头、LLVM 布局、启动代码和目标合同。LIR `identity-foundation`、`cone-production`、`strong-production` 分别升至 **15、18、28**；容器、manifest 和 metadata 外层格式保持原版本。
 
 compiler、runtime、系统库及含机器正文的 `.slib` 需要配套重建。按未发布阶段约定直接演进，最终运行时只有上述一套格式；LLVM v3 reader 仅保留在真实生产边界与其必要测试中。清理退役字段、symbol／definition role、原始段加载及只服务旧 join 的检查和测试，不保留空兼容槽或双轨启动。
 
@@ -289,3 +289,11 @@ compiler、runtime、系统库及含机器正文的 `.slib` 需要配套重建�
 2026 年 11 月 5 日的原始解析、编码脚本、C 交叉核对和布局推算保存在仓库外的本机临时目录 `/var/folders/6k/02kz7z0s7nxc1m0gg3xj99c40000gn/T/scoop-gc-metadata-zz59jyea/`，主要结果为 `summary.json`、`c-parser-results.json` 和 `design-layout-results.json`。临时文件不承担设计有效性的前提；可复核的字段、布局、样本位置和计算口径已在本文保留。
 
 本文件只保存设计与必要结果概要，完整日志、逐次 JSON、可执行文件和压缩数据不进入仓库。正式实现后以相同口径追加简短的验收结果，替换未实现状态。
+
+### 11.1 首轮实现验证
+
+Darwin AArch64 使用 LLVM 22.1.8、release Scoop 产物与无调试信息。Hello 可执行文件从 **1,464,072** 字节降至 **918,008** 字节，减少 **37.3%**；GC 表从 **229,776** 字节降至 **62,288** 字节。独立解析新旧 executable 后，471 个含表函数、1,965 个 site 和 3,549 对根完全对应，逐 site 的精确 PC 偏移、帧大小、有序根位置全部一致。最终文件不含原始 LLVM stackmap，程序正常输出 `Hello`。
+
+本地验证包括全工作区格式化及 clippy、identity 361 项、LIR 379 项、slib 267 项、codegen 396 项，以及 runtime 元数据／映像／扫栈 C 专项。正式 GC fixtures 为 **71 通过、2 项仅适用 Linux**，共 150 个变体；ODR selection 与 coroutine mixed profiles 的 4 个变体通过，覆盖源码、预编译产物、artifact-only 链接和缓存复用。实际泛型机器对象测试也通过。
+
+codegen 中 Windows WinEH 精确 PC 项用 Scoop 配套的 LLVM 22.1.8 复验通过；本机 Homebrew LLVM 缺少实现规范要求的 WinEH statepoint 标签修正。该差异未通过修改预期 PC 或放宽 runtime 查找规则规避。其他目标及大 UI 样本的结果待后续追加。

@@ -59,26 +59,29 @@ static void startup_measure(StartupMetrics *metrics, StartupPhase phase) {
 }
 
 static void startup_report(const StartupMetrics *metrics, const ScoopImageRegistry *registry) {
-    fprintf(
-        stderr,
-        "{\"scoop_startup\":1,\"total_ns\":%" PRIu64 ",\"phases_ns\":{"
-        "\"loaded_images\":%" PRIu64 ",\"collect_records\":%" PRIu64 ",\"code_and_types\":%" PRIu64
-        ",\"storage_and_units\":%" PRIu64 ",\"stackmaps\":%" PRIu64 ",\"runtime_init\":%" PRIu64
-        ",\"eager_init\":%" PRIu64 "},\"counts\":{"
-        "\"images\":%zu,\"loaded_images\":%zu,\"types\":%zu,\"callables\":%zu,"
-        "\"safepoints\":%zu,\"stackmap_records\":%zu,\"scan_programs\":%zu,"
-        "\"static_storages\":%zu,\"static_roots\":%zu,\"immortals\":%zu,"
-        "\"initialization_units\":%zu,\"eager_units\":%zu,\"context_keys\":%" PRIu64 "}}\n",
-        metrics->previous - metrics->start, metrics->phases[STARTUP_LOADED_IMAGES],
-        metrics->phases[STARTUP_COLLECT_RECORDS], metrics->phases[STARTUP_CODE_AND_TYPES],
-        metrics->phases[STARTUP_STORAGE_AND_UNITS], metrics->phases[STARTUP_STACKMAPS],
-        metrics->phases[STARTUP_RUNTIME_INIT], metrics->phases[STARTUP_EAGER_INIT],
-        registry->image_count, registry->loaded->count, registry->tables[SCOOP_RECORD_TYPE].count,
-        registry->tables[SCOOP_RECORD_CALLABLE].count, registry->tables[SCOOP_RECORD_SITE].count,
-        registry->stackmaps.record_count, scoop_image_scan_program_count(registry),
-        registry->tables[SCOOP_RECORD_STORAGE].count, registry->static_root_count,
-        registry->tables[SCOOP_RECORD_IMMORTAL].count, registry->tables[SCOOP_RECORD_UNIT].count,
-        registry->eager_unit_count, registry->context_key_count);
+    fprintf(stderr,
+            "{\"scoop_startup\":1,\"total_ns\":%" PRIu64 ",\"phases_ns\":{"
+            "\"loaded_images\":%" PRIu64 ",\"collect_records\":%" PRIu64
+            ",\"code_and_types\":%" PRIu64 ",\"storage_and_units\":%" PRIu64
+            ",\"stackmaps\":%" PRIu64 ",\"runtime_init\":%" PRIu64 ",\"eager_init\":%" PRIu64
+            "},\"counts\":{"
+            "\"images\":%zu,\"loaded_images\":%zu,\"types\":%zu,\"callables\":%zu,"
+            "\"safepoints\":%zu,\"stackmap_records\":%zu,\"scan_programs\":%zu,"
+            "\"static_storages\":%zu,\"static_roots\":%zu,\"immortals\":%zu,"
+            "\"initialization_units\":%zu,\"eager_units\":%zu,\"context_keys\":"
+            "%" PRIu64 "}}\n",
+            metrics->previous - metrics->start, metrics->phases[STARTUP_LOADED_IMAGES],
+            metrics->phases[STARTUP_COLLECT_RECORDS], metrics->phases[STARTUP_CODE_AND_TYPES],
+            metrics->phases[STARTUP_STORAGE_AND_UNITS], metrics->phases[STARTUP_STACKMAPS],
+            metrics->phases[STARTUP_RUNTIME_INIT], metrics->phases[STARTUP_EAGER_INIT],
+            registry->image_count, registry->loaded->code_range_count,
+            registry->tables[SCOOP_RECORD_TYPE].count,
+            registry->tables[SCOOP_RECORD_CALLABLE].count, registry->stackmaps.record_count,
+            registry->stackmaps.record_count, scoop_image_scan_program_count(registry),
+            registry->tables[SCOOP_RECORD_STORAGE].count, registry->static_root_count,
+            registry->tables[SCOOP_RECORD_IMMORTAL].count,
+            registry->tables[SCOOP_RECORD_UNIT].count, registry->eager_unit_count,
+            registry->context_key_count);
 }
 
 #define STARTUP_BEGIN() StartupMetrics metrics = startup_metrics_begin()
@@ -101,8 +104,9 @@ static const ScoopPlatformBundle *require_platform(void) {
     if (bundle == NULL || bundle->metadata_images == NULL || bundle->thread_vm == NULL ||
         bundle->managed_frames == NULL || bundle->metadata_images->loaded_images == NULL ||
         bundle->metadata_images->dispose_images == NULL ||
-        bundle->thread_vm->stack_bounds == NULL || bundle->thread_vm->reserve_read_write == NULL ||
-        bundle->thread_vm->page_size == NULL || bundle->thread_vm->protect_none == NULL ||
+        bundle->thread_vm->stack_bounds == NULL ||
+        bundle->thread_vm->reserve_read_write == NULL || bundle->thread_vm->page_size == NULL ||
+        bundle->thread_vm->protect_none == NULL ||
         bundle->managed_frames->validate_record == NULL ||
         bundle->managed_frames->frame_from_anchor == NULL ||
         bundle->managed_frames->resolve_root == NULL ||
@@ -126,8 +130,9 @@ typedef struct StartupResult {
     bool owned_attachment;
 } StartupResult;
 
-static StartupResult initialize(const ScoopImageDescriptorV1 *const *images, uint64_t image_count,
-                                StartupEntry entry, uint32_t enable_stack_trace) {
+static StartupResult initialize(const ScoopImageDescriptorV1 *const *images,
+                                uint64_t image_count, StartupEntry entry,
+                                uint32_t enable_stack_trace) {
     if (atomic_flag_test_and_set_explicit(&program_started, memory_order_relaxed))
         scoop_startup_fatal("program runtime may only be started once");
     scoop_stack_trace_enabled = enable_stack_trace != 0;
@@ -145,7 +150,8 @@ static StartupResult initialize(const ScoopImageDescriptorV1 *const *images, uin
     ScoopImageRegistry *registry =
         entry.kind == STARTUP_PROGRAM
             ? scoop_image_collect(&loaded, images, image_count, entry.root.program)
-            : scoop_image_collect_native_app(&loaded, images, image_count, entry.root.native_app);
+            : scoop_image_collect_native_app(&loaded, images, image_count,
+                                             entry.root.native_app);
     STARTUP_MEASURE(STARTUP_COLLECT_RECORDS);
     scoop_image_validate_code_and_types(registry);
     STARTUP_MEASURE(STARTUP_CODE_AND_TYPES);
@@ -183,9 +189,10 @@ int scoop_rt_run_program(const ScoopImageDescriptorV1 *const *images, uint64_t i
                          const char *const *argv, uint32_t enable_stack_trace) {
     program_argc = argc;
     program_argv = argv;
-    StartupResult result = initialize(
-        images, image_count, (StartupEntry){.kind = STARTUP_PROGRAM, .root.program = root_entry},
-        enable_stack_trace);
+    StartupResult result =
+        initialize(images, image_count,
+                   (StartupEntry){.kind = STARTUP_PROGRAM, .root.program = root_entry},
+                   enable_stack_trace);
     ScoopImageRegistry *registry = result.registry;
     if (result.failed_unit != NULL)
         scoop_startup_report_failure(result.failed_unit->failure_root, result.failed_unit);
@@ -196,8 +203,8 @@ int scoop_rt_run_program(const ScoopImageDescriptorV1 *const *images, uint64_t i
     ScoopCallbackShutdownCounts callbacks = scoop_callback_prepare_shutdown();
     if (attached != 0 || callbacks.active != 0 || callbacks.owned_tokens != 0) {
         fprintf(stderr,
-                "scoop: shutdown failed: non-main threads=%" PRIu64 ", active callbacks=%" PRIu64
-                ", owned tokens=%" PRIu64 "\n",
+                "scoop: shutdown failed: non-main threads=%" PRIu64
+                ", active callbacks=%" PRIu64 ", owned tokens=%" PRIu64 "\n",
                 attached, callbacks.active, callbacks.owned_tokens);
         scoop_rt_exit(1);
     }
@@ -218,10 +225,11 @@ enum { APP_UNINITIALIZED, APP_INITIALIZING, APP_READY, APP_FAILED };
 static _Atomic(uint32_t) app_state;
 static ScoopAppError app_error;
 
-int32_t scoop_rt_init_native_app(const ScoopImageDescriptorV1 *const *images, uint64_t image_count,
+int32_t scoop_rt_init_native_app(const ScoopImageDescriptorV1 *const *images,
+                                 uint64_t image_count,
                                  const ScoopNativeAppEntryDescriptorV1 *root_entry,
-                                 const void *host_api, void *out_app_api, ScoopAppError *out_error,
-                                 uint32_t enable_stack_trace) {
+                                 const void *host_api, void *out_app_api,
+                                 ScoopAppError *out_error, uint32_t enable_stack_trace) {
     if (out_error != NULL)
         *out_error = (ScoopAppError){0};
     if (host_api == NULL || out_app_api == NULL)

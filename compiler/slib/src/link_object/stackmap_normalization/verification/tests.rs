@@ -70,3 +70,66 @@ fn reports_an_unknown_safepoint_reference() {
         }) if actual == member
     ));
 }
+
+#[test]
+fn compact_macho_map_preserves_code_symbols_and_other_relocations() {
+    use object::{Object, ObjectSection, ObjectSymbol};
+
+    let fixture = Fixture::new(Corruption::None);
+    let objects = [ScoopLirObjectCandidateV1::new(
+        fixture.member,
+        &fixture.object_bytes,
+    )];
+    let records =
+        read_scoop_stackmaps_v1(fixture.builtins, fixture.semantic_plan, &objects).unwrap();
+    let compact = crate::compact_callable_gc_object_v1(
+        scoop_target_data::DARWIN_AARCH64,
+        &fixture.object_bytes,
+        &records.records().iter().collect::<Vec<_>>(),
+    )
+    .unwrap();
+    let before = object::File::parse(fixture.object_bytes.as_slice()).unwrap();
+    let after = object::File::parse(compact.as_slice()).unwrap();
+    let raw = before.section_by_name("__llvm_stackmaps").unwrap();
+    let map = after.section_by_name("__scoop_gc").unwrap();
+    assert_eq!(map.index(), raw.index());
+    assert_eq!(map.segment_name().unwrap(), Some("__DATA_CONST"));
+    assert_eq!(map.size(), 72);
+    assert!(map.size() < raw.size());
+    assert_eq!(map.relocations().count(), 0);
+    assert!(after.section_by_name("__llvm_stackmaps").is_none());
+    for section in before
+        .sections()
+        .filter(|section| section.index() != raw.index())
+    {
+        let other = after.section_by_index(section.index()).unwrap();
+        assert_eq!(section.data().unwrap(), other.data().unwrap());
+        assert_eq!(section.address(), other.address());
+        let relocations = |section: &object::Section<'_, '_>| {
+            section
+                .relocations()
+                .map(|(offset, relocation)| {
+                    (
+                        offset,
+                        relocation.target(),
+                        relocation.addend(),
+                        relocation.flags(),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(relocations(&section), relocations(&other));
+    }
+    for symbol in before.symbols() {
+        let other = after.symbol_by_index(symbol.index()).unwrap();
+        assert_eq!(symbol.name_bytes().unwrap(), other.name_bytes().unwrap());
+        let expected = if symbol.section_index() == Some(raw.index())
+            && symbol.address() == raw.address() + raw.size()
+        {
+            map.address() + map.size()
+        } else {
+            symbol.address()
+        };
+        assert_eq!(other.address(), expected);
+    }
+}

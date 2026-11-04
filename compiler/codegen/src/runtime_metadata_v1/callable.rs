@@ -13,7 +13,7 @@ mod context_keys;
 
 const METADATA_ABI_VERSION: u64 = scoop_lir::RUNTIME_METADATA_ABI_VERSION_V1 as u64;
 const CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC: u64 = 0x5343_4f4f_5043_414c;
-const CALLABLE_REGISTRATION_DESCRIPTOR_SIZE: u64 = 144;
+const CALLABLE_REGISTRATION_DESCRIPTOR_SIZE: u64 = 152;
 
 /// One emitted runtime callable registration.
 #[derive(Clone, Copy, Debug)]
@@ -157,6 +157,10 @@ fn emit_registration<'ctx>(
         entry.as_global_value().as_pointer_value().into(),
         keys.into(),
         i64.const_int(key_count, false).into(),
+        context
+            .ptr_type(inkwell::AddressSpace::default())
+            .const_null()
+            .into(),
     ]);
     descriptor.set_constant(true);
     descriptor.set_initializer(&value);

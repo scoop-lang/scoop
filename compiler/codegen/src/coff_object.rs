@@ -131,7 +131,14 @@ impl<'a> CoffObject<'a> {
     ) -> Result<(), CodegenError> {
         if name.is_empty()
             || name.as_bytes().contains(&0)
-            || self.original_symbols.contains_key(name.as_bytes())
+            || self
+                .original_symbols
+                .get(name.as_bytes())
+                .is_some_and(|index| {
+                    self.file
+                        .symbol_by_index(*index)
+                        .is_ok_and(|symbol| !symbol.is_undefined())
+                })
             || !self.added.insert(name.to_owned())
         {
             return Err(error(format!("invalid or duplicate boundary `{name}`")));
@@ -139,22 +146,29 @@ impl<'a> CoffObject<'a> {
         if value > self.file.section_by_index(section).map_err(error)?.size() {
             return Err(error(format!("boundary `{name}` exceeds its section")));
         }
-        let name_offset = u32::try_from(self.strings.len()).map_err(error)?;
-        self.strings.extend_from_slice(name.as_bytes());
-        self.strings.push(0);
-        self.symbols.extend_from_slice(&[0; 4]);
-        self.symbols.extend_from_slice(&name_offset.to_le_bytes());
-        self.symbols
-            .extend_from_slice(&u32::try_from(value).map_err(error)?.to_le_bytes());
-        if self.symbol_bytes == 18 {
-            self.symbols
-                .extend_from_slice(&i16::try_from(section.0).map_err(error)?.to_le_bytes());
+        let offset = if let Some(symbol) = self.original_symbols.get(name.as_bytes()) {
+            symbol.0 * self.symbol_bytes
         } else {
-            self.symbols
-                .extend_from_slice(&i32::try_from(section.0).map_err(error)?.to_le_bytes());
+            let name_offset = u32::try_from(self.strings.len()).map_err(error)?;
+            self.strings.extend_from_slice(name.as_bytes());
+            self.strings.push(0);
+            let offset = self.symbols.len();
+            self.symbols.extend_from_slice(&[0; 4]);
+            self.symbols.extend_from_slice(&name_offset.to_le_bytes());
+            self.symbols.resize(offset + self.symbol_bytes, 0);
+            offset
+        };
+        let entry = &mut self.symbols[offset..offset + self.symbol_bytes];
+        if entry[self.symbol_bytes - 1] != 0 {
+            return Err(error("undefined boundary has auxiliary COFF symbols"));
         }
-        self.symbols
-            .extend_from_slice(&[0, 0, pe::IMAGE_SYM_CLASS_EXTERNAL, 0]);
+        entry[8..12].copy_from_slice(&u32::try_from(value).map_err(error)?.to_le_bytes());
+        if self.symbol_bytes == 18 {
+            entry[12..14].copy_from_slice(&i16::try_from(section.0).map_err(error)?.to_le_bytes());
+        } else {
+            entry[12..16].copy_from_slice(&i32::try_from(section.0).map_err(error)?.to_le_bytes());
+        }
+        entry[self.symbol_bytes - 4..].copy_from_slice(&[0, 0, pe::IMAGE_SYM_CLASS_EXTERNAL, 0]);
         Ok(())
     }
 

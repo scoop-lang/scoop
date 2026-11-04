@@ -47,7 +47,6 @@ fn resolves_odr_callable_descriptor_and_release_subjects_through_typed_records()
         DefinitionAtomSubkey::Singleton,
     ))
     .unwrap();
-    let descriptor_atom_id = descriptor_atom.id();
     let mut canonical = CanonicalLirFoundation::empty();
     canonical
         .set_callable_bodies(vec![release_body, strong_body("unrelated"), body])
@@ -81,20 +80,6 @@ fn resolves_odr_callable_descriptor_and_release_subjects_through_typed_records()
             StrongDefinitionRole::TypeDescriptor,
         ),
         None,
-    );
-
-    let removed = foundation.without_codegen_records(
-        &Default::default(),
-        &[plans[1].id()].into_iter().collect(),
-        &[descriptor_atom_id].into_iter().collect(),
-    );
-    let (_, entity, role) = subjects[1];
-    assert_eq!(removed.odr_member_for_subject(entity, role), None);
-    assert_eq!(removed.definition_for(entity, role), None);
-    assert_eq!(foundation.definition_for(entity, role), Some(&plans[1]));
-    assert_eq!(
-        removed.definition_for(subjects[2].1, subjects[2].2),
-        Some(&plans[2]),
     );
 
     let mut without_bodies = foundation.as_canonical().clone();

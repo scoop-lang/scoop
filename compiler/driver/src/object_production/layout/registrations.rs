@@ -5,15 +5,15 @@ impl PreparedLayoutObjects {
         &self,
     ) -> (
         slib::CallableRegistrationDataV1,
-        slib::SafepointRegistrationDataV1,
+        slib::SafepointProductionDataV1,
     ) {
         let callables = bind_callable_registrations_v1(
             self.builtins.clone(),
             self.production.callable_registrations().clone(),
         );
-        let safepoints = bind_safepoint_registrations_v1(
+        let safepoints = bind_safepoint_production_v1(
             self.stackmaps.clone(),
-            self.production.safepoint_registrations().clone(),
+            self.production.safepoint_production().clone(),
         );
         (callables, safepoints)
     }

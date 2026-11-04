@@ -23,16 +23,15 @@ static void collect_types(ScoopImageRegistry *registry) {
     ScoopRecordAddress *runtime_ids =
         scoop_metadata_allocate(table->count, sizeof *runtime_ids);
     for (size_t index = 0; index < table->count; index++) {
-        ScoopMetadataCheck check =
-            scoop_record_check(registry, SCOOP_RECORD_TYPE, index);
+        ScoopMetadataCheck check = scoop_record_check(registry, SCOOP_RECORD_TYPE, index);
         const ScoopTypeRegistrationDescriptorV1 *type = table->entries[index].record;
         if (type->reserved_zero != 0) {
             scoop_metadata_fatal(&check, "reserved field");
         }
         const ScoopTypeDescriptor *td = type->descriptor;
         scoop_metadata_range(&check, td, 1, sizeof *td, 8, "TypeDescriptor header range");
-        scoop_metadata_range(&check, td, sizeof *td + (uint64_t)td->related_type_count * 8, 1, 8,
-                             "TypeDescriptor related types range");
+        scoop_metadata_range(&check, td, sizeof *td + (uint64_t)td->related_type_count * 8, 1,
+                             8, "TypeDescriptor related types range");
         scoop_metadata_bytes(&check, td->diagnostic_name, "diagnostic name span");
         if (td->diagnostic_name.length == 0) {
             scoop_metadata_fatal(&check, "empty diagnostic name");
@@ -52,10 +51,8 @@ static void collect_callables(ScoopImageRegistry *registry) {
     registry->callable_addresses =
         scoop_metadata_allocate(table->count, sizeof *registry->callable_addresses);
     for (size_t index = 0; index < table->count; index++) {
-        ScoopMetadataCheck check =
-            scoop_record_check(registry, SCOOP_RECORD_CALLABLE, index);
-        const ScoopCallableRegistrationDescriptorV1 *callable =
-            table->entries[index].record;
+        ScoopMetadataCheck check = scoop_record_check(registry, SCOOP_RECORD_CALLABLE, index);
+        const ScoopCallableRegistrationDescriptorV1 *callable = table->entries[index].record;
         scoop_metadata_range(&check, (const void *)(uintptr_t)callable->entry, 1, 1, 1,
                              "entry range");
         registry->callable_addresses[index] =
@@ -65,27 +62,6 @@ static void collect_callables(ScoopImageRegistry *registry) {
                      "different callable bodies share an entry address");
 }
 
-static void collect_sites(ScoopImageRegistry *registry) {
-    const ScoopRecordTable *table = &registry->tables[SCOOP_RECORD_SITE];
-    registry->site_ids =
-        scoop_metadata_allocate(table->count, sizeof *registry->site_ids);
-    for (size_t index = 0; index < table->count; index++) {
-        ScoopMetadataCheck check =
-            scoop_record_check(registry, SCOOP_RECORD_SITE, index);
-        const ScoopSafepointRegistrationDescriptorV1 *site =
-            table->entries[index].record;
-        if (site->safepoint_id == 0 || site->site_role < SCOOP_SAFEPOINT_MANAGED_POLL_V1 ||
-            site->site_role > SCOOP_SAFEPOINT_NATIVE_BORROWED_TRANSITION_V1 ||
-            site->root_pair_count > (UINT16_MAX - 3) / 2) {
-            scoop_metadata_fatal(&check, "site ID, role or root count");
-        }
-        registry->site_ids[index] =
-            (ScoopRecordAddress){(uintptr_t)site->safepoint_id, index};
-    }
-    unique_addresses(registry, SCOOP_RECORD_SITE, registry->site_ids,
-                     "64-bit safepoint ID collision");
-}
-
 void scoop_image_validate_code_and_types(ScoopImageRegistry *registry) {
     if (registry->type_addresses != NULL) {
         scoop_metadata_fatal(NULL, "type registration repeated");
@@ -93,12 +69,10 @@ void scoop_image_validate_code_and_types(ScoopImageRegistry *registry) {
     collect_types(registry);
     collect_callables(registry);
     scoop_image_context_keys(registry);
-    collect_sites(registry);
     scoop_image_type_relations(registry);
     const ScoopRecordTable *types = &registry->tables[SCOOP_RECORD_TYPE];
     for (size_t index = 0; index < types->count; index++) {
-        ScoopMetadataCheck check =
-            scoop_record_check(registry, SCOOP_RECORD_TYPE, index);
+        ScoopMetadataCheck check = scoop_record_check(registry, SCOOP_RECORD_TYPE, index);
         const ScoopTypeRegistrationDescriptorV1 *type = types->entries[index].record;
         const ScoopTypeDescriptor *td = type->descriptor;
         scoop_metadata_scan(registry, &check, td->object_scan);

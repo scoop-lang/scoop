@@ -20,13 +20,8 @@ impl<
         immortal_semantics: StrongImmortalObjectSemanticPlanSetV1,
         initialization_semantics: crate::StrongInitializationUnitSemanticPlanSet<I>,
     ) -> Result<Self, StrongRegistrationProductionBuildError> {
-        let safepoints = StrongSafepointRegistrationPlanSetV1::new(
-            foundation,
-            &identities,
-            &safepoint_semantics,
-            digests,
-        )
-        .map_err(StrongRegistrationProductionBuildError::Safepoints)?;
+        let safepoints = StrongSafepointProductionPlanSetV1::new(&safepoint_semantics, digests)
+            .map_err(StrongRegistrationProductionBuildError::Safepoints)?;
         let callables = StrongCallableRegistrationPlanSetV1::new(
             foundation,
             &identities,

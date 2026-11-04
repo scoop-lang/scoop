@@ -18,22 +18,6 @@ impl<D: crate::StrongDescriptorReference, C: Clone + WireEncode, I: WireEncode> 
     }
 }
 
-impl WireEncode for StrongSafepointRegistrationPlanV1 {
-    fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(9)?;
-        encode_field(encoder, 1, &self.site())?;
-        encode_field(encoder, 2, &self.safepoint())?;
-        encode_field(encoder, 3, &self.owner())?;
-        encode_field(encoder, 4, &self.role())?;
-        encode_unsigned_field(encoder, 5, u64::from(self.root_pair_count()))?;
-        encode_field(encoder, 6, &self.symbol())?;
-        encode_field(encoder, 7, &self.definition_plan())?;
-        encode_field(encoder, 8, &self.primary_atom())?;
-        encode_field(encoder, 10, &self.normalized_stackmap_fingerprint_node())?;
-        Ok(())
-    }
-}
-
 impl WireEncode for StrongCallableRegistrationPlanV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
         encoder.map(8)?;

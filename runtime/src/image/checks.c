@@ -4,10 +4,8 @@
 
 #include "internal.h"
 
-_Noreturn void scoop_metadata_fatal(const ScoopMetadataCheck *check,
-                                    const char *field) {
-    fprintf(stderr, "scoop runtime metadata: %s",
-            check ? check->kind : "registry");
+_Noreturn void scoop_metadata_fatal(const ScoopMetadataCheck *check, const char *field) {
+    fprintf(stderr, "scoop runtime metadata: %s", check ? check->kind : "registry");
     if (check != NULL && check->identity != NULL) {
         fputc('[', stderr);
         for (size_t index = 0; index < 32; index++) {
@@ -35,8 +33,7 @@ bool scoop_digest_zero(const ScoopDigest256V1 *digest) {
     return scoop_digest_equal(digest, &zero);
 }
 
-bool scoop_digest_equal(const ScoopDigest256V1 *left,
-                        const ScoopDigest256V1 *right) {
+bool scoop_digest_equal(const ScoopDigest256V1 *left, const ScoopDigest256V1 *right) {
     return memcmp(left->bytes, right->bytes, sizeof left->bytes) == 0;
 }
 
@@ -48,8 +45,8 @@ void scoop_metadata_range(const ScoopMetadataCheck *check, const void *pointer, 
     }
 }
 
-void scoop_metadata_prefix(const ScoopMetadataCheck *check, const void *record,
-                           uint64_t magic, size_t size) {
+void scoop_metadata_prefix(const ScoopMetadataCheck *check, const void *record, uint64_t magic,
+                           size_t size) {
     scoop_metadata_range(check, record, 1, sizeof(ScoopDescriptorPrefixV1), 8, "prefix range");
     const ScoopDescriptorPrefixV1 *prefix = record;
     if (prefix->magic != magic ||
@@ -60,15 +57,14 @@ void scoop_metadata_prefix(const ScoopMetadataCheck *check, const void *record,
     scoop_metadata_range(check, record, 1, size, 8, "record range");
 }
 
-void scoop_metadata_bytes(const ScoopMetadataCheck *check,
-                          ScoopByteSpanV1 bytes, const char *field) {
+void scoop_metadata_bytes(const ScoopMetadataCheck *check, ScoopByteSpanV1 bytes,
+                          const char *field) {
     scoop_metadata_range(check, bytes.data, bytes.length, 1, 1, field);
 }
 
-ScoopMetadataCheck scoop_record_check(const ScoopImageRegistry *registry,
-                                      ScoopRecordKind kind, size_t index) {
-    static const char *const names[] = {"storage", "immortal",  "unit",
-                                        "type",    "safepoint", "callable"};
+ScoopMetadataCheck scoop_record_check(const ScoopImageRegistry *registry, ScoopRecordKind kind,
+                                      size_t index) {
+    static const char *const names[] = {"storage", "immortal", "unit", "type", "callable"};
     return (ScoopMetadataCheck){registry->loaded, names[kind],
                                 registry->tables[kind].entries[index].identity};
 }

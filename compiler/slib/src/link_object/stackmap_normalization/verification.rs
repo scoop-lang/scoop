@@ -53,6 +53,11 @@ pub struct ScoopStackmapSetV1 {
 }
 
 impl ScoopStackmapSetV1 {
+    /// Keep normalized machine facts after the producer replaces the raw section.
+    pub fn set_object_layout(&mut self, builtins: VerifiedBuiltinObjectStrongRelocationSetV1) {
+        self.builtins = builtins;
+    }
+
     pub const fn producer(&self) -> scoop_identity::ConeIdentity {
         self.semantic_plan.producer()
     }

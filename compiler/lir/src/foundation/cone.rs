@@ -7,7 +7,7 @@ use scoop_identity::{
     DefinitionAtomRole, DefinitionOwner, GeneratedBridgeAtomId, LinkageClass,
     ObjectDefinitionAtomId, ObjectDefinitionPlanId, ObjectDefinitionPlanOwner, OdrGroupId,
     OdrMemberId, PersistentCallableBodyId, PersistentExactTypeId, PersistentStaticStorageId,
-    PersistentSymbolKey, PersistentSymbolRequest, SafepointId, StorageRole,
+    PersistentSymbolKey, PersistentSymbolRequest, StorageRole,
 };
 use scoop_wire::{Encoder, RuntimeDecodeError, WireEncode, decode_runtime};
 
@@ -351,15 +351,27 @@ impl ConeLirFoundation {
             .any(|record| record.id() == id)
     }
 
-    pub(crate) fn contains_safepoint_mapping(
+    pub(crate) fn link_safepoints(
         &self,
-        site: scoop_identity::PersistentSafepointSiteId,
-        safepoint: SafepointId,
-    ) -> bool {
-        self.canonical
-            .safepoints
+    ) -> BTreeMap<PersistentCallableBodyId, Vec<crate::ProgramLinkSafepoint>> {
+        let owners = self
+            .canonical
+            .safepoint_sites
             .iter()
-            .any(|record| record.site() == site && record.safepoint() == safepoint)
+            .map(|site| (site.id(), site.key().owner()))
+            .collect::<BTreeMap<_, _>>();
+        let mut result = BTreeMap::<_, Vec<_>>::new();
+        for mapping in &self.canonical.safepoints {
+            let owner = owners[&mapping.site()];
+            result
+                .entry(owner)
+                .or_default()
+                .push(crate::ProgramLinkSafepoint {
+                    site: mapping.site(),
+                    id: mapping.safepoint(),
+                });
+        }
+        result
     }
 
     pub(crate) fn contains_symbol_request(&self, request: PersistentSymbolRequest) -> bool {

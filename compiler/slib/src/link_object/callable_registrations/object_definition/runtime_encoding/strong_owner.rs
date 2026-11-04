@@ -19,7 +19,6 @@ pub(super) fn encode_strong_owner(
         StrongDefinitionEntityKind::InitializationUnit(id) => {
             encode_entity(encoder, 9, id.as_array())?
         }
-        StrongDefinitionEntityKind::SafepointSite(id) => encode_entity(encoder, 10, id.as_array())?,
         StrongDefinitionEntityKind::ConeImage(id) => encode_entity(encoder, 11, id.as_array())?,
         StrongDefinitionEntityKind::GeneratedBridgeAtom(id) => {
             encode_entity(encoder, 12, id.as_array())?
@@ -43,7 +42,6 @@ pub(super) fn encode_strong_owner(
         scoop_identity::StrongDefinitionRole::ImmortalRegistration => 12,
         scoop_identity::StrongDefinitionRole::InitializationRegistration => 13,
         scoop_identity::StrongDefinitionRole::TypeRegistration => 14,
-        scoop_identity::StrongDefinitionRole::SafepointRegistration => 15,
         scoop_identity::StrongDefinitionRole::CallableRegistration => 16,
         scoop_identity::StrongDefinitionRole::ImageDescriptor => 17,
         scoop_identity::StrongDefinitionRole::GeneratedBridge => 18,

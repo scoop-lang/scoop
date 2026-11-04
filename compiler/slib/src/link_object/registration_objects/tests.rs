@@ -5,7 +5,7 @@ use crate::link_object::stackmap_normalization::verification::tests::support::{
 use crate::link_object::{
     ImmortalObjectFingerprintSetV1, InitializationFingerprintSetV1, ScoopLirObjectCandidateV1,
     StaticStorageFingerprintSetV1, TypeFingerprintSetV1, VerifiedStrongCallableFingerprintSetV1,
-    bind_callable_registrations_v1, bind_safepoint_registrations_v1, bind_type_registrations_v1,
+    bind_callable_registrations_v1, bind_safepoint_production_v1, bind_type_registrations_v1,
     compute_strong_callable_body_object_fingerprints_v1, compute_strong_callable_fingerprints_v1,
     compute_strong_immortal_object_fingerprints_v1, compute_strong_initialization_fingerprints_v1,
     compute_strong_safepoint_fingerprints_v1, compute_strong_static_storage_fingerprints_v1,
@@ -65,9 +65,9 @@ fn verified_fingerprints(
 ) {
     let stackmaps = fixture.verified_stackmaps();
 
-    let safepoint_registrations =
-        bind_safepoint_registrations_v1(stackmaps.clone(), fixture.registration_plan.clone());
-    let safepoints = compute_strong_safepoint_fingerprints_v1(safepoint_registrations).unwrap();
+    let safepoint_production =
+        bind_safepoint_production_v1(stackmaps.clone(), fixture.registration_plan.clone());
+    let safepoints = compute_strong_safepoint_fingerprints_v1(safepoint_production).unwrap();
     let callable_registrations = bind_callable_registrations_v1(
         fixture.object_data(),
         fixture.callable_registration_plan.clone(),

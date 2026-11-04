@@ -6,7 +6,6 @@ pub(super) fn macho_object(
     symbols: &PlannedMemberStrongObjectSymbolsV1,
     instructions: &[u32; 4],
     stackmap: &[u8],
-    registrations: &StrongSafepointRegistrationPlanSetV1,
     callable_registrations: &StrongCallableRegistrationPlanSetV1,
     type_registrations: &StrongTypeRegistrationPlanSetV1,
     immortal_registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -19,9 +18,8 @@ pub(super) fn macho_object(
     let stackmap_size = u32::try_from(stackmap.len()).unwrap();
     let registration_offset = stackmap_offset + stackmap_size;
     let registration_size = u32::try_from(
-        registrations.registrations().len() * usize::try_from(SAFEPOINT_REGISTRATION_SIZE).unwrap()
-            + callable_registrations.registrations().len()
-                * usize::try_from(CALLABLE_REGISTRATION_SIZE).unwrap()
+        callable_registrations.registrations().len()
+            * usize::try_from(CALLABLE_REGISTRATION_SIZE).unwrap()
             + type_registrations.registrations().len()
                 * usize::try_from(TYPE_DESCRIPTOR_SIZE + LAYOUT_SIZE + TYPE_REGISTRATION_SIZE)
                     .unwrap()
@@ -301,7 +299,6 @@ pub(super) fn macho_object(
     push_sections(
         &mut bytes,
         module,
-        registrations,
         callable_registrations,
         type_registrations,
         immortal_registrations,
@@ -313,7 +310,6 @@ pub(super) fn macho_object(
         &mut bytes,
         symbols,
         stackmap,
-        registrations,
         callable_registrations,
         type_registrations,
         immortal_registrations,
@@ -338,7 +334,6 @@ pub(super) fn macho_object(
             static_template_target_start(
                 registration,
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -348,7 +343,6 @@ pub(super) fn macho_object(
             static_relocation_target_start(
                 registration,
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
                 immortal_registrations,
@@ -374,7 +368,6 @@ pub(super) fn macho_object(
             type_diagnostic_start(
                 registration.descriptor_definition_plan(),
                 stackmap.len(),
-                registrations,
                 callable_registrations,
                 type_registrations,
             ),
@@ -384,7 +377,6 @@ pub(super) fn macho_object(
         let (section, value) = symbol_location(
             symbol.role(),
             stackmap.len(),
-            registrations,
             callable_registrations,
             type_registrations,
             immortal_registrations,

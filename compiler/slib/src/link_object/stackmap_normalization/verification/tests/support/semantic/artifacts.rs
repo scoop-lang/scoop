@@ -1,12 +1,5 @@
 use super::*;
 
-pub(super) struct RegistrationArtifacts {
-    pub(super) site: PersistentSafepointSiteId,
-    pub(super) plan: CborIdentityRecord<ObjectDefinitionPlanId, ObjectDefinitionPlanKey>,
-    pub(super) primary: CborIdentityRecord<ObjectDefinitionAtomId, ObjectDefinitionAtomKey>,
-    pub(super) symbol: PersistentSymbolRequest,
-}
-
 pub(super) struct CallableRegistrationArtifacts {
     pub(super) plan: CborIdentityRecord<ObjectDefinitionPlanId, ObjectDefinitionPlanKey>,
     pub(super) primary: CborIdentityRecord<ObjectDefinitionAtomId, ObjectDefinitionAtomKey>,
@@ -270,35 +263,6 @@ pub(super) fn callable_registration_artifacts(
     )
     .unwrap();
     CallableRegistrationArtifacts {
-        plan,
-        primary,
-        symbol,
-    }
-}
-
-pub(super) fn registration_artifacts(site: PersistentSafepointSiteId) -> RegistrationArtifacts {
-    let plan = CborIdentityRecord::from_key(
-        ObjectDefinitionPlanKey::strong(
-            ConeIdentity::SINGLE_FILE,
-            StrongDefinitionEntity::safepoint_site(site),
-            StrongDefinitionRole::SafepointRegistration,
-        )
-        .unwrap(),
-    )
-    .unwrap();
-    let primary = CborIdentityRecord::from_key(ObjectDefinitionAtomKey::new(
-        plan.id(),
-        DefinitionAtomRole::Primary,
-        DefinitionAtomSubkey::Singleton,
-    ))
-    .unwrap();
-    let symbol = PersistentSymbolRequest::new(
-        PersistentSymbolKey::SafepointRegistration(site),
-        LinkageClass::ConeStrong,
-    )
-    .unwrap();
-    RegistrationArtifacts {
-        site,
         plan,
         primary,
         symbol,

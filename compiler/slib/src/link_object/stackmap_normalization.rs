@@ -243,7 +243,9 @@ fn validate_root_pairs(
             return Err(StackmapNormalizationError::InvalidRootLocation(root_index));
         }
         let signed_offset = signed_offset_bits as i64;
-        if !frame::valid_root(architecture, register, signed_offset, stack_size) {
+        if signed_offset % 8 != 0
+            || !frame::valid_root(architecture, register, signed_offset, stack_size)
+        {
             return Err(StackmapNormalizationError::RootOutsideFrame {
                 index: root_index,
                 stack_size,

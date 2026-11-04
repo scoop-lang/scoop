@@ -34,13 +34,9 @@ impl WireEncode for RegistrationAbi {
                 use crate::link_object::type_registrations::record;
                 (4, record::ABI_VERSION, record::DESCRIPTOR_SIZE)
             }
-            RegistrationTableV1::Safepoint => {
-                use crate::link_object::safepoint_registrations::record;
-                (5, record::ABI_VERSION, record::DESCRIPTOR_SIZE)
-            }
             RegistrationTableV1::Callable => {
                 use crate::link_object::callable_registrations::record;
-                (6, record::ABI_VERSION, record::DESCRIPTOR_SIZE)
+                (5, record::ABI_VERSION, record::DESCRIPTOR_SIZE)
             }
         };
         encoder.map(3)?;

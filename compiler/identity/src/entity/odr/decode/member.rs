@@ -6,8 +6,7 @@ use crate::{
     PersistentCallableApplicationId, PersistentCallableBodyId, PersistentDispatchSlotId,
     PersistentDispatchTableId, PersistentExactTypeId, PersistentGeneratedCallableId,
     PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentLayoutId,
-    PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId, PersistentTypeId,
-    StructuralDefinitionPath,
+    PersistentScanId, PersistentStaticStorageId, PersistentTypeId, StructuralDefinitionPath,
 };
 
 impl WireDecode for OdrMemberRole {
@@ -49,7 +48,6 @@ pub enum DecodedOdrMemberDiscriminator {
     InitializationUnit(DecodedPersistentId<PersistentInitializationUnitId>),
     StructuralPath(StructuralDefinitionPath),
     CallableBody(DecodedPersistentId<PersistentCallableBodyId>),
-    SafepointSite(DecodedPersistentId<PersistentSafepointSiteId>),
 }
 
 impl DecodedOdrMemberDiscriminator {
@@ -90,9 +88,6 @@ impl DecodedOdrMemberDiscriminator {
             Self::CallableBody(id) => resolver
                 .resolve(id)
                 .map(OdrMemberDiscriminator::CallableBody),
-            Self::SafepointSite(id) => resolver
-                .resolve(id)
-                .map(OdrMemberDiscriminator::SafepointSite),
         }
     }
 }
@@ -114,7 +109,6 @@ impl WireEncode for DecodedOdrMemberDiscriminator {
             Self::InitializationUnit(id) => encode_value_sum(encoder, 12, id),
             Self::StructuralPath(path) => encode_value_sum(encoder, 13, path),
             Self::CallableBody(id) => encode_value_sum(encoder, 14, id),
-            Self::SafepointSite(id) => encode_value_sum(encoder, 15, id),
         }
     }
 }
@@ -146,7 +140,6 @@ impl WireDecode for DecodedOdrMemberDiscriminator {
                     .map(Self::StructuralPath)
             }
             14 => decode_id_variant(decoder, fields, Self::CallableBody),
-            15 => decode_id_variant(decoder, fields, Self::SafepointSite),
             tag => Err(unknown_tag(decoder, tag)),
         }
     }

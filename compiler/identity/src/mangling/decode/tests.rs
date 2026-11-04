@@ -10,8 +10,8 @@ use crate::{
     ObjectDefinitionAtomId, OdrMemberId, PersistentCallableBodyId, PersistentDispatchSlotId,
     PersistentDispatchTableId, PersistentExactTypeId, PersistentIdMismatch, PersistentIdResolver,
     PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentLayoutId,
-    PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId, PersistentSymbolError,
-    PersistentSymbolKey, PersistentSymbolRequest, PersistentSymbolRequestTable,
+    PersistentScanId, PersistentStaticStorageId, PersistentSymbolError, PersistentSymbolKey,
+    PersistentSymbolRequest, PersistentSymbolRequestTable,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,7 +57,6 @@ test_id!(PersistentScanId);
 test_id!(PersistentDispatchTableId);
 test_id!(PersistentDispatchSlotId);
 test_id!(PersistentInitializationUnitId);
-test_id!(PersistentSafepointSiteId);
 test_id!(ConeIdentity);
 test_id!(GeneratedBridgeAtomId);
 test_id!(OdrMemberId);
@@ -200,7 +199,7 @@ fn canonical_requests() -> Vec<PersistentSymbolRequest> {
     ]
 }
 
-fn symbol_keys() -> [PersistentSymbolKey; 22] {
+fn symbol_keys() -> [PersistentSymbolKey; 21] {
     [
         PersistentSymbolKey::CallableBody(PersistentCallableBodyId::expected()),
         PersistentSymbolKey::StaticStorage(PersistentStaticStorageId::expected()),
@@ -215,7 +214,6 @@ fn symbol_keys() -> [PersistentSymbolKey; 22] {
         PersistentSymbolKey::ImmortalRegistration(PersistentImmortalObjectId::expected()),
         PersistentSymbolKey::InitializationRegistration(PersistentInitializationUnitId::expected()),
         PersistentSymbolKey::TypeRegistration(PersistentExactTypeId::expected()),
-        PersistentSymbolKey::SafepointRegistration(PersistentSafepointSiteId::expected()),
         PersistentSymbolKey::CallableRegistration(PersistentCallableBodyId::expected()),
         PersistentSymbolKey::ImageDescriptor(ConeIdentity::expected()),
         PersistentSymbolKey::GeneratedBridge(GeneratedBridgeAtomId::expected()),

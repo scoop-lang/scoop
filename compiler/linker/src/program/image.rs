@@ -9,7 +9,7 @@ pub(crate) struct SelectedImage {
     pub coordinate: [Vec<u8>; 3],
     pub cone: [u8; 32],
     pub dependencies: Vec<[u8; 32]>,
-    pub tables: [Vec<String>; 6],
+    pub tables: [Vec<String>; 5],
     pub traps: [(String, &'static [u8]); 2],
 }
 

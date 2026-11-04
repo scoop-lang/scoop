@@ -3,20 +3,12 @@
 
 #include "image_storage_fixture.h"
 
-typedef struct BlobOffsets {
-    size_t start, record, locations, live_outs, end;
-} BlobOffsets;
-
 typedef struct ScoopStackmapFixture {
     ScoopStorageFixture storage;
-    ScoopStackMapImage image;
-    size_t length;
-    BlobOffsets blobs[3];
+    ScoopPlatformCodeRange code;
 } ScoopStackmapFixture;
 
 extern const ScoopManagedFrameOps scoop_darwin_aarch64_managed_frame_ops;
 void scoop_test_stackmap_setup(ScoopStackmapFixture *fixture);
-void scoop_test_stackmap_write(ScoopStackmapFixture *fixture, size_t offset,
-                               uint64_t value, size_t size);
 
 #endif

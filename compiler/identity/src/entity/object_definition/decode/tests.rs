@@ -14,9 +14,9 @@ use crate::{
     ObjectDefinitionPlanRole, OdrMemberId, PersistentCallableBodyId, PersistentDispatchSlotId,
     PersistentDispatchTableId, PersistentExactTypeId, PersistentIdMismatch, PersistentIdResolver,
     PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentKeyResolver,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
-    StrongDefinitionEntity, StrongDefinitionRole, StructuralDefinitionPath,
-    StructuralDefinitionSiteRole, StructuralPathSegment,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId, StrongDefinitionEntity,
+    StrongDefinitionRole, StructuralDefinitionPath, StructuralDefinitionSiteRole,
+    StructuralPathSegment,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -57,7 +57,6 @@ id_resolver!(PersistentScanId, scan);
 id_resolver!(PersistentDispatchTableId, dispatch_table);
 id_resolver!(PersistentDispatchSlotId, dispatch_slot);
 id_resolver!(PersistentInitializationUnitId, initialization_unit);
-id_resolver!(PersistentSafepointSiteId, safepoint_site);
 id_resolver!(OdrMemberId, odr_member);
 id_resolver!(ObjectDefinitionPlanId, definition_plan);
 
@@ -280,10 +279,6 @@ fn strong_plan_cases(
             R::InitializationRegistration,
         ),
         (
-            StrongDefinitionEntity::safepoint_site(safepoint_site()),
-            R::SafepointRegistration,
-        ),
-        (
             StrongDefinitionEntity::cone_image(producer()),
             R::ImageDescriptor,
         ),
@@ -324,7 +319,7 @@ fn atom_cases() -> Vec<(DefinitionAtomRole, DefinitionAtomSubkey)> {
         ),
         (
             DefinitionAtomRole::AddressTakenConstant,
-            DefinitionAtomSubkey::SafepointSite(safepoint_site()),
+            DefinitionAtomSubkey::Singleton,
         ),
         (
             DefinitionAtomRole::Primary,
@@ -449,10 +444,6 @@ const fn dispatch_slot() -> PersistentDispatchSlotId {
 
 const fn initialization_unit() -> PersistentInitializationUnitId {
     PersistentInitializationUnitId([10; 32])
-}
-
-const fn safepoint_site() -> PersistentSafepointSiteId {
-    PersistentSafepointSiteId([11; 32])
 }
 
 const fn odr_member() -> OdrMemberId {

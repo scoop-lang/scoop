@@ -74,19 +74,11 @@ fn emitted_registration_and_stackmap_use_final_ssa_root_count() {
                 .production
                 .registration_production()
                 .safepoints()
-                .registrations();
+                .sites();
             assert_eq!(registrations.len(), 1);
             // Equal leaves share one relocated SSA value; null needs no relocation.
             let expected = u32::from(!null);
             assert_eq!(registrations[0].root_pair_count(), expected);
-            let normalization = input
-                .module()
-                .meta
-                .target_profile
-                .contract()
-                .native_symbol_normalization();
-            let symbol = normalization
-                .compiler_generated_object_symbol(registrations[0].symbol().symbol().as_str());
             let bytes = &emitted
                 .members
                 .iter()
@@ -94,16 +86,17 @@ fn emitted_registration_and_stackmap_use_final_ssa_root_count() {
                 .unwrap()
                 .bytes;
             let file = object::File::parse(bytes.as_slice()).unwrap();
-            let record = file.symbol_by_name(&symbol).unwrap();
             let section = file
-                .section_by_index(record.section_index().unwrap())
+                .sections()
+                .find(|section| {
+                    matches!(section.name(), Ok("__llvm_stackmaps" | ".llvm_stackmaps"))
+                })
                 .unwrap();
-            let offset = (record.address() - section.address()) as usize;
-            let data = section.data().unwrap();
-            // ABI 5: prefix + identity + site id + role precede root_pair_count.
+            let parsed =
+                scoop_slib::parse_llvm_stackmap_section_v3(section.data().unwrap()).unwrap();
             assert_eq!(
-                u32::from_le_bytes(data[offset + 132..offset + 136].try_into().unwrap()),
-                expected
+                parsed.functions()[0].records()[0].locations().len(),
+                3 + 2 * expected as usize
             );
         }
     }
@@ -164,7 +157,7 @@ fn dead_invokes_module() -> Module {
 }
 
 #[test]
-fn deleted_invokes_leave_no_site_registration_image_entry_or_stackmap() {
+fn deleted_invokes_leave_no_machine_sites_or_stackmap() {
     for target in [
         scoop_target_data::DARWIN_AARCH64_ID,
         scoop_target_data::LINUX_X86_64_GNU_ID,
@@ -188,12 +181,8 @@ fn deleted_invokes_leave_no_site_registration_image_entry_or_stackmap() {
                     .production
                     .registration_production()
                     .safepoints()
-                    .registrations()
+                    .sites()
                     .len(),
-                0
-            );
-            assert_eq!(
-                emitted.production.image_plan().tables().safepoints().len(),
                 0
             );
             let projected = ScoopLirObjectPartitionV1::from_foundation(
@@ -232,7 +221,7 @@ fn deleted_invokes_leave_no_site_registration_image_entry_or_stackmap() {
                 "body and callable registration survive"
             );
             assert_eq!(
-                emitted.foundation.definition_plan_count() + 3,
+                emitted.foundation.definition_plan_count(),
                 input.foundation().definition_plan_count()
             );
         }
