@@ -96,9 +96,9 @@ Native C++ 支持由语言规范 12.2.1 的 `native.cxx` 显式选择，目标�
 
 runtime 源码组合直接消费目录投影，不再登记重复 OS＋arch 的 runtime profile。结构完备的 build selection 分别选择 OS services、primitive API adapter、object image parser、loaded-image provider、startup/argv adapter、trace/symbolizer adapter、ISA helper、machine frame recovery、ManagedEntry、Scoop ABI shim、unwind provider 与已有实测 runtime tuning；缺少任一当前 target 必需组件时不能形成目录记录。`platform/arch` 只保存纯 ISA helper；frame decoder／virtual unwind 按 machine-frame profile 选择，ManagedEntry 与返回 shim 另外按 procedure ABI、Scoop ABI 和 object target 选择。red-zone 等参数属于实际 ABI／frame component，不由 x86_64 等 ISA 名称普遍推导；GC 私有 helper 的内联策略由目录绑定的 runtime tuning 显式形成编译参数，不在 C 源中从宿主或 target 架构宏推导。PE image parser 的 machine 核对同样由 object target 提供，不能把 AMD64 写成通用 PE 条件。源码路径、编译参数的更新沿既有 runtime 构建记录处理，不添加动态插件、运行时注册或重复平台探测。
 
-ELF image parser 只解释 program header、segment 与 Scoop metadata/stackmap range；枚举当前已加载模块、取得 self image 与维持模块生命周期属于所选 OS／loader provider。共享 ELF 容器不能隐含 Linux loader，POSIX 名称也不能作为 thread stack、VM、RSS、argv 或 loader 的通用 fallback。静态 `ScoopPlatformBundle` 由 runtime builder 根据上述完整选择生成一份小型 translation unit，现有组件继续导出具名 ops；不为每个完整 target 复制手写 bundle 源文件。
+ELF image parser 只解释 program header、segment 与 Scoop metadata 与代码范围；枚举当前已加载模块、取得 self image 与维持模块生命周期属于所选 OS／loader provider。共享 ELF 容器不能隐含 Linux loader，POSIX 名称也不能作为 thread stack、VM、RSS、argv 或 loader 的通用 fallback。静态 `ScoopPlatformBundle` 由 runtime builder 根据上述完整选择生成一份小型 translation unit，现有组件继续导出具名 ops；不为每个完整 target 复制手写 bundle 源文件。
 
-Darwin 的 metadata image 组件按运行时规范 2.8 定位承载 runtime 的实际模块。普通 executable 与 native host 加载的 dylib 使用同一 parser；地址范围、`__TEXT,__text` 与 `__DATA_CONST,__llvm_stackmaps` 均来自该模块。runtime 源码变化沿原更新记录重建，不增加目标 profile、产物版本或独立镜像登记机制。
+Darwin 的 metadata image 组件按运行时规范 2.8 定位承载 runtime 的实际模块。普通 executable 与 native host 加载的 dylib 使用同一 parser；地址范围、代码区间与普通 metadata 均来自该模块，GC 表由 callable 登记引用，不依赖专用 stackmap 段。runtime 源码变化沿原更新记录重建，不增加目标 profile、产物版本或独立镜像登记机制。
 
 Mach-O／ELF／COFF 的容器事实与其 machine 规则分别表达。共享对象 envelope 保存已选目标；Mach-O 符号、section、fat slice 和动态输入通过所选 machine 处理，不从 Mach-O 格式隐含 Darwin AArch64 身份。各架构 relocation 解码保留在对象所属模块，新增架构不得复用另一架构的 relocation 编码。
 
@@ -625,7 +625,7 @@ ELF／COFF 机器发射在同一份未变化的 Cone symbol surface 上建立一
 
 MinGW 后端为全局数据地址生成的 `.rdata$.refptr.*` 指针，与普通 `.rdata` 常量池一起归入所属 callable 的 relocatable constant atom；保留指针 relocation，将 helper 符号本地化并跟随 callable 的 COMDAT 选择，不作为新的公共定义发布。
 
-Windows callable 的 definition atom 新增 unwind table／unwind information 两种 role（编码 10／11）；`.xdata` 内的 unwind header／handler RVA 与后续 LSDA 使用各自不重叠的真实边界。代码、stackmap、SEH、callable／safepoint registration 与 callable 私有常量按 COFF COMDAT association 同步保留／裁剪；Strong 不转为可任意选取的 ODR 定义。已有目标的 atom role 编码不变。Windows personality 的对象符号为 `scoop_eh_personality_seh`，通过同一 target EH requirement 投影选择，普通 Unix personality 符号保持原样。
+Windows callable 的 definition atom 新增 unwind table／unwind information 两种 role（编码 10／11）；`.xdata` 内的 unwind header／handler RVA 与后续 LSDA 使用各自不重叠的真实边界。代码、紧凑 GC 表、SEH、callable／safepoint registration 与 callable 私有常量按 COFF COMDAT association 同步保留／裁剪；Strong 不转为可任意选取的 ODR 定义。已有目标的 atom role 编码不变。Windows personality 的对象符号为 `scoop_eh_personality_seh`，通过同一 target EH requirement 投影选择，普通 Unix personality 符号保持原样。
 
 COFF atom 物化完成后，若关联节先于其所属 COMDAT，则按实际 association 将所属节排在关联节之前，以满足 Microsoft LINK 的输入约束。只调整 section header 顺序与符号／association 中的 section 序号；原 symbol table 序号、relocation 索引、节内容及其文件偏移保持，不重新发射机器代码。已经满足顺序的对象不调整。普通 COFF 与 bigobj 使用各自的 section number 字段宽度，真实关联环或越界按格式错误报告；产物 reader 仍保存最终对象中的实际序号。
 
@@ -635,11 +635,11 @@ ELF atom 边界归一化按每个实际对象建立一次原始符号名到符�
 
 relocation 的 section、atom、offset 和 target 均属于本次实际对象。raw source-native symbol 按 Darwin 添加一个前导下划线、ELF 保持 bytes 的规则正规化。Scoop-owned symbol 从 persistent identity 产生，不用 FQN 或 source 短名回退。
 
-所有 Scoop body、NoGc body、managed adapter、root/init gateway 与 release hook 都有 callable registration。生成 C bridge/trampoline、runtime C 和 ordinary native producer 使用各自实际对象合同。实际保留的 safepoint 与其 owner、role、machine root count、stackmap 完整对应；无 safepoint 的 body 也可合法登记。
+所有 Scoop body、NoGc body、managed adapter、root/init gateway 与 release hook 都有 callable registration；实际有 site 的登记引用运行时规范 2.8 的紧凑 GC 表，没有 site 时为 null。生成 C bridge/trampoline、runtime C 和 ordinary native producer 使用各自实际对象合同。实际保留的 safepoint 与其 owner、role、machine root count、stackmap 完整对应；无 safepoint 的 body 也可合法登记。
 
-runtime 按运行时规范 2.8 在首条 stackmap 合并时一次完成 site 的 owner 与 frame 验证，后续相同 ODR 记录复用结果；该启动优化不改变登记记录、`.slib`、ABI 或各 profile 的生产合同。
+LLVM v3 仅存在于真实机器输入。driver 在现有对象生产边界读取并复用实际 stackmap 结果，将有序根位置转成 4-byte 定长编码，在函数内共享布局，物化 callable 所属的 GC 表 atom 与普通引用，并移除原始 stackmap section。codegen 停止生成独立逐 site registration；实际根数沿已有生产结果传递。原始输入与完成转换的对象由实际输入／输出类型区分，最终产物必须持有完整的空／非空 site 状态。转换只执行一次；重新计算实际变动的对象范围和已有内容指纹，不重跑 LIR 语义／根分析、不在最终链接或 runtime 重新转换。新写入的 section、symbol、relocation、表范围与编码承担必要的对象格式检查，stage 仍只经 IR／meta 通信。
 
-body 的 EH、LSDA、unwind、stackmap、关联常量与私有 Context cells 属于该 body 的同一次物理选择。TD、scan、dispatch、static storage、初始化和六类 registration 满足运行时规范；release hook 为 raw C、nounwind、NoGC，无 managed transition 或 EH/safepoint。
+body 的 EH、LSDA、unwind、紧凑 GC 表、关联常量与私有 Context cells 属于该 body 的同一次物理选择。TD、scan、dispatch、static storage、初始化和五类 registration 满足运行时规范；release hook 为 raw C、nounwind、NoGC，无 managed transition 或 EH/safepoint。
 
 LLVM 在机器发射中由 switch 生成的引用查找表和跳转表同样属于该 callable 的关联常量。AddressTakenConstant／Singleton 描述需要装载期地址重定位的后端常量；ELF 的 .rodata 贡献另用 AddressTakenConstant／BackendReadOnlyData 描述，包含指向本函数代码的相对跳转表。BackendReadOnlyData 是 DefinitionAtomSubkey 的无 payload 变体（wire tag 10），不改变既有子键的编码。两个贡献均在机器发射后按实际对象保留或移除，表内引用沿用普通引用闭合及 fingerprint。ELF 同时识别普通段名及带当前 callable 实际符号后缀的 COMDAT 段名，不把其他函数、字符串或固定宽度 literal 段归入该贡献。Mach-O 的地址表放入只读 __DATA_CONST 段；ELF 分别使用 .data.rel.ro.scoop.constants 与 .rodata.scoop.constants，保留各自权限，并与 callable 一同进行 ODR 选择。它们不获得源码实体身份，不通过忽略 orphan relocation 或关闭 switch 优化绕过对象合同；固定宽度、无引用的数值 literal pool 保持原有按内容表示。
 
@@ -673,7 +673,7 @@ GCLeaf 契约不意味着 pure、readnone、readonly 或 nosync，不能据此�
 
 发布直接接收本次 codegen 与 generated-C 的实际对象、成员分配及生成记录。C bridge 的编译器 profile、源码模板、flags 和 unit 集合不再与自行构造的生产记录重复比对；对象中的 SDK／工具版本也不作为来源证明。所需 section 与符号正常读取，Code 指纹继续消费实际生成记录。删除无生产调用的旧 single-Cone 分级资格流水线；不以另一套 `Verified` 包装保留这些入口。当前完整产物的投影直接采用已有生产计划与实际对象，不深比较它们的副本来证明同源。
 
-同一次对象生产中的定义、stackmap 与 registration 处理共享最初解析的 section、符号及 relocation 信息，直接借用原对象字节；不在每个步骤重新计算整包 SHA-256 来证明字节未变化。registration 直接关联 typed 计划与已有的 definition/member 分配，复用规范化 stackmap 和 canonical ABI；不另查符号表定位内容摘要。body 指纹按已解析的 primary／associated atom、实际 relocation 和该 body 的 stackmap 输入计算；runtime scan 同属 associated atom，不从计划重新生成 scan 字节或遍历闭合证明。runtime 解析实际 stackmap 建立 GC 索引，重复 ODR 记录按实际 PC 与 payload 合并。image 与 root entry 直接使用生成计划；Library／Executable／NativeApp 分支由同一完整枚举表示。归档保留原始对象，不为内容摘要复制、清零、回填或重新解析对象。首次对象格式检查、实际 definition/body 指纹及运行时记录编码继续保留。
+同一次对象生产中的定义、stackmap 与 registration 处理共享最初解析的 section、符号及 relocation 信息，直接借用原对象字节；不在每个步骤重新计算整包 SHA-256 来证明字节未变化。registration 直接关联 typed 计划与已有的 definition/member 分配，复用规范化 stackmap 和 canonical ABI；不另查符号表定位内容摘要。body 指纹按已解析的 primary／associated atom、实际 relocation 和该 body 的 stackmap 输入计算；runtime scan 同属 associated atom，不从计划重新生成 scan 字节或遍历闭合证明。runtime 从 callable 引用的紧凑表建立精确 PC 索引；完整 site identity 的检查由所选物理 body 的 Link 投影完成。image 与 root entry 直接使用生成计划；Library／Executable／NativeApp 分支由同一完整枚举表示。归档保留已完成紧凑 GC 表转换的对象，不为内容摘要复制、清零、回填或重新解析对象。首次对象格式检查、实际 definition/body 指纹及运行时记录编码继续保留。
 
 immortal object 的登记身份与 ODR ABI 直接消费现有登记计划及 canonical shape ABI；RuntimeImage 编码同一计划中的对象大小、对齐与 type registration 引用。不为了取得发布资格再次读取 String payload、重建登记记录、核对指针目标或比较 digest 依赖图。实际对象生成、普通符号引用与 ODR 选择继续使用既有数据。
 
@@ -698,6 +698,8 @@ Mach-O／ELF 对象按实际目标格式读取 section、符号及 relocation，
 
 
 ### 2.6 `.slib` 格式与指纹
+
+紧凑 GC 元数据使用 runtime contract 34／metadata ABI 11。实际受影响的 LIR production、symbol、definition role 与 Link 投影按当前格式直接演进：删除独立 SafepointRegistration，保留完整语义 site 与映射，登记表为五组。最终对象与所属 GC 表由已有 body／Code／Artifact 内容指纹覆盖；RuntimeImage 使用运行时规范 2.8 的五表 v3 编码。backend、runtime 配置及 Code、Artifact、Link 更新键随实际 ABI 变化失效，缓存命中仍先判断更新，不读取对象复核。旧编译器、runtime、系统库与含机器正文的产物配套重建，不保留旧 runtime 解码路径。
 
 `.slib` 是 target-specific、bitwise reproducible 的 self-contained indexed container。容器 schema 与 manifest schema 的格式版本为 6，mangling schema 为 1；persistent identity schema 为 2，HIR／MIR／LIR metadata outer schema 均为 4。函数声明 key 增加规范化条件集合及 companion 存在条件，签名类型增加固定 companion 投影，binder 增加负向接口集合与独立 companion 条件；默认表达式保存依赖 companion 值访问。空集合在 wire 中省略对应字段，解码后仍是完整集合，无条件声明保持原身份。旧产物按格式版本拒绝，重建得到新产物。它不使用外部成员引用或相邻文件 payload。
 
@@ -1187,6 +1189,8 @@ human 诊断采用源码片段展示：先输出 severity、可用的错误代�
 
 ### 2.8 程序链接与最终结果复用
 
+紧凑 GC 表随 callable 的已完成对象直接参与链接。从 LIR foundation 现有 safepoint_sites 与 resolved mappings 向 ProgramLinkProduction 投影按 PersistentCallableBodyId 分组的 `(PersistentSafepointSiteId, SafepointId)`；不增加平行持久身份表。ODR 与可达性选择完成后，只检查所选 body 的实际 site：完整身份与非零 64-bit 映射一致，不同完整 site 不得共用短 ID。未选实现不参与检查，不要求不同优化候选具有同一 site 集。代码、GC 表和 callable 登记同选，独立 helper 沿原规则处理。runtime 不复核完整 site identity 或再建 site-ID 索引。
+
 最终 native 工具链区分 `FinalOutputKind::Executable` 与 `FinalOutputKind::SharedLibrary`，与系统依赖的 `LinkMode::Static`／`Dynamic` 正交。共享库沿用同一目标、对象、native 依赖与 unwind 选择，Linux GNU／musl 的共享库只使用 Dynamic；musl 的默认 Static 仅适用于 executable。共享库不使用 executable 的 PIE、main／wmain CRT 入口或 Windows subsystem 配置。
 
 native-app 的共享库只动态导出 `scoop_app_init`。Darwin 使用 `-dylib` 与显式导出表，install name 默认 `@rpath/<最终输出 basename>`；ELF 使用 `-shared` 与将其余定义局部化的 version script，SONAME 默认最终输出 basename；PE 使用普通 DLL CRT 初始化、显式 `.def` 导出，并产生 Microsoft `.lib` 或 LLVM-MinGW `.dll.a` import library。实际函数表中的内部函数地址不要求导出。Darwin install name 与 ELF SONAME 可由各自的最终链接选项覆盖，不能用于 executable 或其他对象格式；名称不能来自临时 candidate 目录。
@@ -1281,7 +1285,7 @@ native 对象按普通目标工具链输入处理，不按段名、load command 
 
 Darwin 支持 `.o`、`.a`、dylib/framework 与所选 SDK 的系统 providers。普通 load/re-export、真实 install name、target/deployment、symbol kind 和绑定关系参与解析；显式库不能被另一库的同名 export 替代。多个已引入 framework 经 re-export 到达同一最终 provider 和同一原始符号时，默认 namespace 将它们视为一个定义，保留实际选中的装载路径；不同最终定义仍按强弱规则诊断歧义。显式 library 仍只能沿该库自己的导出链绑定。动态库内部的 undefined symbol、two-level／flat namespace 和 weak binding 由实际 loader 按库自身的装载信息处理；reader 不扫描内部导入的 C++ ABI 前缀或 ordinal 来拒绝输入。Scoop 所选 export 的种类、实际 re-export ordinal 和显式库归属仍按本次解析需要处理。`@rpath` 从明确目录解析，实际 LC_RPATH 进入输出和 link plan；依赖中的 `@loader_path` 相对 provider。需要部署布局才能解释的直接 `@loader_path`、`@executable_path` 或未知形式拒绝。
 
-Darwin 使用所选系统 linker、按 native 需求选择的 C／C++ 链接 driver、SDK/deployment 与 libSystem，Level I unwind 经系统正常导出解析；C++ 模式同时使用配套 libc++ 与 C++ ABI 运行库。final-link 不使用 dead_strip、不同 body 的 function ICF、LTO 或 raw 用户 linker options。stackmap relocation 后位于只读 `__DATA_CONST`，采用传统 rebase/bind（no_fixup_chains）格式；普通绑定与随后执行的 weak coalescing 分别解释，允许同一指针对相同符号和 addend 具有这两阶段记录。实际需要的 ad-hoc signing 属于平台装载格式。
+Darwin 使用所选系统 linker、按 native 需求选择的 C／C++ 链接 driver、SDK/deployment 与 libSystem，Level I unwind 经系统正常导出解析；C++ 模式同时使用配套 libc++ 与 C++ ABI 运行库。final-link 不使用 dead_strip、不同 body 的 function ICF、LTO 或 raw 用户 linker options。callable GC 表及其引用位于普通只读 metadata 段，采用传统 rebase/bind（no_fixup_chains）格式；普通绑定与随后执行的 weak coalescing 分别解释，允许同一指针对相同符号和 addend 具有这两阶段记录。实际需要的 ad-hoc signing 属于平台装载格式。
 
 最终 executable 的普通 release 默认清除不再参与动态链接的内部符号；debug 默认保留，`scoop build/run/test/link --keep-symbols` 与独立 `scoop-link --keep-symbols` 显式保留。artifact-only link 默认清除，不通过读取更多 Compile 数据推测生产 profile。未请求独立调试文件时沿用 linker 内裁剪；请求时先保留调试信息完成链接，再按 2.22 生成调试文件、裁剪程序，Darwin 最后重新完成 ad-hoc signing。必要 native 动态导入／导出、GC／stackmap、EH 和登记数据继续保留；不截短持久 ID，也不改变参与链接的 `.slib`／`.o` 符号及定义边界。
 
@@ -1289,13 +1293,13 @@ Darwin 使用所选系统 linker、按 native 需求选择的 C／C++ 链接 dri
 
 Linux 接受 `.o`、`.a`，动态模式另接受 ELF `.so`；framework 与静态程序的动态库需求为错误。用户 `.so` 必须是 DSO，不是 PIE executable 或 linker script。未版本化的源码 extern 只匹配默认导出版本，DT_NEEDED 不等于显式库 re-export；TLS、IFUNC、版本化导入按实际 kind/version 检查。
 
-Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。Linux profile 负责上述 libc／CRT／unwind／系统库、驱动探测及静态／动态缺省策略；选定的输出形态和链接模式再交给不读取 OS、target 或 native environment 的 GNU ELF plan，后者只负责 GNU ELF linker flags、shared／PIE／ET_EXEC 形态、SONAME 以及 metadata/stackmap section script。动态 metadata/stackmap 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。共享该 ELF plan 不表示共享 Linux 的 loader、CRT、系统库或工具发现。
+Linux gnu 默认 dynamic PIE，musl 默认 static ET_EXEC；musl 可显式 dynamic PIE，不支持 glibc static。非 C++ 链接明确选择 CRT、LLVM unwind、libc、libm/线程及算术 builtins；GNU C++ 链接使用配套 libstdc++／C++ ABI 运行库，并统一由配套 libgcc_s 提供 Scoop Level I 与 C++ 所需的 unwind，不再额外链接另一套 LLVM unwind provider。musl 不支持 C++ 模式。Linux profile 负责上述 libc／CRT／unwind／系统库、驱动探测及静态／动态缺省策略；选定的输出形态和链接模式再交给不读取 OS、target 或 native environment 的 GNU ELF plan，后者只负责 GNU ELF linker flags、shared／PIE／ET_EXEC 形态、SONAME 以及 metadata section script。动态 metadata 满足实际 RELRO，静态 musl 的不可变记录位于只读 PT_LOAD；最终文件不得有 text relocation。共享该 ELF plan 不表示共享 Linux 的 loader、CRT、系统库或工具发现。
 
 最终链接按既有选择顺序将对象路径写入临时 response file，正确引用路径中的空白、引号和反斜杠。Linux 由实际 GNU linker 展开对象列表，不能由 C／C++ driver 先展开成再次受系统 argv 长度限制的命令。response file 与链接工作目录只承担工具参数传递，不改变对象选择、输入检查、顺序或 ResolvedLinkPlan 身份，也不开放用户 linker 参数。
 
 DSO 依赖查找使用显式 roots、provider 目录、实际 RPATH/RUNPATH 与所选系统目录。真实 SONAME、DT_NEEDED、加载顺序和 RUNPATH 进入 link plan，临时快照路径不写入 executable 的依赖名；同名导出使实际 ELF 顺序无法满足显式库绑定时报告冲突。
 
-链接生成 `int main(int argc, char **argv)`、最终 image descriptors、六张 producer pointer tables、image pointer array 与唯一 root entry 引用。C main 按运行时规范 2.8 调用 `scoop_rt_run_program(images, image_count, root_entry, (int32_t)argc, (const char *const *)argv, enable_stack_trace)`，末尾常量由 2.21 的链接选项确定。main 原样返回其 C int 结果，不丢弃 argv[0] 或主动截断退出码。这些生成物只引用所选记录，不复制 TD、storage、cell 或 gateway body，也不在 C main 中构造 managed Array/String。`scoop_td_String` 是实际 String TD 的同地址 alias。
+链接生成 `int main(int argc, char **argv)`、最终 image descriptors、五张 producer pointer tables、image pointer array 与唯一 root entry 引用。C main 按运行时规范 2.8 调用 `scoop_rt_run_program(images, image_count, root_entry, (int32_t)argc, (const char *const *)argv, enable_stack_trace)`，末尾常量由 2.21 的链接选项确定。main 原样返回其 C int 结果，不丢弃 argv[0] 或主动截断退出码。这些生成物只引用所选记录，不复制 TD、storage、cell 或 gateway body，也不在 C main 中构造 managed Array/String。`scoop_td_String` 是实际 String TD 的同地址 alias。
 
 native-app 最终链接由 root `.slib` 的完整 entry 分支选择 shared-library profile，生成唯一公开 `scoop_app_init`，内部调用 `scoop_rt_init_native_app(images, image_count, native_app_entry, host_api, out_app_api, out_error, enable_stack_trace)`。默认输出为 Darwin `lib<name>.dylib`、ELF `lib<name>.so`、Windows `<name>.dll`；显式输出名原样保留。`build` 和 artifact-only `link` 共用此路径，`run` 报告需要 native host。`--install-name`／`--soname` 只适用于对应平台的 shared-library profile。Windows import library 和所需调试文件随最终产物一起发布，并作为缓存命中所需输出；新链接的 PE 必须在发布前检查实际 export 恰为 scoop_app_init。更新记录包含输出种类、实际 loader name 与 bootstrap 配置；未变化且输出齐备时直接复用，不读取命中动态库或 import library。
 
@@ -1497,7 +1501,7 @@ persistent mangling schema 为 `persistent-v1`，语义 symbol 为 `scoop$1$<kin
 | DispatchTable | dt | DispatchSlot | ds |
 | InitializationCell | ic | RootRegistration | rr |
 | ImmortalRegistration | ir | InitializationRegistration | nr |
-| TypeRegistration | tr | SafepointRegistration | sr |
+| TypeRegistration | tr | | |
 | CallableRegistration | cr | ImageDescriptor | im |
 | GeneratedBridge | br | OdrMember | od |
 | DefinitionBoundaryStart | bs | DefinitionBoundaryEnd | be |
@@ -1573,7 +1577,7 @@ OdrMemberKey 为 `{1=group, 2=role, 3=typed discriminator}`，`OdrMemberId = H("
 
 ### 2.14 Runtime image 与初始化
 
-runtime metadata ABI 10、runtime ABI contract 32 的字段与启动协议由运行时规范 2.7、2.8、9.2 定义。RootEntry 的物理大小为 128 bytes，旧版 ABI 不可混用。每个 `.slib` 的机器对象保存完整候选 registration，metadata 保存链接所需的 identity 与物理归属；最终 image 表只包含选中的 producer records。
+runtime metadata ABI 11、runtime ABI contract 34 的字段与启动协议由运行时规范 2.7、2.8、9.2 定义。RootEntry 的物理大小为 128 bytes，旧版 ABI 不可混用。每个 `.slib` 的机器对象保存完整候选 registration，metadata 保存链接所需的 identity 与物理归属；最终 image 表只包含选中的 producer records。
 
 image、root entry、main body、root gateway、initializer、ensure、startup gateway 和 release hook 使用各自身份。根、cell、storage 和失败状态完整关联，不以可空函数指针或命名约定推断 unit kind。
 
@@ -1857,27 +1861,27 @@ release 对 typed ArraySet 的 stride 大于 16 bytes、恰有一个 managed lea
 
 依据语言规范 1.2，编译器可以假定普通非原子访问不存在数据竞争，不为竞争场景提供单字或逐字段不撕裂的保证。普通字段、数组元素、全局存储和聚合值复制无需为此改用 LLVM `unordered` 原子 load/store、增加发布屏障或限制访问的机器指令粒度；显式同步原语以及 runtime/GC 内部同步的契约仍须保持。
 
-最终 GC 计划从实际保留的 callable/site 和完整逻辑 managed leaves 得到。普通优化后保留逻辑根身份，标明包含可移动对象的 base phi/select；RS4GC 完成真实下降后，先清理 unreachable 前末尾无使用者的 gc.relocate，再按实际保留的 gc.relocate 引用的不同 derived SSA 值数量生成注册元数据，随后执行机器发射和原 stackmap 格式／根合同检查。此清理只处理终止块中连续的末尾无用 relocation，不重写控制流、不运行 InstCombine、PRE 或代码复制；它使无返回后继的调用后无用 relocation 与机器准备阶段一致。调用实参仍按 ABI 传入，被调用帧负责它实际继续使用的引用；正常返回调用的仅调用期间根和显式 native／EH roots 保持。多个逻辑 leaf 可以对应同一 SSA 值；已知 null／不可移动常量通常不产生 relocation pair，但不能仅按已折叠的逻辑恢复标记提前推算物理根数：共享后继或循环仍可能使原动态 SSA 值跨站点存活。该计数消费实际下降结果，不添加独立的指针活跃性分析或 RS4GC 策略复核器。每个保留 site 具有唯一 owner/role，site identity 不因删除其他 site 而重编号。
+最终 GC 计划从实际保留的 callable/site 和完整逻辑 managed leaves 得到。普通优化后保留逻辑根身份，标明包含可移动对象的 base phi/select；RS4GC 完成真实下降后，先清理 unreachable 前末尾无使用者的 gc.relocate，再按实际保留的 gc.relocate 引用的不同 derived SSA 值数量生成物理根生产记录，随后执行机器发射和原 stackmap 格式／根合同检查。此清理只处理终止块中连续的末尾无用 relocation，不重写控制流、不运行 InstCombine、PRE 或代码复制；它使无返回后继的调用后无用 relocation 与机器准备阶段一致。调用实参仍按 ABI 传入，被调用帧负责它实际继续使用的引用；正常返回调用的仅调用期间根和显式 native／EH roots 保持。多个逻辑 leaf 可以对应同一 SSA 值；已知 null／不可移动常量通常不产生 relocation pair，但不能仅按已折叠的逻辑恢复标记提前推算物理根数：共享后继或循环仍可能使原动态 SSA 值跨站点存活。该计数消费实际下降结果，不添加独立的指针活跃性分析或 RS4GC 策略复核器。每个保留 site 具有唯一 owner/role，site identity 不因删除其他 site 而重编号。
 
 普通优化可删除已经没有后继用途的恢复标记，例如不可能取得正常结果的协程适配入口。仅当保留的调用紧接 unreachable、二者之间没有其他指令时，根身份定稿允许原逻辑 leaf 的标记缺失；仍拒绝额外或重复身份。具有正常返回后继、分支、invoke 异常出口或后续操作的调用继续要求完整恢复。最终物理根数仍由上述 RS4GC 与机器 stackmap 路径取得，不从原始逻辑数量推算，也不为这种终止路径重新插入保活用途。
 
-release 在 roots 定稿前以 MemorySSA 消除跨无写入分支的重复加载，防止同一根槽的两个 SSA 加载直到机器发射时才合并，造成注册计数与 stackmap 不一致。任一路径可能修改该位置时保留独立引用；每个逻辑 leaf 的调用后恢复继续保留，并使用对应的重定位结果。
+release 在 roots 定稿前以 MemorySSA 消除跨无写入分支的重复加载，防止同一根槽的两个 SSA 加载直到机器发射时才合并，造成物理根生产计数与 stackmap 不一致。任一路径可能修改该位置时保留独立引用；每个逻辑 leaf 的调用后恢复继续保留，并使用对应的重定位结果。
 
 全部 profile 在晚期聚合分解后、根身份定稿和 RS4GC 之前，合并同一基本块内等价的指针 PHI／select。PHI 按实际前驱与 incoming value 对应关系比较，select 按条件及两支的值比较，类型与地址空间必须一致；只含同一非自身输入的 PHI 和两支相同的 select 可以直接使用该输入。替换暴露的后续等价合流继续处理，不能把不同路径的对象或复制快照合并。此清理只替换标量值，不改变控制流、site 或逻辑恢复标记，不运行可能将分量重建折回旧聚合的 InstCombine。这样，聚合视图与已有 object 分量共享已证明相同的 SSA 根，不把合并推迟到机器准备阶段；返回、存储和实参仍在使用处从 RS4GC 更新后的分量重建。
 
 GC 转换后每个 post-site managed use 必须来自正确更新的引用；invoke 的 normal/unwind 与 native transition 继续使用各自显式 root frames。不能在 root plan 定稿后增加未经描述的 safepoint、重复 site、外来 owner 或异常边。backend contract field 28 为 1，表示此最终根与发射合同。
 
-ODR 只比较 key 与 shared ABI，按实际需要选择物理 member。body 的机器码、EH、stackmap、callable/safepoint registration、函数私有常量与 Context cells 必须同选；独立 helper 可分别选择。2.10.1 规划的共享常量通过真实引用单独选择，不归入每个 callable materialization 的私有数据组。共享同一完整接口数组的 dispatch definition 也必须同选，重复候选按这组实际物理 definitions 整组复用；不能将父表 alias 与其数组分别选自不同对象。shared TD、storage、cell 与初始化保持唯一，native linker 不得改变已确定选择。
+ODR 只比较 key 与 shared ABI，按实际需要选择物理 member。body 的机器码、EH、紧凑 GC 表、callable registration、函数私有常量与 Context cells 必须同选；独立 helper 可分别选择。2.10.1 规划的共享常量通过真实引用单独选择，不归入每个 callable materialization 的私有数据组。共享同一完整接口数组的 dispatch definition 也必须同选，重复候选按这组实际物理 definitions 整组复用；不能将父表 alias 与其数组分别选自不同对象。shared TD、storage、cell 与初始化保持唯一，native linker 不得改变已确定选择。
 
 program-link 在上述 ODR 选择之后，按已保存的逐物理 member 定义／引用关系裁剪不可达 callable 与类型／shape 元数据，对全部 profile 默认生效。保留 root entry、静态存储及根登记、immortal 及登记、初始化 cell／登记和 generated-C bridge；这些 member 是遍历入口，不以候选 image 的完整登记表、类型或派发表本身作为入口。runtime 的引用、typed runtime data alias 的目标，以及已声明 native 输入中对象的 Scoop 符号引用也作为入口；native archive 的候选引用保守保留对应 Scoop 定义，不因此提前抽取 archive member。沿实际机器符号引用传递保留完整物理 member，包含函数地址、动态派发表、release hook、callback、初始化与跨 Cone 调用。未到达的类型和递归引用环可以整体删除；保留的初始化等记录仍可能使其引用的类型或函数留下。
 
 每个保留的 TypeDescriptor 同时保留同一 exact type 的 TypeRegistration；这条登记关联由已读的 typed entity 与 definition role 建立，ODR 选择后关联实际保留的实现。TD 的父类型、接口、相关类型、布局、scan 和 callable 引用继续按实际符号闭合。不能仅删除仍存活 TD 的登记，不能按名称、布局相同或泛型声明合并不同 exact application。Link 输出直接携带已有定义记录的完整 typed entity，不重新进行语言语义查询。
 
-生产端将普通 Strong 的 TypeDescriptor 与同一 exact type 的 TypeRegistration 合为一个独立物理 member；两者本来就必须同选，不因分组额外保活其他类型。Layout、ScanProgram 和 dispatch 元数据按实际定义独立划分；同一完整接口数组及其父表 alias 必须继续同组。其余静态存储、初始化与 immortal 可保持既有组合。ODR 的独立数据划分及 callable 代码／EH／stackmap／登记／私有常量／Context cells 的同组规则保持。该物理划分适用于全部 profile，不改变静态表内部布局或公开 ABI；已有较粗物理分组的相容输入仍可消费，实际删除粒度以其已有 member 为准。
+生产端将普通 Strong 的 TypeDescriptor 与同一 exact type 的 TypeRegistration 合为一个独立物理 member；两者本来就必须同选，不因分组额外保活其他类型。Layout、ScanProgram 和 dispatch 元数据按实际定义独立划分；同一完整接口数组及其父表 alias 必须继续同组。其余静态存储、初始化与 immortal 可保持既有组合。ODR 的独立数据划分及 callable 代码／EH／紧凑 GC 表／登记／私有常量／Context cells 的同组规则保持。该物理划分适用于全部 profile，不改变静态表内部布局或公开 ABI；已有较粗物理分组的相容输入仍可消费，实际删除粒度以其已有 member 为准。
 
 该选择复用 Link 输入中已有的符号、实体与物理成员数据，不重新读取机器对象或重建语言调用图，不改变源码可见性、类型检查、native 声明合同和 ABI。不可达物理 member 的内容与登记一起退出最终链接；静态存储、初始化与 immortal 的进一步裁剪不属于本次选择。输入 `.slib` 继续保存可供其他 consumer 使用的完整候选，消费 `link-identity-closure/20` 的分组符号使用表，不新增可达性 wire 字段；机器对象与实际分组变化正常进入原有内容指纹。所有 profile 统一使用前述完整符号使用表及相同布局。
 
-最终 image descriptors 和六张表由 program-link 从所选 records 生成，不改写输入 `.slib`。选择与实际内容进入 RuntimeImage、Code、Artifact 和 ResolvedLinkPlan 的对应摘要。
+最终 image descriptors 和五张表由 program-link 从所选 records 生成，不改写输入 `.slib`。选择与实际内容进入 RuntimeImage、Code、Artifact 和 ResolvedLinkPlan 的对应摘要。
 
 OptimizationMode 在 machine request field 9 中编码 Debug=1、Release=2；生产端 Code 输入继续保存模式，production section 不再复制该值；compile cache domain 为 `scoop-cone-compile-cache-v2`，mode 位于 field 13。generated-C flag 的 SelectedOptimization tag 为 15，tag 6 保留不用。
 
