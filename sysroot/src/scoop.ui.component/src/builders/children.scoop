@@ -129,8 +129,12 @@ public open class ChildrenBuilder internal constructor() {
         add(makeVirtualList(source, itemExtent, configure))
     }
 
-    public fun portal(content: View, configure: PortalBuilder.() -> Unit = {}): Unit {
-        add(makePortal(content, configure))
+    public fun portal(
+        open: Binding<Boolean>,
+        content: View,
+        configure: PortalBuilder.() -> Unit = {}
+    ): Unit {
+        add(makePortal(open, content, configure))
     }
 
     public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): Unit {

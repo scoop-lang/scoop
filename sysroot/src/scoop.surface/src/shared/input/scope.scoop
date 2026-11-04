@@ -129,6 +129,7 @@ public class InputScope internal constructor(
         closed = true
         retireDefaultActions()
         owner.retireActivity(this)
+        owner.retirePointerObservers(this)
         owner.detached(this)
     }
 }

@@ -11,6 +11,8 @@ internal class OverlayFrame {
 internal class OverlayController(private val root: UiRoot): Closeable {
     private val sessions = ArrayList<PortalInstance>()
     private val modals = ArrayList<ModalSession>()
+    private val retiring = ArrayList<PortalInstance>()
+    private var stopped = false
     private var registration: Closeable? = None
     var frame = OverlayFrame()
 
@@ -29,30 +31,43 @@ internal class OverlayController(private val root: UiRoot): Closeable {
     fun add(value: PortalInstance) {
         sessions.add(value)
         value.domain = containingModal(value.node.parent)
+    }
+    fun open(value: PortalInstance, reopening: Boolean = false) {
+        if (!reopening) {
+            removeSession(value)
+            sessions.add(value)
+        }
         when (value.options.modal) {
-            case Some(options) -> {
-                val modal = ModalSession(value, options, currentModal)
-                value.modal = Some(modal)
-                value.domain = Some(modal)
-                if (root.isOpen) {
-                    modals.add(modal)
-                    when (value.retirementRevision) {
-                        case Some(revision) -> modal.beginClose(revision)
-                        case None -> {}
-                    }
-                } else
-                    modal.boundary.close()
+            case Some(options) -> when (value.modal) {
+                case Some(_) -> {}
+                case None -> {
+                    val modal = ModalSession(value, options, currentModal)
+                    value.modal = Some(modal)
+                    value.domain = Some(modal)
+                    if (root.isOpen) {
+                        modals.add(modal)
+                        when (value.retirementRevision) {
+                            case Some(revision) -> modal.beginClose(revision)
+                            case None -> {}
+                        }
+                    } else
+                        modal.finish()
+                }
             }
-            case None -> {}
+            case None -> value.domain = containingModal(value.node.parent)
         }
     }
-    fun remove(value: PortalInstance) {
-        for (index in 0L ..< sessions.size) {
+    fun remove(value: PortalInstance, pending: Boolean) {
+        removeSession(value)
+        if (pending)
+            retiring.add(value)
+    }
+    private fun removeSession(value: PortalInstance) {
+        for (index in 0L ..< sessions.size)
             if (sessions[index] === value) {
-                sessions.removeAt(index)
+                sessions.removeAt(index);
                 return
             }
-        }
     }
     fun beginFrame() {
         frame = OverlayFrame()
@@ -76,7 +91,7 @@ internal class OverlayController(private val root: UiRoot): Closeable {
     private fun paintDomain(domain: ModalSession?, context: FrameContext) {
         for (portal in sessions) {
             val included = portal.included ?: continue
-            if (!portal.isOpen || included !== frame || !sameModal(portal.domain, domain))
+            if (!portal.isPresent || included !== frame || !sameModal(portal.domain, domain))
                 continue
             val anchor =
                 when (portal.anchor) {
@@ -109,9 +124,10 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             val child = portal.node.children[0L]
             val metrics = child.measure(plan.constraints, context.time)
             child.finishMeasurement()
-            val layout = plan.layout(metrics.size)
+            val layout = plan.layout(metrics.size, portal.snapshot)
             portal.modal?.place(context)
             child.scene(context, Point(layout.bounds.x, layout.bounds.y), Some(layout))
+            portal.presented = Some(frame)
             when (portal.modal) {
                 case Some(modal) -> modal.presented = Some(frame)
                 case None -> {}
@@ -127,7 +143,8 @@ internal class OverlayController(private val root: UiRoot): Closeable {
         var failure: Throwable? = None
         for (portal in unavailable) {
             if (portal.isOpen)
-                failure = cleanupUi(failure) { portal.close(OverlayCloseReason.AnchorUnavailable) }
+                failure =
+                    cleanupUi(failure) { portal.forceClose(OverlayCloseReason.AnchorUnavailable) }
         }
         val previous = root.surface.inputBoundary
         var restore: ModalSession? = None
@@ -139,16 +156,27 @@ internal class OverlayController(private val root: UiRoot): Closeable {
             if (modal.isClosing && !modal.wasPresented(completed)) {
                 if (sameInputBoundary(previous, Some(modal.boundary)))
                     restore = Some(modal)
-                failure = cleanupUi(failure) { modal.boundary.close() }
+                failure = cleanupUi(failure) { modal.finish() }
                 removeModal(modal)
             }
         }
-        throwUi(failure)
+        val restoreTarget = restore
         if (root.isOpen)
-            restore?.restore()
+            failure = cleanupUi(failure) { restoreTarget?.restore() }
+        for (portal in sessions.toArray())
+            if (root.isOpen)
+                failure = cleanupUi(failure) { portal.complete(completed) }
+        val pending = retiring.toArray()
+        retiring.clear()
+        for (portal in pending) {
+            failure = cleanupUi(failure) { portal.complete(completed) }
+            if (portal.hasPendingClose)
+                retiring.add(portal)
+        }
         for (modal in modals.toArray())
             if (root.isOpen)
-                modal.complete(completed)
+                failure = cleanupUi(failure) { modal.complete(completed) }
+        throwUi(failure)
     }
     private fun removeModal(value: ModalSession) {
         for (index in 0L ..< modals.size)
@@ -157,19 +185,34 @@ internal class OverlayController(private val root: UiRoot): Closeable {
                 return
             }
     }
-    public override fun close() {
+    fun stop() {
+        if (stopped)
+            return
+        stopped = true
+        var failure = cleanupUi(None) { registration?.close() }
+        registration = None
+        for (portal in sessions.toArray())
+            failure = cleanupUi(failure) { portal.forceClose(OverlayCloseReason.OwnerClosed) }
         val work = modals.toArray()
         modals.clear()
-        sessions.clear()
-        var failure: Throwable? = None
-        failure = cleanupUi(failure) { registration?.close() }
-        registration = None
         var index = work.size
         while (index > 0L) {
             index -= 1L
             val modal = work[index]
-            failure = cleanupUi(failure) { modal.boundary.close() }
+            failure = cleanupUi(failure) { modal.finish() }
         }
+        throwUi(failure)
+    }
+    public override fun close() {
+        var failure = cleanupUi(None) { stop() }
+        val live = sessions.toArray()
+        val retired = retiring.toArray()
+        sessions.clear()
+        retiring.clear()
+        for (portal in live)
+            failure = cleanupUi(failure) { portal.completeClose() }
+        for (portal in retired)
+            failure = cleanupUi(failure) { portal.completeClose() }
         throwUi(failure)
     }
 

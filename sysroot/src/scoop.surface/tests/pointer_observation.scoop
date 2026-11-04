@@ -1,0 +1,79 @@
+package scoop.surface
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.window.*
+
+@Test
+private class PointerObservationTest {
+    @Test
+    fun `window observations include blank space leave and focus loss after routed delivery`() {
+        InputRig().use {
+            rig ->
+            val trace = ArrayList<String>()
+            val area = rig.area("target")
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 40.0, 30.0)) }
+            rig.router.rootScope.captureHandler =
+                {
+                    context, _ ->
+                    trace.add("capture");
+                    context.consume()
+                }
+            rig.router.rootScope.observePointer {
+                event -> trace.add(
+                    when (event) {
+                        case Pointer(PointerEvent.Moved(_)) -> "move"
+                        case Pointer(PointerEvent.Left(_)) -> "leave"
+                        case FocusLost -> "blur"
+                        case Closed -> "close"
+                        else -> "other"
+                    }
+                )
+            }
+            rig.move(10.0, 10.0)
+            rig.move(200.0, 150.0)
+            rig.pointer(PointerEvent.Left(inputPointer(300.0, 150.0)))
+            rig.router.event(WindowEvent.Focused(false))
+            rig.router.close()
+            assertEquals(6L, trace.size)
+            for (index in 0L ..< trace.size)
+                assertEquals(
+                    ["capture", "move", "move", "leave", "blur", "close"][index],
+                    trace[index]
+                )
+        }
+    }
+    @Test
+    fun `observer snapshots retire independently and one failure does not skip later observers`() {
+        InputRig().use {
+            rig ->
+            val trace = ArrayList<Int>()
+            val scope = rig.router.createScope(None, { _, _ -> Unit })
+            val first =
+                scope.observePointer {
+                    event -> when (event) {
+                        case Pointer(PointerEvent.Moved(_)) -> {
+                            trace.add(1)
+                            scope.observePointer { _ -> trace.add(3) }
+                            throw IllegalStateException(Some("expected observer failure"))
+                        }
+                        else -> {}
+                    }
+                }
+            scope.observePointer { _ -> trace.add(2) }
+            assertFailsWith<IllegalStateException> { rig.move(200.0, 150.0) }
+            assertEquals(2L, trace.size)
+            assertEquals(1, trace[0L])
+            assertEquals(2, trace[1L])
+            first.close()
+            rig.pointer(PointerEvent.Left(inputPointer(300.0, 150.0)))
+            assertEquals(4L, trace.size)
+            assertEquals(2, trace[2L])
+            assertEquals(3, trace[3L])
+            scope.close()
+            assertEquals(0L, rig.router.pointerObservers.size)
+            rig.router.close()
+            assertEquals(4L, trace.size)
+        }
+    }
+}

@@ -24,10 +24,14 @@ public class View internal constructor(internal val key: ViewKey, internal val b
 public fun empty(): View = View(ViewKey.Position, ViewBody.Empty)
 
 /** Keeps logical ownership while presenting one child in the window's layer outlet. */
-public fun portal(content: View, configure: PortalBuilder.() -> Unit = {}): View {
+public fun portal(
+    open: Binding<Boolean>,
+    content: View,
+    configure: PortalBuilder.() -> Unit = {}
+): View {
     val builder = PortalBuilder()
     builder.configure()
-    return View(builder.key, ViewBody.Portal(content, builder.snapshot()))
+    return View(builder.key, ViewBody.Portal(content, open, builder.snapshot()))
 }
 
 public fun <C: Component> component(create: () -> C, key: ViewKey = ViewKey.Position): View =
@@ -54,10 +58,11 @@ public fun <P, E: Element> element(
 
 internal enum ViewBody {
     Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>),
-    Portal(View, PortalOptions), Lazy(LazyDescriptionBase, ItemSource, Long), Direction(
-        View,
-        LayoutDirection
-    )
+    Portal(View, Binding<Boolean>, PortalOptions), Lazy(
+        LazyDescriptionBase,
+        ItemSource,
+        Long
+    ), Direction(View, LayoutDirection)
 }
 
 internal enum ViewShape {
@@ -71,7 +76,7 @@ internal val View.shape: ViewShape get() =
         case Direction(_, _) -> ViewShape.Direction
         case Component(value) -> value.shape
         case Element(value, _) -> value.shape
-        case Portal(_, options) -> ViewShape.Portal(options.isModal)
+        case Portal(_, _, options) -> ViewShape.Portal(options.isModal)
         case Lazy(value, _, _) -> value.shape
     }
 

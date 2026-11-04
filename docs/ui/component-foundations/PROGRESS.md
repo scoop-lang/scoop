@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，当前进行 I2。
+日期：2026-11-04。状态：实施中，当前进行 T1。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -13,8 +13,8 @@
 | L1 布局协议与空间分配 | 已完成 |
 | L2 方向、Wrap 和 Grid | 已完成 |
 | I1 公共激活与拖动 | 已完成 |
-| I2 弹层、候选项和悬浮 | 实施中 |
-| T1 编辑事务策略 | 待实施 |
+| I2 弹层、候选项和悬浮 | 已完成 |
+| T1 编辑事务策略 | 实施中 |
 | T2 文本投影与选择 | 待实施 |
 | V1 装饰与图像 | 待实施 |
 | S1 阅读位置与滚动意图 | 待实施 |
@@ -73,3 +73,13 @@
 - aarch64 macOS release：surface、ui、style、三套主题及 component 共 7 个受影响生产库构建成功，Scoop 格式化、7 个相关 Cone 的 tests 类型检查、文档本地链接及 diff 检查通过。
 - 14 项定向测试全部通过：Surface claim／订阅 5 项，范围／尺寸／吸附 5 项，builder 1 项，真实 Press／Drag、控件和滚动条组合各 1 项。组合覆盖 disabled、键位修饰与 repeat、被阻止的释放、阈值和轴向拒绝、已提交变换、重复／倒退时间戳、显式取消、同步关闭窗口，以及自定义 Button 子树与六种主题状态。类型检查发现的 Option 比较及旧快捷键 import、控件首次 render 早于 onMount 的失败均已修正；修正后只复验受影响的控件组合，没有重跑已通过且未改动的部分。
 - 清理本项独立检查锁文件和已使用的交互草稿，保留后续会复用的产物、Cone cache 及 I2 草稿。Windows／Linux 和 x86_64 仍未在本项验收。
+
+## I2：弹层、候选项和悬浮
+
+- Surface 增加 scope 所有的窗口指针观察，正常路由完成后仍覆盖空白区域、已消费事件及窗口失焦／关闭；按事件开始时快照交付，订阅可独立关闭。
+- UI 增加受控 portal open Binding、可拒绝关闭请求、有限 Presence 和 Accepted 后的 onClosed。退出立即停用输入并保留同一子树，模态屏障直到成功移除帧才释放；退出中重开保留实例，关闭回调中的较新焦点意图不被恢复覆盖。点位弹层使用逻辑窗口坐标，无需伪造 LayoutAnchor。
+- ActiveItems 将活动候选与真实焦点分开，复用已有方向／网格导航并按稳定 key 显露；Typeahead 使用 Unicode 查询和 scope deadline。Hover 共享触发区与逻辑后代内容区，提供延迟、有限三角走廊及窗口终端取消。现有 portal API、builder 和 UI／Component 调用方已统一迁移。
+- aarch64 macOS release：surface、ui、style、三套主题及 component 共 7 个生产库构建成功；修改源码格式化、相关 Cone 类型检查、文档本地链接和 diff 检查通过。
+- 16 项定向测试全部通过：Surface 观察 2 项、UI 公共交互／弹层定位 10 项及 modal／overlay／errors／新增组合各 1 项。窗口组合覆盖关闭拒绝与忽略 setter、退出重开、隐藏后的 Accepted 屏障、owner 退休、跨间隙悬浮、1,000 项候选的显露与重排、Unicode 查询及同一编辑焦点／IME 连接，最后在绘制借用中关闭 UI 并验证资源延后释放。
+- 本批发现并修正了关闭回调的焦点检查点、已关闭动画的强制收尾和绘制中退休的求值边界。测试中等待 Accepted 的嵌套 Option 判断及最后窗口退出策略也已修正；修正后只复验受影响的窗口组合，没有重跑已通过的其他批次。无未闭合失败。
+- 清理本项独立检查锁文件、使用完的草稿和诊断输出，保留复用的生产／测试产物、共享 Cone cache 及 T1 草稿。Windows／Linux 与 x86_64 均未在本项验收。

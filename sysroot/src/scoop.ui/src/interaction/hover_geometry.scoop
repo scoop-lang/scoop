@@ -1,0 +1,63 @@
+package scoop.ui
+
+import scoop.graphics.*
+
+/** A bounded triangle from the departure point to the destination's facing edge. */
+internal fun hoverTransit(
+    start: Point,
+    previous: Point,
+    point: Point,
+    bounds: Rect,
+    padding: Double
+): Boolean {
+    val target = Point(bounds.x + bounds.width / 2.0, bounds.y + bounds.height / 2.0)
+    val dx = target.x - start.x
+    val dy = target.y - start.y
+    val px = point.x - previous.x
+    val py = point.y - previous.y
+    if (px * dx + py * dy < 0.0)
+        return false
+    val horizontal = absHover(dx) >= absHover(dy)
+    val a =
+        if (horizontal)
+            Point(
+                if (dx >= 0.0)
+                    bounds.x - padding
+                else
+                    bounds.x + bounds.width + padding,
+                bounds.y - padding
+            )
+        else
+            Point(
+                bounds.x - padding,
+                if (dy >= 0.0)
+                    bounds.y - padding
+                else
+                    bounds.y + bounds.height + padding
+            )
+    val b =
+        if (horizontal)
+            Point(a.x, bounds.y + bounds.height + padding)
+        else
+            Point(bounds.x + bounds.width + padding, a.y)
+    if (
+        (point.x >= bounds.x - padding && point.x <= bounds.x + bounds.width + padding) &&
+            (point.y >= bounds.y - padding && point.y <= bounds.y + bounds.height + padding)
+    )
+        return true
+    val one = hoverCross(start, a, point)
+    val two = hoverCross(a, b, point)
+    val three = hoverCross(b, start, point)
+    if (!one.isFinite() || !two.isFinite() || !three.isFinite())
+        return false
+    return (one >= 0.0 && two >= 0.0 && three >= 0.0) || (one <= 0.0 && two <= 0.0 && three <= 0.0)
+}
+
+private fun hoverCross(a: Point, b: Point, point: Point): Double =
+    (b.x - a.x) * (point.y - a.y) - (b.y - a.y) * (point.x - a.x)
+
+private fun absHover(value: Double): Double =
+    if (value < 0.0)
+        -value
+    else
+        value

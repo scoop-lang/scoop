@@ -72,7 +72,7 @@ internal class MountedNode(
             case(Direction, Direction(_, _)) -> {}
             case(Component(instance), Component(description)) -> instance.replace(description)
             case(Element(instance), Element(description, _)) -> instance.replace(description)
-            case(Portal(instance), Portal(_, options)) -> instance.replace(options)
+            case(Portal(instance), Portal(_, open, options)) -> instance.replace(open, options)
             case(Lazy(instance, _), Lazy(description, _, _)) -> instance.replace(description)
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
@@ -97,13 +97,7 @@ internal class MountedNode(
                 )
             }
             case Portal(instance) -> when (view.body) {
-                case Portal(content, _) -> reconcile(
-                    if (instance.closeReason == None)
-                        [content]
-                    else
-                        [],
-                    turn
-                )
+                case Portal(content, _, _) -> instance.prepare(this, content, turn)
                 else -> throw IllegalStateException(
                     Some("portal description was replaced by another shape")
                 )

@@ -122,11 +122,13 @@ internal class UiRoot(
         isOpen = false
         pending.clear()
         completions.clear()
-        var failure: Throwable? = None
-        failure = cleanupUi(failure) { focus.close() }
-        failure = cleanupUi(failure) { node?.deactivate() }
-        failure = cleanupUi(failure) { overlays.close() }
-        throwUi(failure)
+        prepareUi {
+            var failure: Throwable? = None
+            failure = cleanupUi(failure) { focus.close() }
+            failure = cleanupUi(failure) { node?.deactivate() }
+            failure = cleanupUi(failure) { overlays.stop() }
+            throwUi(failure)
+        }
     }
     fun requestClose() {
         checkThread()
@@ -154,6 +156,7 @@ internal class UiRoot(
             case Some(value) -> failure = cleanupUi(failure) { value.unmount() }
             case None -> {}
         }
+        failure = cleanupUi(failure) { overlays.close() }
         host.detached(this)
         throwUi(failure)
     }

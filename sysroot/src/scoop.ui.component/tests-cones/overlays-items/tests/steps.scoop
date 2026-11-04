@@ -1,0 +1,277 @@
+package scoop.tests.ui.overlaysitems
+
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun InteractionProbe.advance(active: ActiveApplication) {
+    if (phase < 10)
+        advancePresence()
+    else
+        if (phase < 30)
+            advanceHover(active)
+        else
+            advanceItems(active)
+}
+
+private fun InteractionProbe.advancePresence() {
+    when (phase) {
+        case 0 -> {
+            if (committedGroup != 0 || !window!!.isFocused)
+                return
+            assertEquals(0, popupMounts)
+            assertFalse(overlay.isOpen)
+            assertTrue(backgroundFocus.requestFocus())
+            open.value = true
+            phase = 1
+        }
+        case 1 -> {
+            if (!popupFocus.hasFocus || presence?.phase == None)
+                return
+            allowClose = false
+            overlay.requestClose()
+            assertEquals(1, requests)
+            assertEquals(0, writes)
+            assertTrue(overlay.isOpen)
+            allowClose = true
+            acceptSetter = false
+            overlay.requestClose()
+            assertEquals(2, requests)
+            assertEquals(1, writes)
+            assertTrue(open.value)
+            assertTrue(popup!!.scope.isInputAllowed)
+            acceptSetter = true
+            overlay.requestClose()
+            assertEquals(3, requests)
+            assertFalse(open.value)
+            phase = 2
+        }
+        case 2 -> {
+            if (presence?.phase != Some(PresencePhase.Exiting))
+                return
+            assertEquals(1, popupMounts)
+            assertEquals(0, popupUnmounts)
+            assertFalse(popup!!.scope.isInputAllowed)
+            assertFalse(background!!.scope.isInputAllowed)
+            open.value = true
+            phase = 3
+        }
+        case 3 -> {
+            if (!overlay.isOpen || !popup!!.scope.isInputAllowed || presence?.phase == None)
+                return
+            assertEquals(1, popupMounts)
+            assertEquals(0, closedCount)
+            assertTrue(popupFocus.requestFocus())
+            open.value = false
+            window!!.setVisible(false)
+            pause(160L, 4)
+        }
+        case 4 -> {
+            assertFalse(window!!.isVisible)
+            assertEquals(1, popupUnmounts)
+            assertEquals(0, closedCount)
+            assertFalse(background!!.scope.isInputAllowed)
+            window!!.setVisible(true)
+            window!!.requestFocus()
+            phase = 5
+        }
+        case 5 -> {
+            if (closedCount != 1 || presence?.phase != None || !window!!.isFocused)
+                return
+            assertTrue(background!!.scope.isInputAllowed)
+            assertTrue(backgroundFocus.hasFocus)
+            assertEquals(Some(OverlayCloseReason.Explicit), lastClose)
+            assertEquals(3, requests)
+            assertEquals(2, writes)
+            open.value = true
+            phase = 6
+        }
+        case 6 -> {
+            if (popupMounts != 2 || !popupFocus.hasFocus || presence?.phase == None)
+                return
+            group.value = 1
+            phase = 10
+        }
+        else -> fail(Some("unexpected presence phase"))
+    }
+}
+
+private fun InteractionProbe.advanceHover(active: ActiveApplication) {
+    when (phase) {
+        case 10 -> {
+            if (committedGroup != 1 || closedCount != 2)
+                return
+            assertEquals(Some(OverlayCloseReason.OwnerClosed), lastClose)
+            assertTrue(hoverTrigger!!.scope.isInputAllowed)
+            move(active, 170.0, 115.0, 11)
+        }
+        case 11 -> {
+            val content = hoverContent ?: return
+            if (!hoverLayer.isOpen || content.windowBounds == None)
+                return
+            move(active, 200.0, 115.0, 12)
+        }
+        case 12 -> pause(80L, 13)
+        case 13 -> {
+            assertTrue(hoverOpen.value)
+            assertTrue(hover!!.isPending)
+            move(active, 230.0, 120.0, 14)
+        }
+        case 14 -> {
+            assertTrue(hoverOpen.value)
+            assertFalse(hover!!.isPending)
+            pause(190L, 15)
+        }
+        case 15 -> {
+            assertTrue(hoverOpen.value)
+            move(active, 150.0, 50.0, 16)
+        }
+        case 16 -> move(active, 170.0, 115.0, 17)
+        case 17 -> {
+            assertTrue(hoverOpen.value)
+            assertFalse(hover!!.isPending)
+            leave(active)
+            assertFalse(hoverOpen.value)
+            pause(70L, 18)
+        }
+        case 18 -> {
+            if (hoverLayer.isOpen || hoverClosed == 0)
+                return
+            assertFalse(hover!!.isPending)
+            move(active, 170.0, 115.0, 19)
+        }
+        case 19 -> {
+            val content = hoverContent ?: return
+            if (!hoverLayer.isOpen || content.windowBounds == None)
+                return
+            move(active, 150.0, 50.0, 20)
+        }
+        case 20 -> {
+            if (hoverOpen.value || hoverClosed < 2)
+                return
+            group.value = 2
+            phase = 30
+        }
+        else -> fail(Some("unexpected hover phase"))
+    }
+}
+
+private fun InteractionProbe.assertEditorOwner() {
+    assertTrue(editorFocus.hasFocus)
+    assertEquals(1, imeStarts)
+    assertEquals(0, imeStops)
+    assertEquals(originalConnection, connection)
+}
+
+private fun InteractionProbe.advanceItems(application: ActiveApplication) {
+    when (phase) {
+        case 30 -> {
+            if (committedGroup != 2 || !list.isAttached)
+                return
+            assertTrue(hover!!.isClosed)
+            assertTrue(editorFocus.requestFocus())
+            phase = 31
+        }
+        case 31 -> {
+            if (
+                !editorFocus.hasFocus ||
+                    imeStarts ==
+                    0 ||
+                    editorHost!!.area.visibleCaretBounds ==
+                    None
+            )
+                return
+            originalConnection = connection
+            assertTrue(connection != None)
+            key(application, 125, 32)
+        }
+        case 32 -> {
+            if (active.value != Some(ViewKey.Number(0L)))
+                return
+            assertEditorOwner()
+            key(application, 125, 33)
+        }
+        case 33 -> {
+            if (active.value != Some(ViewKey.Number(2L)))
+                return
+            assertEditorOwner()
+            assertTrue(source.value.builds < 40)
+            acceptActive = false
+            val revision = scroll.requestRevision
+            assertFalse(navigation!!.setActive(Some(ViewKey.Number(500L))))
+            assertEquals(revision, scroll.requestRevision)
+            assertEquals(Some(ViewKey.Number(2L)), active.value)
+            acceptActive = true
+            assertTrue(view!!.preedit())
+            phase = 34
+        }
+        case 34 -> {
+            if (!editor.isComposing)
+                return
+            assertEditorOwner()
+            assertTrue(navigation!!.setActive(Some(ViewKey.Number(500L))))
+            phase = 35
+        }
+        case 35 -> {
+            if (list.isPending || scroll.offset.y < 1000.0)
+                return
+            assertEditorOwner()
+            assertTrue(editor.isComposing)
+            assertEquals(Some(ViewKey.Number(500L)), active.value)
+            assertTrue(source.value.builds < 60)
+            assertTrue(view!!.commitText())
+            phase = 36
+        }
+        case 36 -> {
+            if (editor.isComposing)
+                return
+            assertEditorOwner()
+            source.value = NavigationRows([500L, 0L, 2L, 3L], fonts)
+            phase = 37
+        }
+        case 37 -> {
+            if (list.isPending || scroll.content.height > 200.0)
+                return
+            assertEquals(Some(ViewKey.Number(500L)), active.value)
+            assertTrue(search!!.push("é"))
+            assertEquals(Some(ViewKey.Number(2L)), active.value)
+            assertTrue(search!!.push("é"))
+            assertEquals(Some(ViewKey.Number(3L)), active.value)
+            assertEquals("é", search!!.query)
+            pause(110L, 38)
+        }
+        case 38 -> {
+            assertEquals("", search!!.query)
+            assertFalse(search!!.isPending)
+            source.value = NavigationRows([500L, 3L, 2L, 0L], fonts)
+            phase = 39
+        }
+        case 39 -> {
+            if (list.isPending)
+                return
+            assertEquals(Some(ViewKey.Number(3L)), active.value)
+            assertTrue(search!!.push("é"))
+            source.value = NavigationRows([5L, 6L], fonts)
+            phase = 40
+        }
+        case 40 -> {
+            if (active.value != None || list.isPending || search!!.isPending)
+                return
+            assertEquals("", search!!.query)
+            assertEditorOwner()
+            pause(100L, 41)
+        }
+        case 41 -> {
+            quietFrames = frames;
+            pause(150L, 42)
+        }
+        case 42 -> {
+            assertEquals(quietFrames, frames)
+            waiting = true
+            closeDuringDraw = true
+            window!!.requestRedraw()
+        }
+        else -> fail(Some("unexpected active item phase"))
+    }
+}

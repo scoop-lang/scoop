@@ -6,28 +6,28 @@ import scoop.ui.*
 
 internal fun relationProbes(probe: OverlayProbe): Array<View> =
     [
-        portal(element({ RelationAnchor(probe, probe.selfAnchor, true) })) {
+        portal(state(true).binding(), element({ RelationAnchor(probe, probe.selfAnchor, true) })) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.selfAnchor)
                 this.anchorVisibility = AnchorVisibility.Hide
             }
             this.key = ViewKey.Text("self")
         },
-        portal(element({ RelationAnchor(probe, probe.cycleA, false) })) {
+        portal(state(true).binding(), element({ RelationAnchor(probe, probe.cycleA, false) })) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.cycleB)
                 this.anchorVisibility = AnchorVisibility.Hide
             }
             this.key = ViewKey.Text("cycle-a")
         },
-        portal(element({ RelationAnchor(probe, probe.cycleB, true) })) {
+        portal(state(true).binding(), element({ RelationAnchor(probe, probe.cycleB, true) })) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.cycleA)
                 this.anchorVisibility = AnchorVisibility.Hide
             }
             this.key = ViewKey.Text("cycle-b")
         },
-        portal(empty()) {
+        portal(state(true).binding(), empty()) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.foreignAnchor)
                 this.anchorVisibility = AnchorVisibility.Hide

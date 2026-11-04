@@ -1,0 +1,204 @@
+package scoop.ui
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.text.startsWith
+import scoop.time.Duration
+import scoop.window.*
+
+public class TypeaheadOptions public constructor(
+    public val timeout: Duration = Duration.milliseconds(700L),
+    public val enabled: Boolean = true,
+    public val keyboard: Boolean = true,
+    public val matches: (String, String) -> Boolean = { text, query -> text.startsWith(query) }
+) {
+    init {
+        requireUi(timeout > Duration.ZERO, "typeahead timeout must be positive")
+    }
+}
+
+/** Unicode text buffering for non-editing lists; matching policy belongs to the caller. */
+public class Typeahead internal constructor(
+    private val scope: ComponentScope,
+    private var source: NavigationSource,
+    private var currentKey: () -> ViewKey?,
+    private var matched: (ViewKey) -> Unit,
+    private var options: TypeaheadOptions
+): Closeable {
+    private val input = scope.input
+    private var closed = false
+    private val buffer = state("")
+    private var single = ""
+    private var observation: Closeable? = None
+    private val timer = scope.nativeWindow.createDeadline { clear() }
+    private val defaults = input.addDefaultAction { context, event -> handle(context, event) }
+    private val activity =
+        input.observeActivity {
+            if (!input.activity.hasFocus)
+                clear()
+        }
+
+    public val isClosed: Boolean get() {
+        val mounted = scope.isMounted;
+        return closed || !mounted || input.isClosed
+    }
+    public val query: String get() = buffer.value
+    public val isPending: Boolean get() = timer.isScheduled
+
+    public fun update(
+        source: NavigationSource,
+        currentKey: () -> ViewKey?,
+        onMatch: (ViewKey) -> Unit,
+        options: TypeaheadOptions? = None
+    ) {
+        checkOpen()
+        requireUi(source.count >= 0L, "negative navigation source count")
+        val next = options ?: this.options
+        if (this.source !== source || !next.enabled)
+            clear()
+        this.source = source
+        this.currentKey = currentKey
+        matched = onMatch
+        this.options = next
+    }
+    public fun clear() {
+        checkOverlayMutation()
+        timer.cancel()
+        observation?.close()
+        observation = None
+        if (buffer.value != "")
+            buffer.value = ""
+        single = ""
+    }
+    public fun push(text: String): Boolean {
+        checkOpen()
+        if (!options.enabled || text == "")
+            return false
+        requireUi(source.count >= 0L, "negative navigation source count")
+        val repeated = single == text && buffer.value == text
+        val query =
+            if (repeated)
+                text
+            else
+                buffer.value + text
+        if (buffer.value == "")
+            single = text
+        else
+            if (!repeated)
+                single = ""
+        buffer.value = query
+        timer.schedule(MonotonicTimeSource.markNow() + options.timeout)
+        when (observation) {
+            case None -> observation =
+                Some(
+                    input.observePointer {
+                        event -> when (event) {
+                            case FocusLost -> clear();
+                            case Closed -> clear();
+                            else -> {}
+                        }
+                    }
+                )
+            case Some(_) -> {}
+        }
+        val origin =
+            when (currentKey()) {
+                case Some(key) -> navigationIndex(source, key)
+                case None -> None
+            }
+        val result = findTypeahead(source, query, origin, repeated, options.matches) ?: return false
+        matched(navigationKey(source, result))
+        return true
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (isClosed || !options.enabled || !options.keyboard || !input.isInputAllowed)
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value;
+                else -> return
+            }
+        val modifiers = key.modifiers
+        if (
+            key.state !=
+                ElementState.Pressed ||
+                key.synthetic ||
+                (modifiers.altGraph != Some(true) && (modifiers.control || modifiers.alt)) ||
+                modifiers.superKey ||
+                modifiers.function
+        )
+            return
+        val text =
+            when (key.logicalKey) {
+                case Character(value) -> value;
+                else -> return
+            }
+        if (text == "")
+            return
+        context.consume()
+        push(text)
+    }
+    private fun checkOpen() {
+        checkOverlayMutation()
+        if (isClosed)
+            throw IllegalStateException(Some("typeahead is no longer mounted"))
+    }
+    public override fun close() {
+        scope.isMounted
+        checkOverlayMutation()
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { timer.close() }
+        failure = cleanupUi(failure) { observation?.close() }
+        observation = None
+        failure = cleanupUi(failure) { defaults.close() }
+        failure = cleanupUi(failure) { activity.close() }
+        throwUi(failure)
+    }
+}
+
+public fun ComponentScope.typeahead(
+    source: NavigationSource,
+    currentKey: () -> ViewKey?,
+    onMatch: (ViewKey) -> Unit,
+    options: TypeaheadOptions = TypeaheadOptions()
+): Typeahead {
+    requireUi(source.count >= 0L, "negative navigation source count")
+    return resource { Typeahead(this, source, currentKey, onMatch, options) }
+}
+
+internal fun findTypeahead(
+    source: NavigationSource,
+    query: String,
+    current: Long?,
+    next: Boolean,
+    matches: (String, String) -> Boolean
+): Long? {
+    val total = source.count
+    if (total == 0L)
+        return None
+    val origin = current ?: 0L
+    var index =
+        if (next && current != None)
+            (
+                if (origin + 1L < total)
+                    origin + 1L
+                else
+                    0L
+            )
+        else
+            origin
+    var visited = 0L
+    while (visited < total) {
+        if (source.enabledAt(index) && matches(source.searchTextAt(index), query))
+            return Some(index)
+        index =
+            if (index + 1L < total)
+                index + 1L
+            else
+                0L
+        visited += 1L
+    }
+    return None
+}

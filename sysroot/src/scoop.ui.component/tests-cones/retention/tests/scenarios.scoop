@@ -133,7 +133,7 @@ internal fun advanceRetention(probe: RetentionProbe) {
         case 14 -> {
             probe.assertLive([1L, 2L])
             assertTrue(probe.cached!!.scope!!.input.activity.hasBoundary)
-            probe.next { probe.cached!!.overlay.close() }
+            probe.next { probe.cached!!.overlay.requestClose() }
         }
         case 15 -> {
             probe.assertLive([2L])

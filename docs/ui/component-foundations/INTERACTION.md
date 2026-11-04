@@ -1,6 +1,6 @@
 # 公共交互、弹层退出与阅读位置
 
-本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，I1 已完成，当前实施 I2。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
+本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，I1／I2 已完成，S1 尚未实施。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
 
 ## 1. 可组合的激活行为
 

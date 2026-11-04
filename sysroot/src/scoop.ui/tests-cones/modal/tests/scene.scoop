@@ -27,17 +27,9 @@ internal class ModalScene(private val probe: ModalProbe): Component {
     public override fun render(): View {
         val revision = probe.revision.value
         val children = ArrayList<View>()
-        if (probe.open[0L]) {
-            val nested = ArrayList<View>()
-            if (probe.open[1L])
-                nested.add(layer(1L))
-            if (probe.open[2L])
-                nested.add(layer(2L))
-            children.add(layer(0L, nested.toArray()))
-        }
+        children.add(layer(0L, [layer(1L), layer(2L)]))
         for (index in 3L ..< 6L)
-            if (probe.open[index])
-                children.add(layer(index))
+            children.add(layer(index))
         return element(revision, { props -> ModalCanvas(probe, props) }, children.toArray())
     }
     private fun layer(index: Long, children: Array<View> = []): View {
@@ -59,6 +51,14 @@ internal class ModalScene(private val probe: ModalProbe): Component {
                 else
                     probe.outside
         return portal(
+            binding(
+                { probe.open[index] },
+                {
+                    value ->
+                    probe.open[index] = value;
+                    probe.changed()
+                }
+            ),
             element(
                 PaneProps(index, index == 0L && probe.emptyOuter),
                 { props -> ModalPane(probe, props) },
@@ -83,7 +83,13 @@ internal class ModalScene(private val probe: ModalProbe): Component {
                     else
                         None
                 this.dismiss = OverlayDismiss(escape = index != 5L, outsidePress = policy)
-                this.onClose = { reason -> this @ModalScene.probe.close(index, reason) }
+                this.onCloseRequest =
+                    {
+                        _ ->
+                        this @ModalScene.probe.beforeClose(index);
+                        true
+                    }
+                this.onClosed = { reason -> this @ModalScene.probe.close(index, reason) }
             }
             this.key = ViewKey.Number(index)
         }
@@ -131,7 +137,7 @@ private class ModalCanvas(private val probe: ModalProbe, private val props: Prop
                     if (probe.closeAfterPresent && probe.layers[0L].isOpen) {
                         probe.closeAfterPresent = false
                         probe.closedAtPass = probe.passes
-                        probe.layers[0L].close()
+                        probe.layers[0L].requestClose()
                         assertFalse(probe.areas[0L]!!.scope.isInputAllowed)
                     }
                 }
@@ -290,7 +296,7 @@ private fun recordInput(
             }
             if (index < 2L && probe.closeOnBlur) {
                 probe.closeOnBlur = false
-                probe.layers[0L].close()
+                probe.layers[0L].requestClose()
             }
         }
         else -> {}

@@ -9,7 +9,10 @@ internal class OverlayMeasurePlan(
     private val available: Rect,
     private val placement: OverlayPlanPlacement
 ) {
-    fun layout(size: Size): OverlayLayout =
+    fun layout(
+        size: Size,
+        presence: PresenceSnapshot = PresenceSnapshot(PresencePhase.Present, 1.0)
+    ): OverlayLayout =
         when (placement) {
             case Viewport(horizontal, vertical) -> OverlayLayout(
                 Rect(
@@ -20,7 +23,8 @@ internal class OverlayMeasurePlan(
                 ),
                 available,
                 None,
-                None
+                None,
+                presence
             )
             case Anchored(anchor, side, alignment, preferred, opposite) -> {
                 val vertical = verticalSide(side)
@@ -76,7 +80,8 @@ internal class OverlayMeasurePlan(
                     Rect(x, y, size.width, size.height),
                     space,
                     Some(anchor),
-                    Some(actual.publicSide())
+                    Some(actual.publicSide()),
+                    presence
                 )
             }
         }
@@ -103,50 +108,78 @@ internal fun planOverlay(
                 OverlayPlanPlacement.Viewport(overlayHorizontal(horizontal, direction), vertical)
             )
         }
-        case Anchored(_, side, alignment, gap, padding, matchWidth) -> {
-            val physical = physicalOverlaySide(side, direction)
-            val bounds =
-                anchor ?: throw IllegalStateException(Some("anchor has no current geometry"))
-            requireUi(
-                (bounds.x + bounds.width).isFinite() && (bounds.y + bounds.height).isFinite(),
-                "anchor bounds overflow"
-            )
-            val available = insetViewport(viewport, padding)
-            val preferred = sideSpace(available, bounds, physical, gap)
-            val opposite = sideSpace(available, bounds, reverseSide(physical), gap)
-            val width = maximum(preferred.width, opposite.width)
-            val height = maximum(preferred.height, opposite.height)
-            val matched = minimum(bounds.width, width)
-            OverlayMeasurePlan(
-                Constraints(
-                    minWidth =
-                        if (matchWidth)
-                            matched
-                        else
-                            0.0,
-                    maxWidth =
-                        Some(
-                            if (matchWidth)
-                                matched
-                            else
-                                width
-                        ),
-                    maxHeight = Some(height)
-                ),
-                available,
-                OverlayPlanPlacement.Anchored(
-                    bounds,
-                    physical,
-                    if (verticalSide(physical))
-                        overlayHorizontal(alignment, direction)
-                    else
-                        alignment,
-                    preferred,
-                    opposite
-                )
-            )
-        }
+        case Anchored(_, side, alignment, gap, padding, matchWidth) -> pointOverlayPlan(
+            anchor ?: throw IllegalStateException(Some("anchor has no current geometry")),
+            side,
+            alignment,
+            gap,
+            padding,
+            matchWidth,
+            viewport,
+            direction
+        )
+        case AtPoint(point, side, alignment, gap, padding) -> pointOverlayPlan(
+            Rect(point.x, point.y, 0.0, 0.0),
+            side,
+            alignment,
+            gap,
+            padding,
+            false,
+            viewport,
+            direction
+        )
     }
+}
+
+private fun pointOverlayPlan(
+    bounds: Rect,
+    side: OverlaySide,
+    alignment: OverlayAlignment,
+    gap: Double,
+    padding: Double,
+    matchWidth: Boolean,
+    viewport: Size,
+    direction: LayoutDirection
+): OverlayMeasurePlan {
+    val physical = physicalOverlaySide(side, direction)
+    requireUi(
+        (bounds.x + bounds.width).isFinite() && (bounds.y + bounds.height).isFinite(),
+        "anchor bounds overflow"
+    )
+    val available = insetViewport(viewport, padding)
+    val preferred = sideSpace(available, bounds, physical, gap)
+    val opposite = sideSpace(available, bounds, reverseSide(physical), gap)
+    val width = maximum(preferred.width, opposite.width)
+    val height = maximum(preferred.height, opposite.height)
+    val matched = minimum(bounds.width, width)
+    return OverlayMeasurePlan(
+        Constraints(
+            minWidth =
+                if (matchWidth)
+                    matched
+                else
+                    0.0,
+            maxWidth =
+                Some(
+                    if (matchWidth)
+                        matched
+                    else
+                        width
+                ),
+            maxHeight = Some(height)
+        ),
+        available,
+        OverlayPlanPlacement.Anchored(
+            bounds,
+            physical,
+            if (verticalSide(physical))
+                overlayHorizontal(alignment, direction)
+            else
+                alignment,
+            preferred,
+            opposite
+        )
+    )
 }
 
 private fun minimum(a: Double, b: Double): Double =

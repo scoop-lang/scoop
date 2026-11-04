@@ -1,0 +1,262 @@
+package scoop.tests.ui.overlaysitems
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class OverlayItemUiTest {
+    @Test
+    fun `controlled exits hover corridors and virtual active items retain their input owners`() {
+        val probe = InteractionProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use {
+                    owner -> Application(
+                        applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }
+                    ).run(owner)
+                }
+            }
+            assertTrue(probe.finished)
+            assertTrue(probe.closedDuringDraw)
+            assertTrue(host.isClosed)
+            assertEquals(2, probe.popupMounts)
+            assertEquals(2, probe.popupUnmounts)
+            assertEquals(2, probe.closedCount)
+            assertEquals(OverlayCloseReason.OwnerClosed, probe.lastClose!!)
+            assertTrue(probe.hover!!.isClosed)
+            assertTrue(probe.navigation!!.isClosed)
+            assertTrue(probe.search!!.isClosed)
+            assertTrue(probe.editorHost!!.isClosed)
+            assertFalse(probe.editorFocus.isAttached)
+            assertTrue(probe.view!!.restored())
+        } catch (error: Throwable) {
+            println(
+                f"I2 group=${probe.group.value}, phase=${probe.phase}, frames=${
+                    probe.frames
+                }, closed=${probe.closedCount}, mounts=${probe.popupMounts}/${probe.popupUnmounts}"
+            )
+            println(probe.hoverTrace)
+            reportInteractionFailure(error)
+            throw error
+        } finally {
+            host.close()
+            probe.timer?.close()
+            probe.view?.close()
+            probe.fonts.close()
+        }
+    }
+}
+
+internal class InteractionProbe {
+    val theme = ThemeSource(macosTheme())
+    val fonts = FontCollection(false)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+        for (family in theme.current.value.tokens.typography.action.families)
+            fonts.register(testSansBytes, family)
+    }
+    val group = state(0)
+    val open = state(false)
+    var acceptSetter = true
+    var allowClose = true
+    var requests = 0
+    var writes = 0
+    val controlled =
+        binding(
+            { open.value },
+            {
+                value ->
+                writes += 1;
+                if (acceptSetter)
+                    open.value = value
+            }
+        )
+    val overlay = OverlayHandle()
+    val backgroundFocus = FocusHandle()
+    val popupFocus = FocusHandle()
+    var background: InputArea? = None
+    var popup: InputArea? = None
+    var presence: PresenceSnapshot? = None
+    var popupMounts = 0
+    var popupUnmounts = 0
+    var closedCount = 0
+    var lastClose: OverlayCloseReason? = None
+
+    val hoverOpen = state(false)
+    val hoverLayer = OverlayHandle()
+    var hover: Hover? = None
+    var hoverTrigger: InputArea? = None
+    var hoverContent: InputArea? = None
+    var hoverClosed = 0
+    var hoverTrace = ""
+
+    val editor = TextEditorState("query")
+    val editorFocus = FocusHandle()
+    var editorHost: TextEditHost? = None
+    val list = VirtualListHandle()
+    val scroll = ScrollState()
+    val source = state(NavigationRows(Array<Long>(1000L) { index -> index }, fonts))
+    val active = state<ViewKey?>(None)
+    var acceptActive = true
+    val activeBinding =
+        binding(
+            { active.value },
+            {
+                key -> if (acceptActive)
+                    active.value = key
+            }
+        )
+    val candidatesOpen = state(true)
+    var navigation: ActiveItems? = None
+    var search: Typeahead? = None
+    var imeStarts = 0
+    var imeStops = 0
+    var connection: TextInputConnection? = None
+    var originalConnection: TextInputConnection? = None
+
+    var window: Window? = None
+    var runtime: UiHost? = None
+    var ui: UiWindow? = None
+    var view: ViewProbe? = None
+    var timer: WindowDeadline? = None
+    var phase = 0
+    var frames = 0
+    var committedGroup = -1
+    var waiting = false
+    var finished = false
+    var closeDuringDraw = false
+    var closedDuringDraw = false
+    private var watchdog: TimeMark? = None
+    var quietFrames = 0
+    var didFocus = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                runtime = Some(host)
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop controlled overlays and active items"
+                            size = LogicalSize(460.0, 300.0)
+                        }
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                timer = Some(native.createDeadline { waiting = false })
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                ui = Some(host.attach(native, { InteractionRoot(this) }))
+                val deadline = MonotonicTimeSource.markNow() + Duration.seconds(25L)
+                watchdog = Some(deadline)
+                active.setControlFlow(ControlFlow.WaitUntil(deadline))
+            }
+            case AboutToWait -> {
+                if (finished || window!!.state != WindowState.Open)
+                    return
+                if (!didFocus && phase == 0 && frames > 0 && !window!!.isFocused) {
+                    didFocus = true;
+                    window!!.requestFocus()
+                }
+                if (!waiting)
+                    advance(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                if (!finished && watchdog != None && MonotonicTimeSource.markNow() >= watchdog!!)
+                    fail(Some(f"I2 timeout at ${this @InteractionProbe.phase}"))
+            }
+            else -> {}
+        }
+    }
+    fun pause(milliseconds: Long, next: Int) {
+        phase = next
+        waiting = true
+        timer!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds))
+    }
+    fun move(active: ActiveApplication, x: Double, y: Double, next: Int) {
+        waiting = true
+        phase = next
+        assertTrue(moveSurfacePointer(window!!, x, y))
+        assertTrue(active.proxy().post { _ -> waiting = false })
+    }
+    fun key(active: ActiveApplication, code: Int, next: Int) {
+        waiting = true
+        phase = next
+        assertTrue(sendSurfaceKey(window!!, code, true))
+        assertTrue(sendSurfaceKey(window!!, code, false))
+        assertTrue(active.proxy().post { _ -> waiting = false })
+    }
+    fun leave(active: ActiveApplication) {
+        val scale = window!!.metrics!!.scaleFactor
+        val point =
+            PointerState(
+                LogicalPosition(480.0, 120.0),
+                PhysicalPosition(480.0 * scale, 120.0 * scale),
+                scale,
+                Modifiers(
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    false,
+                    ModifierSides(None, None),
+                    ModifierSides(None, None),
+                    ModifierSides(None, None),
+                    ModifierSides(None, None)
+                ),
+                InputTime.Observed(MonotonicTimeSource.markNow())
+            )
+        runtime!!.onEvent(
+            active,
+            ApplicationEvent.Window(window!!.id, WindowEvent.Pointer(PointerEvent.Left(point)))
+        )
+    }
+}
+
+private class InteractionRoot(private val probe: InteractionProbe): Component {
+    public override fun render(): View =
+        when (probe.group.value) {
+            case 0 -> presenceScene(probe)
+            case 1 -> hoverScene(probe)
+            else -> activeScene(probe)
+        }
+}
+
+private fun reportInteractionFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportInteractionFailure(error.primaryFailure)
+        reportInteractionFailure(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.kind}: ${error.location.file}:${error.location.line} ${
+                    error.message ?: ""
+                }"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "interaction failure")
+}

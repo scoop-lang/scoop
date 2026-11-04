@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.Rect
+import scoop.graphics.Point
 
 public enum OverlayAlignment {
     Start, Center, End
@@ -42,6 +43,13 @@ public enum OverlayPlacement {
         val gap: Double = 4.0,
         val viewportPadding: Double = 8.0,
         val matchAnchorWidth: Boolean = false
+    ),
+    AtPoint(
+        val point: Point,
+        val preferredSide: OverlaySide = OverlaySide.Bottom,
+        val alignment: OverlayAlignment = OverlayAlignment.Start,
+        val gap: Double = 0.0,
+        val viewportPadding: Double = 8.0
     )
 }
 
@@ -51,7 +59,9 @@ public class PortalOptions internal constructor(
     public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
     public val modal: ModalOptions? = None,
     public val dismiss: OverlayDismiss = OverlayDismiss(),
-    public val onClose: (OverlayCloseReason) -> Unit = { _ -> Unit }
+    public val transition: PresenceOptions = PresenceOptions(),
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = { _ -> Unit }
 ) {
     init {
         requireUi(
@@ -60,6 +70,11 @@ public class PortalOptions internal constructor(
         )
         when (placement) {
             case Viewport(_, _, padding) -> checkOverlayDistance(padding)
+            case AtPoint(point, _, _, gap, padding) -> {
+                requireUi(point.x.isFinite() && point.y.isFinite(), "non-finite overlay point")
+                checkOverlayDistance(gap)
+                checkOverlayDistance(padding)
+            }
             case Anchored(_, _, _, gap, padding, _) -> {
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
@@ -78,7 +93,8 @@ public class OverlayLayout internal constructor(
     public val bounds: Rect,
     public val available: Rect,
     public val anchor: Rect?,
-    public val side: OverlaySide?
+    public val side: OverlaySide?,
+    public val presence: PresenceSnapshot = PresenceSnapshot(PresencePhase.Present, 1.0)
 )
 
 private fun checkOverlayDistance(value: Double) {
@@ -88,6 +104,7 @@ private fun checkOverlayDistance(value: Double) {
 internal val OverlayPlacement.anchor: LayoutAnchor? get() =
     when (this) {
         case Viewport(_, _, _) -> None
+        case AtPoint(_, _, _, _, _) -> None
         case Anchored(value, _, _, _, _, _) -> Some(value)
     }
 

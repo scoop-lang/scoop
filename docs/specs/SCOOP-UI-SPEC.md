@@ -241,7 +241,7 @@ fun <P, E : Element> element(
     children: Array<View> = [], key: ViewKey = ViewKey.Position
 ): View
 fun portal(
-    content: View, configure: PortalBuilder.() -> Unit = {}
+    open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}
 ): View
 ```
 
@@ -251,7 +251,7 @@ fun portal(
 
 节点形状包含 Component／Element／LazyElement 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
 
-Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 options 和唯一子描述；子内容仍按普通规则匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。已关闭会话不会因普通 Props 更新自动重新打开；重新呈现需在旧描述退休后再次挂载，或显式选择新的 key。
+Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
 C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒绝接口、object 或值类型作为具体实例类型，不要求新的编译器诊断。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责初次创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
@@ -490,43 +490,41 @@ caretBlink 为非负时长，零表示保持可见。只在活动焦点、折叠
 
 ### 7.6 同窗口 portal 与锚点
 
-UiRoot 在普通内容的测量和 scene 完成后处理同窗口层出口。Portal 在原容器中按 empty 的约束下限返回占位尺寸，不测量其内容，也不以弹层尺寸撑开父容器；内容在逻辑阶段正常挂载，获得有效层位置后才在本帧测量一次，并从窗口根的坐标与 clip 状态呈现。普通父容器不重复测量层内内容。未参与本帧正常场景的 Portal 不呈现；层内容的逻辑更新和资源归属仍按普通挂载处理。
+`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {})` 在逻辑父级保留零内容占位，内容交给窗口层出口。open Binding 是期望打开状态的唯一来源；框架在普通逻辑更新中收集 getter 的 State 依赖，随后在纯求值之外同步呈现阶段。普通 Binding 的非 State 数据仍由调用方以 Props 更新通知。初始 false 不挂载内容、不安装模态屏障；容器只按约束下限测量 Portal 占位，不测量或重复呈现层内容。
 
-LayoutAnchor 是 owner 线程上的稳定引用，通过 ComponentScope.layoutAnchor(handle) 登记到一个挂载，返回随挂载退休的 Closeable。一个 handle 同时只绑定一个活动挂载；重新绑定后旧登记的迟到清理不解除新绑定。SceneContext.anchor(handle, rect) 只允许登记本元素拥有的 anchor，每帧至多一次。它使用 graphics 的同一变换／clip 快照得到窗口包围盒和可见性，不创建 InputArea；旋转使用轴对齐包围盒。LayoutAnchor.isAttached 查询逻辑绑定，不表示已有成功帧或可见几何。
+PortalOptions 包含 placement、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。modal 有无是挂载形状，改变时退休旧会话；其他选项可正常更新。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
 
-PortalOptions 保存 placement、可选外部 OverlayHandle、anchorVisibility（默认 Close）、可选 modal: ModalOptions、dismiss: OverlayDismiss 和当前 onClose 回调。缺省句柄由挂载会话内部拥有；描述重建不会隐式分配新的活动会话。参数在描述构造／更新边界检查，归属在建立实际绑定时检查；错误保留旧的有效绑定。普通／模态是不同的挂载形状，改变 modal 的有无会退休旧会话并重新挂载；同一模态形状内的 initialFocus、restoreFocus 和关闭策略可正常更新。
+Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受后写 open=false，并读取 setter 实际采纳的值。拒绝或 setter 不采纳时保持打开，但不撤回既有输入消费。外部直接写 false 不经过 veto。关闭／退出中的请求合并；请求开始即保存焦点 revision，回调内的更新请求不能被后续退出过程重新记为恢复基线。回调可以同步替换内容或关闭根，回到框架后须检查当前实例。渲染、测量、scene、draw 期间不允许发出关闭请求或修改 Binding。
 
-OverlayPlacement 有两种形状：Viewport(horizontal=Center, vertical=Center, viewportPadding=8)，在窗口可用矩形中对齐；Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，相对锚点定位。OverlayAlignment 包含 Start／Center／End，OverlaySide 包含 Top／Right／Bottom／Left／Start／End；Start／End 在测量前按 portal 的 LayoutDirection 解析为物理左右侧，Left／Right 始终为物理方向。水平 OverlayAlignment.Start／End 同样从逻辑起点解析，垂直对齐不变。OverlayLayout.side 返回解析并经过翻转选择后的物理侧。gap／viewportPadding 为有限非负值。
+#### 7.6.1 呈现与最终关闭
 
-锚点定位先扣除 viewportPadding，求优先侧和反侧的可用范围，用较大主轴范围与视口交叉轴范围给内容一次有界测量。matchAnchorWidth 提供受本次最大宽度限制的 tight 宽度。实际尺寸放得下优先侧时保留该侧，否则选择反侧，二者均不足时选较大侧；交叉轴 shift 到视口内。KeepVisible 对有效但已离开视口的锚点进一步将层位置限制在可用视口内。不存在通过重复测量实现的 flip 协商，也不轮询静止锚点。
+transition 使用第 7.12 节的 Presence。进入／呈现阶段正常布局，退出阶段保留同一内容及绘制资源，立即禁用根输入资格、取消内部按下与 IME／焦点活动。退出不能通过提前 deactivate 子树破坏绘制资源。Presence 变为 Absent 后在逻辑更新中卸载内容；确认移除的 Accepted 帧后才通知 onClosed，至多一次。没有动画时直接走同一最终移除边界。
 
-SceneContext.overlayLayout 返回当前最近 Portal 的本帧 OverlayLayout，普通内容为 None。OverlayLayout 只包含只读的 bounds、available、可选 anchor 矩形和实际 side；Viewport 的后两项为 None。弹层可用该结果绘制箭头，跟随本帧最终位置，不为取得 side 再触发布局。数据不含 Canvas 借用，输入位置仍只以 Surface 成功提交的几何为准。
+退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，不重放原始 initialFocus。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
 
-层先按所属模态域、再按域内打开顺序排列。普通 Portal 属于最近的逻辑模态祖先，背景域始终先呈现；模态域按打开顺序叠放，逻辑上的子 Portal 在其父层之后完成测量和呈现。后来打开的背景 Tooltip 不能覆盖已打开的模态。普通内容的 anchor 先完成登记，再定位相应层；层内 anchor 可供后续层使用。anchor 必须属于同一 UiRoot，其位置来源不能依赖当前层本身。建立或更新 Portal／anchor 绑定时沿实际依赖关系检查自引用和环，不在每帧重新审计整棵树；尚未绑定的 anchor 在随后绑定时完成同一局部检查。层顺序与已建立依赖不一致、当前没有可用位置时，本帧不使用旧坐标强行呈现。
+owner 在窗口仍存活时退休，立即停止动画并收束内容，根保留屏障及完成通知到 Accepted 移除。根关闭先停用输入、停止动画及释放屏障，安全退出当前场景借用并卸载子树后直接通知，不等待未来帧。窗口隐藏／没有 drawable 时复用 Surface 时间轴的 owner deadline 推进，退出可以结束，模态屏障仍等实际画面移除。
 
-AnchorVisibility 包含 Close／Hide／KeepVisible。锚点有当前几何但完全不可见时，Close 在成功帧完成后关闭层，Hide 保留内容挂载但不呈现，KeepVisible 使用当前有效包围盒继续定位。没有本帧几何时 Hide 等待恢复，其余策略关闭；锚点解绑／所属挂载退休时所有依赖层关闭，不能继续使用旧绑定。因场景可见性产生的关闭只在 Accepted 后兑现；Discarded 不以未提交结果关闭层。回调均在 render／measure／scene／draw 退出后运行。
+#### 7.6.2 定位与锚点
 
-OverlayHandle 是会话的稳定引用，提供 isAttached、isOpen、lastCloseReason 和 close()；close 接受显式关闭并停止该会话的交互，子内容在普通 UI 更新边界退休。关闭是幂等的，晚到清理不解除同一句柄的新绑定；同一个外部句柄不能绑定到两个活动挂载。OverlayCloseReason 包含 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed；每个会话最多通知一次当前 onClose。关闭／配置／绑定变更禁止发生在纯渲染阶段，场景中的 anchor 登记属于正常几何装配。
+LayoutAnchor 通过 ComponentScope.layoutAnchor(handle) 绑定一个挂载；SceneContext.anchor(handle, rect) 每帧登记一次本元素的局部矩形，使用 graphics 的相同变换／clip 快照生成窗口包围盒及可见性。isAttached 只表示逻辑绑定。旋转采用包围盒，不创建 InputArea；anchor 必须属于同一 UiRoot，更新绑定时只沿实际依赖检查自引用与环，未绑定者在随后绑定／打开时完成检查。
 
-#### 7.6.1 关闭策略
+OverlayPlacement 为 Viewport(horizontal=Center, vertical=Center, viewportPadding=8)、Anchored(anchor, preferredSide=Bottom, alignment=Start, gap=4, viewportPadding=8, matchAnchorWidth=false)，以及 `AtPoint(point: Point, preferredSide=Bottom, alignment=Start, gap=0, viewportPadding=8)`。AtPoint 使用窗口逻辑坐标，point 有限，不依赖屏幕物理坐标或虚构的 LayoutAnchor。键盘菜单可用聚焦区域的已提交窗口矩形选择 point。距离参数有限且非负。
 
-OverlayDismiss 包含 escape=false 和 outsidePress=OutsidePress.Ignore；OutsidePress 另有 CloseAndConsume、CloseAndContinue。关闭策略在当前窗口／模态域根接入已有默认阶段及 beforePointerPress，不安装第二条路由。Escape 只认领无修饰的真实非重复 key-down，内层默认行为优先；一次只关闭该域最上层允许 Escape 的会话。忽略 repeat，避免按住 Escape 连续关闭多层。
+OverlayAlignment 为 Start／Center／End；OverlaySide 为 Top／Right／Bottom／Left／Start／End。逻辑 side 和水平 alignment 在碰撞计算前依 LayoutDirection 解析，物理 Left／Right 与垂直对齐不变。定位先扣 viewportPadding，求优先侧／反侧的可用范围，以较大的主轴范围及视口交叉轴范围进行一次有界测量；matchAnchorWidth 给受最大宽度限制的 tight 约束。实际尺寸优先使用可容纳的一侧，否则选较大侧，交叉轴 shift 到视口内。AtPoint 复用同一纯几何计算。
 
-外部按下按 InputScope 的逻辑归属判断，子 Portal 的目标属于父层内部，不按父层矩形判断子菜单是否越界。没有命中的模态域根视作内容外部；控件应为需要接受内部空白点击的面板登记普通区域，遮罩外观本身不创建内部命中。由最上层适用策略处理一次，CloseAndConsume 消费整串按钮，CloseAndContinue 允许已经冻结的原目标继续，不能重新命中或重投。关闭回调产生新模态时仍受新的输入域约束。
+SceneContext.overlayLayout 返回最近层的本帧值：bounds、available、anchor、side 和 `presence: PresenceSnapshot`。side 为翻转后的物理侧；Viewport 的 anchor／side 为 None，AtPoint 的 anchor 是表示该点的零 extent 值矩形。内容可据此画箭头、选择动画原点并采样进度；不保留 Canvas 借用。输入与 Hover 使用 Surface 已提交几何，不能采用本次未确认的位置。
 
-模态外部按下始终被输入屏障挡住；可选 Ignore 或 CloseAndConsume，CloseAndContinue 是无效配置。普通 Portal 默认不隔离背景输入；Dialog、AlertDialog、Menu 等组合控件自行选择具体关闭策略。
+层先按模态域、再按域内打开顺序排列，子 Portal 在父层之后呈现，逻辑 parent／路由保持不变。背景域先绘制，后来打开的背景提示不能覆盖模态。普通场景先登记 anchor，再处理层内 anchor；未参与场景或没有可用位置时不能用旧坐标强行呈现。隐藏的挂载可保留模型与资源，静止时不轮询。
 
-#### 7.6.2 同窗口模态会话
+AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现；Hide 保留内容等待当前几何恢复；KeepVisible 使用有效包围盒并把位置限制在视口。没有当前几何时 Hide 等待，其余关闭。解绑／owner 退休使依赖层强制结束。AnchorUnavailable 请求把 Binding 置为 false；setter 未采纳也收尾当前呈现，直到实际 false→true 或重新挂载才重开，不能每帧重复请求。强制关闭不经过 veto，回调仍在纯求值退出后运行。
 
-ModalOptions 包含 initialFocus: FocusHandle? = None、restoreFocus=true。模态 Portal 的一次挂载拥有 InputBoundary、循环 FocusScope 和不可命中的可聚焦根区域；根区域在层呈现时使用窗口视口几何，tabStop=false。输入资格、焦点历史、取消与 IME 收尾均复用 Surface；遮罩、居中或侧边布局仍由内容决定。
+#### 7.6.3 输入关闭策略与模态
 
-挂载时先保存当前有效 FocusHandle 和上一输入域，再安装屏障，之后挂载子内容。首次实际呈现的 Accepted 帧按有效 initialFocus、首个 Tab stop、根区域代理依次选择；期间有更新的显式焦点请求则放弃自动选择。被遮住的外层不抢内层焦点，程序化聚焦不激活 OS 窗口。首帧 Discarded／Deferred 不兑现焦点，也不释放屏障；Hide 或尚未参与场景的模态保持待显示状态，调用方可显式关闭。
+OverlayDismiss 为 escape=false、outsidePress=Ignore；另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-关闭立即禁用该模态根及子内容，保存关闭时的焦点意图序号；屏障持续到成功提交了不含该层的帧。节点已卸载时仍保留这条待释放登记；在显示该层的完成回调中关闭，需要等待下一次移除提交。Discarded 不移除登记，窗口／根关闭立即释放全部登记，不等待帧。
+ModalOptions 为 initialFocus=None、restoreFocus=true。一次实际打开建立 InputBoundary、循环 FocusScope 和不可命中的焦点代理，保存原有效 FocusHandle、前驱域和焦点意图序号。新区域按已有首个 Accepted 几何规则取得焦点，先 initialFocus，再首个 Tab stop，再代理；较新的显式请求优先。后台模态不抢当前域焦点，程序请求不激活 OS 窗口。
 
-成功移除时从内到外释放符合条件的登记，只对原来占据当前域的关闭会话尝试一次恢复。优先仍可聚焦且属于恢复域的原 handle，否则使用恢复域的 FocusScope 或窗口有效目标。上一 UI 模态已关闭时沿保存的会话关系越过它；非当前域先关闭不移动焦点，也不使晚关闭的内层恢复到已退休目标。恢复域与保存的前驱不一致、restoreFocus=false，或关闭期间出现新的显式焦点意图时不执行恢复。滚动目标的 reveal 在滚动批次接入；本批先使用已可见目标和既有待聚焦协议。
-
-同窗口模态不隔离应用的另一个原生窗口。系统 sheet／独立原生窗口模态仍依赖 Window 的 owner／modality 能力。
+退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前域尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
 ### 7.7 滚动状态与视口登记
 
@@ -626,7 +624,35 @@ Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到
 
 `Drag.isDragging` 只表示已经 claim 的阶段。`update` 更换最新 accepts／handler；禁用、改变 axis／threshold／button、关闭或输入取消都会终止当前状态。CancelReason 区分 Input、Disabled、ConfigurationChanged、GeometryUnavailable、Explicit、Closed 和 PreventedRelease；被阻止的 release 通过不可取消的完成通知收尾。未 claim 的候选放弃不发 Started／Cancelled。cancel() 显式取消当前候选／拖动；关闭行为取消自己已经取得的序列，注销登记，保留调用方 area。行为不创建时钟或永久帧需求；需要吸附时调用方驱动现有 Animatable，需要边缘滚动时仅在实际可推进期间预约 owner deadline。
 
+### 7.12 Presence
+
+`ComponentScope.presence(open=false, options=PresenceOptions())` 创建随 scope 关闭的 Presence。PresenceOptions 包含 enter／exit: AnimationSpec?=None，无 repeat 或动画编排图；update(open, options) 从当前 Animatable 值转向新目标，相同目标更新不重新开始。phase 为 Absent／Entering／Present／Exiting，isPresent 表示非 Absent，snapshot 为 PresenceSnapshot(phase, progress)，progress 在 0–1 内；phase 的读取通过普通 State 建立依赖，连续进度在 measure／scene 采样。
+
+Presence.update(open, options=None) 中省略的 options 保留当前配置。
+
+Presence 只管理呈现值，资源、输入和子树由组合调用方管理，Portal 使用第 7.6 节的规则。默认无动画直接变化；动画复用 scope 的 Surface AnimationGroup、帧参与和 deadline，没有第二个时钟。关闭及 retarget 取消旧完成回调；隐藏窗口也能收束阶段，不留下周期定时器。owner 强制收尾幂等，底层时间轴已经关闭时直接结束内部阶段，不再采样。
+
+### 7.13 活动项导航与 Typeahead
+
+NavigationSource 是调用方的有序元数据快照，提供 count、keyAt、indexOfKey、enabledAt=true、searchTextAt=""、rowAt=0、columnAt=0；key 显式且唯一，数据更新替换 source。基础行为不复制项目数组或为搜索创建 View，访问时检查实际索引与双向 key 映射。它可与 ItemSource 共享同一个模型。
+
+`ComponentScope.activeItems(source, active: Binding<ViewKey?>, options=ActiveItemOptions(), reveal={ _ -> Unit })` 返回 ActiveItems。options 为 layout=Vertical、direction=None（继承）、loop=true、enabled=true。activeKey 读取当前绑定，setActive(key) 验证并写入有效 key，move(NamedKey) 与 KeyNavigation 共用下一项查找，跳过 disabled。update 替换元数据及当前回调，options=None／reveal=None 保留当前配置／回调，保留仍有效 key，删除／禁用／过滤后没有该候选则写 None。方向键、Home／End 的默认动作先消费再更新，保持真实焦点不变；Enter／Space、hover 和选中值由控件决定。reveal 可连接 VirtualListHandle.scrollToItem，不能调用 focusItem 来实现活动项导航。公开 handle(context, event) 可从组合 owner 的现有 captureHandler 调用，在输入框自己的编辑默认动作之前处理导航；已经被阻止的默认动作不再认领。编辑组合是否暂交 IME 由拥有编辑模型的控件决定。
+
+`ComponentScope.typeahead(source, currentKey, onMatch, options=TypeaheadOptions())` 返回 Typeahead；options 为 timeout=700ms（正值）、enabled=true、keyboard=true、matches 为精确 Unicode startsWith。query 为短期缓冲，push(text) 追加有效文字，重复同一单字符输入可从活动项之后循环查找，clear／失焦／source 替换取消 deadline。update 中 options=None 保留当前配置。一次搜索最多遍历快照 count 次，匹配策略可显式替换以决定大小写、重音及归一化；默认不声称 Unicode case folding 或 fuzzy 匹配。
+
+keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 window 已识别的 AltGr；应用修饰键不进入缓冲。它用于非编辑列表。Combobox／Command 的输入框直接使用编辑模型提交的查询，关闭该模式，不从 KeyEvent 重建文本，也不使用 IME preedit 作为已提交搜索词。行为只有缓冲活动时才保留一次性 timeout 和窗口失焦观察，scope 关闭后无迟到动作。
+
+### 7.14 Hover
+
+`ComponentScope.hover(trigger, open: Binding<Boolean>, options=HoverOptions())` 借用本挂载的 trigger，返回 Hover。setContent(areas) 接入同一逻辑 owner 后代的 portal 内容区域，形成悬浮组；update 接收当前 Binding 与配置，options=None 保留当前配置。选项为 openDelay=300ms、closeDelay=150ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true，时间非负、padding 有限且非负。
+
+组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。
+
+观察通过 Surface.observePointer 和普通区域事件／activity 组合，只在打开或等待期间登记当前窗口观察；没有 OS 全局监听、捕获、常驻 timer 或独立命中树。失去有效内容几何时使用普通短延迟收束，不能根据未确认的 scene 位置继续延迟。
+
 ## 8. 挂载与资源生命周期
+
+同步关闭根时，输入退休及对应的内部状态通知在生命周期准备边界运行；普通 render／measure／scene／draw 的 State 修改限制不变。绘制借用结束后才释放实际资源。
 
 `ComponentScope` 是框架为每个 Component／Element／LazyElement 分别创建和关闭的引用对象，提供：
 
@@ -734,9 +760,9 @@ native 呈现和窗口行为使用现有真实后端，不为测试单独搭一�
 
 ### 接收者配置与行内装配
 
-上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(content: View, configure: PortalBuilder.() -> Unit = {}): View` 以一个完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、onClose={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
+上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}): View` 以受控打开绑定及完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、onCloseRequest={ _ -> true }、onClosed={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
 
-PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onClose。
+PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。atPoint(point) 块配置 preferredSide=Bottom、alignment=Start、gap=0、viewportPadding=8，point 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onCloseRequest／onClosed。
 
 `focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 

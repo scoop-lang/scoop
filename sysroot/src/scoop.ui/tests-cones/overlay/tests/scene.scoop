@@ -62,6 +62,7 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
         key: ViewKey = ViewKey.Text("second")
     ): View =
         portal(
+            probe.open[index].binding(),
             element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children)
         ) {
             this.options {
@@ -75,7 +76,7 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
                     )
                 this.handle = Some(handle)
                 this.anchorVisibility = visibility
-                this.onClose =
+                this.onClosed =
                     {
                         reason ->
                         this @OverlayScene.probe.closed.add(CloseRecord(index, reason, generation))
@@ -160,7 +161,7 @@ private class OverlayCanvas(
                 child.anchor(probe.anchor, input.anchor)
                 assertFailsWith<IllegalStateException> { child.anchor(probe.anchor, input.anchor) }
             }
-            assertFailsWith<IllegalStateException> { probe.mainHandle.close() }
+            assertFailsWith<IllegalStateException> { probe.mainHandle.requestClose() }
             assertFailsWith<IllegalStateException> {
                 probe.rootScope!!.layoutAnchor(LayoutAnchor())
             }

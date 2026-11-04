@@ -17,7 +17,7 @@ State 在创建它的线程读写；render／measure／scene／draw 不允许写
 
 ## 自绘与资源
 
-Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项测量一次，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
+Element.measure 返回 LayoutMetrics，包含满足 Constraints 的尺寸与可选基线。每个直接子项放置前可重新测量，同约束相邻调用复用最后结果，然后放置零次或一次；未放置子项保留挂载与状态，本帧不绘制。Element.scene 使用 SceneContext 声明变换、clip 和 InputArea，在背景与前景的 draw 块之间调用 children。draw 只接收带 Canvas／size／time 的 PaintContext；绘图块的局部变换不会改变随后登记的命中几何，成功提交后才发布区域。
 
 有限且有可靠内容版本的绘图使用 `context.drawLayer(key, bounds, revision, samplingOutset = 1.0) { paint -> ... }`。PaintKey 由元素持有；回调使用独立局部坐标，结果以 SrcOver 合成。ScrollViewport.paintCache 默认 None，Tiles 按设备像素块复用实际图像；场景、输入和 children 每帧照常装配。版本必须覆盖 State、时间、动画与资源变化，普通 draw 仍直接执行。ParagraphHost 的正文已接入此协议。
 
@@ -33,15 +33,21 @@ FocusOptions 的 order 默认 0，同值使用当前逻辑挂载顺序，tabStop
 
 FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域外请求立即失败，也不会作为等待首次放置的 pending 留到边界关闭后执行。已知窗口的 pending 和被拒绝的显式请求同样推进 Surface.focusRevision，新的请求会取消旧的自动聚焦或恢复意图。
 
-`portal(content, PortalOptions(...), key)` 把一个子 View 放到当前窗口的层出口。原位置只返回约束下限的占位尺寸，内容在层约束下测量一次；它越过原祖先的 transform／clip，继续沿原挂载树路由输入并参与 Tab。相同 key 保留会话，逻辑重排不改变层的打开顺序，子 portal 位于父层之后。层先按逻辑所属模态域排列，因此背景 Tooltip 即使后来打开，也位于模态之下。
+`portal(openBinding, content) { ... }` 把一个子 View 放到当前窗口的层出口。原位置只返回约束下限的占位尺寸，内容在层约束下测量一次；它越过原祖先的 transform／clip，继续沿原挂载树路由输入并参与 Tab。相同 key 保留会话，逻辑重排不改变层的打开顺序，子 portal 位于父层之后。层先按逻辑所属模态域排列，因此背景 Tooltip 即使后来打开，也位于模态之下。
 
-`PortalOptions(modal = Some(ModalOptions(initialFocus = Some(handle))))` 启用同窗口模态。挂载时保存原焦点并安装 InputBoundary，首次成功呈现后按 initialFocus、首个 Tab 目标、根代理聚焦；Tab 在当前域循环。关闭立即停止该层交互，直到成功提交移除帧才解除屏障并尝试恢复原焦点。新的显式聚焦意图优先，原目标不可用时选择当前域的回退目标；restoreFocus=false 可禁用恢复。普通／模态互相切换会重新挂载会话。
+`portal(openBinding, content) { modal { initialFocus = Some(handle) } }` 启用同窗口模态。初始 false 不挂载内容或安装屏障；打开时保存原焦点并安装 InputBoundary，首次成功呈现后按 initialFocus、首个 Tab 目标、根代理聚焦。Tab 在当前域循环。关闭立即停止该层交互，退出呈现期间保留屏障，直到成功提交移除帧才释放并尝试恢复原焦点。新的显式聚焦意图优先，原目标不可用时选择当前域的回退目标；restoreFocus=false 可禁用恢复。普通／模态互相切换会重新挂载会话。
 
 `OverlayDismiss(escape = true, outsidePress = OutsidePress.CloseAndConsume)` 配置一次只关闭最上层适用弹层，默认两项均不关闭。外部点击按逻辑子树判断，子菜单不因画在父面板外就被视作外部；面板需用普通 InputArea 声明内部空白区域。非模态还可用 CloseAndContinue 让原目标继续收到同一次按下，模态不能使用该策略。遮罩颜色、面板和侧边布局由内容组合，不自动修改背景滚动状态。
 
-相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐。
+相对定位时，在触发元素的 `onMount` 中调用 `scope.layoutAnchor(handle)`，在其 `scene` 中调用 `context.anchor(handle, rect)`，再把同一 LayoutAnchor 交给 `OverlayPlacement.Anchored`。锚点用当前变换和 clip 取得窗口位置，不需要 InputArea。定位先给内容有界约束，再按实际尺寸 flip／shift；`context.overlayLayout` 可读取本帧最终 bounds、available、anchor 和 side 来绘制箭头。Viewport 形状提供窗口内的横纵对齐；AtPoint 使用窗口逻辑坐标和同一定位算法，适用于上下文菜单，无须创建占位锚点。
 
-锚点不可见时默认在成功帧后关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑会关闭从属层。OverlayHandle 提供关闭与状态查询，onClose 每个会话只通知一次当前回调。已关闭会话不会因普通 Props 更新自动重开，调用方移除后重新挂载或更换 key。
+open Binding 是打开状态的唯一来源。Escape、外部按下和 OverlayHandle.requestClose 先调用 onCloseRequest；接受后写 false，setter 未采纳时继续打开。外部直接写 false 不经过 veto。transition 使用 PresenceOptions 的有限进入／退出动画；退出保留绘制子树并关闭输入，Absent 后卸载，Accepted 移除后才调用一次 onClosed。退出中重新打开保留同一子树、从当前进度反向，并等待新 Accepted 几何恢复输入。
+
+锚点不可见时默认在成功帧后强制关闭，也可以选择 Hide 保留实例等待恢复，或 KeepVisible 使用有效坐标留在视口内；解绑或 owner 退休会结束从属层。强制关闭不经过 veto；AnchorUnavailable 尝试写 Binding=false，即使未采纳也结束当前呈现，直到绑定实际 false→true 才重开。OverlayHandle 可查询 isOpen／lastCloseReason。
+
+`scope.presence` 管理呈现阶段与 0–1 进度，使用已有 Surface 时间轴；`scope.hover` 借用触发区域和逻辑后代的弹层区域，以一次性 deadline 和有限通过区域协调悬浮打开与关闭。只有打开或等待期间才观察当前窗口指针，离开窗口、失焦或卸载撤销等待。
+
+`scope.activeItems` 按 NavigationSource 的稳定 key 更新活动项 Binding，可把 reveal 接到 VirtualListHandle.scrollToItem，输入框的真实焦点和 IME 连接保持原位。`scope.typeahead` 为非编辑列表提供短期 Unicode 缓冲与可替换匹配规则，数据替换／失焦／超时清空；编辑组合关闭其 keyboard 模式，直接使用编辑模型的已提交查询。
 
 最外层用 `UiHost.use` 包住 Application.run，或使用 `runUiApplication(title, create)`。SurfaceContent 拥有 UI 根，原生窗口关闭、异常和显式关闭都释放挂载树。UiWindow.close 只关闭所附着的 UI／Surface 内容，原生 Window 的归属仍由调用者决定。绘制或逻辑回调内请求关闭时，先停止新工作，回调结束后再释放资源。
 
@@ -59,7 +65,7 @@ FocusTarget 和 FocusScope 先检查当前 Surface InputBoundary 的准入，域
 
 `ItemSource` 提供 count、keyAt、indexOfKey 和 build；数据或索引改变时替换这个快照，key 必须是稳定且唯一的 Text／Number。框架只检查实际访问的映射，不预先构建全部 View。build 使用普通 render 依赖追踪；已有项只因滚动再次测量时不会重跑 build。删除已实现项在逻辑更新中完成，即使窗口隐藏也会释放输入和资源。
 
-LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMeasureContext。容器用 `measureItem(index, constraints)` 按需取得子项，再用 `placeItem(index, origin)` 放置；一个索引本轮只测量一次。框架在这两个步骤之间管理 build、挂载和 update，生命周期可以正常写 State，外层 measure 和子项 render 仍保持纯度。子项在 scene.children() 中按 source 索引顺序呈现。
+LazyElement 的生命周期及 scene 与 Element 相同，measure 接收 LazyMeasureContext。容器用 `measureItem(index, constraints)` 按需取得子项，再用 `placeItem(index, origin)` 放置；一个索引放置前可重新测量，最终选择集合在根或 portal 测量结束后统一收尾。框架在这两个步骤之间管理 build、挂载和 update，生命周期可以正常写 State，外层 measure 和子项 render 仍保持纯度。子项在 scene.children() 中按 source 索引顺序呈现。
 
 `ItemRetention.Dispose` 让离开选择范围的项正常卸载；`KeepAlive(maxOffscreenItems)` 额外保留有限个最近使用的离屏实例，容量为零与 Dispose 相同。缓存项继续处理 Props／State 并持有资源，本帧不测量或呈现场景；再次进入复用同 key、同 shape 的实例，真实删除或 shape 改变仍正常退休。容量不包含本轮选择和活动交互固定的项。
 

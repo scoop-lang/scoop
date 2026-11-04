@@ -85,6 +85,14 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                 },
                 if (probe.dialogOpen)
                     portal(
+                        binding(
+                            { probe.dialogOpen },
+                            {
+                                value ->
+                                probe.dialogOpen = value;
+                                probe.change()
+                            }
+                        ),
                         element(
                             { ScaledField() },
                             [
@@ -107,12 +115,6 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                                     )
                                 )
                             this.dismiss = OverlayDismiss(escape = true)
-                            this.onClose =
-                                {
-                                    _ ->
-                                    this @FieldScene.probe.dialogOpen = false;
-                                    this @FieldScene.probe.change()
-                                }
                         }
                     }
                 else

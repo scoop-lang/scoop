@@ -1,0 +1,175 @@
+package scoop.tests.ui.overlaysitems
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.*
+import scoop.window.TextInputEvent
+
+internal fun activeScene(probe: InteractionProbe): View =
+    element(
+        probe.source.value,
+        { props -> ActiveCanvas(probe, props) },
+        [
+            element({ ComboEditor(probe) }),
+            portal(
+                probe.candidatesOpen.binding(),
+                virtualList(probe.source.value, ItemExtent.Fixed(24.0)) {
+                    state = Some(probe.scroll)
+                    width = Some(220.0)
+                    height = Some(96.0)
+                    handle = Some(probe.list)
+                    navigation = ItemNavigation.None
+                    scrollbars = ScrollbarVisibility.Hidden
+                    focus { tabStop = false }
+                }
+            ) { atPoint(Point(20.0, 65.0)) }
+        ]
+    )
+
+private class ActiveCanvas(
+    private val probe: InteractionProbe,
+    private val props: Props<NavigationRows>
+): Element {
+    private var scope: ComponentScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        probe.navigation =
+            Some(
+                scope.activeItems(
+                    props.value,
+                    probe.activeBinding,
+                    reveal =
+                        {
+                            key ->
+                            probe.list.scrollToItem(key);
+                            Unit
+                        }
+                )
+            )
+        probe.search =
+            Some(
+                scope.typeahead(
+                    props.value,
+                    { probe.active.value },
+                    {
+                        key ->
+                        probe.navigation!!.setActive(Some(key));
+                        Unit
+                    },
+                    TypeaheadOptions(timeout = Duration.milliseconds(80L), keyboard = false)
+                )
+            )
+        scope.input.captureHandler =
+            {
+                context,
+                event -> if (!probe.editor.isComposing)
+                    probe.navigation!!.handle(context, event)
+            }
+    }
+    public override fun update() {
+        probe.navigation!!.update(props.value, probe.activeBinding)
+        probe.search!!.update(
+            props.value,
+            { probe.active.value },
+            {
+                key ->
+                probe.navigation!!.setActive(Some(key));
+                Unit
+            }
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(220.0, 36.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.draw {
+            paint ->
+            if (probe.closeDuringDraw) {
+                probe.ui!!.close()
+                assertFalse(probe.editorHost!!.isClosed)
+                probe.closedDuringDraw = true
+                probe.finished = true
+                probe.window!!.requestDestroy()
+            }
+            paint.canvas.clear(Color.White)
+        }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                probe.frames += 1;
+                probe.committedGroup = 2
+            }
+        }
+    }
+}
+
+private class ComboEditor(private val probe: InteractionProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val text = probe.theme.current.value.tokens.typography.body
+        val host =
+            scope.resource {
+                TextEditHost(
+                    scope,
+                    probe.editor,
+                    TextEditAppearance(probe.fonts, text, text),
+                    TextEditOptions(caretBlink = Duration.ZERO)
+                )
+            }
+        probe.editorHost = Some(host)
+        host.focus.options = FocusOptions(Some(probe.editorFocus))
+        scope.resource {
+            host.area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(connection)) -> {
+                        probe.imeStarts += 1;
+                        probe.connection = connection
+                    }
+                    case TextInput(TextInputEvent.Disabled(_)) -> probe.imeStops += 1
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        probe.editorHost!!.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        probe.editorHost!!.scene(context)
+    }
+}
+
+internal class NavigationRows(
+    private val keys: Array<Long>,
+    private val fonts: FontCollection
+): ItemSource, NavigationSource {
+    var builds = 0
+    public override val count: Long get() = keys.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(keys[index])
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< keys.size)
+            if (key == ViewKey.Number(keys[index]))
+                return Some(index)
+        return None
+    }
+    public override fun enabledAt(index: Long): Boolean = keys[index] != 1L
+    public override fun searchTextAt(index: Long): String =
+        when (keys[index]) {
+            case 2L -> "élan"
+            case 3L -> "élite"
+            else -> "Item " + keys[index].toString()
+        }
+    public override fun build(index: Long): View {
+        builds += 1
+        return label(searchTextAt(index)) { this.fonts = Some(this @NavigationRows.fonts) }
+    }
+}

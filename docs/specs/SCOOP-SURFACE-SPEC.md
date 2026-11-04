@@ -248,6 +248,12 @@ Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines
 
 `InputScope.cancelPointerClaim()` 只撤销调用方已经取得的归属，以 `ClaimCancelled` 原因终止整条序列；不会交还原子项。未取得归属时为空操作。窗口失焦／关闭、原生取消、路径失效和边界变化继续使用现有终结合同；迟到的 release 不能重新命中另一目标。普通 claim 不改变焦点、IME 或滚轮序列归属。
 
+### 6.6 当前窗口指针观察
+
+`InputScope.observePointer(handler: (PointerObservation) -> Unit): Closeable` 观察同一窗口，与命中路径及输入消费分开。PointerObservation 包含 Pointer(Window.PointerEvent)、FocusLost 和 Closed；普通指针事件及窗口失焦在原路由／reconcile 完成后交付，鼠标移到空白或离开窗口也可观察。没有可消费的 RoutedEventContext，也不安装 OS 全局监听或改变 capture／焦点。
+
+派发前冻结观察登记，期间新建者不接收当前事件，已关闭者跳过；关闭只移除自己的登记，scope 退休自动清理，窗口／router 关闭对仍在登记的观察者交付一次终端 Closed。观察回调失败不跳过其余必要清理，最终传播错误。该接口服务有实际活动会话的 hover、typeahead 等组合，不要求每个 scope 常驻观察。
+
 ## 7. 原生资源与错误
 
 GPU context、窗口 surface、字体／图像／Path／文本的原生持有对象使用显式 Closeable／use 生命周期。托管包装的 GC release 只允许既有 runtime 合同许可的叶子释放；不借它调用 UI、等待 GPU、注销宿主回调或投递托管闭包。
