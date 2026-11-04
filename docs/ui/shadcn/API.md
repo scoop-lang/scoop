@@ -28,7 +28,7 @@ messageScroller(source: TranscriptSource, state: MessageScrollState, configure: 
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
 ```
 
-这里 Button、Boolean Checkbox、Input 等沿用既有工厂；新增 builder 成员直接扩展原入口。Checkbox 的 Boolean／CheckState 重载仅做同一绑定的值映射，共用一个组件、一份 Press 和一条写入路径，不建立同步用的第二份 State。无参自有 Checkbox 继续使用既有 Boolean 默认入口，不增加另一条同样可无参调用的重载。
+这里 Button、Checkbox、Input 等沿用既有工厂；新增 builder 成员直接扩展原入口。Checkbox 的 Boolean／CheckState 重载仅做同一绑定的值映射，共用一个组件、一份 Press 和一条写入路径，不建立同步用的第二份 State。无参自有 Checkbox 继续使用既有 Boolean 默认入口，不增加另一条同样可无参调用的重载。
 
 状态分工固定如下：
 
@@ -208,3 +208,8 @@ OTP 的专用槽布局属于 component，但编辑命中、光标／选择、视
 VirtualList 增加沿逻辑主轴的显式末端留白，并为按 key 对齐提供定位 margin；它们是普通长度参数，参与同一 content extent、滚动范围与最终定位。留白不是伪造的消息，不占数据 key、不计入可见条目。MessageScroller 用它实现回合顶部定位和 previous-item peek；具体跟随、保持与跳转状态仍留在 MessageScrollState，见 [MODELS.md](MODELS.md)。
 
 Sidebar 的宽／窄宿主改变、Tabs 的 Dispose 模式等遵守既有挂载规则。同 key／同父级／同类型的更新保留状态；跨父级或不同组件类型不承诺保存私有 State。需要跨这些切换保留的正文、选择和问卷结果显式提升到外部模型，不借任务之机增加任意子树迁移协议。
+
+
+### P2a 已实现入口
+
+三态 Checkbox 及 Switch／Toggle 的实际合同见[组件规范第 5、18 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。CheckboxProps.checked 为 Binding<CheckState>，Boolean 工厂只做同一绑定的值映射。`switchControl(checked)` 支持 Default／Sm、track／thumb 样式、命中扩展量、invalid、FieldTarget 和 FocusOptions。`toggle(content, pressed)` 有 String／StyledText／View／解析后内容四种入口，支持 Default／Outline、Sm／Default／Lg，复用 ButtonStyle 与 ActionContentStyle；业务 pressed 与临时 Press 状态独立。两者均通过当前 Binding 写入，不增加独立状态容器。

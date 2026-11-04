@@ -65,12 +65,12 @@ private class ComponentReceiverDslTests {
         assertEquals(0L, clicked.size)
         original.onClick()
         assertEquals(1L, clicked.size)
-        val model = state(false)
+        val model = state(CheckState.Unchecked)
         val binding = model.binding()
         val options = CheckboxBuilder().snapshot(binding)
         assertSame(binding, options.checked)
-        options.checked.value = true
-        assertTrue(model.value)
+        options.checked.value = CheckState.Checked
+        assertEquals(CheckState.Checked, model.value)
     }
 
     @Test

@@ -11,7 +11,7 @@ import scoop.ui.text.TextEditorState
 import scoop.window.*
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle
 }
 
 internal enum ControlDemo {
@@ -38,6 +38,8 @@ internal fun demoTitle(value: Demo): String =
         case Label -> "Label"
         case ButtonGroup -> "Button Group"
         case Item -> "Item"
+        case Switch -> "Switch"
+        case Toggle -> "Toggle"
     }
 
 internal class GalleryModel {
@@ -45,6 +47,7 @@ internal class GalleryModel {
     val fields = FieldExamplesModel()
     val groups = ButtonGroupExamplesModel()
     val items = ItemExamplesModel()
+    val selection = SelectionExamplesModel()
     val mode = state(ThemeMode.Light)
     val direction = state(LayoutDirection.Ltr)
     val selected = state(Demo.Button)
@@ -154,7 +157,9 @@ internal class GalleryModel {
                 Demo.Kbd,
                 Demo.Label,
                 Demo.ButtonGroup,
-                Demo.Item
+                Demo.Item,
+                Demo.Switch,
+                Demo.Toggle
             ]
         )
             if (unicodeCasefold(demoTitle(entry)).contains(search))

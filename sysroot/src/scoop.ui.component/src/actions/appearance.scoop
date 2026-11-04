@@ -35,12 +35,25 @@ internal fun actionOptions(
     style: ButtonStyle,
     visual: InteractionVisual
 ): SurfaceOptions {
+    val size =
+        when (shape) {
+            case Button(size) -> Some(size)
+            case Badge -> None
+            case Toggle(toggleVariant, size, selected) -> return toggleOptions(
+                theme,
+                toggleVariant,
+                size,
+                selected,
+                style,
+                visual
+            )
+        }
     val base = theme.surfaceMetrics(SurfaceVisual(style.kind))
     val colors = theme.tokens.palette
     val dark = theme.tokens.mode == ThemeMode.Dark
     val badge = shape == ActionShape.Badge
     val density = theme.tokens.typography.action.fontSize / 14.0
-    val preset = actionSizeOptions(theme, shape, base, density)
+    val preset = actionSizeOptions(theme, size, base, density)
     var normal = Color.Transparent
     var hover = Color.Transparent
     var border = Color.Transparent
@@ -170,18 +183,18 @@ internal fun actionOptions(
 
 private fun actionSizeOptions(
     theme: Theme,
-    shape: ActionShape,
+    size: ButtonSize?,
     base: SurfaceMetrics,
     density: Double
 ): SurfaceOptions =
     surfaceOptions {
-        when (shape) {
-            case Badge -> {
+        when (size) {
+            case None -> {
                 this.suggestedSize = Some(Size(0.0, 20.0 * density))
                 this.padding = Some(Insets(8.0 * density, density, 8.0 * density, density))
                 style { this.corners(Corners.all(1000.0)) }
             }
-            case Button(size) -> {
+            case Some(size) -> {
                 val ratio =
                     when (size) {
                         case Xs -> 0.75
@@ -201,14 +214,14 @@ private fun actionSizeOptions(
                 this.suggestedSize =
                     Some(
                         Size(
-                            if (isIconAction(shape))
+                            if (isIconAction(ActionShape.Button(size)))
                                 height
                             else
                                 base.suggestedSize.width,
                             height
                         )
                     )
-                if (isIconAction(shape))
+                if (isIconAction(ActionShape.Button(size)))
                     this.padding = Some(Insets.all(base.padding.top * paddingRatio))
                 else
                     if (size == ButtonSize.Xs)

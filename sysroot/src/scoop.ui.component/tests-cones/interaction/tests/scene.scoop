@@ -7,6 +7,7 @@ import scoop.test.*
 import scoop.surface.*
 import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
+import scoop.ui.binding as makeBinding
 import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.KeyCode
@@ -126,7 +127,16 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                 ) { this.style = effects },
                 component(
                     CheckboxProps(
-                        binding,
+                        makeBinding(
+                            get =
+                                {
+                                    if (binding.value)
+                                        CheckState.Checked
+                                    else
+                                        CheckState.Unchecked
+                                },
+                            set = { next -> binding.value = next == CheckState.Checked }
+                        ),
                         probe.checkEnabled.value,
                         focus = FocusOptions(Some(probe.checkFocus))
                     ),

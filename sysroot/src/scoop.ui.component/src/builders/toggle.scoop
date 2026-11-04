@@ -1,0 +1,86 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.InlineView
+
+public open class ContentToggleBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var variant: ToggleVariant = ToggleVariant.Default
+    public var size: ToggleSize = ToggleSize.Default
+    public var style: ButtonStyle = buttonStyle { kind = SurfaceKind.Plain }
+    public var theme: ThemeSource? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: ButtonStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun properties(content: ButtonContent, pressed: Binding<Boolean>): ToggleProps =
+        ToggleProps(content, pressed, enabled, invalid, variant, size, style, theme, focus)
+}
+
+public open class ToggleBuilder internal constructor(): ContentToggleBuilder() {
+    public var fonts: FontCollection? = None
+    internal fun snapshot(text: String, pressed: Binding<Boolean>): ToggleProps =
+        properties(
+            ButtonContent.Label(
+                LabelProps(
+                    LabelText.Plain(text, None),
+                    fonts,
+                    Some(paragraphStyle { alignment = TextAlignment.Center })
+                )
+            ),
+            pressed
+        )
+}
+
+public class StyledToggleBuilder internal constructor(): ToggleBuilder() {
+    public var settings: ParagraphStyle? = None
+    public var inlines: Array<InlineView> = []
+    public fun settings(configure: ParagraphStyleBuilder.() -> Unit): Unit {
+        settings = Some((settings ?: paragraphStyle()).copy(configure))
+    }
+    internal fun snapshot(text: StyledText, pressed: Binding<Boolean>): ToggleProps =
+        properties(
+            ButtonContent.Label(LabelProps(LabelText.Styled(text), fonts, settings, inlines)),
+            pressed
+        )
+}
+
+internal fun makeTextToggle(
+    text: String,
+    pressed: Binding<Boolean>,
+    configure: ToggleBuilder.() -> Unit
+): View {
+    val builder = ToggleBuilder()
+    builder.configure()
+    return toggleView(builder.snapshot(text, pressed), builder.key)
+}
+
+internal fun makeStyledToggle(
+    text: StyledText,
+    pressed: Binding<Boolean>,
+    configure: StyledToggleBuilder.() -> Unit
+): View {
+    val builder = StyledToggleBuilder()
+    builder.configure()
+    return toggleView(builder.snapshot(text, pressed), builder.key)
+}
+
+internal fun makeContentToggle(
+    content: ButtonContent,
+    pressed: Binding<Boolean>,
+    configure: ContentToggleBuilder.() -> Unit
+): View {
+    val builder = ContentToggleBuilder()
+    builder.configure()
+    return toggleView(builder.properties(content, pressed), builder.key)
+}
+
+private fun toggleView(input: ToggleProps, key: ViewKey): View =
+    component(input, { current -> Toggle(current) }, key)

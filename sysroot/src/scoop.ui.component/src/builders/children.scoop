@@ -236,6 +236,47 @@ public open class ChildrenBuilder internal constructor() {
     }
 
     public fun checkbox(
+        checked: Binding<CheckState>,
+        configure: CheckboxBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeCheckbox(checked, configure))
+    }
+    public fun switchControl(
+        checked: Binding<Boolean>,
+        configure: SwitchBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSwitch(checked, configure))
+    }
+    public fun toggle(
+        text: String,
+        pressed: Binding<Boolean>,
+        configure: ToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTextToggle(text, pressed, configure))
+    }
+    public fun toggle(
+        text: StyledText,
+        pressed: Binding<Boolean>,
+        configure: StyledToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeStyledToggle(text, pressed, configure))
+    }
+    public fun toggle(
+        content: View,
+        pressed: Binding<Boolean>,
+        configure: ContentToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentToggle(ButtonContent.Custom(content), pressed, configure))
+    }
+    public fun toggle(
+        content: (ActionContentStyle) -> View,
+        pressed: Binding<Boolean>,
+        configure: ContentToggleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentToggle(ButtonContent.Resolved(content), pressed, configure))
+    }
+
+    public fun checkbox(
         checked: Binding<Boolean>,
         configure: CheckboxBuilder.() -> Unit = {}
     ): Unit {

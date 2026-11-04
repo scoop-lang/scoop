@@ -1,0 +1,85 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum SwitchSize {
+    Default, Sm
+}
+
+public class SwitchProps public constructor(
+    public val checked: Binding<Boolean>,
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val size: SwitchSize = SwitchSize.Default,
+    public val style: SwitchStyle = switchStyle(),
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val labelTarget: FieldTarget? = None
+)
+
+public class Switch public constructor(private val props: Props<SwitchProps>): Component {
+    private val control = state<PressControl?>(None)
+    private val themes = ThemeAccess()
+    private fun activate() {
+        val binding = props.value.checked
+        binding.value = !binding.value
+    }
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+        val area = scope.createArea(focusable = true)
+        val focus = scope.focusTarget(area, props.value.focus)
+        val press = scope.press(area, PressOptions(props.value.enabled, false)) { activate() }
+        control.value = Some(PressControl(area, focus, press))
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val interaction =
+            when (control.value) {
+                case Some(value) -> value.press.interaction
+                case None -> InteractionState()
+            }
+        return element(
+            SwitchInkProps(
+                input,
+                theme,
+                input.checked.value,
+                control,
+                interaction.asVisual(input.enabled, input.invalid),
+                { activate() }
+            ),
+            { current -> SwitchInk(current) }
+        )
+    }
+}
+
+public fun switchControl(
+    checked: Binding<Boolean>,
+    configure: SwitchBuilder.() -> Unit = {}
+): View = makeSwitch(checked, configure)
+
+internal fun makeSwitch(checked: Binding<Boolean>, configure: SwitchBuilder.() -> Unit): View {
+    val builder = SwitchBuilder()
+    builder.configure()
+    return component(builder.snapshot(checked), { current -> Switch(current) }, builder.key)
+}
+
+public class SwitchBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var size: SwitchSize = SwitchSize.Default
+    public var style: SwitchStyle = switchStyle()
+    public var theme: ThemeSource? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: SwitchStyleBuilder.() -> Unit): Unit {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(checked: Binding<Boolean>): SwitchProps =
+        SwitchProps(checked, enabled, invalid, size, style, theme, focus, labelTarget)
+}

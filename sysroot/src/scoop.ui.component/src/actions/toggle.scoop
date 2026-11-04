@@ -1,0 +1,104 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ToggleVariant {
+    Default, Outline
+}
+
+public enum ToggleSize {
+    Sm, Default, Lg
+}
+
+public class ToggleProps public constructor(
+    public val content: ButtonContent,
+    public val pressed: Binding<Boolean>,
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val variant: ToggleVariant = ToggleVariant.Default,
+    public val size: ToggleSize = ToggleSize.Default,
+    public val style: ButtonStyle = buttonStyle { kind = SurfaceKind.Plain },
+    public val theme: ThemeSource? = None,
+    public val focus: FocusOptions = FocusOptions()
+)
+
+public class Toggle public constructor(private val props: Props<ToggleProps>): Component {
+    private val control = state<PressControl?>(None)
+    private val themes = ThemeAccess()
+    private val text = ActionTextStyle()
+    private fun activate() {
+        val binding = props.value.pressed
+        binding.value = !binding.value
+    }
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+        val area = scope.createArea(focusable = true)
+        val focus = scope.focusTarget(area, props.value.focus)
+        val press = scope.press(area, PressOptions(props.value.enabled)) { activate() }
+        scope.routeChildren(area)
+        control.value = Some(PressControl(area, focus, press))
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val interaction =
+            when (control.value) {
+                case Some(value) -> value.press.interaction
+                case None -> InteractionState()
+            }
+        val visual =
+            SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, input.invalid))
+        val shape = ActionShape.Toggle(input.variant, input.size, input.pressed.value)
+        val base =
+            text.resolve(
+                theme.tokens.typography.action,
+                actionTextColor(theme, shape, ButtonVariant.Ghost, visual),
+                input.style.text,
+                actionFontScale(shape),
+                actionLineHeight(shape)
+            )
+        return element(
+            ActionInkProps(
+                theme,
+                shape,
+                ButtonVariant.Ghost,
+                input.style,
+                visual,
+                ActionBehavior.Press(control, { activate() }, input.focus)
+            ),
+            { current -> ActionInk(current) },
+            [
+                actionContent(
+                    input.content,
+                    actionContentStyle(base, shape, ButtonVariant.Ghost, visual.interaction)
+                )
+            ]
+        )
+    }
+}
+
+public fun toggle(
+    text: String,
+    pressed: Binding<Boolean>,
+    configure: ToggleBuilder.() -> Unit = {}
+): View = makeTextToggle(text, pressed, configure)
+
+public fun toggle(
+    text: StyledText,
+    pressed: Binding<Boolean>,
+    configure: StyledToggleBuilder.() -> Unit = {}
+): View = makeStyledToggle(text, pressed, configure)
+
+public fun toggle(
+    content: View,
+    pressed: Binding<Boolean>,
+    configure: ContentToggleBuilder.() -> Unit = {}
+): View = makeContentToggle(ButtonContent.Custom(content), pressed, configure)
+
+public fun toggle(
+    content: (ActionContentStyle) -> View,
+    pressed: Binding<Boolean>,
+    configure: ContentToggleBuilder.() -> Unit = {}
+): View = makeContentToggle(ButtonContent.Resolved(content), pressed, configure)

@@ -20,6 +20,6 @@ public class CheckboxBuilder internal constructor() {
     public fun focus(configure: FocusOptionsBuilder.() -> Unit): Unit {
         focus = focus.copy(configure)
     }
-    internal fun snapshot(checked: Binding<Boolean>): CheckboxProps =
+    internal fun snapshot(checked: Binding<CheckState>): CheckboxProps =
         CheckboxProps(checked, enabled, style, theme, focus, invalid, labelTarget)
 }

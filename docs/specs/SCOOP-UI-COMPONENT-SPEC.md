@@ -28,7 +28,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | --- | --- |
 | Label | 纯文本或 StyledText、字体／样式输入及行内 View 绑定，复用公共段落测量与绘制 |
 | Button | 标签、hover／pressed／focus／disabled 外观、指针与键盘激活 |
-| Checkbox | 布尔 checked、外部 Binding 或自有状态、指针与 Space 切换及 disabled 外观 |
+| Checkbox | CheckState 三态或 Boolean 绑定、自有布尔状态、指针与 Space 切换及 disabled／invalid 外观 |
 | Input／Textarea | 共享 TextEditorState 的单行／多行输入、主题表面、占位文本、验证说明与滚动条 |
 | Row／Column | 子项的单轴排列、spacing 与交叉轴对齐 |
 | Stack | 子项叠放和对齐 |
@@ -74,6 +74,7 @@ button(text: String, onClick: () -> Unit, configure: ButtonBuilder.() -> Unit = 
 button(text: StyledText, onClick: () -> Unit, configure: StyledButtonBuilder.() -> Unit = {}): View
 button(content: View, onClick: () -> Unit, configure: ContentButtonBuilder.() -> Unit = {}): View
 checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
+checkbox(checked: Binding<CheckState>, configure: CheckboxBuilder.() -> Unit = {}): View
 checkbox(initialChecked: Boolean = false, configure: CheckboxBuilder.() -> Unit = {}): View
 ```
 
@@ -185,11 +186,15 @@ enabled 和最新回调在 Element.update 的逻辑阶段生效。禁用不等�
 
 ## 5. Checkbox
 
-Checkbox 标记使用 Theme.checkboxGeometry 和 ThemePainter.drawCheckbox，向主题传入 Off／On 及交互视觉数据，布局与点击可组合标签／留白。公共主题另外提供 Mixed 标记供菜单／树／表格使用；首期 Checkbox 仍保留下面的布尔 Binding 行为，不自行维护另一套标记绘图。
+Checkbox 标记使用 Theme.checkboxGeometry 和 ThemePainter.drawCheckbox，向主题传入 Off／On／Mixed 及交互视觉数据，布局与点击可组合标签／留白，不维护另一套标记绘图。选中与混合态的选择进度均为 1，未选中为 0；invalid 时选中与混合态保留 primary 边框。
 
-Checkbox 的 checked 是布尔值。最小入口为：
+`CheckState` 为 Unchecked／Checked／Indeterminate，分别映射主题 CheckMark.Off／On／Mixed。CheckboxProps.checked 统一为 Binding<CheckState>；Boolean 便利入口通过 getter／setter 映射同一绑定，true 为 Checked、false 为 Unchecked，写回只有 Checked 对应 true，不持有镜像 State。两种受控入口共用 Checkbox、InputArea 和 Press，互换绑定类型保留组件。最小入口为：
 
 ```text
+fun checkbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit = {}
+): View
 fun checkbox(
     checked: Binding<Boolean>,
     configure: CheckboxBuilder.() -> Unit = {}
@@ -204,7 +209,7 @@ fun checkbox(
 
 CheckboxStyle 使用 CheckboxOptions 和同一 InteractionStyles，并可明确覆盖外部 padding；默认 padding 来自主题 small spacing。建议／最小标记尺寸与 padding 决定测量，实际可用空间中的标记 bounds 交给主题计算。同一个 InputArea 包含显式留白，不因选择、glow、阴影或主题 painter 替换而重新创建。
 
-外部绑定入口以当前 Binding 的 value 为显示和交互的状态来源。有效激活时读取当前值并写入其取反值，随后由底层 State 通知读取者；绑定的业务 setter 可以按自身规则接受或拒绝修改，控件不先保存另一个乐观值。外部修改 checked 只更新显示，不合成用户激活。
+外部绑定入口以当前 Binding 的 value 为显示和交互的状态来源。有效激活时读取当前值，按 Unchecked→Checked、Checked→Unchecked、Indeterminate→Checked 写入一次，随后由底层 State 通知读取者；绑定的业务 setter 可以按自身规则接受或拒绝修改，控件不先保存另一个乐观值。外部修改 checked 只更新显示，不合成用户激活。
 
 自有状态入口由持久的内部组件在首次构造时创建 State，initialChecked 只决定首次值；普通父级重建或再次传入初始值不重置它。该组件把自己的 State 作为 Binding 交给相同的 Checkbox 实现，不复制绘制和输入逻辑。两种入口采用不同组件形状，切换外部绑定／自有状态模式时按框架第 5 节重新挂载；同一外部绑定入口更换 Binding 对象则沿通常 Props 更新保留实例。
 
@@ -568,11 +573,11 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 
 ## 15. FieldLabel 与控件关联
 
-`FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps 及对应 builder 增加 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
+`FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps／SwitchProps 及对应 builder 提供 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
 
 `fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
 
-标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
+标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
 
 ## 16. ButtonGroup
 
@@ -613,3 +618,26 @@ header 和 footer 独占全宽，中心区域按逻辑方向排列 media、conte
 `itemGroup(size: ItemSize = Default, configure: ItemGroupBuilder.() -> Unit)` 收集普通 ChildrenBuilder 子项，并提供 `item(configure)`／`item(content, configure)` 成员。size 决定组间距并作为这些条目的初始尺寸，明确条目 size 可覆盖；Default／Sm／Xs 间距为 16／10／8，按 body 字号缩放。ItemGroupProps 保存 children、size、theme 和 style；builder 的 theme／style／key 只配置容器，条目字体与主题继续显式配置或取 ambient。组填满有限宽度并按声明顺序排列，不增加焦点、选择或输入行为；key 沿普通子项匹配。
 
 `itemSeparator(configure: ItemSeparatorBuilder.() -> Unit = {})` 创建 ItemSeparatorProps／ItemSeparator；Props 保存 color: Color? = None、theme: ThemeSource? = None，builder 另有 key。内容为水平 Separator，颜色默认 border，上下各留白 8 并随 body 字号缩放。ChildrenBuilder 提供同名成员，ItemGroup 可混排分隔线和自定义内容。实现复用原 Separator 的有限／无界测量与绘制，不另建分隔线或列表框架。
+
+
+## 18. Switch 与 Toggle
+
+### 18.1 Switch
+
+`switchControl(checked: Binding<Boolean>, configure: SwitchBuilder.() -> Unit = {}): View` 以及同名 ChildrenBuilder 成员构造 Switch。SwitchProps 接收 checked、enabled=true、invalid=false、size=SwitchSize.Default、style=switchStyle()、theme=None、focus=FocusOptions()、labelTarget=None；builder 提供相同选项及 key，并提供 style／focus 接收者配置。SwitchSize 为 Default／Sm。控件读取并写入当前 Binding；有效指针、Space 或关联 FieldLabel 激活时读取最新值并取反一次。业务 setter 可以拒绝写入，不保存镜像或乐观值；外部更新不合成激活。Enter 不切换。取消、重复键、失焦、禁用和卸载遵守 Checkbox 的 Press 合同；替换绑定、FocusHandle、FieldTarget 或主题保留挂载和输入区域。
+
+SwitchStyle 的 track: SurfaceOptions、thumb: StyleOverride、states: InteractionStyles、hitInsets: Insets? 默认未覆盖；transition／selectionTransition 为 StyleValue<AnimationSpec?>.Inherit。switchStyle 及 copy 使用 SwitchStyleBuilder，track／thumb／states 有接收者配置，两个 transition 也可显式写 None。hitInsets 未指定时为左右 12、上下 8；必须有限且非负，不参与布局。主题 body 字号／14 作为默认尺寸密度；显式 hitInsets 不再缩放。
+
+默认轨道为 32×18.4，Sm 为 24×14，边框 1，圆角为完整胶囊，thumb 为 16／12。有限父约束优先，零尺寸合法；轨道使用最终布局 bounds。滑块尺寸不超过轨道内框可用尺寸，垂直居中；Unchecked 在逻辑起点，Checked 在逻辑终点，RTL 反向。命中范围在轨道 bounds 外扩 hitInsets，沿正常场景裁剪；实际零宽／零高不增加命中范围。
+
+未选中背景为 palette.input，Dark 乘 0.8 alpha；选中为 primary.background。Light thumb 为 background.background，Dark 未选中为 background.foreground、选中为 primary.foreground。轨道和 thumb 颜色以及 thumb 位移使用同一个 0…1 选择动画采样；首次挂载直接显示当前值，后续使用主题 selection（shadcn 为 150ms），局部可覆盖或禁用。hover／press 使用已有交互动画；disabled 停止过渡，Reduced 最终关闭所有过渡，普通重建不重启动画。没有独立时钟或定时线程。
+
+track 使用公共 SurfaceKind.Plain 的几何和 painter；focus、invalid、disabled opacity 沿主题统一合同。局部 track／thumb Style 最后覆盖预设，states 应用于轨道。默认轨道透明边框，focus-visible 使用 ring 边框、invalid 使用 validation.borderColor，invalid 优先。禁用透明度包住轨道与 thumb 整体，避免重复衰减。动画不活动或卸载后没有额外帧需求。
+
+### 18.2 Toggle
+
+`toggle(content, pressed: Binding<Boolean>, configure): View` 提供 String、StyledText、View、(ActionContentStyle) -> View 四种内容入口及 ChildrenBuilder 成员；对应 ToggleBuilder、StyledToggleBuilder、ContentToggleBuilder。ToggleProps 使用同一 ButtonContent，并接收 pressed、enabled=true、invalid=false、variant=ToggleVariant.Default、size=ToggleSize.Default、style=buttonStyle { kind=Plain }、theme=None、focus=FocusOptions()。builder 另有 key；String／StyledText 借用 fonts，StyledText 可指定 settings／inlines。style 和 focus 的接收者配置沿 Button 合同，构造只发布描述，不创建资源或调用 setter。
+
+ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed 是业务选择值；鼠标或 Space／Enter 的短暂按下仍由 Press.interaction.pressed 表达，两者独立。每次有效激活读取最新 Binding 并取反一次，setter 可拒绝；外部更新、更换绑定和普通重建不生成第二份状态。取消、重复键、禁用、失焦、卸载和子动作消费遵守 Button 的输入规则，复用同一 ActionInk／内容解析路径。
+
+默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。现阶段 Toggle 只承担独立控件语义，分组选择策略属于 ToggleGroup。

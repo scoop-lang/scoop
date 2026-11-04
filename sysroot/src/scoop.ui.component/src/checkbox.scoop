@@ -5,8 +5,30 @@ import scoop.surface.Animatable
 import scoop.ui.*
 import scoop.ui.style.*
 
+public enum CheckState {
+    Unchecked, Checked, Indeterminate
+}
+
+internal fun nextCheckState(value: CheckState): CheckState =
+    if (value == CheckState.Checked)
+        CheckState.Unchecked
+    else
+        CheckState.Checked
+
+internal fun checkboxStateBinding(value: Binding<Boolean>): Binding<CheckState> =
+    binding(
+        get =
+            {
+                if (value.value)
+                    CheckState.Checked
+                else
+                    CheckState.Unchecked
+            },
+        set = { next -> value.value = next == CheckState.Checked }
+    )
+
 public class CheckboxProps public constructor(
-    public val checked: Binding<Boolean>,
+    public val checked: Binding<CheckState>,
     public val enabled: Boolean = true,
     public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
@@ -25,7 +47,7 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
         val press =
             scope.press(area, PressOptions(props.value.enabled, false)) {
                 val binding = props.value.checked
-                binding.value = !binding.value
+                binding.value = nextCheckState(binding.value)
             }
         control.value = Some(PressControl(area, focus, press))
     }
@@ -46,11 +68,11 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
                 checked,
                 control,
                 visual,
-                input.style.options(theme, visual, checked),
+                input.style.options(theme, visual, checked != CheckState.Unchecked),
                 input.style.padding ?: Insets.all(theme.tokens.spacing.small),
                 {
                     val binding = props.value.checked
-                    binding.value = !binding.value
+                    binding.value = nextCheckState(binding.value)
                 }
             ),
             { current -> CheckboxInk(current) }
@@ -59,14 +81,25 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
 }
 
 public fun checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View =
-    makeCheckbox(checked, configure)
+    makeCheckbox(checkboxStateBinding(checked), configure)
+
+public fun checkbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit = {}
+): View = makeCheckbox(checked, configure)
 
 public fun checkbox(
     initialChecked: Boolean = false,
     configure: CheckboxBuilder.() -> Unit = {}
 ): View = makeOwnedCheckbox(initialChecked, configure)
 
-internal fun makeCheckbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit): View {
+internal fun makeCheckbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit): View =
+    makeCheckbox(checkboxStateBinding(checked), configure)
+
+internal fun makeCheckbox(
+    checked: Binding<CheckState>,
+    configure: CheckboxBuilder.() -> Unit
+): View {
     val builder = CheckboxBuilder()
     builder.configure()
     return component(builder.snapshot(checked), { props -> Checkbox(props) }, builder.key)
@@ -119,7 +152,7 @@ private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Compo
 private class CheckboxInkProps(
     val input: CheckboxProps,
     val theme: Theme,
-    val checked: Boolean,
+    val checked: CheckState,
     val control: State<PressControl?>,
     val visual: InteractionVisual,
     val options: CheckboxOptions,
@@ -143,7 +176,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         selection =
             Some(
                 scope.animation(
-                    if (props.value.checked)
+                    if (props.value.checked != CheckState.Unchecked)
                         1.0
                     else
                         0.0
@@ -165,7 +198,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         )
         changeProgress(
             selection!!,
-            if (value.checked)
+            if (value.checked != CheckState.Unchecked)
                 1.0
             else
                 0.0,
@@ -202,10 +235,11 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
             )
         val visual =
             CheckboxVisual(
-                if (value.checked)
-                    CheckMark.On
-                else
-                    CheckMark.Off,
+                when (value.checked) {
+                    case Unchecked -> CheckMark.Off
+                    case Checked -> CheckMark.On
+                    case Indeterminate -> CheckMark.Mixed
+                },
                 motion!!.sample(value.visual),
                 Some(selection!!.value)
             )

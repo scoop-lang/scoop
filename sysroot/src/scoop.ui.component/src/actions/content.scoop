@@ -6,6 +6,15 @@ import scoop.ui.style.InteractionVisual
 
 internal fun actionLineHeight(shape: ActionShape): Double? =
     when (shape) {
+        case Toggle(_, size, _) -> Some(
+            20.0 /
+                (
+                    if (size == ToggleSize.Sm)
+                        12.8
+                    else
+                        14.0
+                )
+        )
         case Badge -> Some(16.0 / 12.0)
         case Button(size) -> when (size) {
             case Xs -> Some(16.0 / 12.0)

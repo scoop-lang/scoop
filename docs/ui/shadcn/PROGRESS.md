@@ -87,3 +87,12 @@
 - Gallery 新增 Item 页面，展示全部变体、尺寸和媒体组合，可切换详情、行行为、禁用及宽度。手工检查明暗、RTL、图片圆角、文字省略和 240 宽度下的动作换行；规范第 17 节、API 和两份 README 已同步。
 - macOS aarch64 release：生产库、Gallery 应用／测试构建通过，155 个 Scoop 文件格式及相关 tests 类型检查通过。2 项组件测试、新增 23 阶段窗口测试、既有面板回归和搜索测试共 5 项通过；覆盖真实点击／Space／Enter、子动作隔离、拖选复制、选区与挂载保留、最新焦点／回调、模式切换、禁用取消、资源借用及卸载停帧，另断言自然／有限／零尺寸、媒体尺寸、省略与明确段落配置、头尾分隔线和动作不重叠。焦点环测试已纠正将描边宽度加进 outset 的错误预期。
 - 一次性检查锁、手工窗口日志和测试窗口已清理，保留共享缓存、后续复用产物及参考资源；没有重建编译器或外部图形依赖，没有扩大全仓验收。本批完成 Item，**P1 的 16 项全部完成，目录累计 16／64**；后续进入 P2，x86_64 留在整体收尾，Windows／Linux 未验证。
+
+
+## P2a：三态 Checkbox、Switch 与 Toggle
+
+- CheckboxProps 统一使用 Binding<CheckState>，Boolean 工厂只映射原绑定；Unchecked／Checked／Indeterminate 对应已有 Off／On／Mixed，混合态激活后选中，保留既有自有 Boolean 入口。Switch 提供 Default／Sm、轨道／滑块样式、标签关联、RTL 和不占布局的扩展点击区；颜色和位移共用一个选择动画。Toggle 提供 Default／Outline、三种尺寸和四种内容入口，复用 ActionInk／ButtonStyle，业务选中值与临时按下状态分开。
+- Gallery 新增三态全选组合、Switch 页面及 Toggle 图标／文字／Preview 组合。所有 setter 使用最新绑定并允许拒绝，不保留镜像 State；焦点、标签和动画沿既有作用域管理。唯一直接构造旧 Boolean CheckboxProps 的交互用例已迁移。
+- macOS aarch64 release：组件生产库、Gallery 程序与测试构建通过，相关三个 Cone 的 tests 检查通过。18 项定向测试全部通过：4 项新组件测试、10 项受影响的操作样式／DSL 回归、30 阶段新窗口用例，以及旧标签、Gallery 输入和搜索回归。覆盖混合态、Boolean 适配、尺寸／零约束／RTL、焦点与 invalid、外部拒绝写入、最新 Binding／FocusHandle／FieldTarget、Space／Enter 差异、重复键、禁用／拖出／卸载取消、独立子按钮、资源借用和停帧。
+- 手工复查明暗／RTL、Switch 两种尺寸、Toggle 全变体和 Preview 内容，以及 Mixed→全选→清空的实际组合。手工自动化部分后台短点击未生效，使用前台复核和键盘确认；完整激活／取消结论来自原生窗口状态断言。169 个 Scoop 文件格式及 diff 检查通过，构建期间发现的公开 Style 构造与导入别名问题已修正。
+- 本批完成 Checkbox、Switch、Toggle，目录累计 **19／64**。一次性检查锁、窗口日志和测试窗口已清理，继续保留共享缓存、组件／Gallery 产物及外部依赖；没有重建编译器或图形后端。按用户新反馈，下一步先集中修复已交付控件的状态颜色、动画序列及个别绘制问题，再继续 P2；x86_64 留在整体收尾，Windows／Linux 未验证。
