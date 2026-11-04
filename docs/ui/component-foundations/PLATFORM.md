@@ -1,6 +1,6 @@
 # 平台合同与源码边界
 
-本文属于 [控件基础设计](DESIGN.md)，规定 P1／P2 的目标合同，尚未实施。主要修改 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
+本文属于 [控件基础设计](DESIGN.md)，规定已完成的 P1／P2 合同；实际交付与验证范围见 [实施记录](PROGRESS.md)。对应 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
 
 ## 1. 原始按键与应用语义分开
 
@@ -46,7 +46,7 @@ Surface 继续负责 scope 优先级、target → ancestor 的默认行为、模
 
 ## 2. 编辑命令由 window 产生
 
-保留已有 `TextEditCommand`、`TextMovement`、`TextDeletion`。把 [editorFallbackKey](../../../sysroot/src/scoop.ui/src/text/editor/keyboard.scoop) 的 AppKit 键位表移入 window 的平台策略，UI 不再保存平台快捷键后备。
+保留已有 `TextEditCommand`、`TextMovement`、`TextDeletion`。把 [原 UI 编辑键位表](../../../sysroot/src/scoop.window/platform/darwin/editing_keys.scoop) 的 AppKit 键位表移入 window 的平台策略，UI 不再保存平台快捷键后备。
 
 `KeyEvent.textCommands` 的新合同为：当前后端针对该事件确定的有序语义编辑命令。优先使用原生编辑系统的命令；只有原生没有产生对应命令、没有通过 IME 消费该键时，才由同一 window 后端补充本平台的标准映射。没有编辑含义的键仍为空数组；空数组不再表示“请 UI 猜平台”。
 
@@ -98,7 +98,7 @@ Surface 保持 `FrameCompletion`、Accepted／Deferred、输入场景和帧机�
 
 ## 6. 源码整理与 Windows 接入
 
-| 当前位置 | 调整方向 |
+| 迁移前位置 | P1／P2 调整 |
 | --- | --- |
 | `scoop.surface/src/platform/darwin/shortcuts/` | 通用 binding／scope／host／dispatch 移到 shared；key、modifiers、匹配与标签归 window |
 | `scoop.window/platform/darwin/shortcuts.scoop` | 公共声明移到 window `src`；原生 Unicode／键盘布局查询保留为内部后端实现 |
@@ -120,6 +120,18 @@ Windows 分支的交接清单如下；每项只有在该分支真实实现并验
 | 输入生命周期 | 捕获中的鼠标序列、取消、失焦／关闭、单调时间 | 同一 Press／Drag／模态行为 |
 | 呈现与调度 | 帧完成边界、遮挡／恢复、一次性 deadline、asyncio 唤醒 | 同一 UiRoot／动画／退出逻辑 |
 | 图形与字体 | 共享绘图／图像／缓存能力和 DirectWrite fallback | 同一 Style／Image／ParagraphHost |
+
+### 6.1 后端接入点
+
+P1／P2 的共享 Scoop 源码调用以下内部后端入口；补齐后端时沿用现有普通源文件选择，不增加运行时注册层：
+
+- window：`platformPrimaryModifier`、`platformShortcutCharactersEqual`、`platformShortcutLabel`、`platformTextCommands(pointer, key, modifiers, state, synthetic)`。
+- window 文本服务：`platformReadClipboard`／`platformWriteClipboard`；`platformPublishText(window, connection, state, after)`、`platformPublishTextCaret(window, connection, revision, area)`、`platformClearImeCaret(window)`。两个发布入口沿现有状态约定返回 0 成功、1 过期／未就绪、2 非法修订或序号；清除入口使用普通 native status。其他错误沿 window 错误映射。
+- graphics.text：`st_system_fonts` 和 `st_system_family(category)`。category 的 0／1／2 对应 sans-serif／serif／monospace；返回能由该字体管理器匹配的实际 family。别名和显式字体优先级由共享字体集合处理。
+- surface：caret 已使用共享 window 入口；帧、捕获与取消仍依赖既有后端合同。
+- window.asyncio：现有共享 WindowLoopHost／Application 执行器与 `platformWatch` 分层已满足要求，继续复用现有 watch、deadline 和关闭顺序，无需新增抽象。
+
+旧 Win32 空编辑命令后备与忽略 revision 的 Surface caret 路径已移除。Windows／Linux 本轮不构建、不声明已可用；相应分支需要真实实现上述入口和文档前述语义，不能用空返回值代替。纯 UI 六个生产 Cone 的源码入口不再限定 Darwin；按平台选择的 native 测试仍保持原有选择条件。
 
 ## 7. 验收重点
 

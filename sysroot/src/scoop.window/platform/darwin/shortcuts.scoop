@@ -1,15 +1,8 @@
 package scoop.window
 
-/** Compares received logical keys without deriving key events from input text. */
-public fun LogicalKey.matchesShortcut(other: LogicalKey): Boolean =
-    when ((this, other)) {
-        case(Character(left), Character(right)) -> shortcutCharactersEqual(left, right)
-        case(Dead(_), _) -> false
-        case(_, Dead(_)) -> false
-        else -> this == other
-    }
+internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Super
 
-private fun shortcutCharactersEqual(left: String, right: String): Boolean {
+internal fun platformShortcutCharactersEqual(left: String, right: String): Boolean {
     @Unsafe
     {
         return left.withUtf8Bytes {

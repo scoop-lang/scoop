@@ -4,8 +4,13 @@ import scoop.graphics.*
 import scoop.test.*
 import scoop.ui.*
 import scoop.ui.component.*
+import scoop.window.ActiveApplication
 
-internal fun advanceVariable(probe: VariableProbe) {
+internal fun advanceVariable(probe: VariableProbe, active: ActiveApplication) {
+    if (probe.phase >= 17) {
+        advanceReading(probe, active)
+        return
+    }
     when (probe.phase) {
         case 0 -> {
             assertEquals(2000000000.0, probe.scroll.content.height)
@@ -56,7 +61,7 @@ internal fun advanceVariable(probe: VariableProbe) {
         case 7 -> {
             probe.assertTop(9L, 60.0)
             assertEquals(probe.scroll.maximum, probe.scroll.offset)
-            probe.scroll.scrollBy(Point(0.0, -30.0))
+            probe.scroll.scrollBy(Point(0.0, -30.0), ScrollOrigin.User)
             probe.next()
         }
         case 8 -> {
@@ -114,18 +119,9 @@ internal fun advanceVariable(probe: VariableProbe) {
             assertFalse(probe.oldHandle!!.scrollToItem(ViewKey.Number(5L)))
             assertTrue(probe.handle.value.isAttached)
             assertFalse(probe.handle.value.isPending)
-            assertTrue(probe.handle.value.scrollToItem(ViewKey.Number(5L)))
-            probe.show.value = false
+            probe.scroll.scrollTo(Point(0.0, 15.0))
             probe.next()
         }
-        case 17 -> {
-            assertFalse(probe.scroll.isAttached)
-            assertFalse(probe.handle.value.isAttached)
-            assertFalse(probe.handle.value.isPending)
-            probe.phase = 18
-            probe.ui!!.close()
-            probe.window!!.requestDestroy()
-        }
-        else -> {}
+        else -> fail(Some("unexpected variable list phase"))
     }
 }

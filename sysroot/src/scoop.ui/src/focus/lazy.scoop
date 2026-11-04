@@ -140,7 +140,13 @@ public class LazyFocus internal constructor(
             return
         when (current.navigation) {
             case Roving(direction, loop) -> {
-                val step = navigationStep(current.layout, direction, key.logicalKey) ?: return
+                val step =
+                    navigationStep(
+                        current.layout,
+                        direction ?: node.layoutDirection,
+                        key.logicalKey
+                    ) ?:
+                        return
                 val entry = focusedEntry() ?: return
                 val target = primary(entry) ?: return
                 if (!target.area.hasFocus)

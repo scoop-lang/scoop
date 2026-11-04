@@ -1,6 +1,5 @@
 package scoop.tests.ui.navigation
 
-import scoop.graphics.text.TextDirection
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.*
 import scoop.test.*
@@ -75,9 +74,9 @@ internal class NavigationProbe {
             this.layout = layout
             this.direction =
                 if (rtl)
-                    TextDirection.Rtl
+                    Some(LayoutDirection.Rtl)
                 else
-                    TextDirection.Ltr
+                    Some(LayoutDirection.Ltr)
             this.loop = loop
             this.roving = roving
         }

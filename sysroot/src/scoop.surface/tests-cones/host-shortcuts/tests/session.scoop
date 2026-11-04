@@ -50,9 +50,12 @@ private class HostShortcutSession: Closeable {
 
     fun binding(amount: Int): ShortcutBinding =
         shortcutBinding(
-            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+            ShortcutChord(
+                ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                ShortcutModifiers(primary = true)
+            ),
             { hostCalls += amount }
-        ) { this.modifiers = ShortcutModifiers(primary = true) }
+        )
 
     fun event(host: SurfaceHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -92,9 +95,12 @@ private class HostShortcutSession: Closeable {
                             surface.input,
                             [
                                 shortcutBinding(
-                                    ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                    ShortcutChord(
+                                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                        ShortcutModifiers(primary = true)
+                                    ),
                                     { localCalls += 1 }
-                                ) { this.modifiers = ShortcutModifiers(primary = true) }
+                                )
                             ]
                         )
                     )
@@ -220,9 +226,12 @@ private class HostShortcutSession: Closeable {
                 shared!!.bindings =
                     [
                         shortcutBinding(
-                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                            ShortcutChord(
+                                ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                                ShortcutModifiers(primary = true)
+                            ),
                             { host.close() }
-                        ) { this.modifiers = ShortcutModifiers(primary = true) }
+                        )
                     ]
                 phase = 10
             }

@@ -49,7 +49,7 @@ internal fun measureTextField(
 ): LayoutMetrics {
     val value = ink.props.value
     val input = value.input
-    val metrics = value.theme.surfaceMetrics(value.visual, value.surface)
+    val metrics = value.theme.surfaceMetrics(value.visual, value.surface, context.layoutDirection)
     val insets = metrics.contentInsets.totals()
     val naturalWidth = value.surface.suggestedSize?.width ?: 240.0
     val width =
@@ -93,7 +93,8 @@ internal fun measureTextField(
         value.theme.surfaceGeometry(
             Rect(0.0, 0.0, size.width, fieldHeight),
             value.visual,
-            value.surface
+            value.surface,
+            context.layoutDirection
         )
     val content = geometry.content
     val right =

@@ -23,7 +23,7 @@ private class ThemeGeometryTest {
             assertTrue(geometry.focus!!.outline.bounds.width > geometry.bounds.width)
             assertTrue(theme.tokens.effects.raised.size > 0L)
             assertTrue(theme.tokens.effects.emphasis.size > 0L)
-            assertEquals(metrics.cornerRadius, geometry.style.cornerRadius)
+            assertEquals(Corners.Physical(metrics.corners), geometry.style.corners)
             val box = theme.checkboxMetrics()
             assertTrue(box.suggestedSize.width >= box.minimumSize.width)
             assertTrue(
@@ -53,8 +53,8 @@ private class ThemeGeometryTest {
             surfaceOptions {
                 this.padding = Some(Insets.all(7.0))
                 style {
-                    this.border(Some(Border(3.0, Color.Black)))
-                    this.cornerRadius(9.0)
+                    this.border(Some(Border.all(3.0, Color.Black)))
+                    this.corners(Corners.all(9.0))
                 }
             }
         for (theme in themes()) {
@@ -62,7 +62,7 @@ private class ThemeGeometryTest {
             val geometry = theme.surfaceGeometry(Rect(20.0, 20.0, 80.0, 40.0), visual, options)
             assertEquals(Rect(30.0, 30.0, 60.0, 20.0), geometry.content)
             assertEquals(Rect(23.0, 23.0, 74.0, 34.0), geometry.borderInner.bounds)
-            assertEquals(6.0, geometry.borderInner.radius)
+            assertEquals(CornerRadii.all(6.0), geometry.borderInner.radii)
             assertEquals(theme.tokens.palette.accent, geometry.style.background!!.color)
             val mark =
                 theme.checkboxGeometry(
@@ -82,7 +82,7 @@ private class ThemeGeometryTest {
                     RadioVisual(true),
                     radioOptions {
                         this.dotInset = Some(4.0)
-                        this.border(Some(Border(3.0, Color.Black)))
+                        this.border(Some(BorderEdge(3.0, Color.Black)))
                     }
                 )
             assertEquals(Circle(Point(20.0, 22.0), 10.0), radio.outer)

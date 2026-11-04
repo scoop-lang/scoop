@@ -33,6 +33,9 @@ private class ModalUiTest {
                 assertFalse(handle.isAttached)
             assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.layers[0L].lastCloseReason)
             assertEquals(Some(OverlayCloseReason.OwnerClosed), probe.layers[1L].lastCloseReason)
+        } catch (error: Throwable) {
+            probe.reportFailure(error)
+            throw error
         } finally {
             probe.view?.close()
         }
@@ -84,6 +87,10 @@ internal class ModalProbe {
     var rootScope: ComponentScope? = None
     private var retryFocus = false
 
+    fun reportFailure(error: Throwable) {
+        println(f"phase=${phase}, frames=${passes}")
+        reportFailureDetail(error)
+    }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
@@ -150,6 +157,8 @@ internal class ModalProbe {
         closed.add(ModalClose(index, reason))
         open[index] = false
         changed()
+    }
+    fun beforeClose(index: Long) {
         if (index == 0L && requestOnClose >= 0L) {
             assertFalse(focus[requestOnClose].requestFocus())
             requestOnClose = -1L
@@ -157,7 +166,11 @@ internal class ModalProbe {
     }
     fun expectFocus(index: Long) {
         for (position in 0L ..< focus.size)
-            assertEquals(position == index, focus[position].hasFocus)
+            assertEquals(
+                position == index,
+                focus[position].hasFocus,
+                Some(f"phase=${phase}, target=${index}, checked=${position}")
+            )
     }
     fun after(active: ActiveApplication, check: () -> Unit) {
         assertTrue(
@@ -194,4 +207,28 @@ internal class ModalProbe {
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(millis))
         )
     }
+}
+
+private fun reportFailureDetail(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportFailureDetail(error.primaryFailure)
+        reportFailureDetail(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.kind}: ${error.location.file}:${error.location.line} ${
+                    error.message ?: ""
+                }"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "window test failure")
 }

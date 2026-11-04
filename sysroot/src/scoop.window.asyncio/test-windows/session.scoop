@@ -69,7 +69,7 @@ private class WindowsSessionHandler: ApplicationHandler {
         )
         val scope = currentApplicationScope()
         val loop = currentEventLoop()
-        scope.launch suspend {
+        scope.launch {
             try {
                 loop.sleep(Duration.seconds(30L))
             }
@@ -86,7 +86,7 @@ private class WindowsSessionHandler: ApplicationHandler {
                 }
             }
         }
-        scope.launch suspend {
+        scope.launch {
             @Unsafe
             {
                 assertTrue(scheduleNativeMode(this @WindowsSessionHandler.hwnd!!, 1, 250) != 0)

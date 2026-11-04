@@ -157,19 +157,9 @@ public class KeyNavigation internal constructor(
                 case Keyboard(value) -> value
                 else -> return
             }
-        val modifiers = key.modifiers
-        if (
-            key.state !=
-                ElementState.Pressed ||
-                key.synthetic ||
-                modifiers.control ||
-                modifiers.alt ||
-                modifiers.shift ||
-                modifiers.superKey ||
-                modifiers.function
-        )
+        if (!navigationKeyAllowed(key))
             return
-        val step = navigationStep(current, key.logicalKey) ?: return
+        val step = navigationStep(current, key.logicalKey, node.layoutDirection) ?: return
         val index = focusedIndex() ?: return
         val next =
             navigationDestination(current.items, index, step, current.loop) {

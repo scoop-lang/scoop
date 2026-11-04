@@ -29,7 +29,7 @@ public class LayoutAnchor public constructor() {
         }
         val change = AnchorOwnerChange(this, node)
         for (portal in dependents)
-            if (portal.isOpen)
+            if (portal.isPresent)
                 checkOverlayDependency(portal, Some(this), Some(change))
         val value = AnchorBinding(this, node)
         binding = Some(value)
@@ -61,7 +61,7 @@ public class LayoutAnchor public constructor() {
         for (portal in work) {
             failure =
                 cleanupUi(failure) {
-                    portal.close(
+                    portal.forceClose(
                         if (portal.active)
                             OverlayCloseReason.AnchorUnavailable
                         else

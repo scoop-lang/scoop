@@ -1,0 +1,53 @@
+package scoop.surface
+
+import scoop.window.*
+
+/** Observation of this window, independent of hit testing and event consumption. */
+public enum PointerObservation {
+    Pointer(PointerEvent), FocusLost, Closed
+}
+
+internal class WindowPointerObserver(
+    val scope: InputScope,
+    val handler: (PointerObservation) -> Unit
+): Closeable {
+    var closed = false
+    public override fun close() {
+        val owner = scope.owner
+        owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        for (index in 0L ..< owner.pointerObservers.size)
+            if (owner.pointerObservers[index] === this) {
+                owner.pointerObservers.removeAt(index)
+                return
+            }
+    }
+}
+
+/** Does not capture input or provide a context that could consume the routed event. */
+public fun InputScope.observePointer(handler: (PointerObservation) -> Unit): Closeable {
+    checkOpen()
+    val observer = WindowPointerObserver(this, handler)
+    owner.pointerObservers.add(observer)
+    return observer
+}
+
+internal fun deliverPointerObservation(
+    snapshot: Array<WindowPointerObserver>,
+    event: PointerObservation,
+    terminal: Boolean = false
+) {
+    var failure: Throwable? = None
+    for (observer in snapshot)
+        if (!observer.closed && (terminal || !observer.scope.closed))
+            failure = cleanupFailure(failure) { observer.handler(event) }
+    throwFailure(failure)
+}
+
+internal fun InputRouter.retirePointerObservers(scope: InputScope) {
+    for (observer in pointerObservers.toArray())
+        if (observer.scope === scope)
+            observer.close()
+}

@@ -93,7 +93,7 @@ public class RadioOptionsBuilder internal constructor(initial: RadioOptions) {
     public var minimumSize: Double? = initial.minimumSize
     public var dotInset: Double? = initial.dotInset
     public var background: StyleValue<Paint?> = initial.background
-    public var border: StyleValue<Border?> = initial.border
+    public var border: StyleValue<BorderEdge?> = initial.border
     public var dotColor: Color? = initial.dotColor
     public var focus: FocusStyle? = initial.focus
 
@@ -101,7 +101,7 @@ public class RadioOptionsBuilder internal constructor(initial: RadioOptions) {
         this.background = StyleValue.Set(value)
     }
 
-    public fun border(value: Border?): Unit {
+    public fun border(value: BorderEdge?): Unit {
         this.border = StyleValue.Set(value)
     }
 

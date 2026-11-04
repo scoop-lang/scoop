@@ -13,16 +13,22 @@ internal class ListScene(private val probe: ListProbe): Component {
         return element(
             { ListPanel(probe) },
             [
-                if (probe.show.value)
-                    virtualList(probe.data!!.value, ItemExtent.Fixed(20.0)) {
-                        this.state = Some(this @ListScene.probe.scroll)
-                        this.orientation = this @ListScene.probe.orientation.value
-                        this.overscan = 20.0
-                        this.lineStep = 10.0
-                        this.theme = Some(this @ListScene.probe.theme)
-                    }
-                else
-                    empty()
+                direction(
+                    if (probe.show.value)
+                        virtualList(probe.data!!.value, ItemExtent.Fixed(20.0)) {
+                            this.state = Some(this @ListScene.probe.activeScroll.value)
+                            this.orientation = this @ListScene.probe.orientation.value
+                            this.overscan = 20.0
+                            this.lineStep = this @ListScene.probe.lineStep.value
+                            this.theme = Some(this @ListScene.probe.theme)
+                            this.handle = Some(this @ListScene.probe.handle)
+                            this.focus =
+                                FocusOptions(handle = Some(this @ListScene.probe.viewportFocus))
+                        }
+                    else
+                        empty(),
+                    probe.direction.value
+                )
             ]
         )
     }
@@ -82,6 +88,7 @@ internal class ListSource(
 internal class ListRowRecord(val id: Long) {
     val local = state(0)
     var observed = -1
+    var direction = LayoutDirection.Ltr
     var area: InputArea? = None
     var mounts = 0
     var unmounts = 0
@@ -131,8 +138,10 @@ private class ListRow(probe: ListProbe, private val props: Props<Long>): Compone
 }
 
 private class ListRowInk(private val record: ListRowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        record.direction = context.layoutDirection
+        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+    }
     public override fun scene(context: SceneContext) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)

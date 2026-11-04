@@ -1,0 +1,130 @@
+package scoop.tests.ui.virtual
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.*
+
+internal fun advanceRtlList(probe: ListProbe, active: ActiveApplication) {
+    val handle = probe.handle
+    when (probe.phase) {
+        case 14 -> {
+            assertSame(probe.zero!!, probe.row(0L))
+            assertEquals(23, probe.zero!!.observed)
+            assertEquals(LayoutDirection.Rtl, probe.row(0L).direction)
+            assertEquals(LayoutDirection.Rtl, probe.row(1L).direction)
+            assertTrue(probe.zero!!.area!!.hasFocus)
+            assertEquals(160.0, probe.row(0L).area!!.windowBounds!!.x)
+            assertEquals(140.0, probe.row(1L).area!!.windowBounds!!.x)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(0L), 0.0)),
+                handle.reading!!.anchor
+            )
+            probe.data!!.value = ListSource(probe, 20L)
+            probe.refresh()
+        }
+        case 15 -> {
+            assertEquals(Point(240.0, 0.0), probe.scroll.offset)
+            assertEquals(160.0, probe.row(0L).area!!.windowBounds!!.x)
+            assertFalse(handle.reading!!.atEnd)
+            probe.scrollTo(Point(200.0, 0.0))
+        }
+        case 16 -> {
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(2L), 0.0)),
+                handle.reading!!.anchor
+            )
+            probe.direction.value = LayoutDirection.Ltr
+            probe.refresh()
+        }
+        case 17 -> {
+            assertEquals(Point(40.0, 0.0), probe.scroll.offset)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(2L), 0.0)),
+                handle.reading!!.anchor
+            )
+            assertSame(probe.zero!!, probe.row(0L))
+            assertTrue(probe.zero!!.area!!.hasFocus)
+            assertEquals(23, probe.zero!!.observed)
+            assertEquals(LayoutDirection.Ltr, probe.zero!!.direction)
+            probe.direction.value = LayoutDirection.Rtl
+            probe.activeScroll.value = probe.rtlScroll
+            probe.refresh()
+        }
+        case 18 -> {
+            assertFalse(probe.scroll.isAttached)
+            assertTrue(probe.rtlScroll.isAttached)
+            assertEquals(Point(240.0, 0.0), probe.rtlScroll.offset)
+            assertFalse(probe.rtlScroll.hasPositionRequest)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(0L), 0.0)),
+                handle.reading!!.anchor
+            )
+            assertSame(probe.zero!!, probe.row(0L))
+            probe.zero!!.local.value = 31
+            probe.lineStep.value = 11.0
+            probe.zero!!.area!!.clearFocus()
+            assertTrue(probe.viewportFocus.requestFocus())
+            probe.refresh()
+        }
+        case 19 -> {
+            assertEquals(31, probe.zero!!.observed)
+            assertEquals(LayoutDirection.Rtl, probe.zero!!.direction)
+            assertTrue(probe.viewportFocus.hasFocus)
+            probe.input(active) { probe.key(121) }
+        }
+        case 20 -> {
+            assertEquals(Point(80.0, 0.0), probe.rtlScroll.offset)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(8L), 0.0)),
+                handle.reading!!.anchor
+            )
+            assertTrue(handle.restore(VirtualReadingAnchor(ViewKey.Number(4L), 5.0)))
+            probe.refresh()
+        }
+        case 21 -> {
+            assertFalse(handle.isPending)
+            assertEquals(Point(155.0, 0.0), probe.rtlScroll.offset)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(4L), 5.0)),
+                handle.reading!!.anchor
+            )
+            assertTrue(probe.viewportFocus.hasFocus)
+            probe.input(active) { probe.key(115) }
+        }
+        case 22 -> {
+            assertEquals(Point(240.0, 0.0), probe.rtlScroll.offset)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(0L), 0.0)),
+                handle.reading!!.anchor
+            )
+            probe.input(active) { probe.key(119) }
+        }
+        case 23 -> {
+            assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
+            assertEquals(VirtualRange(12L, 20L), handle.reading!!.visible)
+            assertTrue(handle.reading!!.atEnd)
+            probe.boundaryRevision = probe.rtlScroll.requestRevision
+            probe.input(active) { probe.key(121) }
+        }
+        case 24 -> {
+            assertEquals(Point(0.0, 0.0), probe.rtlScroll.offset)
+            assertTrue(probe.rtlScroll.requestRevision > probe.boundaryRevision)
+            probe.show.value = false
+            probe.refresh()
+        }
+        case 25 -> {
+            probe.assertLive([])
+            assertFalse(probe.scroll.isAttached)
+            assertFalse(probe.rtlScroll.isAttached)
+            assertFalse(handle.isAttached)
+            assertEquals(None, handle.reading)
+            assertTrue(probe.frames!!.snapshot().paused)
+            probe.phase = 26
+            probe.ui!!.close()
+            probe.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected RTL virtual list phase"))
+    }
+}

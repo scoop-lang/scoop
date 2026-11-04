@@ -8,6 +8,8 @@ scoop run sysroot/src/scoop.ui.component/examples/download --release --target aa
 
 点击 Start / Restart 开始下载。进度有两个明确阶段：Downloading 表示异步传输，Verifying 表示后台线程正在对已经提交的文件计算 SHA-256；摘要成功返回后才显示 Completed。HTTP 的未知长度保持未知，不把字节百分比当作完成结果。选择较大的文件可以直接观察校验阶段；小文件可能很快完成，不人为添加延迟。
 
+下载任务由应用作用域的 owner executor 排队启动，挂起后的外部完成回到同一个 executor。启动前取消直接结束本次状态，不依赖尚未进入的任务正文执行 finally。声明和函数类型仍标明 suspend，调用处的 lambda 由期望类型推断。
+
 下载和校验期间都可以操作点击计数、取消或重新开始。点击计数是组件自己的 State，下载模型是应用持有的普通 class；两种方式同时存在。取消校验保留已下载文件，重新开始会在成功下载后替换目的文件。旧任务的迟到进度和结果不会覆盖新的任务。
 
 `HttpClient` 绑定 UI owner 的 EventLoop，网络及异步文件等待挂起协程，进度回调在 owner 更新 State。计算密集的摘要不放进这些回调：`Thread.start` 在另一条原生线程上创建、使用和关闭 File、NativeByteBuffer 及 Digest。它只发送只读字节数／总量快照，经 ApplicationProxy 回到 owner 后才更新 State；工作线程不读写组件、State 或 Canvas。

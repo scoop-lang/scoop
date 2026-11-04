@@ -1,5 +1,7 @@
 package scoop.ui
 
+import scoop.graphics.Point
+
 public fun portalOptions(configure: PortalOptionsBuilder.() -> Unit = {}): PortalOptions =
     PortalOptions().copy(configure)
 
@@ -15,7 +17,9 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public var anchorVisibility: AnchorVisibility = value.anchorVisibility
     public var modal: ModalOptions? = value.modal
     public var dismiss: OverlayDismiss = value.dismiss
-    public var onClose: (OverlayCloseReason) -> Unit = value.onClose
+    public var transition: PresenceOptions = value.transition
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = value.onCloseRequest
+    public var onClosed: (OverlayCloseReason) -> Unit = value.onClosed
 
     public fun viewport(configure: ViewportPlacementBuilder.() -> Unit = {}): Unit {
         val builder = ViewportPlacementBuilder()
@@ -57,6 +61,27 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
                 builder.matchAnchorWidth
             )
     }
+    public fun atPoint(point: Point, configure: PointPlacementBuilder.() -> Unit = {}): Unit {
+        val builder = PointPlacementBuilder()
+        when (placement) {
+            case AtPoint(_, side, alignment, gap, padding) -> {
+                builder.preferredSide = side
+                builder.alignment = alignment
+                builder.gap = gap
+                builder.viewportPadding = padding
+            }
+            else -> {}
+        }
+        builder.configure()
+        placement =
+            OverlayPlacement.AtPoint(
+                point,
+                builder.preferredSide,
+                builder.alignment,
+                builder.gap,
+                builder.viewportPadding
+            )
+    }
     public fun dismiss(configure: OverlayDismissBuilder.() -> Unit): Unit {
         val builder = OverlayDismissBuilder(dismiss)
         builder.configure()
@@ -68,7 +93,16 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
         modal = Some(ModalOptions(builder.initialFocus, builder.restoreFocus))
     }
     internal fun snapshot(): PortalOptions =
-        PortalOptions(placement, handle, anchorVisibility, modal, dismiss, onClose)
+        PortalOptions(
+            placement,
+            handle,
+            anchorVisibility,
+            modal,
+            dismiss,
+            transition,
+            onCloseRequest,
+            onClosed
+        )
 }
 
 public class PortalBuilder internal constructor(): PortalOptionsBuilder(PortalOptions()) {
@@ -82,7 +116,9 @@ public class PortalBuilder internal constructor(): PortalOptionsBuilder(PortalOp
         anchorVisibility = value.anchorVisibility
         modal = value.modal
         dismiss = value.dismiss
-        onClose = value.onClose
+        transition = value.transition
+        onCloseRequest = value.onCloseRequest
+        onClosed = value.onClosed
     }
 }
 
@@ -108,4 +144,11 @@ public class OverlayDismissBuilder internal constructor(value: OverlayDismiss) {
 public class ModalOptionsBuilder internal constructor(value: ModalOptions) {
     public var initialFocus: FocusHandle? = value.initialFocus
     public var restoreFocus: Boolean = value.restoreFocus
+}
+
+public class PointPlacementBuilder internal constructor() {
+    public var preferredSide: OverlaySide = OverlaySide.Bottom
+    public var alignment: OverlayAlignment = OverlayAlignment.Start
+    public var gap: Double = 0.0
+    public var viewportPadding: Double = 8.0
 }

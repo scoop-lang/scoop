@@ -1,0 +1,184 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class DisplayProbe {
+    var projection = textProjection()
+    var copy = TextCopyPolicy.Default
+    var connection: TextInputConnection? = None
+    var originalConnection: TextInputConnection? = None
+    var imeStarts = 0
+    var savedStarts = 0
+    var snapshot: TextInputState? = None
+    var show = false
+    var width = 360.0
+    var maxLines: Long? = None
+    var short = false
+    var action = true
+    var clicks = 0
+    var selectionChanges = 0
+    var mounts = 0
+    var unmounts = 0
+    var inlineMounts = 0
+    var inlineUnmounts = 0
+    var discard = 0
+    var discards = 0
+    var oldLayout: TextLayout? = None
+    var oldDisplay: TextDisplay? = None
+    var expectedEnd = 0L
+    var host: SelectableTextHost? = None
+    var inlineArea: InputArea? = None
+    val focus = FocusHandle()
+    val actionFocus = FocusHandle()
+    val inlineFocus = FocusHandle()
+    var content = selectableContent(false)
+}
+
+internal fun prepareTextDisplay(probe: EditProbe) {
+    probe.policy = textEditPolicy()
+    probe.primary.replaceAll("A😀éZ")
+    probe.displayTest.projection = textMask()
+    probe.scale = 1.0
+    probe.preventRelease = false
+    probe.change()
+}
+
+internal fun advanceTextDisplay(probe: EditProbe) {
+    val window = probe.window!!
+    val state = probe.primary
+    val field = probe.field(0L)
+    val test = probe.displayTest
+    when (probe.phase) {
+        case 49 -> {
+            assertEquals("••••", field.layout.text)
+            assertEquals("A😀éZ", state.text)
+            assertTrue(editorDocument(window, state))
+            state.setSelection(Utf8Selection(1L, 5L))
+            window.clipboard.writeText("unchanged")
+            assertTrue(field.execute(TextEditCommand.Copy))
+            assertTrue(field.execute(TextEditCommand.Cut))
+            assertEquals(Some("unchanged"), window.clipboard.readText())
+            assertEquals("A😀éZ", state.text)
+            probe.next { probe.click(0L, 5L) }
+        }
+        case 50 -> {
+            assertEquals(5L, state.cursor.byteOffset)
+            test.originalConnection = test.connection
+            test.savedStarts = test.imeStarts
+            probe.next { assertEquals(0, editorText(window, "仮😀", 1, 3L)) }
+        }
+        case 51 -> {
+            assertTrue(state.isComposing)
+            assertEquals("A😀仮😀éZ", state.text)
+            assertEquals("••••••", field.layout.text)
+            assertTrue(editorDocument(window, state))
+            test.snapshot = Some(state.inputState)
+            probe.next {
+                test.projection = textProjection();
+                probe.change()
+            }
+        }
+        case 52 -> {
+            assertEquals(state.text, field.layout.text)
+            assertEquals(test.snapshot!!, state.inputState)
+            assertEquals(test.originalConnection, test.connection)
+            assertEquals(test.savedStarts, test.imeStarts)
+            probe.next {
+                test.projection =
+                    textProjection { _ -> [TextEditReplacement(Utf8Range(1L, 1L), "|")] };
+                probe.change()
+            }
+        }
+        case 53 -> {
+            assertEquals("A|😀仮😀éZ", field.layout.text)
+            assertEquals(test.snapshot!!, state.inputState)
+            assertTrue(editorDocument(window, state))
+            assertEquals(test.originalConnection, test.connection)
+            assertEquals(test.savedStarts, test.imeStarts)
+            editorNativeCaret(window, state, field.area.visibleCaretBounds)
+            probe.next { assertEquals(0, editorText(window, "中")) }
+        }
+        case 54 -> {
+            assertEquals("A😀中éZ", state.text)
+            assertTrue(field.execute(TextEditCommand.Undo))
+            assertEquals("A😀éZ", state.text)
+            assertTrue(field.execute(TextEditCommand.Redo))
+            assertEquals("A😀中éZ", state.text)
+            state.setSelection(Utf8Selection(0L, state.text.byteLength))
+            assertTrue(field.execute(TextEditCommand.Copy))
+            assertEquals(Some(state.text), window.clipboard.readText())
+            probe.next {
+                test.projection = textMask();
+                test.copy = TextCopyPolicy.Allow;
+                probe.change()
+            }
+        }
+        case 55 -> {
+            assertEquals("•••••", field.layout.text)
+            assertTrue(field.execute(TextEditCommand.Copy))
+            assertEquals(Some("A😀中éZ"), window.clipboard.readText())
+            probe.next { state.setSelection(Utf8Selection(1L, 5L)) }
+        }
+        case 56 -> {
+            assertTrue(field.execute(TextEditCommand.Cut))
+            assertEquals(Some("😀"), window.clipboard.readText())
+            assertEquals("A中éZ", state.text)
+            assertTrue(field.execute(TextEditCommand.Undo))
+            assertEquals("A😀中éZ", state.text)
+            probe.next { state.setSelection(Utf8Selection(9L, 9L)) }
+        }
+        case 57 -> {
+            assertTrue(field.execute(TextEditCommand.Delete(TextDeletion.Forward)))
+            assertEquals("A😀中Z", state.text)
+            probe.next { state.setSelection(Utf8Selection(0L, 0L)) }
+        }
+        case 58 -> {
+            assertEquals("••••", field.layout.text)
+            test.oldLayout = Some(field.layout)
+            test.oldDisplay = Some(field.display)
+            test.expectedEnd = state.text.byteLength
+            probe.next {
+                test.projection =
+                    textProjection {
+                        input -> [TextEditReplacement(Utf8Range(0L, input.text.byteLength), "X\nY")]
+                    }
+                test.discard = 1
+                probe.change()
+            }
+        }
+        case 59 -> {
+            assertEquals(1, test.discards)
+            assertTrue(test.oldLayout!!.isClosed)
+            assertEquals("X\nY", field.layout.text)
+            probe.next {
+                test.projection = textProjection();
+                test.copy = TextCopyPolicy.Default;
+                test.show = true;
+                probe.change()
+            }
+        }
+        else -> advanceSelectableText(probe)
+    }
+}
+
+internal fun displayFrameDiscarded(probe: EditProbe, kind: Int) {
+    val test = probe.displayTest
+    test.discards += 1
+    assertFalse(test.oldLayout!!.isClosed)
+    if (kind == 1) {
+        assertEquals("••••", test.oldLayout!!.text)
+        assertTrue(probe.field(0L).execute(TextEditCommand.Move(TextMovement.LineEnd, false)))
+        assertEquals(test.expectedEnd, probe.primary.cursor.byteOffset)
+        assertEquals("A😀中Z", probe.primary.text)
+    } else {
+        assertTrue(test.host!!.execute(TextEditCommand.Move(TextMovement.LineEnd, false)))
+        assertEquals(test.expectedEnd, test.host!!.cursor.byteOffset)
+    }
+}

@@ -1,0 +1,44 @@
+package scoop.surface
+
+import scoop.window.ShortcutChord
+
+public fun shortcutBinding(
+    chord: ShortcutChord,
+    action: () -> Unit,
+    configure: ShortcutBindingBuilder.() -> Unit = {}
+): ShortcutBinding {
+    val builder = ShortcutBindingBuilder()
+    builder.configure()
+    return ShortcutBinding(chord, builder.enabled, builder.allowRepeat, builder.canExecute, action)
+}
+
+public class ShortcutBindingBuilder internal constructor() {
+    public var enabled: Boolean = true
+    public var allowRepeat: Boolean = false
+    public var canExecute: () -> Boolean = { true }
+}
+
+public fun shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding> {
+    val builder = ShortcutsBuilder()
+    builder.configure()
+    return builder.snapshot()
+}
+
+public class ShortcutsBuilder internal constructor() {
+    private val entries = ArrayList<ShortcutBinding>()
+    public fun add(value: ShortcutBinding): Unit {
+        entries.add(value)
+    }
+    public fun addAll(values: Array<ShortcutBinding>): Unit {
+        for (value in values)
+            add(value)
+    }
+    public fun binding(
+        chord: ShortcutChord,
+        action: () -> Unit,
+        configure: ShortcutBindingBuilder.() -> Unit = {}
+    ): Unit {
+        add(shortcutBinding(chord, action, configure))
+    }
+    internal fun snapshot(): Array<ShortcutBinding> = entries.toArray()
+}

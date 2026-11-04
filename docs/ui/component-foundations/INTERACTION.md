@@ -1,10 +1,10 @@
 # 公共交互、弹层退出与阅读位置
 
-本文属于 [控件基础设计](DESIGN.md)，规定 I1／I2／S1 的目标合同，尚未实施。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
+本文属于 [控件基础设计](DESIGN.md)，规定已完成的 I1／I2／S1 合同。复用已有 InputArea／InputScope、capture／target／bubble／default、事件完成通知、焦点、InputBoundary、WindowDeadline 和 Surface 动画。
 
 ## 1. 可组合的激活行为
 
-将 Button／Checkbox 内部 [Activation](../../../sysroot/src/scoop.ui.component/src/input/activation.scoop) 演进为 UI 的公共 Press 行为与 `InteractionState`。行为借用调用方创建的 InputArea 和 scope，拥有自己的处理器登记／临时状态；关闭行为不关闭调用方的 area。通过 ComponentScope 登记清理，更新时接收最新 enabled、按键策略和动作。
+Button／Checkbox 迁移到 UI 的公共 [Press](../../../sysroot/src/scoop.ui/src/interaction/press.scoop) 行为与 `InteractionState`。行为借用调用方创建的 InputArea 和 scope，拥有自己的处理器登记／临时状态；关闭行为不关闭调用方的 area。通过 ComponentScope 登记清理，更新时接收最新 enabled、按键策略和动作。
 
 `InteractionState` 提供 hovered、pressed、focused；选中／展开／校验错误仍是控件模型，不混入一次按下序列。行为使用已有默认动作和事件完成通知，不覆盖 area 唯一的 handler，不额外创建重叠命中区域。
 
@@ -18,7 +18,7 @@
 
 ## 2. 按下序列归属与拖动
 
-Surface 当前固定鼠标按下路径，能够派发取消，但没有让祖先拖动行为接管子项按下序列的公共合同。补充一次序列内的显式 claim：调用者必须是原按下路径上的活动 area／scope；只能接管当前窗口中仍按下的对应序列。
+Surface 以固定鼠标按下路径和取消通知为基础，提供一次序列内的显式 claim：调用者必须是原按下路径上的活动 area／scope；只能接管当前窗口中仍按下的对应序列。
 
 claim 成功时：
 
@@ -120,6 +120,8 @@ owner 在窗口仍存活时卸载，会立即取消退出动画并收束内容�
 - 观察通过现有 scope／状态订阅模式管理，不建立全局事件总线。普通 ScrollState 方法保留明确的调用含义，内部修正不借用公开滚动操作制造虚假意图。
 
 VirtualListHandle 提供最后已提交的阅读快照，包括可见范围、首个实际阅读项的稳定 key、项内逻辑偏移和 atEnd。首帧之前没有快照；快照是值，不暴露内部 MountedNode、Canvas 或借用排版。
+
+ScrollState 的请求与画面快照分开：scrollBy 返回按最近范围收敛的请求位移，嵌套 wheel 用它计算残量；offset 只随 Accepted 更新。水平虚拟列表按 LayoutDirection 排列，ScrollState 保留物理偏移，阅读锚点从逻辑起点计量；切换方向保留阅读 key，默认首屏位于逻辑起点。
 
 补充按阅读锚点恢复的请求：key 仍存在时，先按现有 extent 估计定位，再按真实测量修正项内偏移；key 不存在时返回明确未找到，交由控件决定回退，不能悄悄用旧 index 指向另一条数据。用户新请求、关闭或数据源替换取消旧恢复。只修正必要项，不为了恢复位置预先测量整张列表。
 

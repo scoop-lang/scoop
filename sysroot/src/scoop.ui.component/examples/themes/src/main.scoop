@@ -68,7 +68,7 @@ internal class Showcase(
                         this.style =
                             styleOverride {
                                 this.background(Some(Paint(theme.tokens.palette.accent)))
-                                this.cornerRadius(5.0)
+                                this.corners(Corners.all(5.0))
                             }
                     }
                     this.alignment = Alignment(AxisAlignment.End, AxisAlignment.End)
@@ -85,7 +85,7 @@ internal class Showcase(
                 this.checkbox(initialChecked = true)
                 this.label("Owned state") { this.fonts = Some(this @Showcase.fonts) }
                 this.spacing = 14.0
-                this.alignment = AxisAlignment.Center
+                this.alignment = CrossAlignment.Center
             }
         return frame(
             column {
@@ -117,7 +117,7 @@ internal class Showcase(
                             "Light palette"
                     ) { this.fonts = Some(this @Showcase.fonts) }
                     this.spacing = 10.0
-                    this.alignment = AxisAlignment.Center
+                    this.alignment = CrossAlignment.Center
                 }
                 this.frame(element(theme, { props -> Gallery(props, this @Showcase.fonts) })) {
                     this.padding = Some(Insets.all(6.0))
@@ -138,7 +138,7 @@ internal class Showcase(
                     this.add(this @Showcase.option(this @Showcase.model.glow.binding(), "Glow"))
                     this.add(this @Showcase.option(this @Showcase.model.blur.binding(), "Blur"))
                     this.spacing = 18.0
-                    this.alignment = AxisAlignment.Center
+                    this.alignment = CrossAlignment.Center
                 }
                 this.label(
                     "Use Tab and arrow keys to focus theme choices; Enter or Space applies them. Effect order: drop shadow → glow → blur."
@@ -224,7 +224,7 @@ internal class Showcase(
             this.checkbox(value)
             this.label(text) { this.fonts = Some(this @Showcase.fonts) }
             this.spacing = 4.0
-            this.alignment = AxisAlignment.Center
+            this.alignment = CrossAlignment.Center
         }
 }
 

@@ -1,0 +1,33 @@
+package scoop.ui
+
+/** Sources of explicit position requests; layout corrections are not requests. */
+public enum ScrollOrigin {
+    User, Programmatic
+}
+
+public enum ScrollIntent {
+    User(val revision: ULong),
+    Programmatic(val revision: ULong),
+    LayoutCorrection(val revision: ULong)
+
+    public val requestRevision: ULong get() =
+        when (this) {
+            case User(value) -> value
+            case Programmatic(value) -> value
+            case LayoutCorrection(value) -> value
+        }
+}
+
+internal class ScrollIntentSubscription(
+    private val owner: ScrollState,
+    val handler: (ScrollIntent) -> Unit
+): Closeable {
+    var closed = false
+    public override fun close() {
+        owner.checkMutation()
+        if (closed)
+            return
+        closed = true
+        owner.removeSubscription(this)
+    }
+}

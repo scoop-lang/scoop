@@ -27,6 +27,10 @@ private class ScrollViewportTest {
             assertTrue(probe.view!!.restored())
             assertEquals(1, probe.discarded)
             assertTrue(probe.ignoredBinding)
+            assertTrue(probe.corrections > 0)
+            val count = probe.intents.size
+            probe.first.scrollTo(Point(0.0, 0.0))
+            assertEquals(count, probe.intents.size)
         } finally {
             probe.frames?.close()
             probe.view?.close()
@@ -61,6 +65,10 @@ internal class ScrollProbe {
     var adjustment: ScrollAdjustment? = None
     var secondShown = Point(0.0, 0.0)
     var secondLate = false
+    val intents = ArrayList<ScrollIntent>()
+    var corrections = 0
+    var secondLateAnimation = false
+    var checkAnimationRange = false
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -90,7 +98,7 @@ internal class ScrollProbe {
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 11;
+                finished = phase == 12;
                 active.requestExit()
             }
             else -> {}
@@ -136,7 +144,7 @@ internal class ScrollProbe {
                 generation.value = 2
                 phase = 3
             }
-            case 3 -> if (shown == first.offset) {
+            case 3 -> if (!frames!!.snapshot().required && shown == first.offset) {
                 assertEquals(Point(40.0, 350.0), first.offset)
                 rebind = true
                 generation.value = 3
@@ -191,9 +199,18 @@ internal class ScrollProbe {
                 phase = 10
             }
             case 10 -> {
-                if (secondShown == second.offset) {
+                if (!frames!!.snapshot().required && secondShown == second.offset) {
                     assertEquals(Point(55.0, 200.0), second.offset)
                     phase = 11
+                    adjustment = Some(ScrollAdjustment(second.requestRevision, Point(45.0, 150.0)))
+                    secondLateAnimation = true
+                    generation.value = 9
+                }
+            }
+            case 11 -> {
+                if (!second.isAnimating && !frames!!.snapshot().required) {
+                    assertEquals(Point(15.0, 70.0), second.offset)
+                    phase = 12
                     ui!!.close()
                     window!!.requestDestroy()
                 }

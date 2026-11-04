@@ -93,7 +93,7 @@ private class CommandsHandler: ApplicationHandler {
 
     private fun verify() {
         gcCollect()
-        assertEquals(13L, keys.size)
+        assertEquals(23L, keys.size)
         assertEquals(1, enabled)
         assertEquals(1, disabled)
         assertEquals(8, batches)
@@ -123,6 +123,16 @@ private class CommandsHandler: ApplicationHandler {
         assertFalse(keys[10L].isRepeat)
         assertTrue(keys[11L].isRepeat)
         assertTrue(keys[12L].synthetic)
+        assertEquals(1L, keys[13L].textCommands.size)
+        assertEquals(TextEditCommand.Copy, keys[13L].textCommands[0L])
+        assertEquals(1L, keys[15L].textCommands.size)
+        assertEquals(TextEditCommand.Move(TextMovement.LineLeft, false), keys[15L].textCommands[0L])
+        assertFalse(keys[15L].modifiers.function)
+        assertTrue(keys[17L].modifiers.function)
+        assertTrue(keys[18L].modifiers.function)
+        assertFalse(keys[20L].modifiers.function)
+        assertFalse(keys[21L].modifiers.function)
+        assertEquals(Some(false), keys[21L].modifiers.altGraph)
         for (key in keys) {
             assertNotEquals(LogicalKey.Named(NamedKey.Enter), key.logicalKey)
             assertNotEquals(LogicalKey.Named(NamedKey.Escape), key.logicalKey)

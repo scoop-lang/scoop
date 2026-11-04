@@ -1,0 +1,101 @@
+package scoop.ui.text
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.window.*
+
+public enum TextCopyPolicy {
+    Default, Allow, Deny
+}
+
+/** A display-only interval transformation. The editing document remains unchanged. */
+public class TextProjection internal constructor(
+    internal val transform: (TextEditSnapshot) -> Array<TextEditReplacement>,
+    internal val masked: Boolean
+)
+
+public fun textProjection(
+    transform: (TextEditSnapshot) -> Array<TextEditReplacement> = { _ -> [] }
+): TextProjection = TextProjection(transform, false)
+
+public fun textMask(glyph: String = "•"): TextProjection {
+    requireUi(
+        !editorHasLineBreak(glyph) && editorGraphemeBytes(glyph).size == 2L,
+        "mask glyph must be one non-newline grapheme"
+    )
+    return TextProjection(
+        {
+            input ->
+            val bytes = input.text.toByteArray()
+            val boundaries = editorGraphemeBytes(input.text)
+            val replacements = ArrayList<TextEditReplacement>()
+            for (index in 0L ..< boundaries.size - 1L) {
+                val range = Utf8Range(boundaries[index], boundaries[index + 1L])
+                if (!editorHasLineBreak(editorSlice(bytes, range)))
+                    replacements.add(TextEditReplacement(range, glyph))
+            }
+            replacements.toArray()
+        },
+        true
+    )
+}
+
+/** This immutable mapping must be retained with the layout built from text. */
+public class TextDisplay internal constructor(
+    public val source: TextEditSnapshot,
+    public val text: String,
+    internal val mapping: EditorOffsetMap
+) {
+    private val sourceBytes = source.text.toByteArray()
+    private val displayBytes = text.toByteArray()
+    private val boundaries = editorGraphemeBytes(source.text)
+    internal fun documentPosition(position: TextPosition): TextPosition =
+        editorBoundaryPosition(boundaries, position)
+    public fun toDisplay(position: TextPosition): TextPosition {
+        requireUi(editorScalar(sourceBytes, position.byteOffset), "invalid document text position")
+        return mapping.forward(position)
+    }
+    public fun toDocument(position: TextPosition): TextPosition {
+        requireUi(editorScalar(displayBytes, position.byteOffset), "invalid display text position")
+        return mapping.reverse(position)
+    }
+    public fun displayRange(range: Utf8Range): TextRange {
+        checkEditorRange(sourceBytes, range)
+        val start = mapping.forward(TextPosition(range.start, TextAffinity.Downstream)).byteOffset
+        val end = mapping.forward(TextPosition(range.end, TextAffinity.Upstream)).byteOffset
+        return TextRange(
+            start,
+            if (end >= start)
+                end
+            else
+                start
+        )
+    }
+    internal fun forward(selection: EditorSelection): EditorSelection =
+        EditorSelection(mapping.forward(selection.anchor), mapping.forward(selection.cursor))
+    internal fun reverse(selection: EditorSelection): EditorSelection =
+        EditorSelection(mapping.reverse(selection.anchor), mapping.reverse(selection.cursor))
+}
+
+public fun projectText(
+    input: TextEditSnapshot,
+    projection: TextProjection = textProjection()
+): TextDisplay {
+    val bytes = input.text.toByteArray()
+    requireUi(
+        editorScalar(bytes, input.anchor.byteOffset) &&
+            editorScalar(bytes, input.cursor.byteOffset),
+        "invalid projection selection"
+    )
+    when (input.markedRange) {
+        case Some(range) -> checkEditorRange(bytes, range)
+        case None -> {}
+    }
+    return projectEditorText(input, projection)
+}
+
+internal fun projectEditorText(input: TextEditSnapshot, projection: TextProjection): TextDisplay =
+    evaluateUi(None) {
+        val result = mapEditorText(input.text, projection.transform(input))
+        TextDisplay(input, result.text, result.mapping)
+    }

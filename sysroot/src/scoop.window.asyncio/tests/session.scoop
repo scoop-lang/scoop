@@ -81,6 +81,7 @@ private class AsyncHandler: ApplicationHandler {
         }
         val scope = currentApplicationScope()
         val loop = currentEventLoop()
+        assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
         application.setControlFlow(
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(5L))
         )
@@ -90,7 +91,9 @@ private class AsyncHandler: ApplicationHandler {
                 case AppKit(window, _) -> scheduleNativeMode(window, 1, 0.15)
             }
         }
-        scope.launch suspend {
+        scope.launch {
+            assertEquals(this @AsyncHandler.thread, currentThreadId())
+            assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
             this @AsyncHandler.childStarted = true
             try {
                 loop.sleep(Duration.seconds(10L))
@@ -99,6 +102,8 @@ private class AsyncHandler: ApplicationHandler {
                 // Root cancellation reaches the window control source before this suspended cleanup.
                 nonCancellableScope<Unit> {
                     loop.sleep(Duration.milliseconds(10L))
+                    assertEquals(this @AsyncHandler.thread, currentThreadId())
+                    assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
                     try {
                         assertTrue(this @AsyncHandler.closing)
                     }
@@ -109,7 +114,8 @@ private class AsyncHandler: ApplicationHandler {
                 }
             }
         }
-        scope.launch suspend {
+        assertFalse(childStarted)
+        scope.launch {
             var menuStarted = false
             while (true) {
                 loop.sleep(Duration.milliseconds(10L))

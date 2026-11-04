@@ -121,6 +121,8 @@ SWEvent *sw_event(SWWindow *window, int32_t kind) {
   [self emit:3];
 }
 - (void)windowDidBecomeKey:(NSNotification *)notification {
+  self.view.functionHeld =
+      (NSEvent.modifierFlags & NSEventModifierFlagFunction) != 0;
   if (self.view.imeAllowed)
     [self.view.inputContext activate];
   NSPoint point =

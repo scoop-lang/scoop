@@ -1,0 +1,110 @@
+package scoop.tests.ui.overlaysitems
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun hoverScene(probe: InteractionProbe): View =
+    element(
+        { HoverCanvas(probe) },
+        [
+            portal(probe.hoverOpen.binding(), element({ HoverContent(probe) })) {
+                handle = Some(probe.hoverLayer)
+                atPoint(Point(220.0, 100.0)) { preferredSide = OverlaySide.Right }
+                onClosed = { _ -> probe.hoverClosed += 1 }
+            }
+        ]
+    )
+
+private class HoverCanvas(private val probe: InteractionProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea(focusable = true)
+        probe.hoverTrigger = Some(area)
+        scope.focusTarget(area)
+        // The previous modal owner has retired, but its removal has not been accepted yet.
+        assertFalse(area.scope.isInputAllowed)
+        probe.hover =
+            Some(
+                scope.hover(
+                    area,
+                    probe.hoverOpen.binding(),
+                    HoverOptions(
+                        openDelay = Duration.milliseconds(10L),
+                        closeDelay = Duration.milliseconds(40L),
+                        transitDelay = Duration.milliseconds(150L),
+                        focus = false
+                    )
+                )
+            )
+        scope.resource {
+            scope.input.observePointer {
+                event -> if (probe.group.value == 1) {
+                    val bounds =
+                        when (probe.hoverContent) {
+                            case Some(content) -> content.visibleBounds
+                            case None -> None
+                        }
+                    val rect = bounds ?: Rect(-1.0, -1.0, -1.0, -1.0)
+                    val position =
+                        when (event) {
+                            case Pointer(scoop.window.PointerEvent.Moved(state)) -> f"move ${
+                                state.logicalPosition.x
+                            },${state.logicalPosition.y}"
+                            case Pointer(scoop.window.PointerEvent.Entered(state)) -> f"enter ${
+                                state.logicalPosition.x
+                            },${state.logicalPosition.y}"
+                            case Pointer(scoop.window.PointerEvent.Left(_)) -> "leave"
+                            case FocusLost -> "blur"
+                            case Closed -> "close"
+                            else -> "pointer"
+                        }
+                    probe.hoverTrace += (
+                        f"hover phase=${probe.phase} ${position}: open=${
+                            probe.hoverOpen.value
+                        }, pending=${probe.hover!!.isPending}, trigger=${
+                            probe.hoverTrigger!!.scope.isHovered
+                        }, rect=${rect.x},${rect.y},${rect.width},${rect.height}\n"
+                    )
+                }
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints())
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(150.0, 100.0, 40.0, 30.0)
+        context.draw {
+            paint ->
+            paint.canvas.clear(Color.White);
+            paint.canvas.drawRect(bounds, Paint(Color(0.4, 0.4, 0.4)))
+        }
+        context.place(probe.hoverTrigger!!, bounds)
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                probe.frames += 1;
+                probe.committedGroup = 1
+            }
+        }
+    }
+}
+
+private class HoverContent(private val probe: InteractionProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        probe.hoverContent = Some(area)
+        probe.hover!!.setContent([area])
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(110.0, 80.0)))
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(probe.hoverContent!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.6, 0.3))) }
+    }
+}

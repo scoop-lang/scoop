@@ -1,8 +1,10 @@
 # Scoop 公共 UI 样式规范
 
-日期：2026-11-03。状态：graphics 滤镜／图层、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成原有 macOS 验证，见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与纯绘图分离按[基础交互实施记录](../ui/foundations/PROGRESS.md)验收；各批验证 aarch64，全部功能完成后再统一验证 x86_64，Windows 后续。分批范围见 [UI 设计](../ui/DESIGN.md)。
+日期：2026-11-04。状态：graphics 滤镜／图层、公共 Style、主题绘图、基础控件消费、完整展示及宿主／后台下载组合已完成原有 macOS 验证，见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与纯绘图分离按[基础交互实施记录](../ui/foundations/PROGRESS.md)验收；各批验证 aarch64，全部功能完成后再统一验证 x86_64，Windows 后续。分批范围见 [UI 设计](../ui/DESIGN.md)。
 
 ## 1. 分层与接入
+
+生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
 
 `scoop.ui.style` 是独立普通 Cone，依赖实际使用的 ui、graphics、graphics.text、surface 及 core／std／platform。它定义[公共主题绘图与几何协议](SCOOP-UI-THEME-SPEC.md)、视觉状态、语义颜色／字体／尺寸／动画参数，同时提供通用 Style、外框装饰和内容效果的 UI 应用方式。graphics 提供[真正绘图、滤镜与图层](SCOOP-GRAPHICS-EFFECTS-SPEC.md)；ui 只提供挂载、State／Props、布局、输入和作用域，不依赖或识别 style／component。控件库负责交互和 ButtonStyle／CheckboxStyle 的明确局部覆盖，向主题提交类型化视觉状态并消费同一几何与绘图。主题合同不在 component 中定义。
 
@@ -10,7 +12,7 @@
 
 `styled(content, style = style(), key = ViewKey.Position)` 始终建立相同具体类型的普通组件／元素及单个内容子项，包括空 Style。更新只替换 Props；在相同 key 和类型下，从无效果到有阴影、阴影移除、参数或效果顺序改变，都保留内容的实例和 State。调用者改变 content 自身的 key／类型时继续执行正常重挂载规则。
 
-第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 scene 中调用公共 `StylePainter.scene(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 SceneContext，可提交 draw 块并调用 children。StylePainter 同时保留独立的 paint(Canvas, Rect, Style, content) 入口，供真实离屏组合使用。隔离复用通用 SceneContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。
+第三方 Element 可在 onMount 中 `scope.resource { StylePainter() }`，在 scene 中调用公共 `StylePainter.scene(context, style, content)`；也可提供显式局部 bounds。回调接收隔离后的 SceneContext，可提交 draw 块并调用 children。StylePainter 同时保留独立的 paint(Canvas, Rect, Style, direction = LayoutDirection.Ltr, content) 入口，供真实离屏组合使用。隔离复用通用 SceneContext.withState／Canvas.withState，不访问 UI 内部节点。回调借用不能逃出作用域。
 
 ## 2. 描述与参数
 
@@ -27,7 +29,7 @@ StyleOverride.copy(configure: StyleOverrideBuilder.() -> Unit = {}): StyleOverri
 
 Style／StyleOverride 及两个 builder 的构造器仅供库内部使用；Style.withBackground／withBorder 由 copy 配置替换。copy 以原值初始化全部字段，空块保留原配置。内部几何计算仍可直接生成同一种完整值，不另设结果或执行通路。
 
-StyleBuilder 公开六个可写属性：`background: Paint? = None`、`border: Border? = None`、`cornerRadius: Double = 0.0`、`boxShadows: Array<BoxShadow> = []`、`contentEffects: Array<ContentEffect> = []`、`clipContent: Boolean = false`。Style 公开对应只读值。StyleOverrideBuilder 的同名属性分别包装为 `StyleValue<对应类型>`，全部默认 Inherit；StyleOverride 保存对应只读覆盖值。
+StyleBuilder 公开六个可写属性：`background: Paint? = None`、`border: Border? = None`、`corners: Corners = Corners.all(0.0)`、`boxShadows: Array<BoxShadow> = []`、`contentEffects: Array<ContentEffect> = []`、`clipContent: Boolean = false`。Style 公开对应只读值。StyleOverrideBuilder 的同名属性分别包装为 `StyleValue<对应类型>`，全部默认 Inherit；StyleOverride 保存对应只读覆盖值。
 
 StyleOverrideBuilder 另有与六个属性同名的设置方法，例如 `background(value: Paint?): Unit`、`border(value: Border?): Unit`、`contentEffects(value: Array<ContentEffect>): Unit`，都只把同一个槽写为 Set(value)。显式把该属性赋为 StyleValue.Inherit 恢复继承；`border(None)` 表示清除边框。效果数组整体替换并保持顺序，不把读取未指定覆盖伪装成某个完整默认值。
 
@@ -38,11 +40,15 @@ StyleOverrideBuilder 另有与六个属性同名的设置方法，例如 `backgr
 | 输入 | 合同 |
 | --- | --- |
 | background | 可选 graphics Paint 填充，复用颜色／渐变描述；其 PaintingStyle 必须为 Fill |
-| border | 可选 Border(width, color)，沿外框向内占用像素；不增加布局尺寸 |
-| cornerRadius | 有限非负逻辑单位，应用于背景、边框、外框阴影和显式内容 clip |
+| border | 可选 Border.Physical／Logical，四边分别提供 BorderEdge(width, color)，沿外框向内占用像素；不增加布局尺寸 |
+| corners | Corners.Physical／Logical，四角椭圆半径，应用于背景、边框、外框阴影和显式内容 clip |
 | boxShadows | 有顺序的 `Array<BoxShadow>`，每项含 offset、sigmaX／sigmaY、color |
 | contentEffects | 有顺序的 `Array<ContentEffect>`，首批为 Blur、DropShadow、Glow |
 | clipContent | 默认 false；开启后把最终内容效果输出裁到外框轮廓，同时限制该作用域内的子输入几何 |
+
+BorderEdge 的 width 缺省为零、color 缺省为透明。Border.Physical 接收 BorderEdges(left, top, right, bottom)；Border.Logical 明确接收 start／top／end／bottom。Border.all(width, color) 是四边相同的便利构造。resolve(LayoutDirection) 返回物理 BorderEdges，其 insets 提供实际四边宽度。Corners.Physical 接收 graphics.CornerRadii；Corners.Logical 使用 topStart／topEnd／bottomEnd／bottomStart 的 Size，all(radius) 构造四角相同的圆形半径。物理与逻辑字段不混用，Style／StyleOverride 只有一份 border 和 corners 配置。
+
+StylePainter.scene 使用 SceneContext.layoutDirection，独立 paint 使用显式 direction 参数，先解析逻辑边和角，再进入 graphics.RoundedOutline。四边内缩、归一化圆角和边框环形区域统一计算；背景、clip、shadow 与 focus 使用相同外轮廓。不同颜色的边在共享接合处只合成一次覆盖率，半透明接缝不能加深或漏出细缝。颜色分区覆盖内圆角区域，不能仅用四个矩形或相互覆盖的描边。边框依旧不自动占用布局空间。
 
 sigmaX／sigmaY 是 Gaussian 标准差，offset、边框宽度、圆角和 bounds 都是局部逻辑单位。有限性、非负尺寸和颜色沿 graphics 合同检查；不把半径冒充 sigma，不预乘 DPI。零 sigma 合法。Style 没有隐式 padding，布局留白由控件／容器的显式布局输入决定。
 

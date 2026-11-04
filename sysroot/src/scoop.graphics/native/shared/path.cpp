@@ -1,5 +1,4 @@
 #include "graphics.h"
-#include "include/core/SkRRect.h"
 
 extern "C" {
 void scoop_graphics_drop(SGObject *object) { delete object; }
@@ -70,11 +69,13 @@ int32_t scoop_graphics_path_arc(SGBuilder *value, SGRect rect, double start,
     return 0;
   }
 }
-int32_t scoop_graphics_path_round_rect(SGBuilder *value, SGRect rect, double x,
-                                       double y) {
+int32_t scoop_graphics_path_round_rect(SGBuilder *value, SGRect rect,
+                                       SGPoint topLeft, SGPoint topRight,
+                                       SGPoint bottomRight,
+                                       SGPoint bottomLeft) {
   try {
     value->path.addRRect(
-        SkRRect::MakeRectXY(sg_rect(rect), (float)x, (float)y));
+        sg_round_rect(rect, topLeft, topRight, bottomRight, bottomLeft));
     return 1;
   } catch (...) {
     return 0;

@@ -1,6 +1,5 @@
 package scoop.ui
 
-import scoop.graphics.text.TextDirection
 import scoop.window.*
 
 internal enum NavigationAxis {
@@ -13,12 +12,15 @@ internal struct NavigationStep(
     val edge: Boolean = false
 )
 
-internal fun navigationStep(options: NavigationOptions, key: LogicalKey): NavigationStep? =
-    navigationStep(options.layout, options.direction, key)
+internal fun navigationStep(
+    options: NavigationOptions,
+    key: LogicalKey,
+    inherited: LayoutDirection = LayoutDirection.Ltr
+): NavigationStep? = navigationStep(options.layout, options.direction ?: inherited, key)
 
 internal fun navigationStep(
     layout: NavigationLayout,
-    direction: TextDirection,
+    direction: LayoutDirection,
     key: LogicalKey
 ): NavigationStep? {
     val grid = layout == NavigationLayout.Grid
@@ -36,11 +38,11 @@ internal fun navigationStep(
         case Named(NamedKey.Home) -> Some(NavigationStep(horizontal, false, true))
         case Named(NamedKey.End) -> Some(NavigationStep(horizontal, true, true))
         case Named(NamedKey.ArrowLeft) -> if (layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, direction == TextDirection.Rtl))
+            Some(NavigationStep(horizontal, direction == LayoutDirection.Rtl))
         else
             None
         case Named(NamedKey.ArrowRight) -> if (layout != NavigationLayout.Vertical)
-            Some(NavigationStep(horizontal, direction != TextDirection.Rtl))
+            Some(NavigationStep(horizontal, direction != LayoutDirection.Rtl))
         else
             None
         case Named(NamedKey.ArrowUp) -> if (layout != NavigationLayout.Horizontal)
@@ -56,14 +58,15 @@ internal fun navigationStep(
 }
 
 private fun navigationCoordinate(
-    items: Array<NavigationItem>,
     index: Long,
-    axis: NavigationAxis
+    axis: NavigationAxis,
+    row: (Long) -> Int,
+    column: (Long) -> Int
 ): Long =
     when (axis) {
         case Linear -> index
-        case Row -> items[index].column.toLong()
-        case Column -> items[index].row.toLong()
+        case Row -> column(index).toLong()
+        case Column -> row(index).toLong()
     }
 
 internal fun navigationDestination(
@@ -72,27 +75,61 @@ internal fun navigationDestination(
     step: NavigationStep,
     loop: Boolean,
     accepts: (Long) -> Boolean
+): Long? =
+    navigationDestination(
+        items.size,
+        Some(index),
+        step,
+        loop,
+        { item -> items[item].row },
+        { item -> items[item].column },
+        accepts
+    )
+
+/** Shared candidate search; applying its result is separate from focus ownership. */
+internal fun navigationDestination(
+    count: Long,
+    index: Long?,
+    step: NavigationStep,
+    loop: Boolean,
+    row: (Long) -> Int,
+    column: (Long) -> Int,
+    accepts: (Long) -> Boolean
 ): Long? {
-    val origin = navigationCoordinate(items, index, step.axis)
     val lower =
         if (step.edge)
             !step.forward
         else
             step.forward
+    val current =
+        when (index) {
+            case Some(value) -> value
+            case None -> {
+                var chosen: Long? = None
+                for (candidate in 0L ..< count)
+                    if (accepts(candidate)) {
+                        if (lower)
+                            return Some(candidate)
+                        chosen = Some(candidate)
+                    }
+                return chosen
+            }
+        }
+    val origin = navigationCoordinate(current, step.axis, row, column)
     var boundary: Long? = None
     var nearest: Long? = None
-    for (candidate in 0L ..< items.size) {
+    for (candidate in 0L ..< count) {
         val sameAxis =
             when (step.axis) {
                 case Linear -> true
-                case Row -> items[candidate].row == items[index].row
-                case Column -> items[candidate].column == items[index].column
+                case Row -> row(candidate) == row(current)
+                case Column -> column(candidate) == column(current)
             }
         if (!sameAxis || !accepts(candidate))
             continue
-        val coordinate = navigationCoordinate(items, candidate, step.axis)
+        val coordinate = navigationCoordinate(candidate, step.axis, row, column)
         val previous = boundary ?: candidate
-        val previousCoordinate = navigationCoordinate(items, previous, step.axis)
+        val previousCoordinate = navigationCoordinate(previous, step.axis, row, column)
         if (
             (lower && coordinate <= previousCoordinate) ||
                 (!lower && coordinate >= previousCoordinate)
@@ -103,7 +140,7 @@ internal fun navigationDestination(
                 ((step.forward && coordinate > origin) || (!step.forward && coordinate < origin))
         ) {
             val prior = nearest ?: candidate
-            val priorCoordinate = navigationCoordinate(items, prior, step.axis)
+            val priorCoordinate = navigationCoordinate(prior, step.axis, row, column)
             if (
                 (lower && coordinate <= priorCoordinate) ||
                     (!lower && coordinate >= priorCoordinate)
@@ -114,7 +151,7 @@ internal fun navigationDestination(
     if (step.edge)
         return boundary
     return when (nearest) {
-        case Some(_) -> nearest
+        case Some(_) -> nearest;
         case None -> if (loop)
             boundary
         else

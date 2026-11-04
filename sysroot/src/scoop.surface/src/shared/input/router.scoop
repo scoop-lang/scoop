@@ -22,6 +22,7 @@ internal class InputRouter(
     private val owned = ArrayList<InputScope>()
     internal val rootScope = InputScope(this, None, None, { _, _ -> Unit })
     private val retired = ArrayList<AreaScene>()
+    private val retiredScopes = ArrayList<InputScope>()
     private var depth = 0
     private var draining = false
     internal var pending = false
@@ -29,6 +30,7 @@ internal class InputRouter(
     internal var inside = false
     internal var hover: Array<InputScope> = []
     internal var pressed: Array<InputScope>? = None
+    internal var pointerClaim: InputScope? = None
     internal var scrollRoute: InputScrollRoute? = None
     internal val buttons = ArrayList<MouseButton>()
     internal var logicalFocus: InputArea? = None
@@ -43,6 +45,7 @@ internal class InputRouter(
     internal var imeRequest = 0UL
     internal var caretFrameValid = false
     internal val activityObservers = ArrayList<InputActivityObserver>()
+    internal val pointerObservers = ArrayList<WindowPointerObserver>()
     private var activityDirty = false
 
     init {
@@ -132,6 +135,7 @@ internal class InputRouter(
         changed()
     }
     fun detached(scope: InputScope) {
+        retiredScopes.add(scope)
         var index = 0L
         while (index < owned.size) {
             if (owned[index] === scope) {
@@ -146,24 +150,44 @@ internal class InputRouter(
         checkThread()
         if (closed)
             return
-        dispatch {
+        val snapshot = pointerObservers.toArray()
+        val observation =
             when (event) {
-                case Pointer(value) -> pointerEvent(value)
-                case Focused(value) -> {
-                    osFocused = value
-                    pending = true
-                    if (!value)
-                        cancelPointerInput(
-                            InputCancelReason.Window(PointerCancelReason.FocusLost),
-                            inputObservation()
+                case Pointer(value) -> Some(PointerObservation.Pointer(value))
+                case Focused(false) -> Some(PointerObservation.FocusLost)
+                else -> None
+            }
+        var failure =
+            cleanupFailure(None) {
+                dispatch {
+                    when (event) {
+                        case Pointer(value) -> pointerEvent(value)
+                        case Focused(value) -> {
+                            osFocused = value
+                            pending = true
+                            if (!value)
+                                cancelPointerInput(
+                                    InputCancelReason.Window(PointerCancelReason.FocusLost),
+                                    inputObservation()
+                                )
+                        }
+                        case Keyboard(value) -> routeFocused(InputEvent.Keyboard(value))
+                        case ModifiersChanged(value) -> notifyFocused(
+                            InputEvent.ModifiersChanged(value)
                         )
+                        case TextInput(value) -> textEvent(value)
+                        else -> {}
+                    }
                 }
-                case Keyboard(value) -> routeFocused(InputEvent.Keyboard(value))
-                case ModifiersChanged(value) -> notifyFocused(InputEvent.ModifiersChanged(value))
-                case TextInput(value) -> textEvent(value)
-                else -> {}
+            }
+        if (!closed) {
+            when (observation) {
+                case Some(value) -> failure =
+                    cleanupFailure(failure) { deliverPointerObservation(snapshot, value) }
+                case None -> {}
             }
         }
+        throwFailure(failure)
     }
     internal fun dispatch(block: () -> Unit) {
         checkThread()
@@ -218,6 +242,9 @@ internal class InputRouter(
         for (old in retired)
             failure = cleanupFailure(failure) { old.close() }
         retired.clear()
+        for (scope in retiredScopes)
+            scope.retireEventHandlers()
+        retiredScopes.clear()
         throwFailure(failure)
     }
     private fun finishClose() {
@@ -243,8 +270,21 @@ internal class InputRouter(
             case Off -> {};
             else -> failure = cleanupFailure(failure) { imeAllowed(false) }
         }
+        failure =
+            cleanupFailure(failure) {
+                deliverPointerObservation(
+                    pointerObservers.toArray(),
+                    PointerObservation.Closed,
+                    terminal = true
+                )
+            }
+        for (observer in pointerObservers)
+            observer.closed = true
+        pointerObservers.clear()
         failure = cleanupFailure(failure) { scene.close() }
         scene = AreaScene([])
+        for (scope in owned)
+            scope.retireEventHandlers()
         owned.clear()
         throwFailure(failure)
     }

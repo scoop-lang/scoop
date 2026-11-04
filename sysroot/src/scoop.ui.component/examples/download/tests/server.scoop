@@ -25,8 +25,8 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
                 val scope = this
                 while (true) {
                     val socket = server.listener.accept()
-                    scope.launch suspend {
-                        AsyncHttp1Connection.takeOwnershipAsServer(socket, scope).useAsync suspend {
+                    scope.launch {
+                        AsyncHttp1Connection.takeOwnershipAsServer(socket, scope).useAsync {
                             connection ->
                             server.connections.add(connection)
                             val request = connection.receiveRequest()!!
@@ -64,7 +64,7 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
                                         fields = server.closeFields()
                                     ),
                                     Http1BodyFraming.Empty
-                                ).useAsync suspend { writer -> writer.finish() }
+                                ).useAsync { writer -> writer.finish() }
                                 else -> fail(Some("unexpected test request"))
                             }
                         }
@@ -84,8 +84,8 @@ internal class DownloadServer(val listener: AsyncTcpListener, private val jobs: 
                 Http1BodyFraming.Chunked
             else
                 Http1BodyFraming.Length(bytes.size)
-        ).useAsync suspend {
-            writer -> NativeByteBuffer.allocate(32768L).use suspend {
+        ).useAsync {
+            writer -> NativeByteBuffer.allocate(32768L).use {
                 buffer ->
                 var offset = 0L
                 while (offset < bytes.size) {

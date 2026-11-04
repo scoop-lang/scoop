@@ -1,0 +1,139 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal fun flexMain(size: Size, vertical: Boolean): Double =
+    if (vertical)
+        size.height
+    else
+        size.width
+
+internal fun flexCross(size: Size, vertical: Boolean): Double =
+    if (vertical)
+        size.width
+    else
+        size.height
+
+internal fun flexSize(main: Double, cross: Double, vertical: Boolean): Size =
+    if (vertical)
+        Size(cross, main)
+    else
+        Size(main, cross)
+
+internal fun flexConstraints(
+    main: Double?,
+    cross: Double?,
+    vertical: Boolean,
+    stretch: Boolean = false
+): Constraints {
+    val minimum = main ?: 0.0
+    val crossMinimum =
+        if (stretch)
+            cross ?: 0.0
+        else
+            0.0
+    return if (vertical)
+        Constraints(crossMinimum, cross, minimum, main)
+    else
+        Constraints(minimum, main, crossMinimum, cross)
+}
+
+internal fun flexGaps(count: Long, spacing: Double): Double =
+    if (count > 0L)
+        (count - 1L).toDouble() * spacing
+    else
+        0.0
+
+internal fun flexTotal(values: Array<Double>, gaps: Double): Double {
+    var result = gaps
+    for (value in values)
+        result += value
+    nonnegative(result, "flex extents overflow")
+    return result
+}
+
+internal struct FlexCrossMetrics(val extent: Double, val baseline: Double)
+
+internal fun flexCrossMetrics(
+    metrics: Array<LayoutMetrics>,
+    aligns: Array<CrossAlignment>,
+    vertical: Boolean
+): FlexCrossMetrics {
+    var extent = 0.0
+    var baseline = 0.0
+    var descent = 0.0
+    var hasBaseline = false
+    for (index in 0L ..< metrics.size) {
+        val metric = metrics[index]
+        extent = lowerBound(extent, flexCross(metric.size, vertical))
+        if (aligns[index] == CrossAlignment.Baseline) {
+            val value = metric.alphabeticBaseline ?: metric.size.height
+            val below = metric.size.height - value
+            baseline =
+                if (hasBaseline)
+                    lowerBound(baseline, value)
+                else
+                    value
+            descent =
+                if (hasBaseline)
+                    lowerBound(descent, below)
+                else
+                    below
+            hasBaseline = true
+        }
+    }
+    if (hasBaseline)
+        extent = lowerBound(extent, baseline + descent)
+    nonnegative(extent, "flex cross extent overflow")
+    return FlexCrossMetrics(extent, baseline)
+}
+
+internal fun flexCrossOffset(
+    align: CrossAlignment,
+    available: Double,
+    metrics: LayoutMetrics,
+    baseline: Double,
+    vertical: Boolean
+): Double =
+    when (align) {
+        case Start -> 0.0
+        case Stretch -> 0.0
+        case Center -> (available - flexCross(metrics.size, vertical)) / 2.0
+        case End -> available - flexCross(metrics.size, vertical)
+        case Baseline -> baseline - (metrics.alphabeticBaseline ?: metrics.size.height)
+    }
+
+internal struct FlexSpacing(val leading: Double, val between: Double)
+
+internal fun flexSpacing(alignment: MainAlignment, remaining: Double, count: Long): FlexSpacing {
+    val available = lowerBound(remaining, 0.0)
+    return when (alignment) {
+        case Start -> FlexSpacing(0.0, 0.0)
+        case Center -> FlexSpacing(remaining / 2.0, 0.0)
+        case End -> FlexSpacing(remaining, 0.0)
+        case SpaceBetween -> FlexSpacing(
+            0.0,
+            if (count > 1L)
+                available / (count - 1L).toDouble()
+            else
+                0.0
+        )
+        case SpaceAround -> {
+            val gap =
+                if (count > 0L)
+                    available / count.toDouble()
+                else
+                    0.0
+            FlexSpacing(gap / 2.0, gap)
+        }
+        case SpaceEvenly -> {
+            val gap =
+                if (count > 0L)
+                    available / (count + 1L).toDouble()
+                else
+                    0.0
+            FlexSpacing(gap, gap)
+        }
+    }
+}

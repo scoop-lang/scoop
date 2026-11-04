@@ -1,0 +1,131 @@
+package scoop.ui.component
+
+import scoop.collections.sortedBy
+import scoop.graphics.*
+import scoop.ui.*
+
+public class Grid public constructor(private val props: Props<GridProps>): Component {
+    public override fun render(): View =
+        element(props.value, { value -> GridInk(value) }, props.value.children)
+}
+
+private struct GridRequirement(val start: Long, val span: Long, val extent: Double)
+
+private class GridInk(private val props: Props<GridProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val padding = input.logicalPadding?.resolve(context.layoutDirection) ?: input.padding
+        val inset = padding.totals()
+        val columns =
+            GridTracks(
+                input.columns,
+                input.columnGap,
+                insetMaximum(constraints.maxWidth, inset.width)
+            )
+        val rows =
+            GridTracks(input.rows, input.rowGap, insetMaximum(constraints.maxHeight, inset.height))
+        rows.distribute()
+        val columnNeeds = ArrayList<GridRequirement>()
+        for (index in 0L ..< input.items.size) {
+            val item = input.items[index]
+            if (columns.needsContent(item.column, item.columnSpan)) {
+                val maximumHeight =
+                    if (rows.needsContent(item.row, item.rowSpan))
+                        None
+                    else
+                        Some(rows.spanExtent(item.row, item.rowSpan))
+                val measured = context.measureChild(index, Constraints(maxHeight = maximumHeight))
+                columnNeeds.add(GridRequirement(item.column, item.columnSpan, measured.size.width))
+            }
+        }
+        applyGridNeeds(columns, columnNeeds)
+        columns.distribute()
+
+        val rowNeeds = ArrayList<GridRequirement>()
+        for (index in 0L ..< input.items.size) {
+            val item = input.items[index]
+            val width = columns.spanExtent(item.column, item.columnSpan)
+            val maximumHeight =
+                if (rows.needsContent(item.row, item.rowSpan))
+                    None
+                else
+                    Some(rows.spanExtent(item.row, item.rowSpan))
+            val measured =
+                context.measureChild(
+                    index,
+                    Constraints(
+                        minWidth =
+                            if (item.horizontal == CrossAlignment.Stretch)
+                                width
+                            else
+                                0.0,
+                        maxWidth = Some(width),
+                        maxHeight = maximumHeight
+                    )
+                )
+            rowNeeds.add(GridRequirement(item.row, item.rowSpan, measured.size.height))
+        }
+        applyGridNeeds(rows, rowNeeds)
+        rows.distribute()
+        val size =
+            constraints.constrain(Size(columns.total() + inset.width, rows.total() + inset.height))
+        val innerWidth = lowerBound(size.width - inset.width, 0.0)
+        for (index in 0L ..< input.items.size) {
+            val item = input.items[index]
+            val width = columns.spanExtent(item.column, item.columnSpan)
+            val height = rows.spanExtent(item.row, item.rowSpan)
+            val measured =
+                context.measureChild(
+                    index,
+                    Constraints(
+                        minWidth =
+                            if (item.horizontal == CrossAlignment.Stretch)
+                                width
+                            else
+                                0.0,
+                        maxWidth = Some(width),
+                        minHeight =
+                            if (item.vertical == CrossAlignment.Stretch)
+                                height
+                            else
+                                0.0,
+                        maxHeight = Some(height)
+                    )
+                )
+            val start =
+                columns.origin(item.column) +
+                    cellOffset(item.horizontal, width - measured.size.width)
+            val top =
+                rows.origin(item.row) + cellOffset(item.vertical, height - measured.size.height)
+            context.placeChild(
+                index,
+                Point(
+                    padding.left +
+                        logicalX(start, measured.size.width, innerWidth, context.layoutDirection),
+                    padding.top + top
+                )
+            )
+        }
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        containerScene(context, props.value.clip)
+    }
+}
+
+private fun applyGridNeeds(tracks: GridTracks, values: ArrayList<GridRequirement>) {
+    // Resolve single tracks before spans; equal spans preserve declaration order.
+    for (value in values.sortedBy<GridRequirement, Long> { it -> it.span })
+        tracks.requireContent(value.start, value.span, value.extent)
+}
+
+private fun cellOffset(align: CrossAlignment, remaining: Double): Double =
+    when (align) {
+        case Start -> 0.0
+        case Stretch -> 0.0
+        case Center -> remaining / 2.0
+        case End -> remaining
+        case Baseline -> throw IllegalArgumentException(
+            Some("grid cells require start, center, end or stretch alignment")
+        )
+    }

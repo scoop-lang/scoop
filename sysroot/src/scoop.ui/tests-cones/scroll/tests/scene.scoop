@@ -30,6 +30,7 @@ private class ScrollObserver(private val probe: ScrollProbe): Component {
     public override fun render(): View {
         probe.observations += 1
         probe.first.snapshot
+        probe.first.hasSnapshot
         probe.first.isAnimating
         probe.first.isAttached
         return empty()
@@ -66,6 +67,19 @@ private class FirstViewport(
         probe.scope = Some(scope)
         viewport = Some(scope.scrollViewport(probe.first))
         probe.viewport = viewport
+        scope.resource {
+            probe.first.observeIntent {
+                event ->
+                probe.intents.add(event)
+                when (event) {
+                    case LayoutCorrection(revision) -> {
+                        assertEquals(revision, probe.first.requestRevision)
+                        probe.corrections += 1
+                    }
+                    else -> {}
+                }
+            }
+        }
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val generation = props.value
@@ -93,7 +107,9 @@ private class FirstViewport(
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 if (late) {
                     probe.lateRequest = false
+                    val accepted = probe.first.snapshot
                     probe.first.scrollTo(Point(40.0, 350.0))
+                    assertEquals(accepted, probe.first.snapshot)
                 }
                 if (rebind) {
                     probe.rebind = false
@@ -118,7 +134,8 @@ private class FirstViewport(
                     if (rebind) {
                         assertEquals(Size(500.0, 500.0), probe.first.content)
                         probe.ignoredBinding = true
-                    }
+                    } else
+                        assertEquals(snapshot, probe.first.snapshot)
                 }
                 case Discarded -> {
                     assertTrue(discard)
@@ -137,6 +154,19 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
     private var layout: ScrollSnapshot? = None
     public override fun onMount(scope: ComponentScope) {
         viewport = Some(scope.scrollViewport(probe.second))
+        scope.resource {
+            probe.second.observeIntent {
+                event ->
+                probe.intents.add(event)
+                when (event) {
+                    case LayoutCorrection(revision) -> {
+                        assertEquals(revision, probe.second.requestRevision)
+                        probe.corrections += 1
+                    }
+                    else -> {}
+                }
+            }
+        }
         probe.second.animateTo(Point(0.0, 100.0), AnimationSpec.Tween(Duration.ZERO))
         assertTrue(probe.second.isAnimating)
         assertEquals(Point(0.0, 0.0), probe.second.offset)
@@ -149,6 +179,10 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
             else
                 probe.adjustment
         val snapshot = viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0), adjustment)
+        if (probe.checkAnimationRange && moving) {
+            assertTrue(snapshot.offset.x >= 14.99 && snapshot.offset.x <= 45.01)
+            assertTrue(snapshot.offset.y >= 69.99 && snapshot.offset.y <= 150.01)
+        }
         if (moving)
             assertFalse(snapshot.offset == Point(99.0, 220.0))
         layout = Some(snapshot)
@@ -159,15 +193,29 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
             assertFailsWith<IllegalArgumentException> { probe.viewport!!.present(context) }
         val snapshot = layout!!
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && probe.secondLate) {
-                probe.secondLate = false
-                probe.second.scrollTo(Point(55.0, 200.0))
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                if (probe.secondLate) {
+                    probe.secondLate = false
+                    val accepted = probe.second.snapshot
+                    probe.second.scrollTo(Point(55.0, 200.0))
+                    assertEquals(accepted, probe.second.snapshot)
+                }
+                if (probe.secondLateAnimation) {
+                    probe.secondLateAnimation = false
+                    probe.second.animateTo(
+                        Point(15.0, 70.0),
+                        AnimationSpec.Tween(Duration.milliseconds(300L))
+                    )
+                    probe.checkAnimationRange = true
+                }
             }
         }
         viewport!!.present(context)
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted)
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
                 probe.secondShown = snapshot.offset
+                assertEquals(snapshot, probe.second.snapshot)
+            }
         }
     }
 }

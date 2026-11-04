@@ -1,5 +1,22 @@
 package scoop.tests.window
 
+/** Installs native text without the public clipboard normalization. */
+public fun setNativeClipboardText(text: String): Int {
+    @Unsafe
+    {
+        return text.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                return@withUtf8Bytes nativeClipboardText(bytes, length)
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_test_clipboard_text")
+private fun nativeClipboardText(bytes: Ptr<UInt8>, length: Long): Int
+
 /** Saves every current pasteboard item and data type before a native clipboard test. */
 @Extern(name = "scoop_window_test_clipboard_save")
 public fun saveNativeClipboard(): Ptr<Unit>?

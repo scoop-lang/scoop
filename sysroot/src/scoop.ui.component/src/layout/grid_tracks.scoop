@@ -1,0 +1,130 @@
+package scoop.ui.component
+
+/** Track sizing is independent of mounted items and only visits supplied cells. */
+internal class GridTracks(val tracks: Array<GridTrack>, val gap: Double, val maximum: Double?) {
+    private val extents =
+        MutableArray<Double>(tracks.size) {
+            index -> when (tracks[index]) {
+                case Fixed(value) -> value;
+                else -> 0.0
+            }
+        }
+
+    fun needsContent(start: Long, span: Long): Boolean {
+        var flexible = false
+        for (index in start ..< start + span) {
+            when (tracks[index]) {
+                case Fraction(_) -> if (maximum != None)
+                    return false
+                else
+                    flexible = true
+                case Auto -> flexible = true
+                case Fixed(_) -> {}
+            }
+        }
+        return flexible
+    }
+
+    fun requireContent(start: Long, span: Long, extent: Double) {
+        if (!needsContent(start, span))
+            return
+        val additional = extent - spanExtent(start, span)
+        if (additional <= 0.0)
+            return
+        var scale = 1.0
+        for (index in start ..< start + span) {
+            when (tracks[index]) {
+                case Fraction(value) -> scale = lowerBound(scale, value)
+                else -> {}
+            }
+        }
+        var total = 0.0
+        for (index in start ..< start + span)
+            total += weight(index, scale)
+        if (total == 0.0)
+            return
+        for (index in start ..< start + span) {
+            extents[index] += additional * (weight(index, scale) / total)
+            nonnegative(extents[index], "grid track extent overflow")
+        }
+    }
+
+    private fun weight(index: Long, scale: Double): Double =
+        when (tracks[index]) {
+            case Auto -> 1.0 / scale
+            case Fraction(value) -> if (maximum == None)
+                value / scale
+            else
+                0.0
+            case Fixed(_) -> 0.0
+        }
+
+    fun distribute() {
+        val available = maximum ?: return
+        var fixed = flexGaps(tracks.size, gap)
+        var scale = 0.0
+        for (index in 0L ..< tracks.size) {
+            when (tracks[index]) {
+                case Fraction(value) -> scale = lowerBound(scale, value)
+                else -> fixed += extents[index]
+            }
+        }
+        nonnegative(fixed, "grid fixed track extent overflow")
+        if (scale == 0.0)
+            return
+        var weight = 0.0
+        for (track in tracks) {
+            when (track) {
+                case Fraction(value) -> weight += value / scale;
+                else -> {}
+            }
+        }
+        val remaining = lowerBound(available - fixed, 0.0)
+        for (index in 0L ..< tracks.size) {
+            when (tracks[index]) {
+                case Fraction(value) -> extents[index] = remaining * ((value / scale) / weight)
+                else -> {}
+            }
+        }
+    }
+
+    fun spanExtent(start: Long, span: Long): Double {
+        var value = flexGaps(span, gap)
+        for (index in start ..< start + span)
+            value += extents[index]
+        nonnegative(value, "grid span extent overflow")
+        return value
+    }
+
+    fun origin(index: Long): Double {
+        var value = index.toDouble() * gap
+        for (previous in 0L ..< index)
+            value += extents[previous]
+        nonnegative(value, "grid track origin overflow")
+        return value
+    }
+
+    fun sizes(): Array<Double> = Array(extents.size) { index -> extents[index] }
+    fun total(): Double = flexTotal(sizes(), flexGaps(tracks.size, gap))
+}
+
+internal fun checkGridTracks(tracks: Array<GridTrack>) {
+    requireComponent(tracks.size > 0L, "grid requires at least one track per axis")
+    for (track in tracks) {
+        when (track) {
+            case Fixed(value) -> nonnegative(value, "invalid fixed grid track")
+            case Fraction(value) -> requireComponent(
+                value.isFinite() && value > 0.0,
+                "grid fraction weight must be finite and positive"
+            )
+            case Auto -> {}
+        }
+    }
+}
+
+internal fun checkGridSpan(start: Long, span: Long, count: Long) {
+    requireComponent(
+        start >= 0L && span > 0L && start < count && span <= count - start,
+        "grid item is outside its tracks"
+    )
+}

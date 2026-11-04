@@ -1,5 +1,6 @@
 package scoop.tests.ui.textcontrols
 
+import scoop.ui.LayoutDirection
 import scoop.graphics.*
 import scoop.graphics.native.captureGeometry
 import scoop.graphics.text.*
@@ -28,20 +29,25 @@ internal class FieldTheme(private val base: Theme, private val probe: FieldProbe
     public override val tokens: ThemeTokens get() = base.tokens
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
-        options: SurfaceOptions
-    ): SurfaceMetrics = base.surfaceMetrics(visual, options)
+        options: SurfaceOptions,
+        direction: LayoutDirection
+    ): SurfaceMetrics = base.surfaceMetrics(visual, options, direction)
     public override fun surfaceGeometry(
         bounds: Rect,
         visual: SurfaceVisual,
-        options: SurfaceOptions
-    ): SurfaceGeometry = base.surfaceGeometry(bounds, visual, options)
-    public override fun checkboxMetrics(options: CheckboxOptions): CheckboxMetrics =
-        base.checkboxMetrics(options)
+        options: SurfaceOptions,
+        direction: LayoutDirection
+    ): SurfaceGeometry = base.surfaceGeometry(bounds, visual, options, direction)
+    public override fun checkboxMetrics(
+        options: CheckboxOptions,
+        direction: LayoutDirection
+    ): CheckboxMetrics = base.checkboxMetrics(options, direction)
     public override fun checkboxGeometry(
         bounds: Rect,
         visual: CheckboxVisual,
-        options: CheckboxOptions
-    ): CheckboxGeometry = base.checkboxGeometry(bounds, visual, options)
+        options: CheckboxOptions,
+        direction: LayoutDirection
+    ): CheckboxGeometry = base.checkboxGeometry(bounds, visual, options, direction)
     public override fun radioMetrics(options: RadioOptions): RadioMetrics =
         base.radioMetrics(options)
     public override fun radioGeometry(

@@ -97,7 +97,7 @@ private class SelfDrawnParagraph(
                 ),
                 probe.fonts,
                 input.content,
-                settings,
+                Some(settings),
                 input.inlines
             )
         return LayoutMetrics(

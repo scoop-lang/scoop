@@ -1,0 +1,69 @@
+package scoop.ui.component
+
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class InteractionValuesTest {
+    @Test
+    fun `continuous ranges clamp without changing thumb identity or total spacing`() {
+        val range = RangeSpec(-10.0, 90.0, minimumGap = 5.0)
+        val values = [-10.0, 30.0, 80.0]
+        assertInteractionValues([-10.0, 75.0, 80.0], range.move(values, 1L, 100.0))
+        assertInteractionValues([-10.0, -5.0, 80.0], range.move(values, 1L, -100.0))
+        assertInteractionValues([-10.0, 30.0, 80.0], values)
+        assertEquals(40.0, range.valueAt(0.5))
+        assertEquals(0.5, range.positionOf(40.0))
+        assertEquals(10.0, RangeSpec(10.0, 10.0).valueAt(0.9))
+        assertEquals(80.0, RangeSpec(0.0, 100.0, reversed = true).valueAt(0.2))
+    }
+    @Test
+    fun `discrete ranges use integer indices and never add a non-step endpoint`() {
+        val range = RangeSpec(0.0, 1.0, Some(0.3), minimumGap = 0.2)
+        assertTrue(range.lastValue < 0.91 && range.lastValue > 0.89)
+        val value = range.move([0.0, 0.3, 0.9], 1L, 0.85)
+        assertTrue(value[1L] > 0.59 && value[1L] < 0.61)
+        assertEquals(0.3, RangeSpec(0.0, 0.3, Some(0.1)).lastValue)
+        RangeSpec(0.0, 0.56, Some(0.04), minimumGap = 0.28).validate([0.0, 0.28, 0.56])
+        val next = RangeSpec(0.0, 0.95, Some(0.2))
+        assertEquals(0.8, next.clamp(0.95))
+        assertEquals(0.8, next.valueAt(1.0))
+        assertFailsWith<IllegalArgumentException> { RangeSpec(0.0, 1.0, Some(0.0)) }
+        assertFailsWith<IllegalArgumentException> { RangeSpec(0.0, 1.0, Some(1.0e-20)) }
+    }
+    @Test
+    fun `invalid thumb constraints fail before changing supplied values`() {
+        val values = [0.0, 0.4, 0.8]
+        assertFailsWith<IllegalArgumentException> {
+            RangeSpec(0.0, 1.0, minimumGap = 0.6).move(values, 1L, 0.5)
+        }
+        assertFailsWith<IllegalArgumentException> { RangeSpec(0.0, 1.0).validate([0.8, 0.2]) }
+        assertFailsWith<IllegalArgumentException> { RangeSpec(0.0, 1.0, Some(0.2)).validate([0.3]) }
+        assertInteractionValues([0.0, 0.4, 0.8], values)
+    }
+    @Test
+    fun `adjacent resize is constrained once without losing the pair total`() {
+        assertEquals(
+            SplitSizes(70.0, 30.0),
+            resizePair(40.0, 60.0, 90.0, 20.0, Some(80.0), 30.0, Some(90.0))
+        )
+        assertEquals(
+            SplitSizes(20.0, 80.0),
+            resizePair(40.0, 60.0, -90.0, 20.0, Some(80.0), 30.0, Some(90.0))
+        )
+    }
+    @Test
+    fun `snap resolves actual layout anchors using release velocity and deterministic ties`() {
+        assertEquals(Some(SnapTarget(1L, 100.0)), snapTarget(40.0, 200.0, [0.0, 100.0, 250.0]))
+        assertEquals(Some(SnapTarget(0L, 0.0)), snapTarget(50.0, 0.0, [0.0, 100.0]))
+        assertEquals(Some(SnapTarget(0L, 100.0)), snapTarget(50.0, 1.0, [100.0, 0.0], 0.0))
+        assertEquals(None, snapTarget(0.0, 0.0, []))
+        assertEquals(Some(SnapTarget(1L, 100.0)), snapTarget(1.0e308, 1.0e308, [0.0, 100.0], 10.0))
+    }
+}
+
+private fun <T: Equals<T>> assertInteractionValues(expected: Array<T>, actual: Array<T>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertEquals(expected[index], actual[index])
+}

@@ -32,6 +32,7 @@ internal class ScrollControl(
     private val focus = scope.focusTarget(area, props().focus)
     private val horizontal = ScrollBarControl(scope, props, area, Orientation.Horizontal)
     private val vertical = ScrollBarControl(scope, props, area, Orientation.Vertical)
+    private var direction = scope.layoutDirection
 
     init {
         area.scope.defaultAction = { context, event -> handle(context, event) }
@@ -63,6 +64,11 @@ internal class ScrollControl(
     ) {
         val value = props()
         val size = snapshot.viewport
+        val presentedDirection = context.layoutDirection
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
+                direction = presentedDirection
+        }
         val bounds = Rect(0.0, 0.0, size.width, size.height)
         context.place(area, bounds)
         viewport.present(context, Some { content -> content.children() }, contentOrigin)
@@ -158,27 +164,27 @@ internal class ScrollControl(
                 state.cancelAnimation()
                 context.consumeScroll(input.lineStep) {
                     amount ->
-                    val before = state.offset
-                    state.scrollBy(
-                        Point(
-                            if (input.axes.horizontal)
-                                -amount.x
-                            else
-                                0.0,
-                            if (input.axes.vertical)
-                                -amount.y
-                            else
-                                0.0
+                    val consumed =
+                        state.scrollBy(
+                            Point(
+                                if (input.axes.horizontal)
+                                    -amount.x
+                                else
+                                    0.0,
+                                if (input.axes.vertical)
+                                    -amount.y
+                                else
+                                    0.0
+                            ),
+                            ScrollOrigin.User
                         )
-                    )
-                    val after = state.offset
-                    Point(before.x - after.x, before.y - after.y)
+                    Point(-consumed.x, -consumed.y)
                 }
                 if (input.chain == ScrollChain.Contain)
                     context.preventDefault()
             }
             case Keyboard(key) -> {
-                if (context.target === area.scope && scrollKey(state, input.axes, key))
+                if (context.target === area.scope && scrollKey(state, input.axes, direction, key))
                     context.consume()
             }
             else -> {}
@@ -186,7 +192,12 @@ internal class ScrollControl(
     }
 }
 
-private fun scrollKey(state: ScrollState, axes: ScrollAxes, key: KeyEvent): Boolean {
+private fun scrollKey(
+    state: ScrollState,
+    axes: ScrollAxes,
+    direction: LayoutDirection,
+    key: KeyEvent
+): Boolean {
     val modifiers = key.modifiers
     if (
         key.state !=
@@ -200,16 +211,35 @@ private fun scrollKey(state: ScrollState, axes: ScrollAxes, key: KeyEvent): Bool
     )
         return false
     val current = state.snapshot
+    val reversed = !axes.vertical && direction == LayoutDirection.Rtl
     val step =
         if (axes.vertical)
             Point(0.0, current.viewport.height)
         else
-            Point(current.viewport.width, 0.0)
+            Point(
+                if (reversed)
+                    -current.viewport.width
+                else
+                    current.viewport.width,
+                0.0
+            )
     when (key.logicalKey) {
-        case Named(NamedKey.PageUp) -> state.scrollBy(Point(-step.x, -step.y))
-        case Named(NamedKey.PageDown) -> state.scrollBy(step)
-        case Named(NamedKey.Home) -> state.scrollTo(Point(0.0, 0.0))
-        case Named(NamedKey.End) -> state.scrollTo(current.maximum)
+        case Named(NamedKey.PageUp) -> state.scrollBy(Point(-step.x, -step.y), ScrollOrigin.User)
+        case Named(NamedKey.PageDown) -> state.scrollBy(step, ScrollOrigin.User)
+        case Named(NamedKey.Home) -> state.scrollTo(
+            if (reversed)
+                current.maximum
+            else
+                Point(0.0, 0.0),
+            ScrollOrigin.User
+        )
+        case Named(NamedKey.End) -> state.scrollTo(
+            if (reversed)
+                Point(0.0, 0.0)
+            else
+                current.maximum,
+            ScrollOrigin.User
+        )
         else -> return false
     }
     return true

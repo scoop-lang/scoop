@@ -4,6 +4,7 @@ import scoop.collections.sortedBy
 import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.Insets
+import scoop.ui.style.LogicalInsets
 
 public enum AbsoluteAxis {
     Start(val offset: Double = 0.0, val size: Double? = None),
@@ -23,10 +24,12 @@ public class AbsoluteProps public constructor(
     public val children: Array<AbsoluteChild>,
     public val width: Double? = None,
     public val height: Double? = None,
-    public val padding: Insets = Insets()
+    public val padding: Insets = Insets(),
+    public val logicalPadding: LogicalInsets? = None
 ) {
     internal val paddingSize = padding.totals()
     init {
+        logicalPadding?.resolve(LayoutDirection.Ltr)
         when (width) {
             case Some(value) -> nonnegative(value, "invalid absolute width")
             case None -> {}
@@ -63,7 +66,8 @@ private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val value = props.value.value
         val size = absoluteSize(constraints, value.width, value.height)
-        val total = value.paddingSize
+        val padding = value.logicalPadding?.resolve(context.layoutDirection) ?: value.padding
+        val total = padding.totals()
         val width = lowerBound(size.width - total.width, 0.0)
         val height = lowerBound(size.height - total.height, 0.0)
         for (index in 0L ..< context.childCount) {
@@ -78,9 +82,14 @@ private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element {
             context.placeChild(
                 index,
                 Point(
-                    value.padding.left +
-                        absoluteOrigin(child.horizontal, width, measured.size.width),
-                    value.padding.top + absoluteOrigin(child.vertical, height, measured.size.height)
+                    padding.left +
+                        logicalX(
+                            absoluteOrigin(child.horizontal, width, measured.size.width),
+                            measured.size.width,
+                            width,
+                            context.layoutDirection
+                        ),
+                    padding.top + absoluteOrigin(child.vertical, height, measured.size.height)
                 )
             )
         }

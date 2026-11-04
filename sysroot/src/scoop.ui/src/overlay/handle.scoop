@@ -23,12 +23,12 @@ public class OverlayHandle public constructor() {
             case None -> lastReason
         }
     }
-    public fun close() {
+    public fun requestClose() {
         checkUiThread(thread)
         checkOverlayMutation()
         val value = session ?: return
         if (value.active)
-            value.close(OverlayCloseReason.Explicit)
+            value.requestClose(OverlayCloseReason.Explicit)
     }
     internal fun checkBinding(value: PortalInstance) {
         checkUiThread(thread)

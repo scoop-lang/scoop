@@ -29,7 +29,11 @@ filter 在调用时借用，图层保留实际需要的原生引用直到恢复�
 
 clip 建立在 saveLayer 之前时约束恢复后的输出；滤镜可能为该输出读取 clip 外所需的源样本。若要先裁源内容再产生向外效果，须在滤镜图层内部另建显式 clip。两种顺序不同。几何捕获继续使用绘制时的 transform／clip；滤镜的像素扩展本身不扩大区域几何。
 
-`path { addRoundRect(rect, radiusX, radiusY) }` 构造共用的圆角轮廓；PathBuilder 的追加操作返回 Unit。半径有限非负，超过尺寸时按 Skia 圆角矩形规则收敛；同一 Path 用于填充、clip、contains 和输入几何，不另用 UI 的圆角近似。作用域清理与增量构造的快照所有权见 [Surface 规范 §2](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
+`CornerRadii(topLeft, topRight, bottomRight, bottomLeft)` 保存四个物理角的椭圆半径 Size，缺省均为零；all(Double)／all(Size) 构造统一半径。normalized(size) 检查有限非负尺寸，任一半轴为零的角收敛为直角；相邻两角的横／纵半径总和超过对应边长时，对全部半径使用同一个最小缩放比例。零宽／高返回有界的退化轮廓。图形数值继续满足可表示的 native 标量范围。
+
+`RoundedOutline(bounds, radii)` 是不拥有资源的公共物理轮廓。normalized() 解析合法外框；inset(left, top, right, bottom) 从归一化外框计算内框，横／纵圆角分别减去对应边的实际内缩。相对两边宽度超过边长时按比例收敛到该边内的一点，内框尺寸为零；不产生负尺寸或框外原点。expanded(amount) 以非负外扩量同时扩展边界和圆角，用于焦点轮廓。graphics 不依赖 UI 的布局方向。
+
+PathBuilder.addRoundRect(rect, radii) 与 Canvas.drawRoundRect(rect, radii, paint) 使用同一 CornerRadii 归一化和 Skia 圆角矩形。原有 radiusX／radiusY 形式是统一椭圆半径的便利入口，委托同一实现。PathBuilder 追加操作返回 Unit；同一 Path 用于填充、clip、contains 和输入几何，不另用 UI 的圆角近似。作用域清理与增量构造的快照所有权见 [Surface 规范 §2](SCOOP-SURFACE-SPEC.md#2-几何与绘制)。
 
 ## 3. 坐标、生命周期与能耗
 

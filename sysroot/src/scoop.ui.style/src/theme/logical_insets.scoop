@@ -1,0 +1,23 @@
+package scoop.ui.style
+
+import scoop.ui.LayoutDirection
+
+public struct LogicalInsets(
+    val start: Double = 0.0,
+    val top: Double = 0.0,
+    val end: Double = 0.0,
+    val bottom: Double = 0.0
+) {
+    public companion object {
+        public fun all(value: Double): LogicalInsets = LogicalInsets(value, value, value, value)
+    }
+    public fun resolve(direction: LayoutDirection): Insets {
+        val result =
+            if (direction == LayoutDirection.Rtl)
+                Insets(end, top, start, bottom)
+            else
+                Insets(start, top, end, bottom)
+        result.totals()
+        return result
+    }
+}

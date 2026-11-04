@@ -58,7 +58,10 @@ private class ComponentReceiverDslTests {
         assertEquals(3, original.focus.order)
         assertEquals(Some(700), original.style.text!!.weight)
         assertEquals(Some(17.0), original.style.text!!.fontSize)
-        assertEquals(TextAlignment.Center, original.label.settings.alignment)
+        when (original.content) {
+            case Label(value) -> assertEquals(TextAlignment.Center, value.settings!!.alignment)
+            case Custom(_) -> fail(Some("expected label button"))
+        }
         assertEquals(0L, clicked.size)
         original.onClick()
         assertEquals(1L, clicked.size)
@@ -81,6 +84,8 @@ private class ComponentReceiverDslTests {
             wrap = false
             readOnly = true
             description = "details"
+            projection = textMask()
+            copy = TextCopyPolicy.Allow
             onEdited = { value -> notifications.add(value) }
             style { text { weight = Some(500) } }
             style { caretWidth = 2.0 }
@@ -92,12 +97,45 @@ private class ComponentReceiverDslTests {
         assertFalse(props.wrap)
         assertTrue(props.readOnly)
         assertEquals("details", props.description)
+        assertSame(captured[0L].projection, props.projection)
+        assertEquals(TextCopyPolicy.Allow, props.copy)
         assertEquals(0L, notifications.size)
         props.onEdited(model)
         assertSame(model, notifications[0L])
         assertEquals(Some(500), props.style.text!!.weight)
         assertEquals(2.0, props.style.caretWidth)
         assertFailsWith<IllegalArgumentException> { textarea(model) { rows = 0L } }
+    }
+
+    @Test
+    fun `selectable styled text descriptions preserve inline bindings and range actions`() {
+        val content =
+            styledText {
+                text("link ");
+                inlineObject(InlineKey.Text("badge"), "[badge]")
+            }
+        val inline = inlineView(InlineKey.Text("badge"), empty())
+        val calls = ArrayList<String>()
+        val action = TextRangeAction("link", TextRange(0L, 4L), { calls.add("link") })
+        val captured = ArrayList<SelectableStyledTextBuilder>()
+        selectableStyledText(content) {
+            captured.add(this)
+            inlines = [inline]
+            actions = [action]
+            focus { order = 7 }
+            settings { maxLines = Some(2L) }
+            onSelectionChanged = { _, _ -> calls.add("selection") }
+        }
+        val props = captured[0L].snapshot(content)
+        assertSame(content, props.content)
+        assertSame(inline, props.inlines[0L])
+        assertSame(action, props.actions[0L])
+        assertEquals(7, props.focus.order)
+        assertEquals(Some(2L), props.settings!!.maxLines)
+        assertEquals(0L, calls.size)
+        props.actions[0L].onActivate()
+        props.onSelectionChanged(TextPosition(4L), TextPosition(0L))
+        assertEquals(2L, calls.size)
     }
 
     @Test

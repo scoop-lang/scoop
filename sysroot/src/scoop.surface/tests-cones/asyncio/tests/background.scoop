@@ -1,0 +1,172 @@
+package scoop.tests.surface.asyncio
+
+import scoop.asyncio.*
+import scoop.concurrent.Channel
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.test.*
+import scoop.time.Duration
+
+private class BackgroundLabel(val value: String)
+
+context(label: BackgroundLabel)
+private fun backgroundLabel(): String = label.value
+
+private class BackgroundValue(val label: String, val byte: Byte)
+
+internal class BackgroundExchange(private val workers: CoroutineExecutor) {
+    private val owner = currentThreadId()
+    var completed = false
+    var readyForCancellation = false
+    var cleanedOnOwner = false
+    var ownerVisits = 0
+    val workerFinished = AtomicBoolean(false)
+
+    private fun checkOwner(loop: EventLoop) {
+        assertEquals(owner, currentThreadId())
+        assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+        assertSame(loop, currentEventLoop())
+        assertEquals("Surface background", backgroundLabel())
+    }
+
+    private fun checkWorker(loop: EventLoop) {
+        assertNotEquals(owner, currentThreadId())
+        assertSame(workers, currentCoroutineExecutorOrNone()!!)
+        assertSame(loop, currentEventLoop())
+        assertEquals("Surface background", backgroundLabel())
+    }
+
+    fun start(scope: CoroutineScope, loop: EventLoop, repaint: () -> Unit, closed: () -> Boolean) {
+        val exchange = this
+        context(BackgroundLabel("Surface background")) {
+            scope.launch {
+                exchange.transfer(scope, loop, repaint)
+                exchange.completed = true
+                scope.launch(exchange.workers) {
+                    try {
+                        withExecutor(loop.executor) {
+                            exchange.checkOwner(loop)
+                            exchange.readyForCancellation = true
+                        }
+                        while (true) {
+                            loop.sleep(Duration.milliseconds(10L))
+                            exchange.checkWorker(loop)
+                            withExecutor(loop.executor) {
+                                exchange.checkOwner(loop)
+                                repaint()
+                            }
+                        }
+                    } finally {
+                        nonCancellableScope {
+                            loop.sleep(Duration.milliseconds(10L))
+                            exchange.checkWorker(loop)
+                            withExecutor(loop.executor) {
+                                exchange.checkOwner(loop)
+                                assertTrue(closed())
+                                assertEquals(
+                                    "Surface background",
+                                    blocking {
+                                        assertNotEquals(exchange.owner, currentThreadId())
+                                        assertTrue(
+                                            when (currentCoroutineExecutorOrNone()) {
+                                                case None -> true
+                                                case Some(_) -> false
+                                            }
+                                        )
+                                        backgroundLabel()
+                                    }
+                                )
+                                exchange.checkOwner(loop)
+                                exchange.cleanedOnOwner = true
+                            }
+                            exchange.checkWorker(loop)
+                        }
+                        exchange.workerFinished.store(true)
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun transfer(ownerScope: CoroutineScope, loop: EventLoop, repaint: () -> Unit) {
+        val exchange = this
+        checkOwner(loop)
+        val channel = Channel<BackgroundValue>(0L)
+        val child =
+            ownerScope.async(workers) {
+                val workerScope = this
+                exchange.checkWorker(loop)
+                // Capturing a UI scope retains its executor even when launched from a worker.
+                val ownerResult =
+                    ownerScope.async {
+                        exchange.checkOwner(loop)
+                        exchange.ownerVisits += 1
+                        repaint()
+                        backgroundLabel()
+                    }
+                assertEquals("Surface background", ownerResult.await())
+                exchange.checkWorker(loop)
+                val byte =
+                    loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync {
+                        socket ->
+                        val sending =
+                            workerScope.launch {
+                                NativeByteBuffer.allocate(1L).use {
+                                    bytes ->
+                                    bytes.writeByte(42)
+                                    socket.sendTo(bytes, socket.localAddress, 1L)
+                                }
+                                exchange.checkWorker(loop)
+                            }
+                        val result =
+                            NativeByteBuffer.allocate(1L).use {
+                                bytes ->
+                                assertEquals(1L, socket.receiveFrom(bytes, 1L).count)
+                                bytes.readByte()
+                            }
+                        sending.join()
+                        result
+                    }
+                exchange.checkWorker(loop)
+                val result =
+                    blocking {
+                        assertNotEquals(exchange.owner, currentThreadId())
+                        assertTrue(
+                            when (currentCoroutineExecutorOrNone()) {
+                                case None -> true
+                                case Some(_) -> false
+                            }
+                        )
+                        assertSame(loop, currentEventLoop())
+                        BackgroundValue(backgroundLabel(), byte)
+                    }
+                exchange.checkWorker(loop)
+                val failure = IllegalArgumentException(Some("background failure"))
+                try {
+                    blocking<Unit> { throw failure }
+                    fail(Some("blocking failure did not return"))
+                } catch (error: IllegalArgumentException) {
+                    assertSame(failure, error)
+                    exchange.checkWorker(loop)
+                }
+                withExecutor(loop.executor) {
+                    exchange.checkOwner(loop)
+                    exchange.ownerVisits += 1
+                    repaint()
+                    yieldCoroutine()
+                    exchange.checkOwner(loop)
+                }
+                exchange.checkWorker(loop)
+                channel.send(result)
+                result
+            }
+        val result = channel.receive()
+        checkOwner(loop)
+        assertSame(result, child.await())
+        checkOwner(loop)
+        assertEquals("Surface background", result.label)
+        assertEquals(42.toByte(), result.byte)
+        channel.close()
+    }
+}

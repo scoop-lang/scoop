@@ -1,13 +1,24 @@
 package scoop.ui.style
 
 import scoop.graphics.*
+import scoop.ui.LayoutDirection
 
-internal struct OutlineInput(val bounds: Rect, val radius: Double, val border: Double)
+internal struct OutlineInput(
+    val outline: RoundedOutline,
+    val insets: Insets,
+    val partitions: Boolean
+)
 
-internal class DecorationPaths(val outline: Path, val border: Path?): Closeable {
+internal class DecorationPaths(
+    val outline: Path,
+    val border: Path?,
+    val regions: Array<Path>
+): Closeable {
     public override fun close() {
         var failure = cleanupStyle(None) { outline.close() }
         failure = cleanupStyle(failure) { border?.close() }
+        for (region in regions)
+            failure = cleanupStyle(failure) { region.close() }
         throwStyle(failure)
     }
 }
@@ -16,39 +27,35 @@ internal class DecorationGeometry: Closeable {
     private var input: OutlineInput? = None
     private var current: DecorationPaths? = None
 
-    fun update(bounds: Rect, style: Style): DecorationPaths? {
+    fun update(
+        bounds: Rect,
+        style: Style,
+        direction: LayoutDirection = LayoutDirection.Ltr
+    ): DecorationPaths? {
+        val edges = physicalEdges(style, direction)
+        val insets = edges.insets
+        val outline = RoundedOutline(bounds, style.corners.resolve(direction)).normalized()
+        val hasBorder =
+            insets.left > 0.0 || insets.top > 0.0 || insets.right > 0.0 || insets.bottom > 0.0
         val background =
             when (style.background) {
                 case Some(_) -> true;
                 case None -> false
             }
-        val border = style.border?.width ?: 0.0
-        if (!background && border == 0.0 && style.boxShadows.size == 0L && !style.clipContent) {
+        if (!background && !hasBorder && style.boxShadows.size == 0L && !style.clipContent) {
             close()
             return None
         }
-        val nextInput = OutlineInput(bounds, style.cornerRadius, border)
+        val nextInput = OutlineInput(outline, insets, hasBorder && edges.uniformColor() == None)
         if (input == Some(nextInput))
             return current
-        val outline = roundPath(bounds, style.cornerRadius, 0.0)
-        val edge =
-            try {
-                if (border > 0.0 && bounds.width > 0.0 && bounds.height > 0.0)
-                    Some(roundPath(bounds, style.cornerRadius, border))
-                else
-                    None
-            } catch (error: Throwable) {
-                throwStyle(cleanupStyle(Some(error)) { outline.close() })
-                throw error
-            }
-        val next = DecorationPaths(outline, edge)
+        val next = decorationPaths(nextInput, edges)
         val previous = current
         current = Some(next)
         input = Some(nextInput)
         previous?.close()
         return Some(next)
     }
-
     public override fun close() {
         val previous = current
         current = None
@@ -57,22 +64,62 @@ internal class DecorationGeometry: Closeable {
     }
 }
 
-private fun roundPath(bounds: Rect, radius: Double, border: Double): Path =
-    path(FillRule.EvenOdd) {
-        addRoundRect(bounds, radius, radius)
-        if (border > 0.0 && border < bounds.width / 2.0 && border < bounds.height / 2.0) {
-            val inner =
-                Rect(
-                    bounds.x + border,
-                    bounds.y + border,
-                    bounds.width - 2.0 * border,
-                    bounds.height - 2.0 * border
-                )
-            val innerRadius =
-                if (radius > border)
-                    radius - border
-                else
+private fun decorationPaths(input: OutlineInput, edges: BorderEdges): DecorationPaths {
+    val outer = input.outline
+    val widths = input.insets
+    val owned = ArrayList<Path>()
+    try {
+        val outline = path { addRoundRect(outer.bounds, outer.radii) }
+        owned.add(outline)
+        val ring =
+            if (
+                (
+                    widths.left >
+                        0.0 ||
+                        widths.top >
+                        0.0 ||
+                        widths.right >
+                        0.0 ||
+                        widths.bottom >
+                        0.0
+                ) &&
+                    outer.bounds.width >
+                    0.0 &&
+                    outer.bounds.height >
                     0.0
-            addRoundRect(inner, innerRadius, innerRadius)
-        }
+            ) {
+                val inner = insetOutline(outer, widths)
+                val value =
+                    path(FillRule.EvenOdd) {
+                        addRoundRect(outer.bounds, outer.radii)
+                        if (inner.bounds.width > 0.0 && inner.bounds.height > 0.0)
+                            addRoundRect(inner.bounds, inner.radii)
+                    }
+                owned.add(value)
+                Some(value)
+            } else
+                None
+        val regions = ArrayList<Path>()
+        if (input.partitions)
+            for (points in borderRegions(outer.bounds, edges)) {
+                val region =
+                    path {
+                        if (points.size > 0L) {
+                            moveTo(points[0L])
+                            for (index in 1L ..< points.size)
+                                lineTo(points[index])
+                            closeContour()
+                        }
+                    }
+                owned.add(region)
+                regions.add(region)
+            }
+        return DecorationPaths(outline, ring, regions.toArray())
+    } catch (error: Throwable) {
+        var failure: Throwable? = Some(error)
+        for (value in owned)
+            failure = cleanupStyle(failure) { value.close() }
+        throwStyle(failure)
+        throw error
     }
+}

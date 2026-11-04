@@ -1,0 +1,186 @@
+package scoop.tests.ui.layout
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal fun advanceLayoutCombination(probe: LayoutProbe, active: ActiveApplication) {
+    val model = probe.combination
+    if (probe.frames!!.snapshot().required)
+        return
+    when (probe.phase) {
+        case 10 -> {
+            if (model.acceptedFirst != 160.0 || !probe.window!!.isFocused)
+                return
+            clickCombination(probe, model.counter!!.windowBounds!!)
+            clickCombination(probe, model.action!!.windowBounds!!)
+            afterCombination(probe, active, 11)
+        }
+        case 11 -> {
+            assertEquals(1, model.counterValue)
+            assertEquals(1, model.actionClicks)
+            assertEquals(276.0, model.fieldWidth)
+            assertTrue(model.focus.requestFocus())
+            probe.phase = 12
+        }
+        case 12 -> {
+            if (
+                !model.focus.isFocusActive ||
+                    model.connection ==
+                    None ||
+                    model.field!!.area.visibleCaretBounds ==
+                    None
+            )
+                return
+            model.initialConnection = model.connection
+            model.assertFocus()
+            dragSeparator(probe, 60.0)
+            afterCombination(probe, active, 13)
+        }
+        case 13 -> {
+            if (model.acceptedFirst != 220.0)
+                return
+            assertEquals(216.0, model.fieldWidth)
+            assertTrue(model.resize!!.isDragging)
+            model.assertFocus()
+            releaseCombination(probe)
+            afterCombination(probe, active, 14)
+        }
+        case 14 -> {
+            assertFalse(model.resize!!.isDragging)
+            model.direction.value = LayoutDirection.Rtl
+            probe.phase = 15
+        }
+        case 15 -> {
+            if (model.acceptedDirection != LayoutDirection.Rtl)
+                return
+            model.assertFocus()
+            assertEquals(216.0, model.fieldWidth)
+            dragSeparator(probe, 50.0)
+            afterCombination(probe, active, 16)
+        }
+        case 16 -> {
+            if (model.acceptedFirst != 170.0)
+                return
+            assertEquals(266.0, model.fieldWidth)
+            model.assertFocus()
+            model.resize!!.cancel()
+            releaseCombination(probe)
+            afterCombination(probe, active, 17)
+        }
+        case 17 -> {
+            if (model.acceptedFirst != 220.0)
+                return
+            assertEquals(1, model.resizeCancels)
+            assertEquals(216.0, model.fieldWidth)
+            assertEquals(320.0, model.scroll.content.width)
+            assertAnchors(model, [0.0, 85.0, 195.0])
+            model.assertFocus()
+            dragStrip(probe, 55.0)
+            afterCombination(probe, active, 18)
+        }
+        case 18 -> {
+            if (model.scroll.offset.x != 70.0)
+                return
+            assertTrue(model.swipe!!.isDragging)
+            releaseCombination(probe)
+            afterCombination(probe, active, 19)
+        }
+        case 19 -> {
+            if (model.scroll.isAnimating || model.scroll.offset.x != 85.0)
+                return
+            assertFalse(model.swipe!!.isDragging)
+            assertEquals(0, model.cardClicks)
+            model.widths.value = [95.0, 80.0, 160.0]
+            probe.phase = 20
+        }
+        case 20 -> {
+            if (model.scroll.content.width != 355.0)
+                return
+            assertAnchors(model, [0.0, 105.0, 195.0])
+            clickCombination(probe, Rect(60.0, 160.0, 10.0, 10.0))
+            afterCombination(probe, active, 21)
+        }
+        case 21 -> {
+            assertEquals(1, model.cardClicks)
+            dragStrip(probe, 100.0)
+            afterCombination(probe, active, 22)
+        }
+        case 22 -> {
+            if (model.scroll.offset.x != 110.0)
+                return
+            releaseCombination(probe)
+            afterCombination(probe, active, 23)
+        }
+        case 23 -> {
+            if (model.scroll.isAnimating || model.scroll.offset.x != 105.0)
+                return
+            assertEquals(1, model.cardClicks)
+            dragStrip(probe, 105.0)
+            afterCombination(probe, active, 24)
+        }
+        case 24 -> {
+            if (model.scroll.offset.x != 125.0)
+                return
+            model.swipe!!.cancel()
+            releaseCombination(probe)
+            afterCombination(probe, active, 25)
+        }
+        case 25 -> {
+            if (model.scroll.offset.x != 105.0)
+                return
+            assertEquals(1, model.swipeCancels)
+            assertEquals(1, model.cardClicks)
+            assertFalse(model.swipe!!.isDragging)
+            assertFalse(model.scroll.isAnimating)
+            model.assertFocus()
+            val frames = probe.frames!!.snapshot()
+            assertTrue(frames.paused)
+            model.quietFrames = Some(frames)
+            probe.phase = 26
+            probe.waitFor(active, 180L)
+        }
+        else -> {}
+    }
+}
+
+private fun assertAnchors(model: LayoutCombination, expected: Array<Double>) {
+    assertEquals(expected.size, model.anchors.size)
+    for (index in 0L ..< expected.size)
+        assertEquals(expected[index], model.anchors[index])
+}
+
+private fun afterCombination(probe: LayoutProbe, active: ActiveApplication, next: Int) {
+    probe.phase = 100
+    assertTrue(active.proxy().post { _ -> probe.phase = next })
+}
+
+private fun clickCombination(probe: LayoutProbe, rect: Rect) {
+    val point = Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+    assertTrue(moveSurfacePointer(probe.window!!, point.x, point.y))
+    assertTrue(probe.view!!.button(point.x, point.y, true))
+    assertTrue(probe.view!!.button(point.x, point.y, false))
+}
+
+private fun dragSeparator(probe: LayoutProbe, delta: Double) {
+    val rect = probe.combination.separator!!.windowBounds!!
+    val start = Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+    assertTrue(moveSurfacePointer(probe.window!!, start.x, start.y))
+    assertTrue(probe.view!!.button(start.x, start.y, true))
+    probe.combination.pointer = Point(start.x + delta, start.y)
+    assertTrue(moveSurfacePointer(probe.window!!, start.x + delta, start.y))
+}
+
+private fun dragStrip(probe: LayoutProbe, end: Double) {
+    assertTrue(moveSurfacePointer(probe.window!!, 125.0, 174.0))
+    assertTrue(probe.view!!.button(125.0, 174.0, true))
+    probe.combination.pointer = Point(end, 174.0)
+    assertTrue(moveSurfacePointer(probe.window!!, end, 174.0))
+}
+
+private fun releaseCombination(probe: LayoutProbe) {
+    val point = probe.combination.pointer
+    assertTrue(probe.view!!.button(point.x, point.y, false))
+}

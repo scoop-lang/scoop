@@ -1,0 +1,128 @@
+package scoop.ui
+
+import scoop.surface.*
+
+public enum PresencePhase {
+    Absent, Entering, Present, Exiting
+}
+
+public struct PresenceOptions(val enter: AnimationSpec? = None, val exit: AnimationSpec? = None)
+
+public struct PresenceSnapshot(val phase: PresencePhase, val progress: Double)
+
+/** A finite presentation transition on the mount's existing animation timeline. */
+public class Presence internal constructor(
+    private val scope: ComponentScope,
+    initial: Boolean,
+    private var options: PresenceOptions,
+    private val changed: () -> Unit = {}
+): Closeable {
+    private val phaseState = state(PresencePhase.Absent)
+    private val motion = scope.animation(0.0)
+    private var desired = false
+    private var closed = false
+
+    init {
+        update(initial, Some(options))
+    }
+
+    public val isClosed: Boolean get() {
+        val mounted = scope.isMounted;
+        return closed || !mounted
+    }
+    public val phase: PresencePhase get() = phaseState.value
+    public val isPresent: Boolean get() = phase != PresencePhase.Absent
+    public val snapshot: PresenceSnapshot get() {
+        val current = phase
+        if (closed)
+            return PresenceSnapshot(PresencePhase.Absent, 0.0)
+        val value = motion.value
+        return PresenceSnapshot(
+            current,
+            if (value < 0.0)
+                0.0
+            else
+                if (value > 1.0)
+                    1.0
+                else
+                    value
+        )
+    }
+    public fun update(open: Boolean, options: PresenceOptions? = None) {
+        checkOverlayMutation()
+        if (isClosed)
+            throw IllegalStateException(Some("presence is no longer mounted"))
+        this.options = options ?: this.options
+        if (desired == open)
+            return
+        desired = open
+        val end =
+            if (open)
+                PresencePhase.Present
+            else
+                PresencePhase.Absent
+        val value =
+            if (open)
+                1.0
+            else
+                0.0
+        when (
+            if (open)
+                this.options.enter
+            else
+                this.options.exit
+        ) {
+            case Some(spec) -> {
+                setPhase(
+                    if (open)
+                        PresencePhase.Entering
+                    else
+                        PresencePhase.Exiting
+                )
+                motion.animateTo(
+                    value,
+                    spec,
+                    onFinished =
+                        Some(
+                            {
+                                _ -> if (!closed)
+                                    setPhase(end)
+                            }
+                        )
+                )
+            }
+            case None -> {
+                motion.snapTo(value)
+                setPhase(end)
+            }
+        }
+    }
+    private fun setPhase(value: PresencePhase) {
+        if (phaseState.value == value)
+            return
+        phaseState.value = value
+        changed()
+    }
+    internal fun finishImmediately() {
+        if (closed || phase == PresencePhase.Absent)
+            return
+        desired = false
+        if (motion.state != AnimationState.Closed)
+            motion.snapTo(0.0)
+        prepareUi { setPhase(PresencePhase.Absent) }
+    }
+    public override fun close() {
+        scope.isMounted
+        checkOverlayMutation()
+        if (closed)
+            return
+        closed = true
+        phaseState.value = PresencePhase.Absent
+        motion.close()
+    }
+}
+
+public fun ComponentScope.presence(
+    open: Boolean = false,
+    options: PresenceOptions = PresenceOptions()
+): Presence = resource { Presence(this, open, options) }

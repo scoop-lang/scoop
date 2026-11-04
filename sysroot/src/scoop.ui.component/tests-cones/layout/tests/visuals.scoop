@@ -1,0 +1,202 @@
+package scoop.tests.ui.layout
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.macos.macosTheme
+import scoop.ui.style.material.materialTheme
+import scoop.ui.style.fluent.fluentTheme
+
+internal class VisualProbe: Closeable {
+    val firstImage = visualImage(false)
+    val secondImage = visualImage(true)
+    val firstPath = path { addRect(Rect(10.0, 20.0, 20.0, 10.0)) }
+    val secondPath = path { addRect(Rect(10.0, 20.0, 10.0, 10.0)) }
+    val themes =
+        [ThemeSource(macosTheme()), ThemeSource(materialTheme()), ThemeSource(fluentTheme())]
+    var mounts = 0
+    var unmounts = 0
+    fun assertBorrowed() {
+        assertFalse(firstImage.isClosed)
+        assertFalse(secondImage.isClosed)
+        assertFalse(firstPath.isClosed)
+        assertFalse(secondPath.isClosed)
+    }
+    public override fun close() {
+        firstImage.close();
+        secondImage.close();
+        firstPath.close();
+        secondPath.close()
+    }
+}
+
+private fun visualImage(replaced: Boolean): Image {
+    val values =
+        if (replaced)
+            [0, 255, 0, 255, 0, 0, 0, 255]
+        else
+            [255, 0, 0, 255, 0, 0, 255, 255]
+    return Image.fromRgba(2, 1, Array<Byte>(8L) { index -> values[index].toByte() })
+}
+
+internal fun visualContract(generation: Int, probe: VisualProbe): View {
+    val replaced = generation >= 4
+    val image =
+        if (replaced)
+            probe.secondImage
+        else
+            probe.firstImage
+    val shape =
+        if (replaced)
+            probe.secondPath
+        else
+            probe.firstPath
+    val source = probe.themes[(generation % 3).toLong()]
+    val media =
+        element(
+            generation,
+            { props -> VisualPanel(props, probe) },
+            [
+                imageView(image, Size(40.0, 20.0)) {
+                    fit = ContentFit.None
+                    alignment = Alignment(AxisAlignment.Start, AxisAlignment.Center)
+                    sampling = ImageSampling.Nearest
+                },
+                pathView(shape, Rect(10.0, 20.0, 20.0, 10.0)) {
+                    fit =
+                        if (replaced)
+                            ContentFit.Cover
+                        else
+                            ContentFit.Contain
+                    paint = Paint(Color(0.0, 1.0, 0.0))
+                },
+                frame(empty()) {
+                    width = Some(64.0);
+                    height = Some(64.0)
+                    surface = Some(SurfaceKind.Plain)
+                    theme = Some(source)
+                    padding = Some(Insets())
+                    style {
+                        background(Some(Paint(Color.White)))
+                        border(
+                            Some(
+                                Border.Logical(
+                                    BorderEdge(3.0, Color(1.0, 0.0, 0.0)),
+                                    BorderEdge(4.0, Color(0.0, 1.0, 0.0)),
+                                    BorderEdge(7.0, Color(0.0, 0.0, 1.0)),
+                                    BorderEdge(5.0, Color.Black)
+                                )
+                            )
+                        )
+                        corners(
+                            Corners.Logical(
+                                Size(20.0, 20.0),
+                                Size(0.0, 0.0),
+                                Size(8.0, 8.0),
+                                Size(0.0, 0.0)
+                            )
+                        )
+                        boxShadows([])
+                        clipContent(true)
+                    }
+                }
+            ]
+        )
+    return direction(
+        media,
+        if (generation % 2 == 0)
+            LayoutDirection.Ltr
+        else
+            LayoutDirection.Rtl
+    )
+}
+
+private class VisualPanel(private val props: Props<Int>, private val probe: VisualProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.mounts += 1
+    }
+    public override fun onUnmount() {
+        probe.unmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< 3L) {
+            val child = context.measureChild(index, Constraints.tight(Size(64.0, 64.0)))
+            assertEquals(Size(64.0, 64.0), child.size)
+            context.placeChild(index, Point(index.toDouble() * 72.0, 0.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(208.0, 64.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val rtl = context.layoutDirection == LayoutDirection.Rtl
+        val replaced = props.value >= 4
+        val leading =
+            if (rtl)
+                24.0
+            else
+                0.0
+        probe.assertBorrowed()
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        assertEquals(
+                            if (replaced)
+                                65280L
+                            else
+                                255L,
+                            readNativePixel(native, leading + 10.0, 32.0)
+                        )
+                        assertEquals(
+                            if (replaced)
+                                0L
+                            else
+                                16711680L,
+                            readNativePixel(native, leading + 30.0, 32.0)
+                        )
+                        assertEquals(
+                            16777215L,
+                            readNativePixel(
+                                native,
+                                if (rtl)
+                                    4.0
+                                else
+                                    60.0,
+                                32.0
+                            )
+                        )
+                        assertEquals(65280L, readNativePixel(native, 88.0, 32.0))
+                        assertEquals(
+                            if (replaced)
+                                16777215L
+                            else
+                                65280L,
+                            readNativePixel(native, 120.0, 32.0)
+                        )
+                        assertEquals(16777215L, readNativePixel(native, 68.0, 32.0))
+                        assertEquals(
+                            if (rtl)
+                                16711680L
+                            else
+                                255L,
+                            readNativePixel(native, 145.0, 32.0)
+                        )
+                        assertEquals(
+                            if (rtl)
+                                255L
+                            else
+                                16711680L,
+                            readNativePixel(native, 206.0, 32.0)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,31 @@
+package scoop.ui.component
+
+internal struct WrapLine(val start: Long, val count: Long)
+
+internal fun wrapLines(bases: Array<Double>, gap: Double, maximum: Double?): Array<WrapLine> {
+    val lines = ArrayList<WrapLine>()
+    var start = 0L
+    var extent = 0.0
+    for (index in 0L ..< bases.size) {
+        val candidate =
+            if (index == start)
+                bases[index]
+            else
+                extent + gap + bases[index]
+        val wraps =
+            when (maximum) {
+                case Some(limit) -> index > start && candidate > limit
+                case None -> false
+            }
+        if (wraps) {
+            lines.add(WrapLine(start, index - start))
+            start = index
+            extent = bases[index]
+        } else
+            extent = candidate
+        nonnegative(extent, "wrap line extent overflow")
+    }
+    if (start < bases.size)
+        lines.add(WrapLine(start, bases.size - start))
+    return lines.toArray()
+}

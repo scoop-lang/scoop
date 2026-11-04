@@ -1,59 +1,32 @@
 package scoop.window
 
-/** Unicode text on the system clipboard, owned by the application thread. */
-public class Clipboard internal constructor(private val owner: ApplicationOwner) {
-    /** Returns None when the clipboard has no text; an empty string is still text. */
-    public fun readText(): String? {
-        checkActive("read clipboard")
-        @Unsafe
-        {
-            val result = nativeClipboardRead()
-            try {
-                checkNativeStatus(result.error, "read clipboard")
-                return when (result.bytes) {
-                    case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
-                    case None -> None
-                }
-            } finally {
-                nativeClipboardRelease(result.bytes)
+internal fun platformReadClipboard(): String? {
+    @Unsafe
+    {
+        val result = nativeClipboardRead()
+        try {
+            checkNativeStatus(result.error, "read clipboard")
+            return when (result.bytes) {
+                case Some(bytes) -> Some(String.fromUtf8(bytes, result.length))
+                case None -> None
             }
+        } finally {
+            nativeClipboardRelease(result.bytes)
         }
-    }
-
-    /** Replaces the clipboard contents, throwing when the native write fails. */
-    public fun writeText(text: String) {
-        checkActive("write clipboard")
-        @Unsafe
-        {
-            text.withUtf8Bytes {
-                bytes,
-                length -> @Unsafe
-                {
-                    checkNativeStatus(nativeClipboardWrite(bytes, length), "write clipboard")
-                }
-            }
-        }
-    }
-
-    internal fun checkActive(operation: String) {
-        owner.checkThread()
-        if (owner.native == None || owner.exiting)
-            throw WindowException(operation, WindowErrorKind.InvalidState)
     }
 }
 
-/** Obtains a clipboard facade that remains valid while this application runs. */
-public val ActiveApplication.clipboard: Clipboard get() {
-    val value = Clipboard(owner)
-    value.checkActive("get clipboard")
-    return value
-}
-
-/** Uses the application clipboard without extending the lifetime of this window. */
-public val Window.clipboard: Clipboard get() {
-    val value = Clipboard(owner.application)
-    value.checkActive("get clipboard")
-    return value
+internal fun platformWriteClipboard(text: String) {
+    @Unsafe
+    {
+        text.withUtf8Bytes {
+            bytes,
+            length -> @Unsafe
+            {
+                checkNativeStatus(nativeClipboardWrite(bytes, length), "write clipboard")
+            }
+        }
+    }
 }
 
 @CLayout

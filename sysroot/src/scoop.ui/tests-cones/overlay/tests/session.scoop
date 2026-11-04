@@ -32,6 +32,9 @@ private class OverlayUiTest {
             assertFalse(probe.anchor.isAttached)
             assertFalse(probe.childAnchor.isAttached)
             assertEquals(probe.closed.size, probe.closedState.value.toLong())
+        } catch (error: Throwable) {
+            probe.reportFailure(error)
+            throw error
         } finally {
             probe.view?.close()
         }
@@ -47,6 +50,7 @@ internal class OverlayProbe {
     val cycleA = LayoutAnchor()
     val cycleB = LayoutAnchor()
     val foreignAnchor = LayoutAnchor()
+    val open = Array<State<Boolean>>(3L) { _ -> state(true) }
     val overlays = Array<OverlayHandle>(3L) { _ -> OverlayHandle() }
     val alternate = OverlayHandle()
     var mainHandle = overlays[0L]
@@ -94,6 +98,10 @@ internal class OverlayProbe {
     private var hiddenChild = 0
     private var quietPasses = 0
 
+    fun reportFailure(error: Throwable) {
+        println(f"phase=${phase}, frames=${passes}")
+        reportFailureDetail(error)
+    }
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {
             case Resumed -> {
@@ -254,7 +262,7 @@ internal class OverlayProbe {
                 change()
             }
             case 12 -> {
-                if (unmounts[2L] == 0)
+                if (unmounts[2L] == 0 || closed.size == 0L)
                     return
                 assertFalse(overlays[2L].isOpen)
                 assertTrue(overlays[2L].isAttached)
@@ -294,8 +302,8 @@ internal class OverlayProbe {
                     return
                 assertTrue(alternate.isOpen)
                 assertEquals(1L, closed.size)
-                alternate.close()
-                alternate.close()
+                alternate.requestClose()
+                alternate.requestClose()
                 assertFalse(alternate.isOpen)
                 assertFalse(areas[0L]!!.scope.isEnabledInHierarchy)
                 assertFalse(areas[1L]!!.scope.isEnabledInHierarchy)
@@ -304,6 +312,8 @@ internal class OverlayProbe {
                 assertTrue(active.proxy().post { _ -> waiting = false })
             }
             case 16 -> {
+                if (closed.size < 3L)
+                    return
                 assertEquals(1, unmounts[0L])
                 assertEquals(1, unmounts[1L])
                 assertEquals(Some(OverlayCloseReason.Explicit), alternate.lastCloseReason)
@@ -316,6 +326,7 @@ internal class OverlayProbe {
                 assertEquals(1, mounts[0L])
                 assertEquals(3L, closed.size)
                 mainKey += 1L
+                open[0L].value = true
                 discardHidden = false
                 change()
             }
@@ -332,6 +343,7 @@ internal class OverlayProbe {
                 old.close()
                 assertTrue(anchor.isAttached)
                 mainKey += 1L
+                open[0L].value = true
                 change()
             }
             case 19 -> {
@@ -344,7 +356,7 @@ internal class OverlayProbe {
                 change()
             }
             case 20 -> {
-                if (unmounts[0L] < 3 || unmounts[1L] < 3)
+                if (unmounts[0L] < 3 || unmounts[1L] < 3 || closed.size < 7L)
                     return
                 assertEquals(Some(OverlayCloseReason.AnchorUnavailable), alternate.lastCloseReason)
                 assertEquals(
@@ -353,6 +365,7 @@ internal class OverlayProbe {
                 )
                 anchorRect = Rect(20.0, 20.0, 20.0, 10.0)
                 mainKey += 1L
+                open[0L].value = true
                 change()
             }
             case 21 -> {
@@ -373,4 +386,28 @@ internal class OverlayProbe {
             )
         )
     }
+}
+
+private fun reportFailureDetail(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportFailureDetail(error.primaryFailure)
+        reportFailureDetail(error.cleanupFailure)
+    } else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.kind}: ${error.location.file}:${error.location.line} ${
+                    error.message ?: ""
+                }"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "window test failure")
 }

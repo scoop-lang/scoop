@@ -152,7 +152,7 @@ private fun advanceInput(probe: FieldProbe) {
         case 22 -> {
             val geometry = probe.primaryDrawing!!.geometry
             val error = probe.source.current.value.tokens.palette.error
-            assertEquals(error, geometry.style.border!!.color)
+            assertEquals(error, geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color)
             assertEquals(error.withAlpha(0.72), geometry.focus!!.border.color)
             assertTrue(probe.primaryMetrics!!.size.height > geometry.bounds.height)
             probe.next {

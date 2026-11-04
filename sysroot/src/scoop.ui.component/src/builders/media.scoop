@@ -1,0 +1,71 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+public class ImageViewBuilder internal constructor() {
+    public var fit: ContentFit = ContentFit.Contain
+    public var alignment: Alignment = Alignment()
+    public var clip: Boolean = true
+    public var sampling: ImageSampling = ImageSampling.Linear
+    public var opacity: Double = 1.0
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun imageView(
+    image: Image,
+    naturalSize: Size,
+    configure: ImageViewBuilder.() -> Unit = {}
+): View = makeImageView(image, naturalSize, configure)
+
+internal fun makeImageView(
+    image: Image,
+    naturalSize: Size,
+    configure: ImageViewBuilder.() -> Unit
+): View {
+    val builder = ImageViewBuilder()
+    builder.configure()
+    return element(
+        ImageViewProps(
+            image,
+            naturalSize,
+            builder.fit,
+            builder.alignment,
+            builder.clip,
+            builder.sampling,
+            builder.opacity
+        ),
+        { props -> ImageView(props) },
+        key = builder.key
+    )
+}
+
+public class PathViewBuilder internal constructor() {
+    public var naturalSize: Size? = None
+    public var paint: Paint = Paint()
+    public var fit: ContentFit = ContentFit.Contain
+    public var alignment: Alignment = Alignment()
+    public var clip: Boolean = true
+    public var key: ViewKey = ViewKey.Position
+}
+
+public fun pathView(path: Path, viewBox: Rect, configure: PathViewBuilder.() -> Unit = {}): View =
+    makePathView(path, viewBox, configure)
+
+internal fun makePathView(path: Path, viewBox: Rect, configure: PathViewBuilder.() -> Unit): View {
+    val builder = PathViewBuilder()
+    builder.configure()
+    return element(
+        PathViewProps(
+            path,
+            viewBox,
+            builder.naturalSize,
+            builder.paint,
+            builder.fit,
+            builder.alignment,
+            builder.clip
+        ),
+        { props -> PathView(props) },
+        key = builder.key
+    )
+}

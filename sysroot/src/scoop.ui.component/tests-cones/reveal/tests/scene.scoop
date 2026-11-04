@@ -8,6 +8,7 @@ import scoop.ui.component.*
 import scoop.window.LogicalSize
 
 internal class RevealScene(private val probe: RevealProbe): Component {
+    private val portalOpen = state(true)
     public override fun render(): View {
         val revision = probe.revision.value
         return element(
@@ -28,7 +29,7 @@ internal class RevealScene(private val probe: RevealProbe): Component {
                                         tile(probe, 1L),
                                         tile(probe, 5L),
                                         if (probe.showPortal)
-                                            portal(tile(probe, 3L))
+                                            portal(portalOpen.binding(), tile(probe, 3L))
                                         else
                                             empty()
                                     ]

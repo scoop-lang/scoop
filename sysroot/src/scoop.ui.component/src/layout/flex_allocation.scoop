@@ -1,0 +1,80 @@
+package scoop.ui.component
+
+/** Distributes only remaining space and freezes each reached bound once. */
+internal fun allocateFlex(
+    bases: Array<Double>,
+    options: Array<FlexItemOptions>,
+    target: Double
+): Array<Double> {
+    nonnegative(target, "invalid flex allocation")
+    val values =
+        MutableArray<Double>(bases.size) { index -> flexClamp(bases[index], options[index]) }
+    val frozen = MutableArray<Boolean>(bases.size) { _ -> false }
+    var total = 0.0
+    for (value in values)
+        total += value
+    nonnegative(total, "flex extents overflow")
+    val growing = target >= total
+    var largestWeight = 0.0
+    var largestBasis = 0.0
+    for (index in 0L ..< bases.size) {
+        val value = options[index]
+        largestWeight =
+            lowerBound(
+                largestWeight,
+                if (growing)
+                    value.grow
+                else
+                    value.shrink
+            )
+        largestBasis = lowerBound(largestBasis, bases[index])
+    }
+    if (largestWeight == 0.0 || (!growing && largestBasis == 0.0))
+        return Array(values.size) { index -> values[index] }
+    val weightScale = largestWeight
+    val basisScale = largestBasis
+    val weights =
+        Array<Double>(bases.size) {
+            index ->
+            val value = options[index]
+            if (growing)
+                value.grow / weightScale
+            else
+                (value.shrink / weightScale) * (bases[index] / basisScale)
+        }
+    while (true) {
+        var weight = 0.0
+        total = 0.0
+        for (index in 0L ..< values.size) {
+            total += values[index]
+            if (!frozen[index])
+                weight += weights[index]
+        }
+        val remaining = target - total
+        if (weight == 0.0 || remaining == 0.0)
+            break
+        var limited = false
+        for (index in 0L ..< values.size) {
+            if (frozen[index] || weights[index] == 0.0)
+                continue
+            val proposed = values[index] + remaining * (weights[index] / weight)
+            val accepted = flexClamp(proposed, options[index])
+            values[index] = accepted
+            if (accepted != proposed) {
+                frozen[index] = true
+                limited = true
+            }
+        }
+        if (!limited)
+            break
+    }
+    return Array(values.size) { index -> values[index] }
+}
+
+internal fun flexClamp(value: Double, options: FlexItemOptions): Double {
+    val lower = lowerBound(value, options.min)
+    return when (options.max) {
+        case Some(upper) -> upperBound(lower, upper)
+        case None -> lower
+    }
+}

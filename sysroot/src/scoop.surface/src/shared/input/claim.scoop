@@ -1,0 +1,61 @@
+package scoop.surface
+
+import scoop.window.MouseButton
+
+/** Claims the active button sequence without acquiring an OS pointer lock. */
+public fun InputScope.claimPointer(button: MouseButton = MouseButton.Left): Boolean {
+    checkOpen()
+    val acquired =
+        try {
+            owner.claimPointer(this, button)
+        } finally {
+            owner.dispatch {}
+        }
+    return acquired && !closed && sameScope(owner.pointerClaim, Some(this))
+}
+
+/** Cancels a sequence only when this scope is its confirmed owner. */
+public fun InputScope.cancelPointerClaim(): Unit {
+    owner.checkThread()
+    if (!closed && sameScope(owner.pointerClaim, Some(this)))
+        owner.dispatch {
+            owner.cancelPress(InputCancelReason.ClaimCancelled, inputObservation(), false)
+        }
+}
+
+internal fun InputRouter.claimPointer(scope: InputScope, button: MouseButton): Boolean {
+    if (!hasButton(buttons, button) || path(scope).size == 0L)
+        return false
+    when (pointerClaim) {
+        case Some(current) -> return current === scope
+        case None -> {}
+    }
+    val original = pressed ?: return false
+    var position = 0L
+    while (position < original.size && original[position] !== scope)
+        position += 1L
+    if (position == original.size)
+        return false
+    val start = position
+    val next = Array<InputScope>(original.size - start) { index -> original[start + index] }
+    pointerClaim = Some(scope)
+    pressed = Some(next)
+    val time = inputObservation()
+    var failure: Throwable? = None
+    // Publish the new owner before cancellation callbacks can mutate the hierarchy.
+    for (index in 0L ..< start)
+        failure =
+            cleanupFailure(failure) {
+                notify(
+                    original[index],
+                    InputEvent.Pointer(
+                        InputPointerEvent.Cancelled(InputCancelReason.Claimed, time)
+                    ),
+                    time,
+                    Some(original[0L]),
+                    terminal = true
+                )
+            }
+    throwFailure(failure)
+    return !closed && sameScope(pointerClaim, Some(scope)) && samePath(next, path(scope))
+}

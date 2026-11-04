@@ -16,7 +16,7 @@ internal fun configureStyle(initial: Style, configure: StyleBuilder.() -> Unit):
 public class StyleBuilder internal constructor(initial: Style) {
     public var background: Paint? = initial.background
     public var border: Border? = initial.border
-    public var cornerRadius: Double = initial.cornerRadius
+    public var corners: Corners = initial.corners
     public var boxShadows: Array<BoxShadow> = initial.boxShadows
     public var contentEffects: Array<ContentEffect> = initial.contentEffects
     public var clipContent: Boolean = initial.clipContent
@@ -25,7 +25,7 @@ public class StyleBuilder internal constructor(initial: Style) {
         Style(
             background = background,
             border = border,
-            cornerRadius = cornerRadius,
+            corners = corners,
             boxShadows = boxShadows,
             contentEffects = contentEffects,
             clipContent = clipContent
@@ -49,7 +49,7 @@ internal fun configureStyleOverride(
 public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
     public var background: StyleValue<Paint?> = initial.background
     public var border: StyleValue<Border?> = initial.border
-    public var cornerRadius: StyleValue<Double> = initial.cornerRadius
+    public var corners: StyleValue<Corners> = initial.corners
     public var boxShadows: StyleValue<Array<BoxShadow>> = initial.boxShadows
     public var contentEffects: StyleValue<Array<ContentEffect>> = initial.contentEffects
     public var clipContent: StyleValue<Boolean> = initial.clipContent
@@ -62,8 +62,8 @@ public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
         this.border = StyleValue.Set(value)
     }
 
-    public fun cornerRadius(value: Double): Unit {
-        this.cornerRadius = StyleValue.Set(value)
+    public fun corners(value: Corners): Unit {
+        this.corners = StyleValue.Set(value)
     }
 
     public fun boxShadows(value: Array<BoxShadow>): Unit {
@@ -82,7 +82,7 @@ public class StyleOverrideBuilder internal constructor(initial: StyleOverride) {
         StyleOverride(
             background = background,
             border = border,
-            cornerRadius = cornerRadius,
+            corners = corners,
             boxShadows = boxShadows,
             contentEffects = contentEffects,
             clipContent = clipContent

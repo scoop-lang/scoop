@@ -17,12 +17,15 @@ public class InputProps public constructor(
     public val style: TextFieldStyle = textFieldStyle(),
     public val theme: ThemeSource? = None,
     public val focus: FocusOptions = FocusOptions(),
-    public val direction: TextDirection = TextDirection.Ltr,
+    public val direction: TextDirection? = None,
     public val alignment: TextAlignment = TextAlignment.Start,
     public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
     public val caretBlink: Duration = Duration.milliseconds(500L),
     public val onEdited: (TextEditorState) -> Unit = { _ -> Unit },
-    public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit }
+    public val onSubmit: (TextEditorState) -> Unit = { _ -> Unit },
+    public val policy: TextEditPolicy = textEditPolicy(),
+    public val projection: TextProjection = textProjection(),
+    public val copy: TextCopyPolicy = TextCopyPolicy.Default
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -49,7 +52,10 @@ public class Input public constructor(private val props: Props<InputProps>): Com
                     direction = input.direction,
                     alignment = input.alignment,
                     paintCache = input.paintCache,
-                    caretBlink = input.caretBlink
+                    caretBlink = input.caretBlink,
+                    policy = input.policy,
+                    projection = input.projection,
+                    copy = input.copy
                 ),
                 1L,
                 ScrollbarVisibility.Hidden,

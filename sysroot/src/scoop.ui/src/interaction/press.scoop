@@ -1,0 +1,172 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+public struct InteractionState(
+    val hovered: Boolean = false,
+    val pressed: Boolean = false,
+    val focused: Boolean = false
+)
+
+public struct PressOptions(val enabled: Boolean = true, val acceptsEnter: Boolean = true)
+
+/** Owns subscriptions and activation state, borrowing the caller's input area. */
+public class Press internal constructor(
+    private val area: InputArea,
+    initial: PressOptions,
+    action: () -> Unit
+): Closeable {
+    private val visual = state(InteractionState())
+    private var options = initial
+    private var activate = action
+    private var closed = false
+    private var pointer = false
+    private var key: PhysicalKey? = None
+    private var releaseActivates = false
+    private val space = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)))
+    private val enter = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)))
+    private val events =
+        area.scope.addEventHandler { context, event -> notification(context, event) }
+    private val defaults = area.scope.addDefaultAction { context, event -> handle(context, event) }
+    private val finished = area.scope.addEventFinished { event -> finish(event) }
+    public val interaction: InteractionState get() = visual.value
+    public val isClosed: Boolean get() {
+        area.isClosed;
+        return closed
+    }
+    init {
+        publish()
+    }
+
+    public fun update(value: PressOptions, onPress: () -> Unit) {
+        requireUi(!closed && !area.isClosed, "press behavior is closed")
+        options = value
+        activate = onPress
+        if (!value.enabled || (!value.acceptsEnter && key != None && !releaseActivates))
+            cancel()
+        publish()
+    }
+    private fun notification(context: RoutedEventContext, event: InputEvent) {
+        if (closed || context.phase != RoutedPhase.Notification)
+            return
+        when (event) {
+            case FocusChanged(false) -> cancel()
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> cancel()
+            else -> {}
+        }
+        publish()
+    }
+    private fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (closed || !options.enabled)
+            return
+        when (event) {
+            case Pointer(InputPointerEvent.Button(_, MouseButton.Left, status, _)) -> {
+                if (status == ElementState.Pressed) {
+                    if (key == None && area.scope.isHovered)
+                        pointer = true
+                    publish()
+                    context.consume()
+                } else {
+                    val fire = pointer && area.scope.isHovered
+                    pointer = false
+                    publish()
+                    context.consume()
+                    if (fire)
+                        activate()
+                }
+            }
+            case Keyboard(value) -> keyboard(context, value)
+            else -> {}
+        }
+    }
+    private fun keyboard(context: RoutedEventContext, event: KeyEvent) {
+        if (!area.isFocusActive)
+            return
+        if (event.state == ElementState.Released && key == Some(event.physicalKey)) {
+            val fire = releaseActivates && !event.synthetic && space.matches(event)
+            key = None
+            releaseActivates = false
+            publish()
+            context.consume()
+            if (fire)
+                activate()
+            return
+        }
+        val isSpace = space.matches(event)
+        val isEnter = options.acceptsEnter && enter.matches(event)
+        if (!isSpace && !isEnter)
+            return
+        context.consume()
+        if (
+            event.state !=
+                ElementState.Pressed ||
+                event.isRepeat ||
+                event.synthetic ||
+                pointer ||
+                key !=
+                None
+        )
+            return
+        key = Some(event.physicalKey)
+        releaseActivates = isSpace
+        publish()
+        if (isEnter)
+            activate()
+    }
+    private fun finish(event: InputEvent) {
+        if (closed)
+            return
+        when (event) {
+            case Pointer(
+                InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+            ) -> pointer = false
+            case Keyboard(value) -> {
+                if (value.state == ElementState.Released && key == Some(value.physicalKey)) {
+                    key = None
+                    releaseActivates = false
+                }
+            }
+            else -> {}
+        }
+        publish()
+    }
+    private fun cancel() {
+        pointer = false;
+        key = None;
+        releaseActivates = false
+    }
+    private fun publish() {
+        val enabled =
+            !closed && !area.isClosed && options.enabled && area.scope.isEnabledInHierarchy
+        val hovered = enabled && area.scope.isHovered
+        val next =
+            InteractionState(
+                hovered,
+                enabled && ((pointer && hovered) || key != None),
+                enabled && area.isFocusActive
+            )
+        if (visual.value != next)
+            visual.value = next
+    }
+    public override fun close() {
+        area.isClosed
+        if (closed)
+            return
+        closed = true
+        cancel()
+        events.close()
+        defaults.close()
+        finished.close()
+        publish()
+    }
+}
+
+public fun ComponentScope.press(
+    area: InputArea,
+    options: PressOptions = PressOptions(),
+    onPress: () -> Unit
+): Press {
+    requireBehaviorArea(area)
+    return resource { Press(area, options, onPress) }
+}

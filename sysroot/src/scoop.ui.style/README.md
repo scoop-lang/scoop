@@ -10,22 +10,26 @@
 通过 Props 更新普通描述，应用不关闭 Style，也不为每个装饰或组件写 use：
 
 ```scoop
-styled(content, style {
-    background = Some(Paint(Color.White))
-    border = Some(Border(1.0, Color(0.7, 0.7, 0.7)))
-    cornerRadius = 8.0
-    boxShadows = [BoxShadow(Point(0.0, 3.0), 4.0, 4.0, Color.Black.withAlpha(0.2))]
-    contentEffects = [ContentEffect.Glow(2.0, 2.0, Color(0.0, 0.4, 1.0, 0.5))]
-})
+styled(content) {
+    style {
+        background = Some(Paint(Color.White))
+        border = Some(Border.all(1.0, Color(0.7, 0.7, 0.7)))
+        corners = Corners.all(8.0)
+        boxShadows = [BoxShadow(Point(0.0, 3.0), 4.0, 4.0, Color.Black.withAlpha(0.2))]
+        contentEffects = [ContentEffect.Glow(2.0, 2.0, Color(0.0, 0.4, 1.0, 0.5))]
+    }
+}
 ```
 
 styled 始终保留包装，包括空 Style；增加或移除效果不重建内容的实例和 State。它原样传递子项的约束、尺寸与基线，不创建 InputArea 或增加隐式 padding。点击范围来自内容本身；`clipContent = true` 使用同一圆角轮廓裁剪最终内容输出和子输入。
 
 顺序是外框阴影、背景、经过有序效果的内容、向内的边框。BoxShadow 使用填满的圆角外框；DropShadow 使用真实内容 alpha；Glow 是零 offset 的着色 alpha 模糊与原内容 SrcOver 合成。`[Blur(...), DropShadow(...)]` 与相反顺序不同。文字直接使用实际绘制结果，透明图像和子组件采用同一路径；不需要 glyph 转 Path。
 
+Border.Physical 接收四边 BorderEdges，Border.Logical 使用 start／top／end／bottom 的 BorderEdge；Corners.Physical 接收 graphics.CornerRadii，Corners.Logical 明确四个逻辑角。scene 按当前 LayoutDirection 解析，再统一计算外轮廓与各边内缩；半透明接合、背景、内容 clip、shadow 和主题 focus 共用轮廓。独立离屏 paint 可传入 direction，Surface／Checkbox 的 metrics 和 geometry 也接收同一方向。
+
 sigma 是 Gaussian 标准差，sigma 和 offset 使用局部逻辑单位。根 DPI 只施加一次，图层没有按布局框添加隐式 crop，因此向外的光晕和阴影可以显示。祖先 clip 和实际目标仍限制可见范围。普通内容 Blur 不采样背后的画面，Backdrop blur 另行设计。
 
-完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
+完全自绘 Element 在 onMount 中保存 `scope.resource { StylePainter() }`，在 scene 中调用 `painter.scene(context, style) { content -> ... }`；回调使用 SceneContext，可调用 children 或提交 draw 块。也提供显式 Rect，以及独立的 paint(Canvas, Rect, Style, direction = LayoutDirection.Ltr, content) 入口，供离屏使用。原生滤镜／轮廓由 painter 缓存并及时替换关闭，组件卸载或窗口关闭由 scope 清理。回调内不能重入或提前关闭同一 painter，另一个 painter 可以正常嵌套。
 
 `styleOverride { ... }` 只替换明确指定的属性：StyleValue.Inherit 继承本轮输入，StyleValue.Set(None) 可以清除可空背景或边框；`border(None)` 等同名设置方法把同一槽写为 Set(value)。赋入 StyleValue.Inherit 恢复继承。`existing.copy { ... }` 保留未改的配置，发布后修改 builder 不改变结果。字体、段落和混排仍使用 graphics.text 的 TextStyle／SpanStyle／ParagraphStyle。
 
@@ -71,7 +75,7 @@ metrics 可查询建议／最小尺寸、padding、边框内缩及焦点外扩�
 ```scoop
 val options = checkboxOptions {
     size = Some(20.0)
-    style { cornerRadius(4.0) }
+    style { corners(Corners.all(4.0)) }
     style { border(None) }
 }
 val changed = options.copy { markColor = Some(Color.White) }

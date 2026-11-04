@@ -1,0 +1,81 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+
+/** Distances to each box edge, divided by its width, partition every rounded join. */
+internal fun borderRegions(bounds: Rect, edges: BorderEdges): Array<Array<Point>> {
+    val widths = [edges.left.width, edges.top.width, edges.right.width, edges.bottom.width]
+    var largest = 0.0
+    for (width in widths)
+        largest = themeMax(largest, width)
+    if (largest == 0.0)
+        return [[], [], [], []]
+    val maximum = largest
+    val normalized = Array<Double>(4L) { index -> widths[index] / maximum }
+    val distances =
+        [
+            BorderPlane(1.0, 0.0, 0.0),
+            BorderPlane(0.0, 1.0, 0.0),
+            BorderPlane(-1.0, 0.0, bounds.width),
+            BorderPlane(0.0, -1.0, bounds.height)
+        ]
+    val rectangle =
+        [
+            Point(0.0, 0.0),
+            Point(bounds.width, 0.0),
+            Point(bounds.width, bounds.height),
+            Point(0.0, bounds.height)
+        ]
+    return Array<Array<Point>>(4L) {
+        edge ->
+        if (widths[edge] == 0.0)
+            return@Array []
+        var polygon = rectangle
+        val current = distances[edge]
+        for (other in 0L ..< 4L) {
+            if (edge == other || widths[other] == 0.0)
+                continue
+            val compare = distances[other]
+            val plane =
+                BorderPlane(
+                    current.x * normalized[other] - compare.x * normalized[edge],
+                    current.y * normalized[other] - compare.y * normalized[edge],
+                    current.c * normalized[other] - compare.c * normalized[edge]
+                )
+            polygon = clipBorderRegion(polygon, plane)
+        }
+        val points = polygon
+        Array<Point>(points.size) {
+            index -> Point(bounds.x + points[index].x, bounds.y + points[index].y)
+        }
+    }
+}
+
+private struct BorderPlane(val x: Double, val y: Double, val c: Double) {
+    fun distance(point: Point): Double = x * point.x + y * point.y + c
+}
+
+private fun clipBorderRegion(polygon: Array<Point>, plane: BorderPlane): Array<Point> {
+    if (polygon.size == 0L)
+        return polygon
+    val result = ArrayList<Point>()
+    var previous = polygon[polygon.size - 1L]
+    var before = plane.distance(previous)
+    for (point in polygon) {
+        val after = plane.distance(point)
+        if ((before <= 0.0) != (after <= 0.0)) {
+            val t = before / (before - after)
+            result.add(
+                Point(
+                    previous.x + (point.x - previous.x) * t,
+                    previous.y + (point.y - previous.y) * t
+                )
+            )
+        }
+        if (after <= 0.0)
+            result.add(point)
+        previous = point
+        before = after
+    }
+    return result.toArray()
+}

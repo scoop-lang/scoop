@@ -22,7 +22,7 @@ internal fun dismissOverlayPress(
             continue
         if (portal.containsInput(press.target))
             return false
-        portal.close(OverlayCloseReason.OutsidePress)
+        portal.requestClose(OverlayCloseReason.OutsidePress)
         return policy == OutsidePress.CloseAndConsume
     }
     return false
@@ -66,7 +66,7 @@ internal fun dismissOverlayKey(
         val portal = sessions[index]
         if (portal.isOpen && sameModal(portal.domain, domain) && portal.options.dismiss.escape) {
             context.consume()
-            portal.close(OverlayCloseReason.Escape)
+            portal.requestClose(OverlayCloseReason.Escape)
             return
         }
     }

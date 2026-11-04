@@ -1,0 +1,133 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+
+@Test
+private class ScrollIntentTest {
+    @Test
+    fun `requests accumulate within the known range while snapshots wait and boundary intent remains observable`() {
+        val scroll = ScrollState(Point(20.0, 10.0))
+        scroll.publish(scroll.plan(Size(100.0, 80.0), Size(300.0, 400.0)), true)
+        val accepted = scroll.snapshot
+        val events = ArrayList<ScrollIntent>()
+        val seen = ArrayList<ScrollSnapshot>()
+        scroll.observeIntent {
+            event ->
+            events.add(event);
+            seen.add(scroll.snapshot)
+        }.use {
+            _ ->
+            assertEquals(Point(180.0, 0.0), scroll.scrollBy(Point(500.0, 0.0), ScrollOrigin.User))
+            val first = scroll.requestRevision
+            assertEquals(Point(0.0, 10.0), scroll.scrollBy(Point(20.0, 10.0), ScrollOrigin.User))
+            val second = scroll.requestRevision
+            assertEquals(accepted, scroll.snapshot)
+            val next = scroll.plan(accepted.viewport, accepted.content)
+            assertEquals(Point(200.0, 20.0), next.offset)
+            assertEquals(ScrollIntent.User(first), events[0L])
+            assertEquals(ScrollIntent.User(second), events[1L])
+            assertEquals(accepted, seen[0L])
+            assertEquals(accepted, seen[1L])
+            scroll.publish(next, true)
+            assertEquals(Point(0.0, 0.0), scroll.scrollBy(Point(20.0, 0.0), ScrollOrigin.User))
+            assertEquals(ScrollIntent.User(scroll.requestRevision), events[2L])
+            assertEquals(next, seen[2L])
+            val token = scroll.beginLayoutRequest()
+            assertEquals(ScrollIntent.Programmatic(token), events[3L])
+            assertEquals(next, scroll.snapshot)
+            assertEquals(4L, events.size)
+        }
+        scroll.scrollTo(Point(0.0, 0.0))
+        assertEquals(4L, events.size)
+    }
+
+    @Test
+    fun `subscriptions close immediately and reentrant requests preserve notification order and their own revisions`() {
+        val scroll = ScrollState()
+        scroll.publish(scroll.plan(Size(100.0, 80.0), Size(300.0, 400.0)), true)
+        val entries = ArrayList<String>()
+        val owned = IntentSubscriptions()
+        val first =
+            scroll.observeIntent {
+                event ->
+                entries.add("first:" + intentName(event))
+                when (event) {
+                    case User(_) -> {
+                        owned.second!!.close()
+                        owned.late =
+                            Some(
+                                scroll.observeIntent {
+                                    value -> entries.add("late:" + intentName(value))
+                                }
+                            )
+                        scroll.scrollTo(Point(50.0, 60.0))
+                    }
+                    else -> {}
+                }
+            }
+        owned.second =
+            Some(scroll.observeIntent { event -> entries.add("second:" + intentName(event)) })
+        val third = scroll.observeIntent { event -> entries.add("third:" + intentName(event)) }
+        try {
+            val original = scroll.beginLayoutRequest(ScrollOrigin.User)
+            assertTrue(original < scroll.requestRevision)
+            assertEquals(Point(0.0, 0.0), scroll.offset)
+            assertEquals(Point(50.0, 60.0), scroll.plan(scroll.viewport, scroll.content).offset)
+            val expected =
+                ["first:user", "third:user", "first:program", "third:program", "late:program"]
+            assertEquals(expected.size, entries.size)
+            for (index in 0L ..< expected.size)
+                assertEquals(expected[index], entries[index])
+            evaluateUi<Unit>(None) {
+                assertFailsWith<IllegalStateException> { first.close() }
+                assertFailsWith<IllegalStateException> { scroll.observeIntent { _ -> } }
+                assertFailsWith<IllegalStateException> { scroll.beginLayoutRequest() }
+            }
+        } finally {
+            first.close();
+            third.close();
+            owned.second?.close();
+            owned.late?.close()
+        }
+        scroll.scrollTo(Point(0.0, 0.0), ScrollOrigin.User)
+        assertEquals(5L, entries.size)
+    }
+
+    @Test
+    fun `observer failure does not undo the request or strand later notifications`() {
+        val scroll = ScrollState()
+        scroll.publish(scroll.plan(Size(100.0, 80.0), Size(300.0, 400.0)), true)
+        val events = ArrayList<ScrollIntent>()
+        val failing =
+            scroll.observeIntent { _ -> throw IllegalStateException(Some("observer failure")) }
+        scroll.observeIntent { event -> events.add(event) }.use {
+            _ ->
+            try {
+                assertFailsWith<IllegalStateException> {
+                    scroll.scrollTo(Point(45.0, 65.0), ScrollOrigin.User)
+                }
+                assertEquals(ScrollIntent.User(scroll.requestRevision), events[0L])
+                assertEquals(Point(45.0, 65.0), scroll.plan(scroll.viewport, scroll.content).offset)
+                assertEquals(Point(0.0, 0.0), scroll.offset)
+            } finally {
+                failing.close()
+            }
+            scroll.scrollTo(Point(55.0, 75.0))
+            assertEquals(2L, events.size)
+            assertEquals(ScrollIntent.Programmatic(scroll.requestRevision), events[1L])
+        }
+    }
+}
+
+private class IntentSubscriptions {
+    var second: Closeable? = None
+    var late: Closeable? = None
+}
+
+private fun intentName(event: ScrollIntent): String =
+    when (event) {
+        case User(_) -> "user"
+        case Programmatic(_) -> "program"
+        case LayoutCorrection(_) -> "layout"
+    }

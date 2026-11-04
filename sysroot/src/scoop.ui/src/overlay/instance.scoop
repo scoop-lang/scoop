@@ -2,102 +2,224 @@ package scoop.ui
 
 import scoop.surface.InputScope
 
-internal class PortalInstance(val root: UiRoot, initial: PortalOptions) {
+internal class PortalInstance(
+    val root: UiRoot,
+    private var open: Binding<Boolean>,
+    initial: PortalOptions
+) {
     private val localHandle = OverlayHandle()
     private var reference = initial.handle ?: localHandle
     private var current = initial
     private var owner: MountedNode? = None
     private var disposed = false
+    private var registered = false
+    private var requesting = false
+    private var forced = false
+    private var pendingClose = false
+    private var awaitInput = false
+    private var presentation: Presence? = None
+    private var route: InputScope? = None
     var closeReason: OverlayCloseReason? = None
     var included: OverlayFrame? = None
+    var presented: OverlayFrame? = None
     var modal: ModalSession? = None
     var domain: ModalSession? = None
     var retirementRevision: ULong? = None
-    private var route: InputScope? = None
 
     val node: MountedNode get() =
         owner ?: throw IllegalStateException(Some("portal has not mounted"))
     val active: Boolean get() = !disposed && root.isOpen && (owner?.active ?: false)
-    val isOpen: Boolean get() = active && closeReason == None
+    val isPresent: Boolean get() = active && (presentation?.isPresent ?: false)
+    val isOpen: Boolean get() = isPresent && !pendingClose && !forced
+    val hasPendingClose: Boolean get() = pendingClose
     val options: PortalOptions get() = current
     val input: InputScope get() =
         route ?: throw IllegalStateException(Some("portal has not mounted"))
-    val anchor: LayoutAnchor? get() =
-        if (closeReason == None)
-            current.placement.anchor
-        else
-            None
+    val anchor: LayoutAnchor? get() = current.placement.anchor
+    val snapshot: PresenceSnapshot get() =
+        presentation?.snapshot ?: PresenceSnapshot(PresencePhase.Absent, 0.0)
 
-    fun mount(value: MountedNode) {
-        owner = Some(value)
-        try {
-            validate(current)
-        } catch (error: Throwable) {
-            owner = None
-            throw error
+    fun prepare(value: MountedNode, content: View, turn: UpdateTurn) {
+        when (owner) {
+            case None -> {
+                owner = Some(value)
+                route = Some(value.scope.input)
+                presentation =
+                    Some(Presence(value.scope, false, current.transition, { value.invalidate() }))
+            }
+            case Some(_) -> {}
         }
+        val collector = DependencyCollector()
+        val wanted = evaluateUi(Some(collector)) { open.value }
+        value.replaceDependencies(collector)
+        synchronize(wanted)
+        if (active)
+            value.reconcile(
+                if (presentation!!.isPresent)
+                    [content]
+                else
+                    [],
+                turn
+            )
+    }
+    fun mount(value: MountedNode) {
+        validate(current)
         reference.bind(this)
         anchor?.addDependent(this)
-        route = Some(value.scope.input)
+        registered = true
         root.overlays.add(this)
+        if (isPresent)
+            root.overlays.open(this)
+        if (active && !isPresent)
+            value.reconcile([], UpdateTurn())
     }
     private fun validate(value: PortalOptions) {
-        val next = value.handle ?: localHandle
-        next.checkBinding(this)
-        if (closeReason == None)
-            checkOverlayDependency(this, value.placement.anchor)
+        (value.handle ?: localHandle).checkBinding(this)
+        checkOverlayDependency(this, value.placement.anchor)
     }
-    fun replace(value: PortalOptions) {
-        when (owner) {
-            case Some(_) -> {
-                validate(value)
-                anchor?.removeDependent(this)
-                val next = value.handle ?: localHandle
-                if (next !== reference) {
-                    reference.unbind(this)
-                    reference = next
-                    reference.bind(this)
-                }
-                current = value
-                anchor?.addDependent(this)
-                when (value.modal) {
-                    case Some(options) -> modal?.replace(options)
-                    case None -> {}
-                }
+    fun replace(binding: Binding<Boolean>, value: PortalOptions) {
+        if (registered) {
+            validate(value)
+            anchor?.removeDependent(this)
+            val next = value.handle ?: localHandle
+            if (next !== reference) {
+                reference.unbind(this)
+                reference = next
+                reference.bind(this)
             }
-            case None -> {
-                current = value
-                reference = value.handle ?: localHandle
+            current = value
+            open = binding
+            anchor?.addDependent(this)
+            when (value.modal) {
+                case Some(options) -> modal?.replace(options);
+                case None -> {}
             }
+        } else {
+            current = value
+            open = binding
+            reference = value.handle ?: localHandle
         }
     }
-    fun close(reason: OverlayCloseReason) {
-        if (closeReason != None)
+    private fun synchronize(wanted: Boolean) {
+        if (!wanted) {
+            forced = false
+            if (isOpen)
+                beginClose(OverlayCloseReason.Explicit, root.surface.focusRevision)
             return
-        val value = owner ?: return
-        anchor?.removeDependent(this)
+        }
+        if (forced || !active)
+            return
+        val motion = presentation!!
+        if (!pendingClose && motion.isPresent) {
+            motion.update(true, Some(current.transition))
+            return
+        }
+        validate(current)
+        val reopening = pendingClose
+        pendingClose = false
+        closeReason = None
+        retirementRevision = None
+        awaitInput = reopening
+        if (reopening)
+            modal?.reopen()
+        else
+            if (!input.isClosed)
+                input.enabled = true
+        motion.update(true, Some(current.transition))
+        if (registered && active)
+            root.overlays.open(this, reopening)
+    }
+    fun requestClose(reason: OverlayCloseReason) {
+        if (!isOpen || requesting)
+            return
+        requesting = true
+        val revision = root.surface.focusRevision
+        try {
+            val accepted = current.onCloseRequest(reason)
+            if (!accepted || !isOpen)
+                return
+            open.value = false
+            if (active && !open.value)
+                beginClose(reason, revision)
+        } finally {
+            requesting = false
+        }
+    }
+    private fun beginClose(reason: OverlayCloseReason, revision: ULong) {
+        if (pendingClose)
+            return
+        pendingClose = true
         closeReason = Some(reason)
-        var failure: Throwable? = None
-        failure = cleanupUi(failure) { retireInput() }
-        for (child in value.children)
-            failure = cleanupUi(failure) { child.deactivate() }
-        value.invalidate()
-        failure = cleanupUi(failure) { current.onClose(reason) }
+        retirementRevision = Some(revision)
+        awaitInput = false
+        var failure = cleanupUi(None) { stopInput() }
+        failure = cleanupUi(failure) { presentation?.update(false, Some(current.transition)) }
+        owner?.invalidate()
         throwUi(failure)
     }
-    fun retireInput() {
+    private fun stopInput() {
         val revision = retirementRevision ?: root.surface.focusRevision
         retirementRevision = Some(revision)
         modal?.beginClose(revision)
+        when (route) {
+            case Some(value) -> if (!value.isClosed)
+                value.enabled = false;
+            case None -> {}
+        }
+    }
+    fun forceClose(reason: OverlayCloseReason) {
+        if (!(presentation?.isPresent ?: false))
+            return
+        forced = true
+        if (!pendingClose)
+            closeReason = Some(reason)
+        pendingClose = true
+        awaitInput = false
+        var failure = cleanupUi(None) { stopInput() }
+        failure = cleanupUi(failure) { presentation?.finishImmediately() }
+        owner?.invalidate()
+        if (reason == OverlayCloseReason.AnchorUnavailable && active)
+            failure = cleanupUi(failure) { open.value = false }
+        throwUi(failure)
+    }
+    fun retireInput() {
+        forceClose(OverlayCloseReason.OwnerClosed)
+    }
+    fun wasPresented(frame: OverlayFrame): Boolean =
+        when (presented) {
+            case Some(value) -> value === frame
+            case None -> false
+        }
+    fun complete(frame: OverlayFrame) {
+        if (isOpen && awaitInput && wasPresented(frame)) {
+            awaitInput = false
+            if (!input.isClosed)
+                input.enabled = true
+        }
+        if (
+            pendingClose &&
+                !wasPresented(frame) &&
+                !(presentation?.isPresent ?: false) &&
+                ((owner?.children?.size ?: 0L) == 0L)
+        )
+            completeClose()
+    }
+    fun completeClose() {
+        if (!pendingClose)
+            return
+        pendingClose = false
+        current.onClosed(closeReason ?: OverlayCloseReason.OwnerClosed)
     }
     fun dispose() {
         if (disposed)
             return
+        var failure = cleanupUi(None) { forceClose(OverlayCloseReason.OwnerClosed) }
         disposed = true
-        var failure: Throwable? = None
-        failure = cleanupUi(failure) { close(OverlayCloseReason.OwnerClosed) }
+        failure = cleanupUi(failure) { presentation?.close() }
+        presentation = None
+        anchor?.removeDependent(this)
         reference.unbind(this)
-        root.overlays.remove(this)
+        root.overlays.remove(this, pendingClose)
         included = None
         owner = None
         route = None

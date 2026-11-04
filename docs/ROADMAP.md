@@ -861,12 +861,12 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - 现有基础库已直接改名为 `scoop.surface`，公开类型、原生符号、测试和示例同步迁移。SurfaceContent 持有并安全关闭真实内容根；框架独立自绘闭环、公共段落与编辑、控件库、布局及生命周期组合均已交付，不增加 UI 专用编译器或 runtime 通道。
 - [接收者 DSL builder](ui/DSL-BUILDERS.md)的[迁移计划](ui/DSL-MIGRATION.md)已完成，2026-11-04 完成本机验证。UI、文本／样式／主题、交互配置及 JSON／URL／Path、HTTP 和同类应用配置已按接收者构造风格同步规范、实现、调用方与必要测试；旧签名直接移除。配置代码不隐式访问外层 receiver，显式 receiver 和普通词法捕获仍可用。StringBuilder／ByteArrayBuilder 保留原有增量构建方式；后续控件基础沿用已交付 DSL，不重复迁移。`@DslMarker` 仍是后续的查找约束，不作为 API 能力的前置。
 
-### UI 跨平台抽象与控件基础补齐（设计完成，未实施）
+### UI 跨平台抽象与控件基础补齐（macOS 已完成）
 
 - [设计](ui/component-foundations/DESIGN.md)承接已完成的基础交互 A–F 与接收者 DSL 迁移。先完成 window／surface 等基础库的公共平台合同和 UI 共用能力，再实施 shadcn 当前目录中排除 Code Block／Native Select 后的 64 个控件。
 - 保持 graphics、graphics.text、surface、window／window.asyncio 的分层；Primary／Super、键位标签、编辑命令、剪贴板和 IME 由底层抽象。UI、component、style、主题及后续控件使用同一份平台无关源码，不增加各自的 OS native 实现。
-- 按平台合同、重新测量与 Flex／Wrap／Grid、方向、激活／拖动、候选项／悬浮、弹层退出、编辑策略／显示投影、装饰／图像、阅读位置及组合验收分批推进，详见[实施记录](ui/component-foundations/PROGRESS.md)。各批先改所属 spec，再改实现、调用方和必要测试；不保留旧 API 兼容路径。
-- 本轮实现与验证使用 macOS aarch64，最后补验 x86_64 Rosetta；Windows native 由另一分支补齐共同合同后接入。accessibility、原生控件交互、控件皮肤和业务模型不属于本轮基础交付。
+- 已按平台合同、重新测量与 Flex／Wrap／Grid、方向、激活／拖动、候选项／悬浮、弹层退出、编辑策略／显示投影、装饰／图像、阅读位置及组合验收完成十一项交付，详见[实施记录](ui/component-foundations/PROGRESS.md)。所属 spec、实现、调用方和必要测试同步迁移，不保留旧 API 兼容路径。
+- 已完成 macOS aarch64 分批验证及 x86_64 Rosetta 补验，两架构各六个代表窗口组合通过，包含真实系统中文输入法。Windows／Linux 由其他分支补齐共同合同后接入；Rosetta 不等于真实 Intel 硬件验证。accessibility、原生控件交互、控件皮肤和业务模型不属于本轮基础交付。
 
 ### UI 与图形后续增强（调研结论，未实施）
 

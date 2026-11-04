@@ -1,10 +1,8 @@
 package scoop.ui
 
-import scoop.graphics.text.TextDirection
-
 public enum ItemNavigation {
     None, Sequential,
-    Roving(val direction: TextDirection = TextDirection.Ltr, val loop: Boolean = false)
+    Roving(val direction: LayoutDirection? = None, val loop: Boolean = false)
 }
 
 public struct LazyFocusOptions(

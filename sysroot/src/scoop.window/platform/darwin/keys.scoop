@@ -245,7 +245,8 @@ internal fun darwinModifiers(flags: Long): Modifiers =
         modifierSides(flags, 131072L, 2L, 4L),
         modifierSides(flags, 262144L, 1L, 8192L),
         modifierSides(flags, 524288L, 32L, 64L),
-        modifierSides(flags, 1048576L, 8L, 16L)
+        modifierSides(flags, 1048576L, 8L, 16L),
+        altGraph = Some(false)
     )
 
 private fun modifierSides(flags: Long, aggregate: Long, left: Long, right: Long): ModifierSides {

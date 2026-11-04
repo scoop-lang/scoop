@@ -1,0 +1,105 @@
+package scoop.surface
+
+internal class InputEventHandler(
+    val scope: InputScope,
+    val handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    var closed = false
+    public override fun close() {
+        scope.owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        val previous = scope.eventHandlers
+        val retained = ArrayList<InputEventHandler>()
+        for (value in previous)
+            if (value !== this)
+                retained.add(value)
+        scope.eventHandlers = retained.toArray()
+    }
+}
+
+internal class InputFinishedHandler(
+    val scope: InputScope,
+    val handler: (InputEvent) -> Unit
+): Closeable {
+    var closed = false
+    public override fun close() {
+        scope.owner.checkThread()
+        if (closed)
+            return
+        closed = true
+        val previous = scope.finishedHandlers
+        val retained = ArrayList<InputFinishedHandler>()
+        for (value in previous)
+            if (value !== this)
+                retained.add(value)
+        scope.finishedHandlers = retained.toArray()
+    }
+}
+
+/** Adds a Target, Bubble and Notification handler without replacing the area handler. */
+public fun InputScope.addEventHandler(
+    handler: (RoutedEventContext, InputEvent) -> Unit
+): Closeable {
+    checkOpen()
+    val value = InputEventHandler(this, handler)
+    val previous = eventHandlers
+    eventHandlers =
+        Array<InputEventHandler>(previous.size + 1L) {
+            index -> if (index == previous.size)
+                value
+            else
+                previous[index]
+        }
+    return value
+}
+
+/** Registers uncancellable release cleanup alongside the owner's existing callback. */
+public fun InputScope.addEventFinished(handler: (InputEvent) -> Unit): Closeable {
+    checkOpen()
+    val value = InputFinishedHandler(this, handler)
+    val previous = finishedHandlers
+    finishedHandlers =
+        Array<InputFinishedHandler>(previous.size + 1L) {
+            index -> if (index == previous.size)
+                value
+            else
+                previous[index]
+        }
+    return value
+}
+
+internal fun InputScope.deliverEvent(context: RoutedEventContext, event: InputEvent) {
+    val snapshot = eventHandlers
+    if (context.phase == RoutedPhase.Notification) {
+        var failure = cleanupFailure(None) { handler(context, event) }
+        for (value in snapshot)
+            if (!value.closed)
+                failure = cleanupFailure(failure) { value.handler(context, event) }
+        throwFailure(failure)
+    } else {
+        handler(context, event)
+        for (value in snapshot)
+            if (!value.closed)
+                value.handler(context, event)
+    }
+}
+
+internal fun InputScope.finishEvent(event: InputEvent) {
+    val snapshot = finishedHandlers
+    var failure = cleanupFailure(None) { onEventFinished(event) }
+    for (value in snapshot)
+        if (!value.closed)
+            failure = cleanupFailure(failure) { value.handler(event) }
+    throwFailure(failure)
+}
+
+internal fun InputScope.retireEventHandlers() {
+    for (value in eventHandlers)
+        value.closed = true
+    for (value in finishedHandlers)
+        value.closed = true
+    eventHandlers = []
+    finishedHandlers = []
+}

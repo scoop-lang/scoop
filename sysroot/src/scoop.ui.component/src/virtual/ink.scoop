@@ -28,10 +28,33 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
     fun requestItem(key: ViewKey, alignment: ScrollAlignment): Boolean {
         if (!active)
             return false
+        return request(key, VirtualPosition.Item(alignment))
+    }
+    fun restore(anchor: VirtualReadingAnchor): Boolean {
+        if (!active)
+            return false
+        val source = props.value.input.source
+        if (virtualIndex(source, source.count, anchor.key) == None)
+            return false
+        return request(anchor.key, VirtualPosition.Reading(anchor.offset))
+    }
+    private fun request(key: ViewKey, position: VirtualPosition): Boolean {
+        val source = props.value.input.source
         val current = props.value.controls.state
-        // This is a real new position intent: cancel old motion and supersede prior corrections.
-        current.scrollTo(current.offset)
-        pending = Some(ItemScrollRequest(key, alignment, current.requestRevision))
+        focus!!.cancelRequest()
+        val revision = current.beginLayoutRequest()
+        // Observers may close the list or issue a newer request synchronously.
+        if (
+            !active ||
+                current.requestRevision !=
+                revision ||
+                props.value.controls.state !==
+                current ||
+                props.value.input.source !==
+                source
+        )
+            return false
+        pending = Some(ItemScrollRequest(key, position, revision, source))
         return true
     }
     public override fun onMount(scope: ComponentScope) {
@@ -79,6 +102,14 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
             pending = None
             focus!!.cancelRequest()
         }
+        when (pending) {
+            case Some(value) -> when (value.position) {
+                case Reading(_) -> if (value.source !== input.input.source)
+                    pending = None
+                case Item(_) -> {}
+            }
+            case None -> {}
+        }
     }
     public override fun measure(
         context: LazyMeasureContext,
@@ -89,8 +120,9 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
                 case Some(key) -> Some(
                     ItemScrollRequest(
                         key,
-                        ScrollAlignment.Nearest,
-                        props.value.controls.state.requestRevision
+                        VirtualPosition.Item(ScrollAlignment.Nearest),
+                        props.value.controls.state.requestRevision,
+                        props.value.input.source
                     )
                 )
                 case None -> pending
@@ -111,6 +143,17 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
     public override fun scene(context: SceneContext) {
         val frame = drawing!!
         control!!.scene(context, frame.snapshot, frame.snapshot.offset)
+        context.onFrameComplete {
+            result -> if (
+                result.submission ==
+                    FrameSubmission.Accepted &&
+                    active &&
+                    frame.reading.state ===
+                    props.value.controls.state
+            ) {
+                handle?.publish(this, frame.reading.snapshot)
+            }
+        }
         context.onFrameComplete {
             result -> if (
                 result.submission ==

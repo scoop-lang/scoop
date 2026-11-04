@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+public class ImageViewProps public constructor(
+    public val image: Image,
+    public val naturalSize: Size,
+    public val fit: ContentFit = ContentFit.Contain,
+    public val alignment: Alignment = Alignment(),
+    public val clip: Boolean = true,
+    public val sampling: ImageSampling = ImageSampling.Linear,
+    public val opacity: Double = 1.0
+)
+
+/** Borrows pixels from its caller and has no input or loading behavior. */
+public class ImageView public constructor(private val props: Props<ImageViewProps>): Element {
+    public override fun update() {
+        val input = props.value
+        requireComponent(!input.image.isClosed, "image view requires an open image")
+        checkContentSize(input.naturalSize)
+        requireComponent(
+            input.opacity.isFinite() && input.opacity >= 0.0 && input.opacity <= 1.0,
+            "invalid image opacity"
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        measureContent(props.value.naturalSize, constraints)
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val destination =
+            fitContent(
+                input.naturalSize,
+                bounds,
+                input.fit,
+                input.alignment,
+                context.layoutDirection
+            )
+        context.withState {
+            scene ->
+            if (input.clip)
+                scene.clipRect(bounds)
+            if (destination.width > 0.0 && destination.height > 0.0)
+                scene.draw {
+                    paint -> paint.canvas.drawImage(
+                        input.image,
+                        destination,
+                        input.sampling,
+                        input.opacity
+                    )
+                }
+            Unit
+        }
+    }
+}
+
+public class PathViewProps public constructor(
+    public val path: Path,
+    public val viewBox: Rect,
+    public val naturalSize: Size? = None,
+    public val paint: Paint = Paint(),
+    public val fit: ContentFit = ContentFit.Contain,
+    public val alignment: Alignment = Alignment(),
+    public val clip: Boolean = true
+)
+
+/** Fits an explicit view box; drawing, stroke and borrowed resource ownership stay in graphics. */
+public class PathView public constructor(private val props: Props<PathViewProps>): Element {
+    public override fun update() {
+        val input = props.value
+        requireComponent(!input.path.isClosed, "path view requires an open path")
+        checkContentSize(input.viewBox.size)
+        requireComponent(
+            input.viewBox.x.isFinite() &&
+                input.viewBox.y.isFinite() &&
+                (input.viewBox.x + input.viewBox.width).isFinite() &&
+                (input.viewBox.y + input.viewBox.height).isFinite(),
+            "invalid path view box"
+        )
+        checkContentSize(input.naturalSize ?: input.viewBox.size)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        return measureContent(input.naturalSize ?: input.viewBox.size, constraints)
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val destination =
+            fitContent(
+                input.naturalSize ?: input.viewBox.size,
+                bounds,
+                input.fit,
+                input.alignment,
+                context.layoutDirection
+            )
+        context.withState {
+            scene ->
+            if (input.clip)
+                scene.clipRect(bounds)
+            if (destination.width > 0.0 && destination.height > 0.0)
+                scene.draw {
+                    paint -> paint.canvas.withState {
+                        canvas ->
+                        canvas.translate(destination.x, destination.y)
+                        canvas.scale(
+                            destination.width / input.viewBox.width,
+                            destination.height / input.viewBox.height
+                        )
+                        canvas.translate(-input.viewBox.x, -input.viewBox.y)
+                        canvas.drawPath(input.path, input.paint)
+                    }
+                }
+            Unit
+        }
+    }
+}

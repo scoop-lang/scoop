@@ -37,8 +37,10 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
     val selected =
         when (event) {
             case Button(_, button, ElementState.Pressed, _) -> {
-                if (buttons.size == 0L)
+                if (buttons.size == 0L) {
+                    pointerClaim = None
                     pressed = Some(fallback)
+                }
                 if (!hasButton(buttons, button))
                     buttons.add(button)
                 pressed ?: []
@@ -50,8 +52,10 @@ internal fun InputRouter.pointerEvent(event: PointerEvent) {
                     else
                         []
                 removeButton(buttons, button)
-                if (buttons.size == 0L)
+                if (buttons.size == 0L) {
                     pressed = None
+                    pointerClaim = None
+                }
                 route
             }
             case Left(_) -> {
@@ -159,6 +163,7 @@ internal fun InputRouter.reconcilePress(boundaryChange: Boolean = false) {
 
 internal fun InputRouter.cancelPress(reason: InputCancelReason, time: InputTime, reset: Boolean) {
     val old = pressed ?: []
+    pointerClaim = None
     pressed =
         if (reset)
             None
@@ -248,7 +253,7 @@ private fun eventState(event: PointerEvent): PointerState =
         case Cancelled(_, _) -> throw IllegalStateException(Some("cancel has no pointer position"))
     }
 
-private fun hasButton(buttons: ArrayList<MouseButton>, button: MouseButton): Boolean {
+internal fun hasButton(buttons: ArrayList<MouseButton>, button: MouseButton): Boolean {
     for (value in buttons)
         if (value == button)
             return true

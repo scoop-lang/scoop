@@ -1,0 +1,35 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+public class FlexItemBuilder internal constructor() {
+    public var basis: FlexBasis = FlexBasis.Content
+    public var grow: Double = 0.0
+    public var shrink: Double = 1.0
+    public var min: Double = 0.0
+    public var max: Double? = None
+    public var align: CrossAlignment? = None
+    internal fun snapshot(): FlexItemOptions = FlexItemOptions(basis, grow, shrink, min, max, align)
+}
+
+public fun flexItem(content: View, configure: FlexItemBuilder.() -> Unit = {}): FlexItem {
+    val builder = FlexItemBuilder()
+    builder.configure()
+    return FlexItem(content, builder.snapshot())
+}
+
+public class FlexBuilder internal constructor(): LinearBuilder() {
+    public var axis: FlexAxis = FlexAxis.Horizontal
+}
+
+public fun flex(configure: FlexBuilder.() -> Unit = {}): View = makeFlex(configure)
+
+internal fun makeFlex(configure: FlexBuilder.() -> Unit): View {
+    val builder = FlexBuilder()
+    builder.configure()
+    return component(
+        FlexProps(builder.axis, builder.snapshot()),
+        { props -> Flex(props) },
+        builder.key
+    )
+}

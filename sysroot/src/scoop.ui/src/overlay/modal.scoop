@@ -15,7 +15,10 @@ internal class ModalSession(
     private val previousBoundary = root.surface.inputBoundary
     private val input = node.scope.input
     private val proxy = node.scope.createArea(focusable = true)
-    private val fallback = node.scope.focusTarget(proxy, FocusOptions(tabStop = false)).handle
+    private val fallbackTarget = node.scope.focusTarget(proxy, FocusOptions(tabStop = false))
+    private val fallback = fallbackTarget.handle
+    private var dismissal: Closeable? = None
+    private var finished = false
     val group =
         node.scope.focusScope(
             FocusScopeOptions(
@@ -37,9 +40,13 @@ internal class ModalSession(
             proxy.ignoreSelf = true
             node.scope.routeChildren(proxy)
             input.beforePointerPress = { press -> root.overlays.beforePress(press) }
-            node.scope.resource {
-                input.addDefaultAction { context, event -> root.overlays.dismiss(context, event) }
-            }
+            dismissal =
+                Some(
+                    input.addDefaultAction {
+                        context,
+                        event -> root.overlays.dismiss(context, event)
+                    }
+                )
         } catch (error: Throwable) {
             throwUi(cleanupUi(Some(error)) { boundary.close() })
             throw error
@@ -66,6 +73,33 @@ internal class ModalSession(
         initialPending = false
         if (!input.isClosed)
             input.enabled = false
+    }
+    fun reopen() {
+        closingRevision = None
+        initialPending = false
+        when (portal.options.modal) {
+            case Some(options) -> replace(options);
+            case None -> {}
+        }
+    }
+    fun finish() {
+        if (finished)
+            return
+        finished = true
+        var failure = cleanupUi(None) { boundary.close() }
+        failure = cleanupUi(failure) { dismissal?.close() }
+        dismissal = None
+        failure = cleanupUi(failure) { group.close() }
+        failure = cleanupUi(failure) { fallbackTarget.close() }
+        failure = cleanupUi(failure) { proxy.close() }
+        when (portal.modal) {
+            case Some(current) -> if (current === this) {
+                portal.modal = None
+                portal.domain = containingModal(node.parent)
+            }
+            case None -> {}
+        }
+        throwUi(failure)
     }
     fun wasPresented(frame: OverlayFrame): Boolean =
         when (presented) {

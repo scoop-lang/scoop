@@ -1,0 +1,245 @@
+package scoop.tests.ui.editing
+
+import scoop.charset.graphemeBoundaries
+import scoop.charset.graphemes
+import scoop.graphics.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.window.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class SystemImeProbe {
+    val direction = state(LayoutDirection.Ltr)
+    var source: Ptr<Unit>? = None
+    var preedit: TextInputState? = None
+    var connection: TextInputConnection? = None
+    var starts = 0
+    var keyIndex = 0L
+    var committed = ""
+    var complete = false
+
+    fun restoreSource() {
+        when (source) {
+            case Some(value) -> {
+                source = None
+                @Unsafe
+                {
+                    assertEquals(0, restoreNativeInputSource(value))
+                }
+            }
+            case None -> {}
+        }
+    }
+}
+
+internal fun prepareSystemIme(probe: EditProbe) {
+    probe.primary.replaceAll("")
+    probe.primaryWidth = 360.0
+    probe.readonly = false
+    probe.policy = textEditPolicy { maxLength = Some(1L) }
+    probe.displayTest.projection = textMask()
+    probe.displayTest.copy = TextCopyPolicy.Default
+    assertTrue(probe.focus[0L].requestFocus())
+    probe.change()
+}
+
+private fun pinyinKey(probe: EditProbe) {
+    val codes = [45, 34, 4, 0, 31]
+    val index = probe.systemIme.keyIndex
+    probe.systemIme.keyIndex += 1L
+    editorImeKey(probe.window!!, codes[index])
+}
+
+private fun continuePinyin(probe: EditProbe): Boolean {
+    if (probe.systemIme.keyIndex == 5L)
+        return false
+    // Let each native batch publish its document before the next real IME key.
+    probe.waiting = true
+    pinyinKey(probe)
+    assertTrue(probe.active!!.proxy().post { _ -> probe.waiting = false })
+    return true
+}
+
+private fun slotProjection(): TextProjection =
+    textProjection {
+        input ->
+        val replacements = ArrayList<TextEditReplacement>()
+        var offset = 0L
+        for (cluster in graphemes(input.text)) {
+            val end = offset + cluster.byteLength
+            replacements.add(TextEditReplacement(Utf8Range(offset, end), "[" + cluster + "]"))
+            offset = end
+        }
+        replacements.toArray()
+    }
+
+private fun slotPolicy(): TextEditPolicy =
+    textEditPolicy {
+        maxLength = Some(4L)
+        paste {
+            candidate ->
+            val edits = ArrayList<TextEditReplacement>()
+            var offset = 0L
+            for (character in candidate.after.text) {
+                val size = character.toString().byteLength
+                if (character == ' ')
+                    edits.add(TextEditReplacement(Utf8Range(offset, offset + size), ""))
+                offset += size
+            }
+            TextEditDecision.Transform(edits.toArray())
+        }
+    }
+
+private fun sameIme(probe: EditProbe) {
+    assertTrue(probe.focus[0L].isFocusActive)
+    assertEquals(probe.systemIme.connection, probe.displayTest.connection)
+    assertEquals(probe.systemIme.starts, probe.displayTest.imeStarts)
+    assertTrue(editorDocument(probe.window!!, probe.primary))
+    editorNativeCaret(probe.window!!, probe.primary, probe.field(0L).area.visibleCaretBounds)
+}
+
+internal fun advanceSystemIme(probe: EditProbe) {
+    val test = probe.systemIme
+    val state = probe.primary
+    val field = probe.field(0L)
+    val window = probe.window!!
+    when (probe.phase) {
+        case 75 -> {
+            assertTrue(probe.focus[0L].isFocusActive)
+            @Unsafe
+            {
+                test.source =
+                    Some(saveNativeInputSource() ?: fail(Some("cannot save input source")))
+            }
+            probe.next { editorSelectPinyin(window) }
+        }
+        case 76 -> {
+            assertTrue(editorPinyinSelected(window))
+            test.connection = probe.displayTest.connection
+            test.starts = probe.displayTest.imeStarts
+            probe.next {
+                test.keyIndex = 0L
+                pinyinKey(probe)
+            }
+        }
+        case 77 -> {
+            if (continuePinyin(probe))
+                return
+            if (!state.isComposing)
+                return
+            assertTrue(editorPinyinSelected(window))
+            assertTrue(graphemeBoundaries(state.text).size > 2L)
+            assertTrue(field.layout.text != state.text)
+            test.preedit = Some(state.inputState)
+            probe.next { test.direction.value = LayoutDirection.Rtl }
+        }
+        case 78 -> {
+            assertEquals(test.preedit!!, state.inputState)
+            sameIme(probe)
+            probe.next { editorImeKey(window, 49) }
+        }
+        case 79 -> {
+            if (state.isComposing)
+                return
+            assertEquals(2L, graphemeBoundaries(state.text).size)
+            var cjk = false
+            for (character in state.text)
+                if (character.code >= 13312 && character.code <= 40959)
+                    cjk = true
+            assertTrue(cjk)
+            assertEquals("•", field.layout.text)
+            sameIme(probe)
+            test.committed = state.text
+            assertTrue(field.execute(TextEditCommand.Undo))
+            assertEquals("", state.text)
+            assertTrue(field.execute(TextEditCommand.Redo))
+            assertEquals(test.committed, state.text)
+            probe.next {
+                probe.policy = textEditPolicy { maxLength = Some(4L) }
+                probe.change()
+            }
+        }
+        case 80 -> probe.next {
+            test.keyIndex = 0L
+            pinyinKey(probe)
+        }
+        case 81 -> {
+            if (continuePinyin(probe))
+                return
+            if (!state.isComposing)
+                return
+            test.preedit = Some(state.inputState)
+            test.connection = probe.displayTest.connection
+            test.starts = probe.displayTest.imeStarts
+            probe.next {
+                probe.policy = textEditPolicy { accepts { _ -> false } }
+                probe.displayTest.projection = slotProjection()
+                test.direction.value = LayoutDirection.Ltr
+                probe.change()
+            }
+        }
+        case 82 -> {
+            assertEquals(test.preedit!!, state.inputState)
+            sameIme(probe)
+            probe.next { editorImeKey(window, 49) }
+        }
+        case 83 -> {
+            if (state.isComposing)
+                return
+            assertEquals(test.committed, state.text)
+            assertEquals("[" + test.committed + "]", field.layout.text)
+            sameIme(probe)
+            assertTrue(field.execute(TextEditCommand.Undo))
+            assertEquals("", state.text)
+            assertTrue(field.execute(TextEditCommand.Redo))
+            assertEquals(test.committed, state.text)
+            probe.next {
+                probe.policy = slotPolicy()
+                probe.displayTest.copy = TextCopyPolicy.Allow
+                probe.change()
+            }
+        }
+        case 84 -> probe.next {
+            assertTrue(field.execute(TextEditCommand.SelectAll))
+            window.clipboard.writeText("A é 👩‍💻 Z extra")
+            assertTrue(field.execute(TextEditCommand.Paste))
+        }
+        case 85 -> {
+            assertEquals("Aé👩‍💻Z", state.text)
+            assertEquals("[A][é][👩‍💻][Z]", field.layout.text)
+            assertTrue(field.execute(TextEditCommand.Undo))
+            assertEquals(test.committed, state.text)
+            assertTrue(field.execute(TextEditCommand.Redo))
+            assertEquals("Aé👩‍💻Z", state.text)
+            probe.next { probe.click(0L, 1L) }
+        }
+        case 86 -> {
+            assertEquals(1L, state.cursor.byteOffset)
+            probe.next { probe.click(0L, 15L, shift = true) }
+        }
+        case 87 -> {
+            assertEquals(Utf8Range(1L, 15L), state.selection.range)
+            assertTrue(field.execute(TextEditCommand.Copy))
+            assertEquals(Some("é👩‍💻"), window.clipboard.readText())
+            probe.next { editorPointer(window, probe.point(0L, 0L), true) }
+        }
+        case 88 -> probe.next {
+            val point = probe.point(0L, state.text.byteLength)
+            assertTrue(moveSurfacePointer(window, point.x, point.y))
+        }
+        case 89 -> probe.next {
+            editorPointer(window, probe.point(0L, state.text.byteLength), false)
+        }
+        case 90 -> {
+            assertEquals(Utf8Range(0L, state.text.byteLength), state.selection.range)
+            assertTrue(field.execute(TextEditCommand.Copy))
+            assertEquals(Some(state.text), window.clipboard.readText())
+            assertTrue(editorDocument(window, state))
+            test.complete = true
+            probe.next { window.requestDestroy() }
+        }
+        else -> fail(Some("unexpected system IME phase"))
+    }
+}

@@ -1,7 +1,5 @@
 package scoop.ui
 
-import scoop.graphics.text.TextDirection
-
 public fun navigationOptions(
     configure: NavigationOptionsBuilder.() -> Unit = {}
 ): NavigationOptions {
@@ -13,7 +11,7 @@ public fun navigationOptions(
 public class NavigationOptionsBuilder internal constructor() {
     private val entries = ArrayList<NavigationItem>()
     public var layout: NavigationLayout = NavigationLayout.Vertical
-    public var direction: TextDirection = TextDirection.Ltr
+    public var direction: LayoutDirection? = None
     public var loop: Boolean = false
     public var roving: Boolean = true
 

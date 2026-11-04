@@ -1,0 +1,45 @@
+package scoop.ui
+
+import scoop.graphics.Point
+import scoop.surface.InputCancelReason
+import scoop.window.InputTime
+import scoop.window.MouseButton
+
+public enum DragAxis {
+    Horizontal, Vertical
+}
+
+public class DragOptions public constructor(
+    public val axis: DragAxis,
+    public val threshold: Double = 4.0,
+    public val enabled: Boolean = true,
+    public val button: MouseButton = MouseButton.Left
+) {
+    init {
+        requireUi(
+            threshold.isFinite() && threshold >= 0.0,
+            "drag threshold must be finite and nonnegative"
+        )
+    }
+}
+
+public struct DragSample(
+    val start: Point,
+    val position: Point,
+    val displacement: Double,
+    val velocity: Double,
+    val time: InputTime
+)
+
+public enum DragCancelReason {
+    Input(
+        InputCancelReason
+    ), Disabled, ConfigurationChanged, GeometryUnavailable, Explicit, Closed, PreventedRelease
+}
+
+public enum DragEvent {
+    Started(DragSample), Moved(DragSample), Ended(DragSample), Cancelled(
+        DragSample,
+        DragCancelReason
+    )
+}

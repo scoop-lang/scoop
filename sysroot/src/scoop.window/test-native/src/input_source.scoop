@@ -1,0 +1,19 @@
+package scoop.tests.window
+
+/** Retains the current source until restoreNativeInputSource consumes it. */
+@Extern(name = "scoop_window_test_save_input_source")
+public fun saveNativeInputSource(): Ptr<Unit>?
+
+@Extern(name = "scoop_window_test_restore_input_source")
+public fun restoreNativeInputSource(source: Ptr<Unit>): Int
+
+/** Selects the enabled system Pinyin source for an active text client. */
+@Extern(name = "scoop_window_test_select_pinyin")
+public fun selectNativePinyin(view: Ptr<Unit>): Int
+
+@Extern(name = "scoop_window_test_pinyin_selected")
+public fun nativePinyinSelected(view: Ptr<Unit>): Boolean
+
+/** Delivers a CGEvent-backed key pair through the active client's normal IME path. */
+@Extern(name = "scoop_window_test_ime_key")
+public fun nativeImeKey(view: Ptr<Unit>, code: Int): Int

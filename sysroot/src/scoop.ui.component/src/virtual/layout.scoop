@@ -4,8 +4,6 @@ import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
-internal struct ItemRange(val start: Long, val end: Long)
-
 internal fun virtualViewport(constraints: Constraints, width: Double?, height: Double?): Size {
     val minimum = constraints.constrain(Size(0.0, 0.0))
     return Size(
@@ -18,9 +16,11 @@ internal class ListGeometry(
     val index: ItemExtentIndex,
     private val orientation: Orientation,
     private val overscan: Double,
-    private val viewport: Size
+    private val viewport: Size,
+    direction: LayoutDirection = LayoutDirection.Ltr
 ) {
     private val vertical = orientation == Orientation.Vertical
+    val reversed = !vertical && direction == LayoutDirection.Rtl
     val total: Double get() = index.total
     private val visible =
         if (vertical)
@@ -48,16 +48,18 @@ internal class ListGeometry(
             else
                 Constraints(minHeight = viewport.height, maxHeight = Some(viewport.height))
         }
-    fun range(offset: Double): ItemRange {
+    fun range(offset: Double): VirtualRange = range(offset, overscan)
+    fun visibleRange(offset: Double): VirtualRange = range(offset, 0.0)
+    private fun range(offset: Double, margin: Double): VirtualRange {
         nonnegative(offset, "invalid virtual offset")
-        if (index.count == 0L || visible == 0.0)
-            return ItemRange(0L, 0L)
+        if (index.count == 0L || viewport.width == 0.0 || viewport.height == 0.0)
+            return VirtualRange(0L, 0L)
         val at = upperBound(offset, total)
-        val start = index.indexAt(lowerBound(at - overscan, 0.0))
+        val start = index.indexAt(lowerBound(at - margin, 0.0))
         val endOfViewport = at + upperBound(visible, total - at)
-        val endPosition = endOfViewport + upperBound(overscan, total - endOfViewport)
+        val endPosition = endOfViewport + upperBound(margin, total - endOfViewport)
         val end = index.endBefore(endPosition)
-        return ItemRange(
+        return VirtualRange(
             start,
             if (end >= start)
                 end
@@ -70,7 +72,50 @@ internal class ListGeometry(
             Point(0.0, position)
         else
             Point(position, 0.0)
-    fun origin(item: Long): Point = point(index.prefix(item))
+    val maximum: Double get() = lowerBound(total - visible, 0.0)
+    fun logicalOffset(offset: Point): Double {
+        val physical = scrollbarAxis(orientation, offset)
+        return if (reversed)
+            maximum - physical
+        else
+            physical
+    }
+    fun scrollOffset(logical: Double): Point =
+        point(
+            if (reversed)
+                maximum - logical
+            else
+                logical
+        )
+    fun origin(item: Long): Point =
+        point(
+            if (reversed)
+                lowerBound(total, visible) - index.prefix(item) - index.extent(item)
+            else
+                index.prefix(item)
+        )
+    fun alignedOffset(snapshot: ScrollSnapshot, item: Long, alignment: ScrollAlignment): Point {
+        val physical =
+            if (reversed)
+                when (alignment) {
+                    case Start -> ScrollAlignment.End
+                    case End -> ScrollAlignment.Start
+                    else -> alignment
+                }
+            else
+                alignment
+        return snapshot.revealedOffset(
+            bounds(item),
+            if (vertical)
+                ScrollAlignment.Nearest
+            else
+                physical,
+            if (vertical)
+                physical
+            else
+                ScrollAlignment.Nearest
+        )
+    }
     fun bounds(item: Long): Rect {
         val origin = origin(item)
         return if (vertical)

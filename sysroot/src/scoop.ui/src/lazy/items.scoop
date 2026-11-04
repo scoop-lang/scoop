@@ -29,6 +29,7 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private var total = itemCount(initial)
     private var entries: Array<LazyItemEntry> = []
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
+    private var pending: HashMap<Long, LazyItemMeasure>? = None
     val count: Long get() = total
 
     fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
@@ -151,7 +152,15 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         }
         return result.toArray()
     }
-    fun finish(node: MountedNode, measured: HashMap<Long, LazyItemMeasure>) {
+    fun beginMeasure() {
+        pending = None
+    }
+    fun stage(measured: HashMap<Long, LazyItemMeasure>) {
+        pending = Some(measured)
+    }
+    fun finish(node: MountedNode) {
+        val measured = pending ?: return
+        pending = None
         when (node.lazyFocus) {
             case Some(focus) -> when (focus.pendingIndex()) {
                 case Some(index) -> if (!measured.containsKey(index))
@@ -184,6 +193,9 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
                     case None -> None
                 }
             }
+        for (entry in entries)
+            if (measured.containsKey(entry.index))
+                entry.node.finishMeasurement()
     }
     private fun trim(node: MountedNode) {
         val keep = ArrayList<LazyItemEntry>()

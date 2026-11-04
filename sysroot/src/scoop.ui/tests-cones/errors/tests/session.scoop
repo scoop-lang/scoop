@@ -24,6 +24,7 @@ internal class FailureRecord(val mode: FailureMode) {
     var window: Window? = None
     var second: Window? = None
     var view: ViewProbe? = None
+    val overlayOpen = state(true)
     val overlay = OverlayHandle()
     val anchor = LayoutAnchor()
     var overlayCloses = 0

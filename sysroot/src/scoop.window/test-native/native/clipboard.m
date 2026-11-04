@@ -5,6 +5,23 @@
 static Method write_method;
 static IMP original_write;
 
+int32_t scoop_window_test_clipboard_text(const uint8_t *bytes, int64_t length) {
+  @autoreleasepool {
+    @try {
+      NSString *text = [[NSString alloc] initWithBytes:bytes
+                                                length:(NSUInteger)length
+                                              encoding:NSUTF8StringEncoding];
+      if (!text)
+        return 1;
+      NSPasteboard *pasteboard = NSPasteboard.generalPasteboard;
+      [pasteboard clearContents];
+      return [pasteboard writeObjects:@[ text ]] ? 0 : 2;
+    } @catch (NSException *exception) {
+      return 3;
+    }
+  }
+}
+
 static void restore_write(void) {
   if (original_write) {
     method_setImplementation(write_method, original_write);

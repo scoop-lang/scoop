@@ -1,0 +1,294 @@
+package scoop.tests.ui.editing
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.text.*
+import scoop.window.*
+
+internal fun selectableContent(short: Boolean): StyledText =
+    styledText {
+        style {
+            families = ["Host Test"];
+            fontSize = 20.0
+        }
+        if (short) {
+            text("x link ")
+            inlineObject(InlineKey.Text("badge"), "[fresh]")
+        } else {
+            text("link ")
+            span {
+                style { weight = Some(700) };
+                text("bold")
+            }
+            text(" ")
+            inlineObject(InlineKey.Text("badge"), "[badge]")
+            text(" אבג é😀\nsecond line with words")
+        }
+    }
+
+private class SelectionTestInput(
+    val content: StyledText,
+    val inlines: Array<InlineView>,
+    val maxLines: Long?,
+    val action: Boolean,
+    val short: Boolean
+)
+
+internal fun selectableTestView(probe: EditProbe): View {
+    val test = probe.displayTest
+    val inlines =
+        [inlineView(InlineKey.Text("badge"), element(0, { _ -> SelectableInline(probe) }))]
+    return element(
+        SelectionTestInput(test.content, inlines, test.maxLines, test.action, test.short),
+        { props -> SelectableTestElement(probe, props) },
+        inlineChildren(test.content, inlines),
+        key = ViewKey.Text("selectable")
+    )
+}
+
+private class SelectableTestElement(
+    private val probe: EditProbe,
+    private val props: Props<SelectionTestInput>
+): Element {
+    private var host: SelectableTextHost? = None
+    public override fun onMount(scope: ComponentScope) {
+        val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
+        host = Some(value)
+        probe.displayTest.host = Some(value)
+        probe.displayTest.mounts += 1
+    }
+    public override fun update() {
+        val test = probe.displayTest
+        val input = props.value
+        val range =
+            if (input.short)
+                TextRange(2L, 6L)
+            else
+                TextRange(0L, 4L)
+        val actions: Array<TextRangeAction> =
+            if (input.action)
+                [
+                    TextRangeAction(
+                        "link",
+                        range,
+                        { test.clicks += 1 },
+                        focus = Some(FocusOptions(Some(test.actionFocus)))
+                    )
+                ]
+            else
+                []
+        host!!.update(
+            probe.fonts,
+            input.content,
+            focus = FocusOptions(Some(test.focus)),
+            actions = actions,
+            decorations = [TextRangeDecoration(range, underline = Some(Color(0.1, 0.3, 0.8)))],
+            onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        return host!!.measure(
+            context,
+            constraints,
+            Some(
+                paragraphStyle {
+                    maxLines = input.maxLines
+                    ellipsis = "…"
+                }
+            ),
+            input.inlines
+        )
+    }
+    public override fun scene(context: SceneContext) {
+        host!!.scene(context)
+    }
+    public override fun onUnmount() {
+        probe.displayTest.unmounts += 1
+    }
+}
+
+private class SelectableInline(private val probe: EditProbe): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val value = scope.createArea(focusable = true)
+        area = Some(value)
+        probe.displayTest.inlineArea = Some(value)
+        scope.focusTarget(value, FocusOptions(Some(probe.displayTest.inlineFocus)))
+        scope.press(value) {}
+        assertFailsWith<IllegalArgumentException> { probe.scope!!.createArea(parent = Some(value)) }
+        probe.displayTest.inlineMounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(28.0, 18.0)), Some(14.0))
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(area!!, bounds)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.1, 0.6, 0.3))) }
+    }
+    public override fun onUnmount() {
+        probe.displayTest.inlineUnmounts += 1
+    }
+}
+
+private fun selectablePoint(host: SelectableTextHost, byte: Long): Point {
+    val caret = host.layout.caret(TextPosition(byte))!!
+    val rect = host.area.toWindow(Rect(caret.x, caret.y + caret.height / 2.0, 0.0, 0.0))!!
+    return Point(rect.x, rect.y)
+}
+
+private fun selectableClick(window: Window, host: SelectableTextHost, byte: Long, count: Int = 1) {
+    val point = selectablePoint(host, byte)
+    editorPointer(window, point, true, count)
+    editorPointer(window, point, false, count)
+}
+
+internal fun advanceSelectableText(probe: EditProbe) {
+    val test = probe.displayTest
+    val host = test.host!!
+    val window = probe.window!!
+    when (probe.phase) {
+        case 60 -> {
+            assertFalse(host.area.textInput)
+            assertEquals(1, test.mounts)
+            assertEquals(1, test.inlineMounts)
+            test.savedStarts = test.imeStarts
+            probe.next { assertTrue(test.actionFocus.requestFocus()) }
+        }
+        case 61 -> {
+            assertTrue(test.actionFocus.isFocusActive)
+            assertTrue(host.area.scope.activity.hasFocus)
+            assertEquals(test.savedStarts, test.imeStarts)
+            probe.next {
+                assertTrue(sendSurfaceKey(window, 49, true));
+                assertTrue(sendSurfaceKey(window, 49, false))
+            }
+        }
+        case 62 -> {
+            assertEquals(1, test.clicks)
+            assertTrue(host.execute(TextEditCommand.SelectAll))
+            assertTrue(host.execute(TextEditCommand.Copy))
+            assertEquals(
+                Some("link bold [badge] אבג é😀\nsecond line with words"),
+                window.clipboard.readText()
+            )
+            assertFalse(host.execute(TextEditCommand.Delete(TextDeletion.Backward)))
+            assertTrue(host.selectionBounds().size >= 2L)
+            assertEquals(test.savedStarts, test.imeStarts)
+            probe.next { selectableClick(window, host, 1L) }
+        }
+        case 63 -> {
+            assertEquals(2, test.clicks)
+            probe.next {
+                host.area.requestFocus();
+                editorPointer(window, selectablePoint(host, 1L), true)
+            }
+        }
+        case 64 -> {
+            assertTrue(host.actionInteraction("link")!!.pressed)
+            val point = selectablePoint(host, test.content.text.byteLength)
+            probe.next { assertTrue(moveSurfacePointer(window, point.x, point.y)) }
+        }
+        case 65 -> {
+            assertTrue(host.area.isFocusActive)
+            assertFalse(host.actionInteraction("link")!!.pressed)
+            probe.preventRelease = true
+            probe.next {
+                editorPointer(window, selectablePoint(host, test.content.text.byteLength), false)
+            }
+        }
+        case 66 -> {
+            assertEquals(2, test.clicks)
+            assertEquals(test.content.text.byteLength, host.selection.range.end)
+            probe.preventRelease = false
+            probe.next { selectableClick(window, host, 6L, 2) }
+        }
+        case 67 -> {
+            assertEquals(
+                "bold",
+                test.content.toPlainText(
+                    TextRange(host.selection.range.start, host.selection.range.end)
+                )
+            )
+            probe.next { selectableClick(window, host, 6L, 3) }
+        }
+        case 68 -> {
+            val line = host.layout.logicalLineRange(TextPosition(6L))!!
+            assertEquals(Utf8Range(line.start, line.end), host.selection.range)
+            probe.next {
+                test.width = 50.0;
+                test.maxLines = Some(1L);
+                probe.change()
+            }
+        }
+        case 69 -> {
+            assertTrue(host.layout.didExceedMaxLines)
+            assertEquals(None, host.layout.inlineObjects[0L].box)
+            assertEquals(None, test.inlineArea!!.visibleBounds)
+            assertEquals(1, test.inlineMounts)
+            assertEquals(0, test.inlineUnmounts)
+            probe.next {
+                test.width = 360.0;
+                test.maxLines = None;
+                probe.change()
+            }
+        }
+        case 70 -> {
+            assertFalse(host.layout.didExceedMaxLines)
+            assertTrue(test.inlineArea!!.visibleBounds != None)
+            host.setSelection(TextPosition(0L), TextPosition(0L))
+            test.oldLayout = Some(host.layout)
+            test.expectedEnd = host.layout.lines[0L].contentRange.end
+            probe.next {
+                test.width = 50.0;
+                test.discard = 2;
+                probe.change()
+            }
+        }
+        case 71 -> {
+            assertEquals(2, test.discards)
+            assertTrue(test.oldLayout!!.isClosed)
+            host.setSelection(TextPosition(test.content.text.byteLength), TextPosition(0L))
+            probe.next {
+                test.short = true;
+                test.content = selectableContent(true);
+                test.width = 360.0;
+                probe.change()
+            }
+        }
+        case 72 -> {
+            assertEquals(test.content.text.byteLength, host.anchor.byteOffset)
+            assertEquals(0L, host.cursor.byteOffset)
+            assertTrue(host.execute(TextEditCommand.Copy))
+            assertEquals(Some("x link [fresh]"), window.clipboard.readText())
+            assertEquals(1, test.inlineMounts)
+            assertEquals(test.savedStarts, test.imeStarts)
+            probe.next {
+                test.action = false;
+                probe.change()
+            }
+        }
+        case 73 -> {
+            assertFalse(test.actionFocus.isAttached)
+            assertEquals(None, host.actionInteraction("link"))
+            probe.next {
+                test.show = false;
+                probe.change()
+            }
+        }
+        case 74 -> {
+            assertTrue(host.isClosed)
+            assertEquals(1, test.unmounts)
+            assertEquals(1, test.inlineUnmounts)
+            assertFalse(test.focus.isAttached)
+            assertFalse(test.inlineFocus.isAttached)
+            assertTrue(test.selectionChanges > 0)
+            probe.next { prepareSystemIme(probe) }
+        }
+        else -> fail(Some(f"unexpected text display phase ${probe.phase}"))
+    }
+}

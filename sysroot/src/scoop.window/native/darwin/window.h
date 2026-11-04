@@ -74,6 +74,7 @@ typedef struct {
     NSMutableDictionary<NSNumber *, SWEvent *> *pressedKeys;
 @property(nonatomic, strong) NSMutableSet<NSNumber *> *pressedButtons;
 @property(nonatomic) NSEventModifierFlags modifiers;
+@property(nonatomic) BOOL functionHeld;
 @property(nonatomic, strong) NSTrackingArea *tracking;
 @property(nonatomic, strong) NSCursor *cursor;
 @property(nonatomic) BOOL pointerInside, cursorVisible, cursorHidden;
@@ -97,6 +98,8 @@ typedef struct {
 @interface SWView (Input)
 - (void)resetInput;
 @end
+NSEventModifierFlags sw_input_modifiers(SWView *view,
+                                        NSEventModifierFlags flags);
 @interface SWView (Pointer)
 - (void)updateCursor;
 - (void)cancelPointer:(int32_t)reason;

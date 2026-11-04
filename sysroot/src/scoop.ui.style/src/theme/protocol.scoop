@@ -1,24 +1,31 @@
 package scoop.ui.style
 
 import scoop.graphics.*
+import scoop.ui.LayoutDirection
 
 /** Resource-free theme data and geometry. Implementations do not access UI or business state. */
 public interface Theme {
     public val tokens: ThemeTokens
     public fun surfaceMetrics(
         visual: SurfaceVisual = SurfaceVisual(),
-        options: SurfaceOptions = surfaceOptions()
+        options: SurfaceOptions = surfaceOptions(),
+        direction: LayoutDirection = LayoutDirection.Ltr
     ): SurfaceMetrics
     public fun surfaceGeometry(
         bounds: Rect,
         visual: SurfaceVisual = SurfaceVisual(),
-        options: SurfaceOptions = surfaceOptions()
+        options: SurfaceOptions = surfaceOptions(),
+        direction: LayoutDirection = LayoutDirection.Ltr
     ): SurfaceGeometry
-    public fun checkboxMetrics(options: CheckboxOptions = checkboxOptions()): CheckboxMetrics
+    public fun checkboxMetrics(
+        options: CheckboxOptions = checkboxOptions(),
+        direction: LayoutDirection = LayoutDirection.Ltr
+    ): CheckboxMetrics
     public fun checkboxGeometry(
         bounds: Rect,
         visual: CheckboxVisual = CheckboxVisual(),
-        options: CheckboxOptions = checkboxOptions()
+        options: CheckboxOptions = checkboxOptions(),
+        direction: LayoutDirection = LayoutDirection.Ltr
     ): CheckboxGeometry
     public fun radioMetrics(options: RadioOptions = radioOptions()): RadioMetrics
     public fun radioGeometry(

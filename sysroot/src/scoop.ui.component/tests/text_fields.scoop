@@ -4,6 +4,7 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.test.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.ui.LayoutDirection
 import scoop.ui.style.*
 import scoop.ui.style.macos.macosTheme
 import scoop.ui.style.material.materialTheme
@@ -31,21 +32,25 @@ private class TextFieldStyleTest {
             val ordinary =
                 theme.surfaceGeometry(bounds, visual, style.options(theme, focused, false))
             val invalid = theme.surfaceGeometry(bounds, visual, style.options(theme, focused, true))
-            assertEquals(theme.tokens.palette.error, invalid.style.border!!.color)
+            val invalidEdges = invalid.style.border!!.resolve(LayoutDirection.Ltr)
+            assertEquals(theme.tokens.palette.error, invalidEdges.left.color)
             assertEquals(theme.tokens.palette.error.withAlpha(0.72), invalid.focus!!.border.color)
-            assertTrue(ordinary.style.border!!.color != invalid.style.border!!.color)
+            assertTrue(
+                ordinary.style.border!!.resolve(LayoutDirection.Ltr).left.color !=
+                    invalidEdges.left.color
+            )
             val explicit =
                 textFieldStyle {
                     surface {
                         this.padding = Some(Insets.all(4.0))
-                        style { this.border(Some(Border(3.0, Color.White))) }
+                        style { this.border(Some(Border.all(3.0, Color.White))) }
                         this.focus = Some(FocusStyle(Color.Black, 1.0, 3.0))
                     }
                     states { disabled { this.border(None) } }
                 }
             val overridden =
                 theme.surfaceGeometry(bounds, visual, explicit.options(theme, focused, true))
-            assertEquals(Some(Border(3.0, Color.White)), overridden.style.border)
+            assertEquals(Some(Border.all(3.0, Color.White)), overridden.style.border)
             assertEquals(Color.Black, overridden.focus!!.border.color)
             assertEquals(Rect(7.0, 7.0, 226.0, 66.0), overridden.content)
             val disabled = InteractionVisual(enabled = false)

@@ -30,12 +30,17 @@ public class ParagraphHost public constructor(): Closeable {
         return cache.layout
     }
 
+    internal fun retainLayout(): RetainedParagraphLayout {
+        checkOpen()
+        return cache.retainLayout()
+    }
+
     public fun measure(
         context: MeasureContext,
         constraints: Constraints,
         fonts: FontCollection,
         content: StyledText,
-        settings: ParagraphStyle = paragraphStyle(),
+        settings: ParagraphStyle? = None,
         inlines: Array<InlineView> = []
     ): LayoutMetrics {
         checkOpen()
@@ -56,7 +61,9 @@ public class ParagraphHost public constructor(): Closeable {
                     }
                 item.metrics(context.measureChild(index, limits))
             }
-        val result = cache.update(fonts, content, settings, constraints.maxWidth, metrics)
+        val resolved =
+            settings ?: paragraphStyle { direction = context.layoutDirection.textDirection() }
+        val result = cache.update(fonts, content, resolved, constraints.maxWidth, metrics)
         var index = 0L
         for (placement in result.inlineObjects) {
             when (placement.box) {
@@ -74,12 +81,13 @@ public class ParagraphHost public constructor(): Closeable {
 
     public fun scene(context: SceneContext) {
         checkOpen()
-        val bounds = cache.layout.paintBounds
+        val layout = cache.layout
+        val bounds = layout.paintBounds
         context.drawLayer(
             paintKey,
             Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0),
             cache.generation
-        ) { paint -> paint.canvas.drawText(cache.layout) }
+        ) { paint -> paint.canvas.drawText(layout) }
         context.children()
     }
 

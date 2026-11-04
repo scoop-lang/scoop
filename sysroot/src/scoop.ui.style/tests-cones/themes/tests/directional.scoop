@@ -1,0 +1,78 @@
+package scoop.tests.ui.themes
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.LayoutDirection
+import scoop.ui.style.*
+
+@Test
+private class DirectionalThemeTest {
+    @Test
+    fun `surface and checkbox metrics resolve four physical edges corners and focus from the same direction`() {
+        val overrides =
+            styleOverride {
+                border(
+                    Some(
+                        Border.Logical(
+                            BorderEdge(6.0, Color.Black),
+                            BorderEdge(2.0, Color.White),
+                            BorderEdge(10.0, Color.White),
+                            BorderEdge(4.0, Color.Black)
+                        )
+                    )
+                )
+                corners(
+                    Corners.Logical(
+                        Size(16.0, 12.0),
+                        Size(4.0, 6.0),
+                        Size(10.0, 8.0),
+                        Size(2.0, 4.0)
+                    )
+                )
+            }
+        val ringFocus = FocusStyle(Color.Black, 2.0, 3.0)
+        val visual = SurfaceVisual(interaction = InteractionVisual(focused = true))
+        for (theme in themes())
+            for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl]) {
+                val options =
+                    surfaceOptions {
+                        padding = Some(Insets.all(2.0));
+                        style = overrides;
+                        this.focus = Some(ringFocus)
+                    }
+                val metrics = theme.surfaceMetrics(visual, options, direction)
+                val inset =
+                    if (direction == LayoutDirection.Ltr)
+                        Insets(6.0, 2.0, 10.0, 4.0)
+                    else
+                        Insets(10.0, 2.0, 6.0, 4.0)
+                assertEquals(inset, metrics.borderInsets)
+                val geometry =
+                    theme.surfaceGeometry(Rect(0.0, 0.0, 80.0, 50.0), visual, options, direction)
+                assertEquals(Rect(inset.left + 2.0, 4.0, 60.0, 40.0), geometry.content)
+                assertEquals(
+                    geometry.outline.inset(inset.left, inset.top, inset.right, inset.bottom),
+                    geometry.borderInner
+                )
+                assertEquals(geometry.outline.expanded(3.0), geometry.focus!!.outline)
+                assertEquals(Corners.Physical(metrics.corners), geometry.style.corners)
+                val markOptions =
+                    checkboxOptions {
+                        style = overrides;
+                        this.focus = Some(ringFocus)
+                    }
+                val mark =
+                    theme.checkboxGeometry(
+                        Rect(0.0, 0.0, 50.0, 50.0),
+                        CheckboxVisual(CheckMark.On, InteractionVisual(focused = true)),
+                        markOptions,
+                        direction
+                    )
+                assertEquals(
+                    mark.outline.inset(inset.left, inset.top, inset.right, inset.bottom),
+                    mark.interior
+                )
+                assertEquals(mark.outline.expanded(3.0), mark.focus!!.outline)
+            }
+    }
+}

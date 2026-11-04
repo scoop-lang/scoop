@@ -1,6 +1,6 @@
 # Scoop Surface 基础库规范
 
-后续共享 shortcut／caret 和输入序列归属的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，当前仅完成设计；下文仍描述现行合同，按对应实施批次先行修订。
+后续共享 shortcut／caret 和输入序列归属的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述对应批次的现行合同。
 
 状态：第一期共享基础层及 macOS 后端已实现。更新：2026-11-03。本文件规定 window 输入前置、graphics 绘图／文本、Surface 宿主、动画和区域输入的当前合同；各项验证、执行环境和未测边界见 [实施记录](../surface/PROGRESS.md)。架构、平台接入和实施顺序见 [Surface 设计](../surface/DESIGN.md)。
 
@@ -184,9 +184,9 @@ InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法
 
 更换文本接收者先关闭旧接收者的 IME，以 Disabled 为旧会话结束边界，再设置新候选窗位置并开启新接收者；没有活动旧接收者时直接开启。Enabled 先于新接收者的 Edit。结束前的 Edit 仍路由旧接收者，已注销则丢弃，不得写进新区域。逻辑 focus 可以先改变，排队编辑的归属不能随之被改写；窗口关闭的资源释放不等待业务 IME 通知。
 
-frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，macOS 原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
+frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
 
-基础接入调用 setImeCursorArea；带 revision 的 macOS 接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。此次补齐 macOS；Win32 继续使用现有候选位置推送，没有新增 surrounding 或几何查询实现。
+共享 caret 适配通过 window 的公共入口工作：基础接入调用 setImeCursorArea，清除调用 clearImeCursorArea；带 revision 的接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。macOS 已实现此合同；Windows 分支补齐 window 后端，Surface 不再保留忽略连接／revision 的另一套候选位置路径。
 
 ### 6.1 组合默认行为
 
@@ -208,7 +208,7 @@ InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在�
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
-### 6.3 作用域快捷键（macOS）
+### 6.3 作用域快捷键
 
 ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输入节点的默认阶段匹配快捷键；一个输入节点只拥有一个活动 ShortcutScope，关闭后可重新创建。enabled 控制整个快捷键集合，bindings 使用不可变 Array 整体更新；调用方通过 setter 更新配置，不暴露可变底层数组。UI 可以用 ComponentScope.resource 管理其生命周期，无需第二条事件派发链。
 
@@ -216,11 +216,11 @@ HostShortcutScope(host: SurfaceHost, bindings: Array<ShortcutBinding> = []) 提�
 
 宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary 都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
 
-ShortcutBinding 使用 ShortcutKey.Logical(LogicalKey) 或 Physical(PhysicalKey)，并保存 ShortcutModifiers、enabled、allowRepeat、canExecute 和 action。logical 的 Character 由 Window.matchesShortcut 比较；Dead 和空 Character 不可登记。物理键只匹配位置及其原生 fallback。macOS 的 Primary 展开为 Super/Command；Shift、Control、Alt、Super 和 Function 按展开后的完整组合匹配，锁定状态及左右侧不参与普通组合。
+ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat、canExecute 和 action。key／modifiers 的描述、构造检查、Primary 解析、匹配及标签均由 window 提供；Surface 不保存平台键位表。绑定更新以 chord.equivalentTo 检查重复，派发以 chord.matches 匹配事件；通用作用域和派发位于共享源码。
 
 默认只响应真实 key-down；key-up 和 synthetic 不执行，repeat 必须显式允许。enabled=false 或 canExecute=false 继续向外层寻找。同一 scope 内同时启用的相同规范化组合在配置时报告参数错误，失败更新保留原集合；logical 与 physical 在实际布局下同时匹配且均可执行时报告歧义，不依赖登记顺序任选一个。成功执行前 consume，随后调用一次 action。
 
-控件 defaultAction 及额外行为先于本节点快捷键，内层先于外层。文本焦点下，祖先的普通快捷键要求明确 Command／Control 组合或非文本 NamedKey；裸字符、Space、Dead、未知文本键和可能用于 AltGr 的 Control+Alt 字符不能被祖先抢走。明确的 Command 组合仍可匹配，输入目标自身可定义本地快捷键。识别出的编辑命令由编辑目标认领；canExecute=false 的一般快捷键不等于已经被编辑目标消费的命令。
+控件 defaultAction 及额外行为先于本节点快捷键，内层先于外层。文本焦点下，祖先的普通快捷键要求明确 Super／Control 应用组合或非文本 NamedKey；裸字符、Space、Dead 和未知文本键不能被祖先抢走。altGraph=Some(true) 的文本输入受到保护；未知时保守保护可能的 Control+Alt 文本输入，已确定不是 AltGr 时允许明确的 Ctrl+Alt 绑定。输入目标自身可定义本地快捷键。识别出的编辑命令由编辑目标认领；canExecute=false 的一般快捷键不等于已经被编辑目标消费的命令。
 
 快捷键只处理 Window 实际交付的 Keyboard，不插入文字，也不在 interpretKeyEvents 之前截取 IME。没有焦点区域时可在活动窗口根工作；模态域的路由截断同样约束快捷键。系统未交付的组合不在本库控制范围内。本批提供 macOS 接入，Windows 后续补充。
 
@@ -235,6 +235,24 @@ Wheel 的 InputScrollDelta 始终保留该次输入的完整原始单位：Lines
 无 phase、无 momentum 的离散 Wheel 按当次命中选择路由，与鼠标按钮捕获独立。连续 Wheel 从首个非 None phase 固定逻辑目标与路径，MayBegin 到 Began 沿用该路径；同一手势及其动量后续事件只用新的已提交几何换算位置，不因内容滚动或指针经过兄弟区域而改投。接触 Ended 后保存这条路径以接收随后的 momentum Began；等待动量不请求帧，也不算仍在进行的交互。新的接触手势或离散 Wheel 重新命中，结束前一条仍活动的滚动；正常 momentum Ended／Cancelled 释放路由。
 
 `InputPointerEvent.ScrollCancelled(InputCancelReason, InputTime)` 是独立的 Notification，向完整旧滚动路径交付，不取消鼠标按钮捕获；`InputCancelReason.ScrollInterrupted` 表示另一段滚动开始。区域缺席／关闭／禁用／重挂、模态边界切换、窗口失焦和关闭分别沿用 AreaChanged／BoundaryChanged／Window／Closed。处理器内发生这些变化时，立即停止旧滚动的后续普通交付，退出当前派发后再完整通知旧路径；一段已取消的 phase／momentum 保持空路径到结束，不在后续 Changed 或惯性阶段改投背景兄弟。原生 Wheel 自带 Ended／Cancelled 仍按原事件交付，onEventFinished 保证其收尾不会被传播或默认取消吞掉。
+
+### 6.5 可组合处理器与按下序列接管
+
+`InputScope.addEventHandler(handler)` 登记额外的 Target／Bubble／Notification 处理器；`addEventFinished(handler)` 登记额外的事件完成通知。两者返回只注销该登记的 Closeable，不覆盖原 handler／onEventFinished，也不关闭调用方 area。一次交付使用开始时的登记快照，已注销项跳过；本次回调中新登记的项从下一次交付生效。普通处理器服从现有异常规则；Notification 与完成通知按清理规则继续交付其他有效登记。关闭 scope 后，已排队的终结通知先完成，再释放登记。
+
+`InputScope.isHovered` 表示该 scope 是否在最近提交几何生成的逻辑 hover 路径中，关闭后为 false。它不从下一帧待提交矩形推算命中，也不把 hover 计入 InputActivity 的活动所有权。
+
+`InputScope.claimPointer(button = MouseButton.Left): Boolean` 只接管当前窗口已经按下的序列。调用方必须是原按下路径上的活动 scope，指定按钮仍处于按下状态；不在原路径、已经取消或其他 scope 已取得归属时返回 false。第一次成功后，同一 owner 重复调用返回 true，不重复发送取消。同一原生按钮组合仍沿用第一个按下时固定的一条路径，所有按钮释放后才结束该序列。
+
+接管先发布新的 owner 与路径，再对原路径中更深的节点各发送一次 `Cancelled(Claimed, time)`；回调可同步关闭／禁用／重挂节点，返回前重新确认新 owner 仍有效。当前事件已经冻结的坐标和完成通知保持不变，后续 move／release 从新 owner 向逻辑祖先路由。它不合成 Up，不把后续 release 投递到已取消子项，也不进行 OS 全局鼠标捕获。
+
+`InputScope.cancelPointerClaim()` 只撤销调用方已经取得的归属，以 `ClaimCancelled` 原因终止整条序列；不会交还原子项。未取得归属时为空操作。窗口失焦／关闭、原生取消、路径失效和边界变化继续使用现有终结合同；迟到的 release 不能重新命中另一目标。普通 claim 不改变焦点、IME 或滚轮序列归属。
+
+### 6.6 当前窗口指针观察
+
+`InputScope.observePointer(handler: (PointerObservation) -> Unit): Closeable` 观察同一窗口，与命中路径及输入消费分开。PointerObservation 包含 Pointer(Window.PointerEvent)、FocusLost 和 Closed；普通指针事件及窗口失焦在原路由／reconcile 完成后交付，鼠标移到空白或离开窗口也可观察。没有可消费的 RoutedEventContext，也不安装 OS 全局监听或改变 capture／焦点。
+
+派发前冻结观察登记，期间新建者不接收当前事件，已关闭者跳过；关闭只移除自己的登记，scope 退休自动清理，窗口／router 关闭对仍在登记的观察者交付一次终端 Closed。观察回调失败不跳过其余必要清理，最终传播错误。该接口服务有实际活动会话的 hover、typeahead 等组合，不要求每个 scope 常驻观察。
 
 ## 7. 原生资源与错误
 
@@ -277,4 +295,4 @@ Skia 对目标的提交必须完成 D3D12 resource state 到 PRESENT 的转换�
 
 ### 快捷键描述装配
 
-`shortcutBinding(key: ShortcutKey, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以键和动作作为必需参数，配置 modifiers=ShortcutModifiers()、enabled=true、allowRepeat=false、canExecute={ true }。modifiers 块基于当前六个布尔修饰键字段配置。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(key, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。
+`shortcutBinding(chord: ShortcutChord, action: () -> Unit, configure: ShortcutBindingBuilder.() -> Unit = {}): ShortcutBinding` 以完整组合和动作作为必需参数，配置 enabled=true、allowRepeat=false、canExecute={ true }。modifiers 配置归 window 的 shortcutChord，不再作为 Binding 的第二份键位状态。ShortcutBinding 的长参数构造内部化；action／canExecute 仅保存为普通函数，构造不调用它们。`shortcuts(configure: ShortcutsBuilder.() -> Unit = {}): Array<ShortcutBinding>` 按顺序收集 add(binding)、addAll(bindings) 和 binding(chord, action) 配置块，每个成员追加一次并返回 Unit。数组在发布时快照，输入节点和宿主 ShortcutScope 继续显式创建／更新／关闭。

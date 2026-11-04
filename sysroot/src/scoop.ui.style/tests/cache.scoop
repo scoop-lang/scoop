@@ -46,8 +46,8 @@ private class StyleCacheTest {
             val style =
                 style {
                     this.background = Some(Paint(Color.White))
-                    this.border = Some(Border(2.0, Color.Black))
-                    this.cornerRadius = 4.0
+                    this.border = Some(Border.all(2.0, Color.Black))
+                    this.corners = Corners.all(4.0)
                 }
             val first = cache.update(bounds, style)!!
             assertSame(

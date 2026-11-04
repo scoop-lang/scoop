@@ -1,0 +1,91 @@
+package scoop.tests.ui.overlaysitems
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal fun presenceScene(probe: InteractionProbe): View =
+    element(
+        { PresenceCanvas(probe) },
+        [
+            portal(probe.controlled, element({ PresenceContent(probe) })) {
+                handle = Some(probe.overlay)
+                modal { initialFocus = Some(probe.popupFocus) }
+                dismiss {
+                    escape = true;
+                    outsidePress = OutsidePress.CloseAndConsume
+                }
+                transition =
+                    PresenceOptions(
+                        Some(AnimationSpec.Tween(Duration.milliseconds(40L))),
+                        Some(AnimationSpec.Tween(Duration.milliseconds(80L)))
+                    )
+                onCloseRequest =
+                    {
+                        _ ->
+                        probe.requests += 1;
+                        probe.allowClose
+                    }
+                onClosed =
+                    {
+                        reason ->
+                        probe.closedCount += 1
+                        probe.lastClose = Some(reason)
+                        assertEquals(probe.closedCount, probe.popupUnmounts)
+                    }
+            }
+        ]
+    )
+
+private class PresenceCanvas(private val probe: InteractionProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea(focusable = true)
+        probe.background = Some(area)
+        scope.focusTarget(area, FocusOptions(Some(probe.backgroundFocus)))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints())
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(probe.background!!, Rect(10.0, 230.0, 90.0, 35.0))
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                probe.frames += 1
+                probe.committedGroup = 0
+                probe.presence = None
+            }
+        }
+    }
+}
+
+private class PresenceContent(private val probe: InteractionProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        probe.popupMounts += 1
+        val area = scope.createArea(focusable = true)
+        probe.popup = Some(area)
+        scope.focusTarget(area, FocusOptions(Some(probe.popupFocus)))
+    }
+    public override fun onUnmount() {
+        probe.popupUnmounts += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(160.0, 80.0)))
+    public override fun scene(context: SceneContext) {
+        val value = context.overlayLayout!!.presence
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(probe.popup!!, bounds)
+        context.draw {
+            paint -> paint.canvas.drawRect(bounds, Paint(Color(0.2, 0.4, 0.8, value.progress)))
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                probe.presence = Some(value)
+        }
+    }
+}
