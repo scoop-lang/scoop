@@ -48,6 +48,7 @@ internal class DownloadController(
         val controller = this
         val job =
             jobs.launch {
+                attempt.started = true
                 try {
                     val result =
                         controller.client.download(
@@ -56,7 +57,7 @@ internal class DownloadController(
                             httpDownloadOptions {
                                 this.replaceExisting = true
                                 this.onProgress =
-                                    suspend {
+                                    {
                                         value ->
                                         controller.checkThread()
                                         if (controller.owns(attempt) && attempt.accepting) {
@@ -192,6 +193,8 @@ internal class DownloadController(
                 model.snapshot.value = DownloadSnapshot(DownloadPhase.Cancelling, attempt.latest)
                 attempt.job?.cancel()
                 attempt.checksum?.cancel()
+                if (!attempt.started)
+                    finish(attempt, DownloadSnapshot(DownloadPhase.Cancelled, attempt.latest))
             }
             case None -> {}
         }
@@ -215,6 +218,7 @@ internal class DownloadController(
 }
 
 private class DownloadAttempt {
+    var started = false
     var job: Job? = None
     var checksum: ChecksumTask? = None
     var accepting = true

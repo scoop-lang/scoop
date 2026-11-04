@@ -13,7 +13,7 @@ import scoop.time.Duration
 @Test
 private class NoWindowShutdownTest {
     @Test
-    fun `an application without windows drains an outstanding IOCP receive and async cleanup`() {
+    fun `an application without windows drains outstanding receive and executor cleanup`() {
         val app = Application()
         val handler = NoWindowHandler()
         app.runWithAsyncio(handler)
@@ -35,12 +35,13 @@ private class NoWindowHandler: ApplicationHandler {
             case Resumed -> {
                 val scope = currentApplicationScope()
                 val loop = currentEventLoop()
+                assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(10L))
                 )
-                scope.launch suspend {
-                    loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
-                        socket -> NativeByteBuffer.allocate(16L).use suspend {
+                scope.launch {
+                    loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync {
+                        socket -> NativeByteBuffer.allocate(16L).use {
                             bytes -> try {
                                 this @NoWindowHandler.receiving = true
                                 socket.receiveFrom(bytes, 16L)
@@ -49,6 +50,7 @@ private class NoWindowHandler: ApplicationHandler {
                                 nonCancellableScope<Unit> {
                                     loop.sleep(Duration.milliseconds(20L))
                                     assertEquals(this @NoWindowHandler.thread, currentThreadId())
+                                    assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
                                     assertEquals(1, this @NoWindowHandler.exiting)
                                     bytes.clear()
                                     this @NoWindowHandler.cleaned = true
@@ -57,8 +59,10 @@ private class NoWindowHandler: ApplicationHandler {
                         }
                     }
                 }
-                scope.launch suspend {
-                    loop.sleep(Duration.milliseconds(40L))
+                assertFalse(receiving)
+                scope.launch {
+                    while (!this @NoWindowHandler.receiving)
+                        loop.sleep(Duration.milliseconds(1L))
                     assertTrue(this @NoWindowHandler.receiving)
                     gcCollect()
                     application.requestExit()

@@ -288,7 +288,7 @@ class DownloadModel {
 
 context(model: DownloadModel)
 fun startDownload(client: HttpClient, request: HttpRequest, destination: Path): Job =
-    currentApplicationScope().launch suspend {
+    currentApplicationScope().launch {
         model.progress.value = None
         model.error.value = None
         model.phase.value = DownloadPhase.Running
@@ -297,7 +297,7 @@ fun startDownload(client: HttpClient, request: HttpRequest, destination: Path): 
                 request,
                 destination,
                 httpDownloadOptions {
-                    this.onProgress = suspend { progress -> model.progress.value = Some(progress) }
+                    this.onProgress = { progress -> model.progress.value = Some(progress) }
                 }
             )
             model.phase.value = DownloadPhase.Completed
@@ -315,11 +315,11 @@ fun startDownload(client: HttpClient, request: HttpRequest, destination: Path): 
 
 HttpDownloadProgress 是包含 bytesWritten、可选 totalBytes 和 resumedBytes 的只读 class；未知总长度使用不定进度。onProgress 是被下载顺序等待的 suspend 回调，只做轻量发布；成功返回 download 才表示文件提交与必要清理完成。UI 在 render 中读取模型，State setter 只安排更新，不在网络回调中立即绘制。
 
-真实工作线程或独立网络 EventLoop 通过 ApplicationProxy.post／EventLoopSession.post 向 owner 交付快照，State 的整个读改写留在接收方。发送方不再修改快照及其引用的数据，不传仍在复用的网络缓冲区。独立 loop 使用属于该 loop 的 client；CPU 密集计算不会因 suspend 或 launch 自动移出主线程。
+应用作用域保存 owner 的 LoopExecutor，launch／async 总是排队启动；调用方在发布前完成初始化。需要后台执行的协程显式使用 withExecutor／launch(executor)，同步阻塞闭包使用 blocking。后台 I/O 返回其原 executor，State 的整个读改写通过 withExecutor(loop.executor) 或捕获的应用作用域交给 owner。普通工作线程或独立网络 EventLoop 仍可通过 ApplicationProxy.post／EventLoopSession.post 交付快照；发送方不再修改快照及其引用的数据，不传仍在复用的网络缓冲区。独立 loop 使用属于该 loop 的 client；CPU 密集计算不会因 suspend 自动移出主线程。
 
 高频进度在业务层按时间保留最新值；跨线程用受同步保护的 latest 快照和一个已排队标志合并投递，关闭拒绝后停止发布。完成、失败和取消及时交付，并终止旧进度对结果的覆盖。这里合并的是显示进度，不合并任务结局或清理通知；隐藏窗口和没有 drawable 时，逻辑状态与收尾仍继续执行。
 
-Context 传播 Store 引用，不改变线程和任务归属。只有 asyncio 自己的 I/O 保证排队恢复到 owner，任意第三方挂起点仍可能在别的线程恢复；外部回调通过投递返回 UI。业务 post 使用接收方的运行 Context，不能依赖它取得发送方的临时绑定。完整合同见[框架规范第 9.1 节](../specs/SCOOP-UI-SPEC.md#91-异步-io下载进度与跨线程更新)。
+Context 传播 Store 引用，不改变线程和任务归属。协程的 execution 保存恢复位置，默认应用任务在任意真实挂起后排队回 owner，第三方 continuation 与 asyncio I/O 遵守同一规则。普通外部回调本身不继承 execution，通过投递或捕获的应用作用域返回 UI。业务 post 使用接收方的运行 Context，不能依赖它取得发送方的临时绑定。完整合同见[框架规范第 9.1 节](../specs/SCOOP-UI-SPEC.md#91-异步-io下载进度与跨线程更新)。
 
 第 5 批通过控件库的独立 `examples/download` Cone 交付实际用法：应用拥有 HttpClient、后台校验任务集合和业务 DownloadModel，组件作用域拥有当前 DownloadController。模型用一个普通只读 class 快照保存下载／校验阶段、字节数、可选总量、摘要和错误，组件另有自己的点击计数 State。控制器在 owner 上启动下载，以本次下载对象身份区分替换；取消先停止接受该任务的进度，再由实际清理完成后报告 Cancelled。卸载先撤销发布资格并取消 Job／后台任务，不能同步等待自身回调；HTTP 收尾继续由应用的 asyncio 作用域驱动，借用的 client 不随组件关闭。
 

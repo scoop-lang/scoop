@@ -19,6 +19,12 @@ internal suspend fun runDownloadScenario(probe: DownloadWindowProbe, active: Act
     val proxy = probe.application.proxy()
     val initialFile = "prior destination"
     probe.destination.writeText(initialFile)
+    // Queued startup can be cancelled before the task body runs or installs its finally.
+    val queued = controller.start(server.request("/known"), probe.destination)
+    controller.cancel()
+    queued.join()
+    assertEquals(DownloadPhase.Cancelled, probe.model.snapshot.value.phase)
+    assertEquals(initialFile, probe.destination.readText())
     val slow = controller.start(server.request("/slow"), probe.destination)
     awaitDownload(probe, "partial download") { probe.model.snapshot.value.progress.bytes > 0L }
     // Pending network I/O has no frame demand once the real progress change settles.

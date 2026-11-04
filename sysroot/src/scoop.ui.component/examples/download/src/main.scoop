@@ -28,10 +28,10 @@ fun main(args: Array<String>) {
                     host,
                     active,
                     event -> when (event) {
-                        case Resumed -> currentApplicationScope().launch suspend {
+                        case Resumed -> currentApplicationScope().launch {
                             coroutineScope {
                                 val jobs = this
-                                HttpClient.open(jobs).useAsync suspend {
+                                HttpClient.open(jobs).useAsync {
                                     client ->
                                     val window =
                                         active.createWindow(

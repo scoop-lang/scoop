@@ -128,3 +128,13 @@
 - Rosetta 的悬浮组合首轮收到非脚本位置的原生鼠标移动，按悬浮规则关闭；无代码改动的单独复跑通过。原生窗口组合需要前台焦点及稳定指针，本轮无未闭合失败。
 - UI、Component、Style 和三套主题的生产源码入口均无 OS 条件、平台专用调用或额外 native 源码。Windows／Linux 仍按 [平台交接清单](PLATFORM.md#6-源码整理与-windows-接入)另行实现和验收；本轮不声称这些后端已可用。
 - 三个相关 Cone 的 tests 类型检查、十五个 Scoop 文件的格式检查、native 严格编译警告、文档本地链接及 diff 检查通过。清理本项临时诊断程序、原始日志、草稿和独立检查锁文件，保留可复用的生产／测试产物及 Cone cache。
+
+## 合入 coroutine executor 后的迁移与复验
+
+- 合入 origin/main 的 `b86db1482`（coroutine executors），窗口集成使用新的 `eventLoop().attach` 和 receiver scope API。同步 Window／UI 规范及设计：应用作用域保存 owner executor，默认任务排队启动，任意真实挂起后的外部完成回到保存的 executor；后台任务通过显式 executor 执行，UI 更新通过 `withExecutor(loop.executor)` 或捕获的应用作用域交回 owner。Context binding 继续只表达依赖传播。
+- 移除窗口、Surface 和下载示例中 23 处 lambda 的显式 `suspend` 前缀，并同步文档示例；函数声明与函数类型保留挂起效果。下载控制器补齐排队正文开始前的取消，直接结束本次状态，避免等待从未进入的 finally；回归确认目的文件保持原内容，随后仍能正常开始下载。
+- Surface 的真实窗口组合新增后台 executor、Channel、UDP、blocking 成功与异常、捕获 owner scope、显式切回 UI 及绑定传播断言。原生 modal／menu 循环期间持续接收后台回传并绘制，根取消后继续驱动后台非取消清理及 owner 收尾。窗口组合验证默认任务排队及恢复位置；无窗口退出组合同时在 macOS 启用，等待真实接收挂起后再退出，避免固定延时和空测试运行。
+- aarch64 macOS release：本次依赖范围内 29 个生产库构建成功，包含 UI／Style／三套主题／Component、窗口集成和 HTTP client。8 项测试全部通过：窗口、无窗口退出、Surface 组合各 1 项，下载示例 5 项；下载组合覆盖真实 HTTP、后台摘要、启动前取消、传输及校验取消、任务替换、双窗口隐藏／关闭和停止请求帧。
+- x86_64 macOS release：宿主组合所需的 11 个生产库构建成功，窗口、无窗口退出、Surface 3 项测试全部在 Rosetta 下通过。两架构共 11 项运行通过；本次未重复 x86_64 的整套 UI／下载构建，Rosetta 也不代表真实 Intel 硬件验收。Windows／Linux 仍在独立分支补齐。
+- 本次 runtime ABI 更新后，按当前源码同步构建编译器及 `scoop-pm` 等配套命令，并准备两架构 runtime 及上述依赖；旧 package manager 导致的 ABI 拒绝已通过重建闭合，准备文档已明确工具须配套更新。复验按受影响组合集中进行，没有运行编译器全量测试或重跑 P1–S1 的其他用例。
+- timer 与下载应用的 aarch64 release 可执行程序构建成功。11 个修改／新增 Scoop 文件格式检查、文档本地链接及 diff 检查通过；相关 UI 基础库与示例没有遗留旧 EventLoop 构造／runWithResult 或显式 suspend lambda。无未闭合失败；清理本轮临时构建脚本、诊断采样和原始日志，保留生产／测试产物及共享 Cone cache。

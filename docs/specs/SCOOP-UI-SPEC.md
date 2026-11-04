@@ -753,9 +753,9 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 
 需要异步 I/O 的应用显式组合 UiHost 与 `scoop.window.asyncio` 的 Application.runWithAsyncio，复用附着在窗口 owner 上的 PlatformEventLoop、EventLoopSession 和 currentApplicationScope。普通单窗口便利入口不隐式建立 I/O loop；不在 render 或事件回调内嵌套 PlatformEventLoop.run。asyncio、HTTP client 等是使用者／集成示例的实际依赖，不为此加入 UI 核心的公共签名或生产依赖。
 
-默认在该 EventLoop 的活动应用作用域中创建并复用 HttpClient，下载作为子任务执行。同一 client 可由所属 EventLoop 的多个任务并发使用。网络及异步文件等待挂起协程，窗口循环继续处理事件；内核／原生 callback／worker 发布完成，由 asyncio 在 owner 消费并恢复自己的 I/O 等待。此路径的进度回调可直接更新同 owner 的 State；setter 只安排逻辑更新，不同步绘制。
+默认在该 EventLoop 的活动应用作用域中创建并复用 HttpClient，下载作为子任务排队执行。同一 client 可由所属 EventLoop 的多个任务并发使用。网络及异步文件等待挂起协程，窗口循环继续处理事件；内核／原生 callback／worker 发布完成，由 asyncio 在 owner 消费并通过 continuation 返回调用者的 executor。默认应用任务的 executor 是 owner，因此其进度回调可直接更新同 owner 的 State；setter 只安排逻辑更新，不同步绘制。launch／async 返回不保证正文已经进入，业务初始化和启动前取消须按实际任务状态处理。
 
-上述恢复保证只覆盖 asyncio 自己的 I/O，任意第三方 suspend 函数仍可能在其他线程恢复。launch 和 Context 本身都不提供线程切换或强制 UI 线程亲和性；计算密集工作也不会因位于 suspend 函数中而自动移出主线程。真实跨线程结果通过 ApplicationProxy.post 或 EventLoopSession.post 交付；需要挂起的后续业务在目标 scope 中启动子任务。
+应用作用域中的任意真实挂起都保留其 execution，包括第三方 continuation、Channel 和 blocking；外部完成排队回 owner。计算密集工作通过显式 withExecutor／launch(executor) 交给后台 executor，同步阻塞调用通过 blocking 在独立阻塞池执行；仅写 suspend 不会把计算移出 owner。后台任务在 I/O 完成后仍回自己的 executor，需要更新 UI 时显式 withExecutor(loop.executor)，或向保存了 owner executor 的应用作用域启动子任务。普通线程／native callback 的快照通过 ApplicationProxy.post 或 EventLoopSession.post 交付。Context 只传播 binding，不承担调度。
 
 跨线程投递携带稳定的值／只读 class 快照，发送方在交付期间不再修改快照及其引用的数据；整个 State 读改写与通知在 owner 上执行。不在后台先修改 State 再只投递 render，也不让 State setter 隐式变成异步写入。Context 只传递依赖对象；proxy／session 投递执行于接收方的运行 Context，不继承外线程投递时的临时绑定。业务 post 的 false 表示拒绝，true 仍可能在关闭时被丢弃；取消和实际资源清理继续使用下层已有的收尾通路。
 

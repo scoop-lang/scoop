@@ -180,9 +180,9 @@ ApplicationOptions.lastWindowPolicy 为 KeepRunning／Exit，默认 KeepRunning�
 
 ## 8. asyncio 集成
 
-Application.runWithAsyncio(handler) 是独立 Cone 的扩展，复用 PlatformEventLoop.attach 与 EventLoopSession。业务 handler 及 proxy 消息在 session 根 Context 下运行，currentEventLoop 与 currentApplicationScope 可用。根取消及时触发窗口收尾控制，不等 onClosed 才开始释放窗口；退出时 requestClose，继续原生循环至 onClosed。Exiting／Closing／Destroyed 在 owner 收尾 Context 执行，没有活动业务 scope。用于派发通知的内部唤醒不得循环生成 NewEvents／AboutToWait。
+Application.runWithAsyncio(handler) 是独立 Cone 的扩展，复用 eventLoop().attach 与 EventLoopSession。业务 handler 及 proxy 消息在 session 根 Context 和 owner 的 LoopExecutor 上运行，currentEventLoop 与 currentApplicationScope 可用。应用作用域保存该 executor；从其他 executor 调用捕获的应用作用域 launch／async，默认子任务仍排队到 owner。调用方须在发布前准备好任务状态，不把 launch 返回当成正文已经执行。根取消及时触发窗口收尾控制，不等 onClosed 才开始释放窗口；退出时 requestClose，继续原生循环至 onClosed。Exiting／Closing／Destroyed 在 owner 收尾 Context 执行，没有活动业务 scope。用于派发通知的内部唤醒不得循环生成 NewEvents／AboutToWait。
 
-原始 Application.run 不初始化 io_uring；集成入口继承 asyncio 的平台要求。第三方挂起函数不自动获得 UI 线程亲和性；跨线程窗口操作通过 proxy 返回 owner。
+原始 Application.run 不初始化 io_uring；集成入口继承 asyncio 的平台要求。应用作用域的协程在任意真实挂起后都由保存的 execution 排队回 owner，包括第三方 continuation、Channel 和 blocking 的完成。显式 withExecutor／launch(executor) 可将工作交给后台 executor；EventLoop binding 仍表示 I/O 服务归属，其完成返回调用者的 executor。后台协程通过 withExecutor(loop.executor) 执行 owner 操作；普通线程／native callback 使用 proxy，或向已捕获的应用作用域启动任务。普通 Context binding 本身不切换线程，Canvas、窗口和可变 UI 状态仍只能由 owner 操作。
 
 `scoop.window.native` 为当前集成 Cone 提供以下公开低层接口，不暴露 internal owner：
 

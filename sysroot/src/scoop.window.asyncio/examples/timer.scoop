@@ -24,7 +24,7 @@ private class TimerWindow: ApplicationHandler {
                     )
                 window.requestFocus()
                 val loop = currentEventLoop()
-                currentApplicationScope().launch suspend {
+                currentApplicationScope().launch {
                     var seconds = 0L
                     while (true) {
                         loop.sleep(Duration.seconds(1L))
