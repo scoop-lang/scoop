@@ -65,6 +65,7 @@ private class HttpClientResponseDecodingCancellationTest {
                                         failure.value = Some(error)
                                     }
                                 }
+                            yieldCoroutine()
                             assertFalse(reading.isCompleted)
                             if (cancelReader)
                                 reading.cancel()

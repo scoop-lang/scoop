@@ -28,9 +28,11 @@ private class AsyncCompressionCancellationTests {
                         ensureActive()
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(pending.running)
                     val first = scope.launch suspend { source.close() }
                     val second = scope.launch suspend { source.close() }
+                    yieldCoroutine()
                     assertTrue(pending.job!!.isCancelled)
                     assertFalse(reader.isCompleted)
                     assertFalse(first.isCompleted)
@@ -86,6 +88,7 @@ private class AsyncCompressionCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(pending.running)
                     assertTrue(input.readPosition > 0L && input.readPosition <= 8192L)
                     assertFalse(writer.isCompleted)

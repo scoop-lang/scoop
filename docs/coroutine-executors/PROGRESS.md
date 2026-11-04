@@ -11,8 +11,8 @@
 | LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 本地验收 |
 | AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
 | 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin 本地验收，其他平台待运行 |
-| HTTP 等上层消费者审计与验收 | 未开始 |
-| Linux/Windows 组合验证及最终清理 | 未开始 |
+| HTTP 等上层消费者审计与验收 | 已完成 Darwin 本地验收；Surface 运行受本机 Skia 资源限制 |
+| Linux/Windows 组合验证及最终清理 | 进行中；Linux 基础库已构建，Windows 编译器构建中 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
 
@@ -99,3 +99,10 @@
 - 独立 native task 保留已投递工作的退休责任。Queued 取消可立即释放 payload 与借用，已投递空任务实际出队后才退出 native idle 计数；Running 仍等待真实 syscall 返回。共享池拒绝时沿正常失败／释放路径退休。两项新增行为测试覆盖普通 blocking 与文件工作共用单线程池、排队取消和拒绝后的完整关闭。
 - 退役公开 NativeWork、runNativeWork 及 TLS execute/release 指针工厂。TLS 使用类型化 managed 工作对象与同步 FFI；系统装载在交付前检查取消并关闭未交付结果，验证继续在引擎锁内应用结果。测试占用真实 managed 池，原生独立测试显式驱动任务，不保留另一套测试线程池。外部线程恢复的 TLS 断言同步为返回原 executor。
 - 验证：Scoop／C 格式化、diff 检查、release 库构建通过；163 项 asyncio tests、23 项 TLS asyncio tests 及 2 项独立 consumer tests 全部通过。移动 GC／minor GC stress 的 10 项定向测试通过，覆盖共享池、真实 FIFO 退休、AsyncRuntime 与跨 executor TLS。原生三平台源码和 Windows 专有测试已迁移；本轮实际运行平台为 Darwin AArch64，Linux／Windows 和 HTTP 等上层消费者仍待集中验收。
+
+## 上层库的排队启动与所有权（2026-11-04）
+
+- HTTP/1、HTTP/2、WebSocket、Client 和 Server 的工厂使用明确的初始化通知，等待所有者状态及取消监听安装完成后再交付对象。启动前取消与正文进入竞争同一个接管状态，避免 launch 排队后被误判为未启动，以及两方重复清理资源；HTTP/2 空闲计时器使用相同的单次清理原则。
+- 更新 HTTP 相关规范及调用方；共享认证、SSE、压缩和 WebSocket 的时序测试通过实际开始通知或显式 yield 建立被测操作的先后关系。新增启动前取消后 transport/listener 仍可复用的测试，以及真实多 worker HTTP/1、HTTP/2 consumer。
+- 验证：Scoop 格式化、diff 检查及全部系统库 release 构建通过。HTTP asyncio 146 项、Client 254 项、Server 151 项分批覆盖全部通过；Server consumer 6 项通过，其中真实 runtime 用例另在移动 GC／minor GC stress 下通过。Compression 49 项、Terminal asyncio 3 项、真实 PTY fixture 2 项、Window 宿主 1 项和系统 TLS/mTLS fixture 1 项通过。
+- Surface asyncio 源码检查通过，运行验收被本机已有 Skia archive 缺少 PathOps 符号阻断；仓库已有对应 vendor 补丁，本轮未扩展修改图形库。实际执行平台为 Darwin AArch64；Linux／Windows 按完整能力闭环集中验证。

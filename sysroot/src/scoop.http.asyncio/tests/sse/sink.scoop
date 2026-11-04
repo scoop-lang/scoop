@@ -85,11 +85,13 @@ private class SseSinkTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 expectMessageFailure<IllegalStateException> suspend { sink.comment("overlap") }
                 assertFalse(present(sink.failure))
                 val first = scope.launch suspend { sink.close() }
                 val second = scope.launch suspend { sink.close() }
+                yieldCoroutine()
                 assertFalse(sending.isCompleted || first.isCompleted || second.isCompleted)
                 assertTrue(pending.job!!.isCancelled)
                 assertFalse(pending.buffer!!.isClosed)

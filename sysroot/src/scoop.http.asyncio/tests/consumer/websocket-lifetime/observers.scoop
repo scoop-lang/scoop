@@ -33,6 +33,7 @@ internal fun wsObservers(cleanup: Boolean) {
                 }
                 wsCheck(session.isClosed, "observed real close")
             }
+        yieldCoroutine()
         cancelled.cancel();
         cancelled.join()
         wsCheck(

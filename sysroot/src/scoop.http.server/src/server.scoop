@@ -66,15 +66,12 @@ public class HttpServer private constructor(private val state: ServerState): Asy
             val state = ServerState(listener, application, options, loop)
             val server = HttpServer(state)
             try {
-                scope.launch suspend {
+                startServerTask(caller, scope) {
+                    ready ->
                     val owner = currentJobOrNone()!!
                     state.lock.withLock { state.owner = Some(owner) }
+                    ready.trySend(Unit)
                     runServer(state)
-                }
-                if (!state.lock.withLock { present(state.owner) }) {
-                    caller.ensureActive();
-                    scope.job.ensureActive()
-                    throw IllegalStateException(Some("HTTP server owner was not registered"))
                 }
                 caller.ensureActive()
                 state.reportFailure()
@@ -177,16 +174,18 @@ internal suspend fun runServer(state: ServerState) {
                         continue
                     }
                     try {
-                        scope.launch suspend { runServerConnection(state, connection) }
+                        startServerTask(scope.job, scope) {
+                            ready ->
+                            val owner = job
+                            state.lock.withLock { connection.job = Some(owner) }
+                            ready.trySend(Unit)
+                            runServerConnection(state, connection)
+                        }
                     }
                     catch (error: Throwable) {
                         state.unregister(connection);
                         transport.close();
                         throw error
-                    }
-                    if (!state.lock.withLock { present(connection.job) }) {
-                        state.unregister(connection)
-                        transport.close()
                     }
                 }
             } catch (error: Throwable) {

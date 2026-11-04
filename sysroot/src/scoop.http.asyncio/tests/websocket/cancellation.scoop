@@ -27,10 +27,12 @@ private class AsyncWebSocketCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(input.running)
                 expectMessageFailure<IllegalStateException> suspend { session.receive() }
                 val first = scope.launch suspend { session.close() }
                 val second = scope.launch suspend { session.close() }
+                yieldCoroutine()
                 assertTrue(input.job!!.isCancelled)
                 assertFalse(first.isCompleted || second.isCompleted || reading.isCompleted)
                 assertEquals(0, transport.closes)
@@ -81,6 +83,7 @@ private class AsyncWebSocketCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(input.running && output.running)
                     assertEquals(2L, buffer.readPosition)
                     val cancelling = Thread.start { writing.cancel() }

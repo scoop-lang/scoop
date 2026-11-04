@@ -18,11 +18,13 @@ private class SseSourceCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 expectMessageFailure<IllegalStateException> suspend { source.next() }
                 assertFalse(present(source.failure))
                 val first = scope.launch suspend { source.close() }
                 val second = scope.launch suspend { source.close() }
+                yieldCoroutine()
                 assertTrue(pending.job!!.isCancelled)
                 assertFalse(reader.isCompleted || first.isCompleted || second.isCompleted)
                 assertEquals(0, pending.closes)
@@ -62,6 +64,7 @@ private class SseSourceCancellationTests {
                     }
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 reader.cancel()
                 assertTrue(pending.job!!.isCancelled)

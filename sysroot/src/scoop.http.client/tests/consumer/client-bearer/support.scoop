@@ -134,6 +134,22 @@ internal class BearerFailureHolder {
     var value: Throwable? = None
 }
 
+// On this owner executor, the attempt continues to the shared token wait before
+// the signalled test coroutine gets its next turn.
+internal fun bearerWaitingRequest(url: Url, entered: BearerGate): HttpRequest =
+    httpRequest(url) {
+        options =
+            httpCallOptions {
+                observer =
+                    Some(
+                        HttpObserver {
+                            event -> if (event.kind == HttpCallEventKind.AttemptStarted)
+                                entered.signal()
+                        }
+                    )
+            }
+    }
+
 internal class BearerContext(val name: String)
 
 context(value: BearerContext)

@@ -1,0 +1,88 @@
+package scoop.tests.http.server.consumer
+
+import scoop.asyncio.*
+import scoop.http.HttpVersion
+import scoop.http.client.*
+import scoop.http.server.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.test.*
+import scoop.time.Duration
+import scoop.url.Url
+
+@Test
+private class HttpRuntimeConsumerTest {
+    @Test
+    fun `worker client and server own queued tasks and preserve executor across HTTP1 and HTTP2`() {
+        val owner = currentThreadId()
+        asyncRuntime {
+            workers = 3
+            blocking { threads = 1 }
+        }.run {
+            val scope = this
+            val loop = currentEventLoop()
+            val executor = currentCoroutineExecutorOrNone()!!
+            val served = AtomicInt(0)
+            HttpServer.listen(
+                scope,
+                port = 0,
+                options = httpServerOptions { allowCleartextHttp2 = true }
+            ) {
+                get("/workers") {
+                    _ ->
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    withExecutor(loop.executor) {
+                        assertEquals(owner, currentThreadId())
+                        loop.sleep(Duration.nanoseconds(1L))
+                    }
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    served.fetchAdd(1)
+                    text("worker response")
+                }
+            }.useAsync {
+                server ->
+                val url =
+                    Url.parse(
+                        "http://127.0.0.1:" + server.localAddress.port.toString() + "/workers"
+                    )
+                for (version in [HttpVersion.Http11, HttpVersion.Http2]) {
+                    HttpClient.open(
+                        scope,
+                        httpClientConfig {
+                            versionPolicy =
+                                if (version == HttpVersion.Http2)
+                                    HttpVersionPolicy.Http2Only
+                                else
+                                    HttpVersionPolicy.Http1Only
+                            cleartext =
+                                if (version == HttpVersion.Http2)
+                                    HttpCleartextProtocol.Http2PriorKnowledge
+                                else
+                                    HttpCleartextProtocol.Http1
+                        }
+                    ).useAsync {
+                        client ->
+                        val requests =
+                            Array<Deferred<Unit>>(4L) {
+                                scope.async {
+                                    client.withResponse(httpRequest(url)) {
+                                        response ->
+                                        assertEquals(200U, response.status)
+                                        assertEquals(version, response.version)
+                                        assertEquals(
+                                            "worker response",
+                                            String.fromUtf8(response.body.readAllBytes(100L))
+                                        )
+                                    }
+                                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                                }
+                            }
+                        for (request in requests)
+                            request.await()
+                    }
+                }
+                assertEquals(8, served.load())
+                server.shutdownGracefully()
+            }
+        }
+    }
+}

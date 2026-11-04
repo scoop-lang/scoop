@@ -38,9 +38,11 @@ private class AsyncWebSocketDeflateCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(input.running && output.running)
                     flushing.cancel()
                     val closing = scope.launch suspend { session.close() }
+                    yieldCoroutine()
                     assertTrue(input.job!!.isCancelled && output.job!!.isCancelled)
                     assertFalse(flushing.isCompleted || closing.isCompleted)
                     assertEquals(0, transport.closes)

@@ -120,6 +120,7 @@ private class HttpClientPoolHttp1Test {
                                     cancelled.value = Some(error)
                                 }
                             }
+                        yieldCoroutine()
                         assertFalse(pending.isCompleted)
                         pending.cancel();
                         pending.join()

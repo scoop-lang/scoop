@@ -22,6 +22,7 @@ private class MultipartSourceCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(endpoint.pending.running)
                 expectMessageFailure<IllegalStateException> suspend { source.nextPart() }
                 NativeByteBuffer.allocate(1L).use suspend {
@@ -32,6 +33,7 @@ private class MultipartSourceCancellationTests {
                 assertFalse(present(source.failure))
                 val first = scope.launch suspend { part.body.close() }
                 val second = scope.launch suspend { source.close() }
+                yieldCoroutine()
                 assertTrue(endpoint.pending.job!!.isCancelled)
                 assertFalse(reading.isCompleted || first.isCompleted || second.isCompleted)
                 assertEquals(0, endpoint.pending.closes)
@@ -71,6 +73,7 @@ private class MultipartSourceCancellationTests {
                     }
                 }
             try {
+                yieldCoroutine()
                 reading.cancel()
                 assertTrue(input.running && input.job!!.isCancelled)
                 assertFalse(reading.isCompleted)

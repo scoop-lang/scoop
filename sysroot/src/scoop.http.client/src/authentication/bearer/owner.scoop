@@ -4,7 +4,10 @@ import scoop.http.HttpCredentials
 
 internal fun startClientBearerFlight(flight: ClientBearerFlight) {
     try {
-        flight.parent.launch suspend {
+        launchClientTask(
+            flight.parent,
+            { error -> finishClientBearerFlight(flight, ClientBearerOutcome.Failed(error)) }
+        ) {
             suspendCoroutine<Unit> {
                 hold ->
                 flight.client.lock.withLock { flight.hold = Some(hold) }
@@ -14,12 +17,6 @@ internal fun startClientBearerFlight(flight: ClientBearerFlight) {
                 )
             }
         }
-        if (
-            !flight.client.lock.withLock {
-                clientPresent(flight.hold) || clientPresent(flight.outcome)
-            }
-        )
-            finishClientBearerFlight(flight, ClientBearerOutcome.Failed(CancellationException()))
     } catch (error: Throwable) {
         finishClientBearerFlight(flight, ClientBearerOutcome.Failed(error))
     }

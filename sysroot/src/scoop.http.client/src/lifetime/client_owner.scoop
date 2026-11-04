@@ -1,24 +1,47 @@
 package scoop.http.client
 
-internal fun startClientOwner(state: ClientState, parent: CoroutineScope) {
-    parent.launch suspend {
-        suspendCoroutine<Unit> {
-            hold ->
-            state.lock.withLock {
-                state.ownerHold = Some(hold);
-                state.adopted = true
+import scoop.concurrent.*
+
+internal suspend fun startClientOwner(state: ClientState, parent: CoroutineScope, caller: Job) {
+    val ready = Channel<Unit>(1L)
+    val task =
+        launchClientTask(parent, { _ -> ready.close() }) {
+            try {
+                suspendCoroutine<Unit> {
+                    hold ->
+                    state.lock.withLock {
+                        state.ownerHold = Some(hold)
+                        state.adopted = true
+                    }
+                    startCoroutine<Unit>(
+                        { runClientOwner(state, ready) },
+                        ClientOwnerCompletion(state)
+                    )
+                }
+            } finally {
+                ready.close()
             }
-            startCoroutine<Unit>(suspend { runClientOwner(state) }, ClientOwnerCompletion(state))
         }
+    val cancelled = caller.invokeOnCancellation { _ -> task.cancel() }
+    try {
+        nonCancellableScope { ready.receive() }
+    } catch (error: ChannelClosedException) {
+        caller.ensureActive()
+        task.ensureActive()
+        state.lock.withLock { throw (state.closeFailure ?: HttpClientClosedException()) }
+    } finally {
+        cancelled.dispose()
+        ready.close()
     }
 }
 
-private suspend fun runClientOwner(state: ClientState) {
+private suspend fun runClientOwner(state: ClientState, ready: Channel<Unit>) {
     coroutineScope {
         val scope = this
 
         state.lock.withLock { state.scope = Some(scope) }
         val listener = scope.job.invokeOnCancellation { _ -> stopClient(state) }
+        ready.trySend(Unit)
         try {
             driveClientPool(state, scope)
         } catch (error: Throwable) {

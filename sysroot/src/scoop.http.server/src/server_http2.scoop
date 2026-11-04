@@ -50,9 +50,11 @@ internal suspend fun <T> serveHttp2(
                 }
                 val launched = AtomicBoolean(false)
                 try {
-                    requests.launch suspend {
+                    startServerTask(requests.job, requests) {
+                        ready ->
                         launched.store(true)
                         try {
+                            ready.trySend(Unit)
                             executeHttp2Request(state, entry, activity, request, requestId!!)
                         }
                         finally {

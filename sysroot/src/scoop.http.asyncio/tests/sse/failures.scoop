@@ -108,6 +108,7 @@ private class SseSourceFailureTests {
                 scope.launch suspend {
                     failures.add(expectMessageFailure<CleanupFailure> suspend { source.close() })
                 }
+            yieldCoroutine()
             assertFalse(first.isCompleted || second.isCompleted || source.isClosed)
             assertEquals(1, input.closes)
             gate.signal()

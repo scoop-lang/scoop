@@ -34,46 +34,45 @@ internal suspend fun adoptH2(
             captureTimings
         )
     try {
-        scope.launch suspend {
-            coroutineScope<Unit> {
-                val owned = this
+        awaitHttpOwnerStart(caller) {
+            ready -> scope.launch suspend {
+                coroutineScope<Unit> {
+                    val owned = this
 
-                val job = httpJob(loop, true)
-                suspendCoroutine<Unit> {
-                    continuation ->
-                    state.lock.withLock {
-                        caller.ensureActive();
-                        job.ensureActive()
-                        state.ownerScope = Some(owned)
-                        state.ownerJob = Some(job)
-                        state.ownerWaiter = Some(continuation)
-                        state.adopted = true
-                    }
-                    val listener =
-                        job.invokeOnCancellation {
-                            error ->
-                            state.lock.withLock { terminateH2(state, error) }
-                            driveH2(state)
-                        }
-                    val closed =
+                    val job = httpJob(loop, true)
+                    suspendCoroutine<Unit> {
+                        continuation ->
                         state.lock.withLock {
-                            if (state.closed)
-                                true
-                            else {
-                                state.ownerListener = Some(listener);
-                                false
-                            }
+                            caller.ensureActive();
+                            job.ensureActive()
+                            state.ownerScope = Some(owned)
+                            state.ownerJob = Some(job)
+                            state.ownerWaiter = Some(continuation)
+                            state.adopted = true
                         }
-                    if (closed)
-                        listener.dispose()
+                        val listener =
+                            job.invokeOnCancellation {
+                                error ->
+                                state.lock.withLock { terminateH2(state, error) }
+                                driveH2(state)
+                            }
+                        val closed =
+                            state.lock.withLock {
+                                if (state.closed)
+                                    true
+                                else {
+                                    state.ownerListener = Some(listener);
+                                    false
+                                }
+                            }
+                        if (closed)
+                            listener.dispose()
+                        ready.trySend(Unit)
+                    }
                 }
             }
         }
-        if (!state.lock.withLock { state.adopted }) {
-            caller.ensureActive();
-            scope.job.ensureActive()
-            throw IllegalStateException(Some("HTTP connection task could not be registered"))
-        }
+
         if (present(state.upgrade))
             listenH2Stream(state, state.upgrade!!, caller)
         driveH2(state)

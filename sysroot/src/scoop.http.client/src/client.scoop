@@ -41,7 +41,7 @@ public class HttpClient internal constructor(internal val state: ClientState): A
                 )
             val state = ClientState(loop, config, context, cachePartition)
             try {
-                startClientOwner(state, scope)
+                startClientOwner(state, scope, caller)
                 caller.ensureActive()
                 state.lock.withLock {
                     if (!clientPresent(state.scope) || state.closing)

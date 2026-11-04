@@ -32,6 +32,7 @@ private class AsyncHttp2FailureTests {
                     limits = Http2Limits(maxContinuations = 1L)
                 )
             try {
+                yieldCoroutine()
                 sendBytes(b, wireFrame(4, 0, 0))
                 val first = client.openRequest(request2())
                 val second = client.openRequest(request2())

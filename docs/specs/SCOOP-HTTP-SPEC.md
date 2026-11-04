@@ -203,6 +203,8 @@ HttpIoTimeoutException 保存 direction（HttpIoDirection.Read／Write）、prot
 
 ### 7.2 关闭与所有权
 
+启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
+
 close 只保证本地收尾，不隐含 flush 或对端确认；先拒绝新操作，关闭接管的传输，等待实际 I/O、native 借用和未交付资源结束，再释放协议状态。并发 close 等待同一次收尾，后续幂等。允许在已取消 Job 的 finally 中完成；清理不能因该取消提前退出。正文和清理同时失败使用 ResourceUseException。
 
 HTTP/1 已因本次操作的任务取消选择关闭原因后，底层读取／写入因同一次关闭返回的 IoClosedException 不替换原 CancellationException；独立的协议或 I/O 故障仍保留原类型。由此产生的清理失败仍通过 ResourceUseException 保留，取消结果也必须等实际关闭及借用结束后交付。

@@ -23,6 +23,7 @@ private class MultipartSinkCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(output.running)
                 expectMessageFailure<IllegalStateException> suspend {
                     sink.beginPart(MultipartPartHead())
@@ -32,6 +33,7 @@ private class MultipartSinkCancellationTests {
                 assertFalse(present(sink.failure))
                 val first = scope.launch suspend { sink.close() }
                 val second = scope.launch suspend { sink.close() }
+                yieldCoroutine()
                 assertTrue(output.job!!.isCancelled)
                 assertFalse(first.isCompleted || second.isCompleted || writing.isCompleted)
                 assertEquals(0, output.closes)
@@ -75,6 +77,7 @@ private class MultipartSinkCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertEquals(2L, buffer.readPosition)
                     writing.cancel()
                     assertTrue(output.running && output.job!!.isCancelled)

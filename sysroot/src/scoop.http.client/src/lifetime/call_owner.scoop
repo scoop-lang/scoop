@@ -19,7 +19,7 @@ internal suspend fun executeClientAttempt(
                 state.scope!!
             }
         try {
-            scope.launch suspend {
+            launchClientTask(scope, { error -> finishUnstartedClientCall(call, error) }) {
                 suspendCoroutine<Unit> {
                     hold ->
                     call.lock.withLock { call.hold = Some(hold) }
@@ -29,8 +29,6 @@ internal suspend fun executeClientAttempt(
                     )
                 }
             }
-            if (!call.lock.withLock { clientPresent(call.hold) || call.completed })
-                finishUnstartedClientCall(call, CancellationException())
         } catch (error: Throwable) {
             finishUnstartedClientCall(call, error)
         }

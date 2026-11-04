@@ -1,0 +1,40 @@
+package scoop.http.server
+
+import scoop.concurrent.*
+
+internal suspend fun startServerTask(
+    caller: Job,
+    parent: CoroutineScope,
+    block: suspend CoroutineScope.(Channel<Unit>) -> Unit
+): Job {
+    val ready = Channel<Unit>(1L)
+    val claimed = AtomicBoolean(false)
+    val task =
+        parent.launch {
+            if (claimed.compareAndSet(false, true)) {
+                try {
+                    block(this, ready)
+                } finally {
+                    ready.close()
+                }
+            }
+        }
+    val stopped =
+        task.invokeOnCancellation {
+            _ -> if (claimed.compareAndSet(false, true))
+                ready.close()
+        }
+    val cancelled = caller.invokeOnCancellation { _ -> task.cancel() }
+    try {
+        nonCancellableScope { ready.receive() }
+        return task
+    } catch (error: ChannelClosedException) {
+        caller.ensureActive()
+        task.ensureActive()
+        throw IllegalStateException(Some("HTTP server task ended before initialization"))
+    } finally {
+        cancelled.dispose()
+        stopped.dispose()
+        ready.close()
+    }
+}

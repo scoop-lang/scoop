@@ -26,6 +26,7 @@ internal fun wsSourceClose() {
         source.started.await()
         val closing = scope.launch suspend { session.close() }
         try {
+            source.cancelled.await()
             wsCheck(source.cancelled.ready, "close did not cancel the suspended send source")
             wsCheck(
                 !closing.isCompleted && !session.isClosed,
