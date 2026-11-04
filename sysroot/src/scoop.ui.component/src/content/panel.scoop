@@ -5,7 +5,7 @@ import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-/** Typed caption input shared by the card, alert, and empty-state panels. */
+/** Typed text or a custom view used by content components. */
 public enum PanelContent {
     Label(LabelProps), Custom(View)
 }

@@ -104,6 +104,34 @@ public open class ChildrenBuilder internal constructor() {
         add(makeSpinner(configure))
     }
 
+    public fun avatar(fallback: String, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Label(LabelProps(LabelText.Plain(fallback, None))), configure))
+    }
+    public fun avatar(fallback: StyledText, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Label(LabelProps(LabelText.Styled(fallback))), configure))
+    }
+    public fun avatar(fallback: View, configure: AvatarBuilder.() -> Unit = {}): Unit {
+        add(makeAvatar(PanelContent.Custom(fallback), configure))
+    }
+    public fun avatarGroup(
+        size: AvatarSize = AvatarSize.Default,
+        configure: AvatarGroupBuilder.() -> Unit
+    ): Unit {
+        add(makeAvatarGroup(size, configure))
+    }
+    public fun skeleton(configure: SkeletonBuilder.() -> Unit = {}): Unit {
+        add(makeSkeleton(empty(), Some(16.0), configure))
+    }
+    public fun skeleton(content: View, configure: SkeletonBuilder.() -> Unit = {}): Unit {
+        add(makeSkeleton(content, None, configure))
+    }
+    public fun progress(value: Double?, configure: ProgressBuilder.() -> Unit = {}): Unit {
+        add(makeProgress(value, configure))
+    }
+    public fun progress(value: Double, configure: ProgressBuilder.() -> Unit = {}): Unit {
+        add(makeProgress(Some(value), configure))
+    }
+
     public fun card(content: View, configure: CardBuilder.() -> Unit = {}): Unit {
         add(makeCard(content, configure))
     }

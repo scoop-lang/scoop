@@ -1,6 +1,7 @@
 package scoop.examples.ui.shadcn
 
 import scoop.charset.unicodeCasefold
+import scoop.graphics.Image
 import scoop.text.contains
 import scoop.ui.*
 import scoop.ui.style.*
@@ -8,7 +9,7 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress
 }
 
 internal enum ControlDemo {
@@ -27,6 +28,9 @@ internal fun demoTitle(value: Demo): String =
         case AspectRatio -> "Aspect Ratio"
         case Alert -> "Alert"
         case Empty -> "Empty"
+        case Avatar -> "Avatar"
+        case Skeleton -> "Skeleton"
+        case Progress -> "Progress"
     }
 
 internal class GalleryModel {
@@ -61,6 +65,19 @@ internal class GalleryModel {
     val alertFocus = FocusHandle()
     val emptyFocus = FocusHandle()
     val emptyQuery = TextEditorState()
+    val avatarMode = state(2)
+    var avatarImages: Array<Image> = []
+    val skeletonLoading = state(true)
+    val skeletonAnimated = state(true)
+    val skeletonChildRunning = state(false)
+    val skeletonFocus = FocusHandle()
+    val loadingExtent = state(520.0)
+    val loadingTransparent = state(false)
+    val skeletonScroll = ScrollState()
+    val progressScroll = ScrollState()
+    val progressValue = state<Double?>(None)
+    var skeletonCreates = 0
+    var skeletonCount = 0
 
     fun toggleTheme() {
         val next =
@@ -105,7 +122,10 @@ internal class GalleryModel {
                 Demo.Separator,
                 Demo.AspectRatio,
                 Demo.Alert,
-                Demo.Empty
+                Demo.Empty,
+                Demo.Avatar,
+                Demo.Skeleton,
+                Demo.Progress
             ]
         )
             if (unicodeCasefold(demoTitle(entry)).contains(search))

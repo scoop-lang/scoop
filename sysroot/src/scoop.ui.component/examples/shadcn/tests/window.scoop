@@ -13,6 +13,9 @@ import scoop.ui.*
 import scoop.ui.component.alert
 import scoop.ui.component.frame
 import scoop.ui.component.emptyState
+import scoop.ui.component.progress
+import scoop.ui.component.avatarGroup
+import scoop.ui.component.AvatarSize
 import scoop.ui.style.*
 import scoop.window.*
 
@@ -26,8 +29,12 @@ private class GalleryWindowTest {
     fun `content panels retain focused bodies across optional sections narrow layouts and theme changes`() {
         runGallery(true)
     }
-    private fun runGallery(panels: Boolean) {
-        val probe = GalleryProbe(panels)
+    @Test
+    fun `loading controls retain content borrow images and stop invisible animation`() {
+        runGallery(false, true)
+    }
+    private fun runGallery(panels: Boolean, loading: Boolean = false) {
+        val probe = GalleryProbe(panels, loading)
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
         try {
             context(probe.model.source) {
@@ -44,6 +51,7 @@ private class GalleryWindowTest {
             assertFalse(probe.model.cardFocus.isAttached)
             assertFalse(probe.model.alertFocus.isAttached)
             assertFalse(probe.model.emptyFocus.isAttached)
+            assertFalse(probe.model.skeletonFocus.isAttached)
         } catch (error: Throwable) {
             println(f"gallery phase=${probe.phase}, paints=${probe.paints}")
             galleryFailure(error)
@@ -78,7 +86,7 @@ private fun galleryFailure(error: Throwable) {
                 println(error.message ?: "gallery failure")
 }
 
-internal class GalleryProbe(val panelMode: Boolean = false) {
+internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boolean = false) {
     val model = GalleryModel()
     val fonts = FontCollection(false)
     var native: Window? = None
@@ -87,15 +95,21 @@ internal class GalleryProbe(val panelMode: Boolean = false) {
     var paints = 0
     var pixel = -1L
     var phase =
-        if (panelMode)
-            43
-        else
-            0
-    private val endPhase =
-        if (panelMode)
+        if (loadingMode)
             65
         else
-            43
+            if (panelMode)
+                43
+            else
+                0
+    private val endPhase =
+        if (loadingMode)
+            122
+        else
+            if (panelMode)
+                65
+            else
+                43
     var finished = false
     var invalidRing: OutlineRing? = None
     var invalidBorder: Color? = None
@@ -104,6 +118,7 @@ internal class GalleryProbe(val panelMode: Boolean = false) {
     var disabledRing: OutlineRing? = None
     private val actions = GalleryActions(this)
     private val panels = GalleryPanels(this)
+    private val loading = GalleryLoading(this)
     private var afterPaint = 0
     private var waiting = false
     init {
@@ -112,6 +127,10 @@ internal class GalleryProbe(val panelMode: Boolean = false) {
         observeTheme()
         if (panelMode)
             model.selected.value = Demo.Card
+        if (loadingMode) {
+            model.selected.value = Demo.Avatar
+            model.skeletonLoading.value = false
+        }
     }
     private fun observeTheme() {
         model.source.current.value = GalleryTheme(model.source.current.value, this)
@@ -147,6 +166,10 @@ internal class GalleryProbe(val panelMode: Boolean = false) {
         if (phase >= endPhase || waiting || paints <= afterPaint || pixel < 0L)
             return
         afterPaint = paints
+        if (loadingMode) {
+            loading.advance(active)
+            return
+        }
         if (panelMode) {
             panels.advance(active)
             return
@@ -272,13 +295,16 @@ internal class GalleryProbe(val panelMode: Boolean = false) {
         )
     }
     private fun deadline(active: ActiveApplication) {
-        if (panelMode)
-            panels.deadline(active)
+        if (loadingMode)
+            loading.deadline(active)
         else
-            if (phase >= 14)
-                actions.deadline(active)
+            if (panelMode)
+                panels.deadline(active)
             else
-                fail(Some(f"gallery timed out at phase ${phase}"))
+                if (phase >= 14)
+                    actions.deadline(active)
+                else
+                    fail(Some(f"gallery timed out at phase ${phase}"))
     }
     internal fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
@@ -331,6 +357,28 @@ private class ObservedGallery(private val probe: GalleryProbe): Component {
                     }
                 )
             )
+        if (probe.loadingMode) {
+            children.add(
+                progress(25.0) {
+                    this.label("Progress")
+                    this.showValue = true
+                    this.fonts = Some(this @ObservedGallery.probe.fonts)
+                }
+            )
+            children.add(
+                avatarGroup {
+                    this.avatar("AA") {
+                        this.size = AvatarSize.Sm;
+                        this.fonts = Some(this @ObservedGallery.probe.fonts)
+                    }
+                    this.avatar("BB") { this.fonts = Some(this @ObservedGallery.probe.fonts) }
+                    this.avatar("CC") {
+                        this.size = AvatarSize.Lg;
+                        this.fonts = Some(this @ObservedGallery.probe.fonts)
+                    }
+                }
+            )
+        }
         return element({ GalleryCanvas(probe) }, children.toArray())
     }
 }
@@ -347,6 +395,12 @@ private class GalleryCanvas(private val probe: GalleryProbe): Element {
             val intrinsic = context.measureChild(2L, Constraints())
             assertEquals(Size(432.0, 72.0), intrinsic.size)
             // These children check measurement and are not part of the painted gallery.
+        }
+        if (probe.loadingMode) {
+            val progress = context.measureChild(1L, Constraints(maxWidth = Some(320.0)))
+            assertEquals(Size(320.0, 36.0), progress.size)
+            val group = context.measureChild(2L, Constraints())
+            assertEquals(Size(84.0, 44.0), group.size)
         }
         return result
     }

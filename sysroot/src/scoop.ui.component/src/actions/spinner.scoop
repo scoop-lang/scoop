@@ -58,12 +58,11 @@ private class SpinnerInkProps(
 )
 
 private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element {
-    private var rotation: Animatable<Double>? = None
+    private var motion: LoadingMotion? = None
     private var outline: Path? = None
-    private var period: Duration? = None
     private var visible = false
     public override fun onMount(scope: ComponentScope) {
-        rotation = Some(scope.animation(0.0))
+        motion = Some(LoadingMotion(scope))
         // Lucide loader-circle (ISC); see LICENSE-LUCIDE and the original 24-unit SVG.
         outline =
             Some(
@@ -74,64 +73,22 @@ private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element {
     }
     public override fun update() {
         val value = props.value
-        val angle = rotation!!
-        when (value.motion) {
-            case Some(spec) -> if (value.running) {
-                if (
-                    period !=
-                        Some(value.period) ||
-                        (
-                            angle.state !=
-                                AnimationState.Running &&
-                                angle.state !=
-                                AnimationState.Paused
-                        )
-                ) {
-                    angle.snapTo(0.0)
-                    angle.animateTo(PI * 2.0, spec, Some(Repeat()))
-                    period = Some(value.period)
-                }
-            } else
-                stop()
-            case None -> stop()
-        }
-    }
-    private fun stop() {
-        if (period != None) {
-            rotation!!.snapTo(0.0)
-            period = None
-        }
+        motion!!.update(
+            value.running && value.color.alpha > 0.0 && panelPresent(value.motion),
+            value.period
+        )
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
     public override fun scene(context: SceneContext) {
         val size = context.size
         val side = min(size.width, size.height)
-        val angle = rotation!!.value
+        val angle = motion!!.phase.value * PI * 2.0
         val value = props.value
         val bounds = Rect((size.width - side) / 2.0, (size.height - side) / 2.0, side, side)
         context.draw {
             paint ->
-            visible =
-                side >
-                    0.0 &&
-                    value.color.alpha >
-                    0.0 &&
-                    when (paint.canvas.localClipBounds) {
-                        case Some(clip) -> bounds.x <
-                            clip.x +
-                            clip.width &&
-                            bounds.x +
-                            bounds.width >
-                            clip.x &&
-                            bounds.y <
-                            clip.y +
-                            clip.height &&
-                            bounds.y +
-                            bounds.height >
-                            clip.y
-                        case None -> false
-                    }
+            visible = loadingVisible(paint.canvas, bounds, value.color.alpha)
             if (visible)
                 paint.canvas.withState {
                     canvas ->
@@ -151,10 +108,6 @@ private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element {
                     )
                 }
         }
-        val participates = visible
-        context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted)
-                rotation!!.isFrameEnabled = participates
-        }
+        loadingParticipation(context, motion!!.phase, visible)
     }
 }

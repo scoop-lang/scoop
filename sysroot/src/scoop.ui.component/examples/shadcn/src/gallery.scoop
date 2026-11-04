@@ -50,32 +50,35 @@ internal class Gallery(
                     this.item(
                         makeRow {
                             this.frame(
-                                makeColumn {
-                                    this.input(this @Gallery.model.query) {
-                                        this.placeholder = "Search components..."
-                                        this.fonts = Some(this @Gallery.fonts)
-                                    }
-                                    this.add(this @Gallery.text("COMPONENTS", 11.0, 600, true))
-                                    for (entry in entries)
-                                        this.button(
-                                            demoTitle(entry),
-                                            { this @Gallery.model.selected.value = entry }
-                                        ) {
+                                makeScrollArea(
+                                    makeColumn {
+                                        this.input(this @Gallery.model.query) {
+                                            this.placeholder = "Search components..."
                                             this.fonts = Some(this @Gallery.fonts)
-                                            style {
-                                                this.kind =
-                                                    if (current == Some(entry))
-                                                        SurfaceKind.Action
-                                                    else
-                                                        SurfaceKind.Plain
-                                                surface {
-                                                    this.suggestedSize = Some(Size(190.0, 32.0))
+                                        }
+                                        this.add(this @Gallery.text("COMPONENTS", 11.0, 600, true))
+                                        for (entry in entries)
+                                            this.button(
+                                                demoTitle(entry),
+                                                { this @Gallery.model.selected.value = entry }
+                                            ) {
+                                                this.fonts = Some(this @Gallery.fonts)
+                                                style {
+                                                    this.kind =
+                                                        if (current == Some(entry))
+                                                            SurfaceKind.Action
+                                                        else
+                                                            SurfaceKind.Plain
+                                                    surface {
+                                                        this.suggestedSize = Some(Size(190.0, 32.0))
+                                                    }
                                                 }
                                             }
-                                        }
-                                    this.spacing = 12.0
-                                    this.alignment = CrossAlignment.Stretch
-                                }
+                                        this.spacing = 12.0
+                                        this.alignment = CrossAlignment.Stretch
+                                        this.padding = Insets(4.0, 4.0, 12.0, 4.0)
+                                    }
+                                )
                             ) {
                                 this.width = Some(190.0)
                                 this.alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
@@ -170,6 +173,9 @@ internal class Gallery(
             case AspectRatio -> component({ AspectExamples(fonts) })
             case Alert -> alertExamples(model, fonts)
             case Empty -> emptyExamples(model, fonts)
+            case Avatar -> component({ AvatarExamples(model, fonts) })
+            case Skeleton -> skeletonExamples(model, fonts)
+            case Progress -> progressExamples(model, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

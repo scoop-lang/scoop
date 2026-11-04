@@ -4,7 +4,7 @@
 
 控件基础的布局、方向与公共交互演进按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述已实施批次的现行合同。
 
-shadcn 控件扩展的批次与平台验收见 [shadcn 实施记录](../ui/shadcn/PROGRESS.md)，操作控件和内容面板的新增合同分别见第 11、12 节。
+shadcn 控件扩展的批次与平台验收见 [shadcn 实施记录](../ui/shadcn/PROGRESS.md)，操作控件、内容面板、头像与加载状态的合同分别见第 11～13 节。
 
 ## 1. 定位与依赖
 
@@ -501,3 +501,37 @@ length=None 使用父约束该轴的有限上限；无界时使用该轴下限�
 有有限最大宽时优先用该宽推算高度，再受有限最大高限制；只有有限最大高时反向推算宽度。两轴无界时用内容自然尺寸求能包含它的比例外框。随后在不越过最大值的前提下满足可兼容的最小值；比例与父约束不可同时满足时，父约束优先，不报告比例配置错误。计算出的实际尺寸必须有限；不可表示的几何正常报参数错误。
 
 实际子项最后按外框紧约束测量并放在原点；空尺寸合法。clip=true 裁剪同一外框，clip=false 允许内容自身的显式溢出。图片继续使用 ImageView 的 Contain／Cover，AspectRatio 不复制图像适配、读取像素或预乘 DPI。
+
+## 13. 头像与加载状态
+
+### 13.1 Avatar 与头像组
+
+`avatar(fallback, configure: AvatarBuilder.() -> Unit = {})` 的 fallback 接受 String、StyledText 或 View，按 PanelContent 保存。AvatarProps 的其余输入为 image: AvatarImageState = Empty、size: AvatarSize = Default、badge: AvatarBadge = None、fonts／theme、style；builder 另有 key。AvatarSize 为 Sm／Default／Lg，对应 Nova 24／32／40，按 body 字号相对 14 缩放；回退文字分别为 12／14／14，使用 muted 前景，普通文字居中。
+
+AvatarImageState 为 Empty／Loading／Failed／Ready(Image)。前三种状态都显示当前 fallback，Ready 使用同一 ImageView 的 Cover；资源由调用方装载并拥有，状态和图片替换不关闭借用 Image，不创建下载任务、重试或定时器。已关闭的 Ready 图片沿 ImageView 的普通资源错误处理，不偷偷改写业务状态。默认背景仅在 fallback 时使用 muted，外框为圆形裁剪和 1 单位 border；默认边框在 Light／Dark 下分别用 Darken／Lighten 混合，显式 style.border 覆盖或清除它，其他局部装饰也继续有效。父约束决定最终外框，圆角使用实际短边的一半。
+
+AvatarBadge 为 None／Dot(Color?)／Content(View, Color?)。builder 的 badge(color: Color? = None) 和 badge(content: View, color: Color? = None) 写入对应值。标记位于逻辑末端底部，Sm／Default／Lg 的边长为 8／10／12，使用 primary 背景和 2 单位 background 外环；Sm 仅显示圆点，Content 的 View 不呈现。它没有额外输入行为，调用方内容也不被克隆或增加动作。
+
+`avatarGroup(size: AvatarSize = Default, configure: AvatarGroupBuilder.() -> Unit)` 收集 avatar 的三个 fallback 重载和 count(Long)／count(View) 成员；size 是条目配置的初始尺寸，显式条目 size 可覆盖。count 的数值必须非负，默认文字为 `+N`，使用组 size 与 muted 颜色。组不推断缺失人数、不截断数据。每项使用稳定 key，后项绘制在前项之上；默认重叠 8，方向只改变逻辑排列。overlap 可配置为有限非负逻辑长度，每个接缝最多重叠相邻较小项的宽度，位置不倒退。组在每项外绘制 2 单位 background 环，布局保留最外侧环的 2 单位空间；空组尺寸为零。组和条目均不增加选择或 roving 导航语义。
+
+### 13.2 Skeleton
+
+`skeleton(configure: SkeletonBuilder.() -> Unit = {})` 和 `skeleton(content: View, configure: SkeletonBuilder.() -> Unit = {})` 创建同一个 SkeletonProps／Skeleton。字段为 content、loading: Boolean = true、animated: Boolean = true、shape: SkeletonShape = Rectangle、width／height: Double?、period: Duration = 2 秒、color: Color?、theme；builder 另有 key。无内容入口以 empty() 为正文并默认 height=16；显式内容入口默认 height=None。width 默认 None，两入口可显式覆盖；所有明确尺寸必须有限非负，period 必须严格为正。
+
+width=None 使用有限父宽，否则使用内容自然宽度；height=None 使用实际内容高度。内容在两种 loading 状态下均按相同约束测量；loading=true 时不放置或呈现内容，只画占位，内容不能命中或保持活动焦点。loading=false 时放置原内容并停止占位动画，保留该子树及业务状态，不在切换时重建正文。Rectangle 使用 small 圆角和整个外框；Circle 在外框中居中绘制短边为直径的圆。默认颜色为 muted 背景。
+
+默认脉冲周期为 2 秒，透明度从 1 到 0.5 再回到 1，两个半周期使用 cubic-bezier(0.4, 0, 0.6, 1)。animated=false、loading=false、Reduced、透明、零尺寸或不可见时不留下循环帧需求；静态占位使用完整透明度。
+
+### 13.3 Progress
+
+`progress(value: Double?, configure: ProgressBuilder.() -> Unit = {})` 创建 ProgressProps／Progress；另有 Double 便利重载。None 表示未知进度，Some 表示确定值；min／max 默认为 0／100，与 [Base UI Progress](https://base-ui.com/react/components/progress) 的值模型一致。minimum／maximum 必须有限、差值有限且 maximum>minimum；确定值必须有限，显示位置通过现有 RangeSpec 钳制到 0～1，不反写调用方的值。控件不创建任务、轮询或完成回调。
+
+builder 提供 minimum／maximum、label／valueLabel: PanelContent?、showValue: Boolean = false、thickness: Double?、indicatorColor: Color?、style: StyleOverride、transition: StyleValue<AnimationSpec?> = Inherit、period: Duration = 2 秒、fonts／theme／key。label／valueLabel 有 String、StyledText、View 成员；valueLabel 优先于 showValue。showValue 生成取最近整数的百分比，未知进度显示省略号；调用方可用自定义文字承担本地化和业务格式。
+
+可选 label／value 在轨道上方，分别使用 action 与 muted body 文字，位于逻辑起端／末端；窄宽时允许换行，不叠字，区域间距为 12。轨道填满有限宽度，无界时自然宽度为零，默认高 4、muted 背景、圆角为半高，指示使用 primary。尺寸按 body 字号缩放，明确 thickness 必须有限非负。style 仅覆盖轨道装饰；指示始终裁剪到同一轨道几何，RTL 从右侧增长，不镜像图像或文字。
+
+确定值首次挂载直接显示当前值，后续更新默认使用主题 selection 动画；transition 可显式替换或禁用，并最终服从 Reduced。未知进度使用占轨道 30% 的移动段，以 period 沿逻辑方向穿过轨道；Reduced 下在轨道中央静态显示该段。确定／未知切换停止前一种动画，最新 Props 决定当前目标，不创建另一份业务进度状态。停止、隐藏、离屏和卸载的帧资格遵守 13.4。
+
+### 13.4 可见动画与资源
+
+Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见性处理。成功帧按图形范围与当前 Canvas clip 的保守交集设置既有 isFrameEnabled；未知 Progress 使用整个轨道作为可见范围，避免移动段暂时出界后永远停住。窗口隐藏、未呈现子树和卸载继续由已有 Surface／ComponentScope 处理。失败帧不发布新的可见资格，离屏暂停不改写原时间轴；恢复后沿原时钟求值。控件不增加全局动画管理器、独立 timer 或新的调度入口。

@@ -48,7 +48,11 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
             case Empty -> return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
             case Both -> return paired(context, constraints)
             else -> {
-                val child = context.measureChild(0L, Constraints(maxWidth = constraints.maxWidth))
+                val child =
+                    if (props.value.shape == PanelAsideShape.Action)
+                        measureAction(context, 0L, constraints.maxWidth)
+                    else
+                        context.measureChild(0L, Constraints(maxWidth = constraints.maxWidth))
                 val size =
                     constraints.constrain(
                         Size(constraints.maxWidth ?: child.size.width, child.size.height)
@@ -71,7 +75,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
     }
     private fun paired(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val input = props.value
-        val action = context.measureChild(1L, Constraints(maxWidth = constraints.maxWidth))
+        val action = measureAction(context, 1L, constraints.maxWidth)
         val stacked =
             when (constraints.maxWidth) {
                 case Some(width) -> width - action.size.width - input.gap < input.minimumContent
@@ -125,5 +129,16 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
     }
     public override fun scene(context: SceneContext) {
         context.children()
+    }
+}
+
+private fun measureAction(context: MeasureContext, index: Long, maximum: Double?): LayoutMetrics {
+    val natural = context.measureChild(index, Constraints())
+    return when (maximum) {
+        case Some(width) -> if (natural.size.width > width)
+            context.measureChild(index, Constraints(maxWidth = Some(width)))
+        else
+            natural
+        case None -> natural
     }
 }

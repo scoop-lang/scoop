@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／SelectableStyledText、Button／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／SelectableStyledText、Button／Badge／Spinner、Checkbox、Input／Textarea、Card／Alert／EmptyState、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -40,6 +40,12 @@ Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体�
 `card(content)`、`alert(content)`、`emptyState(content)` 接收完整正文 View，配置块中的 title／description 支持 String、StyledText 和 View。其余区域通过 header／action／footer／icon／media 成员组合；仅对应控件实际使用的区域有公开入口。可选区域撤销、动作换行和主题切换保留正文挂载。Card 提供 Default／Sm，Alert 提供 Default／Destructive，EmptyState 提供可选虚线边框及 Default／Icon 媒体。
 
 `separator { axis = FlexAxis.Vertical; length = Some(24.0) }` 绘制逻辑尺寸的细线；默认横向填满可用宽度。`aspectRatio(content, 16.0 / 9.0)` 在父约束内计算比例外框并裁剪同一范围，可与 ImageView 的 Cover／Contain 组合。独立用法、明暗及 RTL 可在 [shadcn Gallery](examples/shadcn/README.md) 中操作；逐批交付范围见 [shadcn 实施记录](../../../docs/ui/shadcn/PROGRESS.md)。
+
+`avatar("CX") { image = AvatarImageState.Ready(picture); badge() }` 展示借用图片和状态点；Empty／Loading／Failed 显示当前回退内容。Sm／Default／Lg 为 24／32／40，支持自定义回退和角标。`avatarGroup { avatar("CX"); avatar("AL"); count(4L) }` 提供逻辑方向重叠及显式计数，每个条目可设置稳定 key。
+
+`skeleton(content) { loading = pending }` 保留正文挂载及测量，加载时撤下正文的呈现与输入，切回后继续使用原状态。无内容入口可设置 width／height 与 Circle 形状。`progress(Some(35.0)) { label("上传"); showValue = true }` 用 minimum／maximum 规范化确定值，`progress(None)` 表示未知总量；valueLabel 可替换默认百分比。明确 transition(None) 禁用数值过渡，主题 Reduced 最终生效。三种加载动画共用作用域时间轴，停止、隐藏、离屏与卸载不留下循环帧需求。
+
+shadcn 外观取自 [Base Nova registry](https://ui.shadcn.com/r/styles/base-nova/avatar.json)（2026-11-04），相关 MIT 许可保存在 [shadcn 主题](../scoop.ui.style.shadcn/LICENSE.md)；Spinner 的 Lucide 路径许可见 [LICENSE-LUCIDE](LICENSE-LUCIDE)。
 
 `buttonStyle { ... }`、`checkboxStyle { ... }`、`textFieldStyle { ... }` 和 `interactionStyles { ... }` 构造不可变的局部样式；`value.copy { ... }` 基于已有值修改。surface／marker／scrollbar、states 及 text／placeholder／description 是嵌套配置成员，重复块保留此前字段，完整赋值替换该字段。文字覆盖赋为 None 时恢复继承；transition(None) 禁用动画，把 transition 属性赋为 StyleValue.Inherit 则恢复主题过渡。ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。Inherit 保留本轮主题值，Set(None) 明确清除可空属性。InteractionStyles 按 hovered、pressed、focused 顺序组合，禁用时只应用 disabled。`styled(content, style)` 可以给完整控件添加有序 glow、drop shadow 或 blur；空效果与有效果使用同一个持久装饰节点。
 
