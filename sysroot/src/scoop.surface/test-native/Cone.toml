@@ -55,9 +55,6 @@ when = { os = "darwin" }
 name = "user32"
 when = { os = "windows" }
 [[native.libraries]]
-name = "imm32"
-when = { os = "windows" }
-[[native.libraries]]
 name = "gdi32"
 when = { os = "windows" }
 [[native.libraries]]

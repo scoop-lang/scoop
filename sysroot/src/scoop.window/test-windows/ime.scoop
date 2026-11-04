@@ -1,0 +1,131 @@
+package scoop.window
+
+import scoop.test.*
+import scoop.tests.window.exerciseNativeText
+import scoop.window.native.*
+
+@Test
+private class WindowsImeTest {
+    @Test
+    fun `TSF composition commit cancellation and disable use one ordered channel`() {
+        val handler = WindowsImeHandler()
+        Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit }).run(
+            handler
+        )
+        assertTrue(handler.finished)
+        assertEquals(13L, handler.batches.size)
+        assertEquals("[中文字é😀aQd]", handler.text.surroundingText)
+        assertEquals(Utf8Selection(19L, 19L), handler.text.selection)
+        assertEquals(None, handler.text.markedRange)
+        assertEquals(13L, handler.text.revision)
+        preedit(handler.batches[0L], "中😀")
+        preedit(handler.batches[1L], "中文")
+        assertEquals(TextInputOperation.ClearPreedit, handler.batches[2L].operations[0L])
+        commit(handler.batches[3L], "字")
+        preedit(handler.batches[4L], "é😀")
+        assertEquals(TextInputOperation.ClearPreedit, handler.batches[5L].operations[0L])
+        preedit(handler.batches[6L], "old")
+        preedit(handler.batches[7L], "")
+        commit(handler.batches[8L], "a", 0L)
+        commit(handler.batches[8L], "Q", 1L)
+        commit(handler.batches[8L], "d", 2L)
+        commit(handler.batches[8L], "", 3L)
+        commit(handler.batches[8L], "", 4L)
+        preedit(handler.batches[9L], "cancel")
+        preedit(handler.batches[10L], "")
+        preedit(handler.batches[11L], "disable")
+        preedit(handler.batches[12L], "")
+    }
+}
+
+private class WindowsImeHandler: ApplicationHandler {
+    var window: Window? = None
+    var lease: NativeWindowLease? = None
+    var connection: TextInputConnection? = None
+    var text = TextInputState("[]", Utf8Selection(1L, 1L))
+    val batches = ArrayList<TextInputBatch>()
+    var enabled = 0
+    var disabled = 0
+    var finished = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val created =
+                    application.createWindow(
+                        windowAttributes {
+                            this.title = "Windows TSF composition"
+                            this.visible = false
+                        }
+                    )
+                window = Some(created)
+                created.setImeAllowed(true)
+                created.setImeAllowed(true)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Enabled(value))) -> {
+                enabled += 1
+                connection = value
+                assertEquals(0L, batches.size)
+                createdTextProbe()
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Edit(batch))) -> {
+                assertEquals(None, batch.baseRevision)
+                assertEquals(
+                    if (batches.size == 8L)
+                        5L
+                    else
+                        1L,
+                    batch.operations.size
+                )
+                val origin = batch.origin!!
+                assertEquals(connection!!, origin.connection)
+                assertEquals(batches.size + 1L, origin.sequence)
+                batches.add(batch)
+                text = text.apply(batch)
+            }
+            case Window(_, WindowEvent.TextInput(TextInputEvent.Disabled(value))) -> {
+                disabled += 1
+                assertEquals(connection, value)
+                assertEquals(13L, batches.size)
+                window!!.requestDestroy()
+            }
+            case Window(_, WindowEvent.Closing) -> lease?.close()
+            case Window(_, WindowEvent.Destroyed) -> finished = true
+            else -> {}
+        }
+    }
+
+    private fun createdTextProbe() {
+        val created = window!!
+        created.setImeCursorArea(LogicalRect(LogicalPosition(12.0, 34.0), LogicalSize(2.0, 18.0)))
+        @Unsafe
+        {
+            val held = created.acquireNativeWindow()
+            lease = Some(held)
+            val hwnd =
+                when (held.handle) {
+                    case Win32(value, _) -> value
+                }
+            assertEquals(0, exerciseNativeText(hwnd))
+        }
+        created.setImeAllowed(false)
+        created.setImeAllowed(false)
+        gcCollect()
+    }
+}
+
+private fun preedit(batch: TextInputBatch, text: String) {
+    when (val operation = batch.operations[0L]) {
+        case TextInputOperation.Preedit(value, _, TextReplacement.CurrentSelection) ->
+        assertEquals(text, value)
+        else -> fail(Some("expected a TSF preedit"))
+    }
+}
+
+private fun commit(batch: TextInputBatch, text: String, index: Long = 0L) {
+    when (val operation = batch.operations[index]) {
+        case TextInputOperation.Commit(value, TextReplacement.CurrentSelection) ->
+        assertEquals(text, value)
+        else -> fail(Some("expected a TSF commit"))
+    }
+}

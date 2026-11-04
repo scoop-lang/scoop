@@ -5,11 +5,12 @@
 #include <cmath>
 #include <cstdint>
 #include <dwmapi.h>
-#include <imm.h>
 #include <memory>
 #include <new>
 
-extern "C" void scoop_window_test_text_batch(HWND, int32_t);
+extern "C" bool scoop_window_test_surface_text(HWND, bool);
+extern "C" bool scoop_window_test_surface_caret(HWND, double, double, double,
+                                                double);
 
 struct ViewProbe {
   HWND window;
@@ -96,31 +97,12 @@ bool scoop_surface_test_view_button(ViewProbe *probe, double x, double y,
 }
 
 bool scoop_surface_test_view_text(ViewProbe *probe, bool commit) {
-  if (!IsWindow(probe->window))
-    return false;
-  // The window test Cone owns protocol injection at the production UTF-16
-  // boundary.
-  scoop_window_test_text_batch(probe->window, commit ? 8 : 0);
-  return true;
+  return IsWindow(probe->window) &&
+         scoop_window_test_surface_text(probe->window, commit);
 }
 
 bool scoop_surface_test_view_caret(ViewProbe *probe, double x, double y,
                                    double width, double height) {
-  HIMC context = ImmGetContext(probe->window);
-  if (!context)
-    return false;
-  CANDIDATEFORM candidate{};
-  const BOOL found = ImmGetCandidateWindow(context, 0, &candidate);
-  ImmReleaseContext(probe->window, context);
-  const double scale = GetDpiForWindow(probe->window) / 96.0;
-  return found && candidate.dwStyle == CFS_EXCLUDE &&
-         candidate.ptCurrentPos.x == static_cast<LONG>(std::round(x * scale)) &&
-         candidate.ptCurrentPos.y == static_cast<LONG>(std::round(y * scale)) &&
-         candidate.rcArea.left == candidate.ptCurrentPos.x &&
-         candidate.rcArea.top == candidate.ptCurrentPos.y &&
-         candidate.rcArea.right ==
-             static_cast<LONG>(std::ceil((x + width) * scale)) &&
-         candidate.rcArea.bottom ==
-             static_cast<LONG>(std::ceil((y + height) * scale));
+  return scoop_window_test_surface_caret(probe->window, x, y, width, height);
 }
 }

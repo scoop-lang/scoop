@@ -4,8 +4,11 @@ import scoop.window.native.NativeWindowHandle
 
 internal fun platformBackend(): WindowBackend = WindowBackend.Win32
 
-// The current IMM32 bridge has no surrounding-document connection API.
-internal fun platformTextConnection(event: NativeEvent): TextInputConnection? = None
+internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
+    if (event.a > 0L)
+        Some(TextInputConnection(WindowId(event.window), event.a))
+    else
+        None
 
 @Unsafe
 internal fun platformNativeHandle(pointer: Ptr<Unit>): NativeWindowHandle =

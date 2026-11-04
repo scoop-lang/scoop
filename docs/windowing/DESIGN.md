@@ -34,7 +34,7 @@ Scoop 尚未发布任何版本。语言、库 API、runtime ABI、native 产物�
 - `scoop.window`：依赖 core／std／platform，提供应用主循环、窗口、事件、显示器、输入和受控 native 句柄借用；不依赖 asyncio、Skia 或 HarfBuzz。
 - `scoop.window.asyncio`：依赖 window／asyncio，把已有 PlatformEventLoop 附着到窗口宿主，协调应用退出与 I/O 收尾。没有第二套 Job、cancel、join 或 native I/O 实现。
 
-选择“移植能力与平台语义”，不把 Rust ABI 或 winit 类型放进 Scoop API。原生层分别使用 AppKit、Win32／IMM32、libwayland-client／wayland-protocols／libxkbcommon／libdecor、Xlib／XInput2／XRandR／Xcursor／XKB／XIM。引用或改写 winit 的键映射、算法和平台规则时保留相应许可证与来源。窗口协议、键盘映射、输入法与装饰优先复用这些成熟库，不自行实现 wire protocol 或完整输入法。
+选择“移植能力与平台语义”，不把 Rust ABI 或 winit 类型放进 Scoop API。原生层分别使用 AppKit、Win32／TSF、libwayland-client／wayland-protocols／libxkbcommon／libdecor、Xlib／XInput2／XRandR／Xcursor／XKB／XIM。引用或改写 winit 的键映射、算法和平台规则时保留相应许可证与来源。窗口协议、键盘映射、输入法与装饰优先复用这些成熟库，不自行实现 wire protocol 或完整输入法。
 
 本期采用上述原生后端，不新增独立的 winit Rust staticlib。现有 [text backend](../../sysroot/native/text_backend/Cargo.toml) 已包含 Rust 标准库及静态依赖；第二个独立 staticlib 会重复打包这些部分，并可能产生符号和运行库链接冲突。最终程序的按需抽取／裁剪不能作为解决多 staticlib 组合的合同。[Rust 链接规范](https://doc.rust-lang.org/reference/linkage.html#mixed-rust-and-foreign-codebases)给出的组合方式是先将 Rust 库汇总到一个 staticlib，再交给外部链接器。
 

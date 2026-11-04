@@ -20,6 +20,39 @@ public fun observeWindow(window: Window, customContent: Boolean = false): ViewPr
 
 public fun surfaceNativeModeCount(): Int = 3
 
+public fun surfaceDocumentCaret(window: Window, rect: LogicalRect?, cursor: Long): Boolean {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case Win32(hwnd, _) -> documentCaret(
+                        hwnd,
+                        rect != None,
+                        rect?.origin?.x ?: 0.0,
+                        rect?.origin?.y ?: 0.0,
+                        rect?.size?.width ?: 0.0,
+                        rect?.size?.height ?: 0.0,
+                        cursor
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Extern(name = "scoop_window_test_document_caret")
+private fun documentCaret(
+    window: Ptr<Unit>,
+    available: Boolean,
+    x: Double,
+    y: Double,
+    width: Double,
+    height: Double,
+    cursor: Long
+): Boolean
+
 /** Reads the composed desktop at a logical point inside this window. */
 public fun sampleWindowPixel(window: Window, x: Double, y: Double): Long {
     @Unsafe

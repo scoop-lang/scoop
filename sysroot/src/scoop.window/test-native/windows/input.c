@@ -1,47 +1,5 @@
 #include "../../native/windows/window.h"
 
-// Exercise the production UTF-16 normalization on a real window. These samples
-// do not simulate an installed IME's candidate selection or language behavior.
-void scoop_window_test_text_batch(HWND hwnd, int32_t sample) {
-  SWWindow *window = (SWWindow *)GetWindowLongPtrW(hwnd, GWLP_USERDATA);
-  const WCHAR chinese[] = {0x4e2d, 0xd83d, 0xde00};
-  const WCHAR commit[] = {0x4e2d, 0x6587};
-  const WCHAR japanese[] = {0x306b, 0xd83d, 0xde00};
-  const WCHAR word[] = {0x65e5, 0x672c, 0x8a9e};
-  const WCHAR invalid[] = {0xd83d};
-  if (sample == 0 || sample == 1)
-    sw_composition(window, NULL, 0, chinese, 3, sample ? 1 : 3);
-  else if (sample == 2)
-    sw_composition(window, commit, 2, japanese, 3, 3);
-  else if (sample == 3)
-    sw_composition(window, L"lost", 4, chinese, 3, 2);
-  else if (sample == 4)
-    sw_composition(window, NULL, 0, word, 3, 3);
-  else if (sample == 5)
-    sw_composition(window, NULL, 0, invalid, 1, 1);
-  else if (sample == 6)
-    sw_composition(window, NULL, 0, chinese, 3, 3);
-  else if (sample == 7)
-    sw_composition(window, commit, 2, NULL, 0, -1);
-  else if (sample == 8)
-    sw_composition(window, L"A", 1, NULL, 0, -1);
-}
-
-int32_t scoop_window_test_caret(HWND hwnd) {
-  HIMC context = ImmGetContext(hwnd);
-  if (!context)
-    return 0;
-  CANDIDATEFORM value = {0};
-  BOOL ok = ImmGetCandidateWindow(context, 0, &value);
-  ImmReleaseContext(hwnd, context);
-  double scale = GetDpiForWindow(hwnd) / 96.0;
-  return ok && value.dwStyle == CFS_EXCLUDE &&
-         value.ptCurrentPos.x == (LONG)round(12 * scale) &&
-         value.ptCurrentPos.y == (LONG)round(20 * scale) &&
-         value.rcArea.right == (LONG)ceil(14 * scale) &&
-         value.rcArea.bottom == (LONG)ceil(38 * scale);
-}
-
 void scoop_window_test_input(HWND hwnd) {
   BYTE original[256], state[256] = {0};
   GetKeyboardState(original);

@@ -25,7 +25,7 @@ public enum TextInputOperation {
     DeleteSurrounding(val beforeBytes: Long, val afterBytes: Long)
 }
 
-/** One native document connection, replaced whenever macOS text input reopens. */
+/** One native document connection, replaced whenever native text input reopens. */
 public struct TextInputConnection(val window: WindowId, val generation: Long)
 
 /** Ordered native batch identity; it is independent of the application's text revision. */

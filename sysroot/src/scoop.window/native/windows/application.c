@@ -192,6 +192,7 @@ void scoop_window_application_stop(SWApplication *app) {
   sw_wake(app);
 }
 void scoop_window_application_destroy(SWApplication *app) {
+  sw_text_application_destroy(app);
   KillTimer(app->hwnd, 1);
   DestroyWindow(app->hwnd);
   CloseHandle(app->wake);
@@ -253,6 +254,7 @@ void sw_free_event(SWEvent *event) {
   free((void *)event->data.text);
   for (int64_t n = 0; n < event->edit_count; ++n)
     free((void *)event->edits[n].text);
+  free(event->edits);
   free(event);
 }
 void scoop_window_event_release(SWEvent *event) { sw_free_event(event); }

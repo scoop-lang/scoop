@@ -15,8 +15,10 @@ path = "windows"
 when = { os = "windows" }
 
 [native]
+cxx = true
 c_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 objc_flags = ["-Wall", "-Wextra", "-Werror", "-Wno-unused-parameter"]
+cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-Wno-nonportable-system-include-path"]
 
 [[native.sources]]
 path = "native/modes.m"
@@ -78,8 +80,20 @@ when = { os = "windows" }
 path = "windows/input.c"
 when = { os = "windows" }
 
+[[native.sources]]
+path = "windows/text.cpp"
+when = { os = "windows" }
+
 [[native.libraries]]
-name = "imm32"
+name = "msctf"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "ole32"
+when = { os = "windows" }
+
+[[native.libraries]]
+name = "uuid"
 when = { os = "windows" }
 
 [[native.libraries]]

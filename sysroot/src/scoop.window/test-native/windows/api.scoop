@@ -27,8 +27,12 @@ public fun completedNativeModes(): Int
 public fun setSystemDpiMode(): Int
 
 @Unsafe
-@Extern(name = "scoop_window_test_text_batch")
-public fun nativeTextBatch(window: Ptr<Unit>, sample: Int)
+@Extern(name = "scoop_window_test_text")
+public fun exerciseNativeText(window: Ptr<Unit>): Int
+
+@Unsafe
+@Extern(name = "scoop_window_test_snapshot")
+public fun exerciseNativeSnapshot(window: Ptr<Unit>, phase: Int): Int
 
 @Unsafe
 @Extern(name = "scoop_window_test_caret")

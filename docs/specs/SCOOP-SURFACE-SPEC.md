@@ -186,7 +186,7 @@ InputArea.textInput 可变；开启使区域可聚焦，关闭只结束输入法
 
 frame.place 同时捕获该次 caret／revision 和区域几何，caret 的可见交集使用相同 Canvas、区域形状和真实 clip，复用 Graphics 几何查询。成功提交后才发布窗口逻辑包围矩形；不能把新的局部 caret 与旧帧变换拼接。文档修订或 caret 已变化但新帧尚未接受、窗口配置已改变、区域完全裁剪或缺席时，原生几何立即设为 unavailable。Discarded 保留旧场景，只有它仍对应当前 caret／文档时才可继续使用；原生文档快照始终由编辑器在编辑生效时独立发布。
 
-共享 caret 适配通过 window 的公共入口工作：基础接入调用 setImeCursorArea，清除调用 clearImeCursorArea；带 revision 的接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。macOS 已实现此合同；Windows 分支补齐 window 后端，Surface 不再保留忽略连接／revision 的另一套候选位置路径。
+共享 caret 适配通过 window 的公共入口工作：基础接入调用 setImeCursorArea，清除调用 clearImeCursorArea；带 revision 的接入使用当前 TextInputConnection 的 publishTextInputCaret，等待原生文档与批次进度匹配后发布。没有新的帧不会重复发布已经成功接受的同一几何，旧连接的缓存不阻止新连接更新。macOS 的 AppKit 与 Windows 的 TSF 后端遵守同一连接／revision 合同，Surface 不保留忽略连接／revision 的另一套候选位置路径。
 
 ### 6.1 组合默认行为
 
