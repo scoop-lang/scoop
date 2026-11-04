@@ -68,14 +68,28 @@
 | surface，Wayland | 77／77 | 77／77 |
 | surface，X11 | 77／77 | 77／77 |
 | ui-frames，Wayland | 1／1 | 1／1 |
-| ui-frames，X11 | 1／1 | **0／1，未闭合** |
+| ui-frames，X11 | 1／1 | **0／1，上游 Mesa 驱动已知问题** |
 
 上述 Cone 回归直接运行已有 release 测试程序，合计 566 次测试执行，565 次通过、1 次失败；另有四次已安装 GUI consumer 检查。Surface 覆盖双窗口像素、连续帧、静止、隐藏重显、resize、重附着和关闭。测试进程均确认使用指定的硬件渲染器，未观察到 EGL 交换缓冲失败；成功提交帧不替代像素断言。
 
-未闭合项是 Arc A770M＋X11 的透明 UI 窗口重绘：`ui-frames/tests/frames.scoop` 的 alpha 断言期望 255、实际为 0。开启观测和移除观测各复现五次，均失败。GL 跟踪中 framebuffer 与 viewport 均保持 320×160；第一次交换缓冲后仍执行 clear 与矩形 draw，但读回整帧 alpha 均为 0。相同测试在 Iris Xe＋X11 和两块 GPU 的 Wayland 上通过。当前证据尚未确定原生渲染路径与驱动交互中的根因，不能将 Arc＋X11 的硬件验收记为全部通过。
+上游驱动故障最初表现为 Arc A770M＋X11 的透明 UI 窗口重绘：`ui-frames/tests/frames.scoop` 的 alpha 断言期望 255、实际为 0。开启观测和移除观测各复现五次，均失败。后续独立复现确认范围包括不透明窗口：第一次交换缓冲后，清屏仍正确，但普通矩形绘制失效。
+
+### Arc＋X11 原因调查（2026-11-04）
+
+原因已定位到当前 Mesa Iris 驱动的缓冲迁移与绘制状态缓存不同步。独立 C 程序只链接 EGL、GLESv2 和 XCB，在默认 framebuffer 上清屏、画矩形、读回并交换缓冲；不依赖 Scoop 或 Skia，仍复现相同故障。32 位透明和 24 位不透明窗口均失败，Iris Xe 的相同用例均通过。窗口尺寸从 160×80 到 640×480 的多组对照结果一致。GL framebuffer 完整、无 GL 错误，遮挡查询确认绘制产生片元；X11 对测试窗口的像素读取也确认呈现内容缺失。
+
+证据链如下：
+
+- 当前桌面由 Iris Xe 驱动，Arc 的 X11 客户端走 DRI3 跨 GPU 呈现。Mesa 为其创建私有绘制 image，再复制到可共享的线性呈现缓冲。
+- Mesa `26.0.8` 的 `iris_flush_resource` 会通过 `iris_reallocate_resource_inplace` 将私有绘制资源迁移到可共享分配，更新资源的 BO 和布局。Gallium 跟踪显示，后续复用同一资源时没有重新设置 framebuffer 状态。
+- `INTEL_DEBUG=bat` 的 GPU 命令解码直接显示：第一帧的绘制和读回使用相同的 TILE4 地址；迁移后，第二帧矩形的渲染目标仍使用旧 TILE4 地址，读回已使用新的 LINEAR 地址。这解释了清屏正常而矩形消失的现象。
+- 在 GDB 中仅改变测试进程的初始 image 分配，为私有绘制 image 加上 `__DRI_IMAGE_USE_SHARE`，避免后续迁移：独立 C 程序从四处像素失败变为六帧全部通过，原始 Scoop `ui-frames` 用例也从第 82 行失败变为通过。同一调试器下不改变参数的对照仍失败。
+- 另一组独立对照保持原分配方式，在不同的完整 framebuffer 上实际绘制后切回窗口，六帧也通过；仅切换空 framebuffer、重设 viewport／program／顶点或关闭混合无效。新的 XWayland 连接同一 GNOME 会话仍复现；Weston 对照中观察到更频繁的缓冲重分配，说明呈现调度会影响复用问题是否出现。
+
+该问题按已确认的上游依赖缺陷处理，不纳入 Scoop 的修复范围，不在项目中加入针对性的绕过逻辑，也不修改或替换系统 Mesa。上表保留原始 Arc＋X11 失败，调试器干预后的通过仅作为诊断证据。尚未验证哪个上游版本已修复；当前已通过的硬件路径为 Arc＋原生 Wayland，以及 Iris Xe＋Wayland／X11。独立复现源码、运行说明、GDB 对照脚本及原始跟踪保存在仓库外 `scoop-deps/work/linux-current/hardware-gpu`。
 
 ## 验证边界
 
 原始日志、协议跟踪、截图和临时交互程序保存在仓库外 `/home/chenxu/repos/scoop-deps`，不提交逐次报告。测试保留源码、工具与原产物，复用共享 Cone cache。
 
-已验证真实显示协议上的软件 GLES、合成键鼠输入，以及上文列出的本机硬件组合；Arc＋X11 的透明 UI 重绘仍有未闭合失败。本次没有覆盖独立 Xorg 会话，也未据此宣称实体键盘、原生 IME 候选窗、显示器热插拔或所有桌面合成器通过人工验收。
+已验证真实显示协议上的软件 GLES、合成键鼠输入，以及上文列出的本机硬件组合；Arc＋X11 的缓冲复用故障保留为上游 Mesa 的已知限制，不作为 Scoop 的待修复项。本次没有覆盖独立 Xorg 会话，也未据此宣称实体键盘、原生 IME 候选窗、显示器热插拔或所有桌面合成器通过人工验收。
