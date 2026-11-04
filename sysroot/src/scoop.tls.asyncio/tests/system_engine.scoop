@@ -26,9 +26,9 @@ private class AsyncPlatformVerifierTests {
     @Test
     fun `suspended isolated platform verification resumes the same engine and preserves rejection`() {
         for (version in [TlsVersion.Tls12, TlsVersion.Tls13]) {
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> for (accepted in [true, false]) {
+            val loop = eventLoop()
+            loop.run {
+                for (accepted in [true, false]) {
                     val options = TlsOptions(version, version)
                     val context = openTlsClientContext(TlsTrustSource.System, options)
                     val config = systemServerContext(options)

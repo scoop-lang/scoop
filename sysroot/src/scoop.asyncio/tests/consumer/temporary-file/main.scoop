@@ -18,9 +18,9 @@ private fun exercise(parent: Path) {
     try {
         val published = directory.resolve(Path.fromString("published"))
         published.writeText("old")
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val creating =
                 scope.async<TemporaryFile> suspend { loop.createTempFile(Some(directory), "暂存 ") }
             val other =

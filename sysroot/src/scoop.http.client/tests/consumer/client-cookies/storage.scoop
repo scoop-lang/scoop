@@ -83,8 +83,7 @@ internal fun cookieConcurrent(suffixes: PublicSuffixList) {
 }
 
 private fun cookieConcurrentWorker(jar: MemoryCookieJar, host: String) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         for (index in 0L ..< 50L)
             cookieSave(jar, ["key" + index.toString() + "=value; Path=/"], "https://" + host + "/")
         assertEquals(50L, jar.load(cookieRequest("https://" + host + "/")).pairs.size)

@@ -11,11 +11,11 @@ import scoop.text.toHexString
 private class AsyncTlsTransferTests {
     @Test
     fun `short ciphertext writes retain retry buffers across moving GC and foreign resume`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val ownerThread = currentThreadId()
         val observed = ArrayList<ObservedTransport>()
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             observed.add(clientRaw)
             val(client, server) = tlsPair(scope, clientRaw, serverRaw)

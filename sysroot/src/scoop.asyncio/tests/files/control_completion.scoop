@@ -14,13 +14,15 @@ private class AsyncFileControlCompletionTest {
             tree ->
             val path = tree.child("data")
             path.writeText("data")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope -> loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
+                loop.openFile(path, OpenOptions(write = true)).useAsync suspend {
                     file ->
                     file.seek(4L)
                     val truncating = scope.launch suspend { file.truncate(2L) }
+                    yieldCoroutine()
                     backend.state.post {
                         // Observe the real syscall before the loop delivers its completion.
                         val start = MonotonicTimeSource.markNow()

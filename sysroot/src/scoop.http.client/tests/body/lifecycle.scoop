@@ -14,9 +14,9 @@ private class RequestBodyLifecycleTest {
         source.holdClose = true
         val output = BodyTestSink()
         val body = RequestBody.fromSourceFactory suspend { source }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val sending =
                 scope.launch suspend {
                     body.writeTo(output);
@@ -52,9 +52,8 @@ private class RequestBodyLifecycleTest {
     fun `already cancelled entry leaves a single source available for a later call`() {
         val source = BodyTestSource("later".toByteArray())
         val body = RequestBody.fromSource(source)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             try {
                 coroutineScope<Unit> {
                     val scope = this
@@ -75,9 +74,9 @@ private class RequestBodyLifecycleTest {
         val source = BodyTestSource("once".toByteArray())
         source.holdRead = true
         val body = RequestBody.fromSource(source)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val first = scope.async suspend { bodyText(body) }
             source.started.await()
             try {
@@ -96,9 +95,8 @@ private class RequestBodyLifecycleTest {
     fun `a producer cannot overlap output operations while a short write is suspended`() {
         val output = BodyTestSink()
         output.holdWrite = true
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val body =
                 RequestBody.fromProducer(Some(1L)) suspend {
                     sink -> coroutineScope<Unit> {
@@ -132,9 +130,8 @@ private class RequestBodyLifecycleTest {
         assertFailsWith<IllegalArgumentException> {
             RequestBody.fromSource(BodyTestSource("x".toByteArray()), Some(-1L))
         }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val zero = BodyTestSink()
             zero.zero = true
             expectBodyFailure<WriteZeroException> suspend {

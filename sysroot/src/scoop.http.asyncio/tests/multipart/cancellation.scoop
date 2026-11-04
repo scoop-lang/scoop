@@ -9,9 +9,9 @@ import scoop.test.*
 private class MultipartSourceCancellationTests {
     @Test
     fun `nextPart and body reads share one operation and concurrent closes wait for the real borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val endpoint = MpPendingSource()
             val source =
                 MultipartSource.takeOwnership(endpoint, MultipartBoundary("b"), bufferSize = 3L)
@@ -57,9 +57,9 @@ private class MultipartSourceCancellationTests {
 
     @Test
     fun `a cancelled nextPart can finish cleanup while the borrowed endpoint stays open`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = PendingMessageSource()
             val source = MultipartSource(input, MultipartBoundary("b"))
             val reading =

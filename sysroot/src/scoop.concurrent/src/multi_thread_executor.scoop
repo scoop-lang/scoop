@@ -14,6 +14,7 @@ public class MultiThreadExecutor internal constructor(
     private val lock = Mutex()
     private val changed = ConditionVariable(lock)
     private val terminated = Channel<Unit>(0L)
+    private val terminationListeners = TerminationListeners(lock)
     private val blockingThreads = ArrayList<ThreadId>()
     private var phase = ExecutorPhase.Open
     private var tasks = 0L
@@ -24,8 +25,17 @@ public class MultiThreadExecutor internal constructor(
     init {
         workers.onTermination { checkTermination() }
         if (ownsBlockingPool)
-            blockingPool.onTermination { checkTermination() }
+            blockingPool.invokeOnTermination { checkTermination() }
     }
+
+    /** Whether shutdown has been requested and new root tasks are rejected. */
+    public val isShutdown: Boolean get() = lock.withLock { phase != ExecutorPhase.Open }
+    /** Whether tasks and owned workers have left their execution loops. */
+    public val isTerminated: Boolean get() = lock.withLock { phase == ExecutorPhase.Terminated }
+
+    /** Registers an ordinary termination notification without creating another coroutine. */
+    public fun invokeOnTermination(handler: () -> Unit): Disposable =
+        terminationListeners.subscribe(handler)
 
     /** Registers a root while open, or a child of this executor's active parent while draining. */
     public override fun registerTask(parent: ExecutorTask?): ExecutorTask =
@@ -163,16 +173,20 @@ public class MultiThreadExecutor internal constructor(
     private fun checkTermination() {
         if (!workers.isTerminated || (ownsBlockingPool && !blockingPool.isTerminated))
             return
+        val notifications = WaitNotifications()
         val publish =
             lock.withLock {
                 if (phase != ExecutorPhase.Draining || tasks != 0L || blockingWork != 0L)
                     return@withLock false
                 phase = ExecutorPhase.Terminated
+                terminationListeners.finishLocked(notifications)
                 changed.broadcast()
                 true
             }
-        if (publish)
-            terminated.close()
+        if (publish) {
+            notifications.add { terminated.close() }
+            notifications.deliver()
+        }
     }
 
     private fun checkNotSelf() {

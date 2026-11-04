@@ -14,10 +14,10 @@ private class AsyncPathCancellationTest {
             val nested = tree.child("new/a/b")
             source.writeText("source")
             destination.writeText("destination")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val fence = WorkFence(backend)
                 fence.start()
                 fence.waitStarted()
@@ -53,10 +53,10 @@ private class AsyncPathCancellationTest {
             val destination = tree.child("destination")
             val directory = tree.child("directory")
             source.writeText("source")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val moving = scope.launch suspend { loop.moveFile(source, destination) }
                 cancelAfterPathCompletion(backend, moving)
                 assertFalse(source.exists())

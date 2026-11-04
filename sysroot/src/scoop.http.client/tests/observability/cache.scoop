@@ -11,8 +11,9 @@ private class HttpRequestObservationCacheTest {
     @Test
     fun `a cached response does not claim network submission or receipt timestamps`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {

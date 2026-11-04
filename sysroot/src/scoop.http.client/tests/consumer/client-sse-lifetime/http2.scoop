@@ -12,9 +12,10 @@ import scoop.time.Duration
 import scoop.url.Url
 
 internal fun sseHttp2(trust: TrustStore, total: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             val finish = SseGate()
             val serving =

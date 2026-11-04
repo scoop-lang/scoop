@@ -6,7 +6,7 @@
 
 ## 1. 分层与目标
 
-源码位于 `sysroot/src/scoop.asyncio/`，显式依赖 core、std、platform，测试依赖 scoop.test；公共声明属于 `scoop.asyncio`。不默认导入，不引入 compiler-known role、runtime 调度入口或新的 ABI。任务树使用语言规范 11.9.1～11.9.2；路径、地址、错误、时间和 buffer 直接复用平台库与标准库。
+源码位于 `sysroot/src/scoop.asyncio/`，显式依赖 core、std、platform、concurrent，测试依赖 scoop.test；公共声明属于 `scoop.asyncio`。不默认导入，不引入 compiler-known role、runtime 调度入口或新的 ABI。任务树与 execution 使用语言规范 11.9.1～11.9.3；阻塞池和跨 executor 同步使用[并发库](SCOOP-CONCURRENT-SPEC.md)，路径、地址、错误、时间和 buffer 直接复用平台库与标准库。
 
 库内 C shim 的完成记录 kind 与 Scoop 解码保持一致：既有通用／网络事件保留原编号，使用 `0x000–0x0ff` 段；文件／目录事件使用 `0x100–0x1ff` 段，依次为 Metadata `0x100`、Position `0x101`、Temporary `0x102`、DirectoryName `0x103`；TTY 事件使用 `0x200–0x2ff` 段，Resize 为 `0x200`、Timeout 为 `0x201`。两类新增事件分别在自己的段内追加，保留已有编号；未分配值仍按非法完成记录处理。此编号仅用于该 Cone 的 native 接口，不属于 runtime ABI 或公共 Scoop 枚举身份。
 
@@ -18,7 +18,7 @@ Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Li
 
 ```scoop
 public interface EventLoop {
-    public fun run(block: suspend (CoroutineScope) -> Unit)
+    public val executor: CoroutineExecutor
     public suspend fun sleep(duration: Duration)
     public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<SocketAddress>
     public suspend fun connectTcp(address: SocketAddress): AsyncTcpStream
@@ -27,20 +27,26 @@ public interface EventLoop {
     public suspend fun openFile(path: Path, options: OpenOptions = OpenOptions()): AsyncFile
     public suspend fun openTty(): AsyncTty
 }
-public class PlatformEventLoop public constructor() : EventLoop
-public fun <T> EventLoop.runWithResult(block: suspend (CoroutineScope) -> T): T
+public class EventLoopBuilder public constructor() {
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
+    public fun blocking(pool: BlockingTaskPool)
+}
+public fun eventLoop(configure: EventLoopBuilder.() -> Unit = {}): PlatformEventLoop
+public class PlatformEventLoop : EventLoop {
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T
+}
 public fun currentEventLoop(): EventLoop
 ```
 
-`run` 是同步根入口，调用方不得已有当前 Job 或活动 EventLoop binding。实例只接受一次运行；并发、重入、运行后重用均报 IllegalStateException，拒绝的调用不影响已接受运行。构造不分配 native loop，接受运行后才初始化；初始化失败清理已创建资源并关闭实例。
+`run<T>` 是具体 final class 的同步根入口，不是 interface 的泛型虚方法；不保留 EventLoop.run 或 runWithResult 别名。调用方不得已有当前 Job 或活动 EventLoop binding。实例只接受一次运行；并发、重入、运行后重用均报 IllegalStateException，拒绝的调用不影响已接受运行。工厂只执行一次配置并保存快照，接受 run／attach 后才建立 native loop 和自有阻塞池；初始化失败清理已创建资源并关闭实例。blocking 默认自有 4 个 managed threads；两个 overload 分别配置自有池／借用池，最后一次选择生效。数量在创建线程前校验，捕获 builder 后的修改不影响实例。
 
-运行建立精确静态类型为 EventLoop 的 Context binding，再通过 startCoroutine 与 coroutineScope 启动正文。正文第一次执行前已具有正确 Job 与 scope。根及全部后代完成后继续关闭本次未关闭资源、排空操作及关闭 callback，最后关闭唤醒 handle 和 native loop。runWithResult 只在 run 成功后返回类型化结果；非取消异常优先于取消，正文与清理均失败按 ResourceUseException 组合。逃逸资源引用不能延长运行，run 返回后它们已经关闭。
+运行建立精确静态类型为 EventLoop 的 Context binding，通过 startDispatchedCoroutine 在内部 LoopExecutor 上排队启动 coroutineScope。正文 receiver 是该作用域，第一次执行前已具有正确 Job 与 scope。根及全部后代完成后请求 LoopExecutor draining；已接纳的低层任务及其 child、coroutine work 和 blocking runner 排空后，再关闭本次未关闭资源、排空 I/O 操作与内部 ready。最后停止自有 blocking pool，等待其退出执行循环，关闭 native loop 并 join 已结束的 worker；借用池不关闭或 join。run 仅在全部收尾成功后返回 T；非取消异常优先于取消，正文与清理均失败按 ResourceUseException 组合。逃逸资源引用不能延长运行，run 返回后它们已经关闭。
 
-每次用户 I/O 要求当前 Job 和所属 loop 的活动 binding；显式调用其他 loop 或已结束资源报状态错误。资源固定归属创建它的 loop。close 允许在已取消 Job 中进行，且关闭后再次 close 是空操作。`currentEventLoop` 缺少 binding 时抛 MissingContextException。
+每次用户 I/O 要求当前 Job 和所属 loop 的活动 binding；显式调用其他 loop 或已结束资源报状态错误。EventLoop binding 表示资源服务归属，不表示调用者正在 owner 线程；保留该 binding 的其他 executor worker 可建立请求，资源 phase／busy／active 和登记使用正确同步，native submit 与原生容器更新仍发给 owner。close 允许在已取消 Job 中进行，且关闭后再次 close 是空操作。`currentEventLoop` 缺少 binding 时抛 MissingContextException。executor 属性在运行／附着已建立且 LoopExecutor 未终止时返回 owner executor，之前或之后报 IllegalStateException；withExecutor(loop.executor) 可显式执行 owner 上的代码。
 
 资源与操作由共享 `LoopOwner` 持有，不依赖具体 EventLoop 类。一次非阻塞处理只消费进入该轮时取得的命令和 native 完成快照，再恢复本轮 ready；恢复期间产生的命令和 ready 留到下一轮，嵌套处理不递归进入。同步驱动反复调用同一流程，只有无可执行工作时才等待。
 
-后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。驱动交替处理命令、完成记录与本轮 managed 恢复，内部锁外恢复 continuation；有待处理工作时不得阻塞。同步 run 无工作时通过 NativeSafe 等待通知 fd，attach 由宿主可读回调推进。IO 挂起的恢复由所属 loop 投递；第三方挂起点仍可在其他线程恢复。通知可合并，队列承担完整性。
+后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
 
 ## 3. 取消、完成与关闭
 
@@ -295,7 +301,7 @@ async raw 作用域使用这两个入口和 useAsync，GC 不承担恢复。
 
 ### 11.1 共享层与平台后端
 
-`EventLoop` 保留现有公共方法；默认实现改为 `PlatformEventLoop`，Darwin 绑定系统 libdispatch，Linux 绑定 io_uring／固定 liburing，Windows 绑定 IOCP。所有端点、文件、目录和操作只依赖同一共享 owner；Job／CoroutineScope 仍来自 core。native 后端管理原生资源、请求、完成记录，不拥有另一套任务树，也不直接执行 managed I/O continuation。
+`EventLoop` 提供 I/O 服务与 executor 属性，同步泛型根入口归 `PlatformEventLoop`。Darwin 绑定系统 libdispatch，Linux 绑定 io_uring／固定 liburing，Windows 绑定 IOCP。所有端点、文件、目录和操作只依赖同一共享 owner；Job／CoroutineScope／execution 来自 core。native 后端管理原生资源、请求、完成记录，不拥有另一套任务树，也不直接执行 managed I/O continuation。
 
 后端按目标构建选择，不公开后端注册表。`PlatformEventLoop` 取代 `LibuvEventLoop`，不保留 libuv 依赖或兼容别名；不修改语言、runtime ABI、IR 或产物格式。平台能力与依赖版本见[设计第 7～10 节](../asyncio-backends/DESIGN.md#7-macoslibdispatch-后端)。
 
@@ -303,9 +309,9 @@ async raw 作用域使用这两个入口和 useAsync，GC 不承担恢复。
 
 `PlatformEventLoop.run` 保留同步单次根入口合同。新增 `attach(host, onClosed): EventLoopSession`，接入调用线程所属的宿主主循环；两种入口共用一次启动机会，均拒绝当前 Job／活动 EventLoop binding 中的嵌套启动。接受入口后才取得 native 资源，初始化失败回滚并关闭实例。
 
-session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: (CoroutineScope) -> Unit): Boolean` 与 `requestClose()`。后三项可跨线程；post 异步排队，关闭后拒绝且不保留闭包。接受的投递在关闭／失败时可以丢弃，内部取消、完成和清理命令不能丢弃。post 执行在仍活动的结构化根作用域中，子任务沿现有 launch／async 合同；根在没有消息时挂起，持续到请求关闭或失败。
+session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: CoroutineScope.() -> Unit): Boolean` 与 `requestClose()`。后三项可跨线程；post 异步排队，关闭后拒绝且不保留闭包。接受的投递在关闭／失败时可以丢弃，内部 work、取消、完成和清理命令不能丢弃。post 的 receiver 是仍活动的 session 根作用域，子任务沿 launch／async 合同；根在没有消息时挂起，持续到请求关闭或失败。
 
-内部根在 attach 栈内捕获完整 Context 并挂起，用户投递从后续宿主通知开始；mailbox 通过根 continuation 恢复，不继承外线程 post 时的动态 Context。普通投递抛错作为根失败处理。requestClose 幂等、不阻塞，停止应用投递并把根取消交给 owner；mailbox 的取消恢复也排入 owner。主动关闭的取消不作为最终失败，其他失败沿现有组合规则保留。
+内部根在 attach 栈内捕获 binding 快照并排队，根正文及用户投递从后续宿主通知开始；mailbox 通过根 continuation 恢复，不继承外线程 post 时的动态 Context。普通投递抛错作为根失败处理。requestClose 幂等、不阻塞，停止应用投递并把根取消交给 owner；mailbox 的取消恢复也通过 LoopExecutor 排队。主动关闭的取消不作为最终失败，其他失败沿现有组合规则保留。
 
 两种模式共用非阻塞处理流程；run 在空闲时 NativeSafe 等待，attach 只在宿主通知时处理一轮。通知可合并，真实队列承担完整性。嵌套宿主循环不能递归进入处理流程；处理期间产生的新工作留待后续通知。库不抢占用户回调。
 
@@ -317,13 +323,13 @@ session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: (Coroutine
 
 Darwin 提供主 dispatch queue 的 `MainDispatchHost`，Linux GUI 在自己的 fd watch 中监听 eventfd，Windows GUI 将借出的 event 接入自己的等待／消息循环。宿主仍负责窗口、输入、显示刷新和其连接协议。使用主队列的适配器只在宿主服务该队列时取得执行机会，不保证任意自定义 run-loop mode 都运行。具体声明与异常出口见[设计第 3 节](../asyncio-backends/DESIGN.md#3-公共入口与宿主协议)。
 
-本库排队恢复在 owner 线程进入 managed；任意第三方挂起点仍可能在其他线程恢复。接入 GUI 不新增协程拦截器或所有挂起函数的 UI 线程亲和性保证，外部回调通过 session.post 进入根作用域。
+LoopExecutor 的全部真实挂起恢复都在 owner 线程进入 managed，包括第三方回调和跨 executor 同步。显式切换到其他 executor 后，该任务在目标 executor 上执行，返回时回原 execution；UI 对象与 host API 的线程要求仍由调用者遵守。外部应用消息可通过 session.post 进入根作用域，内部 continuation 不经该可丢弃消息通道。
 
 ### 11.4 取消、借用与最终关闭
 
 结果选择与 native 结束分别记录。取消／close 先选择结果后请求后端撤销；必须等数据操作、相关控制请求及未交付资源清理真实结束，提交已知实际进度并解除借用，再恢复一次 continuation。dispatch cancel 请求或 io_uring 取消 CQE 不能单独证明目标操作结束；成功先选定不被后续取消覆盖。
 
-根及其全部后代完成后继续关闭遗留资源，并排空清理、完成和 ready。全部原生请求、worker 与 I/O callback 退出后，附着模式再注销宿主监听，最后销毁后端、关闭通知 fd 并在 owner 上执行一次 onClosed。宿主必须继续运行到该通知，不能先停止主循环再等待它。当前宿主移除通知的 callback lease 在其返回时释放，不等待自身退出。
+根及其全部后代完成后，先排空 LoopExecutor 已接纳任务，再以 owner 的内部命令／ready 关闭遗留资源，排空实际 I/O 及清理。此阶段保持 blocking pool 接纳；只有无任务、无资源、无操作、无待投递／退休工作后才停止自有池。全部原生请求、worker 执行循环与 I/O callback 退出后，附着模式再注销宿主监听，最后销毁后端、join 自有 worker、关闭通知资源并在 owner 上执行一次 onClosed。requestClose 和非阻塞 pump 不等待活动阻塞函数；宿主必须继续运行到 onClosed。当前宿主移除通知的 callback lease 在其返回时释放，不等待自身退出。
 
 onClosed 执行时 isClosed 为真，参数为运行／清理失败或 None。回调自身异常由宿主桥捕获并报告，不重复关闭、不跨 C 栈传播。GC release 不驱动循环、恢复任务或等待原生退出。阻塞 syscall 不能强制撤销时，显式关闭须等其真实返回。
 

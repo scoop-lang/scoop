@@ -88,8 +88,7 @@ internal fun extensionChain(trust: TrustStore, url: Url) {
             state.credentials += 1L
             HttpPasswordCredentials("user", "password")
         }
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

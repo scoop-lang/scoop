@@ -19,9 +19,8 @@ private class AsyncDirectoryReadTest {
             tree.path.resolve(Path.fromOsString(name)).writeText("data")
             tree.child("subdirectory").createDirectory()
             tree.child("link").createSymbolicLink(tree.child("missing"))
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 val directory = loop.openDirectory(tree.path)
                 val entries = collectDirectoryEntries(directory)
                 assertEquals(3L, entries.size)
@@ -51,9 +50,8 @@ private class AsyncDirectoryReadTest {
             val file = tree.child("file")
             file.writeText("file")
             val missing = tree.child("missing")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 loop.openDirectory(empty).useAsync suspend {
                     directory ->
                     assertDirectoryEnd(directory.next())

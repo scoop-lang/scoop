@@ -30,9 +30,9 @@ private fun queuedH2Prefix(client: Http2Session): Array<Byte> {
 private class ServerHttp2QueuedTests {
     @Test
     fun `GOAWAY still dispatches complete requests already queued before the first handler`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> serverDeadline<Unit>(
+        val loop = eventLoop()
+        loop.run {
+            serverDeadline<Unit>(
                 Some(Duration.seconds(5)),
                 "queued H2 test",
                 suspend {

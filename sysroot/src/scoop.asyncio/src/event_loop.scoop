@@ -16,11 +16,8 @@ public interface EventLoop {
      * active borrow.
      */
     @Unsafe public suspend fun runNativeWork(work: NativeWork)
-    /**
-     * Runs the root structured scope and drives its operations to completion. The loop is
-     * single-use and cannot be nested or called from an existing Job.
-     */
-    public fun run(block: suspend (CoroutineScope) -> Unit)
+    /** The active owner executor. Access before startup or after its termination is rejected. */
+    public val executor: CoroutineExecutor
     /**
      * Suspends for a nonnegative duration and follows current-job cancellation.
      */
@@ -110,23 +107,6 @@ internal fun hasEventLoop(): Boolean {
     }
     catch (_: MissingContextException) {
         return false
-    }
-}
-
-private class LoopResult<T> {
-    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
-}
-
-/**
- * Runs a structured event-loop scope and returns the block's eventual result after the loop
- * finishes.
- */
-public fun <T> EventLoop.runWithResult(block: suspend (CoroutineScope) -> T): T {
-    val result = LoopResult<T>()
-    run suspend { scope -> result.value = MaybeUninit<T>.initialized(block(scope)) }
-    @Unsafe
-    {
-        return result.value.assumeInit()
     }
 }
 

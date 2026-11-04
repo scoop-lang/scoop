@@ -8,7 +8,8 @@
 | core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成本地验收 |
 | Channel、AsyncMutex、AsyncConditionVariable | 已完成本地验收 |
 | MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成本地验收 |
-| asyncio 接入、AsyncRuntime、三平台 native work 迁移与 API 收敛 | 未开始 |
+| LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 本地验收 |
+| AsyncRuntime、三平台 native work 迁移与上层消费者验收 | 未开始 |
 | Linux/Windows 组合验证及最终清理 | 未开始 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
@@ -75,3 +76,11 @@
 - 未捕获 work／completion 异常在 worker 边界打印栈并以状态 1 退出；普通 blocking 闭包失败继续由 core 交付。部分创建失败的已建线程按关闭／join 回收。共享池 owner 负责在借用方关闭后关闭池，借用方不会关闭或 join 该池。
 - 验证：格式化及源码检查、release 库构建通过；52 项 Cone tests 全部通过（本轮新增 23 项），覆盖真实并行、yield、跨 executor 同步、binding 与 Job、阻塞成功资源／异常／取消、排空中的子任务、共享池、builder 快照、自等待和并发关闭。3 项真实 worker 的托管阻塞结果、运行中取消清理、跨 executor Channel／mutex／condition 在移动 GC／minor GC stress 下通过。
 - 新增一个正式 CLI fixture，消费预编译 concurrent 库并验证 queued completion 抛出后的进程退出码与栈诊断，通过。没有 runtime ABI、产物格式或 Rust 编译器改动。本轮平台为 Darwin AArch64；下一步为 asyncio 的 executor 接入、AsyncRuntime 和三平台 native work 迁移，然后集中验证 Linux／Windows。
+
+## LoopExecutor 与事件循环入口（2026-11-04）
+
+- BlockingTaskPool 与 MultiThreadExecutor 增加终止状态和一次性的普通终止通知；通知复用状态锁选定，在锁外执行，不继承登记方的 execution。解除订阅能撤销已选中但尚未开始的通知。新增 3 项组合测试通过，并发库共 55 项常规测试通过。
+- eventLoop receiver builder 保存自有／共享阻塞池配置快照，run／attach 接受入口后才创建资源。PlatformEventLoop 的泛型 final run 使用 CoroutineScope receiver 并直接返回 T；EventLoop 接口保留服务和 executor 属性，移除旧构造调用、接口 run 与 runWithResult。仓库调用方和当前规范示例已迁移。
+- LoopExecutor 排队驱动并维持任务登记及工作计数；任意真实挂起的恢复回 owner，显式 worker I/O 保留 EventLoop binding 并回调用者 executor。根结束后先排空登记与工作，再关闭遗留资源、排空原生操作，最后终止并 join 自有 managed blocking pool；借用池由其 owner 关闭。
+- attach 不再额外唤醒空 mailbox；启动 work 本身负责通知宿主。普通完成只在进入最终终止时追加唤醒。已有时序测试通过明确交接，让被测子任务先提交请求，再检查占用或取消；保留真实 syscall、实际进度、迟到资源清理和宿主空闲断言。
+- 验证：格式化、源码检查和 release 库构建通过；160 项 asyncio Cone tests 全部通过，包含新增 7 项 executor／阻塞池组合以及外部恢复立即回 owner 的断言。独立 consumer 的泛型托管结果与真实 UDP I/O 测试通过。新增 7 项用例另在移动 GC／minor GC stress 下全部通过。平台为 Darwin AArch64；上层库消费者与 Linux／Windows 在 AsyncRuntime 和 native work 统一后集中验收，当前系统库中尚有需要重建的旧依赖产物。

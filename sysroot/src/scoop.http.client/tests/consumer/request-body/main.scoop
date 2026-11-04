@@ -53,10 +53,10 @@ suspend fun checkEnd(source: AsyncByteSource) {
 fun payload(): String = "文件正文：Scoop preserves ordered bytes.\n"
 
 private fun exercise(name: String, path: Path, body: RequestBody, factory: RequestBody) {
-    val loop: EventLoop = PlatformEventLoop()
+    val loop = eventLoop()
     context(BodyCallContext(name)) {
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             runBodyHttp1(loop, scope, path, body)
             runBodyHttp2(loop, scope, factory, name)
         }

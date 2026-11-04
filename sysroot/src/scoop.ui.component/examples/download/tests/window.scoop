@@ -76,7 +76,7 @@ private class DownloadWindowTest {
             for (connection in probe.server!!.connections)
                 assertTrue(connection.isClosed)
             assertFalse(probe.fonts.isClosed)
-            assertFalse(probe.application.proxy().post { _ -> fail() })
+            assertFalse(probe.application.proxy().post { fail() })
             // No event loop remains to deliver a terminal message. The application still owns
             // and joins this task, even when the progress/final posts are rejected.
             val rejected =

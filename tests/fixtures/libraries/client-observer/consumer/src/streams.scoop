@@ -11,8 +11,8 @@ import scoop.url.Url
 
 internal fun observedWebSocket(trust: TrustStore, url: Url, opened: Boolean) {
     val log = ObservationLog()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(observationConfig(trust, log)) suspend {
+    eventLoop().run {
+        withHttpClient(observationConfig(trust, log)) suspend {
             client ->
             val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(httpWebSocketRequest(target)) suspend {
@@ -49,8 +49,8 @@ internal fun observedWebSocket(trust: TrustStore, url: Url, opened: Boolean) {
 
 internal fun observedSse(trust: TrustStore, url: Url) {
     val log = ObservationLog()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(observationConfig(trust, log)) suspend {
+    eventLoop().run {
+        withHttpClient(observationConfig(trust, log)) suspend {
             client -> client.withSse(httpRequest(url)) suspend {
                 source ->
                 assertEquals("observed", source.next()!!.data)
@@ -79,8 +79,7 @@ internal fun observedWebSocketFailure(trust: TrustStore, url: Url, timeout: Bool
                 }
             }
         )
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

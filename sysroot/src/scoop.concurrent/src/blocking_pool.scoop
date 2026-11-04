@@ -4,6 +4,14 @@ package scoop.concurrent
 public class BlockingTaskPool public constructor(threads: Int): Closeable {
     private val workers = WorkerGroup.create(threads)
 
+    /** Whether this pool has stopped accepting work. */
+    public val isShutdown: Boolean get() = workers.isShutdown
+    /** Whether accepted work has drained and workers have left their execution loops. */
+    public val isTerminated: Boolean get() = workers.isTerminated
+
+    /** Registers a disposable ordinary notification, called unlocked or immediately if terminated. */
+    public fun invokeOnTermination(handler: () -> Unit): Disposable = workers.onTermination(handler)
+
     /** Queues one work item; rejects submissions after shutdown was requested. */
     public fun submit(work: BlockingWork) {
         workers.submit { work.run() }
@@ -35,8 +43,4 @@ public class BlockingTaskPool public constructor(threads: Int): Closeable {
         workers.ensureOpen()
     }
     internal val isCurrentWorker: Boolean get() = workers.isCurrentWorker
-    internal val isTerminated: Boolean get() = workers.isTerminated
-    internal fun onTermination(listener: () -> Unit) {
-        workers.onTermination(listener)
-    }
 }

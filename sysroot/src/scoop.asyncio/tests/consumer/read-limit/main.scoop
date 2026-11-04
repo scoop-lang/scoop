@@ -97,9 +97,9 @@ private suspend fun exerciseTcp(loop: EventLoop, scope: CoroutineScope, bytes: A
 
 private fun exercise() {
     val bytes = "prefix:中🌍:tail".toByteArray()
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         exerciseFile(loop, bytes)
         exerciseTcp(loop, scope, bytes)
     }

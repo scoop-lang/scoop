@@ -11,8 +11,8 @@ import scoop.url.Url
 
 internal fun observedFailure(trust: TrustStore, url: Url, body: Boolean) {
     val log = ObservationLog()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(observationConfig(trust, log)) suspend {
+    eventLoop().run {
+        withHttpClient(observationConfig(trust, log)) suspend {
             client ->
             val failure =
                 observationFailure suspend {
@@ -64,8 +64,7 @@ internal fun observedTcpCallback(trust: TrustStore, url: Url) {
             if (state.calls == 1L)
                 throw failure
         }
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val config =
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
@@ -96,8 +95,8 @@ internal fun observedTcpCallback(trust: TrustStore, url: Url) {
 
 internal fun observedDns(trust: TrustStore, url: Url) {
     val log = ObservationLog()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(observationConfig(trust, log)) suspend {
+    eventLoop().run {
+        withHttpClient(observationConfig(trust, log)) suspend {
             client -> observationGet(client, url, "probe")
         }
     }

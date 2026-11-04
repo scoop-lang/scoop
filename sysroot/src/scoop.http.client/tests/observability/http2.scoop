@@ -11,8 +11,9 @@ private class HttpRequestObservationHttp2Test {
     @Test
     fun `HTTP2 requests retain independent timestamps on a shared unobserved connection`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serverDone = BodyTestGate()
                     val serving =

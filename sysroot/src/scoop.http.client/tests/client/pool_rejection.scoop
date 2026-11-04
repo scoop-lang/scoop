@@ -15,9 +15,9 @@ private class HttpClientPoolRejectionTest {
     fun `disabled retries report an initial HTTP2 refusal without an internal redial`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val listener = clientTestListen(loop)
                 val extra = AtomicBoolean(false)
                 val serving =

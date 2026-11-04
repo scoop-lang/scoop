@@ -10,9 +10,8 @@ import scoop.test.*
 private class AsyncCompressionLifecycleTests {
     @Test
     fun `owned endpoints close once and failed acquisition retains the caller owner`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = ShortAsyncCompressionSource("abc".toByteArray())
             assertFailsWith<IllegalArgumentException> {
                 AsyncCompressionSource.takeOwnership(input, bufferSize = 0L)
@@ -52,9 +51,8 @@ private class AsyncCompressionLifecycleTests {
 
     @Test
     fun `I O and cleanup failures preserve causes and do not poison the caller Job`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = ShortAsyncCompressionSource("abc".toByteArray())
             input.failAfter = 0L
             AsyncCompressionSource(input).useAsync suspend {
@@ -102,9 +100,8 @@ private class AsyncCompressionLifecycleTests {
 
     @Test
     fun `zero writes fail and another EventLoop cannot operate the adapter`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val output = ShortAsyncCompressionSink()
             output.zero = true
             AsyncCompressionSink(output).useAsync suspend {
@@ -118,7 +115,7 @@ private class AsyncCompressionLifecycleTests {
             ).useAsync suspend {
                 source -> NativeByteBuffer.allocate(1L).use suspend {
                     buffer ->
-                    val other: EventLoop = PlatformEventLoop()
+                    val other: EventLoop = eventLoop()
                     expectAsyncCompressionFailure<IllegalStateException> suspend {
                         context(other) {
                             source.readInto(buffer, 1L)

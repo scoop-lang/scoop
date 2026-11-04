@@ -9,9 +9,9 @@ import scoop.terminal.screen.SetTitle
 import scoop.time.Duration
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         loop.openTty().useAsync suspend {
             tty ->
             ownership(loop, tty)
@@ -38,9 +38,9 @@ fun main() {
     }
     standardOutput.execute(SetTitle("tty-loop-closed"))
     TerminalSession.open().use { session -> session.read() }
-    val endLoop: EventLoop = PlatformEventLoop()
-    endLoop.run suspend {
-        _ -> endLoop.openTty().useAsync suspend {
+    val endLoop = eventLoop()
+    endLoop.run {
+        endLoop.openTty().useAsync suspend {
             tty -> NativeByteBuffer.allocate(1L).use suspend {
                 buffer ->
                 stage(tty, "tty-eof")

@@ -9,10 +9,10 @@ import scoop.test.*
 private class AsyncTcpConnectCancellationTest {
     @Test
     fun `cancelling queued resolution stops both families before connection submission`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val host = OsString.fromString("127.0.0.1")
             val fence = WorkFence(backend)
@@ -42,10 +42,10 @@ private class AsyncTcpConnectCancellationTest {
 
     @Test
     fun `completed DNS results are drained when cancellation wins before delivery`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val host = OsString.fromString("localhost")
             val pending = scope.launch suspend { loop.connectTcp(host, listener.localAddress.port) }
@@ -67,10 +67,10 @@ private class AsyncTcpConnectCancellationTest {
 
     @Test
     fun `queued competing successes and late rejected sockets close without closing the winner`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val(_, first, firstPeer) = tcpPair(loop, scope)
             val(_, second, secondPeer) = tcpPair(loop, scope)
             val(_, late, latePeer) = tcpPair(loop, scope)

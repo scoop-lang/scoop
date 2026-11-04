@@ -11,9 +11,8 @@ import scoop.url.Url
 fun runExternalClient(url: Url) {
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val config =
                 httpClientConfig {
                     this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

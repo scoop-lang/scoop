@@ -62,9 +62,9 @@ private class AsyncHttp1SwitchTests {
 
     @Test
     fun `CONNECT transfers the coalesced suffix and old close does not close the tunnel`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val client = AsyncHttp1Connection.takeOwnershipAsClient(a, scope)
             try {

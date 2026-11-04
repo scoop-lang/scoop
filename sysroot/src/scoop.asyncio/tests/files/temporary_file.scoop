@@ -20,9 +20,8 @@ private class AsyncTemporaryFileTest {
                     OsString.fromString("临时 空格")
             val directory = tree.path.resolve(Path.fromOsString(name))
             directory.createDirectory()
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 val first = loop.createTempFile(Some(directory), "prefix-")
                 val second = loop.createTempFile(Some(directory), "prefix-")
                 assertFalse(first.path == second.path)
@@ -69,9 +68,8 @@ private class AsyncTemporaryFileTest {
             val ordinary = tree.child("ordinary")
             ordinary.writeText("file")
             val invalid: Array<Byte> = [120, 0, 121]
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 try {
                     loop.createTempFile(Some(tree.path), "bad/name");
                     fail(Some("slash in prefix accepted"))
@@ -135,9 +133,8 @@ private class AsyncTemporaryFileTest {
         IoTestDirectory().use {
             tree ->
             val destination = tree.child("published")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 loop.createTempFile(Some(tree.path)).useAsync suspend {
                     temporary ->
                     loop.moveFile(temporary.path, destination)

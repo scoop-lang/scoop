@@ -119,9 +119,9 @@ private suspend fun send(client: HttpClient, mode: String, url: Url, text: Strin
 }
 
 private fun runClient(mode: String, base: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val cleartext =
             if (mode == "h2")
                 HttpCleartextProtocol.Http2PriorKnowledge

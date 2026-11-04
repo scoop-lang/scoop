@@ -1,12 +1,14 @@
 package scoop.asyncio
 
 import scoop.collections.HashMap
+import scoop.concurrent.BlockingTaskPool
 
 internal class LoopOwner {
     private val lock: IoLock = IoLock()
     private var binding: EventLoop? = None
     private val driver: LoopDriver = LoopDriver()
     private var pointer: Ptr<Unit>? = None
+    private var execution: LoopExecution? = None
     private var commands: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
     private var nextId: Long = 1L
     private var root: Job? = None
@@ -18,23 +20,87 @@ internal class LoopOwner {
     private var cleaning: Boolean = false
     var ready: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
 
-    fun open(loop: EventLoop): Ptr<Unit> {
-        @Unsafe
-        {
-            val created = nativeLoopCreate()
-            if (created.status.code != 0)
-                throw backendFailure("create event loop", created.status)
-            lock.withLock {
-                binding = Some(loop);
-                pointer = created.pointer
+    fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
+        val(pool, owned) =
+            when (config) {
+                case Owned(threads) -> (BlockingTaskPool(threads), true)
+                case Shared(pool) -> (pool, false)
             }
-            return created.pointer!!
+        if (pool.isShutdown)
+            throw ExecutorClosedException()
+        try {
+            @Unsafe
+            {
+                val created = nativeLoopCreate()
+                if (created.status.code != 0)
+                    throw backendFailure("create event loop", created.status)
+                val state = LoopExecution(LoopExecutor(this, pool), pool, owned)
+                lock.withLock {
+                    binding = Some(loop)
+                    pointer = created.pointer
+                    execution = Some(state)
+                }
+                if (owned)
+                    pool.invokeOnTermination { wakeExecution() }
+                return created.pointer!!
+            }
+        } catch (error: Throwable) {
+            if (owned)
+                pool.close()
+            throw error
+        }
+    }
+
+    private fun currentExecution(): LoopExecution =
+        lock.withLock { execution } ?:
+            throw IllegalStateException(Some("event loop is not running"))
+
+    val executor: LoopExecutor get() = currentExecution().executor
+
+    fun activeExecutor(): CoroutineExecutor {
+        val state =
+            lock.withLock {
+                if (pointer == None)
+                    throw IllegalStateException(Some("event loop is not running"))
+                execution!!
+            }
+        if (state.executor.isTerminated)
+            throw IllegalStateException(Some("event loop executor has terminated"))
+        return state.executor
+    }
+
+    fun wakeExecution() {
+        lock.withLock {
+            when (pointer) {
+                case Some(native) -> @Unsafe
+                {
+                    nativeLoopWake(native)
+                }
+                case None -> {}
+            }
+        }
+    }
+
+    fun enqueueExecution(command: () -> Unit) {
+        lock.withLock {
+            val native =
+                pointer ?: throw IllegalStateException(Some("event loop executor is closed"))
+            commands.add(command)
+            @Unsafe
+            {
+                nativeLoopWake(native)
+            }
         }
     }
 
     fun requireJob(cancellable: Boolean = true): Job {
         val expected =
-            lock.withLock { binding } ?:
+            lock.withLock {
+                if (pointer == None)
+                    None
+                else
+                    binding
+            } ?:
                 throw IllegalStateException(Some("event loop is not running"))
         if (!hasEventLoop() || currentEventLoop() !== expected)
             throw IllegalStateException(Some("wrong event loop"))
@@ -121,7 +187,7 @@ internal class LoopOwner {
     }
 
     fun startCleanup() {
-        if (cleaning || !lock.withLock { rootEnded })
+        if (cleaning || !lock.withLock { rootEnded } || !executor.isTerminated)
             return
         cleaning = true
         val owned = Array<LoopResource>(resources.size) { index -> resources[index] }
@@ -176,6 +242,7 @@ internal class LoopOwner {
                 case None -> {}
             }
         }
+        executor.requestShutdown()
     }
 
     fun takeCommands(): ArrayList<() -> Unit> =
@@ -194,6 +261,7 @@ internal class LoopOwner {
 
     private fun managedIdle(): Boolean =
         rootEnded &&
+            execution!!.executor.isTerminated &&
             commands.size ==
             0L &&
             ready.size ==
@@ -211,11 +279,21 @@ internal class LoopOwner {
             if (!nativeLoopIdle(native))
                 return false
         }
+        val state = currentExecution()
+        if (state.owned) {
+            if (!state.poolStopping) {
+                state.poolStopping = true
+                state.pool.requestShutdown()
+            }
+            if (!state.pool.isTerminated)
+                return false
+        }
         return lock.withLock {
             if (!managedIdle())
                 false
             else {
                 pointer = None;
+                binding = None
                 true
             }
         }
@@ -228,6 +306,15 @@ internal class LoopOwner {
             if (status.code != 0)
                 cleanupFailed(backendFailure("close event loop", status))
         }
+        val state = currentExecution()
+        if (state.owned) {
+            try {
+                state.pool.join()
+            }
+            catch (error: Throwable) {
+                cleanupFailed(error)
+            }
+        }
         return lock.withLock { failure }
     }
 
@@ -235,4 +322,12 @@ internal class LoopOwner {
     fun drive(native: Ptr<Unit>) {
         driver.drive(this, native)
     }
+}
+
+private class LoopExecution(
+    val executor: LoopExecutor,
+    val pool: BlockingTaskPool,
+    val owned: Boolean
+) {
+    var poolStopping = false
 }

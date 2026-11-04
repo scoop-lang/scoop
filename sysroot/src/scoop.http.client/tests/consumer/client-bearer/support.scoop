@@ -61,9 +61,10 @@ internal fun bearerUrl(listener: AsyncTcpListener): Url =
 internal fun withBearerRuntime(
     block: suspend (EventLoop, CoroutineScope, AsyncTcpListener) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             block(loop, scope, listener)
             bearerCheck(!scope.job.isCancelled)

@@ -10,8 +10,7 @@ private class HttpRequestObservationFailureTest {
     @Test
     fun `failure before submission retains a completed unsent attempt`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                _ ->
+            trust -> eventLoop().run {
                 val failure = IllegalStateException(Some("prepare failed"))
                 val config =
                     httpClientConfig {
@@ -48,8 +47,8 @@ private class HttpRequestObservationFailureTest {
     @Test
     fun `request observer self close fails promptly and preserves the callback failure`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                _ -> withHttpClient(clientTestConfig(trust)) suspend {
+            trust -> eventLoop().run {
+                withHttpClient(clientTestConfig(trust)) suspend {
                     client ->
                     val calls = ArrayList<HttpCallEvent>()
                     val observer =

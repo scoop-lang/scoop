@@ -1,0 +1,74 @@
+package scoop.asyncio
+
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+internal fun <T> assertNoLoopValue(value: T?) {
+    when (value) {
+        case Some(_) -> fail(Some("unexpected optional value"))
+        case None -> {}
+    }
+}
+
+internal class LoopThreadResult<T>: Continuation<T> {
+    private val mutex = Mutex()
+    private val changed = ConditionVariable(mutex)
+    private var done = false
+    private var value: T? = None
+    private var failure: Throwable? = None
+
+    public override fun resume(value: T) {
+        mutex.withLock {
+            assertFalse(done)
+            this.value = Some(value)
+            done = true
+            changed.broadcast()
+        }
+    }
+
+    public override fun resumeWithException(error: Throwable) {
+        mutex.withLock {
+            assertFalse(done)
+            failure = Some(error)
+            done = true
+            changed.broadcast()
+        }
+    }
+
+    fun await(): T {
+        val(result, error) =
+            mutex.withLock {
+                while (!done)
+                    changed.await()
+                (value, failure)
+            }
+        when (error) {
+            case Some(error) -> throw error
+            case None -> return result!!
+        }
+    }
+}
+
+internal class LoopBlockingGate {
+    private val mutex = Mutex()
+    private val changed = ConditionVariable(mutex)
+    private var released = false
+    private var started = false
+
+    val entered: Boolean get() = mutex.withLock { started }
+
+    fun await() {
+        mutex.withLock {
+            started = true
+            while (!released)
+                changed.await()
+        }
+    }
+
+    fun open() {
+        mutex.withLock {
+            released = true
+            changed.broadcast()
+        }
+    }
+}

@@ -33,9 +33,9 @@ private class RequestBodyTrailersCompositionTest {
         assertEquals(1L, body.trailerNames.size)
         assertEquals(2L, body.contentEncodings.size)
         assertTrue(body.contentLength == None)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (size in [1L, 7L]) {
+        val loop = eventLoop()
+        loop.run {
+            for (size in [1L, 7L]) {
                 val output = BodyTestSink()
                 val result = body.writeWithTrailersTo(output, size)
                 assertEquals(output.bytes.size, result.transferredBytes)

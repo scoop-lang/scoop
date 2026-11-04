@@ -49,10 +49,10 @@ private class PendingIdentityTransport(val inner: AsyncTcpStream): AsyncByteStre
 
 fun cancelIdentityHandshake() {
     val context = identityContext(TlsVersion.Tls13)
-    val loop: EventLoop = PlatformEventLoop()
+    val loop = eventLoop()
     try {
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             try {
                 val connecting =

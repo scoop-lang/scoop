@@ -34,9 +34,8 @@ fun main() {
 }
 
 private fun communicate(port: Int, version: TlsVersion, asynchronous: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val identity = TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem())
         val options = TlsOptions(version, version)
         val context =

@@ -11,9 +11,8 @@ private class RequestBodySourceTest {
         val body = RequestBody.fromSource(source, Some(6L))
         assertFalse(body.isReplayable)
         assertEquals(0L, source.reads + source.closes)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             expectBodyFailure<IllegalArgumentException> suspend { body.writeTo(BodyTestSink(), 0L) }
             assertEquals(0L, source.reads)
             assertEquals("source", bodyText(body))
@@ -35,9 +34,8 @@ private class RequestBodySourceTest {
             }
         assertTrue(body.isReplayable)
         assertEquals(0L, sources.size)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             assertEquals("copy", bodyText(body))
             assertEquals("copy", bodyText(body, 1L))
             assertEquals(2L, sources.size)
@@ -53,9 +51,9 @@ private class RequestBodySourceTest {
         source.failRead = true
         source.failClose = true
         val body = RequestBody.fromSourceFactory suspend { source }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val error =
                 expectBodyFailure<ResourceUseException> suspend { body.writeTo(BodyTestSink()) }
             assertSame(source.failure, error.primaryFailure)
@@ -68,9 +66,8 @@ private class RequestBodySourceTest {
 
     @Test
     fun `file bodies reopen with asynchronous IO and do not claim a content snapshot`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val temporary = loop.createTempFile(prefix = "m54-body-文件 ")
             try {
                 RequestBody.fromText("first").writeTo(temporary.file)

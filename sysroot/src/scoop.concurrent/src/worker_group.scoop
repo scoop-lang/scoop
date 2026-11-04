@@ -14,7 +14,7 @@ internal class WorkerGroup private constructor() {
     private val queue = ArrayDeque<() -> Unit>()
     private val workers = ArrayList<WorkerRecord>()
     private val terminated = Channel<Unit>(0L)
-    private val terminationListeners = ArrayList<() -> Unit>()
+    private val terminationListeners = TerminationListeners(lock)
     private var stopping = false
     private var stopped = false
     private var joining = false
@@ -74,18 +74,10 @@ internal class WorkerGroup private constructor() {
     }
 
     internal val isTerminated: Boolean get() = lock.withLock { stopped }
+    internal val isShutdown: Boolean get() = lock.withLock { stopping }
 
-    internal fun onTermination(listener: () -> Unit) {
-        val callNow =
-            lock.withLock {
-                if (stopped)
-                    return@withLock true
-                terminationListeners.add(listener)
-                false
-            }
-        if (callNow)
-            listener()
-    }
+    internal fun onTermination(listener: () -> Unit): Disposable =
+        terminationListeners.subscribe(listener)
 
     internal fun requestShutdown() {
         val notifications =
@@ -193,9 +185,7 @@ internal class WorkerGroup private constructor() {
         val notifications = WaitNotifications()
         if (stopping && live == 0 && !stopped) {
             stopped = true
-            for (listener in terminationListeners)
-                notifications.add(listener)
-            terminationListeners.clear()
+            terminationListeners.finishLocked(notifications)
             notifications.add { terminated.close() }
         }
         return notifications

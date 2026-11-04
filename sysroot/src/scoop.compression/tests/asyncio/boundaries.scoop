@@ -9,9 +9,8 @@ import scoop.test.*
 private class AsyncCompressionBoundaryTests {
     @Test
     fun `bad tails and missing EOF propagate without cancelling the caller`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             for (options in compressionCases()) {
                 val vector = compressionVector(options.format)
                 val truncated = Array<Byte>(vector.size - 1L) { index -> vector[index] }
@@ -70,9 +69,9 @@ private class AsyncCompressionBoundaryTests {
 
     @Test
     fun `limits and concatenated members retain the same async boundaries`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (format in [CompressionFormat.Gzip, CompressionFormat.Zstd]) {
+        val loop = eventLoop()
+        loop.run {
+            for (format in [CompressionFormat.Gzip, CompressionFormat.Zstd]) {
                 val vector = compressionVector(format)
                 val data = joinCompressionBytes(vector, vector)
                 val input = ShortAsyncCompressionSource(data)
@@ -101,9 +100,9 @@ private class AsyncCompressionBoundaryTests {
 
     @Test
     fun `cancelled and invalid requests leave an unstarted stream usable`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = ShortAsyncCompressionSource("abc".toByteArray())
             AsyncCompressionSource(input).useAsync suspend {
                 source -> NativeByteBuffer.allocate(4L).use suspend {

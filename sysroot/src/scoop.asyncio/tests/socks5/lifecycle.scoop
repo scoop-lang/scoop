@@ -10,9 +10,9 @@ private class AsyncSocks5LifecycleTest {
     fun `handshake cancellation waits for an actual native borrow before closing`() {
         val script = Socks5Script(socks5SuccessInput())
         script.holdRead = true
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val opening =
                 scope.launch suspend {
                     AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget()).close()
@@ -41,9 +41,9 @@ private class AsyncSocks5LifecycleTest {
         val script = Socks5Script([4, 0])
         script.holdClose = true
         val reported = AtomicBoolean(false)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val opening =
                 scope.launch suspend {
                     try {
@@ -72,9 +72,9 @@ private class AsyncSocks5LifecycleTest {
 
     @Test
     fun `a real pending reply cancels and closes the TCP transport before returning`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(_, client, peer) = tcpPair(loop, scope)
             val opening =
                 scope.launch suspend {
@@ -96,9 +96,9 @@ private class AsyncSocks5LifecycleTest {
 
     @Test
     fun `coalesced tunnel data remains intact and concurrent close drains a pending read`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(_, client, peer) = tcpPair(loop, scope)
             val opening =
                 scope.async<AsyncSocks5Tunnel> suspend {
@@ -137,11 +137,11 @@ private class AsyncSocks5LifecycleTest {
     @Test
     fun `loop ownership is checked and cancelled finally can close a returned tunnel`() {
         val script = Socks5Script(socks5SuccessInput())
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val tunnel = AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget())
-            val foreign: EventLoop = PlatformEventLoop()
+            val foreign: EventLoop = eventLoop()
             context(foreign) {
                 try {
                     tunnel.flush();

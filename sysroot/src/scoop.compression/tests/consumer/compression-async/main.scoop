@@ -44,9 +44,9 @@ private fun exerciseConsumer(args: Array<String>) {
                     directory.resolve(Path.fromString("downloaded-" + index.toString()))
                 )
             )
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             try {
                 val tasks = ArrayList<Job>()

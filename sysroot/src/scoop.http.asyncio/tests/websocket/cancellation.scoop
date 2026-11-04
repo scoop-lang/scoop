@@ -11,9 +11,9 @@ import scoop.time.Duration
 private class AsyncWebSocketCancellationTests {
     @Test
     fun `local close waits for the real input borrow without cancelling its caller`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = PendingMessageSource()
             val transport = WebSocketTestTransport(input, MessageTestSink())
             val session = AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
@@ -53,9 +53,9 @@ private class AsyncWebSocketCancellationTests {
 
     @Test
     fun `cross thread cancellation waits for both native borrows and closes from cancelled finally`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = PendingMessageSource()
             val output = PendingMessageSink(1.toByte())
             output.pause = true
@@ -133,9 +133,9 @@ private class AsyncWebSocketCancellationTests {
 
     @Test
     fun `session owns its timer after the supplied scope body returns`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val slot = WebSocketSlot()
             val ready = AsyncGate()
@@ -187,9 +187,8 @@ private class AsyncWebSocketCancellationTests {
         assertFailsWith<IllegalArgumentException> {
             webSocketSessionOptions { this.closeTimeout = Duration.ZERO }
         }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val closed = coroutineScope<CoroutineScope> { this }
             val transport = WebSocketTestTransport(WebSocketWaitingSource(), MessageTestSink())
             expectMessageFailure<IllegalStateException> suspend {
@@ -231,9 +230,9 @@ private class AsyncWebSocketCancellationTests {
 
     @Test
     fun `cancelling the supplied owner scope closes an idle session`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val transport = WebSocketTestTransport(WebSocketWaitingSource(), MessageTestSink())
             val slot = WebSocketSlot()
             val ready = AsyncGate()

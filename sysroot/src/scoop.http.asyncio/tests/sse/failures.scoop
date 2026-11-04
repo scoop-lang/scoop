@@ -8,10 +8,10 @@ import scoop.test.*
 private class SseSourceFailureTests {
     @Test
     fun `construction and pre-cancellation preserve ownership and wrong loop calls do not damage the source`() {
-        val loop: EventLoop = PlatformEventLoop()
-        val other: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        val other: EventLoop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = MessageTestSource("data:ok\n\n".toByteArray())
             assertFailsWith<IllegalArgumentException> {
                 SseSource.takeOwnership(input, bufferSize = 0L)
@@ -46,9 +46,8 @@ private class SseSourceFailureTests {
 
     @Test
     fun `I/O and parser failures retain their types and useAsync combines cleanup failure`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = MessageTestSource("".toByteArray())
             input.failRead = true;
             input.failClose = true
@@ -76,9 +75,9 @@ private class SseSourceFailureTests {
 
     @Test
     fun `inconsistent source progress is rejected before reusing its buffer`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (mode in [1, 2, 3, 4]) {
+        val loop = eventLoop()
+        loop.run {
+            for (mode in [1, 2, 3, 4]) {
                 val input = MessageTestSource("".toByteArray())
                 input.badProgress = mode
                 val source = SseSource.takeOwnership(input, bufferSize = 4L)
@@ -92,9 +91,9 @@ private class SseSourceFailureTests {
 
     @Test
     fun `concurrent close waiters receive the same cleanup failure and the endpoint closes once`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val gate = AsyncGate()
             val input = MessageTestSource("".toByteArray())
             input.closeGate = Some(gate);

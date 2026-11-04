@@ -86,6 +86,9 @@ signal 将最早 condition 节点选为成功并移到 mutex 重新获取队列�
 
 ```scoop
 public class MultiThreadExecutor : CoroutineExecutor, Closeable {
+    public val isShutdown: Boolean
+    public val isTerminated: Boolean
+    public fun invokeOnTermination(handler: () -> Unit): Disposable
     public override fun registerTask(parent: ExecutorTask?): ExecutorTask
     public fun requestShutdown()
     public suspend fun awaitTermination()
@@ -93,6 +96,9 @@ public class MultiThreadExecutor : CoroutineExecutor, Closeable {
     public override fun close()
 }
 public class BlockingTaskPool public constructor(threads: Int) : Closeable {
+    public val isShutdown: Boolean
+    public val isTerminated: Boolean
+    public fun invokeOnTermination(handler: () -> Unit): Disposable
     public fun submit(work: BlockingWork)
     public fun requestShutdown()
     public suspend fun awaitTermination()
@@ -111,7 +117,9 @@ requestShutdown 幂等请求排空，不取消 Job。executor 的活动登记为
 
 BlockingTaskPool 的 requestShutdown 停止接纳新 work，排空已接纳队列后退出；关闭后 submit 抛 ExecutorClosedException。借用共享池的 owner 必须在全部借用方关闭并 join 后关闭该池；提前关闭违反实际资源生命周期合同，不能指望活动 executor 的后续 blocking 投递仍可执行。借用方本身不关闭或 join 共享池。
 
-awaitTermination 可以被等待者取消，不撤销关闭，也不代替 OS thread join。join 要求先请求 shutdown，等待逻辑终止，再完成原生 join 和句柄回收；重复及多个外部线程并发 join 均安全。close 合并请求和 join。不得从本 executor 的活动任务、其 coroutine worker 或依赖本次阻塞工作退出的 worker 上等待自身终止；阻塞池也拒绝其 worker 的自等待／join。检查包含物理线程身份，不能只依赖在 blocking invocation 中为空的 currentCoroutineExecutorOrNone。
+isShutdown 表示已经请求关闭，isTerminated 表示逻辑排空并退出执行循环；两者为线程安全的单调只读状态，供实际 event loop／runtime 组合使用，不代替正确的共享池归属顺序。awaitTermination 可以被等待者取消，不撤销关闭，也不代替 OS thread join。join 要求先请求 shutdown，等待逻辑终止，再完成原生 join 和句柄回收；重复及多个外部线程并发 join 均安全。close 合并请求和 join。不得从本 executor 的活动任务、其 coroutine worker 或依赖本次阻塞工作退出的 worker 上等待自身终止；阻塞池也拒绝其 worker 的自等待／join。检查包含物理线程身份，不能只依赖在 blocking invocation 中为空的 currentCoroutineExecutorOrNone。
+
+invokeOnTermination 是组合组件使用的普通一次性通知，不创建 coroutine，也不捕获登记者的 execution。逻辑终止时在内部锁外于完成线程调用；已终止时登记则在调用栈同步调用。Disposable 撤销尚未开始的通知，与已开始的 handler 竞争时不等待其结束；通知或撤销后解除函数捕获。一个 handler 抛出也须执行其余通知和等待者交付，之后传播首先捕获的异常；worker 边界按上述未捕获异常规则处理，同步的迟到登记直接向登记方抛出。内部 I/O owner 可以据此唤醒驱动，避免用继承 caller executor 的等待 coroutine 建立关闭循环。
 
 逻辑终止在最后一个 work 返回且 worker 不再领取 work 后发布；线程的 managed gateway 尾部由 join 等待。因此 awaitTermination 对自有 blocking pool 也不隐含 OS join。join 回收线程句柄，保护最终状态的 Mutex／ConditionVariable 则随对象 GC 回收，关闭后的并发幂等操作和拒绝投递仍在有效同步对象上协调。部分线程创建失败时请求已创建 worker 退出、join 它们并传播原失败；不留下后台 worker。
 

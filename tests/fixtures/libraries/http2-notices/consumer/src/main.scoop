@@ -134,9 +134,9 @@ private suspend fun exerciseNormal(client: AsyncHttp2Connection, notices: Notice
 }
 
 private fun exercise(mode: String, address: SocketAddress) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val notices = Notices()
         val client =
             AsyncHttp2Connection.takeOwnershipAsClient(

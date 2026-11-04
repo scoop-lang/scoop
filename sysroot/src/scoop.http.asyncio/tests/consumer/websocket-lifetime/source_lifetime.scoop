@@ -52,9 +52,9 @@ private class WsSessionSlot {
 }
 
 internal fun wsSourceStop(mode: String, child: Boolean, cleanup: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsTestTransport()
         val slot = WsSessionSlot()
         val ready = WsGate()

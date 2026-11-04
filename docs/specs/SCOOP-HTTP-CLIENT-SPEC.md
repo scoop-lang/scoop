@@ -518,11 +518,11 @@ urlDisplay 只保留 origin 和明确的路径脱敏标记，去掉 userinfo、q
 
 ```scoop
 fun main() {
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(httpClientConfig()) suspend {
+    eventLoop().run {
+        withHttpClient(httpClientConfig()) {
             client ->
             val request = httpRequest(Url.parse("https://example.com/data"))
-            client.withResponse(request) suspend {
+            client.withResponse(request) {
                 response ->
                 response.requireSuccess()
                 val bytes = response.body.readAllBytes(maxBytes = 1048576L)

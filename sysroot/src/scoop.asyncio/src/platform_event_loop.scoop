@@ -11,32 +11,41 @@ import scoop.platform.fs.*
  * A single-use platform event loop. Run it from outside a Job and outside another event loop; I/O
  * requires an active job in this loop's context.
  */
-public class PlatformEventLoop public constructor(): EventLoop {
+public class PlatformEventLoop internal constructor(
+    private val config: LoopBlockingConfig
+): EventLoop {
     private val accepted: AtomicBoolean = AtomicBoolean(false)
     internal val state: LoopOwner = LoopOwner()
+
+    /** The owner executor for this active loop lifetime. */
+    public override val executor: CoroutineExecutor get() = state.activeExecutor()
 
     /**
      * Runs the root structured scope and drives its operations to completion. The loop is
      * single-use and cannot be nested or called from an existing Job.
      */
-    public override fun run(block: suspend (CoroutineScope) -> Unit) {
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T {
         acceptStart()
-        val native = state.open(this)
+        val native = state.open(this, config)
+        val result = LoopResult<T>()
         val loop: EventLoop = this
         context(loop) {
-            startCoroutine<Unit>(
-                suspend {
-                    coroutineScope<Unit> {
-                        val scope = this
-
-                        this @PlatformEventLoop.state.bindRoot(scope.job);
-                        block(scope)
+            startDispatchedCoroutine<T>(
+                state.executor,
+                {
+                    coroutineScope<T> {
+                        this @PlatformEventLoop.state.bindRoot(job)
+                        block(this)
                     }
                 },
-                LoopCompletion(state)
+                LoopCompletion(state, result)
             )
         }
         state.drive(native)
+        @Unsafe
+        {
+            return result.value.assumeInit()
+        }
     }
 
     /** Attaches without running application callbacks on the registration stack. */
@@ -44,12 +53,13 @@ public class PlatformEventLoop public constructor(): EventLoop {
         if (!host.isCurrentThread())
             throw IllegalStateException(Some("attach requires the host owner thread"))
         acceptStart()
-        val native = state.open(this)
+        val native = state.open(this, config)
         val mailbox = LoopMailbox(state)
         val loop: EventLoop = this
         context(loop) {
-            startCoroutine<Unit>(
-                suspend {
+            startDispatchedCoroutine<Unit>(
+                state.executor,
+                {
                     coroutineScope<Unit> {
                         val scope = this
                         mailbox.run(scope)
@@ -191,8 +201,16 @@ public class PlatformEventLoop public constructor(): EventLoop {
     ): AsyncUdpSocket = bindUdpOnLoop(state, address, reuseAddress)
 }
 
-private class LoopCompletion(val state: LoopOwner): Continuation<Unit> {
-    public override fun resume(value: Unit) {
+private class LoopResult<T> {
+    var value: MaybeUninit<T> = MaybeUninit<T>.uninit()
+}
+
+private class LoopCompletion<T>(
+    val state: LoopOwner,
+    private val result: LoopResult<T>
+): Continuation<T> {
+    public override fun resume(value: T) {
+        result.value = MaybeUninit<T>.initialized(value)
         state.finishRoot(None)
     }
     public override fun resumeWithException(exception: Throwable) {

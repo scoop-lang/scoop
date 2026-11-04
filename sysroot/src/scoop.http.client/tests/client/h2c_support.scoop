@@ -19,9 +19,10 @@ internal fun withClientH2cTest(
                 this.http2Settings = Http2Settings(initialWindowSize = 3U)
                 this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 2L }
             }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> clientTestListen(loop).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            clientTestListen(loop).useAsync suspend {
                 listener -> block(loop, scope, listener, config)
             }
         }

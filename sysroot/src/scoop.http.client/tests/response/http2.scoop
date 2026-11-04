@@ -14,9 +14,10 @@ private class HttpClientResponseHttp2Test {
     fun `a failed compressed HTTP2 stream preserves concurrent decoding and pooled reuse`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val done = BodyTestGate()
                     val server =
@@ -111,9 +112,10 @@ private class HttpClientResponseHttp2Test {
     fun `HTTP2 capacity stays leased until the decoded body reaches its validated end`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val sent = BodyTestGate()
                     val done = BodyTestGate()

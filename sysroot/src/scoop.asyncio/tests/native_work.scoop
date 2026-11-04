@@ -10,9 +10,8 @@ private class NativeWorkTests {
         NativeWorkProbe().use {
             probe ->
             assertFailsWith<IllegalStateException> { probe.result() }
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 @Unsafe
                 {
                     loop.runNativeWork(probe.work)
@@ -65,10 +64,10 @@ private class NativeWorkTests {
         }
         NativeWorkProbe().use {
             probe ->
-            val loop: EventLoop = PlatformEventLoop()
-            val other: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            val other = eventLoop()
+            loop.run {
+                val scope = this;
                 @Unsafe
                 {
                     try {
@@ -104,10 +103,10 @@ private class NativeWorkTests {
     fun `queued cancellation never calls execute and retains one release obligation`() {
         NativeWorkProbe().use {
             probe ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val fence = WorkFence(backend)
                 fence.start()
                 fence.waitStarted()
@@ -146,10 +145,10 @@ private class NativeWorkTests {
     fun `running cancellation waits for native completion across threads and moving GC`() {
         NativeWorkProbe(false).use {
             probe ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val returned = AtomicBoolean(false)
                 val child =
                     scope.launch suspend {

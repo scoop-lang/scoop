@@ -15,9 +15,9 @@ private class AsyncTlsDuplexTests {
 }
 
 private fun duplex(version: TlsVersion) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(clientRaw, serverRaw) = rawPair(loop, scope)
         clientRaw.gateFirstWrite = true
         val(client, server) = tlsPair(scope, clientRaw, serverRaw, TlsOptions(version, version))
@@ -44,7 +44,7 @@ private fun duplex(version: TlsVersion) {
                 catch (_: IndexOutOfBoundsException) {
                     assertFalse(client.isClosed)
                 }
-                val otherLoop: EventLoop = PlatformEventLoop()
+                val otherLoop: EventLoop = eventLoop()
                 context(otherLoop) {
                     try {
                         client.flush();

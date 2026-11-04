@@ -19,9 +19,8 @@ private class AsyncFileTransferTest {
                 else
                     OsString.fromString("名字")
             val path = tree.path.resolve(Path.fromOsString(name))
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 loop.openFile(path, OpenOptions(write = true, createNew = true)).useAsync suspend {
                     file ->
                     NativeByteBuffer.allocate(3L).use suspend {
@@ -67,9 +66,9 @@ private class AsyncFileTransferTest {
             tree ->
             val path = tree.child("source")
             path.writeText("ordinary asynchronous I/O")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val addresses =
                     loop.resolve(OsString.fromString("127.0.0.1"), listener.localAddress.port)
@@ -103,9 +102,8 @@ private class AsyncFileTransferTest {
         IoTestDirectory().use {
             tree ->
             val path = tree.child("data")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 try {
                     loop.openFile(path, OpenOptions(read = false));
                     fail(Some("invalid options accepted"))

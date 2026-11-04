@@ -22,10 +22,10 @@ private suspend fun outputBlocked(backend: PlatformEventLoop, stream: AsyncTcpSt
 private class AsyncTcpQueuedWriteTest {
     @Test
     fun `cancel a queued write commits exactly the sent prefix and permits later writes`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val timeout =
                 scope.launch suspend {
                     loop.sleep(Duration.seconds(15L));

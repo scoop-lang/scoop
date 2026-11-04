@@ -1,7 +1,7 @@
 package scoop.http.client.tests.consumer.client_cookies
 
 import scoop.test.*
-import scoop.asyncio.PlatformEventLoop
+import scoop.asyncio.eventLoop
 import scoop.http.PublicSuffixList
 import scoop.http.client.MemoryCookieJar
 import scoop.test.*
@@ -21,8 +21,7 @@ private fun exerciseConsumer(args: Array<String>) {
             PublicSuffixList.parse(
                 "com\nio\n// ===BEGIN PRIVATE DOMAINS===\ngithub.io\n// ===END PRIVATE DOMAINS===\n"
             )
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         if (bundled) {
             val defaults = MemoryCookieJar()
             cookieSave(defaults, ["ok=1", "bad=1; Domain=com"])

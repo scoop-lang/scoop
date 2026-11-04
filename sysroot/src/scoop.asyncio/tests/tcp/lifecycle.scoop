@@ -9,9 +9,9 @@ import scoop.time.Duration
 private class AsyncTcpLifecycleTest {
     @Test
     fun `cancelled accept preserves pending connections and listener close preserves streams`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val waiting = scope.launch suspend { listener.accept() }
             loop.sleep(Duration.nanoseconds(1L))
@@ -44,11 +44,11 @@ private class AsyncTcpLifecycleTest {
 
     @Test
     fun `cancelled creations and loop exit close all unreturned or escaping resources`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
+        val backend = eventLoop()
+        val loop = backend
         val escaped =
-            loop.runWithResult<AsyncTcpStream> suspend {
-                scope ->
+            loop.run<AsyncTcpStream> {
+                val scope = this;
                 val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val connecting =
                     scope.async<AsyncTcpStream> suspend { loop.connectTcp(listener.localAddress) }
@@ -69,9 +69,8 @@ private class AsyncTcpLifecycleTest {
                 val(_, _, server) = tcpPair(loop, scope)
                 server
             }
-        val next: EventLoop = PlatformEventLoop()
-        next.run suspend {
-            _ ->
+        val next = eventLoop()
+        next.run {
             escaped.close();
             escaped.close()
         }
@@ -79,12 +78,13 @@ private class AsyncTcpLifecycleTest {
 
     @Test
     fun `cancellation selected after shutdown submission terminates the stream`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val(_, _, server) = tcpPair(loop, scope)
             val shutdown = scope.launch suspend { server.shutdownOutput() }
+            yieldCoroutine()
             backend.state.post { shutdown.cancel() }
             shutdown.join()
             assertTrue(shutdown.isCancelled)

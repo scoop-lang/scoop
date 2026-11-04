@@ -14,9 +14,9 @@ import scoop.tls.native.TlsEngine
 private class AsyncTlsSystemTests {
     @Test
     fun `system factory uses the loop and actual platform verification rejects an untrusted peer`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val context = openTlsClientContext()
             val config = systemServerContext(TlsOptions())
             try {
@@ -52,9 +52,9 @@ private class AsyncTlsSystemTests {
 
     @Test
     fun `Store factory retains its explicit CA and supports normal asynchronous TLS`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val context =
                 TrustStore.fromPem(rootPem()).use suspend {
                     store -> openTlsClientContext(
@@ -92,9 +92,9 @@ private class AsyncTlsSystemTests {
 
     @Test
     fun `queued system configuration cancellation preserves caller identity ownership`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val identity = TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem())
             val pool = HeldNativePool()
             try {
@@ -130,9 +130,9 @@ private class AsyncTlsSystemTests {
 
     @Test
     fun `pending verification cancellation waits for transport cleanup before releasing SSL`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val context = openTlsClientContext()
             val config = systemServerContext(TlsOptions())
             val pool = HeldNativePool()

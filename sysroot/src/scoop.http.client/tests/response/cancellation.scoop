@@ -14,9 +14,10 @@ private class HttpClientResponseDecodingCancellationTest {
         for (cancelReader in [true, false]) {
             clientTestTrust().use {
                 trust ->
-                val loop: EventLoop = PlatformEventLoop()
-                loop.run suspend {
-                    scope -> clientTestListen(loop).useAsync suspend {
+                val loop = eventLoop()
+                loop.run {
+                    val scope = this;
+                    clientTestListen(loop).useAsync suspend {
                         listener ->
                         val done = BodyTestGate()
                         val server =

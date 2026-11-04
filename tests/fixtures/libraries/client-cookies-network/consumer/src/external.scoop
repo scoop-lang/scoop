@@ -10,8 +10,7 @@ import scoop.tls.TlsTrustSource
 import scoop.url.Url
 
 internal fun cookieExternal(trust: TrustStore, mode: String, url: Url, other: Url) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         if (mode == "sequence") {
             cookieExternalSequence(trust, url);
             return@run

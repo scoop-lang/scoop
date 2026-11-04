@@ -12,9 +12,10 @@ private class HttpClientTrailersHttp1Test {
     fun `HTTP1 uses chunked trailers for known and empty bodies and reuses the connection`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val done = BodyTestGate()
                     val serving =
@@ -105,9 +106,9 @@ private class HttpClientTrailersHttp1Test {
             }
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 withHttpClient(clientTestConfig(trust, HttpVersion.Http10)) suspend {
                     client ->
                     expectBodyFailure<IllegalArgumentException> suspend {

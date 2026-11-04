@@ -12,9 +12,9 @@ private class AsyncWebSocketTlsTests {
     @Test
     fun `WSS upgrades HTTP1 TLS and keeps ordinary and compressed message ownership`() {
         for (compressed in [false, true]) {
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val(a, b) = rawPair(loop, scope)
                 val(tlsClient, tlsServer) =
                     tlsPair(scope, a, b, TlsOptions(alpn = ["http/1.1".toByteArray()]))
@@ -113,9 +113,9 @@ private class AsyncWebSocketTlsTests {
 
     @Test
     fun `WSS protocol selection rejects an HTTP2 ALPN result`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val(client, server) =
                 tlsPair(

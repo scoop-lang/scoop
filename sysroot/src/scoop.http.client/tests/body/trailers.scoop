@@ -29,9 +29,9 @@ private class RequestBodyTrailersTest {
         assertTrue(body.isReplayable)
         assertEquals(1L, body.trailerNames.size)
         assertEquals(0L, calls.load())
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val jobs = ArrayList<Deferred<Unit>>()
             for (value in ["first", "second"]) {
                 jobs.add(
@@ -82,9 +82,8 @@ private class RequestBodyTrailersTest {
                 this.fields = [HttpField("Trailer".toByteArray(), "X-End".toByteArray())]
             }
         }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val sink = BodyTestSink()
             expectBodyFailure<IllegalArgumentException> suspend { body.writeTo(sink) }
             expectBodyFailure<IllegalArgumentException> suspend {
@@ -107,9 +106,9 @@ private class RequestBodyTrailersTest {
 
     @Test
     fun `trailer results cannot hide length declaration or caught output failures`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val sink = BodyTestSink()
             val short =
                 RequestBody.fromProducerWithTrailers(["X-End"], Some(4L)) suspend {

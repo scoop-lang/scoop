@@ -43,9 +43,9 @@ private class WsSelfWaitSource(
 }
 
 internal fun wsSelfWait(child: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsTestTransport()
         val session = AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
         val source = WsSelfWaitSource(session, child)

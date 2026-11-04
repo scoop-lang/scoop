@@ -7,10 +7,10 @@ import scoop.test.*
 private class AwsEventStreamLifetimeTests {
     @Test
     fun `AWS EventStream construction wrong loop and precancellation preserve endpoint ownership and readable state`() {
-        val loop: EventLoop = PlatformEventLoop()
-        val other: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        val other: EventLoop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = MessageTestSource(asyncAwsEmpty)
             assertFailsWith<IllegalArgumentException> {
                 AwsEventStreamSource.takeOwnership(input, 0L)
@@ -42,9 +42,9 @@ private class AwsEventStreamLifetimeTests {
 
     @Test
     fun `AWS EventStream concurrent reads fail locally and owning close waits for the actual native borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingMessageSource()
             val source = AwsEventStreamSource.takeOwnership(pending, bufferSize = 4L)
             val reader =
@@ -81,9 +81,9 @@ private class AwsEventStreamLifetimeTests {
 
     @Test
     fun `AWS EventStream rejects inconsistent source progress before passing bytes to its decoder`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (mode in [1, 2, 3, 4]) {
+        val loop = eventLoop()
+        loop.run {
+            for (mode in [1, 2, 3, 4]) {
                 val input = MessageTestSource([])
                 input.badProgress = mode
                 val source = AwsEventStreamSource.takeOwnership(input)

@@ -9,9 +9,9 @@ import scoop.test.*
 private class AsyncWebSocketDeflateCancellationTests {
     @Test
     fun `cancelling a compressed sync flush waits for the real borrows and discards unfinished history`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = PendingMessageSource()
             val output = PendingMessageSink(65.toByte())
             output.pause = true

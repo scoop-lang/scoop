@@ -12,9 +12,10 @@ private class HttpClientPoolExpiryTest {
     fun `an idle deadline closes the transport without a later request`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val reclaimed = BodyTestGate()
                     val serving =
@@ -73,9 +74,10 @@ private class HttpClientPoolExpiryTest {
     fun `maximum lifetime stops new leases while an existing response remains readable`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {

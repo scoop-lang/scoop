@@ -71,9 +71,9 @@ private class AsyncHttp2CancellationTests {
 
     @Test
     fun `connection scope cancellation waits for transport cleanup and concurrent close`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val slot = Http2Slot()
             val ready = AsyncGate();

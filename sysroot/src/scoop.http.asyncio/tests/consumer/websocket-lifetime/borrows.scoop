@@ -7,9 +7,9 @@ import scoop.http.asyncio.*
 import scoop.platform.memory.NativeByteBuffer
 
 internal fun wsBorrowCompletion(cancelCaller: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsPendingTransport()
         val session =
             AsyncWebSocketSession.takeOwnership(

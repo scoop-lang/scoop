@@ -8,6 +8,11 @@ internal class WorkFence(private val loop: PlatformEventLoop) {
     private var waiter: Continuation<Unit>? = None
 
     suspend fun start(spare: UInt = 0u, cancelAfterPriorWork: Job? = None) {
+        when (cancelAfterPriorWork) {
+            // Let the earlier dispatched task submit its work before this fence.
+            case Some(_) -> yieldCoroutine()
+            case None -> {}
+        }
         suspendCoroutine<Unit> {
             continuation ->
             val operation =

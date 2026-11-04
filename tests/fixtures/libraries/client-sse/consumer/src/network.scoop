@@ -25,9 +25,8 @@ internal class SseNetworkProbe {
 }
 
 internal fun sseNetwork(trust: TrustStore, mode: String, url: Url) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val cache = MemoryHttpCache()
         withHttpClient(
             sseConfig(

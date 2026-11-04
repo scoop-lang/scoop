@@ -21,9 +21,9 @@ private fun transfer(parent: Path) {
         source.writeText("abcdef")
         destination.writeText("abc stale data")
         link.createSymbolicLink(source)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val connecting =
                 scope.async<AsyncTcpStream> suspend { loop.connectTcp(listener.localAddress) }

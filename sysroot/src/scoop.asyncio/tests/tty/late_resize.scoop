@@ -10,9 +10,10 @@ private class TtyLateResizeTest {
     fun `a native resize completed before cancellation delivery remains available to the next receive`() {
         TestTerminal().use {
             terminal ->
-            val loop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> loop.openTty().useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                loop.openTty().useAsync suspend {
                     tty -> NativeByteBuffer.allocate(1L).use suspend {
                         bytes ->
                         val reading = scope.launch suspend { tty.receive(bytes, 1L) }

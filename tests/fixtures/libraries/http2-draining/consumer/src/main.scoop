@@ -63,9 +63,9 @@ private fun request(method: String = "GET"): HttpRequestHead =
     )
 
 private fun exercise(mode: String, address: SocketAddress) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val notices = Notices()
         val connection =
             AsyncHttp2Connection.takeOwnershipAsClient(

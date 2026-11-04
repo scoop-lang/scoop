@@ -10,9 +10,8 @@ import scoop.text.startsWith
 import scoop.url.Url
 
 internal fun digestExternal(mode: String, url: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val calls = AtomicLong(0L)
         val producers = AtomicLong(0L)
         val split = mode.split('_')

@@ -52,8 +52,8 @@ private class TimedHttp1Transport(val truncate: Boolean = false): AsyncByteStrea
 }
 
 internal fun http1ReceiveTiming(capture: Boolean) {
-    PlatformEventLoop().run suspend {
-        scope ->
+    eventLoop().run {
+        val scope = this;
         val transport = TimedHttp1Transport()
         AsyncHttp1Connection.takeOwnershipAsClient(
             transport,
@@ -98,8 +98,8 @@ internal fun http1ReceiveTiming(capture: Boolean) {
 }
 
 internal fun http1FailedHeaderTiming(capture: Boolean) {
-    PlatformEventLoop().run suspend {
-        scope ->
+    eventLoop().run {
+        val scope = this;
         val transport = TimedHttp1Transport(true)
         AsyncHttp1Connection.takeOwnershipAsClient(
             transport,

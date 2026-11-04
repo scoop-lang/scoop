@@ -21,10 +21,10 @@ private class AsyncioConsumerTest {
      */
     @Test
     fun `production artifacts expose generic results resource use and native IO`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val result =
-            loop.runWithResult<PacketValue> suspend {
-                scope ->
+            loop.run<PacketValue> {
+                val scope = this;
                 assertSame(loop, currentEventLoop())
                 val socket = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val value =
