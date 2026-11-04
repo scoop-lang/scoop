@@ -36,7 +36,7 @@ runtime-owned exception ABI:
 - `src/gc_binding/` adapts Scoop representation to collector visitors:
   `roots.c` owns process/image roots, `root_frames.c` owns native root frames,
   `collector_roots.c` visits frozen thread slots, and `stackmap.c` and
-  `stack_roots.c` consume LLVM stack maps. `scan.c` interprets exact object/range
+  `stack_roots.c` consume compact callable GC maps. `scan.c` interprets exact object/range
   scans; inline views in `object.h` expose allocation layout, object identity,
   release hooks and array ranges to the GC. `values.c` owns the heap-lock/query
   sequences for checked unboxing and clone sources.

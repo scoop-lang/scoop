@@ -125,15 +125,10 @@ pub struct ObjectSymbolSurfaceV1 {
 }
 
 impl ObjectSymbolSurfaceV1 {
-    pub(crate) fn remove_codegen_records(
+    pub(crate) fn remove_codegen_atoms(
         &mut self,
-        definitions: &std::collections::BTreeSet<ObjectDefinitionPlanId>,
         atoms: &std::collections::BTreeSet<ObjectDefinitionAtomId>,
     ) {
-        self.plans
-            .retain(|plan| !definitions.contains(&plan.definition_plan));
-        self.symbol_owners
-            .retain(|_, definition| !definitions.contains(definition));
         for plan in &mut self.plans {
             plan.atom_boundaries
                 .retain(|boundary| !atoms.contains(&boundary.atom));

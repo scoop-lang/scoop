@@ -7,15 +7,14 @@ use super::{
     EmittedStaticStorageRelocationTableV1, EmittedStrongInitializationUnitRegistrationSetV1,
     emit_cone_image_v1, emit_entry_production_v1, emit_strong_callable_registrations_v1,
     emit_strong_immortal_object_registrations_v1, emit_strong_initialization_unit_registrations_v1,
-    emit_strong_safepoint_registrations_v1, emit_strong_static_storage_registrations_v1,
-    emit_strong_type_registrations_v1,
+    emit_strong_static_storage_registrations_v1, emit_strong_type_registrations_v1,
 };
 use crate::CodegenError;
 use crate::atom_boundaries::{GlobalAtomMaterializationV1, emit_global_atom_boundaries_v1};
 use crate::target::ValidatedBackendProfile;
 
 mod callable;
-pub(crate) use callable::{emit_callable_metadata_v1, emit_callable_safepoints};
+pub(crate) use callable::{bind_callable_gc_map, emit_callable_metadata_v1};
 /// Emit complete runtime records and return initialization globals needed by codegen.
 pub(crate) fn emit_strong_runtime_metadata_v1<
     'ctx,
@@ -187,7 +186,6 @@ fn runtime_global_atoms<'ctx, D, C, I>(
         support.immortal_objects(),
         support.initialization_units(),
         support.type_registrations(),
-        support.safepoints(),
         support.callables(),
     ] {
         atoms.push(GlobalAtomMaterializationV1::new(

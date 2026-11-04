@@ -130,8 +130,7 @@ pub use runtime_metadata_v1::{
     EmittedStaticStorageRelocationTableV1, EmittedStrongCallableRegistrationSetV1,
     EmittedStrongCallableRegistrationV1, EmittedStrongImmortalObjectRegistrationSetV1,
     EmittedStrongImmortalObjectRegistrationV1, EmittedStrongInitializationUnitRegistrationSetV1,
-    EmittedStrongInitializationUnitRegistrationV1, EmittedStrongSafepointRegistrationSetV1,
-    EmittedStrongSafepointRegistrationV1, EmittedStrongStaticStorageRegistrationSetV1,
+    EmittedStrongInitializationUnitRegistrationV1, EmittedStrongStaticStorageRegistrationSetV1,
     EmittedStrongStaticStorageRegistrationV1, EmittedStrongTypeRegistrationSetV1,
     EmittedStrongTypeRegistrationV1,
 };

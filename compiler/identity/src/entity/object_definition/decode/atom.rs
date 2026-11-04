@@ -5,7 +5,7 @@ use crate::{
     ConeImageSupportRole, DecodedPersistentId, DefinitionAtomRole, DefinitionAtomSubkey,
     ObjectDefinitionAtomKey, ObjectDefinitionPlanId, PersistentCallableBodyId,
     PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentSafepointSiteId, PersistentStaticStorageId, StructuralDefinitionPath,
+    PersistentStaticStorageId, StructuralDefinitionPath,
 };
 
 impl WireDecode for ConeImageSupportRole {
@@ -19,7 +19,6 @@ impl WireDecode for ConeImageSupportRole {
             6 => Ok(Self::ImmortalObjects),
             7 => Ok(Self::InitializationUnits),
             8 => Ok(Self::TypeRegistrations),
-            9 => Ok(Self::Safepoints),
             10 => Ok(Self::Callables),
             11 => Ok(Self::ArrayBoundsMessage),
             12 => Ok(Self::ArraySizeOverflowMessage),
@@ -55,7 +54,6 @@ pub enum DecodedDefinitionAtomSubkey {
     ImmortalObject(DecodedPersistentId<PersistentImmortalObjectId>),
     InitializationUnit(DecodedPersistentId<PersistentInitializationUnitId>),
     ExactType(DecodedPersistentId<PersistentExactTypeId>),
-    SafepointSite(DecodedPersistentId<PersistentSafepointSiteId>),
     StructuralPath(StructuralDefinitionPath),
     ConeImageSupport(ConeImageSupportRole),
     BackendReadOnlyData,
@@ -79,9 +77,6 @@ impl DecodedDefinitionAtomSubkey {
                 .resolve(id)
                 .map(DefinitionAtomSubkey::InitializationUnit),
             Self::ExactType(id) => resolver.resolve(id).map(DefinitionAtomSubkey::ExactType),
-            Self::SafepointSite(id) => resolver
-                .resolve(id)
-                .map(DefinitionAtomSubkey::SafepointSite),
             Self::StructuralPath(path) => Ok(DefinitionAtomSubkey::StructuralPath(path)),
             Self::ConeImageSupport(role) => Ok(DefinitionAtomSubkey::ConeImageSupport(role)),
             Self::BackendReadOnlyData => Ok(DefinitionAtomSubkey::BackendReadOnlyData),
@@ -98,7 +93,6 @@ impl WireEncode for DecodedDefinitionAtomSubkey {
             Self::ImmortalObject(id) => encode_value_sum(encoder, 4, id),
             Self::InitializationUnit(id) => encode_value_sum(encoder, 5, id),
             Self::ExactType(id) => encode_value_sum(encoder, 6, id),
-            Self::SafepointSite(id) => encode_value_sum(encoder, 7, id),
             Self::StructuralPath(path) => encode_value_sum(encoder, 8, path),
             Self::ConeImageSupport(role) => encode_value_sum(encoder, 9, role),
             Self::BackendReadOnlyData => encode_empty_sum(encoder, 10),
@@ -120,7 +114,6 @@ impl WireDecode for DecodedDefinitionAtomSubkey {
             4 => decode_id_variant(decoder, fields, Self::ImmortalObject),
             5 => decode_id_variant(decoder, fields, Self::InitializationUnit),
             6 => decode_id_variant(decoder, fields, Self::ExactType),
-            7 => decode_id_variant(decoder, fields, Self::SafepointSite),
             8 => {
                 expect_sum_length(decoder, fields, 2)?;
                 decoder

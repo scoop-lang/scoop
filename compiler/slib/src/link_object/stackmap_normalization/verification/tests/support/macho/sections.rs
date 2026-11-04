@@ -4,7 +4,6 @@ use super::*;
 pub(super) fn push_sections(
     bytes: &mut Vec<u8>,
     module: &scoop_lir::Module,
-    registrations: &StrongSafepointRegistrationPlanSetV1,
     callable_registrations: &StrongCallableRegistrationPlanSetV1,
     type_registrations: &StrongTypeRegistrationPlanSetV1,
     immortal_registrations: &StrongImmortalObjectRegistrationPlanSetV1,
@@ -12,9 +11,6 @@ pub(super) fn push_sections(
     relocation_offset: u32,
     storage_is_zero_fill: bool,
 ) {
-    for registration in registrations.registrations() {
-        push_registration(bytes, *registration);
-    }
     for registration in callable_registrations.registrations() {
         push_callable_registration(bytes, *registration);
     }

@@ -102,7 +102,7 @@ pub(super) fn prepare_callable_strong_llvm_module<'ctx, D, C, I>(
     statepoint::optimize(&llvm, machine, expected, profile)?;
     let has_unwind = prune_unused_personalities(&llvm);
     let safepoints = statepoint::lower(&llvm, machine)?;
-    runtime_metadata_v1::emit_callable_safepoints(context, &llvm, production, body, &safepoints)?;
+    runtime_metadata_v1::bind_callable_gc_map(context, &llvm, production, body, &safepoints)?;
     if profile.lir_target_profile().native_object_format() == scoop_lir::NativeObjectFormat::Coff64
     {
         llvm.run_passes(

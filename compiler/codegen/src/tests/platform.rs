@@ -7,13 +7,7 @@ fn loaded_image_ranges_use_loader_segment_bounds() {
         .unwrap();
     let binary = std::env::temp_dir().join(format!("scoop_image_ranges_{}", std::process::id()));
     let compile = std::process::Command::new("cc")
-        .args([
-            "-std=c11",
-            "-Wall",
-            "-Wextra",
-            "-Werror",
-            "-Wl,-rename_section,__LLVM_STACKMAPS,__llvm_stackmaps,__DATA_CONST,__llvm_stackmaps",
-        ])
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror"])
         .arg(workspace.join("runtime/src/platform/image/macho.c"))
         .arg(workspace.join("runtime/src/image/ranges.c"))
         .arg(workspace.join("runtime/tests/image_ranges_test.c"))
@@ -37,7 +31,7 @@ fn loaded_image_ranges_use_loader_segment_bounds() {
 }
 
 #[test]
-fn runtime_stackmap_v3_parser_rejects_incomplete_metadata() {
+fn runtime_compact_gc_pc_index_and_frame_roots() {
     let workspace = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(std::path::Path::parent)
@@ -46,25 +40,23 @@ fn runtime_stackmap_v3_parser_rejects_incomplete_metadata() {
     let status = std::process::Command::new("cc")
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror"])
         .arg(workspace.join("runtime/src/gc_binding/stackmap.c"))
-        .arg(workspace.join("runtime/src/gc_binding/stackmap/parser.c"))
-        .arg(workspace.join("runtime/src/gc_binding/stackmap/records.c"))
         .arg(workspace.join("runtime/src/platform/frame/darwin_aarch64.c"))
         .arg(workspace.join("runtime/tests/stackmap_test.c"))
         .arg("-o")
         .arg(&binary)
         .status()
-        .expect("run C compiler for stackmap parser tests");
+        .expect("run C compiler for compact GC index tests");
     assert!(
         status.success(),
-        "stackmap parser tests must compile cleanly"
+        "compact GC index tests must compile cleanly"
     );
     let output = std::process::Command::new(&binary)
         .output()
-        .expect("run stackmap parser tests");
+        .expect("run compact GC index tests");
     std::fs::remove_file(&binary).ok();
     assert!(
         output.status.success(),
-        "stackmap parser test failed:\nstdout:\n{}\nstderr:\n{}",
+        "compact GC index test failed:\nstdout:\n{}\nstderr:\n{}",
         String::from_utf8_lossy(&output.stdout),
         String::from_utf8_lossy(&output.stderr)
     );
@@ -72,7 +64,7 @@ fn runtime_stackmap_v3_parser_rejects_incomplete_metadata() {
         String::from_utf8(output.stdout)
             .unwrap()
             .replace("\r\n", "\n"),
-        "stackmap parser tests passed\n"
+        "compact GC index tests passed\n"
     );
 }
 
@@ -91,8 +83,6 @@ fn runtime_walks_and_rewrites_only_exact_stackmap_slots() {
         .arg("-I")
         .arg(workspace.join("runtime/include"))
         .arg(workspace.join("runtime/src/gc_binding/stackmap.c"))
-        .arg(workspace.join("runtime/src/gc_binding/stackmap/parser.c"))
-        .arg(workspace.join("runtime/src/gc_binding/stackmap/records.c"))
         .arg(workspace.join("runtime/src/gc_binding/stack_roots.c"))
         .arg(workspace.join("runtime/src/platform/frame/darwin_aarch64.c"))
         .arg(workspace.join(super::platform_support::native_os_source()))
@@ -418,8 +408,6 @@ fn generic_runtime_has_no_target_specific_vm_dependency() {
         "runtime/src/gc_binding/root_frames.c",
         "runtime/src/gc_binding/roots.c",
         "runtime/src/gc_binding/stackmap.c",
-        "runtime/src/gc_binding/stackmap/parser.c",
-        "runtime/src/gc_binding/stackmap/records.c",
         "runtime/src/gc_binding/stack_roots.c",
         "runtime/src/thread.c",
         "runtime/src/thread/collection.c",

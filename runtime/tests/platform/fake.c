@@ -1,5 +1,5 @@
-#include <stdbool.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,97 +18,13 @@ extern const ScoopThreadVmOps scoop_darwin_thread_vm_ops;
  * operates on real host threads and mappings. */
 extern const ScoopManagedFrameOps scoop_darwin_aarch64_managed_frame_ops;
 
-static uint8_t fake_stackmaps[160];
-static size_t fake_stackmaps_size;
-static bool fake_stackmaps_initialized;
-
-static void write_u16(size_t *cursor, uint16_t value) {
-    fake_stackmaps[(*cursor)++] = (uint8_t)value;
-    fake_stackmaps[(*cursor)++] = (uint8_t)(value >> 8);
-}
-
-static void write_u32(size_t *cursor, uint32_t value) {
-    write_u16(cursor, (uint16_t)value);
-    write_u16(cursor, (uint16_t)(value >> 16));
-}
-
-static void write_u64(size_t *cursor, uint64_t value) {
-    write_u32(cursor, (uint32_t)value);
-    write_u32(cursor, (uint32_t)(value >> 32));
-}
-
-static void write_constant_location(size_t *cursor) {
-    fake_stackmaps[(*cursor)++] = SCOOP_STACKMAP_CONSTANT;
-    fake_stackmaps[(*cursor)++] = 0;
-    write_u16(cursor, 8);
-    write_u16(cursor, 0);
-    write_u16(cursor, 0);
-    write_u32(cursor, 0);
-}
-
-static void write_indirect_location(size_t *cursor, uint16_t dwarf_register, int32_t offset) {
-    fake_stackmaps[(*cursor)++] = SCOOP_STACKMAP_INDIRECT;
-    fake_stackmaps[(*cursor)++] = 0;
-    write_u16(cursor, 8);
-    write_u16(cursor, dwarf_register);
-    write_u16(cursor, 0);
-    write_u32(cursor, (uint32_t)offset);
-}
-
-static void initialize_fake_stackmaps(void) {
-    size_t cursor = 0;
-    fake_stackmaps[cursor++] = 3;
-    fake_stackmaps[cursor++] = 0;
-    write_u16(&cursor, 0);
-    write_u32(&cursor, 1);
-    write_u32(&cursor, 0);
-    write_u32(&cursor, 1);
-    write_u64(&cursor, 0x1000);
-    write_u64(&cursor, 32);
-    write_u64(&cursor, 1);
-    write_u64(&cursor, 1);
-    write_u32(&cursor, 0x10);
-    write_u16(&cursor, 0);
-    write_u16(&cursor, 5);
-    write_constant_location(&cursor);
-    write_constant_location(&cursor);
-    write_constant_location(&cursor);
-    write_indirect_location(&cursor, 31, 0);
-    write_indirect_location(&cursor, 31, 0);
-    while (cursor % 8 != 0) {
-        fake_stackmaps[cursor++] = 0;
-    }
-    write_u16(&cursor, 0);
-    write_u16(&cursor, 0);
-    while (cursor % 8 != 0) {
-        fake_stackmaps[cursor++] = 0;
-    }
-    if (cursor > sizeof fake_stackmaps) {
-        fprintf(stderr, "fake platform stackmap size drifted\n");
-        abort();
-    }
-    fake_stackmaps_size = cursor;
-    fake_stackmaps_initialized = true;
-}
-
 static bool fake_loaded_images(ScoopPlatformMetadataImages *images, ScoopPlatformError *error) {
-    static ScoopStackMapImage image;
+    static const ScoopPlatformCodeRange code = {0x1000, 0x2000};
     if (images == NULL || error == NULL) {
         return false;
     }
-    if (!fake_stackmaps_initialized) {
-        initialize_fake_stackmaps();
-    }
-    image = (ScoopStackMapImage){
-        .section = fake_stackmaps,
-        .section_size = fake_stackmaps_size,
-        .text_start = 0x1000,
-        .text_end = 0x2000,
-    };
-    *images = (ScoopPlatformMetadataImages){
-        .images = &image,
-        .count = 1,
-    };
+    *images = (ScoopPlatformMetadataImages){.code_ranges = &code, .code_range_count = 1};
+    *error = (ScoopPlatformError){0};
     return true;
 }
 
@@ -127,7 +43,8 @@ void (*scoop_test_vm_discard_observer)(void *base, size_t size);
 static ScoopThreadVmOps fake_vm_ops;
 static pthread_once_t fake_vm_once = PTHREAD_ONCE_INIT;
 
-static bool fake_reserve(size_t size, size_t alignment, void **mapping, ScoopPlatformError *error) {
+static bool fake_reserve(size_t size, size_t alignment, void **mapping,
+                         ScoopPlatformError *error) {
     if (scoop_test_vm_fail_mappings) {
         error->code = SCOOP_PLATFORM_VM_OPERATION_FAILED;
         return false;

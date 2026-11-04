@@ -12,7 +12,6 @@ pub struct ConeImageSupportAtomsV1 {
     immortal_objects: ObjectDefinitionAtomId,
     initialization_units: ObjectDefinitionAtomId,
     type_registrations: ObjectDefinitionAtomId,
-    safepoints: ObjectDefinitionAtomId,
     callables: ObjectDefinitionAtomId,
     array_bounds_message: ObjectDefinitionAtomId,
     array_size_overflow_message: ObjectDefinitionAtomId,
@@ -49,10 +48,6 @@ impl ConeImageSupportAtomsV1 {
 
     pub const fn type_registrations(self) -> ObjectDefinitionAtomId {
         self.type_registrations
-    }
-
-    pub const fn safepoints(self) -> ObjectDefinitionAtomId {
-        self.safepoints
     }
 
     pub const fn callables(self) -> ObjectDefinitionAtomId {
@@ -175,11 +170,6 @@ pub(super) fn require_image_atoms(
         image_support_key(
             definition,
             DefinitionAtomRole::RuntimeRecord,
-            ConeImageSupportRole::Safepoints,
-        ),
-        image_support_key(
-            definition,
-            DefinitionAtomRole::RuntimeRecord,
             ConeImageSupportRole::Callables,
         ),
         image_support_key(
@@ -193,7 +183,7 @@ pub(super) fn require_image_atoms(
             ConeImageSupportRole::ArraySizeOverflowMessage,
         ),
     ];
-    let mut expected = Vec::with_capacity(13);
+    let mut expected = Vec::with_capacity(12);
     expected.push(primary_key.clone());
     expected.extend(support_keys.iter().cloned());
     expected.sort_unstable();
@@ -224,10 +214,9 @@ pub(super) fn require_image_atoms(
             immortal_objects: atom_id(&support_keys[5]),
             initialization_units: atom_id(&support_keys[6]),
             type_registrations: atom_id(&support_keys[7]),
-            safepoints: atom_id(&support_keys[8]),
-            callables: atom_id(&support_keys[9]),
-            array_bounds_message: atom_id(&support_keys[10]),
-            array_size_overflow_message: atom_id(&support_keys[11]),
+            callables: atom_id(&support_keys[8]),
+            array_bounds_message: atom_id(&support_keys[9]),
+            array_size_overflow_message: atom_id(&support_keys[10]),
         },
     ))
 }

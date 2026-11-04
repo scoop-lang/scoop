@@ -14,7 +14,7 @@ extern const ScoopImageDescriptorV1 image1 __asm__("scoop$test$image$1");
 const ScoopRootEntryDescriptorV1 root __asm__("scoop$test$root") = {0};
 const uint64_t actual_string __asm__("scoop$test$String") = 31;
 extern const uint64_t scoop_td_String;
-__attribute__((section(".llvm_stackmaps"))) const char stackmaps[] = "SCOOPMAP";
+__attribute__((section(".rdata$sgc"))) const char stackmaps[] = "SCOOPMAP";
 extern const ScoopMetadataImageOps scoop_pe_metadata_image_ops;
 __declspec(dllimport) int imported_data;
 __declspec(dllimport) int imported_function(int);
@@ -34,9 +34,9 @@ static void check_loaded_image(void) {
     ScoopPlatformMetadataImages images;
     ScoopPlatformError error = {0};
     assert(scoop_pe_metadata_image_ops.loaded_images(&images, &error));
-    assert(images.count == 1 && images.range_count > 1);
-    const ScoopStackMapImage *image = &images.images[0];
-    assert(image->section == (const uint8_t *)stackmaps && image->section_size == sizeof stackmaps);
+    assert(images.code_range_count == 1 && images.range_count > 1);
+    const ScoopPlatformCodeRange *image = &images.code_ranges[0];
+    assert(scoop_image_range_contains(&images, stackmaps, sizeof stackmaps, 1));
     assert((uintptr_t)check_loaded_image >= image->text_start &&
            (uintptr_t)check_loaded_image < image->text_end);
     assert(scoop_image_range_contains(&images, &root, sizeof root,
@@ -48,10 +48,10 @@ static void check_loaded_image(void) {
     assert(scoop_image_range_contains(&images, &calls, sizeof calls, _Alignof(int)));
     assert(!scoop_image_range_contains(&images, &images, sizeof images,
                                        _Alignof(ScoopPlatformMetadataImages)));
-    assert(
-        !scoop_image_range_contains(&images, &imported_data, sizeof imported_data, _Alignof(int)));
+    assert(!scoop_image_range_contains(&images, &imported_data, sizeof imported_data,
+                                       _Alignof(int)));
     scoop_pe_metadata_image_ops.dispose_images(&images);
-    assert(images.count == 0 && images.images == NULL && images.ranges == NULL);
+    assert(images.code_range_count == 0 && images.code_ranges == NULL && images.ranges == NULL);
 }
 
 static void check_arguments_at_exit(void) {

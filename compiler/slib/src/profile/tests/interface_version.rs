@@ -1,10 +1,10 @@
 use super::*;
 
 #[test]
-fn source_interface_v90_carries_native_function_pointer_calls() {
+fn source_interface_v92_carries_native_function_pointer_calls() {
     assert_retired_version(
         hir_cross_cone_interface_capability(),
-        90,
+        92,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -31,10 +31,10 @@ fn mir_type_bridge_v21_carries_gc_leaf_function_pointer_types() {
 }
 
 #[test]
-fn mir_foundation_v9_encodes_gc_leaf_function_pointer_identity() {
+fn mir_foundation_v10_encodes_gc_leaf_function_pointer_identity() {
     assert_retired_version(
         mir_identity_foundation_capability(),
-        9,
+        10,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -61,10 +61,10 @@ fn lir_param_free_v3_retains_target_coercions() {
 }
 
 #[test]
-fn compiler_protocol_v20_exposes_native_app_entry() {
+fn compiler_protocol_v22_exposes_native_app_entry() {
     assert_retired_version(
         hir_core_bootstrap_interface_capability(),
-        20,
+        22,
         MemberPurposeSet::COMPILE,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );
@@ -124,10 +124,10 @@ fn hir_foundation_v11_encodes_gc_leaf_function_pointer_identity() {
 }
 
 #[test]
-fn lir_foundation_v13_encodes_native_app_entry_identity() {
+fn lir_foundation_v15_retires_physical_safepoint_registration() {
     assert_retired_version(
         lir_identity_foundation_capability(),
-        13,
+        15,
         MemberPurposeSet::COMPILE_AND_LINK,
         &[ArtifactCapabilityProfile::CROSS_CONE_GENERIC],
     );

@@ -18,11 +18,6 @@ const OPTIONS: &[&str] = &[
     "-no_fixup_chains",
     "-no_implicit_dylibs",
     "-adhoc_codesign",
-    "-rename_section",
-    "__LLVM_STACKMAPS",
-    "__llvm_stackmaps",
-    "__DATA_CONST",
-    "__llvm_stackmaps",
 ];
 
 #[derive(Clone, Debug, Eq, PartialEq)]

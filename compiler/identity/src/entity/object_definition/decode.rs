@@ -5,7 +5,7 @@ use crate::{
     ObjectDefinitionPlanId, OdrMemberId, PersistentCallableBodyId, PersistentDispatchSlotId,
     PersistentDispatchTableId, PersistentExactTypeId, PersistentIdResolver,
     PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentKeyResolver,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId,
 };
 
 mod atom;
@@ -23,7 +23,6 @@ pub trait DefinitionAtomResolver<E>:
     + PersistentIdResolver<PersistentImmortalObjectId, Error = E>
     + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
     + PersistentIdResolver<PersistentExactTypeId, Error = E>
-    + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
 {
 }
 
@@ -34,7 +33,6 @@ impl<T, E> DefinitionAtomResolver<E> for T where
         + PersistentIdResolver<PersistentImmortalObjectId, Error = E>
         + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
         + PersistentIdResolver<PersistentExactTypeId, Error = E>
-        + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
 {
 }
 
@@ -49,7 +47,6 @@ pub trait StrongDefinitionResolver<E>:
     + PersistentIdResolver<PersistentDispatchTableId, Error = E>
     + PersistentIdResolver<PersistentDispatchSlotId, Error = E>
     + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
-    + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
     + PersistentKeyResolver<GeneratedBridgeAtomId, GeneratedBridgeAtomKey, Error = E>
     + PersistentIdResolver<OdrMemberId, Error = E>
 {
@@ -66,7 +63,6 @@ impl<T, E> StrongDefinitionResolver<E> for T where
         + PersistentIdResolver<PersistentDispatchTableId, Error = E>
         + PersistentIdResolver<PersistentDispatchSlotId, Error = E>
         + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
-        + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
         + PersistentKeyResolver<GeneratedBridgeAtomId, GeneratedBridgeAtomKey, Error = E>
         + PersistentIdResolver<OdrMemberId, Error = E>
 {

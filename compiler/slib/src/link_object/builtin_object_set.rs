@@ -45,6 +45,41 @@ pub struct VerifiedBuiltinObjectStrongRelocationSetV1 {
 }
 
 impl VerifiedBuiltinObjectStrongRelocationSetV1 {
+    /// Re-read only callable members whose section bytes and file offsets changed.
+    pub fn after_gc_compaction(
+        self,
+        symbol_plan: &PlannedStrongObjectSymbolSetV1,
+        objects: &[ScoopLirObjectCandidateV1<'_>],
+    ) -> Result<Self, BuiltinObjectSetValidationError> {
+        let mut members = self.strong_relocations.members().to_vec();
+        for object in objects {
+            let index = members
+                .binary_search_by_key(&object.member(), |member| member.member())
+                .map_err(|_| BuiltinObjectSetValidationError::MissingSymbolPlan(object.member()))?;
+            let sections = validate_scoop_lir_llvm_22_1_object_envelope_v1(
+                self.member_plan.target(),
+                object.bytes(),
+            )
+            .map_err(|source| BuiltinObjectSetValidationError::ScoopEnvelope {
+                member: object.member(),
+                source,
+            })?
+            .into_sections();
+            members[index] = verify_member(
+                object.member(),
+                object.bytes(),
+                sections,
+                required_symbol_plan(symbol_plan, object.member())?,
+            )?;
+        }
+        let strong_relocations = verify_current_cone_strong_relocation_closure_v1(members)
+            .map_err(BuiltinObjectSetValidationError::StrongRelocationClosure)?;
+        Ok(Self {
+            strong_relocations,
+            ..self
+        })
+    }
+
     pub fn member(&self, id: SlibMemberId) -> Option<&VerifiedMemberObjectRelocationIndexV1> {
         let members = self.strong_relocations.members();
         members
