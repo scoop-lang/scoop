@@ -129,3 +129,11 @@
 - 复用 Press、Theme Radio 几何／painter、Toggle／ActionInk 和原 ButtonGroup 的接缝及焦点层级。Radio 禁用透明度覆盖整项一次；移除外部 FocusHandle 时恢复该 key 的内部 handle。Gallery 增加两页，实际检查 System／Neutral、明暗、LTR／RTL、选择、卡片、连边、间距和键盘 focus-visible。
 - macOS aarch64 release：先格式化和静态检查 UI、component、Gallery 及新窗口 Cone，再定向运行 **6 个测试全部通过**：ChoiceGroupTest 4 项、新 ChoiceGroupWindowTest 1 项（43 步）、既有 VirtualNavigationTest 1 项。覆盖元数据错误、未知值及顺序保留、拒绝 setter、keyed 复用、外部 handle／标签／绑定替换、Radio 与 Toggle 的键盘差异、禁用跳过、拖出／禁用／卸载取消、零尺寸、RTL、明暗切换及资源收尾。7 个受影响生产库和 Gallery 构建成功；UI 库仍无 typeInfo／TypeInfo／TypeRef／TypeShape 直接引用。
 - 本批完成两项，目录累计 **22／64**；P2 继续 Slider、Input／Textarea、InputGroup 与 Field。一次性检查锁、导航回归输出与手工窗口已清理，保留共享缓存、分组回归／Gallery 产物和 `../scoop-dep` 参考。没有重建编译器或 LLVM，也未扩大到全仓／全部控件测试；x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P2d：Slider
+
+- 先补齐 Slider 规范，新增 Props、DSL、单／双／多 thumb、横纵、RTL／reversed、离散／连续范围、minimumGap、逐项焦点与 FieldTarget。复用 RangeSpec、Drag、FocusTarget、InteractionMotion 和已有主题绘图；按下标保留实例，拖动只使用 Accepted 几何，没有反射、额外输入体系或受控值镜像。
+- 轨道点击与拖动、保留抓取偏移、主轴方向键、Home／End／Page、提交和取消均闭合；拒绝 setter 不合成提交，外部值／范围／数量更新保留业务结果。禁用、失焦、阻止释放、Escape、零尺寸和卸载沿同一取消出口收尾。连续间距按边界加减的 Double 舍入保持 move／validate 一致，重叠与错误顺序仍拒绝。
+- macOS aarch64 release：先格式化与相关 tests 静态检查，生产控件库和 Gallery 构建成功；**11 项定向测试全部通过**，包括 5 项 Slider 值测试、5 项既有范围测试和 1 项 64 步原生窗口测试。覆盖稳定 thumb／焦点与工厂次数、最新绑定、12 次提交／8 次取消、标签及句柄替换、连续／离散范围、窄宽／失败帧／零尺寸、明暗／方向变化、静止停帧和资源释放。
+- Gallery 增加可操作 Slider 页，人工检查 System／Neutral、明暗、RTL、反向、窄宽、错误／禁用、竖向多 thumb、标签聚焦、键盘和减少动态下的真实拖动。原生测试初轮捕获到测试注入之外的窗口外鼠标移动，导致活动拖动按正常语义钳到上限；单独运行并避免重复窗口激活后，最终无库内诊断的用例通过，未放宽断言或修改输入策略。
+- 本批完成 Slider，目录累计 **23／64**；P2 继续 Input／Textarea、InputGroup 与 Field。一次性检查锁及手工窗口清理，保留共享缓存、Slider 回归／Gallery 产物及 `../scoop-dep` 中的上游参考；未重建编译器、LLVM 或外部图形依赖，未运行全仓或全部控件测试。x86_64 留在整体收尾，Windows／Linux 未验证。

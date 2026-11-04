@@ -342,7 +342,7 @@ GridProps 保存 columns／rows: Array<GridTrack>、items: Array<GridItem>、col
 
 `RangeSpec(minimum, maximum, step=None, minimumGap=0, reversed=false)` 提供有限区间内的纯值计算。minimum／maximum 有限且有可表示的非负跨度，step 若指定必须有限为正；离散模式用整数步号计算，不持续累加浮点值。步数须能由 Double 精确表示整数；非整步 maximum 不增加一个特殊末端 step。连续模式不量化，退化区间返回唯一值。
 
-`clamp(value)` 返回可用值；`valueAt(position)`／`positionOf(value)` 在归一化 0～1 位置与数值之间转换，reversed 显式反转。`validate(values)` 检查当前有序 thumb、步对齐和 minimumGap 是否可满足；`move(values,index,value)` 只替换活动下标，限制在邻居及配置边界内，不排序、不换身份，不改变其他 thumb。配置更新前由调用方验证现有值，非法配置／当前值报告参数错误。
+`clamp(value)` 返回可用值；`valueAt(position)`／`positionOf(value)` 在归一化 0～1 位置与数值之间转换，reversed 显式反转。`validate(values)` 检查当前有序 thumb、步对齐和 minimumGap 是否可满足；连续间距同时接受恰等于相邻值加减 minimumGap 的 Double 边界，避免边界运算与反向减法的舍入差异拒绝 move 的结果，正间距仍要求值严格递增。`move(values,index,value)` 只替换活动下标，限制在邻居及配置边界内，不排序、不换身份，不改变其他 thumb。配置更新前由调用方验证现有值，非法配置／当前值报告参数错误。
 
 `resizePair(first,second,delta,firstMin=0,firstMax=None,secondMin=0,secondMax=None)` 在两侧 min／max 内限制同一个位移，返回保留总长度的 SplitSizes；现有尺寸和位移必须可表示且满足配置。不会由两侧各自计算导致总量漂移。
 
@@ -680,3 +680,18 @@ InputOtpStyle 配置 cellSize: Size?、gap=8、surface: StyleOverride、text: Sp
 组属性为 entries、selected、axis=Horizontal、spacing=8、loop=true、enabled=true、invalid=false、variant=Default、size=Default、fonts=None、theme=None、style=styleOverride()，builder 另有 key。每项复用 Toggle／ActionInk。单选再次激活清空，多选按当前数组追加／删除本值，保留未知值及其顺序；重复本值删除全部。方向键只移动焦点，Space／Enter／指针更改选择，Tab 遵循当前／历史焦点，不因外部选择变化合成焦点请求。
 
 spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，首末保留外角，焦点项最后绘制；默认左右 padding=8，独立或有间距项保持 Toggle 的 padding=10，显式项样式优先。横向按内容宽度，纵向按最宽内容宽度并拉齐各项；样式、尺寸、禁用透明度和主题更新沿 Toggle 合同，不新建绘图或按压状态机。
+
+
+## 21. Slider
+
+`slider(values: Binding<Array<Double>>, range: RangeSpec, configure: SliderBuilder.() -> Unit = {}): View` 及 ChildrenBuilder 成员构造 SliderProps／Slider。values 使用稳定 thumb 下标；支持零个、单个、范围及多个 thumb，重建不交换其实例或焦点。组属性为 orientation=Horizontal、enabled=true、invalid=false、keyboardStep=None、thumbs=[]、labelTarget=None、style=sliderStyle()、theme=None、onValueCommit={}、onValueCancel={}，builder 另有 key。thumb(configure: SliderThumbBuilder.() -> Unit) 收集 SliderThumbOptions(focus=FocusOptions(), labelTarget=None)，addThumb 接受完整选项。未指定 thumbs 时每个值使用默认选项；指定时数量须与 values 一致。根 labelTarget 关联首个 thumb，显式项 labelTarget 优先；标签只请求焦点，不改值。
+
+输入快照沿 RangeSpec 检查有限性、范围、离散步、排序和 minimumGap；非法输入报告 IllegalArgumentException，禁止排序或静默改写外部值。连续范围必须提供有限正 keyboardStep，离散范围使用 RangeSpec.step。相同不可变 values 数组和等值范围复用校验结果；内部指针／键盘计算复用已检查的界限，不重复全量验证。临时 Binding 或 RangeSpec 对象可以在普通配置中重建；业务更新以当前数值及范围字段变化识别，不以适配闭包的对象身份判断。
+
+每个 thumb 有独立 FocusTarget 和正常 Tab 停靠点。仅真实、无修饰的 key-down／repeat 执行动作：水平 Left／Right、垂直 Down／Up 分别减少／增加，水平 RTL 和 reversed 各反转一次；Home／End 到当前 thumb 允许的最小／最大值，PageUp／PageDown 增减十个步长。其他轴箭头、Space／Enter 及 key-up 保留给外层。只移动当前 thumb，保持邻居和身份，达到边界仍消费已认领的键。每次实际被 Binding 采纳的键盘变化调用 onValueCommit 一次，拒绝或无变化不通知。
+
+指针输入复用 threshold=0 的轴向 Drag，覆盖轨道和 thumb 扩展命中区。轨道按下选取最近可移动 thumb，同距优先当前聚焦项，再按下标；点击 thumb 保留抓取位置，点击轨道立即移动最近 thumb。移动使用最近 Accepted 的轨道／thumb 几何和该次样本，不从待提交布局推算；横向与纵向的端点将 thumb 保留在控件尺寸内。只有正常 release 提交一次实际最终变化；onValueCommit 接收当前采纳的完整数组，外部同步更新不合成通知。
+
+取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；输入资源随挂载收尾，没有常驻时钟或第二份受控值。
+
+SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160／4／12／8（按主题 body 字号／14 缩放）；长度有限非负。有限主轴填充可用空间，无界主轴使用 length；交叉轴取 thumbSize，父约束优先，包括零尺寸。纵向最小值在下端，reversed 翻转；单 thumb 的 range 从数值最小端延伸到 thumb，多 thumb 在首末之间填充。track／range 使用普通 StyleOverride，默认 muted.background／primary.background 与全圆角；thumb 使用普通 StyleOverride 并映射为现有 SurfaceOptions，默认白底、ring 色 1 单位边框。hover／pressed／focus-visible 使用 3 单位主题 ring，invalid 使用统一 validation。主题及样式更新走现有 geometry／StylePainter／ThemePainter；disabled 透明度对整控件覆盖一次。动画只平滑交互颜色／光环，值位置立即响应绑定；reduced motion 遵循主题，静止后停止请求帧。

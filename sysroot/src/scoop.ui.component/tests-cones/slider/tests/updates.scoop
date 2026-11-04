@@ -1,0 +1,173 @@
+package scoop.tests.ui.slider
+
+import scoop.test.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun sliderConfigurations(p: SliderProbe) {
+    when (p.phase) {
+        case 32 -> {
+            p.expect([20.0, 90.0]);
+            p.range = RangeSpec(0.0, 200.0, Some(10.0), minimumGap = 20.0);
+            p.values.value = [40.0, 160.0]
+        }
+        case 33 -> {
+            p.expect([40.0, 160.0]);
+            assertEquals(5, p.cancels);
+            p.press(66.0, false);
+            p.resetRange()
+        }
+        case 34 -> p.press(66.0, true)
+        case 35 -> p.move(86.0)
+        case 36 -> {
+            p.expect([30.0, 80.0]);
+            p.values.value = [10.0, 40.0, 80.0]
+        }
+        case 37 -> {
+            p.expect([10.0, 40.0, 80.0]);
+            assertEquals(6, p.cancels)
+            assertTrue(p.first().hasFocus);
+            assertTrue(p.handles[2L].isAttached)
+            assertEquals(1, p.mounts);
+            p.press(86.0, false)
+        }
+        case 38 -> p.press(46.0, true)
+        case 39 -> p.move(56.0)
+        else -> fail()
+    }
+}
+
+internal fun sliderLifecycle(p: SliderProbe) {
+    when (p.phase) {
+        case 40 -> {
+            p.expect([15.0, 40.0, 80.0]);
+            p.gone = true
+        }
+        case 41 -> {
+            p.expect([10.0, 40.0, 80.0]);
+            assertEquals(7, p.cancels)
+            assertFalse(p.first().isAttached);
+            assertFalse(p.target.isAttached)
+            p.press(56.0, false);
+            p.gone = false;
+            p.replaced = true
+        }
+        case 42 -> {
+            assertFalse(p.handles[0L].isAttached);
+            assertTrue(p.replacement.isAttached)
+            assertFalse(p.target.isAttached);
+            assertTrue(p.newTarget.isAttached)
+            assertEquals(2, p.mounts);
+            p.press(70.0, true, 330.0);
+            p.press(70.0, false, 330.0)
+        }
+        case 43 -> {
+            p.expect([10.0, 40.0, 80.0]);
+            assertEquals(6, p.commits);
+            assertTrue(p.replacement.hasFocus);
+            p.rtl = true
+        }
+        case 44 -> p.key(124)
+        case 45 -> {
+            p.expect([5.0, 40.0, 80.0]);
+            assertEquals(7, p.commits);
+            p.range = RangeSpec(0.0, 100.0, Some(5.0), minimumGap = 10.0, reversed = true)
+        }
+        case 46 -> p.key(124)
+        case 47 -> {
+            p.expect([10.0, 40.0, 80.0]);
+            assertEquals(8, p.commits);
+            p.orientation = Orientation.Vertical;
+            p.rtl = false;
+            p.resetRange();
+            p.values.value = [50.0]
+        }
+        else -> fail()
+    }
+}
+
+internal fun sliderDirections(p: SliderProbe) {
+    when (p.phase) {
+        case 48 -> p.key(125)
+        case 49 -> {
+            p.expect([45.0]);
+            assertEquals(9, p.commits);
+            p.key(126)
+        }
+        case 50 -> {
+            p.expect([50.0]);
+            assertEquals(10, p.commits);
+            p.range = RangeSpec(0.0, 1.0, minimumGap = 0.1);
+            p.values.value = [0.3, 0.7]
+        }
+        case 51 -> p.key(116)
+        case 52 -> {
+            p.expect([0.4, 0.7]);
+            assertEquals(11, p.commits);
+            p.reject = true;
+            p.key(126)
+        }
+        case 53 -> {
+            p.expect([0.4, 0.7]);
+            assertEquals(11, p.commits);
+            p.reject = false;
+            p.orientation = Orientation.Horizontal;
+            p.resetRange();
+            p.narrow = true;
+            p.discard = true
+        }
+        case 54 -> {
+            assertTrue(p.discarded > 0);
+            p.press(76.0, true)
+        }
+        case 55 -> {
+            p.expect([50.0, 80.0]);
+            p.move(86.0)
+        }
+        else -> fail()
+    }
+}
+
+internal fun sliderCompletion(p: SliderProbe) {
+    when (p.phase) {
+        case 56 -> {
+            p.expect([60.0, 80.0]);
+            p.zero = true
+        }
+        case 57 -> {
+            p.expect([20.0, 80.0]);
+            assertEquals(8, p.cancels);
+            p.press(86.0, false);
+            p.zero = false;
+            p.gone = true
+        }
+        case 58 -> {
+            assertFalse(p.first().isAttached);
+            p.quiet = Some(p.frames!!.snapshot())
+        }
+        case 59 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        case 60 -> {
+            p.gone = false
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { this.preference = MotionPreference.Reduced } }
+                }
+        }
+        case 61 -> {
+            assertTrue(p.first().requestFocus());
+            p.key(124, repeat = true)
+        }
+        case 62 -> {
+            p.expect([25.0, 80.0]);
+            assertEquals(12, p.commits);
+            p.gone = true
+        }
+        case 63 -> {
+            assertFalse(p.first().isAttached);
+            assertFalse(p.newTarget.isAttached);
+            p.native!!.requestDestroy()
+        }
+        else -> fail()
+    }
+}

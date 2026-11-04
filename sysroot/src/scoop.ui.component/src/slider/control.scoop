@@ -1,0 +1,270 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+private class SliderGesture(
+    val index: Long,
+    val initial: Array<Double>,
+    val range: RangeSpec,
+    val orientation: Orientation,
+    val direction: LayoutDirection,
+    val grab: Double
+) {
+    var expected = initial
+}
+
+internal class SliderControl(
+    private val scope: ComponentScope,
+    private val input: () -> SliderInput
+) {
+    private val area = scope.createArea()
+    private var drag: Drag? = None
+    private var geometry: SliderGeometry? = None
+    private var gesture: SliderGesture? = None
+    private var checkedValues: Array<Double>? = None
+    private var checkedRange: RangeSpec? = None
+    private var configured = input().props
+    private var direction = scope.layoutDirection
+    init {
+        scope.routeChildren(area)
+        drag =
+            Some(
+                scope.drag(
+                    area,
+                    options(),
+                    { point -> candidate(point) != None },
+                    { event -> handle(event) }
+                )
+            )
+    }
+    private fun options(): DragOptions =
+        DragOptions(
+            if (input().props.orientation == Orientation.Horizontal)
+                DragAxis.Horizontal
+            else
+                DragAxis.Vertical,
+            threshold = 0.0,
+            enabled = input().props.enabled
+        )
+    private fun values(): Array<Double> {
+        val props = input().props
+        val result = props.values.value
+        val same =
+            when (checkedValues) {
+                case Some(previous) -> previous ===
+                    result &&
+                    sameSliderRange(checkedRange!!, props.range)
+                case None -> false
+            }
+        if (!same) {
+            props.range.validate(result)
+            checkedRange = Some(props.range)
+            checkedValues = Some(result)
+        }
+        return result
+    }
+    fun update() {
+        val props = input().props
+        val current = values()
+        requireComponent(
+            props.thumbs.size == 0L || props.thumbs.size == current.size,
+            "slider thumb options must match its values"
+        )
+        when (gesture) {
+            case Some(active) -> if (!props.enabled || !compatible(active, current))
+                cancel(
+                    if (!props.enabled)
+                        DragCancelReason.Disabled
+                    else
+                        DragCancelReason.ConfigurationChanged
+                )
+            case None -> {}
+        }
+        if (
+            !sameSliderRange(configured.range, props.range) ||
+                configured.orientation !=
+                props.orientation ||
+                direction !=
+                scope.layoutDirection
+        )
+            geometry = None
+        configured = props
+        direction = scope.layoutDirection
+        area.scope.enabled = props.enabled
+        drag!!.update(options(), { point -> candidate(point) != None }, { event -> handle(event) })
+    }
+    fun place(context: SceneContext, shape: SliderGeometry) {
+        if (shape.size.width > 0.0 && shape.size.height > 0.0 && input().values.size > 0L)
+            context.place(area, shape.hit)
+    }
+    fun accept(shape: SliderGeometry) {
+        if (!scope.isMounted)
+            return
+        val props = input().props
+        if (
+            shape.orientation !=
+                props.orientation ||
+                shape.direction !=
+                scope.layoutDirection ||
+                !sameSliderRange(shape.range, props.range)
+        )
+            return
+        geometry = Some(shape)
+        if (shape.travel == 0.0)
+            cancel(DragCancelReason.GeometryUnavailable)
+    }
+    private fun candidate(point: Point): Long? {
+        if (!input().props.enabled)
+            return None
+        val shape = geometry ?: return None
+        val current = values()
+        if (shape.travel == 0.0 || shape.thumbs.size != current.size)
+            return None
+        var focused: Long? = None
+        for (index in 0L ..< input().slots.size)
+            if (input().slots[index].area?.hasFocus ?: false)
+                focused = Some(index)
+        return nearestSliderThumb(shape, input().props.range, current, point, focused)
+    }
+    private fun compatible(active: SliderGesture, current: Array<Double>): Boolean =
+        sameSliderRange(active.range, input().props.range) &&
+            active.orientation ==
+            input().props.orientation &&
+            active.direction ==
+            scope.layoutDirection &&
+            sameSliderValues(current, active.expected)
+    private fun handle(event: DragEvent) {
+        when (event) {
+            case Started(sample) -> start(sample.position)
+            case Moved(sample) -> move(sample.position)
+            case Ended(sample) -> {
+                move(sample.position)
+                val active = gesture ?: return
+                val current = values()
+                gesture = None
+                input().active.value = None
+                if (!sameSliderValues(active.initial, current) && scope.isMounted)
+                    input().props.onValueCommit(current)
+            }
+            case Cancelled(_, reason) -> cancel(reason)
+        }
+    }
+    private fun start(point: Point) {
+        val index = candidate(point) ?: return
+        val shape = geometry!!
+        val slot = input().slots[index]
+        val focus = slot.focus ?: return
+        if (!focus.handle.requestFocus(FocusOrigin.Pointer)) {
+            drag!!.cancel()
+            return
+        }
+        val offset = shape.coordinate(point) - shape.center(index)
+        val hit =
+            input().props.style.hitInsets ?:
+                Insets.all(8.0 * input().theme.tokens.typography.body.fontSize / 14.0)
+        val inset =
+            if (shape.orientation == Orientation.Horizontal)
+                lowerBound(hit.left, hit.right)
+            else
+                lowerBound(hit.top, hit.bottom)
+        val grabbing = abs(offset) <= shape.thumbSize / 2.0 + inset
+        val grab =
+            if (grabbing && shape.thumbSize > 0.0)
+                offset / shape.thumbSize
+            else
+                0.0
+        val current = values()
+        gesture =
+            Some(
+                SliderGesture(
+                    index,
+                    current,
+                    input().props.range,
+                    input().props.orientation,
+                    scope.layoutDirection,
+                    grab
+                )
+            )
+        input().active.value = Some(index)
+        if (!grabbing)
+            move(point)
+    }
+    private fun move(point: Point) {
+        val active = gesture ?: return
+        val current = values()
+        if (!input().props.enabled || !compatible(active, current)) {
+            cancel(
+                if (!input().props.enabled)
+                    DragCancelReason.Disabled
+                else
+                    DragCancelReason.ConfigurationChanged
+            )
+            return
+        }
+        val shape = geometry ?: return
+        if (shape.travel == 0.0 || shape.thumbs.size != current.size) {
+            cancel(DragCancelReason.GeometryUnavailable)
+            return
+        }
+        val next =
+            input().props.range.moveValidated(
+                current,
+                active.index,
+                input().props.range.valueAt(shape.position(point, active.grab))
+            )
+        if (!sameSliderValues(current, next))
+            input().props.values.value = next
+        active.expected = values()
+    }
+    fun cancel(reason: DragCancelReason) {
+        val active = gesture ?: return
+        gesture = None
+        input().active.value = None
+        drag?.cancel()
+        val current = input().props.values.value
+        if (
+            sameSliderRange(active.range, input().props.range) &&
+                sameSliderValues(current, active.expected) &&
+                !sameSliderValues(current, active.initial)
+        )
+            input().props.values.value = active.initial
+        input().props.onValueCancel(input().props.values.value, reason)
+    }
+    fun lostFocus(index: Long) {
+        if (input().active.value == Some(index))
+            cancel(DragCancelReason.Explicit)
+    }
+    fun key(index: Long, context: RoutedEventContext, key: KeyEvent) {
+        if (!input().props.enabled || !sliderKeyAllowed(key))
+            return
+        if (key.logicalKey == LogicalKey.Named(NamedKey.Escape) && input().active.value != None) {
+            context.consume()
+            cancel(DragCancelReason.Explicit)
+            return
+        }
+        val command =
+            sliderKeyCommand(input().props, scope.layoutDirection, key.logicalKey) ?: return
+        context.consume()
+        cancel(DragCancelReason.Explicit)
+        val current = values()
+        if (index >= current.size)
+            return
+        val value = sliderKeyValue(input().props, current[index], command)
+        val next = input().props.range.moveValidated(current, index, value)
+        if (sameSliderValues(current, next))
+            return
+        input().props.values.value = next
+        val accepted = values()
+        if (scope.isMounted && !sameSliderValues(current, accepted))
+            input().props.onValueCommit(accepted)
+    }
+    fun retire() {
+        cancel(DragCancelReason.Closed)
+        geometry = None
+    }
+}

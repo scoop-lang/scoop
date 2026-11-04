@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox／Switch／Toggle、Input／Textarea／InputOtp、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox／Switch／Toggle／RadioGroup／ToggleGroup／Slider、Input／Textarea／InputOtp、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -109,3 +109,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `toggle("Bold", pressed) { variant = ToggleVariant.Outline; size = ToggleSize.Sm }` 支持文字、StyledText、自定义 View 和 ActionContentStyle 内容回调。按住时的临时状态与已选中的 pressed 分开，Space／Enter 激活后切换；外部 setter 可拒绝，控件不保存镜像值。通过现有 ButtonStyle 覆盖表面、文字、状态和过渡。
 
 `inputOtp(editor, 6L)` 使用同一 TextEditorState 与 TextEditHost，把 grapheme 放进固定槽。`group { slot(0L); slot(1L) }` 与 `separator()` 显式组合分组，索引须依序覆盖 length；不配置时为单组。默认 ASCII 数字，Alphanumeric 接受 ASCII 字母数字，Custom(TextEditPolicy) 保留自定义策略并收紧长度。onComplete 只在实际接受的编辑达到完整长度时通知，外部 replaceAll 不触发。支持 FieldTarget、只读、禁用、invalid、局部槽样式、RTL 和窄视口；复制不包含分隔图形。
+
+`slider(values.binding(), RangeSpec(0.0, 100.0, Some(5.0), minimumGap = 10.0))` 接受有序的 `Array<Double>`，每个下标保留同一个 thumb 和焦点。支持横纵、RTL、反向、离散步及连续范围；连续模式须显式配置 keyboardStep。点击轨道或拖动更新同一绑定，正常释放或键盘实际修改触发 onValueCommit，Escape／禁用等取消触发 onValueCancel；外部新值不会被旧拖动覆盖。`thumb { focus { handle = Some(handle) } }` 可逐项配置焦点与标签，`sliderStyle` 覆盖轨道、选中范围、thumb 及状态动画。真实窗口组合覆盖在 `tests-cones/slider`。

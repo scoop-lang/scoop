@@ -71,6 +71,14 @@ public open class ChildrenBuilder internal constructor() {
         add(makeStyledLabel(content, configure))
     }
 
+    public fun slider(
+        values: Binding<Array<Double>>,
+        range: RangeSpec,
+        configure: SliderBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSlider(values, range, configure))
+    }
+
     public fun <T: Equals<T>> radioGroup(
         selected: Binding<T?>,
         configure: RadioGroupBuilder<T>.() -> Unit = {}

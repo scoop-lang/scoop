@@ -1,0 +1,124 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.AnimationSpec
+import scoop.ui.style.*
+
+public class SliderStyle internal constructor(
+    public val length: Double? = None,
+    public val thickness: Double? = None,
+    public val thumbSize: Double? = None,
+    public val hitInsets: Insets? = None,
+    public val track: StyleOverride = styleOverride(),
+    public val range: StyleOverride = styleOverride(),
+    public val thumb: StyleOverride = styleOverride(),
+    public val states: InteractionStyles = interactionStyles(),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+) {
+    init {
+        for (size in [length, thickness, thumbSize])
+            when (size) {
+                case Some(value) -> nonnegative(value, "invalid slider dimension");
+                case None -> {}
+            }
+        hitInsets?.totals()
+    }
+    public fun copy(configure: SliderStyleBuilder.() -> Unit = {}): SliderStyle {
+        val builder = SliderStyleBuilder(this)
+        builder.configure()
+        return builder.snapshot()
+    }
+}
+
+public fun sliderStyle(configure: SliderStyleBuilder.() -> Unit = {}): SliderStyle =
+    SliderStyle().copy(configure)
+
+public class SliderStyleBuilder internal constructor(initial: SliderStyle) {
+    public var length: Double? = initial.length
+    public var thickness: Double? = initial.thickness
+    public var thumbSize: Double? = initial.thumbSize
+    public var hitInsets: Insets? = initial.hitInsets
+    public var track: StyleOverride = initial.track
+    public var range: StyleOverride = initial.range
+    public var thumb: StyleOverride = initial.thumb
+    public var states: InteractionStyles = initial.states
+    public var transition: StyleValue<AnimationSpec?> = initial.transition
+    public fun track(configure: StyleOverrideBuilder.() -> Unit) {
+        track = track.copy(configure)
+    }
+    public fun range(configure: StyleOverrideBuilder.() -> Unit) {
+        range = range.copy(configure)
+    }
+    public fun thumb(configure: StyleOverrideBuilder.() -> Unit) {
+        thumb = thumb.copy(configure)
+    }
+    public fun states(configure: InteractionStylesBuilder.() -> Unit) {
+        states = states.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(): SliderStyle =
+        SliderStyle(
+            length,
+            thickness,
+            thumbSize,
+            hitInsets,
+            track,
+            range,
+            thumb,
+            states,
+            transition
+        )
+}
+
+internal fun sliderPartStyle(color: Color, local: StyleOverride): Style =
+    local.resolve(
+        style {
+            this.background = Some(Paint(color))
+            this.corners = Corners.all(1000.0)
+        }
+    )
+
+internal fun sliderThumbOptions(
+    theme: Theme,
+    local: SliderStyle,
+    visual: InteractionVisual
+): SurfaceOptions {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val amount =
+        if (visual.focusVisible)
+            1.0
+        else
+            lowerBound(visual.hoverProgress ?: 0.0, visual.pressProgress ?: 0.0)
+    val base =
+        styleOverride {
+            this.background(Some(Paint(Color.White)))
+            this.border(
+                Some(
+                    Border.all(
+                        density,
+                        if (visual.invalid)
+                            theme.tokens.validation.borderColor ?: theme.tokens.validation.color
+                        else
+                            theme.tokens.palette.ring
+                    )
+                )
+            )
+            this.corners(Corners.all(1000.0))
+        }.then(local.thumb)
+    return surfaceOptions {
+        this.style = local.states.apply(base, visual)
+        this.padding = Some(Insets())
+        this.focus =
+            Some(
+                OutlineStyle(
+                    theme.tokens.palette.ring.withAlpha(
+                        theme.tokens.palette.ring.alpha * 0.5 * amount
+                    ),
+                    3.0 * density,
+                    0.0
+                )
+            )
+    }
+}

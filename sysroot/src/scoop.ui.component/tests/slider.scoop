@@ -1,0 +1,175 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class SliderValueTest {
+    @Test
+    fun `thumb geometry respects both axes rtl reversed ranges and constrained sizes`() {
+        val values = state<Array<Double>>([20.0, 80.0])
+        for (orientation in [Orientation.Horizontal, Orientation.Vertical])
+            for (direction in [LayoutDirection.Ltr, LayoutDirection.Rtl])
+                for (reversed in [false, true]) {
+                    val range = RangeSpec(0.0, 100.0, Some(1.0), reversed = reversed)
+                    val input = SliderProps(values.binding(), range, orientation)
+                    val size =
+                        if (orientation == Orientation.Horizontal)
+                            Size(200.0, 12.0)
+                        else
+                            Size(12.0, 200.0)
+                    val shape = sliderGeometry(input, values.value, shadcnTheme(), size, direction)
+                    val inverted =
+                        (orientation == Orientation.Vertical || direction == LayoutDirection.Rtl) !=
+                            reversed
+                    sliderNear(
+                        if (inverted)
+                            156.4
+                        else
+                            43.6,
+                        shape.center(0L)
+                    )
+                    sliderNear(
+                        if (inverted)
+                            43.6
+                        else
+                            156.4,
+                        shape.center(1L)
+                    )
+                    val point =
+                        if (orientation == Orientation.Horizontal)
+                            Point(shape.center(0L), 6.0)
+                        else
+                            Point(6.0, shape.center(0L))
+                    sliderNear(20.0, range.valueAt(shape.position(point, 0.0)))
+                    val zero =
+                        sliderGeometry(
+                            input,
+                            values.value,
+                            shadcnTheme(),
+                            Size(0.0, 0.0),
+                            direction
+                        )
+                    assertEquals(0.0, zero.travel)
+                    assertEquals(0.0, zero.thumbSize)
+                    val tiny =
+                        sliderGeometry(
+                            input,
+                            values.value,
+                            shadcnTheme(),
+                            Size(4.0, 4.0),
+                            direction
+                        )
+                    assertEquals(4.0, tiny.thumbSize)
+                    assertEquals(0.0, tiny.travel)
+                }
+    }
+    @Test
+    fun `single fill begins at the numeric minimum and empty input paints no selection`() {
+        val values = state<Array<Double>>([25.0])
+        for (reversed in [false, true]) {
+            val input =
+                SliderProps(values.binding(), RangeSpec(0.0, 100.0, Some(1.0), reversed = reversed))
+            val shape =
+                sliderGeometry(
+                    input,
+                    values.value,
+                    shadcnTheme(),
+                    Size(212.0, 12.0),
+                    LayoutDirection.Ltr
+                )
+            assertEquals(
+                if (reversed)
+                    156.0
+                else
+                    0.0,
+                shape.fill.x
+            )
+            assertEquals(56.0, shape.fill.width)
+            val empty =
+                sliderGeometry(input, [], shadcnTheme(), Size(212.0, 12.0), LayoutDirection.Ltr)
+            assertEquals(0.0, empty.fill.width)
+            assertEquals(0L, empty.thumbs.size)
+        }
+    }
+    @Test
+    fun `nearest movable thumb uses current focus for ties without exchanging indices`() {
+        val values = state<Array<Double>>([20.0, 80.0])
+        val range = RangeSpec(0.0, 100.0, Some(1.0), minimumGap = 10.0)
+        val input = SliderProps(values.binding(), range)
+        val shape =
+            sliderGeometry(
+                input,
+                values.value,
+                shadcnTheme(),
+                Size(200.0, 12.0),
+                LayoutDirection.Ltr
+            )
+        assertEquals(
+            Some(0L),
+            nearestSliderThumb(shape, range, values.value, Point(100.0, 6.0), None)
+        )
+        assertEquals(
+            Some(1L),
+            nearestSliderThumb(shape, range, values.value, Point(100.0, 6.0), Some(1L))
+        )
+        range.validate(values.value)
+        val clamped = range.moveValidated(values.value, 0L, 100.0)
+        assertEquals(70.0, clamped[0L])
+        assertEquals(80.0, clamped[1L])
+        val fixed = RangeSpec(0.0, 100.0, Some(1.0), minimumGap = 100.0)
+        assertEquals<Long?>(
+            None,
+            nearestSliderThumb(shape, fixed, [0.0, 100.0], Point(100.0, 6.0), None)
+        )
+    }
+    @Test
+    fun `continuous movement keeps decimal gap boundaries valid without accepting overlap`() {
+        val range = RangeSpec(0.0, 1.0, minimumGap = 0.1)
+        val upper = range.move([0.3, 0.7], 0L, 1.0)
+        range.validate(upper)
+        sliderNear(0.6, upper[0L])
+        assertEquals(0.7, upper[1L])
+        val lower = range.move([0.6, 0.9], 1L, 0.0)
+        range.validate(lower)
+        assertEquals(0.6, lower[0L])
+        sliderNear(0.7, lower[1L])
+        assertFailsWith<IllegalArgumentException> { range.validate([0.60001, 0.7]) }
+        assertFailsWith<IllegalArgumentException> { range.validate([0.7, 0.7]) }
+        assertFailsWith<IllegalArgumentException> { range.validate([0.7, 0.6]) }
+    }
+    @Test
+    fun `keyboard commands preserve physical direction and avoid overflow at finite endpoints`() {
+        val state = state<Array<Double>>([40.0])
+        val input = SliderProps(state.binding(), RangeSpec(0.0, 100.0, Some(5.0)))
+        val right = LogicalKey.Named(NamedKey.ArrowRight)
+        assertEquals(
+            45.0,
+            sliderKeyValue(input, 40.0, sliderKeyCommand(input, LayoutDirection.Ltr, right)!!)
+        )
+        assertEquals(
+            35.0,
+            sliderKeyValue(input, 40.0, sliderKeyCommand(input, LayoutDirection.Rtl, right)!!)
+        )
+        assertEquals(90.0, sliderKeyValue(input, 40.0, SliderKey.Step(10.0)))
+        assertEquals(0.0, sliderKeyValue(input, 40.0, SliderKey.Minimum))
+        assertEquals(100.0, sliderKeyValue(input, 40.0, SliderKey.Maximum))
+        val huge =
+            SliderProps(state.binding(), RangeSpec(0.0, 1.0e308), keyboardStep = Some(1.0e307))
+        assertEquals(1.0e308, sliderKeyValue(huge, 9.0e307, SliderKey.Step(10.0)))
+        assertEquals(0.0, sliderKeyValue(huge, 1.0e307, SliderKey.Step(-10.0)))
+        assertFailsWith<IllegalArgumentException> {
+            SliderProps(state.binding(), RangeSpec(0.0, 1.0))
+        }
+        assertFailsWith<IllegalArgumentException> { sliderStyle { this.thumbSize = Some(-1.0) } }
+    }
+}
+
+private fun sliderNear(expected: Double, actual: Double) {
+    assertTrue(abs(expected - actual) < 1.0e-9)
+}

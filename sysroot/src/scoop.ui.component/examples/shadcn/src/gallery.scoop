@@ -192,6 +192,7 @@ internal class Gallery(
             case InputOtp -> otpExamples(model.otp, fonts)
             case RadioGroup -> radioGroupExamples(model.choices, fonts, model.source.current.value)
             case ToggleGroup -> toggleGroupExamples(model.choices, fonts)
+            case Slider -> sliderExamples(model, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

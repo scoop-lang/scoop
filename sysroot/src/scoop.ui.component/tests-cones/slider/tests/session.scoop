@@ -1,0 +1,214 @@
+package scoop.tests.ui.slider
+
+import scoop.graphics.text.*
+import scoop.math.abs
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class SliderWindowTest {
+    @Test
+    fun `native slider preserves thumb identity and separates commit cancellation and external updates`() {
+        val p = SliderProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(3, p.mounts)
+            assertEquals(12, p.commits)
+            assertEquals(8, p.cancels)
+            assertFalse(p.target.isAttached)
+            assertFalse(p.newTarget.isAttached)
+            for (handle in p.handles)
+                assertFalse(handle.isAttached)
+            assertFalse(p.replacement.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(f"slider phase=${p.phase}, commits=${p.commits}, cancels=${p.cancels}")
+            println(f"pointer=${p.lastX}, ${p.lastY}, moves=${p.moves}")
+            reportSliderFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class SliderProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val values = state<Array<Double>>([20.0, 80.0])
+    var range = RangeSpec(0.0, 100.0, Some(5.0), minimumGap = 10.0)
+    var orientation = Orientation.Horizontal
+    var rtl = false
+    var enabled = true
+    var reject = false
+    var replaced = false
+    var gone = false
+    var narrow = false
+    var zero = false
+    var discard = false
+    var discarded = 0
+    var preventRelease = false
+    val handles = [FocusHandle(), FocusHandle(), FocusHandle()]
+    val replacement = FocusHandle()
+    val lead = FocusHandle()
+    val target = FieldTarget()
+    val newTarget = FieldTarget()
+    val generation = state(0)
+    var rendered = -1
+    var phase = 0
+    var mounts = 0
+    var commits = 0
+    var cancels = 0
+    var lastX = 0.0
+    var lastY = 0.0
+    var moves = 0
+    var lastCancel: DragCancelReason? = None
+    var finished = false
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    var view: ViewProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(80L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun first(): FocusHandle =
+        if (replaced)
+            replacement
+        else
+            handles[0L]
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop slider test"
+                            this.size = LogicalSize(500.0, 420.0)
+                        }
+                    )
+                native = Some(window)
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { SliderScene(this) })
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("slider timeout"))
+                if (settled())
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 64)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 64;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun settled(): Boolean {
+        if (
+            !native!!.isFocused ||
+                rendered <
+                generation.value ||
+                frames!!.snapshot().required ||
+                replacement.isPending ||
+                lead.isPending
+        )
+            return false
+        for (handle in handles)
+            if (handle.isPending)
+                return false
+        return true
+    }
+    private fun advance() {
+        when (phase / 8) {
+            case 0 -> sliderKeyboard(this)
+            case 1 -> sliderDragging(this)
+            case 2 -> sliderCancellation(this)
+            case 3 -> sliderExternalValues(this)
+            case 4 -> sliderConfigurations(this)
+            case 5 -> sliderLifecycle(this)
+            case 6 -> sliderDirections(this)
+            case 7 -> sliderCompletion(this)
+            else -> fail()
+        }
+        if (phase < 58 || phase >= 60)
+            generation.value += 1
+        phase += 1
+    }
+    fun key(code: Int, shift: Boolean = false, repeat: Boolean = false) {
+        assertTrue(sendSurfaceKey(native!!, code, true, repeat = repeat, shift = shift))
+        assertTrue(sendSurfaceKey(native!!, code, false, shift = shift))
+    }
+    fun press(x: Double, down: Boolean, y: Double = 76.0) {
+        move(x, y)
+        assertTrue(view!!.button(x, y, down))
+    }
+    fun move(x: Double, y: Double = 76.0) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun expect(expected: Array<Double>) {
+        assertEquals(expected.size, values.value.size)
+        for (index in 0L ..< expected.size)
+            assertTrue(
+                abs(expected[index] - values.value[index]) < 1.0e-9,
+                Some(f"thumb ${index}: expected ${expected[index]}, got ${values.value[index]}")
+            )
+    }
+    fun resetRange() {
+        range = RangeSpec(0.0, 100.0, Some(5.0), minimumGap = 10.0);
+        values.value = [20.0, 80.0]
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}
+
+private fun reportSliderFailure(error: Throwable) {
+    if (error is ResourceUseException) {
+        reportSliderFailure(error.primaryFailure);
+        reportSliderFailure(error.cleanupFailure)
+    }
+    else
+        if (error is AssertionFailure) {
+            println(
+                f"${error.location.file}:${error.location.line}: ${error.message ?: "assertion"}"
+            )
+            when (error.expected) {
+                case Text(value) -> println(f"expected: ${value}");
+                else -> {}
+            }
+            when (error.actual) {
+                case Text(value) -> println(f"actual: ${value}");
+                else -> {}
+            }
+        } else
+            if (error is Exception)
+                println(error.message ?: "slider failure")
+}
