@@ -10,6 +10,10 @@ import scoop.ui.text.*
 import scoop.window.*
 
 internal fun advanceEditing(probe: EditProbe) {
+    if (probe.phase >= 75) {
+        advanceSystemIme(probe)
+        return
+    }
     val first = probe.primary
     val second = probe.multiline
     val window = probe.window!!

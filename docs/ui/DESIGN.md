@@ -4,7 +4,7 @@
 
 弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。
 
-2026-11-04 的后续工作见 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)：先整理 window／surface 等公共平台合同，再补齐布局、交互、文本及视觉基础，之后实施 shadcn 控件。该轮设计已完成、尚未实施；Windows native、accessibility、Code Block 和 Native Select 不在该轮范围。
+2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。shadcn 控件留到后续；Windows／Linux native、accessibility、Code Block 和 Native Select 不在该轮范围。
 
 ## 1. 分层目标
 

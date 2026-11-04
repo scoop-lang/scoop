@@ -29,7 +29,10 @@ internal class EditScene(private val probe: EditProbe): Component {
         }
         if (probe.displayTest.show)
             children.add(selectableTestView(probe))
-        return element(revision, { props -> EditPanel(probe, props) }, children.toArray())
+        return direction(
+            element(revision, { props -> EditPanel(probe, props) }, children.toArray()),
+            probe.systemIme.direction.value
+        )
     }
 }
 

@@ -18,6 +18,8 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
+        if (generation >= 10)
+            return component({ CombinationScene(probe) })
         val keys =
             if (generation == 0)
                 ["a", "b"]

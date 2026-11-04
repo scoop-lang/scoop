@@ -40,6 +40,9 @@ private class OverlayItemUiTest {
             assertTrue(probe.navigation!!.isClosed)
             assertTrue(probe.search!!.isClosed)
             assertTrue(probe.editorHost!!.isClosed)
+            assertTrue(probe.shortcuts!!.isClosed)
+            assertEquals(2, probe.shortcutActions)
+            assertTrue(probe.shortcutMeasured)
             assertFalse(probe.editorFocus.isAttached)
             assertTrue(probe.view!!.restored())
         } catch (error: Throwable) {
@@ -121,6 +124,15 @@ internal class InteractionProbe {
             }
         )
     val candidatesOpen = state(true)
+    val candidateChord =
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character("k")),
+            ShortcutModifiers(primary = true)
+        )
+    var shortcutText = ""
+    var shortcutMeasured = false
+    var shortcutActions = 0
+    var shortcuts: ShortcutScope? = None
     var navigation: ActiveItems? = None
     var search: Typeahead? = None
     var imeStarts = 0
@@ -156,6 +168,15 @@ internal class InteractionProbe {
                         }
                     )
                 window = Some(native)
+                val label = native.shortcutLabel(candidateChord)
+                var text = ""
+                for (part in label.parts) {
+                    if (text.byteLength > 0L)
+                        text += label.separator
+                    text += part
+                }
+                assertTrue(text.byteLength > 0L)
+                shortcutText = text
                 view = Some(observeWindow(native))
                 timer = Some(native.createDeadline { waiting = false })
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
@@ -193,11 +214,11 @@ internal class InteractionProbe {
         assertTrue(moveSurfacePointer(window!!, x, y))
         assertTrue(active.proxy().post { _ -> waiting = false })
     }
-    fun key(active: ActiveApplication, code: Int, next: Int) {
+    fun key(active: ActiveApplication, code: Int, next: Int, command: Boolean = false) {
         waiting = true
         phase = next
-        assertTrue(sendSurfaceKey(window!!, code, true))
-        assertTrue(sendSurfaceKey(window!!, code, false))
+        assertTrue(sendSurfaceKey(window!!, code, true, command = command))
+        assertTrue(sendSurfaceKey(window!!, code, false, command = command))
         assertTrue(active.proxy().post { _ -> waiting = false })
     }
     fun leave(active: ActiveApplication) {

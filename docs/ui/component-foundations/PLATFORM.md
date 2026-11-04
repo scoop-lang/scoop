@@ -1,6 +1,6 @@
 # 平台合同与源码边界
 
-本文属于 [控件基础设计](DESIGN.md)，规定 P1／P2 的目标合同；实际交付范围见 [实施记录](PROGRESS.md)。主要修改 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
+本文属于 [控件基础设计](DESIGN.md)，规定已完成的 P1／P2 合同；实际交付与验证范围见 [实施记录](PROGRESS.md)。对应 [Window](../../specs/SCOOP-WINDOW-SPEC.md)、[Surface](../../specs/SCOOP-SURFACE-SPEC.md) 和 [Graphics.Text](../../specs/SCOOP-GRAPHICS-TEXT-SPEC.md) 规范。
 
 ## 1. 原始按键与应用语义分开
 
@@ -98,7 +98,7 @@ Surface 保持 `FrameCompletion`、Accepted／Deferred、输入场景和帧机�
 
 ## 6. 源码整理与 Windows 接入
 
-| 当前位置 | 调整方向 |
+| 迁移前位置 | P1／P2 调整 |
 | --- | --- |
 | `scoop.surface/src/platform/darwin/shortcuts/` | 通用 binding／scope／host／dispatch 移到 shared；key、modifiers、匹配与标签归 window |
 | `scoop.window/platform/darwin/shortcuts.scoop` | 公共声明移到 window `src`；原生 Unicode／键盘布局查询保留为内部后端实现 |

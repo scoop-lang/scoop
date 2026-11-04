@@ -1,6 +1,6 @@
 # 控件基础补齐实施记录
 
-日期：2026-11-04。状态：实施中，已完成 S1，下一项为 C1。
+日期：2026-11-04。状态：P1–S1 及 C1 共十一项已完成 macOS 实施与验收。
 
 实现分支为 `codex/ui-component-foundations`。每个大项完成定向 macOS 验证后提交、推送，再把最新 origin/main 合入实现分支；只对后续实际改动或合并冲突影响的部分复验。临时脚本和原始输出在仓库外使用 `/Users/chenxu/repos/scoop-work/ui-component-foundations`，每项结束清理不再需要的文件，保留后续会复用的构建缓存。
 
@@ -18,9 +18,9 @@
 | T2 文本投影与选择 | 已完成 |
 | V1 装饰与图像 | 已完成 |
 | S1 阅读位置与滚动意图 | 已完成 |
-| C1 组合验收 | 待实施 |
+| C1 组合验收 | 已完成 |
 
-本轮实现先验证 macOS aarch64，最后补做受影响生产库与代表组合的 x86_64 Rosetta 验证。Windows／Linux 后端实现及构建／桌面验收、accessibility、原生控件交互和 shadcn 控件库不在本轮范围。
+本轮已完成 macOS aarch64 分批验证和 x86_64 Rosetta 的生产库及代表组合补验；Rosetta 不等于真实 Intel 硬件验证。Windows／Linux 后端实现及构建／桌面验收、accessibility、原生控件交互和 shadcn 控件库不在本轮范围。
 
 ## 设计阶段
 
@@ -116,3 +116,15 @@
 - aarch64 macOS release：ui、style、三套主题及 component 共 6 个生产库构建成功。25 项定向运行全部通过：滚动状态／意图 9 项，虚拟范围／尺寸索引／阅读几何 11 项，以及滚动视口、可变列表、RTL 列表、嵌套滚动条和 lazy 生命周期 5 个真实窗口组合。覆盖 prepend、异步 ImageView 增高、失败帧、布局后的新请求、动画接续、恢复取消、方向切换及资源释放。
 - RTL 组合发现祖先与子项同轮失效时可能漏更新，且普通协调漏传保留 lazy 条目的方向。更新队列改为先祖先后后代，仅跳过实际已更新节点；方向变化同步传播到保留项。已补充同源 Props 更新与局部 State 同时变化的回归，并复验 RTL 和已有 lazy 生命周期场景；没有重跑无关批次，无未闭合失败。
 - 6 个相关 Cone 的 tests 类型检查、34 个修改／新增 Scoop 文件格式化、文档本地链接和 diff 检查通过。清理本项草稿、原始输出和独立检查锁文件，保留后续复用的产物、Cone cache 与 C1 准备资料。系统中文输入法和 x86_64 仍留在 C1，Windows／Linux 本项未验收。
+
+## C1：公开 API 组合与两架构验收
+
+- [布局组合](../../../sysroot/src/scoop.ui.component/tests-cones/layout/tests/combination.scoop)用普通 View、Flex、Press、Drag、resizePair、ScrollViewport 和 snapTarget 组成可调整侧栏、固定按钮加弹性输入、不同宽度的吸附内容带。真实拖动后切换方向，保留 keyed 局部 State、焦点和 IME 连接；按实际测量锚点吸附，取消恢复起点，拖动不额外触发子项点击，结束后停帧。
+- [候选弹层](../../../sysroot/src/scoop.ui.component/tests-cones/overlays-items/tests/active.scoop)展示 window 从同一 ShortcutChord 生成的标签，ShortcutScope 用该 chord 开关虚拟候选列表，输入框持续持有焦点与连接。保留已有受控退出、悬浮走廊、typeahead 和关闭中资源借用组合，并复验独立的嵌套模态场景。
+- [文本组合](../../../sysroot/src/scoop.ui/tests-cones/editing/tests/ime.scoop)使用已启用的 macOS 系统简体拼音和带 CGEvent 的实际按键解释路径，覆盖原文预编辑、单字素长度约束、遮罩、方向切换、组合提交拒绝、撤销／重做、分槽显示、组合字符／emoji 粘贴、复制和拖选。分槽使用一份编辑模型；测试保存并恢复输入源与剪贴板。平台调用只在 window 的 native 测试辅助中，不进入 UI／Component 生产源码。
+- 可变列表与 RTL 虚拟列表的既有组合再次通过，覆盖稳定 key、已提交阅读位置、prepend、异步图像增高、恢复、手动中断、祖先与子项同轮更新，以及挂载资源释放。
+- aarch64 macOS release 的六个真实窗口组合全部通过。收尾修正了测试的窗口重显焦点、逐键交付、系统 IME 按键构造和标量／UTF-8 索引转换；只复跑受影响组合。C1 没有新增生产接口或修改生产实现。
+- x86_64 release：十一项受影响生产库和七个公共依赖共十八个库全部构建成功，六个窗口组合全部在 Rosetta 下通过；两架构共十二个组合运行通过。原有 core 预编译产物使用旧编译器格式，按当前工具链重建本次依赖，并用现有 runtime-only 入口准备 runtime。未增加旧格式兼容路径，也未重建编译器或无关系统库。
+- Rosetta 的悬浮组合首轮收到非脚本位置的原生鼠标移动，按悬浮规则关闭；无代码改动的单独复跑通过。原生窗口组合需要前台焦点及稳定指针，本轮无未闭合失败。
+- UI、Component、Style 和三套主题的生产源码入口均无 OS 条件、平台专用调用或额外 native 源码。Windows／Linux 仍按 [平台交接清单](PLATFORM.md#6-源码整理与-windows-接入)另行实现和验收；本轮不声称这些后端已可用。
+- 三个相关 Cone 的 tests 类型检查、十五个 Scoop 文件的格式检查、native 严格编译警告、文档本地链接及 diff 检查通过。清理本项临时诊断程序、原始日志、草稿和独立检查锁文件，保留可复用的生产／测试产物及 Cone cache。

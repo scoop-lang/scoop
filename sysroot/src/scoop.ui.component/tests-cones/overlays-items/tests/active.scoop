@@ -28,7 +28,8 @@ internal fun activeScene(probe: InteractionProbe): View =
                     scrollbars = ScrollbarVisibility.Hidden
                     focus { tabStop = false }
                 }
-            ) { atPoint(Point(20.0, 65.0)) }
+            ) { atPoint(Point(20.0, 65.0)) },
+            label(probe.shortcutText) { fonts = Some(probe.fonts) }
         ]
     )
 
@@ -39,6 +40,23 @@ private class ActiveCanvas(
     private var scope: ComponentScope? = None
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
+        probe.shortcuts =
+            Some(
+                scope.resource {
+                    ShortcutScope(
+                        scope.input,
+                        [
+                            shortcutBinding(
+                                probe.candidateChord,
+                                {
+                                    probe.shortcutActions += 1
+                                    probe.candidatesOpen.value = !probe.candidatesOpen.value
+                                }
+                            )
+                        ]
+                    )
+                }
+            )
         probe.navigation =
             Some(
                 scope.activeItems(
@@ -89,6 +107,10 @@ private class ActiveCanvas(
         context.placeChild(0L, Point(20.0, 20.0))
         context.measureChild(1L, Constraints())
         context.placeChild(1L, Point(0.0, 0.0))
+        val shortcut = context.measureChild(2L, Constraints(maxWidth = Some(170.0)))
+        assertTrue(shortcut.size.width > 0.0 && shortcut.size.height > 0.0)
+        context.placeChild(2L, Point(270.0, 20.0))
+        probe.shortcutMeasured = true
         return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
     }
     public override fun scene(context: SceneContext) {

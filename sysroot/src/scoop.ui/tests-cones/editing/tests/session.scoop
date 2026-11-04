@@ -16,7 +16,7 @@ import scoop.window.*
 @Test
 private class PublicTextEditHostTest {
     @Test
-    fun `native editing focus clipboard selection scrolling and successful geometry share one host`() {
+    fun `native editing system IME projections selection and scrolling share one host`() {
         @Unsafe
         {
             val clipboard = saveNativeClipboard() ?: fail(Some("cannot save clipboard"))
@@ -32,6 +32,7 @@ private class PublicTextEditHostTest {
                             ).run(host)
                         }
                         assertTrue(probe.finished)
+                        assertTrue(probe.systemIme.complete)
                         assertEquals(3, probe.mounts)
                         assertEquals(probe.mounts, probe.unmounts)
                         assertEquals(1, probe.displayTest.mounts)
@@ -50,7 +51,12 @@ private class PublicTextEditHostTest {
                         editingFailure(error)
                         throw error
                     } finally {
-                        probe.frames?.close()
+                        try {
+                            probe.frames?.close()
+                        }
+                        finally {
+                            probe.systemIme.restoreSource()
+                        }
                     }
                 }
             } finally {
@@ -61,6 +67,7 @@ private class PublicTextEditHostTest {
 }
 
 internal class EditProbe(val fonts: FontCollection) {
+    val systemIme = SystemImeProbe()
     val displayTest = DisplayProbe()
     val primary = TextEditorState("A😀éZ")
     val multiline = TextEditorState("one two\nthree")
@@ -189,7 +196,7 @@ internal class EditProbe(val fonts: FontCollection) {
                     retriedFocus = true
                     window!!.requestFocus()
                 }
-                if (!finished && phase < 75 && !waiting && settled()) {
+                if (!finished && phase < 91 && !waiting && settled()) {
                     waiting = true
                     assertTrue(
                         application.proxy().post {
@@ -202,7 +209,7 @@ internal class EditProbe(val fonts: FontCollection) {
                 }
             }
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 75
+                finished = phase == 91
                 application.requestExit()
             }
             case NewEvents(StartCause.Deadline) -> fail(

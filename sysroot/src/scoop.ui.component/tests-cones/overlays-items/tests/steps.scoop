@@ -184,6 +184,22 @@ private fun InteractionProbe.advanceItems(application: ActiveApplication) {
                 return
             originalConnection = connection
             assertTrue(connection != None)
+            key(application, 40, 43, command = true)
+        }
+        case 43 -> {
+            if (list.isAttached)
+                return
+            assertEquals(1, shortcutActions)
+            assertFalse(candidatesOpen.value)
+            assertEditorOwner()
+            key(application, 40, 44, command = true)
+        }
+        case 44 -> {
+            if (!list.isAttached || list.isPending)
+                return
+            assertEquals(2, shortcutActions)
+            assertTrue(candidatesOpen.value)
+            assertEditorOwner()
             key(application, 125, 32)
         }
         case 32 -> {

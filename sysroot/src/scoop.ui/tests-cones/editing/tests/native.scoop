@@ -94,6 +94,38 @@ internal fun editorKey(window: Window, code: Int, text: String, flags: Int = 0) 
     assertEquals(0, result)
 }
 
+internal fun editorSelectPinyin(window: Window) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView selectNativePinyin(view)
+            }
+        }
+    )
+}
+
+internal fun editorImeKey(window: Window, code: Int) {
+    assertEquals(
+        0,
+        editorView(window) {
+            view -> @Unsafe
+            {
+                return@editorView nativeImeKey(view, code)
+            }
+        }
+    )
+}
+
+internal fun editorPinyinSelected(window: Window): Boolean =
+    editorView(window) {
+        view -> @Unsafe
+        {
+            return@editorView nativePinyinSelected(view)
+        }
+    }
+
 internal fun editorInterpret(window: Window, scenario: Int) {
     assertEquals(
         0,

@@ -46,6 +46,7 @@ private class ControlLayoutUiTest {
             assertFalse(probe.fonts.isClosed)
             assertTrue(probe.view!!.restored())
             assertFalse(probe.frames!!.snapshot().attached)
+            probe.combination.assertClosed()
         } catch (error: Throwable) {
             println(f"layout UI phase=${probe.phase}, generation=${probe.paintedGeneration}")
             report(error)
@@ -86,6 +87,7 @@ private fun report(error: Throwable) {
 }
 
 internal class LayoutProbe {
+    val combination = LayoutCombination()
     val visuals = VisualProbe()
     val generation = state(0)
     val showRows = state(true)
@@ -205,6 +207,10 @@ internal class LayoutProbe {
         )
     }
     private fun advance(active: ActiveApplication) {
+        if (phase >= 10 && phase < 90) {
+            advanceLayoutCombination(this, active)
+            return
+        }
         when (phase) {
             case 0 -> if (paintedGeneration == 0 && window!!.isFocused) {
                 assertEquals(2L, cells.size)
@@ -323,6 +329,14 @@ internal class LayoutProbe {
                 val current = counters()
                 for (i in 0L until current.size)
                     assertEquals(quietCounts[i], current[i])
+                generation.value = 10
+                window!!.requestFocus()
+                phase = 10
+                waitFor(active, 25000L)
+            }
+            case 26 -> {
+                assertEquals(combination.quietFrames!!, frames!!.snapshot())
+                combination.complete = true
                 phase = 90
                 window!!.requestDestroy()
             }
@@ -337,7 +351,7 @@ internal class LayoutProbe {
             )
         }
     }
-    private fun waitFor(active: ActiveApplication, milliseconds: Long) {
+    fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
             ControlFlow.WaitUntil(
                 MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)

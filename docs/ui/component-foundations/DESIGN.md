@@ -1,6 +1,6 @@
 # UI 跨平台抽象与控件基础补齐
 
-日期：2026-11-04。状态：实施中；逐批交付范围见实施记录。本文定义复刻 shadcn 控件之前要完成的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论仍以各库 spec 和此前的实施记录为准。
+日期：2026-11-04。状态：本轮基础库工作已完成 macOS 实施与两架构验收，逐批交付范围见实施记录。本文定义复刻 shadcn 控件之前的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论以各库 spec 和相应实施记录为准。
 
 本轮先整理平台合同，再补齐公共布局、交互、文本和绘制能力。沿用 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window`／`scoop.window.asyncio` 的分层，不新增统一 platform service、渲染框架或另一套 UI runtime。所有新增能力均为普通库能力，不修改语言、编译器阶段或 runtime ABI。
 
