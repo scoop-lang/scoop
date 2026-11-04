@@ -1,4 +1,4 @@
-//! Safepoint registration data and fingerprint calculation.
+//! Semantic safepoint production data and normalized machine-record fingerprints.
 
 pub(in crate::link_object) mod fingerprints;
 pub use fingerprints::*;
