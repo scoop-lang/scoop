@@ -296,4 +296,44 @@ Darwin AArch64 使用 LLVM 22.1.8、release Scoop 产物与无调试信息。Hel
 
 本地验证包括全工作区格式化及 clippy、identity 361 项、LIR 379 项、slib 267 项、codegen 396 项，以及 runtime 元数据／映像／扫栈 C 专项。正式 GC fixtures 为 **71 通过、2 项仅适用 Linux**，共 150 个变体；ODR selection 与 coroutine mixed profiles 的 4 个变体通过，覆盖源码、预编译产物、artifact-only 链接和缓存复用。实际泛型机器对象测试也通过。
 
-codegen 中 Windows WinEH 精确 PC 项用 Scoop 配套的 LLVM 22.1.8 复验通过；本机 Homebrew LLVM 缺少实现规范要求的 WinEH statepoint 标签修正。该差异未通过修改预期 PC 或放宽 runtime 查找规则规避。其他目标及大 UI 样本的结果待后续追加。
+codegen 中 Windows WinEH 精确 PC 项用 Scoop 配套的 LLVM 22.1.8 复验通过；本机 Homebrew LLVM 缺少实现规范要求的 WinEH statepoint 标签修正。该差异未通过修改预期 PC 或放宽 runtime 查找规则规避。后续目标及大 UI 样本的结果如下。
+
+### 11.2 实际空间与运行成本
+
+2026-11-05 的配对样本保持原 Scoop 源码、release 优化、目标、native 资源与无调试信息设置。独立解析原 executable 的 LLVM v3 表和新 executable 的紧凑表，按 `SafepointId` 比较精确 PC 偏移、帧大小和有序根位置；三个样本均无缺失、增加或不同记录。保留的类型、callable、初始化与其他登记计数也一致。以下是完整文件实测，单位 MiB：
+
+| 样本 | 原文件 | 新文件 | 减少 | 缩小比例 | 原／新 GC 表 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Hello | 1.40 | 0.88 | 0.52 | 37.3% | 0.219／0.059 |
+| Counter | 82.87 | 49.81 | 33.06 | 39.9% | 27.60／4.63 |
+| 控件示例 | 118.05 | 66.70 | 51.35 | 43.5% | 41.91／6.83 |
+
+Counter 保持 **56,602** 个 site、**1,044,079** 对根，控件示例保持 **91,156** 个 site、**1,571,344** 对根。含非空 GC 表的函数分别为 6,447 和 9,972；包含无 site 函数的 callable 总数分别为 6,580 和 10,258。新表没有原始 LLVM stackmap，也没有独立逐 site 登记。
+
+默认构建分别启动 5 次，在启动后 3 秒读取进程 RSS，随后由测量脚本终止其自建进程。显式 startup-stats 构建另测 5 次；旧版本从原对象重新链接配套的统计 runtime，新版本使用正常 `--enable-startup-stats`。下表均为中位数，startup 只包含 runtime 初始化阶段，不代表完整窗口呈现时间。
+
+| 指标 | Counter 原／新 | 控件示例原／新 |
+| --- | ---: | ---: |
+| 默认进程 RSS，MiB | 204.78／97.47 | 279.69／115.00 |
+| runtime startup，ms | 76.12／15.06 | 113.19／23.45 |
+| 其中 GC 表初始化，ms | 40.90／4.18 | 58.70／6.08 |
+| 新版常驻 PC 索引，MiB | 1.30 | 2.09 |
+
+RSS 包含映像、UI 与其他进程分配，不等同于单独 GC 索引；PC 索引按实际 site 数乘 24 字节计算。根位置直接引用文件映射，原来的逐 record 解码根数组不再分配。两组 UI 的默认启动无 stderr，统计构建的新旧登记计数逐项一致；这些启动观测不代替完整 UI 交互测试。
+
+配套 `.slib` 的 `scoop.core` 从 13.58 降至 11.74 MiB，`scoop.ui` 从 92.45 降至 66.22 MiB，`scoop.ui.component` 从 90.51 降至 63.56 MiB。产物中仍保留完整 typed site 与 owner，缩减来自物理表及其退役生产记录。
+
+另以 `tests/benchmarks/old-graph-large.scoop` 交替运行 9 对普通构建和 9 对显式 GC 统计构建。该样本的 1,994 个 site、3,576 对根也逐项一致，输出均为 `199680`；两版均分配 9,021,576 字节，完成 4 次 minor、2 次 full，访问 414 个根槽。普通进程耗时中位数为 13.06／12.39 ms；GC 总暂停为 1.243／1.233 ms，根扫描为 6／5 µs。在这一小样本上未观察到明显 GC 或吞吐回退，不将微秒差异解释为稳定的扫栈加速。
+
+### 11.3 构建成本
+
+两版均使用 release Rust CLI；每轮为真实输入建立新的 root cache，复用配套预编译系统库。库采用 `tests/benchmarks/inlining/members/provider`，consumer 采用上述 old-graph 程序；artifact-only 链接消费刚发布的 root／依赖 `.slib` 与 runtime 索引并实际运行。3 对测量的中位数如下，单位秒：
+
+| 阶段 | 原版 | 新版 |
+| --- | ---: | ---: |
+| 小型库冷生产 | 0.516 | 0.456 |
+| 消费预编译库并构建程序 | 1.452 | 1.333 |
+| artifact-only 链接 | 0.901 | 0.831 |
+| 原请求缓存命中 | 0.0083 | 0.0086 |
+
+缓存命中的子编译调用为空，root 指纹保持，源码、工具和原产物始终存在。该测量覆盖小型实际 consumer，不代表完整 UI 冷构建或系统库重建时间；未以 debug Rust CLI 的构建耗时与 release CLI 作比较。
