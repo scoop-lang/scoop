@@ -1,12 +1,12 @@
 package scoop.ui
 
 internal interface ComponentDescriptionBase {
-    val shape: ViewShape
+    fun sameType(other: ComponentDescriptionBase): Boolean
     fun create(): ComponentInstance
 }
 
 internal interface ElementDescriptionBase {
-    val shape: ViewShape
+    fun sameType(other: ElementDescriptionBase): Boolean
     fun create(): ElementInstance
 }
 
@@ -21,7 +21,7 @@ internal interface ElementInstance {
 }
 
 internal interface LazyDescriptionBase {
-    val shape: ViewShape
+    fun sameType(other: LazyDescriptionBase): Boolean
     fun create(): LazyInstance
 }
 
@@ -34,9 +34,8 @@ internal class LazyDescription<P, E: LazyElement>(
     val input: P,
     private val factory: (Props<P>) -> E
 ): LazyDescriptionBase {
-    override val shape = ViewShape.Lazy(typeInfo<E>().type, typeInfo<P>().type)
+    override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, E>
     override fun create(): LazyInstance {
-        requireClassInstance<E>()
         val props = Props(input)
         return TypedLazyInstance<P, E>(props, factory(props))
     }
@@ -56,9 +55,9 @@ internal class ComponentDescription<P, C: Component>(
     val input: P,
     private val factory: (Props<P>) -> C
 ): ComponentDescriptionBase {
-    override val shape = ViewShape.Component(typeInfo<C>().type, typeInfo<P>().type)
+    override fun sameType(other: ComponentDescriptionBase): Boolean =
+        other is ComponentDescription<P, C>
     override fun create(): ComponentInstance {
-        requireClassInstance<C>()
         val props = Props(input)
         return TypedComponentInstance<P, C>(props, factory(props))
     }
@@ -78,9 +77,9 @@ internal class ElementDescription<P, E: Element>(
     val input: P,
     private val factory: (Props<P>) -> E
 ): ElementDescriptionBase {
-    override val shape = ViewShape.Element(typeInfo<E>().type, typeInfo<P>().type)
+    override fun sameType(other: ElementDescriptionBase): Boolean =
+        other is ElementDescription<P, E>
     override fun create(): ElementInstance {
-        requireClassInstance<E>()
         val props = Props(input)
         return TypedElementInstance<P, E>(props, factory(props))
     }
@@ -93,14 +92,5 @@ private class TypedElementInstance<P, E: Element>(
     override val value: Element get() = instance
     override fun replace(description: ElementDescriptionBase) {
         props.replace((description as ElementDescription<P, E>).input)
-    }
-}
-
-private fun <T> requireClassInstance() {
-    when (typeInfo<T>().describe().shape) {
-        case Class(_) -> {}
-        else -> throw IllegalArgumentException(
-            Some("component and element factories must retain a concrete class type")
-        )
     }
 }

@@ -6,7 +6,7 @@ import scoop.test.*
 import scoop.ui.*
 
 internal enum FailureMode {
-    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, ValueType, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LazyBuild, LazyMount, LazyMeasure, LazyMissingPaint, LazyMissingPinned, LateUpdate
+    Factory, Render, Mount, Update, DuplicateKey, DuplicateInstance, PortalHandle, PortalCycle, ModalMount, ModalClose, MissingMeasure, Measure, MissingPaint, Paint, FrameComplete, LazyBuild, LazyMount, LazyMeasure, LazyMissingPaint, LazyMissingPinned, LateUpdate
 }
 
 internal class FailureImage(private val record: FailureRecord, val name: String): Closeable {
@@ -33,10 +33,6 @@ internal class FailureImage(private val record: FailureRecord, val name: String)
                 throw record.cleanupB
         }
     }
-}
-
-internal struct ValueComponent(val marker: Int = 0): Component {
-    public override fun render(): View = empty()
 }
 
 internal class SmallComponent: Component {

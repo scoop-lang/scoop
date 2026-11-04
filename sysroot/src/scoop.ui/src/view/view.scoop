@@ -34,6 +34,7 @@ public fun portal(
     return View(builder.key, ViewBody.Portal(content, open, builder.snapshot()))
 }
 
+/** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <C: Component> component(create: () -> C, key: ViewKey = ViewKey.Position): View =
     component(Unit, { _ -> create() }, key)
 
@@ -43,6 +44,7 @@ public fun <P, C: Component> component(
     key: ViewKey = ViewKey.Position
 ): View = View(key, ViewBody.Component(ComponentDescription(props, create)))
 
+/** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <E: Element> element(
     create: () -> E,
     children: Array<View> = [],
@@ -65,21 +67,19 @@ internal enum ViewBody {
     ), Direction(View, LayoutDirection)
 }
 
-internal enum ViewShape {
-    Empty, Component(TypeRef, TypeRef), Element(TypeRef, TypeRef), Portal(Boolean),
-    Lazy(TypeRef, TypeRef), Direction
-}
-
-internal val View.shape: ViewShape get() =
-    when (body) {
-        case Empty -> ViewShape.Empty
-        case Direction(_, _) -> ViewShape.Direction
-        case Component(value) -> value.shape
-        case Element(value, _) -> value.shape
-        case Portal(_, _, options) -> ViewShape.Portal(options.isModal)
-        case Lazy(value, _, _) -> value.shape
+/** Type matching has no factory, input replacement, or mounting side effects. */
+internal fun View.sameType(other: View): Boolean =
+    when ((body, other.body)) {
+        case(Empty, Empty) -> true
+        case(Direction(_, _), Direction(_, _)) -> true
+        case(Component(a), Component(b)) -> a.sameType(b)
+        case(Element(a, _), Element(b, _)) -> a.sameType(b)
+        case(Lazy(a, _, _), Lazy(b, _, _)) -> a.sameType(b)
+        case(Portal(_, _, a), Portal(_, _, b)) -> a.isModal == b.isModal
+        else -> false
     }
 
+/** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <E: LazyElement> lazyElement(
     source: ItemSource,
     create: () -> E,

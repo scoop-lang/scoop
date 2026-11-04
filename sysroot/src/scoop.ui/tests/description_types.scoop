@@ -1,0 +1,199 @@
+package scoop.ui
+
+import scoop.test.*
+
+@Test
+private class DescriptionTypeTest {
+    @Test
+    fun `component matching preserves all generic arguments without touching props or factories`() {
+        val records = ReuseRecords()
+        val first =
+            ComponentDescription(
+                ReuseInput<Array<Int>>(1),
+                {
+                    props -> ReuseComponent<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version })
+                    )
+                }
+            )
+        val same =
+            ComponentDescription(
+                ReuseInput<Array<Int>>(2),
+                {
+                    props -> ReuseComponent<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version })
+                    )
+                }
+            )
+        val different: Array<ComponentDescriptionBase> =
+            [
+                ComponentDescription(
+                    ReuseInput<Array<Long>>(2),
+                    { _ -> ReuseComponent<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                ComponentDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseComponent<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                ComponentDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseComponent<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                )
+            ]
+        assertEquals(0L, records.values.size)
+        val instance = first.create()
+        assertTrue(first.sameType(same))
+        assertTrue(same.sameType(first))
+        for (other in different) {
+            assertFalse(first.sameType(other))
+            assertFalse(other.sameType(first))
+        }
+        assertUntouched(records)
+        instance.replace(same)
+        assertEquals(2, records.values[0L].read())
+        assertEquals(1L, records.values.size)
+    }
+
+    @Test
+    fun `element matching preserves all generic arguments without touching props or factories`() {
+        val records = ReuseRecords()
+        val first =
+            ElementDescription(
+                ReuseInput<Array<Int>>(1),
+                {
+                    props -> ReuseElement<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version })
+                    )
+                }
+            )
+        val same =
+            ElementDescription(
+                ReuseInput<Array<Int>>(2),
+                {
+                    props -> ReuseElement<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version })
+                    )
+                }
+            )
+        val different: Array<ElementDescriptionBase> =
+            [
+                ElementDescription(
+                    ReuseInput<Array<Long>>(2),
+                    { _ -> ReuseElement<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                ElementDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseElement<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                ElementDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseElement<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                )
+            ]
+        assertEquals(0L, records.values.size)
+        val instance = first.create()
+        assertTrue(first.sameType(same))
+        assertTrue(same.sameType(first))
+        for (other in different) {
+            assertFalse(first.sameType(other))
+            assertFalse(other.sameType(first))
+        }
+        assertUntouched(records)
+        instance.replace(same)
+        assertEquals(2, records.values[0L].read())
+        assertEquals(1L, records.values.size)
+    }
+
+    @Test
+    fun `lazy matching preserves all generic arguments without touching props or factories`() {
+        val records = ReuseRecords()
+        val first =
+            LazyDescription(
+                ReuseInput<Array<Int>>(1),
+                {
+                    props -> ReuseLazy<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version })
+                    )
+                }
+            )
+        val same =
+            LazyDescription(
+                ReuseInput<Array<Int>>(2),
+                {
+                    props -> ReuseLazy<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version })
+                    )
+                }
+            )
+        val different: Array<LazyDescriptionBase> =
+            [
+                LazyDescription(
+                    ReuseInput<Array<Long>>(2),
+                    { _ -> ReuseLazy<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                LazyDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseLazy<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                ),
+                LazyDescription(
+                    ReuseInput<Array<Int>>(2),
+                    { _ -> ReuseLazy<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                )
+            ]
+        assertEquals(0L, records.values.size)
+        val instance = first.create()
+        assertTrue(first.sameType(same))
+        assertTrue(same.sameType(first))
+        for (other in different) {
+            assertFalse(first.sameType(other))
+            assertFalse(other.sameType(first))
+        }
+        assertUntouched(records)
+        instance.replace(same)
+        assertEquals(2, records.values[0L].read())
+        assertEquals(1L, records.values.size)
+    }
+
+    @Test
+    fun `empty direction and portal modal categories remain distinct from instance descriptions`() {
+        val records = ReuseRecords()
+        val open = state(true)
+        val views =
+            [
+                empty(),
+                direction(empty(), LayoutDirection.Ltr),
+                component({ ReuseComponent<Int, Int>(records.create(0L, 0, { 0 })) }),
+                element({ ReuseElement<Int, Int>(records.create(0L, 0, { 0 })) }),
+                lazyElement(
+                    ReuseEmptyItems(),
+                    { ReuseLazy<Int, Int>(records.create(0L, 0, { 0 })) }
+                ),
+                portal(open.binding(), empty()),
+                portal(open.binding(), empty()) {
+                    this.options { this.modal = Some(ModalOptions()) }
+                }
+            ]
+        for (left in 0L ..< views.size)
+            for (right in 0L ..< views.size)
+                assertEquals(left == right, views[left].sameType(views[right]))
+        assertTrue(views[1L].sameType(direction(views[2L], LayoutDirection.Rtl)))
+        assertTrue(views[5L].sameType(portal(state(false).binding(), views[2L])))
+        assertTrue(
+            views[6L].sameType(
+                portal(open.binding(), views[3L]) {
+                    this.options { this.modal = Some(ModalOptions()) }
+                }
+            )
+        )
+        assertEquals(0L, records.values.size)
+    }
+}
+
+private fun assertUntouched(records: ReuseRecords) {
+    assertEquals(1L, records.values.size)
+    val record = records.values[0L]
+    assertEquals(1, record.read())
+    assertEquals(0, record.mounts)
+    assertEquals(0, record.unmounts)
+    assertEquals(0, record.closes)
+}

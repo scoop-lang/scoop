@@ -116,7 +116,7 @@ Element 的 Props 由框架更新。measure／scene／draw 的读取不另外建
 
 component 和 element 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架复用实例、替换 Props，执行 Component.render 或 Element.update。
 
-匹配采用直接父级下的 key／位置，再比较节点类别、C／E 与 P 的完整 TypeRef。工厂函数引用、描述对象引用、FQN 和地址都不作为身份。具体实例类型须保留 class，使用现有 TypeShape 在库边界检查，不增加 compiler 特判。类型或 key 改变时卸载并重建。
+匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 及 Portal 模态类别保持既有区别。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议仍为接口。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
 
 同一实例只能占据一个活动挂载位置，工厂为新挂载创建新实例。只检查当前活动的重复实例，不保留退休对象历史。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
 

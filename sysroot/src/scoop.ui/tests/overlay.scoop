@@ -108,11 +108,12 @@ private class OverlayPlacementTest {
                 this.placement = OverlayPlacement.Anchored(LayoutAnchor(), gap = 0.0 / 0.0)
             }
         }
-        assertTrue(
-            portal(state(true).binding(), empty()).shape !=
+        assertFalse(
+            portal(state(true).binding(), empty()).sameType(
                 portal(state(true).binding(), empty()) {
                     this.options { this.modal = Some(ModalOptions()) }
-                }.shape
+                }
+            )
         )
         val anchor = LayoutAnchor()
         val handle = OverlayHandle()

@@ -35,7 +35,7 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 
 表中是目标分层；字体与 Paragraph／TextLayout 已迁入 graphics.text，富文本／行内对象、独立自绘框架及公共适配 `scoop.ui.text` 已完成。适配直接依赖 graphics.text，只连接文本排版与正常子项，不提供 Label 或默认样式，也不改变 View 的基础形状。
 
-组件、状态及描述使用普通 class／interface／泛型／属性委托。首期不增加 `@Composable`、result builder、属性宏、关联类型、UI 专用 IR 或 runtime 入口。`scoop.ui` 的类型身份查询复用语言规范 9.6 的 `typeInfo<T>()`，不遍历组件字段，不按名称访问私有属性。
+组件、状态及描述使用普通 class／interface／泛型／属性委托。首期不增加 `@Composable`、result builder、属性宏、关联类型、UI 专用 IR 或 runtime 入口。`scoop.ui` 使用语言的普通泛型类型检查判断描述类型，不直接依赖反射描述，不遍历组件字段，不按名称访问私有属性。
 
 主题来源复用 State／Context，见[主题规范](SCOOP-UI-THEME-SPEC.md)。主题更新作为普通 Props 和布局输入进入原节点，不改变框架描述形状；局部主题通过显式参数传递，临时 Context 不成为挂载树环境。主题绘图不读取 State，也不注册输入。
 
@@ -74,7 +74,7 @@ fun main() {
 
 无状态组合可以写成普通的返回 View 的函数；这种调用不创建独立的挂载身份，其间的 State 读取归调用者当前的 render。需要独立本地状态和生命周期时使用 Component 及第 5 节的 component 入口。
 
-`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其形状包括空内容、Component、Element、LazyElement 和 Portal 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
+`View` 是 `scoop.ui` 内定义的封闭描述类型，以不可变 class 保存本次输入、子描述或回调。其类别包括空内容、Component、Element、LazyElement、Direction 和 Portal 描述。`empty()` 表示没有内容，测量采用约束下限，宽松约束下为零尺寸，不产生绘制或输入区域。一个描述不拥有 InputArea、TextLayout、动画或 GPU 资源；描述本身没有 `close`。
 
 Component 负责组合描述。完全自绘及自定义子项布局通过普通公开接口 Element 实现，外部库不需要继承内部挂载节点或修改 View 的分支：
 
@@ -247,13 +247,15 @@ fun portal(
 
 `ViewKey` 是包含 Position、Text(String)、Number(Long) 的值类型。Position 表示采用同一父级子序列中的位置；另外两个分支是显式 key。
 
-`component`／`element` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
+`component`／`element`／`lazyElement` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
 
-节点形状包含 Component／Element／LazyElement 类别、`typeInfo<C>().type` 或 `typeInfo<E>().type`，以及 `typeInfo<P>().type`。用完整 TypeRef 相等比较，不比较展示名、函数值引用、描述对象引用、源码行号或分配地址。P 是内部泛型承载的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+节点类型匹配同时区分 Component／Element／LazyElement 描述类别、具体实例静态类型 C／E 和输入类型 P，保留每个类型的完整泛型实参。内部描述通过普通泛型类型检查判断，例如 `other is ComponentDescription<P, C>`；ElementDescription 与 LazyDescription 同理。类型匹配仅返回判断结果，不能提前更新 Props、调用工厂或改变挂载状态。P 是描述类型的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
+
+Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值不是类型身份，Portal 的 modal 有无属于匹配条件。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
-C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒绝接口、object 或值类型作为具体实例类型，不要求新的编译器诊断。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责初次创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
+工厂的静态返回类型 C／E 须保留具体 class 类型及其完整泛型实参，这是 API 使用约定。库不通过运行时反射诊断接口、object 或值类型等违反此约定的调用，也不承诺此类调用会抛出特定参数错误。Component／Element／LazyElement 仍是接口，不要求继承框架基类。相同静态类型下改变工厂闭包或返回子类，并不改变已挂载实例；工厂只负责新挂载的创建。需要选择不同实现的调用方应保留不同的具体类型，或显式更换 key。
 
 同一个 Component、Element 或 LazyElement 实例只能属于一个挂载位置。工厂必须为新挂载创建新实例，不能返回某个已挂载的单例。框架检查当前活动实例的重复挂载，不为已经退休的对象保留全局历史表；为新挂载返回新实例是 create 的使用合同。共享业务状态应通过普通模型／Props／Binding 表达。
 
@@ -261,16 +263,16 @@ C／E 必须保留 class 类型。库使用既有的一层 TypeShape 描述拒�
 
 | 情况 | 结果 |
 | --- | --- |
-| 同一父级、同一显式 key、同一组件形状 | 复用原实例；允许在兄弟间移动 |
-| 没有显式 key、同一父级及位置、同一组件形状 | 复用原实例 |
-| 组件形状或显式 key 改变 | 卸载旧实例，挂载新实例 |
+| 同一父级、同一显式 key、同一描述类型 | 复用原实例；允许在兄弟间移动 |
+| 没有显式 key、同一父级及位置、同一描述类型 | 复用原实例 |
+| 描述类型或显式 key 改变 | 卸载旧实例，挂载新实例 |
 | 离开父级，或本轮描述中消失 | 卸载；之后出现时创建新实例 |
 | 仅尺寸、布局位置或绘制属性改变 | 保留实例与状态 |
 | 同一父级出现重复的显式 key | 报参数错误，不能任意复用其中一个 |
 
 key 的有效范围仅为直接父级，不是全局 ID；移动到另一父级不保留挂载。同一兄弟序列中显式 key 必须唯一，不因节点类型不同而允许重复。Position 以完整兄弟序列的索引计算；混用 keyed／unkeyed 节点时，插入前方兄弟仍会改变后者的位置。
 
-列表示例应以稳定业务 ID 构造 `ViewKey.Number(item.id)` 或 `ViewKey.Text(item.id)`。普通 `if`／循环没有隐式源码身份：两个分支在同一位置返回相同组件形状及 key 时保留状态；需要区分时显式使用不同 key。容器的插入、删除或替换可能改变父级身份，不能承诺跨该结构变化保留子状态。
+列表示例应以稳定业务 ID 构造 `ViewKey.Number(item.id)` 或 `ViewKey.Text(item.id)`。普通 `if`／循环没有隐式源码身份：两个分支在同一位置返回相同描述类型及 key 时保留状态；需要区分时显式使用不同 key。容器的插入、删除或替换可能改变父级身份，不能承诺跨该结构变化保留子状态。
 
 ## 6. 重建、布局与呈现
 
@@ -765,7 +767,7 @@ SurfaceContent 的 close 必须幂等。通过 owner 线程检查后，attach �
 
 SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SPEC.md#4-surface-宿主与帧)，aarch64 实施及原生关闭／异常验证见 [UI 实施记录](../ui/PROGRESS.md#34-surface-内容根的所有权)。UI 根作为其 content 管理完整挂载树，逻辑回调内请求关闭同样延迟到回调返回后释放资源。
 
-参数、重复 key、重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。render、update、measure、paint、输入处理或挂载回调抛错时，停止新 UI 工作，通过宿主关闭其管理的相关根及 surface，按 SurfaceHost 既有异常通路传播。首期不保留一个继续接收输入的半更新树，不增加错误边界或自动重试次数。
+参数、重复 key、活动实例重复挂载、非法测量／放置或错误线程使用现有参数／状态异常。具体 class 静态类型与新挂载新实例的工厂约定不增加反射错误诊断；活动实例重复挂载仍报状态错误。render、update、measure、paint、输入处理或挂载回调抛错时，停止新 UI 工作，通过宿主关闭其管理的相关根及 surface，按 SurfaceHost 既有异常通路传播。首期不保留一个继续接收输入的半更新树，不增加错误边界或自动重试次数。
 
 ### 9.1 异步 I/O、下载进度与跨线程更新
 
@@ -791,8 +793,8 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 
 1. 只依赖框架的自绘组件连续更新复用实例和自有 State；两个挂载的自有状态各自独立，卸载后重新出现从初始值开始；同一组件同时委托外部 State，重挂载时保留 Store 中的值。
 2. 多组件共享 State、条件读取移除旧依赖、经普通模型 getter 间接读取、只读 val 委托、同轮合并，以及 render／measure／scene／draw 内写入的错误路径；卸载一个订阅者不影响其余订阅或共享值。
-3. Component／Element 的 Props 更新不重跑构造器；update 在隐藏时也更新输入；Binding 修改同一原状态、切换绑定后使用新写入路径并退订旧 State；普通 class 内部变更不会被伪装为自动可观察。
-4. keyed 列表插入／删除／重排、重复 key、位置身份、组件／Props 类型替换、分支与跨父级移动。
+3. Component／Element／LazyElement 的 Props 更新不重跑构造器；update 在隐藏时也更新输入；Binding 修改同一原状态、切换绑定后使用新写入路径并退订旧 State；普通 class 内部变更不会被伪装为自动可观察。
+4. keyed 列表插入／删除／重排、重复 key、位置身份、三类描述的组件／Props 类型及完整泛型实参替换、分支与跨父级移动；同类型工厂闭包替换保留实例与状态，类型判断本身无生命周期、工厂或 Props 更新副作用。
 5. 资源取得失败、首轮 render／onMount／update 失败、measure／scene／draw 失败、缓存替换、正常卸载、回调内关闭及清理异常下的剩余资源释放。
 6. 隐藏／零尺寸／Deferred 期间仍执行逻辑卸载；成功提交前新区域不命中，失败帧不发布几何，已卸载区域立即退出交互。
 7. 外部自绘 Element 的约束、子项测量／放置、背景／子项／前景顺序、变换与 clip、Rect／Path 输入命中和真实窗口关闭。

@@ -33,7 +33,7 @@ internal fun MountedNode.reconcile(descriptions: Array<View>, turn: UpdateTurn) 
             when (candidate) {
                 case Some(position) -> {
                     val child = previous[position]
-                    if (child.active && child.view.shape == description.shape) {
+                    if (child.active && child.view.sameType(description)) {
                         used[position] = true
                         Some(child)
                     } else

@@ -89,7 +89,6 @@ internal class FailureHarness: ApplicationHandler {
             FailureRecord(FailureMode.Update),
             FailureRecord(FailureMode.DuplicateKey),
             FailureRecord(FailureMode.DuplicateInstance),
-            FailureRecord(FailureMode.ValueType),
             FailureRecord(FailureMode.PortalHandle),
             FailureRecord(FailureMode.PortalCycle),
             FailureRecord(FailureMode.ModalMount),
@@ -169,7 +168,6 @@ internal class FailureHarness: ApplicationHandler {
         )
         when (record.mode) {
             case Factory -> host.attach<FailureRoot>(native, { throw record.primary })
-            case ValueType -> host.attach(native, { ValueComponent() })
             else -> host.attach(native, { FailureRoot(record) })
         }
         if (record.mode == FailureMode.LateUpdate) {
@@ -190,7 +188,6 @@ internal class FailureHarness: ApplicationHandler {
 private fun verifyFailure(record: FailureRecord, error: Throwable) {
     when (record.mode) {
         case DuplicateKey -> assertTrue(error is IllegalArgumentException)
-        case ValueType -> assertTrue(error is IllegalArgumentException)
         case DuplicateInstance -> assertTrue(error is IllegalStateException)
         case MissingMeasure -> assertTrue(error is IllegalStateException)
         case MissingPaint -> assertTrue(error is IllegalStateException)
@@ -255,9 +252,7 @@ private fun verifyFailure(record: FailureRecord, error: Throwable) {
             record.mode ==
             FailureMode.DuplicateKey ||
             record.mode ==
-            FailureMode.DuplicateInstance ||
-            record.mode ==
-            FailureMode.ValueType
+            FailureMode.DuplicateInstance
     ) {
         assertEquals(0, record.rootMounts)
         assertEquals(0, record.rootUnmounts)
