@@ -12,7 +12,7 @@
 | AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
 | 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin 本地验收，其他平台待运行 |
 | HTTP 等上层消费者审计与验收 | 已完成 Darwin 本地验收；Surface 运行受本机 Skia 资源限制 |
-| Linux/Windows 组合验证及最终清理 | 进行中；Linux 基础行为已通过，Windows 运行时已准备 |
+| Linux/Windows 组合验证及最终清理 | 进行中；两平台基础行为已通过，上层与收尾验证中 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
 
@@ -112,3 +112,10 @@
 - 在独立工作目录构建 release 工具与新 ABI 运行时，复用已准备的目标 native 依赖。27 项 executor、8 项结构化并发、55 项 concurrent、23 项 TLS asyncio 和 2 项 asyncio consumer 测试通过。
 - asyncio 165 项分批覆盖全部通过。删除已退役 C worker 的创建失败测试；原生排队拒绝／取消及完整关闭由现有 managed pool 组合用例覆盖。Linux 文件 CQE 测试补上排队启动后的交接，继续验证真实内核完成先于取消时的字节数和文件偏移。
 - Linux HTTP 等上层验证与 Windows 构建验收仍在进行；本节不代表两平台全部完成。
+
+## Windows 基础闭环（2026-11-04）
+
+- 使用维护的 LLVM 22.1.8 SDK 构建 release 工具与 MSVC UCRT 运行时，复用目标 native 依赖。27 项 executor、8 项结构化并发、55 项 concurrent 以及完整 189 项 asyncio 测试通过。
+- 独立 Windows 原生测试复用显式 work 驱动，覆盖文件、DNS 和临时文件；TTY 检查先等待排队子任务提交操作。生产侧继续使用统一 managed 阻塞池，未恢复原生线程池。
+- 托管阻塞结果与跨 executor Channel／mutex／condition 两项用例在移动 GC／minor GC stress 下通过。三个 CLI fixture 覆盖省略 suspend、跨 Cone 推断及完成回调异常退出，全部通过。
+- TLS、独立 consumer、HTTP 和窗口宿主验证继续进行；本节不代表 Windows 全部验收结束。

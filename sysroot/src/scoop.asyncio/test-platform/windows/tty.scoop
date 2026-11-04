@@ -140,6 +140,7 @@ private class WindowsAsyncTtyTest {
                         bytes ->
                         bytes.writeByte(88)
                         val writing = scope.launch suspend { tty.writeFrom(bytes, 1L) }
+                        yieldCoroutine()
                         suspendCoroutine<Unit> {
                             continuation -> loop.state.post { continuation.resume(Unit) }
                         }
@@ -190,6 +191,7 @@ private class WindowsAsyncTtyTest {
 }
 
 private suspend fun waitReadStarted(loop: PlatformEventLoop, tty: AsyncTty) {
+    yieldCoroutine()
     suspendCoroutine<Unit> {
         continuation -> loop.state.post {
             @Unsafe
