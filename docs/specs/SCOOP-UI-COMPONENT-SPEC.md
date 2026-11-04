@@ -535,3 +535,33 @@ builder 提供 minimum／maximum、label／valueLabel: PanelContent?、showValue
 ### 13.4 可见动画与资源
 
 Spinner、Skeleton 与 Progress 复用 scope-owned Animatable 的循环和可见性处理。成功帧按图形范围与当前 Canvas clip 的保守交集设置既有 isFrameEnabled；未知 Progress 使用整个轨道作为可见范围，避免移动段暂时出界后永远停住。窗口隐藏、未呈现子树和卸载继续由已有 Surface／ComponentScope 处理。失败帧不发布新的可见资格，离屏暂停不改写原时间轴；恢复后沿原时钟求值。控件不增加全局动画管理器、独立 timer 或新的调度入口。
+
+## 14. Typography 与快捷键提示
+
+### 14.1 文字角色与段落
+
+`typography(text: String, role: TypographyRole = P, configure)`、StyledText 重载及 `typography(role: TypographyRole = P, configure: TypographyTextBuilder.() -> Unit)` 创建 TypographyProps／Typography。角色为 H1／H2／H3／H4／P／Blockquote／InlineCode／Lead／Large／Small／Muted。当前设计采用 [Typography 的明确角色](https://v3.shadcn.com/docs/components/typography)，不引入 Typeset、Markdown 解析或代码块。
+
+默认尺寸按主题 body 字号相对 14 缩放，使用其字体族和当前语义前景：H1 为 36／40、800，H2 为 30／36、600，H3 为 24／32、600，H4 为 20／28、600；标题字距为字号的 -0.025。P 为 16／28、400；Blockquote 为 16／24、斜体；InlineCode 为 14／20、600、monospace；Lead 为 20／28、muted 前景；Large 为 18／28、600；Small 为 14／14、500；Muted 为 14／20、muted 前景。没有浏览器视口断点，H1 的更大字号由显式文字覆盖表达。段落外间距由父布局决定，不推断相邻节点或 CSS margin collapse。
+
+H2 带底边 1 和底部留白 8；Blockquote 带逻辑起端边 2 和留白 24；InlineCode 使用 muted 背景、small 圆角、水平 4.8／垂直 3.2 留白。尺寸随正文密度缩放，H2 的细线保持 1；所有装饰可用 style 覆盖。InlineCode 先取自然宽，再在父约束内换行／收缩，不占满段落为行内对象提供的最大宽度；基线包含实际垂直留白。普通文字使用角色基础样式；StyledText 保留原基础样式与片段，显式 textStyle: SpanStyle 覆盖最终基础样式，不重写嵌套 span。
+
+builder 公共字段为 fonts／theme、textStyle、style、settings、selectable: Boolean = true、selection: SelectableTextOptions、focus、actions／decorations、onSelectionChanged、inlines、key；settings／textStyle／style／focus 提供对应接收者配置。选择模式直接使用 SelectableStyledText，非选择模式使用 Label。文字更新、方向、主题与局部样式更新沿现有文本宿主保留合法选区；没有额外编辑文档或剪贴板实现。选择以各个实际段落为边界，不建立跨段落文档模型。
+
+TypographyTextBuilder 另有 text、add(TextSpan)、span、code(String, InlineKey)、inline(InlineKey, View, alternateText, configure)。code 创建带真实大小、基线和圆角背景的非选择 InlineCode 子 View，作为原段落内的一个行内对象参与排版／选择，复制时使用原代码文字；不会给子 View 再创建选择宿主。明确 key 保持行内对象身份，默认 code key 按声明位置生成；重复 key 沿 StyledText 规则报错。其他行内 View 也通过现有 InlineView 测量、命中和替代文字合同处理。range action 的位置始终是 StyledText 的 UTF-8 字节位置，行内对象占 U+FFFC 的三个字节。
+
+### 14.2 列表与文字表格
+
+`typographyList(configure: TypographyListBuilder.() -> Unit)` 收集 `item(String／StyledText／View, key = Position)`。普通项使用 P，可选择和换行，圆点使用同一正文基线；内容起端缩进 24、项间距 8，随密度缩放。View 可组合嵌套列表或其他内容，容器不检查其内部结构。builder 提供 fonts／theme／key；显式条目 key 保留挂载身份。
+
+`typographyTable(configure: TypographyTableBuilder.() -> Unit)` 收集 header／row 接收者，行 builder 用 cell(String／StyledText／View) 按顺序添加单元格。header 至多一行且必须先声明，row 可指定稳定 key。所有行列数必须相同且非零；空表合法，返回零自然尺寸。columns: Array<GridTrack>? 默认 None，由实际列数生成等分 Fraction(1)；明确 columns 必须覆盖所有列，直接复用 Grid 的轨道规则。有界默认列共享可用宽度，无界则从各列真实内容取得自然尺寸；所有行共享同一 Grid，长文字换行决定实际行高。
+
+表格普通文字为 16／24，表头为 700；单元格水平留白 16、垂直 8、边线 1，接缝只画一次，偶数正文行使用 muted 背景。列顺序、起端对齐和单边线随 RTL 转换，不镜像文字。builder 提供 fonts／theme／key；单元格的 StyledText 和 View 保留明确样式或行为。本入口只负责静态文字排版；P7 的 Table／DataTable 另行提供完整表格部件和交互，不把这里的文字组合计为 P7 已完成。
+
+### 14.3 Kbd 与 KbdGroup
+
+`kbd(content, configure: KbdBuilder.() -> Unit = {})` 接受 String、View、ShortcutChord 或 ShortcutLabel，创建 KbdProps／Kbd。builder 提供 fonts／theme、textStyle: SpanStyle?、style、key。默认使用 muted 颜色对、small 圆角，最小宽与高度 20、水平留白 4，文字 12／16、500；数值按 body 字号相对 14 缩放。宽度来自内容自然测量并满足父约束，不把普通 Label 的有限段落宽当作键帽的自然宽。
+
+ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取得当前平台／键盘布局的 parts 与 separator，单键帽按原顺序连接。`kbdGroup(chord／label, configure: KbdBuilder.() -> Unit = {})` 为各 part 分别创建键帽，并在 separator 非空时绘制原分隔文字；顺序始终按平台标签保持 LTR，外层布局可为 RTL。显式 ShortcutLabel 使用调用方已有结果。后续 Props 或主题更新重新查询当前窗口标签；没有键盘布局轮询或自动绑定注册。
+
+`kbdGroup(configure: KbdGroupBuilder.() -> Unit)` 则收集普通 ChildrenBuilder 子项，以中心交叉对齐和默认 4 的 spacing 排列，支持组合快捷键、说明文字或自定义键图标；spacing 必须有限非负。Kbd 自身只绘制，不创建 Press、焦点或快捷键注册。实际动作与提示由调用方复用同一个 ShortcutChord；嵌入 Button、文字行内对象或其他区域不改变其事件归属。资源沿普通 Label／Frame 与作用域管理，借用字体不关闭。

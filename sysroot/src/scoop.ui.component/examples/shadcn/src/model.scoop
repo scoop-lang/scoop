@@ -2,14 +2,16 @@ package scoop.examples.ui.shadcn
 
 import scoop.charset.unicodeCasefold
 import scoop.graphics.Image
+import scoop.surface.ShortcutScope
 import scoop.text.contains
 import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
+import scoop.window.*
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd
 }
 
 internal enum ControlDemo {
@@ -31,6 +33,8 @@ internal fun demoTitle(value: Demo): String =
         case Avatar -> "Avatar"
         case Skeleton -> "Skeleton"
         case Progress -> "Progress"
+        case Typography -> "Typography"
+        case Kbd -> "Kbd"
     }
 
 internal class GalleryModel {
@@ -78,6 +82,20 @@ internal class GalleryModel {
     val progressValue = state<Double?>(None)
     var skeletonCreates = 0
     var skeletonCount = 0
+    val typographyNarrow = state(false)
+    val typographySelectable = state(true)
+    val typographyFocus = FocusHandle()
+    val typographyActionFocus = FocusHandle()
+    var typographySelection = Utf8Selection(0L, 0L)
+    val typographyActions = state(0)
+    val shortcut =
+        ShortcutChord(
+            ShortcutKey.Logical(LogicalKey.Character("i")),
+            ShortcutModifiers(primary = true)
+        )
+    val shortcutActions = state(0)
+    val shortcutFocus = FocusHandle()
+    var shortcutScope: ShortcutScope? = None
 
     fun toggleTheme() {
         val next =
@@ -125,7 +143,9 @@ internal class GalleryModel {
                 Demo.Empty,
                 Demo.Avatar,
                 Demo.Skeleton,
-                Demo.Progress
+                Demo.Progress,
+                Demo.Typography,
+                Demo.Kbd
             ]
         )
             if (unicodeCasefold(demoTitle(entry)).contains(search))

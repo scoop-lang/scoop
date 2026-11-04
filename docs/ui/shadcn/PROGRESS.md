@@ -54,3 +54,11 @@
 - macOS aarch64 release：10 个受影响生产库及 Gallery 构建通过；5 项组件定向测试、1 项混合模式 Raster 测试、3 项 Gallery 窗口用例和 1 项搜索测试全部通过。新增窗口用例覆盖图片借用／卸载、隐藏正文焦点请求的结束、内部计数保留、正文循环动画停帧／恢复、零宽、透明、Reduced、滚动离屏、窗口隐藏及确定／未知切换。原 Spinner／IME 与内容面板用例复验通过；新增 Progress／头像组实际尺寸断言通过。
 - 实窗发现的数值段落占满父宽问题已修复：共享标题／动作布局先取动作自然宽，必要时再按上限换行。首轮测试错误地把 requestFocus 的“接受异步请求”当成“已经取得焦点”，已按既有合同改为检查隐藏目标最终无焦点且请求结束，未更改焦点生产逻辑。所有修改的 Scoop 文件格式、相关 tests 类型检查、C++ 修改行格式及 diff 检查通过；人工复查头像、Skeleton、Progress、明暗／RTL 和目录滚动。
 - 本批完成 Avatar、Skeleton、Progress，目录累计 **11／64**。未重复全仓测试；本项检查锁、一次性 graphics 测试输出、退役的操作测试输出及测试窗口已清理，继续复用组件／Gallery 产物、共享编译缓存与 `../scoop-dep`。x86_64 留在整体收尾，Windows／Linux 未验证；其余 P1 与 P2–P9 继续实施。
+
+## P1d：Typography 与 Kbd
+
+- Typography 提供 H1–H4、P、Blockquote、InlineCode、Lead／Large／Small／Muted，以及项目符号列表和共享 Grid 列宽的文字表格。默认选择与复制复用 SelectableStyledText；显式 StyledText 保留原样式，行内 code 使用带基线、圆角背景和替代文字的实际 View，复制结果包含原代码文字。没有增加 Markdown／Typeset 或跨段落编辑模型。
+- Kbd 支持文字、自定义 View、ShortcutChord／ShortcutLabel，以及原生分组和自由组合；窗口负责平台标签，快捷键提示保持平台顺序。Gallery 的 Increment 按钮和提示复用同一个 ShortcutChord，实际绑定由页面作用域持有，卸载即解除。
+- macOS aarch64 release：生产组件库、Gallery 程序与测试构建通过；4 项组件定向测试、1 项新增窗口用例和 1 项搜索回归全部通过。22 阶段窗口用例覆盖真实 Select All／Copy、UTF-8 选区与代码替代文字、主题／RTL／窄宽后的选区保留、行内动作、撤销／恢复选择、快捷键与 Space 激活、页面卸载及最终停帧；剪贴板完整暂存并恢复。实际布局另断言键帽尺寸／基线、表格自然宽与窄宽换行、行内代码在足够宽度下保持自然行高。
+- 实窗发现并修复行内 code 被段落最大宽度撑满、短键帽文字偏离中心的问题：两者先取自然宽度，再按可用空间收缩。首轮测试错误地假定窗口会将逻辑字符转成大写，已按实际原生标签修正；没有修改窗口标签或快捷键匹配。最终格式、相关 tests 类型检查和 diff 检查通过；人工复查所有文字角色、列表／表格、行内内容、键帽／按钮组合、明暗及 RTL。
+- 本批完成 Typography、Kbd，目录累计 **13／64**。没有重建编译器或图形后端，也未重复前批全套交互或全仓测试；一次性检查锁、手工窗口日志和测试窗口已清理，保留后续复用的产物、共享缓存与外部依赖。P1 剩余 ButtonGroup、FieldLabel、Item，P2–P9 继续实施；x86_64 留在整体收尾，Windows／Linux 未验证。

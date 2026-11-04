@@ -1,6 +1,7 @@
 package scoop.examples.ui.shadcn
 
 import scoop.tests.window.nativeEditorText
+import scoop.tests.window.nativeEditorKey
 import scoop.window.Window
 import scoop.window.native.*
 
@@ -31,6 +32,26 @@ internal fun galleryText(window: Window, text: String, marked: Boolean): Int {
                                 -1L,
                                 0L
                             )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+internal fun galleryKey(window: Window, code: Int, text: String, flags: Int = 0): Int {
+    @Unsafe
+    {
+        return window.acquireNativeWindow().use {
+            lease -> @Unsafe
+            {
+                return@use when (lease.handle) {
+                    case AppKit(_, view) -> text.withUtf8Bytes {
+                        bytes,
+                        length -> @Unsafe
+                        {
+                            return@withUtf8Bytes nativeEditorKey(view, code, bytes, length, flags)
                         }
                     }
                 }

@@ -8,6 +8,8 @@ import scoop.test.*
 import scoop.tests.graphics.readNativePixel
 import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.saveNativeClipboard
+import scoop.tests.window.restoreNativeClipboard
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.alert
@@ -33,8 +35,21 @@ private class GalleryWindowTest {
     fun `loading controls retain content borrow images and stop invisible animation`() {
         runGallery(false, true)
     }
-    private fun runGallery(panels: Boolean, loading: Boolean = false) {
-        val probe = GalleryProbe(panels, loading)
+    @Test
+    fun `typography copies inline code retains selection and shares actual keyboard shortcuts`() {
+        @Unsafe
+        {
+            val clipboard = saveNativeClipboard()!!
+            try {
+                runGallery(false, false, true)
+            }
+            finally {
+                assertEquals(0, restoreNativeClipboard(clipboard))
+            }
+        }
+    }
+    private fun runGallery(panels: Boolean, loading: Boolean = false, text: Boolean = false) {
+        val probe = GalleryProbe(panels, loading, text)
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
         try {
             context(probe.model.source) {
@@ -52,6 +67,9 @@ private class GalleryWindowTest {
             assertFalse(probe.model.alertFocus.isAttached)
             assertFalse(probe.model.emptyFocus.isAttached)
             assertFalse(probe.model.skeletonFocus.isAttached)
+            assertFalse(probe.model.typographyFocus.isAttached)
+            assertFalse(probe.model.typographyActionFocus.isAttached)
+            assertFalse(probe.model.shortcutFocus.isAttached)
         } catch (error: Throwable) {
             println(f"gallery phase=${probe.phase}, paints=${probe.paints}")
             galleryFailure(error)
@@ -86,7 +104,11 @@ private fun galleryFailure(error: Throwable) {
                 println(error.message ?: "gallery failure")
 }
 
-internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boolean = false) {
+internal class GalleryProbe(
+    val panelMode: Boolean = false,
+    val loadingMode: Boolean = false,
+    val textMode: Boolean = false
+) {
     val model = GalleryModel()
     val fonts = FontCollection(false)
     var native: Window? = None
@@ -95,21 +117,27 @@ internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boo
     var paints = 0
     var pixel = -1L
     var phase =
-        if (loadingMode)
-            65
-        else
-            if (panelMode)
-                43
-            else
-                0
-    private val endPhase =
-        if (loadingMode)
+        if (textMode)
             122
         else
-            if (panelMode)
+            if (loadingMode)
                 65
             else
-                43
+                if (panelMode)
+                    43
+                else
+                    0
+    private val endPhase =
+        if (textMode)
+            144
+        else
+            if (loadingMode)
+                122
+            else
+                if (panelMode)
+                    65
+                else
+                    43
     var finished = false
     var invalidRing: OutlineRing? = None
     var invalidBorder: Color? = None
@@ -119,6 +147,7 @@ internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boo
     private val actions = GalleryActions(this)
     private val panels = GalleryPanels(this)
     private val loading = GalleryLoading(this)
+    private val text = GalleryTypography(this)
     private var afterPaint = 0
     private var waiting = false
     init {
@@ -130,6 +159,10 @@ internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boo
         if (loadingMode) {
             model.selected.value = Demo.Avatar
             model.skeletonLoading.value = false
+        }
+        if (textMode) {
+            model.selected.value = Demo.Typography
+            fonts.register(testSansBytes, "monospace")
         }
     }
     private fun observeTheme() {
@@ -166,6 +199,10 @@ internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boo
         if (phase >= endPhase || waiting || paints <= afterPaint || pixel < 0L)
             return
         afterPaint = paints
+        if (textMode) {
+            text.advance(active)
+            return
+        }
         if (loadingMode) {
             loading.advance(active)
             return
@@ -295,16 +332,19 @@ internal class GalleryProbe(val panelMode: Boolean = false, val loadingMode: Boo
         )
     }
     private fun deadline(active: ActiveApplication) {
-        if (loadingMode)
-            loading.deadline(active)
+        if (textMode)
+            text.deadline(active)
         else
-            if (panelMode)
-                panels.deadline(active)
+            if (loadingMode)
+                loading.deadline(active)
             else
-                if (phase >= 14)
-                    actions.deadline(active)
+                if (panelMode)
+                    panels.deadline(active)
                 else
-                    fail(Some(f"gallery timed out at phase ${phase}"))
+                    if (phase >= 14)
+                        actions.deadline(active)
+                    else
+                        fail(Some(f"gallery timed out at phase ${phase}"))
     }
     internal fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
@@ -379,6 +419,9 @@ private class ObservedGallery(private val probe: GalleryProbe): Component {
                 }
             )
         }
+        if (probe.textMode)
+            for (child in typographyMeasurements(probe.fonts))
+                children.add(child)
         return element({ GalleryCanvas(probe) }, children.toArray())
     }
 }
@@ -402,6 +445,8 @@ private class GalleryCanvas(private val probe: GalleryProbe): Element {
             val group = context.measureChild(2L, Constraints())
             assertEquals(Size(84.0, 44.0), group.size)
         }
+        if (probe.textMode)
+            measureTypography(context)
         return result
     }
     public override fun scene(context: SceneContext) {

@@ -8,6 +8,8 @@ import scoop.ui.direction as makeDirection
 import scoop.ui.style.StyledBuilder
 import scoop.ui.style.styled as makeStyled
 import scoop.ui.text.TextEditorState
+import scoop.window.ShortcutChord
+import scoop.window.ShortcutLabel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
@@ -130,6 +132,54 @@ public open class ChildrenBuilder internal constructor() {
     }
     public fun progress(value: Double, configure: ProgressBuilder.() -> Unit = {}): Unit {
         add(makeProgress(Some(value), configure))
+    }
+
+    public fun typography(
+        text: String,
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTypography(TypographyContent.Plain(text), role, configure))
+    }
+    public fun typography(
+        content: StyledText,
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeTypography(TypographyContent.Styled(content), role, configure))
+    }
+    public fun typography(
+        role: TypographyRole = TypographyRole.P,
+        configure: TypographyTextBuilder.() -> Unit
+    ): Unit {
+        add(makeTypographyText(role, configure))
+    }
+    public fun typographyList(configure: TypographyListBuilder.() -> Unit): Unit {
+        add(makeTypographyList(configure))
+    }
+    public fun typographyTable(configure: TypographyTableBuilder.() -> Unit): Unit {
+        add(makeTypographyTable(configure))
+    }
+    public fun kbd(text: String, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Text(text), false, configure))
+    }
+    public fun kbd(content: View, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Custom(content), false, configure))
+    }
+    public fun kbd(chord: ShortcutChord, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Chord(chord), false, configure))
+    }
+    public fun kbd(label: ShortcutLabel, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Label(label), false, configure))
+    }
+    public fun kbdGroup(chord: ShortcutChord, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Chord(chord), true, configure))
+    }
+    public fun kbdGroup(label: ShortcutLabel, configure: KbdBuilder.() -> Unit = {}): Unit {
+        add(makeKbd(KbdContent.Label(label), true, configure))
+    }
+    public fun kbdGroup(configure: KbdGroupBuilder.() -> Unit): Unit {
+        add(makeKbdGroup(configure))
     }
 
     public fun card(content: View, configure: CardBuilder.() -> Unit = {}): Unit {

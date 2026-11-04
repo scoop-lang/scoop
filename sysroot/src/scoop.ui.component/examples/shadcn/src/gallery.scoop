@@ -176,6 +176,8 @@ internal class Gallery(
             case Avatar -> component({ AvatarExamples(model, fonts) })
             case Skeleton -> skeletonExamples(model, fonts)
             case Progress -> progressExamples(model, fonts)
+            case Typography -> typographyExamples(model, fonts)
+            case Kbd -> component({ KbdExamples(model, fonts) })
         }
 
     private fun controlDemo(value: ControlDemo): View =
