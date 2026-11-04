@@ -10,9 +10,9 @@ import scoop.test.*
 import scoop.time.Duration
 
 internal fun http2ReceiveTiming(port: Int, capture: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val tcp = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
         AsyncHttp2Connection.takeOwnershipAsClient(
             tcp,

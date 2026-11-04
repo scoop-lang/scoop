@@ -8,11 +8,12 @@ kind = "library"
 
 [[sources]]
 path = "src"
-when = { os = "darwin" }
+when = { os = ["darwin", "windows"] }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
+"scoop:scoop.charset" = "0.1.0"
 "scoop:scoop.math" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
@@ -94,18 +95,30 @@ when = { os = "linux", env = "gnu" }
 path = "tests/values.scoop"
 when = { os = "linux", env = "gnu" }
 
-[[sources]]
-path = "platform/darwin"
-when = { os = "darwin" }
-
-[[sources]]
-path = "platform/linux"
-when = { os = "linux", env = "gnu" }
-
 [[test.sources]]
 path = "tests-linux"
 when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests/paint_gpu.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/interaction_foundations.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/layout_direction.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/scroll_intents.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_edit_policy.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/text_projection.scoop"
 when = { os = "linux", env = "gnu" }

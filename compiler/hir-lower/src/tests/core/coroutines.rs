@@ -38,10 +38,12 @@ pub(super) fn coroutine_core_declarations() -> Vec<Decl> {
         )],
     );
     let start = intrinsic_generic_fun(
-        "startCoroutine",
+        "startCoroutineExecution",
         "coroutine_start",
         vec!["T"],
         vec![
+            ("execution", ty_named("CoroutineExecutionDriver")),
+            ("dispatched", ty_named("Boolean")),
             ("task", ty_generic("SuspendTask", vec![ty_named("T")])),
             (
                 "completion",
@@ -64,7 +66,30 @@ pub(super) fn coroutine_core_declarations() -> Vec<Decl> {
     };
     suspend.is_suspend = true;
 
+    let work = interface_decl(
+        "CoroutineWork",
+        vec![bodyless_method(false, "run", vec![], None)],
+    );
+    let execution = interface_decl(
+        "CoroutineExecutionDriver",
+        ["start", "resume"]
+            .into_iter()
+            .map(|name| {
+                bodyless_method(
+                    false,
+                    name,
+                    vec![
+                        ("work", ty_named("CoroutineWork")),
+                        ("queued", ty_named("Boolean")),
+                    ],
+                    None,
+                )
+            })
+            .collect(),
+    );
     vec![
+        work,
+        execution,
         continuation,
         task,
         registration,

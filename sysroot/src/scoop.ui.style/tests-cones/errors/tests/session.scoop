@@ -110,7 +110,7 @@ private class FailureInk(private val probe: FailureProbe): Element {
             context,
             style {
                 this.background = Some(Paint(Color.White))
-                this.border = Some(Border(2.0, Color.Black))
+                this.border = Some(Border.all(2.0, Color.Black))
                 this.boxShadows = [BoxShadow(Point(2.0, 2.0), 2.0, 2.0, Color.Black)]
                 this.contentEffects =
                     [ContentEffect.Glow(3.0, 3.0, Color.White), ContentEffect.Blur(1.0, 1.0)]

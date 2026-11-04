@@ -1,0 +1,118 @@
+package scoop.window
+
+/** Choose logical meaning or a physical keyboard position explicitly. */
+public enum ShortcutKey {
+    Logical(LogicalKey), Physical(PhysicalKey)
+}
+
+/** Primary follows the host convention; the other flags describe actual modifiers. */
+public struct ShortcutModifiers(
+    val primary: Boolean = false,
+    val shift: Boolean = false,
+    val control: Boolean = false,
+    val alt: Boolean = false,
+    val superKey: Boolean = false,
+    val function: Boolean = false
+)
+
+/** One immutable key combination, shared by matching and display. */
+public class ShortcutChord public constructor(
+    public val key: ShortcutKey,
+    public val modifiers: ShortcutModifiers = ShortcutModifiers()
+) {
+    init {
+        when (key) {
+            case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
+                Some("dead keys cannot be shortcut bindings")
+            )
+            case Logical(LogicalKey.Character(text)) -> requireWindow(
+                text.byteLength > 0L,
+                "shortcut character cannot be empty"
+            )
+            else -> {}
+        }
+    }
+    public fun matches(event: KeyEvent): Boolean =
+        chordMatches(this, event, platformPrimaryModifier())
+
+    public fun equivalentTo(other: ShortcutChord): Boolean =
+        equivalentChords(this, other, platformPrimaryModifier())
+}
+
+internal enum PrimaryModifier {
+    Super, Control
+}
+
+internal fun resolvedModifiers(
+    value: ShortcutModifiers,
+    primary: PrimaryModifier
+): ShortcutModifiers =
+    ShortcutModifiers(
+        shift = value.shift,
+        control = value.control || (value.primary && primary == PrimaryModifier.Control),
+        alt = value.alt,
+        superKey = value.superKey || (value.primary && primary == PrimaryModifier.Super),
+        function = value.function
+    )
+
+internal fun chordMatches(
+    chord: ShortcutChord,
+    event: KeyEvent,
+    primary: PrimaryModifier
+): Boolean {
+    val value = resolvedModifiers(chord.modifiers, primary)
+    val actual = event.modifiers
+    if (actual.altGraph == Some(true))
+        return false
+    if (
+        value.shift !=
+            actual.shift ||
+            value.control !=
+            actual.control ||
+            value.alt !=
+            actual.alt ||
+            value.superKey !=
+            actual.superKey ||
+            value.function !=
+            actual.function
+    )
+        return false
+    return when (chord.key) {
+        case Logical(key) -> key.matchesShortcut(event.logicalKey)
+        case Physical(key) -> key == event.physicalKey
+    }
+}
+
+internal fun equivalentChords(
+    left: ShortcutChord,
+    right: ShortcutChord,
+    primary: PrimaryModifier
+): Boolean {
+    if (resolvedModifiers(left.modifiers, primary) != resolvedModifiers(right.modifiers, primary))
+        return false
+    return when ((left.key, right.key)) {
+        case(Logical(a), Logical(b)) -> a.matchesShortcut(b)
+        case(Physical(a), Physical(b)) -> a == b
+        else -> false
+    }
+}
+
+/** Compares received keys without deriving keyboard events from inserted text. */
+public fun LogicalKey.matchesShortcut(other: LogicalKey): Boolean =
+    when ((this, other)) {
+        case(Character(left), Character(right)) -> platformShortcutCharactersEqual(left, right)
+        case(Dead(_), _) -> false
+        case(_, Dead(_)) -> false
+        else -> this == other
+    }
+
+public class ShortcutLabel internal constructor(
+    public val parts: Array<String>,
+    public val separator: String
+)
+
+/** Queries the active keyboard layout without changing its input source or focus. */
+public fun Window.shortcutLabel(chord: ShortcutChord): ShortcutLabel {
+    owner.requireOpen()
+    return platformShortcutLabel(chord)
+}

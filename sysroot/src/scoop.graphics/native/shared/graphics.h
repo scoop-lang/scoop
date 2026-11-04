@@ -9,6 +9,7 @@
 #include "include/core/SkPathBuilder.h"
 #include "include/core/SkPicture.h"
 #include "include/core/SkPictureRecorder.h"
+#include "include/core/SkRRect.h"
 #include "include/core/SkSurface.h"
 #include "include/gpu/ganesh/GrDirectContext.h"
 #include <cmath>
@@ -163,6 +164,14 @@ inline SkRect sg_rect(SGRect r) {
 }
 inline SGRect sg_rect(SkRect r) {
   return {r.x(), r.y(), r.width(), r.height()};
+}
+inline SkRRect sg_round_rect(SGRect rect, SGPoint topLeft, SGPoint topRight,
+                             SGPoint bottomRight, SGPoint bottomLeft) {
+  const SkVector radii[] = {sg_point(topLeft), sg_point(topRight),
+                            sg_point(bottomRight), sg_point(bottomLeft)};
+  SkRRect result;
+  result.setRectRadii(sg_rect(rect), radii);
+  return result;
 }
 inline SkColor4f sg_color(SGColor c) {
   return {(float)c.red, (float)c.green, (float)c.blue, (float)c.alpha};

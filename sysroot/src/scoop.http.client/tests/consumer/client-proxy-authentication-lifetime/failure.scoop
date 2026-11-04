@@ -27,8 +27,9 @@ internal fun lifeCallbackFailure(trust: TrustStore, kind: String) {
                         "operation"
                 )
                 callbacks.fetchAdd(1L)
-                coroutineScope<Unit> suspend {
-                    child ->
+                coroutineScope<Unit> {
+                    val child = this
+
                     child.async<Unit> suspend { throw original };
                     Unit
                 }

@@ -9,9 +9,9 @@ import scoop.test.*
 private class AsyncCompressionCancellationTests {
     @Test
     fun `concurrent close waits for a delayed read and leaves its caller Job active`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingCompressionTransfer(false)
             val source =
                 AsyncDecompressionSource.takeOwnership(
@@ -28,9 +28,11 @@ private class AsyncCompressionCancellationTests {
                         ensureActive()
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(pending.running)
                     val first = scope.launch suspend { source.close() }
                     val second = scope.launch suspend { source.close() }
+                    yieldCoroutine()
                     assertTrue(pending.job!!.isCancelled)
                     assertFalse(reader.isCompleted)
                     assertFalse(first.isCompleted)
@@ -63,9 +65,9 @@ private class AsyncCompressionCancellationTests {
 
     @Test
     fun `write backpressure bounds input and cancellation waits before finally closes`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingCompressionTransfer(true)
             val sink =
                 AsyncCompressionSink.takeOwnership(
@@ -86,6 +88,7 @@ private class AsyncCompressionCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertTrue(pending.running)
                     assertTrue(input.readPosition > 0L && input.readPosition <= 8192L)
                     assertFalse(writer.isCompleted)

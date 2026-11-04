@@ -25,8 +25,7 @@ internal fun extensionAttemptValidation(trust: TrustStore, url: Url, fields: Boo
             "Content-Type",
             "Content-Encoding"
         ]
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         for (
             index in 0L ..<
                 (

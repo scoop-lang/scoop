@@ -1,0 +1,60 @@
+package scoop.window
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+
+@Test
+private class LinuxShortcutChordTest {
+    @Test
+    fun `Primary is Ctrl with exact modifiers and Unicode canonical comparison`() {
+        val chord = shortcutChord(ShortcutKey.Logical(LogicalKey.Character("É"))) { primary = true }
+        assertTrue(
+            chord.equivalentTo(
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("é")),
+                    ShortcutModifiers(control = true)
+                )
+            )
+        )
+        assertFalse(
+            chord.equivalentTo(ShortcutChord(chord.key, ShortcutModifiers(superKey = true)))
+        )
+        assertTrue(chord.matches(linuxChordEvent(131074L)))
+        assertFalse(chord.matches(linuxChordEvent(131075L)))
+        assertFalse(chord.matches(linuxChordEvent(131078L)))
+        assertFalse(chord.matches(linuxChordEvent(131202L)))
+        assertFalse(chord.matches(linuxChordEvent(131080L)))
+    }
+
+    @Test
+    fun `physical and logical chords keep separate identities and immutable configuration`() {
+        val key = ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyE))
+        val primary = ShortcutChord(key, ShortcutModifiers(primary = true, control = true))
+        val control = ShortcutChord(key, ShortcutModifiers(control = true))
+        assertTrue(primary.equivalentTo(control))
+        assertTrue(primary.matches(linuxChordEvent(131074L)))
+        assertFalse(
+            primary.equivalentTo(
+                ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("é")), control.modifiers)
+            )
+        )
+        assertFailsWith<IllegalArgumentException> {
+            ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("")))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ShortcutChord(ShortcutKey.Logical(LogicalKey.Dead(None)))
+        }
+    }
+}
+
+private fun linuxChordEvent(flags: Long): KeyEvent =
+    KeyEvent(
+        PhysicalKey.Code(KeyCode.KeyE),
+        LogicalKey.Character("é"),
+        KeyLocation.Standard,
+        ElementState.Pressed,
+        false,
+        platformModifiers(flags),
+        false,
+        InputTime.Observed(MonotonicTimeSource.markNow())
+    )

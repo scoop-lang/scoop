@@ -11,10 +11,10 @@ private class AsyncDirectoryCancellationTest {
             tree ->
             for (name in ["one", "two", "three"])
                 tree.child(name).writeText(name)
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val directory = loop.openDirectory(tree.path)
                 val fence = WorkFence(backend)
                 fence.start()
@@ -44,10 +44,10 @@ private class AsyncDirectoryCancellationTest {
             tree ->
             for (name in ["one", "two", "three"])
                 tree.child(name).writeText(name)
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val directory = loop.openDirectory(tree.path)
                 val reading = scope.launch suspend { directory.next() }
                 val fence = WorkFence(backend)
@@ -69,10 +69,10 @@ private class AsyncDirectoryCancellationTest {
     fun `late open cancellation waits for the acquired directory to close`() {
         IoTestDirectory().use {
             tree ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val opening = scope.launch suspend { loop.openDirectory(tree.path) }
                 val fence = WorkFence(backend)
                 fence.start(cancelAfterPriorWork = Some(opening))

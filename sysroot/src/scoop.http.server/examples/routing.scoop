@@ -49,9 +49,10 @@ fun main() {
 
     // A built application can be supplied to the same listen factory.
     val application = routes
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> HttpServer.listen(application, scope).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        HttpServer.listen(application, scope).useAsync suspend {
             server ->
             println("Listening at http://" + server.localAddress.toString())
             server.awaitTermination()

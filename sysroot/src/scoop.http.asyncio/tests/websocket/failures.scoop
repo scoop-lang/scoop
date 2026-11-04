@@ -117,9 +117,9 @@ private class AsyncWebSocketFailureTests {
     @Test
     fun `invalid transport progress is rejected on both directions`() {
         for (mode in 1 .. 4) {
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val input = MessageTestSource("".toByteArray())
                 input.badProgress = mode
                 val readTransport = WebSocketTestTransport(input, MessageTestSink())
@@ -148,9 +148,9 @@ private class AsyncWebSocketFailureTests {
             expectMessageFailure<WriteZeroException> suspend { client.sendText("data") }
             assertTrue(client.isClosed)
         }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val output = MessageTestSink()
             output.failFlush = true
             val transport = WebSocketTestTransport(WebSocketWaitingSource(), output)
@@ -164,9 +164,9 @@ private class AsyncWebSocketFailureTests {
 
     @Test
     fun `primary and cleanup failures are retained and repeated close reuses the cleanup result`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val output = MessageTestSink()
             output.failAfter = Some(0L)
             val transport = WebSocketTestTransport(WebSocketWaitingSource(), output)

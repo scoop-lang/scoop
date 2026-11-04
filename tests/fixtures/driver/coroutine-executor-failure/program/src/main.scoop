@@ -1,0 +1,22 @@
+package dev.executor
+
+import scoop.concurrent.*
+
+private class FailingCompletion: Continuation<Int> {
+    public override fun resume(value: Int) {
+        throw IllegalStateException(Some("completion failed"))
+    }
+    public override fun resumeWithException(error: Throwable) {
+        throw error
+    }
+}
+
+fun main() {
+    val executor =
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }
+    startDispatchedCoroutine(executor, { 42 }, FailingCompletion())
+    executor.close()
+}

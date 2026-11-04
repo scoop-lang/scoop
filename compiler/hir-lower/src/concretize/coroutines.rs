@@ -36,7 +36,15 @@ impl Concretizer<'_> {
                     self.ensure_interface_definition(core.suspend_task, vec![result_type]);
                 let suspend_registration =
                     self.ensure_interface_definition(core.suspend_registration, vec![result_type]);
+                let work = self.ensure_interface_definition(core.work, Vec::new());
+                let execution = self.ensure_interface_definition(core.execution, Vec::new());
                 concrete::CoroutineProtocol {
+                    work,
+                    execution,
+                    work_run: self.request_drive_method(core.work_run, work),
+                    execution_start: self.request_drive_method(core.execution_start, execution),
+                    execution_resume: self.request_drive_method(core.execution_resume, execution),
+
                     result_type,
                     continuation,
                     suspend_task,

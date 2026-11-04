@@ -10,6 +10,26 @@ pub(crate) struct NamedNominalProbe {
 }
 
 impl NamedNominalProbe {
+    pub(crate) fn lambda_effect_declaration(
+        &self,
+        state: &mut Lowerer,
+        arguments: &[ast::CallArgument],
+    ) -> crate::call_resolution::specificity::LambdaEffectDeclaration {
+        use crate::call_resolution::specificity::{LambdaEffectDeclaration, LambdaEffectReceiver};
+        let original = &self.candidate.view.signature;
+        let signature = self.alias.as_ref().map_or_else(
+            || original.clone(),
+            |alias| state.alias_forwarding_signature(alias, original),
+        );
+        LambdaEffectDeclaration::new(
+            &signature,
+            LambdaEffectReceiver::None,
+            self.requirement_effects(),
+            &self.candidate.argument_map,
+            arguments,
+        )
+    }
+
     pub(crate) fn requirement_effects(&self) -> hir::RequiredCallEffects {
         let state = &self.candidate.state;
         let (safety, gc_effect) = match self.candidate.source {

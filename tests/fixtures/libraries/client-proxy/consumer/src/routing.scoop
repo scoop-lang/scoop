@@ -38,9 +38,9 @@ internal fun proxyRouting(mode: String, first: Url, second: Url, target: Url, tr
                         left
             }
         )
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient(proxyConfig(trust, selector, mode)) suspend {
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient(proxyConfig(trust, selector, mode)) suspend {
             client ->
             proxyDone(
                 client,
@@ -102,9 +102,9 @@ internal fun proxyDigest(proxy: Url, target: Url, trust: TrustStore) {
             credentials.fetchAdd(1L)
             HttpPasswordCredentials("Mufasa", "Circle of Life")
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient(
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient(
             proxyConfig(
                 trust,
                 selector,

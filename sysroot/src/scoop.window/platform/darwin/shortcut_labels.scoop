@@ -1,0 +1,106 @@
+package scoop.window
+
+internal fun platformShortcutLabel(chord: ShortcutChord): ShortcutLabel {
+    val modifiers = resolvedModifiers(chord.modifiers, platformPrimaryModifier())
+    val parts = ArrayList<String>()
+    if (modifiers.control)
+        parts.add("⌃")
+    if (modifiers.alt)
+        parts.add("⌥")
+    if (modifiers.shift)
+        parts.add("⇧")
+    if (modifiers.superKey)
+        parts.add("⌘")
+    if (modifiers.function)
+        parts.add("fn")
+    parts.add(darwinShortcutLabel(chord.key))
+    return ShortcutLabel(parts.toArray(), "")
+}
+
+private fun darwinShortcutLabel(key: ShortcutKey): String {
+    return when (key) {
+        case Logical(LogicalKey.Character(text)) -> text
+        case Logical(LogicalKey.Named(key)) -> darwinNamedLabel(key)
+        case Logical(LogicalKey.Dead(_)) -> throw IllegalArgumentException(
+            Some("dead shortcut key")
+        )
+        case Logical(LogicalKey.Unidentified(_)) -> "Unknown"
+        case Physical(PhysicalKey.Unidentified(_)) -> "Unknown"
+        case Physical(PhysicalKey.Code(key)) -> {
+            val code = darwinScanCode(key)
+            when (code) {
+                case Some(scan) -> {
+                    val named = darwinNamedKey(scan)
+                    when (named) {
+                        case Some(value) -> return darwinNamedLabel(value)
+                        case None -> {}
+                    }
+                    val text = darwinLayoutLabel(scan.toUInt())
+                    when (text) {
+                        case Some(value) -> return value
+                        case None -> {}
+                    }
+                }
+                case None -> {}
+            }
+            physicalKeyName(key)
+        }
+    }
+}
+
+private fun darwinNamedLabel(key: NamedKey): String =
+    when (key) {
+        case Enter -> "↩"
+        case Tab -> "⇥"
+        case Space -> "␣"
+        case Backspace -> "⌫"
+        case Escape -> "⎋"
+        case Shift -> "⇧"
+        case Control -> "⌃"
+        case Alt -> "⌥"
+        case Super -> "⌘"
+        case CapsLock -> "⇪"
+        case NumLock -> "Num Lock"
+        case ScrollLock -> "Scroll Lock"
+        case Insert -> "Insert"
+        case PrintScreen -> "Print Screen"
+        case Pause -> "Pause"
+        case Fn -> "fn"
+        case ArrowLeft -> "←"
+        case ArrowRight -> "→"
+        case ArrowUp -> "↑"
+        case ArrowDown -> "↓"
+        case Delete -> "⌦"
+        case Home -> "↖"
+        case End -> "↘"
+        case PageUp -> "⇞"
+        case PageDown -> "⇟"
+        case Help -> "Help"
+        case ContextMenu -> "Context Menu"
+        case F1 -> "F1"
+        case F2 -> "F2"
+        case F3 -> "F3"
+        case F4 -> "F4"
+        case F5 -> "F5"
+        case F6 -> "F6"
+        case F7 -> "F7"
+        case F8 -> "F8"
+        case F9 -> "F9"
+        case F10 -> "F10"
+        case F11 -> "F11"
+        case F12 -> "F12"
+        case F13 -> "F13"
+        case F14 -> "F14"
+        case F15 -> "F15"
+        case F16 -> "F16"
+        case F17 -> "F17"
+        case F18 -> "F18"
+        case F19 -> "F19"
+        case F20 -> "F20"
+        case Clear -> "⌧"
+        case AudioVolumeUp -> "Audio Volume Up"
+        case AudioVolumeDown -> "Audio Volume Down"
+        case AudioVolumeMute -> "Audio Volume Mute"
+        case Eisu -> "Eisu"
+        case Kana -> "Kana"
+    }

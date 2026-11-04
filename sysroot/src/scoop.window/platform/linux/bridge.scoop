@@ -12,8 +12,6 @@ internal fun platformBackend(): WindowBackend {
     }
 }
 
-internal fun platformTextCommands(pointer: Ptr<Unit>): Array<TextEditCommand> = []
-
 internal fun platformTextConnection(event: NativeEvent): TextInputConnection? =
     if (event.a > 0L)
         Some(TextInputConnection(WindowId(event.window), event.a))
@@ -76,3 +74,5 @@ internal fun platformObservedMetrics(owner: WindowOwner): WindowMetrics? {
         }
     }
 }
+
+internal fun platformPrimaryModifier(): PrimaryModifier = PrimaryModifier.Control

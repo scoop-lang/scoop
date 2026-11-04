@@ -1,0 +1,79 @@
+package scoop.ui.text
+
+import scoop.graphics.text.TextRange
+import scoop.surface.*
+import scoop.ui.*
+
+internal struct SelectableRange(val key: String, val range: TextRange)
+
+internal class SelectableAction(
+    val host: SelectableTextHost,
+    var input: TextRangeAction,
+    order: Int
+): Closeable {
+    private var qualified = false
+    val area = host.scope.createArea(focusable = true, parent = Some(host.area))
+    val focus = host.scope.focusTarget(area, input.focus ?: FocusOptions(order = order))
+    val press =
+        Press(
+            area,
+            PressOptions(enabled = false),
+            {
+                if (qualified && !host.closed)
+                    this.input.onActivate()
+            }
+        )
+    init {
+        area.scope.enabled = false
+    }
+    fun update(value: TextRangeAction, order: Int) {
+        input = value
+        focus.options = value.focus ?: FocusOptions(order = order)
+    }
+    fun refresh(available: Boolean, frame: SelectableFrame?) {
+        var accepted = false
+        when (frame) {
+            case Some(value) -> for (range in value.ranges)
+                if (range.key == input.key && range.range == input.range)
+                    accepted = true
+            case None -> {}
+        }
+        qualified = available && accepted && input.enabled
+        area.scope.enabled = qualified
+        press.update(PressOptions(enabled = qualified)) {
+            if (qualified && !host.closed)
+                this.input.onActivate()
+        }
+    }
+    public override fun close() {
+        qualified = false
+        var failure: Throwable? = None
+        failure = cleanupUi(failure) { press.close() }
+        failure = cleanupUi(failure) { focus.close() }
+        failure = cleanupUi(failure) { area.close() }
+        throwUi(failure)
+    }
+}
+
+internal fun selectableActions(host: SelectableTextHost, inputs: Array<TextRangeAction>) {
+    val next = ArrayList<SelectableAction>()
+    for (index in 0L ..< inputs.size) {
+        val input = inputs[index]
+        var found: SelectableAction? = None
+        for (action in host.actions)
+            if (action.input.key == input.key)
+                found = Some(action)
+        val action = found ?: SelectableAction(host, input, index.toInt())
+        action.update(input, index.toInt())
+        next.add(action)
+    }
+    for (action in host.actions) {
+        var retained = false
+        for (value in next)
+            if (value === action)
+                retained = true
+        if (!retained)
+            action.close()
+    }
+    host.actions = next.toArray()
+}

@@ -382,6 +382,24 @@ impl Lowerer {
                             transaction.state.numeric_literal_kind(value.ty)
                         },
                     );
+                    if tied.len() > 1 {
+                        let mut comparison = self.clone();
+                        let declarations = prepared
+                            .iter()
+                            .enumerate()
+                            .map(|(index, candidate)| {
+                                tied.contains(&index)
+                                    .then(|| {
+                                        candidate.lambda_effect_declaration(
+                                            &mut comparison,
+                                            source_arguments,
+                                        )
+                                    })
+                                    .flatten()
+                            })
+                            .collect::<Vec<_>>();
+                        tied = comparison.prefer_ordinary_lambdas(&tied, &declarations);
+                    }
                 }
                 if tied.len() != 1 {
                     self.ambiguity_diagnostic(

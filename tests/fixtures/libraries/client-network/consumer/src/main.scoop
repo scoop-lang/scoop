@@ -50,9 +50,9 @@ private fun exercise(mode: String, port: String, trust: TrustStore) {
             this.tcpConnect = lower
             this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         withHttpClient(config) suspend {
             client -> when (mode) {
                 case "clear" -> networkClear(client, port)

@@ -1,0 +1,45 @@
+package scoop.ui
+
+internal enum PhysicalOverlaySide {
+    Top, Right, Bottom, Left
+}
+
+internal fun PhysicalOverlaySide.publicSide(): OverlaySide =
+    when (this) {
+        case Top -> OverlaySide.Top
+        case Right -> OverlaySide.Right
+        case Bottom -> OverlaySide.Bottom
+        case Left -> OverlaySide.Left
+    }
+
+internal fun physicalOverlaySide(
+    side: OverlaySide,
+    direction: LayoutDirection
+): PhysicalOverlaySide =
+    when (side) {
+        case Top -> PhysicalOverlaySide.Top
+        case Right -> PhysicalOverlaySide.Right
+        case Bottom -> PhysicalOverlaySide.Bottom
+        case Left -> PhysicalOverlaySide.Left
+        case Start -> if (direction == LayoutDirection.Rtl)
+            PhysicalOverlaySide.Right
+        else
+            PhysicalOverlaySide.Left
+        case End -> if (direction == LayoutDirection.Rtl)
+            PhysicalOverlaySide.Left
+        else
+            PhysicalOverlaySide.Right
+    }
+
+internal fun overlayHorizontal(
+    alignment: OverlayAlignment,
+    direction: LayoutDirection
+): OverlayAlignment {
+    if (direction == LayoutDirection.Ltr)
+        return alignment
+    return when (alignment) {
+        case Start -> OverlayAlignment.End
+        case Center -> OverlayAlignment.Center
+        case End -> OverlayAlignment.Start
+    }
+}

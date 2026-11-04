@@ -22,9 +22,9 @@ fun main(args: Array<String>) {
             else
                 "http://127.0.0.1:8080/greet"
         )
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient suspend {
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient suspend {
             client ->
             val request =
                 httpRequest(url) {

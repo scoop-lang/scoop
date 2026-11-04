@@ -203,6 +203,13 @@ impl Lowerer {
         let mut state = self.clone_imported_probe();
         let interface = candidate.interface();
         let kind = candidate.description();
+        if interface.effects().execution() == scoop_identity::Effect::Suspend {
+            let before = state.diagnostics.len();
+            state.check_suspend_context(&name.text, call.span);
+            if state.diagnostics.len() != before {
+                return Err(state);
+            }
+        }
         if matches!(
             interface.declaration(),
             scoop_identity::CallableTemplateOrigin::Constructor(_)

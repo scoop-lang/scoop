@@ -11,8 +11,9 @@ private class HttpRequestObservationFollowUpTest {
     @Test
     fun `redirect and retry timestamps belong to separate attempts of the same call`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -118,8 +119,9 @@ private class HttpRequestObservationFollowUpTest {
     @Test
     fun `SSE preserves the request observer through request preparation and close`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {

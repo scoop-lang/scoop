@@ -23,7 +23,7 @@ Scoop 的泛型采用**单态化（monomorphization）**，不进行类型擦除
 - Scoop 的核心语法；
 - 支撑核心语法所需的**最小核心库**（见第 11 章）。
 
-除 11.10 为字符串构建及公共容器访问提供的最小集合协议和 11.14 的原子类型外，标准库的其他部分不在本文件展开。M42 的平台无关标准基础库见 [标准基础库规范](SCOOP-STDLIB-SPEC.md)；它是显式依赖的普通 Scoop Cone，不扩展语言语法、编译器角色或 runtime ABI。同步 IO、系统取时及系统熵见[平台库规范](SCOOP-PLATFORM-SPEC.md)，事件循环与异步 IO 见[异步 I/O 库规范](SCOOP-ASYNCIO-SPEC.md)；结构化任务树见 11.9.1～11.9.2。HTTP 协议与普通异步流适配见 [HTTP 库规范](SCOOP-HTTP-SPEC.md)。桌面窗口、输入与窗口宿主接入见[窗口库规范](SCOOP-WINDOW-SPEC.md)，本阶段为普通 Cone 的 macOS GUI 骨架。
+除 11.10 为字符串构建及公共容器访问提供的最小集合协议和 11.14 的原子类型外，标准库的其他部分不在本文件展开。M42 的平台无关标准基础库见 [标准基础库规范](SCOOP-STDLIB-SPEC.md)；它是显式依赖的普通 Scoop Cone，不扩展语言语法、编译器角色或 runtime ABI。同步 IO、系统取时及系统熵见[平台库规范](SCOOP-PLATFORM-SPEC.md)，事件循环与异步 IO 见[异步 I/O 库规范](SCOOP-ASYNCIO-SPEC.md)，跨 executor 的 Channel、mutex 与 condition 见[并发库规范](SCOOP-CONCURRENT-SPEC.md)；结构化任务树见 11.9.1～11.9.2。HTTP 协议与普通异步流适配见 [HTTP 库规范](SCOOP-HTTP-SPEC.md)。桌面窗口、输入与窗口宿主接入见[窗口库规范](SCOOP-WINDOW-SPEC.md)，窗口层以普通 Cone 提供 macOS／Windows 及 Linux Wayland／X11 后端；各平台的实际范围见窗口库规范。
 
 交互行编辑由普通库提供，见 [Readline 库规范](SCOOP-READLINE-SPEC.md)。
 
@@ -870,9 +870,10 @@ lambda 写作 `{ parameters -> body }`，挂起 lambda 写作 `suspend { paramet
 - receiver lambda、receiver 匿名函数和扩展函数建立自己的隐式 receiver 查找边界，普通与 suspend 形式一致。裸名称若按普通候选规则实际选中该边界外的 receiver，直接报编译错误，提示显式接收者；不退回另一个同名候选。该规则按 receiver 的绑定身份判断，包括同类型的不同 receiver，统一适用于属性读取、赋值／更新、成员与扩展调用、函数属性 invoke，以及需要隐式外层实例的构造／引用。未选中的候选不因该限制单独报错。
 - receiver function 内定义的无 receiver lambda／局部函数继承该查找边界。未跨过 receiver function 边界的普通闭包和 inner class 仍按既有规则从内向外查找。显式 `this@label`、`owner.member`、`owner::method` 和普通词法捕获继续可用；外层 receiver 的显式访问按 8.1.3 捕获，不使外层局部 `var` 可被捕获。
 - 函数体在其定义处检查。调用外层已经定义的普通函数值／局部函数，或按 8.1.1 在普通与 receiver 函数值之间适配，不重新检查定义处的 receiver 查找，也不改变已有捕获。该规则不依赖 `@DslMarker`，不改变函数值 ABI。
-- `suspend` 必须显式写在 lambda 或匿名函数上；期望类型不会把普通 lambda 静默改为挂起 lambda。创建或保存挂起函数值本身不会挂起，只有调用其 body 时才检查挂起上下文。
+- 未写 `suspend` 的 `{ ... }` 是尚未定型的 lambda 字面量：有期望函数类型时采用其挂起性；固定点后仍无函数期望类型时采用 ordinary。不能扫描正文猜测效果，也不继承外层函数的挂起性。`suspend { ... }` 与 `suspend fun ...` 明确要求 suspend；`fun ...` 明确要求 ordinary。期望类型与显式效果冲突是编译错误。创建或保存挂起函数值本身不会挂起，只有调用其 body 时才检查挂起上下文。
+- 该规则适用于变量注解、赋值、返回、实参及既有结构化表达式的期望类型传播。已定型函数值和声明引用保持原挂起性，不提供 ordinary 到 suspend 的隐式转换。普通回调参数仍建立非挂起边界；例如即使在 suspend caller 内，传给 `() -> R` 的 lambda 也不能调用挂起函数。
 
-lambda 参与重载决议时，每个候选先提供自己的期望函数类型，再据此检查参数与 body。lambda 的返回表达式可以验证候选是否适用，但不作为“仅按 lambda 返回类型选择重载”的额外优先规则；若完成既有重载优先级比较后仍有多个候选，则调用有歧义。
+lambda 参与重载决议时，每个候选独立提供自己的期望函数类型（包含挂起性），再据此检查参数与 body；失败候选不能改变其他候选看到的字面量。lambda 的返回表达式可以验证候选是否适用，但不作为“仅按 lambda 返回类型选择重载”的额外优先规则。其余类型相同、仅直接 lambda 实参对应形参的顶层挂起性不同的对称候选，按 8.6 的有限缺省规则优先 ordinary；其余并列仍为歧义。
 
 #### 8.1.3 捕获与局部函数
 
@@ -948,7 +949,7 @@ fun references() {
 - `try`/`catch`/`finally`的语义跨挂起点保持不变：恢复失败等价于在原挂起调用点`throw`；仅仅挂起不会执行`finally`；跨挂起保存的待执行动作包括正常继续、return、throw以及8.7的break/continue。finally正常结束后恢复原动作；只有实际从当前finally向外离开的新控制转移才覆盖原动作，finally内部被catch或只退出其内层loop的转移不覆盖。每个被退出的finally仍恰好执行一次。
 - `Continuation` 是单次完成协议：一个挂起点只能由 `resume` 或 `resumeWithException` 中的一个成功完成一次；编译器生成的 continuation 对重复完成抛出 `IllegalStateException`。取消由 11.9.1 的普通 core 库表达，不是所有 suspend 调用的隐式行为；放弃且永不恢复一个 continuation 不会隐式执行 `finally`。
 - 不支持 suspend FFI：挂起函数不得带 `@Extern`，其声明引用也不得在 `FunPtr` 上下文中解析为原生地址； hidden continuation ABI 只用于编译器生成的 Scoop 托管调用，不是任何 FFI ABI。具体约束见 13.4、13.10 与 14.2。
-- core 在 11.9 原语之上提供 11.9.1 的结构化任务树、`launch`、`async` 与协作取消；具体线程、调度器和 I/O 事件循环属于独立库。
+- core 在 11.9 原语之上提供 11.9.1 的结构化任务树、`launch`、`async`、协作取消与 11.9.3 的 executor 协议；具体 worker pool、调度算法和 I/O 事件循环属于独立库。
 
 ### 8.3 Task-local Context
 
@@ -1085,7 +1086,7 @@ context list 不参与 overload applicability、MSC、泛型推断、普通或 s
 
 按 Kotlin 的调用后缀规则处理允许的换行，例如 `f()` 后换行再跟 lambda 仍可属于同一调用；不能一律要求 `{` 与 callee 同行。显式分号终止原表达式，return 等自身的换行规则保持有效。每次调用最多一个外置 lambda，连续两个块不能悄悄解释为调用返回值；需要该含义时显式分组或写出下一次调用。
 
-普通 `{ ... }` 与现有显式 `suspend { ... }` 都可以占据尾随位置，后者可写为 `f(...) suspend { ... }` 或 `f suspend { ... }`。普通 lambda 不会因为期望类型是挂起函数而自动变为 suspend。既有非 lambda 的 infix 调用、copy-update 块、控制结构块与 lambda body 的边界均须保留。
+`{ ... }` 与显式 `suspend { ... }` 都可以占据尾随位置，后者可写为 `f(...) suspend { ... }` 或 `f suspend { ... }`。未显式指定效果的 lambda 按 8.1.2 采用期望类型的挂起性。既有非 lambda 的 infix 调用、copy-update 块、控制结构块与 lambda body 的边界均须保留。
 
 #### 8.5.3 求值顺序与调用处实例化
 
@@ -1117,7 +1118,7 @@ context list 不参与 overload applicability、MSC、泛型推断、普通或 s
 - 调用决议先按词法/成员/import优先级建立候选层；无显式receiver与extension scope的完整层序见12.4.3。每层内继续按9.3.4的function-like/property-like c-level分区；对每个最终分区完成调用形态预过滤与候选各自的类型可应用性检查，再只在第一个含有至少一个可应用候选的分区中求最具体候选。显式类型实参数量、命名参数是否存在、spread/receiver形态等不依赖表达式类型的检查属于预过滤；某个更高层仅有同名但形态、类型或bound不适用的声明时，不得无条件遮蔽合法的下一层候选。当前Cone、上游`.slib`、exact/star import与core prelude只决定候选来自哪一层，不改变调用决议规则。
 - 每个候选拥有独立的实参映射、fresh inference variables和constraint system。receiver、非postponed实参、显式fixed/`_`类型实参、函数/nominal invariant relation及upper bound共同产生等式与子类型约束；generic owner参数、callable自身参数和待推断变量保持不同identity，不能压平成一组后再按长度或span反推。
 - 选择变量的唯一解前，等式与上下界必须相互传播：由`L <: V`和`V <: U`继续按同一类型关系约简`L <: U`，声明的class/interface bound也参与该过程。例如`R : Reader<T>`与实参确定的`Holder<Int> <: R`通过`Holder<Int>`的实际`Reader<Int>`父类型确定`T = Int`。该过程只使用已有约束；单独的声明bound不能成为补齐未知变量的猜测值，不能先选一个临时解再把它当作新的已知事实。
-- 依赖候选期望类型的lambda、匿名函数、callable reference、裸enum variant（包括`None`）、空数组、数值字面量和嵌套generic构造作为postponed argument处理。求解器先用其余约束推进固定点，再用候选给出的期望类型检查postponed argument。lambda 的参数类型与可选 receiver 类型已经确定时，即使返回类型仍含未解变量，也必须用已确定的函数头检查 lambda，再由正文结果约束返回类型；例如泛型扩展的 receiver 可以先确定回调参数 `T`，回调正文再确定 `R`。这不猜测仍未知的参数类型，不把未知返回类型填为 `Any`／`Unit`，也不把普通 lambda 隐式变为 suspend lambda。lambda body结果只决定候选是否适用，不提供额外的“按lambda返回类型优先”规则。
+- 依赖候选期望类型的lambda、匿名函数、callable reference、裸enum variant（包括`None`）、空数组、数值字面量和嵌套generic构造作为postponed argument处理。求解器先用其余约束推进固定点，再用候选给出的期望类型检查postponed argument。lambda 的参数类型与可选 receiver 类型已经确定时，即使返回类型仍含未解变量，也必须用已确定的函数头及 8.1.2 的效果规则检查 lambda，再由正文结果约束返回类型；例如泛型扩展的 receiver 可以先确定回调参数 `T`，回调正文再确定 `R`。这不猜测仍未知的参数类型，不把未知返回类型填为 `Any`／`Unit`。lambda body结果只决定候选是否适用，不提供额外的“按lambda返回类型优先”规则。
 - 候选声明、receiver 或显式类型实参已经确定的完整形参类型可直接作为实参表达式的上下文，包括结构化表达式的分支及参数已标注的 lambda 正文；不必先丢弃已有上下文再尝试合成类型。尚未确定的形参仍按上述固定点处理。
 - 后续实参同样可以提供上述类型上下文，例如 `pack(*[], 42)` 的空 spread 可由另一元素确定为 `Array<Int>`。命名整数组、普通参数、构造参数和成员调用遵守同一规则；没有可用约束的空数组、裸变体或函数引用仍须报错。推断固定点没有进展时才尝试可独立确定类型的延期实参，其中整数字面量按既有默认阶梯确定类型，浮点字面量按11.2.2的后缀或默认Double规则确定类型；具有完整参数和结果标注的匿名函数也可提供自身类型。候选失败不得影响其他候选或延期实参的类型推断；运行期求值顺序始终遵守 8.5.3。
 - constraint system必须同时满足kind/class/interface bound、函数类型型变、nominal application逐项相等、普通subtyping及装箱规则。一个候选只有在所有实例化参数得到唯一、可表达且满足bound的concrete解，并且全部显式与postponed实参都可赋给对应参数时才可应用；不得用`Any`、bound、默认false或任意首个类型补齐无解/多解变量。
@@ -1127,6 +1128,10 @@ context list 不参与 overload applicability、MSC、泛型推断、普通或 s
 - 无外层expected type的分支、数组元素或其他LUB计算只有在同一generic template的全部类型实参逐项相等时才能保留该application；`G<A>`与`G<B>`不会合成为`G<LUB(A, B)>`。否则沿普通共同父class/interface/`Any`规则寻找上界，必要时装箱整个value。expected type存在时可让各分支直接按同一个exact target构造/检查，但不能把已经形成的不同application隐式转换到该target。多个互不可比较的nominal共同上界仍不产生交叉类型。
 - 整数字面量按11.2持有candidate-local可表示type集合；assignment/return/argument/call-or-operator receiver等位置的exact expected integer type可提交一个可表示literal。literal receiver对integer representation intrinsic及11.8的四个core range member都适用：只枚举八个canonical integer owner，再在假设owner上执行普通core-member决议，不能在查找`and`/`shl`/`rangeTo`/`until`前抢先默认。该规则不枚举任意用户或extension member，也不扩展为普通类型的全局反向推断。fixed point后仍未被约束的无后缀literal按`Int` → `Long`、`u/U` literal按`UInt` → `ULong`选择第一个可表示其值的类型。普通MSC及上述附加规则仍并列时，默认阶梯产生的exact commit优于同族其他fit；多个非默认fit互不支配。literal fit不建立整数type间的subtyping/coercion，失败probe不得泄漏已提交type。
 - 无匹配与歧义都是编译错误。诊断必须列出候选层、相关候选的完整签名及失败原因，包括参数映射、类型实参数量、未解变量、bound、实参类型或最具体候选并列。同层扩展候选全部失败时，不能只保留首个候选的 receiver 不匹配而丢弃其他候选的实参或 lambda 正文错误。
+
+上述最具体候选、附加规则与数值字面量缺省仍并列时，对直接作为实参的未显式指定效果的 lambda 应用以下有限规则：声明的 receiver、owner/callable 类型参数及约束、全部参数和结果类型在精确类型参数重命名后相同，才是效果对称候选；只允许这些 lambda 对应形参的顶层函数挂起性和入口自身的挂起性不同。比较声明类型，不能使用本次推导出的具体实参制造对称性；默认值正文和参数名称不参与类型比较，但 `vararg`/默认参数调用形状必须相同。逐个 lambda 位置比较，A 每个位置的挂起性不强于 B 且至少一处为 ordinary 对 suspend 时，A 优先于 B。`(ordinary, suspend)` 与 `(suspend, ordinary)` 仍不可比较；不能累加打分、偏好某种结果类型或按声明顺序选择。显式 `suspend`、显式普通匿名函数、已定型函数值不参加此缺省。
+
+候选的实际入口调用必须在当前挂起上下文中合法；ordinary caller 不能因回调可以定型为 suspend 而调用 suspend 入口。此规则不允许仅入口自身挂起性不同的重复声明，也不放宽 8.2 的函数类型兼容规则。
 
 ### 8.7 循环控制
 
@@ -2288,7 +2293,7 @@ suspend fun <T> suspendCoroutine(
 - `register` 已同步完成 continuation 后又抛出属于状态协议错误，`suspendCoroutine` 以 `IllegalStateException` 失败；该 continuation 随即失效，之后不能再次成功完成。
 - `SuspendTask` / `SuspendRegistration` 是不依赖 lambda 与函数引用的最小协议。函数类型 overload 由 core 中的普通 Scoop 适配器包装为这两个 interface 后调用同一底层原语，不另建 continuation 状态机；两种入口具有完全相同的同步完成、真实挂起、异常与单次完成语义。
 - 11.9.1 的普通库构建器复用这些原语，不改变 8.2 的单次完成与异常语义。
-- core 原语不提供线程切换或事件循环；结构化并发不承诺线程调度。
+- `startCoroutine` 在当前栈立即启动，新 execution 继承当前调用路径正在执行的 executor；没有 execution 时保持无 executor 模式。显式排队入口及后续恢复的执行归属见 11.9.3；core 不自行建立 worker thread 或事件循环。
 
 #### 11.9.1 结构化并发
 
@@ -2306,19 +2311,23 @@ public open class Job internal constructor(parent: Job?, propagatesFailure: Bool
 public class Deferred<T> internal constructor(parent: Job?, propagatesFailure: Boolean = true) : Job(parent, propagatesFailure) {
     public suspend fun await(): T
 }
-public class CoroutineScope internal constructor(job: Job) {
+public class CoroutineScope {
     public val job: Job
-    public fun launch(block: suspend () -> Unit): Job
-    public fun <T> async(block: suspend () -> T): Deferred<T>
+    public fun launch(block: suspend CoroutineScope.() -> Unit): Job
+    public fun launch(executor: CoroutineExecutor, block: suspend CoroutineScope.() -> Unit): Job
+    public fun <T> async(block: suspend CoroutineScope.() -> T): Deferred<T>
+    public fun <T> async(executor: CoroutineExecutor, block: suspend CoroutineScope.() -> T): Deferred<T>
 }
 public class CancellationException public constructor() : Exception
 public fun currentJobOrNone(): Job?
 public fun ensureActive()
-public suspend fun <T> coroutineScope(block: suspend (CoroutineScope) -> T): T
-public suspend fun <T> nonCancellableScope(block: suspend (CoroutineScope) -> T): T
+public suspend fun <T> coroutineScope(block: suspend CoroutineScope.() -> T): T
+public suspend fun <T> nonCancellableScope(block: suspend CoroutineScope.() -> T): T
 ```
 
-coroutineScope 建立属于当前 Job 的子作用域；当前没有 Job 时建立有调用方的根作用域。子任务先登记到父任务，再通过 startCoroutine 启动，允许在构建器返回前同步完成。启动时以精确静态类型 Job 安装自己的绑定，并继承其他有效 Context。原始 startCoroutine 只传播 Context，不自动登记新 Job。currentJobOrNone 返回当前精确 Job binding；无绑定时返回 None，顶层 ensureActive 此时无操作。
+coroutineScope 建立属于当前 Job 的子作用域；当前没有 Job 时建立有调用方的根作用域。CoroutineScope 只能由 core 建立，保存 Job、建立时的默认 executor 及正文活动期间的父执行登记。子任务先 attach 到父 Job，再完成 11.9.3 的执行登记和发布；登记失败也必须结束已 attach 的 child。launch/async 的 block receiver 是该 child 自己的 scope。无显式 executor 时使用 scope 保存的默认 executor，有显式参数时使用指定目标；有 executor 总是排队，无 executor 才可同步启动。
+
+普通 binding 取 launch/async 调用处快照，以精确静态类型 Job 安装 child 的绑定；不会把创建 scope 时的整份 Context 冻结下来。因而从 callback 或其他 executor 调用已捕获 scope，仍向该 scope 的默认 executor 投递。scope 正文退出后解除父执行登记引用并禁止新增 child。原始 startCoroutine 传播 binding 和执行归属，不自动登记新 Job。currentJobOrNone 返回当前精确 Job binding；无绑定时返回 None，顶层 ensureActive 此时无操作。
 
 nonCancellableScope 用于取消后的必要异步清理。它建立只由当前调用等待结果的作用域，继承其他 Context，但调用方已有或后续的取消不传入该作用域；仍须等 block 和全部注册子任务真实完成后才返回。作用域自身的显式取消、子任务失败、关闭后禁止登记和异常交付遵守 coroutineScope 的相同规则。返回时恢复原 Job，不清除原取消，也不在出口以调用方取消覆盖返回值或清理异常。它不开放游离启动的 Job，不建立线程或 EventLoop；调用者仍通过普通 try／finally 和资源作用域保留原失败。
 
@@ -2350,6 +2359,50 @@ public suspend fun <T> suspendCancellableCoroutine(
 registration 尚未完成时抛出作为本次失败；已经同步完成又抛出时遵守 11.9 的 IllegalStateException 协议错误。invokeOnCancellation 的通知与撤销规则同 Job，但只观察这次等待的取消；完成后登记不持续保活 handler。
 
 该入口的取消结束等待，不承诺外部操作已停止。借用调用方存储的异步 I/O 必须使用普通 suspendCoroutine 与 Job.invokeOnCancellation 协调结果及 native 收尾两个事实，直到提交实际进度、解除借用后才恢复；不能将本入口的立即取消直接用于尚在使用调用方 buffer 的请求。两者均不改变底层 continuation 的单次完成合同。
+
+#### 11.9.3 Executor、驱动与阻塞任务
+
+core 提供执行协议及结构化入口；具体队列、worker 和 I/O 驱动由独立库实现。公共形状如下：
+
+```scoop
+public interface CoroutineWork { public fun run() }
+public interface BlockingWork { public fun run() }
+public interface CoroutineExecutor {
+    public fun registerTask(parent: ExecutorTask?): ExecutorTask
+}
+public interface ExecutorTask {
+    public val executor: CoroutineExecutor
+    public fun dispatch(work: CoroutineWork)
+    public fun dispatchBlocking(work: BlockingWork)
+    public fun complete()
+}
+public class ExecutorClosedException public constructor() : Exception
+public fun currentCoroutineExecutorOrNone(): CoroutineExecutor?
+public fun <T> startDispatchedCoroutine(executor: CoroutineExecutor, task: SuspendTask<T>, completion: Continuation<T>)
+public fun <T> startDispatchedCoroutine(executor: CoroutineExecutor, task: suspend () -> T, completion: Continuation<T>)
+public suspend fun <T> withExecutor(executor: CoroutineExecutor, block: suspend CoroutineScope.() -> T): T
+public suspend fun <T> blocking(block: () -> T): T
+public suspend fun <T> CoroutineExecutor.blocking(block: () -> T): T
+public suspend fun yieldCoroutine()
+```
+
+execution 是低层任务的内部 managed 执行对象，与 Job 树、普通 Context binding 分开。它固定 executor、管理驱动互斥及活动登记；direct/virtual/closure suspend 调用共享 execution，新低层任务建立新 execution。currentCoroutineExecutorOrNone 读取当前执行归属；Context 中的同类型普通 binding 不影响该值，也不切换执行位置。foreign callback 的独立 invocation 只继承 binding，当前 executor 为空；其 resume 操作仍使用目标 continuation 保存的 execution。
+
+新任务先 registerTask 再投递。目标停止接纳时以 ExecutorClosedException 失败，不执行正文或通知低层 completion。parent 优先取所属 scope 的同 executor 活动登记，其次取当前 execution 的同 executor 活动登记，否则为 None。内置 executor 的 Open 状态接纳根和子任务，Draining 只接纳自身活动登记派生的 child，Terminated 全部拒绝；判断及计数更新必须原子协调。登记只是生命周期管理，不是来源或授权凭证。
+
+对合法活动登记，dispatch/dispatchBlocking 必须保活、接受并恰好执行 work 一次，不因 Draining 拒绝，不在调用 dispatch 的栈内运行。其他 worker 可以在 dispatch 返回前执行，发布前必须准备好全部状态及根。dispatchBlocking 使用独立阻塞队列，不能直接驱动等待者的 coroutine frame。这些合法投递及 complete 不抛普通异常；不变量破坏与不可恢复分配失败遵守既有 runtime 规则。完成后投递或重复 complete 是协议错误。登记在最终 completion 通知结束且驱动退出后释放一次；取消不能提前释放仍有执行义务的登记。
+
+startDispatchedCoroutine 总是排队，不自动创建 Job；startCoroutine 保留明确的立即启动语义，并继承当前 executor。真实挂起之后，有 executor 的外部恢复总是排队回目标 execution；无 executor 时可在恢复线程继续，但也必须经过任务级驱动互斥。结果提交与恢复调度分离，已经提交的成功不能被排队期间的取消覆盖。
+
+所有由 callee／registration 完成的挂起入口使用相同的注册握手：保存 live values/Context 后建立 Registering adapter，callee/registration 返回之前的 completion 只锁存结果；返回之后由当前驱动同步消费结果或转入 Waiting。completion 与 Waiting 转换只有一个获胜方负责产生恢复 action。新驱动必须等旧驱动完全退出 frame 访问、结束 native catch 并恢复 resumer Context。内部同 execution 的完成链可迭代消费，不靠递归 resume 增长 native 栈；公开 continuation 的重复完成仍抛 IllegalStateException。同步 registration 的完成及“完成后又抛出”的语义保持 11.9 原有合同。下述 yield 的内部节点直接进入 Waiting 并提交 Unit，不经过可能同步消费结果的 registration。
+
+withExecutor 总是排队建立结构化子作用域，即使参数等于当前 executor；它保留调用方 Job 的父子关系和 coroutineScope 的失败边界，结束整个子树后回到原 execution 返回或抛出。等待收尾不被调用方取消提前中断，也不在出口用后来的取消覆盖已提交结果或清理异常。nonCancellableScope 保留执行归属，只隔离父取消。
+
+blocking 在当前 executor 的阻塞队列执行普通托管闭包；没有当前 executor 时抛 IllegalStateException。显式 receiver 版本使用指定目标。阻塞任务继承调用处的 binding 快照但不继承 caller execution，可以分配对象、调用同步库与合法 FFI。结果及异常以精确类型保活，实际闭包和 managed callback 出口结束后才交付。排队取消与开始执行原子竞争：取消先获胜则不执行用户闭包；已经开始则不强制终止，等待其真实结束并交付结果/异常，后续取消检查仍看到 Job 的取消状态。不能丢弃已返回资源以假装阻塞调用被中断。
+
+yieldCoroutine 在让出前及恢复后检查取消。有 executor 时强制退出当前驱动，再投递到普通 runnable 队列，不能被提前 resume 的同步锁存优化掉；没有 executor 时只检查取消并返回。它不承诺其他特定任务先执行，不替代 GC safepoint。
+
+正文异常交给 completion/Job。用户 completion 自身抛出时不能再次通知同一个 completion；先完成 Context 与登记清理，同步入口向调用者传播，排队入口走未捕获异常终止路径，不能悄悄杀死 worker 并遗留任务。GC、TaskContext 布局与发布合同见运行时规范第 8～9 章。
 
 ### 11.10 数组与 List
 

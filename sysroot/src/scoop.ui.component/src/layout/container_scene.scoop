@@ -1,0 +1,28 @@
+package scoop.ui.component
+
+import scoop.graphics.Rect
+import scoop.ui.*
+
+internal fun containerScene(context: SceneContext, clip: Boolean) {
+    if (!clip) {
+        context.children();
+        return
+    }
+    val size = context.size
+    context.withState {
+        clipped ->
+        clipped.clipRect(Rect(0.0, 0.0, size.width, size.height))
+        clipped.children()
+    }
+}
+
+internal fun logicalX(
+    start: Double,
+    width: Double,
+    available: Double,
+    direction: LayoutDirection
+): Double =
+    if (direction == LayoutDirection.Rtl)
+        available - start - width
+    else
+        start

@@ -100,9 +100,9 @@ private suspend fun exercise(client: HttpClient, mode: String, base: Url) {
 }
 
 private fun runClient(mode: String, base: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val config =
             httpClientConfig {
                 this.cleartext = HttpCleartextProtocol.H2cUpgrade

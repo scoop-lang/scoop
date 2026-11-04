@@ -1,0 +1,49 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+
+public class SelectableTextOptions public constructor(
+    public val enabled: Boolean = true,
+    public val copy: Boolean = true,
+    public val clip: Boolean = true,
+    public val dragThreshold: Double = 4.0,
+    public val selectionColor: Color = Color(0.2, 0.45, 0.9, 0.3),
+    public val inactiveSelectionColor: Color = Color(0.5, 0.5, 0.5, 0.25)
+) {
+    internal fun check() {
+        requireUi(
+            dragThreshold.isFinite() && dragThreshold >= 0.0,
+            "invalid text selection drag threshold"
+        )
+        for (value in [selectionColor, inactiveSelectionColor])
+            checkSelectableColor(value)
+    }
+}
+
+/** A keyed action over logical styled-text bytes, independent of URL or native services. */
+public class TextRangeAction public constructor(
+    public val key: String,
+    public val range: TextRange,
+    public val onActivate: () -> Unit,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions? = None
+)
+
+/** Passive decoration shares the paragraph's selection geometry without creating input. */
+public class TextRangeDecoration public constructor(
+    public val range: TextRange,
+    public val background: Color? = None,
+    public val underline: Color? = None
+)
+
+internal fun checkSelectableColor(value: Color) {
+    requireUi(
+        value.red.isFinite() &&
+            value.green.isFinite() &&
+            value.blue.isFinite() &&
+            value.alpha.isFinite(),
+        "non-finite text selection color"
+    )
+}

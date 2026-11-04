@@ -28,7 +28,7 @@ public enum ScrollbarRegion {
     Track, Thumb, Decrement, Increment
 }
 
-/** Local logical insets, shared by geometry and control layout. */
+/** Physical edges in logical units, shared by geometry and control layout. */
 public struct Insets(
     val left: Double = 0.0,
     val top: Double = 0.0,
@@ -47,8 +47,6 @@ public struct Insets(
     }
 }
 
-public struct RoundedOutline(val bounds: Rect, val radius: Double)
-
 public struct Circle(val center: Point, val radius: Double) {
     public val bounds: Rect get() =
         Rect(center.x - radius, center.y - radius, radius * 2.0, radius * 2.0)
@@ -58,7 +56,7 @@ public struct StrokeSegment(val start: Point, val bend: Point, val end: Point, v
 
 public struct FocusStyle(val color: Color, val width: Double, val outset: Double)
 
-public struct FocusOutline(val outline: RoundedOutline, val border: Border)
+public struct FocusOutline(val outline: RoundedOutline, val border: BorderEdge)
 
 /** Samples are optional; callers own animations and pass this frame's values. */
 public struct InteractionVisual(

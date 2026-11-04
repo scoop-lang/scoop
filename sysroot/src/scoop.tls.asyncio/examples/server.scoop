@@ -29,11 +29,9 @@ fun main(args: Array<String>): Int {
         certificate -> PrivateKey.fromPem(Path.fromString(args[2L]).readText()).use {
             key -> TlsServerContext([certificate], key).use {
                 context ->
-                val loop: EventLoop = PlatformEventLoop()
-                loop.run suspend {
-                    _ -> loop.listenTcp(
-                        SocketAddress(IpAddress.IPV4_LOOPBACK, port)
-                    ).useAsync suspend {
+                val loop = eventLoop()
+                loop.run {
+                    loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port)).useAsync suspend {
                         listener ->
                         println(f"Listening on ${listener.localAddress.toString()}")
                         AsyncTlsStream.takeOwnershipAsServer(

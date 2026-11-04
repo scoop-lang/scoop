@@ -53,8 +53,10 @@ pub(super) fn roots(module: &mir::Module, retain: &mut impl FnMut(mir::FunctionI
     for (_, point) in module.meta.coroutine_resume_points.iter() {
         retain(point.resume());
         retain(point.resume_with_exception());
+        retain(point.work_run());
     }
     for start in &module.meta.coroutine_starts {
         retain(start.function());
+        retain(start.work_run());
     }
 }

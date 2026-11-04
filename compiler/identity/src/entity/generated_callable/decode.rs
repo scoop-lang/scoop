@@ -157,6 +157,9 @@ pub enum DecodedGeneratedCallableKey {
     CoroutineStart {
         result: DecodedPersistentId<PersistentExactTypeId>,
     },
+    CoroutineStartWork {
+        result: DecodedPersistentId<PersistentExactTypeId>,
+    },
     CoroutineAdapter {
         source_callable: DecodedCallableMaterialization,
         suspension_site: StructuralDefinitionPath,
@@ -263,6 +266,9 @@ impl DecodedGeneratedCallableKey {
             Self::CoroutineStart { result } => GeneratedCallableKey::CoroutineStart {
                 result: resolve_id(resolver, result)?,
             },
+            Self::CoroutineStartWork { result } => GeneratedCallableKey::CoroutineStartWork {
+                result: resolve_id(resolver, result)?,
+            },
             Self::CoroutineAdapter {
                 source_callable,
                 suspension_site,
@@ -347,6 +353,7 @@ impl WireEncode for DecodedGeneratedCallableKey {
                 encode_value_sum(encoder, 9, source_callable)
             }
             Self::CoroutineStart { result } => encode_value_sum(encoder, 11, result),
+            Self::CoroutineStartWork { result } => encode_value_sum(encoder, 19, result),
             Self::CoroutineAdapter {
                 source_callable,
                 suspension_site,
@@ -441,6 +448,9 @@ impl WireDecode for DecodedGeneratedCallableKey {
             }
             // Tag 10 (ContinuationShell) is retired.
             11 => decode_id_variant(decoder, fields, |result| Self::CoroutineStart { result }),
+            19 => decode_id_variant(decoder, fields, |result| Self::CoroutineStartWork {
+                result,
+            }),
             12 => {
                 expect_sum_length(decoder, fields, 4)?;
                 Ok(Self::CoroutineAdapter {
@@ -494,7 +504,12 @@ impl WireDecode for InitializationCallableRole {
 
 impl WireDecode for CoroutineAdapterRole {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decode_binary_role(decoder, Self::Success, Self::Failure)
+        match decoder.unsigned()? {
+            1 => Ok(Self::Success),
+            2 => Ok(Self::Failure),
+            3 => Ok(Self::Run),
+            tag => Err(unknown_tag(decoder, tag)),
+        }
     }
 }
 

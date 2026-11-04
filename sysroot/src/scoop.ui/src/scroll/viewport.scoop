@@ -136,48 +136,61 @@ public class ScrollViewport internal constructor(
     }
     private fun complete(layout: ScrollLayout) {
         val offered = layout.snapshot
-        val newest =
-            if (layout.revision == current.revision)
-                offered
-            else
-                sample(offered.viewport, offered.content)
+        val state = current
+        val superseded = layout.revision != state.revision
+        val correction =
+            state.hasSnapshot &&
+                layout.revision ==
+                state.revision &&
+                layout.revision ==
+                state.publishedRevision &&
+                !moving &&
+                state.current.offset !=
+                offered.offset
         ready = true
-        current.publish(newest, !(motion?.started ?: false))
+        state.publish(offered, layout.revision == state.revision && !moving, layout.revision)
         when (motion) {
             case Some(value) -> {
-                val target = clampScroll(value.target, newest.viewport, newest.content)
+                val target = clampScroll(value.target, offered.viewport, offered.content)
                 val changedTarget = value.started && target != animation.target
                 if (
                     target ==
-                        newest.offset &&
+                        offered.offset &&
                         (
                             !value.started ||
                                 changedTarget ||
+                                superseded ||
                                 animation.state ==
                                 AnimationState.Finished
                         )
                 ) {
-                    endMotion(changedTarget)
+                    endMotion(changedTarget || superseded)
                 } else
-                    if (!value.started || changedTarget) {
+                    if (!value.started || changedTarget || superseded) {
                         startMotion(value, target)
                     }
             }
             case None -> {}
         }
-        if (newest != offered)
+        if (layout.revision != state.revision)
             requestFrame()
+        if (correction)
+            state.notifyIntent(ScrollIntent.LayoutCorrection(layout.revision))
     }
-    internal fun animateTo(target: Point, spec: AnimationSpec) {
+    internal fun animateTo(target: Point, spec: AnimationSpec): ULong {
         checkOpen()
         cancelAnimation()
+        current.revision += 1UL
+        val token = current.revision
         if (
             ready &&
                 clampScroll(target, current.current.viewport, current.current.content) ==
                 current.current.offset
-        )
-            return
-        current.revision += 1UL
+        ) {
+            current.request = ScrollRequest.Position(current.current.offset)
+            requestFrame()
+            return token
+        }
         val next = ScrollMotion(target, spec)
         motion = Some(next)
         try {
@@ -192,6 +205,7 @@ public class ScrollViewport internal constructor(
         }
         current.changed()
         requestFrame()
+        return token
     }
     private fun startMotion(value: ScrollMotion, target: Point) {
         if (target == current.current.offset) {

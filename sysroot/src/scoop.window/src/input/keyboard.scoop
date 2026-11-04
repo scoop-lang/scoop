@@ -66,7 +66,8 @@ public struct Modifiers(
     val altSides: ModifierSides,
     val superSides: ModifierSides,
     val numLock: Boolean? = None,
-    val scrollLock: Boolean? = None
+    val scrollLock: Boolean? = None,
+    val altGraph: Boolean? = None
 )
 
 /** An owned key notification; synthetic releases have no invented hardware time. */

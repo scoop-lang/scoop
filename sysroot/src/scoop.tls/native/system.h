@@ -4,7 +4,6 @@
 #include "tls.h"
 #include <openssl/x509v3.h>
 
-typedef void (*ScoopTlsWorkFunction)(void *);
 typedef struct {
   void *pointer;
   uint64_t error;
@@ -19,8 +18,8 @@ struct ScoopTlsVerification {
   int completed;
 };
 
-ScoopTlsStep scoop_tls_work_failure(int status, int system_error,
-                                    int64_t verify_code, const char *message);
+ScoopTlsStep scoop_tls_work_failure(int status, int system_error, int64_t verify_code,
+                                    const char *message);
 void scoop_crypto_error_free(uint64_t error);
 ScoopTlsStep scoop_tls_system_load(ScoopTlsContext *context);
 int scoop_tls_system_verify(X509_STORE_CTX *check, void *unused);

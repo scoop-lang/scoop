@@ -7,8 +7,10 @@ use super::constraints::{Constraint, ConstraintOrigin, InferenceSession, TypeTer
 use crate::Lowerer;
 
 mod captures;
+mod lambda_effects;
 mod literals;
 mod selection;
+pub(crate) use lambda_effects::{LambdaEffectDeclaration, LambdaEffectReceiver};
 pub(crate) use literals::{NumericLiteralKind, prefer_literal_defaults};
 pub(crate) use selection::ApplicableDeclaration;
 

@@ -1,0 +1,205 @@
+package scoop.ui
+
+import scoop.surface.*
+import scoop.window.*
+
+/** Ordered metadata from the caller's snapshot; navigation never builds item Views. */
+public interface NavigationSource {
+    public val count: Long
+    public fun keyAt(index: Long): ViewKey
+    public fun indexOfKey(key: ViewKey): Long?
+    public fun enabledAt(index: Long): Boolean = true
+    public fun searchTextAt(index: Long): String = ""
+    public fun rowAt(index: Long): Int = 0
+    public fun columnAt(index: Long): Int = 0
+}
+
+public struct ActiveItemOptions(
+    val layout: NavigationLayout = NavigationLayout.Vertical,
+    val direction: LayoutDirection? = None,
+    val loop: Boolean = true,
+    val enabled: Boolean = true
+)
+
+/** Updates only the highlighted key; focus and selected values remain caller-owned. */
+public class ActiveItems internal constructor(
+    private val scope: ComponentScope,
+    private var source: NavigationSource,
+    private var value: Binding<ViewKey?>,
+    private var options: ActiveItemOptions,
+    private var reveal: (ViewKey) -> Unit
+): Closeable {
+    private var closed = false
+    private val input = scope.input
+    private val registration = input.addDefaultAction { context, event -> handle(context, event) }
+    init {
+        try {
+            reconcile()
+        }
+        catch (error: Throwable) {
+            registration.close();
+            throw error
+        }
+    }
+
+    public val isClosed: Boolean get() {
+        val mounted = scope.isMounted;
+        return closed || !mounted || input.isClosed
+    }
+    public val activeKey: ViewKey? get() {
+        scope.isMounted
+        return value.value
+    }
+    public fun update(
+        source: NavigationSource,
+        active: Binding<ViewKey?>,
+        options: ActiveItemOptions? = None,
+        reveal: ((ViewKey) -> Unit)? = None
+    ) {
+        checkOpen()
+        this.source = source
+        value = active
+        this.options = options ?: this.options
+        this.reveal = reveal ?: this.reveal
+        reconcile()
+    }
+    private fun reconcile() {
+        requireUi(source.count >= 0L, "negative navigation source count")
+        when (value.value) {
+            case Some(key) -> if (navigationIndex(source, key) == None)
+                value.value = None
+            case None -> {}
+        }
+    }
+    public fun setActive(key: ViewKey?): Boolean {
+        checkOpen()
+        when (key) {
+            case Some(candidate) -> if (navigationIndex(source, candidate) == None)
+                return false
+            case None -> {}
+        }
+        value.value = key
+        if (!isClosed && value.value == key) {
+            when (key) {
+                case Some(candidate) -> reveal(candidate);
+                case None -> {}
+            }
+            return true
+        }
+        return false
+    }
+    public fun move(key: NamedKey): Boolean {
+        checkOpen()
+        if (!options.enabled || !input.isInputAllowed)
+            return false
+        val step =
+            navigationStep(
+                options.layout,
+                options.direction ?: scope.layoutDirection,
+                LogicalKey.Named(key)
+            ) ?:
+                return false
+        val current =
+            when (value.value) {
+                case Some(key) -> navigationIndex(source, key)
+                case None -> None
+            }
+        val next =
+            navigationDestination(
+                source.count,
+                current,
+                step,
+                options.loop,
+                { index -> source.rowAt(index) },
+                { index -> source.columnAt(index) },
+                { index -> source.enabledAt(index) }
+            )
+        when (next) {
+            case Some(index) -> setActive(Some(navigationKey(source, index)));
+            case None -> {}
+        }
+        return true
+    }
+    public fun handle(context: RoutedEventContext, event: InputEvent) {
+        if (isClosed || context.defaultPrevented)
+            return
+        val key =
+            when (event) {
+                case Keyboard(value) -> value;
+                else -> return
+            }
+        if (!navigationKeyAllowed(key))
+            return
+        when (key.logicalKey) {
+            case Named(value) -> {
+                if (
+                    options.enabled &&
+                        input.isInputAllowed &&
+                        navigationStep(
+                            options.layout,
+                            options.direction ?: scope.layoutDirection,
+                            key.logicalKey
+                        ) !=
+                        None
+                ) {
+                    context.consume()
+                    move(value)
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun checkOpen() {
+        checkFocusMutation()
+        if (isClosed)
+            throw IllegalStateException(Some("active item navigation is no longer mounted"))
+    }
+    public override fun close() {
+        scope.isMounted
+        checkFocusMutation()
+        if (closed)
+            return
+        closed = true
+        registration.close()
+    }
+}
+
+public fun ComponentScope.activeItems(
+    source: NavigationSource,
+    active: Binding<ViewKey?>,
+    options: ActiveItemOptions = ActiveItemOptions(),
+    reveal: (ViewKey) -> Unit = { _ -> Unit }
+): ActiveItems = resource { ActiveItems(this, source, active, options, reveal) }
+
+internal fun navigationKey(source: NavigationSource, index: Long): ViewKey {
+    requireUi(index >= 0L && index < source.count, "navigation index outside source")
+    val key = source.keyAt(index)
+    requireUi(
+        key != ViewKey.Position && source.indexOfKey(key) == Some(index),
+        "invalid navigation key mapping"
+    )
+    return key
+}
+
+internal fun navigationIndex(source: NavigationSource, key: ViewKey): Long? {
+    requireUi(key != ViewKey.Position, "navigation requires an explicit key")
+    val index = source.indexOfKey(key) ?: return None
+    navigationKey(source, index)
+    requireUi(source.keyAt(index) == key, "navigation key lookup returned another item")
+    return if (source.enabledAt(index))
+        Some(index)
+    else
+        None
+}
+
+internal fun navigationKeyAllowed(key: KeyEvent): Boolean {
+    val modifiers = key.modifiers
+    return key.state ==
+        ElementState.Pressed &&
+        !key.synthetic &&
+        !modifiers.control &&
+        !modifiers.alt &&
+        !modifiers.shift &&
+        !modifiers.superKey &&
+        !modifiers.function
+}

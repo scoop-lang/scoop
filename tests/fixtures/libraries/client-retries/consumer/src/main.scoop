@@ -48,9 +48,9 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
             this.retries = retries
             this.pool = httpConnectionPoolOptions { this.maxConnectionsPerOrigin = 1L }
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         withHttpClient(config) suspend {
             client -> when (mode) {
                 case "replay" -> retryReplay(client, url)

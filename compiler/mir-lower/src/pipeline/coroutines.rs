@@ -49,21 +49,47 @@ impl Lowerer {
                 &value,
                 self.interfaces.mir_id(protocol.suspend_task),
                 self.interfaces.mir_id(protocol.continuation),
+                crate::coroutine_registry::drive_protocol_call(
+                    module,
+                    &self.instances,
+                    &self.function_map,
+                    &self.interfaces,
+                    &self.external_callables,
+                    protocol.work_run,
+                    protocol.work,
+                ),
+                crate::coroutine_registry::drive_protocol_call(
+                    module,
+                    &self.instances,
+                    &self.function_map,
+                    &self.interfaces,
+                    &self.external_callables,
+                    protocol.execution_start,
+                    protocol.execution,
+                ),
+                crate::coroutine_registry::drive_protocol_signature(
+                    module,
+                    protocol.work_run,
+                    protocol.work,
+                ),
                 crate::coroutine_registry::protocol_call(
                     module,
                     &self.instances,
+                    &self.function_map,
                     &self.interfaces,
                     protocol.suspend_task_run,
                 ),
                 crate::coroutine_registry::protocol_call(
                     module,
                     &self.instances,
+                    &self.function_map,
                     &self.interfaces,
                     protocol.continuation_resume,
                 ),
                 crate::coroutine_registry::protocol_call(
                     module,
                     &self.instances,
+                    &self.function_map,
                     &self.interfaces,
                     protocol.continuation_resume_with_exception,
                 ),
@@ -71,7 +97,8 @@ impl Lowerer {
                 crate::coroutine_registry::throwable_type(module, &self.class_map),
                 &mut self.functions,
                 &mut self.top_level,
-                &self.shell,
+                &mut self.classes,
+                &mut self.shell,
             );
         }
     }

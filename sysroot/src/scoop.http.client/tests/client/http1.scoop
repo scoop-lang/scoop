@@ -11,9 +11,10 @@ private class HttpClientHttp1Test {
     fun `execute returns real final metadata and preserves producer and observer Context`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -118,9 +119,10 @@ private class HttpClientHttp1Test {
     fun `HTTP 1.0 sends fixed lengths and receives its real version without chunking`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -174,9 +176,10 @@ private class HttpClientHttp1Test {
     fun `early final responses are readable before a suspended source finishes`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val source = BodyTestSource("late data".toByteArray())
                     source.holdRead = true

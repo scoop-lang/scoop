@@ -68,6 +68,7 @@ pub(super) fn source_subject(
                     | GeneratedCallableKey::DynamicFunctionAdapter { .. }
                     | GeneratedCallableKey::ForeignCallbackManagedAdapter { .. }
                     | GeneratedCallableKey::CoroutineStart { .. }
+                    | GeneratedCallableKey::CoroutineStartWork { .. }
                     | GeneratedCallableKey::FunctionBridge { .. }
                     | GeneratedCallableKey::BoxingAdjust { .. }
                     | GeneratedCallableKey::TestEntry { .. } => return None,

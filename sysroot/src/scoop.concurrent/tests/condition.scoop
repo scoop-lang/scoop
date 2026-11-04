@@ -1,0 +1,258 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.test.*
+
+@Test
+private class AsyncConditionTest {
+    @Test
+    fun `mutex and condition restore waiters to their own executor and context`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val holder = mutex.tryLock()!!
+        val receiver = ManualExecutor()
+        val notifier = ManualExecutor()
+        val state = Probe()
+        val received = TestResult<Int>()
+        val notified = TestResult<Unit>()
+        context(Label(11)) {
+            startDispatchedCoroutine(
+                receiver,
+                {
+                    mutex.withLock {
+                        assertSame(receiver, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(11, labelValue())
+                        while (state.value == 0)
+                            condition.await(this)
+                        assertSame(receiver, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(11, labelValue())
+                        state.value
+                    }
+                },
+                received
+            )
+        }
+        receiver.drain()
+        assertEquals(0, received.calls)
+        holder.dispose()
+        receiver.drain()
+        context(Label(22)) {
+            startDispatchedCoroutine(
+                notifier,
+                {
+                    mutex.withLock {
+                        state.value = 42
+                        condition.signal(this)
+                        assertSame(notifier, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(22, labelValue())
+                    }
+                },
+                notified
+            )
+        }
+        notifier.drain()
+        notified.get()
+        assertEquals(0, received.calls)
+        receiver.drain()
+        assertEquals(42, received.get())
+        assertEquals(0, receiver.active.load())
+        assertEquals(0, notifier.active.load())
+    }
+
+    @Test
+    fun `notification waits for the same guard to reacquire before resuming`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startRaw(executor) {
+                mutex.withLock {
+                    probe.guard = Some(this)
+                    condition.await(this)
+                    assertSame(probe.guard!!, this)
+                    condition.signal(this)
+                    assertTrue(absent(mutex.tryLock()))
+                    probe.value = 42
+                }
+            }
+        executor.drain()
+        val notifier = mutex.tryLock()!!
+        assertFailsWith<IllegalStateException> { probe.guard!!.dispose() }
+        condition.signal(notifier)
+        assertEquals(0L, executor.queued)
+        assertEquals(0, task.calls)
+        notifier.dispose()
+        assertTrue(absent(mutex.tryLock()))
+        executor.drain()
+        task.get()
+        assertEquals(42, probe.value)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `cancelled await reacquires before throwing and running finally`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                mutex.withLock {
+                    probe.guard = Some(this)
+                    try {
+                        condition.await(this);
+                        fail(Some("await should cancel"))
+                    }
+                    finally {
+                        condition.signal(this)
+                        assertTrue(absent(mutex.tryLock()))
+                        probe.cleaned = true
+                    }
+                }
+            }
+        executor.drain()
+        val holder = mutex.tryLock()!!
+        task.job!!.cancel()
+        assertEquals(0L, executor.queued)
+        assertEquals(0, task.calls)
+        assertFalse(probe.cleaned)
+        assertFailsWith<IllegalStateException> { probe.guard!!.dispose() }
+        condition.broadcast(holder)
+        holder.dispose()
+        executor.drain()
+        assertTrue(probe.cleaned)
+        assertTrue(task.error!! is CancellationException)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `notification wins over later cancellation during reacquisition`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                mutex.withLock {
+                    condition.await(this)
+                    condition.signal(this)
+                    probe.value = 42
+                }
+            }
+        executor.drain()
+        val holder = mutex.tryLock()!!
+        condition.signal(holder)
+        task.job!!.cancel()
+        assertEquals(0L, executor.queued)
+        holder.dispose()
+        executor.drain()
+        assertEquals(42, probe.value)
+        assertEquals(1, task.calls)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `pre cancelled await retains the original guard`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                mutex.withLock {
+                    currentJobOrNone()!!.cancel()
+                    try {
+                        condition.await(this);
+                        fail(Some("await should cancel"))
+                    }
+                    catch (_: CancellationException) {
+                        condition.signal(this)
+                        assertTrue(absent(mutex.tryLock()))
+                        probe.value = 42
+                    }
+                }
+            }
+        executor.drain()
+        assertEquals(42, probe.value)
+        assertEquals(1, task.calls)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `broadcast preserves wait order behind existing mutex acquisitions`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val executor = ManualExecutor()
+        val order = ArrayList<Int>()
+        val first =
+            startRaw(executor) {
+                mutex.withLock {
+                    condition.await(this);
+                    order.add(1)
+                }
+            }
+        val second =
+            startRaw(executor) {
+                mutex.withLock {
+                    condition.await(this);
+                    order.add(2)
+                }
+            }
+        executor.drain()
+        val holder = mutex.tryLock()!!
+        val older = startRaw(executor) { mutex.withLock { order.add(0) } }
+        executor.drain()
+        condition.broadcast(holder)
+        assertEquals(0L, executor.queued)
+        holder.dispose()
+        executor.drain()
+        first.get()
+        second.get()
+        older.get()
+        assertEquals(3L, order.size)
+        assertEquals(0, order[0L])
+        assertEquals(1, order[1L])
+        assertEquals(2, order[2L])
+    }
+
+    @Test
+    fun `condition rejects foreign released and waiting guards`() {
+        val mutex = AsyncMutex()
+        val condition = AsyncConditionVariable(mutex)
+        val foreign = AsyncMutex().tryLock()!!
+        assertFailsWith<IllegalStateException> { condition.signal(foreign) }
+        assertFailsWith<IllegalStateException> { condition.broadcast(foreign) }
+        val executor = ManualExecutor()
+        val wrong = startRaw(executor) { condition.await(foreign) }
+        executor.drain()
+        assertTrue(wrong.error!! is IllegalStateException)
+        foreign.dispose()
+        val guard = mutex.tryLock()!!
+        guard.dispose()
+        assertFailsWith<IllegalStateException> { condition.signal(guard) }
+        assertFailsWith<IllegalStateException> { condition.broadcast(guard) }
+        val released = startRaw(executor) { condition.await(guard) }
+        executor.drain()
+        assertTrue(released.error!! is IllegalStateException)
+        val probe = Probe()
+        val waiting =
+            startRaw(executor) {
+                mutex.withLock {
+                    probe.guard = Some(this);
+                    condition.await(this)
+                }
+            }
+        executor.drain()
+        assertFailsWith<IllegalStateException> { condition.signal(probe.guard!!) }
+        assertFailsWith<IllegalStateException> { condition.broadcast(probe.guard!!) }
+        val duplicate = startRaw(executor) { condition.await(probe.guard!!) }
+        executor.drain()
+        assertTrue(duplicate.error!! is IllegalStateException)
+        val notifier = mutex.tryLock()!!
+        condition.signal(notifier)
+        notifier.dispose()
+        executor.drain()
+        waiting.get()
+    }
+}

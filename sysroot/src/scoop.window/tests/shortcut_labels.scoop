@@ -1,0 +1,76 @@
+package scoop.window
+
+import scoop.platform.concurrent.Thread
+import scoop.test.*
+
+@Test
+private class ShortcutLabelTest {
+    @Test
+    fun `labels share resolved chords and obey window ownership`() {
+        val handler = ShortcutLabelHandler()
+        Application(applicationOptions { lastWindowPolicy = LastWindowPolicy.KeepRunning }).run(
+            handler
+        )
+        assertTrue(handler.verified)
+        assertFailsWith<WindowException> {
+            handler.window!!.shortcutLabel(
+                ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("K")))
+            )
+        }
+    }
+}
+
+private class ShortcutLabelHandler: ApplicationHandler {
+    var window: Window? = None
+    var verified = false
+
+    public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val current = application.createWindow(windowAttributes { visible = false })
+                window = Some(current)
+                val chord =
+                    shortcutChord(ShortcutKey.Logical(LogicalKey.Character("K"))) {
+                        primary = true
+                        superKey = true
+                        shift = true
+                    }
+                val label = current.shortcutLabel(chord)
+                assertEquals("", label.separator)
+                assertEquals(3L, label.parts.size)
+                assertEquals("⇧", label.parts[0L])
+                assertEquals("⌘", label.parts[1L])
+                assertEquals("K", label.parts[2L])
+                val physical =
+                    current.shortcutLabel(
+                        ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyK)))
+                    )
+                assertEquals(1L, physical.parts.size)
+                assertTrue(physical.parts[0L].byteLength > 0L)
+                val arrow =
+                    current.shortcutLabel(
+                        ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.ArrowLeft)))
+                    )
+                assertEquals("←", arrow.parts[0L])
+                val unknown =
+                    current.shortcutLabel(
+                        ShortcutChord(
+                            ShortcutKey.Physical(
+                                PhysicalKey.Unidentified(NativeKeyCode.Darwin(65535U))
+                            )
+                        )
+                    )
+                assertEquals("Unknown", unknown.parts[0L])
+                Thread.start {
+                    assertFailsWith<IllegalStateException> { current.shortcutLabel(chord) }
+                }.join()
+                current.requestDestroy()
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                verified = true
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

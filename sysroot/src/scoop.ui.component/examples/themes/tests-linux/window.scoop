@@ -94,20 +94,7 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
                     }
                     case 3 -> {
                         phase = 4
-                        later(250L) {
-                            val idle = frames
-                            later(140L) {
-                                assertEquals(idle, frames)
-                                window!!.setVisible(false)
-                                model.selectMode(ModeChoice.Light)
-                                later(100L) {
-                                    assertEquals(idle, frames)
-                                    previous = frames
-                                    phase = 5
-                                    window!!.setVisible(true)
-                                }
-                            }
-                        }
+                        awaitIdle()
                     }
                     case 5 -> {
                         phase = 6
@@ -118,6 +105,29 @@ private class LinuxShowcaseProbe(val fonts: FontCollection) {
             }
             case Exiting -> finished = phase == 6
             else -> {}
+        }
+    }
+
+    private fun awaitIdle() {
+        // Selection animations and already requested frames must settle before measuring idle.
+        val before = frames
+        later(250L) {
+            if (frames != before) {
+                awaitIdle()
+            } else {
+                val idle = frames
+                later(250L) {
+                    assertEquals(idle, frames)
+                    window!!.setVisible(false)
+                    model.selectMode(ModeChoice.Light)
+                    later(100L) {
+                        assertEquals(idle, frames)
+                        previous = frames
+                        phase = 5
+                        window!!.setVisible(true)
+                    }
+                }
+            }
         }
     }
 

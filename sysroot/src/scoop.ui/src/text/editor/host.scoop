@@ -34,6 +34,8 @@ public class TextEditHost public constructor(
     internal val hint = ParagraphCache()
     internal val bodyKey = PaintKey()
     internal val hintKey = PaintKey()
+    internal var currentDisplay: TextDisplay? = None
+    internal var currentProjection = initialOptions.projection
     internal var content: StyledText? = None
     internal var hintContent: StyledText? = None
     internal var measured: EditorMeasure? = None
@@ -57,7 +59,7 @@ public class TextEditHost public constructor(
     init {
         initialOptions.check()
         initialAppearance.check()
-        checkDocument(initialState.text)
+        checkDocument(initialState.committedText)
         area.scope.defaultAction = { context, event -> editorHandle(this, context, event) }
         area.scope.onEventFinished = { event -> editorFinish(this, event) }
         area.scope.enabled = initialOptions.enabled
@@ -81,6 +83,28 @@ public class TextEditHost public constructor(
         checkOpen();
         return body.layout
     }
+    public val display: TextDisplay get() {
+        checkOpen()
+        return currentDisplay ?:
+            throw IllegalStateException(Some("text editor has not been measured"))
+    }
+    public fun caret(position: TextPosition): Rect? {
+        checkOpen()
+        return body.layout.caret(
+            editorVisualPosition(body.layout, display.toDisplay(position)),
+            appearance.caretWidth
+        )
+    }
+    public fun selectionBounds(range: Utf8Range): Array<TextBox> {
+        checkOpen()
+        return body.layout.selection(display.displayRange(range))
+    }
+    internal val copyAllowed: Boolean get() =
+        when (options.copy) {
+            case Default -> !options.projection.masked
+            case Allow -> true
+            case Deny -> false
+        }
     /** The layout being presented, including offsets clamped for this measurement. */
     public val scrollSnapshot: ScrollSnapshot get() {
         checkOpen()
@@ -114,7 +138,7 @@ public class TextEditHost public constructor(
         options.check()
         appearance.check()
         requireUi(
-            options.multiline || !editorHasLineBreak(state.text),
+            options.multiline || !editorHasLineBreak(state.committedText),
             "single-line editor contains a hard line break"
         )
         if (area.isFocusActive && options.enabled)

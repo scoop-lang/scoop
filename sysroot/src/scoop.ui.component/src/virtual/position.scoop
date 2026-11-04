@@ -3,6 +3,17 @@ package scoop.ui.component
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
+/** Logical item indexes in a half-open interval, excluding overscan. */
+public struct VirtualRange(val start: Long, val end: Long)
+
+public struct VirtualReadingAnchor(val key: ViewKey, val offset: Double)
+
+public struct VirtualReadingSnapshot(
+    val visible: VirtualRange,
+    val anchor: VirtualReadingAnchor?,
+    val atEnd: Boolean
+)
+
 internal class VirtualItemAnchor(val key: ViewKey, val index: Long, val inside: Double)
 
 internal class VirtualReadingPosition(
@@ -10,7 +21,7 @@ internal class VirtualReadingPosition(
     val orientation: Orientation,
     val revision: ULong,
     val anchor: VirtualItemAnchor?,
-    val atEnd: Boolean
+    val snapshot: VirtualReadingSnapshot
 )
 
 internal class VirtualListFrame(

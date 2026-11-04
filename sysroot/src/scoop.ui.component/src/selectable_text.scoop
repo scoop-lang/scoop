@@ -1,0 +1,96 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.text.*
+
+public class SelectableStyledTextProps public constructor(
+    public val content: StyledText,
+    public val fonts: FontCollection? = None,
+    public val settings: ParagraphStyle? = None,
+    public val inlines: Array<InlineView> = [],
+    public val options: SelectableTextOptions = SelectableTextOptions(),
+    public val focus: FocusOptions = FocusOptions(),
+    public val actions: Array<TextRangeAction> = [],
+    public val decorations: Array<TextRangeDecoration> = [],
+    public val onSelectionChanged: (TextPosition, TextPosition) -> Unit = { _, _ -> Unit }
+)
+
+/** Styled selection delegates layout, input and lifetime to the public text host. */
+public class SelectableStyledText public constructor(
+    private val props: Props<SelectableStyledTextProps>
+): Component {
+    public override fun render(): View {
+        val input = props.value
+        return element(
+            input,
+            { current -> SelectableStyledTextInk(current) },
+            inlineChildren(input.content, input.inlines)
+        )
+    }
+}
+
+public fun selectableStyledText(
+    content: StyledText,
+    configure: SelectableStyledTextBuilder.() -> Unit = {}
+): View = makeSelectableStyledText(content, configure)
+
+internal fun makeSelectableStyledText(
+    content: StyledText,
+    configure: SelectableStyledTextBuilder.() -> Unit = {}
+): View {
+    val builder = SelectableStyledTextBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(content),
+        { props -> SelectableStyledText(props) },
+        builder.key
+    )
+}
+
+private class SelectableStyledTextInk(
+    private val props: Props<SelectableStyledTextProps>
+): Element {
+    private var scope: ComponentScope? = None
+    private var host: SelectableTextHost? = None
+    private var ownedFonts: FontCollection? = None
+    private fun fonts(): FontCollection =
+        when (props.value.fonts) {
+            case Some(value) -> value
+            case None -> when (ownedFonts) {
+                case Some(value) -> value
+                case None -> {
+                    val value = scope!!.resource { FontCollection() }
+                    ownedFonts = Some(value)
+                    value
+                }
+            }
+        }
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        val input = props.value
+        host =
+            Some(
+                scope.resource { SelectableTextHost(scope, fonts(), input.content, input.options) }
+            )
+    }
+    public override fun update() {
+        val input = props.value
+        host!!.update(
+            fonts(),
+            input.content,
+            input.options,
+            input.focus,
+            input.actions,
+            input.decorations,
+            input.onSelectionChanged
+        )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        return host!!.measure(context, constraints, input.settings, input.inlines)
+    }
+    public override fun scene(context: SceneContext) {
+        host!!.scene(context)
+    }
+}

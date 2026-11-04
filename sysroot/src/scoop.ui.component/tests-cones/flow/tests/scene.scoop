@@ -1,0 +1,159 @@
+package scoop.tests.ui.flow
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.ParagraphHost
+
+internal class FlowRoot(private val probe: FlowProbe): Component {
+    private val content = flowContent(probe)
+    public override fun render(): View = direction(content, probe.desired.value)
+}
+
+private fun flowContent(probe: FlowProbe): View {
+    val cells =
+        Array<View>(probe.records.size) {
+            index -> element(
+                { FlowCell(probe.records[index], index == 5L) },
+                key = ViewKey.Number(index)
+            )
+        }
+    return element(
+        { FlowPanel(probe) },
+        [
+            wrap {
+                spacing = 4.0
+                lineSpacing = 6.0
+                alignment = CrossAlignment.Baseline
+                logicalPadding = Some(LogicalInsets(8.0, 3.0, 12.0, 5.0))
+                clip = true
+                item(cells[0L]) { basis = FlexBasis.Fixed(70.0) }
+                item(cells[1L]) { basis = FlexBasis.Fixed(70.0) }
+                item(cells[2L]) { basis = FlexBasis.Fixed(80.0) }
+            },
+            grid {
+                columns =
+                    [
+                        GridTrack.Fixed(40.0),
+                        GridTrack.Auto,
+                        GridTrack.Fraction(1.0),
+                        GridTrack.Fraction(1.0)
+                    ]
+                rows = [GridTrack.Auto, GridTrack.Auto]
+                columnGap = 4.0
+                rowGap = 5.0
+                logicalPadding = Some(LogicalInsets(6.0, 2.0, 10.0, 2.0))
+                clip = true
+                item(cells[3L]) {
+                    column = 1L;
+                    row = 0L
+                }
+                item(cells[4L]) {
+                    column = 0L;
+                    row = 1L;
+                    columnSpan = 2L
+                }
+                item(cells[5L]) {
+                    column = 2L;
+                    row = 0L
+                }
+                item(cells[6L]) {
+                    column = 3L;
+                    row = 0L
+                }
+                item(cells[7L]) {
+                    column = 2L;
+                    row = 1L;
+                    columnSpan = 2L;
+                    horizontal = CrossAlignment.Center;
+                    vertical = CrossAlignment.Center
+                }
+            },
+            frame(cells[8L]) {
+                width = Some(100.0)
+                height = Some(40.0)
+                logicalPadding = Some(LogicalInsets(10.0, 0.0, 20.0, 0.0))
+                alignment = Alignment(AxisAlignment.Start, AxisAlignment.Center)
+            },
+            stack {
+                add(cells[9L]);
+                alignment = Alignment(AxisAlignment.Start, AxisAlignment.End)
+            },
+            absolute {
+                item(cells[10L]) {
+                    horizontal = AbsoluteAxis.Start(10.0, Some(20.0));
+                    vertical = AbsoluteAxis.Start(5.0, Some(10.0))
+                }
+            }
+        ]
+    )
+}
+
+private class FlowPanel(private val probe: FlowProbe): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val wrapped =
+            context.measureChild(
+                0L,
+                Constraints(minWidth = 170.0, maxWidth = Some(170.0), maxHeight = Some(200.0))
+            )
+        assertEquals(Size(170.0, 74.0), wrapped.size)
+        assertEquals(Some(18.0), wrapped.alphabeticBaseline)
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(
+            1L,
+            Constraints(minWidth = 210.0, maxWidth = Some(210.0), maxHeight = Some(200.0))
+        )
+        context.placeChild(1L, Point(200.0, 10.0))
+        context.measureChild(2L, Constraints())
+        context.placeChild(2L, Point(10.0, 130.0))
+        context.measureChild(3L, Constraints.tight(Size(100.0, 40.0)))
+        context.placeChild(3L, Point(10.0, 180.0))
+        context.measureChild(4L, Constraints.tight(Size(100.0, 40.0)))
+        context.placeChild(4L, Point(120.0, 180.0))
+        return LayoutMetrics(constraints.constrain(Size(460.0, 240.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val direction = context.layoutDirection
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                probe.committed = Some(direction)
+        }
+    }
+}
+
+private class FlowCell(private val record: FlowRecord, private val isText: Boolean): Element {
+    private val content = styledText { text("Grid words wrap at the assigned width") }
+    private var fonts: FontCollection? = None
+    private var host: ParagraphHost? = None
+    public override fun onMount(scope: ComponentScope) {
+        record.area = Some(scope.createArea())
+        record.mounts += 1
+        if (isText) {
+            fonts = Some(scope.resource { FontCollection() })
+            host = Some(scope.resource { ParagraphHost() })
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val metrics =
+            if (isText)
+                host!!.measure(context, constraints, fonts!!, content)
+            else
+                LayoutMetrics(constraints.constrain(record.natural), record.baseline)
+        record.last = Some(metrics.size)
+        return metrics
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(record.area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        if (isText)
+            host!!.scene(context)
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+    }
+}

@@ -18,3 +18,5 @@ kind = "library"
 
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
+"scoop:scoop.http.client" = "0.1.0"
+"scoop:scoop.url" = "0.1.0"

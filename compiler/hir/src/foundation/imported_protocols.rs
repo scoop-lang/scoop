@@ -116,6 +116,15 @@ pub struct ImportedCoreExceptionProtocol {
 
 #[derive(Clone, Debug)]
 pub struct ImportedCoreCoroutineProtocol {
+    work: ImportedHirNominal<PersistentTypeId>,
+    work_run: ImportedCoreProtocolCallable,
+    work_run_dispatch: ImportedHirId<PersistentDispatchSlotId>,
+    execution: ImportedHirNominal<PersistentTypeId>,
+    execution_start: ImportedCoreProtocolCallable,
+    execution_start_dispatch: ImportedHirId<PersistentDispatchSlotId>,
+    execution_resume: ImportedCoreProtocolCallable,
+    execution_resume_dispatch: ImportedHirId<PersistentDispatchSlotId>,
+
     continuation: ImportedHirNominal<PersistentGenericTypeId>,
     continuation_resume: ImportedCoreProtocolCallable,
     continuation_resume_dispatch: ImportedHirId<PersistentDispatchSlotId>,

@@ -7,9 +7,9 @@ import scoop.http.asyncio.*
 import scoop.platform.memory.NativeByteBuffer
 
 internal fun wsBorrowCompletion(cancelCaller: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsPendingTransport()
         val session =
             AsyncWebSocketSession.takeOwnership(
@@ -46,6 +46,8 @@ internal fun wsBorrowCompletion(cancelCaller: Boolean) {
                     if (!cancelCaller)
                         ensureActive()
                 }
+            transport.input.started.await()
+            transport.output.started.await()
             wsCheck(
                 transport.input.running && transport.output.running && buffer.readPosition == 2L,
                 "pending duplex borrows"
@@ -56,6 +58,7 @@ internal fun wsBorrowCompletion(cancelCaller: Boolean) {
             val second = scope.launch suspend { session.close() }
             val observer = scope.launch suspend { session.awaitClosed() }
             try {
+                yieldCoroutine()
                 wsCheck(
                     transport.input.job!!.isCancelled && transport.output.job!!.isCancelled,
                     "cancel native owner"

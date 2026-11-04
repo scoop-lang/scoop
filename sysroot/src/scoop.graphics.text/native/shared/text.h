@@ -40,6 +40,7 @@ inline STRect st_rect(const SkRect &value) {
 }
 
 sk_sp<SkFontMgr> st_system_fonts();
+SkString st_system_family(int category);
 
 struct STFontEntry {
   sk_sp<SkTypeface> face;
@@ -48,9 +49,9 @@ struct STFontEntry {
 struct STFonts : STObject {
   sk_sp<SkFontMgr> system;
   std::vector<STFontEntry> entries;
+  std::vector<STFontEntry> system_aliases;
   bool fallback;
-  STFonts(sk_sp<SkFontMgr> manager, bool enabled)
-      : system(std::move(manager)), fallback(enabled) {}
+  STFonts(sk_sp<SkFontMgr> manager, bool enabled);
   sk_sp<sgt::FontCollection> snapshot() const;
 };
 struct STTextStyleData {

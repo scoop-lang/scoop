@@ -19,9 +19,10 @@ private class InterceptorHold(val child: Boolean, val failCleanup: Boolean) {
     var finished: Boolean = false
     suspend fun hold() {
         if (child)
-            coroutineScope<Unit> suspend {
-                scope ->
-                scope.launch suspend { waitForStop() };
+            coroutineScope<Unit> {
+                val scope = this
+
+                scope.launch { this @InterceptorHold.waitForStop() };
                 Unit
             }
         else

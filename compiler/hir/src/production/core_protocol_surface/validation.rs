@@ -62,6 +62,9 @@ impl CoreCompilerProtocolSurfaceV1 {
                 (9, &self.coroutine_protocol.suspend_registration_register),
                 (11, &self.coroutine_protocol.start_coroutine),
                 (12, &self.coroutine_protocol.suspend_coroutine),
+                (14, &self.coroutine_protocol.work_run),
+                (17, &self.coroutine_protocol.execution_start),
+                (19, &self.coroutine_protocol.execution_resume),
             ],
         )?;
         require_source_callables(

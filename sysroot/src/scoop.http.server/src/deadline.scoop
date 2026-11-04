@@ -9,23 +9,36 @@ public class HttpServerTimeoutException internal constructor(
     public val operation: String,
     /** The configured duration. */
     public val limit: Duration
-) : Exception(Some("HTTP server deadline expired: " + operation))
+): Exception(Some("HTTP server deadline expired: " + operation))
 
-internal suspend fun <T> serverDeadline(duration: Duration?, operation: String, block: suspend () -> T): T {
-    if (!present(duration)) return block()
+internal suspend fun <T> serverDeadline(
+    duration: Duration?,
+    operation: String,
+    block: suspend () -> T
+): T {
+    if (!present(duration))
+        return block()
     val expired = AtomicBoolean(false)
     try {
-        return coroutineScope<T> suspend { scope ->
-            val timer = scope.launch suspend {
-                currentEventLoop().sleep(duration!!)
-                expired.store(true)
-                scope.job.cancel()
+        return coroutineScope<T> {
+            val scope = this
+
+            val timer =
+                scope.launch suspend {
+                    currentEventLoop().sleep(duration!!)
+                    expired.store(true)
+                    scope.job.cancel()
+                }
+            try {
+                block()
             }
-            try { block() }
-            finally { timer.cancel() }
+            finally {
+                timer.cancel()
+            }
         }
     } catch (error: CancellationException) {
-        if (expired.load()) throw HttpServerTimeoutException(operation, duration!!)
+        if (expired.load())
+            throw HttpServerTimeoutException(operation, duration!!)
         throw error
     }
 }

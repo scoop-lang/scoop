@@ -52,9 +52,11 @@ pub(super) fn protocol_entries(module: &mir::Module) -> Vec<bool> {
     for (_, point) in module.meta.coroutine_resume_points.iter() {
         exclude(point.resume());
         exclude(point.resume_with_exception());
+        exclude(point.work_run());
     }
     for start in &module.meta.coroutine_starts {
         exclude(start.function());
+        exclude(start.work_run());
     }
     excluded
 }

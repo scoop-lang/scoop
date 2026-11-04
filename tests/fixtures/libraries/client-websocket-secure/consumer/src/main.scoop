@@ -27,9 +27,9 @@ private fun runSecureWs(mode: String, port: Int) {
     TrustStore.fromPem(rootPem()).use {
         trust -> TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem()).use {
             identity ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val version =
                     if (mode == "mutual" || mode == "no-alpn")
                         TlsVersion.Tls12

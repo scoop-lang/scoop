@@ -8,9 +8,9 @@ import scoop.time.Duration
 private class AsyncTcpCancellationTest {
     @Test
     fun `read cancellation returns its borrow and preserves the connection`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(_, client, server) = tcpPair(loop, scope)
             NativeByteBuffer.allocate(4L).use suspend {
                 input ->
@@ -43,10 +43,10 @@ private class AsyncTcpCancellationTest {
 
     @Test
     fun `close wakes a pending read and concurrent close waits for the same cleanup`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val ended = AtomicBoolean(false)
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val(_, _, server) = tcpPair(loop, scope)
             NativeByteBuffer.allocate(1L).use suspend {
                 input ->
@@ -75,10 +75,10 @@ private class AsyncTcpCancellationTest {
 
     @Test
     fun `a cancelled task can close its stream in finally`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val closed = AtomicBoolean(false)
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val(_, _, server) = tcpPair(loop, scope)
             val child =
                 scope.launch suspend {

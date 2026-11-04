@@ -32,17 +32,17 @@ private class WindowsTemporaryCompletionTest {
                     nativeFileTransfer(first.file, 2L, borrow.pointer(), borrow.length, true)
                 )
                 gcCollect()
-                val event = nextTemporaryResult(loop)
+                val event = nextNativeTestResult(loop)
                 assertEquals(1, event.kind)
                 assertEquals(1L, event.count)
                 borrow.complete(event.count)
                 assertEquals(0, nativeFileSeek(first.file, 3L, 0L, true))
-                val position = nextTemporaryResult(loop)
+                val position = nextNativeTestResult(loop)
                 assertEquals(0x101, position.kind)
                 assertEquals(1L, position.count)
                 for (file in [first, second, devicePrefix]) {
                     assertEquals(0, nativeFileClose(file.file, 4L))
-                    assertEquals(0, nextTemporaryResult(loop).kind)
+                    assertEquals(0, nextNativeTestResult(loop).kind)
                     assertTrue(file.path.exists())
                 }
                 assertEquals(0xff.toByte(), first.path.readAllBytes()[0L])
@@ -71,7 +71,7 @@ private class WindowsTemporaryCompletionTest {
                     0,
                     startTemporaryFile(loop, 1L, missing, temporaryPathPattern(missing, ""))
                 )
-                val event = nextTemporaryResult(loop)
+                val event = nextNativeTestResult(loop)
                 val error = nativeStatusError(NativeIoStatus(event.kind, event.code))
                 assertEquals(NativeErrorDomain.Win32, error.domain)
                 assertEquals(PlatformErrorKind.NotFound, error.kind)
@@ -88,40 +88,31 @@ private class WindowsTemporaryCompletionTest {
                 val created = nativeLoopCreate()
                 assertEquals(0, created.status.code)
                 val loop = created.pointer!!
-                val stopped = temporaryFence(loop, 100L, 0u)
-                assertEquals(0, stopped.status.code)
-                waitTemporaryFence(stopped.pointer!!)
                 assertEquals(
                     0,
                     startTemporaryFile(loop, 1L, parent, temporaryPathPattern(parent, "queued-"))
                 )
                 gcCollect()
                 cancelTemporaryWork(loop, 1L)
-                val cancelled = nextTemporaryResult(loop)
+                val cancelled = nextNativeTestResult(loop)
                 assertEquals(1L, cancelled.id)
                 assertEquals(5, cancelled.kind)
                 assertTrue(cancelled.code != 0)
                 parent.entries().use { entries -> assertTrue(entries.next() == None) }
-                releaseTemporaryFence(stopped.pointer!!)
-                assertEquals(100L, nextTemporaryResult(loop).id)
                 assertEquals(
                     0,
                     startTemporaryFile(loop, 2L, parent, temporaryPathPattern(parent, "late-"))
                 )
-                val finished = temporaryFence(loop, 101L, 0u)
-                assertEquals(0, finished.status.code)
-                waitTemporaryFence(finished.pointer!!)
+                executeNativeTestWork(loop)
                 cancelTemporaryWork(loop, 2L)
-                val event = nextTemporaryResult(loop)
+                val event = nextNativeTestResult(loop)
                 assertEquals(2L, event.id)
                 assertEquals(0x102, event.kind)
                 val file = takeTemporaryFile(event.resource!!)
                 assertEquals(0, file.status.code)
                 assertTrue(file.path.exists())
-                releaseTemporaryFence(finished.pointer!!)
-                assertEquals(101L, nextTemporaryResult(loop).id)
                 assertEquals(0, nativeFileClose(file.file, 3L))
-                assertEquals(0, nextTemporaryResult(loop).kind)
+                assertEquals(0, nextNativeTestResult(loop).kind)
                 file.path.delete()
                 parent.entries().use { entries -> assertTrue(entries.next() == None) }
                 assertEquals(0, drainTemporaryLoop(loop))
@@ -154,28 +145,12 @@ private fun withTemporaryParent(block: (Path) -> Unit) {
 private fun createTemporary(loop: Ptr<Unit>, parent: Path, prefix: String): CreatedTemporaryFile {
     assertEquals(0, startTemporaryFile(loop, 1L, parent, temporaryPathPattern(parent, prefix)))
     gcCollect()
-    val event = nextTemporaryResult(loop)
+    val event = nextNativeTestResult(loop)
     assertEquals(0x102, event.kind)
     val file = takeTemporaryFile(event.resource!!)
     assertEquals(0, file.status.code)
     return file
 }
-
-@Unsafe
-private fun nextTemporaryResult(loop: Ptr<Unit>): NativeRecord {
-    while (nativeLoopBatchSize(loop) == 0L)
-        assertEquals(0, nativeLoopPoll(loop, true).code)
-    return nativeLoopNext(loop)
-}
-
-@Extern(name = "scoop_test_fence_create")
-private fun temporaryFence(loop: Ptr<Unit>, id: Long, spare: UInt): NativeCreated
-
-@Extern(name = "scoop_test_fence_wait")
-private fun waitTemporaryFence(fence: Ptr<Unit>)
-
-@Extern(name = "scoop_test_fence_release")
-private fun releaseTemporaryFence(fence: Ptr<Unit>)
 
 @Extern(name = "scoop_io_work_cancel")
 private fun cancelTemporaryWork(loop: Ptr<Unit>, id: Long)

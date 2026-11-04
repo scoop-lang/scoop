@@ -1,0 +1,70 @@
+package scoop.http.asyncio
+
+import scoop.asyncio.*
+import scoop.http.HttpRole
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+@Test
+private class HttpOwnerStartTests {
+    @Test
+    fun `cancellation before a queued HTTP or WebSocket owner starts retains the transport`() {
+        eventLoop().run {
+            val scope = this
+            for (kind in [1, 2, 3]) {
+                val transport = OwnerStartTransport()
+                val entered = AtomicBoolean(false)
+                val rejected = AtomicBoolean(false)
+                val opening =
+                    scope.launch {
+                        entered.store(true)
+                        expectMessageFailure<CancellationException> {
+                            openOwner(kind, transport, scope)
+                        }
+                        rejected.store(true)
+                    }
+                yieldCoroutine()
+                assertTrue(entered.load())
+                opening.cancel()
+                opening.join()
+                assertTrue(rejected.load())
+                assertEquals(0, transport.closes)
+                openOwner(kind, transport, scope).close()
+                assertEquals(1, transport.closes)
+                ensureActive()
+            }
+        }
+    }
+}
+
+private suspend fun openOwner(
+    kind: Int,
+    transport: OwnerStartTransport,
+    scope: CoroutineScope
+): AsyncCloseable =
+    when (kind) {
+        case 1 -> AsyncHttp1Connection.takeOwnershipAsClient(transport, scope)
+        case 2 -> AsyncHttp2Connection.takeOwnershipAsClient(transport, scope)
+        else -> AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
+    }
+
+private class OwnerStartTransport: AsyncByteStream, AsyncCloseable {
+    var closes: Int = 0
+    private var reading: CancellableContinuation<Long>? = None
+    public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long {
+        try {
+            return suspendCancellableCoroutine<Long> { next -> reading = Some(next) }
+        } finally {
+            reading = None
+        }
+    }
+    public override suspend fun writeFrom(buffer: NativeByteBuffer, count: Long): Long {
+        buffer.skip(count)
+        return count
+    }
+    public override suspend fun flush() {}
+    public override suspend fun close() {
+        closes += 1
+        reading?.tryResumeWithException(IoClosedException())
+    }
+}

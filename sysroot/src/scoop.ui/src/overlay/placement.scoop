@@ -9,7 +9,10 @@ internal class OverlayMeasurePlan(
     private val available: Rect,
     private val placement: OverlayPlanPlacement
 ) {
-    fun layout(size: Size): OverlayLayout =
+    fun layout(
+        size: Size,
+        presence: PresenceSnapshot = PresenceSnapshot(PresencePhase.Present, 1.0)
+    ): OverlayLayout =
         when (placement) {
             case Viewport(horizontal, vertical) -> OverlayLayout(
                 Rect(
@@ -20,7 +23,8 @@ internal class OverlayMeasurePlan(
                 ),
                 available,
                 None,
-                None
+                None,
+                presence
             )
             case Anchored(anchor, side, alignment, preferred, opposite) -> {
                 val vertical = verticalSide(side)
@@ -76,7 +80,8 @@ internal class OverlayMeasurePlan(
                     Rect(x, y, size.width, size.height),
                     space,
                     Some(anchor),
-                    Some(actual)
+                    Some(actual.publicSide()),
+                    presence
                 )
             }
         }
@@ -84,13 +89,14 @@ internal class OverlayMeasurePlan(
 
 internal enum OverlayPlanPlacement {
     Viewport(OverlayAlignment, OverlayAlignment),
-    Anchored(Rect, OverlaySide, OverlayAlignment, Rect, Rect)
+    Anchored(Rect, PhysicalOverlaySide, OverlayAlignment, Rect, Rect)
 }
 
 internal fun planOverlay(
     placement: OverlayPlacement,
     viewport: Size,
-    anchor: Rect?
+    anchor: Rect?,
+    direction: LayoutDirection = LayoutDirection.Ltr
 ): OverlayMeasurePlan {
     checkLayoutSize(viewport)
     return when (placement) {
@@ -99,43 +105,81 @@ internal fun planOverlay(
             OverlayMeasurePlan(
                 Constraints(maxWidth = Some(available.width), maxHeight = Some(available.height)),
                 available,
-                OverlayPlanPlacement.Viewport(horizontal, vertical)
+                OverlayPlanPlacement.Viewport(overlayHorizontal(horizontal, direction), vertical)
             )
         }
-        case Anchored(_, side, alignment, gap, padding, matchWidth) -> {
-            val bounds =
-                anchor ?: throw IllegalStateException(Some("anchor has no current geometry"))
-            requireUi(
-                (bounds.x + bounds.width).isFinite() && (bounds.y + bounds.height).isFinite(),
-                "anchor bounds overflow"
-            )
-            val available = insetViewport(viewport, padding)
-            val preferred = sideSpace(available, bounds, side, gap)
-            val opposite = sideSpace(available, bounds, reverseSide(side), gap)
-            val width = maximum(preferred.width, opposite.width)
-            val height = maximum(preferred.height, opposite.height)
-            val matched = minimum(bounds.width, width)
-            OverlayMeasurePlan(
-                Constraints(
-                    minWidth =
-                        if (matchWidth)
-                            matched
-                        else
-                            0.0,
-                    maxWidth =
-                        Some(
-                            if (matchWidth)
-                                matched
-                            else
-                                width
-                        ),
-                    maxHeight = Some(height)
-                ),
-                available,
-                OverlayPlanPlacement.Anchored(bounds, side, alignment, preferred, opposite)
-            )
-        }
+        case Anchored(_, side, alignment, gap, padding, matchWidth) -> pointOverlayPlan(
+            anchor ?: throw IllegalStateException(Some("anchor has no current geometry")),
+            side,
+            alignment,
+            gap,
+            padding,
+            matchWidth,
+            viewport,
+            direction
+        )
+        case AtPoint(point, side, alignment, gap, padding) -> pointOverlayPlan(
+            Rect(point.x, point.y, 0.0, 0.0),
+            side,
+            alignment,
+            gap,
+            padding,
+            false,
+            viewport,
+            direction
+        )
     }
+}
+
+private fun pointOverlayPlan(
+    bounds: Rect,
+    side: OverlaySide,
+    alignment: OverlayAlignment,
+    gap: Double,
+    padding: Double,
+    matchWidth: Boolean,
+    viewport: Size,
+    direction: LayoutDirection
+): OverlayMeasurePlan {
+    val physical = physicalOverlaySide(side, direction)
+    requireUi(
+        (bounds.x + bounds.width).isFinite() && (bounds.y + bounds.height).isFinite(),
+        "anchor bounds overflow"
+    )
+    val available = insetViewport(viewport, padding)
+    val preferred = sideSpace(available, bounds, physical, gap)
+    val opposite = sideSpace(available, bounds, reverseSide(physical), gap)
+    val width = maximum(preferred.width, opposite.width)
+    val height = maximum(preferred.height, opposite.height)
+    val matched = minimum(bounds.width, width)
+    return OverlayMeasurePlan(
+        Constraints(
+            minWidth =
+                if (matchWidth)
+                    matched
+                else
+                    0.0,
+            maxWidth =
+                Some(
+                    if (matchWidth)
+                        matched
+                    else
+                        width
+                ),
+            maxHeight = Some(height)
+        ),
+        available,
+        OverlayPlanPlacement.Anchored(
+            bounds,
+            physical,
+            if (verticalSide(physical))
+                overlayHorizontal(alignment, direction)
+            else
+                alignment,
+            preferred,
+            opposite
+        )
+    )
 }
 
 private fun minimum(a: Double, b: Double): Double =
@@ -178,18 +222,18 @@ private fun clampPosition(
     extent: Double
 ): Double = clamp(value, origin, origin + available - extent)
 
-private fun verticalSide(side: OverlaySide): Boolean =
-    side == OverlaySide.Top || side == OverlaySide.Bottom
+private fun verticalSide(side: PhysicalOverlaySide): Boolean =
+    side == PhysicalOverlaySide.Top || side == PhysicalOverlaySide.Bottom
 
-private fun reverseSide(side: OverlaySide): OverlaySide =
+private fun reverseSide(side: PhysicalOverlaySide): PhysicalOverlaySide =
     when (side) {
-        case Top -> OverlaySide.Bottom
-        case Right -> OverlaySide.Left
-        case Bottom -> OverlaySide.Top
-        case Left -> OverlaySide.Right
+        case Top -> PhysicalOverlaySide.Bottom
+        case Right -> PhysicalOverlaySide.Left
+        case Bottom -> PhysicalOverlaySide.Top
+        case Left -> PhysicalOverlaySide.Right
     }
 
-private fun sideSpace(viewport: Rect, anchor: Rect, side: OverlaySide, gap: Double): Rect {
+private fun sideSpace(viewport: Rect, anchor: Rect, side: PhysicalOverlaySide, gap: Double): Rect {
     val right = viewport.x + viewport.width
     val bottom = viewport.y + viewport.height
     return when (side) {

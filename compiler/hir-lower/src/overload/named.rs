@@ -27,6 +27,14 @@ pub(crate) struct NamedCallableProbe {
 }
 
 impl NamedCallableProbe {
+    pub(crate) fn lambda_effect_declaration(
+        &self,
+        state: &mut Lowerer,
+        arguments: &[ast::CallArgument],
+    ) -> Option<crate::call_resolution::specificity::LambdaEffectDeclaration> {
+        self.prepared.lambda_effect_declaration(state, arguments)
+    }
+
     pub(crate) fn requirement_effects(&self) -> hir::RequiredCallEffects {
         let effects = self.prepared.view.effects;
         hir::RequiredCallEffects {

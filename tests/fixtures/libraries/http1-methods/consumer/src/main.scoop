@@ -31,9 +31,9 @@ fun main() {
     val port = startPeer()
     check(port > 0)
     try {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val transport = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
             val connection = AsyncHttp1Connection.takeOwnershipAsClient(transport, scope)
             try {

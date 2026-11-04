@@ -1,6 +1,6 @@
 # UI 跨平台抽象与控件基础补齐
 
-日期：2026-11-04。状态：设计完成，尚未实施。本文定义复刻 shadcn 控件之前要完成的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论仍以各库 spec 和此前的实施记录为准。
+日期：2026-11-04。状态：本轮基础库工作已完成 macOS 实施与两架构验收，逐批交付范围见实施记录。本文定义复刻 shadcn 控件之前的基础库工作，承接已经完成的 [UI 基础交互 A–F](../foundations/DESIGN.md) 和 [接收者 DSL 迁移](../DSL-MIGRATION.md)。逐批状态见 [实施记录](PROGRESS.md)；现有接口与验证结论以各库 spec 和相应实施记录为准。
 
 本轮先整理平台合同，再补齐公共布局、交互、文本和绘制能力。沿用 `scoop.graphics`、`scoop.graphics.text`、`scoop.surface`、`scoop.window`／`scoop.window.asyncio` 的分层，不新增统一 platform service、渲染框架或另一套 UI runtime。所有新增能力均为普通库能力，不修改语言、编译器阶段或 runtime ABI。
 
@@ -19,11 +19,11 @@
 
 “跨平台”要求相同的上层 API、交互规则、资源所有权和失败语义，不要求系统字体、字形或设备光栅结果逐像素相同。公共算法的单元测试可以覆盖不同键位约定，但不能据此宣称 Windows 的窗口、IME、剪贴板或 GPU 后端已通过验收。
 
-## 2. 现有基础与剩余缺口
+## 2. 设计时的基础与缺口
 
-已经具备的事件路由、焦点、portal、虚拟化、文本编辑和绘制缓存继续复用。下表只记录本轮需要演进的部分。
+已经具备的事件路由、焦点、portal、虚拟化、文本编辑和绘制缓存继续复用。下表记录设计时识别的演进点；已完成项见实施记录。
 
-| 部分 | 当前事实 | 本轮工作 | 后续使用者 |
+| 部分 | 设计时事实 | 本轮工作 | 后续使用者 |
 | --- | --- | --- | --- |
 | 平台语义 | `Primary` 在 Surface 的 Darwin 实现中直接等于 `superKey`；UI 内保存 AppKit 编辑键位；部分公共剪贴板和文本快照入口只在 Darwin 文件中声明 | 把键位描述、平台解析、显示标签、编辑命令和文本服务合同收回 window，Surface 只做作用域与路由 | Kbd、Command、Menu、Input、Textarea、Combobox |
 | 测量与布局 | `MeasureContext` 限制直接子项恰好测量一次；Row／Column 在主轴给所有子项无界约束 | 有限的重新测量、明确的剩余空间分配、换行及共享轨道布局 | Sidebar、Input Group、Button Group、Calendar、Table、Data Table |
@@ -36,9 +36,9 @@
 
 关键源码依据：
 
-- [Surface 快捷键匹配](../../../sysroot/src/scoop.surface/src/platform/darwin/shortcuts/matching.scoop)、[UI 编辑键位](../../../sysroot/src/scoop.ui/src/text/editor/keyboard.scoop)、[提交键判断](../../../sysroot/src/scoop.ui/src/text/editor/commands.scoop)。
+- [Surface 快捷键匹配](../../../sysroot/src/scoop.surface/src/shared/shortcuts/matching.scoop)、[Window 编辑键位](../../../sysroot/src/scoop.window/platform/darwin/editing_keys.scoop)、[提交键判断](../../../sysroot/src/scoop.ui/src/text/editor/commands.scoop)。
 - [测量协议](../../../sysroot/src/scoop.ui/src/layout/measure.scoop)、[线性布局](../../../sysroot/src/scoop.ui.component/src/layout/containers.scoop)、[lazy 子项收尾](../../../sysroot/src/scoop.ui/src/lazy/items.scoop)。
-- [弹层生命周期](../../../sysroot/src/scoop.ui/src/overlay/instance.scoop)、[成功帧与模态收尾](../../../sysroot/src/scoop.ui/src/overlay/controller.scoop)、[内部激活行为](../../../sysroot/src/scoop.ui.component/src/input/activation.scoop)。
+- [弹层生命周期](../../../sysroot/src/scoop.ui/src/overlay/instance.scoop)、[成功帧与模态收尾](../../../sysroot/src/scoop.ui/src/overlay/controller.scoop)、[公共激活行为](../../../sysroot/src/scoop.ui/src/interaction/press.scoop)。
 - [文本事务](../../../sysroot/src/scoop.ui/src/text/editor/input.scoop)、[现有单行归一化](../../../sysroot/src/scoop.ui/src/text/editor/normalize.scoop)、[Style](../../../sysroot/src/scoop.ui.style/src/style.scoop)、[内部阅读位置](../../../sysroot/src/scoop.ui.component/src/virtual/position.scoop)。
 
 ## 3. 各层职责

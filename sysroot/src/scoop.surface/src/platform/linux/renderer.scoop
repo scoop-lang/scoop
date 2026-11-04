@@ -149,7 +149,9 @@ private class LinuxWindowRenderer(
         when (native) {
             case Some(value) -> @Unsafe
             {
-                linuxResult(linuxSurfaceDemand(value, required), "set EGL frame demand")
+                val drawable =
+                    window.state == WindowState.Open && window.isVisible && !window.isOccluded
+                linuxResult(linuxSurfaceDemand(value, required, drawable), "set EGL frame demand")
             }
             case None -> {
                 if (required)
@@ -303,7 +305,7 @@ private fun linuxSurfaceCreate(
 private fun linuxSurfaceConfigure(surface: Ptr<Unit>, width: Int, height: Int, scale: Double): Int
 
 @Extern(name = "scoop_surface_gles_demand")
-private fun linuxSurfaceDemand(surface: Ptr<Unit>, required: Boolean): Int
+private fun linuxSurfaceDemand(surface: Ptr<Unit>, required: Boolean, drawable: Boolean): Int
 
 @Extern(name = "scoop_surface_gles_acquire")
 private fun linuxSurfaceAcquire(surface: Ptr<Unit>): LinuxAcquiredFrame

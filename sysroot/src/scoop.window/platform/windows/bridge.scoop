@@ -4,9 +4,6 @@ import scoop.window.native.NativeWindowHandle
 
 internal fun platformBackend(): WindowBackend = WindowBackend.Win32
 
-// Win32 keyboard records do not carry AppKit selector interpretations.
-internal fun platformTextCommands(pointer: Ptr<Unit>): Array<TextEditCommand> = []
-
 // The current IMM32 bridge has no surrounding-document connection API.
 internal fun platformTextConnection(event: NativeEvent): TextInputConnection? = None
 

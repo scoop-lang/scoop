@@ -82,9 +82,8 @@ internal fun exercise(
     fields: List<HttpField> = ArrayList<HttpField>(),
     bufferedBodyLimit: Long = 2097152L
 ): Exchange {
-    val loop: EventLoop = PlatformEventLoop()
-    return loop.runWithResult<Exchange> suspend {
-        _ ->
+    val loop = eventLoop()
+    return loop.run<Exchange> {
         val head =
             HttpRequestHead(
                 HttpVersion.Http11,

@@ -51,9 +51,9 @@ private fun exerciseClient(mode: String, url: Url, trust: TrustStore) {
                 HttpField("x-end".toByteArray(), "two".toByteArray())
             ]
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val config =
             httpClientConfig {
                 this.cleartext =

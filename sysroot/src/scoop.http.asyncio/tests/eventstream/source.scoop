@@ -9,9 +9,8 @@ import scoop.test.*
 private class AwsEventStreamSourceTests {
     @Test
     fun `AWS EventStream source drives short reads preserves typed messages and reaches clean EOF without closing a borrowed input`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bytes =
                 ByteArrayBuilder().append(asyncAwsMessage).append(asyncAwsEmpty).toByteArray()
             val input = MessageTestSource(bytes, 3L)
@@ -43,9 +42,8 @@ private class AwsEventStreamSourceTests {
 
     @Test
     fun `AWS EventStream owning source bounds prefetch and early close never drains the remaining messages`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bytes =
                 ByteArrayBuilder().append(asyncAwsEmpty).append(asyncAwsMessage).toByteArray()
             val input = MessageTestSource(bytes, 1000L)
@@ -65,9 +63,8 @@ private class AwsEventStreamSourceTests {
 
     @Test
     fun `AWS EventStream source retains truncation and IO failures and combines owned cleanup errors`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val short = MessageTestSource(Array<Byte>(12L) { index -> asyncAwsEmpty[index] })
             val source = AwsEventStreamSource.takeOwnership(short)
             val truncated = expectMessageFailure<AwsEventStreamException> suspend { source.next() }

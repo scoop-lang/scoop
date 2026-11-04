@@ -9,17 +9,25 @@ import scoop.time.Duration
 public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.0)) {
     private val thread = currentThreadId()
     private val signal = StateSignal()
+    private val subscriptions = ArrayList<ScrollIntentSubscription>()
+    private val notifications = ArrayList<ScrollIntent>()
+    private var notifying = false
     private var viewportOwner: ScrollViewport? = None
     private var initialized = false
     internal var current = ScrollSnapshot(Point(0.0, 0.0), Size(0.0, 0.0), Size(0.0, 0.0))
     internal var request = ScrollRequest.Position(initialOffset)
-    internal var revision = 0UL
+    internal var revision =
+        if (initialOffset == Point(0.0, 0.0))
+            0UL
+        else
+            1UL
+    internal var publishedRevision = revision
 
     init {
         checkScrollPoint(initialOffset)
     }
 
-    private fun observe() {
+    private fun observeState() {
         checkUiThread(thread)
         when (currentEvaluation()) {
             case Some(evaluation) -> evaluation.collector?.read(signal)
@@ -36,84 +44,164 @@ public class ScrollState public constructor(initialOffset: Point = Point(0.0, 0.
         }
     }
     public val snapshot: ScrollSnapshot get() {
-        observe();
+        observeState();
         return current
     }
     public val offset: Point get() = snapshot.offset
     public val viewport: Size get() = snapshot.viewport
     public val content: Size get() = snapshot.content
     public val maximum: Point get() = snapshot.maximum
+    public val hasSnapshot: Boolean get() {
+        observeState()
+        return initialized
+    }
     public val requestRevision: ULong get() {
         checkUiThread(thread)
         return revision
     }
+    public val hasPositionRequest: Boolean get() {
+        checkUiThread(thread)
+        return revision != 0UL
+    }
     public val isAttached: Boolean get() {
-        observe();
+        observeState();
         return viewportOwner?.active ?: false
     }
     public val isAnimating: Boolean get() {
-        observe();
+        observeState();
         return viewportOwner?.moving ?: false
     }
 
-    public fun scrollTo(offset: Point) {
+    public fun observeIntent(handler: (ScrollIntent) -> Unit): Closeable {
+        checkMutation()
+        val value = ScrollIntentSubscription(this, handler)
+        subscriptions.add(value)
+        return value
+    }
+    internal fun removeSubscription(value: ScrollIntentSubscription) {
+        var index = 0L
+        while (index < subscriptions.size) {
+            if (subscriptions[index] === value) {
+                subscriptions.removeAt(index)
+                return
+            }
+            index += 1L
+        }
+    }
+    internal fun notifyIntent(value: ScrollIntent) {
+        notifications.add(value)
+        if (notifying)
+            return
+        notifying = true
+        var failure: Throwable? = None
+        try {
+            var index = 0L
+            while (index < notifications.size) {
+                val event = notifications[index]
+                index += 1L
+                for (subscription in subscriptions.toArray())
+                    if (!subscription.closed)
+                        failure = cleanupUi(failure) { subscription.handler(event) }
+            }
+        } finally {
+            notifications.clear()
+            notifying = false
+        }
+        throwUi(failure)
+    }
+    private fun notifyRequest(origin: ScrollOrigin, token: ULong) {
+        notifyIntent(
+            when (origin) {
+                case User -> ScrollIntent.User(token)
+                case Programmatic -> ScrollIntent.Programmatic(token)
+            }
+        )
+    }
+    public fun scrollTo(offset: Point, origin: ScrollOrigin = ScrollOrigin.Programmatic) {
+        position(offset, origin)
+    }
+    internal fun position(offset: Point, origin: ScrollOrigin = ScrollOrigin.Programmatic): ULong {
         checkMutation()
         checkScrollPoint(offset)
-        change(ScrollRequest.Position(offset))
+        return change(ScrollRequest.Position(offset), origin)
     }
-    public fun scrollBy(delta: Point) {
+    public fun scrollBy(delta: Point, origin: ScrollOrigin = ScrollOrigin.Programmatic): Point {
         checkMutation()
         checkScrollPoint(delta)
         val base =
-            if (initialized)
+            if (viewportOwner?.moving ?: false)
                 current.offset
             else
-                when (request) {
-                    case Position(value) -> value
-                    case Reveal(_, _, _) -> current.offset
-                }
+                if (initialized)
+                    plan(current.viewport, current.content).offset
+                else
+                    when (request) {
+                        case Position(value) -> value
+                        case Reveal(_, _, _) -> current.offset
+                    }
         val next = Point(base.x + delta.x, base.y + delta.y)
         checkScrollPoint(next)
-        change(ScrollRequest.Position(next))
+        val bounded =
+            if (initialized)
+                clampScroll(next, current.viewport, current.content)
+            else
+                base
+        val consumed = Point(bounded.x - base.x, bounded.y - base.y)
+        change(ScrollRequest.Position(next), origin)
+        return consumed
     }
     public fun reveal(
         rect: Rect,
         horizontal: ScrollAlignment = ScrollAlignment.Nearest,
-        vertical: ScrollAlignment = ScrollAlignment.Nearest
+        vertical: ScrollAlignment = ScrollAlignment.Nearest,
+        origin: ScrollOrigin = ScrollOrigin.Programmatic
     ) {
         checkMutation()
         checkScrollRect(rect)
-        change(ScrollRequest.Reveal(rect, horizontal, vertical))
+        change(ScrollRequest.Reveal(rect, horizontal, vertical), origin)
+    }
+    /** Registers a target that a layout will resolve through ScrollAdjustment. */
+    public fun beginLayoutRequest(origin: ScrollOrigin = ScrollOrigin.Programmatic): ULong {
+        checkMutation()
+        return change(ScrollRequest.Position(current.offset), origin)
     }
     public fun animateTo(
         offset: Point,
-        spec: AnimationSpec = AnimationSpec.Tween(Duration.milliseconds(300L))
+        spec: AnimationSpec = AnimationSpec.Tween(Duration.milliseconds(300L)),
+        origin: ScrollOrigin = ScrollOrigin.Programmatic
     ) {
         checkMutation()
         checkScrollPoint(offset)
         val owner =
             viewportOwner ?:
                 throw IllegalStateException(Some("smooth scrolling requires an attached viewport"))
-        owner.animateTo(offset, spec)
+        val token = owner.animateTo(offset, spec)
+        notifyRequest(origin, token)
     }
     public fun cancelAnimation() {
         checkMutation()
         viewportOwner?.cancelAnimation()
     }
-    private fun change(next: ScrollRequest) {
+    private fun change(next: ScrollRequest, origin: ScrollOrigin): ULong {
         viewportOwner?.cancelAnimation()
         request = next
         revision += 1UL
-        if (initialized)
-            publish(plan(current.viewport, current.content), false)
+        val token = revision
         viewportOwner?.requestFrame()
+        notifyRequest(origin, token)
+        return token
     }
     internal fun plan(viewport: Size, content: Size): ScrollSnapshot =
         resolveScroll(request, current.offset, viewport, content)
 
-    internal fun publish(value: ScrollSnapshot, settle: Boolean) {
-        val changed = current != value
+    internal fun publish(
+        value: ScrollSnapshot,
+        settle: Boolean,
+        acceptedRevision: ULong = revision
+    ) {
+        val changed = current != value || !initialized
         current = value
+        publishedRevision = acceptedRevision
         initialized = true
         if (settle)
             request = ScrollRequest.Position(value.offset)

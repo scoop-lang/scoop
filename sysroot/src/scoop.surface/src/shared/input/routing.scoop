@@ -67,7 +67,7 @@ private fun InputRouter.invoke(
             case None -> when (phase) {
                 case Capture -> scope.captureHandler(context, event)
                 case Default -> scope.defaultAction(context, event)
-                else -> scope.handler(context, event)
+                else -> scope.deliverEvent(context, event)
             }
         }
     } finally {
@@ -85,7 +85,7 @@ internal fun InputRouter.route(
     for (delivery in chain) {
         val scope = delivery.scope
         if (!closed && !scope.closed && path(scope).size > 0L)
-            failure = cleanupFailure(failure) { scope.onEventFinished(event) }
+            failure = cleanupFailure(failure) { scope.finishEvent(event) }
     }
     throwFailure(failure)
 }

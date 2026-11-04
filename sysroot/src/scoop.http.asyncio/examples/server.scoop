@@ -16,9 +16,10 @@ fun main(args: Array<String>) {
             args[1L].toInt()
         else
             8081
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port)).useAsync suspend {
             listener ->
             println(f"Listening on ${listener.localAddress.toString()}")
             AsyncHttp1Connection.takeOwnershipAsServer(listener.accept(), scope).useAsync suspend {

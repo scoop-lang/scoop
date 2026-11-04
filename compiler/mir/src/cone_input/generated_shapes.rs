@@ -91,6 +91,7 @@ pub(super) fn partition(module: &Module) -> Result<Partition, ConeMirInputError>
                 })
                 .unwrap_or(*value),
             GeneratedNominalKey::ClosureEnvironment { .. }
+            | GeneratedNominalKey::CoroutineStartWork { .. }
             | GeneratedNominalKey::CallableAdapterEnvironment { .. }
             | GeneratedNominalKey::ContinuationAdapterEnvironment { .. }
             | GeneratedNominalKey::CoroutineFrame { .. }

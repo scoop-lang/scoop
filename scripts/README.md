@@ -42,7 +42,7 @@ python3 scripts/build_llvm_unwind.py --target x86_64-unknown-linux-musl \
 
 Windows 使用 `build_windows_unwind.py --target <完整目标> --source <LLVM-22.1.8-source> --cc <目标-Clang> --build-dir E:/scoop-work/unwind/<target>` 准备静态 LLVM libunwind。Microsoft 在 x64 SDK／MSVC 开发环境中使用同目录的 clang-cl 和 `/MD`；两个 LLVM-MinGW 目标使用各自 CRT prefix 的 Clang。脚本在工作目录中复制所需上游源码，Microsoft 配置应用限定为 Clang x64／静态 Level-I SEH 的 CMake 补丁，并保留 C unwind 函数的异常标记，关闭库自身的 C++ 异常／RTTI。头文件与 canonical `lib/libunwind.a` 发布到 `sysroot/lib/<target>/unwind`，可用 `--prefix` 覆盖；普通编译直接使用这些资源。命中更新记录时不复制源码、启动 CMake／Ninja或检查 archive 内容。
 
-先构建配套的 `scoop`、`scoopc`、`scoop-link`，并用以下维护脚本准备所需目标的 OpenSSL、nghttp2、IDNA／字符集、URL 和压缩后端。Linux 还需要按 `build_llvm_unwind.py --help` 准备同目标的 unwind。然后准备开发 sysroot，例如：
+先构建配套的 `scoop`、`scoopc`、`scoop-link` 和依赖解析使用的 `scoop-pm`，并用以下维护脚本准备所需目标的 OpenSSL、nghttp2、IDNA／字符集、URL 和压缩后端。ABI 或产物格式更新时，这些命令须使用同一份当前源码构建；仅更新编译器会使旧 package manager 拒绝新产物。Linux 还需要按 `build_llvm_unwind.py --help` 准备同目标的 unwind。然后准备开发 sysroot，例如：
 
 ```sh
 python3 scripts/build_nghttp2.py --target aarch64-apple-darwin

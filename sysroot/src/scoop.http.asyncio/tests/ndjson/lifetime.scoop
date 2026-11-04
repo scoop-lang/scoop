@@ -7,10 +7,10 @@ import scoop.test.*
 private class NdjsonLifetimeTests {
     @Test
     fun `NDJSON construction wrong loop and precancellation leave the input usable`() {
-        val loop: EventLoop = PlatformEventLoop()
-        val other: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        val other: EventLoop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = MessageTestSource("a\n".toByteArray())
             assertFailsWith<IllegalArgumentException> {
                 NdjsonSource.takeOwnership(input, maxRecordBytes = -1L)
@@ -44,9 +44,9 @@ private class NdjsonLifetimeTests {
 
     @Test
     fun `NDJSON concurrent readers fail locally and owning close waits for the actual native borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingMessageSource()
             val source = NdjsonSource.takeOwnership(pending, bufferSize = 4L)
             val reader =
@@ -55,11 +55,13 @@ private class NdjsonLifetimeTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 expectMessageFailure<IllegalStateException> suspend { source.next() }
                 assertFalse(present(source.failure))
                 val first = scope.launch suspend { source.close() }
                 val second = scope.launch suspend { source.close() }
+                yieldCoroutine()
                 assertTrue(pending.job!!.isCancelled)
                 assertFalse(reader.isCompleted || first.isCompleted || second.isCompleted)
                 assertEquals(0, pending.closes)
@@ -81,9 +83,9 @@ private class NdjsonLifetimeTests {
 
     @Test
     fun `NDJSON inconsistent source progress fails before record decoding`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (mode in [1, 2, 3, 4]) {
+        val loop = eventLoop()
+        loop.run {
+            for (mode in [1, 2, 3, 4]) {
                 val input = MessageTestSource([])
                 input.badProgress = mode
                 val source = NdjsonSource.takeOwnership(input)

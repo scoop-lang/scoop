@@ -1,0 +1,9 @@
+fun choose(block: () -> Int): Int = 1
+fun choose(block: suspend () -> Int): Long = 2L
+fun pair(first: () -> Int, second: suspend () -> Int): Int = 1
+fun pair(first: suspend () -> Int, second: () -> Int): Int = 2
+
+fun main() {
+    choose { 3 }
+    pair({ 4 }, { 5 })
+}

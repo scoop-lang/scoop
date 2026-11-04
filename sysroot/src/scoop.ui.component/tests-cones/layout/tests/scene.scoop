@@ -18,6 +18,8 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
+        if (generation >= 10)
+            return component({ CombinationScene(probe) })
         val keys =
             if (generation == 0)
                 ["a", "b"]
@@ -93,25 +95,24 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                     this.height = Some(50.0)
                     this.style =
                         styleOverride {
-                            this.cornerRadius(18.0)
+                            this.corners(Corners.all(18.0))
                             this.clipContent(true)
                         }
                 },
                 label(text) {
                     this.fonts = Some(this @LayoutScene.probe.fonts)
-                    this.settings =
-                        paragraphStyle {
-                            this.direction =
-                                if (generation >= 5)
-                                    TextDirection.Rtl
-                                else
-                                    TextDirection.Ltr
-                            this.maxLines =
-                                if (generation == 4)
-                                    Some(1L)
-                                else
-                                    None
-                        }
+                    this.settings {
+                        this.direction =
+                            if (generation >= 5)
+                                TextDirection.Rtl
+                            else
+                                TextDirection.Ltr
+                        this.maxLines =
+                            if (generation == 4)
+                                Some(1L)
+                            else
+                                None
+                    }
                     this.inlines =
                         [
                             inlineView(
@@ -137,14 +138,16 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                         [
                                             component(
                                                 ButtonProps(
-                                                    LabelProps(
-                                                        LabelText.Plain(
-                                                            f"Inline ${
-                                                                this @LayoutScene.probe.inlineClicks.value
-                                                            }",
-                                                            None
-                                                        ),
-                                                        Some(this @LayoutScene.probe.fonts)
+                                                    ButtonContent.Label(
+                                                        LabelProps(
+                                                            LabelText.Plain(
+                                                                f"Inline ${
+                                                                    this @LayoutScene.probe.inlineClicks.value
+                                                                }",
+                                                                None
+                                                            ),
+                                                            Some(this @LayoutScene.probe.fonts)
+                                                        )
                                                     ),
                                                     {
                                                         this @LayoutScene.probe.inlineClicks.value += 1
@@ -164,7 +167,9 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                 }
                             )
                         ]
-                }
+                },
+                flexContract(probe.fonts),
+                visualContract(generation, probe.visuals)
             ]
         )
     }
@@ -204,6 +209,16 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
                 )
             )
         context.placeChild(3L, Point(20.0, 240.0))
+        val flex =
+            context.measureChild(
+                4L,
+                Constraints(minWidth = 300.0, maxWidth = Some(300.0), maxHeight = Some(200.0))
+            )
+        assertEquals(300.0, flex.size.width)
+        assertTrue(flex.alphabeticBaseline!! >= 20.0)
+        context.placeChild(4L, Point(300.0, 110.0))
+        context.measureChild(5L, Constraints.tight(Size(208.0, 64.0)))
+        context.placeChild(5L, Point(360.0, 340.0))
         return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
     }
     public override fun scene(context: SceneContext) {

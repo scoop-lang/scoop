@@ -119,7 +119,9 @@ enum {
   SW_SUPER = 8,
   SW_CAPS = 16,
   SW_NUM = 32,
-  SW_SCROLL = 64
+  SW_SCROLL = 64,
+  SW_ALT_GRAPH = 128,
+  SW_ALT_GRAPH_KNOWN = 1u << 17
 };
 extern SWApplication *sw_application;
 double sw_now(void);

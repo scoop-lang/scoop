@@ -1,0 +1,251 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+public class WrapProps public constructor(
+    public val axis: FlexAxis,
+    public val layout: LinearProps,
+    public val lineSpacing: Double = 0.0
+) {
+    init {
+        nonnegative(lineSpacing, "invalid wrap line spacing")
+    }
+}
+
+public class WrapBuilder internal constructor(): LinearBuilder() {
+    public var axis: FlexAxis = FlexAxis.Horizontal
+    public var lineSpacing: Double = 0.0
+}
+
+public fun wrap(configure: WrapBuilder.() -> Unit = {}): View = makeWrap(configure)
+
+internal fun makeWrap(configure: WrapBuilder.() -> Unit): View {
+    val builder = WrapBuilder()
+    builder.configure()
+    return component(
+        WrapProps(builder.axis, builder.snapshot(), builder.lineSpacing),
+        { props -> Wrap(props) },
+        builder.key
+    )
+}
+
+public class Wrap public constructor(private val props: Props<WrapProps>): Component {
+    public override fun render(): View =
+        element(props.value, { input -> WrapInk(input) }, props.value.layout.children)
+}
+
+private class WrapMeasuredLine(
+    val line: WrapLine,
+    val metrics: Array<LayoutMetrics>,
+    val main: Double,
+    val cross: FlexCrossMetrics
+)
+
+private class WrapInk(private val props: Props<WrapProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val layout = input.layout
+        val vertical = input.axis == FlexAxis.Vertical
+        val padding = layout.logicalPadding?.resolve(context.layoutDirection) ?: layout.padding
+        val inset = padding.totals()
+        val mainMaximum =
+            insetMaximum(
+                if (vertical)
+                    constraints.maxHeight
+                else
+                    constraints.maxWidth,
+                flexMain(inset, vertical)
+            )
+        val crossMaximum =
+            insetMaximum(
+                if (vertical)
+                    constraints.maxWidth
+                else
+                    constraints.maxHeight,
+                flexCross(inset, vertical)
+            )
+        val options =
+            Array<FlexItemOptions>(layout.items.size) { index -> layout.items[index].options }
+        val aligns =
+            Array<CrossAlignment>(options.size) {
+                index -> options[index].align ?: layout.alignment
+            }
+        for (align in aligns)
+            requireComponent(
+                !vertical || align != CrossAlignment.Baseline,
+                "baseline alignment requires a horizontal wrap"
+            )
+        val content = MutableArray<LayoutMetrics?>(options.size) { _ -> None }
+        val bases =
+            Array<Double>(options.size) {
+                index ->
+                val basis =
+                    when (options[index].basis) {
+                        case Fixed(value) -> value
+                        case Content -> {
+                            val measured =
+                                context.measureChild(
+                                    index,
+                                    flexConstraints(None, crossMaximum, vertical)
+                                )
+                            content[index] = Some(measured)
+                            flexMain(measured.size, vertical)
+                        }
+                    }
+                flexClamp(basis, options[index])
+            }
+        val lines = wrapLines(bases, layout.spacing, mainMaximum)
+        val measured =
+            Array<WrapMeasuredLine>(lines.size) {
+                lineIndex -> measureLine(
+                    context,
+                    lines[lineIndex],
+                    bases,
+                    options,
+                    aligns,
+                    content,
+                    mainMaximum,
+                    crossMaximum,
+                    layout.spacing,
+                    vertical
+                )
+            }
+        var main = 0.0
+        var cross = flexGaps(lines.size, input.lineSpacing)
+        for (line in measured) {
+            main = lowerBound(main, line.main)
+            cross += line.cross.extent
+        }
+        for (option in options)
+            if (option.grow > 0.0)
+                main = mainMaximum ?: main
+        nonnegative(cross, "wrap cross extent overflow")
+        val size =
+            constraints.constrain(
+                flexSize(
+                    main + flexMain(inset, vertical),
+                    cross + flexCross(inset, vertical),
+                    vertical
+                )
+            )
+        val availableMain = lowerBound(flexMain(size, vertical) - flexMain(inset, vertical), 0.0)
+        val innerWidth = lowerBound(size.width - inset.width, 0.0)
+        var lineOrigin = 0.0
+        var alphabetic: Double? = None
+        var ideographic: Double? = None
+        for (line in measured) {
+            val space = flexSpacing(layout.justify, availableMain - line.main, line.line.count)
+            var cursor = space.leading
+            for (position in 0L ..< line.line.count) {
+                val index = line.line.start + position
+                val metric = line.metrics[position]
+                val crossOffset =
+                    lineOrigin +
+                        flexCrossOffset(
+                            aligns[index],
+                            line.cross.extent,
+                            metric,
+                            line.cross.baseline,
+                            vertical
+                        )
+                val start =
+                    if (vertical)
+                        crossOffset
+                    else
+                        cursor
+                val top =
+                    if (vertical)
+                        cursor
+                    else
+                        crossOffset
+                val origin =
+                    Point(
+                        padding.left +
+                            logicalX(start, metric.size.width, innerWidth, context.layoutDirection),
+                        padding.top + top
+                    )
+                context.placeChild(index, origin)
+                if (alphabetic == None) {
+                    when (metric.alphabeticBaseline) {
+                        case Some(value) -> alphabetic = Some(value + origin.y)
+                        case None -> {}
+                    }
+                }
+                if (ideographic == None) {
+                    when (metric.ideographicBaseline) {
+                        case Some(value) -> ideographic = Some(value + origin.y)
+                        case None -> {}
+                    }
+                }
+                cursor += flexMain(metric.size, vertical) + layout.spacing + space.between
+            }
+            lineOrigin += line.cross.extent + input.lineSpacing
+        }
+        return LayoutMetrics(size, alphabetic, ideographic)
+    }
+
+    public override fun scene(context: SceneContext) {
+        containerScene(context, props.value.layout.clip)
+    }
+}
+
+private fun measureLine(
+    context: MeasureContext,
+    line: WrapLine,
+    bases: Array<Double>,
+    options: Array<FlexItemOptions>,
+    aligns: Array<CrossAlignment>,
+    content: MutableArray<LayoutMetrics?>,
+    mainMaximum: Double?,
+    crossMaximum: Double?,
+    gap: Double,
+    vertical: Boolean
+): WrapMeasuredLine {
+    val natural = Array<Double>(line.count) { index -> bases[line.start + index] }
+    val localOptions = Array<FlexItemOptions>(line.count) { index -> options[line.start + index] }
+    val localAligns = Array<CrossAlignment>(line.count) { index -> aligns[line.start + index] }
+    val gaps = flexGaps(line.count, gap)
+    val allocation =
+        when (mainMaximum) {
+            case Some(value) -> allocateFlex(natural, localOptions, lowerBound(value - gaps, 0.0))
+            case None -> natural
+        }
+    val first =
+        Array<LayoutMetrics>(line.count) {
+            position ->
+            val index = line.start + position
+            val previous = content[index]
+            if (
+                mainMaximum ==
+                    None &&
+                    previous !=
+                    None &&
+                    flexMain(previous!!.size, vertical) ==
+                    allocation[position]
+            )
+                previous!!
+            else
+                context.measureChild(
+                    index,
+                    flexConstraints(Some(allocation[position]), crossMaximum, vertical)
+                )
+        }
+    val cross = flexCrossMetrics(first, localAligns, vertical)
+    val final =
+        Array<LayoutMetrics>(line.count) {
+            position -> if (localAligns[position] == CrossAlignment.Stretch)
+                context.measureChild(
+                    line.start + position,
+                    flexConstraints(Some(allocation[position]), Some(cross.extent), vertical, true)
+                )
+            else
+                first[position]
+        }
+    return WrapMeasuredLine(
+        line,
+        final,
+        flexTotal(allocation, gaps),
+        flexCrossMetrics(final, localAligns, vertical)
+    )
+}

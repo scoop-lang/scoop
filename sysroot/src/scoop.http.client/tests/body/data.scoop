@@ -29,9 +29,8 @@ private class RequestBodyDataTest {
                 case Some(_) -> false
             }
         )
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             assertEquals("ABCDE", bodyText(body, 1L))
             assertEquals("ABCDE", bodyText(body, 3L))
             assertEquals("", bodyText(RequestBody.Empty))
@@ -50,9 +49,8 @@ private class RequestBodyDataTest {
             String.fromUtf8(latin.contentType!!.parameter("charset")!!.value)
         )
         assertFailsWith<CharsetException> { RequestBody.fromText("中文", Charset.Iso8859_1) }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             assertEquals("中文 é", bodyText(utf8))
             val output = BodyTestSink()
             latin.writeTo(output, 1L)
@@ -85,9 +83,8 @@ private class RequestBodyDataTest {
                 single.writeString("again")
             }
         assertFailsWith<EncodingException> { RequestBody.fromJson("x", broken, 1024L) }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             assertEquals("\"中文\"", bodyText(body))
             assertEquals("\"中文\"", bodyText(body))
         }
@@ -108,9 +105,8 @@ private class RequestBodyDataTest {
         assertEquals("application/json", String.fromUtf8(body.contentType!!.toByteArray()))
         val custom = ValueEncoderFunction<JsonRequestOnly> { _, encoder -> Int.encode(7, encoder) }
         val explicit = RequestBody.fromJson(value, custom, 1L)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             assertEquals("\"中文\"", bodyText(body))
             assertEquals("\"中文\"", bodyText(body))
             assertEquals("7", bodyText(explicit))
@@ -125,9 +121,8 @@ private class RequestBodyDataTest {
             "application/x-www-form-urlencoded",
             String.fromUtf8(body.contentType!!.toByteArray())
         )
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val encoded = bodyText(body, 1L)
             assertEquals("q=a+b%2B%E4%B8%AD&q=&flag", encoded)
             val parsed = FormUrlEncoded.parse(encoded)

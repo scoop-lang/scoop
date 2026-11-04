@@ -10,6 +10,7 @@ internal class VirtualMeasurements {
     private var index: ItemExtentIndex? = None
     private var orientation = Orientation.Vertical
     private var cross = 0.0
+    private var direction = LayoutDirection.Ltr
     private var known = HashMap<ViewKey, Double>()
 
     fun prepare(
@@ -17,10 +18,19 @@ internal class VirtualMeasurements {
         count: Long,
         mode: ItemExtent,
         axis: Orientation,
-        breadth: Double
+        breadth: Double,
+        readingDirection: LayoutDirection = LayoutDirection.Ltr
     ): ItemExtentIndex {
         val previous = index
-        val sameShape = previous?.mode == Some(mode) && orientation == axis && cross == breadth
+        val sameShape =
+            previous?.mode ==
+                Some(mode) &&
+                orientation ==
+                axis &&
+                cross ==
+                breadth &&
+                direction ==
+                readingDirection
         val sameSource =
             when (source) {
                 case Some(value) -> value === next
@@ -45,6 +55,7 @@ internal class VirtualMeasurements {
         index = Some(fresh)
         orientation = axis
         cross = breadth
+        direction = readingDirection
         known = retained
         return fresh
     }

@@ -4,7 +4,7 @@ import scoop.graphics.Point
 
 internal enum NodeBody {
     Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance),
-    Lazy(LazyInstance, LazyChildren)
+    Lazy(LazyInstance, LazyChildren), Direction
 }
 
 internal class UpdateTurn
@@ -15,6 +15,9 @@ internal class MountedNode(
     var view: View,
     val body: NodeBody
 ) {
+    val depth: Long = (parent?.depth ?: -1L) + 1L
+    var layoutDirection: LayoutDirection =
+        view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
     val scope = ComponentScope(this)
     val paintLayers = PaintLayers()
     val focusTargets = ArrayList<FocusTarget>()
@@ -26,7 +29,6 @@ internal class MountedNode(
     var mounted = false
     var retired = false
     var queued = false
-    var scheduled: UpdateTurn? = None
     var updated: UpdateTurn? = None
     var dependencies: Array<StateSignal> = []
     var metrics: LayoutMetrics? = None
@@ -67,9 +69,10 @@ internal class MountedNode(
     fun replace(next: View) {
         when ((body, next.body)) {
             case(Empty, Empty) -> {}
+            case(Direction, Direction(_, _)) -> {}
             case(Component(instance), Component(description)) -> instance.replace(description)
             case(Element(instance), Element(description, _)) -> instance.replace(description)
-            case(Portal(instance), Portal(_, options)) -> instance.replace(options)
+            case(Portal(instance), Portal(_, open, options)) -> instance.replace(open, options)
             case(Lazy(instance, _), Lazy(description, _, _)) -> instance.replace(description)
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
@@ -79,32 +82,28 @@ internal class MountedNode(
         if (!active || !root.isOpen)
             return
         updated = Some(turn)
+        val previousDirection = layoutDirection
+        layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
         when (body) {
             case Empty -> {}
-            case Portal(instance) -> when (view.body) {
-                case Portal(content, _) -> reconcile(
-                    if (instance.closeReason == None)
-                        [content]
+            case Direction -> when (view.body) {
+                case Direction(content, _) -> {
+                    if (children.size == 1L && children[0L].view === content)
+                        children[0L].refreshDirection(turn)
                     else
-                        [],
-                    turn
+                        reconcile([content], turn)
+                }
+                else -> throw IllegalStateException(
+                    Some("direction description was replaced by another shape")
                 )
+            }
+            case Portal(instance) -> when (view.body) {
+                case Portal(content, _, _) -> instance.prepare(this, content, turn)
                 else -> throw IllegalStateException(
                     Some("portal description was replaced by another shape")
                 )
             }
-            case Component(instance) -> {
-                val collector = DependencyCollector()
-                val next = evaluateUi(Some(collector)) { instance.value.render() }
-                if (!active || !root.isOpen)
-                    return
-                for (source in dependencies)
-                    source.unsubscribe(this)
-                dependencies = collector.collected()
-                for (source in dependencies)
-                    source.subscribe(this)
-                reconcile([next], turn)
-            }
+            case Component(instance) -> rebuildComponent(instance, turn, false)
             case Element(instance) -> {
                 when (view.body) {
                     case Element(_, descriptions) -> reconcile(descriptions, turn)
@@ -122,6 +121,9 @@ internal class MountedNode(
                         Some("lazy description was replaced by another shape")
                     )
                 }
+                if (layoutDirection != previousDirection)
+                    for (child in children)
+                        child.refreshDirection(turn)
                 if (active && root.isOpen && mounted)
                     instance.value.update()
             }
@@ -133,6 +135,7 @@ internal class MountedNode(
         if (!mounted) {
             when (body) {
                 case Empty -> {}
+                case Direction -> {}
                 case Component(instance) -> instance.value.onMount(scope)
                 case Element(instance) -> instance.value.onMount(scope)
                 case Portal(instance) -> instance.mount(this)
@@ -189,6 +192,7 @@ internal class MountedNode(
                 cleanupUi(failure) {
                     when (body) {
                         case Empty -> {}
+                        case Direction -> {}
                         case Component(instance) -> instance.value.onUnmount()
                         case Element(instance) -> instance.value.onUnmount()
                         case Portal(_) -> {}
@@ -202,19 +206,6 @@ internal class MountedNode(
         metrics = None
         placements = []
         throwUi(failure)
-    }
-    fun hasScheduledAncestor(turn: UpdateTurn): Boolean {
-        var cursor = parent
-        while (true) {
-            when (cursor) {
-                case Some(node) -> {
-                    if (sameTurn(node.scheduled, turn) && !sameTurn(node.updated, turn))
-                        return true
-                    cursor = node.parent
-                }
-                case None -> return false
-            }
-        }
     }
 }
 

@@ -52,9 +52,9 @@ internal fun clientWsValidation(trust: TrustStore) {
             val ignored = httpWebSocketRequest(url) { this.fields = [field] };
             Unit
         }
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val client = HttpClient.open(scope, clientWsConfig(trust))
         try {
             for (

@@ -1,44 +1,29 @@
 package scoop.window
 
-/** Publishes applied text immediately, independently of drawing or candidate geometry. */
-public fun Window.publishTextInputState(
+internal fun platformPublishText(
+    window: Window,
     connection: TextInputConnection,
     state: TextInputState,
-    after: TextInputOrigin? = None
-): Boolean {
-    checkTextConnection(connection)
-    state.validate()
-    val sequence =
-        when (after) {
-            case Some(origin) -> {
-                requireWindow(
-                    origin.connection == connection && origin.sequence > 0L,
-                    "text batch belongs to another connection"
-                )
-                origin.sequence
-            }
-            case None -> 0L
-        }
+    after: Long
+): Long {
     @Unsafe
     {
         return state.surroundingText.withUtf8Bytes {
             bytes,
             length -> @Unsafe
             {
-                return@withUtf8Bytes snapshotResult(
-                    nativePublishText(
-                        owner.pointer!!,
-                        NativeTextSnapshot(
-                            connection.generation,
-                            state.revision,
-                            sequence,
-                            bytes,
-                            length,
-                            state.selection.anchor,
-                            state.selection.cursor,
-                            state.markedRange?.start ?: -1L,
-                            state.markedRange?.end ?: -1L
-                        )
+                return@withUtf8Bytes nativePublishText(
+                    window.owner.pointer!!,
+                    NativeTextSnapshot(
+                        connection.generation,
+                        state.revision,
+                        after,
+                        bytes,
+                        length,
+                        state.selection.anchor,
+                        state.selection.cursor,
+                        state.markedRange?.start ?: -1L,
+                        state.markedRange?.end ?: -1L
                     )
                 )
             }
@@ -46,58 +31,32 @@ public fun Window.publishTextInputState(
     }
 }
 
-/** Publishes geometry only for this connection's current, fully applied document revision. */
-public fun Window.publishTextInputCaret(
+internal fun platformPublishTextCaret(
+    window: Window,
     connection: TextInputConnection,
     revision: Long,
     area: LogicalRect?
-): Boolean {
-    checkTextConnection(connection)
-    requireWindow(revision >= 0L, "negative text revision")
-    when (area) {
-        case Some(value) -> checkImeCursorArea(value);
-        case None -> {}
-    }
+): Long {
     @Unsafe
     {
-        return snapshotResult(
-            nativePublishTextCaret(
-                owner.pointer!!,
-                connection.generation,
-                revision,
-                area != None,
-                area?.origin?.x ?: 0.0,
-                area?.origin?.y ?: 0.0,
-                area?.size?.width ?: 0.0,
-                area?.size?.height ?: 0.0
-            )
+        return nativePublishTextCaret(
+            window.owner.pointer!!,
+            connection.generation,
+            revision,
+            area != None,
+            area?.origin?.x ?: 0.0,
+            area?.origin?.y ?: 0.0,
+            area?.size?.width ?: 0.0,
+            area?.size?.height ?: 0.0
         )
     }
 }
 
-/** Makes the basic candidate rectangle unavailable until it is explicitly supplied again. */
-public fun Window.clearImeCursorArea() {
-    owner.requireOpen()
+internal fun platformClearImeCaret(window: Window): Long {
     @Unsafe
     {
-        checkNativeStatus(nativeClearImeCaret(owner.pointer!!), "clear IME caret")
+        return nativeClearImeCaret(window.owner.pointer!!)
     }
-}
-
-private fun Window.checkTextConnection(connection: TextInputConnection) {
-    owner.requireOpen()
-    requireWindow(
-        connection.window == id && connection.generation > 0L,
-        "text connection belongs to another window"
-    )
-}
-
-private fun snapshotResult(code: Long): Boolean {
-    if (code == 1L)
-        return false
-    requireWindow(code != 2L, "invalid text snapshot revision or native batch sequence")
-    checkNativeStatus(code, "publish text input snapshot")
-    return true
 }
 
 @CLayout

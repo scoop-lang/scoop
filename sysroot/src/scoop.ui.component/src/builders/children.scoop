@@ -1,8 +1,10 @@
 package scoop.ui.component
 
+import scoop.graphics.*
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.portal as makePortal
+import scoop.ui.direction as makeDirection
 import scoop.ui.style.StyledBuilder
 import scoop.ui.style.styled as makeStyled
 import scoop.ui.text.TextEditorState
@@ -10,6 +12,7 @@ import scoop.ui.text.TextEditorState
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
     private val entries = ArrayList<View>()
+    internal val childCount: Long get() = entries.size
     public var key: ViewKey = ViewKey.Position
 
     public fun add(view: View): Unit {
@@ -23,6 +26,28 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): Unit {
         add(makePlainLabel(text, configure))
+    }
+
+    public fun imageView(
+        image: Image,
+        naturalSize: Size,
+        configure: ImageViewBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeImageView(image, naturalSize, configure))
+    }
+    public fun pathView(
+        path: Path,
+        viewBox: Rect,
+        configure: PathViewBuilder.() -> Unit = {}
+    ): Unit {
+        add(makePathView(path, viewBox, configure))
+    }
+
+    public fun selectableStyledText(
+        content: StyledText,
+        configure: SelectableStyledTextBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeSelectableStyledText(content, configure))
     }
 
     public fun label(content: StyledText, configure: StyledLabelBuilder.() -> Unit = {}): Unit {
@@ -43,6 +68,14 @@ public open class ChildrenBuilder internal constructor() {
         configure: StyledButtonBuilder.() -> Unit = {}
     ): Unit {
         add(makeStyledButton(text, onClick, configure))
+    }
+
+    public fun button(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeContentButton(content, onClick, configure))
     }
 
     public fun checkbox(
@@ -75,6 +108,26 @@ public open class ChildrenBuilder internal constructor() {
         add(makeColumn(configure))
     }
 
+    public fun flex(configure: FlexBuilder.() -> Unit = {}): Unit {
+        add(makeFlex(configure))
+    }
+
+    public fun wrap(configure: WrapBuilder.() -> Unit = {}): Unit {
+        add(makeWrap(configure))
+    }
+
+    public fun grid(configure: GridBuilder.() -> Unit = {}): Unit {
+        add(makeGrid(configure))
+    }
+
+    public fun direction(
+        content: View,
+        value: LayoutDirection,
+        key: ViewKey = ViewKey.Position
+    ): Unit {
+        add(makeDirection(content, value, key))
+    }
+
     public fun stack(configure: StackBuilder.() -> Unit = {}): Unit {
         add(makeStack(configure))
     }
@@ -99,8 +152,12 @@ public open class ChildrenBuilder internal constructor() {
         add(makeVirtualList(source, itemExtent, configure))
     }
 
-    public fun portal(content: View, configure: PortalBuilder.() -> Unit = {}): Unit {
-        add(makePortal(content, configure))
+    public fun portal(
+        open: Binding<Boolean>,
+        content: View,
+        configure: PortalBuilder.() -> Unit = {}
+    ): Unit {
+        add(makePortal(open, content, configure))
     }
 
     public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): Unit {

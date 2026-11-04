@@ -20,9 +20,9 @@ private class ThemePaintingTest {
                         visual,
                         surfaceOptions {
                             style {
-                                this.border(Some(Border(2.0, Color(0.0, 1.0, 0.0))))
+                                this.border(Some(Border.all(2.0, Color(0.0, 1.0, 0.0))))
                                 this.boxShadows([])
-                                this.cornerRadius(8.0)
+                                this.corners(Corners.all(8.0))
                                 this.contentEffects([ContentEffect.Blur(3.0, 3.0)])
                                 this.clipContent(true)
                             }

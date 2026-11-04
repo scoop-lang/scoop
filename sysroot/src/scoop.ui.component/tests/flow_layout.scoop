@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+@Test
+private class FlowLayoutTest {
+    @Test
+    fun `wrap lines keep declaration order and oversized single items terminate a line`() {
+        val lines = wrapLines([70.0, 70.0, 80.0], 4.0, Some(150.0))
+        assertEquals(2L, lines.size)
+        assertEquals(WrapLine(0L, 2L), lines[0L])
+        assertEquals(WrapLine(2L, 1L), lines[1L])
+        val oversize = wrapLines([500.0, 10.0], 4.0, Some(100.0))
+        assertEquals(WrapLine(0L, 1L), oversize[0L])
+        assertEquals(WrapLine(1L, 1L), oversize[1L])
+        assertEquals(1L, wrapLines([70.0, 70.0, 80.0], 4.0, None).size)
+        assertEquals(0L, wrapLines([], 4.0, Some(0.0)).size)
+    }
+
+    @Test
+    fun `grid resolves content spans before sharing finite remaining space`() {
+        val columns =
+            GridTracks(
+                [
+                    GridTrack.Fixed(40.0),
+                    GridTrack.Auto,
+                    GridTrack.Fraction(1.0),
+                    GridTrack.Fraction(1.0)
+                ],
+                4.0,
+                Some(194.0)
+            )
+        columns.requireContent(1L, 1L, 30.0)
+        columns.requireContent(0L, 2L, 90.0)
+        columns.requireContent(2L, 1L, 10000.0)
+        columns.distribute()
+        val sizes = columns.sizes()
+        assertEquals(40.0, sizes[0L])
+        assertEquals(46.0, sizes[1L])
+        assertEquals(48.0, sizes[2L])
+        assertEquals(48.0, sizes[3L])
+        assertEquals(90.0, columns.spanExtent(0L, 2L))
+        assertEquals(100.0, columns.spanExtent(2L, 2L))
+        assertEquals(194.0, columns.total())
+    }
+
+    @Test
+    fun `unbounded fractions share content requirements and impossible fixed tracks remain explicit`() {
+        val content = GridTracks([GridTrack.Fraction(1.0), GridTrack.Fraction(3.0)], 0.0, None)
+        content.requireContent(0L, 2L, 80.0)
+        content.distribute()
+        assertEquals(20.0, content.sizes()[0L])
+        assertEquals(60.0, content.sizes()[1L])
+        val overflow =
+            GridTracks([GridTrack.Fixed(100.0), GridTrack.Fraction(1.0)], 4.0, Some(20.0))
+        overflow.distribute()
+        assertEquals(100.0, overflow.sizes()[0L])
+        assertEquals(0.0, overflow.sizes()[1L])
+        assertEquals(104.0, overflow.total())
+    }
+
+    @Test
+    fun `logical insets and alignments resolve physical coordinates without changing contents`() {
+        val logical = LogicalInsets(2.0, 3.0, 5.0, 7.0)
+        assertEquals(Insets(2.0, 3.0, 5.0, 7.0), logical.resolve(LayoutDirection.Ltr))
+        assertEquals(Insets(5.0, 3.0, 2.0, 7.0), logical.resolve(LayoutDirection.Rtl))
+        assertEquals(
+            Point(27.0, 9.0),
+            alignedOrigin(
+                Rect(7.0, 9.0, 40.0, 20.0),
+                Size(20.0, 8.0),
+                Alignment(AxisAlignment.Start, AxisAlignment.Start),
+                LayoutDirection.Rtl
+            )
+        )
+        assertEquals(
+            Point(7.0, 9.0),
+            alignedOrigin(
+                Rect(7.0, 9.0, 40.0, 20.0),
+                Size(20.0, 8.0),
+                Alignment(AxisAlignment.End, AxisAlignment.Start),
+                LayoutDirection.Rtl
+            )
+        )
+        assertFailsWith<IllegalArgumentException> {
+            LogicalInsets(start = -1.0).resolve(LayoutDirection.Rtl)
+        }
+    }
+
+    @Test
+    fun `grid descriptions reject invalid tracks and spans before mounting`() {
+        assertFailsWith<IllegalArgumentException> { GridProps([], [GridTrack.Auto], []) }
+        assertFailsWith<IllegalArgumentException> {
+            GridProps([GridTrack.Fraction(0.0)], [GridTrack.Auto], [])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            GridProps(
+                [GridTrack.Auto],
+                [GridTrack.Auto],
+                [GridItem(empty(), 0L, 0L, columnSpan = 2L)]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> { GridItem(empty(), -1L, 0L) }
+        val first = empty()
+        val builder = GridBuilder()
+        builder.item(first) {
+            column = 0L;
+            row = 0L
+        }
+        val snapshot = builder.snapshot()
+        builder.add(GridItem(empty(), 0L, 0L))
+        assertEquals(1L, snapshot.items.size)
+        assertSame(first, snapshot.children[0L])
+    }
+}

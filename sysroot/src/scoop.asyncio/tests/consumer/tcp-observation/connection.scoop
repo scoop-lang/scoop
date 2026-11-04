@@ -9,9 +9,9 @@ import scoop.test.*
 import scoop.time.Duration
 
 internal fun tcpTraceConnection(mode: String, host: String) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val ip =
             if (host == "::1")
                 IpAddress.IPV6_LOOPBACK

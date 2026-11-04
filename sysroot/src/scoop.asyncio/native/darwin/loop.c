@@ -151,7 +151,8 @@ ScoopIoEvent scoop_io_loop_next(ScoopIoLoop *loop) {
 
 bool scoop_io_loop_idle(ScoopIoLoop *loop) {
     pthread_mutex_lock(&loop->mutex);
-    bool idle = !loop->head && !loop->requests && !loop->work && !loop->actions && !loop->workers;
+    bool idle =
+        !loop->head && !loop->requests && !loop->work && !loop->actions && !loop->work_runners;
     pthread_mutex_unlock(&loop->mutex);
     return idle;
 }

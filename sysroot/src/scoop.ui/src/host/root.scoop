@@ -1,5 +1,6 @@
 package scoop.ui
 
+import scoop.collections.sortedBy
 import scoop.graphics.Point
 import scoop.graphics.Color
 import scoop.surface.*
@@ -60,22 +61,16 @@ internal class UiRoot(
         if (!isOpen)
             return
         val turn = UpdateTurn()
-        val work = pending.toArray()
+        val work = pending.toArray().sortedBy<MountedNode, Long> { value -> value.depth }
         pending.clear()
         var repaint = false
         for (value in work) {
             value.queued = false
-            value.scheduled = Some(turn)
             if (value.active && value.frameEnabled)
                 repaint = true
         }
         for (value in work) {
-            if (
-                value.active &&
-                    isOpen &&
-                    !sameTurn(value.updated, turn) &&
-                    !value.hasScheduledAncestor(turn)
-            ) {
+            if (value.active && isOpen && !sameTurn(value.updated, turn)) {
                 value.rebuild(turn)
                 value.mountPending()
             }
@@ -92,13 +87,14 @@ internal class UiRoot(
         overlays.beginFrame()
         try {
             current.measure(Constraints.tight(frame.size), frame.time)
+            current.finishMeasurement()
+            current.scene(frame, Point(0.0, 0.0))
+            overlays.paint(frame)
         } catch (error: UiLayoutEnded) {
             if (isOpen)
                 throw error
             return
         }
-        current.scene(frame, Point(0.0, 0.0))
-        overlays.paint(frame)
     }
     fun addCompletion(node: MountedNode, action: (FrameCompletion) -> Unit) {
         completions.add(SceneCompletion(node, action))
@@ -123,11 +119,13 @@ internal class UiRoot(
         isOpen = false
         pending.clear()
         completions.clear()
-        var failure: Throwable? = None
-        failure = cleanupUi(failure) { focus.close() }
-        failure = cleanupUi(failure) { node?.deactivate() }
-        failure = cleanupUi(failure) { overlays.close() }
-        throwUi(failure)
+        prepareUi {
+            var failure: Throwable? = None
+            failure = cleanupUi(failure) { focus.close() }
+            failure = cleanupUi(failure) { node?.deactivate() }
+            failure = cleanupUi(failure) { overlays.stop() }
+            throwUi(failure)
+        }
     }
     fun requestClose() {
         checkThread()
@@ -155,6 +153,7 @@ internal class UiRoot(
             case Some(value) -> failure = cleanupUi(failure) { value.unmount() }
             case None -> {}
         }
+        failure = cleanupUi(failure) { overlays.close() }
         host.detached(this)
         throwUi(failure)
     }

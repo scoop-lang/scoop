@@ -1,0 +1,75 @@
+package scoop.window
+
+import scoop.test.*
+
+@Test
+private class LinuxEditingTest {
+    @Test
+    fun `Ctrl editing uses logical keys and distinguishes line word and document movement`() {
+        val control = platformModifiers(131074L)
+        val controlShift = platformModifiers(131075L)
+        assertEquals(
+            Some(TextEditCommand.Copy),
+            linuxEditingCommand(LogicalKey.Character("C"), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.Undo),
+            linuxEditingCommand(LogicalKey.Character("z"), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.Redo),
+            linuxEditingCommand(LogicalKey.Character("Z"), controlShift)
+        )
+        assertEquals(
+            Some(TextEditCommand.Redo),
+            linuxEditingCommand(LogicalKey.Character("y"), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.LineStart, false)),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.Home), platformModifiers(131072L))
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.DocumentStart, true)),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.Home), controlShift)
+        )
+        assertEquals(
+            Some(TextEditCommand.Move(TextMovement.WordLeft, true)),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.ArrowLeft), controlShift)
+        )
+        assertEquals(
+            Some(TextEditCommand.Delete(TextDeletion.WordBackward)),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.Backspace), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.InsertNewline),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.Enter), control)
+        )
+        assertEquals(
+            Some(TextEditCommand.InsertBacktab),
+            linuxEditingCommand(LogicalKey.Named(NamedKey.Tab), platformModifiers(131073L))
+        )
+    }
+
+    @Test
+    fun `text modifiers and unrelated keys do not generate editing commands`() {
+        assertEquals(
+            None,
+            linuxEditingCommand(LogicalKey.Character("c"), platformModifiers(131080L))
+        )
+        assertEquals(
+            None,
+            linuxEditingCommand(LogicalKey.Character("c"), platformModifiers(131202L))
+        )
+        assertEquals(
+            None,
+            linuxEditingCommand(LogicalKey.Dead(Some("´")), platformModifiers(131072L))
+        )
+        assertEquals(
+            None,
+            linuxEditingCommand(LogicalKey.Character("x"), platformModifiers(131072L))
+        )
+        assertEquals(Some(true), platformModifiers(131200L).altGraph)
+        assertEquals(Some(false), platformModifiers(131072L).altGraph)
+        assertEquals(None, platformModifiers(0L).altGraph)
+    }
+}

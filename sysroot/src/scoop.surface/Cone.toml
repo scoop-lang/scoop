@@ -87,14 +87,6 @@ when = { os = "linux", env = "gnu" }
 path = "src/platform/linux"
 when = { os = "linux", env = "gnu" }
 
-[[sources]]
-path = "src/platform/desktop"
-when = { os = "linux", env = "gnu" }
-
-[[sources]]
-path = "src/platform/desktop"
-when = { os = "darwin" }
-
 [[native.sources]]
 path = "native/linux/renderer.c"
 when = { os = "linux", env = "gnu" }
@@ -186,4 +178,12 @@ when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests-linux"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/input_claim.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/pointer_observation.scoop"
 when = { os = "linux", env = "gnu" }

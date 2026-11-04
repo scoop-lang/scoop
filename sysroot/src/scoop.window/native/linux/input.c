@@ -5,7 +5,11 @@ uint64_t sw_modifiers(SWApplication *app) {
   if (!app->key_state)
     return 0;
   struct xkb_state *state = app->key_state;
-  uint64_t result = 0;
+  uint64_t result = SW_ALT_GRAPH_KNOWN;
+  if (xkb_state_mod_name_is_active(state, "LevelThree",
+                                   XKB_STATE_MODS_EFFECTIVE) > 0 ||
+      xkb_state_mod_name_is_active(state, "Mod5", XKB_STATE_MODS_EFFECTIVE) > 0)
+    result |= SW_ALT_GRAPH;
   if (xkb_state_mod_name_is_active(state, XKB_MOD_NAME_SHIFT,
                                    XKB_STATE_MODS_EFFECTIVE) > 0)
     result |= SW_SHIFT;
@@ -84,7 +88,9 @@ void sw_key(SWWindow *window, uint32_t code, bool down, bool repeat,
     return;
   sw_update_modifiers(window);
   xkb_keysym_t symbol = xkb_state_key_get_one_sym(app->key_state, code + 8);
-  bool shortcut = (window->modifiers & (SW_CONTROL | SW_SUPER | SW_ALT)) != 0;
+  bool shortcut = (window->modifiers & SW_SUPER) != 0 ||
+                  (!(window->modifiers & SW_ALT_GRAPH) &&
+                   (window->modifiers & (SW_CONTROL | SW_ALT)) != 0);
   if (down && text && !shortcut && compose(window, symbol))
     return;
   if (down && window->preedit_active &&
@@ -146,8 +152,8 @@ void sw_cancel_pointer(SWWindow *window, int reason) {
 void sw_reset_input(SWWindow *window) {
   sw_cancel_pointer(window, 0);
   sw_cancel_composition(window);
-  uint64_t locks =
-      window->modifiers & (SW_CAPS | SW_NUM | SW_SCROLL | (1u << 16));
+  uint64_t locks = window->modifiers & (SW_CAPS | SW_NUM | SW_SCROLL |
+                                        (1u << 16) | SW_ALT_GRAPH_KNOWN);
   for (size_t code = 0;
        code < sizeof(window->key_down) / sizeof(window->key_down[0]); ++code) {
     if (!window->key_down[code])

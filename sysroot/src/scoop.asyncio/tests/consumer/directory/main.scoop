@@ -44,9 +44,8 @@ private suspend fun scan(loop: EventLoop, path: Path): ArrayList<Path> {
 private fun exercise(parent: Path) {
     val directory = createTempDirectory(Some(parent), "scoop-directory-")
     try {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             for (index in 0L ..< 8L) {
                 loop.createTempFile(Some(directory), "条目 ").useAsync suspend {
                     temporary -> NativeByteBuffer.allocate(1L).use suspend {

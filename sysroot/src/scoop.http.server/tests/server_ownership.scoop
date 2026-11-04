@@ -8,13 +8,49 @@ import scoop.text.contains
 @Test
 private class ServerOwnershipTests {
     @Test
+    fun `cancellation before the queued server owner starts leaves the listener reusable`() {
+        val routes = routing { get("/", { _ -> text("reused") }) }
+        val loop = eventLoop()
+        loop.run {
+            val scope = this
+            val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
+            val entered = AtomicBoolean(false)
+            val rejected = AtomicBoolean(false)
+            val opening =
+                scope.launch {
+                    entered.store(true)
+                    try {
+                        HttpServer.takeOwnership(listener, routes, scope)
+                        fail(Some("cancelled adoption succeeded"))
+                    } catch (_: CancellationException) {
+                        rejected.store(true)
+                    }
+                }
+            yieldCoroutine()
+            assertTrue(entered.load())
+            opening.cancel()
+            opening.join()
+            assertTrue(rejected.load())
+            HttpServer.takeOwnership(listener, routes, scope).useAsync {
+                server -> networkClient(server.localAddress, scope).useAsync {
+                    client -> assertEquals("reused", requestText(client))
+                }
+            }
+        }
+    }
+
+    @Test
     fun `registration failure leaves the listener available to its caller`() {
         val routes = routing { this.get("/", suspend { _ -> text("owned") }) }
         val app = routes
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
-            val ended = coroutineScope<CoroutineScope> suspend { child -> child }
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            val ended =
+                coroutineScope<CoroutineScope> {
+                    val child = this
+                    child
+                }
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val address = listener.localAddress
             var rejected = false

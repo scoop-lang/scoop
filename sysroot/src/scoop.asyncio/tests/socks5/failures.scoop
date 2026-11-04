@@ -8,9 +8,8 @@ import scoop.test.*
 private class AsyncSocks5FailureTest {
     @Test
     fun `method negotiation rejects wrong versions unoffered methods and authentication downgrade`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             expectSocks5Failure([4, 0], Socks5Phase.Method, None)
             expectSocks5Failure([5, -1], Socks5Phase.Method, Some(255.toUByte()))
             expectSocks5Failure([5, 1], Socks5Phase.Method, Some(1.toUByte()))
@@ -29,9 +28,8 @@ private class AsyncSocks5FailureTest {
     @Test
     fun `authentication failures keep their own version and status semantics`() {
         val identity = Some(Socks5Credentials.fromUtf8("u", "p"))
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             expectSocks5Failure([5, 2, 2, 0], Socks5Phase.Authentication, None, identity)
             val script =
                 expectSocks5Failure(
@@ -46,9 +44,9 @@ private class AsyncSocks5FailureTest {
 
     @Test
     fun `every CONNECT rejection preserves the actual reply code`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (code in [1, 2, 3, 4, 5, 6, 7, 8, 255]) {
+        val loop = eventLoop()
+        loop.run {
+            for (code in [1, 2, 3, 4, 5, 6, 7, 8, 255]) {
                 expectSocks5Failure(
                     [5, 0, 5, code.toByte(), 0, 1],
                     Socks5Phase.Connect,
@@ -69,18 +67,17 @@ private class AsyncSocks5FailureTest {
                 [5, 0, 5, 0, 0, 3, 1, 0],
                 [5, 0, 5, 0, 0, 3, 1, -1]
             ]
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (bytes in invalid)
+        val loop = eventLoop()
+        loop.run {
+            for (bytes in invalid)
                 expectSocks5Failure(bytes, Socks5Phase.Connect, None)
         }
     }
 
     @Test
     fun `truncation zero writes and transport failures preserve their original errors`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val truncated: Array<Array<Byte>> = [[], [5], [5, 0, 5, 0], [5, 0, 5, 0, 0, 4, 0]]
             for (bytes in truncated) {
                 val script = Socks5Script(bytes)
@@ -117,9 +114,9 @@ private class AsyncSocks5FailureTest {
     fun `handshake and close errors are both retained`() {
         val script = Socks5Script([4, 0])
         script.failClose = true
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             try {
                 AsyncSocks5Tunnel.takeOwnership(script, socks5IpTarget());
                 fail()

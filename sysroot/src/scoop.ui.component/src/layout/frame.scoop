@@ -12,7 +12,8 @@ public class FrameProps public constructor(
     public val alignment: Alignment = Alignment(),
     public val style: StyleOverride = styleOverride(),
     public val surface: SurfaceKind? = None,
-    public val theme: ThemeSource? = None
+    public val theme: ThemeSource? = None,
+    public val logicalPadding: LogicalInsets? = None
 ) {
     init {
         when (width) {
@@ -24,6 +25,7 @@ public class FrameProps public constructor(
             case None -> {}
         }
         padding?.totals()
+        logicalPadding?.resolve(LayoutDirection.Ltr)
     }
 }
 
@@ -72,21 +74,28 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val input = props.value
         val value = input.value
+        val effectivePadding: Insets? =
+            when (value.logicalPadding) {
+                case Some(padding) -> Some(padding.resolve(context.layoutDirection))
+                case None -> value.padding
+            }
         val visual = SurfaceVisual(value.surface ?: SurfaceKind.Plain)
         val options =
             surfaceOptions {
-                this.padding = value.padding
+                this.padding = effectivePadding
                 this.style = value.style
             }
         val metrics =
             when (input.theme) {
-                case Some(theme) -> Some(theme.surfaceMetrics(visual, options));
+                case Some(theme) -> Some(
+                    theme.surfaceMetrics(visual, options, context.layoutDirection)
+                );
                 case None -> None
             }
         val insets =
             when (metrics) {
                 case Some(value) -> value.contentInsets;
-                case None -> value.padding ?: Insets.all(0.0)
+                case None -> effectivePadding ?: Insets.all(0.0)
             }
         val total = insets.totals()
         val child =
@@ -111,7 +120,8 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
         val content =
             when (input.theme) {
                 case Some(theme) -> {
-                    val geometry = theme.surfaceGeometry(bounds, visual, options)
+                    val geometry =
+                        theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
                     drawing = Some(FrameDrawing.Themed(theme, geometry, visual))
                     geometry.content
                 }
@@ -125,7 +135,7 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
                     )
                 }
             }
-        val origin = alignedOrigin(content, child.size, value.alignment)
+        val origin = alignedOrigin(content, child.size, value.alignment, context.layoutDirection)
         context.placeChild(0L, origin)
         return offsetMetrics(child, size, origin.y)
     }

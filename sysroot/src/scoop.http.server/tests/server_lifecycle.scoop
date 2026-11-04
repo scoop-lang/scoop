@@ -48,6 +48,7 @@ private class ServerLifecycleTests {
                             scope.async<Unit> suspend {
                                 server.shutdownGracefully(Duration.seconds(1))
                             }
+                        yieldCoroutine()
                         assertTrue(server.isDraining)
                         assertFalse(server.isClosed)
                         release.signal()
@@ -124,8 +125,7 @@ private class ServerLifecycleTests {
                             text("unreachable")
                         }
                         finally {
-                            nonCancellableScope<Unit> suspend {
-                                _ ->
+                            nonCancellableScope<Unit> {
                                 cleaning.signal();
                                 release.await()
                             }

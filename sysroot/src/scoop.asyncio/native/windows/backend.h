@@ -21,12 +21,11 @@ struct ScoopIoRequest {
 
 struct ScoopIoLoop {
     SRWLOCK mutex;
-    CONDITION_VARIABLE work_ready;
     HANDLE port, notification;
     uint64_t frequency;
     ScoopIoStatus failure;
-    bool failure_reported, stopping, collecting, workers_stopping, workers_started;
-    unsigned workers;
+    bool failure_reported, stopping, collecting;
+    unsigned work_runners;
     int64_t completions;
     ScoopIoCompletion *head, *tail;
     ScoopIoRequest *requests, *packets_head, *packets_tail;
@@ -48,6 +47,5 @@ void scoop_io_request_init(ScoopIoRequest *request, ScoopIoLoop *loop, int64_t i
                            void (*finish)(ScoopIoRequest *, DWORD, DWORD));
 void scoop_io_request_retire(ScoopIoRequest *request);
 void scoop_io_request_cancel(ScoopIoLoop *loop, int64_t id);
-void scoop_io_work_poll(ScoopIoWork *work);
 
 #endif

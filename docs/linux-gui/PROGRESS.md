@@ -1,51 +1,55 @@
-# Linux window、surface 与 UI
+# Linux window、surface 与 graphics
 
-实现分支：`feat/linux-window-surface-ui`。目标为 Linux GNU x86_64，同时提供原生 Wayland 和 X11，参照现有 macOS 的公共合同。用户要求每项功能验证后提交、合并远端 main 并推送。
+实现分支：`feat/linux-window-surface-ui`。交付目标为 Linux GNU x86_64，同时提供原生 Wayland 和 X11，遵循现有 macOS 的公共 API 与资源生命周期合同。musl 保持基础库目标范围，不包含 GUI。
 
-## 实施范围
+## 实现范围
 
-1. 构建现有安装的系统 `.slib`；复用 `~/.scoop/bin` 的工具和本地依赖。
-2. window：X11／Wayland 窗口、输入、IME／文档快照、剪贴板、显示器与 DPI、native lease、deadline、watch 及 window.asyncio。
-3. graphics／surface：Linux Skia Ganesh GLES／EGL 和 Fontconfig／FreeType；同一绘图／文本实现驱动两种窗口，按需帧、隐藏／重显、resize、异常与关闭。
-4. UI：共享框架、文本编辑、Linux 快捷键、控件与三套主题；以所属 Cone 测试和真实窗口示例验收。
+- window：窗口配置、输入、IME／文档快照、剪贴板、显示器与 DPI、native lease、deadline、watch 和 window.asyncio。Wayland 的 libdecor 事件与内容输入使用同一个 owner poll；不透明区域随 configure、resize 和透明设置更新。协议不提供的全局位置等能力返回未知或不支持。
+- 键盘与编辑：复用 main 中归属 window 的 `ShortcutChord`、`textCommands` 和文档编辑操作。Linux Primary 为 Control；物理快捷键标签使用当前 XKB 布局；AltGraph 保留正文输入，不触发普通 Ctrl／Alt 快捷键。剪贴板归一化换行，拒绝写入 NUL，读取带 NUL 的正文返回不支持。
+- graphics／graphics.text：Skia Ganesh GLES／EGL、Fontconfig／FreeType，复用共享绘图、HarfBuzz shaping 与段落布局。sans-serif、serif、monospace 通过 Fontconfig 配置解析。
+- surface：首个 configure 后建立实际尺寸的 EGL surface；resize 完成旧目标的 GPU 使用后重建 backbuffer。GPU context 在借用显示连接结束前 drain／abandon；剩余 GPU 资源的操作明确失败，close 保持安全幂等。Wayland 使用本方 frame callback 和 swap interval 0 控制呈现，静止时保留尚未返回的 callback，显式隐藏、重新配置和关闭时取消。X11 使用 EGL swap interval 控制连续帧。
+- 消费者：共享 UI、文本编辑、控件、样式和三套主题接入 Linux GNU；window.asyncio 和下载示例使用新版协程 receiver 与窗口 executor。Surface 基础示例也可直接在 Linux 构建。
 
-## 当前状态
+## 工具链
 
-安装目录中原有的 25 个 Linux GNU 系统库已构建成功。本阶段增加 11 个图形与 UI 库，`~/.scoop` 当前包含全部 36 个 GNU `.slib`、所需 Skia archive／headers，以及同步后的 GNU 安装清单与本次更新库的源码。为当前下载示例更新 URL、asyncio、HTTP 等依赖，并按依赖顺序重建其消费库；原安装源码的备份保存在仓库外。
+使用 `/home/chenxu/repos/scoop-deps` 中已有的 LLVM 22.1.8、Skia 和其他依赖，全程离线构建，没有下载外部依赖。五个 release 命令 `scoop`、`scoopc`、`scoop-link`、`scoop-lsp`、`scoop-pm` 已重建。目标清单包含 37 个 GNU 系统库、26 个 musl 系统库，以及每个目标的四种 runtime 配置；musl 构建使用已有的 UAPI 编译器 wrapper。
 
-window 阶段已完成原生 X11／Wayland 接入、文档输入、剪贴板、借用句柄、owner loop 和 window.asyncio。原生 C 按项目警告选项构建，Scoop 源码已格式化；release 验证结果：
+链接 Skia 所需的 ELF 修正允许显式对象定义覆盖系统 C++ runtime 的动态 compiler builtin 导出，保留对象间重复定义诊断，并以 C++ 异常组合 fixture 验证。
 
-- `scoop.window`：X11、Wayland 各 13／13。包括真实窗口创建、configure、resize、隐藏重显、多窗口、跨线程唤醒和 lease 延迟销毁；X11 另以 X server 路由的合成事件验证键鼠和文本。
-- `scoop.window.asyncio`：两后端各 1／1，覆盖 io_uring、定时器、取消和 lease 清理。
-- `scoop.window.asyncio/tests-cones/no-window`：两后端各 1／1，覆盖无窗口退出时取消 UDP 接收并等待异步 finally。
+## 验证
 
-测试使用独立 Xvfb／Openbox 和嵌套 Weston，未操作用户桌面。原生 IME 候选窗、实体键盘布局切换、显示器热插拔和桌面合成器间差异尚未进行人工验收；协议不提供的全局位置等能力明确返回未知或不支持。
+以下均使用 release。窗口测试运行在独立 Xvfb／Openbox 与嵌套 Weston 上，GLES 使用 Mesa 软件渲染。
 
-窗口组合补验已闭合默认不透明区域与 libdecor 返回的事件 fd：区域随 configure／resize／setTransparent 更新，装饰栏输入与内容输入共享 owner 的 poll 等待。扩展后的 window 测试仍在两后端各 13／13；X11 从服务器查询透明区域及尺寸，Wayland 以实际合成像素验证不透明／透明切换，并通过装饰栏按钮正常关闭。公开 UI consumer 还在两种后端验证了真实显示协议路由的合成键鼠、编辑选区／撤销／提交、按钮激活和跨进程 Unicode 剪贴板。
+| 范围 | 结果 | 关键覆盖 |
+| --- | --- | --- |
+| window | X11、Wayland 各 17／17 | 配置、resize、隐藏重显、多窗口、跨线程唤醒、lease、编辑命令和快捷键标签 |
+| window deadline、watch | 每个 Cone 两后端各 1／1 | 无窗口等待、到期、eventfd、重复移除及回调期间注销 |
+| window.asyncio、无窗口退出 | 每个 Cone 两后端各 1／1 | executor、io_uring、定时器、取消、lease 与异步 finally |
+| graphics | 40／40 | GLES 离屏绘图、GPU 资源生命周期和 CPU 快照 |
+| graphics.text | 52／52 | Fontconfig 字体、通用字体族与共享文字布局 |
+| surface | X11、Wayland、Wayland 2 倍缩放各 77／77 | 真实帧与像素、连续失效、静止、隐藏重显、resize、重附着和关闭 |
+| surface-errors | 两后端各 1／1 | 可见／未配置窗口的失败清理及主错误保留 |
+| Surface 基础示例 | 4／4，独立可执行程序构建通过 | 拖拽取消、字素边界、组合文本与布局复用 |
+| ui | X11、Wayland 各 87／87 | 布局、状态、文本编辑策略、输入与 GLES 缓存像素 |
+| ui-frames | X11、Wayland、Wayland 2 倍缩放各 1／1 | 移动和移除内容后的 alpha，避免旧帧残影 |
+| ui.component、ui.style | 53／53、19／19 | 控件、布局基础与样式 |
+| 三主题共享测试、ui-dsl | 17／17、1／1 | 主题合同和独立 DSL consumer |
 
-graphics／surface 阶段已完成：Linux 使用 Skia Ganesh GLES／EGL，文本使用 Fontconfig／FreeType。首次 configure 后创建实际尺寸的 EGL surface；resize 排空旧目标的 GPU 使用并重建 EGL surface，避免 Wayland 首帧及 X11 resize 的旧 backbuffer。GPU context 在窗口 lease 结束前 drain／abandon，剩余 GPU 资源操作明确失败，close 仍安全。按需帧在隐藏和 idle 时停止，PendingConfigure 保留内容及 dirty。验证结果：
+新 Surface 产物及其全部系统库依赖已重建，当前继续完成完整主题、下载示例与安装的最终组合验收。
 
-- `scoop.graphics`：37／37，包含真实 GLES 离屏绘图、GPU 资源生命周期与 CPU 快照。
-- `scoop.graphics.text`：49／49，包含 Fontconfig 字体和共享文字布局合同。
-- `scoop.surface`：X11、Wayland、Wayland 2 倍缩放各 70／70；真实多窗口像素读回覆盖首次配置、resize、隐藏重显、idle、重附着及关闭，Linux Primary 为 Control。
-- `surface-errors`：X11、Wayland 各 1／1；绘制抛错时关闭可见与未配置窗口，并保留主错误及多个 cleanup 错误。
-- 工具链打包脚本：5／5；Linux GNU 包含 Skia archive／headers，musl 保持原目标范围。Python 使用 Ruff 0.16.10 格式化和检查；原生 C／C++ 完成格式化与警告检查。
+独立交互程序在 X11 与 Wayland 上均通过真实显示协议输入，覆盖 Ctrl+A／C／X／V／Z／Shift+Z、运行中 US／German 布局切换、物理键标签、AltGraph 正文和跨进程 Unicode 剪贴板。Weston kiosk shell 完全遮挡剪贴板 owner 的场景也已通过，两个进程均正常退出。修复前协议与系统调用跟踪确认了约 5 秒的 EGL 内部等待；修复后使用本方 frame callback 节流并保留静止后的未完成 callback，窗口事件循环仍能响应剪贴板请求。
 
-完整主题组合暴露了 Wayland 的一次帧通知丢失：绘制期间产生的新需求提前触发 acquire，等待 callback 时返回 Deferred，却仍保留已通知状态。已调整为每次获取都消费该次通知，使 callback 到达后继续唤醒。真实双窗口测试增加了绘制期间连续请求四帧的回归；旧实现于初始阶段停帧，修复后 X11、Wayland 和 Wayland 2 倍缩放仍各 70／70，异常清理两后端各 1／1。
+配套检查：
 
-上述呈现测试通过真实显示协议，GPU 为 Mesa 软件渲染，未据此宣称硬件 GPU、真实 IME 或所有合成器验收通过。
+- workspace `cargo fmt --all`、`cargo clippy --workspace --all-targets --offline` 通过；Scoop 源码格式化、变更的 C／C++ 严格警告检查通过。
+- `scoop-linker`、`scoop-manifest`、`scoop-toolchain` 的 release Rust 测试合计 175 项通过。
+- 正式 CLI native-link fixture：55 项通过、24 项不适用，执行 56 个变体、277 个进程，检查 18 个 golden；包括 system-cxx-builtins。
+- 维护脚本 Python 测试 42 项，跳过 6 项；fixture runner 公共规则测试 82 项，跳过 4 项，均无失败。相关 Python 变更使用 Ruff 0.16.10 格式化和检查。
 
-链接 Skia 时发现显式对象的 compiler builtin 与系统 C++ runtime 动态导出冲突，已修正 ELF 符号选择并补充 C++ 异常组合 fixture。`scoop-linker` 22／22，使用 fixture 默认 GCC 的原生链接验收 45 项通过、19 项不适用；workspace fmt／clippy 通过。五个 release 工具命令已重建并安装至 `~/.scoop/bin`。
+合并 main 后发现的 Fontconfig 通用字体族缺口已经补齐；协程调用方已迁移到 receiver API。主题示例先等待实际动画稳定，再严格检查静止和隐藏期间帧数不变。多个大型消费者同时编译曾触发宿主 OOM，后续大型构建串行执行；这不改变编译器的语言、产物或缓存规则。
 
-UI 框架、公共编辑、控件、样式及三套主题已接入 Linux GNU。共享代码继续负责挂载、状态、布局、输入与资源生命周期，Linux 提供 Control 编辑键位及 GLES 目标。UiHost 每帧先清空内容，避免移动或移除元素保留旧像素；原有 macOS 编辑键位保留。release 验证结果：
+## 验证边界
 
-- `scoop.ui`：X11、Wayland 各 66／66，包含组合、多根、状态、布局、文本编辑、Linux 编辑键位和真实 GLES 缓存像素。
-- `ui-frames`：X11、Wayland、Wayland 2 倍缩放各 1／1；实际连续帧验证移动及移除内容后的 alpha，避免上一帧残影。
-- `scoop.ui.component` 33／33，`scoop.ui.style` 16／16，三主题共享测试 17／17；`ui-dsl` 独立 consumer 1／1。
-- 完整主题示例：两后端各 3／3；实际呈现全部控件与三种主题，切换样式、明暗及禁用状态，保留模型／字体／组件身份，验证隐藏、重显与静止停帧。
-- 下载示例：两后端各 5／5；真实 loopback HTTP、文件和后台 SHA-256，覆盖取消、隐藏期间完成、UI 在 I/O 期间更新、重显、停帧及关闭时取消未完成工作。
-- 更新后的 `window.asyncio` 与无窗口退出 Cone 在两后端仍各 1／1，覆盖 io_uring 通知、取消、lease 和异步 finally 收尾。
+原始日志、协议跟踪、截图和临时交互程序保存在仓库外 `/home/chenxu/repos/scoop-deps`，不提交逐次报告。测试保留源码、工具与原产物，复用共享 Cone cache。
 
-自绘 Counter、完整主题展示和下载三个独立可执行示例均完成 release 构建，并在 X11 与 Wayland 上运行和正常关闭。自绘示例修正了输入区域无条件消费事件的问题：只消费自身处理的事件，点击取得焦点后仍可通过 Ctrl+I 更新成员 State；两后端均以实际像素确认计数、动画缩回和旧区域清理。主题程序通过真实指针切换 Material／Fluent。下载程序均从本地 HTTP 服务取得 2 MiB 文件，界面显示 Completed，后台 SHA-256 与原文件一致。所有示例窗口关闭后均以状态 0 退出；更新后的示例源码已同步至安装目录。
-
-原始构建和测试日志保存在仓库外 `/home/chenxu/repos/scoop-deps/logs`。本记录只保存验证范围、结果、失败闭合与实际限制。
+已验证真实显示协议上的软件 GLES 与合成键鼠输入；未据此宣称硬件 GPU、实体键盘、原生 IME 候选窗、显示器热插拔或所有桌面合成器通过人工验收。

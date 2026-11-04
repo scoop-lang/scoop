@@ -135,6 +135,15 @@ impl CoreCompilerProtocolSurfaceV1 {
 
         let coroutine = protocols.coroutines;
         let coroutine_protocol = CoreCoroutineProtocolV1 {
+            work: concrete(interface_nominal(export, coroutine.work)?)?,
+            work_run: callable(export, protocols, coroutine.work_run)?,
+            work_run_dispatch: function_dispatch_slot(export, coroutine.work_run)?,
+            execution: concrete(interface_nominal(export, coroutine.execution)?)?,
+            execution_start: callable(export, protocols, coroutine.execution_start)?,
+            execution_start_dispatch: function_dispatch_slot(export, coroutine.execution_start)?,
+            execution_resume: callable(export, protocols, coroutine.execution_resume)?,
+            execution_resume_dispatch: function_dispatch_slot(export, coroutine.execution_resume)?,
+
             continuation: generic(interface_nominal(export, coroutine.continuation)?)?,
             continuation_resume: callable(export, protocols, coroutine.continuation_resume)?,
             continuation_resume_dispatch: function_dispatch_slot(

@@ -1,9 +1,11 @@
 package scoop.tests.asyncio.consumer
 
 import scoop.asyncio.*
+import scoop.platform.concurrent.currentThreadId
 import scoop.platform.memory.NativeByteBuffer
 import scoop.platform.net.*
 import scoop.test.*
+import scoop.time.Duration
 
 /**
  * Carries a reference-valued result across the published generic event-loop API.
@@ -15,16 +17,43 @@ private class PacketValue(val value: Int)
  */
 @Test
 private class AsyncioConsumerTest {
+    @Test
+    fun `runtime generic result crosses workers owner and shared blocking pool`() {
+        val owner = currentThreadId()
+        val result =
+            asyncRuntime {
+                workers = 2
+                blocking { threads = 1 }
+            }.run<PacketValue> {
+                val loop = currentEventLoop()
+                assertNotEquals(owner, currentThreadId())
+                val value =
+                    async {
+                        blocking {
+                            gcCollect()
+                            PacketValue(42)
+                        }
+                    }
+                withExecutor(loop.executor) {
+                    assertEquals(owner, currentThreadId())
+                    loop.sleep(Duration.nanoseconds(1L))
+                    assertEquals(owner, currentThreadId())
+                }
+                value.await()
+            }
+        assertEquals(42, result.value)
+    }
+
     /**
      * Checks generic loop results, scoped UDP ownership, native-buffer progress, and GC across
      * a real loopback datagram.
      */
     @Test
     fun `production artifacts expose generic results resource use and native IO`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val result =
-            loop.runWithResult<PacketValue> suspend {
-                scope ->
+            loop.run<PacketValue> {
+                val scope = this;
                 assertSame(loop, currentEventLoop())
                 val socket = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val value =

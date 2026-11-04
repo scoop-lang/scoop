@@ -119,8 +119,8 @@ public fun macosTheme(
                     Size(72.0, 28.0),
                     Size(24.0, 24.0),
                     Insets(10.0, 4.0, 10.0, 4.0),
-                    0.75,
-                    6.0,
+                    Insets.all(0.75),
+                    CornerRadii.all(6.0),
                     focus.outset
                 ),
             fill = normal,
@@ -135,8 +135,8 @@ public fun macosTheme(
                     Size(72.0, 28.0),
                     Size(32.0, 28.0),
                     Insets(10.0, 4.0, 10.0, 4.0),
-                    0.75,
-                    6.0,
+                    Insets.all(0.75),
+                    CornerRadii.all(6.0),
                     focus.outset
                 ),
             fill = accent,
@@ -151,8 +151,8 @@ public fun macosTheme(
                     Size(96.0, 64.0),
                     Size(0.0, 0.0),
                     Insets.all(12.0),
-                    0.75,
-                    10.0,
+                    Insets.all(0.75),
+                    CornerRadii.all(10.0),
                     focus.outset
                 ),
             fill = StateColors.solid(palette.elevated),
@@ -192,8 +192,8 @@ public fun macosTheme(
                     CheckboxMetrics(
                         Size(16.0, 16.0),
                         Size(12.0, 12.0),
-                        1.0,
-                        3.0,
+                        Insets.all(1.0),
+                        CornerRadii.all(3.0),
                         4.0,
                         1.7,
                         marker.focus.outset

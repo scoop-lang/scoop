@@ -18,9 +18,9 @@ private class AsyncTlsCaFileTests {
             path.writeText(rootPem() + intermediatePem())
             TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem()).use {
                 identity ->
-                val loop: EventLoop = PlatformEventLoop()
-                loop.run suspend {
-                    scope ->
+                val loop = eventLoop()
+                loop.run {
+                    val scope = this;
                     val context =
                         openTlsClientContext(
                             path,
@@ -49,9 +49,8 @@ private class AsyncTlsCaFileTests {
             malformed.writeText(rootPem() + "trailing")
             encoding.writeAllBytes([255.toByte()])
             empty.writeText("")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 try {
                     openTlsClientContext(missing);
                     fail(Some("missing CA file accepted"))
@@ -94,9 +93,9 @@ private class AsyncTlsCaFileTests {
             path.writeText(rootPem())
             TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem()).use {
                 identity ->
-                val loop: EventLoop = PlatformEventLoop()
-                loop.run suspend {
-                    scope ->
+                val loop = eventLoop()
+                loop.run {
+                    val scope = this;
                     val cancelled =
                         scope.launch suspend {
                             currentJobOrNone()!!.cancel()

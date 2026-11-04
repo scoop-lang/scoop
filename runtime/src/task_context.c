@@ -100,7 +100,7 @@ void *scoop_rt_context_ensure_root_impl(const ScoopTypeDescriptor *task_td,
         ScoopManagedAnchor anchor;
         scoop_thread_push_managed_anchor(&anchor, return_pc, stack_pointer, frame_pointer);
         scoop_thread_poll();
-        /* The allocator clears root; there is no captured binding to copy. */
+        /* The allocator clears root and execution for an independent entry. */
         thread->current_task_context = scoop_gc_alloc_internal(task_td, sizeof(ScoopTaskContext));
         scoop_thread_pop_managed_anchor(&anchor);
     }

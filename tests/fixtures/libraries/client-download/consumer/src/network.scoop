@@ -18,8 +18,7 @@ private class DownloadProgressState {
 }
 
 internal fun downloadNetwork(trust: TrustStore, mode: String, url: Url, directory: Path) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val destination = directory.resolve(Path.fromString("result"))
         val preserving =
             mode ==

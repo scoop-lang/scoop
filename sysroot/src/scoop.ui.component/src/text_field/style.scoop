@@ -27,7 +27,7 @@ public class TextFieldStyle internal constructor(
     ): SurfaceOptions {
         val validation =
             if (invalid)
-                styleOverride { this.border(Some(Border(1.0, theme.tokens.palette.error))) }
+                styleOverride { this.border(Some(Border.all(1.0, theme.tokens.palette.error))) }
             else
                 styleOverride()
         val focus =

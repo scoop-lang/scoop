@@ -1,0 +1,22 @@
+package scoop.window
+
+public fun shortcutChord(
+    key: ShortcutKey,
+    configure: ShortcutModifiersBuilder.() -> Unit = {}
+): ShortcutChord {
+    val builder = ShortcutModifiersBuilder()
+    builder.configure()
+    return ShortcutChord(key, builder.snapshot())
+}
+
+public class ShortcutModifiersBuilder internal constructor() {
+    public var primary: Boolean = false
+    public var shift: Boolean = false
+    public var control: Boolean = false
+    public var alt: Boolean = false
+    public var superKey: Boolean = false
+    public var function: Boolean = false
+
+    internal fun snapshot(): ShortcutModifiers =
+        ShortcutModifiers(primary, shift, control, alt, superKey, function)
+}

@@ -2,6 +2,8 @@
 
 版本：M54，实施中。本文细化 [WebSocket 规范](SCOOP-HTTP-WEBSOCKET-SPEC.md)第 7 节，覆盖普通与 permessage-deflate 会话；实际实现与验证状态见 [M54 进度](../milestone54/PROGRESS.md)。
 
+启动所有者的工厂必须等待子任务完成状态安装和取消监听登记后才交付对象；不能从 launch 返回或未立即写入的字段推断启动失败。等待初始化期间的取消先使子任务停止接管，再沿已有所有权边界清理；跨 executor 由同一状态锁与明确的初始化完成通知协调。
+
 ## 1. 接管与配置
 
 `AsyncWebSocketSession.takeOwnership(transport, scope, role, options = webSocketSessionOptions(), deflate = None)` 为 suspend 工厂，transport 同时实现 AsyncByteStream 与 AsyncCloseable。调用者先完成并验证 RFC 6455 握手，再移交唯一的传输关闭责任。HttpTransport 已保存 HTTP/1 的完整切换后缀，会话直接消费它，不重新解析 HTTP、URL 或握手字段。deflate 是本次握手所得的 WebSocketDeflateNegotiation，缺省不启用扩展并拒绝 RSV1。

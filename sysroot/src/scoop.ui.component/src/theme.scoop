@@ -1,6 +1,7 @@
 package scoop.ui.component
 
 import scoop.ui.style.*
+import scoop.ui.InteractionState
 
 /** Captures the ambient source, while explicit sources remain replaceable Props. */
 internal class ThemeAccess {

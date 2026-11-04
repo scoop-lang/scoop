@@ -11,7 +11,7 @@ public class EventLoopSession internal constructor(
     /** True after I/O cleanup and host watch removal, before onClosed is invoked. */
     public val isClosed: Boolean get() = mailbox.isClosed
     /** Queues a callback in the attach context; false means the closure was not retained. */
-    public fun post(block: (CoroutineScope) -> Unit): Boolean = mailbox.post(block)
+    public fun post(block: CoroutineScope.() -> Unit): Boolean = mailbox.post(block)
     /** Stops accepting callbacks and schedules cancellation, without blocking this thread. */
     public fun requestClose() {
         mailbox.requestClose()
@@ -32,7 +32,6 @@ internal class LoopAttachment(
         {
             watch = Some(host.watch(loopNotification(native), { pump() }))
         }
-        owner.post { mailbox.signal() }
     }
 
     private fun pump() {

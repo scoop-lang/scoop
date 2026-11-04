@@ -15,8 +15,8 @@ suspend fun waitFor(gate: Gate) { suspendCoroutine(Registration(gate)) }
 class Task(val gate: Gate) : SuspendTask<Int> {
     public override suspend fun run(): Int {
         val resource = Resource(21)
-        val first = Resource(20).scope(suspend { value -> value.read() })
-        return resource.scope(suspend { value -> waitFor(gate); value.read() + first })
+        val first = Resource(20).scope { value -> value.read() }
+        return resource.scope { value -> waitFor(gate); value.read() + first }
     }
 }
 class Completion : Continuation<Int> {

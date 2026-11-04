@@ -85,11 +85,10 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
             [
                 element({ RowInk(record) }),
                 if (record.openModal.value)
-                    portal(element({ DialogInk(record) })) {
+                    portal(record.openModal.binding(), element({ DialogInk(record) })) {
                         this.options {
                             this.handle = Some(this @RetainedRow.record.overlay)
                             this.modal = Some(ModalOptions())
-                            this.onClose = { _ -> this @RetainedRow.record.openModal.value = false }
                         }
                     }
                 else

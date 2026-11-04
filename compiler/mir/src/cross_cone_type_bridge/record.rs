@@ -69,6 +69,7 @@ fn is_odr_origin(
                 | GeneratedNominalKey::ClosureEnvironment { .. }
                 | GeneratedNominalKey::CallableAdapterEnvironment { .. }
                 | GeneratedNominalKey::CoroutineFrame { .. }
+                | GeneratedNominalKey::CoroutineStartWork { .. }
                 | GeneratedNominalKey::ContinuationAdapterEnvironment { .. } => return Ok(false),
             };
             let key = authority

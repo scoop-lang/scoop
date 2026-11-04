@@ -1,0 +1,111 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.text.startsWith
+import scoop.time.Duration
+import scoop.window.*
+
+@Test
+private class InteractionFoundationsTest {
+    @Test
+    fun `point overlays use the same collision and logical side geometry as anchors`() {
+        val point = OverlayPlacement.AtPoint(Point(195.0, 140.0))
+        val layout = planOverlay(point, Size(200.0, 160.0), None).layout(Size(60.0, 40.0))
+        assertEquals(Rect(132.0, 100.0, 60.0, 40.0), layout.bounds)
+        assertEquals(Some(OverlaySide.Top), layout.side)
+        assertEquals(Some(Rect(195.0, 140.0, 0.0, 0.0)), layout.anchor)
+        val logical = OverlayPlacement.AtPoint(Point(100.0, 80.0), OverlaySide.Start)
+        assertEquals(
+            Some(OverlaySide.Right),
+            planOverlay(logical, Size(200.0, 160.0), None, LayoutDirection.Rtl).layout(
+                Size(40.0, 30.0)
+            ).side
+        )
+        val aligned = OverlayPlacement.AtPoint(Point(40.0, 40.0))
+        assertEquals(
+            8.0,
+            planOverlay(aligned, Size(200.0, 160.0), None, LayoutDirection.Rtl).layout(
+                Size(60.0, 30.0)
+            ).bounds.x
+        )
+    }
+    @Test
+    fun `shared navigation starts without a focused item skips disabled rows and loops once`() {
+        val row = { index: Long -> (index / 3L).toInt() }
+        val column = { index: Long -> (index % 3L).toInt() }
+        val accepts = { index: Long -> index != 1L }
+        val forward = NavigationStep(NavigationAxis.Linear, true)
+        assertEquals(Some(0L), navigationDestination(5L, None, forward, true, row, column, accepts))
+        assertEquals(
+            Some(2L),
+            navigationDestination(5L, Some(0L), forward, true, row, column, accepts)
+        )
+        assertEquals(
+            Some(0L),
+            navigationDestination(5L, Some(4L), forward, true, row, column, accepts)
+        )
+        assertEquals(
+            None,
+            navigationDestination(5L, Some(4L), forward, false, row, column, accepts)
+        )
+        assertEquals(
+            Some(3L),
+            navigationDestination(
+                5L,
+                Some(0L),
+                NavigationStep(NavigationAxis.Column, true),
+                true,
+                row,
+                column,
+                accepts
+            )
+        )
+        assertEquals(None, navigationDestination(0L, None, forward, true, row, column, accepts))
+    }
+    @Test
+    fun `typeahead preserves Unicode and cyclic searches use metadata without building views`() {
+        val source = SearchSource(["éclair", "élan", "😀 face", "élite"])
+        val matches = { text: String, query: String -> text.startsWith(query) }
+        assertEquals(Some(0L), findTypeahead(source, "é", None, false, matches))
+        assertEquals(Some(1L), findTypeahead(source, "é", None, false, matches))
+        assertEquals(Some(3L), findTypeahead(source, "é", Some(1L), true, matches))
+        assertEquals(Some(1L), findTypeahead(source, "é", Some(3L), true, matches))
+        assertEquals(Some(2L), findTypeahead(source, "😀", None, false, matches))
+        assertEquals(None, findTypeahead(source, "漢", None, false, matches))
+    }
+    @Test
+    fun `hover corridors admit motion toward a facing edge and reject reversals`() {
+        val start = Point(10.0, 10.0)
+        val bounds = Rect(40.0, 0.0, 20.0, 40.0)
+        assertTrue(hoverTransit(start, start, Point(25.0, 12.0), bounds, 2.0))
+        assertFalse(hoverTransit(start, start, Point(25.0, 80.0), bounds, 2.0))
+        assertFalse(hoverTransit(start, Point(30.0, 10.0), Point(20.0, 10.0), bounds, 2.0))
+        assertTrue(hoverTransit(start, Point(30.0, 10.0), Point(42.0, 10.0), bounds, 2.0))
+    }
+    @Test
+    fun `interaction configuration rejects invalid distances and deadlines`() {
+        assertFailsWith<IllegalArgumentException> { TypeaheadOptions(timeout = Duration.ZERO) }
+        assertFailsWith<IllegalArgumentException> {
+            HoverOptions(closeDelay = Duration.milliseconds(-1L))
+        }
+        assertFailsWith<IllegalArgumentException> { HoverOptions(corridorPadding = 0.0 / 0.0) }
+        assertFailsWith<IllegalArgumentException> {
+            portalOptions { atPoint(Point(0.0 / 0.0, 1.0)) }
+        }
+    }
+}
+
+private class SearchSource(private val texts: Array<String>): NavigationSource {
+    public override val count: Long get() = texts.size
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun searchTextAt(index: Long): String = texts[index]
+}

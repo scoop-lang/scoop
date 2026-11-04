@@ -11,12 +11,12 @@ private class ThreadReturnGate {
 @Test
 private class EventLoopThreadTest {
     @Test
-    fun `foreign continuation queues the next IO and returns on the owning loop`() {
-        val loop: EventLoop = PlatformEventLoop()
+    fun `foreign continuation resumes on the owner before any further IO`() {
+        val loop = eventLoop()
         val owner = currentThreadId()
         val gate = ThreadReturnGate()
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val child =
                 scope.async<Int> suspend {
                     val foreign =
@@ -25,6 +25,7 @@ private class EventLoopThreadTest {
                                 Some(Thread.start { continuation.resume(currentThreadId()) })
                         }
                     assertTrue(foreign != owner)
+                    assertEquals(owner, currentThreadId())
                     assertSame(loop, currentEventLoop())
                     gcCollect()
                     loop.sleep(Duration.nanoseconds(1L))
@@ -38,11 +39,11 @@ private class EventLoopThreadTest {
 
     @Test
     fun `foreign cancellation and concurrent run attempts wake one accepted loop`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val cleaned = AtomicBoolean(false)
         val gate = ThreadReturnGate()
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val child =
                 scope.launch suspend {
                     try {
@@ -55,7 +56,7 @@ private class EventLoopThreadTest {
             gate.worker =
                 Some(
                     Thread.start {
-                        assertFailsWith<IllegalStateException> { loop.run suspend { _ -> } }
+                        assertFailsWith<IllegalStateException> { loop.run {} }
                         child.cancel()
                     }
                 )

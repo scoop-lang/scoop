@@ -3,6 +3,48 @@
 use super::*;
 
 #[test]
+fn forced_yield_keeps_a_resume_point_with_coroutine_elision_enabled() {
+    let mut h = Harness::new();
+    let yielding = h.user_fn(
+        "yieldDrive",
+        hir::Body {
+            locals: Arena::new(),
+            statements: Vec::new(),
+        },
+    );
+    h.functions[yielding].is_suspend = true;
+    h.functions[yielding].kind = hir::FunctionKind::Intrinsic(hir::IntrinsicFunction {
+        kind: hir::IntrinsicFunctionKind::CoroutineYield,
+        provider: hir::IntrinsicProviderId::from_raw(0),
+    });
+    let caller = h.user_fn(
+        "yieldCaller",
+        hir::Body {
+            locals: Arena::new(),
+            statements: vec![stmt(hir::StatementKind::Return {
+                value: call_typed(yielding, Vec::new(), h.unit),
+            })],
+        },
+    );
+    h.functions[caller].is_suspend = true;
+    let main = empty_main(&mut h);
+    let source = h.finish_coroutines(main);
+    let module = super::coroutine_tail::sample::lower_tail(&source, true);
+    let (_, coroutine) = module
+        .meta
+        .coroutine_functions
+        .iter()
+        .find(|(_, coroutine)| module.functions[coroutine.function].name == "yieldCaller")
+        .unwrap();
+    assert!(matches!(
+        coroutine.lowering,
+        mir::CoroutineLowering::StateMachine { .. }
+    ));
+    assert_eq!(module.meta.coroutine_resume_points.len(), 1);
+    assert_mir_foundation_projection(&module);
+}
+
+#[test]
 fn suspend_leaf_uses_typed_hidden_abi_and_completed_step() {
     let mut h = Harness::new();
     let leaf = h.user_fn_full(
@@ -403,10 +445,6 @@ fn suspend_call_generates_a_liveness_based_frame_and_resume_point() {
     );
     assert_eq!(identity.suspension_site().segments()[0].ordinal(), 0);
     assert!(matches!(
-        identity.storage(),
-        mir::ContinuationAdapterStorageIdentity::Direct
-    ));
-    assert!(matches!(
         identity.generated_type_record().key(),
         scoop_identity::GeneratedNominalKey::ContinuationAdapterEnvironment {
             source_callable,
@@ -445,12 +483,12 @@ fn suspend_call_generates_a_liveness_based_frame_and_resume_point() {
         )]
     );
     assert_eq!(failure_signature.result(), success_signature.result());
-    assert_eq!(module.classes[point.adapter()].interfaces.len(), 1);
+    assert_eq!(module.classes[point.adapter()].interfaces.len(), 2);
     assert_eq!(
         declared_class(&module.classes[point.adapter()])
             .fields
             .len(),
-        2
+        4
     );
     assert_eq!(
         declared_class(&module.classes[point.adapter()]).fields[1].ty,
@@ -663,10 +701,6 @@ fn suspend_intrinsic_keeps_machine_kinds_and_generated_loop_header_polls_distinc
         point.identity().suspension_site().segments()[0].ordinal(),
         0
     );
-    assert!(matches!(
-        point.identity().storage(),
-        mir::ContinuationAdapterStorageIdentity::Latched { .. }
-    ));
     assert_eq!(
         declared_class(&module.classes[point.adapter()])
             .fields
@@ -714,7 +748,7 @@ fn suspend_intrinsic_keeps_machine_kinds_and_generated_loop_header_polls_distinc
 }
 
 #[test]
-fn start_coroutine_resumes_only_an_immediately_completed_task() {
+fn start_coroutine_captures_context_before_dispatching_its_guarded_work() {
     let mut h = Harness::new();
     let main = h.user_fn(
         "main",
@@ -733,7 +767,9 @@ fn start_coroutine_resumes_only_an_immediately_completed_task() {
     let continuation = core.continuation;
     let task_ty = module_interface_application(&mut hir_module, suspend_task, vec![result]);
     let completion_ty = module_interface_application(&mut hir_module, continuation, vec![result]);
+    let execution_ty = module_interface_application(&mut hir_module, core.execution, vec![]);
     let mut locals = Arena::new();
+    let execution = locals.alloc(local("execution", execution_ty));
     let task = locals.alloc(local("task", task_ty));
     let completion = locals.alloc(local("completion", completion_ty));
     let Some(start_generic) = hir_module.functions[core.start_coroutine].generic_definition()
@@ -755,6 +791,7 @@ fn start_coroutine_resumes_only_an_immediately_completed_task() {
             is_suspend: false,
             modifiers: hir::CallableModifiers::default(),
             params: vec![
+                param("execution", execution_ty, execution),
                 param("task", task_ty, task),
                 param("completion", completion_ty, completion),
             ],
@@ -772,6 +809,8 @@ fn start_coroutine_resumes_only_an_immediately_completed_task() {
                     receiver: scoop_hir::SourceCallReceiver::NoReceiver,
                     callee: (hir::Callable::Generic(start)).into(),
                     args: vec![
+                        local_ref(execution, execution_ty),
+                        expr(hir::ExprKind::BoolLiteral(true), hir_module.boolean),
                         local_ref(task, task_ty),
                         local_ref(completion, completion_ty),
                     ],
@@ -827,7 +866,11 @@ fn start_coroutine_resumes_only_an_immediately_completed_task() {
     assert!(!signature.receiver().is_present());
     assert_eq!(
         signature.parameters(),
-        &[exact(&helper.params[0].ty), exact(&helper.params[1].ty)]
+        helper
+            .params
+            .iter()
+            .map(|param| exact(&param.ty))
+            .collect::<Vec<_>>()
     );
     assert_eq!(signature.result(), exact(&mir::Type::Unit));
     let prefix = &helper.body.blocks[helper.body.entry];
@@ -835,10 +878,23 @@ fn start_coroutine_resumes_only_an_immediately_completed_task() {
         matches!(&prefix.statements[0].kind, mir::StatementKind::ValDecl { init, .. }
         if matches!(init.kind, mir::ExprKind::Context(mir::ContextOperation::Fork { .. })))
     );
+    assert_eq!(helper.params.len(), 4);
+    let (submit, destination) = statement_call(prefix.statements.last().unwrap());
+    assert!(destination.is_none());
+    assert!(matches!(submit.target, mir::CallTarget::Interface { .. }));
+    assert_eq!(submit.args.len(), 2);
+    let work = &module.classes[start_metadata.work_class()];
+    assert_eq!(declared_class(work).fields.len(), 3);
     assert!(
-        matches!(&prefix.statements[1].kind, mir::StatementKind::ValDecl { init, .. }
-        if matches!(init.kind, mir::ExprKind::Context(mir::ContextOperation::Enter { .. })))
+        matches!(work.itables[0].slots.as_slice(), [mir::TableSlot::Function(function)]
+        if *function == start_metadata.work_run())
     );
+    let helper = &module.functions[start_metadata.work_run()];
+    let prefix = &helper.body.blocks[helper.body.entry];
+    assert!(prefix.statements.iter().any(|statement| matches!(
+        &statement.kind, mir::StatementKind::ValDecl { init, .. }
+        if matches!(init.kind, mir::ExprKind::Context(mir::ContextOperation::Enter { .. }))
+    )));
     let mir::Terminator::Goto(run_block) = prefix.terminator else {
         panic!("the child task is installed before invoking run")
     };

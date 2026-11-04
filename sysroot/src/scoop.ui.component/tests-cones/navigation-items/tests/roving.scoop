@@ -1,7 +1,6 @@
 package scoop.tests.ui.itemnavigation
 
 import scoop.graphics.Point
-import scoop.graphics.text.TextDirection
 import scoop.test.*
 import scoop.ui.*
 import scoop.ui.style.Orientation
@@ -51,7 +50,7 @@ internal fun rovingNavigation(probe: ItemNavigationProbe) {
             probe.next {
                 assertTrue(probe.lead.requestFocus())
                 probe.orientation.value = Orientation.Horizontal
-                probe.navigation.value = ItemNavigation.Roving(TextDirection.Rtl, true)
+                probe.navigation.value = ItemNavigation.Roving(Some(LayoutDirection.Rtl), true)
                 probe.replace(Some([0L, 4L, 7L]), parts = 1)
                 probe.scroll.scrollTo(Point(0.0, 0.0))
             }

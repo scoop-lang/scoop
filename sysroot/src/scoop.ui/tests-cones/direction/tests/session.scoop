@@ -1,0 +1,174 @@
+package scoop.tests.ui.direction
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.InputArea
+import scoop.test.*
+import scoop.tests.surface.sendSurfaceKey
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.window.*
+
+@Test
+private class DirectionUiTest {
+    @Test
+    fun `direction changes retain state and focus while portals and keys follow their logical owner`() {
+        val probe = DirectionProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application(
+                applicationOptions { lastWindowPolicy = LastWindowPolicy.Exit }
+            ).run(host)
+        }
+        assertTrue(probe.finished)
+        assertTrue(probe.ui!!.isClosed)
+        for (record in probe.records) {
+            assertEquals(1, record.mounts)
+            assertEquals(1, record.unmounts)
+            assertEquals(19, record.local.value)
+            assertTrue(record.area!!.isClosed)
+        }
+    }
+}
+
+internal class DirectionRecord {
+    val handle = FocusHandle()
+    val local = state(7)
+    var area: InputArea? = None
+    var scope: ComponentScope? = None
+    var mounts = 0
+    var unmounts = 0
+    var updates = 0
+    var observed = LayoutDirection.Ltr
+}
+
+internal class DirectionProbe {
+    val desired = state(LayoutDirection.Ltr)
+    val records = Array<DirectionRecord>(3L) { _ -> DirectionRecord() }
+    val anchor = LayoutAnchor()
+    var window: Window? = None
+    var ui: UiWindow? = None
+    var committed: LayoutDirection? = None
+    var popup: LayoutDirection? = None
+    var side: OverlaySide? = None
+    var inheritedTextX = 0.0
+    var explicitTextX = 0.0
+    var finished = false
+    private var phase = 0
+    private var waiting = false
+    private var localUpdates = 0
+    private var retriedFocus = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop layout direction"
+                            size = LogicalSize(400.0, 240.0)
+                            visible = false
+                        }
+                    )
+                window = Some(native)
+                ui = Some(host.attach(native, { DirectionRoot(this) }))
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
+                )
+                active.proxy().post {
+                    _ ->
+                    native.setVisible(true)
+                    native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                    native.requestFocus()
+                }
+            }
+            case AboutToWait -> {
+                val native = window ?: return
+                if (phase >= 6 || native.state != WindowState.Open)
+                    return
+                if (committed != None && !window!!.isFocused && !retriedFocus) {
+                    retriedFocus = true
+                    window!!.requestFocus()
+                }
+                if (!waiting && window!!.isFocused && phase < 6) {
+                    waiting = true
+                    active.proxy().post {
+                        _ ->
+                        waiting = false;
+                        advance()
+                    }
+                }
+            }
+            case Window(_, WindowEvent.Destroyed) -> active.requestExit()
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"direction timeout in phase ${this @DirectionProbe.phase}")
+            )
+            else -> {}
+        }
+    }
+
+    private fun verify(direction: LayoutDirection) {
+        assertEquals(direction, records[0L].observed)
+        assertEquals(direction, records[1L].observed)
+        assertEquals(LayoutDirection.Rtl, records[2L].observed)
+        assertEquals(Some(direction), popup)
+        assertEquals(
+            Some(
+                if (direction == LayoutDirection.Rtl)
+                    OverlaySide.Right
+                else
+                    OverlaySide.Left
+            ),
+            side
+        )
+        assertTrue(explicitTextX < 0.001)
+        if (direction == LayoutDirection.Rtl)
+            assertTrue(inheritedTextX > 1.0)
+        else
+            assertTrue(inheritedTextX < 0.001)
+        for (record in records) {
+            assertEquals(1, record.mounts);
+            assertEquals(19, record.local.value)
+        }
+    }
+
+    private fun advance() {
+        when (phase) {
+            case 0 -> if (committed == Some(LayoutDirection.Ltr)) {
+                verify(LayoutDirection.Ltr)
+                localUpdates = records[2L].updates
+                assertTrue(records[0L].handle.requestFocus())
+                phase = 1
+            }
+            case 1 -> if (records[0L].handle.hasFocus) {
+                desired.value = LayoutDirection.Rtl
+                phase = 2
+            }
+            case 2 -> if (committed == Some(LayoutDirection.Rtl)) {
+                verify(LayoutDirection.Rtl)
+                assertEquals(localUpdates, records[2L].updates)
+                assertTrue(records[0L].handle.hasFocus)
+                assertTrue(sendSurfaceKey(window!!, 123, true))
+                assertTrue(sendSurfaceKey(window!!, 123, false))
+                phase = 3
+            }
+            case 3 -> if (records[1L].handle.hasFocus) {
+                desired.value = LayoutDirection.Ltr
+                phase = 4
+            }
+            case 4 -> if (committed == Some(LayoutDirection.Ltr)) {
+                verify(LayoutDirection.Ltr)
+                assertEquals(localUpdates, records[2L].updates)
+                assertTrue(sendSurfaceKey(window!!, 123, true))
+                assertTrue(sendSurfaceKey(window!!, 123, false))
+                phase = 5
+            }
+            case 5 -> {
+                if (records[0L].handle.hasFocus) {
+                    finished = true
+                    phase = 6
+                    window!!.requestDestroy()
+                }
+            }
+            else -> {}
+        }
+    }
+}

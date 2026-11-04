@@ -1,13 +1,33 @@
 package scoop.ui.text
 
+import scoop.graphics.text.*
 import scoop.ui.*
 import scoop.window.*
 
-internal fun applyEditorInput(
+internal struct EditorPendingPreedit(
+    val range: Utf8Range,
+    val text: String,
+    val selection: Utf8Selection
+)
+
+/** Raw native coordinates are consumed before any policy callback runs. */
+internal class EditorPreparedInput(
+    val previous: EditorValue,
+    val before: EditorValue,
+    val current: EditorValue,
+    val baseline: EditorValue?,
+    val spans: Array<EditorSpan>,
+    val committedSpans: Array<EditorSpan>,
+    val pending: Array<EditorPendingPreedit>,
+    val completed: Boolean,
+    val boundary: Boolean,
+    val hadComposition: Boolean
+)
+
+internal fun prepareEditorInput(
     editor: TextEditorState,
-    batch: TextInputBatch,
-    singleLine: Boolean = false
-): Boolean {
+    batch: TextInputBatch
+): EditorPreparedInput? {
     editor.storage.checkMutation()
     val previous = editor.storage.value
     when (batch.baseRevision) {
@@ -16,20 +36,24 @@ internal fun applyEditorInput(
         case None -> {}
     }
     if (batch.operations.size == 0L)
-        return false
+        return None
     var current = editorVersion(previous, 0L)
-    var baseline = editor.composition
-    val historyStart = baseline ?: current
+    var baseline = editor.composition?.baseline
+    val before = baseline ?: current
+    var spans =
+        editor.composition?.spans ?: editorInitialSpans(current.input.surroundingText.byteLength)
+    var baselineSpans = editorInitialSpans(before.input.surroundingText.byteLength)
+    val pending = ArrayList<EditorPendingPreedit>()
     var restored = false
-    val continuous = batch.operations.size == 1L && baseline == None
-    var boundary = !continuous
+    var completed = false
+    var boundary = batch.operations.size != 1L || baseline != None
     for (operation in batch.operations) {
         if (restored && explicitEditorRange(operation))
             throw IllegalStateException(Some("text range predates composition cancellation"))
         val applied = current.input.apply(TextInputBatch(None, [operation]))
         val next = EditorValue(applied)
         when (operation) {
-            case Preedit(text, _, _) -> {
+            case Preedit(text, selection, replacement) -> {
                 boundary = true
                 if (text.byteLength == 0L) {
                     when (baseline) {
@@ -37,56 +61,99 @@ internal fun applyEditorInput(
                             restored =
                                 restored || saved.input.surroundingText != applied.surroundingText
                             current = editorVersion(saved, applied.revision)
+                            spans = baselineSpans
                         }
                         case None -> {
+                            spans =
+                                spliceEditorSpans(
+                                    spans,
+                                    editorReplacementRange(current, replacement),
+                                    0L
+                                )
                             current = next
+                            completed = true
                         }
                     }
                     baseline = None
+                    pending.clear()
                 } else {
-                    if (baseline == None)
+                    if (baseline == None) {
                         baseline = Some(current)
+                        baselineSpans = spans
+                    }
+                    val range = editorReplacementRange(current, replacement)
+                    pending.add(
+                        EditorPendingPreedit(
+                            range,
+                            text,
+                            selection ?: Utf8Selection(text.byteLength, text.byteLength)
+                        )
+                    )
+                    spans = spliceEditorSpans(spans, range, text.byteLength)
                     current = next
                 }
             }
-            case Commit(_, _) -> {
+            case Commit(text, replacement) -> {
+                spans =
+                    spliceEditorSpans(
+                        spans,
+                        editorReplacementRange(current, replacement),
+                        text.byteLength
+                    )
                 baseline = None
+                pending.clear()
                 current = next
+                completed = true
             }
             case ClearPreedit -> {
+                completed = completed || baseline != None
                 current = EditorValue(applied, current.anchorAffinity, current.cursorAffinity)
                 baseline = None
+                pending.clear()
                 boundary = true
             }
-            case DeleteSurrounding(_, _) -> {
+            case DeleteSurrounding(beforeCount, afterCount) -> {
+                val selected = current.input.selection.range
+                spans =
+                    spliceEditorSpans(spans, Utf8Range(selected.end, selected.end + afterCount), 0L)
+                spans =
+                    spliceEditorSpans(
+                        spans,
+                        Utf8Range(selected.start - beforeCount, selected.start),
+                        0L
+                    )
                 baseline = None
+                pending.clear()
                 current = next
+                completed = true
                 boundary = true
             }
         }
     }
-    if (singleLine) {
-        current = editorSingleLine(current)
-        baseline =
-            when (baseline) {
-                case Some(saved) -> Some(editorSingleLine(saved))
-                case None -> None
-            }
-    }
-    val edits = ArrayList<EditorDelta>()
-    val kind =
-        if (!boundary && previous.input.selection.anchor == previous.input.selection.cursor)
-            EditorEditKind.Typing
-        else
-            EditorEditKind.Separate
-    appendEditorDelta(edits, historyStart, baseline ?: current, kind)
-    return editor.publish(
-        current,
-        baseline,
-        EditorHistoryChange.Append(edits.toArray(), boundary, boundary),
-        true
+    return Some(
+        EditorPreparedInput(
+            previous,
+            before,
+            current,
+            baseline,
+            spans,
+            if (baseline == None)
+                spans
+            else
+                baselineSpans,
+            pending.toArray(),
+            completed,
+            boundary,
+            editor.isComposing
+        )
     )
 }
+
+internal fun editorReplacementRange(current: EditorValue, replacement: TextReplacement): Utf8Range =
+    when (replacement) {
+        case CurrentSelection -> current.input.markedRange ?: current.input.selection.range
+        case Range(value) -> value
+    }
 
 private fun explicitEditorRange(operation: TextInputOperation): Boolean =
     when (operation) {
@@ -94,3 +161,140 @@ private fun explicitEditorRange(operation: TextInputOperation): Boolean =
         case Preedit(_, _, TextReplacement.Range(_)) -> true
         else -> false
     }
+
+internal class EditorPreparedEdit(
+    val value: EditorValue,
+    val composition: EditorComposition?,
+    val history: EditorHistoryChange,
+    val accepted: Boolean
+) {
+    fun publish(editor: TextEditorState, forceRevision: Boolean): Boolean =
+        editor.publish(value, composition, history, forceRevision)
+}
+
+internal fun finishEditorInput(
+    raw: EditorPreparedInput,
+    policy: TextEditPolicy,
+    source: TextEditSource,
+    singleLine: Boolean = false,
+    kind: EditorEditKind = EditorEditKind.Typing,
+    selection: EditorSelection? = None
+): EditorPreparedEdit {
+    if (!raw.completed) {
+        val composition =
+            when (raw.baseline) {
+                case Some(saved) -> Some(EditorComposition(saved, raw.spans))
+                case None -> None
+            }
+        return EditorPreparedEdit(raw.current, composition, EditorHistoryChange.Break, true)
+    }
+    var proposed = raw.baseline ?: raw.current
+    when (selection) {
+        case Some(endpoints) -> proposed = editorSelect(proposed.input, endpoints)
+        case None -> {}
+    }
+    val filtered =
+        filterEditorCandidate(raw.before, proposed, raw.committedSpans, source, policy, singleLine)
+    val result =
+        when (filtered) {
+            case Some(value) -> value
+            case None -> return EditorPreparedEdit(
+                if (raw.hadComposition)
+                    raw.before
+                else
+                    raw.previous,
+                None,
+                if (raw.hadComposition)
+                    EditorHistoryChange.Break
+                else
+                    EditorHistoryChange.Append([], false, false),
+                false
+            )
+        }
+    val edits = ArrayList<EditorDelta>()
+    val separate =
+        raw.boundary ||
+            result.transformed ||
+            kind ==
+            EditorEditKind.Separate ||
+            raw.before.input.selection.anchor !=
+            raw.before.input.selection.cursor
+    appendEditorDelta(
+        edits,
+        raw.before,
+        result.value,
+        if (separate)
+            EditorEditKind.Separate
+        else
+            kind
+    )
+    var value = result.value
+    var composition: EditorComposition? = None
+    if (raw.baseline != None) {
+        var mapping = result.mapping
+        var spans = editorInitialSpans(value.input.surroundingText.byteLength)
+        for (preedit in raw.pending) {
+            val first = mapping.forward(TextPosition(preedit.range.start, TextAffinity.Downstream))
+            val last = mapping.forward(TextPosition(preedit.range.end, TextAffinity.Upstream))
+            val range =
+                Utf8Range(
+                    first.byteOffset,
+                    if (last.byteOffset >= first.byteOffset)
+                        last.byteOffset
+                    else
+                        first.byteOffset
+                )
+            val applied =
+                value.input.apply(
+                    TextInputBatch(
+                        None,
+                        [
+                            TextInputOperation.Preedit(
+                                preedit.text,
+                                Some(preedit.selection),
+                                TextReplacement.Range(range)
+                            )
+                        ]
+                    )
+                )
+            value = EditorValue(applied)
+            spans = spliceEditorSpans(spans, range, preedit.text.byteLength)
+            mapping = EditorPreeditMap(mapping, preedit.range, range, preedit.text.byteLength)
+        }
+        composition = Some(EditorComposition(result.value, spans))
+    }
+    return EditorPreparedEdit(
+        value,
+        composition,
+        EditorHistoryChange.Append(edits.toArray(), separate, separate),
+        true
+    )
+}
+
+internal fun applyEditorInput(
+    editor: TextEditorState,
+    batch: TextInputBatch,
+    singleLine: Boolean = false,
+    policy: TextEditPolicy = textEditPolicy(),
+    source: TextEditSource = TextEditSource.NativeInput
+): Boolean {
+    val raw = prepareEditorInput(editor, batch) ?: return false
+    return finishEditorInput(raw, policy, source, singleLine).publish(editor, true)
+}
+
+internal fun prepareEditorEdit(
+    editor: TextEditorState,
+    range: Utf8Range,
+    text: String,
+    policy: TextEditPolicy,
+    source: TextEditSource,
+    singleLine: Boolean = false,
+    kind: EditorEditKind = EditorEditKind.Separate
+): EditorPreparedEdit {
+    val raw =
+        prepareEditorInput(
+            editor,
+            TextInputBatch(None, [TextInputOperation.Commit(text, TextReplacement.Range(range))])
+        )!!
+    return finishEditorInput(raw, policy, source, singleLine, kind)
+}

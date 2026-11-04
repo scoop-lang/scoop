@@ -77,9 +77,9 @@ private fun exerciseConsumer(args: Array<String>) {
 }
 
 private fun runPair(profile: WsProfile) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
         try {
             val serving =
@@ -99,18 +99,18 @@ private fun runPair(profile: WsProfile) {
 }
 
 private fun runClient(port: Int, profile: WsProfile) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val raw = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
         useUpgrade(wsTransport(raw, profile, false), scope, profile)
     }
 }
 
 private fun runServer(port: Int, profile: WsProfile) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
         try {
             println("PORT|" + listener.localAddress.port.toString())

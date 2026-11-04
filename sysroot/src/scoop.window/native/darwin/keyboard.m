@@ -33,7 +33,15 @@ int32_t scoop_window_shortcut_equal(const uint8_t *left, int64_t left_size,
   }
 }
 
+NSEventModifierFlags sw_input_modifiers(SWView *view,
+                                        NSEventModifierFlags flags) {
+  // AppKit also sets Function on arrow/function-key events without a held Fn.
+  return (flags & ~NSEventModifierFlagFunction) |
+         (view.functionHeld ? NSEventModifierFlagFunction : 0);
+}
+
 void sw_modifiers(SWView *view, NSEventModifierFlags flags) {
+  flags = sw_input_modifiers(view, flags);
   if (view.modifiers == flags)
     return;
   view.modifiers = flags;
@@ -51,7 +59,7 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   SWEvent *event = sw_event(view.owner, SWKeyboard);
   SWEventData data = event.data;
   data.a = native.keyCode;
-  data.b = (int64_t)native.modifierFlags;
+  data.b = (int64_t)sw_input_modifiers(view, native.modifierFlags);
   BOOL keyEvent =
       native.type == NSEventTypeKeyDown || native.type == NSEventTypeKeyUp;
   data.flags = down ? 1 | (keyEvent && native.isARepeat ? 2 : 0) : 0;
@@ -111,6 +119,9 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
   return YES;
 }
 - (void)flagsChanged:(NSEvent *)event {
+  if (event.keyCode == 63)
+    self.functionHeld =
+        (event.modifierFlags & NSEventModifierFlagFunction) != 0;
   sw_modifiers(self, event.modifierFlags);
   NSEventModifierFlags aggregate = 0, side = 0, pair = 0;
   switch (event.keyCode) {
@@ -171,6 +182,7 @@ static void key(SWView *view, NSEvent *native, BOOL down) {
 - (void)resetInput {
   [self cancelPointer:0];
   [self cancelComposition];
+  self.functionHeld = NO;
   NSEventModifierFlags locks = self.modifiers & NSEventModifierFlagCapsLock;
   for (NSNumber *code in [[self.pressedKeys allKeys]
            sortedArrayUsingSelector:@selector(compare:)]) {

@@ -5,17 +5,23 @@ import scoop.graphics.Size
 import scoop.time.TimeMark
 
 private class ChildMeasure(val node: MountedNode) {
-    var attempted = false
+    var measuring = false
+    var constraints: Constraints? = None
     var result: LayoutMetrics? = None
     var origin: Point? = None
 }
 
-/** One synchronous measure callback; every child is measured once and placed at most once. */
+/** One synchronous measure callback; children can be remeasured before their single placement. */
 public class MeasureContext internal constructor(
-    private val root: UiRoot,
+    private val node: MountedNode,
     children: Array<MountedNode>,
     private val mark: TimeMark
 ) {
+    private val root = node.root
+    public val layoutDirection: LayoutDirection get() {
+        checkActive();
+        return node.layoutDirection
+    }
     private var active = true
     private val entries =
         Array<ChildMeasure>(children.size) { index -> ChildMeasure(children[index]) }
@@ -35,12 +41,25 @@ public class MeasureContext internal constructor(
     public fun measureChild(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
         val entry = entries[index]
-        if (entry.attempted)
-            throw IllegalStateException(Some("child was already measured"))
-        entry.attempted = true
-        val result = entry.node.measure(constraints, mark)
-        entry.result = Some(result)
-        return result
+        if (entry.origin != None)
+            throw IllegalStateException(Some("child was already placed"))
+        if (entry.measuring)
+            throw IllegalStateException(Some("child measurement is reentrant"))
+        when (entry.result) {
+            case Some(result) -> if (entry.constraints == Some(constraints))
+                return result
+            case None -> {}
+        }
+        entry.result = None
+        entry.measuring = true
+        try {
+            val result = entry.node.measure(constraints, mark)
+            entry.constraints = Some(constraints)
+            entry.result = Some(result)
+            return result
+        } finally {
+            entry.measuring = false
+        }
     }
     public fun placeChild(index: Long, origin: Point) {
         checkActive()
@@ -60,7 +79,7 @@ public class MeasureContext internal constructor(
         for (entry in entries) {
             when (entry.result) {
                 case None -> throw IllegalStateException(
-                    Some("every child must be measured exactly once")
+                    Some("every child must be measured successfully")
                 )
                 case Some(_) -> {}
             }
@@ -75,6 +94,12 @@ public class MeasureContext internal constructor(
 internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): LayoutMetrics {
     if (!root.isOpen)
         throw UiLayoutEnded()
+    metrics = None
+    placements = []
+    when (body) {
+        case Lazy(_, items) -> items.beginMeasure()
+        else -> {}
+    }
     constraints.check()
     val result =
         when (body) {
@@ -86,13 +111,18 @@ internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): Layo
                 placements = []
                 LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
             }
+            case Direction -> {
+                val child = children[0L].measure(constraints, time)
+                placements = [Some(Point(0.0, 0.0))]
+                child
+            }
             case Component(_) -> {
                 val child = children[0L].measure(constraints, time)
                 placements = [Some(Point(0.0, 0.0))]
                 child
             }
             case Element(instance) -> {
-                val context = MeasureContext(root, children, time)
+                val context = MeasureContext(this, children, time)
                 try {
                     val measured =
                         evaluateUi<LayoutMetrics>(None) {

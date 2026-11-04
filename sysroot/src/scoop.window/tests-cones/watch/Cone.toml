@@ -10,6 +10,10 @@ kind = "library"
 path = "tests"
 when = { os = "windows" }
 
+[[test.sources]]
+path = "test-linux"
+when = { os = "linux", env = "gnu" }
+
 [test-dependencies]
 "scoop:scoop.test" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
@@ -19,3 +23,10 @@ when = { os = "windows" }
 [[native.libraries]]
 name = "kernel32"
 when = { os = "windows" }
+
+[[native.sources]]
+path = "native/eventfd.c"
+when = { os = "linux", env = "gnu" }
+
+[native]
+c_flags = ["-Wall", "-Wextra", "-Werror"]

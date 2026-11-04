@@ -53,7 +53,7 @@ private class WindowsWorkerPathsTest {
                         assertEquals(0, nativeResolve(loop, 1L, host, 42, 4))
                     }
                 }
-                val event = nextWorkerResult(loop)
+                val event = nextNativeTestResult(loop)
                 assertEquals(1L, event.id)
                 assertEquals(7, event.kind)
                 assertTrue(event.code != 0)
@@ -124,7 +124,7 @@ private fun checkResolution(host: String, family: Int, expected: IpAddress) {
                 }
             }
             gcCollect()
-            val event = nextWorkerResult(loop)
+            val event = nextNativeTestResult(loop)
             assertEquals(1L, event.id)
             assertEquals(6, event.kind)
             val head = event.resource!!
@@ -145,13 +145,6 @@ private fun checkResolution(host: String, family: Int, expected: IpAddress) {
             assertEquals(0, testWorkerDrain(loop))
         }
     }
-}
-
-@Unsafe
-private fun nextWorkerResult(loop: Ptr<Unit>): NativeRecord {
-    while (nativeLoopBatchSize(loop) == 0L)
-        assertEquals(0, nativeLoopPoll(loop, true).code)
-    return nativeLoopNext(loop)
 }
 
 @Extern(name = "scoop_test_iocp_paths")

@@ -1,0 +1,163 @@
+package scoop.ui.text
+
+import scoop.charset.graphemeBoundaries
+import scoop.ui.*
+import scoop.window.*
+
+internal class EditorPolicyResult(
+    var value: EditorValue,
+    var spans: Array<EditorSpan>,
+    var mapping: EditorOffsetMap = EditorIdentityMap(),
+    var transformed: Boolean = false
+) {
+    fun replace(edits: Array<TextEditReplacement>) {
+        val result = mapEditorText(value.input.surroundingText, edits)
+        if (result.edits.size == 0L)
+            return
+        value = mapEditorSelection(value, result)
+        spans = mapEditorSpans(spans, result.edits)
+        mapping = EditorComposedMap(mapping, result.mapping)
+        transformed = true
+    }
+    fun candidate(before: EditorValue, source: TextEditSource): TextEditCandidate =
+        TextEditCandidate(
+            editorSnapshot(before),
+            editorSnapshot(value),
+            source,
+            editorInsertedRanges(spans)
+        )
+}
+
+internal fun filterEditorCandidate(
+    before: EditorValue,
+    proposed: EditorValue,
+    spans: Array<EditorSpan>,
+    source: TextEditSource,
+    policy: TextEditPolicy,
+    singleLine: Boolean
+): EditorPolicyResult? =
+    evaluateUi(None) {
+        val result = EditorPolicyResult(proposed, spans)
+        if (singleLine || policy.singleLine)
+            result.replace(editorNewlineEdits(proposed.input.surroundingText))
+        if (source == TextEditSource.Paste) {
+            when (policy.paste) {
+                case Some(callback) -> if (
+                    !applyEditorDecision(result, callback(result.candidate(before, source)))
+                )
+                    return@evaluateUi None
+                case None -> {}
+            }
+        }
+        when (policy.transform) {
+            case Some(callback) -> if (
+                !applyEditorDecision(result, callback(result.candidate(before, source)))
+            )
+                return@evaluateUi None
+            case None -> {}
+        }
+        when (policy.accepts) {
+            case Some(callback) -> {
+                val bytes = result.value.input.surroundingText.toByteArray()
+                for (range in editorInsertedRanges(result.spans))
+                    if (!callback(editorSlice(bytes, range)))
+                        return@evaluateUi None
+            }
+            case None -> {}
+        }
+        when (policy.maxLength) {
+            case Some(limit) -> {
+                val length = editorGraphemeBytes(before.input.surroundingText).size - 1L
+                val cap =
+                    if (length > limit)
+                        length
+                    else
+                        limit
+                val trims = editorLengthEdits(result.value.input.surroundingText, result.spans, cap)
+                when (trims) {
+                    case Some(edits) -> result.replace(edits)
+                    case None -> return@evaluateUi None
+                }
+            }
+            case None -> {}
+        }
+        Some(result)
+    }
+
+private fun applyEditorDecision(result: EditorPolicyResult, decision: TextEditDecision): Boolean =
+    when (decision) {
+        case Accept -> true
+        case Reject -> false
+        case Transform(edits) -> {
+            result.replace(edits);
+            true
+        }
+    }
+
+/** Segmentation uses the shared Unicode library; its scalar indices are converted once. */
+internal fun editorGraphemeBytes(text: String): Array<Long> {
+    val boundaries = graphemeBoundaries(text)
+    val result = ArrayList<Long>()
+    var scalar = 0L
+    var offset = 0L
+    var next = 0L
+    for (character in text) {
+        if (next < boundaries.size && boundaries[next] == scalar) {
+            result.add(offset)
+            next += 1L
+        }
+        offset += character.toString().byteLength
+        scalar += 1L
+    }
+    result.add(offset)
+    return result.toArray()
+}
+
+private fun editorLengthEdits(text: String, spans: Array<EditorSpan>, cap: Long): Array<
+    TextEditReplacement
+>? {
+    val boundaries = editorGraphemeBytes(text)
+    var excess = boundaries.size - 1L - cap
+    if (excess <= 0L)
+        return Some([])
+    val inserted = editorInsertedRanges(spans)
+    val reversed = ArrayList<TextEditReplacement>()
+    var index = boundaries.size - 2L
+    var span = inserted.size - 1L
+    while (index >= 0L && excess > 0L && span >= 0L) {
+        val start = boundaries[index]
+        val end = boundaries[index + 1L]
+        while (span >= 0L && inserted[span].start >= end)
+            span -= 1L
+        if (span >= 0L && start >= inserted[span].start && end <= inserted[span].end) {
+            reversed.add(TextEditReplacement(Utf8Range(start, end), ""))
+            excess -= 1L
+        }
+        index -= 1L
+    }
+    if (excess > 0L)
+        return None
+    return Some(
+        Array<TextEditReplacement>(reversed.size) { index -> reversed[reversed.size - index - 1L] }
+    )
+}
+
+internal fun editorNewlineEdits(text: String): Array<TextEditReplacement> {
+    val result = ArrayList<TextEditReplacement>()
+    var offset = 0L
+    var carriage = false
+    for (character in text) {
+        val end = offset + character.toString().byteLength
+        if (editorLineBreak(character)) {
+            if (carriage && character.code == 10) {
+                val previous = result[result.size - 1L]
+                result[result.size - 1L] =
+                    TextEditReplacement(Utf8Range(previous.range.start, end), " ")
+            } else
+                result.add(TextEditReplacement(Utf8Range(offset, end), " "))
+        }
+        carriage = character.code == 13
+        offset = end
+    }
+    return result.toArray()
+}

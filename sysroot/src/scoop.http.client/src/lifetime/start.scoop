@@ -1,0 +1,20 @@
+package scoop.http.client
+
+// Queued cancellation and entering user work choose exactly one cleanup owner.
+internal fun launchClientTask(
+    parent: CoroutineScope,
+    beforeStart: (CancellationException) -> Unit,
+    block: suspend CoroutineScope.() -> Unit
+): Job {
+    val claimed = AtomicBoolean(false)
+    val task =
+        parent.launch {
+            if (claimed.compareAndSet(false, true))
+                block(this)
+        }
+    task.invokeOnCancellation {
+        error -> if (claimed.compareAndSet(false, true))
+            beforeStart(error)
+    }
+    return task
+}

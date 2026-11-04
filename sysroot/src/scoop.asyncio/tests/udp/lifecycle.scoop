@@ -9,9 +9,9 @@ import scoop.test.*
 private class AsyncUdpLifecycleTest {
     @Test
     fun `duplex operations reject same direction overlap and close drains both borrows`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val socket = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val peer = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             NativeByteBuffer.allocate(1L).use suspend {
@@ -32,6 +32,7 @@ private class AsyncUdpLifecycleTest {
                                 fail()
                             } catch (_: IoClosedException) {}
                         }
+                    yieldCoroutine()
                     try {
                         socket.receiveFrom(output, 1L);
                         fail()
@@ -61,11 +62,11 @@ private class AsyncUdpLifecycleTest {
 
     @Test
     fun `bind conflicts preserve reuse false and cancelled bind releases its port`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
+        val backend = eventLoop()
+        val loop = backend
         val escaped =
-            loop.runWithResult<AsyncUdpSocket> suspend {
-                scope ->
+            loop.run<AsyncUdpSocket> {
+                val scope = this;
                 val original = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
                 val address = original.localAddress
                 try {
@@ -102,9 +103,8 @@ private class AsyncUdpLifecycleTest {
                 assertTrue(closing.isCancelled)
                 loop.bindUdp(address)
             }
-        val next: EventLoop = PlatformEventLoop()
-        next.run suspend {
-            _ ->
+        val next = eventLoop()
+        next.run {
             escaped.close();
             escaped.close()
         }

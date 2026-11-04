@@ -9,9 +9,9 @@ import scoop.platform.memory.NativeByteBuffer
 private fun exerciseConsumer(args: Array<String>) {
     check(args.size == 2L)
     val path = Path.fromString(args[1L])
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         runHttp1(loop, scope, path);
         runHttp2(loop, scope)
     }

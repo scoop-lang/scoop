@@ -6,11 +6,11 @@
 
 ## 1. 分层与目标
 
-源码位于 `sysroot/src/scoop.asyncio/`，显式依赖 core、std、platform，测试依赖 scoop.test；公共声明属于 `scoop.asyncio`。不默认导入，不引入 compiler-known role、runtime 调度入口或新的 ABI。任务树使用语言规范 11.9.1～11.9.2；路径、地址、错误、时间和 buffer 直接复用平台库与标准库。
+源码位于 `sysroot/src/scoop.asyncio/`，显式依赖 core、std、platform、concurrent，测试依赖 scoop.test；公共声明属于 `scoop.asyncio`。不默认导入，不引入 compiler-known role、runtime 调度入口或新的 ABI。任务树与 execution 使用语言规范 11.9.1～11.9.3；阻塞池和跨 executor 同步使用[并发库](SCOOP-CONCURRENT-SPEC.md)，路径、地址、错误、时间和 buffer 直接复用平台库与标准库。
 
 库内 C shim 的完成记录 kind 与 Scoop 解码保持一致：既有通用／网络事件保留原编号，使用 `0x000–0x0ff` 段；文件／目录事件使用 `0x100–0x1ff` 段，依次为 Metadata `0x100`、Position `0x101`、Temporary `0x102`、DirectoryName `0x103`；TTY 事件使用 `0x200–0x2ff` 段，Resize 为 `0x200`、Timeout 为 `0x201`。两类新增事件分别在自己的段内追加，保留已有编号；未分配值仍按非法完成记录处理。此编号仅用于该 Cone 的 native 接口，不属于 runtime ABI 或公共 Scoop 枚举身份。
 
-首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，worker／callback 不进入 managed 代码。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
+首版支持 aarch64-apple-darwin、x86_64-unknown-linux-gnu、x86_64-unknown-linux-musl；三个 Windows target 的扩展按[Windows 进度](../windows-targets/PROGRESS.md)分批实施，未完成前不声明整个库可用。PlatformEventLoop 由目标平台选择后端：Darwin 使用系统 libdispatch，Linux 使用第 11 节规定的 io_uring，Windows 使用 IOCP。C11 shim 只管理 native I/O、稳定存储及完成记录，OS callback 不进入 managed 代码，阻塞任务由 managed worker 调用同步 shim。TLS、HTTP 属于各自库，文件监听、进程和任意 fd 接管不在本版范围；M54 为实际缓存与下载补齐第 9 节的基础能力；M59 增加第 10 节的自有 TTY。
 
 Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Linux UAPI 头文件（包括 linux/errqueue.h）。只带 musl libc 的 musl-gcc 包装器须补齐内核头文件搜索路径，可通过普通 --cc 包装脚本配置；不把 glibc 用户态头文件加入 musl 的搜索路径。
 
@@ -18,7 +18,7 @@ Linux C 工具链同时需要所选 libc 的开发头文件和对应架构的 Li
 
 ```scoop
 public interface EventLoop {
-    public fun run(block: suspend (CoroutineScope) -> Unit)
+    public val executor: CoroutineExecutor
     public suspend fun sleep(duration: Duration)
     public suspend fun resolve(host: OsString, port: Int, family: AddressFamily? = None): Array<SocketAddress>
     public suspend fun connectTcp(address: SocketAddress): AsyncTcpStream
@@ -27,20 +27,45 @@ public interface EventLoop {
     public suspend fun openFile(path: Path, options: OpenOptions = OpenOptions()): AsyncFile
     public suspend fun openTty(): AsyncTty
 }
-public class PlatformEventLoop public constructor() : EventLoop
-public fun <T> EventLoop.runWithResult(block: suspend (CoroutineScope) -> T): T
+public class EventLoopBuilder public constructor() {
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
+    public fun blocking(pool: BlockingTaskPool)
+}
+public fun eventLoop(configure: EventLoopBuilder.() -> Unit = {}): PlatformEventLoop
+public class PlatformEventLoop : EventLoop {
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T
+}
 public fun currentEventLoop(): EventLoop
 ```
 
-`run` 是同步根入口，调用方不得已有当前 Job 或活动 EventLoop binding。实例只接受一次运行；并发、重入、运行后重用均报 IllegalStateException，拒绝的调用不影响已接受运行。构造不分配 native loop，接受运行后才初始化；初始化失败清理已创建资源并关闭实例。
+`run<T>` 是具体 final class 的同步根入口，不是 interface 的泛型虚方法；不保留 EventLoop.run 或 runWithResult 别名。调用方不得已有当前 Job 或活动 EventLoop binding。实例只接受一次运行；并发、重入、运行后重用均报 IllegalStateException，拒绝的调用不影响已接受运行。工厂只执行一次配置并保存快照，接受 run／attach 后才建立 native loop 和自有阻塞池；初始化失败清理已创建资源并关闭实例。blocking 默认自有 4 个 managed threads；两个 overload 分别配置自有池／借用池，最后一次选择生效。数量在创建线程前校验，捕获 builder 后的修改不影响实例。
 
-运行建立精确静态类型为 EventLoop 的 Context binding，再通过 startCoroutine 与 coroutineScope 启动正文。正文第一次执行前已具有正确 Job 与 scope。根及全部后代完成后继续关闭本次未关闭资源、排空操作及关闭 callback，最后关闭唤醒 handle 和 native loop。runWithResult 只在 run 成功后返回类型化结果；非取消异常优先于取消，正文与清理均失败按 ResourceUseException 组合。逃逸资源引用不能延长运行，run 返回后它们已经关闭。
+运行建立精确静态类型为 EventLoop 的 Context binding，通过 startDispatchedCoroutine 在内部 LoopExecutor 上排队启动 coroutineScope。正文 receiver 是该作用域，第一次执行前已具有正确 Job 与 scope。根及全部后代完成后请求 LoopExecutor draining；已接纳的低层任务及其 child、coroutine work 和 blocking runner 排空后，再关闭本次未关闭资源、排空 I/O 操作与内部 ready。最后停止自有 blocking pool，等待其退出执行循环，关闭 native loop 并 join 已结束的 worker；借用池不关闭或 join。run 仅在全部收尾成功后返回 T；非取消异常优先于取消，正文与清理均失败按 ResourceUseException 组合。逃逸资源引用不能延长运行，run 返回后它们已经关闭。
 
-每次用户 I/O 要求当前 Job 和所属 loop 的活动 binding；显式调用其他 loop 或已结束资源报状态错误。资源固定归属创建它的 loop。close 允许在已取消 Job 中进行，且关闭后再次 close 是空操作。`currentEventLoop` 缺少 binding 时抛 MissingContextException。
+每次用户 I/O 要求当前 Job 和所属 loop 的活动 binding；显式调用其他 loop 或已结束资源报状态错误。EventLoop binding 表示资源服务归属，不表示调用者正在 owner 线程；保留该 binding 的其他 executor worker 可建立请求，资源 phase／busy／active 和登记使用正确同步，native submit 与原生容器更新仍发给 owner。close 允许在已取消 Job 中进行，且关闭后再次 close 是空操作。`currentEventLoop` 缺少 binding 时抛 MissingContextException。executor 属性在运行／附着已建立且 LoopExecutor 未终止时返回 owner executor，之前或之后报 IllegalStateException；withExecutor(loop.executor) 可显式执行 owner 上的代码。
 
 资源与操作由共享 `LoopOwner` 持有，不依赖具体 EventLoop 类。一次非阻塞处理只消费进入该轮时取得的命令和 native 完成快照，再恢复本轮 ready；恢复期间产生的命令和 ready 留到下一轮，嵌套处理不递归进入。同步驱动反复调用同一流程，只有无可执行工作时才等待。
 
-后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。驱动交替处理命令、完成记录与本轮 managed 恢复，内部锁外恢复 continuation；有待处理工作时不得阻塞。同步 run 无工作时通过 NativeSafe 等待通知 fd，attach 由宿主可读回调推进。IO 挂起的恢复由所属 loop 投递；第三方挂起点仍可在其他线程恢复。通知可合并，队列承担完整性。
+后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
+
+### 2.1 多线程根运行
+
+```scoop
+public class AsyncRuntimeBuilder public constructor() {
+    public var workers: Int
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
+}
+public fun asyncRuntime(configure: AsyncRuntimeBuilder.() -> Unit = {}): AsyncRuntime
+public class AsyncRuntime {
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T
+}
+```
+
+AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、借用该池的 MultiThreadExecutor 和 PlatformEventLoop。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。初始化失败按创建顺序的逆序回收已建立资源。
+
+调用 run 的线程只驱动 I/O owner；用户根及默认子任务在 MultiThreadExecutor 上执行，保留同一个 EventLoop binding。currentEventLoop().executor 仍是 owner executor，可显式 withExecutor 切换。worker 不并发 poll 同一个 backend，I/O 的提交、完成选择和资源退休仍遵守本节的 owner 边界。两种 executor 的 managed blocking 调用共用本次 runtime 的池。
+
+根及结构化子树结束后先请求 worker executor draining，继续驱动 owner 并保持共享阻塞池接纳。等待全部 worker 执行登记、驱动及其阻塞工作退出后，才使 LoopExecutor draining；此先后关系保证已接纳 worker 的 finally 仍可切换到 owner。LoopExecutor 排空后再关闭遗留资源和排空 native I/O，最后停止共享阻塞池，等待其退出执行循环，销毁后端并 join 两组线程。正常结果 T 或最终异常在这些步骤之后返回，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
 
 ## 3. 取消、完成与关闭
 
@@ -129,7 +154,7 @@ Windows 的单次数据请求通过 CancelIoEx 撤销，真实 packet 到达后�
 
 ## 7. DNS 与文件
 
-resolve 保留 OsString 原始名称字节，port 检查 0..65535，family None 表示双族。使用后端 native worker 调用 platform 的 getaddrinfo helper，保留 AddressResolution code 和 EAI_SYSTEM 的立即 errno；不执行额外 IDNA 转换。无效内嵌 NUL 在提交 worker 前报参数错误。
+resolve 保留 OsString 原始名称字节，port 检查 0..65535，family None 表示双族。使用共享 managed 阻塞池调用 platform 的 getaddrinfo helper，保留 AddressResolution code 和 EAI_SYSTEM 的立即 errno；不执行额外 IDNA 转换。无效内嵌 NUL 在提交 worker 前报参数错误。
 
 Windows 的 DNS、路径与目录请求在提交时取得独立 UTF-16 副本，保留非配对 surrogate；POSIX 保持原始字节。DNS worker 复用 platform 的 GetAddrInfoW／FreeAddrInfoW，地址解码失败保留 Winsock。路径修改及目录 open／next／close 复用 platform 的 wide helper 和同次 Win32 error，目录名称按实际 UTF-16 长度复制后交付。已开始的 worker 不因取消提前释放名称或句柄，迟到结果仍按第 3 节消费／清理；排队取消不执行 OS 操作。
 
@@ -145,7 +170,7 @@ public interface AsyncFile : AsyncByteSource, AsyncByteSink, AsyncCloseable {
 }
 ```
 
-openFile 使用 Path／OpenOptions 的已有合同。Darwin 的文件操作在后台 dispatch work 调用 platform 的 GC-free helper；Linux 的 read／write／sync 使用 ring，其余文件操作使用 native worker。错误保留 PosixErrno。顺序 read／write 共用文件位置，同一文件的读写、查询、位置／长度控制与 sync 同时最多一个。flush 不等于 sync；不增加额外的 close／sync 语义。worker 只接收 native 存储，立即记录错误。已开始的阻塞操作可能推迟取消和 run 退出，不承诺固定时延。
+openFile 使用 Path／OpenOptions 的已有合同。Darwin 的文件操作在 managed 阻塞池调用 platform 的同步 helper；Linux 的 read／write／sync 使用 ring，其余文件操作使用同一阻塞池。错误保留 PosixErrno。顺序 read／write 共用文件位置，同一文件的读写、查询、位置／长度控制与 sync 同时最多一个。flush 不等于 sync；不增加额外的 close／sync 语义。worker 只接收 native 存储，立即记录错误。已开始的阻塞操作可能推迟取消和 run 退出，不承诺固定时延。
 
 Windows 普通文件由 worker 以不可继承的 FILE_FLAG_OVERLAPPED HANDLE 打开并关联 IOCP；ReadFile／WriteFile 使用该 owner 的 64 位位置，真实完成时按已知传输量推进，EOF／broken pipe 读取返回零。Windows 不维护 overlapped handle 的文件位置，因此 seek／position 使用同一串行 owner 的位置，并由实际 seek 检查设备能力；truncate 不修改该位置。append 文件以同步 FILE_APPEND_DATA 句柄打开，读写进入已有 worker，保留 OS 的追加原子性和追加后的真实位置，不用另一次文件大小查询推测写入位置。metadata、truncate、sync、close 均复用 platform helper；文件错误保留 Win32。取消在途 overlapped 请求等实际 packet，运行中的同步 worker 等实际返回，close 等操作与借用退休后关闭一次句柄。
 
@@ -185,7 +210,7 @@ Windows 临时文件在 worker 内规范化父目录，保留完整前缀并以�
 
 open／next／close 均由 worker 调用 platform 的目录 helper。next 在本次工作内复制一个名称，managed 取得独立快照并释放原生副本；关闭等待正在进行的 readdir 及结果消费结束。排队取消不推进目录，已经执行的 next 不回退 OS 位置，迟到名称仍被释放。open 取消后取得的句柄必须在恢复调用方前关闭；循环退出也收尾未关闭的目录，不把所有名称预先收集进数组。
 
-上述工作使用 native worker 和 platform 的 GC-free 文件 helper；必要 helper 先在 platform 补齐，再由 asyncio 调度。路径、输入数据和输出存储在提交前取得稳定 native 副本，errno 在 worker 内立即记录。已开始的 syscall 取消仍等真实返回；迟到结果和 close 按第 3 节收尾。
+上述工作使用共享 managed 阻塞池和 platform 的同步文件 helper；必要 helper 先在 platform 补齐，再由 asyncio 调度。路径、输入数据和输出存储在提交前取得稳定 native 副本，errno 在 worker 内立即记录。已开始的 syscall 取消仍等真实返回；迟到结果和 close 按第 3 节收尾。
 
 ### 9.2 地址族竞速与 SOCKS5
 
@@ -219,25 +244,21 @@ Proxy 模式把域名原样放入 CONNECT，Local 模式在写出握手前以当
 
 Socks5Exception 保存 phase（Method／Authentication／Connect）及可选 replyCode；拒绝的方法、认证状态和 CONNECT REP 保留实际协议字节。非法版本、保留字段、地址类型或绑定域名报对应阶段的格式错误；底层 I/O、解析和取消保持原异常。交付后的流沿普通 AsyncByteStream 的双向、取消与背压合同；close 固定 loop 归属，可在取消 finally 中完成，并发关闭等待同一次底层收尾，之后幂等。
 
-### 9.3 领域库的 native 阻塞工作
+### 9.3 通用阻塞池与原生操作适配
 
-TLS 的系统信任装载及平台验证需要能够挂起等待 native 工作。为这一实际使用者，在 `scoop.asyncio.native` 提供受 Unsafe 约束的 NativeWork 资源与 `EventLoop.runNativeWork(work)`；它复用现有 DNS／文件的后端 work 提交、取消与完成机制，不建立第二个线程池。
+领域库使用 core 的 `blocking { ... }` 或显式 `executor.blocking { ... }`，执行普通 Scoop 闭包、同步库和 FFI，返回类型化值或异常；不再提供 `scoop.asyncio.native.NativeWork`、`EventLoop.runNativeWork` 或 execute/release 指针工厂。TLS 系统信任装载和验证使用有明确释放责任的工作对象，正常结果、取消和关闭仍遵守 TLS 资源合同。
 
-NativeWork 持有调用库构造的稳定 native 参数、GC-free 执行入口、结果存储和释放入口。worker 不调用 Scoop 回调、分配 managed 对象或恢复 continuation；结果的实际类型与提取由调用库的普通 FFI 声明负责。工作返回后，managed 调用方才能取得结果并构造 Scoop 值。它不是可执行任意 suspend／Scoop lambda 的 runBlocking 或通用调度框架。
+文件、目录、路径、DNS 及 Windows TTY 的阻塞部分由 EventLoop 的 managed BlockingTaskPool 执行，与通用 blocking 共享配置和线程。三个 backend 不再创建专用阻塞 worker；io_uring、IOCP、dispatch source/timer 和只发布完成记录的 OS 通知机制保持原职责。
 
-runNativeWork 期间借用 work，禁止重复提交和关闭；登记前失败不转移所有权。取消获胜也须等执行结束、复制错误和解除借用后返回，调用方在 finally 关闭 work。外部通知、Job 取消与 continuation 恢复保持锁外；native ABI 是普通库间接口，不新增 runtime functions 或 compiler-known 类型。
+原生 shim 保留稳定参数、同步 execute、owner 上的 finish、错误提取与释放。owner 提取待投递工作并包装为 BlockingWork；原生登记不负责启动线程。每份投递使用独立小型 native task，原生锁仲裁 Queued→Running 与取消：取消先胜时撤销 payload 关联并发布取消完成，即使 managed 池所有线程都被占用也能解除借用；已投递 task 作为空工作在实际出队时退休。Running 后等待真实 syscall 返回，owner 才处理完成、实际进度及迟到资源。取消结果选择沿第 3 节，不套用通用 blocking 的运行后保留 T 规则。
 
-具体入口为 Unsafe 的 `NativeWork.takeOwnership(payload: Ptr<Unit>, execute: FunPtr<(Ptr<Unit>) -> Unit>, release: FunPtr<(Ptr<Unit>) -> Unit>)` 和 `EventLoop.runNativeWork(work): Unit`。payload 由领域库原生代码分配，执行／释放指针必须来自可在对应线程调用的原生函数；不能使用仅支持已注册 Scoop 线程同步调用的静态 Scoop callback，也不能把 ForeignCallback 的 trampoline 单独交给 worker。执行函数在 payload 中保存结果及错误，不跨 C 边界展开异常；释放函数销毁同一份输入与未交付结果。
-
-work 是一次性资源：开始提交后，不论完成、提交失败或取消都不能再次运行；loop／Job 的前置检查失败不开始提交。正常等待返回后，通过 Unsafe 的 `work.withResult(block: (Ptr<Unit>) -> R): R` 在 managed 侧读取领域结果；回调不能挂起或让借出的指针逃逸。结果读取期间也禁止再次读取、提交或关闭，回调结束后解除借用。没有成功等待结果时 withResult 报状态错误；领域工作自身的失败仍由领域库从结果中解释。
-
-work 实现 Closeable，提供 isClosed；未使用、完成或失败的 work 均可关闭，释放入口恰好调用一次。其本地状态采用普通同步保护；执行与释放原生入口、结果回调及 continuation 恢复均不在状态锁内运行。runNativeWork 不接管关闭责任，EventLoop 通过既有在途操作等待实际 worker 完成，调用者在 finally 中关闭 work。
+原生 idle 同时等待 operation 和所有已投递 task 退休，保证取消后尚在 managed 队列中的 task 不引用已销毁 loop。owner 在每次 operation 登记后投递其原生工作，并在完成与清理之后投递本轮新增工作；池拒绝投递时以普通 I/O 失败完成该原生工作，并沿既有收尾路径释放它，不遗留登记。finish 与 managed continuation 交付均在锁外，worker 不修改 owner-only 容器。
 
 ### 9.4 验证
 
 文件能力独立验证真实 metadata／seek／truncate、排他临时创建、同文件系统替换、目录分批遍历、worker 取消与迟到结果；组合磁盘缓存和下载续传。连接竞速验证单族迟到／失败、不同候选交错、成功竞争、总取消及失败不污染父 scope。SOCKS5 使用独立 loopback 对端覆盖分段、认证和两种 DNS 模式。
 
-NativeWork 验证正常完成、登记失败、未开始撤销、运行中取消、异常清理和 moving GC，实际消费者包含 TLS 系统验证；不为仅存在于测试中的虚构工作扩展接口。三个目标运行对应库测试和生产消费者。
+测试覆盖真实文件／DNS／TTY、共享池排队与取消、Running 后等待真实返回、buffer 进度、迟到资源释放和 loop 关闭。通用 managed 闭包／结果及线程池生命周期由 core 和 concurrent 测试覆盖；TLS 使用真实系统装载与隔离信任验证。普通行为使用 Cone tests，平台 shim 的独立测试只验证原生操作与退休协议，不另建测试专用线程池。
 
 ## 10. 自有 TTY
 
@@ -261,7 +282,7 @@ public interface AsyncTty : AsyncByteSink, AsyncCloseable {
 openTty 通过 platform 的共同 owner 取得实际终端与 resize 通知，每进程最多
 一个活动 owner，包括同步 terminal 会话。失败清理所有已取得的资源；取消
 选定后才完成的 open 先关闭未交付 owner。库不接管调用者 fd，不改变 stdin
-的 O_NONBLOCK。POSIX 不增加后台读取线程；Windows 复用已有 native worker。
+的 O_NONBLOCK。POSIX 不增加后台读取线程；Windows 使用共享 managed 阻塞池。
 
 receive 同时等待字节与 resize；POSIX 使用平台后端观察自有 fd，实际 read 为
 非阻塞 syscall。Windows worker 等待自有 console input HANDLE 与本次请求的取消 event，
@@ -295,7 +316,7 @@ async raw 作用域使用这两个入口和 useAsync，GC 不承担恢复。
 
 ### 11.1 共享层与平台后端
 
-`EventLoop` 保留现有公共方法；默认实现改为 `PlatformEventLoop`，Darwin 绑定系统 libdispatch，Linux 绑定 io_uring／固定 liburing，Windows 绑定 IOCP。所有端点、文件、目录和操作只依赖同一共享 owner；Job／CoroutineScope 仍来自 core。native 后端管理原生资源、请求、完成记录，不拥有另一套任务树，也不直接执行 managed I/O continuation。
+`EventLoop` 提供 I/O 服务与 executor 属性，同步泛型根入口归 `PlatformEventLoop`。Darwin 绑定系统 libdispatch，Linux 绑定 io_uring／固定 liburing，Windows 绑定 IOCP。所有端点、文件、目录和操作只依赖同一共享 owner；Job／CoroutineScope／execution 来自 core。native 后端管理原生资源、请求、完成记录，不拥有另一套任务树，也不直接执行 managed I/O continuation。
 
 后端按目标构建选择，不公开后端注册表。`PlatformEventLoop` 取代 `LibuvEventLoop`，不保留 libuv 依赖或兼容别名；不修改语言、runtime ABI、IR 或产物格式。平台能力与依赖版本见[设计第 7～10 节](../asyncio-backends/DESIGN.md#7-macoslibdispatch-后端)。
 
@@ -303,9 +324,9 @@ async raw 作用域使用这两个入口和 useAsync，GC 不承担恢复。
 
 `PlatformEventLoop.run` 保留同步单次根入口合同。新增 `attach(host, onClosed): EventLoopSession`，接入调用线程所属的宿主主循环；两种入口共用一次启动机会，均拒绝当前 Job／活动 EventLoop binding 中的嵌套启动。接受入口后才取得 native 资源，初始化失败回滚并关闭实例。
 
-session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: (CoroutineScope) -> Unit): Boolean` 与 `requestClose()`。后三项可跨线程；post 异步排队，关闭后拒绝且不保留闭包。接受的投递在关闭／失败时可以丢弃，内部取消、完成和清理命令不能丢弃。post 执行在仍活动的结构化根作用域中，子任务沿现有 launch／async 合同；根在没有消息时挂起，持续到请求关闭或失败。
+session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: CoroutineScope.() -> Unit): Boolean` 与 `requestClose()`。后三项可跨线程；post 异步排队，关闭后拒绝且不保留闭包。接受的投递在关闭／失败时可以丢弃，内部 work、取消、完成和清理命令不能丢弃。post 的 receiver 是仍活动的 session 根作用域，子任务沿 launch／async 合同；根在没有消息时挂起，持续到请求关闭或失败。
 
-内部根在 attach 栈内捕获完整 Context 并挂起，用户投递从后续宿主通知开始；mailbox 通过根 continuation 恢复，不继承外线程 post 时的动态 Context。普通投递抛错作为根失败处理。requestClose 幂等、不阻塞，停止应用投递并把根取消交给 owner；mailbox 的取消恢复也排入 owner。主动关闭的取消不作为最终失败，其他失败沿现有组合规则保留。
+内部根在 attach 栈内捕获 binding 快照并排队，根正文及用户投递从后续宿主通知开始；mailbox 通过根 continuation 恢复，不继承外线程 post 时的动态 Context。普通投递抛错作为根失败处理。requestClose 幂等、不阻塞，停止应用投递并把根取消交给 owner；mailbox 的取消恢复也通过 LoopExecutor 排队。主动关闭的取消不作为最终失败，其他失败沿现有组合规则保留。
 
 两种模式共用非阻塞处理流程；run 在空闲时 NativeSafe 等待，attach 只在宿主通知时处理一轮。通知可合并，真实队列承担完整性。嵌套宿主循环不能递归进入处理流程；处理期间产生的新工作留待后续通知。库不抢占用户回调。
 
@@ -317,19 +338,19 @@ session 暴露 `loop: EventLoop`、`isClosed: Boolean`、`post(block: (Coroutine
 
 Darwin 提供主 dispatch queue 的 `MainDispatchHost`，Linux GUI 在自己的 fd watch 中监听 eventfd，Windows GUI 将借出的 event 接入自己的等待／消息循环。宿主仍负责窗口、输入、显示刷新和其连接协议。使用主队列的适配器只在宿主服务该队列时取得执行机会，不保证任意自定义 run-loop mode 都运行。具体声明与异常出口见[设计第 3 节](../asyncio-backends/DESIGN.md#3-公共入口与宿主协议)。
 
-本库排队恢复在 owner 线程进入 managed；任意第三方挂起点仍可能在其他线程恢复。接入 GUI 不新增协程拦截器或所有挂起函数的 UI 线程亲和性保证，外部回调通过 session.post 进入根作用域。
+LoopExecutor 的全部真实挂起恢复都在 owner 线程进入 managed，包括第三方回调和跨 executor 同步。显式切换到其他 executor 后，该任务在目标 executor 上执行，返回时回原 execution；UI 对象与 host API 的线程要求仍由调用者遵守。外部应用消息可通过 session.post 进入根作用域，内部 continuation 不经该可丢弃消息通道。
 
 ### 11.4 取消、借用与最终关闭
 
 结果选择与 native 结束分别记录。取消／close 先选择结果后请求后端撤销；必须等数据操作、相关控制请求及未交付资源清理真实结束，提交已知实际进度并解除借用，再恢复一次 continuation。dispatch cancel 请求或 io_uring 取消 CQE 不能单独证明目标操作结束；成功先选定不被后续取消覆盖。
 
-根及其全部后代完成后继续关闭遗留资源，并排空清理、完成和 ready。全部原生请求、worker 与 I/O callback 退出后，附着模式再注销宿主监听，最后销毁后端、关闭通知 fd 并在 owner 上执行一次 onClosed。宿主必须继续运行到该通知，不能先停止主循环再等待它。当前宿主移除通知的 callback lease 在其返回时释放，不等待自身退出。
+根及其全部后代完成后，先排空 LoopExecutor 已接纳任务，再以 owner 的内部命令／ready 关闭遗留资源，排空实际 I/O 及清理。此阶段保持 blocking pool 接纳；只有无任务、无资源、无操作、无待投递／退休工作后才停止自有池。全部原生请求、worker 执行循环与 I/O callback 退出后，附着模式再注销宿主监听，最后销毁后端、join 自有 worker、关闭通知资源并在 owner 上执行一次 onClosed。requestClose 和非阻塞 pump 不等待活动阻塞函数；宿主必须继续运行到 onClosed。当前宿主移除通知的 callback lease 在其返回时释放，不等待自身退出。
 
 onClosed 执行时 isClosed 为真，参数为运行／清理失败或 None。回调自身异常由宿主桥捕获并报告，不重复关闭、不跨 C 栈传播。GC release 不驱动循环、恢复任务或等待原生退出。阻塞 syscall 不能强制撤销时，显式关闭须等其真实返回。
 
 ### 11.5 平台能力与错误
 
-Darwin 的 libdispatch 通过系统 libSystem 的标准 re-export 链接，不另要求 SDK 默认库目录中存在名为 dispatch 的独立库。Darwin 用 dispatch source 驱动 nonblocking 网络／TTY 与单调 timer，后台 work 处理普通文件、DNS、目录、路径与 NativeWork；source 全部退休后才消费其 fd。Linux 用 ring 完成网络、文件数据 I/O、fsync、timer 与 TTY readiness，其余阻塞工作使用 native worker。两者复用 GC-free 平台 helper 和同一资源语义。
+Darwin 的 libdispatch 通过系统 libSystem 的标准 re-export 链接，不另要求 SDK 默认库目录中存在名为 dispatch 的独立库。Darwin 用 dispatch source 驱动 nonblocking 网络／TTY 与单调 timer，共享 managed 阻塞池处理普通文件、DNS、目录与路径；source 全部退休后才消费其 fd。Linux 用 ring 完成网络、文件数据 I/O、fsync、timer 与 TTY readiness，其余阻塞工作使用共享 managed 阻塞池。两者复用 GC-free 平台 helper 和同一资源语义。
 
 Linux 新后端支持基线为内核 6.1，初始化实际探测所需操作与 feature；ring 不可用或能力不足明确失败，不静默回退其他后端。此要求仅针对 asyncio 新后端。worker 启动中途失败时，已启动的空闲线程异步退出，owner 不 join 等待；完全退休后允许后续操作重试启动。完整操作集、队列满时的处理、取消退休、提交失败与 ring 销毁见[设计第 8 节](../asyncio-backends/DESIGN.md#8-linuxio_uring-后端)。
 
@@ -341,7 +362,7 @@ Windows 的异步数据操作使用独立、稳定的 OVERLAPPED 请求与 IOCP�
 
 同一 manual-reset event 汇合命令、IOCP、timer 和 worker 通知。队列发布、SetEvent、owner 的 ResetEvent 与取队列在同一锁边界协调；通知只作提示，不能据其次数判断操作是否完成。宿主监听注销完成前不关闭 event。收集线程和 worker 不再访问 loop 后才销毁 native 状态；owner 的非阻塞 pump 和 close 不 join 活动线程。
 
-timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿已有有限 NativeWork worker 边界执行，已开始的工作等真实返回，不因取消提前释放输入。
+timer 按 QPC 单调截止时间等待并核对实际到期，长时长分段等待，不截断为无限等待或提前完成。取消在同一原生锁下移除尚未到期的 timer，已经发布的完成仍保留且只消费一次。不可 overlapped 的操作沿共享 managed 阻塞池执行，已开始的工作等真实返回，不因取消提前释放输入。
 
 Win32／IOCP 与 Winsock 错误分别保留真实 domain 和完整 32 位 code；CRT 的 errno 保留 PosixErrno。创建、等待和销毁的直接结果使用同次返回的错误记录，不以负 Int 编码 DWORD。详细执行与测试范围见[后端设计第 13 节](../asyncio-backends/DESIGN.md#13-windowsiocp-后端)。
 

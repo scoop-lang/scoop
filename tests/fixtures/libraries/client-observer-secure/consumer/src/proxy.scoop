@@ -31,8 +31,7 @@ internal fun observedProxyTls(trust: TrustStore, port: Int, mode: String) {
         HttpAuthenticator.basic(endpoint.copy { scheme = Some("http") }.httpOrigin()) suspend {
             _ -> HttpPasswordCredentials("proxy", "secret")
         }
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
         val proxy: HttpProxy =
             if (socks)

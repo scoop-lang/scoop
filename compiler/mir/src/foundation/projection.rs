@@ -62,6 +62,11 @@ impl CanonicalMirFoundation {
 
 fn field_records(module: &Module) -> Result<Vec<FieldRecord>, MirFoundationBuildError> {
     let mut records = BTreeMap::new();
+    for start in &module.meta.coroutine_starts {
+        for field in start.work_identity().fields() {
+            insert_identity(&mut records, field, MirFoundationTable::Field)?;
+        }
+    }
     for identity in module.meta.generated_exact_types.iter() {
         if let crate::GeneratedExactTypeLocation::Context(storage) = identity.location() {
             for (field, _) in crate::context_fields(storage) {
@@ -122,10 +127,10 @@ fn field_records(module: &Module) -> Result<Vec<FieldRecord>, MirFoundationBuild
             identity.state_field_record(),
             MirFoundationTable::Field,
         )?;
-        if let Some(field) = identity.storage().result_field_record() {
-            insert_identity(&mut records, field, MirFoundationTable::Field)?;
-        }
-        if let Some(field) = identity.storage().failure_field_record() {
+        for field in [
+            identity.storage().result_field_record(),
+            identity.storage().failure_field_record(),
+        ] {
             insert_identity(&mut records, field, MirFoundationTable::Field)?;
         }
     }
@@ -269,6 +274,12 @@ fn odr_records(
     }
     for start in &module.meta.coroutine_starts {
         register_exact_root(start.identity().root(), &mut groups, &mut members)?;
+        register_exact_root(start.work_identity().type_root(), &mut groups, &mut members)?;
+        register_exact_root(
+            start.work_identity().callable_root(),
+            &mut groups,
+            &mut members,
+        )?;
     }
     for (_, coroutine) in module.meta.coroutine_functions.iter() {
         if let crate::CoroutineLowering::StateMachine {
@@ -295,6 +306,7 @@ fn odr_records(
             identity.odr_member_record(),
             identity.success().odr_member_record(),
             identity.failure().odr_member_record(),
+            identity.work().odr_member_record(),
         ] {
             insert_optional_identity(&mut members, member, MirFoundationTable::OdrMember)?;
         }

@@ -49,9 +49,9 @@ private fun createBody(input: Path): RequestBody {
 }
 
 private fun exercise(version: HttpVersion, body: RequestBody, output: Path) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         check(body.isReplayable && body.contentLength == None)
         check(body.contentEncodings.size == 1L && body.contentEncodings[0L] == "gzip")
         val options = OpenOptions(read = false, write = true, create = true, truncate = true)

@@ -76,7 +76,7 @@ private class DownloadWindowTest {
             for (connection in probe.server!!.connections)
                 assertTrue(connection.isClosed)
             assertFalse(probe.fonts.isClosed)
-            assertFalse(probe.application.proxy().post { _ -> fail() })
+            assertFalse(probe.application.proxy().post { fail() })
             // No event loop remains to deliver a terminal message. The application still owns
             // and joins this task, even when the progress/final posts are rejected.
             val rejected =
@@ -140,25 +140,26 @@ internal class DownloadWindowProbe {
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
-                currentApplicationScope().launch suspend {
-                    coroutineScope suspend {
-                        scope ->
-                        jobs = Some(scope)
-                        phase = "trust store"
+                currentApplicationScope().launch {
+                    coroutineScope {
+                        val scope = this
+
+                        this @DownloadWindowProbe.jobs = Some(scope)
+                        this @DownloadWindowProbe.phase = "trust store"
                         val anchors: Array<Certificate> = []
-                        TrustStore.fromCertificates(anchors).use suspend {
+                        TrustStore.fromCertificates(anchors).use {
                             trust ->
-                            phase = "listener"
+                            this @DownloadWindowProbe.phase = "listener"
                             currentEventLoop().listenTcp(
                                 SocketAddress(IpAddress.IPV4_LOOPBACK, 0)
-                            ).useAsync suspend {
+                            ).useAsync {
                                 listener ->
-                                phase = "server"
+                                this @DownloadWindowProbe.phase = "server"
                                 val serving = DownloadServer(listener, scope)
-                                server = Some(serving)
+                                this @DownloadWindowProbe.server = Some(serving)
                                 val accepting = serving.start()
                                 try {
-                                    phase = "client"
+                                    this @DownloadWindowProbe.phase = "client"
                                     HttpClient.open(
                                         scope,
                                         httpClientConfig {
@@ -168,16 +169,16 @@ internal class DownloadWindowProbe {
                                                 }
                                             this.retries = httpRetryOptions { this.maxRetries = 0L }
                                         }
-                                    ).useAsync suspend {
+                                    ).useAsync {
                                         http ->
-                                        client = Some(http)
-                                        phase = "mount"
-                                        mount(host, active)
-                                        runDownloadScenario(this, active)
+                                        this @DownloadWindowProbe.client = Some(http)
+                                        this @DownloadWindowProbe.phase = "mount"
+                                        this @DownloadWindowProbe.mount(host, active)
+                                        runDownloadScenario(this @DownloadWindowProbe, active)
                                     }
                                 } finally {
                                     accepting.cancel()
-                                    nonCancellableScope<Unit> suspend { _ -> accepting.join() }
+                                    nonCancellableScope<Unit> { accepting.join() }
                                 }
                             }
                         }

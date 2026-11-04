@@ -1,0 +1,179 @@
+package scoop.tests.ui.layout
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+
+internal class PaneSeparator(private val model: LayoutCombination): Element {
+    private var base = 0.0
+    private var flow = LayoutDirection.Ltr
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        model.separator = Some(area)
+        model.resize =
+            Some(
+                scope.drag(
+                    area,
+                    DragOptions(DragAxis.Horizontal),
+                    handler =
+                        {
+                            event -> when (event) {
+                                case Started(sample) -> {
+                                    base = model.acceptedFirst
+                                    resize(sample)
+                                }
+                                case Moved(sample) -> resize(sample)
+                                case Ended(sample) -> resize(sample)
+                                case Cancelled(_, reason) -> {
+                                    model.resizeCancels += 1
+                                    if (reason != DragCancelReason.Closed)
+                                        model.first.value = base
+                                }
+                            }
+                        }
+                )
+            )
+    }
+    private fun resize(sample: DragSample) {
+        val delta =
+            if (flow == LayoutDirection.Ltr)
+                sample.displacement
+            else
+                -sample.displacement
+        model.first.value =
+            resizePair(
+                base,
+                492.0 - base,
+                delta,
+                firstMin = 80.0,
+                firstMax = Some(320.0),
+                secondMin = 80.0
+            ).first
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(8.0, 48.0)))
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(model.separator!!, rect)
+        context.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.2, 0.2, 0.2))) }
+        val current = context.layoutDirection
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                flow = current
+        }
+    }
+}
+
+internal fun snappingStrip(model: LayoutCombination): View =
+    element(
+        model.widths.value,
+        { props -> SnappingStrip(model, props) },
+        Array<View>(3L) {
+            index -> element(
+                index,
+                { props -> SnapCard(model, props) },
+                key = ViewKey.Number(index)
+            )
+        }
+    )
+
+private class SnappingStrip(
+    private val model: LayoutCombination,
+    private val props: Props<Array<Double>>
+): Element {
+    private var area: InputArea? = None
+    private var anchors: Array<Double> = []
+    private var base = 0.0
+    public override fun onMount(scope: ComponentScope) {
+        val region = scope.createArea()
+        area = Some(region)
+        scope.routeChildren(region)
+        model.viewport = Some(scope.scrollViewport(model.scroll))
+        model.swipe =
+            Some(
+                scope.drag(
+                    region,
+                    DragOptions(DragAxis.Horizontal),
+                    handler =
+                        {
+                            event -> when (event) {
+                                case Started(sample) -> {
+                                    base = model.scroll.offset.x
+                                    move(sample)
+                                }
+                                case Moved(sample) -> move(sample)
+                                case Ended(sample) -> {
+                                    val target =
+                                        snapTarget(
+                                            base - sample.displacement,
+                                            -sample.velocity,
+                                            model.anchors
+                                        )!!
+                                    model.scroll.animateTo(
+                                        Point(target.position, 0.0),
+                                        AnimationSpec.Tween(Duration.milliseconds(80L)),
+                                        ScrollOrigin.User
+                                    )
+                                }
+                                case Cancelled(_, reason) -> {
+                                    model.swipeCancels += 1
+                                    if (reason != DragCancelReason.Closed)
+                                        model.scroll.scrollTo(Point(base, 0.0), ScrollOrigin.User)
+                                }
+                            }
+                        }
+                )
+            )
+    }
+    private fun move(sample: DragSample) {
+        model.scroll.scrollTo(Point(base - sample.displacement, 0.0), ScrollOrigin.User)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val positions = ArrayList<Double>()
+        var x = 0.0
+        for (index in 0L ..< context.childCount) {
+            val child =
+                context.measureChild(index, Constraints.tight(Size(props.value[index], 48.0)))
+            positions.add(x)
+            context.placeChild(index, Point(x, 0.0))
+            x += child.size.width
+            if (index + 1L < context.childCount)
+                x += 10.0
+        }
+        anchors = positions.toArray()
+        val viewport = constraints.constrain(Size(120.0, 48.0))
+        model.viewport!!.layout(viewport, Size(x, 48.0))
+        return LayoutMetrics(viewport)
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        model.viewport!!.present(context, Some({ content -> content.children() }))
+        val actual = anchors
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                model.anchors = actual
+        }
+    }
+}
+
+private class SnapCard(
+    private val model: LayoutCombination,
+    private val props: Props<Long>
+): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val region = scope.createArea()
+        area = Some(region)
+        scope.press(region) { model.cardClicks += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(100.0, 48.0)))
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val color = Color(0.3 + props.value.toDouble() * 0.2, 0.6, 0.5)
+        context.place(area!!, rect)
+        context.draw { paint -> paint.canvas.drawRect(rect, Paint(color)) }
+    }
+}

@@ -77,14 +77,15 @@ private class LinuxDownloadProbe {
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )
-                currentApplicationScope().launch suspend {
-                    coroutineScope suspend {
-                        jobs ->
+                currentApplicationScope().launch {
+                    val probe = this @LinuxDownloadProbe
+                    coroutineScope {
+                        val jobs = this
                         val anchors: Array<Certificate> = []
-                        TrustStore.fromCertificates(anchors).use suspend {
+                        TrustStore.fromCertificates(anchors).use {
                             trust -> currentEventLoop().listenTcp(
                                 SocketAddress(IpAddress.IPV4_LOOPBACK, 0)
-                            ).useAsync suspend {
+                            ).useAsync {
                                 listener ->
                                 val server = DownloadServer(listener, jobs)
                                 val serving = server.start()
@@ -98,9 +99,9 @@ private class LinuxDownloadProbe {
                                                 }
                                             retries = httpRetryOptions { maxRetries = 0L }
                                         }
-                                    ).useAsync suspend {
+                                    ).useAsync {
                                         http ->
-                                        client = Some(http)
+                                        probe.client = Some(http)
                                         val native =
                                             active.createWindow(
                                                 windowAttributes {
@@ -108,40 +109,40 @@ private class LinuxDownloadProbe {
                                                     size = LogicalSize(580.0, 320.0)
                                                 }
                                             )
-                                        window = Some(native)
-                                        ui =
+                                        probe.window = Some(native)
+                                        probe.ui =
                                             Some(
                                                 host.attach(
                                                     native,
                                                     {
                                                         LinuxDownloadScene(
-                                                            this,
+                                                            probe,
                                                             {
                                                                 val content =
                                                                     DownloadPanel(
                                                                         jobs,
                                                                         http,
-                                                                        workers,
-                                                                        application.proxy(),
-                                                                        model,
+                                                                        probe.workers,
+                                                                        probe.application.proxy(),
+                                                                        probe.model,
                                                                         server.request("/known"),
-                                                                        destination,
-                                                                        fonts
+                                                                        probe.destination,
+                                                                        probe.fonts
                                                                     )
-                                                                panel = Some(content)
+                                                                probe.panel = Some(content)
                                                                 content
                                                             }
                                                         )
                                                     }
                                                 )
                                             )
-                                        scenario(server)
-                                        finished = true
+                                        probe.scenario(server)
+                                        probe.finished = true
                                         active.requestExit()
                                     }
                                 } finally {
                                     serving.cancel()
-                                    nonCancellableScope<Unit> suspend { _ -> serving.join() }
+                                    nonCancellableScope<Unit> { serving.join() }
                                 }
                             }
                         }

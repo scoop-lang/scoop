@@ -8,7 +8,7 @@ kind = "library"
 
 [[sources]]
 path = "src"
-when = { os = "darwin" }
+when = { os = ["darwin", "windows"] }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"

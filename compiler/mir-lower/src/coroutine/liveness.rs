@@ -97,16 +97,29 @@ pub(super) fn analyze_sites(
                     call,
                     pending,
                 } => {
-                    let result = call
-                        .destination
+                    let (destination, kind) = match call {
+                        crate::cfg::SuspendCall::Registration {
+                            method,
+                            receiver,
+                            destination,
+                        } => (
+                            *destination,
+                            SuspendKind::Intrinsic {
+                                method: *method,
+                                receiver: receiver.clone(),
+                            },
+                        ),
+                        crate::cfg::SuspendCall::Yield => (None, SuspendKind::Yield),
+                    };
+                    let result = destination
                         .map(|local| body.locals[local].ty.clone())
                         .unwrap_or(mir::Type::Unit);
                     Some((
                         *position,
                         *order,
-                        call.destination,
+                        destination,
                         result,
-                        SuspendKind::Intrinsic((*call).clone()),
+                        kind,
                         (*pending).clone(),
                     ))
                 }
@@ -194,11 +207,23 @@ fn working_use_def(
 ) -> (HashSet<mir::LocalId>, HashSet<mir::LocalId>) {
     match statement {
         WorkingStatement::Mir { statement, .. } => statement_use_def(statement),
-        WorkingStatement::Suspend { call, .. } => {
+        WorkingStatement::Suspend {
+            call:
+                crate::cfg::SuspendCall::Registration {
+                    receiver,
+                    destination,
+                    ..
+                },
+            ..
+        } => {
             let mut uses = HashSet::new();
-            expr_uses(&call.receiver, &mut uses);
-            (uses, call.destination.into_iter().collect())
+            expr_uses(receiver, &mut uses);
+            (uses, destination.iter().copied().collect())
         }
+        WorkingStatement::Suspend {
+            call: crate::cfg::SuspendCall::Yield,
+            ..
+        } => (HashSet::new(), HashSet::new()),
     }
 }
 

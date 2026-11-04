@@ -32,7 +32,7 @@ private class TextEditorSingleLineTest {
     }
 
     @Test
-    fun `normalized marked text preserves reverse selection and restores the replacement baseline`() {
+    fun `raw marked text preserves reverse selection and restores the replacement baseline`() {
         val state = TextEditorState("AZ", Some(Utf8Selection(2L, 1L)))
         applyEditorInput(
             state,
@@ -48,9 +48,9 @@ private class TextEditorSingleLineTest {
             ),
             true
         )
-        assertEquals("A仮 😀", state.text)
-        assertEquals(Utf8Selection(9L, 5L), state.selection)
-        assertEquals(Some(Utf8Range(1L, 9L)), state.markedRange)
+        assertEquals("A仮\r\n😀", state.text)
+        assertEquals(Utf8Selection(10L, 6L), state.selection)
+        assertEquals(Some(Utf8Range(1L, 10L)), state.markedRange)
         applyEditorInput(
             state,
             TextInputBatch(
@@ -83,13 +83,18 @@ private class TextEditorSingleLineTest {
             ),
             true
         )
-        assertEquals("X y z", state.text)
-        assertEquals(Some(Utf8Range(2L, 5L)), state.markedRange)
+        assertEquals("X y\u2028z", state.text)
+        assertEquals(Some(Utf8Range(2L, 7L)), state.markedRange)
         assertTrue(state.cancelComposition())
         assertEquals("X ", state.text)
         assertEquals(Utf8Selection(2L, 2L), state.selection)
         assertTrue(state.undo())
         assertEquals("", state.text)
-        assertEquals("a b c d e f", EditorSingleLine.from("a\r\nb\nc\rd\u0085e\u2029f").text)
+        state.applyEdit(
+            Utf8Range(0L, 0L),
+            "a\r\nb\nc\rd\u0085e\u2029f",
+            textEditPolicy { this.singleLine = true }
+        )
+        assertEquals("a b c d e f", state.text)
     }
 }

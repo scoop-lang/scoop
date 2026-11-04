@@ -90,6 +90,7 @@ private class LinuxHandler: ApplicationHandler {
                         }
                         redraws += 1
                         if (stage == 0) {
+                            verifyShortcutLabels(value)
                             stage = 1
                             assertEquals(
                                 RequestStatus.Requested,
@@ -239,8 +240,12 @@ private class LinuxHandler: ApplicationHandler {
                     assertEquals(WindowState.Open, value.state)
                     assertEquals(LogicalSize(320.0, 180.0), value.metrics!!.logicalSize)
                     verifyTransparency(value)
-                    application.clipboard.writeText("中文 / 👩‍💻\r\nline\u{0}end")
-                    assertEquals(Some("中文 / 👩‍💻\r\nline\u{0}end"), application.clipboard.readText())
+                    application.clipboard.writeText("中文 / 👩‍💻\r\nline\rend")
+                    assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
+                    assertFailsWith<IllegalArgumentException> {
+                        application.clipboard.writeText("rejected\u{0}text")
+                    }
+                    assertEquals(Some("中文 / 👩‍💻\nline\nend"), application.clipboard.readText())
                     application.clipboard.writeText("")
                     assertEquals(Some(""), application.clipboard.readText())
                 }
@@ -304,5 +309,36 @@ private class LinuxHandler: ApplicationHandler {
                 }
             }
         }
+    }
+
+    private fun verifyShortcutLabels(value: Window) {
+        val chord =
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("é")),
+                ShortcutModifiers(primary = true, control = true, shift = true)
+            )
+        val label = value.shortcutLabel(chord)
+        assertEquals(3, label.parts.size)
+        assertEquals("Ctrl", label.parts[0])
+        assertEquals("Shift", label.parts[1])
+        assertEquals("é", label.parts[2])
+        assertEquals("+", label.separator)
+        val enter =
+            value.shortcutLabel(
+                ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.Enter)))
+            )
+        assertEquals(1, enter.parts.size)
+        assertEquals("Enter", enter.parts[0])
+        val letter =
+            value.shortcutLabel(ShortcutChord(ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyA))))
+        assertEquals(1, letter.parts.size)
+        assertEquals("a", letter.parts[0])
+        Thread.start {
+            assertFailsWith<IllegalStateException> { value.shortcutLabel(chord) }
+            assertEquals(3, label.parts.size)
+            assertEquals("Ctrl", label.parts[0])
+            assertEquals("Shift", label.parts[1])
+            assertEquals("é", label.parts[2])
+        }.use { thread -> thread.join() }
     }
 }

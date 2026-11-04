@@ -1,0 +1,91 @@
+package scoop.ui.text
+
+import scoop.window.Utf8Range
+
+/** Only provenance and lengths are needed to avoid truncating retained document text. */
+internal struct EditorSpan(val length: Long, val inserted: Boolean)
+
+internal class EditorComposition(val baseline: EditorValue, val spans: Array<EditorSpan>)
+
+private fun appendEditorSpan(output: ArrayList<EditorSpan>, value: EditorSpan) {
+    if (value.length == 0L)
+        return
+    if (output.size > 0L) {
+        val previous = output[output.size - 1L]
+        if (previous.inserted == value.inserted) {
+            output[output.size - 1L] = EditorSpan(previous.length + value.length, value.inserted)
+            return
+        }
+    }
+    output.add(value)
+}
+
+internal fun editorInitialSpans(length: Long): Array<EditorSpan> =
+    if (length == 0L)
+        []
+    else
+        [EditorSpan(length, false)]
+
+private fun appendEditorSpanRange(
+    output: ArrayList<EditorSpan>,
+    spans: Array<EditorSpan>,
+    start: Long,
+    end: Long
+) {
+    var offset = 0L
+    for (span in spans) {
+        val next = offset + span.length
+        val first =
+            if (start > offset)
+                start
+            else
+                offset
+        val last =
+            if (end < next)
+                end
+            else
+                next
+        if (last > first)
+            appendEditorSpan(output, EditorSpan(last - first, span.inserted))
+        offset = next
+        if (offset >= end)
+            return
+    }
+}
+
+internal fun spliceEditorSpans(spans: Array<EditorSpan>, range: Utf8Range, inserted: Long): Array<
+    EditorSpan
+> {
+    var size = 0L
+    for (span in spans)
+        size += span.length
+    val output = ArrayList<EditorSpan>()
+    appendEditorSpanRange(output, spans, 0L, range.start)
+    appendEditorSpan(output, EditorSpan(inserted, true))
+    appendEditorSpanRange(output, spans, range.end, size)
+    return output.toArray()
+}
+
+internal fun mapEditorSpans(spans: Array<EditorSpan>, edits: Array<TextEditReplacement>): Array<
+    EditorSpan
+> {
+    var result = spans
+    var delta = 0L
+    for (edit in edits) {
+        val range = Utf8Range(edit.range.start + delta, edit.range.end + delta)
+        result = spliceEditorSpans(result, range, edit.text.byteLength)
+        delta += edit.text.byteLength - edit.range.end + edit.range.start
+    }
+    return result
+}
+
+internal fun editorInsertedRanges(spans: Array<EditorSpan>): Array<Utf8Range> {
+    val result = ArrayList<Utf8Range>()
+    var offset = 0L
+    for (span in spans) {
+        if (span.inserted)
+            result.add(Utf8Range(offset, offset + span.length))
+        offset += span.length
+    }
+    return result.toArray()
+}

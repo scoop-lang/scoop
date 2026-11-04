@@ -28,6 +28,9 @@ private class ScrollAreaTest {
             assertEquals(1, probe.mounts)
             assertEquals(1, probe.unmounts)
             assertTrue(probe.view!!.restored())
+            val count = probe.outerIntents.size
+            probe.outer.scrollTo(Point(0.0, 0.0))
+            assertEquals(count, probe.outerIntents.size)
         } finally {
             probe.frames?.close()
             probe.view?.close()
@@ -67,6 +70,10 @@ internal class AreaProbe {
     var baselineRenders = 0
     var baselineContent = 0
     var previousOffset = Point(0.0, 0.0)
+    val outerIntents = ArrayList<ScrollIntent>()
+    val innerIntents = ArrayList<ScrollIntent>()
+    var boundaryIntents = 0L
+    var blockedIntents = 0L
 
     fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
         when (event) {

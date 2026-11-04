@@ -81,6 +81,10 @@ path = "native/darwin/commands.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/darwin/shortcuts.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/darwin/pointer.m"
 when = { os = "darwin" }
 
@@ -117,6 +121,11 @@ when = { os = "darwin" }
 
 [[native.libraries]]
 name = "CoreGraphics"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "Carbon"
 kind = "framework"
 when = { os = "darwin" }
 
@@ -361,4 +370,8 @@ when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "test-linux"
+when = { os = "linux", env = "gnu" }
+
+[[native.sources]]
+path = "native/linux/key_labels.c"
 when = { os = "linux", env = "gnu" }

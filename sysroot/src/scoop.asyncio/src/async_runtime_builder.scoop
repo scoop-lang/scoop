@@ -1,0 +1,42 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingPoolBuilder
+import scoop.platform.system.logicalProcessorCount
+
+/** Configures one I/O runtime without starting any threads. */
+public class AsyncRuntimeBuilder public constructor() {
+    /** Number of coroutine workers; initially the logical processor count. */
+    public var workers: Int = defaultRuntimeWorkers()
+    private var blockingThreads: Int = 4
+
+    /** Replaces the configuration of the pool shared by coroutine and I/O work. */
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit) {
+        val builder = BlockingPoolBuilder()
+        configure(builder)
+        blockingThreads = builder.threads
+    }
+
+    internal fun snapshot(): AsyncRuntimeConfig {
+        if (workers <= 0 || blockingThreads <= 0)
+            throw IllegalArgumentException(Some("runtime worker counts must be positive"))
+        return AsyncRuntimeConfig(workers, blockingThreads)
+    }
+}
+
+internal struct AsyncRuntimeConfig(val workers: Int, val blockingThreads: Int)
+
+private fun defaultRuntimeWorkers(): Int {
+    val count = logicalProcessorCount
+    if (count < 1L)
+        return 1
+    if (count > 2147483647L)
+        return 2147483647
+    return count.toInt()
+}
+
+/** Creates a single-use runtime from a configuration snapshot. */
+public fun asyncRuntime(configure: AsyncRuntimeBuilder.() -> Unit = {}): AsyncRuntime {
+    val builder = AsyncRuntimeBuilder()
+    configure(builder)
+    return AsyncRuntime(builder.snapshot())
+}

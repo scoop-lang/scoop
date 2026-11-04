@@ -286,6 +286,14 @@ impl CoreCoroutineProtocolV1 {
             CoreProtocolEntryV1::DispatchSlot(self.suspend_registration_register_dispatch),
             CoreProtocolEntryV1::Callable(self.start_coroutine.clone()),
             CoreProtocolEntryV1::Callable(self.suspend_coroutine.clone()),
+            CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::Type(self.work)),
+            CoreProtocolEntryV1::Callable(self.work_run.clone()),
+            CoreProtocolEntryV1::DispatchSlot(self.work_run_dispatch),
+            CoreProtocolEntryV1::Nominal(CoreProtocolNominalV1::Type(self.execution)),
+            CoreProtocolEntryV1::Callable(self.execution_start.clone()),
+            CoreProtocolEntryV1::DispatchSlot(self.execution_start_dispatch),
+            CoreProtocolEntryV1::Callable(self.execution_resume.clone()),
+            CoreProtocolEntryV1::DispatchSlot(self.execution_resume_dispatch),
         ]
     }
 }
@@ -309,6 +317,14 @@ impl DecodedCoreCoroutineProtocolV1 {
             suspend_registration_register_dispatch,
             start_coroutine,
             suspend_coroutine,
+            work,
+            work_run,
+            work_run_dispatch,
+            execution,
+            execution_start,
+            execution_start_dispatch,
+            execution_resume,
+            execution_resume_dispatch,
         ] = self.0.entries;
         Ok(CoreCoroutineProtocolV1 {
             continuation: read_generic_nominal(continuation, 0, foundation)?,
@@ -348,6 +364,18 @@ impl DecodedCoreCoroutineProtocolV1 {
             )?,
             start_coroutine: read_callable(start_coroutine, 11, foundation)?,
             suspend_coroutine: read_callable(suspend_coroutine, 12, foundation)?,
+            work: read_concrete_nominal(work, 13, foundation)?,
+            work_run: read_callable(work_run, 14, foundation)?,
+            work_run_dispatch: read_dispatch_slot(work_run_dispatch, 15, foundation)?,
+            execution: read_concrete_nominal(execution, 16, foundation)?,
+            execution_start: read_callable(execution_start, 17, foundation)?,
+            execution_start_dispatch: read_dispatch_slot(execution_start_dispatch, 18, foundation)?,
+            execution_resume: read_callable(execution_resume, 19, foundation)?,
+            execution_resume_dispatch: read_dispatch_slot(
+                execution_resume_dispatch,
+                20,
+                foundation,
+            )?,
         })
     }
 }

@@ -18,9 +18,9 @@ private class AsyncTlsIdentityTests {
 
     @Test
     fun `identity and context can close during a handshake whose cancellation awaits real cleanup`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val identity = TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem())
             val context =
@@ -71,9 +71,9 @@ private class AsyncTlsIdentityTests {
 }
 
 private fun verifyAsyncIdentity(version: TlsVersion) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val options = TlsOptions(version, version)
         val clientConfig =
             TlsIdentity.fromPem(clientPem() + intermediatePem(), serverKeyPem()).use {

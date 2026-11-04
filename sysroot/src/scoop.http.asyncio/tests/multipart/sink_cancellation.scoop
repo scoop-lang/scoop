@@ -9,9 +9,9 @@ import scoop.test.*
 private class MultipartSinkCancellationTests {
     @Test
     fun `concurrent output is rejected and close waits for the pending readable borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val output = PendingMessageSink()
             output.pause = true
             val sink = MultipartSink.takeOwnership(output, MultipartBoundary("b"), 3L)
@@ -23,6 +23,7 @@ private class MultipartSinkCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(output.running)
                 expectMessageFailure<IllegalStateException> suspend {
                     sink.beginPart(MultipartPartHead())
@@ -32,6 +33,7 @@ private class MultipartSinkCancellationTests {
                 assertFalse(present(sink.failure))
                 val first = scope.launch suspend { sink.close() }
                 val second = scope.launch suspend { sink.close() }
+                yieldCoroutine()
                 assertTrue(output.job!!.isCancelled)
                 assertFalse(first.isCompleted || second.isCompleted || writing.isCompleted)
                 assertEquals(0, output.closes)
@@ -55,9 +57,9 @@ private class MultipartSinkCancellationTests {
 
     @Test
     fun `cancelled body output keeps accepted prefix and can close a borrowed sink in finally`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val output = PendingMessageSink(97.toByte())
             val sink = MultipartSink(output, MultipartBoundary("b"), 2L)
             val part = sink.beginPart(MultipartPartHead())
@@ -75,6 +77,7 @@ private class MultipartSinkCancellationTests {
                         }
                     }
                 try {
+                    yieldCoroutine()
                     assertEquals(2L, buffer.readPosition)
                     writing.cancel()
                     assertTrue(output.running && output.job!!.isCancelled)

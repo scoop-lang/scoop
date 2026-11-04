@@ -16,8 +16,10 @@ private class LinuxShortcutTest {
             val calls = ArrayList<Unit>()
             val binding =
                 ShortcutBinding(
-                    ShortcutKey.Logical(LogicalKey.Character("c")),
-                    ShortcutModifiers(primary = true),
+                    ShortcutChord(
+                        ShortcutKey.Logical(LogicalKey.Character("c")),
+                        ShortcutModifiers(primary = true)
+                    ),
                     action = { calls.add(Unit) }
                 )
             ShortcutScope(area.scope, [binding]).use {
@@ -32,8 +34,7 @@ private class LinuxShortcutTest {
                         [
                             binding,
                             ShortcutBinding(
-                                binding.key,
-                                ShortcutModifiers(control = true),
+                                ShortcutChord(binding.chord.key, ShortcutModifiers(control = true)),
                                 action = { fail() }
                             )
                         ]

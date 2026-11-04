@@ -169,6 +169,31 @@ impl ImportedCoreExceptionProtocol {
 }
 
 impl ImportedCoreCoroutineProtocol {
+    pub fn work(&self) -> ImportedHirNominal<PersistentTypeId> {
+        self.work
+    }
+    pub fn work_run(&self) -> &ImportedCoreProtocolCallable {
+        &self.work_run
+    }
+    pub fn work_run_dispatch(&self) -> ImportedHirId<PersistentDispatchSlotId> {
+        self.work_run_dispatch
+    }
+    pub fn execution(&self) -> ImportedHirNominal<PersistentTypeId> {
+        self.execution
+    }
+    pub fn execution_start(&self) -> &ImportedCoreProtocolCallable {
+        &self.execution_start
+    }
+    pub fn execution_start_dispatch(&self) -> ImportedHirId<PersistentDispatchSlotId> {
+        self.execution_start_dispatch
+    }
+    pub fn execution_resume(&self) -> &ImportedCoreProtocolCallable {
+        &self.execution_resume
+    }
+    pub fn execution_resume_dispatch(&self) -> ImportedHirId<PersistentDispatchSlotId> {
+        self.execution_resume_dispatch
+    }
+
     pub fn continuation(&self) -> ImportedHirNominal<PersistentGenericTypeId> {
         self.continuation
     }

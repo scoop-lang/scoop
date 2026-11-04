@@ -34,6 +34,8 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
         case 3 -> {
             assertEquals(Point(0.0, 180.0), probe.inner.offset)
             assertEquals(Point(40.0, 100.0), probe.outer.offset)
+            assertUserIntent(probe.outerIntents)
+            assertUserIntent(probe.innerIntents)
             assertEquals(probe.baselineRenders, probe.renders)
             assertEquals(probe.baselineContent, probe.contentRenders)
             assertTrue(probe.innerFocus.hasFocus)
@@ -42,26 +44,34 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
             probe.phase += 1
         }
         case 4 -> probe.input(active) {
+            probe.boundaryIntents = probe.innerIntents.size
+            probe.blockedIntents = probe.outerIntents.size
             assertTrue(sendSurfaceScroll(probe.window!!, 80.0, 65.0, -2, -3))
         }
         case 5 -> {
             assertEquals(Point(0.0, 0.0), probe.outer.offset)
             assertEquals(Point(0.0, 180.0), probe.inner.offset)
+            assertEquals(probe.boundaryIntents + 1L, probe.innerIntents.size)
+            assertEquals(probe.blockedIntents, probe.outerIntents.size)
+            assertUserIntent(probe.innerIntents)
             probe.generation.value = 2
             probe.preventWheel = true
             probe.phase += 1
         }
         case 6 -> probe.input(active) {
+            probe.blockedIntents = probe.outerIntents.size
             assertTrue(sendSurfaceScroll(probe.window!!, 30.0, 30.0, 0, -3))
         }
         case 7 -> {
             assertEquals(Point(0.0, 0.0), probe.outer.offset)
+            assertEquals(probe.blockedIntents, probe.outerIntents.size)
             probe.preventWheel = false
             assertTrue(probe.outerFocus.requestFocus())
             probe.input(active) { probe.key(121) }
         }
         case 8 -> {
             assertEquals(Point(0.0, 120.0), probe.outer.offset)
+            assertUserIntent(probe.outerIntents)
             probe.input(active) { probe.key(119) }
         }
         case 9 -> {
@@ -89,6 +99,7 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
         }
         case 12 -> {
             assertTrue(probe.outer.offset.y > 239.99 && probe.outer.offset.y < 240.01)
+            assertUserIntent(probe.outerIntents)
             assertTrue(probe.innerFocus.hasFocus)
             probe.previousOffset = probe.outer.offset
             probe.preventRelease = true
@@ -183,5 +194,13 @@ internal fun advanceArea(probe: AreaProbe, active: ActiveApplication) {
     if (probe.phase == 28) {
         probe.ui!!.close()
         probe.window!!.requestDestroy()
+    }
+}
+
+private fun assertUserIntent(events: ArrayList<ScrollIntent>) {
+    assertTrue(events.size > 0L)
+    when (events[events.size - 1L]) {
+        case User(_) -> {}
+        else -> fail(Some("expected user scroll intent"))
     }
 }

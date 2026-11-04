@@ -4,9 +4,9 @@ import scoop.asyncio.*
 import scoop.time.Duration
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val first =
             scope.async<Int> suspend {
                 loop.sleep(Duration.milliseconds(20L))

@@ -7,6 +7,33 @@ import scoop.window.*
 @Test
 private class InputShortcutTest {
     @Test
+    fun `text protection distinguishes confirmed AltGr from ordinary control alt chords`() {
+        InputRig().use {
+            rig ->
+            val log = ShortcutLog()
+            val area = rig.area("editor", focusable = true, text = true)
+            rig.frame { frame, canvas -> frame.place(canvas, area, Rect(0.0, 0.0, 50.0, 50.0)) }
+            assertTrue(area.requestFocus())
+            val chord =
+                ShortcutChord(
+                    ShortcutKey.Logical(LogicalKey.Character("s")),
+                    ShortcutModifiers(control = true, alt = true)
+                )
+            ShortcutScope(
+                rig.router.rootScope,
+                [shortcutBinding(chord, { log.add("application") })]
+            ).use {
+                _ ->
+                rig.key(shortcutKey(control = true, alt = true))
+                rig.key(shortcutKey(control = true, alt = true, altGraph = Some(true)))
+                assertEquals("", log.trace)
+                rig.key(shortcutKey(control = true, alt = true, altGraph = Some(false)))
+                assertEquals("application", log.trace)
+            }
+        }
+    }
+
+    @Test
     fun `a boundary blocks outside shortcuts while its geometry free root remains usable`() {
         InputRig().use {
             rig ->
@@ -41,11 +68,14 @@ private class InputShortcutTest {
                     commandBinding("s", { log.add("save") }),
                     commandBinding("é", { log.add("accent") }),
                     shortcutBinding(
-                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                        ShortcutChord(
+                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                            ShortcutModifiers(primary = true)
+                        ),
                         { log.add("physical") }
-                    ) { this.modifiers = ShortcutModifiers(primary = true) },
+                    ),
                     shortcutBinding(
-                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
+                        ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1))),
                         { log.add("help") }
                     )
                 ]
@@ -67,12 +97,12 @@ private class InputShortcutTest {
                 shortcuts.bindings =
                     [
                         shortcutBinding(
-                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutModifiers(primary = true)
+                            ),
                             { log.add("repeat") }
-                        ) {
-                            this.modifiers = ShortcutModifiers(primary = true)
-                            this.allowRepeat = true
-                        }
+                        ) { this.allowRepeat = true }
                     ]
                 rig.key(shortcutKey(command = true, repeat = true))
                 assertEquals("save,save,physical,accent,help,repeat", log.trace)
@@ -112,19 +142,22 @@ private class InputShortcutTest {
                     commandBinding("c", { log.add("outer-copy") }),
                     commandBinding("s", { log.add("outer-save") }),
                     shortcutBinding(
-                        ShortcutKey.Logical(LogicalKey.Character("x")),
+                        ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("x"))),
                         { log.add("typed-x") }
                     ),
                     shortcutBinding(
-                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                        ShortcutChord(
+                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyY)),
+                            ShortcutModifiers(control = true, alt = true)
+                        ),
                         { log.add("altgr") }
-                    ) { this.modifiers = ShortcutModifiers(control = true, alt = true) },
+                    ),
                     shortcutBinding(
-                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)),
+                        ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space))),
                         { log.add("space") }
                     ),
                     shortcutBinding(
-                        ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1)),
+                        ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.F1))),
                         { log.add("help") }
                     )
                 ]
@@ -133,12 +166,12 @@ private class InputShortcutTest {
                     group,
                     [
                         shortcutBinding(
-                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutChord(
+                                ShortcutKey.Logical(LogicalKey.Character("s")),
+                                ShortcutModifiers(primary = true)
+                            ),
                             { log.add("inner-save") }
-                        ) {
-                            this.modifiers = ShortcutModifiers(primary = true)
-                            this.canExecute = { log.ready }
-                        }
+                        ) { this.canExecute = { log.ready } }
                     ]
                 ).use {
                     inner ->
@@ -172,7 +205,7 @@ private class InputShortcutTest {
                         area.scope,
                         [
                             shortcutBinding(
-                                ShortcutKey.Logical(LogicalKey.Character("x")),
+                                ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("x"))),
                                 { log.add("local-x") }
                             )
                         ]
@@ -189,16 +222,20 @@ private class InputShortcutTest {
             rig ->
             val log = ShortcutLog()
             assertFailsWith<IllegalArgumentException> {
-                shortcutBinding(ShortcutKey.Logical(LogicalKey.Dead(None)), {})
+                shortcutBinding(ShortcutChord(ShortcutKey.Logical(LogicalKey.Dead(None))), {})
             }
             assertFailsWith<IllegalArgumentException> {
-                shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("")), {})
+                shortcutBinding(ShortcutChord(ShortcutKey.Logical(LogicalKey.Character(""))), {})
             }
             val original = commandBinding("s", { log.add("original") })
             val duplicate =
-                shortcutBinding(ShortcutKey.Logical(LogicalKey.Character("S")), {}) {
-                    this.modifiers = ShortcutModifiers(superKey = true)
-                }
+                shortcutBinding(
+                    ShortcutChord(
+                        ShortcutKey.Logical(LogicalKey.Character("S")),
+                        ShortcutModifiers(superKey = true)
+                    ),
+                    {}
+                )
             assertFailsWith<IllegalArgumentException> {
                 ShortcutScope(rig.router.rootScope, [original, duplicate])
             }
@@ -213,13 +250,7 @@ private class InputShortcutTest {
                 assertEquals("original", log.trace)
                 scope.enabled = true
                 scope.bindings =
-                    [
-                        original,
-                        shortcutBinding(duplicate.key, {}) {
-                            this.modifiers = duplicate.modifiers
-                            this.enabled = false
-                        }
-                    ]
+                    [original, shortcutBinding(duplicate.chord, {}) { this.enabled = false }]
                 rig.key(shortcutKey(command = true))
                 scope.close()
                 assertTrue(scope.isClosed)
@@ -249,9 +280,12 @@ private class InputShortcutTest {
                 [
                     commandBinding("s", { log.add("logical") }),
                     shortcutBinding(
-                        ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                        ShortcutChord(
+                            ShortcutKey.Physical(PhysicalKey.Code(KeyCode.KeyS)),
+                            ShortcutModifiers(primary = true)
+                        ),
                         { log.add("physical") }
-                    ) { this.modifiers = ShortcutModifiers(primary = true) }
+                    )
                 ]
             ).use {
                 shortcuts ->
@@ -302,10 +336,12 @@ private class InputShortcutTest {
                 rig.router.rootScope,
                 [
                     shortcutBinding(
-                        ShortcutKey.Logical(LogicalKey.Character("s")),
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("s")),
+                            ShortcutModifiers(primary = true)
+                        ),
                         { log.add("unexpected") }
                     ) {
-                        this.modifiers = ShortcutModifiers(primary = true)
                         this.canExecute =
                             {
                                 rig.router.rootScope.enabled = false;

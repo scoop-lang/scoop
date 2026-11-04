@@ -1,0 +1,108 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum GridTrack {
+    Fixed(Double), Auto, Fraction(Double)
+}
+
+public class GridItem public constructor(
+    public val content: View,
+    public val column: Long,
+    public val row: Long,
+    public val columnSpan: Long = 1L,
+    public val rowSpan: Long = 1L,
+    public val horizontal: CrossAlignment = CrossAlignment.Stretch,
+    public val vertical: CrossAlignment = CrossAlignment.Stretch
+) {
+    init {
+        requireComponent(
+            column >= 0L && row >= 0L && columnSpan > 0L && rowSpan > 0L,
+            "invalid grid item position or span"
+        )
+        requireComponent(
+            horizontal != CrossAlignment.Baseline && vertical != CrossAlignment.Baseline,
+            "grid cells use start, center, end or stretch alignment"
+        )
+    }
+}
+
+public class GridProps public constructor(
+    public val columns: Array<GridTrack>,
+    public val rows: Array<GridTrack>,
+    public val items: Array<GridItem>,
+    public val columnGap: Double = 0.0,
+    public val rowGap: Double = 0.0,
+    public val padding: Insets = Insets(),
+    public val logicalPadding: LogicalInsets? = None,
+    public val clip: Boolean = false
+) {
+    public val children: Array<View> = Array(items.size) { index -> items[index].content }
+    init {
+        checkGridTracks(columns)
+        checkGridTracks(rows)
+        nonnegative(columnGap, "invalid grid column gap")
+        nonnegative(rowGap, "invalid grid row gap")
+        padding.totals()
+        logicalPadding?.resolve(LayoutDirection.Ltr)?.totals()
+        for (item in items) {
+            checkGridSpan(item.column, item.columnSpan, columns.size)
+            checkGridSpan(item.row, item.rowSpan, rows.size)
+        }
+    }
+}
+
+public class GridItemBuilder internal constructor() {
+    public var column: Long = 0L
+    public var row: Long = 0L
+    public var columnSpan: Long = 1L
+    public var rowSpan: Long = 1L
+    public var horizontal: CrossAlignment = CrossAlignment.Stretch
+    public var vertical: CrossAlignment = CrossAlignment.Stretch
+    internal fun snapshot(content: View): GridItem =
+        GridItem(content, column, row, columnSpan, rowSpan, horizontal, vertical)
+}
+
+public fun gridItem(content: View, configure: GridItemBuilder.() -> Unit = {}): GridItem {
+    val builder = GridItemBuilder()
+    builder.configure()
+    return builder.snapshot(content)
+}
+
+public class GridBuilder internal constructor() {
+    private val entries = ArrayList<GridItem>()
+    public var key: ViewKey = ViewKey.Position
+    public var columns: Array<GridTrack> = [GridTrack.Auto]
+    public var rows: Array<GridTrack> = [GridTrack.Auto]
+    public var columnGap: Double = 0.0
+    public var rowGap: Double = 0.0
+    public var padding: Insets = Insets()
+    public var logicalPadding: LogicalInsets? = None
+    public var clip: Boolean = false
+    public fun add(item: GridItem): Unit {
+        entries.add(item)
+    }
+    public fun item(content: View, configure: GridItemBuilder.() -> Unit = {}): Unit {
+        add(gridItem(content, configure))
+    }
+    internal fun snapshot(): GridProps =
+        GridProps(
+            columns,
+            rows,
+            entries.toArray(),
+            columnGap,
+            rowGap,
+            padding,
+            logicalPadding,
+            clip
+        )
+}
+
+public fun grid(configure: GridBuilder.() -> Unit = {}): View = makeGrid(configure)
+
+internal fun makeGrid(configure: GridBuilder.() -> Unit): View {
+    val builder = GridBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { props -> Grid(props) }, builder.key)
+}

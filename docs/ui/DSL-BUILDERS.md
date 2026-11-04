@@ -62,7 +62,7 @@ ScrollState、TextEditorState、FocusHandle、VirtualListHandle、LayoutAnchor �
 | Row／Column／Stack、Frame | Array<View> 或单一 child 加布局参数；最直接改善嵌套界面阅读 | 多子项保持源码顺序；单内容槽仍接收一个 View，多项用显式容器组合 |
 | Label／Button／Checkbox、Input／Textarea | Props 已集中定义配置；复杂控件参数较多 | 复用现有组件与行为；文本编辑模型、Binding 等仍由调用方传入 |
 | Absolute | 当前是 Array<AbsoluteChild>，每项组合 View、两轴位置和 zIndex | 将单项定位与其内容写在一起，最后生成同一 AbsoluteChild；不增加新的全局定位机制 |
-| Portal 与 modal 配置 | PortalOptions 中已有 placement、dismiss、modal、handle 和 onClose | DSL 组织配置与内容，继续复用现有打开条件、焦点屏障、关闭顺序和恢复 |
+| Portal 与 modal 配置 | PortalOptions 中已有 placement、dismiss、modal、handle、onCloseRequest 和 onClosed | DSL 组织配置与内容，使用 open Binding，复用焦点屏障、退出呈现和 Accepted 后恢复 |
 | ScrollArea | 内容、滚动参数、条样式和缓存选项可就近配置 | 绘制缓存与子项实例缓存保持独立；ScrollState 更新仍通过现有操作 |
 | VirtualList | 已有 ItemSource、ItemExtent、retention、navigation、paintCache 等 | builder 保存惰性 source／项构建回调，不枚举全量数据；实例创建仍由 lazyElement 决定 |
 | Style、SurfaceOptions、状态覆盖 | 不可变配置嵌套较深，适合局部配置块 | 保留 Inherit、Set(None)、Set(value) 三种意义；省略不能误变成清除继承值 |

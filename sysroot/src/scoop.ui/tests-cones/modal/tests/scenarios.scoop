@@ -129,9 +129,9 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
             expectFocus(-1L)
             assertTrue(modalRoots[0L]!!.hasFocus)
             val before = closed.size
-            layers[0L].close()
-            layers[0L].close()
-            assertEquals(before + 1L, closed.size)
+            layers[0L].requestClose()
+            layers[0L].requestClose()
+            assertEquals(before, closed.size)
             assertFalse(areas[0L]!!.scope.isInputAllowed)
             phase += 1
         }
@@ -145,7 +145,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
             expectFocus(2L)
             assertFalse(focus[2L].isPending)
             requestOnClose = 0L
-            layers[0L].close()
+            layers[0L].requestClose()
             phase += 1
         }
         case 19 -> {
@@ -174,7 +174,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         )
         case 23 -> {
             expectFocus(2L)
-            layers[0L].close()
+            layers[0L].requestClose()
             phase += 1
         }
         case 24 -> {
@@ -187,7 +187,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         }
         case 26 -> {
             expectFocus(7L)
-            layers[0L].close()
+            layers[0L].requestClose()
             expectFocus(7L)
             assertFalse(areas[0L]!!.scope.isInputAllowed)
             phase += 1
@@ -195,7 +195,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         case 27 -> {
             expectFocus(7L)
             assertFalse(areas[0L]!!.scope.isInputAllowed)
-            layers[4L].close()
+            layers[4L].requestClose()
             phase += 1
         }
         case 28 -> {
@@ -232,8 +232,8 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
             )
         }
         case 33 -> {
-            layers[5L].close()
-            layers[0L].close()
+            layers[5L].requestClose()
+            layers[0L].requestClose()
             phase += 1
         }
         case 34 -> {
@@ -244,7 +244,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         case 35 -> {
             expectFocus(3L)
             discardNext = true
-            layers[0L].close()
+            layers[0L].requestClose()
             phase += 1
         }
         case 36 -> {
@@ -257,7 +257,7 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
         case 37 -> {
             expectFocus(3L)
             areas[1L]!!.close()
-            layers[0L].close()
+            layers[0L].requestClose()
             phase += 1
         }
         case 38 -> {

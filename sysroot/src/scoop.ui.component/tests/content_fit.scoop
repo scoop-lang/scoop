@@ -1,0 +1,90 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+
+@Test
+private class ContentFitTest {
+    @Test
+    fun `contain cover fill and none resolve logical alignment without changing drawing orientation`() {
+        val natural = Size(40.0, 20.0)
+        val box = Rect(10.0, 20.0, 100.0, 80.0)
+        assertEquals(Rect(10.0, 35.0, 100.0, 50.0), fitContent(natural, box))
+        assertEquals(Rect(-20.0, 20.0, 160.0, 80.0), fitContent(natural, box, ContentFit.Cover))
+        assertEquals(box, fitContent(natural, box, ContentFit.Fill))
+        assertEquals(Rect(40.0, 50.0, 40.0, 20.0), fitContent(natural, box, ContentFit.None))
+        val start = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+        assertEquals(
+            Rect(10.0, 20.0, 40.0, 20.0),
+            fitContent(natural, box, ContentFit.None, start, LayoutDirection.Ltr)
+        )
+        assertEquals(
+            Rect(70.0, 20.0, 40.0, 20.0),
+            fitContent(natural, box, ContentFit.None, start, LayoutDirection.Rtl)
+        )
+        assertEquals(
+            Rect(10.0, 20.0, 0.0, 0.0),
+            fitContent(natural, Rect(10.0, 20.0, 0.0, 80.0), ContentFit.Cover)
+        )
+    }
+    @Test
+    fun `intrinsic measurement keeps aspect under maxima and follows required minimum sizes`() {
+        assertEquals(
+            Size(100.0, 50.0),
+            measureContent(Size(200.0, 100.0), Constraints(maxWidth = Some(100.0))).size
+        )
+        assertEquals(
+            Size(60.0, 30.0),
+            measureContent(
+                Size(200.0, 100.0),
+                Constraints(maxWidth = Some(100.0), maxHeight = Some(30.0))
+            ).size
+        )
+        assertEquals(
+            Size(80.0, 80.0),
+            measureContent(Size(200.0, 100.0), Constraints.tight(Size(80.0, 80.0))).size
+        )
+        assertFailsWith<IllegalArgumentException> {
+            fitContent(Size(0.0, 20.0), Rect(0.0, 0.0, 10.0, 10.0))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            fitContent(Size(40.0, 20.0), Rect(0.0, 0.0, -1.0, 10.0))
+        }
+    }
+    @Test
+    fun `media child members construct once and configuration failures preserve borrowed resources`() {
+        val columns = ArrayList<LinearBuilder>()
+        val calls = ArrayList<Int>()
+        val pixels = Array<Byte>(8L) { _ -> 255.toByte() }
+        Image.fromRgba(2, 1, pixels).use {
+            image -> path { addRect(Rect(3.0, 4.0, 8.0, 6.0)) }.use {
+                shape ->
+                column {
+                    columns.add(this)
+                    imageView(image, Size(20.0, 10.0)) {
+                        calls.add(1);
+                        fit = ContentFit.None
+                    }
+                    pathView(shape, Rect(3.0, 4.0, 8.0, 6.0)) {
+                        calls.add(2);
+                        fit = ContentFit.Cover
+                    }
+                }
+                assertEquals(2L, columns[0L].snapshot().children.size)
+                assertEquals(2L, calls.size)
+                assertEquals(1, calls[0L]);
+                assertEquals(2, calls[1L])
+                val failure = IllegalStateException(Some("media configuration"))
+                assertSame(
+                    failure,
+                    assertFailsWith<IllegalStateException> {
+                        imageView(image, Size(20.0, 10.0)) { throw failure }
+                    }
+                )
+                assertFalse(image.isClosed)
+                assertFalse(shape.isClosed)
+            }
+        }
+    }
+}

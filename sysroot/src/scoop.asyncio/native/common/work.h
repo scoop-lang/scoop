@@ -4,6 +4,7 @@
 #include "../loop.h"
 
 typedef struct ScoopIoWork ScoopIoWork;
+typedef struct ScoopIoWorkTask ScoopIoWorkTask;
 typedef void (*ScoopIoWorkExecute)(ScoopIoWork *);
 typedef void (*ScoopIoWorkFinish)(ScoopIoWork *, int);
 
@@ -14,6 +15,7 @@ struct ScoopIoWork {
     ScoopIoLoop *loop;
     ScoopIoWork *next;
     ScoopIoWork *queued;
+    ScoopIoWorkTask *task;
     ScoopIoWorkExecute execute;
     ScoopIoWorkFinish finish;
     ScoopIoWorkState state;
@@ -25,6 +27,9 @@ int scoop_io_work_submit(ScoopIoWork *work, ScoopIoLoop *loop, int64_t id,
 void scoop_io_work_retire(ScoopIoWork *work);
 void scoop_io_work_finished(ScoopIoWork *work, int status);
 void scoop_io_work_cancel(ScoopIoLoop *loop, int64_t id);
-unsigned scoop_io_work_width(void);
+ScoopIoWorkTask *scoop_io_work_take(ScoopIoLoop *loop);
+void scoop_io_work_run(ScoopIoWorkTask *task);
+void scoop_io_work_reject(ScoopIoWorkTask *task);
+void scoop_io_work_poll(ScoopIoLoop *loop);
 
 #endif

@@ -1,0 +1,11 @@
+package scoop.surface
+
+import scoop.window.ShortcutChord
+
+public class ShortcutBinding internal constructor(
+    public val chord: ShortcutChord,
+    public val enabled: Boolean = true,
+    public val allowRepeat: Boolean = false,
+    public val canExecute: () -> Boolean = { true },
+    public val action: () -> Unit
+)

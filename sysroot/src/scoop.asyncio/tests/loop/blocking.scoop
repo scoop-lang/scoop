@@ -1,0 +1,92 @@
+package scoop.asyncio
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+import scoop.time.Duration
+
+private class SavedLoopBuilder {
+    var builder: EventLoopBuilder? = None
+}
+
+@Test
+private class LoopBlockingTest {
+    @Test
+    fun `managed blocking allows owner IO progress and restores its bindings`() {
+        val loop = eventLoop { blocking { threads = 1 } }
+        val gate = LoopBlockingGate()
+        val owner = currentThreadId()
+        loop.run {
+            val child =
+                async {
+                    val childJob = job
+                    blocking {
+                        assertNotEquals(owner, currentThreadId())
+                        assertNoLoopValue(currentCoroutineExecutorOrNone())
+                        assertSame(childJob, currentJobOrNone()!!)
+                        assertSame(loop, currentEventLoop())
+                        gate.await()
+                        gcCollect()
+                        "managed result"
+                    }
+                }
+            while (!gate.entered)
+                yieldCoroutine()
+            try {
+                loop.sleep(Duration.nanoseconds(1L))
+                assertEquals(owner, currentThreadId())
+            } finally {
+                gate.open()
+            }
+            assertEquals("managed result", child.await())
+        }
+    }
+
+    @Test
+    fun `builder snapshots configuration and leaves a shared blocking pool open`() {
+        assertFailsWith<IllegalArgumentException> { eventLoop { blocking { threads = 0 } } }
+        val saved = SavedLoopBuilder()
+        BlockingTaskPool(1).use {
+            pool ->
+            val loop =
+                eventLoop {
+                    saved.builder = Some(this)
+                    blocking { threads = 0 }
+                    blocking(pool)
+                }
+            saved.builder!!.blocking { threads = 0 }
+            assertEquals(42, loop.run { blocking { 42 } })
+            assertFalse(pool.isShutdown)
+            assertEquals(7, eventLoop { blocking(pool) }.run { blocking { 7 } })
+        }
+    }
+
+    @Test
+    fun `host close stays asynchronous while managed blocking work drains`() {
+        val host = PollHost()
+        val gate = LoopBlockingGate()
+        val exited = AtomicBoolean(false)
+        val session =
+            eventLoop { blocking { threads = 1 } }.attach(host) { assertNoHostFailure(it) }
+        session.post {
+            launch {
+                blocking {
+                    gate.await()
+                    exited.store(true)
+                }
+            }
+        }
+        while (!gate.entered)
+            host.step(0)
+        try {
+            session.requestClose()
+            host.step(0)
+            assertFalse(session.isClosed)
+            assertFalse(exited.load())
+        } finally {
+            gate.open()
+        }
+        host.drain(session)
+        assertTrue(exited.load())
+    }
+}

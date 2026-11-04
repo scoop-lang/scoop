@@ -1,0 +1,244 @@
+package scoop.tests.ui.layout
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.FrameSnapshot
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.row as composeRow
+import scoop.ui.text.*
+import scoop.window.*
+
+internal class LayoutCombination {
+    val first = state(160.0)
+    val direction = state(LayoutDirection.Ltr)
+    val widths = state([75.0, 100.0, 125.0])
+    val editor = TextEditorState("one flexible input")
+    val focus = FocusHandle()
+    val scroll = ScrollState()
+    var field: TextEditHost? = None
+    var counter: InputArea? = None
+    var action: InputArea? = None
+    var separator: InputArea? = None
+    var resize: Drag? = None
+    var swipe: Drag? = None
+    var viewport: ScrollViewport? = None
+    var anchors: Array<Double> = []
+    var fieldWidth = 0.0
+    var acceptedFirst = 0.0
+    var acceptedDirection = LayoutDirection.Ltr
+    var counterMounts = 0
+    var counterUnmounts = 0
+    var counterValue = 0
+    var actionClicks = 0
+    var cardClicks = 0
+    var resizeCancels = 0
+    var swipeCancels = 0
+    var imeStarts = 0
+    var imeStops = 0
+    var connection: TextInputConnection? = None
+    var initialConnection: TextInputConnection? = None
+    var pointer = Point(0.0, 0.0)
+    var quietFrames: FrameSnapshot? = None
+    var complete = false
+
+    fun assertFocus() {
+        assertTrue(focus.isFocusActive)
+        assertEquals(1, imeStarts)
+        assertEquals(0, imeStops)
+        assertEquals(initialConnection, connection)
+        assertEquals(1, counterMounts)
+        assertEquals(0, counterUnmounts)
+        assertEquals(1, counterValue)
+        assertTrue(field!!.area.visibleCaretBounds != None)
+    }
+    fun assertClosed() {
+        assertTrue(complete)
+        assertEquals(1, counterMounts)
+        assertEquals(1, counterUnmounts)
+        assertTrue(field!!.isClosed)
+        assertTrue(resize!!.isClosed)
+        assertTrue(swipe!!.isClosed)
+        assertTrue(viewport!!.isClosed)
+        assertFalse(scroll.isAttached)
+        assertFalse(focus.isAttached)
+    }
+}
+
+internal class CombinationScene(private val probe: LayoutProbe): Component {
+    public override fun render(): View {
+        val hostProbe = probe
+        val model = probe.combination
+        val first = model.first.value
+        val flow = model.direction.value
+        return element(
+            first,
+            { props -> CombinationPanel(model, props) },
+            [
+                direction(
+                    composeRow {
+                        alignment = CrossAlignment.Stretch
+                        item(
+                            component(Unit, { _ -> PaneCounter(model) }, ViewKey.Text("counter"))
+                        ) {
+                            basis = FlexBasis.Fixed(first)
+                            shrink = 0.0
+                        }
+                        item(element({ PaneSeparator(model) })) {
+                            basis = FlexBasis.Fixed(8.0)
+                            shrink = 0.0
+                        }
+                        item(
+                            composeRow {
+                                spacing = 8.0
+                                alignment = CrossAlignment.Stretch
+                                item(element({ FixedAction(model) })) {
+                                    basis = FlexBasis.Fixed(48.0)
+                                    shrink = 0.0
+                                }
+                                item(element({ FlexibleEditor(hostProbe) })) {
+                                    basis = FlexBasis.Fixed(0.0)
+                                    grow = 1.0
+                                }
+                            }
+                        ) {
+                            basis = FlexBasis.Fixed(0.0)
+                            grow = 1.0
+                        }
+                    },
+                    flow
+                ),
+                snappingStrip(model)
+            ]
+        )
+    }
+}
+
+private class CombinationPanel(
+    private val model: LayoutCombination,
+    private val props: Props<Double>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(500.0, 48.0)))
+        context.placeChild(0L, Point(20.0, 20.0))
+        context.measureChild(1L, Constraints.tight(Size(120.0, 48.0)))
+        context.placeChild(1L, Point(20.0, 150.0))
+        return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        val first = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                model.acceptedFirst = first
+        }
+    }
+}
+
+private class PaneCounter(private val model: LayoutCombination): Component {
+    private val count = state(0)
+    public override fun onMount(scope: ComponentScope) {
+        model.counterMounts += 1
+    }
+    public override fun onUnmount() {
+        model.counterUnmounts += 1
+    }
+    public override fun render(): View {
+        model.counterValue = count.value
+        return element(count.value, { props -> CounterArea(model, props, { count.value += 1 }) })
+    }
+}
+
+private class CounterArea(
+    private val model: LayoutCombination,
+    private val props: Props<Int>,
+    private val action: () -> Unit
+): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        model.counter = Some(area)
+        scope.press(area, onPress = action)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(160.0, 48.0)))
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val color =
+            if (props.value == 0)
+                Color(0.7, 0.8, 0.9)
+            else
+                Color(0.4, 0.8, 0.5)
+        context.place(model.counter!!, rect)
+        context.draw { paint -> paint.canvas.drawRect(rect, Paint(color)) }
+    }
+}
+
+private class FixedAction(private val model: LayoutCombination): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        model.action = Some(area)
+        scope.press(area) { model.actionClicks += 1 }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        assertEquals(Some(48.0), constraints.maxWidth)
+        return LayoutMetrics(constraints.constrain(Size(48.0, 48.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.place(model.action!!, rect)
+        context.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.5, 0.6, 0.9))) }
+    }
+}
+
+private class FlexibleEditor(private val probe: LayoutProbe): Element {
+    public override fun onMount(scope: ComponentScope) {
+        val model = probe.combination
+        val style =
+            textStyle {
+                families = ["Layout Sans"];
+                fontSize = 18.0
+            }
+        val field =
+            scope.resource {
+                TextEditHost(
+                    scope,
+                    model.editor,
+                    TextEditAppearance(probe.fonts, style, style),
+                    TextEditOptions(caretBlink = Duration.ZERO)
+                )
+            }
+        model.field = Some(field)
+        field.focus.options = FocusOptions(Some(model.focus))
+        scope.resource {
+            field.area.scope.addEventHandler {
+                _,
+                event -> when (event) {
+                    case TextInput(TextInputEvent.Enabled(connection)) -> {
+                        model.imeStarts += 1
+                        model.connection = connection
+                    }
+                    case TextInput(TextInputEvent.Disabled(_)) -> model.imeStops += 1
+                    else -> {}
+                }
+            }
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        probe.combination.field!!.measure(constraints)
+    public override fun scene(context: SceneContext) {
+        val model = probe.combination
+        model.field!!.scene(context)
+        val width = context.size.width
+        val flow = context.layoutDirection
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                model.fieldWidth = width
+                model.acceptedDirection = flow
+            }
+        }
+    }
+}

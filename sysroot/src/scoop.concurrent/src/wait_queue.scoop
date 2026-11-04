@@ -1,0 +1,54 @@
+package scoop.concurrent
+
+// Every access is protected by the owning primitive's state lock.
+internal class WaitLink<T>(value: T) {
+    internal var value: T? = Some(value)
+    internal var previous: WaitLink<T>? = None
+    internal var next: WaitLink<T>? = None
+}
+
+internal class WaitQueue<T> {
+    private var first: WaitLink<T>? = None
+    private var last: WaitLink<T>? = None
+
+    internal val isEmpty: Boolean get() = !waitPresent(first)
+
+    internal fun append(value: T): WaitLink<T> {
+        val link = WaitLink(value)
+        link.previous = last
+        when (last) {
+            case Some(tail) -> tail.next = Some(link)
+            case None -> first = Some(link)
+        }
+        last = Some(link)
+        return link
+    }
+
+    internal fun remove(link: WaitLink<T>): T {
+        when (link.previous) {
+            case Some(previous) -> previous.next = link.next
+            case None -> first = link.next
+        }
+        when (link.next) {
+            case Some(next) -> next.previous = link.previous
+            case None -> last = link.previous
+        }
+        val value = link.value!!
+        link.value = None
+        link.previous = None
+        link.next = None
+        return value
+    }
+
+    internal fun takeFirst(): T? =
+        when (first) {
+            case Some(link) -> Some(remove(link))
+            case None -> None
+        }
+}
+
+internal fun <T> waitPresent(value: T?): Boolean =
+    when (value) {
+        case Some(_) -> true
+        case None -> false
+    }

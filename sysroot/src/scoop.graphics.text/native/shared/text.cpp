@@ -1,18 +1,5 @@
 #include "text.h"
 
-sk_sp<sgt::FontCollection> STFonts::snapshot() const {
-  auto result = sk_make_sp<sgt::FontCollection>();
-  auto assets = sk_make_sp<sgt::TypefaceFontProvider>();
-  for (const auto &entry : entries)
-    assets->registerTypeface(entry.face, entry.family);
-  result->setAssetFontManager(assets);
-  if (fallback)
-    result->setDefaultFontManager(system);
-  else
-    result->disableFontFallback();
-  return result;
-}
-
 STTextData::STTextData(std::string value, std::vector<STRange> objects,
                        std::string language)
     : text(std::move(value)), unicode(SkUnicodes::ICU::Make()),
@@ -55,30 +42,6 @@ STTextData::STTextData(std::string value, std::vector<STRange> objects,
 extern "C" {
 void scoop_graphics_text_drop(void *pointer) {
   delete static_cast<STObject *>(pointer);
-}
-void *scoop_graphics_text_fonts_create(bool fallback) {
-  try {
-    auto manager = st_system_fonts();
-    return manager ? new STFonts(std::move(manager), fallback) : nullptr;
-  } catch (...) {
-    return nullptr;
-  }
-}
-int32_t scoop_graphics_text_fonts_add(void *pointer, const void *bytes,
-                                      int64_t length, const char *alias,
-                                      int64_t alias_length, int32_t index) {
-  try {
-    auto fonts = static_cast<STFonts *>(pointer);
-    auto data = SkData::MakeWithCopy(bytes, (size_t)length);
-    auto face = fonts->system->makeFromData(std::move(data), index);
-    if (!face)
-      return -1;
-    fonts->entries.push_back(
-        {std::move(face), SkString(alias, (size_t)alias_length)});
-    return 1;
-  } catch (...) {
-    return 0;
-  }
 }
 void *scoop_graphics_text_style_create(STTextStyleData value) {
   try {

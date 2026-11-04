@@ -20,9 +20,9 @@ private class AsyncPathModificationTest {
             val destination = tree.child("destination")
             source.writeText("new contents")
             destination.writeText("old")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ -> loop.openFile(destination).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                loop.openFile(destination).useAsync suspend {
                     previous ->
                     try {
                         loop.moveFile(source, destination);
@@ -80,9 +80,8 @@ private class AsyncPathModificationTest {
             val link = tree.child("link")
             link.createSymbolicLink(directory, targetIsDirectory = true)
             val moved = tree.child("moved-link")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                _ ->
+            val loop = eventLoop()
+            loop.run {
                 loop.moveFile(link, moved)
                 assertTrue(loop.metadata(moved, followLinks = false).kind == FileKind.SymbolicLink)
                 loop.deleteFile(moved)

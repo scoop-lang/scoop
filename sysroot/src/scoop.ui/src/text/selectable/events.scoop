@@ -1,0 +1,244 @@
+package scoop.ui.text
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class SelectableDrag(
+    val origin: Point,
+    val unit: EditorDragUnit,
+    val initial: TextRange,
+    val anchor: TextPosition,
+    val cursor: TextPosition,
+    var started: Boolean = false
+)
+
+internal fun selectableHandle(
+    host: SelectableTextHost,
+    context: RoutedEventContext,
+    event: InputEvent
+) {
+    if (host.closed)
+        return
+    if (context.phase == RoutedPhase.Notification) {
+        when (event) {
+            case FocusChanged(false) -> if (!host.area.scope.activity.hasFocus)
+                selectableStopDrag(host)
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> selectableStopDrag(host)
+            else -> {}
+        }
+        return
+    }
+    if (
+        !host.options.enabled ||
+            (context.phase != RoutedPhase.Capture && context.phase != RoutedPhase.Default)
+    )
+        return
+    when (event) {
+        case Pointer(InputPointerEvent.Button(pointer, MouseButton.Left, state, count)) -> {
+            if (state == ElementState.Pressed) {
+                if (context.phase == RoutedPhase.Capture) {
+                    selectablePrepareDrag(host, pointer, context.localPosition, count)
+                } else {
+                    when (host.drag) {
+                        case None -> selectablePrepareDrag(
+                            host,
+                            pointer,
+                            context.localPosition,
+                            count
+                        )
+                        case Some(_) -> {}
+                    }
+                    selectableStartDrag(host)
+                    context.consume()
+                }
+            } else
+                if (context.phase == RoutedPhase.Default) {
+                    selectableStopDrag(host)
+                    context.consume()
+                }
+        }
+        case Pointer(InputPointerEvent.Moved(pointer)) -> {
+            val drag = host.drag ?: return
+            if (!drag.started) {
+                val x = pointer.state.logicalPosition.x - drag.origin.x
+                val y = pointer.state.logicalPosition.y - drag.origin.y
+                val threshold = host.options.dragThreshold
+                if (x * x + y * y < threshold * threshold)
+                    return
+                if (!selectableStartDrag(host))
+                    return
+            }
+            val point = context.localPosition ?: return
+            selectableExtend(host, drag, point)
+            context.consume()
+        }
+        case Keyboard(key) -> {
+            if (
+                context.phase !=
+                    RoutedPhase.Default ||
+                    key.state !=
+                    ElementState.Pressed ||
+                    key.synthetic ||
+                    !host.area.scope.activity.hasFocus
+            )
+                return
+            var handled = false
+            for (command in key.textCommands) {
+                if (
+                    host.closed ||
+                        !host.area.scope.isInputAllowed ||
+                        !host.area.scope.activity.hasFocus
+                )
+                    break
+                if (selectableCommand(host, command))
+                    handled = true
+            }
+            if (handled) {
+                selectableStopDrag(host)
+                context.consume()
+            }
+        }
+        else -> {}
+    }
+}
+
+private fun selectablePrepareDrag(
+    host: SelectableTextHost,
+    pointer: InputPointer,
+    local: Point?,
+    count: Int
+) {
+    val frame = host.inputFrame() ?: return
+    val point = local ?: return
+    val position = frame.layout.hitTest(point)
+    val shift = pointer.state.modifiers.shift
+    val unit =
+        if (shift || count < 2)
+            EditorDragUnit.Character
+        else
+            if (count == 2)
+                EditorDragUnit.Word
+            else
+                EditorDragUnit.Line
+    val range = editorDragRange(frame.layout, position, unit)
+    val anchor =
+        if (shift)
+            host.anchor
+        else
+            if (unit == EditorDragUnit.Character)
+                position
+            else
+                TextPosition(range.start)
+    host.drag =
+        Some(
+            SelectableDrag(
+                Point(pointer.state.logicalPosition.x, pointer.state.logicalPosition.y),
+                unit,
+                range,
+                anchor,
+                position
+            )
+        )
+}
+
+private fun selectableStartDrag(host: SelectableTextHost): Boolean {
+    val drag = host.drag ?: return false
+    if (drag.started)
+        return true
+    if (!host.area.scope.claimPointer()) {
+        host.drag = None
+        return false
+    }
+    drag.started = true
+    host.area.requestFocus()
+    if (host.closed)
+        return false
+    val cursor =
+        if (drag.unit == EditorDragUnit.Character)
+            drag.cursor
+        else
+            TextPosition(drag.initial.end, TextAffinity.Upstream)
+    host.setSelection(drag.anchor, cursor)
+    return !host.closed
+}
+
+private fun selectableExtend(host: SelectableTextHost, drag: SelectableDrag, point: Point) {
+    val frame = host.inputFrame() ?: return
+    val position = frame.layout.hitTest(point)
+    val range = editorDragRange(frame.layout, position, drag.unit)
+    val value =
+        if (drag.unit == EditorDragUnit.Character)
+            EditorSelection(drag.anchor, position)
+        else
+            if (range.start < drag.initial.start)
+                EditorSelection(
+                    TextPosition(drag.initial.end, TextAffinity.Upstream),
+                    TextPosition(range.start)
+                )
+            else
+                EditorSelection(
+                    TextPosition(drag.initial.start),
+                    TextPosition(range.end, TextAffinity.Upstream)
+                )
+    host.setSelection(value.anchor, value.cursor)
+}
+
+internal fun selectableStopDrag(host: SelectableTextHost) {
+    val drag = host.drag ?: return
+    host.drag = None
+    if (drag.started && !host.area.isClosed)
+        host.area.scope.cancelPointerClaim()
+}
+
+internal fun selectableFinished(host: SelectableTextHost, event: InputEvent) {
+    if (host.closed)
+        return
+    when (event) {
+        case Pointer(
+            InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+        ) -> selectableStopDrag(host)
+        else -> {}
+    }
+}
+
+internal fun selectableCommand(host: SelectableTextHost, command: TextEditCommand): Boolean {
+    val frame = host.inputFrame() ?: return false
+    when (command) {
+        case Copy -> {
+            val range = host.selection.range
+            if (host.options.copy && range.start != range.end)
+                host.scope.nativeWindow.clipboard.writeText(
+                    frame.content.toPlainText(TextRange(range.start, range.end))
+                )
+        }
+        case SelectAll -> {
+            host.area.requestFocus()
+            host.setSelection(TextPosition(0L), TextPosition(frame.content.text.byteLength))
+        }
+        case Move(movement, extend) -> {
+            val result =
+                editorMove(
+                    frame.layout,
+                    host.selected.value,
+                    movement,
+                    extend,
+                    host.preferredX,
+                    host.area.visibleBounds?.height ?: frame.layout.size.height
+                )
+            host.area.requestFocus()
+            host.setSelection(result.selection.anchor, result.selection.cursor)
+            if (!host.closed) {
+                host.preferredX = result.preferredX
+                when (frame.layout.caret(editorVisualPosition(frame.layout, host.cursor))) {
+                    case Some(rect) -> host.focus.reveal(rect)
+                    case None -> {}
+                }
+            }
+        }
+        else -> return false
+    }
+    return true
+}

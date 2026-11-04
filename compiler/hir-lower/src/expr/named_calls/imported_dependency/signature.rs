@@ -53,6 +53,8 @@ impl Lowerer {
                 hir::CallableImplementationV1::Intrinsic(
                     hir::IntrinsicFunctionKind::CoroutineStart
                         | hir::IntrinsicFunctionKind::CoroutineSuspend
+                        | hir::IntrinsicFunctionKind::CoroutineCurrentExecution
+                        | hir::IntrinsicFunctionKind::CoroutineYield
                         | hir::IntrinsicFunctionKind::CurrentSourceLocation
                         | hir::IntrinsicFunctionKind::CompileEnv
                         | hir::IntrinsicFunctionKind::IncludeStr

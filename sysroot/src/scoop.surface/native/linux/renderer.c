@@ -94,7 +94,7 @@ static int create_surface(SSSurface *surface) {
   }
   if (!eglMakeCurrent(surface->display, surface->surface, surface->surface,
                       surface->egl_context) ||
-      !eglSwapInterval(surface->display, 1)) {
+      !eglSwapInterval(surface->display, surface->wayland_surface ? 0 : 1)) {
     eglMakeCurrent(surface->display, EGL_NO_SURFACE, EGL_NO_SURFACE,
                    surface->egl_context);
     eglDestroySurface(surface->display, surface->surface);
@@ -144,11 +144,14 @@ int32_t scoop_surface_gles_configure(SSSurface *surface, int32_t width,
   notify(surface);
   return 1;
 }
-int32_t scoop_surface_gles_demand(SSSurface *surface, bool required) {
+int32_t scoop_surface_gles_demand(SSSurface *surface, bool required,
+                                  bool drawable) {
   surface->wanted = required;
   if (!required)
+    surface->notified = false;
+  if (!drawable)
     cancel_callback(surface);
-  else
+  if (required)
     notify(surface);
   return 1;
 }
@@ -205,7 +208,7 @@ int32_t scoop_surface_gles_present(SSFrame *frame) {
   SSSurface *surface = frame->surface;
   if (frame->generation != surface->generation || surface->closed)
     return 0;
-  if (surface->wayland_surface && surface->wanted && !surface->frame_callback) {
+  if (surface->wayland_surface && !surface->frame_callback) {
     surface->frame_callback = wl_surface_frame(surface->wayland_surface);
     if (!surface->frame_callback)
       return -1;

@@ -37,6 +37,8 @@ path = "tests/drawing.scoop"
 [[test.sources]]
 path = "tests/path.scoop"
 [[test.sources]]
+path = "tests/rounded.scoop"
+[[test.sources]]
 path = "tests/native_canvas.scoop"
 [[test.sources]]
 path = "tests/geometry_bounds.scoop"

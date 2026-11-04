@@ -53,9 +53,9 @@ internal fun proxyFollowUp(mode: String, first: Url, second: Url, target: Url, t
                     right
             }
         )
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient(
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient(
             proxyConfig(
                 trust,
                 selector,

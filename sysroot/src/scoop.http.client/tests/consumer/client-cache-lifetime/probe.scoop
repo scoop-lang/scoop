@@ -75,10 +75,9 @@ private class ProbedWriter(val delegate: HttpCacheWriter, val probe: CacheProbe)
         delegate.commit(trailers)
     }
     public override suspend fun close() {
-        nonCancellableScope<Unit> suspend {
-            _ ->
-            probe.awaitFinished();
-            delegate.close()
+        nonCancellableScope<Unit> {
+            this @ProbedWriter.probe.awaitFinished();
+            this @ProbedWriter.delegate.close()
         }
     }
 }

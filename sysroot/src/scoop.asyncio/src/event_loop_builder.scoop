@@ -1,0 +1,41 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingPoolBuilder
+import scoop.concurrent.BlockingTaskPool
+
+/** Configures the managed blocking workers used by a single event-loop lifetime. */
+public class EventLoopBuilder public constructor() {
+    private var pool = LoopBlockingConfig.Owned(4)
+
+    /** Selects an owned pool; its threads are created only when run or attach is accepted. */
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit) {
+        val builder = BlockingPoolBuilder()
+        configure(builder)
+        pool = LoopBlockingConfig.Owned(builder.threads)
+    }
+
+    /** Borrows a pool whose owner keeps it open until the loop has completely closed. */
+    public fun blocking(pool: BlockingTaskPool) {
+        this.pool = LoopBlockingConfig.Shared(pool)
+    }
+
+    internal fun snapshot(): LoopBlockingConfig {
+        when (pool) {
+            case Owned(threads) -> if (threads <= 0)
+                throw IllegalArgumentException(Some("blocking thread count must be positive"))
+            case Shared(_) -> {}
+        }
+        return pool
+    }
+}
+
+internal enum LoopBlockingConfig {
+    Owned(Int), Shared(BlockingTaskPool)
+}
+
+/** Creates a single-use I/O owner from a configuration snapshot, without starting threads. */
+public fun eventLoop(configure: EventLoopBuilder.() -> Unit = {}): PlatformEventLoop {
+    val builder = EventLoopBuilder()
+    configure(builder)
+    return PlatformEventLoop(LoopExecutionPlan.Owner(builder.snapshot()))
+}

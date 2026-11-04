@@ -42,7 +42,7 @@ public interface SuspendRegistration<T> {
 /**
  * Adapts a suspending function value to the object-based coroutine task protocol.
  */
-public struct FunctionSuspendTask<T>(val task: suspend () -> T) : SuspendTask<T> {
+public struct FunctionSuspendTask<T>(val task: suspend () -> T): SuspendTask<T> {
     /**
      * Invokes the wrapped suspending function.
      */
@@ -54,7 +54,7 @@ public struct FunctionSuspendTask<T>(val task: suspend () -> T) : SuspendTask<T>
  */
 public struct FunctionSuspendRegistration<T>(
     val registration: (Continuation<T>) -> Unit
-) : SuspendRegistration<T> {
+): SuspendRegistration<T> {
     /**
      * Passes the continuation to the wrapped registration function.
      */
@@ -67,8 +67,37 @@ public struct FunctionSuspendRegistration<T>(
  * Starts a suspending computation and delivers its eventual value or exception to `completion`.
  * This primitive does not create an event loop or a structured child job.
  */
+public fun <T> startCoroutine(task: SuspendTask<T>, completion: Continuation<T>) {
+    val execution = prepareCoroutineExecution(currentCoroutineExecutorOrNone(), None)
+    startCoroutineExecution(execution, false, task, ExecutionCompletion(execution, completion))
+}
+
 @Intrinsic("coroutine_start")
-public fun <T> startCoroutine(task: SuspendTask<T>, completion: Continuation<T>)
+internal fun <T> startCoroutineExecution(
+    execution: CoroutineExecutionDriver,
+    dispatched: Boolean,
+    task: SuspendTask<T>,
+    completion: Continuation<T>
+)
+
+/** Starts a task by submitting its first drive to the selected executor. */
+public fun <T> startDispatchedCoroutine(
+    executor: CoroutineExecutor,
+    task: SuspendTask<T>,
+    completion: Continuation<T>
+) {
+    val execution = prepareCoroutineExecution(Some(executor), None)
+    startCoroutineExecution(execution, true, task, ExecutionCompletion(execution, completion))
+}
+
+/** Starts a suspending function by submitting its first drive to the selected executor. */
+public fun <T> startDispatchedCoroutine(
+    executor: CoroutineExecutor,
+    task: suspend () -> T,
+    completion: Continuation<T>
+) {
+    startDispatchedCoroutine(executor, FunctionSuspendTask(task), completion)
+}
 
 /**
  * Suspends until the supplied registration completes its continuation. Use the cancellable form

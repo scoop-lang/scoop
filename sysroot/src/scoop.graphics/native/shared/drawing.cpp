@@ -1,6 +1,5 @@
 #include "graphics.h"
 #include "include/core/SkPixmap.h"
-#include "include/core/SkRRect.h"
 #include "include/effects/SkGradient.h"
 #include "include/gpu/ganesh/SkSurfaceGanesh.h"
 
@@ -153,7 +152,7 @@ int32_t scoop_graphics_canvas_clear(SGCanvas *value, SGColor color) {
   }
 }
 int32_t scoop_graphics_canvas_shape(SGCanvas *value, int32_t kind, SGRect rect,
-                                    double rx, double ry, SGPaint *paint) {
+                                    SGPaint *paint) {
   try {
     switch (kind) {
     case 0:
@@ -162,13 +161,22 @@ int32_t scoop_graphics_canvas_shape(SGCanvas *value, int32_t kind, SGRect rect,
     case 1:
       value->canvas->drawOval(sg_rect(rect), paint->paint);
       break;
-    case 2:
-      value->canvas->drawRoundRect(sg_rect(rect), (float)rx, (float)ry,
-                                   paint->paint);
-      break;
     default:
       return -1;
     }
+    return 1;
+  } catch (...) {
+    return 0;
+  }
+}
+int32_t scoop_graphics_canvas_round_rect(SGCanvas *value, SGRect rect,
+                                         SGPoint topLeft, SGPoint topRight,
+                                         SGPoint bottomRight,
+                                         SGPoint bottomLeft, SGPaint *paint) {
+  try {
+    value->canvas->drawRRect(
+        sg_round_rect(rect, topLeft, topRight, bottomRight, bottomLeft),
+        paint->paint);
     return 1;
   } catch (...) {
     return 0;

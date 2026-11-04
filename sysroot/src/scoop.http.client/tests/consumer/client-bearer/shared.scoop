@@ -75,13 +75,15 @@ internal fun bearerSharedCancellation(trust: TrustStore, total: Boolean) {
                     }
                 entered.await()
                 val secondContext = BearerContext("waiting")
+                val waiting = BearerGate()
                 val second =
                     context(secondContext) {
                         scope.async<Unit> suspend {
-                            bearerDone(client, httpRequest(url))
+                            bearerDone(client, bearerWaitingRequest(url, waiting))
                             bearerCheck(bearerContext() == "waiting")
                         }
                     }
+                waiting.await()
                 if (!total)
                     first.cancel()
                 first.join()

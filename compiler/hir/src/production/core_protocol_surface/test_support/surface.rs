@@ -164,7 +164,42 @@ pub(super) fn install_with_intrinsics_at(
     );
     let (start, _) = builder.function(scoop_identity::Effect::Ordinary);
     let (suspend, _) = builder.function(scoop_identity::Effect::Suspend);
+    let work = builder.concrete_nominal(SourceNominalKind::Interface);
+    let execution = builder.concrete_nominal(SourceNominalKind::Interface);
+    let (work_run, work_run_id) = builder.function_with_owner_signature(
+        Some(DefinitionOwnerAtom::Type(work)),
+        SignatureCallableShape::new(
+            scoop_identity::Effect::Ordinary,
+            None,
+            Vec::new(),
+            SignatureTypeKey::Nominal(fundamental_types.unit),
+        ),
+    );
+    let drive_signature = SignatureCallableShape::new(
+        scoop_identity::Effect::Ordinary,
+        None,
+        vec![
+            SignatureTypeKey::Nominal(work),
+            SignatureTypeKey::Nominal(boolean),
+        ],
+        SignatureTypeKey::Nominal(fundamental_types.unit),
+    );
+    let (execution_start, execution_start_id) = builder.function_with_owner_signature(
+        Some(DefinitionOwnerAtom::Type(execution)),
+        drive_signature.clone(),
+    );
+    let (execution_resume, execution_resume_id) = builder
+        .function_with_owner_signature(Some(DefinitionOwnerAtom::Type(execution)), drive_signature);
     let mut coroutine_protocol = CoreCoroutineProtocolV1 {
+        work,
+        execution,
+        work_run,
+        work_run_dispatch: builder.dispatch(work_run_id),
+        execution_start,
+        execution_start_dispatch: builder.dispatch(execution_start_id),
+        execution_resume,
+        execution_resume_dispatch: builder.dispatch(execution_resume_id),
+
         continuation,
         continuation_resume: resume,
         continuation_resume_dispatch: builder.dispatch(resume_id),

@@ -2,6 +2,7 @@ package scoop.ui.component
 
 import scoop.ui.*
 import scoop.ui.style.Insets
+import scoop.ui.style.LogicalInsets
 
 public class AbsoluteChildBuilder internal constructor() {
     public var horizontal: AbsoluteAxis = AbsoluteAxis.Start()
@@ -25,6 +26,7 @@ public class AbsoluteBuilder internal constructor() {
     public var width: Double? = None
     public var height: Double? = None
     public var padding: Insets = Insets()
+    public var logicalPadding: LogicalInsets? = None
     public var key: ViewKey = ViewKey.Position
 
     public fun add(child: AbsoluteChild): Unit {
@@ -38,7 +40,7 @@ public class AbsoluteBuilder internal constructor() {
         add(absoluteChild(content, configure))
     }
     internal fun snapshot(): AbsoluteProps =
-        AbsoluteProps(entries.toArray(), width, height, padding)
+        AbsoluteProps(entries.toArray(), width, height, padding, logicalPadding)
 }
 
 internal fun makeAbsolute(configure: AbsoluteBuilder.() -> Unit): View {

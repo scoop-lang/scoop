@@ -20,9 +20,9 @@ fun main(args: Array<String>): Int {
             args[2L].toInt()
         else
             8444
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> openTlsClientContext(Path.fromString(args[1L])).use suspend {
+    val loop = eventLoop()
+    loop.run {
+        openTlsClientContext(Path.fromString(args[1L])).use suspend {
             context ->
             val transport = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
             AsyncTlsStream.takeOwnershipAsClient(

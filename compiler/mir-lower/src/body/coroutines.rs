@@ -8,10 +8,12 @@ impl BodyLowerer<'_> {
         protocol: hir::CoroutineProtocol,
         args: &[hir::Expr],
     ) -> smir::Expr {
-        let [task, completion] = args else {
-            unreachable!("hir-lower validates startCoroutine's two parameters")
+        let [execution, dispatched, task, completion] = args else {
+            unreachable!("hir-lower validates the four prepared coroutine start parameters")
         };
         let result = self.lower_type(protocol.result_type);
+        let execution = self.lower_expr(execution);
+        let dispatched = self.lower_expr(dispatched);
         let task = self.lower_expr(task);
         let completion = self.lower_expr(completion);
         let callee = self.coroutine_start_callee(protocol, &result);
@@ -19,7 +21,7 @@ impl BodyLowerer<'_> {
             mir::Type::Unit,
             smir::ExprKind::Call(smir::Call {
                 target: mir::CallTarget::Direct(callee),
-                args: vec![task, completion],
+                args: vec![execution, dispatched, task, completion],
                 return_ty: mir::Type::Unit,
             }),
         )));
@@ -38,6 +40,7 @@ impl BodyLowerer<'_> {
         let method = crate::coroutine_registry::protocol_call(
             self.module,
             self.instances,
+            self.function_map,
             self.interfaces,
             protocol.suspend_registration_register,
         );
@@ -94,6 +97,7 @@ impl BodyLowerer<'_> {
             crate::coroutine_registry::protocol_call(
                 self.module,
                 self.instances,
+                self.function_map,
                 self.interfaces,
                 function,
             )
@@ -101,6 +105,17 @@ impl BodyLowerer<'_> {
         let run = protocol_call(protocol.suspend_task_run);
         let resume = protocol_call(protocol.continuation_resume);
         let failure = protocol_call(protocol.continuation_resume_with_exception);
+        let drive_call = |callable, interface| {
+            crate::coroutine_registry::drive_protocol_call(
+                self.module,
+                self.instances,
+                self.function_map,
+                self.interfaces,
+                self.external_callables,
+                callable,
+                interface,
+            )
+        };
         let throwable = crate::coroutine_registry::throwable_type(self.module, self.class_map);
         let helper = self.coroutines.start_helper(
             self.source_exact_types,
@@ -108,6 +123,13 @@ impl BodyLowerer<'_> {
             result,
             task_interface,
             continuation_interface,
+            drive_call(protocol.work_run, protocol.work),
+            drive_call(protocol.execution_start, protocol.execution),
+            crate::coroutine_registry::drive_protocol_signature(
+                self.module,
+                protocol.work_run,
+                protocol.work,
+            ),
             run,
             resume,
             failure,
@@ -115,6 +137,7 @@ impl BodyLowerer<'_> {
             throwable,
             self.functions,
             self.top_level,
+            self.classes,
             self.shell,
         );
         mir::Callee::User(helper)

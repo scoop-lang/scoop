@@ -9,9 +9,9 @@ import scoop.tls.*
 private class AsyncTlsShutdownTests {
     @Test
     fun `only close_notify yields a zero read and shutdown waits for both peers`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, a, b)
             val input = NativeByteBuffer.allocate(1L)
@@ -38,9 +38,9 @@ private class AsyncTlsShutdownTests {
 
     @Test
     fun `cancelling graceful shutdown terminates and completes local cleanup`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(a, b) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, a, b)
             a.readStarted = AsyncGate()
@@ -69,9 +69,9 @@ private class AsyncTlsShutdownTests {
 }
 
 private fun rejectEnd(unread: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         val(client, server) = tlsPair(scope, a, b)
         val buffer = NativeByteBuffer.allocate(9L)

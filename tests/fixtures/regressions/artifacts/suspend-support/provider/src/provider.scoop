@@ -15,3 +15,11 @@ public suspend fun <T> direct(value: T): T {
     if (next() != 1) throw IllegalStateException()
     return value
 }
+
+public fun <T> choose(value: T, block: (T) -> T): T = block(value)
+public suspend fun <U> choose(value: U, block: suspend (U) -> U): U = block(value)
+
+public suspend fun <T> throughLambda(value: T): T {
+    val callback: suspend () -> T = { direct(value) }
+    return callback()
+}

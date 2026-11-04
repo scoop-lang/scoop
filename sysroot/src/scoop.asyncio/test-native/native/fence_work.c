@@ -1,6 +1,6 @@
-/* Test-only gates occupy actual backend worker slots; production I/O is unchanged. */
-#include "../../native/common/work.h"
+/* Test-only gates occupy actual managed pool slots; production I/O is unchanged. */
 #include "fence_work.h"
+#include "../../native/common/work.h"
 #include <errno.h>
 #ifdef _WIN32
 #include "../../../scoop.platform/native/windows_api.h"
@@ -31,11 +31,6 @@ struct TestWorkFence {
     ScoopIoWork requests[];
 };
 
-/**
- * Returns the configured native worker count, for the active backend.
- */
-unsigned scoop_test_pool_size(void) { return scoop_io_work_width(); }
-
 static void fence_work(ScoopIoWork *request) {
     TestWorkFence *fence = (TestWorkFence *)request->completion.event.resource;
     fence_lock(fence);
@@ -64,8 +59,8 @@ static void fence_finished(ScoopIoWork *request, int status) {
  * Queues gates occupying all but spare worker slots. Release the fence before awaiting its
  * loop completion.
  */
-ScoopIoCreated scoop_test_fence_create(ScoopIoLoop *loop, int64_t id, unsigned spare) {
-    unsigned pool = scoop_test_pool_size();
+ScoopIoCreated scoop_test_fence_create(ScoopIoLoop *loop, int64_t id, unsigned pool,
+                                       unsigned spare) {
     if (spare >= pool)
         return (ScoopIoCreated){NULL, scoop_io_errno(-EINVAL)};
     unsigned count = pool - spare;

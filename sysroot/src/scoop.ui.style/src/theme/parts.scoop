@@ -6,16 +6,16 @@ public struct SurfaceMetrics(
     val suggestedSize: Size,
     val minimumSize: Size,
     val padding: Insets,
-    val borderInset: Double,
-    val cornerRadius: Double,
+    val borderInsets: Insets,
+    val corners: CornerRadii,
     val focusOutset: Double
 ) {
     public val contentInsets: Insets get() =
         Insets(
-            padding.left + borderInset,
-            padding.top + borderInset,
-            padding.right + borderInset,
-            padding.bottom + borderInset
+            padding.left + borderInsets.left,
+            padding.top + borderInsets.top,
+            padding.right + borderInsets.right,
+            padding.bottom + borderInsets.bottom
         )
 }
 
@@ -40,7 +40,7 @@ public class SurfaceGeometry public constructor(
 ) {
     public val contentStyle: Style get() =
         Style(
-            cornerRadius = outline.radius,
+            corners = Corners.Physical(outline.radii),
             contentEffects = style.contentEffects,
             clipContent = style.clipContent
         )
@@ -49,8 +49,8 @@ public class SurfaceGeometry public constructor(
 public struct CheckboxMetrics(
     val suggestedSize: Size,
     val minimumSize: Size,
-    val borderInset: Double,
-    val cornerRadius: Double,
+    val borderInsets: Insets,
+    val corners: CornerRadii,
     val markInset: Double,
     val markWidth: Double,
     val focusOutset: Double
@@ -94,7 +94,7 @@ public class RadioOptions internal constructor(
     public val minimumSize: Double? = None,
     public val dotInset: Double? = None,
     public val background: StyleValue<Paint?> = StyleValue.Inherit,
-    public val border: StyleValue<Border?> = StyleValue.Inherit,
+    public val border: StyleValue<BorderEdge?> = StyleValue.Inherit,
     public val dotColor: Color? = None,
     public val focus: FocusStyle? = None
 ) {

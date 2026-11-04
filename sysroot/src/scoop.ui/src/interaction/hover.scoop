@@ -1,0 +1,321 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.time.*
+import scoop.window.*
+
+public class HoverOptions public constructor(
+    public val openDelay: Duration = Duration.milliseconds(300L),
+    public val closeDelay: Duration = Duration.milliseconds(150L),
+    public val transitDelay: Duration = Duration.milliseconds(350L),
+    public val corridorPadding: Double = 6.0,
+    public val focus: Boolean = true,
+    public val enabled: Boolean = true
+) {
+    init {
+        requireUi(
+            openDelay >=
+                Duration.ZERO &&
+                closeDelay >=
+                Duration.ZERO &&
+                transitDelay >=
+                Duration.ZERO,
+            "negative hover delay"
+        )
+        requireUi(
+            corridorPadding.isFinite() && corridorPadding >= 0.0,
+            "invalid hover corridor padding"
+        )
+    }
+}
+
+private enum HoverWait {
+    Open, Close, Transit
+}
+
+/** Trigger and portal input areas share one bounded hover session and one owner deadline. */
+public class Hover internal constructor(
+    private val scope: ComponentScope,
+    private val trigger: InputArea,
+    private var open: Binding<Boolean>,
+    private var options: HoverOptions
+): Closeable {
+    private val input = scope.input
+    private val window = scope.nativeWindow
+    private var closed = false
+    private var content: Array<InputArea> = []
+    private var registrations: Array<Closeable> = []
+    private var observation: Closeable? = None
+    private var pending: HoverWait? = None
+    private var departure: Point? = None
+    private var previous: Point? = None
+    private var transitEnd: TimeMark? = None
+    private val timer = window.createDeadline { expired() }
+    private val triggerEvents = trigger.scope.addEventHandler { _, event -> areaEvent(event) }
+    private val triggerFocus = trigger.scope.observeActivity { refresh() }
+
+    init {
+        try {
+            refresh()
+        }
+        catch (error: Throwable) {
+            throwUi(cleanupUi(Some(error)) { close() });
+            throw error
+        }
+    }
+
+    public val isClosed: Boolean get() {
+        val mounted = scope.isMounted;
+        return closed || !mounted || trigger.isClosed
+    }
+    public val isPending: Boolean get() = timer.isScheduled
+    public val isOpen: Boolean get() {
+        scope.isMounted
+        return open.value
+    }
+
+    public fun update(open: Binding<Boolean>, options: HoverOptions? = None) {
+        checkOpen()
+        this.open = open
+        this.options = options ?: this.options
+        if (!this.options.enabled)
+            dismiss()
+        else
+            refresh()
+    }
+    public fun setContent(areas: Array<InputArea>) {
+        checkOpen()
+        for (area in areas) {
+            requireUi(!area.isClosed, "hover content area is closed")
+            var cursor: InputScope? = Some(area.scope)
+            var belongs = false
+            while (true) {
+                val current = cursor ?: break
+                if (current === input) {
+                    belongs = true;
+                    break
+                }
+                cursor = current.parent
+            }
+            requireUi(belongs, "hover content must be a logical descendant of its owner")
+        }
+        for (registration in registrations)
+            registration.close()
+        val next = ArrayList<Closeable>()
+        content = areas
+        for (area in areas) {
+            next.add(area.scope.addEventHandler { _, event -> areaEvent(event) })
+            next.add(area.scope.observeActivity { refresh() })
+        }
+        registrations = next.toArray()
+        refresh()
+    }
+    private fun areaEvent(event: InputEvent) {
+        when (event) {
+            case Pointer(InputPointerEvent.Entered(pointer)) -> {
+                val point = Some(pointerPoint(pointer.state))
+                previous = point
+                refresh(point)
+            }
+            case Pointer(InputPointerEvent.Left(_)) -> refresh()
+            case Pointer(InputPointerEvent.Cancelled(_, _)) -> refresh()
+            case FocusChanged(_) -> refresh()
+            else -> {}
+        }
+    }
+    private fun within(): Boolean {
+        if (trigger.scope.isHovered)
+            return true
+        for (area in content)
+            if (!area.isClosed && area.scope.isHovered)
+                return true
+        return false
+    }
+    private fun focused(): Boolean {
+        if (!options.focus || !window.isFocused)
+            return false
+        if (trigger.scope.activity.hasFocus && trigger.scope.isInputAllowed)
+            return true
+        for (area in content)
+            if (!area.isClosed && area.scope.activity.hasFocus && area.scope.isInputAllowed)
+                return true
+        return false
+    }
+    private fun refresh(point: Point? = None) {
+        if (isClosed || window.state != WindowState.Open)
+            return
+        if (!options.enabled || !trigger.scope.isInputAllowed) {
+            dismiss();
+            return
+        }
+        val focus = focused()
+        if (within() || focus) {
+            departure =
+                when (point) {
+                    case Some(_) -> point;
+                    case None -> previous
+                }
+            transitEnd = None
+            if (open.value)
+                cancelWait()
+            else
+                schedule(
+                    HoverWait.Open,
+                    if (focus)
+                        Duration.ZERO
+                    else
+                        options.openDelay
+                )
+            observe()
+            return
+        }
+        if (!open.value) {
+            cancelWait();
+            stopObserving();
+            return
+        }
+        observe()
+        val position =
+            when (point) {
+                case Some(_) -> point;
+                case None -> previous
+            }
+        val start = departure
+        val prior = previous
+        if (position != None && start != None && prior != None) {
+            for (area in content) {
+                val bounds = area.visibleBounds ?: continue
+                if (hoverTransit(start!!, prior!!, position!!, bounds, options.corridorPadding)) {
+                    val end = transitEnd ?: (MonotonicTimeSource.markNow() + options.transitDelay)
+                    transitEnd = Some(end)
+                    if (pending != Some(HoverWait.Transit)) {
+                        pending = Some(HoverWait.Transit)
+                        timer.schedule(end)
+                    }
+                    return
+                }
+            }
+        }
+        schedule(HoverWait.Close, options.closeDelay)
+    }
+    private fun observe() {
+        if (isClosed)
+            return
+        when (observation) {
+            case Some(_) -> return;
+            case None -> {}
+        }
+        observation = Some(input.observePointer { event -> observed(event) })
+    }
+    private fun observed(event: PointerObservation) {
+        if (closed)
+            return
+        when (event) {
+            case Pointer(PointerEvent.Left(_)) -> dismiss()
+            case Pointer(PointerEvent.Cancelled(_, _)) -> dismiss()
+            case FocusLost -> dismiss()
+            case Closed -> dismiss()
+            case Pointer(value) -> {
+                val point =
+                    when (value) {
+                        case Entered(state) -> pointerPoint(state)
+                        case Moved(state) -> pointerPoint(state)
+                        case Button(state, _, _, _) -> pointerPoint(state)
+                        case Wheel(state, _, _, _) -> pointerPoint(state)
+                        else -> return
+                    }
+                refresh(Some(point))
+                previous = Some(point)
+            }
+        }
+    }
+    private fun schedule(kind: HoverWait, delay: Duration) {
+        if (pending == Some(kind))
+            return
+        pending = Some(kind)
+        if (delay == Duration.ZERO)
+            expired()
+        else {
+            val requested = MonotonicTimeSource.markNow() + delay
+            val limit = transitEnd
+            timer.schedule(
+                if (kind == HoverWait.Close && limit != None && limit!! < requested)
+                    limit!!
+                else
+                    requested
+            )
+        }
+    }
+    private fun expired() {
+        val next = pending ?: return
+        pending = None
+        if (isClosed || window.state != WindowState.Open)
+            return
+        val opening = next == HoverWait.Open
+        if (opening && (!options.enabled || (!within() && !focused()))) {
+            stopObserving();
+            return
+        }
+        open.value = opening
+        if (isClosed)
+            return
+        if (open.value)
+            observe()
+        else
+            stopObserving()
+    }
+    private fun cancelWait() {
+        timer.cancel();
+        pending = None
+    }
+    private fun stopObserving() {
+        observation?.close();
+        observation = None
+    }
+    public fun dismiss() {
+        checkOverlayMutation()
+        cancelWait()
+        stopObserving()
+        departure = None
+        previous = None
+        transitEnd = None
+        if (!closed && open.value)
+            open.value = false
+    }
+    private fun checkOpen() {
+        checkOverlayMutation()
+        if (isClosed)
+            throw IllegalStateException(Some("hover behavior is no longer mounted"))
+    }
+    public override fun close() {
+        scope.isMounted
+        checkOverlayMutation()
+        if (closed)
+            return
+        closed = true
+        var failure = cleanupUi(None) { timer.close() }
+        failure = cleanupUi(failure) { stopObserving() }
+        failure = cleanupUi(failure) { triggerEvents.close() }
+        failure = cleanupUi(failure) { triggerFocus.close() }
+        for (registration in registrations)
+            failure = cleanupUi(failure) { registration.close() }
+        registrations = []
+        content = []
+        pending = None
+        throwUi(failure)
+    }
+}
+
+private fun pointerPoint(value: PointerState): Point =
+    Point(value.logicalPosition.x, value.logicalPosition.y)
+
+public fun ComponentScope.hover(
+    trigger: InputArea,
+    open: Binding<Boolean>,
+    options: HoverOptions = HoverOptions()
+): Hover {
+    requireBehaviorArea(trigger)
+    return resource { Hover(this, trigger, open, options) }
+}

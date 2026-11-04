@@ -8,9 +8,9 @@ import scoop.time.Duration
 import scoop.url.Url
 
 internal fun bearerChallenge(url: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val started = AtomicLong(0L)
         val credentials = AtomicLong(0L)
         val observed = AtomicLong(0L)
@@ -85,9 +85,9 @@ internal fun bearerChallenge(url: Url, trust: TrustStore) {
 }
 
 internal fun bearerRedirect(first: Url, second: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val loads = AtomicLong(0L)
         val refreshes = AtomicLong(0L)
         val original =

@@ -10,9 +10,9 @@ private class AsyncTtySessionTest {
     fun `owned terminal receives bytes resize and deadlines and restores raw mode`() {
         TestTerminal().use {
             terminal ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val tty = loop.openTty()
                 tty.enableRawMode()
                 assertTrue(tty.isRawMode())
@@ -54,10 +54,10 @@ private class AsyncTtySessionTest {
     fun `cancellation leaves an owned terminal usable and loop cleanup restores mode`() {
         TestTerminal().use {
             terminal ->
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val tty = loop.openTty()
                 tty.enableRawMode()
                 NativeByteBuffer.allocate(4L).use suspend {

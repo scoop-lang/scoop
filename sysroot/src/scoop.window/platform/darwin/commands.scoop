@@ -1,9 +1,22 @@
 package scoop.window
 
-internal fun platformTextCommands(pointer: Ptr<Unit>): Array<TextEditCommand> {
+internal fun platformTextCommands(
+    pointer: Ptr<Unit>,
+    key: LogicalKey,
+    modifiers: Modifiers,
+    state: ElementState,
+    synthetic: Boolean
+): Array<TextEditCommand> {
+    if (state != ElementState.Pressed || synthetic)
+        return []
     @Unsafe
     {
         val count = nativeTextCommandCount(pointer)
+        if (count == 0L)
+            return when (darwinEditingCommand(key, modifiers)) {
+                case Some(command) -> [command]
+                case None -> []
+            }
         return Array<TextEditCommand>(count) {
             index -> @Unsafe
             {

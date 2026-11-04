@@ -71,13 +71,13 @@ SpanStyle 的 `lineHeight: Option<Option<Double>>` 同样区分继承、清除�
 | [Input](../../sysroot/src/scoop.ui.component/src/input.scoop)、[Textarea](../../sysroot/src/scoop.ui.component/src/textarea.scoop) | `input(editor) { ... }`、`textarea(editor) { ... }` | 完整编辑、提交、只读、校验说明、方向、换行、行数、滚动条、选择／光标样式与回调配置 |
 | [Frame](../../sysroot/src/scoop.ui.component/src/layout/frame.scoop)、[Styled](../../sysroot/src/scoop.ui.style/src/styled.scoop) | `frame(content) { ... }`、`styled(content) { ... }` | 一个内容槽、尺寸／padding／对齐、主题表面与效果；样式变空也不移除必要包装或重建内容 |
 | [Absolute](../../sysroot/src/scoop.ui.component/src/layout/absolute.scoop) | `absolute { item(content) { ... } }`，已有条目可显式 add | 每项 horizontal／vertical／zIndex 就近配置；逻辑子项顺序与绘制排序分别保持正确 |
-| [Portal](../../sysroot/src/scoop.ui/src/view/view.scoop)、[弹层配置](../../sysroot/src/scoop.ui/src/overlay/options.scoop) | `portal(content) { ... }`；placement、dismiss、modal 配置块 | 打开条件仍由 View 组合表达；anchor、handle、onClose、焦点屏障、外部点击与焦点恢复 |
+| [Portal](../../sysroot/src/scoop.ui/src/view/view.scoop)、[弹层配置](../../sysroot/src/scoop.ui/src/overlay/options.scoop) | `portal(open, content) { ... }`；placement、dismiss、modal 配置块 | open Binding、anchor、handle、onCloseRequest／onClosed、退出呈现、焦点屏障、外部点击与焦点恢复 |
 | [ScrollArea](../../sysroot/src/scoop.ui.component/src/scroll/area.scoop) | `scrollArea(content) { ... }` | 外部／内部 ScrollState、axes、chain、lineStep、滚动条、尺寸、focus 与 paintCache |
 | [VirtualList](../../sysroot/src/scoop.ui.component/src/virtual/list.scoop) | `virtualList(source, itemExtent) { ... }` | 固定／可变 extent、overscan、retention、navigation、handle、anchor、滚动与缓存；构造不枚举 source 或创建离屏项 |
 | [公共 Style](../../sysroot/src/scoop.ui.style/src/style.scoop)、[主题部件](../../sysroot/src/scoop.ui.style/src/theme/parts.scoop)、[控件样式](../../sysroot/src/scoop.ui.component/src/styles.scoop) | `style { ... }`、`styleOverride { ... }`；surface／marker／scrollbar／states 等嵌套配置 | 完整值与继承覆盖分开；ButtonStyle、CheckboxStyle、TextFieldStyle、SurfaceOptions、CheckboxOptions、RadioOptions、ScrollbarOptions 全量字段映射 |
 | [主题参数](../../sysroot/src/scoop.ui.style/src/theme/values.scoop)与三套主题 | 对 palette、typography、effects、motion 和部件外观作分组配置 | macOS／Material／Fluent 及 Light／Dark 的实际主题生产代码和局部覆盖均迁移；小型几何值直接构造 |
 | [StyledText／TextSpan](../../sysroot/src/scoop.graphics.text/src/content.scoop)、[InlineView](../../sysroot/src/scoop.ui/src/text/inline.scoop) | `styledText { text(...); span(...) { ... }; inlineObject(...) }`；UI 层提供行内 View 绑定装配 | 文本／span 数组快照、TextStyle／SpanStyle／ParagraphStyle、继承与顺序、InlineKey、替代文字和实际 View 匹配 |
-| [快捷键](../../sysroot/src/scoop.surface/src/platform/darwin/shortcuts/types.scoop)、[导航](../../sysroot/src/scoop.ui/src/focus/navigation_options.scoop) | 快捷键序列、binding 和 navigation 配置块；key／action／handle 为必需参数 | 生成 ShortcutBinding／NavigationOptions／FocusOptions 等配置；Scope、Target、监听器仍在挂载时创建和更新 |
+| [快捷键](../../sysroot/src/scoop.surface/src/shared/shortcuts/types.scoop)、[导航](../../sysroot/src/scoop.ui/src/focus/navigation_options.scoop) | 快捷键序列、binding 和 navigation 配置块；key／action／handle 为必需参数 | 生成 ShortcutBinding／NavigationOptions／FocusOptions 等配置；Scope、Target、监听器仍在挂载时创建和更新 |
 
 UI 新签名的代表用法如下。代码位于组件方法内，先显式保存组件引用；`nameEditor`、`accepted` 和 `saveName` 属于该持久组件／模型：
 

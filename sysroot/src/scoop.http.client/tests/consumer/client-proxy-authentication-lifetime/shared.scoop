@@ -70,13 +70,15 @@ internal fun lifeSharedCancellation(trust: TrustStore) {
                         }
                     }
                 entered.await()
+                val waiting = LifeGate()
                 val second =
                     context(LifeContext("waiting")) {
                         scope.async<Unit> suspend {
-                            lifeDone(client, httpRequest(lifeTarget()))
+                            lifeDone(client, lifeWaitingRequest(lifeTarget(), waiting))
                             lifeCheck(lifeContext() == "waiting")
                         }
                     }
+                waiting.await()
                 first.cancel();
                 first.join()
                 lifeCheck(failure.value!! is CancellationException)

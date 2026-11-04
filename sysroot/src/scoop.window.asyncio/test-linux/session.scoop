@@ -40,29 +40,30 @@ private class LinuxSessionHandler: ApplicationHandler {
                 )
                 val scope = currentApplicationScope()
                 val loop = currentEventLoop()
-                scope.launch suspend {
+                assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+                scope.launch {
                     try {
                         loop.sleep(Duration.seconds(30L))
                     }
                     finally {
-                        nonCancellableScope<Unit> suspend {
-                            _ ->
+                        nonCancellableScope<Unit> {
                             loop.sleep(Duration.milliseconds(20L))
                             try {
-                                assertTrue(closing)
+                                assertTrue(this @LinuxSessionHandler.closing)
                             }
                             finally {
-                                finished = true;
-                                lease!!.close()
+                                this @LinuxSessionHandler.finished = true;
+                                this @LinuxSessionHandler.lease!!.close()
                             }
                         }
                     }
                 }
-                scope.launch suspend {
+                scope.launch {
                     for (_ in 0 ..< 3) {
                         loop.sleep(Duration.milliseconds(10L))
-                        assertEquals(thread, currentThreadId())
-                        ticks += 1
+                        assertEquals(this @LinuxSessionHandler.thread, currentThreadId())
+                        assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+                        this @LinuxSessionHandler.ticks += 1
                     }
                     application.requestExit()
                 }

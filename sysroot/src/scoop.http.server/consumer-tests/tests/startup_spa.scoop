@@ -24,9 +24,10 @@ private class HttpServerStartupSpaConsumerTests {
             val assets = directory.resolve(Path.fromString("assets"));
             assets.createDirectory()
             assets.resolve(Path.fromString("main.js")).writeText("asset")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> HttpServer.listen(scope, port = 0) {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                HttpServer.listen(scope, port = 0) {
                     val routes = this
 
                     routes.get("/", suspend { _ -> file(entry) })

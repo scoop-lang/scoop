@@ -36,11 +36,11 @@ WindowDeadline 和 ControlFlow.WaitUntil 共用现有宿主原生定时器，只
 
 ### 2.2 GUI 纯文本剪贴板
 
-macOS 与 Linux 提供 `ActiveApplication.clipboard` 和 `Window.clipboard`，取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 general pasteboard 的 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 写入完整 UTF-8 文本，替换剪贴板当前内容；字符串长度显式传递，保留非 BMP 字符、换行及内嵌 NUL。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
+公共 `ActiveApplication.clipboard` 和 `Window.clipboard` 取得同一个应用 owner 上的轻量 `Clipboard` 入口。`readText(): String?` 读取系统 Unicode 纯文本；没有文本返回 None，已有空文本返回 Some("")。`writeText(text: String)` 替换剪贴板当前内容。两者保留非 BMP 字符与组合序列，不做 Unicode 规范化；CRLF 和独立 CR 统一为 LF，由后端处理原生行尾。写入在修改剪贴板之前以 IllegalArgumentException 拒绝内嵌 U+0000；读取到属于文本内容的 NUL 时抛出 WindowException(Unsupported)，不能截短。原生转换或写入失败抛出 WindowException(NativeFailure)，不能把失败当成成功的空文本。
 
 取得入口及每次读写均要求应用 owner 线程和仍运行、未开始退出的 Application；线程错误为 IllegalStateException，应用已退出为 WindowException(InvalidState)。Clipboard 不取得 native window lease，也不需要 close；从窗口取得的入口不依赖窗口寿命，窗口关闭后，只要应用仍运行就可继续使用。它不提供终端 OSC52、富文档格式、历史或跨线程代理；需要跨线程请求时使用现有 ApplicationProxy。
 
-原生调用不把 NSPasteboard／NSString 借用泄漏给 managed 代码。读取结果独立复制，正常成功和异常路径均释放临时存储。Linux 使用第 12 节的原生 selection 协议；Windows API 随该平台后续实施增加。剪切的上层编辑必须先成功写出，再修改文档。
+公共声明、owner 检查、文本归一化和 NUL 合同位于共享源码；后端只转换及读写原生格式，不向上层暴露借用。读取结果独立复制，成功与异常路径均释放临时存储。macOS 通过 NSPasteboard 接入；Linux 通过第 12 节的原生 selection 协议接入；Windows 后端后续实现同一入口。剪切的上层编辑必须先成功写出，再修改文档；参数或写前转换失败不改变剪贴板，实际原生写入失败不承诺 OS 无法提供的回滚。
 
 ## 3. 事件模型
 
@@ -111,25 +111,31 @@ macOS 的 TitlebarOptions 另提供 transparent、titleHidden、fullSizeContent�
 
 ## 5. 输入与文本
 
-KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。
+KeyEvent 分离 PhysicalKey、LogicalKey、KeyLocation、state、repeat、modifiers 和 synthetic，并保存有序 `textCommands: Array<TextEditCommand>`（手工构造时缺省为空）；LogicalKey 支持 Named／Character(String)／Dead／Unidentified，未知 native 键码保留实际编码来源，Darwin keyCode、Windows 扩展 scan code 或 Windows virtual key。修饰键含 Shift、Control、Alt、Super、锁定状态和可取得的左右侧信息。`Modifiers.altGraph: Boolean?` 保存已确定的文本修饰语义，None 表示未知，macOS 为 Some(false)；Linux 从当前 XKB 的 LevelThree／Mode_switch 文本修饰状态产生 Some(true) 或 Some(false)，缺少 keymap 时为 None。Super 始终是实际 Command／Win 键，不能用 Windows Control 冒充 Super。Function 表示实际 Fn 状态，不把 AppKit 为方向键等附加的功能键类别标志作为额外修饰键。
 
 TextEditCommand 表达 Move(TextMovement, extendSelection)、Delete(TextDeletion)、Copy／Cut／Paste／SelectAll、Undo／Redo、InsertNewline／InsertTab／InsertBacktab 和 Cancel。TextMovement 区分逻辑 Backward／Forward、视觉 Left／Right、Up／Down、逻辑／视觉词移动、视觉行的逻辑／视觉两端、逻辑段落和文档两端及 PageUp／PageDown；TextDeletion 表达前后 grapheme、词、当前视觉行或逻辑段落的两端。Window 只保存原生语义，不执行排版、选择或文档修改。
 
-AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。未知 selector 保留已有按键信息供上层回退，不伪造语义。没有 AppKit selector 的平台保持空列表；此次没有增加 Windows 编辑实现。上层优先使用非空命令列表，空列表才使用平台缺省映射；两者必须沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑。
+AppKit 的 doCommandBySelector 在当前 keyDown 解释中产生上述命令；多个 selector 按原顺序放在同一 Keyboard 事件内。命令只出现在真实按下／重复事件，keyup、synthetic release 与修饰状态事件没有命令。Window 在原生命令为空且该键未被输入法消费时，补充宿主的标准编辑映射；macOS 包括 Command 的复制／剪切／粘贴／选择／撤销／重做和行／文档导航、Control 编辑键、Option 词／段落导航以及普通编辑键。未知 selector 不伪造命令，但仍可使用该键已确定的标准映射。Linux 在 window 层产生 Ctrl 的复制／剪切／粘贴／选择／撤销／重做、词和文档导航以及普通编辑命令；Home／End 对应行边界，Ctrl+Home／End 对应文档边界。AltGraph 文本输入不产生 Ctrl 编辑命令或快捷键。空列表表示没有编辑含义，上层不得再添加平台键位表；Windows 标准映射由该平台后续批次实现。所有命令沿同一 capture／target／bubble／default 路由，preventDefault 同时阻止对应默认编辑，字符插入仍只由 TextInputEvent 交付。
 
-macOS 与 Linux 提供 `LogicalKey.matchesShortcut(other)`，供上层匹配已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。实际匹配所需修饰键、重复及作用域由 Surface 的快捷键层处理。
+Window 公共 `LogicalKey.matchesShortcut(other)` 比较已收到的逻辑键，不监听或注册系统 hotkey。Character 使用平台的 Unicode 无 locale 大小写比较，保留重音区别并识别规范等价；Named 和 Unidentified 按值比较，Dead 不作为快捷键字符。此查询只消费值，不要求活动窗口或抢占焦点，也不从文本编辑结果反推按键。
+
+`ShortcutKey` 为 Logical(LogicalKey)／Physical(PhysicalKey)。不可变 `ShortcutModifiers` 保存 primary、shift、control、alt、superKey、function 六个布尔值，默认均为 false。`ShortcutChord(key, modifiers = ShortcutModifiers())` 保存完整描述，构造时拒绝 Dead 和空 Character；`shortcutChord(key) { ... }` 用 ShortcutModifiersBuilder 同步构造同一描述，配置块不执行动作。Primary 在 macOS 展开为 Super，在 Linux 和 Windows 合同中展开为 Control；解析后按集合合并，不能要求同一个修饰键按两次。完整匹配忽略锁定及左右侧信息，未指定的其他修饰键不得出现；明确的 AltGraph 文本修饰不匹配普通快捷键。
+
+`ShortcutChord.matches(event)` 比较键和解析后的完整修饰集合，不判断 keydown、repeat、synthetic 或路由；`equivalentTo(other)` 比较同一种 logical／physical 语义下的解析后组合。两个操作复用同一平台解析，surface 负责绑定、冲突、输入资格和动作。
+
+`Window.shortcutLabel(chord): ShortcutLabel` 在 owner 线程和活动窗口上查询当前键盘布局，返回只读 `parts: Array<String>` 与 `separator: String` 值快照；不保留 native 借用。macOS 修饰键按 Control、Option、Shift、Command、Fn 排列，使用 ⌃／⌥／⇧／⌘／fn，separator 为空串，重复的 Primary／Super 只出现一次。Logical 字符保持绑定字符；Physical 字符按当前键盘布局查询，无字符映射时使用明确物理键名称；已知非字符键使用本平台标签，未知键使用 Unknown。查询不改变输入源、焦点或当前组合。Linux 修饰键按 Ctrl、Alt、Shift、Super、Fn 排列，separator 为 "+"；Physical 字符通过当前 XKB keymap 的无修饰布局查询，非字符键使用 Linux 标签。macOS 和 Linux 均实现标签查询，Windows 后端按同一入口补齐。
 
 AppKit 使用实际 NSEvent keyCode 和当前布局产生的字符；Command／Control 快捷键不产生普通文本提交。无装饰窗口仍可成为 key／main window，接收键盘不依赖原生标题栏。已交付的按下状态在失焦时补发 synthetic release，清空按住的修饰键并保留已知锁定状态；没有硬件来源的设备 id 为 None。CapsLock 通知表达锁定状态，不伪造物理按键释放。指针同时携带同次 native 事件的逻辑／物理位置与 scale，两种位置均以内容区左上为原点，物理位置由该次窗口 backing scale 换算；不能直接混入 backing surface 的底部原点。精确滚轮的 AppKit points 转换为物理 PixelDelta，普通滚轮保持 LineDelta，普通 phase 和 momentumPhase 分别保留。光标基础图标使用 NSCursor，可见性只在本窗口内容区域生效，退出该区域、失焦或销毁时平衡系统 hide／unhide。
 
 文字统一由 `TextInputEvent.Edit(TextInputBatch)` 中的 Commit 操作交付；普通键、compose、IME 不得重复插入。TextInputEvent 只有 Enabled(connection?)／Disabled(connection?)／Edit。TextInputConnection 由 WindowId 与该窗口递增的输入连接 generation 组成；macOS 开启时交付 Some(connection)，重复开关不重建连接，Disabled 保留结束的连接身份。尚无原生文档快照连接的 Win32 交付 None。一次 AppKit 输入解释形成一个编辑批次，以一个事件调用 handler。范围为 UTF-8 字节区间且位于字符边界，平台 UTF-16 索引在 native 边界转换；非法 native 范围触发状态重同步，不越界访问。
 
-owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。macOS 另提供 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。没有发布快照时，attributedSubstring 仍返回 nil。
+owner 线程上的 setImeAllowed 与 setImeCursorArea 保留无需文档快照的基础接入。公共 `publishTextInputState(connection, state, after: TextInputOrigin? = None): Boolean`，把 TextInputState 的文本、selection、marked range 和 revision 独立复制给当前原生连接；caretRect 不在此调用中发布。连接已结束或被替换时返回 false，窗口关闭及线程规则与其他窗口操作一致，跨窗口连接或非法范围属于参数错误。相同连接的 revision 不倒退，相同 revision 不改变文档内容、选择或组合；重新开启连接可发布新的文档基线。公共检查和声明位于共享源码，后端负责复制与原生查询；macOS 与 Linux 已接入，Windows 分支补齐同一合同。没有发布快照时，原生 surrounding 查询返回 unavailable。
 
 原生 Edit 的可选 origin 为 TextInputOrigin(connection, sequence)，sequence 只表达同一输入连接中已经排队的批次顺序。应用处理完一批后，把它的 origin 随已生效 state 传入 after；已经处理的序号不倒退、不越过该连接实际排队的末项。未来源于原生连接的纯值批次和现有 Win32 批次为 None。native 只保存最新已发布文档、已经排队及已经处理的两个序号，不保留文档历史或建立另一套编辑状态。普通 CurrentSelection 批次可连续排队；在较早批次尚未处理完时，无法确定的 surrounding 查询返回 unavailable，不能把预测的未来 revision 当作已应用版本。
 
 NSTextInputClient 的同步查询读取原生不可变文档副本；同一次原生解释内允许对其临时副本依次投影本批操作。attributedSubstring 返回已知、完整 UTF-16 标量范围的纯文本 attributed string 及 actualRange；selection／marked 的文档范围保留实际 native 组合信息。未知范围、尚未同步的 surrounding、切断 surrogate 或缺少布局时返回 nil／NSNotFound，不回调 managed handler、不布局、不挂起。
 
-IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；macOS 的 clearImeCursorArea 撤销它。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标。macOS 文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。firstRect 只报告确知的活动 cursor 位置；characterIndex 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
+IME 接入默认关闭；setImeAllowed 成功改变开关时产生 Enabled／Disabled，重复设置相同值不重复通知，Enabled 先于该次开启产生的编辑。关闭接入先撤销组合；失焦也撤销组合，但保留接入开关。setImeCursorArea 接受有限、非负尺寸的内容区逻辑矩形，包含矩形端点溢出检查；公共 clearImeCursorArea 撤销它。候选窗使用当前 NSView／NSWindow 转换后的屏幕坐标。公共文档接入使用 `publishTextInputCaret(connection, revision, area: LogicalRect?): Boolean`：只有当前连接、所有较早原生编辑已处理且 revision 与已发布文档一致时才接收，None 明确撤销几何。文档改变、待处理原生编辑和连接结束立即使旧几何不可用。firstRect 只报告确知的活动 cursor 位置；characterIndex 只在该有效 caret 矩形内报告其索引，其他范围／位置返回 unavailable，不编造整个文档的布局。
 
 接入开启后，普通 keyDown 先调用 AppKit 的 interpretKeyEvents，再决定是否交付 Keyboard。组合处理、确认及取消已消费的键不再交给应用执行普通编辑；doCommandBySelector 可要求交付应用命令，但同次解释已经改变／提交／取消组合时不再次交付确认或取消键，即使命令早于该次组合编辑产生也如此。Command／Control 快捷键继续直接交付 Keyboard，缺省编辑映射使用实际修饰信息，不能产生第二次文本插入；keyup 只释放此前已交付的按下状态。
 
@@ -174,9 +180,9 @@ ApplicationOptions.lastWindowPolicy 为 KeepRunning／Exit，默认 KeepRunning�
 
 ## 8. asyncio 集成
 
-Application.runWithAsyncio(handler) 是独立 Cone 的扩展，复用 PlatformEventLoop.attach 与 EventLoopSession。业务 handler 及 proxy 消息在 session 根 Context 下运行，currentEventLoop 与 currentApplicationScope 可用。根取消及时触发窗口收尾控制，不等 onClosed 才开始释放窗口；退出时 requestClose，继续原生循环至 onClosed。Exiting／Closing／Destroyed 在 owner 收尾 Context 执行，没有活动业务 scope。用于派发通知的内部唤醒不得循环生成 NewEvents／AboutToWait。
+Application.runWithAsyncio(handler) 是独立 Cone 的扩展，复用 eventLoop().attach 与 EventLoopSession。业务 handler 及 proxy 消息在 session 根 Context 和 owner 的 LoopExecutor 上运行，currentEventLoop 与 currentApplicationScope 可用。应用作用域保存该 executor；从其他 executor 调用捕获的应用作用域 launch／async，默认子任务仍排队到 owner。调用方须在发布前准备好任务状态，不把 launch 返回当成正文已经执行。根取消及时触发窗口收尾控制，不等 onClosed 才开始释放窗口；退出时 requestClose，继续原生循环至 onClosed。Exiting／Closing／Destroyed 在 owner 收尾 Context 执行，没有活动业务 scope。用于派发通知的内部唤醒不得循环生成 NewEvents／AboutToWait。
 
-原始 Application.run 不初始化 io_uring；集成入口继承 asyncio 的平台要求。第三方挂起函数不自动获得 UI 线程亲和性；跨线程窗口操作通过 proxy 返回 owner。
+原始 Application.run 不初始化 io_uring；集成入口继承 asyncio 的平台要求。应用作用域的协程在任意真实挂起后都由保存的 execution 排队回 owner，包括第三方 continuation、Channel 和 blocking 的完成。显式 withExecutor／launch(executor) 可将工作交给后台 executor；EventLoop binding 仍表示 I/O 服务归属，其完成返回调用者的 executor。后台协程通过 withExecutor(loop.executor) 执行 owner 操作；普通线程／native callback 使用 proxy，或向已捕获的应用作用域启动任务。普通 Context binding 本身不切换线程，Canvas、窗口和可变 UI 状态仍只能由 owner 操作。
 
 `scoop.window.native` 为当前集成 Cone 提供以下公开低层接口，不暴露 internal owner：
 

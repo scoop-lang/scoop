@@ -43,6 +43,10 @@ path = "native/editor.m"
 when = { os = "darwin" }
 
 [[native.sources]]
+path = "native/input_source.m"
+when = { os = "darwin" }
+
+[[native.sources]]
 path = "native/clipboard.m"
 when = { os = "darwin" }
 
@@ -58,6 +62,11 @@ when = { os = "darwin" }
 
 [[native.libraries]]
 name = "CoreGraphics"
+kind = "framework"
+when = { os = "darwin" }
+
+[[native.libraries]]
+name = "Carbon"
 kind = "framework"
 when = { os = "darwin" }
 

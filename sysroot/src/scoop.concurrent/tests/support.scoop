@@ -1,0 +1,116 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+
+import scoop.collections.ArrayDeque
+import scoop.platform.concurrent.Mutex
+import scoop.test.*
+
+internal class ManualExecutor: CoroutineExecutor {
+    private val lock = Mutex()
+    private val queue = ArrayDeque<() -> Unit>()
+    val active = AtomicInt(0)
+
+    val queued: Long get() = lock.withLock { queue.size }
+
+    public override fun registerTask(parent: ExecutorTask?): ExecutorTask {
+        active.fetchAdd(1)
+        return ManualTicket(this)
+    }
+
+    fun enqueue(work: () -> Unit) {
+        lock.withLock { queue.addLast(work) }
+    }
+
+    fun runOne(): Boolean {
+        val next = lock.withLock { queue.removeFirstOrNone() }
+        when (next) {
+            case Some(work) -> {
+                work();
+                return true
+            }
+            case None -> return false
+        }
+    }
+
+    fun drain() {
+        while (runOne()) {}
+    }
+}
+
+private class ManualTicket(private val owner: ManualExecutor): ExecutorTask {
+    private val active = AtomicBoolean(true)
+    public override val executor: CoroutineExecutor get() = owner
+    public override fun dispatch(work: CoroutineWork) {
+        owner.enqueue { work.run() }
+    }
+    public override fun dispatchBlocking(work: BlockingWork) {
+        owner.enqueue { work.run() }
+    }
+    public override fun complete() {
+        assertTrue(active.exchange(false))
+        owner.active.fetchSub(1)
+    }
+}
+
+internal class TestResult<T>: Continuation<T> {
+    var value: T? = None
+    var error: Throwable? = None
+    var calls = 0
+    var job: Job? = None
+
+    public override fun resume(value: T) {
+        this.value = Some(value);
+        calls += 1
+    }
+    public override fun resumeWithException(error: Throwable) {
+        this.error = Some(error);
+        calls += 1
+    }
+
+    fun get(): T {
+        assertEquals(1, calls)
+        when (error) {
+            case Some(failure) -> throw failure
+            case None -> return value!!
+        }
+    }
+}
+
+internal fun <T> startTask(executor: ManualExecutor, block: suspend () -> T): TestResult<T> {
+    val result = TestResult<T>()
+    startDispatchedCoroutine(
+        executor,
+        {
+            coroutineScope {
+                result.job = Some(job)
+                block()
+            }
+        },
+        result
+    )
+    return result
+}
+
+internal fun <T> startRaw(executor: ManualExecutor, block: suspend () -> T): TestResult<T> {
+    val result = TestResult<T>()
+    startDispatchedCoroutine(executor, block, result)
+    return result
+}
+
+internal fun <T> absent(value: T?): Boolean =
+    when (value) {
+        case None -> true
+        case Some(_) -> false
+    }
+
+internal class Probe {
+    var value = 0
+    var guard: AsyncMutexGuard? = None
+    var cleaned = false
+}
+
+internal class Label(val value: Int)
+
+context(label: Label)
+internal fun labelValue(): Int = label.value

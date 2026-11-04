@@ -7,11 +7,12 @@ kind = "library"
 
 [[sources]]
 path = "src"
-when = { os = "darwin" }
+when = { os = ["darwin", "windows"] }
 
 [dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
+"scoop:scoop.math" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"
 "scoop:scoop.graphics.text" = "0.1.0"
@@ -71,4 +72,24 @@ when = { os = "linux", env = "gnu" }
 
 [[test.sources]]
 path = "tests/virtual_extents.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/content_fit.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/flex.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/flow_layout.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/interaction_values.scoop"
+when = { os = "linux", env = "gnu" }
+
+[[test.sources]]
+path = "tests/reading.scoop"
 when = { os = "linux", env = "gnu" }

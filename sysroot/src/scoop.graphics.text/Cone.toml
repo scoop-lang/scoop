@@ -22,6 +22,8 @@ when = { os = ["darwin", "windows"] }
 "scoop.tests:graphics-native" = { version = "0.1.0", path = "../scoop.graphics/test-native" }
 
 [[test.sources]]
+path = "tests/system_fonts.scoop"
+[[test.sources]]
 path = "tests/text.scoop"
 [[test.sources]]
 path = "tests/styled.scoop"
@@ -49,6 +51,8 @@ cxx = true
 include = [{ sysroot = "include/skia" }]
 cxx_flags = ["-Wmost", "-Wextra", "-Werror", "-Wno-unused-parameter", "-DSK_RELEASE", "-DSK_GANESH", "-DSK_SHAPER_HARFBUZZ_AVAILABLE", "-DSK_UNICODE_ICU_IMPLEMENTATION"]
 
+[[native.sources]]
+path = "native/shared/fonts.cpp"
 [[native.sources]]
 path = "native/shared/text.cpp"
 [[native.sources]]
@@ -86,3 +90,8 @@ when = { os = "linux", env = "gnu" }
 [[native.sources]]
 path = "native/linux/fonts.cpp"
 when = { os = "linux", env = "gnu" }
+
+[[native.libraries]]
+name = "CoreFoundation"
+kind = "framework"
+when = { os = "darwin" }

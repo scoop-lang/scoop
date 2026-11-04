@@ -9,9 +9,9 @@ import scoop.test.*
 private class MultipartSourceCancellationTests {
     @Test
     fun `nextPart and body reads share one operation and concurrent closes wait for the real borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val endpoint = MpPendingSource()
             val source =
                 MultipartSource.takeOwnership(endpoint, MultipartBoundary("b"), bufferSize = 3L)
@@ -22,6 +22,7 @@ private class MultipartSourceCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(endpoint.pending.running)
                 expectMessageFailure<IllegalStateException> suspend { source.nextPart() }
                 NativeByteBuffer.allocate(1L).use suspend {
@@ -32,6 +33,7 @@ private class MultipartSourceCancellationTests {
                 assertFalse(present(source.failure))
                 val first = scope.launch suspend { part.body.close() }
                 val second = scope.launch suspend { source.close() }
+                yieldCoroutine()
                 assertTrue(endpoint.pending.job!!.isCancelled)
                 assertFalse(reading.isCompleted || first.isCompleted || second.isCompleted)
                 assertEquals(0, endpoint.pending.closes)
@@ -57,9 +59,9 @@ private class MultipartSourceCancellationTests {
 
     @Test
     fun `a cancelled nextPart can finish cleanup while the borrowed endpoint stays open`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = PendingMessageSource()
             val source = MultipartSource(input, MultipartBoundary("b"))
             val reading =
@@ -71,6 +73,7 @@ private class MultipartSourceCancellationTests {
                     }
                 }
             try {
+                yieldCoroutine()
                 reading.cancel()
                 assertTrue(input.running && input.job!!.isCancelled)
                 assertFalse(reading.isCompleted)

@@ -10,9 +10,8 @@ private class AsyncReadAllTests {
         val raw = ShortSource("prefix:中🌍".toByteArray())
         raw.position = 7L
         val source = ObservedCollectSource(raw)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bytes = source.readAllBytes()
             assertEquals("中🌍", String.fromUtf8(bytes))
             assertEquals(0L, source.readAllBytes().size)
@@ -28,8 +27,8 @@ private class AsyncReadAllTests {
         val raw = ShortSource([1, 2, 3, 4])
         raw.failAfter = 2L
         val source = ObservedCollectSource(raw)
-        val loop: EventLoop = PlatformEventLoop()
-        val error = assertFailsWith<Throwable> { loop.run suspend { _ -> source.readAllBytes() } }
+        val loop = eventLoop()
+        val error = assertFailsWith<Throwable> { loop.run { source.readAllBytes() } }
         assertSame(raw.failure, error)
         assertEquals(2L, raw.position)
         assertEquals(0, source.closes)
@@ -40,10 +39,8 @@ private class AsyncReadAllTests {
     fun `readAllBytes rejects invalid progress before copying bytes`() {
         for (progress in [-1L, 8193L]) {
             val source = InvalidCollectSource(progress)
-            val loop: EventLoop = PlatformEventLoop()
-            assertFailsWith<IllegalStateException> {
-                loop.run suspend { _ -> source.readAllBytes() }
-            }
+            val loop = eventLoop()
+            assertFailsWith<IllegalStateException> { loop.run { source.readAllBytes() } }
             assertTrue(source.buffer!!.isClosed)
             assertEquals(1, source.calls)
         }
@@ -52,9 +49,9 @@ private class AsyncReadAllTests {
     @Test
     fun `readAllBytes cancellation waits for the source borrow and stops before another read`() {
         val source = HeldCollectSource()
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val returned = AtomicBoolean(false)
             val reading =
                 scope.launch suspend {

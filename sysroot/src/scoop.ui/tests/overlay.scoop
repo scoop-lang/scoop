@@ -109,20 +109,22 @@ private class OverlayPlacementTest {
             }
         }
         assertTrue(
-            portal(empty()).shape !=
-                portal(empty()) { this.options { this.modal = Some(ModalOptions()) } }.shape
+            portal(state(true).binding(), empty()).shape !=
+                portal(state(true).binding(), empty()) {
+                    this.options { this.modal = Some(ModalOptions()) }
+                }.shape
         )
         val anchor = LayoutAnchor()
         val handle = OverlayHandle()
         Thread.start {
             assertFailsWith<IllegalStateException> { anchor.isAttached }
             assertFailsWith<IllegalStateException> { handle.isOpen }
-            assertFailsWith<IllegalStateException> { handle.close() }
+            assertFailsWith<IllegalStateException> { handle.requestClose() }
         }.use { thread -> thread.join() }
         assertFalse(anchor.isAttached)
         assertFalse(handle.isAttached)
         assertFalse(handle.isOpen)
-        handle.close()
+        handle.requestClose()
         assertEquals(None, handle.lastCloseReason)
     }
 }

@@ -1,0 +1,41 @@
+package scoop.surface
+
+import scoop.window.*
+
+internal fun checkedBindings(bindings: Array<ShortcutBinding>): Array<ShortcutBinding> {
+    for (index in 0L ..< bindings.size) {
+        val current = bindings[index]
+        if (!current.enabled)
+            continue
+        for (previous in 0L ..< index) {
+            val other = bindings[previous]
+            requireInput(
+                !other.enabled || !current.chord.equivalentTo(other.chord),
+                "duplicate enabled shortcut combination"
+            )
+        }
+    }
+    return bindings
+}
+
+/** Protect text shortcuts using the backend's actual AltGr information. */
+internal fun shortcutAllowed(context: RoutedEventContext, event: KeyEvent): Boolean {
+    if (context.currentTarget === context.target)
+        return true
+    val editing = context.target.area?.textInput ?: false
+    if (!editing)
+        return true
+    when (event.logicalKey) {
+        case Dead(_) -> return false
+        else -> {}
+    }
+    val modifiers = event.modifiers
+    val textModifier =
+        modifiers.altGraph ?: (modifiers.control && modifiers.alt && !modifiers.superKey)
+    if (!textModifier && (modifiers.superKey || modifiers.control))
+        return true
+    return when (event.logicalKey) {
+        case Named(value) -> value != NamedKey.Space
+        else -> false
+    }
+}

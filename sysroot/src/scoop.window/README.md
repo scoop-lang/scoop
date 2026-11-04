@@ -57,13 +57,13 @@ macOS 的 TitlebarOptions 支持标题栏透明、隐藏标题和内容延伸到
 
 ## 文本输入
 
-macOS／Linux 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
+macOS／Linux 的 `ActiveApplication.clipboard`／`Window.clipboard` 提供 GUI 纯文本剪贴板：`readText()` 返回 `String?`，无文本为 None，空文本为 Some("")；`writeText(text)` 替换内容，原生失败抛出 WindowException。读写把 CRLF／CR 归一为 LF；写入包含 NUL 的文本抛出 IllegalArgumentException，读取包含 NUL 的原生文本报告 Unsupported。操作要求应用 owner 线程和仍运行的应用，从窗口取得的入口不会保活窗口，也不随该窗口关闭失效。剪切应在写入成功后再删除选区。
 
 文本输入默认禁用 IME；普通可打印键仍通过 `TextInputEvent.Edit` 交付。调用 `setImeAllowed(true)` 接入平台输入法，`setImeCursorArea` 发布候选窗矩形，坐标为内容区逻辑坐标。Enabled／Disabled 表示窗口的 IME 接入开关变化，重复设置相同值不重复发事件。
 
 应用只从编辑批次插入文字，不再从 `KeyEvent.logicalKey` 额外插入字符。输入法消耗的候选选择／确认键不会再作为普通按键交付；普通快捷键保留 Keyboard 事件。失焦会撤销 active preedit，并为已交付的按下状态补发 synthetic release。
 
-macOS 把原生解释出的移动、删除、提交等语义保存在 `KeyEvent.textCommands`；多条命令保留顺序，随该次按下事件进入同一输入路由。空列表表示由编辑器使用平台缺省键位，keyup 和 synthetic release 没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
+`KeyEvent.textCommands` 保存 window 后端解释出的移动、删除、提交等编辑语义；多条命令保留顺序，随该次按下事件进入同一输入路由。macOS 使用原生 selector，Linux 使用当前逻辑键和标准 Control 编辑键位。空列表表示本次没有编辑命令，keyup 和 synthetic 输入也没有命令。组合更新／提交／取消已消费的按键不会再触发确认或关闭动作，未知 selector 仍保留 Keyboard 回退。
 
 `TextInputState.apply(batch)` 是可选的纯值编辑辅助：按次序应用整批操作，全部合法后才发布一次新 revision。范围使用 UTF-8 字节边界；AppKit／IMM32 的 UTF-16 范围在 native 边界转换。取消组合的空 Preedit 会删除当前显示的组合文本；ClearPreedit 只清标记，不能代替取消。
 
@@ -132,6 +132,8 @@ X11 依赖 XCB、RandR、XKB、xcb-cursor、xcb-imdkit、xkbcommon-x11；Wayland
 Wayland 窗口在首次 configure 前为 PendingConfigure，metrics 为 None；显示后由 GeometryChanged 给出有效尺寸。隐藏重显需要重新配置。桌面位置、主显示器、最小化状态等协议不提供的信息返回 None，未支持的操作返回 Unsupported。显式请求不支持的创建属性会报错。
 
 两个后端使用 Linux evdev 物理键和当前 XKB 布局；有完整按键状态时保留左右修饰键，未知键保留原生代码。X11 的输入法接入为 XIM，Wayland 为 text-input-v3；未启动输入法时普通按键与 XKB compose 仍可输入。Wayland 剪贴板写入需要用户输入 serial，没有有效 serial 时报告 Unavailable。
+
+`ShortcutChord` 的 Primary 为 Control，`Window.shortcutLabel` 按当前 XKB 布局显示物理键，使用 `Ctrl+Shift+…` 形式；逻辑键保留声明的文本。AltGraph 状态可确定时通过 `Modifiers.altGraph` 提供，输入 AltGraph 字符不会触发普通快捷键或 Control 编辑命令。
 
 验证命令使用准备好的 GNU sysroot：
 

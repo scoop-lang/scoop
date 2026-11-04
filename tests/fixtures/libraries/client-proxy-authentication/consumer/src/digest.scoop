@@ -8,9 +8,8 @@ import scoop.time.Duration
 import scoop.url.Url
 
 internal fun authDigest(mode: String, proxy: Url, target: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val calls = AtomicLong(0L)
         val started = AtomicLong(0L)
         val provider =
@@ -179,9 +178,8 @@ internal fun authDigest(mode: String, proxy: Url, target: Url, trust: TrustStore
 }
 
 internal fun authDouble(proxy: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ ->
+    val loop = eventLoop()
+    loop.run {
         val proxyCalls = AtomicLong(0L)
         val originCalls = AtomicLong(0L)
         val target = proxy.resolve("/resource?q=%2F")

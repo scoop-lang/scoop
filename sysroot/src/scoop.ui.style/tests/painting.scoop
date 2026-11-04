@@ -16,7 +16,7 @@ internal fun renderStyle(style: Style, content: (Canvas) -> Unit): Array<Byte> =
             surface.draw {
                 canvas ->
                 canvas.clear(Color.Transparent)
-                painter.paint(canvas, Rect(16.0, 16.0, 24.0, 24.0), style, content)
+                painter.paint(canvas, Rect(16.0, 16.0, 24.0, 24.0), style, content = content)
             }
             surface.readPixels()
         }
@@ -28,8 +28,8 @@ private class StylePaintTest {
     fun `ordered state overrides preserve inheritance until resolving the current theme`() {
         val basic =
             styleOverride {
-                this.cornerRadius(4.0)
-                this.border(Some(Border(1.0, Color.Black)))
+                this.corners(Corners.all(4.0))
+                this.border(Some(Border.all(1.0, Color.Black)))
             }
         val hovered =
             styleOverride {
@@ -44,12 +44,12 @@ private class StylePaintTest {
                 combined.resolve(
                     style {
                         this.background = Some(Paint(color))
-                        this.cornerRadius = 10.0
+                        this.corners = Corners.all(10.0)
                     }
                 )
             assertEquals(color, resolved.background!!.color)
             assertEquals(None, resolved.border)
-            assertEquals(4.0, resolved.cornerRadius)
+            assertEquals(Corners.all(4.0), resolved.corners)
             assertEquals(1L, resolved.contentEffects.size)
             assertEquals(ContentEffect.Glow(3.0, 3.0, Color.White), resolved.contentEffects[0L])
         }
@@ -84,8 +84,8 @@ private class StylePaintTest {
         val style =
             style {
                 this.background = Some(Paint(Color(0.0, 1.0, 0.0)))
-                this.border = Some(Border(2.0, Color(0.0, 0.0, 1.0)))
-                this.cornerRadius = 6.0
+                this.border = Some(Border.all(2.0, Color(0.0, 0.0, 1.0)))
+                this.corners = Corners.all(6.0)
                 this.boxShadows = [BoxShadow(Point(8.0, 0.0), 0.0, 0.0, Color.Black)]
                 this.contentEffects = [ContentEffect.Blur(2.0, 2.0)]
                 this.clipContent = true
@@ -117,7 +117,7 @@ private class StylePaintTest {
         val a =
             renderStyle(
                 style {
-                    this.border = Some(Border(2.0, Color.White))
+                    this.border = Some(Border.all(2.0, Color.White))
                     this.contentEffects = [blur, shadow]
                 },
                 source
@@ -125,7 +125,7 @@ private class StylePaintTest {
         val b =
             renderStyle(
                 style {
-                    this.border = Some(Border(2.0, Color.White))
+                    this.border = Some(Border.all(2.0, Color.White))
                     this.contentEffects = [shadow, blur]
                 },
                 source
@@ -249,27 +249,27 @@ private class StylePaintTest {
         val overrides =
             styleOverride {
                 this.border(None)
-                this.cornerRadius(3.0)
+                this.corners(Corners.all(3.0))
             }
         val first =
             style {
                 this.background = Some(Paint(Color.Black))
-                this.border = Some(Border(1.0, Color.White))
-                this.cornerRadius = 6.0
+                this.border = Some(Border.all(1.0, Color.White))
+                this.corners = Corners.all(6.0)
                 this.contentEffects = [ContentEffect.Blur(2.0, 2.0)]
             }
         val second =
             style {
                 this.background = Some(Paint(Color.White))
-                this.border = Some(Border(2.0, Color.Black))
-                this.cornerRadius = 8.0
+                this.border = Some(Border.all(2.0, Color.Black))
+                this.corners = Corners.all(8.0)
                 this.contentEffects = [ContentEffect.Glow(3.0, 3.0, Color.White)]
             }
         for (base in [first, second]) {
             val resolved = overrides.resolve(base)
             assertSame(base.background!!, resolved.background!!)
             assertEquals(None, resolved.border)
-            assertEquals(3.0, resolved.cornerRadius)
+            assertEquals(Corners.all(3.0), resolved.corners)
             assertEquals(base.contentEffects[0L], resolved.contentEffects[0L])
         }
     }

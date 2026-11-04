@@ -3,24 +3,34 @@ package scoop.http.client
 import scoop.time.Duration
 
 internal suspend fun awaitClientContinue(call: ClientCall): Boolean {
-    if (!call.request.expectsContinue) return true
-    return coroutineScope suspend { scope ->
-        val timer = scope.launch suspend {
-            try {
-                val wait = call.request.options.continueWait
-                if (wait > Duration.ZERO) call.client.loop.sleep(wait)
-                settleClientContinue(call, true)
-            } catch (_: CancellationException) {
-            } catch (error: Throwable) { failClientCall(call, error) }
-        }
-        try {
-            suspendCancellableCoroutine<Boolean> { continuation ->
-                val ready = call.lock.withLock {
-                    val decision = call.continueDecision
-                    if (decision == None) call.continueWaiter = Some(continuation)
-                    decision
+    if (!call.request.expectsContinue)
+        return true
+    return coroutineScope {
+        val scope = this
+
+        val timer =
+            scope.launch suspend {
+                try {
+                    val wait = call.request.options.continueWait
+                    if (wait > Duration.ZERO)
+                        call.client.loop.sleep(wait)
+                    settleClientContinue(call, true)
+                } catch (_: CancellationException) {} catch (error: Throwable) {
+                    failClientCall(call, error)
                 }
-                if (ready != None) continuation.tryResume(ready!!)
+            }
+        try {
+            suspendCancellableCoroutine<Boolean> {
+                continuation ->
+                val ready =
+                    call.lock.withLock {
+                        val decision = call.continueDecision
+                        if (decision == None)
+                            call.continueWaiter = Some(continuation)
+                        decision
+                    }
+                if (ready != None)
+                    continuation.tryResume(ready!!)
                 Unit
             }
         } finally {
@@ -31,13 +41,17 @@ internal suspend fun awaitClientContinue(call: ClientCall): Boolean {
 }
 
 internal fun settleClientContinue(call: ClientCall, allowed: Boolean) {
-    if (!call.request.expectsContinue) return
-    val waiter: CancellableContinuation<Boolean>? = call.lock.withLock {
-        if (call.continueDecision != None) return@withLock None
-        call.continueDecision = Some(allowed)
-        val saved = call.continueWaiter
-        call.continueWaiter = None
-        saved
-    }
-    if (clientPresent(waiter)) waiter!!.tryResume(allowed)
+    if (!call.request.expectsContinue)
+        return
+    val waiter: CancellableContinuation<Boolean>? =
+        call.lock.withLock {
+            if (call.continueDecision != None)
+                return@withLock None
+            call.continueDecision = Some(allowed)
+            val saved = call.continueWaiter
+            call.continueWaiter = None
+            saved
+        }
+    if (clientPresent(waiter))
+        waiter!!.tryResume(allowed)
 }

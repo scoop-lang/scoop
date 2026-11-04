@@ -6,10 +6,9 @@ typedef struct {
   int completed;
 } SystemContextWork;
 
-ScoopTlsStep scoop_tls_work_failure(int status, int system_error,
-                                    int64_t verify_code, const char *message) {
-  return (ScoopTlsStep){status, system_error, 0, verify_code,
-                        scoop_crypto_fail(message).error};
+ScoopTlsStep scoop_tls_work_failure(int status, int system_error, int64_t verify_code,
+                                    const char *message) {
+  return (ScoopTlsStep){status, system_error, 0, verify_code, scoop_crypto_fail(message).error};
 }
 
 ScoopTlsWorkCreated scoop_tls_system_context_new(uint64_t value) {
@@ -17,8 +16,7 @@ ScoopTlsWorkCreated scoop_tls_system_context_new(uint64_t value) {
   SystemContextWork *work = OPENSSL_zalloc(sizeof(*work));
   if (!work)
     return (ScoopTlsWorkCreated){
-        NULL,
-        scoop_crypto_fail("system TLS context work allocation failed").error};
+        NULL, scoop_crypto_fail("system TLS context work allocation failed").error};
   work->context = (ScoopTlsContext *)(uintptr_t)value;
   return (ScoopTlsWorkCreated){work, 0};
 }
@@ -28,8 +26,7 @@ void scoop_tls_system_context_run(void *value) {
   ERR_clear_error();
   work->result = scoop_tls_system_load(work->context);
   if (!work->result.error) {
-    SSL_CTX_set_cert_verify_callback(work->context->ssl,
-                                     scoop_tls_system_verify, NULL);
+    SSL_CTX_set_cert_verify_callback(work->context->ssl, scoop_tls_system_verify, NULL);
   }
   work->completed = 1;
 }
@@ -58,11 +55,4 @@ void scoop_tls_system_context_free(void *value) {
       scoop_crypto_error_free(work->result.error);
     OPENSSL_free(work);
   }
-}
-
-ScoopTlsWorkFunction scoop_tls_system_context_executor(void) {
-  return scoop_tls_system_context_run;
-}
-ScoopTlsWorkFunction scoop_tls_system_context_releaser(void) {
-  return scoop_tls_system_context_free;
 }

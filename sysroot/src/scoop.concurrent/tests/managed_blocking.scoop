@@ -1,0 +1,179 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class ManagedBlockingTest {
+    @Test
+    fun `blocking uses separate workers and returns managed values with captured bindings`() {
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val gate = WorkerGate()
+            val result = ThreadResult<BlockingValue>()
+            context(Label(11)) {
+                startDispatchedCoroutine(
+                    executor,
+                    {
+                        coroutineScope {
+                            val owner = job
+                            val value =
+                                blocking {
+                                    assertTrue(absent(currentCoroutineExecutorOrNone()))
+                                    assertSame(owner, currentJobOrNone()!!)
+                                    assertEquals(11, labelValue())
+                                    gate.await()
+                                    BlockingValue(Label(42), (7L, "managed"), currentThreadId())
+                                }
+                            assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                            assertEquals(11, labelValue())
+                            value
+                        }
+                    },
+                    result
+                )
+            }
+            gate.awaitEntered(1)
+            val coroutineThread = dispatch(executor) { currentThreadId() }.await()
+            assertFalse(result.isDone)
+            gate.open()
+            val value = result.await()
+            assertEquals(42, value.label.value)
+            assertEquals((7L, "managed"), value.detail)
+            assertNotEquals(coroutineThread, value.thread)
+        }
+    }
+
+    @Test
+    fun `running blocking cancellation waits for cleanup and preserves its returned resource`() {
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }.use {
+            executor ->
+            val gate = WorkerGate()
+            val owner = ThreadResult<Job>()
+            val resource = BlockingResource()
+            val result =
+                dispatch(executor) {
+                    coroutineScope {
+                        owner.resume(job)
+                        val received =
+                            blocking {
+                                try {
+                                    gate.await();
+                                    resource
+                                }
+                                finally {
+                                    resource.exited.store(true)
+                                }
+                            }
+                        try {
+                            assertSame(resource, received)
+                            assertTrue(resource.exited.load())
+                            resource.received.store(true)
+                        } finally {
+                            received.closed.store(true)
+                        }
+                    }
+                }
+            val job = owner.await()
+            gate.awaitEntered(1)
+            job.cancel()
+            assertFalse(result.isDone)
+            assertFalse(resource.closed.load())
+            gate.open()
+            assertFailsWith<CancellationException> { result.await() }
+            assertTrue(resource.exited.load())
+            assertTrue(resource.received.load())
+            assertTrue(resource.closed.load())
+        }
+    }
+
+    @Test
+    fun `queued blocking cancellation skips the closure and retires during drain`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val gate = WorkerGate()
+        val first = dispatch(executor) { blocking { gate.await() } }
+        gate.awaitEntered(1)
+        val owner = ThreadResult<Job>()
+        val called = AtomicInt(0)
+        val second =
+            dispatch(executor) {
+                coroutineScope {
+                    owner.resume(job)
+                    blocking { called.fetchAdd(1) }
+                }
+            }
+        val job = owner.await()
+        dispatch(executor) { Unit }.await()
+        job.cancel()
+        assertFailsWith<CancellationException> { second.await() }
+        assertEquals(0, called.load())
+        executor.requestShutdown()
+        gate.open()
+        first.await()
+        executor.join()
+        executor.close()
+        assertEquals(0, called.load())
+    }
+
+    @Test
+    fun `explicit blocking target returns values and exceptions to the caller executor`() {
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }.use {
+            caller -> multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }.use {
+                target ->
+                val error = IllegalStateException(Some("blocking failure"))
+                val result = ThreadResult<Int>()
+                context(Label(33)) {
+                    startDispatchedCoroutine(
+                        caller,
+                        {
+                            try {
+                                target.blocking<Int> { throw error };
+                                fail(Some("expected failure"))
+                            }
+                            catch (failure: IllegalStateException) {
+                                assertSame(error, failure)
+                            }
+                            assertSame(caller, currentCoroutineExecutorOrNone()!!)
+                            val value =
+                                target.blocking {
+                                    assertTrue(absent(currentCoroutineExecutorOrNone()))
+                                    assertEquals(33, labelValue())
+                                    Label(42)
+                                }
+                            assertSame(caller, currentCoroutineExecutorOrNone()!!)
+                            value.value
+                        },
+                        result
+                    )
+                }
+                assertEquals(42, result.await())
+                assertEquals(7, dispatch(target) { 7 }.await())
+            }
+        }
+    }
+}
+
+private struct BlockingValue(val label: Label, val detail: (Long, String), val thread: ThreadId)
+
+private class BlockingResource {
+    val exited = AtomicBoolean(false)
+    val received = AtomicBoolean(false)
+    val closed = AtomicBoolean(false)
+}

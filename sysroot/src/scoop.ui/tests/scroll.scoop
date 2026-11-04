@@ -9,6 +9,8 @@ private class ScrollStateTest {
     @Test
     fun `pending position waits for a range and later layouts clamp without publishing early`() {
         val state = ScrollState(Point(30.0, 160.0))
+        assertFalse(state.hasSnapshot)
+        assertTrue(state.hasPositionRequest)
         state.scrollBy(Point(-10.0, 60.0))
         assertEquals(Point(0.0, 0.0), state.offset)
         assertEquals(Size(0.0, 0.0), state.viewport)
@@ -17,9 +19,11 @@ private class ScrollStateTest {
         assertEquals(Point(50.0, 170.0), layout.maximum)
         assertEquals(Point(0.0, 0.0), state.offset)
         state.publish(layout, true)
-        state.scrollBy(Point(100.0, -40.0))
-        assertEquals(Point(50.0, 130.0), state.offset)
+        assertTrue(state.hasSnapshot)
+        assertEquals(Point(30.0, -40.0), state.scrollBy(Point(100.0, -40.0)))
+        assertEquals(Point(20.0, 170.0), state.offset)
         state.publish(state.plan(layout.viewport, layout.content), true)
+        assertEquals(Point(50.0, 130.0), state.offset)
         val smaller = state.plan(Size(100.0, 100.0), Size(50.0, 140.0))
         assertEquals(Point(0.0, 40.0), smaller.offset)
         assertEquals(Point(50.0, 130.0), state.offset)
@@ -37,12 +41,17 @@ private class ScrollStateTest {
         state.reveal(Rect(50.0, 50.0, 200.0, 200.0))
         assertEquals(Point(100.0, 100.0), state.offset)
         state.reveal(Rect(230.0, 240.0, 10.0, 20.0))
+        assertEquals(Point(100.0, 100.0), state.offset)
+        acceptRequest(state)
         assertEquals(Point(140.0, 180.0), state.offset)
         state.reveal(Rect(220.0, 260.0, 40.0, 40.0), ScrollAlignment.Center, ScrollAlignment.Start)
+        acceptRequest(state)
         assertEquals(Point(190.0, 260.0), state.offset)
         state.reveal(Rect(220.0, 260.0, 40.0, 40.0), ScrollAlignment.End, ScrollAlignment.Center)
+        acceptRequest(state)
         assertEquals(Point(160.0, 240.0), state.offset)
         state.reveal(Rect(-30.0, 900.0, 10.0, 10.0), ScrollAlignment.Start, ScrollAlignment.End)
+        acceptRequest(state)
         assertEquals(Point(0.0, 520.0), state.offset)
     }
 
@@ -78,6 +87,9 @@ private class ScrollStateTest {
             assertFailsWith<IllegalStateException> { state.snapshot }
             assertFailsWith<IllegalStateException> { state.isAttached }
             assertFailsWith<IllegalStateException> { state.requestRevision }
+            assertFailsWith<IllegalStateException> { state.hasPositionRequest }
+            assertFailsWith<IllegalStateException> { state.hasSnapshot }
+            assertFailsWith<IllegalStateException> { state.observeIntent { _ -> } }
             assertFailsWith<IllegalStateException> { state.scrollBy(Point(0.0, 5.0)) }
         }.use { thread -> thread.join() }
         evaluateUi<Unit>(None) {
@@ -91,11 +103,13 @@ private class ScrollStateTest {
     @Test
     fun `position revisions distinguish newer intent from layout publication and reveal calculation`() {
         val state = ScrollState()
+        assertFalse(state.hasPositionRequest)
         val original = state.requestRevision
         state.publish(state.plan(Size(100.0, 80.0), Size(300.0, 400.0)), true)
         assertEquals(original, state.requestRevision)
         state.scrollTo(Point(0.0, 0.0))
         val request = state.requestRevision
+        assertTrue(state.hasPositionRequest)
         assertTrue(request > original)
         val snapshot = state.snapshot
         assertEquals(Point(100.0, 120.0), snapshot.revealedOffset(Rect(180.0, 160.0, 20.0, 40.0)))
@@ -106,6 +120,7 @@ private class ScrollStateTest {
         val collector = DependencyCollector()
         evaluateUi<Unit>(Some(collector)) {
             state.requestRevision;
+            state.hasPositionRequest;
             Unit
         }
         assertEquals(0L, collector.collected().size)
@@ -115,4 +130,8 @@ private class ScrollStateTest {
             snapshot.revealedOffset(Rect(0.0, 0.0, -1.0, 20.0))
         }
     }
+}
+
+private fun acceptRequest(state: ScrollState) {
+    state.publish(state.plan(state.viewport, state.content), true)
 }

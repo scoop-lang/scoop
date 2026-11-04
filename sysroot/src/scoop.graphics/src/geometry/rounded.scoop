@@ -1,0 +1,130 @@
+package scoop.graphics
+
+import scoop.math.min
+import scoop.math.max
+
+/** Four physical elliptical radii, in clockwise order from top left. */
+public struct CornerRadii(
+    val topLeft: Size = Size(0.0, 0.0),
+    val topRight: Size = Size(0.0, 0.0),
+    val bottomRight: Size = Size(0.0, 0.0),
+    val bottomLeft: Size = Size(0.0, 0.0)
+) {
+    public companion object {
+        public fun all(radius: Double): CornerRadii = all(Size(radius, radius))
+        public fun all(radius: Size): CornerRadii = CornerRadii(radius, radius, radius, radius)
+    }
+    /** Opposing sums use one factor so the whole outline retains its proportions. */
+    public fun normalized(size: Size): CornerRadii {
+        checkSize(size)
+        val tl = cornerSize(topLeft)
+        val tr = cornerSize(topRight)
+        val br = cornerSize(bottomRight)
+        val bl = cornerSize(bottomLeft)
+        val scale =
+            min(
+                min(
+                    cornerScale(size.width, tl.width + tr.width),
+                    cornerScale(size.width, bl.width + br.width)
+                ),
+                min(
+                    cornerScale(size.height, tl.height + bl.height),
+                    cornerScale(size.height, tr.height + br.height)
+                )
+            )
+        return CornerRadii(
+            scaleCorner(tl, scale),
+            scaleCorner(tr, scale),
+            scaleCorner(br, scale),
+            scaleCorner(bl, scale)
+        )
+    }
+}
+
+/** Shared physical geometry for fill, border, clip, shadow and focus outlines. */
+public struct RoundedOutline(val bounds: Rect, val radii: CornerRadii = CornerRadii()) {
+    public fun normalized(): RoundedOutline {
+        checkRect(bounds)
+        return RoundedOutline(bounds, radii.normalized(bounds.size))
+    }
+    public fun inset(left: Double, top: Double, right: Double, bottom: Double): RoundedOutline {
+        val outer = normalized()
+        val x = outlineInset(bounds.width, left, right)
+        val y = outlineInset(bounds.height, top, bottom)
+        val inner = Rect(bounds.x + x.before, bounds.y + y.before, x.remaining, y.remaining)
+        val corners = outer.radii
+        return RoundedOutline(
+            inner,
+            CornerRadii(
+                insetCorner(corners.topLeft, x.before, y.before),
+                insetCorner(corners.topRight, x.after, y.before),
+                insetCorner(corners.bottomRight, x.after, y.after),
+                insetCorner(corners.bottomLeft, x.before, y.after)
+            )
+        ).normalized()
+    }
+    public fun expanded(amount: Double): RoundedOutline {
+        requireGraphics(amount.isFinite() && amount >= 0.0, "invalid outline outset")
+        val outer = normalized()
+        val box = outer.bounds
+        val corners = outer.radii
+        return RoundedOutline(
+            Rect(
+                box.x - amount,
+                box.y - amount,
+                box.width + amount * 2.0,
+                box.height + amount * 2.0
+            ),
+            CornerRadii(
+                expandCorner(corners.topLeft, amount),
+                expandCorner(corners.topRight, amount),
+                expandCorner(corners.bottomRight, amount),
+                expandCorner(corners.bottomLeft, amount)
+            )
+        ).normalized()
+    }
+}
+
+private fun cornerSize(value: Size): Size {
+    checkSize(value)
+    return if (value.width == 0.0 || value.height == 0.0)
+        Size(0.0, 0.0)
+    else
+        value
+}
+
+private fun scaleCorner(value: Size, scale: Double): Size =
+    Size(value.width * scale, value.height * scale)
+
+private fun cornerScale(edge: Double, sum: Double): Double =
+    if (sum > edge)
+        edge / sum
+    else
+        1.0
+
+private fun insetCorner(value: Size, x: Double, y: Double): Size =
+    Size(max(0.0, value.width - x), max(0.0, value.height - y))
+
+private fun expandCorner(value: Size, amount: Double): Size =
+    Size(value.width + amount, value.height + amount)
+
+private struct OutlineInset(val before: Double, val after: Double, val remaining: Double)
+
+private fun outlineInset(length: Double, before: Double, after: Double): OutlineInset {
+    requireGraphics(
+        before.isFinite() && after.isFinite() && before >= 0.0 && after >= 0.0,
+        "invalid outline insets"
+    )
+    if (before <= length && after <= length - before)
+        return OutlineInset(before, after, length - before - after)
+    val maximum = max(before, after)
+    val ratio =
+        if (maximum > 0.0)
+            (before / maximum) / (before / maximum + after / maximum)
+        else
+            0.0
+    val leading = length * ratio
+    return OutlineInset(leading, length - leading, 0.0)
+}
+
+internal fun cornerPoint(value: Size): Point = Point(value.width, value.height)

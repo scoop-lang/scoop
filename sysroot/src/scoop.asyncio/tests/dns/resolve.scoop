@@ -9,9 +9,9 @@ import scoop.test.*
 private class AsyncResolveTest {
     @Test
     fun `numeric IPv4 IPv6 and local resolution feed real connections`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val ipv4 =
                 scope.async<Array<SocketAddress>> suspend {
@@ -47,9 +47,8 @@ private class AsyncResolveTest {
 
     @Test
     fun `invalid inputs and resolver failures keep the original error and host`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val invalid: Array<Byte> = [49, 0, 50]
             try {
                 loop.resolve(OsString.fromByteArray(invalid), 1);
@@ -81,10 +80,10 @@ private class AsyncResolveTest {
 
     @Test
     fun `cancellation before and after native submission drains work and resolution results`() {
-        val backend = PlatformEventLoop()
-        val loop: EventLoop = backend
-        loop.run suspend {
-            scope ->
+        val backend = eventLoop()
+        val loop = backend
+        loop.run {
+            val scope = this;
             val host = OsString.fromString("127.0.0.1")
             for (_ in 0 ..< 16) {
                 val before = scope.launch suspend { loop.resolve(host, 42) }

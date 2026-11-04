@@ -30,10 +30,9 @@ fun synchronousIdentity(port: Int, version: TlsVersion) {
 
 fun asynchronousIdentity(port: Int, version: TlsVersion) {
     val context = identityContext(version)
-    val loop: EventLoop = PlatformEventLoop()
+    val loop = eventLoop()
     try {
-        loop.run suspend {
-            _ ->
+        loop.run {
             val raw = loop.connectTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, port))
             val stream =
                 AsyncTlsStream.takeOwnershipAsClient(raw, context, TlsPeerName.Dns("localhost"))

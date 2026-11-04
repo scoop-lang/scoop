@@ -10,6 +10,10 @@ import scoop.ui.text.*
 import scoop.window.*
 
 internal fun advanceEditing(probe: EditProbe) {
+    if (probe.phase >= 75) {
+        advanceSystemIme(probe)
+        return
+    }
     val first = probe.primary
     val second = probe.multiline
     val window = probe.window!!
@@ -295,8 +299,124 @@ internal fun advanceEditing(probe: EditProbe) {
         case 36 -> {
             assertTrue(probe.focus[0L].hasFocus)
             editorNativeCaret(window, first, probe.field(0L).area.visibleCaretBounds)
-            probe.next { window.requestDestroy() }
+            probe.next {
+                probe.checkSnapshot = true
+                first.replaceAll("[]", Some(Utf8Selection(1L, 1L)))
+                probe.policy = inputPolicy(4L)
+                probe.change()
+            }
         }
-        else -> fail(Some(f"unexpected editing phase ${probe.phase}"))
+        case 37 -> probe.next { assertEquals(0, editorText(window, "仮\n", 1)) }
+        case 38 -> {
+            assertEquals("[仮\n]", first.text)
+            assertTrue(first.isComposing)
+            assertTrue(editorDocument(window, first))
+            probe.next {
+                probe.policy = inputPolicy(3L);
+                probe.change()
+            }
+        }
+        case 39 -> {
+            assertEquals("[仮\n]", first.text)
+            assertTrue(first.isComposing)
+            probe.next { assertEquals(0, editorText(window, "12")) }
+        }
+        case 40 -> {
+            assertEquals("[1]", first.text)
+            assertFalse(first.isComposing)
+            assertTrue(editorDocument(window, first))
+            probe.next {
+                assertTrue(probe.field(0L).execute(TextEditCommand.Undo))
+                assertEquals("[]", first.text)
+                assertTrue(probe.field(0L).execute(TextEditCommand.Redo))
+                assertEquals("[1]", first.text)
+                first.setSelection(Utf8Selection(2L, 1L))
+            }
+        }
+        case 41 -> {
+            probe.savedEdits = probe.edits
+            probe.next { assertEquals(0, editorText(window, "x")) }
+        }
+        case 42 -> {
+            assertEquals("[1]", first.text)
+            assertEquals(Utf8Selection(2L, 1L), first.selection)
+            assertEquals(probe.savedEdits, probe.edits)
+            assertTrue(editorDocument(window, first))
+            probe.next { assertEquals(0, editorText(window, "候", 1)) }
+        }
+        case 43 -> {
+            assertEquals("[候]", first.text)
+            assertTrue(first.isComposing)
+            probe.next { assertEquals(0, editorText(window, "x")) }
+        }
+        case 44 -> {
+            assertEquals("[1]", first.text)
+            assertFalse(first.isComposing)
+            assertEquals(Utf8Selection(2L, 1L), first.selection)
+            assertTrue(editorDocument(window, first))
+            probe.next {
+                window.clipboard.writeText("23-45")
+                assertTrue(probe.field(0L).execute(TextEditCommand.Paste))
+            }
+        }
+        case 45 -> {
+            assertEquals("[2]", first.text)
+            assertEquals(Some("23-45"), window.clipboard.readText())
+            probe.next {
+                first.setSelection(Utf8Selection(1L, 2L))
+                probe.policy = textEditPolicy { transform { _ -> TextEditDecision.Reject } }
+                probe.change()
+            }
+        }
+        case 46 -> {
+            assertTrue(probe.field(0L).execute(TextEditCommand.Cut))
+            assertEquals("[2]", first.text)
+            assertEquals(Some("23-45"), window.clipboard.readText())
+            probe.next {
+                probe.policy = inputPolicy(3L);
+                probe.change()
+            }
+        }
+        case 47 -> {
+            @Unsafe
+            {
+                assertEquals(0, failNextNativeClipboardWrite())
+            }
+            assertFailsWith<WindowException> { probe.field(0L).execute(TextEditCommand.Cut) }
+            assertEquals("[2]", first.text)
+            assertEquals(Utf8Selection(1L, 2L), first.selection)
+            probe.next { assertTrue(probe.field(0L).execute(TextEditCommand.Cut)) }
+        }
+        case 48 -> {
+            assertEquals("[]", first.text)
+            assertEquals(Some("2"), window.clipboard.readText())
+            assertTrue(editorDocument(window, first))
+            probe.next { prepareTextDisplay(probe) }
+        }
+        else -> advanceTextDisplay(probe)
     }
 }
+
+private fun inputPolicy(limit: Long): TextEditPolicy =
+    textEditPolicy {
+        this.maxLength = Some(limit)
+        accepts {
+            text ->
+            var accepted = true
+            for (character in text)
+                if (character.code < 48 || character.code > 57)
+                    accepted = false
+            accepted
+        }
+        paste {
+            candidate ->
+            val edits = ArrayList<TextEditReplacement>()
+            var offset = 0L
+            for (character in candidate.after.text) {
+                if (character == '-')
+                    edits.add(TextEditReplacement(Utf8Range(offset, offset + 1L), ""))
+                offset += character.toString().byteLength
+            }
+            TextEditDecision.Transform(edits.toArray())
+        }
+    }

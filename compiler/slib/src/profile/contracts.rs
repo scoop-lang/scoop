@@ -136,22 +136,22 @@ impl CapabilityContractRegistry {
                 MemberPurposeSet::COMPILE_AND_LINK,
                 FingerprintSinkSet::HIR,
             ),
-            ("org.scoop-lang.mir", "identity-foundation", 9) => (
+            ("org.scoop-lang.mir", "identity-foundation", 10) => (
                 SectionLocation::Mir,
                 MemberPurposeSet::COMPILE_AND_LINK,
                 FingerprintSinkSet::CODE.union(FingerprintSinkSet::LINK_VALIDATION_ONLY),
             ),
-            ("org.scoop-lang.lir", "identity-foundation", 13) => (
+            ("org.scoop-lang.lir", "identity-foundation", 14) => (
                 SectionLocation::Lir,
                 MemberPurposeSet::COMPILE_AND_LINK,
                 FingerprintSinkSet::CODE.union(FingerprintSinkSet::LINK_VALIDATION_ONLY),
             ),
-            ("org.scoop-lang.hir", "core-bootstrap-interface", 20) => (
+            ("org.scoop-lang.hir", "core-bootstrap-interface", 22) => (
                 SectionLocation::Hir,
                 MemberPurposeSet::COMPILE,
                 FingerprintSinkSet::HIR,
             ),
-            ("org.scoop-lang.hir", "cross-cone-interface", 90) => (
+            ("org.scoop-lang.hir", "cross-cone-interface", 92) => (
                 SectionLocation::Hir,
                 MemberPurposeSet::COMPILE,
                 FingerprintSinkSet::HIR,

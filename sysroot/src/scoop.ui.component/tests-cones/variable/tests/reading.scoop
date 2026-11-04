@@ -1,0 +1,134 @@
+package scoop.tests.ui.variable
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.ActiveApplication
+
+internal fun advanceReading(probe: VariableProbe, active: ActiveApplication) {
+    val handle = probe.handle.value
+    when (probe.phase) {
+        case 17 -> {
+            val reading = handle.reading!!
+            assertEquals(VirtualRange(0L, 2L), reading.visible)
+            assertEquals(Some(VirtualReadingAnchor(ViewKey.Number(100L), 15.0)), reading.anchor)
+            assertEquals(handle.reading, probe.observed)
+            assertFalse(reading.atEnd)
+            probe.checkpoint = reading.anchor
+            probe.position(7L, ScrollAlignment.End)
+        }
+        case 18 -> {
+            val before = handle.reading
+            assertTrue(handle.restore(probe.checkpoint!!))
+            assertTrue(handle.isPending)
+            assertEquals(before, handle.reading)
+            probe.next()
+        }
+        case 19 -> {
+            assertFalse(handle.isPending)
+            assertEquals(probe.checkpoint, handle.reading!!.anchor)
+            probe.assertTop(100L, 5.0)
+            probe.changeSource([50L, 100L, 99L, 8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L, 10L])
+            probe.next()
+        }
+        case 20 -> {
+            assertEquals(probe.checkpoint, handle.reading!!.anchor)
+            assertEquals(Point(0.0, 25.0), probe.scroll.offset)
+            probe.assertTop(100L, 5.0)
+            probe.waiting = true
+            assertTrue(
+                active.proxy().post {
+                    _ ->
+                    probe.row(50L).growth.value = 80.0
+                    probe.next()
+                    probe.waiting = false
+                }
+            )
+        }
+        case 21 -> {
+            assertEquals(probe.checkpoint, handle.reading!!.anchor)
+            assertEquals(Point(0.0, 65.0), probe.scroll.offset)
+            probe.assertTop(100L, 5.0)
+            val before = handle.reading
+            assertTrue(handle.restore(VirtualReadingAnchor(ViewKey.Number(7L), 5.0)))
+            assertEquals(
+                Point(0.0, -10.0),
+                probe.scroll.scrollBy(Point(0.0, -10.0), ScrollOrigin.User)
+            )
+            assertFalse(handle.isPending)
+            assertEquals(before, handle.reading)
+            probe.next()
+        }
+        case 22 -> {
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(100L), 5.0)),
+                handle.reading!!.anchor
+            )
+            val revision = probe.scroll.requestRevision
+            val reading = handle.reading
+            assertFalse(handle.restore(VirtualReadingAnchor(ViewKey.Number(123456L), 10.0)))
+            assertEquals(revision, probe.scroll.requestRevision)
+            assertEquals(reading, handle.reading)
+            assertTrue(handle.restore(probe.checkpoint!!))
+            probe.changeSource([50L, 100L, 99L, 8L, 1L, 0L, 3L, 4L, 5L, 6L, 7L, 9L, 10L, 11L])
+            probe.next()
+        }
+        case 23 -> {
+            assertFalse(handle.isPending)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(100L), 5.0)),
+                handle.reading!!.anchor
+            )
+            assertTrue(handle.restore(VirtualReadingAnchor(ViewKey.Number(100L), 35.0)))
+            probe.next()
+        }
+        case 24 -> {
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(100L), 35.0)),
+                handle.reading!!.anchor
+            )
+            probe.row(100L).growth.value = -15.0
+            probe.next()
+        }
+        case 25 -> {
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(99L), 0.0)),
+                handle.reading!!.anchor
+            )
+            probe.overrideRestore = true
+            assertFalse(handle.restore(probe.checkpoint!!))
+            assertFalse(handle.isPending)
+            probe.next()
+        }
+        case 26 -> {
+            assertFalse(probe.overrideRestore)
+            assertEquals(
+                Some(VirtualReadingAnchor(ViewKey.Number(50L), 0.0)),
+                handle.reading!!.anchor
+            )
+            val count = probe.userIntents
+            assertEquals(
+                Point(0.0, 0.0),
+                probe.scroll.scrollBy(Point(0.0, -20.0), ScrollOrigin.User)
+            )
+            assertEquals(count + 1, probe.userIntents)
+            probe.next()
+        }
+        case 27 -> {
+            assertTrue(handle.restore(probe.checkpoint!!))
+            probe.show.value = false
+            probe.next()
+        }
+        case 28 -> {
+            assertFalse(probe.scroll.isAttached)
+            assertFalse(handle.isAttached)
+            assertFalse(handle.isPending)
+            assertEquals(None, handle.reading)
+            probe.phase = 29
+            probe.ui!!.close()
+            probe.window!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected reading restoration phase"))
+    }
+}

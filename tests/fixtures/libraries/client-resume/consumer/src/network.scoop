@@ -10,8 +10,7 @@ import scoop.tls.TlsTrustSource
 import scoop.url.Url
 
 internal fun resumeNetwork(trust: TrustStore, mode: String, url: Url, directory: Path) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val target = directory.resolve(Path.fromString("result"))
         val resume =
             httpResumeOptions(

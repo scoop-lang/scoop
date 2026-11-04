@@ -225,7 +225,11 @@ internal fun platformModifiers(flags: Long): Modifiers =
         linuxModifierSides(flags, 4096L, 8192L),
         linuxModifierSides(flags, 16384L, 32768L),
         Some(flags.and(32L) != 0L),
-        Some(flags.and(64L) != 0L)
+        Some(flags.and(64L) != 0L),
+        if (flags.and(131072L) != 0L)
+            Some(flags.and(128L) != 0L)
+        else
+            None
     )
 
 private fun linuxModifierSides(flags: Long, left: Long, right: Long): ModifierSides =

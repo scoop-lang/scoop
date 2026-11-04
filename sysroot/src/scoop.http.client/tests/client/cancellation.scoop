@@ -11,9 +11,10 @@ private class HttpClientCancellationTest {
     fun `caller cancellation and concurrent client close wait for owned source cleanup`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val source = BodyTestSource("late".toByteArray())
                     source.holdRead = true;
@@ -76,15 +77,16 @@ private class HttpClientCancellationTest {
     fun `client closes from a cancelled finally and a later connection failure does not poison the parent`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val started = BodyTestGate()
                 val closed = BodyTestGate()
                 val task =
                     scope.launch suspend {
-                        coroutineScope suspend {
-                            child ->
+                        coroutineScope {
+                            val child = this
+
                             val client = HttpClient.open(child, clientTestConfig(trust))
                             try {
                                 started.signal();

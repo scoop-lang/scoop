@@ -67,6 +67,8 @@ pub enum Expr {
     Lambda {
         label: Option<Ident>,
         id: LambdaId,
+        /// Whether the source explicitly requires suspend. False leaves the
+        /// effect to the expected function type, defaulting to ordinary.
         is_suspend: bool,
         parameters: Option<Vec<LambdaParam>>,
         body: Block,

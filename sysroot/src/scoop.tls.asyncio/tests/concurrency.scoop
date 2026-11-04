@@ -8,9 +8,9 @@ import scoop.test.*
 private class AsyncTlsConcurrencyTests {
     @Test
     fun `cancelling the writer retains the accepted prefix and releases its borrow`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, clientRaw, serverRaw)
             val output = NativeByteBuffer.allocate(20000L)
@@ -49,9 +49,9 @@ private class AsyncTlsConcurrencyTests {
 
     @Test
     fun `directions are exclusive and cancelling read closes an accepted blocked write`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(clientRaw, serverRaw) = rawPair(loop, scope)
             val(client, server) = tlsPair(scope, clientRaw, serverRaw)
             val output = NativeByteBuffer.allocate(20000L)

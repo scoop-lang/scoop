@@ -136,7 +136,7 @@ WindowsEvent 指 loop 所有的 manual-reset event HANDLE；host 只监听，不
 
 watch/remove 的所有权、非内联注册、串行通知、回调退出后注销规则保持。Darwin GUI 适配在实际服务的 CFRunLoop modes 上监听 pipe，Linux 监听 eventfd；两者都不读取 loop 的通知载荷。窗口消息唤醒和 I/O 完成分别存储真实队列，可以合并通知，不能依赖“一次唤醒等于一个事件”。
 
-第三方挂起点仍可能从其他线程恢复。需要修改窗口时回到 ApplicationProxy.post；需要继续有父任务的挂起工作时用 session／集成 scope 的入口。本设计不修改协程恢复语义或增加通用 dispatcher。
+集成 scope 保存窗口 owner 的 LoopExecutor，任意真实挂起后的外部完成均排队回该 executor，包括第三方 continuation。显式后台 executor 的任务保留 I/O binding，但其恢复仍在后台；窗口操作通过 withExecutor(loop.executor) 或捕获的应用作用域返回 owner。普通线程／native callback 继续使用 ApplicationProxy.post。执行与关闭复用现有 core／asyncio 协议，详见[窗口集成规范](../specs/SCOOP-WINDOW-SPEC.md#8-asyncio-集成)。
 
 ## 5. 窗口属性、DPI 与平台差异
 
