@@ -13,6 +13,8 @@ button(content: View, onClick: () -> Unit, configure: ContentButtonBuilder.() ->
 checkbox(checked: Binding<Boolean>, configure: CheckboxBuilder.() -> Unit = {}): View
 checkbox(checked: Binding<CheckState>, configure: CheckboxBuilder.() -> Unit = {}): View
 input(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View
+textarea(state: TextEditorState, configure: TextareaBuilder.() -> Unit = {}): View
+inputGroup(configure: InputGroupBuilder.() -> Unit): View
 radioGroup(selected: Binding<T?>, configure: RadioGroupBuilder<T>.() -> Unit = {}): View
 toggleGroup(selected: Binding<T?>, configure: ToggleGroupBuilder<T>.() -> Unit = {}): View
 toggleGroup(selected: Binding<Array<T>>, configure: ToggleGroupBuilder<T>.() -> Unit = {}): View
@@ -150,7 +152,7 @@ FieldTarget 是为 Label 关联新增的窄句柄：包含稳定的焦点目标�
 ButtonGroup 和 InputGroup 不能通过检查不透明 View 来修改子组件样式：
 
 - ButtonGroup 的 button／input／separator／text 成员收集明确条目，render 按位置生成各条目的边角与接缝。`item({ position -> ... })` 用 `GroupPosition` 明确配置实际控件的 group，plain `add(View)` 保留调用方已完成的外观；group 成员创建独立嵌套组。根 fonts／theme 为未明确配置的内置条目提供默认值。它不增加激活行为，焦点项最后绘制但不改变 Tab 顺序；现行合同见控件规范第 16 节。
-- InputGroup 拥有一个外框和一个实际编辑宿主；input／textarea 槽采用共享文本控件的无外框内容模式，addon 和独立按钮正常参与布局／路由。自定义输入必须显式提供自己的 FocusHandle／FieldTarget，不靠遍历后代查找编辑器。
+- InputGroup 拥有一个外框和一个实际编辑宿主；input／textarea 槽采用共享文本控件的 `TextFieldChrome.Bare` 内容模式，addon 和独立按钮正常参与布局／路由。`inputGroup { input(editor); addon(InputGroupAlign.InlineEnd) { button("提交", onSubmit) } }` 必须提供且只提供一个编辑槽；四种 addon 位置、keyed 生命周期、统一错误／禁用外观及焦点规则见[组件规范第 22 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。自定义 `control(view, focus)` 显式提供实际控件绑定的 FocusHandle；需要标签时由控件绑定 FieldTarget，不靠遍历后代查找编辑器。
 - Item／Attachment 等“整行可打开，右侧又有按钮”的结构让行 Press 在 default 阶段处理；子动作消费激活，拖选／Drag 接管取消行点击。动作区不会因覆盖整行透明按钮而不可用。
 
 Item 的 title／description、media／actions、header／footer 都可选；String、StyledText 和自定义 View 共用 PanelContent。`media(image)` 借用图片并创建 Cover 适配，Image／Icon 媒体各自有明确尺寸。窄宽时独立动作移到下一行，可选区域变化保留正文；onClick 有无变化才切换展示／动作子树。`itemGroup(ItemSize.Sm) { item { title("Title") }; itemSeparator() }` 收集普通子项，组尺寸为内置条目提供初始值。普通 ChildrenBuilder 用 `contentItem` 避免与 Flex 的 item 成员冲突。完整字段、尺寸、裁剪和输入合同见控件规范第 17 节。

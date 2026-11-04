@@ -11,7 +11,7 @@ import scoop.ui.text.TextEditorState
 import scoop.window.*
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle, InputOtp, RadioGroup, ToggleGroup, Slider
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle, InputOtp, RadioGroup, ToggleGroup, Slider, Textarea, InputGroup
 }
 
 internal enum ControlDemo {
@@ -48,6 +48,8 @@ internal fun demoTitle(value: Demo): String =
         case RadioGroup -> "Radio Group"
         case ToggleGroup -> "Toggle Group"
         case Slider -> "Slider"
+        case Textarea -> "Textarea"
+        case InputGroup -> "Input Group"
     }
 
 internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePalette)? = None) {
@@ -72,6 +74,8 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
     val otp = OtpExamplesModel()
     val choices = ChoiceExamplesModel()
     val sliders = SliderExamplesModel()
+    val textFields = TextExamplesModel()
+    val inputGroups = InputGroupExamplesModel()
     val mode = state(ThemeMode.Light)
     val direction = state(LayoutDirection.Ltr)
     val selected = state(Demo.Button)
@@ -211,7 +215,9 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
                 Demo.InputOtp,
                 Demo.RadioGroup,
                 Demo.ToggleGroup,
-                Demo.Slider
+                Demo.Slider,
+                Demo.Textarea,
+                Demo.InputGroup
             ]
         )
             if (unicodeCasefold(demoTitle(entry)).contains(search))

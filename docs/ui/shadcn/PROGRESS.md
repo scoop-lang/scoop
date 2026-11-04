@@ -137,3 +137,11 @@
 - macOS aarch64 release：先格式化与相关 tests 静态检查，生产控件库和 Gallery 构建成功；**11 项定向测试全部通过**，包括 5 项 Slider 值测试、5 项既有范围测试和 1 项 64 步原生窗口测试。覆盖稳定 thumb／焦点与工厂次数、最新绑定、12 次提交／8 次取消、标签及句柄替换、连续／离散范围、窄宽／失败帧／零尺寸、明暗／方向变化、静止停帧和资源释放。
 - Gallery 增加可操作 Slider 页，人工检查 System／Neutral、明暗、RTL、反向、窄宽、错误／禁用、竖向多 thumb、标签聚焦、键盘和减少动态下的真实拖动。原生测试初轮捕获到测试注入之外的窗口外鼠标移动，导致活动拖动按正常语义钳到上限；单独运行并避免重复窗口激活后，最终无库内诊断的用例通过，未放宽断言或修改输入策略。
 - 本批完成 Slider，目录累计 **23／64**；P2 继续 Input／Textarea、InputGroup 与 Field。一次性检查锁及手工窗口清理，保留共享缓存、Slider 回归／Gallery 产物及 `../scoop-dep` 中的上游参考；未重建编译器、LLVM 或外部图形依赖，未运行全仓或全部控件测试。x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P2e：Input／Textarea 与 Input Group
+
+- 先补齐控件规范，新增 TextFieldChrome.Framed／Bare；内容模式沿用同一 TextEditHost，去除内层外框、边框占位和禁用合成层，保留 padding、正文、描述及滚动条。Textarea 默认内缩按字号缩放为横向 10、纵向 8。Input Group 提供一个明确编辑槽、四向 addon、文字／独立按钮／自定义 View、根状态及稳定焦点句柄；不遍历不透明 View，也不新增反射或文本模型。
+- 按原父级和 key 保留 addon，物理位置与声明顺序分开；修改外观、句柄、回调或模型不重建同类型宿主。输入与附加按钮各自处理动作及 Tab，整体禁用透明度只应用一次。原生回归发现并修正零尺寸组仍放置子节点却跳过绘制的问题，现由未放置节点和 Accepted 帧撤销输入与焦点。
+- Gallery 补齐 Input 的密码显隐、数字策略、只读与应用文件选择动作，新增 Textarea 和 Input Group 页面。手工检查 System／Neutral、明暗、RTL、四向／窄宽 addon、错误／禁用外框、中文多行输入与提交、密码显隐、数字限长和样例文件动作；修正示例父布局拉伸窄宽及焦点环贴近裁剪边界的问题。API 与两份 README 已同步。
+- macOS aarch64 release：相关 Cone 先格式化与 tests 静态检查，生产库及 Gallery 应用／测试构建成功；**9 项定向测试全部通过**，包括 Input Group 4 项、文本样式 2 项、Gallery 搜索 1 项、既有 91 阶段文本编辑回归，以及新 48 阶段 Input Group 实窗测试。覆盖 preedit／中文提交、复制／撤销、掩码、只读、禁用、模型／句柄／回调替换、输入类型切换、自定义 Bare／Framed 切换、keyed 实例及局部状态保留、四向布局、窄宽／零尺寸、静止停帧与资源收尾。初轮另修正零建议宽度的测试预期，以及原生只读拒绝输入的返回值断言；未放宽生命周期或编辑行为断言。
+- 本批完成三项，目录累计 **26／64**，P2 下一项为 Field。为消费已合入主线的 runtime ABI 34／metadata ABI 11，对齐了五个宿主命令、runtime 和系统库；使用现有 LLVM 与外部依赖缓存，没有重建 LLVM 或图形工具链。一次性检查锁及手工窗口清理，保留共享缓存、定向回归／Gallery 产物与 `../scoop-dep` 参考。UI 库仍无 typeInfo／TypeInfo／TypeRef／TypeShape 直接引用；未运行全仓或全部控件测试，x86_64 留在整体收尾，Windows／Linux 未验证。

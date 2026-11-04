@@ -1,0 +1,105 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum InputGroupAlign {
+    InlineStart, InlineEnd, BlockStart, BlockEnd
+}
+
+public enum InputGroupControl {
+    Input(InputProps), Textarea(TextareaProps), Custom(View, FocusHandle)
+}
+
+public class InputGroupAddon public constructor(
+    public val content: View,
+    public val align: InputGroupAlign = InputGroupAlign.InlineStart,
+    public val key: ViewKey = ViewKey.Position,
+    public val padding: Insets? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class InputGroupProps public constructor(
+    public val control: InputGroupControl,
+    public val addons: Array<InputGroupAddon> = [],
+    public val enabled: Boolean = true,
+    public val invalid: Boolean = false,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val surface: SurfaceOptions = surfaceOptions()
+)
+
+private enum PendingInputAddon {
+    Ready(InputGroupAddon), Builder(InputGroupAddonBuilder)
+}
+
+public class InputGroupBuilder internal constructor() {
+    private var editor: InputGroupControl? = None
+    private val addons = ArrayList<PendingInputAddon>()
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var surface: SurfaceOptions = surfaceOptions()
+    public var key: ViewKey = ViewKey.Position
+
+    public fun input(
+        state: scoop.ui.text.TextEditorState,
+        configure: InputBuilder.() -> Unit = {}
+    ) {
+        val builder = InputBuilder()
+        builder.configure()
+        setControl(InputGroupControl.Input(builder.inputProps(state)))
+    }
+    public fun textarea(
+        state: scoop.ui.text.TextEditorState,
+        configure: TextareaBuilder.() -> Unit = {}
+    ) {
+        val builder = TextareaBuilder()
+        builder.configure()
+        setControl(InputGroupControl.Textarea(builder.textareaProps(state)))
+    }
+    public fun control(content: View, focus: FocusHandle) {
+        setControl(InputGroupControl.Custom(content, focus))
+    }
+    private fun setControl(value: InputGroupControl) {
+        requireComponent(!panelPresent(editor), "input group requires exactly one control")
+        editor = Some(value)
+    }
+    public fun addon(
+        align: InputGroupAlign = InputGroupAlign.InlineStart,
+        configure: InputGroupAddonBuilder.() -> Unit
+    ) {
+        val builder = InputGroupAddonBuilder(align)
+        builder.configure()
+        addons.add(PendingInputAddon.Builder(builder))
+    }
+    public fun addAddon(value: InputGroupAddon) {
+        addons.add(PendingInputAddon.Ready(value))
+    }
+    public fun surface(configure: SurfaceOptionsBuilder.() -> Unit) {
+        surface = surface.copy(configure)
+    }
+    internal fun snapshot(): InputGroupProps {
+        val control =
+            editor ?: throw IllegalArgumentException(Some("input group requires one control"))
+        val items = ArrayList<InputGroupAddon>()
+        for (item in addons)
+            items.add(
+                when (item) {
+                    case Ready(value) -> value
+                    case Builder(value) -> value.snapshot(fonts, theme)
+                }
+            )
+        return InputGroupProps(control, items.toArray(), enabled, invalid, fonts, theme, surface)
+    }
+}
+
+public fun inputGroup(configure: InputGroupBuilder.() -> Unit): View = makeInputGroup(configure)
+
+internal fun makeInputGroup(configure: InputGroupBuilder.() -> Unit): View {
+    val builder = InputGroupBuilder()
+    builder.configure()
+    return component(builder.snapshot(), { current -> InputGroup(current) }, builder.key)
+}

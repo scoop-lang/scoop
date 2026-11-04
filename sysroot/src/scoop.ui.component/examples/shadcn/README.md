@@ -35,3 +35,7 @@ Input OTP 页面展示六位分组、四位字母数字、Unicode grapheme 自�
 Radio Group 页面包含空选／已选、禁用项、可切换方向／错误状态、外部选择、关联标签和自定义 plan 卡片。Toggle Group 页面包含可清空单选、多选、三种尺寸、连边／间距、横纵排列、重排及自定义图标正文；方向键只移动焦点，Space／Enter 激活。两页沿顶部切换 System／Neutral、明暗和 RTL。
 
 Slider 页面提供单个、两个和三个 thumb、连续范围、竖向和禁用示例。可点击轨道、拖动 thumb、通过标签聚焦，或使用方向键、Home／End、PageUp／PageDown；minimumGap 保持相邻值的间距，Escape 取消拖动。页面可以切换反向、窄宽、invalid、禁用及减少动态，并分别统计提交与取消；配色、明暗和 RTL 继续沿用顶部设置。
+
+Input 页面补充密码显隐、最多六位数字的编辑策略、只读复制和应用文件选择动作；文件示例明确选用样例文件，实际应用连接自己的选择器。Textarea 页面展示多行编辑、换行切换、水平／垂直滚动、Tab 插入／导航、⌘Enter 提交及只读／错误／禁用状态。
+
+Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、独立按钮、多行消息和显式自定义输入。可以移动 keyed addon、收窄宽度及切换错误／禁用／只读；点击 addon 文字聚焦编辑器，按钮各自激活。顶部配色、明暗和 RTL 设置同样适用。

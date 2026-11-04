@@ -79,6 +79,10 @@ public open class ChildrenBuilder internal constructor() {
         add(makeSlider(values, range, configure))
     }
 
+    public fun inputGroup(configure: InputGroupBuilder.() -> Unit): Unit {
+        add(makeInputGroup(configure))
+    }
+
     public fun <T: Equals<T>> radioGroup(
         selected: Binding<T?>,
         configure: RadioGroupBuilder<T>.() -> Unit = {}

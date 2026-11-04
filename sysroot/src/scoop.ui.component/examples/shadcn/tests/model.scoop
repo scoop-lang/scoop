@@ -12,7 +12,7 @@ private class GallerySearchTest {
         model.checked.value = true
         model.query.replaceAll("iNp")
         val filtered = model.entries()
-        assertEquals(2L, filtered.size)
+        assertEquals(3L, filtered.size)
         assertEquals(Some(Demo.Input), model.current(filtered))
         assertEquals(Demo.Checkbox, model.selected.value)
         model.query.replaceAll("not a component")

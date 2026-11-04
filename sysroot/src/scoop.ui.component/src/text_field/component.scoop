@@ -20,7 +20,8 @@ internal class TextFieldInput(
     val onEdited: (TextEditorState) -> Unit,
     val onSubmit: (TextEditorState) -> Unit,
     val labelTarget: FieldTarget?,
-    val group: GroupPosition?
+    val group: GroupPosition?,
+    val chrome: TextFieldChrome
 )
 
 /** Shares composition while keeping the two public component identities distinct. */
@@ -96,7 +97,7 @@ internal class TextFieldRenderer {
                 input,
                 theme,
                 visual,
-                input.style.options(visual.interaction),
+                textFieldOptions(input, theme, visual.interaction),
                 text,
                 placeholder,
                 mounted

@@ -1,0 +1,172 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.inputGroup as makeInputGroup
+import scoop.ui.component.kbd as makeKbd
+import scoop.ui.component.spinner as makeSpinner
+import scoop.ui.style.*
+import scoop.ui.text.*
+
+internal class InputGroupExamplesModel {
+    val address = TextEditorState("scoop.dev")
+    val query = TextEditorState()
+    val message = TextEditorState()
+    val custom = TextEditorState("Custom bare input")
+    val focus = FocusHandle()
+    val enabled = state(true)
+    val invalid = state(false)
+    val readonly = state(false)
+    val narrow = state(false)
+    val block = state(false)
+    val busy = state(false)
+    val submits = state(0)
+}
+
+internal fun inputGroupExamples(model: InputGroupExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        this.add(panelHeading("Input Group", fonts))
+        this.typography(
+            "One editor, a shared frame, and independent addon actions. Click an addon label to focus the input.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.frame(
+            makeInputGroup {
+                this.fonts = Some(fonts)
+                this.enabled = model.enabled.value
+                this.invalid = model.invalid.value
+                this.input(model.address) { this.readOnly = model.readonly.value }
+                this.addon(
+                    if (model.block.value)
+                        InputGroupAlign.BlockStart
+                    else
+                        InputGroupAlign.InlineStart
+                ) {
+                    this.key = ViewKey.Text("prefix")
+                    this.text("https://")
+                }
+                this.addon(
+                    if (model.block.value)
+                        InputGroupAlign.BlockEnd
+                    else
+                        InputGroupAlign.InlineEnd
+                ) {
+                    this.key = ViewKey.Text("action")
+                    this.button("Open", { model.submits.value += 1 })
+                }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (model.narrow.value)
+                        220.0
+                    else
+                        560.0
+                )
+        }
+        this.row {
+            this.button("Move addons", { model.block.value = !model.block.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Narrow", { model.narrow.value = !model.narrow.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Enabled", { model.enabled.value = !model.enabled.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Invalid", { model.invalid.value = !model.invalid.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Read only", { model.readonly.value = !model.readonly.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.typography("Search, shortcut hint, and busy indicator", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        this.inputGroup {
+            this.fonts = Some(fonts)
+            this.input(model.query) { this.placeholder = "Search projects…" }
+            this.addon {
+                this.add(
+                    makeSpinner {
+                        this.running = model.busy.value;
+                        this.size = Some(16.0)
+                    }
+                )
+            }
+            this.addon(InputGroupAlign.InlineEnd) {
+                this.add(makeKbd("⌘ K") { this.fonts = Some(fonts) })
+                this.button(
+                    "Clear",
+                    {
+                        model.query.replaceAll("");
+                        Unit
+                    }
+                )
+                this.button(
+                    if (model.busy.value)
+                        "Stop"
+                    else
+                        "Search",
+                    { model.busy.value = !model.busy.value }
+                )
+            }
+        }
+        this.typography("Multiline with block header and actions", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        this.inputGroup {
+            this.fonts = Some(fonts)
+            this.textarea(model.message) {
+                this.rows = 3L
+                this.placeholder = "Ask a question…"
+                this.onSubmit = { _ -> model.submits.value += 1 }
+            }
+            this.addon(InputGroupAlign.BlockStart) { this.text("Message") }
+            this.addon(InputGroupAlign.BlockEnd) {
+                this.text(f"${model.message.text.charLength} characters")
+                this.button("Send", { model.submits.value += 1 }) {
+                    this.variant = ButtonVariant.Default;
+                    this.size = ButtonSize.Sm
+                }
+            }
+        }
+        this.typography("Explicit custom control", TypographyRole.H4) { this.fonts = Some(fonts) }
+        this.inputGroup {
+            this.fonts = Some(fonts)
+            this.control(
+                makeInput(model.custom) {
+                    this.fonts = Some(fonts)
+                    this.focus = FocusOptions(Some(model.focus))
+                    this.chrome = TextFieldChrome.Bare
+                },
+                model.focus
+            )
+            this.addon { this.text("@") }
+            this.addon(InputGroupAlign.InlineEnd) {
+                this.button(
+                    "Focus",
+                    {
+                        model.focus.requestFocus();
+                        Unit
+                    }
+                )
+            }
+        }
+        this.typography(f"Actions: ${model.submits.value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        this.spacing = 12.0
+        this.alignment = CrossAlignment.Start
+        this.padding = Insets(6.0, 6.0, 12.0, 12.0)
+    }

@@ -27,7 +27,8 @@ public class InputProps public constructor(
     public val projection: TextProjection = textProjection(),
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val labelTarget: FieldTarget? = None,
-    public val group: GroupPosition? = None
+    public val group: GroupPosition? = None,
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed
 )
 
 /** A themed single-line view of the caller's editing model. */
@@ -64,7 +65,8 @@ public class Input public constructor(private val props: Props<InputProps>): Com
                 input.onEdited,
                 input.onSubmit,
                 input.labelTarget,
-                input.group
+                input.group,
+                input.chrome
             )
         )
     }

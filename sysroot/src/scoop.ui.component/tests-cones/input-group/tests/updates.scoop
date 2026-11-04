@@ -1,0 +1,121 @@
+package scoop.tests.ui.inputgroup
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun groupMultiline(p: GroupProbe) {
+    when (p.phase) {
+        case 24 -> {
+            assertEquals(1, p.submits);
+            p.key(36, "\r")
+        }
+        case 25 -> {
+            assertEquals("line\n", p.model.text);
+            p.key(48, "\t")
+        }
+        case 26 -> {
+            assertEquals("line\n\t", p.model.text);
+            p.enabled = false;
+            p.invalid = true
+        }
+        case 27 -> {
+            assertFalse(p.focus[0L].hasFocus);
+            assertFalse(p.focus[0L].requestFocus())
+        }
+        case 28 -> {
+            p.enabled = true;
+            p.rebound = true;
+            p.callback = 1
+        }
+        case 29 -> assertTrue(p.focus[0L].requestFocus())
+        case 30 -> {
+            assertTrue(p.focus[0L].hasFocus);
+            p.text("Z")
+        }
+        case 31 -> {
+            assertEquals("newZ", p.model.text)
+            assertEquals("line\n\t", p.primary.text)
+            assertEquals(1, p.lastCallback)
+            p.zero = true
+        }
+        else -> fail(Some("unexpected multiline phase"))
+    }
+}
+
+internal fun groupCustom(p: GroupProbe) {
+    when (p.phase) {
+        case 32 -> {
+            assertEquals(Size(0.0, 0.0), p.groupSize)
+            assertFalse(p.focus[0L].hasFocus)
+            p.zero = false;
+            p.width = 70.0
+        }
+        case 33 -> {
+            assertEquals(70.0, p.groupSize.width);
+            p.width = 360.0
+        }
+        case 34 -> p.clickAddon(0L)
+        case 35 -> {
+            assertTrue(p.focus[0L].hasFocus);
+            p.control = 2
+        }
+        case 36 -> {
+            assertEquals(1, p.customMounts)
+            assertTrue(p.focus[0L].requestFocus())
+        }
+        case 37 -> {
+            assertTrue(p.focus[0L].hasFocus);
+            p.text("ni", true)
+        }
+        case 38 -> {
+            assertTrue(p.model.isComposing);
+            p.framed = true
+        }
+        case 39 -> {
+            assertTrue(p.model.isComposing)
+            assertEquals("newZni", p.model.text)
+            p.framed = false
+        }
+        else -> fail(Some("unexpected custom phase"))
+    }
+}
+
+internal fun groupFinish(p: GroupProbe) {
+    when (p.phase) {
+        case 40 -> {
+            assertTrue(p.model.isComposing);
+            p.text("好")
+        }
+        case 41 -> {
+            assertEquals("newZ好", p.model.text)
+            assertFalse(p.model.isComposing)
+            assertEquals(1, p.customMounts)
+            p.retained()
+            p.reorder = false
+            p.theme.current.value = shadcnTheme()
+        }
+        case 42 -> {
+            assertTrue(p.addonBounds[0L].x < p.addonBounds[1L].x)
+            assertTrue(p.addonBounds[2L].y < p.addonBounds[0L].y)
+            assertTrue(p.focus[0L].hasFocus)
+            p.retained()
+        }
+        case 43 -> p.gone = true
+        case 44 -> {
+            for (focus in p.focus)
+                assertFalse(focus.isAttached)
+            assertFalse(p.button.isAttached)
+            assertFalse(p.target.isAttached)
+            for (count in p.addonUnmounts)
+                assertEquals(1, count)
+            assertFalse(p.frames!!.snapshot().required)
+        }
+        case 45 -> p.quiet = Some(p.frames!!.snapshot())
+        case 46 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        case 47 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected finish phase"))
+    }
+}

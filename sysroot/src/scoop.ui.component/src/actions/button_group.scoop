@@ -260,5 +260,6 @@ internal fun groupInputProps(
         input.projection,
         input.copy,
         input.labelTarget,
-        group
+        group,
+        input.chrome
     )

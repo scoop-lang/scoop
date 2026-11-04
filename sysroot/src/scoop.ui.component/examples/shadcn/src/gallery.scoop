@@ -193,6 +193,8 @@ internal class Gallery(
             case RadioGroup -> radioGroupExamples(model.choices, fonts, model.source.current.value)
             case ToggleGroup -> toggleGroupExamples(model.choices, fonts)
             case Slider -> sliderExamples(model, fonts)
+            case Textarea -> textareaExamples(model.textFields, fonts)
+            case InputGroup -> inputGroupExamples(model.inputGroups, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =
@@ -274,6 +276,8 @@ internal class Gallery(
                 this.add(buttonExamples(this @Gallery.model, this @Gallery.fonts))
             if (value == ControlDemo.Checkbox)
                 this.add(checkboxGroupExamples(this @Gallery.model.selection, this @Gallery.fonts))
+            if (value == ControlDemo.Input)
+                this.add(inputExamples(this @Gallery.model.textFields, this @Gallery.fonts))
             this.spacing = 24.0
             this.padding = Insets(6.0, 6.0, 12.0, 12.0)
             this.alignment = CrossAlignment.Stretch

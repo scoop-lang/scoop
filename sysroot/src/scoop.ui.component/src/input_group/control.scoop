@@ -1,0 +1,107 @@
+package scoop.ui.component
+
+import scoop.ui.*
+
+internal fun inputGroupControlEnabled(control: InputGroupControl): Boolean =
+    when (control) {
+        case Input(value) -> value.enabled
+        case Textarea(value) -> value.enabled
+        case Custom(_, _) -> true
+    }
+
+internal fun inputGroupControlInvalid(control: InputGroupControl): Boolean =
+    when (control) {
+        case Input(value) -> value.invalid
+        case Textarea(value) -> value.invalid
+        case Custom(_, _) -> false
+    }
+
+internal fun inputGroupFocus(control: InputGroupControl, own: FocusHandle): FocusHandle =
+    when (control) {
+        case Input(value) -> value.focus.handle ?: own
+        case Textarea(value) -> value.focus.handle ?: own
+        case Custom(_, focus) -> focus
+    }
+
+internal fun inputGroupControlView(
+    group: InputGroupProps,
+    focus: FocusHandle,
+    enabled: Boolean,
+    invalid: Boolean
+): View =
+    when (group.control) {
+        case Input(value) -> component(
+            InputProps(
+                value.state,
+                placeholder = value.placeholder,
+                enabled = enabled,
+                readOnly = value.readOnly,
+                invalid = invalid,
+                description = value.description,
+                fonts =
+                    if (panelPresent(value.fonts))
+                        value.fonts
+                    else
+                        group.fonts,
+                style = value.style,
+                theme =
+                    if (panelPresent(value.theme))
+                        value.theme
+                    else
+                        group.theme,
+                focus = value.focus.copy { this.handle = Some(focus) },
+                direction = value.direction,
+                alignment = value.alignment,
+                paintCache = value.paintCache,
+                caretBlink = value.caretBlink,
+                onEdited = value.onEdited,
+                onSubmit = value.onSubmit,
+                policy = value.policy,
+                projection = value.projection,
+                copy = value.copy,
+                labelTarget = value.labelTarget,
+                chrome = TextFieldChrome.Bare
+            ),
+            { current -> Input(current) }
+        )
+        case Textarea(value) -> component(
+            TextareaProps(
+                value.state,
+                placeholder = value.placeholder,
+                rows = value.rows,
+                wrap = value.wrap,
+                tab = value.tab,
+                submit = value.submit,
+                enabled = enabled,
+                readOnly = value.readOnly,
+                invalid = invalid,
+                description = value.description,
+                fonts =
+                    if (panelPresent(value.fonts))
+                        value.fonts
+                    else
+                        group.fonts,
+                style = value.style,
+                theme =
+                    if (panelPresent(value.theme))
+                        value.theme
+                    else
+                        group.theme,
+                focus = value.focus.copy { this.handle = Some(focus) },
+                direction = value.direction,
+                alignment = value.alignment,
+                scrollbars = value.scrollbars,
+                paintCache = value.paintCache,
+                caretBlink = value.caretBlink,
+                onEdited = value.onEdited,
+                onSubmit = value.onSubmit,
+                policy = value.policy,
+                projection = value.projection,
+                copy = value.copy,
+                labelTarget = value.labelTarget,
+                chrome = TextFieldChrome.Bare
+            ),
+            { current -> Textarea(current) }
+        )
+        case Custom(view, _) -> view
+    }

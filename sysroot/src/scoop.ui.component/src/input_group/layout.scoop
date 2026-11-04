@@ -1,0 +1,162 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal fun measureInputGroup(
+    ink: InputGroupInk,
+    context: MeasureContext,
+    constraints: Constraints
+): LayoutMetrics {
+    val input = ink.props.value
+    val addons = input.props.addons
+    val visual = ink.visual()
+    val options = ink.options()
+    val metrics = input.theme.surfaceMetrics(visual, options, context.layoutDirection)
+    val inset = metrics.contentInsets.totals()
+    val width =
+        constraints.constrain(
+            Size(
+                constraints.maxWidth ?:
+                    lowerBound(options.suggestedSize?.width ?: 240.0, metrics.minimumSize.width),
+                0.0
+            )
+        ).width
+    val innerWidth = lowerBound(width - inset.width, 0.0)
+    var remainingHeight =
+        when (constraints.maxHeight) {
+            case Some(value) -> Some(lowerBound(value - inset.height, 0.0))
+            case None -> None
+        }
+    val measured =
+        MutableArray<LayoutMetrics>(context.childCount) { _ -> LayoutMetrics(Size(0.0, 0.0)) }
+    var top = 0.0
+    var bottom = 0.0
+    for (index in 0L ..< addons.size) {
+        val align = addons[index].align
+        if (!inputGroupBlock(align))
+            continue
+        val child =
+            context.measureChild(
+                index + 1L,
+                Constraints(
+                    minWidth = innerWidth,
+                    maxWidth = Some(innerWidth),
+                    maxHeight = remainingHeight
+                )
+            )
+        measured[index + 1L] = child
+        if (align == InputGroupAlign.BlockStart)
+            top += child.size.height
+        else
+            bottom += child.size.height
+        remainingHeight =
+            when (remainingHeight) {
+                case Some(value) -> Some(lowerBound(value - child.size.height, 0.0))
+                case None -> None
+            }
+    }
+    var remainingWidth = innerWidth
+    var start = 0.0
+    var end = 0.0
+    var rowHeight = 0.0
+    for (index in 0L ..< addons.size) {
+        val align = addons[index].align
+        if (inputGroupBlock(align))
+            continue
+        val child =
+            context.measureChild(
+                index + 1L,
+                Constraints(maxWidth = Some(remainingWidth), maxHeight = remainingHeight)
+            )
+        measured[index + 1L] = child
+        remainingWidth = lowerBound(remainingWidth - child.size.width, 0.0)
+        rowHeight = lowerBound(rowHeight, child.size.height)
+        if (align == InputGroupAlign.InlineStart)
+            start += child.size.width
+        else
+            end += child.size.width
+    }
+    val minimum =
+        lowerBound(
+            constraints.minHeight,
+            lowerBound(metrics.minimumSize.height, metrics.suggestedSize.height)
+        )
+    val naturalRow = lowerBound(rowHeight, lowerBound(minimum - inset.height - top - bottom, 0.0))
+    val minRow = upperBound(naturalRow, remainingHeight ?: naturalRow)
+    val control =
+        context.measureChild(
+            0L,
+            Constraints(
+                minWidth = remainingWidth,
+                maxWidth = Some(remainingWidth),
+                minHeight = minRow,
+                maxHeight = remainingHeight
+            )
+        )
+    rowHeight = control.size.height
+    val size = constraints.constrain(Size(width, inset.height + top + rowHeight + bottom))
+    val geometry =
+        input.theme.surfaceGeometry(
+            Rect(0.0, 0.0, size.width, size.height),
+            visual,
+            options,
+            context.layoutDirection
+        )
+    ink.geometry = Some(geometry)
+    ink.sampled = visual
+    val content = geometry.content
+    val bodyY = content.y + top
+    if (size.width <= 0.0 || size.height <= 0.0)
+        return offsetMetrics(control, size, bodyY)
+    context.placeChild(
+        0L,
+        Point(
+            content.x + logicalX(start, remainingWidth, innerWidth, context.layoutDirection),
+            bodyY
+        )
+    )
+    var topY = content.y
+    var bottomY = bodyY + rowHeight
+    var startX = 0.0
+    var endX = innerWidth - end
+    for (index in 0L ..< addons.size) {
+        val child = measured[index + 1L].size
+        val origin =
+            when (addons[index].align) {
+                case BlockStart -> {
+                    val origin = Point(content.x, topY)
+                    topY += child.height
+                    origin
+                }
+                case BlockEnd -> {
+                    val origin = Point(content.x, bottomY)
+                    bottomY += child.height
+                    origin
+                }
+                case InlineStart -> {
+                    val origin =
+                        Point(
+                            content.x +
+                                logicalX(startX, child.width, innerWidth, context.layoutDirection),
+                            bodyY + (rowHeight - child.height) / 2.0
+                        )
+                    startX += child.width
+                    origin
+                }
+                case InlineEnd -> {
+                    val origin =
+                        Point(
+                            content.x +
+                                logicalX(endX, child.width, innerWidth, context.layoutDirection),
+                            bodyY + (rowHeight - child.height) / 2.0
+                        )
+                    endX += child.width
+                    origin
+                }
+            }
+        context.placeChild(index + 1L, origin)
+    }
+    return offsetMetrics(control, size, bodyY)
+}

@@ -132,14 +132,15 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         val painter = painters!!.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)
-        context.draw {
-            paint -> painter.drawSurface(
-                paint.canvas,
-                geometry,
-                value.visual,
-                SurfaceLayer.Background
-            )
-        }
+        if (value.input.chrome == TextFieldChrome.Framed)
+            context.draw {
+                paint -> painter.drawSurface(
+                    paint.canvas,
+                    geometry,
+                    value.visual,
+                    SurfaceLayer.Background
+                )
+            }
         context.place(padding!!, geometry.bounds)
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {
             local ->
@@ -148,14 +149,15 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
             horizontal!!.scene(local, host!!.scrollSnapshot, current.horizontal, painter)
             vertical!!.scene(local, host!!.scrollSnapshot, current.vertical, painter)
         }
-        context.draw {
-            paint -> painter.drawSurface(
-                paint.canvas,
-                geometry,
-                value.visual,
-                SurfaceLayer.Foreground
-            )
-        }
+        if (value.input.chrome == TextFieldChrome.Framed)
+            context.draw {
+                paint -> painter.drawSurface(
+                    paint.canvas,
+                    geometry,
+                    value.visual,
+                    SurfaceLayer.Foreground
+                )
+            }
         if (geometry.opacity < 1.0)
             context.restore()
         context.children()

@@ -408,6 +408,8 @@ InputProps／Input／input 和 TextareaProps／Textarea／textarea 是普通 Com
 
 InputProps／TextareaProps 和对应 builder 的 policy 默认为 textEditPolicy()，直接交给同一 TextEditHost；输入、粘贴、删除及组合最终提交在发布前按 UI 规范第 7.5.1 节处理。onEdited 只观察最终结果，不用作过滤或光标修复；控件不复制策略或历史实现。
 
+两者增加 `chrome: TextFieldChrome = Framed`，可选 Bare。Framed 保持完整表面；Bare 是实际组合使用的内容模式：沿相同 TextFieldInk／TextEditHost 保留正文、占位、滚动条、输入与描述，去掉外框绘制、边框内缩、圆角、状态环及控件禁用合成层，padding 和文字样式仍有效。主题建议／最小尺寸扣除原边框占用，避免组合后重复增加边框。改变 chrome 不重建宿主或文本连接；调用方负责外层状态外观。Textarea 未显式指定 padding 时使用按 body 字号／14 缩放的横向 10、纵向 8，Input 保持主题内缩。
+
 projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；Props／builder 直接传给宿主。内置遮罩默认禁用 Copy／Cut，明确 Allow 时复制原文；切换显隐保留模型、历史与 IME 连接，控件不创建另一份显示文档。
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
@@ -695,3 +697,19 @@ spacing=0 时沿轴连接边框和圆角，Outline 相邻处只画一条边，�
 取消恢复本次按下前的数组，但仅在当前值仍等于最后一次自身写入结果且范围未被业务替换时尝试恢复，setter 仍可拒绝。外部值／范围、thumb 数量、方向、orientation 变化使旧拖动结束；外部新值与范围保留。禁用、失焦、几何丢失、Escape、被阻止的释放和卸载均有取消出口。`onValueCancel(values, reason: DragCancelReason)` 报告收尾后的实际数组及原因；取消不再调用 commit。所有动作使用最新 Props，回调可以移除控件；输入资源随挂载收尾，没有常驻时钟或第二份受控值。
 
 SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160／4／12／8（按主题 body 字号／14 缩放）；长度有限非负。有限主轴填充可用空间，无界主轴使用 length；交叉轴取 thumbSize，父约束优先，包括零尺寸。纵向最小值在下端，reversed 翻转；单 thumb 的 range 从数值最小端延伸到 thumb，多 thumb 在首末之间填充。track／range 使用普通 StyleOverride，默认 muted.background／primary.background 与全圆角；thumb 使用普通 StyleOverride 并映射为现有 SurfaceOptions，默认白底、ring 色 1 单位边框。hover／pressed／focus-visible 使用 3 单位主题 ring，invalid 使用统一 validation。主题及样式更新走现有 geometry／StylePainter／ThemePainter；disabled 透明度对整控件覆盖一次。动画只平滑交互颜色／光环，值位置立即响应绑定；reduced motion 遵循主题，静止后停止请求帧。
+
+## 22. Input Group
+
+`inputGroup(configure: InputGroupBuilder.() -> Unit): View` 及 ChildrenBuilder 成员收集一个编辑控件和附加区域。InputGroupProps 必须有 `control: InputGroupControl`，其变体为 Input(InputProps)、Textarea(TextareaProps)、Custom(View, FocusHandle)；其余属性为 addons=[]、enabled=true、invalid=false、fonts=None、theme=None、surface=surfaceOptions()。builder 另有 key；input(state, configure)、textarea(state, configure) 或 control(view, focus) 恰好调用一次，重复／缺失立即报告 IllegalArgumentException。这只是正常的配置校验，不检查不透明 View 或反射类型。
+
+`addon(align=InlineStart, configure: InputGroupAddonBuilder.() -> Unit)` 收集 InputGroupAddon(content: View, align, key=Position, padding=None, style=styleOverride())，也可 addAddon 完整描述。InputGroupAlign 为 InlineStart／InlineEnd／BlockStart／BlockEnd。addon builder 提供 add(View)、text(String)、button 的文字／View／解析后内容入口，spacing 默认继承 8（按字号缩放），可配置 key、padding、style；button 默认 Ghost／Xs，其余变体和尺寸使用现有 ButtonBuilder。text 使用 Muted 文字角色，图标、Kbd、Spinner、菜单等通过普通 View 组合；内置文字与按钮继承根 fonts／theme 的缺省值，显式配置仍优先。
+
+正文始终位于逻辑子序列首位，附加区域按声明顺序挂载、按 align 放置；RTL 只交换横向逻辑起止。添加、移除、改位置或按 key 重排 addon 不改变正文父级与描述类型；保留文本模型、选区、撤销历史、IME 连接和实际焦点。相同描述类型下替换配置回调不更换实例。Input 与 Textarea 是不同控件类型，显式切换遵守通常卸载／挂载规则。
+
+内置控件显式使用 Bare 模式；根只消费其 enabled／invalid／focus 等已知 Props，既不遍历后代，也不创建编辑器或转写正文。根 enabled 与内置 enabled 共同控制输入，invalid 合并为外框状态。根使用原 Theme Plain 表面，内缩默认 0，只增加一份边框；内置控件的 padding 负责文字留白。禁用透明度对整组应用一次，附加按钮仍通过原 Press 接收有效状态和取消。内置 description 保留在编辑槽内；需要组外帮助文字时由 Field 或普通兄弟视图组合。
+
+每个组有稳定的内部 FocusHandle，只有内置控件未提供外部 handle 时使用；撤销外部 handle 回到原内部 handle。外框的 focus-visible 只跟随编辑控件，附加按钮显示自己的焦点环。点击未被后代默认动作处理的附加内容／空白，以 Pointer 来源请求同一控件焦点，不改选区或合成提交；按钮、链接等自己的动作优先。自定义控件必须由调用方实际连接所给 FocusHandle，并自行采用无外框外观及 FieldTarget 关联；组不为其补挂另一个输入区域或 IME 连接。禁用、未挂载、零尺寸、隐藏或域外的目标不能通过附加区域获取焦点。
+
+有限宽度填满父约束，无界宽度采用 surface.suggestedSize.width 或 240。顶部／底部区域按可用宽度测量，起始／末尾区域占用各自自然宽度，正文取得剩余宽度；高内容按实际尺寸扩展整组。Inline 默认水平内缩 8、垂直 0，Block 默认水平 10、垂直 8，均按字号缩放，可逐区覆盖。窄宽和紧高度下各区域受剩余空间约束，正文可以为零尺寸；整个组零尺寸时不发布子输入区域。边框、文字基线、裁剪与命中使用同一次测量结果，失败帧不替换成功几何。
+
+验收覆盖全部四个位置、RTL、窄宽／零尺寸、单行与多行、外部 handle／模型更新、正文与 keyed addon 的实例保留、真实中文 preedit／commit、复制／撤销、密码显隐、输入策略、只读／禁用／invalid、附加按钮动作与 Tab 顺序、标签、静止停帧及卸载收尾。Gallery 的文件输入示例接应用选择动作，不在本库增加文件对话框或文件解析。

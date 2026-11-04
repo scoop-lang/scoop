@@ -32,7 +32,8 @@ public class TextareaProps public constructor(
     public val projection: TextProjection = textProjection(),
     public val copy: TextCopyPolicy = TextCopyPolicy.Default,
     public val labelTarget: FieldTarget? = None,
-    public val group: GroupPosition? = None
+    public val group: GroupPosition? = None,
+    public val chrome: TextFieldChrome = TextFieldChrome.Framed
 ) {
     init {
         requireComponent(rows > 0L, "text field rows must be positive")
@@ -77,7 +78,8 @@ public class Textarea public constructor(private val props: Props<TextareaProps>
                 input.onEdited,
                 input.onSubmit,
                 input.labelTarget,
-                input.group
+                input.group,
+                input.chrome
             )
         )
     }
