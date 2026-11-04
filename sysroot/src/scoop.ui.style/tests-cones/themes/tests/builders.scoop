@@ -163,7 +163,8 @@ private class ThemeBuilderTest {
                 seed.tokens.palette,
                 seed.tokens.typography,
                 seed.tokens.spacing,
-                seed.tokens.corners
+                seed.tokens.corners,
+                seed.tokens.validation
             )
         assertEquals(ThemeMode.Light, defaults.mode)
         assertEquals(0L, defaults.effects.raised.size)

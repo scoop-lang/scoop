@@ -16,7 +16,8 @@ public class ButtonProps public constructor(
     public val enabled: Boolean = true,
     public val style: ButtonStyle = buttonStyle(),
     public val theme: ThemeSource? = None,
-    public val focus: FocusOptions = FocusOptions()
+    public val focus: FocusOptions = FocusOptions(),
+    public val invalid: Boolean = false
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
@@ -39,7 +40,8 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
                 case Some(value) -> value.press.interaction
                 case None -> InteractionState()
             }
-        val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled))
+        val visual =
+            SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, input.invalid))
         val base =
             text.resolve(
                 theme.tokens.typography.action,
@@ -171,6 +173,8 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         val visual = drawing!!.visual
         val geometry = drawing!!.geometry
         val painter = painters!!.get(value.theme)
+        if (geometry.opacity < 1.0)
+            context.saveLayer(geometry.opacity)
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
@@ -181,5 +185,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         context.draw {
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
         }
+        if (geometry.opacity < 1.0)
+            context.restore()
     }
 }

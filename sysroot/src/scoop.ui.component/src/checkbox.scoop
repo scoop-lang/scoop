@@ -10,7 +10,8 @@ public class CheckboxProps public constructor(
     public val enabled: Boolean = true,
     public val style: CheckboxStyle = checkboxStyle(),
     public val theme: ThemeSource? = None,
-    public val focus: FocusOptions = FocusOptions()
+    public val focus: FocusOptions = FocusOptions(),
+    public val invalid: Boolean = false
 )
 
 public class Checkbox public constructor(private val props: Props<CheckboxProps>): Component {
@@ -30,20 +31,21 @@ public class Checkbox public constructor(private val props: Props<CheckboxProps>
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
+        val checked = input.checked.value
         val interaction =
             when (control.value) {
                 case Some(value) -> value.press.interaction
                 case None -> InteractionState()
             }
-        val visual = interaction.asVisual(input.enabled)
+        val visual = interaction.asVisual(input.enabled, input.invalid)
         return element(
             CheckboxInkProps(
                 input,
                 theme,
-                input.checked.value,
+                checked,
                 control,
                 visual,
-                input.style.options(visual),
+                input.style.options(theme, visual, checked),
                 input.style.padding ?: Insets.all(theme.tokens.spacing.small),
                 {
                     val binding = props.value.checked
@@ -81,7 +83,8 @@ internal fun makeOwnedCheckbox(
             builder.enabled,
             builder.style,
             builder.theme,
-            builder.focus
+            builder.focus,
+            builder.invalid
         ),
         { props -> OwnedCheckbox(props) },
         builder.key
@@ -93,7 +96,8 @@ private class OwnedCheckboxProps(
     val enabled: Boolean,
     val style: CheckboxStyle,
     val theme: ThemeSource?,
-    val focus: FocusOptions
+    val focus: FocusOptions,
+    val invalid: Boolean
 )
 
 private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Component {
@@ -104,6 +108,7 @@ private class OwnedCheckbox(private val props: Props<OwnedCheckboxProps>): Compo
             this.style = this @OwnedCheckbox.props.value.style
             this.theme = this @OwnedCheckbox.props.value.theme
             this.focus = this @OwnedCheckbox.props.value.focus
+            this.invalid = this @OwnedCheckbox.props.value.invalid
         }
 }
 

@@ -20,7 +20,7 @@ private class ThemeGeometryTest {
             contains(geometry.bounds, geometry.borderInner.bounds)
             near(10.0 + metrics.contentInsets.left, geometry.content.x)
             near(20.0 + metrics.contentInsets.top, geometry.content.y)
-            assertTrue(geometry.focus!!.outline.bounds.width > geometry.bounds.width)
+            assertTrue(geometry.ring!!.outline.bounds.width > geometry.bounds.width)
             assertTrue(theme.tokens.effects.raised.size > 0L)
             assertTrue(theme.tokens.effects.emphasis.size > 0L)
             assertEquals(Corners.Physical(metrics.corners), geometry.style.corners)

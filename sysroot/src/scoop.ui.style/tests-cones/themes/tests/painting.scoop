@@ -45,7 +45,7 @@ private class ThemePaintingTest {
                     }
                 pixelColor(result, 128, 21, 40, Color(0.0, 1.0, 0.0))
                 pixelColor(result, 128, 50, 40, Color(1.0, 0.0, 0.0))
-                val focus = geometry.focus!!
+                val focus = geometry.ring!!
                 val fx = (focus.outline.bounds.x + focus.border.width / 2.0).toInt()
                 assertTrue(channel(result, 128, fx, 40, 3) > 80)
                 assertEquals(0, channel(result, 128, 8, 40, 3))

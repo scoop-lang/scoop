@@ -157,7 +157,7 @@ private fun advanceInput(probe: FieldProbe) {
             val geometry = probe.primaryDrawing!!.geometry
             val error = probe.source.current.value.tokens.palette.destructive.background
             assertEquals(error, geometry.style.border!!.resolve(LayoutDirection.Ltr).left.color)
-            assertEquals(error.withAlpha(0.72), geometry.focus!!.border.color)
+            assertEquals(error.withAlpha(0.72), geometry.ring!!.border.color)
             assertTrue(probe.primaryMetrics!!.size.height > geometry.bounds.height)
             probe.next {
                 probe.ownedFonts = true;

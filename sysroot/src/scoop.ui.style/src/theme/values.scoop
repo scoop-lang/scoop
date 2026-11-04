@@ -54,9 +54,14 @@ public struct Circle(val center: Point, val radius: Double) {
 
 public struct StrokeSegment(val start: Point, val bend: Point, val end: Point, val width: Double)
 
-public struct FocusStyle(val color: Color, val width: Double, val outset: Double)
+public struct OutlineStyle(
+    val color: Color,
+    val width: Double,
+    val outset: Double,
+    val borderColor: Color? = None
+)
 
-public struct FocusOutline(val outline: RoundedOutline, val border: BorderEdge)
+public struct OutlineRing(val outline: RoundedOutline, val border: BorderEdge)
 
 /** Samples are optional; callers own animations and pass this frame's values. */
 public struct InteractionVisual(
@@ -65,7 +70,8 @@ public struct InteractionVisual(
     val pressed: Boolean = false,
     val focusVisible: Boolean = false,
     val hoverProgress: Double? = None,
-    val pressProgress: Double? = None
+    val pressProgress: Double? = None,
+    val invalid: Boolean = false
 )
 
 public struct SurfaceVisual(
@@ -202,7 +208,9 @@ public class ThemeTokens internal constructor(
     public val spacing: ThemeSpacing,
     public val motion: ThemeMotion = themeMotion(),
     public val corners: ThemeCorners,
-    public val effects: ThemeEffects = themeEffects()
+    public val validation: OutlineStyle,
+    public val effects: ThemeEffects = themeEffects(),
+    public val disabledOpacity: Double = 1.0
 ) {
     public fun copy(configure: ThemeTokensBuilder.() -> Unit = {}): ThemeTokens =
         configureThemeTokens(this, configure)

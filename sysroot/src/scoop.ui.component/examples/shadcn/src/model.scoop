@@ -1,0 +1,76 @@
+package scoop.examples.ui.shadcn
+
+import scoop.charset.unicodeCasefold
+import scoop.text.contains
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+
+internal enum Demo {
+    Button, Input, Checkbox
+}
+
+internal fun demoTitle(value: Demo): String =
+    when (value) {
+        case Button -> "Button"
+        case Input -> "Input"
+        case Checkbox -> "Checkbox"
+    }
+
+internal class GalleryModel {
+    val source = ThemeSource(shadcnTheme())
+    val mode = state(ThemeMode.Light)
+    val direction = state(LayoutDirection.Ltr)
+    val selected = state(Demo.Button)
+    val query = TextEditorState()
+    val name = TextEditorState("Scoop")
+    val invalidName = TextEditorState("not-an-email")
+    val disabledName = TextEditorState("Read only while disabled")
+    val clicks = state(0)
+    val checked = state(false)
+    val invalidChecked = state(false)
+    val buttonFocus = FocusHandle()
+    val inputFocus = FocusHandle()
+    val checkboxFocus = FocusHandle()
+
+    fun toggleTheme() {
+        val next =
+            if (mode.value == ThemeMode.Light)
+                ThemeMode.Dark
+            else
+                ThemeMode.Light
+        mode.value = next
+        source.current.value = shadcnTheme(next)
+    }
+    fun toggleDirection() {
+        direction.value =
+            if (direction.value == LayoutDirection.Ltr)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+    }
+    fun entries(): Array<Demo> {
+        val search = unicodeCasefold(query.text)
+        val result = ArrayList<Demo>()
+        for (entry in [Demo.Button, Demo.Input, Demo.Checkbox])
+            if (unicodeCasefold(demoTitle(entry)).contains(search))
+                result.add(entry)
+        return result.toArray()
+    }
+    fun current(entries: Array<Demo>): Demo? {
+        for (entry in entries)
+            if (entry == selected.value)
+                return Some(entry)
+        return if (entries.size == 0L)
+            None
+        else
+            Some(entries[0L])
+    }
+    fun focus(value: Demo): FocusHandle =
+        when (value) {
+            case Button -> buttonFocus
+            case Input -> inputFocus
+            case Checkbox -> checkboxFocus
+        }
+}

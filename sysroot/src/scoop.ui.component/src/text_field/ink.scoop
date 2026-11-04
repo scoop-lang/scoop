@@ -43,7 +43,7 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                     ) -> {
-                        adapter.focus.handle.requestFocus()
+                        adapter.focus.handle.requestFocus(FocusOrigin.Pointer)
                         context.consume()
                     }
                     else -> {}
@@ -127,6 +127,8 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         val current = drawing!!
         val geometry = current.geometry
         val painter = painters!!.get(value.theme)
+        if (geometry.opacity < 1.0)
+            context.saveLayer(geometry.opacity)
         context.draw {
             paint -> painter.drawSurface(
                 paint.canvas,
@@ -151,6 +153,8 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
                 SurfaceLayer.Foreground
             )
         }
+        if (geometry.opacity < 1.0)
+            context.restore()
         context.children()
     }
     public override fun onUnmount() {

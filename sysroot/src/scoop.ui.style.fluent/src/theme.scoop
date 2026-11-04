@@ -112,7 +112,14 @@ public fun fluentTheme(
             palette = palette,
             typography = fonts,
             spacing = ThemeSpacing(4.0, 8.0, 16.0),
-            corners = ThemeCorners(2.0, 4.0, 8.0)
+            corners = ThemeCorners(2.0, 4.0, 8.0),
+            validation =
+                OutlineStyle(
+                    palette.destructive.background.withAlpha(0.72),
+                    2.0,
+                    2.0,
+                    Some(palette.destructive.background)
+                )
         ) {
             this.mode = mode
             motion {
@@ -157,7 +164,7 @@ public fun fluentTheme(
             palette.primary.foreground,
             palette.disabledText
         )
-    val focus = FocusStyle(palette.ring, 1.5, 3.0)
+    val focus = OutlineStyle(palette.ring, 1.5, 3.0)
     val plain =
         surfacePart(
             metrics =
@@ -213,7 +220,7 @@ public fun fluentTheme(
             border = edges,
             selectedBorder = accent,
             mark = onAccent,
-            focus = FocusStyle(palette.ring, 1.5, 3.0)
+            focus = OutlineStyle(palette.ring, 1.5, 3.0)
         )
     val track =
         StateColors(

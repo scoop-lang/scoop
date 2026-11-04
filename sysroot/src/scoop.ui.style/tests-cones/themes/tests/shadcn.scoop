@@ -56,8 +56,8 @@ private class ShadcnThemeTest {
             val focused = SurfaceVisual(SurfaceKind.Action, InteractionVisual(focusVisible = true))
             val bounds = Rect(20.0, 20.0, 80.0, 32.0)
             val geometry = theme.surfaceGeometry(bounds, focused)
-            assertEquals(3.0, geometry.focus!!.border.width)
-            assertEquals(0.5, geometry.focus!!.border.color.alpha)
+            assertEquals(3.0, geometry.ring!!.border.width)
+            assertEquals(0.5, geometry.ring!!.border.color.alpha)
             assertEquals(geometry.content, theme.surfaceGeometry(bounds, normal).content)
             val disabled =
                 SurfaceVisual(
@@ -70,8 +70,9 @@ private class ShadcnThemeTest {
                     )
                 )
             val disabledGeometry = theme.surfaceGeometry(bounds, disabled)
-            assertEquals(None, disabledGeometry.focus)
-            assertEquals(0.5, disabledGeometry.style.background!!.color.alpha)
+            assertEquals(None, disabledGeometry.ring)
+            assertEquals(1.0, disabledGeometry.style.background!!.color.alpha)
+            assertEquals(0.5, disabledGeometry.opacity)
             theme.createPainter().use {
                 painter ->
                 val plain =
@@ -106,6 +107,65 @@ private class ShadcnThemeTest {
                     ) >
                         100
                 )
+            }
+        }
+    }
+
+    @Test
+    fun `disabled controls composite once and input fills retain their mode specific alpha`() {
+        val bounds = Rect(20.0, 20.0, 80.0, 32.0)
+        for (mode in [ThemeMode.Light, ThemeMode.Dark]) {
+            val theme = shadcnTheme(mode)
+            val disabled = InteractionVisual(enabled = false)
+            val action = SurfaceVisual(SurfaceKind.Action, disabled)
+            val geometry = theme.surfaceGeometry(bounds, action)
+            theme.createPainter().use {
+                painter ->
+                val complete = pixels { canvas -> painter.drawSurface(canvas, geometry, action) }
+                pixelColor(
+                    complete,
+                    128,
+                    60,
+                    36,
+                    theme.tokens.palette.primary.background.withAlpha(0.5)
+                )
+                val content =
+                    pixels {
+                        canvas ->
+                        canvas.saveLayer(geometry.opacity)
+                        painter.drawSurface(canvas, geometry, action, SurfaceLayer.Background)
+                        canvas.drawRect(
+                            Rect(45.0, 28.0, 30.0, 16.0),
+                            Paint(theme.surfaceTextColor(action))
+                        )
+                        painter.drawSurface(canvas, geometry, action, SurfaceLayer.Foreground)
+                        canvas.restore()
+                    }
+                pixelColor(
+                    content,
+                    128,
+                    60,
+                    36,
+                    theme.tokens.palette.primary.foreground.withAlpha(0.5)
+                )
+                val input = SurfaceVisual(interaction = disabled)
+                val inputGeometry = theme.surfaceGeometry(bounds, input)
+                val fill = theme.tokens.palette.input
+                val alpha =
+                    fill.alpha *
+                        if (mode == ThemeMode.Dark)
+                            0.4
+                        else
+                            0.25
+                val inputPixels =
+                    pixels { canvas -> painter.drawSurface(canvas, inputGeometry, input) }
+                pixelColor(inputPixels, 128, 60, 36, fill.withAlpha(alpha))
+                val selected = CheckboxVisual(CheckMark.On, disabled)
+                val marker = theme.checkboxGeometry(bounds, selected)
+                val selectedPixels =
+                    pixels { canvas -> painter.drawCheckbox(canvas, marker, selected) }
+                assertEquals(0.5, marker.opacity)
+                assertTrue(channel(selectedPixels, 128, 60, 36, 3) in 127 .. 128)
             }
         }
     }

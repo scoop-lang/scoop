@@ -18,3 +18,12 @@
 - 仅指示变化通过独立通知发布，不重发 FocusChanged、不重建 IME、不改选区。Surface 的 74 项相关定向测试通过；其中新测试覆盖真实／synthetic 键盘、三种策略、OS 失焦／恢复、失败请求、禁用／关闭及 IME 所有权。原有重复聚焦测试捕获的额外刷新已修复并复验通过。
 - macOS aarch64 release 的四个真实窗口用例全部通过：Tab／延迟显露／句柄生命周期、模态恢复、Button／Checkbox 的指针与键盘焦点及 Metal 停帧、文本输入／只读／IME／主题切换／虚拟移除。八个受影响生产库构建、相关 tests 类型检查、38 个 Scoop 文件格式检查及 diff 检查通过；没有扩大到全仓测试。
 - 已清理本项 Surface／焦点／模态测试输出和独立检查锁；保留后续控件批次会复用的主题／控件测试目录及共享编译缓存。P0c Gallery 尚未交付，64 项目录完成数仍为 0；x86_64 留到收尾，Windows／Linux 未验证。
+
+
+## P0c：状态外观与真实窗口 Gallery
+
+- Button／Checkbox 增加 invalid；Input／Textarea 迁到同一主题 validation。OutlineStyle／OutlineRing 同时表达焦点与错误状态，最终几何只保留一个环；错误状态独立于焦点，局部边框和 validation 覆盖继续有效。四套主题提供完整验证外观，选中 Checkbox 保留 primary 边框。
+- 禁用透明度作为整体合成值，覆盖背景、内容、边框和状态环；shadcn 使用 0.5，旧主题保留各自禁用配色。Nova Input 补齐明暗禁用填色。文本留白点击沿 Pointer 来源聚焦，主题示例与分阶段绘制消费者同步迁移。
+- 新增 `scoop.ui.component/examples/shadcn` 的实际原生窗口、搜索与三类控件状态预览。主题、方向、页面和搜索切换保持应用模型；正文使用同一 TextEditorState 与原生 IME，未建立另一套绘制或交互实现。实际窗口核对了明暗模式、紧凑按钮、侧栏顶对齐和 RTL 布局。
+- macOS aarch64 release：6 个受影响生产库重建通过；控件测试、主题测试、Gallery、既有主题示例和文本控件测试类型检查通过；24 项主题测试及 2 项 Gallery 测试全部通过。真实窗口测试覆盖 Space 激活、焦点、中文 marked／commit、主题／方向／页面切换、选择保持、停帧及资源释放。42 个 Scoop 文件格式检查及 diff 检查通过。
+- 首轮窗口测试暴露的销毁后焦点查询已修复；低 alpha 像素检查按预乘通道比较，避免反预乘放大 8 位舍入，容差保持 2。一次性检查锁已清理，继续复用外部依赖与共享编译缓存。P0 已闭合，64 项目录完成数仍为 0；后续从 P1 基本内容与操作开始，x86_64 留在整体收尾，Windows／Linux 未验证。

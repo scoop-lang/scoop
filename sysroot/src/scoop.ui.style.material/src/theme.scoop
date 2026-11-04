@@ -113,7 +113,14 @@ public fun materialTheme(
             palette = palette,
             typography = fonts,
             spacing = ThemeSpacing(4.0, 12.0, 24.0),
-            corners = ThemeCorners(4.0, 12.0, 20.0)
+            corners = ThemeCorners(4.0, 12.0, 20.0),
+            validation =
+                OutlineStyle(
+                    palette.destructive.background.withAlpha(0.72),
+                    2.0,
+                    2.0,
+                    Some(palette.destructive.background)
+                )
         ) {
             this.mode = mode
             motion {
@@ -158,7 +165,7 @@ public fun materialTheme(
             palette.primary.foreground,
             palette.disabledText
         )
-    val focus = FocusStyle(palette.ring, 2.0, 4.0)
+    val focus = OutlineStyle(palette.ring, 2.0, 4.0)
     val plain =
         surfacePart(
             metrics =
@@ -214,7 +221,7 @@ public fun materialTheme(
             border = edges,
             selectedBorder = accent,
             mark = onAccent,
-            focus = FocusStyle(palette.ring.withAlpha(0.5), 3.0, 6.0)
+            focus = OutlineStyle(palette.ring.withAlpha(0.5), 3.0, 6.0)
         )
     val radioAppearance =
         markerAppearance(

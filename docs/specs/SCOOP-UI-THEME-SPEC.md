@@ -56,9 +56,9 @@ Style 是完整的已确定描述；新增 `StyleOverride` 表达局部覆盖。
 
 | Builder | 全部可写属性与默认值 |
 | --- | --- |
-| SurfaceOptionsBuilder | suggestedSize: Size? = None；minimumSize: Size? = None；padding: Insets? = None；style: StyleOverride = styleOverride()；focus: FocusStyle? = None |
-| CheckboxOptionsBuilder | size: Double? = None；minimumSize: Double? = None；markInset: Double? = None；style: StyleOverride = styleOverride()；markColor: Color? = None；focus: FocusStyle? = None |
-| RadioOptionsBuilder | size: Double? = None；minimumSize: Double? = None；dotInset: Double? = None；background: StyleValue<Paint?> = Inherit；border: StyleValue<BorderEdge?> = Inherit；dotColor: Color? = None；focus: FocusStyle? = None |
+| SurfaceOptionsBuilder | suggestedSize: Size? = None；minimumSize: Size? = None；padding: Insets? = None；style: StyleOverride = styleOverride()；focus: OutlineStyle? = None；validation: OutlineStyle? = None |
+| CheckboxOptionsBuilder | size: Double? = None；minimumSize: Double? = None；markInset: Double? = None；style: StyleOverride = styleOverride()；markColor: Color? = None；focus: OutlineStyle? = None；validation: OutlineStyle? = None |
+| RadioOptionsBuilder | size: Double? = None；minimumSize: Double? = None；dotInset: Double? = None；background: StyleValue<Paint?> = Inherit；border: StyleValue<BorderEdge?> = Inherit；dotColor: Color? = None；focus: OutlineStyle? = None；validation: OutlineStyle? = None |
 | ScrollbarOptionsBuilder | thickness: Double? = None；minimumThumbLength: Double? = None；trackInset: Double? = None；thumbInset: Double? = None；buttonLength: StyleValue<Double?> = Inherit |
 
 普通可选字段的 None 继续表示使用当前主题；Radio 的 background／border 和 Scrollbar 的 buttonLength 保留 Inherit、Set(None)、Set(value)。这三个覆盖字段各提供同名 Unit 设置方法，把同一槽写为 Set(value)；显式赋入 Inherit 恢复继承。
@@ -78,17 +78,17 @@ SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configu
 | themeTypography | body／caption／action: TextStyle | 无 |
 | themeEffects | 无 | raised／floating: Array<BoxShadow> = []；emphasis: Array<ContentEffect> = [] |
 | themeMotion | 无 | hover／press／selection: AnimationSpec? = None；preference: MotionPreference = Full |
-| themeTokens | palette: ThemePalette；typography: ThemeTypography；spacing: ThemeSpacing；corners: ThemeCorners | mode: ThemeMode = Light；motion: ThemeMotion = themeMotion()；effects: ThemeEffects = themeEffects() |
-| surfacePart | metrics: SurfaceMetrics；fill／border／foreground: StateColors；focus: FocusStyle | shadows: Array<BoxShadow> = [] |
+| themeTokens | palette: ThemePalette；typography: ThemeTypography；spacing: ThemeSpacing；corners: ThemeCorners；validation: OutlineStyle | mode: ThemeMode = Light；motion: ThemeMotion = themeMotion()；effects: ThemeEffects = themeEffects()；disabledOpacity: Double = 1.0 |
+| surfacePart | metrics: SurfaceMetrics；fill／border／foreground: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = [] |
 | surfaceParts | plain／action／elevated: SurfacePart | 无 |
-| markerAppearance | empty／selected／border／selectedBorder／mark: StateColors；focus: FocusStyle | shadows: Array<BoxShadow> = [] |
+| markerAppearance | empty／selected／border／selectedBorder／mark: StateColors；focus: OutlineStyle | shadows: Array<BoxShadow> = [] |
 | checkboxPart | metrics: CheckboxMetrics；appearance: MarkerAppearance | 无 |
 | radioPart | metrics: RadioMetrics；appearance: MarkerAppearance | 无 |
 | scrollbarPart | metrics: ScrollbarMetrics；track／thumb／button／arrow: StateColors | arrowWidth: Double = 1.5 |
 
 每类 Builder 的全部可写属性就是对应值的字段，类型与表中参数／属性一致；ShapeThemeBuilder 的五个属性对应 shapeTheme 的必需参数。对应值均提供 `copy(configure: 对应Builder.() -> Unit = {})`，值和 builder 的构造器内部化。工厂和 copy 共用配置及快照实现。
 
-ThemePalette 的上述十五个字段均为必需数据，没有可适用于任意主题的缺省配色。它保留一次给齐这些字段的完整值构造，并提供 `copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette`；builder 的同名可写字段从现有配色初始化。ColorPair、ChartPalette、SidebarPalette、StateColors、ThemeSpacing、ThemeCorners、FocusStyle 和各 Metrics 使用普通值构造。
+ThemePalette 的上述十五个字段均为必需数据，没有可适用于任意主题的缺省配色。它保留一次给齐这些字段的完整值构造，并提供 `copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette`；builder 的同名可写字段从现有配色初始化。ColorPair、ChartPalette、SidebarPalette、StateColors、ThemeSpacing、ThemeCorners、OutlineStyle 和各 Metrics 使用普通值构造。
 
 `shadcnTheme(mode: ThemeMode = Light, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 遵循相同的完整描述及配置规则。Base Nova／Neutral 的颜色从上游 OKLCH 转为 sRGB，并保留 alpha；预设源码记录源 token。默认正文／操作文字为 14／20 逻辑单位、操作 weight 500；基准圆角 10，small／medium／large 为 6／8／10；常规表面边框 1、键盘焦点环 3 且 ring alpha 0.5。操作表面建议高 32、水平 padding 10；输入使用独立 input 边框；Checkbox 标记 16、圆角 4。所有长度均为逻辑单位，DPI 沿现有目标接入转换。其余 Button 变体在控件规范中定义，不增加按控件名查询的主题接口。
 
@@ -114,11 +114,21 @@ Insets(left, top, right, bottom) 始终表示逻辑长度单位中的物理四�
 
 Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: LayoutDirection = Ltr 参数。组件测量和 scene 传入同一有效方向，先解析 Style 的逻辑边框和圆角。SurfaceMetrics／CheckboxMetrics 保存 borderInsets: Insets 与 corners: CornerRadii；不保留原先单一 borderInset／cornerRadius 字段。contentInsets 逐边相加，geometry 使用 graphics.RoundedOutline.normalized／inset 计算相同的外框和内框。Geometry.style 保存本次已经解析为物理值的 Style，ThemePainter 不再推测方向。
 
-公共 RoundedOutline 统一归 graphics，包含 bounds 和 radii。背景、边框、内容裁剪和焦点环复用这份几何；FocusOutline 的 border 使用一个真正均匀的 BorderEdge，焦点外框由 expanded(outset) 得到。Radio 的环宽和 Scrollbar 的统一半径仍按其实际形状语义表示；RadioOptions.border 使用可清除的 BorderEdge 覆盖，不为圆环引入四条独立边。
+公共 RoundedOutline 统一归 graphics，包含 bounds 和 radii。背景、边框、内容裁剪和焦点环复用这份几何；OutlineRing 的 border 使用一个真正均匀的 BorderEdge，焦点外框由 expanded(outset) 得到。Radio 的环宽和 Scrollbar 的统一半径仍按其实际形状语义表示；RadioOptions.border 使用可清除的 BorderEdge 覆盖，不为圆环引入四条独立边。
 
 ## 4. 公共绘图部件
 
-各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focusVisible 数据，部件另带自身选择或滚动输入。focusVisible 由统一焦点合同提供，不用逻辑 focused 推测；disabled 时不绘制焦点环。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
+各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focusVisible／invalid 数据，部件另带自身选择或滚动输入。focusVisible 由统一焦点合同提供，不用逻辑 focused 推测；disabled 时不绘制焦点环。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
+
+`OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
+
+invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 为配置中焦点／验证两种环所需外扩的最大值，状态切换不改变内容布局。
+
+shadcn 的焦点环替换边框为 ring token；验证边框为 destructive，Dark 使用 0.5 alpha。验证环宽及外扩为 3，Light／Dark 的 destructive alpha 分别为 0.2／0.4；其他三个主题保留原输入错误颜色和 2 宽、2 外扩、0.72 alpha 的基线。
+
+ThemeTokens.disabledOpacity 控制禁用控件的整体合成透明度，有限值按 0～1 截取，默认 1.0 保留部件的 StateColors.disabled 配色。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 opacity: Double = 1.0 保存本帧解析值；启用时始终为 1。Surface 的 All 和 Checkbox／Radio painter 将整个绘制作为一层；使用 Surface Background／Foreground 的控件在自己的内容两侧包同一个合成层，两阶段不能各自重复应用 opacity。Scrollbar painter 将禁用透明度与本帧 visual.opacity 相乘。shadcn 为 0.5，并提供未衰减的禁用颜色；其他三个主题保持 1.0。透明度不改变测量或输入资格。
+
+shadcn Plain 表面的禁用背景使用 input 颜色的 0.5／0.8 倍 alpha（Light／Dark），随后与内容一起应用 disabledOpacity。
 
 ### 4.1 外框／表面
 
