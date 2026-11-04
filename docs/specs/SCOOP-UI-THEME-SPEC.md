@@ -56,7 +56,7 @@ Style 是完整的已确定描述；新增 `StyleOverride` 表达局部覆盖。
 | --- | --- |
 | SurfaceOptionsBuilder | suggestedSize: Size? = None；minimumSize: Size? = None；padding: Insets? = None；style: StyleOverride = styleOverride()；focus: FocusStyle? = None |
 | CheckboxOptionsBuilder | size: Double? = None；minimumSize: Double? = None；markInset: Double? = None；style: StyleOverride = styleOverride()；markColor: Color? = None；focus: FocusStyle? = None |
-| RadioOptionsBuilder | size: Double? = None；minimumSize: Double? = None；dotInset: Double? = None；background: StyleValue<Paint?> = Inherit；border: StyleValue<Border?> = Inherit；dotColor: Color? = None；focus: FocusStyle? = None |
+| RadioOptionsBuilder | size: Double? = None；minimumSize: Double? = None；dotInset: Double? = None；background: StyleValue<Paint?> = Inherit；border: StyleValue<BorderEdge?> = Inherit；dotColor: Color? = None；focus: FocusStyle? = None |
 | ScrollbarOptionsBuilder | thickness: Double? = None；minimumThumbLength: Double? = None；trackInset: Double? = None；thumbInset: Double? = None；buttonLength: StyleValue<Double?> = Inherit |
 
 普通可选字段的 None 继续表示使用当前主题；Radio 的 background／border 和 Scrollbar 的 buttonLength 保留 Inherit、Set(None)、Set(value)。这三个覆盖字段各提供同名 Unit 设置方法，把同一槽写为 Set(value)；显式赋入 Inherit 恢复继承。
@@ -102,9 +102,13 @@ ThemePalette 的 canvas／surface／elevated／text／secondaryText／disabledTe
 
 构造仅发布普通描述，不读取 Context／State、不创建 painter／Path／字体资源或动画；回调异常沿普通调用传播，原值不变。Array 元素槽与子描述不可变，可安全共享；发布后修改被捕获的 builder 不改变结果。颜色、长度与视觉采样继续在原有实际消费边界检查，不增加另一套布局或绘图验证流程。
 
-### 3.3 物理与逻辑边距
+### 3.3 物理与逻辑几何
 
 Insets(left, top, right, bottom) 始终表示逻辑长度单位中的物理四边。LogicalInsets(start, top, end, bottom) 是独立值类型；resolve(LayoutDirection) 先把 start／end 映射到左右，再返回已检查的 Insets。两者的 all(value) 生成四边相等的值，长度及总和有限非负。主题和通用几何消费已解析的物理 Insets；graphics 不依赖 UI 方向。
+
+Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: LayoutDirection = Ltr 参数。组件测量和 scene 传入同一有效方向，先解析 Style 的逻辑边框和圆角。SurfaceMetrics／CheckboxMetrics 保存 borderInsets: Insets 与 corners: CornerRadii；不保留原先单一 borderInset／cornerRadius 字段。contentInsets 逐边相加，geometry 使用 graphics.RoundedOutline.normalized／inset 计算相同的外框和内框。Geometry.style 保存本次已经解析为物理值的 Style，ThemePainter 不再推测方向。
+
+公共 RoundedOutline 统一归 graphics，包含 bounds 和 radii。背景、边框、内容裁剪和焦点环复用这份几何；FocusOutline 的 border 使用一个真正均匀的 BorderEdge，焦点外框由 expanded(outset) 得到。Radio 的环宽和 Scrollbar 的统一半径仍按其实际形状语义表示；RadioOptions.border 使用可清除的 BorderEdge 覆盖，不为圆环引入四条独立边。
 
 ## 4. 公共绘图部件
 

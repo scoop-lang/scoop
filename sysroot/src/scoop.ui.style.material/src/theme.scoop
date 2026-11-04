@@ -114,8 +114,8 @@ public fun materialTheme(
                     Size(88.0, 40.0),
                     Size(48.0, 40.0),
                     Insets(16.0, 9.0, 16.0, 9.0),
-                    1.0,
-                    20.0,
+                    Insets.all(1.0),
+                    CornerRadii.all(20.0),
                     focus.outset
                 ),
             fill = normal,
@@ -130,8 +130,8 @@ public fun materialTheme(
                     Size(88.0, 40.0),
                     Size(48.0, 40.0),
                     Insets(16.0, 9.0, 16.0, 9.0),
-                    0.0,
-                    20.0,
+                    Insets.all(0.0),
+                    CornerRadii.all(20.0),
                     focus.outset
                 ),
             fill = accent,
@@ -146,8 +146,8 @@ public fun materialTheme(
                     Size(120.0, 72.0),
                     Size(0.0, 0.0),
                     Insets.all(16.0),
-                    0.0,
-                    12.0,
+                    Insets.all(0.0),
+                    CornerRadii.all(12.0),
                     focus.outset
                 ),
             fill = StateColors.solid(palette.elevated),
@@ -196,8 +196,8 @@ public fun materialTheme(
                     CheckboxMetrics(
                         Size(20.0, 20.0),
                         Size(16.0, 16.0),
-                        2.0,
-                        2.0,
+                        Insets.all(2.0),
+                        CornerRadii.all(2.0),
                         4.0,
                         2.0,
                         checkAppearance.focus.outset

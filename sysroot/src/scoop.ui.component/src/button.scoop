@@ -134,7 +134,7 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val value = props.value
         val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
-        val metrics = value.theme.surfaceMetrics(visual, value.options)
+        val metrics = value.theme.surfaceMetrics(visual, value.options, context.layoutDirection)
         val inset = metrics.contentInsets.totals()
         val child = context.measureChild(0L, childConstraints(constraints, inset))
         val size =
@@ -154,7 +154,8 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
             value.theme.surfaceGeometry(
                 Rect(0.0, 0.0, size.width, size.height),
                 visual,
-                value.options
+                value.options,
+                context.layoutDirection
             )
         drawing = Some(ButtonDrawing(geometry, visual))
         val origin =

@@ -10,6 +10,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
     private val background = StylePainter()
     private val foreground = StylePainter()
     private val marker = StylePainter()
+    private val focusPainter = StylePainter()
     public override val isClosed: Boolean get() = closed
 
     private fun checkThread() {
@@ -42,7 +43,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                     geometry.outline.bounds,
                     Style(
                         background = style.background,
-                        cornerRadius = geometry.outline.radius,
+                        corners = Corners.Physical(geometry.outline.radii),
                         boxShadows = style.boxShadows
                     )
                 ) { _ -> }
@@ -50,10 +51,10 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                 foreground.paint(
                     local,
                     geometry.outline.bounds,
-                    Style(border = style.border, cornerRadius = geometry.outline.radius)
+                    Style(border = style.border, corners = Corners.Physical(geometry.outline.radii))
                 ) { _ -> }
                 if (visual.interaction.enabled && visual.interaction.focused)
-                    drawFocus(local, geometry.focus)
+                    drawFocus(local, geometry.focus, focusPainter)
             }
         }
     }
@@ -69,18 +70,13 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                     val color =
                         geometry.markColor.withAlpha(geometry.markColor.alpha * geometry.selection)
                     when (visual.mark) {
-                        case Mixed -> content.drawRoundRect(
-                            geometry.mixed.bounds,
-                            geometry.mixed.radius,
-                            geometry.mixed.radius,
-                            Paint(color)
-                        )
+                        case Mixed -> drawRound(content, geometry.mixed, color)
                         else -> drawStroke(content, geometry.tick, color)
                     }
                 }
             }
             if (visual.interaction.enabled && visual.interaction.focused)
-                drawFocus(local, geometry.focus)
+                drawFocus(local, geometry.focus, focusPainter)
         }
     }
     public override fun drawRadio(canvas: Canvas, geometry: RadioGeometry, visual: RadioVisual) {
@@ -99,7 +95,7 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
                     )
             }
             if (visual.interaction.enabled && visual.interaction.focused)
-                drawFocus(local, geometry.focus)
+                drawFocus(local, geometry.focus, focusPainter)
         }
     }
     public override fun drawScrollbar(
@@ -156,7 +152,8 @@ internal class ShapeThemePainter(private val scrollbar: ScrollbarPart): ThemePai
         if (closed)
             return
         closed = true
-        var failure = cleanupStyle(None) { marker.close() }
+        var failure = cleanupStyle(None) { focusPainter.close() }
+        failure = cleanupStyle(failure) { marker.close() }
         failure = cleanupStyle(failure) { foreground.close() }
         failure = cleanupStyle(failure) { background.close() }
         throwStyle(failure)
@@ -172,7 +169,7 @@ private fun scrollbarVisual(visual: ScrollbarVisual, part: ScrollbarRegion): Int
 
 private fun drawRound(canvas: Canvas, outline: RoundedOutline, color: Color) {
     if (outline.bounds.width > 0.0 && outline.bounds.height > 0.0)
-        canvas.drawRoundRect(outline.bounds, outline.radius, outline.radius, Paint(color))
+        canvas.drawRoundRect(outline.bounds, outline.radii, Paint(color))
 }
 
 private fun drawStroke(canvas: Canvas, stroke: StrokeSegment, color: Color) {
@@ -183,21 +180,16 @@ private fun drawStroke(canvas: Canvas, stroke: StrokeSegment, color: Color) {
     canvas.drawLine(stroke.bend, stroke.end, paint)
 }
 
-private fun drawFocus(canvas: Canvas, focus: FocusOutline?) {
+private fun drawFocus(canvas: Canvas, focus: FocusOutline?, painter: StylePainter) {
     when (focus) {
-        case Some(value) -> {
-            val width = value.border.width
-            val outer = value.outline
-            val center = insetTheme(outer.bounds, Insets.all(width / 2.0))
-            val radius = themeMax(0.0, outer.radius - width / 2.0)
-            if (center.width > 0.0 && center.height > 0.0)
-                canvas.drawRoundRect(
-                    center,
-                    radius,
-                    radius,
-                    Paint(value.border.color, PaintingStyle.Stroke, width)
-                )
-        }
+        case Some(value) -> painter.paint(
+            canvas,
+            value.outline.bounds,
+            Style(
+                border = Some(Border.all(value.border.width, value.border.color)),
+                corners = Corners.Physical(value.outline.radii)
+            )
+        ) { _ -> }
         case None -> {}
     }
 }

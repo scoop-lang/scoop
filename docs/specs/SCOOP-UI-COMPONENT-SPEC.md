@@ -130,7 +130,7 @@ Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 
 
 ParagraphHost 按内容、字体来源／revision、样式、段落设置、宽度和行内 metrics 管理缓存。框架每帧可以再次调用 measure，输入未变化时复用已有结果；行内图片尺寸、按钮文字或布局动画改变实际 metrics 时重新排版，纯位置、整体透明度或不改变尺寸的子项颜色变化复用布局。
 
-行内子组件在插字、换行及省略号隐藏后保留 key、实例和状态；截断项不放置、不绘制，在该帧成功提交后退出输入和焦点。改变 key、移除对象或卸载 Label 才执行正常卸载。图片可以用普通自绘 Element 包装，使用与 Button 相同的行内协议；Label 不直接接管外部 Image 的所有权。
+行内子组件在插字、换行及省略号隐藏后保留 key、实例和状态；截断项不放置、不绘制，在该帧成功提交后退出输入和焦点。改变 key、移除对象或卸载 Label 才执行正常卸载。ImageView／PathView 可以使用与 Button 相同的行内协议；Label 和内容适配均不接管外部 Image／Path 的所有权。
 
 Label 本身不创建 InputArea，其行内控件可以拥有并放置自己的区域。文字选择、编辑文档、marked range、剪贴板和撤销不属于首期 Label；公共 graphics.text 的 hitTest／caret／selection 及替代文字导出仍可由其他控件使用。
 
@@ -406,3 +406,13 @@ Textarea 的 scrollbars 默认为 Auto，可选 Always／Hidden。非 Hidden 固
 外框留白使用不参与 Tab 的区域，在正文之前放置；点击留白把焦点交给同一宿主，不建立第二个文本连接。正文区域仍执行普通定位和选择。主题／明暗、描述、只读或模型替换更新保留控件挂载；编辑模型替换按 TextEditHost 的旧组合／连接收尾规则生效。模态、虚拟项固定、外层显露和绘制缓存只沿框架既有能力组合。
 
 验收覆盖实际 Input／Textarea 的外部更新、模型／字体更换、说明与主题状态、正常和无效表面、只读／禁用、留白聚焦、Tab／提交、长文滚动条，以及模态 IME 取消和虚拟编辑项保留。原生窗口行为使用 scoop.test，与纯编辑事务和主题像素用例分层验证。
+
+## 10. Image 与 Path 展示
+
+`imageView(image, naturalSize, configure)` 和 `pathView(path, viewBox, configure)` 返回普通 Element 描述，对应 ImageViewProps／ImageView 与 PathViewProps／PathView；ChildrenBuilder 提供同名的追加成员。构造只保存输入，不访问文件、网络、挂载或取得资源所有权。
+
+Image 的 naturalSize 是明确的正有限逻辑尺寸，像素密度由像素尺寸与该值的关系给出。Path 的 viewBox 是有正有限尺寸的图形坐标矩形，可额外指定 naturalSize，缺省使用 viewBox.size。测量以自然宽高比在父最大约束内收缩，再服从父最小／紧约束；不会按根 DPI 再乘一次尺寸。
+
+两种 builder 均提供 fit: ContentFit=Contain、alignment: Alignment=Center／Center、clip=true 和 key；Image 另有 sampling=Linear、opacity=1，Path 另有 naturalSize=None 和 paint=Paint()。fitContent(naturalSize, bounds, fit, alignment, direction) 公开同一纯几何算法：Contain 等比包含，Cover 等比覆盖，Fill 使用完整目标矩形，None 保留自然尺寸。零宽／高目标返回空目标；对齐的水平 Start／End 依 LayoutDirection 解析，图片和路径本身不镜像。clip=true 时只裁到布局框，false 允许明确的内容溢出。
+
+Path 按 viewBox 原点和平移／缩放映射到目标矩形，stroke 与路径一起变换。Image 使用现有 graphics 绘图与采样合同。两者借用输入资源，更新或卸载不关闭调用方的 Image／Path；持有者必须在使用期间保持它们打开，关闭资源的错误沿普通绘图失败路径处理。替换内容通过 Props，绘制读取本轮输入，不跨更新保留旧资源缓存。展示本身不创建 InputArea、焦点、计时器或加载状态；加载／失败／重试属于应用或后续控件组合。

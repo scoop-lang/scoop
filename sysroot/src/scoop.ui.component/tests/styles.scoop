@@ -13,9 +13,9 @@ private class ComponentStyleTest {
     fun `control state overrides combine in order without freezing theme defaults`() {
         val states =
             interactionStyles {
-                hovered { this.cornerRadius(7.0) }
+                hovered { this.corners(Corners.all(7.0)) }
                 pressed { this.background(Some(Paint(Color.Black))) }
-                focused { this.border(Some(Border(3.0, Color.White))) }
+                focused { this.border(Some(Border.all(3.0, Color.White))) }
                 disabled { this.background(None) }
             }
         val style =
@@ -33,8 +33,8 @@ private class ComponentStyleTest {
                     options
                 )
             assertEquals(Color.Black, geometry.style.background!!.color)
-            assertEquals(Some(Border(3.0, Color.White)), geometry.style.border)
-            assertEquals(7.0, geometry.outline.radius)
+            assertEquals(Some(Border.all(3.0, Color.White)), geometry.style.border)
+            assertEquals(CornerRadii.all(7.0), geometry.outline.radii)
             assertEquals(Rect(8.0, 8.0, 64.0, 24.0), geometry.content)
             assertEquals(
                 theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action)).suggestedSize,
@@ -53,8 +53,8 @@ private class ComponentStyleTest {
                 case Some(_) -> fail(Some("explicit background removal was lost"))
             }
             assertEquals(
-                theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action)).cornerRadius,
-                result.style.cornerRadius
+                Corners.Physical(theme.surfaceMetrics(SurfaceVisual(SurfaceKind.Action)).corners),
+                result.style.corners
             )
         }
     }

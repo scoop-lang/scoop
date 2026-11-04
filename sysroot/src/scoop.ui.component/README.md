@@ -1,6 +1,6 @@
 # 自绘基础控件
 
-`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label、Button、Checkbox、Input／Textarea、Row／Column／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
+`scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／SelectableStyledText、Button、Checkbox、Input／Textarea、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 应用选用一个主题实现，并在实际运行入口绑定稳定 ThemeSource：
 
@@ -29,7 +29,7 @@ fun main() {
 
 Checkbox 可接收 `State<Boolean>.binding()`，也可用 `checkbox(initialChecked = false)` 保留自己的状态。Button.enabled 是普通 Props，可在组合组件的 render 中从同一 checked State 计算。更换外部 Binding 后交互使用新绑定；initialChecked 只决定自有状态组件首次挂载的值。
 
-`input(editor, placeholder = "名称")` 和 `textarea(editor, rows = 4L)` 接收调用方持有的 `scoop.ui.text.TextEditorState`。通过 editor.text／selection 读取同一模型，外部整体替换使用 replaceAll；不需要在 onEdited 中把字符串写回控件。Input 的 Enter 提交，Textarea 的普通 Enter 换行、⌘Enter 提交，Tab 默认移动焦点。只读仍可聚焦和复制，enabled=false 停用输入。
+`input(editor) { placeholder = "名称" }` 和 `textarea(editor) { rows = 4L }` 接收调用方持有的 `scoop.ui.text.TextEditorState`。通过 editor.text／selection 读取同一模型，外部整体替换使用 replaceAll；不需要在 onEdited 中把字符串写回控件。Input 的 Enter 提交，Textarea 的普通 Enter 换行、⌘Enter 提交，Tab 默认移动焦点。只读仍可聚焦和复制，enabled=false 停用输入。
 
 两个输入控件在有界父容器中占满宽度，可用 Frame 指定尺寸；Textarea 的 rows 决定建议高度。description 放在边框外，invalid 使用当前主题的错误色，业务自行决定验证结果。TextFieldStyle 可覆盖表面、字体、选择及光标颜色；caretBlink=Duration.milliseconds(0L) 保持光标可见。Textarea 的 Auto／Always 滚动条预留稳定空间，Hidden 不预留；paintCache 独立控制正文像素缓存。`tests-cones/editing` 覆盖实际控件、三套主题、模态 IME、滚动条和虚拟编辑项的保留／卸载。
 
@@ -38,6 +38,8 @@ Button／Checkbox 默认参与 Tab／Shift+Tab 遍历。`focus = FocusOptions(So
 Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体、字号、颜色等属性；完整 StyledText 使用公共富文本模型。Button 的标签复用 Label 与主题 action 字体，其基线来自实际文字布局。外部 FontCollection 只借用，默认字体资源由挂载作用域管理。
 
 `buttonStyle { ... }`、`checkboxStyle { ... }`、`textFieldStyle { ... }` 和 `interactionStyles { ... }` 构造不可变的局部样式；`value.copy { ... }` 基于已有值修改。surface／marker／scrollbar、states 及 text／placeholder／description 是嵌套配置成员，重复块保留此前字段，完整赋值替换该字段。文字覆盖赋为 None 时恢复继承；transition(None) 禁用动画，把 transition 属性赋为 StyleValue.Inherit 则恢复主题过渡。ButtonStyle／CheckboxStyle 使用公共的尺寸 Options 和 StyleOverride。Inherit 保留本轮主题值，Set(None) 明确清除可空属性。InteractionStyles 按 hovered、pressed、focused 顺序组合，禁用时只应用 disabled。`styled(content, style)` 可以给完整控件添加有序 glow、drop shadow 或 blur；空效果与有效果使用同一个持久装饰节点。
+
+`imageView(image, naturalSize)` 和 `pathView(path, viewBox)` 展示调用方拥有的 Image／Path。配置块提供 Contain／Cover／Fill／None、逻辑对齐和显式 clip；图像还可选择采样及透明度。自然尺寸使用逻辑单位，位图像素和根 DPI 不会重复计入布局。适配器不创建输入、加载器或计时器，替换和卸载不关闭借用资源。它们可以直接作为普通容器或文本行内内容。
 
 主题 painter、字体、段落和滤镜归 Element 的 ComponentScope 所有，应用无需为每个控件添加 use。主题和效果没有自己的时钟，控件动画只使用 Surface Animatable；静止时不安排更新或绘制。
 

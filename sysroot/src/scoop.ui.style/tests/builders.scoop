@@ -16,7 +16,7 @@ private class StyleBuilderTest {
                 calls.add(1)
                 captured.add(this)
                 background = Some(Paint(Color.White))
-                cornerRadius = 6.0
+                corners = Corners.all(6.0)
                 contentEffects = [blur, glow]
                 clipContent = true
             }
@@ -24,16 +24,16 @@ private class StyleBuilderTest {
             original.copy {
                 calls.add(2)
                 background = None
-                border = Some(Border(1.0, Color.Black))
+                border = Some(Border.all(1.0, Color.Black))
             }
-        captured[0L].cornerRadius = 20.0
+        captured[0L].corners = Corners.all(20.0)
         captured[0L].contentEffects = []
         assertEquals(2L, calls.size)
-        assertEquals(6.0, original.cornerRadius)
+        assertEquals(Corners.all(6.0), original.corners)
         assertEquals(Some(Color.White), original.background?.color)
         assertEquals(None, derived.background?.color)
-        assertEquals(Some(Border(1.0, Color.Black)), derived.border)
-        assertEquals(6.0, derived.cornerRadius)
+        assertEquals(Some(Border.all(1.0, Color.Black)), derived.border)
+        assertEquals(Corners.all(6.0), derived.corners)
         assertTrue(derived.clipContent)
         assertEquals(blur, derived.contentEffects[0L])
         assertEquals(glow, derived.contentEffects[1L])
@@ -47,30 +47,30 @@ private class StyleBuilderTest {
         val captured = ArrayList<StyleOverrideBuilder>()
         val base =
             style {
-                border = Some(Border(2.0, Color.White))
-                cornerRadius = 8.0
+                border = Some(Border.all(2.0, Color.White))
+                corners = Corners.all(8.0)
                 contentEffects = [ContentEffect.Blur(1.0, 1.0)]
             }
         val clear =
             styleOverride {
                 captured.add(this)
                 border(None)
-                cornerRadius(3.0)
+                corners(Corners.all(3.0))
                 contentEffects([])
             }
         val inherit =
             clear.copy {
                 border = StyleValue.Inherit
-                cornerRadius = StyleValue.Inherit
+                corners = StyleValue.Inherit
             }
-        captured[0L].border(Some(Border(9.0, Color.Black)))
+        captured[0L].border(Some(Border.all(9.0, Color.Black)))
         assertEquals(None, clear.resolve(base).border)
-        assertEquals(3.0, clear.resolve(base).cornerRadius)
+        assertEquals(Corners.all(3.0), clear.resolve(base).corners)
         assertEquals(base.border, inherit.resolve(base).border)
-        assertEquals(8.0, inherit.resolve(base).cornerRadius)
+        assertEquals(Corners.all(8.0), inherit.resolve(base).corners)
         assertEquals(0L, inherit.resolve(base).contentEffects.size)
-        val ordered = clear.then(styleOverride { border(Some(Border(1.0, Color.Black))) })
-        assertEquals(Some(Border(1.0, Color.Black)), ordered.resolve(base).border)
+        val ordered = clear.then(styleOverride { border(Some(Border.all(1.0, Color.Black))) })
+        assertEquals(Some(Border.all(1.0, Color.Black)), ordered.resolve(base).border)
         assertEquals(0L, ordered.resolve(base).contentEffects.size)
         assertEquals(base.border, styleOverride().resolve(base).border)
     }
@@ -84,7 +84,7 @@ private class StyleBuilderTest {
                 captured.add(this)
                 suggestedSize = Some(Size(80.0, 28.0))
                 padding = Some(Insets.all(4.0))
-                style { cornerRadius(7.0) }
+                style { corners(Corners.all(7.0)) }
                 style {
                     nested.add(this)
                     border(None)
@@ -97,13 +97,13 @@ private class StyleBuilderTest {
                 style { background(None) }
             }
         captured[0L].suggestedSize = None
-        nested[0L].cornerRadius(12.0)
+        nested[0L].corners(Corners.all(12.0))
         assertEquals(Some(Size(80.0, 28.0)), options.suggestedSize)
         assertEquals(options.suggestedSize, changed.suggestedSize)
         assertEquals(options.padding, changed.padding)
-        assertEquals(StyleValue.Set(7.0), options.style.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(7.0)), options.style.corners)
         assertEquals(StyleValue.Set(None), options.style.border)
-        assertEquals(StyleValue.Inherit, changed.style.cornerRadius)
+        assertEquals(StyleValue.Inherit, changed.style.corners)
         assertEquals(StyleValue.Set(true), changed.style.clipContent)
         assertTrue(
             when (changed.style.background) {
@@ -120,13 +120,13 @@ private class StyleBuilderTest {
             checkboxOptions {
                 size = Some(18.0)
                 minimumSize = Some(12.0)
-                style { cornerRadius(3.0) }
+                style { corners(Corners.all(3.0)) }
                 style { border(None) }
             }
         val marked = marker.copy { markColor = Some(Color.White) }
         assertEquals(marker.size, marked.size)
         assertEquals(marker.minimumSize, marked.minimumSize)
-        assertEquals(StyleValue.Set(3.0), marked.style.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(3.0)), marked.style.corners)
         assertEquals(StyleValue.Set(None), marked.style.border)
         assertEquals(None, marker.markColor)
         assertEquals(Some(Color.White), marked.markColor)
@@ -134,7 +134,7 @@ private class StyleBuilderTest {
             radioOptions {
                 size = Some(20.0)
                 background(None)
-                border(Some(Border(2.0, Color.White)))
+                border(Some(BorderEdge(2.0, Color.White)))
             }
         val inherited = radio.copy { background = StyleValue.Inherit }
         assertTrue(
@@ -166,19 +166,19 @@ private class StyleBuilderTest {
     @Test
     fun `configuration errors propagate without changing the source description`() {
         val failure = IllegalStateException(Some("style configuration failed"))
-        val original = surfaceOptions { style { cornerRadius(4.0) } }
+        val original = surfaceOptions { style { corners(Corners.all(4.0)) } }
         assertSame(
             failure,
             assertFailsWith<IllegalStateException> {
                 original.copy {
                     style {
-                        cornerRadius(20.0)
+                        corners(Corners.all(20.0))
                         throw failure
                     }
                 }
             }
         )
-        assertEquals(StyleValue.Set(4.0), original.style.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(4.0)), original.style.corners)
         assertSame(failure, assertFailsWith<IllegalStateException> { style { throw failure } })
     }
 }

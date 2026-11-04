@@ -87,7 +87,9 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
             }
         val metrics =
             when (input.theme) {
-                case Some(theme) -> Some(theme.surfaceMetrics(visual, options));
+                case Some(theme) -> Some(
+                    theme.surfaceMetrics(visual, options, context.layoutDirection)
+                );
                 case None -> None
             }
         val insets =
@@ -118,7 +120,8 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
         val content =
             when (input.theme) {
                 case Some(theme) -> {
-                    val geometry = theme.surfaceGeometry(bounds, visual, options)
+                    val geometry =
+                        theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
                     drawing = Some(FrameDrawing.Themed(theme, geometry, visual))
                     geometry.content
                 }

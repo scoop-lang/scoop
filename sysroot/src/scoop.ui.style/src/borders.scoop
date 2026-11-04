@@ -1,0 +1,93 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.ui.LayoutDirection
+
+/** One inward edge in logical units. */
+public struct BorderEdge(val width: Double = 0.0, val color: Color = Color.Transparent)
+
+/** Physical edges after direction has been resolved. */
+public struct BorderEdges(
+    val left: BorderEdge = BorderEdge(),
+    val top: BorderEdge = BorderEdge(),
+    val right: BorderEdge = BorderEdge(),
+    val bottom: BorderEdge = BorderEdge()
+) {
+    public companion object {
+        public fun all(width: Double, color: Color): BorderEdges =
+            BorderEdges(
+                BorderEdge(width, color),
+                BorderEdge(width, color),
+                BorderEdge(width, color),
+                BorderEdge(width, color)
+            )
+    }
+    public val insets: Insets get() {
+        val result = Insets(left.width, top.width, right.width, bottom.width)
+        result.totals()
+        return result
+    }
+    internal fun values(): Array<BorderEdge> = [left, top, right, bottom]
+    internal fun uniformColor(): Color? {
+        var result: Color? = None
+        for (edge in values()) {
+            if (edge.width == 0.0)
+                continue
+            when (result) {
+                case Some(color) -> if (color != edge.color)
+                    return None
+                case None -> result = Some(edge.color)
+            }
+        }
+        return result
+    }
+}
+
+/** Physical and logical descriptions never share ambiguous edge names. */
+public enum Border {
+    Physical(val edges: BorderEdges),
+    Logical(
+        val start: BorderEdge = BorderEdge(),
+        val top: BorderEdge = BorderEdge(),
+        val end: BorderEdge = BorderEdge(),
+        val bottom: BorderEdge = BorderEdge()
+    )
+
+    public companion object {
+        public fun all(width: Double, color: Color): Border =
+            Border.Physical(BorderEdges.all(width, color))
+    }
+    public fun resolve(direction: LayoutDirection): BorderEdges =
+        when (this) {
+            case Physical(edges) -> edges
+            case Logical(start, top, end, bottom) -> if (direction == LayoutDirection.Ltr)
+                BorderEdges(start, top, end, bottom)
+            else
+                BorderEdges(end, top, start, bottom)
+        }
+}
+
+/** Directional corners are converted before entering graphics geometry. */
+public enum Corners {
+    Physical(val radii: CornerRadii),
+    Logical(
+        val topStart: Size = Size(0.0, 0.0),
+        val topEnd: Size = Size(0.0, 0.0),
+        val bottomEnd: Size = Size(0.0, 0.0),
+        val bottomStart: Size = Size(0.0, 0.0)
+    )
+
+    public companion object {
+        public fun all(radius: Double): Corners = Corners.Physical(CornerRadii.all(radius))
+    }
+    public fun resolve(direction: LayoutDirection): CornerRadii =
+        when (this) {
+            case Physical(radii) -> radii
+            case Logical(topStart, topEnd, bottomEnd, bottomStart) -> if (
+                direction == LayoutDirection.Ltr
+            )
+                CornerRadii(topStart, topEnd, bottomEnd, bottomStart)
+            else
+                CornerRadii(topEnd, topStart, bottomStart, bottomEnd)
+        }
+}

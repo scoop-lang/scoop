@@ -1,6 +1,7 @@
 package scoop.ui.style
 
 import scoop.graphics.*
+import scoop.ui.LayoutDirection
 
 internal fun themeLength(value: Double) {
     requireStyle(value.isFinite() && value >= 0.0, "theme lengths must be finite and nonnegative")
@@ -48,22 +49,46 @@ internal fun themeProgress(value: Double?, selected: Boolean): Double =
                 0.0
     )
 
-internal fun insetTheme(bounds: Rect, insets: Insets): Rect {
-    val totals = insets.totals()
-    val x = themeMin(insets.left, bounds.width)
-    val y = themeMin(insets.top, bounds.height)
-    return Rect(
-        bounds.x + x,
-        bounds.y + y,
-        themeMax(0.0, bounds.width - totals.width),
-        themeMax(0.0, bounds.height - totals.height)
-    )
-}
+internal fun insetTheme(bounds: Rect, insets: Insets): Rect =
+    insetOutline(RoundedOutline(bounds), insets).bounds
 
-internal fun roundTheme(bounds: Rect, radius: Double): RoundedOutline {
-    themeLength(radius)
-    return RoundedOutline(bounds, themeMin(radius, themeMin(bounds.width, bounds.height) / 2.0))
-}
+internal fun insetOutline(outline: RoundedOutline, insets: Insets): RoundedOutline =
+    outline.inset(insets.left, insets.top, insets.right, insets.bottom)
+
+internal fun roundTheme(bounds: Rect, radius: Double): RoundedOutline =
+    RoundedOutline(bounds, CornerRadii.all(radius)).normalized()
+
+internal fun physicalEdges(
+    style: Style,
+    direction: LayoutDirection = LayoutDirection.Ltr
+): BorderEdges =
+    when (style.border) {
+        case Some(value) -> value.resolve(direction)
+        case None -> BorderEdges()
+    }
+
+internal fun themeBorder(insets: Insets, color: Color): Border =
+    Border.Physical(
+        BorderEdges(
+            BorderEdge(insets.left, color),
+            BorderEdge(insets.top, color),
+            BorderEdge(insets.right, color),
+            BorderEdge(insets.bottom, color)
+        )
+    )
+
+internal fun physicalStyle(style: Style, direction: LayoutDirection): Style =
+    Style(
+        style.background,
+        when (style.border) {
+            case Some(value) -> Some(Border.Physical(value.resolve(direction)))
+            case None -> None
+        },
+        Corners.Physical(style.corners.resolve(direction)),
+        style.boxShadows,
+        style.contentEffects,
+        style.clipContent
+    )
 
 internal fun squareTheme(bounds: Rect): Rect {
     themeBounds(bounds)
@@ -76,16 +101,6 @@ internal fun squareTheme(bounds: Rect): Rect {
     )
 }
 
-internal fun borderWidth(style: Style): Double {
-    val width =
-        when (style.border) {
-            case Some(value) -> value.width;
-            case None -> 0.0
-        }
-    themeLength(width)
-    return width
-}
-
 internal fun focusTheme(
     outline: RoundedOutline,
     visual: InteractionVisual,
@@ -95,19 +110,5 @@ internal fun focusTheme(
     themeLength(style.width)
     if (!visual.enabled || !visual.focused || style.width == 0.0)
         return None
-    val bounds = outline.bounds
-    val expanded =
-        Rect(
-            bounds.x - style.outset,
-            bounds.y - style.outset,
-            bounds.width + style.outset * 2.0,
-            bounds.height + style.outset * 2.0
-        )
-    themeBounds(expanded)
-    return Some(
-        FocusOutline(
-            roundTheme(expanded, outline.radius + style.outset),
-            Border(style.width, style.color)
-        )
-    )
+    return Some(FocusOutline(outline.expanded(style.outset), BorderEdge(style.width, style.color)))
 }

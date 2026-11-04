@@ -1,5 +1,6 @@
 package scoop.tests.ui.controls
 
+import scoop.ui.LayoutDirection
 import scoop.graphics.*
 import scoop.graphics.native.captureGeometry
 import scoop.test.*
@@ -19,25 +20,30 @@ internal class TraceTheme(
     public override val tokens: ThemeTokens get() = base.tokens
     public override fun surfaceMetrics(
         visual: SurfaceVisual,
-        options: SurfaceOptions
-    ): SurfaceMetrics = base.surfaceMetrics(visual, options)
+        options: SurfaceOptions,
+        direction: LayoutDirection
+    ): SurfaceMetrics = base.surfaceMetrics(visual, options, direction)
     public override fun surfaceGeometry(
         bounds: Rect,
         visual: SurfaceVisual,
-        options: SurfaceOptions
+        options: SurfaceOptions,
+        direction: LayoutDirection
     ): SurfaceGeometry {
         surfaces += 1
-        return base.surfaceGeometry(bounds, visual, options)
+        return base.surfaceGeometry(bounds, visual, options, direction)
     }
-    public override fun checkboxMetrics(options: CheckboxOptions): CheckboxMetrics =
-        base.checkboxMetrics(options)
+    public override fun checkboxMetrics(
+        options: CheckboxOptions,
+        direction: LayoutDirection
+    ): CheckboxMetrics = base.checkboxMetrics(options, direction)
     public override fun checkboxGeometry(
         bounds: Rect,
         visual: CheckboxVisual,
-        options: CheckboxOptions
+        options: CheckboxOptions,
+        direction: LayoutDirection
     ): CheckboxGeometry {
         checkboxes += 1
-        return base.checkboxGeometry(bounds, visual, options)
+        return base.checkboxGeometry(bounds, visual, options, direction)
     }
     public override fun radioMetrics(options: RadioOptions): RadioMetrics =
         base.radioMetrics(options)

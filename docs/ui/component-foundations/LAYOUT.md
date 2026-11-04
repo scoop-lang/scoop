@@ -1,6 +1,6 @@
 # 测量、布局、方向与视觉基础
 
-本文属于 [控件基础设计](DESIGN.md)，规定 L1／L2／V1 的合同；L1／L2 已完成，V1 按实施记录继续推进。测量及方向归 `scoop.ui`，布局策略和内容适配归 `scoop.ui.component`，装饰归 `scoop.ui.style`，共用形状归 `scoop.graphics`。
+本文属于 [控件基础设计](DESIGN.md)，规定 L1／L2／V1 的合同；三个批次均已完成，验证范围见实施记录。测量及方向归 `scoop.ui`，布局策略和内容适配归 `scoop.ui.component`，装饰归 `scoop.ui.style`，共用形状归 `scoop.graphics`。
 
 ## 1. 演进现有测量协议
 

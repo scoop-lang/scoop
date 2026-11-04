@@ -3,9 +3,11 @@ package scoop.ui.style
 import scoop.graphics.*
 import scoop.platform.concurrent.currentThreadId
 import scoop.ui.SceneContext
+import scoop.ui.LayoutDirection
 
 private struct DecorationDrawing(
     val paths: DecorationPaths?,
+    val edges: BorderEdges,
     val shadows: Array<ImageFilter>,
     val filter: ImageFilter?
 )
@@ -45,7 +47,7 @@ public class StylePainter public constructor(): Closeable {
         checkOpen()
         painting = true
         try {
-            val drawing = prepare(bounds, style)
+            val drawing = prepare(bounds, style, context.layoutDirection)
             context.draw { paint -> background(paint.canvas, bounds, style, drawing) }
             context.withState {
                 local ->
@@ -61,16 +63,22 @@ public class StylePainter public constructor(): Closeable {
                     case None -> {}
                 }
             }
-            context.draw { paint -> border(paint.canvas, style, drawing) }
+            context.draw { paint -> border(paint.canvas, bounds, drawing) }
         } finally {
             painting = false
         }
     }
-    public fun paint(canvas: Canvas, bounds: Rect, style: Style, content: (Canvas) -> Unit) {
+    public fun paint(
+        canvas: Canvas,
+        bounds: Rect,
+        style: Style,
+        direction: LayoutDirection = LayoutDirection.Ltr,
+        content: (Canvas) -> Unit
+    ) {
         checkOpen()
         painting = true
         try {
-            val drawing = prepare(bounds, style)
+            val drawing = prepare(bounds, style, direction)
             canvas.withState {
                 local ->
                 background(local, bounds, style, drawing)
@@ -87,38 +95,14 @@ public class StylePainter public constructor(): Closeable {
                     case None -> {}
                 }
                 local.restore()
-                border(local, style, drawing)
+                border(local, bounds, drawing)
             }
         } finally {
             painting = false
         }
     }
 
-    private fun prepare(bounds: Rect, style: Style): DecorationDrawing {
-        requireStyle(
-            bounds.x.isFinite() &&
-                bounds.y.isFinite() &&
-                bounds.width.isFinite() &&
-                bounds.height.isFinite() &&
-                bounds.width >=
-                0.0 &&
-                bounds.height >=
-                0.0 &&
-                (bounds.x + bounds.width).isFinite() &&
-                (bounds.y + bounds.height).isFinite(),
-            "invalid style bounds"
-        )
-        requireStyle(
-            style.cornerRadius.isFinite() && style.cornerRadius >= 0.0,
-            "invalid corner radius"
-        )
-        when (style.border) {
-            case Some(value) -> requireStyle(
-                value.width.isFinite() && value.width >= 0.0,
-                "invalid border width"
-            )
-            case None -> {}
-        }
+    private fun prepare(bounds: Rect, style: Style, direction: LayoutDirection): DecorationDrawing {
         when (style.background) {
             case Some(value) -> requireStyle(
                 value.style == PaintingStyle.Fill,
@@ -127,7 +111,8 @@ public class StylePainter public constructor(): Closeable {
             case None -> {}
         }
         return DecorationDrawing(
-            geometry.update(bounds, style),
+            geometry.update(bounds, style, direction),
+            physicalEdges(style, direction),
             boxFilters.update(style.boxShadows),
             contentFilters.update(style.contentEffects)
         )
@@ -147,16 +132,30 @@ public class StylePainter public constructor(): Closeable {
             case None -> {}
         }
     }
-    private fun border(canvas: Canvas, style: Style, drawing: DecorationDrawing) {
-        when (style.border) {
-            case Some(edge) -> when (drawing.paths) {
-                case Some(value) -> when (value.border) {
-                    case Some(path) -> canvas.drawPath(path, Paint(edge.color))
-                    case None -> {}
+    private fun border(canvas: Canvas, bounds: Rect, drawing: DecorationDrawing) {
+        val paths = drawing.paths ?: return
+        val ring = paths.border ?: return
+        when (drawing.edges.uniformColor()) {
+            case Some(color) -> canvas.drawPath(ring, Paint(color))
+            case None -> canvas.withState {
+                local ->
+                local.clipRect(bounds)
+                local.saveLayer()
+                val colors = drawing.edges.values()
+                for (index in 0L ..< paths.regions.size) {
+                    if (colors[index].width == 0.0)
+                        continue
+                    // Sum disjoint antialias coverage without darkening their shared joins.
+                    local.saveLayer(blendMode = BlendMode.Plus)
+                    local.drawPath(paths.regions[index], Paint(colors[index].color))
+                    local.restore()
                 }
-                case None -> {}
+                // Apply one common rounded ring to the assembled colors.
+                local.saveLayer(blendMode = BlendMode.DstIn)
+                local.drawPath(ring, Paint(Color.White))
+                local.restore()
+                local.restore()
             }
-            case None -> {}
         }
     }
 

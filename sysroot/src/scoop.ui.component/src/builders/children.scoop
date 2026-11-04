@@ -1,5 +1,6 @@
 package scoop.ui.component
 
+import scoop.graphics.*
 import scoop.graphics.text.StyledText
 import scoop.ui.*
 import scoop.ui.portal as makePortal
@@ -25,6 +26,21 @@ public open class ChildrenBuilder internal constructor() {
 
     public fun label(text: String, configure: PlainLabelBuilder.() -> Unit = {}): Unit {
         add(makePlainLabel(text, configure))
+    }
+
+    public fun imageView(
+        image: Image,
+        naturalSize: Size,
+        configure: ImageViewBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeImageView(image, naturalSize, configure))
+    }
+    public fun pathView(
+        path: Path,
+        viewBox: Rect,
+        configure: PathViewBuilder.() -> Unit = {}
+    ): Unit {
+        add(makePathView(path, viewBox, configure))
     }
 
     public fun selectableStyledText(

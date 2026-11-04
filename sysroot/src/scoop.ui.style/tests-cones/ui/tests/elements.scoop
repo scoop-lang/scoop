@@ -16,13 +16,13 @@ internal class StyleScene(private val probe: StyleProbe): Component {
         val style =
             when (generation) {
                 case 1 -> style {
-                    this.border = Some(Border(1.0, Color.Black))
-                    this.cornerRadius = 10.0
+                    this.border = Some(Border.all(1.0, Color.Black))
+                    this.corners = Corners.all(10.0)
                     this.boxShadows = [BoxShadow(Point(4.0, 0.0), 3.0, 3.0, Color.Black)]
                     this.contentEffects = [ContentEffect.Glow(3.0, 3.0, Color(0.0, 0.0, 1.0))]
                 }
                 case 3 -> style {
-                    this.cornerRadius = 20.0
+                    this.corners = Corners.all(20.0)
                     this.contentEffects = [ContentEffect.Blur(3.0, 3.0)]
                     this.clipContent = true
                 }

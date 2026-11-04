@@ -165,7 +165,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val value = props.value
-        val metrics = value.theme.checkboxMetrics(value.options)
+        val metrics = value.theme.checkboxMetrics(value.options, context.layoutDirection)
         val padding = value.padding.totals()
         val size =
             constraints.constrain(
@@ -196,7 +196,8 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
                 motion!!.sample(value.visual),
                 Some(selection!!.value)
             )
-        val geometry = value.theme.checkboxGeometry(bounds, visual, value.options)
+        val geometry =
+            value.theme.checkboxGeometry(bounds, visual, value.options, context.layoutDirection)
         drawing = Some(CheckboxDrawing(geometry, visual))
         return LayoutMetrics(size)
     }

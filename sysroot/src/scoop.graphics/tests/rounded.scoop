@@ -1,0 +1,78 @@
+package scoop.graphics
+
+import scoop.test.*
+import scoop.math.abs
+
+@Test
+private class RoundedGeometryTest {
+    @Test
+    fun `all corners share one scale and asymmetric insets preserve elliptical interiors`() {
+        val radii =
+            CornerRadii(Size(60.0, 40.0), Size(40.0, 20.0), Size(20.0, 30.0), Size(40.0, 40.0))
+        val normalized = radii.normalized(Size(50.0, 60.0))
+        assertEquals(
+            CornerRadii(Size(30.0, 20.0), Size(20.0, 10.0), Size(10.0, 15.0), Size(20.0, 20.0)),
+            normalized
+        )
+        val outer = RoundedOutline(Rect(10.0, 20.0, 100.0, 60.0), CornerRadii.all(20.0))
+        val inner = outer.inset(6.0, 8.0, 10.0, 12.0)
+        assertEquals(Rect(16.0, 28.0, 84.0, 40.0), inner.bounds)
+        assertEquals(
+            CornerRadii(Size(14.0, 12.0), Size(10.0, 12.0), Size(10.0, 8.0), Size(14.0, 8.0)),
+            inner.radii
+        )
+        val expanded = outer.expanded(3.0)
+        assertEquals(Rect(7.0, 17.0, 106.0, 66.0), expanded.bounds)
+        assertEquals(CornerRadii.all(23.0), expanded.radii)
+    }
+
+    @Test
+    fun `empty boxes thick borders and invalid values have bounded explicit outcomes`() {
+        assertEquals(CornerRadii(), CornerRadii.all(8.0).normalized(Size(0.0, 40.0)))
+        assertEquals(CornerRadii(), CornerRadii.all(Size(0.0, 8.0)).normalized(Size(20.0, 40.0)))
+        val outer = RoundedOutline(Rect(10.0, 20.0, 100.0, 60.0), CornerRadii.all(30.0))
+        val inner = outer.inset(180.0, 80.0, 20.0, 40.0)
+        assertTrue(abs(inner.bounds.x - 100.0) < 0.000000001)
+        assertEquals(60.0, inner.bounds.y)
+        assertEquals(Size(0.0, 0.0), inner.bounds.size)
+        assertEquals(CornerRadii(), inner.radii)
+        assertFailsWith<IllegalArgumentException> {
+            CornerRadii.all(-1.0).normalized(Size(10.0, 10.0))
+        }
+        assertFailsWith<IllegalArgumentException> { outer.inset(1.0, -1.0, 1.0, 1.0) }
+        assertFailsWith<IllegalArgumentException> { outer.expanded(1.0 / 0.0) }
+    }
+
+    @Test
+    fun `path drawing and direct drawing preserve the same four physical corners`() {
+        val box = Rect(4.0, 4.0, 48.0, 36.0)
+        val corners =
+            CornerRadii(Size(18.0, 12.0), Size(0.0, 0.0), Size(10.0, 10.0), Size(4.0, 8.0))
+        path { addRoundRect(box, corners) }.use {
+            shape ->
+            assertFalse(shape.contains(Point(4.5, 4.5)))
+            assertTrue(shape.contains(Point(51.5, 4.5)))
+            assertTrue(shape.contains(Point(28.0, 20.0)))
+            RasterSurface(60, 48).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent);
+                    canvas.drawRoundRect(box, corners, Paint(Color.White))
+                }
+                val direct = surface.readPixels()
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent);
+                    canvas.drawPath(shape, Paint(Color.White))
+                }
+                val byPath = surface.readPixels()
+                for (index in 0L ..< direct.size) {
+                    val difference =
+                        direct[index].toUByte().toInt() - byPath[index].toUByte().toInt()
+                    assertTrue(difference >= -1 && difference <= 1)
+                }
+            }
+        }
+    }
+}

@@ -21,7 +21,7 @@ private class ControlStyleTest {
                 kind = SurfaceKind.Plain
                 surface {
                     padding = Some(Insets.all(5.0))
-                    style { cornerRadius(4.0) }
+                    style { corners(Corners.all(4.0)) }
                 }
                 surface { style { border(None) } }
                 surface {}
@@ -46,7 +46,7 @@ private class ControlStyleTest {
         assertEquals(SurfaceKind.Plain, derived.kind)
         assertEquals(Some(Insets.all(5.0)), original.surface.padding)
         assertEquals(None, derived.surface.padding)
-        assertEquals(StyleValue.Set(4.0), derived.surface.style.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(4.0)), derived.surface.style.corners)
         assertEquals(StyleValue.Set<Border?>(None), derived.surface.style.border)
         assertEquals(Some(700), original.text!!.weight)
         assertEquals(Some(700), derived.text!!.weight)
@@ -65,7 +65,7 @@ private class ControlStyleTest {
         val states =
             interactionStyles {
                 captured.add(this)
-                hovered { cornerRadius(6.0) }
+                hovered { corners(Corners.all(6.0)) }
                 hovered { border(None) }
                 hovered {}
                 focused { clipContent(true) }
@@ -73,25 +73,25 @@ private class ControlStyleTest {
         val replaced =
             states.copy {
                 hovered = styleOverride { background(None) }
-                hovered { cornerRadius(8.0) }
+                hovered { corners(Corners.all(8.0)) }
             }
         captured[0L].hovered = styleOverride()
-        assertEquals(StyleValue.Set(6.0), states.hovered.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(6.0)), states.hovered.corners)
         assertEquals(StyleValue.Set<Border?>(None), states.hovered.border)
-        assertEquals(StyleValue.Set(8.0), replaced.hovered.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(8.0)), replaced.hovered.corners)
         assertEquals(StyleValue.Inherit, replaced.hovered.border)
         assertEquals(StyleValue.Set(true), replaced.focused.clipContent)
         val control =
             buttonStyle {
                 this.states = states
-                states { disabled { cornerRadius(2.0) } }
+                states { disabled { corners(Corners.all(2.0)) } }
                 states {}
             }
-        assertEquals(StyleValue.Set(6.0), control.states.hovered.cornerRadius)
-        assertEquals(StyleValue.Set(2.0), control.states.disabled.cornerRadius)
-        assertEquals(StyleValue.Inherit, states.disabled.cornerRadius)
-        assertEquals(StyleValue.Set(6.0), states.copy().hovered.cornerRadius)
-        assertEquals(StyleValue.Inherit, interactionStyles().hovered.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(6.0)), control.states.hovered.corners)
+        assertEquals(StyleValue.Set(Corners.all(2.0)), control.states.disabled.corners)
+        assertEquals(StyleValue.Inherit, states.disabled.corners)
+        assertEquals(StyleValue.Set(Corners.all(6.0)), states.copy().hovered.corners)
+        assertEquals(StyleValue.Inherit, interactionStyles().hovered.corners)
     }
 
     @Test
@@ -100,7 +100,7 @@ private class ControlStyleTest {
             checkboxStyle {
                 padding = Some(Insets.all(3.0))
                 marker { size = Some(18.0) }
-                marker { style { cornerRadius(2.0) } }
+                marker { style { corners(Corners.all(2.0)) } }
                 marker {}
                 transition(None)
                 selectionTransition(Some(AnimationSpec.Tween(Duration.milliseconds(125L))))
@@ -114,7 +114,7 @@ private class ControlStyleTest {
         val fallback = Some(AnimationSpec.Tween(Duration.milliseconds(250L)))
         assertEquals(original.padding, derived.padding)
         assertEquals(Some(18.0), derived.marker.size)
-        assertEquals(StyleValue.Set(2.0), derived.marker.style.cornerRadius)
+        assertEquals(StyleValue.Set(Corners.all(2.0)), derived.marker.style.corners)
         assertEquals(None, original.marker.markColor)
         assertEquals(Some(Color.White), derived.marker.markColor)
         assertTrue(

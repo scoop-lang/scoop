@@ -153,16 +153,38 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
         }
     }
     public fun drawRect(rect: Rect, paint: Paint = Paint()) {
-        shape(0, rect, 0.0, 0.0, paint)
+        shape(0, rect, paint)
     }
     public fun drawOval(rect: Rect, paint: Paint = Paint()) {
-        shape(1, rect, 0.0, 0.0, paint)
+        shape(1, rect, paint)
     }
-    public fun drawRoundRect(rect: Rect, radiusX: Double, radiusY: Double, paint: Paint = Paint()) {
-        checkScalar(radiusX);
-        checkScalar(radiusY)
-        requireGraphics(radiusX >= 0.0 && radiusY >= 0.0, "negative corner radius")
-        shape(2, rect, radiusX, radiusY, paint)
+    public fun drawRoundRect(
+        rect: Rect,
+        radiusX: Double,
+        radiusY: Double,
+        paint: Paint = Paint()
+    ): Unit = drawRoundRect(rect, CornerRadii.all(Size(radiusX, radiusY)), paint)
+    public fun drawRoundRect(rect: Rect, radii: CornerRadii, paint: Paint = Paint()) {
+        val outline = RoundedOutline(rect, radii).normalized()
+        val corners = outline.radii
+        val pointer = resource.get()
+        paint.withNative {
+            value -> @Unsafe
+            {
+                graphicsResult(
+                    canvasRoundRect(
+                        pointer,
+                        rect,
+                        cornerPoint(corners.topLeft),
+                        cornerPoint(corners.topRight),
+                        cornerPoint(corners.bottomRight),
+                        cornerPoint(corners.bottomLeft),
+                        value
+                    ),
+                    "draw rounded rectangle"
+                )
+            }
+        }
     }
     public fun drawCircle(center: Point, radius: Double, paint: Paint = Paint()) {
         checkPoint(center);
@@ -258,13 +280,13 @@ public class Canvas internal constructor(private val handle: GraphicsResource) {
             )
         }
     }
-    private fun shape(kind: Int, rect: Rect, rx: Double, ry: Double, paint: Paint) {
+    private fun shape(kind: Int, rect: Rect, paint: Paint) {
         checkRect(rect)
         val pointer = resource.get()
         paint.withNative {
             value -> @Unsafe
             {
-                graphicsResult(canvasShape(pointer, kind, rect, rx, ry, value), "draw shape")
+                graphicsResult(canvasShape(pointer, kind, rect, value), "draw shape")
             }
         }
     }
@@ -330,12 +352,16 @@ private fun canvasClipRect(canvas: Ptr<Unit>, rect: Rect): Int
 private fun canvasClipPath(canvas: Ptr<Unit>, path: Ptr<Unit>): Int
 
 @Extern(name = "scoop_graphics_canvas_shape")
-private fun canvasShape(
+private fun canvasShape(canvas: Ptr<Unit>, kind: Int, rect: Rect, paint: Ptr<Unit>): Int
+
+@Extern(name = "scoop_graphics_canvas_round_rect")
+private fun canvasRoundRect(
     canvas: Ptr<Unit>,
-    kind: Int,
     rect: Rect,
-    rx: Double,
-    ry: Double,
+    topLeft: Point,
+    topRight: Point,
+    bottomRight: Point,
+    bottomLeft: Point,
     paint: Ptr<Unit>
 ): Int
 

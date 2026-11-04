@@ -68,7 +68,7 @@ internal class Showcase(
                         this.style =
                             styleOverride {
                                 this.background(Some(Paint(theme.tokens.palette.accent)))
-                                this.cornerRadius(5.0)
+                                this.corners(Corners.all(5.0))
                             }
                     }
                     this.alignment = Alignment(AxisAlignment.End, AxisAlignment.End)

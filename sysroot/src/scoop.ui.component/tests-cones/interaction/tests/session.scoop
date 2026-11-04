@@ -284,7 +284,7 @@ internal class ControlProbe {
             }
             case 1 -> if (buttonVisual.enabled && checkVisual.interaction.focused) {
                 assertEquals(28.0, buttonMetrics!!.size.height)
-                assertEquals(9.0, buttonGeometry!!.outline.radius)
+                assertEquals(CornerRadii.all(9.0), buttonGeometry!!.outline.radii)
                 assertTrue(buttonMetrics!!.alphabeticBaseline!! > 0.0)
                 assertEquals(None, checkMetrics!!.alphabeticBaseline)
                 key(36)
@@ -384,7 +384,7 @@ internal class ControlProbe {
                 assertEquals(1, scene!!.mounts)
                 assertTrue(buttonVisual.focused)
                 assertEquals(CheckMark.On, ownedVisual.mark)
-                assertEquals(9.0, buttonGeometry!!.outline.radius)
+                assertEquals(CornerRadii.all(9.0), buttonGeometry!!.outline.radii)
                 assertEquals(buttonMetrics!!.size.width, buttonBounds.width)
                 assertEquals(buttonMetrics!!.size.height, buttonBounds.height)
                 val expected =

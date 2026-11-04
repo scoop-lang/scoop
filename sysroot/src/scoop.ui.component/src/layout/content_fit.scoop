@@ -1,0 +1,76 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+
+public enum ContentFit {
+    Contain, Cover, Fill, None
+}
+
+/** Fits logical content without applying a pixel density or mirroring its drawing. */
+public fun fitContent(
+    naturalSize: Size,
+    bounds: Rect,
+    fit: ContentFit = ContentFit.Contain,
+    alignment: Alignment = Alignment(),
+    direction: LayoutDirection = LayoutDirection.Ltr
+): Rect {
+    checkContentSize(naturalSize)
+    requireComponent(
+        bounds.x.isFinite() &&
+            bounds.y.isFinite() &&
+            bounds.width.isFinite() &&
+            bounds.height.isFinite() &&
+            bounds.width >=
+            0.0 &&
+            bounds.height >=
+            0.0 &&
+            (bounds.x + bounds.width).isFinite() &&
+            (bounds.y + bounds.height).isFinite(),
+        "invalid content bounds"
+    )
+    if (bounds.width == 0.0 || bounds.height == 0.0)
+        return Rect(bounds.x, bounds.y, 0.0, 0.0)
+    val x = bounds.width / naturalSize.width
+    val y = bounds.height / naturalSize.height
+    val size =
+        when (fit) {
+            case Fill -> bounds.size
+            case None -> naturalSize
+            case Contain -> {
+                val scale = upperBound(x, y)
+                Size(naturalSize.width * scale, naturalSize.height * scale)
+            }
+            case Cover -> {
+                val scale = lowerBound(x, y)
+                Size(naturalSize.width * scale, naturalSize.height * scale)
+            }
+        }
+    checkContentSize(size)
+    val origin = alignedOrigin(bounds, size, alignment, direction)
+    requireComponent(origin.x.isFinite() && origin.y.isFinite(), "content fit overflow")
+    return Rect(origin.x, origin.y, size.width, size.height)
+}
+
+internal fun checkContentSize(size: Size) {
+    requireComponent(
+        size.width.isFinite() && size.height.isFinite() && size.width > 0.0 && size.height > 0.0,
+        "content natural size must be positive and finite"
+    )
+}
+
+internal fun measureContent(naturalSize: Size, constraints: Constraints): LayoutMetrics {
+    checkContentSize(naturalSize)
+    var scale = 1.0
+    when (constraints.maxWidth) {
+        case Some(width) -> scale = upperBound(scale, width / naturalSize.width)
+        case None -> {}
+    }
+    when (constraints.maxHeight) {
+        case Some(height) -> scale = upperBound(scale, height / naturalSize.height)
+        case None -> {}
+    }
+    return LayoutMetrics(
+        constraints.constrain(Size(naturalSize.width * scale, naturalSize.height * scale))
+    )
+}

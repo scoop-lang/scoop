@@ -2,9 +2,6 @@ package scoop.ui.style
 
 import scoop.graphics.*
 
-/** A border occupies pixels inside the outline, without contributing to layout. */
-public struct Border(val width: Double, val color: Color)
-
 /** A shadow of the filled outer box, independent of its background and content. */
 public struct BoxShadow(val offset: Point, val sigmaX: Double, val sigmaY: Double, val color: Color)
 
@@ -19,7 +16,7 @@ public enum ContentEffect {
 public class Style internal constructor(
     public val background: Paint? = None,
     public val border: Border? = None,
-    public val cornerRadius: Double = 0.0,
+    public val corners: Corners = Corners.all(0.0),
     public val boxShadows: Array<BoxShadow> = [],
     public val contentEffects: Array<ContentEffect> = [],
     public val clipContent: Boolean = false
@@ -36,7 +33,7 @@ public enum StyleValue<T> {
 public class StyleOverride internal constructor(
     public val background: StyleValue<Paint?> = StyleValue.Inherit,
     public val border: StyleValue<Border?> = StyleValue.Inherit,
-    public val cornerRadius: StyleValue<Double> = StyleValue.Inherit,
+    public val corners: StyleValue<Corners> = StyleValue.Inherit,
     public val boxShadows: StyleValue<Array<BoxShadow>> = StyleValue.Inherit,
     public val contentEffects: StyleValue<Array<ContentEffect>> = StyleValue.Inherit,
     public val clipContent: StyleValue<Boolean> = StyleValue.Inherit
@@ -48,7 +45,7 @@ public class StyleOverride internal constructor(
         StyleOverride(
             background.then(next.background),
             border.then(next.border),
-            cornerRadius.then(next.cornerRadius),
+            corners.then(next.corners),
             boxShadows.then(next.boxShadows),
             contentEffects.then(next.contentEffects),
             clipContent.then(next.clipContent)
@@ -58,7 +55,7 @@ public class StyleOverride internal constructor(
         Style(
             background.resolve(inherited.background),
             border.resolve(inherited.border),
-            cornerRadius.resolve(inherited.cornerRadius),
+            corners.resolve(inherited.corners),
             boxShadows.resolve(inherited.boxShadows),
             contentEffects.resolve(inherited.contentEffects),
             clipContent.resolve(inherited.clipContent)

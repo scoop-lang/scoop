@@ -9,6 +9,8 @@ kind = "library"
 "scoop:scoop.ui.component" = { version = "0.1.0", path = "../.." }
 "scoop:scoop.ui.style" = "0.1.0"
 "scoop:scoop.ui.style.macos" = "0.1.0"
+"scoop:scoop.ui.style.material" = "0.1.0"
+"scoop:scoop.ui.style.fluent" = "0.1.0"
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.graphics" = "0.1.0"

@@ -1,0 +1,183 @@
+package scoop.ui.style
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.LayoutDirection
+
+@Test
+private class StyleBorderTest {
+    @Test
+    fun `logical edges and corners resolve once without changing physical descriptions`() {
+        val border =
+            Border.Logical(
+                BorderEdge(2.0, Color.Black),
+                BorderEdge(3.0, Color.White),
+                BorderEdge(5.0, Color.White),
+                BorderEdge(7.0, Color.Black)
+            )
+        assertEquals(Insets(2.0, 3.0, 5.0, 7.0), border.resolve(LayoutDirection.Ltr).insets)
+        assertEquals(Insets(5.0, 3.0, 2.0, 7.0), border.resolve(LayoutDirection.Rtl).insets)
+        val corners =
+            Corners.Logical(Size(1.0, 2.0), Size(3.0, 4.0), Size(5.0, 6.0), Size(7.0, 8.0))
+        assertEquals(
+            CornerRadii(Size(3.0, 4.0), Size(1.0, 2.0), Size(7.0, 8.0), Size(5.0, 6.0)),
+            corners.resolve(LayoutDirection.Rtl)
+        )
+        val physical = Corners.Physical(corners.resolve(LayoutDirection.Ltr))
+        assertEquals(physical.resolve(LayoutDirection.Ltr), physical.resolve(LayoutDirection.Rtl))
+        assertFailsWith<IllegalArgumentException> {
+            Border.all(-1.0, Color.Black).resolve(LayoutDirection.Ltr).insets
+        }
+    }
+
+    @Test
+    fun `unequal translucent borders meet with one alpha coverage including rounded inner joins`() {
+        val box = Rect(8.0, 8.0, 64.0, 48.0)
+        val edges =
+            BorderEdges(
+                BorderEdge(8.0, Color(1.0, 0.0, 0.0, 0.5)),
+                BorderEdge(12.0, Color(0.0, 1.0, 0.0, 0.5)),
+                BorderEdge(6.0, Color(0.0, 0.0, 1.0, 0.5)),
+                BorderEdge(4.0, Color(1.0, 1.0, 0.0, 0.5))
+            )
+        StylePainter().use {
+            painter -> RasterSurface(80, 64).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    painter.paint(
+                        canvas,
+                        box,
+                        style {
+                            border = Some(Border.Physical(edges));
+                            corners = Corners.all(20.0)
+                        }
+                    ) { _ -> }
+                }
+                val pixels = surface.readPixels()
+                assertEquals(255, channel(pixels, 80, 40, 10, 1))
+                assertEquals(0, channel(pixels, 80, 40, 10, 0))
+                assertEquals(255, channel(pixels, 80, 10, 32, 0))
+                assertEquals(255, channel(pixels, 80, 69, 32, 2))
+                assertTrue(channel(pixels, 80, 16, 20, 0) > 10)
+                assertTrue(channel(pixels, 80, 16, 20, 1) > 10)
+                var checked = 0
+                for (y in 12 ..< 25)
+                    for (x in 12 ..< 25) {
+                        var solid = true
+                        for (dy in [0.0, 1.0])
+                            for (dx in [0.0, 1.0]) {
+                                val a = x.toDouble() + dx - 28.0
+                                val b = y.toDouble() + dy - 28.0
+                                if (a * a + b * b >= 380.0 || a * a / 144.0 + b * b / 64.0 <= 1.10)
+                                    solid = false
+                            }
+                        if (solid) {
+                            val alpha = channel(pixels, 80, x, y, 3)
+                            assertTrue(
+                                alpha >= 126 && alpha <= 130,
+                                Some(f"border alpha at ${x},${y}: ${alpha}")
+                            )
+                            checked += 1
+                        }
+                    }
+                assertTrue(checked > 25)
+                assertEquals(0, channel(pixels, 80, 40, 32, 3))
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    painter.paint(
+                        canvas,
+                        Rect(8.0, 8.0, 16.0, 12.0),
+                        style {
+                            border =
+                                Some(
+                                    Border.Physical(
+                                        BorderEdges(
+                                            BorderEdge(80.0, Color(1.0, 0.0, 0.0, 0.5)),
+                                            BorderEdge(),
+                                            BorderEdge(40.0, Color(0.0, 0.0, 1.0, 0.5)),
+                                            BorderEdge()
+                                        )
+                                    )
+                                )
+                        }
+                    ) { _ -> }
+                }
+                val thick = surface.readPixels()
+                for (x in 9 ..< 23) {
+                    val alpha = channel(thick, 80, x, 14, 3)
+                    assertTrue(alpha >= 126 && alpha <= 130)
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `clipped content and offset shadow follow the same asymmetric outline`() {
+        val box = Rect(8.0, 8.0, 48.0, 40.0)
+        val radii = CornerRadii(Size(16.0, 12.0), Size(0.0, 0.0), Size(14.0, 14.0), Size(4.0, 8.0))
+        StylePainter().use {
+            painter -> RasterSurface(136, 56).use {
+                surface ->
+                surface.draw {
+                    canvas ->
+                    canvas.clear(Color.Transparent)
+                    painter.paint(
+                        canvas,
+                        box,
+                        style {
+                            corners = Corners.Physical(radii)
+                            clipContent = true
+                            boxShadows = [BoxShadow(Point(72.0, 0.0), 0.0, 0.0, Color.Black)]
+                        }
+                    ) {
+                        content -> content.drawRect(
+                            Rect(0.0, 0.0, 64.0, 56.0),
+                            Paint(Color(1.0, 0.0, 0.0))
+                        )
+                    }
+                }
+                val pixels = surface.readPixels()
+                // Clip masks and drawn paths quantize edge coverage differently.
+                // Their interior, exterior and one-pixel antialias boundary must coincide.
+                for (y in 1 ..< 55)
+                    for (x in 1 ..< 63) {
+                        val a = channel(pixels, 136, x, y, 3)
+                        val b = channel(pixels, 136, x + 72, y, 3)
+                        var clipMinimum = 255
+                        var clipMaximum = 0
+                        var shadowMinimum = 255
+                        var shadowMaximum = 0
+                        for (dy in -1 .. 1)
+                            for (dx in -1 .. 1) {
+                                val clip = channel(pixels, 136, x + dx, y + dy, 3)
+                                val shadow = channel(pixels, 136, x + dx + 72, y + dy, 3)
+                                if (clip < clipMinimum)
+                                    clipMinimum = clip
+                                if (clip > clipMaximum)
+                                    clipMaximum = clip
+                                if (shadow < shadowMinimum)
+                                    shadowMinimum = shadow
+                                if (shadow > shadowMaximum)
+                                    shadowMaximum = shadow
+                            }
+                        assertTrue(
+                            a >=
+                                shadowMinimum &&
+                                a <=
+                                shadowMaximum &&
+                                b >=
+                                clipMinimum &&
+                                b <=
+                                clipMaximum,
+                            Some(f"outline at ${x},${y}: clip=${a}, shadow=${b}")
+                        )
+                    }
+                assertEquals(0, channel(pixels, 136, 8, 8, 3))
+                assertEquals(255, channel(pixels, 136, 55, 8, 3))
+            }
+        }
+    }
+}

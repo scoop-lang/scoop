@@ -93,7 +93,7 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                     this.height = Some(50.0)
                     this.style =
                         styleOverride {
-                            this.cornerRadius(18.0)
+                            this.corners(Corners.all(18.0))
                             this.clipContent(true)
                         }
                 },
@@ -166,7 +166,8 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                             )
                         ]
                 },
-                flexContract(probe.fonts)
+                flexContract(probe.fonts),
+                visualContract(generation, probe.visuals)
             ]
         )
     }
@@ -214,6 +215,8 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
         assertEquals(300.0, flex.size.width)
         assertTrue(flex.alphabeticBaseline!! >= 20.0)
         context.placeChild(4L, Point(300.0, 110.0))
+        context.measureChild(5L, Constraints.tight(Size(208.0, 64.0)))
+        context.placeChild(5L, Point(360.0, 340.0))
         return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
     }
     public override fun scene(context: SceneContext) {
