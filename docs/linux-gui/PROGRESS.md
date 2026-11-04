@@ -20,7 +20,7 @@
 
 ## 验证
 
-库测试与实际程序均使用 release。窗口测试运行在独立 Xvfb／Openbox 与嵌套 Weston 上，GLES 使用 Mesa 软件渲染。
+库测试与实际程序均使用 release。下表为此前在独立 Xvfb／Openbox 与嵌套 Weston 上完成的验证，GLES 使用 Mesa 软件渲染；本机硬件补验单独记录在后文。
 
 | 范围 | 结果 | 关键覆盖 |
 | --- | --- | --- |
@@ -54,8 +54,28 @@
 
 安装后的严格文档检查还发现 HTTP README 指向仓库测试脚本的相对链接无法解析。发行组装现将 `tests/` 引用与既有 `docs/`、`scripts/` 引用一起重定位到源码 revision 的 GitHub 链接；打包回归保留库内源码的相对链接，实际 GNU／musl 文档生成均通过。
 
+### 本机硬件 GPU 补验（2026-11-04）
+
+在本机 GNOME Shell 50.1 会话中，分别指定 Intel Iris Xe（Alder Lake-P GT2，PCI `8086:46a6`）与 Intel Arc A770M（DG2，PCI `8086:5690`），运行原生 Wayland 和 X11 后端；本次 X11 服务由 XWayland 提供。内核为 `7.0.0-42-generic`，两块 GPU 均使用 i915，用户态为 Mesa `26.0.8-1ubuntu0.3`、EGL 1.5、OpenGL ES 3.2。
+
+运行时未设置软件渲染覆盖，分别以 `DRI_PRIME=pci-0000_00_02_0` 和 `DRI_PRIME=pci-0000_03_00_0` 选择设备。仓库外的 EGL 观测代码从被测程序当前上下文读取 `GL_RENDERER`：分别得到 `Mesa Intel(R) Iris(R) Xe Graphics (ADL GT2)` 与 `Mesa Intel(R) Arc(tm) A770M Graphics (DG2)`；窗口 display 的 EGL 设备查询分别对应 `/dev/dri/renderD128` 与 `/dev/dri/renderD129`。
+
+| 范围 | Iris Xe | Arc A770M |
+| --- | --- | --- |
+| 已安装工具链 GUI consumer | Wayland、X11 均成功提交三帧并正常关闭 | Wayland、X11 均成功提交三帧并正常关闭 |
+| graphics，含 GLES 离屏像素与资源生命周期 | 40／40 | 40／40 |
+| ui，含 GLES 缓存像素 | 87／87 | 87／87 |
+| surface，Wayland | 77／77 | 77／77 |
+| surface，X11 | 77／77 | 77／77 |
+| ui-frames，Wayland | 1／1 | 1／1 |
+| ui-frames，X11 | 1／1 | **0／1，未闭合** |
+
+上述 Cone 回归直接运行已有 release 测试程序，合计 566 次测试执行，565 次通过、1 次失败；另有四次已安装 GUI consumer 检查。Surface 覆盖双窗口像素、连续帧、静止、隐藏重显、resize、重附着和关闭。测试进程均确认使用指定的硬件渲染器，未观察到 EGL 交换缓冲失败；成功提交帧不替代像素断言。
+
+未闭合项是 Arc A770M＋X11 的透明 UI 窗口重绘：`ui-frames/tests/frames.scoop` 的 alpha 断言期望 255、实际为 0。开启观测和移除观测各复现五次，均失败。GL 跟踪中 framebuffer 与 viewport 均保持 320×160；第一次交换缓冲后仍执行 clear 与矩形 draw，但读回整帧 alpha 均为 0。相同测试在 Iris Xe＋X11 和两块 GPU 的 Wayland 上通过。当前证据尚未确定原生渲染路径与驱动交互中的根因，不能将 Arc＋X11 的硬件验收记为全部通过。
+
 ## 验证边界
 
 原始日志、协议跟踪、截图和临时交互程序保存在仓库外 `/home/chenxu/repos/scoop-deps`，不提交逐次报告。测试保留源码、工具与原产物，复用共享 Cone cache。
 
-已验证真实显示协议上的软件 GLES 与合成键鼠输入；未据此宣称硬件 GPU、实体键盘、原生 IME 候选窗、显示器热插拔或所有桌面合成器通过人工验收。
+已验证真实显示协议上的软件 GLES、合成键鼠输入，以及上文列出的本机硬件组合；Arc＋X11 的透明 UI 重绘仍有未闭合失败。本次没有覆盖独立 Xorg 会话，也未据此宣称实体键盘、原生 IME 候选窗、显示器热插拔或所有桌面合成器通过人工验收。
