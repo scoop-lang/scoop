@@ -14,11 +14,13 @@
 
 使用 `/home/chenxu/repos/scoop-deps` 中已有的 LLVM 22.1.8、Skia 和其他依赖，全程离线构建，没有下载外部依赖。五个 release 命令 `scoop`、`scoopc`、`scoop-link`、`scoop-lsp`、`scoop-pm` 已重建。目标清单包含 37 个 GNU 系统库、26 个 musl 系统库，以及每个目标的四种 runtime 配置；musl 构建使用已有的 UAPI 编译器 wrapper。
 
+本机 `~/.scoop` 已同步命令、内置库源码、原生资源、系统 `.slib` 和 runtime；五个命令的代码版本为 `35fd1e9d7`。安装后使用配套命令与系统 GCC 消费预编译 GUI 库，在 X11、Wayland 上显示中文／emoji、连续呈现三帧并正常关闭；musl 控制台程序也编译、运行成功。两个目标的离线 API 文档均以 `--deny-doc-warnings` 生成通过，入口为 `~/.scoop/docs/index.html`。原安装备份保存在仓库外的 `scoop-deps/work/linux-current/installation-backup`。
+
 链接 Skia 所需的 ELF 修正允许显式对象定义覆盖系统 C++ runtime 的动态 compiler builtin 导出，保留对象间重复定义诊断，并以 C++ 异常组合 fixture 验证。
 
 ## 验证
 
-以下均使用 release。窗口测试运行在独立 Xvfb／Openbox 与嵌套 Weston 上，GLES 使用 Mesa 软件渲染。
+库测试与实际程序均使用 release。窗口测试运行在独立 Xvfb／Openbox 与嵌套 Weston 上，GLES 使用 Mesa 软件渲染。
 
 | 范围 | 结果 | 关键覆盖 |
 | --- | --- | --- |
@@ -34,8 +36,10 @@
 | ui-frames | X11、Wayland、Wayland 2 倍缩放各 1／1 | 移动和移除内容后的 alpha，避免旧帧残影 |
 | ui.component、ui.style | 53／53、19／19 | 控件、布局基础与样式 |
 | 三主题共享测试、ui-dsl | 17／17、1／1 | 主题合同和独立 DSL consumer |
+| 完整主题示例 | X11、Wayland 各 3／3 | 主题／明暗切换、模型保留、隐藏重显和静止停帧 |
+| 下载示例 | X11、Wayland 各 5／5 | 真实 HTTP、后台 SHA-256、取消、隐藏期间完成、重显及关闭收尾 |
 
-新 Surface 产物及其全部系统库依赖已重建，当前继续完成完整主题、下载示例与安装的最终组合验收。
+新 Surface 产物及其全部系统库依赖已重建，完整主题、下载示例、最后的连续帧回归及安装后的消费检查均已通过。
 
 独立交互程序在 X11 与 Wayland 上均通过真实显示协议输入，覆盖 Ctrl+A／C／X／V／Z／Shift+Z、运行中 US／German 布局切换、物理键标签、AltGraph 正文和跨进程 Unicode 剪贴板。Weston kiosk shell 完全遮挡剪贴板 owner 的场景也已通过，两个进程均正常退出。修复前协议与系统调用跟踪确认了约 5 秒的 EGL 内部等待；修复后使用本方 frame callback 节流并保留静止后的未完成 callback，窗口事件循环仍能响应剪贴板请求。
 
@@ -46,7 +50,9 @@
 - 正式 CLI native-link fixture：55 项通过、24 项不适用，执行 56 个变体、277 个进程，检查 18 个 golden；包括 system-cxx-builtins。
 - 维护脚本 Python 测试 42 项，跳过 6 项；fixture runner 公共规则测试 82 项，跳过 4 项，均无失败。相关 Python 变更使用 Ruff 0.16.10 格式化和检查。
 
-合并 main 后发现的 Fontconfig 通用字体族缺口已经补齐；协程调用方已迁移到 receiver API。主题示例先等待实际动画稳定，再严格检查静止和隐藏期间帧数不变。多个大型消费者同时编译曾触发宿主 OOM，后续大型构建串行执行；这不改变编译器的语言、产物或缓存规则。
+合并 main 后发现的 Fontconfig 通用字体族缺口已经补齐；协程调用方已迁移到 receiver API。主题示例先等待实际动画稳定，再严格检查静止和隐藏期间帧数不变。多个大型消费者同时编译曾触发宿主 OOM；改为串行构建后，系统库和完整示例均成功，未改动编译器的语言、产物或缓存规则。
+
+安装后的严格文档检查还发现 HTTP README 指向仓库测试脚本的相对链接无法解析。发行组装现将 `tests/` 引用与既有 `docs/`、`scripts/` 引用一起重定位到源码 revision 的 GitHub 链接；打包回归保留库内源码的相对链接，实际 GNU／musl 文档生成均通过。
 
 ## 验证边界
 

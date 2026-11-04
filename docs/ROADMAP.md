@@ -868,7 +868,7 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - [设计](ui/component-foundations/DESIGN.md)承接已完成的基础交互 A–F 与接收者 DSL 迁移。先完成 window／surface 等基础库的公共平台合同和 UI 共用能力，再实施 shadcn 当前目录中排除 Code Block／Native Select 后的 64 个控件。
 - 保持 graphics、graphics.text、surface、window／window.asyncio 的分层；Primary／Super、键位标签、编辑命令、剪贴板和 IME 由底层抽象。UI、component、style、主题及后续控件使用同一份平台无关源码，不增加各自的 OS native 实现。
 - 已按平台合同、重新测量与 Flex／Wrap／Grid、方向、激活／拖动、候选项／悬浮、弹层退出、编辑策略／显示投影、装饰／图像、阅读位置及组合验收完成十一项交付，详见[实施记录](ui/component-foundations/PROGRESS.md)。所属 spec、实现、调用方和必要测试同步迁移，不保留旧 API 兼容路径。
-- 已完成 macOS aarch64 分批验证及 x86_64 Rosetta 补验，两架构各六个代表窗口组合通过，包含真实系统中文输入法。Windows／Linux 由其他分支补齐共同合同后接入；Rosetta 不等于真实 Intel 硬件验证。accessibility、原生控件交互、控件皮肤和业务模型不属于本轮基础交付。
+- 已完成 macOS aarch64 分批验证及 x86_64 Rosetta 补验，两架构各六个代表窗口组合通过，包含真实系统中文输入法。Linux GNU 已通过 Wayland／X11 对接共同合同，定向结果见 [Linux GUI 记录](linux-gui/PROGRESS.md)；Windows 由独立分支接入。Rosetta 不等于真实 Intel 硬件验证。accessibility、原生控件交互、控件皮肤和业务模型不属于本轮基础交付。
 
 ### shadcn 全套自绘控件（设计，未实施）
 
