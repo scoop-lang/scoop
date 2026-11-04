@@ -4,17 +4,17 @@
 
 | 大项 | 状态 |
 | --- | --- |
-| lambda 按期望类型推导挂起性、对称重载消歧、跨 Cone 定型 | 已完成本地验收 |
-| core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成本地验收 |
-| Channel、AsyncMutex、AsyncConditionVariable | 已完成本地验收 |
-| MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成本地验收 |
-| LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 本地验收 |
-| AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
-| 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin 本地验收，其他平台待运行 |
-| HTTP 等上层消费者审计与验收 | 已完成 Darwin 本地验收；Surface 运行受本机 Skia 资源限制 |
-| Linux/Windows 组合验证及最终清理 | 进行中；两平台基础行为已通过，上层与收尾验证中 |
+| lambda 按期望类型推导挂起性、对称重载消歧、跨 Cone 定型 | 已完成实现与跨平台验收 |
+| core executor 协议、TaskContext、驱动边界、挂起/恢复、scope 与 blocking 入口 | 已完成实现与跨平台验收 |
+| Channel、AsyncMutex、AsyncConditionVariable | 已完成实现与跨平台验收 |
+| MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成实现与跨平台验收；调度基线为共享 FIFO |
+| LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 跨平台验收 |
+| AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 跨平台验收 |
+| 三平台 native work 迁移与 TLS 接入 | 已完成 Darwin、Linux、Windows 验收 |
+| HTTP 等上层消费者审计与验收 | 已完成；图形相关运行限制见末节 |
+| Linux/Windows 组合验证及最终清理 | 功能验证已完成，图形限制已记录 |
 
-每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
+每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。以下分阶段记录保留当时的完成范围，最终结果以首表和末节为准。
 
 ## Lambda 期望挂起性（2026-11-04）
 
@@ -119,3 +119,12 @@
 - 独立 Windows 原生测试复用显式 work 驱动，覆盖文件、DNS 和临时文件；TTY 检查先等待排队子任务提交操作。生产侧继续使用统一 managed 阻塞池，未恢复原生线程池。
 - 托管阻塞结果与跨 executor Channel／mutex／condition 两项用例在移动 GC／minor GC stress 下通过。三个 CLI fixture 覆盖省略 suspend、跨 Cone 推断及完成回调异常退出，全部通过。
 - TLS、独立 consumer、HTTP 和窗口宿主验证继续进行；本节不代表 Windows 全部验收结束。
+
+## 跨平台验收收尾（2026-11-04）
+
+- Linux x86-64 GNU：除上述基础测试外，HTTP asyncio 146 项、Client 254 项、Server 151 项、Server consumer 6 项、Compression 49 项和 Terminal asyncio 3 项全部通过。Client 分批覆盖；请求正文测试增加对端已接收 HTTP/2 stream 的通知，再取消上传，消除把尚未交付的 reset stream 当成必然可接收的假设。
+- Linux 定向移动 GC／minor GC stress 3 项通过，覆盖托管阻塞结果、跨 executor 同步及 runtime 共享池。5 组正式 CLI fixture、7 个变体通过，覆盖 lambda 推断、跨 Cone、混合 profile、跨线程尾挂起及未捕获 completion 的退出路径。
+- Windows x86-64 MSVC UCRT：TLS asyncio 23 项、独立 asyncio consumer 2 项、Terminal asyncio 3 项和 HTTP Server consumer 6 项全部通过，包含真实多 worker HTTP/1、HTTP/2。独立 consumer 的泛型 runtime 结果另在移动 GC／minor GC stress 下通过，加上前述 concurrent 用例，共 3 项定向 GC 验证。未重复运行已在 Darwin／Linux 覆盖的全部纯 HTTP 测试。
+- 无窗口宿主测试补齐 CoroutineScope receiver 内对外层 handler 的显式限定，编译通过。两个 Windows GUI 用例未计为通过：均在进入事件循环前以 `create application` 失败；独立的普通 `Application.run` 程序同样返回 Win32 错误 5。原生 DPI 探针设置 Per-Monitor V2 也返回错误 5，给临时测试副本嵌入 V2 manifest 仍未解除失败。本轮保留现有窗口合同，没有把初始化失败当成协程验收通过；Windows 原生 I/O host／attach 行为已由完整 asyncio 测试覆盖。
+- Darwin Surface asyncio 的运行验收仍受旧 Skia archive 缺少 PathOps 符号限制，源码检查通过。以上两项图形限制不影响已通过的 core、concurrent、asyncio、TLS 与 HTTP 结果；本轮不扩展修改图形后端或构建第三方 Skia。
+- 普通常规行为使用 release；GC 压力仅用于上述定向验证。原始日志、临时探针、测试副本与 fixture 工作目录在汇总后清理，保留开发 sysroot、构建缓存和可复用的测试产物。

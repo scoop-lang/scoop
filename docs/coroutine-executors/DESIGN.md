@@ -1,8 +1,8 @@
 # Coroutine executor、通用阻塞任务池与异步同步原语设计
 
-状态：实施中，完成范围见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-04。实施起点：`8d6e2f20df`。
+状态：已实现，验收结果与图形环境限制见 [PROGRESS.md](PROGRESS.md)。日期：2026-11-04。实施起点：`8d6e2f20df`。
 
-本文覆盖单个及多个 executor 之间的消息传递、协程互斥与条件等待、多线程 executor，以及统一承载托管闭包和现有 native 阻塞工作的线程池。公共 API 使用符合 Scoop 语言规则的 receiver DSL。项目尚未发布，直接替换旧接口，不保留兼容别名或新旧双轨。实施时先按第 12 节修订规范，再修改实现；本文中的新 API 不是当前已可用的库接口。
+本文覆盖单个及多个 executor 之间的消息传递、协程互斥与条件等待、多线程 executor，以及统一承载托管闭包和现有 native 阻塞工作的线程池。公共 API 使用符合 Scoop 语言规则的 receiver DSL。项目尚未发布，直接替换旧接口，不保留兼容别名或新旧双轨。第 12 节涉及的规范与实现已同步，本文的公共 API 已可使用；work stealing 保留为第 7 节所述的后续性能演进。
 
 ## 1. 目标与设计结论
 
@@ -103,7 +103,7 @@ TaskContext 增加一个可空 execution 引用，独立于现有 binding tree�
 
 ### 3.4 公共 API：receiver DSL 与明确的执行边界
 
-常用入口采用以下风格；代码展示拟议 executor API，并使用 §3.5 已实现的期望类型推导。executor 与 scope 改造的实际完成范围见实施进度：
+常用入口采用以下风格，并使用 §3.5 的期望类型推导：
 
 ```scoop
 val total = asyncRuntime {

@@ -42,16 +42,16 @@ private class NoWindowHandler: ApplicationHandler {
                     loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                         socket -> NativeByteBuffer.allocate(16L).use suspend {
                             bytes -> try {
-                                receiving = true
+                                this @NoWindowHandler.receiving = true
                                 socket.receiveFrom(bytes, 16L)
                                 fail(Some("empty UDP receive completed"))
                             } finally {
                                 nonCancellableScope<Unit> {
                                     loop.sleep(Duration.milliseconds(20L))
-                                    assertEquals(thread, currentThreadId())
-                                    assertEquals(1, exiting)
+                                    assertEquals(this @NoWindowHandler.thread, currentThreadId())
+                                    assertEquals(1, this @NoWindowHandler.exiting)
                                     bytes.clear()
-                                    cleaned = true
+                                    this @NoWindowHandler.cleaned = true
                                 }
                             }
                         }
@@ -59,7 +59,7 @@ private class NoWindowHandler: ApplicationHandler {
                 }
                 scope.launch suspend {
                     loop.sleep(Duration.milliseconds(40L))
-                    assertTrue(receiving)
+                    assertTrue(this @NoWindowHandler.receiving)
                     gcCollect()
                     application.requestExit()
                 }
