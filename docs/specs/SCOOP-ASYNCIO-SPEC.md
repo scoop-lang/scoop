@@ -48,6 +48,25 @@ public fun currentEventLoop(): EventLoop
 
 后端提交与完成消费在 run／attach 的 owner 线程执行；原生 I/O callback 与 worker 只生产完成。外线程提交和取消先进入受锁保护的命令队列，在同一发布边界通知后端 fd；关闭在该边界停止接受投递。LoopExecutor 的 work 使用同一内部命令队列与唤醒，不能使用可丢弃应用消息的 session.post；活动登记的工作不能丢弃。驱动交替处理命令、完成记录与本轮内部 ready，完成进度、资源交接和借用解除后在锁外调用 continuation，由 continuation 排队回自己的 executor。LoopExecutor 上的 Channel、mutex 和第三方挂起点同样回 owner；其他 executor 上的 I/O 回到原 worker executor。排队 work 的未捕获 completion 异常遵守语言规范 11.9.3，报告并终止进程。有待处理工作时不得阻塞；同步 run 通过 NativeSafe 等待通知 fd，attach 由宿主通知推进，通知可合并。
 
+### 2.1 多线程根运行
+
+```scoop
+public class AsyncRuntimeBuilder public constructor() {
+    public var workers: Int
+    public fun blocking(configure: BlockingPoolBuilder.() -> Unit)
+}
+public fun asyncRuntime(configure: AsyncRuntimeBuilder.() -> Unit = {}): AsyncRuntime
+public class AsyncRuntime {
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T
+}
+```
+
+AsyncRuntimeBuilder 的 workers 默认取逻辑处理器数的合法正 Int 表示，blocking 默认 4 个 managed threads；配置执行一次并保存快照，所有数量在创建线程前校验。工厂只保存配置，run 接受单次运行后才创建共享 BlockingTaskPool、借用该池的 MultiThreadExecutor 和 PlatformEventLoop。根入口拒绝当前 Job／EventLoop binding，并发、重入和完成后重用均报 IllegalStateException，拒绝不影响已接受运行。初始化失败按创建顺序的逆序回收已建立资源。
+
+调用 run 的线程只驱动 I/O owner；用户根及默认子任务在 MultiThreadExecutor 上执行，保留同一个 EventLoop binding。currentEventLoop().executor 仍是 owner executor，可显式 withExecutor 切换。worker 不并发 poll 同一个 backend，I/O 的提交、完成选择和资源退休仍遵守本节的 owner 边界。两种 executor 的 managed blocking 调用共用本次 runtime 的池。
+
+根及结构化子树结束后先请求 worker executor draining，继续驱动 owner 并保持共享阻塞池接纳。等待全部 worker 执行登记、驱动及其阻塞工作退出后，才使 LoopExecutor draining；此先后关系保证已接纳 worker 的 finally 仍可切换到 owner。LoopExecutor 排空后再关闭遗留资源和排空 native I/O，最后停止共享阻塞池，等待其退出执行循环，销毁后端并 join 两组线程。正常结果 T 或最终异常在这些步骤之后返回，清理失败遵守 ResourceUseException；低层独立任务同样计入关闭条件，不能只等根 Job。AsyncRuntime 不增加 attach 入口；宿主附着继续使用 eventLoop。
+
 ## 3. 取消、完成与关闭
 
 直接 I/O 属于提交时的当前 Job，不为每次操作创建子任务。登记前已取消则不提交。操作完成与取消在 managed 状态中选择一次结果；native 结束是独立事实。借用解除、实际进度提交及未交付资源清理完成后才恢复，包括取消结果。成功先选定则后来的取消不覆盖成功；取消先选定则迟到成功只执行清理。撤销提交或控制请求的完成不替代实际数据请求的退休。

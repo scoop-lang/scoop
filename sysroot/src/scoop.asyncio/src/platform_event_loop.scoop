@@ -12,7 +12,7 @@ import scoop.platform.fs.*
  * requires an active job in this loop's context.
  */
 public class PlatformEventLoop internal constructor(
-    private val config: LoopBlockingConfig
+    private val config: LoopExecutionPlan
 ): EventLoop {
     private val accepted: AtomicBoolean = AtomicBoolean(false)
     internal val state: LoopOwner = LoopOwner()
@@ -25,13 +25,19 @@ public class PlatformEventLoop internal constructor(
      * single-use and cannot be nested or called from an existing Job.
      */
     public fun <T> run(block: suspend CoroutineScope.() -> T): T {
-        acceptStart()
+        requireLoopRootCaller()
+        return runPrepared(block)
+    }
+
+    // AsyncRuntime has already checked the caller before allocating its worker groups.
+    internal fun <T> runPrepared(block: suspend CoroutineScope.() -> T): T {
+        acceptInstance()
         val native = state.open(this, config)
         val result = LoopResult<T>()
         val loop: EventLoop = this
         context(loop) {
             startDispatchedCoroutine<T>(
-                state.executor,
+                state.rootExecutor,
                 {
                     coroutineScope<T> {
                         this @PlatformEventLoop.state.bindRoot(job)
@@ -84,14 +90,11 @@ public class PlatformEventLoop internal constructor(
     }
 
     private fun acceptStart() {
-        when (currentJobOrNone()) {
-            case Some(_) -> throw IllegalStateException(
-                Some("event loop startup requires a caller outside a Job")
-            )
-            case None -> {}
-        }
-        if (hasEventLoop())
-            throw IllegalStateException(Some("nested event loop startup"))
+        requireLoopRootCaller()
+        acceptInstance()
+    }
+
+    private fun acceptInstance() {
         if (!accepted.compareAndSet(false, true))
             throw IllegalStateException(Some("event loop already used"))
     }

@@ -1,7 +1,6 @@
 package scoop.asyncio
 
 import scoop.collections.HashMap
-import scoop.concurrent.BlockingTaskPool
 
 internal class LoopOwner {
     private val lock: IoLock = IoLock()
@@ -20,33 +19,25 @@ internal class LoopOwner {
     private var cleaning: Boolean = false
     var ready: ArrayList<() -> Unit> = ArrayList<() -> Unit>()
 
-    fun open(loop: EventLoop, config: LoopBlockingConfig): Ptr<Unit> {
-        val(pool, owned) =
-            when (config) {
-                case Owned(threads) -> (BlockingTaskPool(threads), true)
-                case Shared(pool) -> (pool, false)
-            }
-        if (pool.isShutdown)
-            throw ExecutorClosedException()
+    fun open(loop: EventLoop, config: LoopExecutionPlan): Ptr<Unit> {
+        val state = prepareLoopExecution(this, config)
         try {
             @Unsafe
             {
                 val created = nativeLoopCreate()
                 if (created.status.code != 0)
                     throw backendFailure("create event loop", created.status)
-                val state = LoopExecution(LoopExecutor(this, pool), pool, owned)
                 lock.withLock {
                     binding = Some(loop)
                     pointer = created.pointer
                     execution = Some(state)
                 }
-                if (owned)
-                    pool.invokeOnTermination { wakeExecution() }
+                state.observeTermination()
                 return created.pointer!!
             }
         } catch (error: Throwable) {
-            if (owned)
-                pool.close()
+            if (state.owned)
+                state.pool.use { _ -> throw error }
             throw error
         }
     }
@@ -56,6 +47,7 @@ internal class LoopOwner {
             throw IllegalStateException(Some("event loop is not running"))
 
     val executor: LoopExecutor get() = currentExecution().executor
+    val rootExecutor: CoroutineExecutor get() = currentExecution().rootExecutor
 
     fun activeExecutor(): CoroutineExecutor {
         val state =
@@ -242,7 +234,7 @@ internal class LoopOwner {
                 case None -> {}
             }
         }
-        executor.requestShutdown()
+        currentExecution().finishRoot()
     }
 
     fun takeCommands(): ArrayList<() -> Unit> =
@@ -280,14 +272,8 @@ internal class LoopOwner {
                 return false
         }
         val state = currentExecution()
-        if (state.owned) {
-            if (!state.poolStopping) {
-                state.poolStopping = true
-                state.pool.requestShutdown()
-            }
-            if (!state.pool.isTerminated)
-                return false
-        }
+        if (!state.stopPoolIfNeeded())
+            return false
         return lock.withLock {
             if (!managedIdle())
                 false
@@ -307,13 +293,11 @@ internal class LoopOwner {
                 cleanupFailed(backendFailure("close event loop", status))
         }
         val state = currentExecution()
-        if (state.owned) {
-            try {
-                state.pool.join()
-            }
-            catch (error: Throwable) {
-                cleanupFailed(error)
-            }
+        try {
+            state.joinOwnedPool()
+        }
+        catch (error: Throwable) {
+            cleanupFailed(error)
         }
         return lock.withLock { failure }
     }
@@ -322,12 +306,4 @@ internal class LoopOwner {
     fun drive(native: Ptr<Unit>) {
         driver.drive(this, native)
     }
-}
-
-private class LoopExecution(
-    val executor: LoopExecutor,
-    val pool: BlockingTaskPool,
-    val owned: Boolean
-) {
-    var poolStopping = false
 }

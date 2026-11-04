@@ -9,7 +9,8 @@
 | Channel、AsyncMutex、AsyncConditionVariable | 已完成本地验收 |
 | MultiThreadExecutor、通用 managed BlockingTaskPool | 已完成本地验收 |
 | LoopExecutor、eventLoop/run 入口与调用方迁移 | 已完成库内和 consumer 本地验收 |
-| AsyncRuntime、三平台 native work 迁移与上层消费者验收 | 未开始 |
+| AsyncRuntime 共享池与 worker 根入口 | 已完成库内和 consumer 本地验收 |
+| 三平台 native work 迁移与上层消费者验收 | 未开始 |
 | Linux/Windows 组合验证及最终清理 | 未开始 |
 
 每个完成的大项先本地验证、提交并推送，再合并 `origin/main`；跨平台验证集中到完整能力闭环后进行。未完成项不代表已可使用的 API。
@@ -84,3 +85,9 @@
 - LoopExecutor 排队驱动并维持任务登记及工作计数；任意真实挂起的恢复回 owner，显式 worker I/O 保留 EventLoop binding 并回调用者 executor。根结束后先排空登记与工作，再关闭遗留资源、排空原生操作，最后终止并 join 自有 managed blocking pool；借用池由其 owner 关闭。
 - attach 不再额外唤醒空 mailbox；启动 work 本身负责通知宿主。普通完成只在进入最终终止时追加唤醒。已有时序测试通过明确交接，让被测子任务先提交请求，再检查占用或取消；保留真实 syscall、实际进度、迟到资源清理和宿主空闲断言。
 - 验证：格式化、源码检查和 release 库构建通过；160 项 asyncio Cone tests 全部通过，包含新增 7 项 executor／阻塞池组合以及外部恢复立即回 owner 的断言。独立 consumer 的泛型托管结果与真实 UDP I/O 测试通过。新增 7 项用例另在移动 GC／minor GC stress 下全部通过。平台为 Darwin AArch64；上层库消费者与 Linux／Windows 在 AsyncRuntime 和 native work 统一后集中验收，当前系统库中尚有需要重建的旧依赖产物。
+
+## AsyncRuntime 共享池与关闭（2026-11-04）
+
+- asyncRuntime receiver builder 保存 coroutine／blocking 线程数快照，接受单次 run 后才创建线程；根及默认子任务运行于 MultiThreadExecutor，调用线程驱动原生 I/O owner。worker 与 LoopExecutor 共享同一 managed BlockingTaskPool，泛型 run 在完整收尾后返回 T 或异常。
+- 根结束先关闭 worker executor 的新根接纳，等待所有执行登记和驱动退出，再使 LoopExecutor draining；独立 owner 任务及遗留 I/O 资源继续完成，最后停止共享阻塞池并 join 两组线程。初始化失败逆序回收；被拒绝的嵌套启动不消费实例。
+- 验证：格式化、源码检查、release 库构建通过；165 项 asyncio Cone tests 全部通过。新增 5 项覆盖线程归属、binding、共享单线程阻塞池、真实文件／目录／DNS／UDP、资源自动关闭、异常 finally、独立登记排空及 builder 快照，并在移动 GC／minor GC stress 下全部通过。独立 consumer 的 2 项测试通过，包含跨产物泛型 managed 结果、worker／owner 切换与阻塞闭包。本轮平台为 Darwin AArch64；三平台旧 native work 调度仍待迁入共享池。
