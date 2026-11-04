@@ -9,20 +9,22 @@ import scoop.ui.style.*
 /** Base Nova / Neutral, using the shared geometry and painter. */
 public fun shadcnTheme(
     mode: ThemeMode = ThemeMode.Light,
+    palette: ThemePalette? = None,
     configure: ShapeThemeBuilder.() -> Unit = {}
 ): ShapeTheme {
     val dark = mode == ThemeMode.Dark
-    val palette =
-        if (dark)
-            darkPalette()
-        else
-            lightPalette()
+    val colors =
+        palette ?:
+            if (dark)
+                darkPalette()
+            else
+                lightPalette()
     val body =
         textStyle {
             this.families = ["Inter", "Helvetica Neue", "Arial", "sans-serif"]
             this.fontSize = 14.0
             this.lineHeight = Some(20.0 / 14.0)
-            this.color = palette.background.foreground
+            this.color = colors.background.foreground
         }
     val fonts =
         themeTypography(
@@ -30,18 +32,18 @@ public fun shadcnTheme(
             body.copy {
                 this.fontSize = 12.0
                 this.lineHeight = Some(16.0 / 12.0)
-                this.color = palette.muted.foreground
+                this.color = colors.muted.foreground
             },
             body.copy { this.weight = 500 }
         )
     val tokens =
         themeTokens(
-            palette,
+            colors,
             fonts,
             ThemeSpacing(4.0, 8.0, 16.0),
             ThemeCorners(6.0, 8.0, 10.0),
             OutlineStyle(
-                palette.destructive.background.withAlpha(
+                colors.destructive.background.withAlpha(
                     if (dark)
                         0.4
                     else
@@ -50,7 +52,7 @@ public fun shadcnTheme(
                 3.0,
                 3.0,
                 Some(
-                    palette.destructive.background.withAlpha(
+                    colors.destructive.background.withAlpha(
                         if (dark)
                             0.5
                         else
@@ -67,15 +69,15 @@ public fun shadcnTheme(
                 this.selection = Some(AnimationSpec.Tween(Duration.milliseconds(150L)))
             }
             effects {
-                this.raised = [BoxShadow(Point(0.0, 1.0), 1.0, 1.0, palette.shadow)]
-                this.floating = [BoxShadow(Point(0.0, 4.0), 6.0, 6.0, palette.shadow)]
+                this.raised = [BoxShadow(Point(0.0, 1.0), 1.0, 1.0, colors.shadow)]
+                this.floating = [BoxShadow(Point(0.0, 4.0), 6.0, 6.0, colors.shadow)]
             }
         }
-    val focus = OutlineStyle(palette.ring.withAlpha(0.5), 3.0, 3.0, Some(palette.ring))
-    val foreground = states(palette.background.foreground)
+    val focus = OutlineStyle(colors.ring.withAlpha(0.5), 3.0, 3.0, Some(colors.ring))
+    val foreground = states(colors.background.foreground)
     val inputFill =
         if (dark)
-            palette.input.withAlpha(palette.input.alpha * 0.3)
+            colors.input.withAlpha(colors.input.alpha * 0.3)
         else
             Color.Transparent
     val plain =
@@ -92,15 +94,15 @@ public fun shadcnTheme(
                 inputFill,
                 inputFill,
                 inputFill,
-                palette.input.withAlpha(
-                    palette.input.alpha *
+                colors.input.withAlpha(
+                    colors.input.alpha *
                         if (dark)
                             0.8
                         else
                             0.5
                 )
             ),
-            states(palette.input),
+            states(colors.input),
             foreground,
             focus
         )
@@ -115,13 +117,13 @@ public fun shadcnTheme(
                 focus.outset
             ),
             StateColors(
-                palette.primary.background,
-                palette.primary.background.withAlpha(0.8),
-                palette.primary.background.withAlpha(0.8),
-                palette.primary.background
+                colors.primary.background,
+                colors.primary.background.withAlpha(colors.primary.background.alpha * 0.8),
+                colors.primary.background.withAlpha(colors.primary.background.alpha * 0.65),
+                colors.primary.background
             ),
             StateColors.solid(Color.Transparent),
-            states(palette.primary.foreground),
+            states(colors.primary.foreground),
             focus
         )
     val elevated =
@@ -134,18 +136,18 @@ public fun shadcnTheme(
                 CornerRadii.all(10.0),
                 focus.outset
             ),
-            states(palette.popover.background),
-            states(palette.border),
-            states(palette.popover.foreground),
+            states(colors.popover.background),
+            states(colors.border),
+            states(colors.popover.foreground),
             focus
         ) { this.shadows = tokens.effects.floating }
     val marker =
         markerAppearance(
             states(inputFill),
-            states(palette.primary.background),
-            states(palette.input),
-            states(palette.primary.background),
-            states(palette.primary.foreground),
+            states(colors.primary.background),
+            states(colors.input),
+            states(colors.primary.background),
+            states(colors.primary.foreground),
             focus
         )
     return shapeTheme(
@@ -167,7 +169,7 @@ public fun shadcnTheme(
         scrollbarPart(
             ScrollbarMetrics(10.0, 24.0, 0.0, 2.0, 5.0, None),
             StateColors.solid(Color.Transparent),
-            states(palette.border),
+            states(colors.border),
             StateColors.solid(Color.Transparent),
             foreground
         ),

@@ -26,9 +26,12 @@ internal fun toggleOptions(
         else
             Color.Transparent
     val fill =
-        StateColors(normal, colors.muted.background, colors.muted.background, normal).resolve(
-            visual
-        )
+        StateColors(
+            normal,
+            colors.muted.background,
+            mixThemeColor(colors.muted.background, colors.background.foreground, 0.08),
+            normal
+        ).resolve(visual)
     val border = controlBorder(theme, style.surface, visual, colors.input)
     val local =
         styleOverride {

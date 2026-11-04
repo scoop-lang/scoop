@@ -439,7 +439,7 @@ Path 按 viewBox 原点和平移／缩放映射到目标矩形，stroke 与路�
 
 ButtonProps／ContentButtonBuilder 增加 variant: ButtonVariant = Default、size: ButtonSize = Default。ButtonVariant 为 Default／Outline／Secondary／Ghost／Destructive／Link；ButtonSize 为 Xs／Sm／Default／Lg／IconXs／IconSm／Icon／IconLg。ButtonStyle.kind 继续选择主题基础表面的尺寸与外观，variant／size 在其上解析，随后依次应用显式 surface／text 及适用的 states；明确的局部覆盖优先。状态解析只消费公共 token、mode 和几何，不判断主题实现类型。
 
-Default 保留所选主题部件；Outline 使用背景与边框、hover 使用 muted（Dark 为 input 的 0.3／0.5 alpha）；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，新增非 Default 变体使用 disabledText，并将底色与 muted 等量混合；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样，Secondary 的色彩混合只服务此处预设，不引入 CSS 解析器。
+Default 保留所选主题部件；Outline 使用背景与边框、hover 使用 muted（Dark 为 input 的 0.3／0.5 alpha）；Secondary 使用 secondary，Button hover 以 OKLCH 混入 5% foreground；Ghost 无底色、hover 使用 muted（Dark alpha 0.5）；Destructive 使用 destructive 的 0.1／0.2 alpha 底色及同色文字，Dark 为 0.2／0.3；Link 无底色与可见边框，使用 primary 文字，hover 时给文字入口加下划线。Destructive 的普通焦点边框 alpha 0.4，环 Light／Dark alpha 0.2／0.4，宽度与外扩沿主题 validation。invalid 优先于普通焦点，显式局部外框／状态环覆盖仍有效。无整体禁用衰减（disabledOpacity 截取后为 1）的主题，新增非 Default 变体使用 disabledText，并将底色与 muted 等量混合；采用整体衰减的主题保留未衰减颜色，避免重复衰减。颜色过渡沿现有 hover／press 采样并使用主题的预乘 alpha 插值；Outline／Secondary／Ghost 的 pressed 在 hover 背景上混入 8% background.foreground，Destructive 的 pressed alpha 为 Light 0.3／Dark 0.4，Link 保持透明。按下与悬停使用不同终点，松开后返回当前悬停或普通状态。Secondary 的 OKLCH 色彩混合只服务此处 hover 预设，不引入 CSS 解析器。
 
 以 Nova 32 高表面为基准，Xs／Sm／Default／Lg 建议高 24／28／32／36，对应文字字号 12／12.8／14／14，图标尺寸 12／14／16／16，内容间距 4／4／6／6；其他主题按基础建议高和操作字号等比例派生。Icon 四尺寸取对应边长，图标为 12／16／16／16，无文字专用水平留白；正常父约束、内容最小需求及显式局部尺寸仍优先，不能裁掉放大后的字体。默认保留主题圆角，Xs／Sm 使用 medium 圆角；局部 corners 可覆盖。禁用清除交互过渡，但不清除 invalid。
 
@@ -451,7 +451,7 @@ LabelProps／LabelBuilder 增加 underline: Color? = None。它是纯绘制装�
 
 `badge(text: String, configure: BadgeBuilder.() -> Unit = {})`、StyledText 对应 StyledBadgeBuilder、View 与 `(ActionContentStyle) -> View` 对应 ContentBadgeBuilder；ChildrenBuilder 有同名真实成员。BadgeProps／Badge 是普通组件，content 复用 ButtonContent，onClick: (() -> Unit)? = None、variant=Default、enabled=true、invalid=false、style: ButtonStyle=buttonStyle()、theme=None、focus=FocusOptions()。builder 另有 key；文字 builder 有 fonts，Styled 另有 settings／inlines。
 
-六种变体与 Button 同名；Badge 为 20 建议高、12／16 文字、12 图标、4 间距、8 水平与 1 垂直内缩、胶囊圆角，按主题操作字号缩放并受真实内容和父约束限制。Secondary 的动作 hover 使用 secondary 背景 alpha 0.8；Outline 明暗均使用 border 边框，Outline／Ghost 的动作 hover 文字使用 muted.foreground；Destructive 动作 hover 使用 destructive alpha 0.2。局部覆盖顺序与 Button 相同。
+六种变体与 Button 同名；Badge 为 20 建议高、12／16 文字、12 图标、4 间距、8 水平与 1 垂直内缩、胶囊圆角，按主题操作字号缩放并受真实内容和父约束限制。Secondary 的动作 hover 使用 secondary 背景 alpha 0.8；Outline 明暗均使用 border 边框，Outline／Ghost 的动作 hover 文字使用 muted.foreground；Destructive 动作 hover 使用 destructive alpha 0.2／0.3（Light／Dark）。pressed 反馈和局部覆盖顺序与 Button 相同。
 
 无 onClick 时为被动展示，不建立 Press 或 Tab 目标，不拦截内容中的独立动作；自身不产生 hover／pressed 状态。有动作时复用同一 Press 和焦点规则，读取最新回调，一次激活只执行一次。onClick 有无变化按普通子树替换规则建立／撤销行为；disabled／卸载取消未完成序列。Link 只提供样式，不自动打开 URL。
 
@@ -523,7 +523,7 @@ AvatarBadge 为 None／Dot(Color?)／Content(View, Color?)。builder 的 badge(c
 
 `skeleton(configure: SkeletonBuilder.() -> Unit = {})` 和 `skeleton(content: View, configure: SkeletonBuilder.() -> Unit = {})` 创建同一个 SkeletonProps／Skeleton。字段为 content、loading: Boolean = true、animated: Boolean = true、shape: SkeletonShape = Rectangle、width／height: Double?、period: Duration = 2 秒、color: Color?、theme；builder 另有 key。无内容入口以 empty() 为正文并默认 height=16；显式内容入口默认 height=None。width 默认 None，两入口可显式覆盖；所有明确尺寸必须有限非负，period 必须严格为正。
 
-width=None 使用有限父宽，否则使用内容自然宽度；height=None 使用实际内容高度。内容在两种 loading 状态下均按相同约束测量；loading=true 时不放置或呈现内容，只画占位，内容不能命中或保持活动焦点。loading=false 时放置原内容并停止占位动画，保留该子树及业务状态，不在切换时重建正文。Rectangle 使用 small 圆角和整个外框；Circle 在外框中居中绘制短边为直径的圆。默认颜色为 muted 背景。
+width=None 使用有限父宽，否则使用内容自然宽度；height=None 使用实际内容高度。内容在两种 loading 状态下均按相同约束测量；loading=true 时不放置或呈现内容，只画占位，内容不能命中或保持活动焦点。loading=false 时放置原内容并停止占位动画，保留该子树及业务状态，不在切换时重建正文。Rectangle 使用 small 圆角和整个外框；Circle 在外框中居中绘制短边为直径的圆。默认颜色在 muted 背景中混入 12% background.foreground，使明暗主题的脉冲都具有可见对比度；显式 color 保留原值。
 
 默认脉冲周期为 2 秒，透明度从 1 到 0.5 再回到 1，两个半周期使用 cubic-bezier(0.4, 0, 0.6, 1)。animated=false、loading=false、Reduced、透明、零尺寸或不可见时不留下循环帧需求；静态占位使用完整透明度。
 
@@ -611,7 +611,7 @@ header 和 footer 独占全宽，中心区域按逻辑方向排列 media、conte
 
 无 onClick 时只展示，不建立行 Press 或 Tab 目标，正文和动作里的控件仍保有自己的输入行为。有动作时建立一个可聚焦区域，使用同一 Press 的 default 阶段与 routeChildren；行空白或非交互文字可点击，Space／Enter 可激活。子按钮消费激活，选择文字与 Drag 接管指针序列时取消行点击，不在整行上覆盖透明按钮，也不合成子输入事件。事件读取最新回调和 FocusOptions。
 
-动作行的 hover／press 默认过渡为 100ms，hover 使用 muted 背景；局部 style／states 覆盖默认表面，focusOutline 可覆盖当前主题焦点环，Reduced 最终关闭过渡。enabled=false 禁用本行及其子树，并采用主题 disabledOpacity；展示模式也可禁用内部控件。禁用、移除及卸载取消未完成的行输入。onClick 有无变化按普通子树替换规则建立／撤销行为；同一动作模式内的 Props 更新不重新挂载行内容。借用字体、图片、FocusHandle 和业务模型不随行关闭。
+动作行的 hover／press 默认过渡为 100ms，hover 使用 muted 背景，pressed 在其上混入 8% background.foreground；局部 style／states 覆盖默认表面，focusOutline 可覆盖当前主题焦点环，Reduced 最终关闭过渡。enabled=false 禁用本行及其子树，并采用主题 disabledOpacity；展示模式也可禁用内部控件。禁用、移除及卸载取消未完成的行输入。onClick 有无变化按普通子树替换规则建立／撤销行为；同一动作模式内的 Props 更新不重新挂载行内容。借用字体、图片、FocusHandle 和业务模型不随行关闭。
 
 ### 17.3 ItemGroup 与 ItemSeparator
 
@@ -640,4 +640,4 @@ track 使用公共 SurfaceKind.Plain 的几何和 painter；focus、invalid、di
 
 ToggleVariant 为 Default／Outline，ToggleSize 为 Sm／Default／Lg。pressed 是业务选择值；鼠标或 Space／Enter 的短暂按下仍由 Press.interaction.pressed 表达，两者独立。每次有效激活读取最新 Binding 并取反一次，setter 可拒绝；外部更新、更换绑定和普通重建不生成第二份状态。取消、重复键、禁用、失焦、卸载和子动作消费遵守 Button 的输入规则，复用同一 ActionInk／内容解析路径。
 
-默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。现阶段 Toggle 只承担独立控件语义，分组选择策略属于 ToggleGroup。
+默认透明背景、无边框；Outline 为透明背景和 1 单位 input 边框。hover 或选中时背景 muted.background、文字 background.foreground；瞬态 pressed 在 muted 背景上混入 8% background.foreground，松开后恢复对应选择／悬停状态；未选中文字也为 background.foreground。height／minimum width 为 28／32／36，paddingX=10、paddingY=0，gap=4，默认字号 14、Sm 为 12.8，行高 20；图标 16、Sm 为 14。尺寸按主题 action 字号／14 缩放，圆角使用主题 large，Sm 使用 min(medium,12)。内容自然宽度和父约束优先；explicit style／文字设置仍可覆盖。focus-visible、invalid 和 disabled 沿统一主题合同；选择不伪造短暂按下，禁用透明度覆盖文字与图标。现阶段 Toggle 只承担独立控件语义，分组选择策略属于 ToggleGroup。

@@ -85,7 +85,7 @@ class Profile: Component {
 新增主题入口与三套现有主题一致：
 
 ```scoop
-shadcnTheme(mode: ThemeMode = ThemeMode.Light, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme
+shadcnTheme(mode: ThemeMode = ThemeMode.Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme
 ```
 
 应用仍持有单一 `ThemeSource`，在实际 run／mount 入口绑定；切换只更新 `source.current.value`。控件保存来源并在 render 读取本轮主题，局部覆盖使用现有 StyleOverride／StyleValue；不在构造闭包中冻结解析后的颜色。不同窗口／子组合通过显式 theme 来源接入，不把短暂 Context 当作子树继承。

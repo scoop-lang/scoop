@@ -10,6 +10,8 @@
 
 复刻包含默认外观、公开变体、可组合部件及核心交互。单个静态截图、只有占位外观的类、用通用容器替代复杂控件，都不算该项完成。Scoop 使用自身的 View、Binding、模型与接收者 DSL；React props、DOM 属性、CSS selector、`render`／`asChild`、浏览器表单与 JS 包管理不逐字移植。
 
+按实际使用反馈，Neutral 作为参考配色保留，并允许向 shadcnTheme 传入完整语义配色。macOS Gallery 默认选择系统配色，使用 AppKit 实际语义色，提供 System／Neutral 切换并保留独立的明暗选择。系统取色由 macOS 主题的平台适配负责，控件仍为同一份平台无关 Scoop 实现；不以换成另一套主题尺寸代替配色切换。
+
 参考风格选 **Base / Nova + Neutral，Light／Dark 两种模式**。以官方 [base-nova registry](https://ui.shadcn.com/r/styles/base-nova/button.json) 的实现和[主题 token](https://ui.shadcn.com/docs/theming)为外观基线；部分新增组件文档展示 base-rhea，使用对应 base-nova 源码统一视觉。控件目录完整性与皮肤数量分开：本轮实现这一套可定制皮肤，不把所有 shadcn preset、Blocks 和独立 AI Elements 示例另算一批控件。当前 Drawer 已改用 Base UI，Toast 也是当前 Base 版本；不按旧 Vaul／Sonner 教程推定现行行为。
 
 沿用上一轮已确定的交付边界：

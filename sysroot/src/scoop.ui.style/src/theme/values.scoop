@@ -218,10 +218,20 @@ public class ThemeTokens internal constructor(
 
 public fun mixThemeColor(from: Color, to: Color, progress: Double): Color {
     val t = themeUnit(progress)
+    if (t == 0.0)
+        return from
+    if (t == 1.0)
+        return to
+    val fromWeight = from.alpha * (1.0 - t)
+    val toWeight = to.alpha * t
+    val alpha = fromWeight + toWeight
+    if (alpha == 0.0)
+        return Color.Transparent
+    // Interpolate premultiplied channels so invisible RGB cannot tint the transition.
     return Color(
-        from.red + (to.red - from.red) * t,
-        from.green + (to.green - from.green) * t,
-        from.blue + (to.blue - from.blue) * t,
-        from.alpha + (to.alpha - from.alpha) * t
+        (from.red * fromWeight + to.red * toWeight) / alpha,
+        (from.green * fromWeight + to.green * toWeight) / alpha,
+        (from.blue * fromWeight + to.blue * toWeight) / alpha,
+        alpha
     )
 }

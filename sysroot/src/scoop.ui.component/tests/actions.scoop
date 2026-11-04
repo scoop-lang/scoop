@@ -157,13 +157,7 @@ private class ActionVariantTest {
                     SurfaceVisual(SurfaceKind.Action, hover),
                     options
                 )
-            assertEquals(
-                if (shape == ActionShape.Badge)
-                    0.2
-                else
-                    0.3,
-                geometry.style.background!!.color.alpha
-            )
+            assertEquals(0.3, geometry.style.background!!.color.alpha)
         }
     }
 

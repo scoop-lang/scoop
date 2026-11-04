@@ -90,7 +90,9 @@ SurfaceOptionsBuilder／CheckboxOptionsBuilder 提供真实成员 `style(configu
 
 ThemePalette 的上述十五个字段均为必需数据，没有可适用于任意主题的缺省配色。它保留一次给齐这些字段的完整值构造，并提供 `copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette`；builder 的同名可写字段从现有配色初始化。ColorPair、ChartPalette、SidebarPalette、StateColors、ThemeSpacing、ThemeCorners、OutlineStyle 和各 Metrics 使用普通值构造。
 
-`shadcnTheme(mode: ThemeMode = Light, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 遵循相同的完整描述及配置规则。Base Nova／Neutral 的颜色从上游 OKLCH 转为 sRGB，并保留 alpha；预设源码记录源 token。默认正文／操作文字为 14／20 逻辑单位、操作 weight 500；基准圆角 10，small／medium／large 为 6／8／10；常规表面边框 1、键盘焦点环 3 且 ring alpha 0.5。操作表面建议高 32、水平 padding 10；输入使用独立 input 边框；Checkbox 标记 16、圆角 4。所有长度均为逻辑单位，DPI 沿现有目标接入转换。其余 Button 变体在控件规范中定义，不增加按控件名查询的主题接口。
+`shadcnTheme(mode: ThemeMode = Light, palette: ThemePalette? = None, configure: ShapeThemeBuilder.() -> Unit = {}): ShapeTheme` 遵循相同的完整描述及配置规则。palette=None 使用 Base Nova／Neutral，其颜色从上游 OKLCH 转为 sRGB，并保留 alpha；预设源码记录源 token。显式 palette 是完整语义配色，所有部件及文字从它生成，保留 shadcn 的尺寸、布局和动效；configure 最后覆盖。默认正文／操作文字为 14／20 逻辑单位、操作 weight 500；基准圆角 10，small／medium／large 为 6／8／10；常规表面边框 1、键盘焦点环 3 且 ring alpha 0.5。操作表面建议高 32、水平 padding 10；输入使用独立 input 边框；Checkbox 标记 16、圆角 4。所有长度均为逻辑单位，DPI 沿现有目标接入转换。其余 Button 变体在控件规范中定义，不增加按控件名查询的主题接口。
+
+macOS 上 `scoop.ui.style.macos.macosSystemPalette(mode: ThemeMode = Light): ThemePalette` 在主线程读取 AppKit 的系统语义色快照，按指定 Aqua／Dark Aqua 外观解析为 sRGB 并保留 alpha。背景、文字、控件、强调、选择、分隔线、焦点、禁用和图表颜色取自对应 NSColor；shadow 使用系统阴影色及主题所需透明度。返回普通不可变配色，不持有原生资源、监听器或全局主题状态；读取失败报告普通状态错误。该平台适配入口只在 macOS 提供，原有可跨平台使用的 macosTheme 预设不变。应用可将快照传给 shadcnTheme 或其他配色消费者，并在系统外观变化或窗口重新获得焦点时重新读取和发布 ThemeSource；不逐帧调用取色。
 
 ThemeMotion 增加 `preference: MotionPreference = Full`（Full／Reduced）。`resolve(spec: AnimationSpec?): AnimationSpec?` 在 Reduced 时返回 None，其余返回原参数；控件在解析局部 transition 后调用，切换 Reduced 时结束当前过渡。该配置是应用显式偏好，不表示已接入 OS 设置。
 
@@ -120,6 +122,8 @@ Surface／Checkbox 的 metrics 与 geometry 方法接收最后一个 direction: 
 
 各部件的 InteractionVisual 使用明确的 enabled／hovered／pressed／focusVisible／invalid 数据，部件另带自身选择或滚动输入。focusVisible 由统一焦点合同提供，不用逻辑 focused 推测；disabled 时不绘制焦点环。它们都是值描述，不是响应式 State；不存在组件回调、输入注册、任务或业务模型引用。
 
+`mixThemeColor` 在预乘 alpha 的 sRGB 通道数值上插值，alpha 同步线性插值，再还原为普通 Color；两端均透明时返回透明色，进度端点保留原值。StateColors 依次混合 normal／hovered 和 pressed，禁用直接使用 disabled。透明色中不可见的 RGB 不能在过渡中造成先变暗再变亮的闪色。
+
 `OutlineStyle(color, width, outset, borderColor: Color? = None)` 描述一个环及可选的外框颜色替换；None 表示保留部件自身边框，width=0 可省略环。它替代仅限焦点命名的旧描述，普通焦点仍通过部件及 Options 的 focus 配置。ThemeTokens.validation 是完整必需的 OutlineStyle，Surface／Checkbox／Radio Options 的 validation 可局部覆盖。四套主题显式提供验证外观；不根据具体主题名称分支。
 
 invalid 与 focusVisible 独立，前者是应用传入的展示状态，不改变焦点、输入资格或业务值。invalid 时选择 validation；否则只有 enabled 且 focusVisible 才选择 focus。禁用不显示普通焦点环；invalid 边框与环和控件一起合成，不单独再次降低 alpha。状态边框只替换颜色，保留同一份边宽，随后应用显式局部 Style 覆盖。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 ring: OutlineRing? 保存最终唯一的环，painter 直接绘制这个结果，不再自行重判焦点；invalid 与焦点不叠画两层环。metrics.focusOutset 为配置中焦点／验证两种环所需外扩的最大值，状态切换不改变内容布局。
@@ -129,6 +133,8 @@ shadcn 的焦点环替换边框为 ring token；验证边框为 destructive，Da
 ThemeTokens.disabledOpacity 控制禁用控件的整体合成透明度，有限值按 0～1 截取，默认 1.0 保留部件的 StateColors.disabled 配色。SurfaceGeometry／CheckboxGeometry／RadioGeometry 的 opacity: Double = 1.0 保存本帧解析值；启用时始终为 1。Surface 的 All 和 Checkbox／Radio painter 将整个绘制作为一层；使用 Surface Background／Foreground 的控件在自己的内容两侧包同一个合成层，两阶段不能各自重复应用 opacity。Scrollbar painter 将禁用透明度与本帧 visual.opacity 相乘。shadcn 为 0.5，并提供未衰减的禁用颜色；其他三个主题保持 1.0。透明度不改变测量或输入资格。
 
 shadcn Plain 表面的禁用背景使用 input 颜色的 0.5／0.8 倍 alpha（Light／Dark），随后与内容一起应用 disabledOpacity。
+
+shadcn Action 表面的 normal 使用 primary 背景，hover／pressed 分别使用其 0.8／0.65 倍 alpha，提供可区分的悬停与按下反馈；普通输入使用的 Plain 表面不因此增加动作配色。
 
 ### 4.1 外框／表面
 
@@ -144,7 +150,7 @@ Button 根据主题建议尺寸、自己的标签 metrics 和内容内缩决定�
 
 CheckboxVisual 包含 `CheckMark.Off／On／Mixed` 与交互视觉状态；可选采样参数控制标记显现等外观，主题不决定何时切换。CheckboxMetrics 给出建议／最小标记尺寸、内缩与焦点外扩。CheckboxGeometry 明确标记外框、内部区域、勾选／混合标记使用区域和焦点轮廓。
 
-绘制仅根据输入显示空框、勾选或混合横线及其状态外观，不读取 Checkbox.checked、不调用 onChange。菜单、树节点、表格和第三方自绘可直接使用同一能力。当前 Checkbox 控件的布尔 Binding 行为保持原范围，Mixed 绘图的交付不要求同时扩展它的业务值模型。
+绘制仅根据输入显示空框、勾选或混合横线及其状态外观，不读取 Checkbox.checked、不调用 onChange。菜单、树节点、表格和第三方自绘可直接使用同一能力。Checkbox 控件的 Boolean／CheckState Binding 与三态切换遵守 [控件规范第 5 节](SCOOP-UI-COMPONENT-SPEC.md#5-checkbox)，主题只消费对应标记。
 
 ### 4.3 Radio 标记
 

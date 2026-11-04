@@ -6,6 +6,13 @@ name = "ui-themes"
 version = "0.1.0"
 kind = "library"
 
+[[test.sources]]
+path = "tests"
+
+[[test.sources]]
+path = "test-darwin"
+when = { os = "darwin" }
+
 [test-dependencies]
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"

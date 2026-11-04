@@ -63,7 +63,7 @@ private class ThemeBuilderTest {
                 macosTheme(ThemeMode.Dark, configure),
                 materialTheme(ThemeMode.Dark, configure),
                 fluentTheme(ThemeMode.Dark, configure),
-                shadcnTheme(ThemeMode.Dark, configure)
+                shadcnTheme(ThemeMode.Dark, configure = configure)
             ]
         palettes[0L].destructive = ColorPair(Color.Black, Color.White)
         fonts[0L].fontSize = 90.0

@@ -31,7 +31,12 @@ internal fun itemOptions(
             colors.muted.background
         else
             fill
-    val background = StateColors(fill, hover, hover, fill).resolve(visual)
+    val pressed =
+        if (actionable)
+            mixThemeColor(hover, colors.background.foreground, 0.08)
+        else
+            fill
+    val background = StateColors(fill, hover, pressed, fill).resolve(visual)
     val border =
         if (visual.enabled && visual.focusVisible)
             when (input.focusOutline) {

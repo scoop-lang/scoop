@@ -1,0 +1,389 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.math.abs
+import scoop.math.min
+import scoop.math.max
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.graphics.readNativePixel
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.style.macos.macosSystemPalette
+import scoop.window.*
+
+@Test
+private class FeedbackWindowTest {
+    @Test
+    fun `real pointer transitions do not flash and skeleton pulses are visible in both modes`() {
+        val probe = FeedbackProbe()
+        val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
+        try {
+            context(probe.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(probe.finished)
+            assertEquals(16, probe.clicks)
+            assertFalse(probe.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"feedback dark=${probe.mode == ThemeMode.Dark}, system=${
+                    probe.systemColors
+                }, control=${probe.control}, phase=${probe.phase}"
+            )
+            galleryFailure(error)
+            for (event in probe.events)
+                println(event)
+            throw error
+        } finally {
+            host.close()
+            probe.frames?.close()
+            probe.view?.close()
+        }
+    }
+}
+
+private class FeedbackProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val generation = state(0)
+    val pixels = MutableArray<Long>(5L) { _ -> -1L }
+    val events = ArrayList<String>()
+    var mode = ThemeMode.Light
+    var systemColors = false
+    var animated = false
+    var clicks = 0
+    var control = 0
+    var phase = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    private var trace = ArrayList<Long>()
+    private var normal = -1L
+    private var hovered = -1L
+    private var pulseLow = 255
+    private var pulseHigh = 0
+    private var quiet: FrameSnapshot? = None
+    private val timeout = MonotonicTimeSource.markNow() + Duration.seconds(45L)
+    fun pointer(event: PointerObservation) {
+        val prefix = f"phase ${phase}: "
+        when (event) {
+            case Pointer(value) -> when (value) {
+                case Moved(state) -> events.add(
+                    prefix + f"move ${state.logicalPosition.x}, ${state.logicalPosition.y}"
+                )
+                case Entered(_) -> events.add(prefix + "enter window")
+                case Left(_) -> events.add(prefix + "leave window")
+                case Button(state, _, status, _) -> events.add(
+                    prefix +
+                        f"button ${status == ElementState.Pressed} at ${state.logicalPosition.x}, ${
+                            state.logicalPosition.y
+                        }"
+                )
+                case Cancelled(_, _) -> events.add(prefix + "cancel")
+                else -> {}
+            }
+            case FocusLost -> events.add(prefix + "focus lost")
+            case Closed -> {}
+        }
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop visual feedback test"
+                            this.position = Some(DesktopPosition(80.0, 80.0))
+                            this.size = LogicalSize(260.0, 280.0)
+                        }
+                    )
+                native = Some(window)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { FeedbackScene(this) })
+                window.requestFocus()
+                wait(active, 100L)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < timeout, Some("visual feedback timeout"))
+                if (native!!.isFocused && pixels[0L] >= 0L)
+                    advance(active)
+                else
+                    wait(active, 50L)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 8
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    fun sampled() {
+        if (phase >= 1 && phase <= 4)
+            trace.add(pixels[control.toLong()])
+        if (phase == 5) {
+            val red = feedbackChannel(pixels[4L], 0)
+            pulseLow = min(pulseLow, red)
+            pulseHigh = max(pulseHigh, red)
+        }
+    }
+    private fun advance(active: ActiveApplication) {
+        val x = 40.0
+        val y = 36.0 + control.toDouble() * 50.0
+        when (phase) {
+            case - 1 -> {
+                assertTrue(moveSurfacePointer(native!!, 240.0, 260.0))
+                phase = 0
+                wait(active, 230L)
+            }
+            case 0 -> {
+                normal = pixels[control.toLong()]
+                startTrace()
+                assertTrue(moveSurfacePointer(native!!, x, y))
+                phase = 1
+                wait(active, 250L)
+            }
+            case 1 -> {
+                checkTrace(true)
+                hovered = pixels[control.toLong()]
+                startTrace()
+                assertTrue(view!!.button(x, y, true))
+                phase = 2
+                wait(active, 180L)
+            }
+            case 2 -> {
+                checkTrace(true)
+                startTrace()
+                assertTrue(view!!.button(x, y, false))
+                phase = 3
+                wait(active, 180L)
+            }
+            case 3 -> {
+                checkTrace(true)
+                checkPixel(hovered, pixels[control.toLong()])
+                startTrace()
+                assertTrue(moveSurfacePointer(native!!, 240.0, 260.0))
+                phase = 4
+                wait(active, 250L)
+            }
+            case 4 -> {
+                checkTrace(true)
+                checkPixel(normal, pixels[control.toLong()])
+                assertFalse(frames!!.snapshot().required)
+                control += 1
+                if (control < 4) {
+                    phase = 0
+                    wait(active, 20L)
+                } else {
+                    pulseLow = 255
+                    pulseHigh = 0
+                    animated = true
+                    generation.value += 1
+                    phase = 5
+                    wait(active, 2200L)
+                }
+            }
+            case 5 -> {
+                assertTrue(
+                    pulseHigh - pulseLow >= 12,
+                    Some(f"skeleton red range ${pulseLow}..${pulseHigh}")
+                )
+                assertTrue(frames!!.snapshot().required)
+                refreshTheme(MotionPreference.Reduced)
+                phase = 6
+                wait(active, 200L)
+            }
+            case 6 -> {
+                assertFalse(frames!!.snapshot().required)
+                quiet = Some(frames!!.snapshot())
+                phase = 7
+                wait(active, 120L)
+            }
+            case 7 -> {
+                assertEquals(quiet!!, frames!!.snapshot())
+                if (mode == ThemeMode.Light || !systemColors) {
+                    if (mode == ThemeMode.Light)
+                        mode = ThemeMode.Dark
+                    else {
+                        mode = ThemeMode.Light
+                        systemColors = true
+                    }
+                    animated = false
+                    refreshTheme(MotionPreference.Full)
+                    generation.value += 1
+                    control = 0
+                    phase = 0
+                    wait(active, 200L)
+                } else {
+                    phase = 8
+                    native!!.requestDestroy()
+                }
+            }
+            else -> fail(Some("unexpected visual feedback phase"))
+        }
+    }
+    private fun startTrace() {
+        trace = ArrayList<Long>()
+        trace.add(pixels[control.toLong()])
+    }
+    private fun refreshTheme(preference: MotionPreference) {
+        theme.current.value =
+            shadcnTheme(
+                mode,
+                if (systemColors)
+                    Some(macosSystemPalette(mode))
+                else
+                    None
+            ) { tokens { motion { this.preference = preference } } }
+    }
+    private fun checkTrace(changed: Boolean) {
+        val first = trace[0L]
+        val last = pixels[control.toLong()]
+        assertTrue(trace.size > 1L, Some("no transition frames"))
+        var difference = 0
+        for (channel in 0 ..< 3)
+            difference =
+                max(
+                    difference,
+                    abs(feedbackChannel(first, channel) - feedbackChannel(last, channel))
+                )
+        if (changed)
+            assertTrue(difference >= 3, Some(f"unchanged feedback: ${first} -> ${last}"))
+        for (channel in 0 ..< 3) {
+            val a = feedbackChannel(first, channel)
+            val b = feedbackChannel(last, channel)
+            var previous = a
+            for (pixel in trace) {
+                val current = feedbackChannel(pixel, channel)
+                assertTrue(
+                    current >= min(a, b) - 2 && current <= max(a, b) + 2,
+                    Some(f"flash: ${a} -> ${current} -> ${b}, channel ${channel}")
+                )
+                assertTrue(
+                    if (a <= b)
+                        current >= previous - 2
+                    else
+                        current <= previous + 2,
+                    Some(f"reversed transition: ${previous} -> ${current}, target ${b}")
+                )
+                previous = current
+            }
+        }
+    }
+    private fun checkPixel(expected: Long, actual: Long) {
+        for (channel in 0 ..< 3)
+            assertTrue(
+                abs(feedbackChannel(expected, channel) - feedbackChannel(actual, channel)) <= 2,
+                Some(f"expected pixel ${expected}, got ${actual}")
+            )
+    }
+    private fun wait(active: ActiveApplication, milliseconds: Long) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(
+                MonotonicTimeSource.markNow() + Duration.milliseconds(milliseconds)
+            )
+        )
+    }
+}
+
+private fun feedbackChannel(pixel: Long, channel: Int): Int =
+    (
+        (
+            pixel /
+                (
+                    if (channel == 0)
+                        1L
+                    else
+                        if (channel == 1)
+                            256L
+                        else
+                            65536L
+                )
+        ) %
+            256L
+    ).toInt()
+
+private class FeedbackScene(private val probe: FeedbackProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        scope.resource { scope.input.observePointer { event -> probe.pointer(event) } }
+    }
+    public override fun render(): View {
+        val children =
+            [
+                button(
+                    {
+                        appearance: ActionContentStyle ->
+                        probe.events.add(
+                            f"phase ${probe.phase}: ghost hover=${
+                                appearance.interaction.hovered
+                            }, press=${appearance.interaction.pressed}"
+                        )
+                        empty()
+                    },
+                    { probe.clicks += 1 }
+                ) { this.variant = ButtonVariant.Ghost },
+                buttonGroup {
+                    this.button(empty(), { this @FeedbackScene.probe.clicks += 1 }) {
+                        style { surface { this.suggestedSize = Some(Size(100.0, 32.0)) } }
+                    }
+                    this.button(empty(), {}) {
+                        style { surface { this.suggestedSize = Some(Size(100.0, 32.0)) } }
+                    }
+                },
+                badge(empty()) {
+                    this.variant = ButtonVariant.Outline
+                    this.onClick = Some({ this @FeedbackScene.probe.clicks += 1 })
+                },
+                item(empty()) { this.onClick = Some({ this @FeedbackScene.probe.clicks += 1 }) },
+                skeleton { this.animated = this @FeedbackScene.probe.animated }
+            ]
+        return element(
+            probe.generation.value,
+            { current -> FeedbackCanvas(probe, current) },
+            children
+        )
+    }
+}
+
+private class FeedbackCanvas(
+    private val probe: FeedbackProbe,
+    private val generation: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints.tight(Size(200.0, 32.0)))
+            context.placeChild(index, Point(20.0, 20.0 + index.toDouble() * 50.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(260.0, 280.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val background = probe.theme.current.value.tokens.palette.background.background
+        context.draw { paint -> paint.canvas.clear(background) }
+        context.children()
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        for (index in 0L ..< probe.pixels.size)
+                            probe.pixels[index] =
+                                readNativePixel(native, 40.0, 36.0 + index.toDouble() * 50.0)
+                    }
+                }
+            }
+        }
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted)
+                probe.sampled()
+        }
+    }
+}

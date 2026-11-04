@@ -11,6 +11,8 @@ SCOOP_SYSROOT="$PWD/sysroot" target/release/scoop run sysroot/src/scoop.ui.compo
 
 顶部切换明暗与 LTR／RTL；左侧搜索、选择控件。可以点击、Tab／Space 操作、输入中文，或通过“Focus the normal control”观察程序聚焦。切换主题、方向和页面保留应用模型；搜索不修改控件状态。此轮只在 macOS 验证。
 
+macOS 默认使用实际系统配色，顶部 `Colors: System／Neutral` 按钮切换配色。System 使用系统强调色、背景、文字及分隔线，按当前 Light／Dark 选择解析；切换配色、明暗或重新聚焦窗口时读取最新系统颜色。shadcn 的尺寸、布局和交互保持一致，Neutral 仍用于参考和固定配色测试。其他平台继续使用 Neutral，系统取色适配只在 macOS 提供。
+
 Badge 页面可以切换禁用、撤销动作和替换回调。Spinner 页面中的滚动面板用于观察离屏停帧与滚回恢复；切页、隐藏窗口、停止和减少动态均不会留下持续渲染。自定义 Button／Badge 内容通过 ActionContentStyle 消费解析后的文字、图标尺寸、颜色与间距。
 
 Card、Alert、Empty 页面可切换可选区域和宽窄布局；Card 同时切换 Default／Sm 及头部分隔线，Empty 切换自然媒体／图标底板。正文按钮和输入在这些变化中保留状态。Aspect Ratio 使用示例自行绘制、随挂载释放的同一图像，展示 16:9／1:1 与 Cover／Contain 的组合。

@@ -18,6 +18,10 @@ internal enum ControlDemo {
     Button, Input, Checkbox
 }
 
+internal enum GalleryColors {
+    Neutral, System
+}
+
 internal fun demoTitle(value: Demo): String =
     when (value) {
         case Button -> "Button"
@@ -42,8 +46,21 @@ internal fun demoTitle(value: Demo): String =
         case Toggle -> "Toggle"
     }
 
-internal class GalleryModel {
+internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePalette)? = None) {
     val source = ThemeSource(shadcnTheme())
+    val colors =
+        state(
+            when (systemPalette) {
+                case Some(_) -> GalleryColors.System
+                case None -> GalleryColors.Neutral
+            }
+        )
+    val hasSystemColors: Boolean get() =
+        when (systemPalette) {
+            case Some(_) -> true
+            case None -> false
+        }
+    val usesSystemColors: Boolean get() = colors.value == GalleryColors.System
     val fields = FieldExamplesModel()
     val groups = ButtonGroupExamplesModel()
     val items = ItemExamplesModel()
@@ -106,6 +123,22 @@ internal class GalleryModel {
     val shortcutFocus = FocusHandle()
     var shortcutScope: ShortcutScope? = None
 
+    init {
+        if (hasSystemColors)
+            refreshTheme()
+    }
+
+    fun toggleColors() {
+        if (!hasSystemColors)
+            return
+        colors.value =
+            if (usesSystemColors)
+                GalleryColors.Neutral
+            else
+                GalleryColors.System
+        refreshTheme()
+    }
+
     fun toggleTheme() {
         val next =
             if (mode.value == ThemeMode.Light)
@@ -121,8 +154,16 @@ internal class GalleryModel {
                 MotionPreference.Reduced
             else
                 MotionPreference.Full
+        val palette =
+            when (systemPalette) {
+                case Some(read) -> if (usesSystemColors)
+                    Some(read(mode.value))
+                else
+                    None
+                case None -> None
+            }
         source.current.value =
-            shadcnTheme(mode.value) { tokens { motion { this.preference = preference } } }
+            shadcnTheme(mode.value, palette) { tokens { motion { this.preference = preference } } }
     }
     fun toggleMotion() {
         reduced.value = !reduced.value

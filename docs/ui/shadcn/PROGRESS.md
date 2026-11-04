@@ -96,3 +96,12 @@
 - macOS aarch64 release：组件生产库、Gallery 程序与测试构建通过，相关三个 Cone 的 tests 检查通过。18 项定向测试全部通过：4 项新组件测试、10 项受影响的操作样式／DSL 回归、30 阶段新窗口用例，以及旧标签、Gallery 输入和搜索回归。覆盖混合态、Boolean 适配、尺寸／零约束／RTL、焦点与 invalid、外部拒绝写入、最新 Binding／FocusHandle／FieldTarget、Space／Enter 差异、重复键、禁用／拖出／卸载取消、独立子按钮、资源借用和停帧。
 - 手工复查明暗／RTL、Switch 两种尺寸、Toggle 全变体和 Preview 内容，以及 Mixed→全选→清空的实际组合。手工自动化部分后台短点击未生效，使用前台复核和键盘确认；完整激活／取消结论来自原生窗口状态断言。169 个 Scoop 文件格式及 diff 检查通过，构建期间发现的公开 Style 构造与导入别名问题已修正。
 - 本批完成 Checkbox、Switch、Toggle，目录累计 **19／64**。一次性检查锁、窗口日志和测试窗口已清理，继续保留共享缓存、组件／Gallery 产物及外部依赖；没有重建编译器或图形后端。按用户新反馈，下一步先集中修复已交付控件的状态颜色、动画序列及个别绘制问题，再继续 P2；x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## 已有控件反馈修复与系统配色
+
+- 共享颜色插值改为预乘 alpha，消除透明背景进入 hover 时先变暗再变亮的闪色。shadcn Action、Button／Badge 变体、动作 Item 和 Toggle 为 pressed 提供独立终点，松开后返回当前 hover；业务选中值不充当瞬态按压。Skeleton 默认色增加 12% foreground 混色，保留原有 2 秒脉冲与减少动态／不可见停帧规则。
+- Gallery 的程序聚焦按钮和其他辅助按钮使用 Outline；Alert 示例绘制完整圆圈图标。Separator 示例两条竖线原本分别显式使用 1／2 厚度，现统一为默认 1；没有修改分隔线绘制算法。
+- shadcnTheme 接受完整 ThemePalette，并从同一配色生成文字和部件。新增 macOS 主线程入口 macosSystemPalette，读取指定明暗外观下的 AppKit 语义色快照；Gallery 默认 System，提供 System／Neutral 切换，保留独立明暗选择与全部应用状态。切换或重新聚焦时刷新系统色，其他平台继续使用 Neutral。
+- macOS aarch64 release：主题 27 项、组件 10 项、Gallery 3 项定向测试全部通过。新增真实窗口测试逐帧检查 System／Neutral × Light／Dark 下四类控件的 hover／press／release／leave 颜色序列、16 次激活、Skeleton 脉冲幅度与 Reduced 停帧；原有加载控件生命周期回归通过。手工复查系统明暗、配色切换、圆圈图标与等宽分隔线；相关 Cone 格式／类型检查、原生代码静态检查和生产库／Gallery 构建通过。
+- 测试初轮存在未取得系统焦点导致的超时，手工阶段也检测到真实鼠标与自动输入并行；按实际窗口 ID 激活并单独运行后全部通过，没有放宽颜色或生命周期断言，也未改输入策略。末次页脚文案调整另经格式、类型检查及应用构建；没有因此重复整组窗口测试。
+- 本批修复已有项目，目录仍为 **19／64**，后续继续 P2。一次性探针、检查锁和窗口日志清理，保留可复用产物与共享缓存；未重建编译器、下载外部依赖或扩大到全仓测试。x86_64 留在整体收尾，Windows／Linux 未验证。

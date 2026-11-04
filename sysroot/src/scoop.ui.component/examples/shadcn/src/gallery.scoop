@@ -24,6 +24,17 @@ internal class Gallery(
                     this.row {
                         this.add(this @Gallery.text("Scoop / shadcn", 22.0, 700))
                         this.item(empty()) { this.grow = 1.0 }
+                        if (this @Gallery.model.hasSystemColors)
+                            this.button(
+                                if (this @Gallery.model.usesSystemColors)
+                                    "Colors: System"
+                                else
+                                    "Colors: Neutral",
+                                { this @Gallery.model.toggleColors() }
+                            ) {
+                                this.fonts = Some(this @Gallery.fonts)
+                                this.variant = ButtonVariant.Outline
+                            }
                         this.button(
                             if (this @Gallery.model.mode.value == ThemeMode.Light)
                                 "Dark theme"
@@ -32,7 +43,7 @@ internal class Gallery(
                             { this @Gallery.model.toggleTheme() }
                         ) {
                             this.fonts = Some(this @Gallery.fonts)
-                            style { this.kind = SurfaceKind.Plain }
+                            this.variant = ButtonVariant.Outline
                         }
                         this.button(
                             if (this @Gallery.model.direction.value == LayoutDirection.Ltr)
@@ -42,7 +53,7 @@ internal class Gallery(
                             { this @Gallery.model.toggleDirection() }
                         ) {
                             this.fonts = Some(this @Gallery.fonts)
-                            style { this.kind = SurfaceKind.Plain }
+                            this.variant = ButtonVariant.Outline
                         }
                         this.spacing = 12.0
                         this.alignment = CrossAlignment.Center
@@ -63,12 +74,12 @@ internal class Gallery(
                                                 { this @Gallery.model.selected.value = entry }
                                             ) {
                                                 this.fonts = Some(this @Gallery.fonts)
+                                                this.variant =
+                                                    if (current == Some(entry))
+                                                        ButtonVariant.Default
+                                                    else
+                                                        ButtonVariant.Outline
                                                 style {
-                                                    this.kind =
-                                                        if (current == Some(entry))
-                                                            SurfaceKind.Action
-                                                        else
-                                                            SurfaceKind.Plain
                                                     surface {
                                                         this.suggestedSize = Some(Size(190.0, 32.0))
                                                     }
@@ -119,12 +130,7 @@ internal class Gallery(
                         this.basis = FlexBasis.Fixed(0.0)
                     }
                     this.add(
-                        this @Gallery.text(
-                            "Base Nova · Neutral  /  Native Scoop controls",
-                            12.0,
-                            400,
-                            true
-                        )
+                        this @Gallery.text("Base Nova  /  Native Scoop controls", 12.0, 400, true)
                     )
                     this.spacing = 24.0
                     this.padding = Insets.all(28.0)
@@ -236,7 +242,7 @@ internal class Gallery(
                 }
             ) {
                 this.fonts = Some(this @Gallery.fonts)
-                style { this.kind = SurfaceKind.Plain }
+                this.variant = ButtonVariant.Outline
             }
             this.add(
                 this @Gallery.text(

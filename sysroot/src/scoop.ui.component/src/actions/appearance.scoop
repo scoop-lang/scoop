@@ -105,7 +105,7 @@ internal fun actionOptions(
                 )
             hover =
                 colors.destructive.background.withAlpha(
-                    if (dark && !badge)
+                    if (dark)
                         0.3
                     else
                         0.2
@@ -149,7 +149,19 @@ internal fun actionOptions(
             mixThemeColor(normal, colors.muted.background, 0.5)
         else
             normal
-    val fill = StateColors(normal, hover, hover, disabled).resolve(visual)
+    val pressed =
+        when (variant) {
+            case Default -> normal
+            case Link -> normal
+            case Destructive -> colors.destructive.background.withAlpha(
+                if (dark)
+                    0.4
+                else
+                    0.3
+            )
+            else -> mixThemeColor(hover, colors.background.foreground, 0.08)
+        }
+    val fill = StateColors(normal, hover, pressed, disabled).resolve(visual)
     val resolvedBorder = border
     val variantStyle =
         styleOverride {

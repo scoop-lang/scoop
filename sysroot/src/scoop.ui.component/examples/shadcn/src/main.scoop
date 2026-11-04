@@ -4,11 +4,9 @@ import scoop.graphics.text.FontCollection
 import scoop.ui.*
 import scoop.window.*
 
-fun main() {
+internal fun runGallery(model: GalleryModel) {
     FontCollection().use {
-        fonts ->
-        val model = GalleryModel()
-        context(model.source) {
+        fonts -> context(model.source) {
             UiHost {
                 host,
                 active,
@@ -25,6 +23,14 @@ fun main() {
                         window.requestFocus()
                     }
                     case Window(_, WindowEvent.CloseRequested) -> active.requestExit()
+                    case Window(_, WindowEvent.Focused(true)) -> {
+                        if (model.usesSystemColors)
+                            model.refreshTheme()
+                    }
+                    case Window(_, WindowEvent.ThemeChanged(_)) -> {
+                        if (model.usesSystemColors)
+                            model.refreshTheme()
+                    }
                     else -> {}
                 }
             }.use { host -> Application().run(host) }
