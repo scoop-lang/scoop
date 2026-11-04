@@ -19,7 +19,7 @@ private class NativeInputTest {
             host -> try {
                 application.run(host)
                 assertTrue(probe.finished)
-                assertEquals("A", probe.firstText.surroundingText)
+                assertEquals("中😀", probe.firstText.surroundingText)
                 assertEquals("A", probe.secondText.surroundingText)
                 assertEquals(2, probe.downs)
                 assertEquals(2, probe.ups)

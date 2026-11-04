@@ -12,10 +12,9 @@ SSUResult scoop_surface_d3d_surface_acquire(SSUSurface *surface) {
   if (!surface->swapchain || surface->width != surface->bufferWidth ||
       surface->height != surface->bufferHeight) {
     HRESULT result = surface->prepareBuffers();
-    if (SUCCEEDED(result))
-      result = surface->updateDemand();
-    // Also wait for the first real frame opportunity after creating/resizing.
-    return {nullptr, FAILED(result) ? result : S_FALSE};
+    if (FAILED(result))
+      return {nullptr, result};
+    surface->stopNotifications();
   }
   auto frame = std::unique_ptr<SSUFrame>(new (std::nothrow) SSUFrame);
   if (!frame)

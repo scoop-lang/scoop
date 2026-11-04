@@ -346,7 +346,7 @@ static bool surface_caret(HWND hwnd, bool available, double x, double y,
                           bool query_point) {
   ITextStoreACP *store = sw_text_store_acp(text_state(hwnd));
   if (!store)
-    return false;
+    return !available;
   HRESULT hr = edit(hwnd, false, [&] {
     if (!available)
       return no_caret(store);
