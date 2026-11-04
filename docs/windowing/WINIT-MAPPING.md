@@ -48,8 +48,8 @@
 | KeyboardInput／ModifiersChanged | KeyEvent／ModifiersChanged | 本期，物理键／逻辑键／位置／repeat／synthetic 分离 |
 | KeyEvent.text 与 IME Commit | TextInputEvent.Edit 批次中的 Commit 操作 | 本期统一文字入口；同批删除、提交和组合更新只调用一次 handler |
 | Ime Preedit／Enabled／Disabled | 批次内 Preedit 及 Enabled／Disabled 事件 | 本期；UTF-8 字节范围、选择活动端、candidate rect；取消用空 Preedit 删除当前组合，开关变化才发 Enabled／Disabled |
-| IME allowed／cursor area、dead-key reset | setImeAllowed／setImeCursorArea、失焦撤销组合 | 本阶段；只保存 native marked text，UTF-16 转 UTF-8，不发布应用文档 |
-| IME purpose、surrounding 文档与重转换 | 后续文本输入扩展 | 后续；TextInputState 当前为应用纯值辅助，不要求窗口层维护编辑器镜像 |
+| IME allowed／cursor area、dead-key reset | setImeAllowed／setImeCursorArea、失焦撤销组合 | 原生 marked text、UTF-16／ACP 转 UTF-8；快照外操作不伪造文档坐标 |
+| IME surrounding 文档与重转换 | publishTextInputState／publishTextInputCaret、显式 Range replacement | macOS NSTextInputClient 与 Windows TSF 文档存储共用 revision／origin 协议；purpose 不属于当前范围 |
 | CursorEntered／Left／Moved／MouseInput | 指针事件与按钮 | 本期；坐标和设备来源明确 |
 | MouseWheel | LineDelta／PixelDelta、phase／momentumPhase | 本期；行数与物理像素分开，保留原生滚动方向 |
 | DeviceEvent、AxisMotion、raw motion 与监听策略 | 后续设备事件扩展 | 后续；不隐式打开全局监听，设备单位不冒充像素 |
@@ -71,7 +71,7 @@
 | --- | --- |
 | macOS activation policy、透明标题栏／content view、应用标识 | `scoop.window.platform.macos` 普通选项；不把 NSWindow style mask 放到公共属性 |
 | Linux backend／display name、Wayland app id、X11 class／instance、visual 选择 | `scoop.window.platform.linux` 与必要的 wayland／x11 子包；不向全平台代码提供 XID 操作 |
-| Windows owner HWND、taskbar／DWM、TSF／COM、Win32 样式扩展 | 后续 `platform.windows`；Win32 骨架已接入 Per-Monitor V2／系统模态循环，专有扩展按实际需求补充 |
+| Windows owner HWND、taskbar／DWM、Win32 样式扩展 | 后续 `platform.windows`；TSF／COM 是 IME 内部实现，不作为原生对象扩展暴露 |
 | 任意 native parent／child window 嵌入、run-on-demand | 后续专项，不能用 WindowId 假装支持外部句柄所有权 |
 | Android／iOS／Web／orbital 的专用入口与扩展 | 范围外 |
 | clipboard、菜单模型、文件对话框、accessibility、IME 编辑器布局、Skia 图形设备 | 不属于 winit 对应基础层，后续库实现 |
