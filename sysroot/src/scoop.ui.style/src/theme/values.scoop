@@ -114,19 +114,40 @@ public struct StateColors(
     }
 }
 
+public struct ColorPair(val background: Color, val foreground: Color)
+
+public struct ChartPalette(
+    val one: Color,
+    val two: Color,
+    val three: Color,
+    val four: Color,
+    val five: Color
+)
+
+public struct SidebarPalette(
+    val background: ColorPair,
+    val primary: ColorPair,
+    val accent: ColorPair,
+    val border: Color,
+    val ring: Color
+)
+
 public class ThemePalette public constructor(
-    public val canvas: Color,
-    public val surface: Color,
-    public val elevated: Color,
-    public val text: Color,
-    public val secondaryText: Color,
-    public val disabledText: Color,
+    public val background: ColorPair,
+    public val card: ColorPair,
+    public val popover: ColorPair,
+    public val primary: ColorPair,
+    public val secondary: ColorPair,
+    public val muted: ColorPair,
+    public val accent: ColorPair,
+    public val destructive: ColorPair,
     public val border: Color,
-    public val accent: Color,
-    public val onAccent: Color,
-    public val focus: Color,
-    public val shadow: Color,
-    public val error: Color
+    public val input: Color,
+    public val ring: Color,
+    public val chart: ChartPalette,
+    public val sidebar: SidebarPalette,
+    public val disabledText: Color,
+    public val shadow: Color
 ) {
     public fun copy(configure: ThemePaletteBuilder.() -> Unit = {}): ThemePalette =
         configureThemePalette(this, configure)
@@ -154,11 +175,22 @@ public class ThemeEffects internal constructor(
         configureThemeEffects(this, configure)
 }
 
+public enum MotionPreference {
+    Full, Reduced
+}
+
 public class ThemeMotion internal constructor(
+    public val preference: MotionPreference = MotionPreference.Full,
     public val hover: AnimationSpec? = None,
     public val press: AnimationSpec? = None,
     public val selection: AnimationSpec? = None
 ) {
+    public fun resolve(spec: AnimationSpec?): AnimationSpec? =
+        if (preference == MotionPreference.Reduced)
+            None
+        else
+            spec
+
     public fun copy(configure: ThemeMotionBuilder.() -> Unit = {}): ThemeMotion =
         configureThemeMotion(this, configure)
 }

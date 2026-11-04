@@ -77,10 +77,10 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
             fonts!!,
             value.text,
             value.placeholder,
-            style.selectionColor ?: palette.accent.withAlpha(0.30),
-            style.inactiveSelectionColor ?: palette.secondaryText.withAlpha(0.20),
-            style.caretColor ?: palette.accent,
-            style.markedColor ?: palette.accent,
+            style.selectionColor ?: palette.primary.background.withAlpha(0.30),
+            style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
+            style.caretColor ?: palette.primary.background,
+            style.markedColor ?: palette.primary.background,
             style.caretWidth
         )
     }

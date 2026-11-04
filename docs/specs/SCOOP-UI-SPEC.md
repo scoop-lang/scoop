@@ -30,7 +30,7 @@ SkSL runtime effect 同样列为后续 graphics 增强，见[接入设计](../gr
 | `scoop.surface` | SurfaceHost／SurfaceWindow、窗口呈现、帧机会、动画、InputArea 和区域焦点 |
 | `scoop.ui` | Component／Element／LazyElement、State／Props／Binding、挂载树、测量与绘制接入、输入／动画的挂载归属；text 子包提供公共段落适配 |
 | `scoop.ui.style` | 公共主题绘图／几何、视觉状态及语义参数；通用 Style、外框装饰与内容效果 |
-| `scoop.ui.style.macos／material／fluent` | 三套公共协议实现与各自 Light／Dark |
+| `scoop.ui.style.macos／material／fluent／shadcn` | 四套公共协议实现与各自 Light／Dark |
 | `scoop.ui.component` | Label、Button、Checkbox、Row／Column／Stack、Frame、Absolute、ScrollArea、VirtualList、控件专用样式及交互外观 |
 
 表中是目标分层；字体与 Paragraph／TextLayout 已迁入 graphics.text，富文本／行内对象、独立自绘框架及公共适配 `scoop.ui.text` 已完成。适配直接依赖 graphics.text，只连接文本排版与正常子项，不提供 Label 或默认样式，也不改变 View 的基础形状。

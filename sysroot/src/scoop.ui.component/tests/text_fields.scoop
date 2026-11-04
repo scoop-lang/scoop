@@ -33,8 +33,11 @@ private class TextFieldStyleTest {
                 theme.surfaceGeometry(bounds, visual, style.options(theme, focused, false))
             val invalid = theme.surfaceGeometry(bounds, visual, style.options(theme, focused, true))
             val invalidEdges = invalid.style.border!!.resolve(LayoutDirection.Ltr)
-            assertEquals(theme.tokens.palette.error, invalidEdges.left.color)
-            assertEquals(theme.tokens.palette.error.withAlpha(0.72), invalid.focus!!.border.color)
+            assertEquals(theme.tokens.palette.destructive.background, invalidEdges.left.color)
+            assertEquals(
+                theme.tokens.palette.destructive.background.withAlpha(0.72),
+                invalid.focus!!.border.color
+            )
             assertTrue(
                 ordinary.style.border!!.resolve(LayoutDirection.Ltr).left.color !=
                     invalidEdges.left.color

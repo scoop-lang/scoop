@@ -59,7 +59,7 @@ internal class TextFieldRenderer {
             hint.resolve(
                 theme.tokens.typography.body,
                 if (input.options.enabled)
-                    palette.secondaryText
+                    palette.muted.foreground
                 else
                     palette.disabledText,
                 input.style.placeholder
@@ -81,9 +81,9 @@ internal class TextFieldRenderer {
                                             palette.disabledText
                                         else
                                             if (input.invalid)
-                                                palette.error
+                                                palette.destructive.background
                                             else
-                                                palette.secondaryText,
+                                                palette.muted.foreground,
                                         input.style.description
                                     )
                                 )

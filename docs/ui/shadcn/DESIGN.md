@@ -1,6 +1,6 @@
 # shadcn 全套自绘控件设计
 
-日期：2026-11-04。状态：设计，尚未实施。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。本文中的新增类型、签名和批次均是拟议合同，不表示仓库已经提供这些 API。
+日期：2026-11-04。状态：实施中，实际交付与验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。尚未在实施记录中闭合的类型、签名和批次仍是拟议合同，不表示仓库已经提供这些 API。
 
 ## 1. 交付目标与复刻基线
 
@@ -99,7 +99,7 @@ P2 的 OTP、P4 的弹层焦点、P5 的 Select／Combobox、P7 的图表以及 
 
 ## 6. Spec 落点
 
-本次提交是设计文档，不改写现行 API 为“已实现”。开始相应批次时，先更新下列合同，再同步源码和实际调用方：
+设计中的待实施 API 不记为“已实现”。开始相应批次时，先更新下列合同，再同步源码和实际调用方；实际完成范围记录在 PROGRESS.md：
 
 | 规范 | 需要演进的内容 |
 | --- | --- |

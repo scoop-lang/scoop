@@ -85,12 +85,13 @@ internal fun configureThemeMotion(
 
 /** Mutable configuration initialized from a complete immutable value. */
 public class ThemeMotionBuilder internal constructor(initial: ThemeMotion) {
+    public var preference: MotionPreference = initial.preference
     public var hover: AnimationSpec? = initial.hover
     public var press: AnimationSpec? = initial.press
     public var selection: AnimationSpec? = initial.selection
 
     internal fun snapshot(): ThemeMotion =
-        ThemeMotion(hover = hover, press = press, selection = selection)
+        ThemeMotion(preference = preference, hover = hover, press = press, selection = selection)
 }
 
 /** Constructs a complete description and applies configuration once. */

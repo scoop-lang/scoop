@@ -147,8 +147,8 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual,
-            value.input.style.transition.resolve(specs.hover),
-            value.input.style.transition.resolve(specs.press)
+            specs.resolve(value.input.style.transition.resolve(specs.hover)),
+            specs.resolve(value.input.style.transition.resolve(specs.press))
         )
         changeProgress(
             selection!!,
@@ -157,7 +157,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element {
             else
                 0.0,
             if (value.input.enabled)
-                value.input.style.selectionTransition.resolve(specs.selection)
+                specs.resolve(value.input.style.selectionTransition.resolve(specs.selection))
             else
                 None
         )

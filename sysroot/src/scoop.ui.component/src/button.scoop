@@ -126,8 +126,8 @@ private class ButtonInk(private val props: Props<ButtonInkProps>): Element {
         val specs = value.theme.tokens.motion
         motion!!.update(
             value.visual.interaction,
-            value.input.style.transition.resolve(specs.hover),
-            value.input.style.transition.resolve(specs.press)
+            specs.resolve(value.input.style.transition.resolve(specs.hover)),
+            specs.resolve(value.input.style.transition.resolve(specs.press))
         )
         painters!!.get(value.theme)
     }
