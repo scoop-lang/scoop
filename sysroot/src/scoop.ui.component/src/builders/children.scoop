@@ -104,6 +104,26 @@ public open class ChildrenBuilder internal constructor() {
         add(makeSpinner(configure))
     }
 
+    public fun card(content: View, configure: CardBuilder.() -> Unit = {}): Unit {
+        add(makeCard(content, configure))
+    }
+    public fun alert(content: View, configure: AlertBuilder.() -> Unit = {}): Unit {
+        add(makeAlert(content, configure))
+    }
+    public fun emptyState(content: View, configure: EmptyStateBuilder.() -> Unit = {}): Unit {
+        add(makeEmptyState(content, configure))
+    }
+    public fun separator(configure: SeparatorBuilder.() -> Unit = {}): Unit {
+        add(makeSeparator(configure))
+    }
+    public fun aspectRatio(
+        content: View,
+        ratio: Double,
+        configure: AspectRatioBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeAspectRatio(content, ratio, configure))
+    }
+
     public fun checkbox(
         checked: Binding<Boolean>,
         configure: CheckboxBuilder.() -> Unit = {}

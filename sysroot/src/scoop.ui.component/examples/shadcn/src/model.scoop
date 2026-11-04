@@ -8,7 +8,7 @@ import scoop.ui.style.shadcn.shadcnTheme
 import scoop.ui.text.TextEditorState
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty
 }
 
 internal enum ControlDemo {
@@ -22,6 +22,11 @@ internal fun demoTitle(value: Demo): String =
         case Checkbox -> "Checkbox"
         case Badge -> "Badge"
         case Spinner -> "Spinner"
+        case Card -> "Card"
+        case Separator -> "Separator"
+        case AspectRatio -> "Aspect Ratio"
+        case Alert -> "Alert"
+        case Empty -> "Empty"
     }
 
 internal class GalleryModel {
@@ -47,6 +52,15 @@ internal class GalleryModel {
     val buttonFocus = FocusHandle()
     val inputFocus = FocusHandle()
     val checkboxFocus = FocusHandle()
+    val panelExpanded = state(true)
+    val panelNarrow = state(false)
+    val panelCompact = state(false)
+    val panelStep = state(1)
+    val panelClicks = state(0)
+    val cardFocus = FocusHandle()
+    val alertFocus = FocusHandle()
+    val emptyFocus = FocusHandle()
+    val emptyQuery = TextEditorState()
 
     fun toggleTheme() {
         val next =
@@ -80,7 +94,20 @@ internal class GalleryModel {
     fun entries(): Array<Demo> {
         val search = unicodeCasefold(query.text)
         val result = ArrayList<Demo>()
-        for (entry in [Demo.Button, Demo.Input, Demo.Checkbox, Demo.Badge, Demo.Spinner])
+        for (
+            entry in [
+                Demo.Button,
+                Demo.Input,
+                Demo.Checkbox,
+                Demo.Badge,
+                Demo.Spinner,
+                Demo.Card,
+                Demo.Separator,
+                Demo.AspectRatio,
+                Demo.Alert,
+                Demo.Empty
+            ]
+        )
             if (unicodeCasefold(demoTitle(entry)).contains(search))
                 result.add(entry)
         return result.toArray()

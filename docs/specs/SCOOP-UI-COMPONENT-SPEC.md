@@ -4,6 +4,8 @@
 
 控件基础的布局、方向与公共交互演进按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述已实施批次的现行合同。
 
+shadcn 控件扩展的批次与平台验收见 [shadcn 实施记录](../ui/shadcn/PROGRESS.md)，操作控件和内容面板的新增合同分别见第 11、12 节。
+
 ## 1. 定位与依赖
 
 生产 Scoop 源码不限定 Darwin，也不包含 OS native 代码或平台判断；键盘、文本服务、字体和呈现均依赖基础库的公共合同。当前只验证 macOS，其他后端补齐基础能力后以同一份上层源码重新构建。
@@ -453,3 +455,49 @@ LabelProps／LabelBuilder 增加 underline: Color? = None。它是纯绘制装�
 `spinner(configure: SpinnerBuilder.() -> Unit = {})` 与 ChildrenBuilder.spinner 返回普通 SpinnerProps／Spinner 组件。字段为 size: Double? = None、color: Color? = None、running: Boolean = true、period: Duration = Duration.seconds(1L)、theme: ThemeSource? = None；builder 另有 key。size 为有限非负逻辑尺寸，None 使用操作字号的 16／14；color=None 使用当前操作文字颜色。尺寸为零合法且不请求动画帧，period 必须大于 ZERO。
 
 图形采用实际 Lucide loader-circle 路径，保存来源与许可证；路径由挂载作用域持有，不逐帧分配。rotation 使用 scope.animation、线性 Tween 与 Repeat.Restart，running／period／减少动态变化才调整动画，普通刷新不重启。停止或 Reduced 显示静态图形且不请求帧。Spinner 在成功帧后用自身图形范围与 Canvas.localClipBounds 的保守交集设置该 Animatable.isFrameEnabled，实际零尺寸或透明图形也不请求帧；滚回视口沿同一时间轴恢复，不扫描离屏子树或建立定时器。虚拟保留、窗口隐藏和卸载继续沿已有动画组与 Surface 参与规则处理；局部开关不越过所属组的资格。它没有计时线程、后台任务或全局状态；父控件通过 ActionContentStyle 显式传入大小与颜色。
+
+## 12. 内容面板、分隔线与比例布局
+
+### 12.1 类型化内容与公共组合
+
+Card、Alert、EmptyState 的必需 body 是 View。标题／说明使用 `PanelContent.Label(LabelProps)／Custom(View)`，可分别提供纯文字、StyledText 或完整 View；普通文字接受根的字体与当前角色样式，StyledText 和显式 baseStyle 保留自身样式，Custom 不被检查或修改。三个 builder 的 title／description 成员各有 String、StyledText、View 重载，直接赋入 None 撤销该可选区；fonts、theme、style、key 的约定与现有控件一致。PanelBuilder 仅复用这三个实际消费者的字段和成员，不建立插槽注册表或挂载树上下文。
+
+无内容的可选区域不产生节点、间距或边框。各区域有稳定的局部 key；移除 header／description／action 等相邻区域，或窄宽换行，不重新挂载仍存在的 body 与其状态。header、action、footer、media 等 View 都是调用方内容，既不克隆，也不偷偷增加输入行为；root 的显式 theme 只用于自身表面与便利文字，任意子 View 保留自己的主题选择。构造和配置只发布描述，字体、Path 和 painter 的所有权仍沿第 7 节。
+
+Card 头部及 Alert 的正文／动作布局在有限宽度下优先并排：动作使用自然宽度，正文取得余量；余量不足当前正文字号的 8 倍时，动作移到下一行的逻辑末端。无界宽度按两者自然尺寸排列。两种布局均使用同一子树、方向和最终测量，不以窗口宽度猜测 CSS breakpoint，也不裁掉长动作。
+
+### 12.2 Card
+
+`card(content: View, configure: CardBuilder.() -> Unit = {})` 创建 CardProps／Card。除公共 title／description、fonts／theme／style 外，字段为 header／action／footer: View? = None、size: CardSize = Default、headerSeparator: Boolean = false；CardSize 为 Default／Sm。builder 的 header／action／footer(View) 写入对应字段；同名 ChildrenBuilder.card 追加一次。
+
+Nova 下 Default／Sm 的区域间距和内缩分别为 16／12，随 body 字号相对 14 缩放。header 中自定义内容、标题和说明按 4 间距排列，action 位于逻辑末端；标题 Default 为 16／22、Sm 为 14／19.25，使用操作字重，说明为 body 与 muted.foreground。body 独立左右内缩；footer 存在时使用同样内缩、顶边分隔线和 muted 背景 alpha 0.5，根不再重复加尾部内缩。headerSeparator 仅在实际 header 存在时添加底边与对应留白。
+
+表面使用 card 配色、large 圆角、foreground alpha 0.1 的 1 单位边线及内容裁剪。style 最后覆盖。header、body、footer 的可组合边界由明确的 View 槽表达，不为每一层无行为的容器另建持久组件。
+
+### 12.3 Alert
+
+`alert(content: View, configure: AlertBuilder.() -> Unit = {})` 创建 AlertProps／Alert。额外字段为 variant: AlertVariant = Default、icon／action: View? = None；AlertVariant 为 Default／Destructive。icon／action(View) 为真实 builder 成员。
+
+表面为 card 背景、border 边框和 medium 圆角，水平／垂直内缩为 10／8；图标在逻辑起端，与正文间隔 8、向下偏移 2，正文标题、说明和 body 之间间距 2。标题使用操作字重；Default 的说明使用 muted.foreground，Destructive 的标题使用 destructive.background、说明使用其 alpha 0.9。尺寸随 body 字号缩放，动作窄宽行为见 12.1。任意内容保持自身文字或图标颜色，便利文字随 variant 更新。Alert 是静态内容，不创建焦点、计时器、关闭动作或弹层。
+
+### 12.4 EmptyState
+
+`emptyState(content: View, configure: EmptyStateBuilder.() -> Unit = {})` 创建 EmptyStateProps／EmptyState，保留 UI.empty() 的原含义。额外字段为 header／media: View? = None、mediaVariant: EmptyMediaVariant = Default、outlined: Boolean = false；EmptyMediaVariant 为 Default／Icon。header／media(View) 写入对应字段。
+
+根使用 large 圆角、24 内缩和 16 区域间距；有限父宽下占满可用宽度，无界时使用自然宽度。header 中 media、自定义 header、title、description 按 8 间距排列，media 后另留 8，标题为 14 的操作文字，说明为 14／22.75 的 muted 文字。header 和 body 分别限制为 384 建议宽并在可用宽度中居中；父宽更小时正常收缩换行，不强制最小 384。Icon media 使用 32 方形、medium 圆角和 muted 背景，Default 保留内容自然尺寸。这些尺寸按 body 字号相对 14 缩放。
+
+outlined 提供 1 单位、3 开／3 间隔的圆角虚线，默认关闭；显式 style.border 覆盖该预设，可改实线或清除边框，style.background 可设置背景。虚线由已有 Path／PathMeasure 生成有限段并按最终尺寸／圆角缓存，只在几何变化时重建，卸载关闭；不引入绘制后端或周期任务。面板自身不参与输入，body 中按钮、文本选择或表单保持原行为。
+
+### 12.5 Separator
+
+`separator(configure: SeparatorBuilder.() -> Unit = {})` 创建 SeparatorProps／Separator，字段为 axis: FlexAxis = Horizontal、length: Double? = None、thickness: Double = 1、color: Color? = None、theme: ThemeSource? = None；builder 另有 key。length／thickness 必须有限非负，零表示空线。默认颜色使用当前 border。
+
+length=None 使用父约束该轴的有限上限；无界时使用该轴下限，不虚构自然长度。父约束决定最终外框，线条保持指定 thickness 并在交叉轴居中；父交叉尺寸不足时收窄到可用值。只绘制逻辑坐标中的矩形，由 Canvas 应用一次 DPI，不创建 InputArea。
+
+### 12.6 AspectRatio
+
+`aspectRatio(content: View, ratio: Double, configure: AspectRatioBuilder.() -> Unit = {})` 创建 AspectRatioProps／AspectRatio；ratio 必须有限且严格大于零，builder 字段为 clip: Boolean = true、key。ratio 为宽／高。
+
+有有限最大宽时优先用该宽推算高度，再受有限最大高限制；只有有限最大高时反向推算宽度。两轴无界时用内容自然尺寸求能包含它的比例外框。随后在不越过最大值的前提下满足可兼容的最小值；比例与父约束不可同时满足时，父约束优先，不报告比例配置错误。计算出的实际尺寸必须有限；不可表示的几何正常报参数错误。
+
+实际子项最后按外框紧约束测量并放在原点；空尺寸合法。clip=true 裁剪同一外框，clip=false 允许内容自身的显式溢出。图片继续使用 ImageView 的 Contain／Cover，AspectRatio 不复制图像适配、读取像素或预乘 DPI。

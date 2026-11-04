@@ -10,6 +10,9 @@ import scoop.tests.surface.*
 import scoop.tests.textfonts.testSansBytes
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.ui.component.alert
+import scoop.ui.component.frame
+import scoop.ui.component.emptyState
 import scoop.ui.style.*
 import scoop.window.*
 
@@ -17,7 +20,14 @@ import scoop.window.*
 private class GalleryWindowTest {
     @Test
     fun `real gallery retains input and actions while theme direction and animation changes preserve lifecycle`() {
-        val probe = GalleryProbe()
+        runGallery(false)
+    }
+    @Test
+    fun `content panels retain focused bodies across optional sections narrow layouts and theme changes`() {
+        runGallery(true)
+    }
+    private fun runGallery(panels: Boolean) {
+        val probe = GalleryProbe(panels)
         val host = UiHost { owner, active, event -> probe.event(owner, active, event) }
         try {
             context(probe.model.source) {
@@ -31,6 +41,9 @@ private class GalleryWindowTest {
             assertFalse(probe.model.inputFocus.isAttached)
             assertFalse(probe.model.checkboxFocus.isAttached)
             assertFalse(probe.model.badgeFocus.isAttached)
+            assertFalse(probe.model.cardFocus.isAttached)
+            assertFalse(probe.model.alertFocus.isAttached)
+            assertFalse(probe.model.emptyFocus.isAttached)
         } catch (error: Throwable) {
             println(f"gallery phase=${probe.phase}, paints=${probe.paints}")
             galleryFailure(error)
@@ -65,7 +78,7 @@ private fun galleryFailure(error: Throwable) {
                 println(error.message ?: "gallery failure")
 }
 
-internal class GalleryProbe {
+internal class GalleryProbe(val panelMode: Boolean = false) {
     val model = GalleryModel()
     val fonts = FontCollection(false)
     var native: Window? = None
@@ -73,7 +86,16 @@ internal class GalleryProbe {
     var creates = 0
     var paints = 0
     var pixel = -1L
-    var phase = 0
+    var phase =
+        if (panelMode)
+            43
+        else
+            0
+    private val endPhase =
+        if (panelMode)
+            65
+        else
+            43
     var finished = false
     var invalidRing: OutlineRing? = None
     var invalidBorder: Color? = None
@@ -81,12 +103,15 @@ internal class GalleryProbe {
     var disabledSeen = false
     var disabledRing: OutlineRing? = None
     private val actions = GalleryActions(this)
+    private val panels = GalleryPanels(this)
     private var afterPaint = 0
     private var waiting = false
     init {
         for (family in model.source.current.value.tokens.typography.body.families)
             fonts.register(testSansBytes, family)
         observeTheme()
+        if (panelMode)
+            model.selected.value = Demo.Card
     }
     private fun observeTheme() {
         model.source.current.value = GalleryTheme(model.source.current.value, this)
@@ -108,20 +133,24 @@ internal class GalleryProbe {
                 window.requestFocus()
                 waitFor(active, 25000L)
             }
-            case AboutToWait -> if (phase < 43 && native!!.isFocused)
+            case AboutToWait -> if (phase < endPhase && native!!.isFocused)
                 advance(active)
             case NewEvents(StartCause.Deadline) -> deadline(active)
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 43
+                finished = phase == endPhase
                 active.requestExit()
             }
             else -> {}
         }
     }
     private fun advance(active: ActiveApplication) {
-        if (phase >= 43 || waiting || paints <= afterPaint || pixel < 0L)
+        if (phase >= endPhase || waiting || paints <= afterPaint || pixel < 0L)
             return
         afterPaint = paints
+        if (panelMode) {
+            panels.advance(active)
+            return
+        }
         if (phase >= 14) {
             actions.advance(active)
             return
@@ -243,10 +272,13 @@ internal class GalleryProbe {
         )
     }
     private fun deadline(active: ActiveApplication) {
-        if (phase >= 14)
-            actions.deadline(active)
+        if (panelMode)
+            panels.deadline(active)
         else
-            fail(Some(f"gallery timed out at phase ${phase}"))
+            if (phase >= 14)
+                actions.deadline(active)
+            else
+                fail(Some(f"gallery timed out at phase ${phase}"))
     }
     internal fun waitFor(active: ActiveApplication, milliseconds: Long) {
         active.setControlFlow(
@@ -258,24 +290,64 @@ internal class GalleryProbe {
 }
 
 private class ObservedGallery(private val probe: GalleryProbe): Component {
-    public override fun render(): View =
-        element(
-            { GalleryCanvas(probe) },
-            [
-                component(
-                    {
-                        probe.creates += 1;
-                        Gallery(probe.model, probe.fonts)
+    public override fun render(): View {
+        val children = ArrayList<View>()
+        children.add(
+            component(
+                {
+                    probe.creates += 1
+                    Gallery(probe.model, probe.fonts)
+                }
+            )
+        )
+        if (probe.panelMode)
+            children.add(
+                alert(
+                    frame(empty()) {
+                        this.width = Some(80.0);
+                        this.height = Some(24.0)
+                    }
+                ) {
+                    this.icon(
+                        frame(empty()) {
+                            this.width = Some(16.0);
+                            this.height = Some(16.0)
+                        }
+                    )
+                    this.action(
+                        frame(empty()) {
+                            this.width = Some(40.0);
+                            this.height = Some(16.0)
+                        }
+                    )
+                }
+            )
+        if (probe.panelMode)
+            children.add(
+                emptyState(
+                    frame(empty()) {
+                        this.width = Some(80.0);
+                        this.height = Some(24.0)
                     }
                 )
-            ]
-        )
+            )
+        return element({ GalleryCanvas(probe) }, children.toArray())
+    }
 }
 
 private class GalleryCanvas(private val probe: GalleryProbe): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
+        if (probe.panelMode) {
+            val natural = context.measureChild(1L, Constraints())
+            assertEquals(Size(172.0, 40.0), natural.size)
+            val bounded = context.measureChild(2L, Constraints(maxWidth = Some(600.0)))
+            assertEquals(Size(600.0, 72.0), bounded.size)
+            val intrinsic = context.measureChild(2L, Constraints())
+            assertEquals(Size(432.0, 72.0), intrinsic.size)
+            // These children check measurement and are not part of the painted gallery.
+        }
         return result
     }
     public override fun scene(context: SceneContext) {

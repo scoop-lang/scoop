@@ -94,7 +94,7 @@ internal class Gallery(
                                             )
                                             this.add(
                                                 this @Gallery.text(
-                                                    "Try Button, Badge, Spinner, Input, or Checkbox.",
+                                                    "Try Card, Alert, Button, Input, or Empty.",
                                                     14.0,
                                                     400,
                                                     true
@@ -165,6 +165,11 @@ internal class Gallery(
             case Checkbox -> controlDemo(ControlDemo.Checkbox)
             case Badge -> badgeExamples(model, fonts)
             case Spinner -> spinnerExamples(model, fonts)
+            case Card -> cardExamples(model, fonts)
+            case Separator -> separatorExamples(fonts)
+            case AspectRatio -> component({ AspectExamples(fonts) })
+            case Alert -> alertExamples(model, fonts)
+            case Empty -> emptyExamples(model, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =
