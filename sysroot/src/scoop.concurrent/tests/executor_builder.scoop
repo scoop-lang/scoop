@@ -1,0 +1,81 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.test.*
+
+@Test
+private class ExecutorBuilderTest {
+    @Test
+    fun `builders validate final counts before creating workers`() {
+        assertTrue(ExecutorBuilder().workers > 0)
+        assertEquals(4, BlockingPoolBuilder().threads)
+        assertFailsWith<IllegalArgumentException> { BlockingTaskPool(0) }
+        assertFailsWith<IllegalArgumentException> { BlockingTaskPool(-1) }
+        assertFailsWith<IllegalArgumentException> { multiThreadExecutor { workers = 0 } }
+        assertFailsWith<IllegalArgumentException> {
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = -1 }
+            }
+        }
+    }
+
+    @Test
+    fun `factory snapshots builders once and ignores later mutations`() {
+        val capture = BuilderCapture()
+        val calls = AtomicInt(0)
+        multiThreadExecutor {
+            calls.fetchAdd(1)
+            capture.executor = Some(this)
+            workers = 1
+            blocking {
+                capture.pool = Some(this);
+                threads = 1
+            }
+        }.use {
+            executor ->
+            capture.executor!!.workers = 0
+            capture.executor!!.blocking { threads = 0 }
+            capture.pool!!.threads = 0
+            assertEquals(42, dispatch(executor) { blocking { 42 } }.await())
+            assertEquals(1, calls.load())
+        }
+    }
+
+    @Test
+    fun `the last blocking configuration chooses owned or borrowed pool`() {
+        BlockingTaskPool(1).use {
+            pool ->
+            multiThreadExecutor {
+                workers = 1
+                blocking { threads = 0 }
+                blocking(pool)
+            }.use { executor -> assertEquals(11, dispatch(executor) { blocking { 11 } }.await()) }
+            multiThreadExecutor {
+                workers = 1
+                blocking(pool)
+                blocking { threads = 1 }
+            }.use { executor -> assertEquals(22, dispatch(executor) { blocking { 22 } }.await()) }
+            val result = ThreadResult<Int>()
+            pool.submit(FunctionBlockingWork { result.resume(33) })
+            assertEquals(33, result.await())
+        }
+    }
+
+    @Test
+    fun `factory rejects borrowing an already closed pool`() {
+        val pool = BlockingTaskPool(1)
+        pool.close()
+        assertFailsWith<ExecutorClosedException> {
+            multiThreadExecutor {
+                workers = 1;
+                blocking(pool)
+            }
+        }
+    }
+}
+
+private class BuilderCapture {
+    var executor: ExecutorBuilder? = None
+    var pool: BlockingPoolBuilder? = None
+}

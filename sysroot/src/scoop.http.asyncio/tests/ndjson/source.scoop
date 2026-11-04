@@ -8,9 +8,8 @@ import scoop.test.*
 private class NdjsonSourceTests {
     @Test
     fun `NDJSON source preserves split records empty lines and the final tail without closing borrowed input`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = MessageTestSource("雪\r\n\nfinal".toByteArray(), 1L)
             val source = NdjsonSource(input, bufferSize = 3L)
             assertEquals(0, input.reads)
@@ -33,9 +32,8 @@ private class NdjsonSourceTests {
 
     @Test
     fun `NDJSON owning source bounds prefetch and early close does not drain further records`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = MessageTestSource("a\nbbbbbbb\n".toByteArray(), 100L)
             val source = NdjsonSource.takeOwnership(input, bufferSize = 3L)
             assertEquals(Some("a"), source.next())
@@ -52,9 +50,8 @@ private class NdjsonSourceTests {
 
     @Test
     fun `NDJSON framing IO and cleanup failures keep their original types and end further reads`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val input = MessageTestSource("too long\n".toByteArray())
             val source = NdjsonSource.takeOwnership(input, maxRecordBytes = 2L)
             val error = expectMessageFailure<NdjsonFramingException> suspend { source.next() }

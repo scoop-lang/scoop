@@ -10,6 +10,9 @@ impl Lowerer {
         let illegal_state = core.exceptions().illegal_state_exception().persistent();
         let protocols = core.coroutines();
         let definitions = [
+            protocols.work_run(),
+            protocols.execution_start(),
+            protocols.execution_resume(),
             protocols.start_coroutine(),
             protocols.suspend_coroutine(),
             protocols.continuation_resume(),

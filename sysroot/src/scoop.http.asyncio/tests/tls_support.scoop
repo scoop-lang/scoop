@@ -60,9 +60,9 @@ internal suspend fun tlsPair(
 }
 
 internal fun withTlsHttp2(block: suspend (CoroutineScope, H2Pair) -> Unit) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         val(tlsClient, tlsServer) =
             tlsPair(scope, a, b, TlsOptions(alpn = ["h2".toByteArray(), "http/1.1".toByteArray()]))

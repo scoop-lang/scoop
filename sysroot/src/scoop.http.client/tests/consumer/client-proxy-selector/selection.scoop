@@ -79,8 +79,9 @@ internal fun selectorCallbackFailure(trust: TrustStore, nested: Boolean) {
                     selections.fetchAdd(1L)
                     loop.sleep(Duration.milliseconds(5L))
                     if (nested)
-                        coroutineScope<Unit> suspend {
-                            child ->
+                        coroutineScope<Unit> {
+                            val child = this
+
                             child.launch suspend {
                                 selectorCheck(selectorContext() == "caller")
                                 loop.sleep(Duration.milliseconds(5L));

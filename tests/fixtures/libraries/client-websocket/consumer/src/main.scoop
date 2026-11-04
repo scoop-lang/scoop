@@ -28,9 +28,9 @@ private fun runWsCase(args: Array<String>) {
     val url = Url.parse("ws://127.0.0.1:" + port.toString() + "/start/%e9%9b%aa?x=%2f&x=2")
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val config =
                 httpClientConfig {
                     this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }

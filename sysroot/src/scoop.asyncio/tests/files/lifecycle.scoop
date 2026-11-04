@@ -12,9 +12,9 @@ private class AsyncFileLifecycleTest {
             tree ->
             val path = tree.child("data")
             path.writeText("x")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val file = loop.openFile(path)
                 NativeByteBuffer.allocate(1L).use suspend {
                     bytes ->
@@ -26,6 +26,7 @@ private class AsyncFileLifecycleTest {
                             }
                             catch (_: IoClosedException) {}
                         }
+                    yieldCoroutine()
                     try {
                         file.syncData();
                         fail(Some("concurrent operation accepted"))
@@ -55,10 +56,10 @@ private class AsyncFileLifecycleTest {
             tree ->
             val path = tree.child("data")
             path.writeText("x")
-            val loop: EventLoop = PlatformEventLoop()
+            val loop = eventLoop()
             val escaped =
-                loop.runWithResult<AsyncFile> suspend {
-                    scope ->
+                loop.run<AsyncFile> {
+                    val scope = this;
                     val file = loop.openFile(path)
                     val child =
                         scope.launch suspend {
@@ -74,9 +75,8 @@ private class AsyncFileLifecycleTest {
                     assertTrue(child.isCancelled)
                     loop.openFile(path)
                 }
-            val next: EventLoop = PlatformEventLoop()
-            next.run suspend {
-                _ ->
+            val next = eventLoop()
+            next.run {
                 escaped.close();
                 escaped.close()
             }

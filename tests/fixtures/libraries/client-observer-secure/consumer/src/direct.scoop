@@ -11,8 +11,7 @@ import scoop.url.Url
 internal fun observedDirectTls(trust: TrustStore, port: Int, failing: Boolean) {
     val log = ObservationLog()
     val url = Url.parse("https://localhost:" + port.toString() + "/resource")
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val tls =
             httpClientTlsConfig {
                 this.trust = TlsTrustSource.Store(trust)
@@ -83,8 +82,7 @@ internal fun observedForwardTls(trust: TrustStore, port: Int) {
     val log = ObservationLog()
     val url = Url.parse("http://origin.invalid/resource?q=QUERY_SECRET")
     val endpoint = Url.parse("https://127.0.0.1:" + port.toString())
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         val tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
         val proxy = HttpProxy.Http(HttpProxyEndpoint(endpoint, tls))
         val config =

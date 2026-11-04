@@ -43,7 +43,7 @@ withPadding 是不可变配置派生，withIndex 是惰性迭代变换，二者�
 | 嵌套可选值 | T? 是 Option<T>，Some(None) 与 None 不同；mapNotNone 只去掉一层。Map.getOrPut 只把外层 None 视为缺少键，已有 Some(None) 不触发缺省值生成 |
 | Result | Result<T, E> 使用 Success／Failure，E 无异常上界；mapError、flatMap 与 getOrThrow 各按明确的载荷／异常约束使用 |
 | 数组与能力 | Array 只读、MutableArray 可写；Any 没有通用 equals／hashCode／toString 回退。普通 struct 可派生 ==，但不自动获得 Equals<T> conformance；assertEquals 要求该显式能力，数组内容比较由实际元素规则决定 |
-| 任务执行 | launch／async 可以在返回前同步执行正文，不承诺切换线程；具体 IO 驱动由 EventLoop 提供。CancellableContinuation.tryResume 返回 Boolean，一步选择并提交恢复，不使用 Kotlin 的 tryResume／completeResume 两阶段协议 |
+| 任务执行 | scope 有 executor 时 launch／async 排队，无 executor 的低层 scope 才允许同步启动；普通 binding 取调用处快照，executor 取 scope 默认值或显式参数。blocking 接受普通托管闭包；withExecutor 建立结构化子作用域。CancellableContinuation.tryResume 返回 Boolean，一步选择并提交恢复，不使用 Kotlin 的 tryResume／completeResume 两阶段协议 |
 | CLI | parse(arguments) 不含程序名，parseCommandLine(argv) 包含程序名；CliResult.Parsed／HelpRequested 表达正常控制流程 |
 
 每个公共入口的领域文档应交代返回形状、求值方式、复制或借用、正常失败以及有实际影响的复杂度。普通 enum 源名字、反射／debug 名字与默认派生编码名字一起变化；显式协议格式独立规定。API 迁移必须同时修改规范、实现与实际消费者，验收使用真实编译诊断和运行结果。
@@ -60,6 +60,8 @@ withPadding 是不可变配置派生，withIndex 是惰性迭代变换，二者�
 
 UI 多子项 builder 通过 ChildrenBuilder 的真实成员收集标准子项。同名顶层工厂返回 View，成员入口追加一次并返回 Unit；两者共享同一私有构建实现。已有 View 和第三方组件使用 add。单内容入口显式接收一个 View，不隐式合并多个子项。需要在收集块中取得独立 View 时使用提前构造的值或顶层工厂 import alias，不依赖返回类型选择同名入口。
 
-配置代码只隐式使用当前 receiver；访问外层组件或 builder 时使用 `this@label` 或不可变对象引用。普通词法捕获继续按语言规则使用。后续加入的 `@DslMarker` 只限制 receiver 查找以减少误用，不能改变 API 已有的构造、状态、回调或资源能力。
+配置代码只隐式使用当前 receiver；访问外层组件或 builder 时使用 `this@label` 或不可变对象引用。普通词法捕获继续按语言规则使用；receiver 查找边界由语言规范 8.1.2 统一规定，不依赖 `@DslMarker`。
+
+配置回调通常是普通函数类型；真正允许挂起的任务块在 API 签名中明确使用 `suspend` 函数类型。调用处的 `{ ... }` 按期望类型确定挂起性，无需重复关键字。已定型的普通函数值不自动变成挂起函数值；需要适配时显式包装调用。普通/挂起回调重载遵守语言规范 8.6 的对称性与逐位置优先规则，不能依赖返回类型或声明顺序消歧。
 
 每项迁移先在所属领域规范写全入口签名、必需参数、可配置字段、默认值、返回值、快照／所有权及原入口的替换关系，再同步修改实现与全部实际消费者。被替换的旧签名直接删除，不设置历史兼容别名、转发层或双轨实现；仍有独立用途的结果值、Props 和持久增量对象按新设计的实际需要公开。各库直接实现自己的 builder，只共享实际相同的值与必要 helper，不建立跨库构造框架。

@@ -8,9 +8,9 @@ import scoop.time.Duration
 import scoop.url.Url
 
 internal fun basicChallenge(url: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val started = AtomicLong(0L)
         val credentials = AtomicLong(0L)
         val observed = AtomicLong(0L)
@@ -84,9 +84,9 @@ internal fun basicChallenge(url: Url, trust: TrustStore) {
 }
 
 internal fun basicRedirect(first: Url, second: Url, trust: TrustStore) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val calls = AtomicLong(0L)
         val original =
             HttpAuthenticator.basic(first.httpOrigin()) suspend {

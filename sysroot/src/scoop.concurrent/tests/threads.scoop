@@ -1,0 +1,146 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+internal class ThreadResult<T>: Continuation<T> {
+    private val mutex = Mutex()
+    private val changed = ConditionVariable(mutex)
+    private var finished = false
+    private var error: Throwable? = None
+    private var value: T? = None
+
+    val isDone: Boolean get() = mutex.withLock { finished }
+
+    public override fun resume(value: T) {
+        finish(Some(value), None)
+    }
+    public override fun resumeWithException(error: Throwable) {
+        finish(None, Some(error))
+    }
+    private fun finish(value: T?, error: Throwable?) {
+        mutex.withLock {
+            assertFalse(finished)
+            this.error = error
+            this.value = value
+            finished = true
+            changed.broadcast()
+        }
+    }
+    fun await(): T {
+        val(result, failure) =
+            mutex.withLock {
+                while (!finished)
+                    changed.await()
+                (value, error)
+            }
+        when (failure) {
+            case Some(error) -> throw error
+            case None -> return result!!
+        }
+    }
+}
+
+private fun coroutineThread(block: suspend () -> Unit): Thread =
+    Thread.start {
+        val result = ThreadResult<Unit>()
+        startCoroutine(block, result)
+        result.await()
+    }
+
+private fun checkChannelThreads(capacity: Long) {
+    val channel = Channel<Long>(capacity)
+    val seen = Array<AtomicInt>(256L) { _ -> AtomicInt(0) }
+    val consumers =
+        Array<Thread>(4L) {
+            _ -> coroutineThread {
+                var receiving = true
+                while (receiving) {
+                    when (channel.receiveOrNone()) {
+                        case Some(value) -> seen[value].fetchAdd(1)
+                        case None -> receiving = false
+                    }
+                }
+            }
+        }
+    val producers =
+        Array<Thread>(4L) {
+            producer -> coroutineThread {
+                var offset = 0L
+                while (offset < 64L) {
+                    channel.send(producer * 64L + offset)
+                    offset += 1L
+                }
+            }
+        }
+    for (thread in producers)
+        thread.use { it.join() }
+    channel.close()
+    for (thread in consumers)
+        thread.use { it.join() }
+    for (count in seen)
+        assertEquals(1, count.load())
+}
+
+private class Slot {
+    val mutex = AsyncMutex()
+    val changed = AsyncConditionVariable(mutex)
+    var value: Int? = None
+    var closed = false
+}
+
+@Test
+private class ThreadedSynchronizationTest {
+    @Test
+    fun `mpmc channels deliver every message once across managed threads`() {
+        checkChannelThreads(0L)
+        checkChannelThreads(3L)
+    }
+
+    @Test
+    fun `mutex and condition coordinate a predicate across managed threads`() {
+        val slot = Slot()
+        val sum = AtomicInt(0)
+        val producer =
+            coroutineThread {
+                var value = 1
+                while (value <= 64) {
+                    val current = value
+                    slot.mutex.withLock {
+                        while (!absent(slot.value))
+                            slot.changed.await(this)
+                        slot.value = Some(current)
+                        slot.changed.signal(this)
+                    }
+                    value += 1
+                }
+                slot.mutex.withLock {
+                    slot.closed = true
+                    slot.changed.broadcast(this)
+                }
+            }
+        val consumer =
+            coroutineThread {
+                var receiving = true
+                while (receiving) {
+                    val message =
+                        slot.mutex.withLock {
+                            while (absent(slot.value) && !slot.closed)
+                                slot.changed.await(this)
+                            val result = slot.value
+                            slot.value = None
+                            slot.changed.signal(this)
+                            result
+                        }
+                    when (message) {
+                        case Some(value) -> sum.fetchAdd(value)
+                        case None -> receiving = false
+                    }
+                }
+            }
+        producer.use { it.join() }
+        consumer.use { it.join() }
+        assertEquals(2080, sum.load())
+    }
+}

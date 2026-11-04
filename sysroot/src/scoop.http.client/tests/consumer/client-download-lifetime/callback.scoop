@@ -24,8 +24,9 @@ internal fun downloadCallbackFailure(trust: TrustStore, directory: Path, nested:
                                     progress ->
                                     if (progress.bytesWritten > 0L) {
                                         if (nested)
-                                            coroutineScope<Unit> suspend {
-                                                scope ->
+                                            coroutineScope<Unit> {
+                                                val scope = this
+
                                                 scope.launch suspend { throw failure };
                                                 Unit
                                             }

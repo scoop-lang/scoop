@@ -8,10 +8,11 @@ import scoop.time.Duration
 private class EventLoopTimerTest {
     @Test
     fun `timers advance together and never complete before their monotonic duration`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val completed = AtomicLong(0L)
-        loop.run suspend {
-            scope -> for (index in 1L .. 16L) {
+        loop.run {
+            val scope = this;
+            for (index in 1L .. 16L) {
                 scope.launch suspend {
                     val start = MonotonicTimeSource.markNow()
                     val duration = Duration.microseconds(index * 100L)
@@ -26,10 +27,10 @@ private class EventLoopTimerTest {
 
     @Test
     fun `cancel before native submission waits for finally and does not stop the loop`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val finished = AtomicLong(0L)
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val child =
                 scope.launch suspend {
                     try {
@@ -40,6 +41,7 @@ private class EventLoopTimerTest {
                         finished.fetchAdd(1L)
                     }
                 }
+            yieldCoroutine()
             child.cancel()
             child.cancel()
             child.join()
@@ -63,10 +65,10 @@ private class EventLoopTimerTest {
 
     @Test
     fun `cancel an active timer waits for native close and completed results stay successful`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val cleaned = AtomicBoolean(false)
-        loop.run suspend {
-            scope ->
+        loop.run {
+            val scope = this;
             val pending =
                 scope.launch suspend {
                     try {

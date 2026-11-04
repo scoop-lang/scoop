@@ -11,8 +11,9 @@ private class HttpRequestObservationWebSocketTest {
     @Test
     fun `WebSocket upgrade preserves request observation and treats 101 as final`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val done = BodyTestGate()
                     val serving =

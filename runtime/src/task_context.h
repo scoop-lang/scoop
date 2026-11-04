@@ -12,9 +12,12 @@ typedef struct ScoopContextNode {
 typedef struct ScoopTaskContext {
     ScoopObjectHeader header;
     ScoopContextNode *root;
+    void *execution;
 } ScoopTaskContext;
 
 _Static_assert(sizeof(ScoopContextNode) == 48, "Context node ABI");
-_Static_assert(sizeof(ScoopTaskContext) == 24, "Task Context ABI");
+_Static_assert(sizeof(ScoopTaskContext) == 32, "Task Context ABI");
+_Static_assert(offsetof(ScoopTaskContext, root) == 16, "Task Context root ABI");
+_Static_assert(offsetof(ScoopTaskContext, execution) == 24, "Task Context execution ABI");
 
 #endif

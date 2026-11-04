@@ -1,5 +1,8 @@
 use super::*;
 
+mod entry;
+use entry::{create_entry, declare_work_class, read_field};
+
 impl CoroutineRegistry {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn start_helper(
@@ -9,6 +12,9 @@ impl CoroutineRegistry {
         result: &mir::Type,
         task_interface: mir::InterfaceId,
         continuation_interface: mir::InterfaceId,
+        work: crate::coroutine_registry::ProtocolMethod,
+        execution_start: crate::coroutine_registry::ProtocolMethod,
+        work_signature: hir::ExactCallableSignature,
         run: crate::coroutine_registry::ProtocolMethod,
         resume: crate::coroutine_registry::ProtocolMethod,
         resume_with_exception: crate::coroutine_registry::ProtocolMethod,
@@ -16,7 +22,8 @@ impl CoroutineRegistry {
         throwable: mir::Type,
         functions: &mut Arena<mir::Function>,
         top_level: &mut Vec<mir::FunctionId>,
-        shell: &mir::Module,
+        classes: &mut Arena<mir::ClassDef>,
+        shell: &mut mir::Module,
     ) -> mir::FunctionId {
         let source = Self::source_type(exact_types, result);
         let exact = source.identity_record();
@@ -48,7 +55,21 @@ impl CoroutineRegistry {
         let completed_variant = step_metadata.completed();
         let completed_payload = step_metadata.completed_payload();
 
+        let work_class = declare_work_class(
+            core,
+            task_interface,
+            continuation_interface,
+            work.interface,
+            classes,
+            shell,
+        );
         let mut locals = Arena::new();
+        let receiver = locals.alloc(mir::Local {
+            debug_variable: Default::default(),
+            name: "this".into(),
+            ty: mir::Type::Class(work_class),
+            mutable: false,
+        });
         let task = locals.alloc(mir::Local {
             debug_variable: Default::default(),
             name: "task".to_string(),
@@ -176,31 +197,46 @@ impl CoroutineRegistry {
         });
         blocks[completed].statements.push(switch.leave());
         blocks[failed].statements.push(switch.leave());
-        let (fork, child) = crate::task_context::fork_current(core, &mut locals);
+        let context_ty = mir::Type::Context(mir::ContextStorageType::new(
+            core,
+            mir::ContextStorageRole::Task,
+        ));
+        let receiver_value = mir::Expr::local(receiver, mir::Type::Class(work_class));
         let entry = blocks.alloc(mir::BasicBlock {
             terminator_origin: Default::default(),
             name: "entry".to_string(),
-            statements: vec![fork, switch.enter(child)],
+            statements: vec![
+                statement(mir::StatementKind::ValDecl {
+                    local: task,
+                    init: read_field(
+                        receiver_value.clone(),
+                        1,
+                        mir::Type::Interface(task_interface),
+                    ),
+                }),
+                statement(mir::StatementKind::ValDecl {
+                    local: completion,
+                    init: read_field(
+                        receiver_value.clone(),
+                        2,
+                        mir::Type::Interface(continuation_interface),
+                    ),
+                }),
+                switch.enter(read_field(receiver_value, 0, context_ty)),
+            ],
             terminator: mir::Terminator::Goto(run_body),
             unwind: None,
         });
         let result_name = mir::type_name(shell, result);
-        let function = functions.alloc(mir::Function {
+        let work_run = functions.alloc(mir::Function {
             debug_origin: Default::default(),
             gc_effect: mir::GcEffect::Managed,
-            name: format!("startCoroutine<{result_name}>"),
-            params: vec![
-                mir::Param {
-                    name: "task".to_string(),
-                    ty: mir::Type::Interface(task_interface),
-                    local: task,
-                },
-                mir::Param {
-                    name: "completion".to_string(),
-                    ty: mir::Type::Interface(continuation_interface),
-                    local: completion,
-                },
-            ],
+            name: format!("CoroutineStartWork<{result_name}>.run"),
+            params: vec![mir::Param {
+                name: "this".into(),
+                ty: mir::Type::Class(work_class),
+                local: receiver,
+            }],
             return_ty: mir::Type::Unit,
             body: mir::Body {
                 locals,
@@ -209,19 +245,46 @@ impl CoroutineRegistry {
                 loop_header_polls: Vec::new(),
             },
         });
+        top_level.push(work_run);
+        let mir::ClassRepresentation::Declared(_) = &classes[work_class].representation else {
+            unreachable!("start work is a declared generated class")
+        };
+        classes[work_class].itables = vec![mir::ItableRecord {
+            interface: work.interface,
+            slots: vec![mir::TableSlot::Function(work_run)],
+        }];
+        assert_eq!(
+            work.slot, 0,
+            "CoroutineWork has exactly its checked run method"
+        );
+        let function = create_entry(
+            core,
+            &result_name,
+            work_class,
+            work.interface,
+            execution_start,
+            task_interface,
+            continuation_interface,
+            functions,
+        );
         top_level.push(function);
         let signature = hir::ExactCallableSignature::new(
             hir::Effect::Ordinary,
             None,
-            [task_interface, continuation_interface]
-                .map(|interface| {
-                    exact_types
-                        .get(&mir::Type::Interface(interface))
-                        .expect("a concrete coroutine protocol interface has one exact identity")
-                        .identity_record()
-                        .id()
-                })
-                .into(),
+            [
+                mir::Type::Interface(execution_start.interface),
+                mir::Type::Boolean,
+                mir::Type::Interface(task_interface),
+                mir::Type::Interface(continuation_interface),
+            ]
+            .map(|ty| {
+                exact_types
+                    .get(&ty)
+                    .expect("a concrete coroutine protocol interface has one exact identity")
+                    .identity_record()
+                    .id()
+            })
+            .into(),
             exact_types
                 .get(&mir::Type::Unit)
                 .expect("the core Unit type has one exact identity")
@@ -230,8 +293,19 @@ impl CoroutineRegistry {
         );
         let identity = mir::CoroutineStartIdentity::new(exact, nominal_group, signature)
             .expect("local-concrete coroutine protocols have one coroutine-start identity");
-        let metadata = mir::CoroutineStart::checked(functions, result.clone(), function, identity)
-            .expect("generated coroutine start helper has the exact erased signature");
+        let work_identity =
+            mir::CoroutineStartWorkIdentity::new(exact, nominal_group, work_signature)
+                .expect("start work has an exact owner and a checked CoroutineWork signature");
+        let metadata = mir::CoroutineStart::checked(
+            functions,
+            result.clone(),
+            function,
+            identity,
+            work_class,
+            work_run,
+            work_identity,
+        )
+        .expect("generated coroutine start helper has the exact erased signature");
         self.start_helpers.push(metadata);
         function
     }

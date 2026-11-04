@@ -1,0 +1,12 @@
+package scoop.asyncio
+
+internal fun requireLoopRootCaller() {
+    when (currentJobOrNone()) {
+        case Some(_) -> throw IllegalStateException(
+            Some("async root startup requires a caller outside a Job")
+        )
+        case None -> {}
+    }
+    if (hasEventLoop())
+        throw IllegalStateException(Some("nested async root startup"))
+}

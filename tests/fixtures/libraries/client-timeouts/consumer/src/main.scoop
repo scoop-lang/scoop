@@ -43,8 +43,8 @@ private fun exercise(mode: String, url: Url, trust: TrustStore) {
                     this.maxStreamsPerHttp2 = 2L
                 }
         }
-    PlatformEventLoop().run suspend {
-        scope ->
+    eventLoop().run {
+        val scope = this;
         withHttpClient(config) suspend {
             client -> when (mode) {
                 case "pool" -> timeoutPool(client, url)

@@ -34,11 +34,9 @@ internal fun proxyNetwork(mode: String, proxy: Url, target: Url, trust: TrustSto
                     Some(proxyCredentials())
                 )
             )
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> withHttpClient<Unit>(
-            proxyConfig(trust, HttpProxySelector.fixed(route), mode)
-        ) suspend {
+    val loop = eventLoop()
+    loop.run {
+        withHttpClient<Unit>(proxyConfig(trust, HttpProxySelector.fixed(route), mode)) suspend {
             client -> if (mode == "reject") {
                 val started = AtomicLong(0L)
                 val body =

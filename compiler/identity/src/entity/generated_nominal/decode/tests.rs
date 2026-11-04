@@ -95,6 +95,7 @@ fn all_generated_nominal_shapes_round_trip_and_resolve() {
             suspension_site,
         },
         GeneratedNominalKey::CoroutineStep { result: exact },
+        GeneratedNominalKey::CoroutineStartWork { result: exact },
         GeneratedNominalKey::BoxedValue { payload: exact },
         GeneratedNominalKey::CoroutineSlot { value: exact },
         GeneratedNominalKey::ObjectBackingClass {
@@ -142,8 +143,8 @@ fn generated_nominal_resolution_preserves_receiver_adapter_target() {
 
 #[test]
 fn generated_nominal_decoder_rejects_unknown_tags() {
-    let outer = decode_canonical::<DecodedGeneratedNominalKey>(b"\xa1\x00\x0b").unwrap_err();
-    assert_eq!(outer.kind(), &WireErrorKind::UnknownTag { tag: 11 });
+    let outer = decode_canonical::<DecodedGeneratedNominalKey>(b"\xa1\x00\x0c").unwrap_err();
+    assert_eq!(outer.kind(), &WireErrorKind::UnknownTag { tag: 12 });
 
     let role = decode_canonical::<ClosureEnvironmentRole>(b"\x04").unwrap_err();
     assert_eq!(role.kind(), &WireErrorKind::UnknownTag { tag: 4 });

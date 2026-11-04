@@ -185,6 +185,7 @@ impl CanonicalHirFoundation {
             | GeneratedCallableKey::DynamicFunctionAdapter { .. }
             | GeneratedCallableKey::ForeignCallbackManagedAdapter { .. }
             | GeneratedCallableKey::CoroutineStart { .. }
+            | GeneratedCallableKey::CoroutineStartWork { .. }
             | GeneratedCallableKey::FunctionBridge { .. }
             | GeneratedCallableKey::BoxingAdjust { .. }
             | GeneratedCallableKey::TestEntry { .. } => Some(SourceContextNames::default()),

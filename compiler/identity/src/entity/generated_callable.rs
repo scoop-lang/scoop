@@ -56,6 +56,7 @@ impl WireEncode for InitializationCallableRole {
 pub enum CoroutineAdapterRole {
     Success,
     Failure,
+    Run,
 }
 
 impl WireEncode for CoroutineAdapterRole {
@@ -63,6 +64,7 @@ impl WireEncode for CoroutineAdapterRole {
         encoder.unsigned(match self {
             Self::Success => 1,
             Self::Failure => 2,
+            Self::Run => 3,
         })
     }
 }
@@ -189,6 +191,9 @@ pub enum GeneratedCallableKey {
         source_callable: CallableMaterialization,
     },
     CoroutineStart {
+        result: PersistentExactTypeId,
+    },
+    CoroutineStartWork {
         result: PersistentExactTypeId,
     },
     CoroutineAdapter {
@@ -366,6 +371,7 @@ impl WireEncode for GeneratedCallableKey {
                 encode_value_sum(encoder, 9, source_callable)
             }
             Self::CoroutineStart { result } => encode_value_sum(encoder, 11, result),
+            Self::CoroutineStartWork { result } => encode_value_sum(encoder, 19, result),
             Self::CoroutineAdapter {
                 source_callable,
                 suspension_site,

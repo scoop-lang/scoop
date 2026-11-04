@@ -68,9 +68,10 @@ private fun clientTlsSuccess(protocols: List<Array<Byte>>) {
     clientTestTrust().use {
         trust -> clientTlsServer(protocols).use {
             tlsContext ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val done = BodyTestGate()
                     val serving =
@@ -111,9 +112,10 @@ private fun clientTlsRejection(config: HttpClientConfig): Throwable {
     val result = ClientTestFailureHolder()
     clientTlsServer(emptyList<Array<Byte>>()).use {
         tlsContext ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> clientTestListen(loop).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            clientTestListen(loop).useAsync suspend {
                 listener ->
                 val received = ArrayList<Long>()
                 val serving =

@@ -1,0 +1,61 @@
+package scoop.asyncio
+
+import scoop.concurrent.BlockingTaskPool
+import scoop.platform.fs.*
+import scoop.platform.system.PlatformException
+import scoop.test.*
+import scoop.time.Duration
+
+@Test
+private class NativeBlockingPoolTest {
+    @Test
+    fun `ordinary blocking work shares file queue and queued cancellation releases its payload`() {
+        IoTestDirectory().use {
+            tree ->
+            val path = tree.child("not-created")
+            val loop = eventLoop { blocking { threads = 1 } }
+            loop.run {
+                val gate = LoopBlockingGate()
+                val held = launch { blocking { gate.await() } }
+                try {
+                    while (!gate.entered)
+                        loop.sleep(Duration.nanoseconds(1L))
+                    val queued =
+                        launch { loop.openFile(path, OpenOptions(write = true, createNew = true)) }
+                    // Cross an I/O turn so the file task is in the occupied managed queue.
+                    loop.sleep(Duration.nanoseconds(1L))
+                    queued.cancel()
+                    queued.join()
+                    assertTrue(queued.isCancelled)
+                    assertFalse(path.exists())
+                    gcCollect()
+                } finally {
+                    gate.open()
+                }
+                held.join()
+            }
+            assertFalse(path.exists())
+        }
+    }
+
+    @Test
+    fun `pool rejection retires native work and permits complete loop shutdown`() {
+        IoTestDirectory().use {
+            tree -> BlockingTaskPool(1).use {
+                pool ->
+                val loop = eventLoop { blocking(pool) }
+                loop.run {
+                    pool.requestShutdown()
+                    try {
+                        loop.openFile(
+                            tree.child("not-created"),
+                            OpenOptions(write = true, createNew = true)
+                        )
+                        fail(Some("a closed pool accepted native work"))
+                    } catch (_: PlatformException) {}
+                }
+                assertFalse(tree.child("not-created").exists())
+            }
+        }
+    }
+}

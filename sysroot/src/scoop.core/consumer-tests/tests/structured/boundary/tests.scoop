@@ -1,0 +1,27 @@
+package test.core.tests.structured.boundary
+
+import scoop.test.*
+
+@Test
+private class CoroutineScopeBoundaryTest {
+    @Test
+    fun `body failure leaves its caller active`() {
+        caughtBodyFailure()
+    }
+    @Test
+    fun `child failure waits for cleanup`() {
+        caughtChildFailureWaitsForCleanup()
+    }
+    @Test
+    fun `uncaught failure still propagates`() {
+        uncaughtScopeFailureStillPropagates()
+    }
+    @Test
+    fun `caller cancellation waits for cleanup`() {
+        callerCancellationWaitsForScopedCleanup()
+    }
+    @Test
+    fun `caught async failure still fails its scope`() {
+        caughtAsyncAwaitStillFailsItsScope()
+    }
+}

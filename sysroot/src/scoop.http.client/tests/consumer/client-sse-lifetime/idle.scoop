@@ -118,9 +118,11 @@ internal fun sseActive(trust: TrustStore, mode: String, opening: Boolean) {
                 None
             else
                 Some(client.openSse(request, reconnect))
+        val started = SseGate()
         val running =
             scope.launch suspend {
                 try {
+                    started.signal()
                     if (opening)
                         client.openSse(request, reconnect)
                     else
@@ -132,6 +134,7 @@ internal fun sseActive(trust: TrustStore, mode: String, opening: Boolean) {
             }
         try {
             received.await()
+            started.await()
             assertFalse(running.isCompleted)
             if (!opening) {
                 assertTrue(

@@ -1,0 +1,28 @@
+[
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "call to `choose` is ambiguous in current-unit top-level candidate layer:\n  - fun choose(block: () -> Int): Int — tied after pairwise declaration forwarding\n  - fun choose(block: suspend () -> Int): Long — tied after pairwise declaration forwarding",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 242,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 230
+    },
+    "severity": "error"
+  },
+  {
+    "code": "SCOOPC_HIR_ERROR",
+    "message": "call to `pair` is ambiguous in current-unit top-level candidate layer:\n  - fun pair(first: () -> Int, second: suspend () -> Int): Int — tied after pairwise declaration forwarding\n  - fun pair(first: suspend () -> Int, second: () -> Int): Int — tied after pairwise declaration forwarding",
+    "notes": [],
+    "origin": {
+      "cone": "00769af7cd4a85d98841cd63dabb8e73c4d41bce56f5e225f7295dd27c3f39b6",
+      "end": 265,
+      "kind": "source",
+      "path": "main.scoop",
+      "start": 247
+    },
+    "severity": "error"
+  }
+]

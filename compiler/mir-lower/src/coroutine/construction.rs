@@ -277,7 +277,7 @@ pub(super) fn field_set(object: mir::Expr, index: u32, value: mir::Expr) -> mir:
 /// Allocate and initialize a compiler-generated class whose fields are already
 /// represented as an ordered concrete payload. Source classes always run their
 /// typed initializer functions instead.
-pub(super) fn initialized_generated_class(
+pub(crate) fn initialized_generated_class(
     local: mir::LocalId,
     class: mir::ClassId,
     fields: Vec<mir::Expr>,

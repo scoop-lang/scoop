@@ -44,8 +44,8 @@ internal fun extensionWebSocket(trust: TrustStore, url: Url) {
                 )
             ]
         }
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(extensionConfig(trust, [interceptor], Some(callback))) suspend {
+    eventLoop().run {
+        withHttpClient(extensionConfig(trust, [interceptor], Some(callback))) suspend {
             client ->
             val target = url.copy { scheme = Some("ws") }
             client.withWebSocket(httpWebSocketRequest(target)) suspend {
@@ -64,8 +64,7 @@ internal fun extensionWebSocket(trust: TrustStore, url: Url) {
 }
 
 internal fun extensionWebSocketValidation(trust: TrustStore, url: Url) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         for (mode in 0 ..< 5) {
             val interceptor =
                 HttpInterceptor(

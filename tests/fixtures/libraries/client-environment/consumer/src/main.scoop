@@ -43,8 +43,8 @@ fun main(args: Array<String>) {
                             this.proxyHandshake = None
                         }
                 }
-            PlatformEventLoop().run suspend {
-                _ -> withHttpClient(config) suspend {
+            eventLoop().run {
+                withHttpClient(config) suspend {
                     client ->
                     val request =
                         if (rewriting)

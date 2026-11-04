@@ -62,7 +62,7 @@ fn validates_and_preserves_coroutine_core_contract() {
     assert_eq!(task.type_params.len(), 1);
     assert!(module.functions[module.interface_methods[task.methods[0]].function].is_suspend);
 
-    let start = function_id(&module, "startCoroutine");
+    let start = function_id(&module, "startCoroutineExecution");
     assert_eq!(core.coroutines.start_coroutine, start);
     assert!(matches!(
         &module.functions[start].kind,
@@ -112,10 +112,12 @@ fn rejects_malformed_coroutine_start_intrinsic() {
         .declarations
         .iter_mut()
         .find_map(|decl| match decl {
-            Decl::Function(function) if function.name.text == "startCoroutine" => Some(function),
+            Decl::Function(function) if function.name.text == "startCoroutineExecution" => {
+                Some(function)
+            }
             _ => None,
         })
-        .expect("startCoroutine declaration");
+        .expect("startCoroutineExecution declaration");
     function.return_ty = Some(ty_named("Int"));
 
     let errors = lower(&[core, file(vec![fun("main", vec![])])])

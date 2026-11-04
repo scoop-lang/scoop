@@ -13,9 +13,10 @@ private class WsSelfWaitSource(
     var checked: Int = 0
     public override suspend fun readInto(buffer: NativeByteBuffer, count: Long): Long {
         if (child)
-            coroutineScope<Unit> suspend {
-                scope ->
-                scope.launch suspend { checkWaits() };
+            coroutineScope<Unit> {
+                val scope = this
+
+                scope.launch { this @WsSelfWaitSource.checkWaits() };
                 Unit
             }
         else
@@ -42,9 +43,9 @@ private class WsSelfWaitSource(
 }
 
 internal fun wsSelfWait(child: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsTestTransport()
         val session = AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
         val source = WsSelfWaitSource(session, child)

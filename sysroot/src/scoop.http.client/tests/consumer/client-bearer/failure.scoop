@@ -23,8 +23,9 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                 entered.signal();
                 release.await()
                 if (nested)
-                    coroutineScope<Unit> suspend {
-                        child ->
+                    coroutineScope<Unit> {
+                        val child = this
+
                         child.async<Unit> suspend { throw original };
                         Unit
                     }
@@ -69,15 +70,17 @@ internal fun bearerSharedFailure(trust: TrustStore, nested: Boolean) {
                         }
                     }
                 entered.await()
+                val waiting = BearerGate()
                 val second =
                     scope.launch suspend {
                         try {
-                            client.execute(httpRequest(url)).close()
+                            client.execute(bearerWaitingRequest(url, waiting)).close()
                         }
                         catch (error: Throwable) {
                             secondFailure.value = Some(error)
                         }
                     }
+                waiting.await()
                 bearerCheck(loads.load() == 1L)
                 release.signal();
                 first.join();

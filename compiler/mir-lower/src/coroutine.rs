@@ -14,10 +14,12 @@ mod errors;
 mod frame;
 mod intrinsics;
 mod liveness;
+mod registration;
 mod sites;
 mod tail;
 
 use adapters::*;
+pub(crate) use construction::initialized_generated_class;
 use construction::*;
 use errors::protocol_error_block;
 use intrinsics::*;
@@ -58,7 +60,11 @@ struct DiscoveredSuspendSite {
 #[derive(Clone)]
 enum SuspendKind {
     Call(mir::Call),
-    Intrinsic(crate::cfg::SuspendCall),
+    Intrinsic {
+        method: crate::coroutine_registry::ProtocolMethod,
+        receiver: Box<mir::Expr>,
+    },
+    Yield,
 }
 
 pub(super) fn transform(lowerer: &mut Lowerer, module: &hir::Module) {
@@ -183,12 +189,14 @@ fn transform_function(
     let outer_resume = crate::coroutine_registry::protocol_call(
         module,
         &lowerer.instances,
+        &lowerer.function_map,
         &lowerer.interfaces,
         protocol.continuation_resume,
     );
     let outer_failure = crate::coroutine_registry::protocol_call(
         module,
         &lowerer.instances,
+        &lowerer.function_map,
         &lowerer.interfaces,
         protocol.continuation_resume_with_exception,
     );
@@ -431,6 +439,7 @@ fn register_resume_point(
             adapter.class,
             adapter.resume,
             adapter.resume_with_exception,
+            adapter.work_run,
             parents,
             mir::CoroutineResumeSuccess::new(
                 mir::CoroutineResumeEntryTarget::new(resume),

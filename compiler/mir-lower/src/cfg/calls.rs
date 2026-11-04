@@ -71,7 +71,7 @@ impl CfgLowerer<'_> {
                 destination.is_none(),
                 "Unit suspension has no value destination"
             );
-            self.defer_suspend(SuspendCall {
+            self.defer_suspend(SuspendCall::Registration {
                 method,
                 receiver,
                 destination: None,
@@ -86,7 +86,7 @@ impl CfgLowerer<'_> {
                     result.clone(),
                 )
             });
-            self.defer_suspend(SuspendCall {
+            self.defer_suspend(SuspendCall::Registration {
                 method,
                 receiver,
                 destination: Some(destination),
@@ -100,7 +100,7 @@ impl CfgLowerer<'_> {
         }
     }
 
-    fn defer_suspend(&mut self, call: SuspendCall) {
+    pub(super) fn defer_suspend(&mut self, call: SuspendCall) {
         let pending = self.call_pending_context();
         self.ensure_unwind_context();
         self.call_sites.push(CallSite {

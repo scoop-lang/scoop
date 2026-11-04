@@ -9,9 +9,9 @@ import scoop.test.*
 private class AsyncTcpTransferTest {
     @Test
     fun `loopback streams compose short copies and keep output usable after input EOF`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val(listener, client, server) = tcpPair(loop, scope)
             assertEquals(listener.localAddress, client.peerAddress)
             assertEquals(client.localAddress, server.peerAddress)
@@ -52,9 +52,8 @@ private class AsyncTcpTransferTest {
 
     @Test
     fun `invalid listener options and bind conflicts preserve native error domains`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val address = SocketAddress(IpAddress.IPV4_LOOPBACK, 0)
             try {
                 loop.listenTcp(address, 0);

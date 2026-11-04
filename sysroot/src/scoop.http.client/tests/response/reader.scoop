@@ -21,8 +21,9 @@ private class HttpClientResponseReaderTest {
             },
             suspend {
                 client,
-                url -> coroutineScope suspend {
-                    scope -> client.withResponse(httpRequest(url)) suspend {
+                url -> coroutineScope {
+                    val scope = this
+                    client.withResponse(httpRequest(url)) suspend {
                         response ->
                         expectBodyFailure<IllegalArgumentException> suspend {
                             response.body.bytes(-1L);

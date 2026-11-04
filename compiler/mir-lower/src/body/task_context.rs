@@ -3,6 +3,57 @@
 use super::*;
 
 impl BodyLowerer<'_> {
+    pub(super) fn lower_current_execution(&mut self, result: hir::TypeId) -> smir::Expr {
+        let result_ty = self.lower_type(result);
+        let option = option_core_for_type(self.module, self.enums, &result_ty);
+        let payload_ty = option
+            .some_payload()
+            .definition(&self.enums.defs)
+            .expect("the core Option payload is materialized")
+            .ty
+            .clone();
+        let binding_ty = self.context_type(mir::ContextStorageRole::Binding);
+        let binding = self.new_hidden("current_execution", binding_ty.clone(), false);
+        let result = self.new_hidden("execution_option", result_ty.clone(), false);
+        self.prelude.push(smir::StatementKind::ValDecl {
+            local: binding,
+            init: smir::Expr::new(
+                binding_ty.clone(),
+                smir::ExprKind::Context(mir::ContextOperation::CurrentExecution),
+            ),
+        });
+        let statement = |variant, fields| smir::Statement {
+            debug_origin: Default::default(),
+            span: Span::new(0, 0),
+            kind: smir::StatementKind::ValDecl {
+                local: result,
+                init: smir::Expr::new(
+                    result_ty.clone(),
+                    smir::ExprKind::VariantConstruct { variant, fields },
+                ),
+            },
+        };
+        self.prelude.push(smir::StatementKind::If {
+            cond: smir::Expr::new(
+                mir::Type::Boolean,
+                smir::ExprKind::Context(mir::ContextOperation::IsPresent {
+                    binding: Box::new(smir::Expr::local(binding, binding_ty.clone())),
+                }),
+            ),
+            then_body: vec![statement(
+                option.some(),
+                vec![smir::Expr::new(
+                    payload_ty,
+                    smir::ExprKind::Context(mir::ContextOperation::UnwrapBinding {
+                        binding: Box::new(smir::Expr::local(binding, binding_ty)),
+                    }),
+                )],
+            )],
+            else_body: Some(vec![statement(option.none(), Vec::new())]),
+        });
+        smir::Expr::local(result, result_ty)
+    }
+
     fn context_type(&self, role: mir::ContextStorageRole) -> mir::Type {
         mir::Type::Context(mir::ContextStorageType::new(
             super::super::context::core_provider(self.module),

@@ -18,9 +18,9 @@ private class CompressedRequestBodyTest {
             ]
         val names: Array<String> = ["gzip", "deflate", "br", "zstd"]
         val plain = RequestBody.fromText("Hello 中文\n")
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (index in 0L ..< options.size) {
+        val loop = eventLoop()
+        loop.run {
+            for (index in 0L ..< options.size) {
                 val body = plain.compressed(options[index])
                 assertTrue(body.isReplayable)
                 assertTrue(body.contentLength == None)
@@ -67,9 +67,8 @@ private class CompressedRequestBodyTest {
         assertFailsWith<IllegalArgumentException> {
             body.compressed(CompressionOptions.RawDeflate(DeflateOptions()))
         }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bytes = collectRequestBody(body)
             val gzip = decompress(bytes, DecompressionOptions(CompressionFormat.Brotli))
             assertEquals(
@@ -84,9 +83,9 @@ private class CompressedRequestBodyTest {
         val source = BodyTestSource("once".toByteArray())
         val body = RequestBody.fromSource(source).compressed()
         assertFalse(body.isReplayable)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val encoded = collectRequestBody(body)
             assertEquals(
                 "once",
@@ -118,9 +117,9 @@ private class CompressedRequestBodyTest {
         val owned = RequestBody.fromSourceFactory suspend { source }
         val body = owned.compressed()
         val output = BodyTestSink()
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val sending =
                 scope.launch suspend {
                     body.writeTo(output);

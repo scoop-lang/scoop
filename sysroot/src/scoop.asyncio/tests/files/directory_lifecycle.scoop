@@ -10,9 +10,9 @@ private class AsyncDirectoryLifecycleTest {
         IoTestDirectory().use {
             tree ->
             tree.child("entry").writeText("data")
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val directory = loop.openDirectory(tree.path)
                 val reading =
                     scope.launch suspend {
@@ -22,6 +22,7 @@ private class AsyncDirectoryLifecycleTest {
                         }
                         catch (_: IoClosedException) {}
                     }
+                yieldCoroutine()
                 try {
                     directory.next();
                     fail(Some("concurrent next accepted"))
@@ -46,10 +47,10 @@ private class AsyncDirectoryLifecycleTest {
     fun `cancelled finally and loop exit close directory resources`() {
         IoTestDirectory().use {
             tree ->
-            val loop: EventLoop = PlatformEventLoop()
+            val loop = eventLoop()
             val escaped =
-                loop.runWithResult<AsyncDirectoryEntries> suspend {
-                    scope ->
+                loop.run<AsyncDirectoryEntries> {
+                    val scope = this;
                     val child =
                         scope.launch suspend {
                             val directory = loop.openDirectory(tree.path)
@@ -65,9 +66,8 @@ private class AsyncDirectoryLifecycleTest {
                     assertTrue(child.isCancelled)
                     loop.openDirectory(tree.path)
                 }
-            val next: EventLoop = PlatformEventLoop()
-            next.run suspend {
-                _ ->
+            val next = eventLoop()
+            next.run {
                 escaped.close();
                 escaped.close()
             }

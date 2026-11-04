@@ -1,0 +1,380 @@
+package test.core.tests.executors
+
+import scoop.test.*
+
+private fun <T> blockingAbsent(value: T?): Boolean =
+    when (value) {
+        case None -> true
+        case Some(_) -> false
+    }
+
+private struct BlockingValue<T>(val value: T, val detail: (Long, String))
+
+private class BlockingProbe {
+    var job: Job? = None
+    var invoked = false
+    var cleaned = false
+    var received: DriveMarker? = None
+}
+
+@Test
+private class BlockingExecutionTest {
+    @Test
+    fun `blocking inherits bindings without the caller execution and returns a typed value`() {
+        val executor = QueueExecutor()
+        val done = DriveCompletion<Int>()
+        context(DriveMarker(11)) {
+            startDispatchedCoroutine(
+                executor,
+                {
+                    coroutineScope {
+                        val owner = job
+                        val result =
+                            blocking {
+                                assertTrue(blockingAbsent(currentCoroutineExecutorOrNone()))
+                                assertSame(owner, currentJobOrNone()!!)
+                                assertEquals(11, markerNumber())
+                                BlockingValue<DriveMarker>(DriveMarker(42), (7L, "retained"))
+                            }
+                        assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                        assertEquals(11, markerNumber())
+                        val(number, label) = result.detail
+                        assertEquals(7L, number)
+                        assertEquals("retained", label)
+                        result.value.number
+                    }
+                },
+                done
+            )
+        }
+        executor.runOne()
+        assertEquals(0, done.calls)
+        context(DriveMarker(13)) {
+            executor.runOne()
+            assertEquals(13, markerNumber())
+        }
+        assertEquals(0, done.calls)
+        while (executor.queued > 0L)
+            executor.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(0, executor.active)
+    }
+
+    @Test
+    fun `explicit blocking executor delivers exceptions to the original executor`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val expected = Throwable()
+        val done = DriveCompletion<Int>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                try {
+                    target.blocking<Unit> {
+                        assertTrue(blockingAbsent(currentCoroutineExecutorOrNone()))
+                        throw expected
+                    }
+                    fail()
+                } catch (error: Throwable) {
+                    assertSame(expected, error)
+                    assertSame(caller, currentCoroutineExecutorOrNone()!!)
+                }
+                42
+            },
+            done
+        )
+        caller.runOne()
+        assertEquals(0L, caller.queued)
+        target.runOne()
+        assertEquals(0, done.calls)
+        assertEquals(0, target.active)
+        caller.runOne()
+        assertEquals(42, done.value!!)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `queued cancellation delivers immediately and leaves only the retirement shell`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    probe.job = Some(job)
+                    target.blocking { probe.invoked = true }
+                }
+            },
+            done
+        )
+        caller.runOne()
+        probe.job!!.cancel()
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertEquals(1, done.calls)
+        assertTrue(done.failure!! is CancellationException)
+        assertFalse(probe.invoked)
+        assertEquals(1, target.active)
+        assertEquals(1L, target.queued)
+        target.runOne()
+        assertFalse(probe.invoked)
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `running cancellation waits for cleanup and preserves the returned resource`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val resource = DriveMarker(42)
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    val result =
+                        target.blocking {
+                            currentJobOrNone()!!.cancel()
+                            try {
+                                assertEquals(0L, caller.queued)
+                                resource
+                            } finally {
+                                probe.cleaned = true
+                            }
+                        }
+                    assertTrue(probe.cleaned)
+                    probe.received = Some(result)
+                    ensureActive()
+                }
+            },
+            done
+        )
+        caller.runOne()
+        target.runOne()
+        assertTrue(blockingAbsent(probe.received))
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertSame(resource, probe.received!!)
+        assertTrue(done.failure!! is CancellationException)
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `late cancellation cannot replace an already published result`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val resource = DriveMarker(42)
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    probe.job = Some(job)
+                    probe.received = Some(target.blocking { resource })
+                }
+            },
+            done
+        )
+        caller.runOne()
+        target.runOne()
+        probe.job!!.cancel()
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertSame(resource, probe.received!!)
+        assertTrue(done.failure!! is CancellationException)
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `already cancelled callers do not submit blocking work`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    job.cancel()
+                    target.blocking { probe.invoked = true }
+                }
+            },
+            done
+        )
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertTrue(done.failure!! is CancellationException)
+        assertFalse(probe.invoked)
+        assertEquals(0, target.active)
+        assertEquals(0L, target.queued)
+    }
+
+    @Test
+    fun `blocking callbacks launch children on their captured scope executor`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    val scope = this
+                    val parent = job
+                    target.blocking {
+                        assertTrue(blockingAbsent(currentCoroutineExecutorOrNone()))
+                        scope.launch {
+                            assertSame(caller, currentCoroutineExecutorOrNone()!!)
+                            assertFalse(job === parent)
+                            probe.invoked = true
+                        }
+                    }
+                    Unit
+                }
+            },
+            done
+        )
+        caller.runOne()
+        target.runOne()
+        assertFalse(probe.invoked)
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertTrue(probe.invoked)
+        assertEquals(1, done.calls)
+        assertTrue(blockingAbsent(done.failure))
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `implicit blocking rejects an independent coroutine`() {
+        val done = DriveCompletion<Int>()
+        startCoroutine({ blocking { 42 } }, done)
+        assertEquals(1, done.calls)
+        assertTrue(done.failure!! is IllegalStateException)
+    }
+
+    @Test
+    fun `synchronous cancellation during registration still retires the queued shell`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor({ currentJobOrNone()!!.cancel() })
+        val probe = BlockingProbe()
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            { coroutineScope { target.blocking { probe.invoked = true } } },
+            done
+        )
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertEquals(1, done.calls)
+        assertTrue(done.failure!! is CancellationException)
+        assertFalse(probe.invoked)
+        assertEquals(1, target.active)
+        assertEquals(1L, target.queued)
+        target.runOne()
+        assertFalse(probe.invoked)
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `running failure is delivered after cleanup even when the job was cancelled`() {
+        val caller = QueueExecutor()
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val expected = Throwable()
+        val done = DriveCompletion<Unit>()
+        startDispatchedCoroutine(
+            caller,
+            {
+                coroutineScope {
+                    try {
+                        target.blocking<Unit> {
+                            currentJobOrNone()!!.cancel()
+                            try {
+                                throw expected
+                            }
+                            finally {
+                                probe.cleaned = true
+                            }
+                        }
+                        fail()
+                    } catch (error: Throwable) {
+                        assertSame(expected, error)
+                        assertTrue(probe.cleaned)
+                        probe.invoked = true
+                    }
+                }
+            },
+            done
+        )
+        caller.runOne()
+        target.runOne()
+        assertFalse(probe.invoked)
+        while (caller.queued > 0L)
+            caller.runOne()
+        assertTrue(probe.invoked)
+        assertTrue(done.failure!! is CancellationException)
+        assertEquals(0, target.active)
+        assertEquals(0, caller.active)
+    }
+
+    @Test
+    fun `completion failures escape after callback cleanup and retire the task`() {
+        val target = QueueExecutor()
+        val expected = Throwable()
+        val done = DriveCompletion<Int>({ _ -> throw expected })
+        context(DriveMarker(7)) {
+            startCoroutine({ target.blocking { markerNumber() } }, done)
+        }
+        context(DriveMarker(9)) {
+            try {
+                target.runOne()
+                fail()
+            } catch (error: Throwable) {
+                assertSame(expected, error)
+            }
+            assertEquals(9, markerNumber())
+        }
+        assertEquals(7, done.value!!)
+        assertEquals(1, done.calls)
+        assertEquals(0, target.active)
+    }
+
+    @Test
+    fun `retirement during cancellation delivery keeps the registration until notification exits`() {
+        val target = QueueExecutor()
+        val probe = BlockingProbe()
+        val done = DriveCompletion<Unit>()
+        startCoroutine(
+            {
+                coroutineScope {
+                    probe.job = Some(job)
+                    try {
+                        target.blocking { probe.invoked = true }
+                    } finally {
+                        target.runOne()
+                        assertEquals(1, target.active)
+                        probe.cleaned = true
+                    }
+                }
+            },
+            done
+        )
+        assertEquals(1L, target.queued)
+        probe.job!!.cancel()
+        assertTrue(probe.cleaned)
+        assertFalse(probe.invoked)
+        assertEquals(1, done.calls)
+        assertTrue(done.failure!! is CancellationException)
+        assertEquals(0, target.active)
+        assertEquals(0L, target.queued)
+    }
+}

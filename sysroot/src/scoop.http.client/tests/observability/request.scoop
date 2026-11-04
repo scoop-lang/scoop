@@ -13,8 +13,9 @@ private class HttpRequestObservationTest {
     @Test
     fun `request observation reuses an unobserved connection and separates informational heads`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {
@@ -96,8 +97,9 @@ private class HttpRequestObservationTest {
     @Test
     fun `request and client observers share snapshots and deduplicate identical observers`() {
         clientTestTrust().use {
-            trust -> PlatformEventLoop().run suspend {
-                scope -> clientTestListen(currentEventLoop()).useAsync suspend {
+            trust -> eventLoop().run {
+                val scope = this;
+                clientTestListen(currentEventLoop()).useAsync suspend {
                     listener ->
                     val serving =
                         scope.launch suspend {

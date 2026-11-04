@@ -1,0 +1,126 @@
+package scoop.asyncio
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+import scoop.time.Duration
+
+private class RawLoopTask {
+    var continuation: Continuation<Unit>? = None
+    var finished = false
+}
+
+@Test
+private class LoopExecutorTest {
+    @Test
+    fun `typed run installs a scope and limits executor access to its lifetime`() {
+        val loop = eventLoop { blocking { threads = 1 } }
+        val thread = currentThreadId()
+        assertFailsWith<IllegalStateException> { loop.executor }
+        assertEquals(
+            42,
+            loop.run {
+                assertSame(job, currentJobOrNone()!!)
+                assertSame(loop, currentEventLoop())
+                assertSame(loop.executor, currentCoroutineExecutorOrNone()!!)
+                val child =
+                    async {
+                        yieldCoroutine();
+                        42
+                    }
+                val result = child.await()
+                assertEquals(thread, currentThreadId())
+                result
+            }
+        )
+        assertFailsWith<IllegalStateException> { loop.executor }
+        assertFailsWith<IllegalStateException> { loop.run {} }
+    }
+
+    @Test
+    fun `worker IO and channel waits return to the selected executor`() {
+        multiThreadExecutor {
+            workers = 2
+            blocking { threads = 1 }
+        }.use {
+            workers ->
+            val loop = eventLoop { blocking { threads = 1 } }
+            val owner = currentThreadId()
+            loop.run {
+                val channel = Channel<String>(0L)
+                val child =
+                    async(workers) {
+                        assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                        assertNotEquals(owner, currentThreadId())
+                        assertSame(loop, currentEventLoop())
+                        loop.sleep(Duration.nanoseconds(1L))
+                        assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                        assertNotEquals(owner, currentThreadId())
+                        val value = channel.receive()
+                        assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                        withExecutor(loop.executor) {
+                            assertEquals(owner, currentThreadId())
+                            yieldCoroutine()
+                            assertEquals(owner, currentThreadId())
+                        }
+                        assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                        value
+                    }
+                channel.send("managed message")
+                assertEquals("managed message", child.await())
+                assertEquals(owner, currentThreadId())
+            }
+        }
+    }
+
+    @Test
+    fun `root completion drains an independent registered coroutine`() {
+        val loop = eventLoop { blocking { threads = 1 } }
+        val raw = RawLoopTask()
+        val result = LoopThreadResult<Unit>()
+        loop.run {
+            val executor = loop.executor
+            val root = job
+            startCoroutine(
+                {
+                    suspendCoroutine<Unit> { raw.continuation = Some(it) }
+                    raw.finished = true
+                },
+                result
+            )
+            loop.state.post {
+                assertTrue(root.isCompleted)
+                assertFalse(raw.finished)
+                assertFailsWith<ExecutorClosedException> { executor.registerTask(None) }
+                raw.continuation!!.resume(Unit)
+            }
+        }
+        assertTrue(raw.finished)
+        result.await()
+    }
+
+    @Test
+    fun `run from a raw executor entry can close without its caller queue progressing`() {
+        multiThreadExecutor {
+            workers = 1
+            blocking { threads = 1 }
+        }.use {
+            caller ->
+            val result = LoopThreadResult<Int>()
+            startDispatchedCoroutine(
+                caller,
+                {
+                    assertNoLoopValue(currentJobOrNone())
+                    eventLoop { blocking { threads = 1 } }.run {
+                        blocking {
+                            gcCollect();
+                            42
+                        }
+                    }
+                },
+                result
+            )
+            assertEquals(42, result.await())
+        }
+    }
+}

@@ -235,6 +235,40 @@ impl ImportedCoreCoroutineProtocol {
         protocol: &crate::CoreCoroutineProtocolV1,
     ) -> Result<Self, CoreProtocolImportError> {
         Ok(Self {
+            work: foundation
+                .source_nominal(protocol.work)
+                .ok_or_else(|| missing(CoreProtocolIdentityKind::Type, protocol.work))?,
+            work_run: import_callable(foundation, &protocol.work_run)?,
+            work_run_dispatch: foundation.identity(protocol.work_run_dispatch).ok_or_else(
+                || {
+                    missing(
+                        CoreProtocolIdentityKind::DispatchSlot,
+                        protocol.work_run_dispatch,
+                    )
+                },
+            )?,
+            execution: foundation
+                .source_nominal(protocol.execution)
+                .ok_or_else(|| missing(CoreProtocolIdentityKind::Type, protocol.execution))?,
+            execution_start: import_callable(foundation, &protocol.execution_start)?,
+            execution_start_dispatch: foundation
+                .identity(protocol.execution_start_dispatch)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::DispatchSlot,
+                        protocol.execution_start_dispatch,
+                    )
+                })?,
+            execution_resume: import_callable(foundation, &protocol.execution_resume)?,
+            execution_resume_dispatch: foundation
+                .identity(protocol.execution_resume_dispatch)
+                .ok_or_else(|| {
+                    missing(
+                        CoreProtocolIdentityKind::DispatchSlot,
+                        protocol.execution_resume_dispatch,
+                    )
+                })?,
+
             continuation: foundation
                 .generic_nominal(protocol.continuation)
                 .ok_or_else(|| {

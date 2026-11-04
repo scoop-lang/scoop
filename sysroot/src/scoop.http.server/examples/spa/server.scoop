@@ -11,10 +11,11 @@ fun main() {
     val entry = root.resolve(Path.fromString("index.html"))
     val assets = root.resolve(Path.fromString("assets"))
     val notFound: HttpHandler = suspend { _ -> text("Not Found", 404U) }
-    val loop: EventLoop = PlatformEventLoop()
+    val loop = eventLoop()
 
-    loop.run suspend {
-        scope -> HttpServer.listen(scope) {
+    loop.run {
+        val scope = this;
+        HttpServer.listen(scope) {
             val routes = this
 
             routes.get("/hello", suspend { _ -> text("Hello, Scoop!") })

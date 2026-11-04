@@ -29,9 +29,9 @@ private class AsyncHttpCleartextTests {
     @Test
     fun `fragmented cleartext selection preserves both the H2 preface and partial HTTP1 match`() {
         for (protocol in [HttpProtocol.Http1, HttpProtocol.Http2]) {
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 val(a, b) = rawPair(loop, scope)
                 b.readLimit = 5L
                 val sending =

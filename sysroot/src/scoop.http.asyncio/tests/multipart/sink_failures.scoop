@@ -10,9 +10,8 @@ import scoop.test.*
 private class MultipartSinkFailureTests {
     @Test
     fun `partial transport failure retains accepted input and the cleanup cause`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val output = MessageTestSink()
             val sink = MultipartSink.takeOwnership(output, MultipartBoundary("b"), 3L)
             val part = sink.beginPart(MultipartPartHead())
@@ -47,9 +46,8 @@ private class MultipartSinkFailureTests {
 
     @Test
     fun `invalid progress and zero writes fail instead of looping or reusing output`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             for (mode in [1, 2, 3, 4]) {
                 val output = MessageTestSink()
                 output.badProgress = mode
@@ -71,9 +69,8 @@ private class MultipartSinkFailureTests {
 
     @Test
     fun `downstream flush failure prevents successful completion and close does not retry flush`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val output = MessageTestSink(3L)
             output.failFlush = true
             val sink = MultipartSink(output, MultipartBoundary("b"), 3L)

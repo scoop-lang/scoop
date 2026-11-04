@@ -97,7 +97,7 @@ private fun checkFileBoundary(path: Path) {
                 )
             }
         }
-        val opened = nextFileResult(loop)
+        val opened = nextNativeTestResult(loop)
         assertEquals(3, opened.kind)
         val file = opened.resource!!
         val output = NativeByteBuffer.allocate(4L)
@@ -105,19 +105,19 @@ private fun checkFileBoundary(path: Path) {
         val write = output.borrowReadable(4L)
         assertEquals(0, nativeFileTransfer(file, 2L, write.pointer(), write.length, true))
         gcCollect()
-        val written = nextFileResult(loop)
+        val written = nextNativeTestResult(loop)
         assertEquals(1, written.kind)
         assertEquals(4L, written.count)
         write.complete(written.count)
         assertEquals(0, nativeFileSeek(file, 3L, 0L, false))
-        val position = nextFileResult(loop)
+        val position = nextNativeTestResult(loop)
         assertEquals(0x101, position.kind)
         assertEquals(0L, position.count)
         val input = NativeByteBuffer.allocate(8L)
         val read = input.borrowWritable(8L)
         assertEquals(0, nativeFileTransfer(file, 4L, read.pointer(), read.length, false))
         gcCollect()
-        val received = nextFileResult(loop)
+        val received = nextNativeTestResult(loop)
         assertEquals(1, received.kind)
         assertEquals(4L, received.count)
         read.complete(received.count)
@@ -126,20 +126,20 @@ private fun checkFileBoundary(path: Path) {
         assertEquals(10.toByte(), input.readByte())
         assertEquals(26.toByte(), input.readByte())
         assertEquals(0, nativeFileMetadata(file, 5L))
-        val metadata = nextFileResult(loop)
+        val metadata = nextNativeTestResult(loop)
         assertEquals(0x100, metadata.kind)
         val snapshot = decodeFileMetadata(nativeTakeMetadata(metadata.resource!!), 0, None)
         assertEquals(FileKind.Regular, snapshot.kind)
         assertEquals(4L, snapshot.size)
         assertEquals(0, nativeFileClose(file, 6L))
-        assertEquals(0, nextFileResult(loop).kind)
+        assertEquals(0, nextNativeTestResult(loop).kind)
         path.withIoPath {
             name -> @Unsafe
             {
                 assertEquals(0, nativePathMetadata(loop, 7L, name, true))
             }
         }
-        val queried = nextFileResult(loop)
+        val queried = nextNativeTestResult(loop)
         assertEquals(0x100, queried.kind)
         assertEquals(4L, nativeTakeMetadata(queried.resource!!).size)
         path.delete()
@@ -149,7 +149,7 @@ private fun checkFileBoundary(path: Path) {
                 assertEquals(0, nativeFileOpen(loop, 8L, name, 1, 0x180))
             }
         }
-        val failure = nextFileResult(loop)
+        val failure = nextNativeTestResult(loop)
         val error = nativeStatusError(NativeIoStatus(failure.kind, failure.code))
         assertEquals(NativeErrorDomain.Win32, error.domain)
         assertEquals(PlatformErrorKind.NotFound, error.kind)
@@ -157,13 +157,6 @@ private fun checkFileBoundary(path: Path) {
         output.close()
         assertEquals(0, testFileDrain(loop))
     }
-}
-
-@Unsafe
-private fun nextFileResult(loop: Ptr<Unit>): NativeRecord {
-    while (nativeLoopBatchSize(loop) == 0L)
-        assertEquals(0, nativeLoopPoll(loop, true).code)
-    return nativeLoopNext(loop)
 }
 
 @Extern(name = "scoop_test_iocp_file_controls")

@@ -151,7 +151,8 @@ fn lower_core_functions(
             hir::InitializationCycleThrower::Imported(protocol) => Some(protocol),
             hir::InitializationCycleThrower::Local(_) => None,
         })
-        .chain(arguments);
+        .chain(arguments)
+        .chain(module.imported_coroutine_drive_functions());
     for protocol in functions {
         let scoop_hir::ImportedCoreProtocolCallableDefinition::Function(definition) =
             protocol.definition()

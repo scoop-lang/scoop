@@ -10,8 +10,8 @@ import scoop.url.Url
 internal fun cacheExternal(trust: TrustStore, mode: String, url: Url) {
     val storage = MemoryHttpCache()
     val clock = CacheClock()
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(cacheConfig(trust, storage, clock)) suspend {
+    eventLoop().run {
+        withHttpClient(cacheConfig(trust, storage, clock)) suspend {
             client -> when (
                 if (mode == "modified")
                     "etag"
@@ -203,8 +203,7 @@ internal fun cacheIdentity(trust: TrustStore, url: Url) {
     val a = [cacheField("Authorization", "Bearer A"), cacheField("Cookie", "user=A")]
     val b = [cacheField("Authorization", "Bearer B"), cacheField("Cookie", "user=A")]
     val c = [cacheField("Authorization", "Bearer A"), cacheField("Cookie", "user=B")]
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         withHttpClient(cacheConfig(trust, storage, clock, Some("shared"))) suspend {
             client ->
             cacheGet(client, url, "A-A", HttpCacheStatus.Network, a)

@@ -44,6 +44,7 @@ when = { os = "windows" }
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"
+"scoop:scoop.concurrent" = "0.1.0"
 
 [test-dependencies]
 "scoop:scoop.crypto" = "0.1.0"
@@ -86,7 +87,7 @@ path = "native/common/file_temporary.c"
 when = { os = ["darwin", "linux"] }
 
 [[native.sources]]
-path = "native/common/native_work.c"
+path = "native/common/work.c"
 
 [[native.sources]]
 path = "native/windows/loop.c"
@@ -98,10 +99,6 @@ when = { os = "windows" }
 
 [[native.sources]]
 path = "native/windows/timer.c"
-when = { os = "windows" }
-
-[[native.sources]]
-path = "native/windows/work.c"
 when = { os = "windows" }
 
 [[native.sources]]
@@ -185,10 +182,6 @@ path = "native/darwin/wait.c"
 when = { os = "darwin" }
 
 [[native.sources]]
-path = "native/darwin/work.c"
-when = { os = "darwin" }
-
-[[native.sources]]
 path = "native/linux/endpoint.c"
 when = { os = "linux" }
 
@@ -226,10 +219,6 @@ when = { os = "linux" }
 
 [[native.sources]]
 path = "native/linux/tty_io.c"
-when = { os = "linux" }
-
-[[native.sources]]
-path = "native/linux/work.c"
 when = { os = "linux" }
 
 [[native.sources]]

@@ -5,6 +5,7 @@ name = "scoop.http.asyncio"
 version = "0.1.0"
 kind = "library"
 [dependencies]
+"scoop:scoop.concurrent" = "0.1.0"
 "scoop:scoop.core" = "0.1.0"
 "scoop:scoop.std" = "0.1.0"
 "scoop:scoop.platform" = "0.1.0"

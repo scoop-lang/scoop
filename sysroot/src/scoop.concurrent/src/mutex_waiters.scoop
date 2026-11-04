@@ -1,0 +1,44 @@
+package scoop.concurrent
+
+// Only library-owned waiters implement this protocol; all calls hold the state lock.
+internal interface MutexWaiter {
+    val guard: AsyncMutexGuard
+    fun acquired(notifications: WaitNotifications)
+}
+
+internal class MutexAcquisition(
+    public override val guard: AsyncMutexGuard,
+    continuation: Continuation<AsyncMutexGuard>
+): MutexWaiter {
+    internal val result = PendingResume(continuation)
+    internal var link: WaitLink<MutexWaiter>? = None
+
+    public override fun acquired(notifications: WaitNotifications) {
+        link = None
+        result.succeed(guard, notifications)
+    }
+}
+
+internal enum ConditionStage {
+    Registering, Waiting, Acquiring, Finished
+}
+
+internal class ConditionWaiter(
+    public override val guard: AsyncMutexGuard,
+    continuation: Continuation<Unit>
+): MutexWaiter {
+    internal val result = PendingResume(continuation)
+    internal var stage = ConditionStage.Registering
+    internal var link: WaitLink<ConditionWaiter>? = None
+    internal var failure: Throwable? = None
+
+    public override fun acquired(notifications: WaitNotifications) {
+        stage = ConditionStage.Finished
+        val error = failure
+        failure = None
+        when (error) {
+            case Some(reason) -> result.fail(reason, notifications)
+            case None -> result.succeed(Unit, notifications)
+        }
+    }
+}

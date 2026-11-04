@@ -94,7 +94,9 @@ impl<'a> CfgLowerer<'a> {
             smir::StatementKind::Expr(expr) => {
                 let is_call = matches!(
                     expr.kind,
-                    smir::ExprKind::Call(_) | smir::ExprKind::CoroutineSuspend { .. }
+                    smir::ExprKind::Call(_)
+                        | smir::ExprKind::CoroutineSuspend { .. }
+                        | smir::ExprKind::CoroutineYield
                 );
                 let Some(expr) = self.lower_expr(expr, span) else {
                     return;

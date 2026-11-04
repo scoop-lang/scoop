@@ -380,6 +380,7 @@ pub(crate) enum ExprKind {
         method: crate::coroutine_registry::ProtocolMethod,
         receiver: Box<Expr>,
     },
+    CoroutineYield,
     Box(Box<Expr>),
     Unbox(Box<Expr>),
     IsInstance {

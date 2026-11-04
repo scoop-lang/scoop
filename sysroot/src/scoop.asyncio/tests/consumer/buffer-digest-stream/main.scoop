@@ -51,9 +51,10 @@ private class HashSink(val sink: AsyncByteSink, val digest: Digest): AsyncByteSi
 private fun transfer() {
     val payload = "The quick brown fox jumps over the lazy dog".toByteArray()
     val expected = "d7a8fbb307d7809469ca9abcb0082e4f8d5651e46d3cdb762d02d0bf37c9e592"
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             val connecting =
                 scope.async<AsyncTcpStream> suspend { loop.connectTcp(listener.localAddress) }

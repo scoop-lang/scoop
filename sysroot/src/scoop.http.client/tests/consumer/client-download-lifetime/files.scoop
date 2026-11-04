@@ -41,8 +41,8 @@ internal fun downloadFileFailure(trust: TrustStore, directory: Path) {
 }
 
 internal fun downloadInvalidPath(trust: TrustStore) {
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(downloadConfig(trust)) suspend {
+    eventLoop().run {
+        withHttpClient(downloadConfig(trust)) suspend {
             client ->
             val failed = DownloadFailure()
             try {

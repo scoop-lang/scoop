@@ -24,9 +24,9 @@ private class SynchronousWrite: AsyncByteStream, AsyncCloseable {
 private class SynchronousHttpIdleTests {
     @Test
     fun `a synchronous transport completion cannot erase an expired idle limit`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val transport = SynchronousWrite()
             val client = AsyncHttp1Connection.takeOwnershipAsClient(transport, scope)
             try {

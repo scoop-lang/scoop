@@ -50,9 +50,9 @@ private fun runProxyWs(mode: String, port: Int) {
         )
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val credentials = AtomicLong(0L)
             val provider =
                 HttpAuthenticator.basic(proxy.copy { scheme = Some("http") }.httpOrigin()) suspend {

@@ -35,9 +35,9 @@ context(marker: CleanupFileMarker)
 private fun cleanupFileMarker(): Int = marker.value
 
 private fun exercise(parent: Path, cancelBefore: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val file = loop.createTempFile(Some(parent), "m54-cleanup-")
         NativeByteBuffer.allocate(7L).use suspend {
             buffer ->
@@ -58,8 +58,9 @@ private fun exercise(parent: Path, cancelBefore: Boolean) {
                         if (cancelBefore)
                             loop.sleep(Duration.hours(1L))
                     } finally {
-                        nonCancellableScope<Unit> suspend {
-                            cleanup ->
+                        nonCancellableScope<Unit> {
+                            val cleanup = this
+
                             assertEquals(29, cleanupFileMarker())
                             cleanup.launch suspend {
                                 cleaning.signal();

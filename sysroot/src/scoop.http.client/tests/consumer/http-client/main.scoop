@@ -44,9 +44,10 @@ fun clientBinding(): String = binding.name
 private fun exercise(path: Path, version: HttpVersion, secure: Boolean) {
     TrustStore.fromPem(rootPem()).use {
         trust ->
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
                 listener ->
                 val done = ClientGate()
                 val serving =

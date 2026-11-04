@@ -23,7 +23,7 @@ pub fn walk_expr(expr: &Expr, visitor: &mut impl FnMut(&Expr)) {
         }
         ExprKind::DataBorrow(operation) => visit_expr(&operation.operand, visitor),
         ExprKind::Context(operation) => {
-            if let Some(operand) = operation.operand() {
+            for operand in operation.operands() {
                 visit_expr(operand, visitor);
             }
         }
@@ -203,7 +203,7 @@ pub fn walk_expr_mut(expr: &mut Expr, visitor: &mut impl FnMut(&mut Expr)) {
         }
         ExprKind::DataBorrow(operation) => visit_expr_mut(&mut operation.operand, visitor),
         ExprKind::Context(operation) => {
-            if let Some(operand) = operation.operand_mut() {
+            for operand in operation.operands_mut() {
                 visit_expr_mut(operand, visitor);
             }
         }

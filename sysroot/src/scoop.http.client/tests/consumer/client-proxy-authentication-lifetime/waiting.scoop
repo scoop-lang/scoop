@@ -1,0 +1,20 @@
+package scoop.http.client.tests.consumer.client_proxy_authentication_lifetime
+
+import scoop.http.client.*
+import scoop.url.Url
+
+// The non-suspending selector lets this owner turn enter the token wait before
+// the signalled test coroutine resumes.
+internal fun lifeWaitingRequest(url: Url, entered: LifeGate): HttpRequest =
+    httpRequest(url) {
+        options =
+            httpCallOptions {
+                observer =
+                    Some(
+                        HttpObserver {
+                            event -> if (event.kind == HttpCallEventKind.AttemptStarted)
+                                entered.signal()
+                        }
+                    )
+            }
+    }

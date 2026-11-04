@@ -1,0 +1,22 @@
+package scoop.http.asyncio
+
+import scoop.concurrent.*
+
+// The caller owns allocated state until the child either adopts it or cannot start anymore.
+internal suspend fun awaitHttpOwnerStart(caller: Job, start: (Channel<Unit>) -> Job) {
+    val ready = Channel<Unit>(1L)
+    val task = start(ready)
+    val stopped = task.invokeOnCancellation { _ -> ready.close() }
+    val cancelled = caller.invokeOnCancellation { _ -> task.cancel() }
+    try {
+        nonCancellableScope { ready.receive() }
+    } catch (error: ChannelClosedException) {
+        caller.ensureActive()
+        task.ensureActive()
+        throw IllegalStateException(Some("HTTP owner ended before initialization"))
+    } finally {
+        cancelled.dispose()
+        stopped.dispose()
+        ready.close()
+    }
+}

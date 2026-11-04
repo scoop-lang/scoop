@@ -56,9 +56,9 @@ private class HttpServerWebSocketConsumerTests {
                     }
                 )
             }
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val listener = loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
             val address = listener.localAddress
             val server =

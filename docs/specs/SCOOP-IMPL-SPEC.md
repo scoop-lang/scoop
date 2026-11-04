@@ -128,6 +128,8 @@ stage 只通过对应 IR/metadata 交换数据，不调用上游 stage 的实现
 
 AST 保留原始源码顺序、byte span、显式类型实参、位置／命名／spread／尾随 lambda 实参，以及独立的声明、表达式、模式和控制转移结构。文件至多有一个开头 package，其后为 import，再后为声明。qualified path 为非空 identifier sequence；package、静态 owner 与实体的分界由名称解析决定。
 
+lambda 的 AST 挂起标记只记录源码是否显式写出 `suspend`；未写时表示效果尚未指定。匿名函数使用独立节点，其普通/挂起标记始终是显式效果。HIR 按语言规范 8.1.2、8.6 为每个候选分别完成 lambda 的期望类型与效果推导，包括编辑态恢复；成功 HIR 中函数签名及函数类型的挂起性均为确定值。对称回调重载的缺省比较复用声明类型与精确 binder 重命名，不比较已推导的具体类型，不在候选之间泄漏实体或诊断。MIR/LIR 和跨 Cone 模板继续消费已绑定的唯一 callable 类型，不重新推导效果，也不增加运行时效果检测或普通到 suspend 的 adapter。
+
 driver 在完整解析后、HIR 前统一检查语言规范 12.1 的 manifest package/group 关系，生产、测试和文档路径共用此检查；只比较已经解析的实际名称段，不用字符串前缀或重新拆分转义段。core/std 豁免只按其 group/name 识别。单文件的 AST 与原文继续保留合法 package header，driver 产生 warning；HIR 创建当前 source namespace 时使用保留的 single-file 身份选择 RootPackage。AST 观察同样返回该 warning；HIR 失败时保留已经产生的源码 warning。后续 IR 不再重验 package/group，也不改源码或诊断偏移。
 
 AST 不包含依赖 locator 解析、构建顺序、已推断类型或实体身份猜测。词法与语法恢复收集 Error 级诊断；任何解析失败阻止成功 HIR 输出。面向编辑态的可恢复语法结果与成功编译 AST 分开，公共基础的合同见 2.20；保留错误语法不表示该程序可以进入后续编译阶段。
@@ -218,6 +220,8 @@ executable 的入口发现只检查 root Cone，并按语言规范 12.4.4 一次
 整数表达式的一元／二元分支使用对应的窄操作类别；div/rem 仅属于二元 managed 操作。该完整结构贯穿 Export HIR、LocalConcrete HIR 与绑定默认模板；旧 wire 的操作标签与参数字段在解码绑定处一次组合并检查元数，生产端由完整表达式投影原编码。方法引用生成固定 intrinsic 正文时，按已决议操作直接建立所需形参和值，不将它们重新装成任意参数列表。
 
 数据借用的源码和导出模板仍通过普通泛型调用保存声明与实参映射；HIR 具体化在解析实际 intrinsic 和完整实例签名的边界，将其形成具名 object／block、对象类别和 FunctionTypeId。对象类别及回调签名取自已决议形参，不能从可能为 Nothing 的实参结果猜测。无正文的源码 intrinsic 复用 source parameter interface 中的逻辑参数；导入模板复用其完整实例签名，不为不存在的正文生成参数 local。MIR 接收完整借用操作，先后求值 object 与 block，保留原 pin／finally cleanup 与异常传播，不重新按参数个数或值类型恢复关系。
+
+导入模板物化 foreign callback 注册或操作节点时，通过实际 core protocol 身份请求其模式、状态及精确 `Option<Throwable>` 支持类型；这些隐式类型依赖不能依赖 consumer 源码另行调用 callback intrinsic 才保留。请求复用普通导入类型物化缓存，进入具体化前已具备所需类型，不在后续 stage 按名称补建。
 
 LIR struct store 在创建 Scoop／C 表示时返回对应的窄引用，后续字段填充沿用该引用；C payload 的消费接口接收已选中的字段与布局。不可变类别的存储投影仍属于普通 arena 查询，不增加另一套身份或重复保存 nominal 数据。宽表示入口只完成一次实际分支选择，intrinsic 不以空 declared 字段参与源字段或 C payload 操作。
 
@@ -362,6 +366,20 @@ structured MIR 与最终 MIR 的动态调用将 receiver 保存在对应目标�
 CFG 的私有协程工作记录保留挂起操作的语义顺序、块内位置、receiver 与结果 local；尚未生成的注册调用不使用普通 callee 或空语句占位。协程变换把这些记录与已有 CFG 语句一起用于 liveness 和恢复分析，生成 continuation adapter 后直接形成完整接口调用。cleanup 中的待定 return／throw／break／continue 继续保留原值和目标，最终只输出引用实际 saved slots 与恢复入口的协程 metadata。
 
 协程活跃度分别处理调用的正常后继与异常后继；异常边发生在实际调用处，不能统一放在块末再被后续赋值杀死。挂起前保存成功恢复、失败恢复及待定 cleanup 所需的值，失败恢复先还原异常处理所需的旧值，再进入原 catch／finally。成功路径在调用后覆盖的局部值，若仍被异常路径使用，也必须跨挂起保存；结果 local 只在成功恢复时定义。此规则同样覆盖挂起之后的普通调用失败和直接 suspendCoroutine 注册，不增加运行时根兜底或改变源码赋值语义。
+
+语言规范 11.9.3 的执行协议使用 core 中实际声明的类型、普通 callable 与派发槽。HIR 的 core 协议及 LocalConcrete 协程协议完整携带执行所需的 typed 身份；跨 Cone 保存这些关系，MIR 不重新按名字搜索，也不依赖 hir-lower 实现。executor 队列、任务登记和结构化 Job 保持普通库职责；编译器负责进入/退出 execution、完整挂起握手、强制 yield 及已有 coroutine ABI。
+
+普通的 work／execution 方法沿既有普通依赖 callable 选择和接口派发路径导入；LocalConcrete 分别保存本地方法与依赖定义的 typed 身份及槽位，实际存在的协程协议沿既有 core function 选择路径请求机器依赖，MIR 消费相应本地或 external callee。不能把非泛型协议方法当作泛型模板重新发射到消费 Cone。泛型 Continuation／SuspendTask 等仍按实际类型实参具体化。
+
+direct、virtual、closure 与原语 suspend site 均生成带完整成功/失败 latch 的 adapter，从 Registering 开始；退役在 callee 返回前直接发布 Waiting 的路径。结果发布状态、frame 程序位置与 execution 驱动状态分别使用封闭的 typed 状态/字段角色。completion 先竞争一次发布权，写入 GC 合法的 typed payload，再 release 发布 ready；callee/registration 返回后同步消费或交出等待。重复完成不能先改写 payload。同步 Completed 分支不得再通知 hidden completion；Suspended 分支与早到 completion 使用相同仲裁。
+
+恢复 action 使用真实 managed work 对象，持有实际 adapter/frame/execution 引用及完整扫描定义。execution 串行驱动 work；离开一次驱动的顺序为结束 frame 访问、完成 native catch/Context cleanup、交出驱动权，再发布下一项 work。内部同 execution 的完成链迭代执行，公开外部恢复按 executor 队列调度。startCoroutine 与 startDispatchedCoroutine 复用同一启动正文和完成协议，只有开始驱动的方式不同。yield site 强制经过驱动退出及重新排队，不能降为可能被同步锁存消去的普通 registration。
+
+内部 `coroutine_yield` 是无参数、Unit 结果的 suspend intrinsic，使用 tag 37。其私有结构化 MIR／CFG 表示为独立 Yield 节点，不伪造 registration callable；该节点保存 live values 和清理状态，建立 Waiting adapter，提交 Unit 成功结果并请求外部恢复，然后无条件返回 Suspended。当前 execution 直到所有调用层和 Context／异常清理退出后才发布下一次驱动。公开 yieldCoroutine 在调用该 intrinsic 前确认存在 executor，并在前后检查取消；无 executor 时不产生 Yield 节点的动态执行。HIR core-bootstrap-interface／cross-cone-interface 升至 22／92，MIR／LIR 的既有状态机表示不新增版本或 runtime ABI。
+
+执行协议的 core coroutine surface 在原有 13 个角色后保存 CoroutineWork、run callable／dispatch、CoroutineExecutionDriver、start callable／dispatch 与 resume callable／dispatch，共 21 项；这些身份由声明绑定，其他 stage 直接消费。内部启动 intrinsic 接受 execution、dispatched、task、completion 四个参数，先捕获绑定并分配 StartWork，再通过 execution.start 取得驱动权。读取当前 execution 的 intrinsic 使用 tag 36；读取已保存 TaskContext 的 execution 使用 typed MIR Context 操作。HIR core-bootstrap-interface／cross-cone-interface 分别升至 21／91。StartWork 的 generated nominal／callable 分别使用 tag 11／19，三个字段使用 generated field tag 17；continuation adapter 的 Run callable 使用 role tag 3，与 Success／Failure 分开。MIR／LIR identity-foundation 分别升至 10／14；HIR identity-foundation 保持 11。旧产物按普通版本边界重建，不保留双轨协议。
+
+生成类型、调用与字段角色按实际结构更新 coroutine metadata、core 协议、`.slib` profile 及 runtime ABI；不保留旧 adapter 或 TaskContext 布局的兼容分支。检查仍在实际声明、产物格式及 ABI 边界完成，不增加调度授权、独立证明记录或重复全图验证。
 
 release 在 suspend ABI 转换前，从 source-signature CFG 与私有 call-site 登记中确定本 Cone 直接可见的同步 suspend 正文：没有原语挂起、动态／外部 suspend 边、递归依赖或自身 EH／pending cleanup；这一事实可沿直接 suspend 依赖传播。普通 GC、可能抛异常或有副作用的非 suspend 调用不因此变成 NoGC 或纯操作。只在 2.19 的调用点评分、累计增长与六层展开深度范围内克隆正文，稳定模板不使用已展开函数重置成本；同步事实本身不能删除仍存在的调用点。
 
@@ -750,9 +768,9 @@ bridge unit 是与 producer 无关的 recipe identity；实际 atom 使用 produ
 | 位置 / namespace | section 与 major |
 | --- | --- |
 | Manifest / `org.scoop-lang.manifest` | 无必需 section；按需保存 `test-directory/1` |
-| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/19`、`cross-cone-interface/90`、`cross-cone-type-semantics/32` |
-| MIR / `org.scoop-lang.mir` | `identity-foundation/9`、`core-bootstrap-bridge/3`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
-| LIR / `org.scoop-lang.lir` | `identity-foundation/13`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
+| HIR / `org.scoop-lang.hir` | `identity-foundation/11`、`core-bootstrap-interface/22`、`cross-cone-interface/92`、`cross-cone-type-semantics/32` |
+| MIR / `org.scoop-lang.mir` | `identity-foundation/10`、`core-bootstrap-bridge/4`、`cross-cone-param-free-bridge/2`、`cross-cone-type-bridge/21` |
+| LIR / `org.scoop-lang.lir` | `identity-foundation/14`、`cross-cone-param-free-bridge/3`、`cross-cone-layout-abi/19`、`cone-production/17`、`link-identity-closure/22`、`link-support/1` |
 
 本次原生函数指针调用演进采用上述 profile：HIR foundation 保存带模式的 exact/signature type key，core bootstrap 保存两个实际 intrinsic family 及转换，cross-cone interface/type-semantics 保存调用、转换与 TypeInfo；MIR 保存动态 native callee；LIR foundation/layout 保存 pointer destination 和完整 C ABI plan。旧 profile 按通常版本规则拒绝并重建，不从缺省字段把旧 `FunPtr` 猜成 NativeSafe，也不协商或混用两套类型身份。callable intrinsic tag 30 保留 main 的 `ThrowablePrintStackTrace`；`CompileEnv` 使用 tag 34，`IncludeStr`／`IncludeBytes`／`IncludeDir` 保持 31／32／33。
 
@@ -1624,9 +1642,9 @@ Context scope 在完整 value 求值与成功 push 后才生效。真实离开 s
 
 协程 frame 保存完整 TaskContext 与跨挂起 mark。只有取得实际恢复权的入口切换到 frame context，所有 driver 出口恢复 previous context。普通 closure 只捕获实际词法值，callback 注册另按语言规定捕获 binding snapshot。
 
-MIR 中已选的 Context fork 在 LIR 根计划形成前降低为普通 managed 分配和 root 字段写入。分配、字段位置与 TD／scan 共用实际 generated TaskContext 的对象布局；当前支持目标上为 16 字节对象头加一个 8 字节 managed root。所有 profile 使用同一布局与基本操作，release 复用已有 TLAB 快路径。输入 snapshot 只求值一次，并作为分配后写入所需的活跃引用参与根计划；若分配触发搬迁，字段必须写入恢复后的引用，并执行普通含引用写屏障。即使 snapshot 为空也建立独立的 TaskContext，不合并任务身份。该降低只处理 typed Context 操作，不改变同名普通 extern 的协议；runtime 的 fork 后备、初始 root 创建及共享绑定树操作继续有效，不增加 TLS 字段、隐藏参数或产物 ABI。
+MIR 中已选的 Context fork 在 LIR 根计划形成前降低为普通 managed 分配、root 与 execution 字段写入。分配、字段位置与 TD／scan 共用实际 generated TaskContext 的对象布局；当前目标上为 16 字节对象头加两个 8 字节可空 managed 引用，总大小 32 bytes。fork 的 typed 操作明确给出任务执行属性，coroutine fork 安装新 execution，callback fork 与初始 root 的 execution 为空；snapshot 始终只读取 binding root。所有 profile 使用同一布局，release 复用已有 TLAB 快路径。输入只求值一次，snapshot 与 execution 都作为分配后写入所需的活跃引用参与根计划；移动 GC 后使用重定位结果并执行普通写屏障。即使 snapshot 为空也建立独立 TaskContext，不合并任务身份。该降低只处理 typed Context 操作，不改变同名普通 extern 的协议；runtime 后备、初始 root 创建及实际 ABI 记录同步演进，不新增 TLS 根。
 
-MIR Context snapshot 同样在 LIR 根计划前降低为 typed current、判空和普通 HeapLoad，字段偏移复用 generated TaskContext 的同一布局。release codegen 将真实 NoGC runtime 身份的 current／enter／leave 普通调用生成对运行时规范 9.2 原根槽的读写；普通 extern、invoke 和 debug 保留 C 后备。它们的 managed 结果及 previous guard 继续参与后续根计划与 SSA 重定位，不增设独立的引用缓存。槽读取和写入保留实际内存效果，可能 GC 或切换绑定后从当前槽或实际 relocate 结果取得引用。
+MIR Context snapshot 与 execution 读取均在 LIR 根计划前降低为 typed current、判空和普通 HeapLoad，字段偏移复用 generated TaskContext 的同一布局。current／enter／leave 在全部 profile 使用 TaskContextLoad／TaskContextStore 访问运行时规范 9.2 的原根槽；它们不再表示为已退役的 C 后备调用，普通 extern 不受影响。它们的 managed 结果及 previous guard 继续参与后续根计划与 SSA 重定位，不增设独立的引用缓存。槽读取和写入保留实际内存效果，可能 GC 或切换绑定后从当前槽或实际 relocate 结果取得引用。
 
 ARM64 release 复用已有分配 context 的首次使用机制，在一次 invocation 中惰性取得并复用 native 根槽地址；x86_64 直接读取 TLS 指针。缓存只存 AS0 地址，初次 TLS 取址不提前到从未执行该操作的路径；槽内 managed 引用和 TaskContext 字段不作相同缓存。runtime ABI contract 20 为该 TLS data symbol 登记 `RuntimeAbiSymbolV1` tag 34，所有 profile 的符号、大小和 attach／detach 合同一致，旧 sysroot 与产物按原 ABI 边界重建；对象表示、GC roots、metadata ABI 9 和 `.slib` 容器保持。
 

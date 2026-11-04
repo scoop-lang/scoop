@@ -102,6 +102,9 @@ pub enum DecodedGeneratedNominalKey {
     CoroutineStep {
         result: DecodedPersistentId<PersistentExactTypeId>,
     },
+    CoroutineStartWork {
+        result: DecodedPersistentId<PersistentExactTypeId>,
+    },
     BoxedValue {
         payload: DecodedPersistentId<PersistentExactTypeId>,
     },
@@ -175,6 +178,11 @@ impl DecodedGeneratedNominalKey {
                     .resolve(result)
                     .map_err(GeneratedNominalResolutionError::Reference)?,
             },
+            Self::CoroutineStartWork { result } => GeneratedNominalKey::CoroutineStartWork {
+                result: resolver
+                    .resolve(result)
+                    .map_err(GeneratedNominalResolutionError::Reference)?,
+            },
             Self::BoxedValue { payload } => GeneratedNominalKey::BoxedValue {
                 payload: resolver
                     .resolve(payload)
@@ -230,6 +238,7 @@ impl WireEncode for DecodedGeneratedNominalKey {
                 suspension_site.encode(encoder)
             }
             Self::CoroutineStep { result } => encode_value_sum(encoder, 5, result),
+            Self::CoroutineStartWork { result } => encode_value_sum(encoder, 11, result),
             Self::BoxedValue { payload } => encode_value_sum(encoder, 6, payload),
             Self::CoroutineSlot { value } => encode_value_sum(encoder, 7, value),
             Self::ObjectBackingClass { object } => encode_value_sum(encoder, 8, object),
@@ -270,6 +279,9 @@ impl WireDecode for DecodedGeneratedNominalKey {
                 })
             }
             5 => decode_id_variant(decoder, fields, |result| Self::CoroutineStep { result }),
+            11 => decode_id_variant(decoder, fields, |result| Self::CoroutineStartWork {
+                result,
+            }),
             6 => decode_id_variant(decoder, fields, |payload| Self::BoxedValue { payload }),
             7 => decode_id_variant(decoder, fields, |value| Self::CoroutineSlot { value }),
             8 => decode_id_variant(decoder, fields, |object| Self::ObjectBackingClass {

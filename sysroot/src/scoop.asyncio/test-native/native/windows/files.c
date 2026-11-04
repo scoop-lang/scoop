@@ -1,8 +1,7 @@
 #include "../../../native/common/file.h"
-#include "../fence_work.h"
 #include "loop_test.h"
-#include <string.h>
 #include <stdio.h>
+#include <string.h>
 
 static int completed(ScoopIoLoop *loop, int kind, int64_t count) {
     ScoopIoEvent event;
@@ -94,17 +93,11 @@ int scoop_test_iocp_file_append(const wchar_t *path) {
     unsigned char read[6] = {0}, expected[] = {1, 2, 3, 1, 1, 2};
     CHECK(!scoop_io_file_transfer(first, 9, read, sizeof(read), false));
     CHECK(!completed(loop, SCOOP_IO_BYTES, 6) && !memcmp(read, expected, sizeof(read)));
-    created = scoop_test_fence_create(loop, 100, 0);
-    CHECK(!created.status.code);
-    TestWorkFence *fence = created.pointer;
-    scoop_test_fence_wait(fence);
     CHECK(!scoop_io_file_transfer(first, 10, bytes, 3, true));
     scoop_io_work_cancel(loop, 10);
     ScoopIoEvent event;
     CHECK(!test_result(loop, &event) && event.id == 10 && event.kind == SCOOP_IO_POSIX_ERROR &&
           event.code == ECANCELED);
-    scoop_test_fence_release(fence);
-    CHECK(!completed(loop, SCOOP_IO_DONE, 0));
     CHECK(!position(first, 6));
     CHECK(!closed(first) && !closed(second) && !test_drain(loop));
     return 0;
@@ -154,30 +147,19 @@ int scoop_test_iocp_file_queued(const wchar_t *path) {
     ScoopIoCreated created = scoop_io_loop_create();
     CHECK(!created.status.code);
     ScoopIoLoop *loop = created.pointer;
-    created = scoop_test_fence_create(loop, 100, 0);
-    CHECK(!created.status.code);
-    TestWorkFence *fence = created.pointer;
-    scoop_test_fence_wait(fence);
     CHECK(!scoop_io_file_open(loop, 1, path, 1 | 2 | 16, 0600));
     scoop_io_work_cancel(loop, 1);
     ScoopIoEvent event;
     CHECK(!test_result(loop, &event) && event.id == 1 && event.kind == SCOOP_IO_POSIX_ERROR &&
           event.code == ECANCELED);
     CHECK(GetFileAttributesW(path) == INVALID_FILE_ATTRIBUTES);
-    scoop_test_fence_release(fence);
-    CHECK(!completed(loop, SCOOP_IO_DONE, 0));
     CHECK(!scoop_io_file_open(loop, 2, path, 1 | 2 | 16, 0600));
-    created = scoop_test_fence_create(loop, 101, 0);
-    CHECK(!created.status.code);
-    fence = created.pointer;
-    scoop_test_fence_wait(fence);
+    test_work(loop);
     scoop_io_work_cancel(loop, 2);
     CHECK(!test_result(loop, &event) && event.id == 2 && event.kind == SCOOP_IO_RESOURCE);
     ScoopIoFile *file = event.resource;
     DWORD attributes;
     CHECK(GetHandleInformation(scoop_file_handle(file->handle), &attributes));
-    scoop_test_fence_release(fence);
-    CHECK(!completed(loop, SCOOP_IO_DONE, 0));
     CHECK(!closed(file) && !test_drain(loop));
     return 0;
 }

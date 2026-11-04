@@ -1,0 +1,257 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+
+import scoop.test.*
+
+@Test
+private class ChannelTest {
+    @Test
+    fun `managed values remain rooted in buffers send queues and selected results`() {
+        val channel = Channel<ChannelPayload>(1L)
+        val executor = ManualExecutor()
+        val first = Label(11)
+        val second = Label(22)
+        channel.trySend(ChannelPayload(first, ("buffer", 1L)))
+        val sending = startRaw(executor) { channel.send(ChannelPayload(second, ("waiter", 2L))) }
+        executor.drain()
+        val receiveFirst = startRaw(executor) { channel.receive() }
+        executor.runOne()
+        val receiveSecond = startRaw(executor) { channel.receive() }
+        executor.drain()
+        sending.get()
+        assertSame(first, receiveFirst.get().label)
+        assertSame(second, receiveSecond.get().label)
+        assertEquals(("buffer", 1L), receiveFirst.get().detail)
+        assertEquals(("waiter", 2L), receiveSecond.get().detail)
+    }
+
+    @Test
+    fun `capacity validation and non suspending channel states`() {
+        assertFailsWith<IllegalArgumentException> { Channel<Int>(-1L) }
+        val channel = Channel<Int>(1L)
+        assertEquals(TryReceiveResult<Int>.Empty, channel.tryReceive())
+        assertEquals(TrySendResult.Sent, channel.trySend(4))
+        assertEquals(TrySendResult.Full, channel.trySend(5))
+        assertEquals(TryReceiveResult.Value(4), channel.tryReceive())
+        assertTrue(channel.close())
+        assertFalse(channel.close())
+        assertEquals(TrySendResult.Closed, channel.trySend(6))
+        assertEquals(TryReceiveResult<Int>.Closed, channel.tryReceive())
+    }
+
+    @Test
+    fun `rendezvous resumes each side on its own executor and context`() {
+        val channel = Channel<Label>(0L)
+        val receiver = ManualExecutor()
+        val sender = ManualExecutor()
+        val done = TestResult<Int>()
+        context(Label(11)) {
+            startDispatchedCoroutine(
+                receiver,
+                {
+                    val value = channel.receive()
+                    assertSame(receiver, currentCoroutineExecutorOrNone()!!)
+                    assertEquals(11, labelValue())
+                    value.value
+                },
+                done
+            )
+        }
+        receiver.runOne()
+        val sent =
+            startRaw(sender) {
+                channel.send(Label(42))
+                assertSame(sender, currentCoroutineExecutorOrNone()!!)
+            }
+        sender.drain()
+        sent.get()
+        assertEquals(0, done.calls)
+        assertEquals(1L, receiver.queued)
+        receiver.drain()
+        assertEquals(42, done.get())
+        assertEquals(0, receiver.active.load())
+        assertEquals(0, sender.active.load())
+    }
+
+    @Test
+    fun `bounded fifo admits older senders before new sends`() {
+        val channel = Channel<Int>(1L)
+        val executor = ManualExecutor()
+        assertEquals(TrySendResult.Sent, channel.trySend(0))
+        val first = startRaw(executor) { channel.send(1) }
+        val second = startRaw(executor) { channel.send(2) }
+        executor.drain()
+        assertEquals(TrySendResult.Full, channel.trySend(3))
+        assertEquals(TryReceiveResult.Value(0), channel.tryReceive())
+        assertEquals(TrySendResult.Full, channel.trySend(3))
+        executor.drain()
+        first.get()
+        assertEquals(0, second.calls)
+        assertEquals(TryReceiveResult.Value(1), channel.tryReceive())
+        executor.drain()
+        second.get()
+        assertEquals(TryReceiveResult.Value(2), channel.tryReceive())
+    }
+
+    @Test
+    fun `closing rejects pending sends and drains only committed messages`() {
+        val channel = Channel<Int>(1L)
+        val executor = ManualExecutor()
+        channel.trySend(1)
+        val pending = startRaw(executor) { channel.send(2) }
+        executor.drain()
+        channel.close()
+        executor.drain()
+        assertTrue(pending.error!! is ChannelClosedException)
+        assertEquals(TryReceiveResult.Value(1), channel.tryReceive())
+        val end = startRaw(executor) { channel.receiveOrNone() }
+        val failure = startRaw(executor) { channel.receive() }
+        executor.drain()
+        assertTrue(absent(end.get()))
+        assertTrue(failure.error!! is ChannelClosedException)
+    }
+
+    @Test
+    fun `nullable messages survive rendezvous buffering and closure`() {
+        val executor = ManualExecutor()
+        val channel = Channel<Int?>(1L)
+        channel.trySend(None)
+        channel.close()
+        val message = startRaw(executor) { channel.receiveOrNone() }
+        val end = startRaw(executor) { channel.receiveOrNone() }
+        executor.drain()
+        when (message.get()) {
+            case Some(value) -> assertTrue(absent(value))
+            case None -> fail(Some("nullable message was lost"))
+        }
+        assertTrue(absent(end.get()))
+        val rendezvous = Channel<Int?>(0L)
+        val waiting = startRaw(executor) { rendezvous.receiveOrNone() }
+        executor.drain()
+        assertEquals(TrySendResult.Sent, rendezvous.trySend(None))
+        executor.drain()
+        when (waiting.get()) {
+            case Some(value) -> assertTrue(absent(value))
+            case None -> fail(Some("nullable rendezvous message was lost"))
+        }
+    }
+
+    @Test
+    fun `cancelling a middle receiver preserves fifo and all messages`() {
+        val channel = Channel<Int>(0L)
+        val executor = ManualExecutor()
+        val first = startRaw(executor) { channel.receive() }
+        val middle = startTask(executor) { channel.receive() }
+        val last = startRaw(executor) { channel.receive() }
+        executor.drain()
+        middle.job!!.cancel()
+        channel.trySend(11)
+        channel.trySend(22)
+        executor.drain()
+        assertEquals(11, first.get())
+        assertEquals(22, last.get())
+        assertTrue(middle.error!! is CancellationException)
+        assertEquals(TrySendResult.Full, channel.trySend(33))
+    }
+
+    @Test
+    fun `cancelling queued senders removes their messages`() {
+        val channel = Channel<Int>(0L)
+        val executor = ManualExecutor()
+        val first = startRaw(executor) { channel.send(1) }
+        val middle = startTask(executor) { channel.send(2) }
+        val last = startRaw(executor) { channel.send(3) }
+        executor.drain()
+        middle.job!!.cancel()
+        assertEquals(TryReceiveResult.Value(1), channel.tryReceive())
+        assertEquals(TryReceiveResult.Value(3), channel.tryReceive())
+        assertEquals(TryReceiveResult<Int>.Empty, channel.tryReceive())
+        executor.drain()
+        first.get()
+        last.get()
+        assertTrue(middle.error!! is CancellationException)
+    }
+
+    @Test
+    fun `committed receive survives cancellation before dispatch`() {
+        val channel = Channel<Int>(0L)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task = startTask(executor) { probe.value = channel.receive() }
+        executor.drain()
+        assertEquals(TrySendResult.Sent, channel.trySend(42))
+        task.job!!.cancel()
+        channel.close()
+        executor.drain()
+        assertEquals(42, probe.value)
+        assertEquals(1, task.calls)
+        assertEquals(0, executor.active.load())
+    }
+
+    @Test
+    fun `committed send survives cancellation before dispatch`() {
+        val channel = Channel<Int>(0L)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                channel.send(42);
+                probe.value = 1
+            }
+        executor.drain()
+        assertEquals(TryReceiveResult.Value(42), channel.tryReceive())
+        task.job!!.cancel()
+        executor.drain()
+        assertEquals(1, probe.value)
+        assertEquals(1, task.calls)
+    }
+
+    @Test
+    fun `pre cancelled operations do not consume or send`() {
+        val channel = Channel<Int>(1L)
+        val executor = ManualExecutor()
+        channel.trySend(7)
+        val task =
+            startTask(executor) {
+                currentJobOrNone()!!.cancel()
+                try {
+                    channel.receive();
+                    fail(Some("receive should cancel"))
+                }
+                catch (_: CancellationException) {}
+                try {
+                    channel.send(9);
+                    fail(Some("send should cancel"))
+                }
+                catch (_: CancellationException) {}
+            }
+        executor.drain()
+        assertEquals(1, task.calls)
+        assertEquals(TryReceiveResult.Value(7), channel.tryReceive())
+        assertEquals(TryReceiveResult<Int>.Empty, channel.tryReceive())
+    }
+
+    @Test
+    fun `close notifies every receiver even when an inline completion throws`() {
+        val channel = Channel<Int>(0L)
+        val error = IllegalStateException(Some("completion failed"))
+        startCoroutine({ channel.receiveOrNone() }, ThrowingCompletion(error))
+        val other = TestResult<Int?>()
+        startCoroutine({ channel.receiveOrNone() }, other)
+        assertSame(error, assertFailsWith<IllegalStateException> { channel.close() })
+        assertTrue(absent(other.get()))
+        assertFalse(channel.close())
+    }
+}
+
+private class ThrowingCompletion(private val error: Throwable): Continuation<Int?> {
+    public override fun resume(value: Int?) {
+        throw error
+    }
+    public override fun resumeWithException(error: Throwable) {
+        throw error
+    }
+}
+
+private struct ChannelPayload(val label: Label, val detail: (String, Long))

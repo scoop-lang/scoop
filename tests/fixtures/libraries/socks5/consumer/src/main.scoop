@@ -42,9 +42,9 @@ private fun checkBinding(address: Socks5Address, scenario: String) {
 }
 
 private fun exchange(port: Int, scenario: String) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val credentials: Socks5Credentials? =
             if (scenario == "local" || scenario == "auth-reject")
                 Some(Socks5Credentials("用户".toByteArray(), listOf<Byte>(0, -1, 112)))

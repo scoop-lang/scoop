@@ -1,0 +1,68 @@
+package scoop.concurrent
+
+import scoop.platform.concurrent.Mutex
+
+// Completion shares the owner's state lock; handlers are always invoked outside it.
+internal class TerminationListeners(private val lock: Mutex) {
+    private val entries = WaitQueue<TerminationListener>()
+    private var finished = false
+
+    internal fun subscribe(handler: () -> Unit): Disposable {
+        val entry = TerminationListener(this, handler)
+        val callNow =
+            lock.withLock {
+                if (finished)
+                    return@withLock true
+                entry.link = Some(entries.append(entry))
+                false
+            }
+        if (callNow)
+            fire(entry)
+        return entry
+    }
+
+    // The caller commits its terminal state under this same lock.
+    internal fun finishLocked(notifications: WaitNotifications) {
+        finished = true
+        while (!entries.isEmpty) {
+            val entry = entries.takeFirst()!!
+            entry.link = None
+            notifications.add { fire(entry) }
+        }
+    }
+
+    internal fun remove(entry: TerminationListener) {
+        lock.withLock {
+            when (entry.link) {
+                case Some(link) -> entries.remove(link)
+                case None -> {}
+            }
+            entry.link = None
+            entry.handler = None
+        }
+    }
+
+    private fun fire(entry: TerminationListener) {
+        val action =
+            lock.withLock {
+                val handler = entry.handler
+                entry.handler = None
+                handler
+            }
+        when (action) {
+            case Some(handler) -> handler()
+            case None -> {}
+        }
+    }
+}
+
+internal class TerminationListener(
+    private val owner: TerminationListeners,
+    handler: () -> Unit
+): Disposable {
+    internal var handler: (() -> Unit)? = Some(handler)
+    internal var link: WaitLink<TerminationListener>? = None
+    public override fun dispose() {
+        owner.remove(this)
+    }
+}

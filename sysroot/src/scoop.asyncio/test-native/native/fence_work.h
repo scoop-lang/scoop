@@ -4,8 +4,8 @@
 #include "../../native/loop.h"
 
 typedef struct TestWorkFence TestWorkFence;
-unsigned scoop_test_pool_size(void);
-ScoopIoCreated scoop_test_fence_create(ScoopIoLoop *loop, int64_t id, unsigned spare);
+ScoopIoCreated scoop_test_fence_create(ScoopIoLoop *loop, int64_t id, unsigned pool,
+                                       unsigned spare);
 void scoop_test_fence_wait(TestWorkFence *fence);
 void scoop_test_fence_release(TestWorkFence *fence);
 

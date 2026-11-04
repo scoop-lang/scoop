@@ -1,0 +1,144 @@
+package scoop.concurrent
+
+import scoop.platform.concurrent.Mutex
+
+/** A non-reentrant FIFO mutex whose ownership may move between managed threads. */
+public class AsyncMutex public constructor() {
+    internal val stateLock = Mutex()
+    private var holder: AsyncMutexGuard? = None
+    private val waiters = WaitQueue<MutexWaiter>()
+
+    /** Acquires a guard, suspending without blocking the executor while contended. */
+    public suspend fun lock(): AsyncMutexGuard {
+        ensureActive()
+        return suspendCoroutine<AsyncMutexGuard> {
+            continuation ->
+            val waiter = MutexAcquisition(AsyncMutexGuard(this), continuation)
+            val registration =
+                currentJobOrNone()?.invokeOnCancellation { error -> cancel(waiter, error) }
+            val notifications = WaitNotifications()
+            stateLock.withLock {
+                waiter.result.bind(registration, notifications)
+                if (waiter.result.isPending) {
+                    if (!waitPresent(holder))
+                        grant(waiter, notifications)
+                    else
+                        waiter.link = Some(waiters.append(waiter))
+                }
+                Unit
+            }
+            notifications.deliver()
+        }
+    }
+
+    /** Acquires only if immediately available, without overtaking queued waiters. */
+    public fun tryLock(): AsyncMutexGuard? =
+        stateLock.withLock {
+            if (waitPresent(holder))
+                return@withLock None
+            val guard = AsyncMutexGuard(this)
+            guard.state = GuardState.Held
+            holder = Some(guard)
+            Some(guard)
+        }
+
+    /** Releases the acquired guard when the ordinary block returns or throws. */
+    public suspend fun <T> withLock(block: AsyncMutexGuard.() -> T): T {
+        val guard = lock()
+        try {
+            return block(guard)
+        }
+        finally {
+            guard.dispose()
+        }
+    }
+
+    /** Keeps ownership across suspension, and releases on return, failure or cancellation. */
+    public suspend fun <T> withLock(block: suspend AsyncMutexGuard.() -> T): T {
+        val guard = lock()
+        try {
+            return block(guard)
+        }
+        finally {
+            guard.dispose()
+        }
+    }
+
+    internal fun validate(guard: AsyncMutexGuard) {
+        val owns =
+            when (holder) {
+                case Some(current) -> current === guard
+                case None -> false
+            }
+        if (guard.mutex !== this || guard.state != GuardState.Held || !owns)
+            throw IllegalStateException(Some("guard does not hold this mutex"))
+    }
+
+    internal fun release(guard: AsyncMutexGuard) {
+        val notifications = WaitNotifications()
+        stateLock.withLock {
+            if (guard.state != GuardState.Released) {
+                validate(guard)
+                guard.state = GuardState.Released
+                handoff(notifications)
+            }
+            Unit
+        }
+        notifications.deliver()
+    }
+
+    internal fun releaseForCondition(guard: AsyncMutexGuard, notifications: WaitNotifications) {
+        guard.state = GuardState.ConditionWaiting
+        handoff(notifications)
+    }
+
+    internal fun reacquire(waiter: MutexWaiter, notifications: WaitNotifications) {
+        if (!waitPresent(holder))
+            grant(waiter, notifications)
+        else
+            waiters.append(waiter)
+    }
+
+    private fun handoff(notifications: WaitNotifications) {
+        when (waiters.takeFirst()) {
+            case Some(waiter) -> grant(waiter, notifications)
+            case None -> holder = None
+        }
+    }
+
+    private fun grant(waiter: MutexWaiter, notifications: WaitNotifications) {
+        holder = Some(waiter.guard)
+        waiter.guard.state = GuardState.Held
+        waiter.acquired(notifications)
+    }
+
+    private fun cancel(waiter: MutexAcquisition, error: CancellationException) {
+        val notifications = WaitNotifications()
+        stateLock.withLock {
+            if (waiter.result.isPending) {
+                when (waiter.link) {
+                    case Some(link) -> waiters.remove(link)
+                    case None -> {}
+                }
+                waiter.link = None
+                waiter.result.fail(error, notifications)
+            }
+            Unit
+        }
+        notifications.deliver()
+    }
+}
+
+/** Shared ownership state for a single acquisition; disposal is idempotent after release. */
+public class AsyncMutexGuard internal constructor(internal val mutex: AsyncMutex): Disposable {
+    internal var state: GuardState = GuardState.Released
+
+    /** Releases once; condition-waiting guards cannot be released until reacquired. */
+    public override fun dispose() {
+        mutex.release(this)
+    }
+}
+
+internal enum GuardState {
+    Held, ConditionWaiting, Released
+}

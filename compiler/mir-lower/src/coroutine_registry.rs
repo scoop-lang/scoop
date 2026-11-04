@@ -7,7 +7,7 @@ pub(crate) use signatures::lowered_signature;
 /// An unbound protocol member whose receiver is supplied at each generated call.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct ProtocolMethod {
-    pub(crate) function: mir::MonomorphizedFunctionId,
+    pub(crate) callee: mir::DispatchCallee,
     pub(crate) interface: mir::InterfaceId,
     pub(crate) slot: u32,
 }
@@ -15,7 +15,7 @@ pub(crate) struct ProtocolMethod {
 impl ProtocolMethod {
     pub(crate) fn call<E>(self, receiver: E) -> mir::CallTarget<E> {
         mir::CallTarget::Interface {
-            callee: mir::DispatchCallee::Monomorphized(self.function),
+            callee: self.callee,
             interface: self.interface,
             slot: self.slot,
             receiver: Box::new(receiver),
@@ -26,6 +26,7 @@ impl ProtocolMethod {
 pub(super) fn protocol_call(
     module: &hir::Module,
     instances: &InstanceRegistry,
+    functions: &HashMap<hir::FunctionId, mir::FunctionId>,
     interfaces: &InterfaceRegistry,
     function: hir::FunctionId,
 ) -> ProtocolMethod {
@@ -39,9 +40,66 @@ pub(super) fn protocol_call(
     ProtocolMethod {
         interface: interfaces.mir_id(interface),
         slot: slot.into_raw(),
-        function: instances
-            .get(function)
-            .expect("the protocol member was materialized"),
+        callee: instances.get(function).map_or_else(
+            || mir::DispatchCallee::User(functions[&function]),
+            mir::DispatchCallee::Monomorphized,
+        ),
+    }
+}
+
+pub(super) fn drive_protocol_call(
+    module: &hir::Module,
+    instances: &InstanceRegistry,
+    functions: &HashMap<hir::FunctionId, mir::FunctionId>,
+    interfaces: &InterfaceRegistry,
+    external: &Arena<mir::ExternalCallableUse>,
+    callable: hir::CoroutineDispatch,
+    interface: hir::InterfaceId,
+) -> ProtocolMethod {
+    match callable {
+        hir::CoroutineDispatch::Local(function) => {
+            protocol_call(module, instances, functions, interfaces, function)
+        }
+        hir::CoroutineDispatch::Imported { function, slot } => {
+            let target = scoop_identity::StrongCallableDefinitionOwner::Function(function);
+            let callee = external
+                .iter()
+                .find_map(|(id, use_)| (use_.reference().implementation() == target).then_some(id))
+                .expect(
+                    "the concrete drive protocol selects its core function before MIR lowering",
+                );
+            ProtocolMethod {
+                callee: mir::DispatchCallee::External(callee),
+                interface: interfaces.mir_id(interface),
+                slot: slot.into_raw(),
+            }
+        }
+    }
+}
+
+pub(super) fn drive_protocol_signature(
+    module: &hir::Module,
+    callable: hir::CoroutineDispatch,
+    interface: hir::InterfaceId,
+) -> hir::ExactCallableSignature {
+    match callable {
+        hir::CoroutineDispatch::Local(function) => {
+            crate::source_callables::exact_function_signature(module, function)
+        }
+        hir::CoroutineDispatch::Imported { slot, .. } => {
+            let interface = &module.interfaces[interface];
+            let method = &interface.methods[slot.into_raw() as usize];
+            hir::ExactCallableSignature::new(
+                hir::Effect::Ordinary,
+                Some(module.exact_type_identities[interface.canonical_type].id()),
+                method
+                    .params
+                    .iter()
+                    .map(|param| module.exact_type_identities[param.ty].id())
+                    .collect(),
+                module.exact_type_identities[method.return_ty].id(),
+            )
+        }
     }
 }
 

@@ -30,8 +30,8 @@ internal fun extensionCache(trust: TrustStore, url: Url) {
                 extensionField("X-Variant", state.variant)
             ]
         }
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(
+    eventLoop().run {
+        withHttpClient(
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
                 this.interceptors = [interceptor]
@@ -83,8 +83,8 @@ internal fun extensionExplicitAuthentication(trust: TrustStore, url: Url) {
             state.attempts += 1L
             [extensionField("Authorization", "Bearer explicit")]
         }
-    PlatformEventLoop().run suspend {
-        _ -> withHttpClient(
+    eventLoop().run {
+        withHttpClient(
             httpClientConfig {
                 this.tls = httpClientTlsConfig { this.trust = TlsTrustSource.Store(trust) }
                 this.onAttempt = Some(callback)

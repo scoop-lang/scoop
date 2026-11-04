@@ -1,0 +1,88 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class TerminationNotificationTest {
+    @Test
+    fun `pool notifications are unlocked revocable and immediate after termination`() {
+        val pool = BlockingTaskPool(1)
+        val calls = AtomicInt(0)
+        val cancelled = pool.invokeOnTermination { calls.fetchAdd(100) }
+        cancelled.dispose()
+        pool.invokeOnTermination {
+            assertTrue(pool.isShutdown)
+            assertTrue(pool.isTerminated)
+            assertFailsWith<ExecutorClosedException> { pool.submit(FunctionBlockingWork {}) }
+            calls.fetchAdd(1)
+        }
+        assertFalse(pool.isShutdown)
+        assertFalse(pool.isTerminated)
+        pool.close()
+        assertEquals(1, calls.load())
+        val caller = currentThreadId()
+        val late =
+            pool.invokeOnTermination {
+                assertEquals(caller, currentThreadId())
+                calls.fetchAdd(1)
+            }
+        late.dispose()
+        cancelled.dispose()
+        pool.close()
+        assertEquals(2, calls.load())
+        val error = IllegalStateException(Some("late notification"))
+        assertSame(
+            error,
+            assertFailsWith<IllegalStateException> { pool.invokeOnTermination { throw error } }
+        )
+    }
+
+    @Test
+    fun `disposal suppresses a selected notification that has not begun`() {
+        val pool = BlockingTaskPool(1)
+        val gate = WorkerGate()
+        val calls = AtomicInt(0)
+        pool.invokeOnTermination {
+            gate.await();
+            calls.fetchAdd(1)
+        }
+        val second = pool.invokeOnTermination { calls.fetchAdd(100) }
+        pool.invokeOnTermination { calls.fetchAdd(1) }
+        pool.requestShutdown()
+        gate.awaitEntered(1)
+        second.dispose()
+        gate.open()
+        pool.join()
+        assertEquals(2, calls.load())
+    }
+
+    @Test
+    fun `executor termination notification does not depend on its caller executor`() {
+        val caller =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val target =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val observed = ThreadResult<Unit>()
+        dispatch(caller) {
+            target.invokeOnTermination {
+                assertTrue(target.isTerminated)
+                assertTrue(absent(currentCoroutineExecutorOrNone()))
+                observed.resume(Unit)
+            }
+            target.close()
+            observed.await()
+        }.await()
+        caller.close()
+        assertTrue(caller.isShutdown)
+        assertTrue(caller.isTerminated)
+        target.close()
+    }
+}

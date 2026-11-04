@@ -61,9 +61,9 @@ private fun exercise(ip: IpAddress, host: OsString) {
         val address = listener.localAddress()
         Thread.start { serve(listener) }.use {
             server ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope ->
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
                 rejectDeadlines(loop, host, address.port)
                 check(!scope.job.isCancelled)
                 val long = Some(Duration.seconds(3600L))

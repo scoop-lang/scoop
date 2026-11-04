@@ -6,9 +6,8 @@ import scoop.test.*
 private class AsyncReadAllLimitTests {
     @Test
     fun `bounded collection accepts exact and empty input without overflowing large limits`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             for (limit in [0L, 1L, 2L, 8191L, 8192L, 8193L]) {
                 val input = Array<Byte>(limit) { index -> (index % 127L).toByte() }
                 val source = LimitedCollectSource(input)
@@ -30,9 +29,9 @@ private class AsyncReadAllLimitTests {
 
     @Test
     fun `a limit failure consumes at most one excess byte and leaves the source usable`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             for (limit in [0L, 1L, 8191L, 8192L, 8193L]) {
                 val source = LimitedCollectSource(Array<Byte>(limit + 3L) { _ -> 42.toByte() })
                 try {
@@ -58,9 +57,8 @@ private class AsyncReadAllLimitTests {
     @Test
     fun `a negative limit does not allocate or submit an input read`() {
         val source = LimitedCollectSource("x".toByteArray())
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             try {
                 source.readAllBytes(-1L);
                 fail(Some("negative limit was accepted"))
@@ -81,9 +79,9 @@ private class AsyncReadAllLimitTests {
     fun `a failing EOF probe preserves the source error and original close responsibility`() {
         val source = LimitedCollectSource("xy".toByteArray())
         source.failAt = Some(2L)
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             try {
                 source.readAllBytes(2L);
                 fail(Some("failed probe was accepted"))
@@ -100,9 +98,9 @@ private class AsyncReadAllLimitTests {
 
     @Test
     fun `invalid progress is checked against the actual bounded request`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (invalid in [-1L, 2L]) {
+        val loop = eventLoop()
+        loop.run {
+            for (invalid in [-1L, 2L]) {
                 val source = LimitedCollectSource("x".toByteArray())
                 source.invalidProgress = Some(invalid)
                 try {
@@ -119,9 +117,10 @@ private class AsyncReadAllLimitTests {
 
     @Test
     fun `cancelled EOF and excess probes wait for the actual native borrow to finish`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope -> for (extraByte in [false, true]) {
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
+            for (extraByte in [false, true]) {
                 val source = HeldLimitProbe(extraByte)
                 val cancelled = AtomicBoolean(false)
                 val reading =

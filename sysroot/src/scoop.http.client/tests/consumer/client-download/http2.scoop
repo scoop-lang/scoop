@@ -11,9 +11,10 @@ import scoop.test.*
 import scoop.url.Url
 
 internal fun downloadHttp2(trust: TrustStore, directory: Path) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        loop.listenTcp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0)).useAsync suspend {
             listener ->
             val url = Url.parse("http://127.0.0.1:" + listener.localAddress.port.toString() + "/h2")
             val finish = DownloadGate()
@@ -39,8 +40,9 @@ internal fun downloadHttp2(trust: TrustStore, directory: Path) {
                 }
             try {
                 withHttpClient(downloadConfig(trust, true)) suspend {
-                    client -> coroutineScope<Unit> suspend {
-                        downloads ->
+                    client -> coroutineScope<Unit> {
+                        val downloads = this
+
                         val first =
                             downloads.async suspend {
                                 client.download(

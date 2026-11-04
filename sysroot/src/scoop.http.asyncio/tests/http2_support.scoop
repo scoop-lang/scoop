@@ -42,9 +42,9 @@ internal fun withHttp2(
     serverTimeouts: HttpIoTimeoutOptions = HttpIoTimeoutOptions(),
     block: suspend (CoroutineScope, H2Pair) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         a.readLimit = 97L;
         b.readLimit = 101L

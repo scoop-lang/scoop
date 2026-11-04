@@ -38,7 +38,7 @@ pub fn context_fields(
 )> {
     use ContextStorageRole as Role;
     let roles: &[Role] = match storage.role {
-        Role::Task => &[Role::Node],
+        Role::Task => &[Role::Node, Role::Binding],
         Role::Node => &[Role::Binding, Role::Binding, Role::Binding, Role::Binding],
         Role::Binding => &[],
         Role::Mark => &[Role::Task, Role::Node],
@@ -62,42 +62,79 @@ pub fn context_fields(
 
 #[derive(Debug, Clone)]
 pub enum ContextOperation<E> {
-    TryGet { key: ContextKey },
-    Push { key: ContextKey, value: Box<E> },
-    Restore { mark: Box<E> },
+    TryGet {
+        key: ContextKey,
+    },
+    Push {
+        key: ContextKey,
+        value: Box<E>,
+    },
+    Restore {
+        mark: Box<E>,
+    },
     Current,
     Snapshot,
-    Fork { root: Box<E> },
-    Enter { task: Box<E> },
-    Leave { guard: Box<E> },
-    IsPresent { binding: Box<E> },
-    UnwrapBinding { binding: Box<E> },
+    CurrentExecution,
+    Execution {
+        task: Box<E>,
+    },
+    Fork {
+        root: Box<E>,
+        /// An independent invocation has no execution until a coroutine owns it.
+        execution: Option<Box<E>>,
+    },
+    Enter {
+        task: Box<E>,
+    },
+    Leave {
+        guard: Box<E>,
+    },
+    IsPresent {
+        binding: Box<E>,
+    },
+    UnwrapBinding {
+        binding: Box<E>,
+    },
     EnsureRoot,
 }
 
 impl<E> ContextOperation<E> {
-    pub fn operand(&self) -> Option<&E> {
-        match self {
-            Self::TryGet { .. } | Self::Current | Self::Snapshot | Self::EnsureRoot => None,
-            Self::Push { value, .. } => Some(value),
-            Self::Restore { mark } => Some(mark),
-            Self::Fork { root } => Some(root),
-            Self::Enter { task } => Some(task),
-            Self::Leave { guard } => Some(guard),
-            Self::IsPresent { binding } | Self::UnwrapBinding { binding } => Some(binding),
-        }
+    pub fn operands(&self) -> impl Iterator<Item = &E> {
+        let operands = match self {
+            Self::TryGet { .. }
+            | Self::Current
+            | Self::Snapshot
+            | Self::CurrentExecution
+            | Self::EnsureRoot => [None, None],
+            Self::Push { value, .. } => [Some(value.as_ref()), None],
+            Self::Restore { mark } => [Some(mark.as_ref()), None],
+            Self::Fork { root, execution } => [Some(root.as_ref()), execution.as_deref()],
+            Self::Enter { task } | Self::Execution { task } => [Some(task.as_ref()), None],
+            Self::Leave { guard } => [Some(guard.as_ref()), None],
+            Self::IsPresent { binding } | Self::UnwrapBinding { binding } => {
+                [Some(binding.as_ref()), None]
+            }
+        };
+        operands.into_iter().flatten()
     }
 
-    pub fn operand_mut(&mut self) -> Option<&mut E> {
-        match self {
-            Self::TryGet { .. } | Self::Current | Self::Snapshot | Self::EnsureRoot => None,
-            Self::Push { value, .. } => Some(value),
-            Self::Restore { mark } => Some(mark),
-            Self::Fork { root } => Some(root),
-            Self::Enter { task } => Some(task),
-            Self::Leave { guard } => Some(guard),
-            Self::IsPresent { binding } | Self::UnwrapBinding { binding } => Some(binding),
-        }
+    pub fn operands_mut(&mut self) -> impl Iterator<Item = &mut E> {
+        let operands = match self {
+            Self::TryGet { .. }
+            | Self::Current
+            | Self::Snapshot
+            | Self::CurrentExecution
+            | Self::EnsureRoot => [None, None],
+            Self::Push { value, .. } => [Some(value.as_mut()), None],
+            Self::Restore { mark } => [Some(mark.as_mut()), None],
+            Self::Fork { root, execution } => [Some(root.as_mut()), execution.as_deref_mut()],
+            Self::Enter { task } | Self::Execution { task } => [Some(task.as_mut()), None],
+            Self::Leave { guard } => [Some(guard.as_mut()), None],
+            Self::IsPresent { binding } | Self::UnwrapBinding { binding } => {
+                [Some(binding.as_mut()), None]
+            }
+        };
+        operands.into_iter().flatten()
     }
 
     pub const fn name(&self) -> &'static str {
@@ -107,6 +144,8 @@ impl<E> ContextOperation<E> {
             Self::Restore { .. } => "ContextRestore",
             Self::Current => "ContextCurrent",
             Self::Snapshot => "ContextSnapshot",
+            Self::CurrentExecution => "ContextCurrentExecution",
+            Self::Execution { .. } => "ContextExecution",
             Self::Fork { .. } => "ContextFork",
             Self::Enter { .. } => "ContextEnter",
             Self::Leave { .. } => "ContextLeave",
@@ -128,8 +167,13 @@ impl<E> ContextOperation<E> {
             },
             Self::Current => ContextOperation::Current,
             Self::Snapshot => ContextOperation::Snapshot,
-            Self::Fork { root } => ContextOperation::Fork {
+            Self::CurrentExecution => ContextOperation::CurrentExecution,
+            Self::Execution { task } => ContextOperation::Execution {
+                task: Box::new(map(task)),
+            },
+            Self::Fork { root, execution } => ContextOperation::Fork {
                 root: Box::new(map(root)),
+                execution: execution.as_ref().map(|value| Box::new(map(value))),
             },
             Self::Enter { task } => ContextOperation::Enter {
                 task: Box::new(map(task)),

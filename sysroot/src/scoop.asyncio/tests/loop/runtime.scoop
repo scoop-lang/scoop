@@ -1,0 +1,167 @@
+package scoop.asyncio
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.platform.fs.*
+import scoop.platform.memory.NativeByteBuffer
+import scoop.platform.net.*
+import scoop.platform.system.OsString
+import scoop.test.*
+import scoop.time.Duration
+
+private class RuntimeLabel(val value: Int)
+
+context(label: RuntimeLabel)
+private fun runtimeLabel(): Int = label.value
+
+private struct RuntimeValue(val label: RuntimeLabel, val detail: (String, Long))
+
+private class RuntimeResources(val file: AsyncFile, val socket: AsyncUdpSocket)
+
+@Test
+private class AsyncRuntimeTest {
+    @Test
+    fun `workers owner and shared blocking pool preserve bindings and typed results`() {
+        val owner = currentThreadId()
+        val runtime =
+            asyncRuntime {
+                workers = 2
+                blocking { threads = 1 }
+            }
+        val value =
+            context(RuntimeLabel(42)) {
+                runtime.run {
+                    val workers = currentCoroutineExecutorOrNone()!!
+                    val loop = currentEventLoop()
+                    assertTrue(workers is MultiThreadExecutor)
+                    assertNotEquals(owner, currentThreadId())
+                    assertEquals(42, runtimeLabel())
+                    val child =
+                        async {
+                            assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                            loop.sleep(Duration.nanoseconds(1L))
+                            assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                            assertNotEquals(owner, currentThreadId())
+                            runtimeLabel()
+                        }
+                    val workerPoolThread = blocking { currentThreadId() }
+                    val ownerPoolThread =
+                        withExecutor(loop.executor) {
+                            assertEquals(owner, currentThreadId())
+                            blocking {
+                                assertNoLoopValue(currentCoroutineExecutorOrNone())
+                                assertSame(loop, currentEventLoop())
+                                assertEquals(42, runtimeLabel())
+                                gcCollect()
+                                currentThreadId()
+                            }
+                        }
+                    assertEquals(workerPoolThread, ownerPoolThread)
+                    assertNotEquals(owner, workerPoolThread)
+                    assertSame(workers, currentCoroutineExecutorOrNone()!!)
+                    RuntimeValue(RuntimeLabel(child.await()), ("managed runtime", 7L))
+                }
+            }
+        assertEquals(42, value.label.value)
+        assertEquals(("managed runtime", 7L), value.detail)
+        assertNoLoopValue(currentJobOrNone())
+        assertFailsWith<MissingContextException> { currentEventLoop() }
+    }
+
+    @Test
+    fun `worker file directory DNS and datagram operations retain their owner and close on exit`() {
+        IoTestDirectory().use {
+            tree ->
+            val path = tree.child("data")
+            path.writeText("x")
+            val escaped =
+                asyncRuntime {
+                    workers = 2
+                    blocking { threads = 1 }
+                }.run {
+                    val loop = currentEventLoop()
+                    val executor = currentCoroutineExecutorOrNone()!!
+                    val file = loop.openFile(path, OpenOptions(write = true))
+                    NativeByteBuffer.allocate(1L).use {
+                        bytes ->
+                        file.readFully(bytes)
+                        assertEquals(120.toByte(), bytes.readByte())
+                        bytes.clear()
+                        bytes.writeByte(121)
+                        file.seek(0L)
+                        file.writeFully(bytes)
+                        file.syncData()
+                    }
+                    loop.openDirectory(tree.path).useAsync {
+                        directory -> assertEquals(1L, collectDirectoryEntries(directory).size)
+                    }
+                    assertTrue(loop.resolve(OsString.fromString("127.0.0.1"), 42).size > 0L)
+                    val socket = loop.bindUdp(SocketAddress(IpAddress.IPV4_LOOPBACK, 0))
+                    val sending =
+                        launch {
+                            NativeByteBuffer.allocate(1L).use {
+                                bytes ->
+                                bytes.writeByte(42)
+                                socket.sendTo(bytes, socket.localAddress, 1L)
+                            }
+                            assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                        }
+                    NativeByteBuffer.allocate(1L).use {
+                        bytes ->
+                        assertEquals(1L, socket.receiveFrom(bytes, 1L).count)
+                        assertEquals(42.toByte(), bytes.readByte())
+                    }
+                    sending.join()
+                    assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                    RuntimeResources(file, socket)
+                }
+            assertEquals("y", path.readText())
+            eventLoop { blocking { threads = 1 } }.run {
+                escaped.file.close()
+                escaped.socket.close()
+            }
+        }
+    }
+
+    @Test
+    fun `root failure waits for cancelled children to finish cleanup on the owner`() {
+        val owner = currentThreadId()
+        val cleaned = AtomicBoolean(false)
+        val problem = IllegalArgumentException(Some("runtime root failed"))
+        assertSame(
+            problem,
+            assertFailsWith<IllegalArgumentException> {
+                asyncRuntime {
+                    workers = 1
+                    blocking { threads = 1 }
+                }.run {
+                    val loop = currentEventLoop()
+                    val started = Channel<Unit>(0L)
+                    launch {
+                        try {
+                            started.send(Unit)
+                            loop.sleep(Duration.seconds(100000L))
+                        } finally {
+                            nonCancellableScope {
+                                withExecutor(loop.executor) {
+                                    assertEquals(owner, currentThreadId())
+                                    assertEquals(
+                                        42,
+                                        blocking {
+                                            gcCollect();
+                                            42
+                                        }
+                                    )
+                                    cleaned.store(true)
+                                }
+                            }
+                        }
+                    }
+                    started.receive()
+                    throw problem
+                }
+            }
+        )
+        assertTrue(cleaned.load())
+    }
+}

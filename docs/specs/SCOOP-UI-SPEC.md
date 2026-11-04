@@ -653,7 +653,7 @@ SurfaceContent 的具体合同见 [Surface 规范第 4／7 节](SCOOP-SURFACE-SP
 
 ### 9.1 异步 I/O、下载进度与跨线程更新
 
-需要异步 I/O 的应用显式组合 UiHost 与 `scoop.window.asyncio` 的 Application.runWithAsyncio，复用附着在窗口 owner 上的 PlatformEventLoop、EventLoopSession 和 currentApplicationScope。普通单窗口便利入口不隐式建立 I/O loop；不在 render 或事件回调内嵌套 EventLoop.run。asyncio、HTTP client 等是使用者／集成示例的实际依赖，不为此加入 UI 核心的公共签名或生产依赖。
+需要异步 I/O 的应用显式组合 UiHost 与 `scoop.window.asyncio` 的 Application.runWithAsyncio，复用附着在窗口 owner 上的 PlatformEventLoop、EventLoopSession 和 currentApplicationScope。普通单窗口便利入口不隐式建立 I/O loop；不在 render 或事件回调内嵌套 PlatformEventLoop.run。asyncio、HTTP client 等是使用者／集成示例的实际依赖，不为此加入 UI 核心的公共签名或生产依赖。
 
 默认在该 EventLoop 的活动应用作用域中创建并复用 HttpClient，下载作为子任务执行。同一 client 可由所属 EventLoop 的多个任务并发使用。网络及异步文件等待挂起协程，窗口循环继续处理事件；内核／原生 callback／worker 发布完成，由 asyncio 在 owner 消费并恢复自己的 I/O 等待。此路径的进度回调可直接更新同 owner 的 State；setter 只安排逻辑更新，不同步绘制。
 

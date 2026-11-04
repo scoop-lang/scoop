@@ -65,9 +65,9 @@ internal fun withHttp1(
         AsyncHttp1Connection
     ) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         val client =
             AsyncHttp1Connection.takeOwnershipAsClient(a, scope, ioTimeouts = clientTimeouts)

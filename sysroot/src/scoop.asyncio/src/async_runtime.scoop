@@ -1,0 +1,18 @@
+package scoop.asyncio
+
+/** Runs coroutines on managed workers while its caller drives a single I/O owner. */
+public class AsyncRuntime internal constructor(private val config: AsyncRuntimeConfig) {
+    private val accepted = AtomicBoolean(false)
+
+    /** Returns the root result after tasks, I/O resources and both worker groups have closed. */
+    public fun <T> run(block: suspend CoroutineScope.() -> T): T {
+        requireLoopRootCaller()
+        if (!accepted.compareAndSet(false, true))
+            throw IllegalStateException(Some("async runtime already used"))
+        return createRuntimeWorkers(config).use {
+            workers ->
+            val loop = PlatformEventLoop(LoopExecutionPlan.Runtime(workers))
+            loop.runPrepared(block)
+        }
+    }
+}

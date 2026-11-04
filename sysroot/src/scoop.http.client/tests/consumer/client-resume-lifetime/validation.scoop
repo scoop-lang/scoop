@@ -11,8 +11,7 @@ import scoop.test.*
 import scoop.url.Url
 
 internal fun resumeValidation(trust: TrustStore, directory: Path) {
-    PlatformEventLoop().run suspend {
-        _ ->
+    eventLoop().run {
         currentEventLoop().createDirectories(directory)
         val target = directory.resolve(Path.fromString("target"))
         val data = directory.resolve(Path.fromString("partial"))

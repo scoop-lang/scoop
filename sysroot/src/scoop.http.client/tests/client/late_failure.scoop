@@ -12,9 +12,10 @@ private class HttpClientLateFailureTest {
     fun `a completed call reports an unobserved source cleanup failure on response close`() {
         clientTestTrust().use {
             trust ->
-            val loop: EventLoop = PlatformEventLoop()
-            loop.run suspend {
-                scope -> clientTestListen(loop).useAsync suspend {
+            val loop = eventLoop()
+            loop.run {
+                val scope = this;
+                clientTestListen(loop).useAsync suspend {
                     listener ->
                     val source = BodyTestSource("send".toByteArray())
                     source.holdClose = true;

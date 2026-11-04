@@ -5,10 +5,9 @@ import scoop.terminal.asyncio.*
 import scoop.time.Duration
 
 fun escapedSession() {
-    val loop: EventLoop = PlatformEventLoop()
+    val loop = eventLoop()
     val escaped =
-        loop.runWithResult<AsyncTerminalSession> suspend {
-            _ ->
+        loop.run<AsyncTerminalSession> {
             val session = AsyncTerminalSession.open(loop)
             session.enableRawMode()
             session

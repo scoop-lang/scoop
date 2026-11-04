@@ -9,11 +9,11 @@ private class LoopMarker public constructor(val value: Int)
 private class EventLoopLifecycleTest {
     @Test
     fun `interface run installs context and returns typed values after children`() {
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         val completed = AtomicLong(0L)
         val answer =
-            loop.runWithResult<Int> suspend {
-                scope ->
+            loop.run<Int> {
+                val scope = this;
                 assertSame(loop, currentEventLoop())
                 assertSame(scope.job, currentJobOrNone()!!)
                 scope.launch suspend {
@@ -25,26 +25,26 @@ private class EventLoopLifecycleTest {
         assertEquals(42, answer)
         assertEquals(1L, completed.load())
         assertFailsWith<MissingContextException> { currentEventLoop() }
-        assertFailsWith<IllegalStateException> { loop.run suspend { _ -> } }
+        assertFailsWith<IllegalStateException> { loop.run {} }
         val marker = LoopMarker(7)
-        val second: EventLoop = PlatformEventLoop()
-        assertSame(marker, second.runWithResult<LoopMarker> suspend { _ -> marker })
+        val second = eventLoop()
+        assertSame(marker, second.run<LoopMarker> { marker })
     }
 
     @Test
     fun `root and unawaited child failures prevent returning a value`() {
         val problem = IllegalArgumentException(Some("root failure"))
-        val first: EventLoop = PlatformEventLoop()
+        val first = eventLoop()
         assertSame(
             problem,
-            assertFailsWith<IllegalArgumentException> { first.run suspend { _ -> throw problem } }
+            assertFailsWith<IllegalArgumentException> { first.run { throw problem } }
         )
-        val second: EventLoop = PlatformEventLoop()
+        val second = eventLoop()
         assertSame(
             problem,
             assertFailsWith<IllegalArgumentException> {
-                second.runWithResult<Int> suspend {
-                    scope ->
+                second.run<Int> {
+                    val scope = this;
                     scope.launch suspend {
                         second.sleep(Duration.nanoseconds(1L));
                         throw problem
@@ -57,11 +57,10 @@ private class EventLoopLifecycleTest {
 
     @Test
     fun `nested runs and wrong loop calls are rejected without consuming a new loop`() {
-        val outer: EventLoop = PlatformEventLoop()
-        val inner: EventLoop = PlatformEventLoop()
-        outer.run suspend {
-            _ ->
-            assertFailsWith<IllegalStateException> { inner.run suspend { _ -> } }
+        val outer = eventLoop()
+        val inner = eventLoop()
+        outer.run {
+            assertFailsWith<IllegalStateException> { inner.run {} }
             try {
                 inner.sleep(Duration.ZERO);
                 fail(Some("wrong loop accepted"))
@@ -74,6 +73,6 @@ private class EventLoopLifecycleTest {
             catch (_: IllegalArgumentException) {}
             outer.sleep(Duration.ZERO)
         }
-        inner.run suspend { _ -> }
+        inner.run {}
     }
 }

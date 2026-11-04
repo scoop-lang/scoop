@@ -17,9 +17,10 @@ private struct GreetingOutput(val message: String) {
 }
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope -> HttpServer.listen(scope) {
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
+        HttpServer.listen(scope) {
             val routes = this
 
             routes.get(

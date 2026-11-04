@@ -11,10 +11,10 @@ private class AsyncFileQueuedWorkTest {
         IoTestDirectory().use {
             tree ->
             val missing = tree.child("not-created")
-            val backend = PlatformEventLoop()
-            val loop: EventLoop = backend
-            loop.run suspend {
-                scope ->
+            val backend = eventLoop()
+            val loop = backend
+            loop.run {
+                val scope = this;
                 val fence = WorkFence(backend)
                 fence.start()
                 fence.waitStarted()

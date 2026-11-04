@@ -1,0 +1,62 @@
+package scoop.tls.asyncio
+
+import scoop.asyncio.*
+import scoop.platform.concurrent.currentThreadId
+import scoop.platform.memory.NativeByteBuffer
+import scoop.test.*
+
+@Test
+private class AsyncTlsRuntimeTest {
+    @Test
+    fun `worker TLS composes system loading full duplex IO and owner cleanup`() {
+        val owner = currentThreadId()
+        asyncRuntime {
+            workers = 3
+            blocking { threads = 1 }
+        }.run {
+            val loop = currentEventLoop()
+            val executor = currentCoroutineExecutorOrNone()!!
+            openTlsClientContext().close()
+            val(clientRaw, serverRaw) = rawPair(loop, this)
+            val(client, server) = tlsPair(this, clientRaw, serverRaw)
+            try {
+                val size = 8193L
+                val bytes = Array<Byte>(size) { index -> (index % 127L).toByte() }
+                val echo =
+                    launch(loop.executor) {
+                        assertEquals(owner, currentThreadId())
+                        NativeByteBuffer.allocate(size).use {
+                            buffer ->
+                            server.readFully(buffer, size)
+                            server.writeFully(buffer, size)
+                        }
+                        server.shutdownGracefully()
+                    }
+                NativeByteBuffer.allocate(size).use {
+                    input -> NativeByteBuffer.allocate(size).use {
+                        output ->
+                        val reading = async { client.readFully(input, size) }
+                        output.writeBytes(bytes)
+                        client.writeFully(output, size)
+                        client.flush()
+                        reading.await()
+                        gcCollect()
+                        val received = input.readBytes(size)
+                        var index = 0L
+                        while (index < size) {
+                            assertEquals(bytes[index], received[index])
+                            index += 1L
+                        }
+                    }
+                }
+                client.shutdownGracefully()
+                echo.join()
+                assertSame(executor, currentCoroutineExecutorOrNone()!!)
+                assertNotEquals(owner, currentThreadId())
+            } finally {
+                client.close()
+                server.close()
+            }
+        }
+    }
+}

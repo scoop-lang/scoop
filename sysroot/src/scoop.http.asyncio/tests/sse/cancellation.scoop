@@ -7,9 +7,9 @@ import scoop.test.*
 private class SseSourceCancellationTests {
     @Test
     fun `concurrent reads are rejected and close waits for the real borrow without cancelling the caller`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingMessageSource()
             val source = SseSource.takeOwnership(pending, bufferSize = 4L)
             val reader =
@@ -18,11 +18,13 @@ private class SseSourceCancellationTests {
                     ensureActive()
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 expectMessageFailure<IllegalStateException> suspend { source.next() }
                 assertFalse(present(source.failure))
                 val first = scope.launch suspend { source.close() }
                 val second = scope.launch suspend { source.close() }
+                yieldCoroutine()
                 assertTrue(pending.job!!.isCancelled)
                 assertFalse(reader.isCompleted || first.isCompleted || second.isCompleted)
                 assertEquals(0, pending.closes)
@@ -48,9 +50,9 @@ private class SseSourceCancellationTests {
 
     @Test
     fun `cancelled finally closes local state while a borrowed endpoint remains open`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        loop.run {
+            val scope = this;
             val pending = PendingMessageSource()
             val source = SseSource(pending, bufferSize = 4L)
             val reader =
@@ -62,6 +64,7 @@ private class SseSourceCancellationTests {
                     }
                 }
             try {
+                yieldCoroutine()
                 assertTrue(pending.running)
                 reader.cancel()
                 assertTrue(pending.job!!.isCancelled)

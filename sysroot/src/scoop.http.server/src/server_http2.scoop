@@ -5,22 +5,42 @@ import scoop.http.*
 import scoop.http.asyncio.*
 import scoop.time.TimeMark
 
-internal suspend fun <T> serveHttp2(state: ServerState, entry: ServerConnection, transport: T,
-    scope: CoroutineScope, started: TimeMark) where T : AsyncByteStream, T : AsyncCloseable {
+internal suspend fun <T> serveHttp2(
+    state: ServerState,
+    entry: ServerConnection,
+    transport: T,
+    scope: CoroutineScope,
+    started: TimeMark
+) where T: AsyncByteStream, T: AsyncCloseable {
     val options = state.options
     val activity = ServerHttp2(options, started)
-    val draining = state.lock.withLock { entry.http2 = Some(activity); state.phase != ServerPhase.Running }
-    if (draining) activity.requestDrain()
-    val connection = AsyncHttp2Connection.takeOwnershipAsServer(transport, scope, options.http2Receive,
-        options.http2Limits, options.http2Settings, HttpIoTimeoutOptions(options.bodyReadIdle, options.responseWriteIdle),
-        { event -> activity.observe(event) })
+    val draining =
+        state.lock.withLock {
+            entry.http2 = Some(activity);
+            state.phase != ServerPhase.Running
+        }
+    if (draining)
+        activity.requestDrain()
+    val connection =
+        AsyncHttp2Connection.takeOwnershipAsServer(
+            transport,
+            scope,
+            options.http2Receive,
+            options.http2Limits,
+            options.http2Settings,
+            HttpIoTimeoutOptions(options.bodyReadIdle, options.responseWriteIdle),
+            { event -> activity.observe(event) }
+        )
     var failure: Throwable? = None
     val monitor = scope.launch suspend { watchServerHttp2(activity, connection, scope.job) }
     try {
-        coroutineScope<Unit> suspend { requests ->
+        coroutineScope<Unit> {
+            val requests = this
+
             while (true) {
                 val incoming = connection.acceptRequest()
-                if (!present(incoming)) break
+                if (!present(incoming))
+                    break
                 val request = incoming!!
                 val requestId = state.beginRequest(entry, true)
                 if (!present(requestId)) {
@@ -30,10 +50,16 @@ internal suspend fun <T> serveHttp2(state: ServerState, entry: ServerConnection,
                 }
                 val launched = AtomicBoolean(false)
                 try {
-                    requests.launch suspend {
+                    startServerTask(requests.job, requests) {
+                        ready ->
                         launched.store(true)
-                        try { executeHttp2Request(state, entry, activity, request, requestId!!) }
-                        finally { state.endRequest(entry) }
+                        try {
+                            ready.trySend(Unit)
+                            executeHttp2Request(state, entry, activity, request, requestId!!)
+                        }
+                        finally {
+                            state.endRequest(entry)
+                        }
                     }
                 } finally {
                     if (!launched.load()) {
@@ -45,7 +71,8 @@ internal suspend fun <T> serveHttp2(state: ServerState, entry: ServerConnection,
             }
         }
         monitor.join()
-        if (present(activity.failure)) throw activity.failure!!
+        if (present(activity.failure))
+            throw activity.failure!!
     } catch (error: Throwable) {
         val cause = activity.failure ?: error
         failure = Some(cause)

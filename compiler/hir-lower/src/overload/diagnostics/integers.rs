@@ -221,7 +221,9 @@ pub(super) fn primitive_integer_conversion_suggestion(
             };
             input.index()
         }
-        CandidateProbeFailureKind::Shape(_) | CandidateProbeFailureKind::Declaration { .. } => {
+        CandidateProbeFailureKind::Shape(_)
+        | CandidateProbeFailureKind::Declaration { .. }
+        | CandidateProbeFailureKind::Context { .. } => {
             return None;
         }
     };

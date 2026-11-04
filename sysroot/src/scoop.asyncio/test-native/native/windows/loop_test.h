@@ -14,9 +14,17 @@ static inline int test_wait(ScoopIoLoop *loop) {
     return WaitForSingleObject(scoop_io_loop_event(loop), 5000) == WAIT_OBJECT_0 ? 0 : -1;
 }
 
+// Pure native tests drive synchronous helpers explicitly; managed pool behavior has Cone tests.
+static inline void test_work(ScoopIoLoop *loop) {
+    ScoopIoWorkTask *task;
+    while ((task = scoop_io_work_take(loop)))
+        scoop_io_work_run(task);
+}
+
 static inline int test_drain(ScoopIoLoop *loop) {
     ULONGLONG deadline = GetTickCount64() + 5000;
     for (;;) {
+        test_work(loop);
         if (scoop_io_loop_poll(loop, false).code)
             return -1;
         while (scoop_io_loop_batch_size(loop))
@@ -31,6 +39,7 @@ static inline int test_drain(ScoopIoLoop *loop) {
 static inline int test_result(ScoopIoLoop *loop, ScoopIoEvent *event) {
     ULONGLONG deadline = GetTickCount64() + 5000;
     for (;;) {
+        test_work(loop);
         if (scoop_io_loop_poll(loop, false).code)
             return -1;
         if (scoop_io_loop_batch_size(loop)) {

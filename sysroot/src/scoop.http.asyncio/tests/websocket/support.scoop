@@ -17,9 +17,9 @@ internal fun withWebSockets(
         AsyncWebSocketSession
     ) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         val client =
             AsyncWebSocketSession.takeOwnership(a, scope, HttpRole.Client, options, deflate)
@@ -122,9 +122,9 @@ internal fun withRawWebSocket(
         RawWebSocketPeer
     ) -> Unit
 ) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val(a, b) = rawPair(loop, scope)
         val client =
             AsyncWebSocketSession.takeOwnership(a, scope, HttpRole.Client, options, deflate)

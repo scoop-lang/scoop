@@ -10,22 +10,37 @@ import scoop.test.*
 import scoop.time.Duration
 
 internal suspend fun cacheDiskRules(directory: Path) {
-    val cache = DiskHttpCache.open(directory, maxBytes = 4096L, maxEntryBytes = 16L, maxEntries = 2L, syncOnCommit = true)
+    val cache =
+        DiskHttpCache.open(
+            directory,
+            maxBytes = 4096L,
+            maxEntryBytes = 16L,
+            maxEntries = 2L,
+            syncOnCommit = true
+        )
     val a = cacheRequest("/a")
     val b = cacheRequest("/b")
-    cacheStore(cache, a, "original", [cacheField("Vary", "Accept")], [cacheField("Checksum", "original")])
+    cacheStore(
+        cache,
+        a,
+        "original",
+        [cacheField("Vary", "Accept")],
+        [cacheField("Checksum", "original")]
+    )
     val old = cache.lookup(a)!!
     cacheStore(cache, a, "replaced", [cacheField("Vary", "Accept")])
     assertEquals(2L, cacheFiles(directory))
     assertEquals(Some("replaced"), cacheRead(cache, a))
     assertEquals("original", String.fromUtf8(old.body.readAllBytes(32L)))
     assertEquals(1L, old.trailers.size)
-    old.close(); old.close()
+    old.close();
+    old.close()
     assertEquals(1L, cacheFiles(directory))
     cacheStore(cache, b, "persisted")
     assertEquals(2L, cache.entryCount)
     assertTrue(cache.sizeBytes > 17L)
-    val reopened = DiskHttpCache.open(directory, maxBytes = 4096L, maxEntryBytes = 16L, maxEntries = 2L)
+    val reopened =
+        DiskHttpCache.open(directory, maxBytes = 4096L, maxEntryBytes = 16L, maxEntries = 2L)
     assertEquals(2L, reopened.entryCount)
     assertEquals(Some("replaced"), cacheRead(reopened, a))
     assertEquals(Some("persisted"), cacheRead(reopened, b))
@@ -38,15 +53,18 @@ internal suspend fun cacheDiskRules(directory: Path) {
     val abandoned = reopened.begin(cacheRecord(a, 8L))!!
     cacheWrite(abandoned, "partial")
     assertEquals(2L, cacheFiles(directory))
-    abandoned.close(); abandoned.close()
+    abandoned.close();
+    abandoned.close()
     assertEquals(1L, cacheFiles(directory))
     val invalidated = reopened.begin(cacheRecord(a, 8L))!!
     cacheWrite(invalidated, "complete")
-    reopened.clear(); invalidated.commit(emptyList<HttpField>()); invalidated.close()
+    reopened.clear();
+    invalidated.commit(emptyList<HttpField>());
+    invalidated.close()
     assertEquals(0L, reopened.entryCount)
     assertEquals(0L, cacheFiles(directory))
-    currentEventLoop().createTempFile(Some(directory), "pending-http-cache-").useAsync suspend { pending ->
-        cacheWrite(pending.file, "interrupted")
+    currentEventLoop().createTempFile(Some(directory), "pending-http-cache-").useAsync suspend {
+        pending -> cacheWrite(pending.file, "interrupted")
     }
     val clean = DiskHttpCache.open(directory)
     assertEquals(0L, cacheFiles(directory))
@@ -62,16 +80,24 @@ internal suspend fun cacheDiskCancellation(directory: Path) {
     val cache = DiskHttpCache.open(directory)
     val entered = CacheGate()
     val cleaned = AtomicBoolean(false)
-    coroutineScope<Unit> suspend { scope ->
-        val task = scope.launch suspend {
-            val writer = cache.begin(cacheRecord(cacheRequest(), 10L))!!
-            try {
-                cacheWrite(writer, "partial")
-                entered.signal()
-                loop.sleep(Duration.hours(1L))
-            } finally { writer.close(); cleaned.store(true) }
-        }
-        entered.await(); task.cancel(); task.join()
+    coroutineScope<Unit> {
+        val scope = this
+
+        val task =
+            scope.launch suspend {
+                val writer = cache.begin(cacheRecord(cacheRequest(), 10L))!!
+                try {
+                    cacheWrite(writer, "partial")
+                    entered.signal()
+                    loop.sleep(Duration.hours(1L))
+                } finally {
+                    writer.close();
+                    cleaned.store(true)
+                }
+            }
+        entered.await();
+        task.cancel();
+        task.join()
         assertTrue(cleaned.load())
         assertEquals(0L, cache.entryCount)
         assertEquals(0L, cacheFiles(directory))
@@ -81,6 +107,18 @@ internal suspend fun cacheDiskCancellation(directory: Path) {
 internal class CacheGate {
     private var ready: Boolean = false
     private var waiter: Continuation<Unit>? = None
-    fun signal() { ready = true; val saved = waiter; waiter = None; saved?.resume(Unit) }
-    suspend fun await() { suspendCoroutine<Unit> { next -> if (ready) next.resume(Unit) else waiter = Some(next) } }
+    fun signal() {
+        ready = true;
+        val saved = waiter;
+        waiter = None;
+        saved?.resume(Unit)
+    }
+    suspend fun await() {
+        suspendCoroutine<Unit> {
+            next -> if (ready)
+                next.resume(Unit)
+            else
+                waiter = Some(next)
+        }
+    }
 }

@@ -1,0 +1,184 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+@Test
+private class ExecutorLifecycleTest {
+    @Test
+    fun `draining rejects roots but accepts children from a captured active scope`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 2;
+                blocking { threads = 1 }
+            }
+        val bodyGate = Channel<Unit>(1L)
+        val captured = ThreadResult<CoroutineScope>()
+        val count = AtomicInt(0)
+        val result =
+            dispatch(executor) {
+                coroutineScope {
+                    captured.resume(this)
+                    bodyGate.receive()
+                    val child = async { blocking { count.fetchAdd(1) } }
+                    child.await()
+                }
+            }
+        val scope = captured.await()
+        executor.requestShutdown()
+        assertFailsWith<ExecutorClosedException> { dispatch(executor) { 0 } }
+        val child = scope.launch { count.fetchAdd(1) }
+        bodyGate.trySend(Unit)
+        result.await()
+        executor.join()
+        assertTrue(child.isCompleted)
+        assertEquals(2, count.load())
+        assertFailsWith<ExecutorClosedException> { executor.registerTask(None) }
+        executor.close()
+    }
+
+    @Test
+    fun `task registration validates active parent and rejects duplicate completion`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        assertFailsWith<IllegalStateException> { executor.join() }
+        val parent = executor.registerTask(None)
+        executor.requestShutdown()
+        val child = executor.registerTask(Some(parent))
+        parent.complete()
+        assertFailsWith<ExecutorClosedException> { executor.registerTask(Some(parent)) }
+        assertFailsWith<IllegalStateException> { parent.complete() }
+        assertFailsWith<IllegalStateException> { parent.dispatch(FunctionCoroutineWork {}) }
+        assertFailsWith<IllegalStateException> { parent.dispatchBlocking(FunctionBlockingWork {}) }
+        child.complete()
+        executor.join()
+    }
+
+    @Test
+    fun `executor refuses self waits from coroutine and managed blocking workers`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }
+        val result =
+            dispatch(executor) {
+                coroutineScope {
+                    executor.requestShutdown()
+                    assertFailsWith<IllegalStateException> { executor.close() }
+                    assertFailsWith<IllegalStateException> { executor.join() }
+                    try {
+                        executor.awaitTermination();
+                        fail(Some("self await should fail"))
+                    }
+                    catch (_: IllegalStateException) {}
+                    blocking {
+                        assertTrue(absent(currentCoroutineExecutorOrNone()))
+                        assertFailsWith<IllegalStateException> { executor.close() }
+                        assertFailsWith<IllegalStateException> { executor.join() }
+                        val awaited = TestResult<Unit>()
+                        startCoroutine({ executor.awaitTermination() }, awaited)
+                        assertTrue(awaited.error!! is IllegalStateException)
+                    }
+                }
+            }
+        result.await()
+        executor.join()
+    }
+
+    @Test
+    fun `cancelling termination wait does not shut down the target`() {
+        multiThreadExecutor {
+            workers = 1;
+            blocking { threads = 1 }
+        }.use {
+            target -> multiThreadExecutor {
+                workers = 1;
+                blocking { threads = 1 }
+            }.use {
+                caller ->
+                val owner = ThreadResult<Job>()
+                val wait =
+                    dispatch(caller) {
+                        coroutineScope {
+                            owner.resume(job);
+                            target.awaitTermination()
+                        }
+                    }
+                val job = owner.await()
+                dispatch(caller) { Unit }.await()
+                job.cancel()
+                assertFailsWith<CancellationException> { wait.await() }
+                assertEquals(42, dispatch(target) { 42 }.await())
+            }
+        }
+    }
+
+    @Test
+    fun `concurrent close and join share the same final state`() {
+        val executor =
+            multiThreadExecutor {
+                workers = 2;
+                blocking { threads = 1 }
+            }
+        val gate = Channel<Unit>(1L)
+        val result = dispatch(executor) { gate.receive() }
+        val closers = Array<Thread>(4L) { _ -> Thread.start { executor.close() } }
+        gate.trySend(Unit)
+        result.await()
+        for (thread in closers)
+            thread.use { it.join() }
+        executor.requestShutdown()
+        executor.join()
+        executor.close()
+        assertFailsWith<ExecutorClosedException> { executor.registerTask(None) }
+    }
+
+    @Test
+    fun `closing a borrower leaves its shared blocking pool usable`() {
+        BlockingTaskPool(2).use {
+            pool ->
+            val first =
+                multiThreadExecutor {
+                    workers = 1;
+                    blocking(pool)
+                }
+            val second =
+                multiThreadExecutor {
+                    workers = 1;
+                    blocking(pool)
+                }
+            assertEquals(11, dispatch(first) { blocking { 11 } }.await())
+            first.close()
+            assertEquals(22, dispatch(second) { blocking { 22 } }.await())
+            val done = ThreadResult<Int>()
+            pool.submit(FunctionBlockingWork { done.resume(33) })
+            assertEquals(33, done.await())
+            second.close()
+        }
+    }
+
+    @Test
+    fun `shared blocking worker cannot wait for the executor running its operation`() {
+        BlockingTaskPool(1).use {
+            pool -> multiThreadExecutor {
+                workers = 1;
+                blocking(pool)
+            }.use {
+                executor -> dispatch(executor) {
+                    blocking {
+                        assertTrue(absent(currentCoroutineExecutorOrNone()))
+                        assertFailsWith<IllegalStateException> { executor.close() }
+                        val waited = TestResult<Unit>()
+                        startCoroutine({ executor.awaitTermination() }, waited)
+                        assertTrue(waited.error!! is IllegalStateException)
+                    }
+                }.await()
+            }
+        }
+    }
+}

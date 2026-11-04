@@ -49,9 +49,8 @@ private class AsyncTerminalOutputTest {
     @Test
     fun `short suspended writes preserve UTF8 and flush once without closing the sink`() {
         val sink = ShortSink()
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             sink.queue(Print("é"))
             assertEquals(0, sink.flushes)
             sink.execute(MoveTo(2L, 1L), Print("界"))
@@ -65,9 +64,9 @@ private class AsyncTerminalOutputTest {
     @Test
     fun `encoding failure retains earlier commands and does not flush`() {
         val sink = ShortSink()
-        val loop: EventLoop = PlatformEventLoop()
+        val loop = eventLoop()
         assertFailsWith<IllegalArgumentException> {
-            loop.run suspend { _ -> sink.execute(Print("ok"), Broken, Print("later")) }
+            loop.run { sink.execute(Print("ok"), Broken, Print("later")) }
         }
         assertEquals("ok", String.fromUtf8(sink.bytes.toByteArray()))
         assertEquals(0, sink.flushes)
@@ -78,15 +77,13 @@ private class AsyncTerminalOutputTest {
     fun `zero progress and flush failure keep ordinary stream errors`() {
         val sink = ShortSink()
         sink.zero = true
-        val first: EventLoop = PlatformEventLoop()
-        assertFailsWith<WriteZeroException> { first.run suspend { _ -> sink.execute(Print("x")) } }
+        val first = eventLoop()
+        assertFailsWith<WriteZeroException> { first.run { sink.execute(Print("x")) } }
         assertEquals(0, sink.flushes)
         sink.zero = false
         sink.failFlush = true
-        val second: EventLoop = PlatformEventLoop()
-        assertFailsWith<IllegalStateException> {
-            second.run suspend { _ -> sink.execute(Print("y")) }
-        }
+        val second = eventLoop()
+        assertFailsWith<IllegalStateException> { second.run { sink.execute(Print("y")) } }
         assertEquals("y", String.fromUtf8(sink.bytes.toByteArray()))
         assertEquals(1, sink.flushes)
     }

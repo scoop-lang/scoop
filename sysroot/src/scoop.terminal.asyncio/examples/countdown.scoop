@@ -8,9 +8,9 @@ import scoop.terminal.asyncio.*
 import scoop.time.Duration
 
 fun main() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        _ -> AsyncTerminalSession.open(loop).useAsync suspend {
+    val loop = eventLoop()
+    loop.run {
+        AsyncTerminalSession.open(loop).useAsync suspend {
             terminal ->
             val size = terminal.size()
             terminal.execute(Print(f"Terminal: ${size.columns}x${size.rows}\r\n"))

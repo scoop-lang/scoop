@@ -1,0 +1,110 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.platform.concurrent.*
+import scoop.test.*
+
+private fun race(first: () -> Unit, second: () -> Unit) {
+    val ready = AtomicInt(0)
+    val left =
+        Thread.start {
+            ready.fetchAdd(1)
+            while (ready.load() < 2)
+                yield()
+            first()
+        }
+    val right =
+        Thread.start {
+            ready.fetchAdd(1)
+            while (ready.load() < 2)
+                yield()
+            second()
+        }
+    left.use { it.join() }
+    right.use { it.join() }
+}
+
+@Test
+private class CancellationRaceTest {
+    @Test
+    fun `receive cancellation races message commitment without losing values`() {
+        var round = 0
+        while (round < 24) {
+            val channel = Channel<Int>(0L)
+            val executor = ManualExecutor()
+            val probe = Probe()
+            val task = startTask(executor) { probe.value = channel.receive() }
+            executor.drain()
+            val sent = AtomicBoolean(false)
+            race({ task.job!!.cancel() }, { sent.store(channel.trySend(42) == TrySendResult.Sent) })
+            executor.drain()
+            assertEquals(
+                if (sent.load())
+                    42
+                else
+                    0,
+                probe.value
+            )
+            assertEquals(TryReceiveResult<Int>.Empty, channel.tryReceive())
+            assertEquals(1, task.calls)
+            assertEquals(0, executor.active.load())
+            round += 1
+        }
+    }
+
+    @Test
+    fun `lock cancellation races handoff without stranding ownership`() {
+        var round = 0
+        while (round < 24) {
+            val mutex = AsyncMutex()
+            val holder = mutex.tryLock()!!
+            val executor = ManualExecutor()
+            val probe = Probe()
+            val task = startTask(executor) { mutex.withLock { probe.value = 42 } }
+            executor.drain()
+            race({ task.job!!.cancel() }, { holder.dispose() })
+            executor.drain()
+            assertTrue(probe.value == 0 || probe.value == 42)
+            assertEquals(1, task.calls)
+            assertEquals(0, executor.active.load())
+            mutex.tryLock()!!.dispose()
+            round += 1
+        }
+    }
+
+    @Test
+    fun `condition cancellation races notification and always reacquires`() {
+        var round = 0
+        while (round < 24) {
+            val mutex = AsyncMutex()
+            val condition = AsyncConditionVariable(mutex)
+            val executor = ManualExecutor()
+            val probe = Probe()
+            val task =
+                startTask(executor) {
+                    mutex.withLock {
+                        try {
+                            condition.await(this);
+                            probe.value = 42
+                        }
+                        finally {
+                            condition.signal(this)
+                            probe.cleaned = true
+                        }
+                    }
+                }
+            executor.drain()
+            val holder = mutex.tryLock()!!
+            race({ task.job!!.cancel() }, { condition.signal(holder) })
+            assertFalse(probe.cleaned)
+            assertEquals(0L, executor.queued)
+            holder.dispose()
+            executor.drain()
+            assertTrue(probe.cleaned)
+            assertEquals(1, task.calls)
+            assertEquals(0, executor.active.load())
+            mutex.tryLock()!!.dispose()
+            round += 1
+        }
+    }
+}

@@ -47,6 +47,31 @@ pub(super) fn validate_fixed_callable_signatures(
 
     let coroutine = &surface.coroutine_protocol;
     validate(
+        &coroutine.work_run,
+        CoreProtocolProductKindV1::Coroutine,
+        14,
+        signature(Effect::Ordinary, Vec::new(), unit.clone()),
+    )?;
+    for (index, callable) in [
+        (17, &coroutine.execution_start),
+        (19, &coroutine.execution_resume),
+    ] {
+        validate(
+            callable,
+            CoreProtocolProductKindV1::Coroutine,
+            index,
+            signature(
+                Effect::Ordinary,
+                vec![
+                    SignatureTypeKey::Nominal(coroutine.work),
+                    SignatureTypeKey::Nominal(fundamental.boolean),
+                ],
+                unit.clone(),
+            ),
+        )?;
+    }
+
+    validate(
         &coroutine.continuation_resume,
         CoreProtocolProductKindV1::Coroutine,
         1,

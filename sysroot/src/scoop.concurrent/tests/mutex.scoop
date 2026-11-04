@@ -1,0 +1,117 @@
+package scoop.concurrent.tests
+
+import scoop.concurrent.*
+import scoop.test.*
+
+@Test
+private class AsyncMutexTest {
+    @Test
+    fun `try lock and disposal share guard ownership`() {
+        val mutex = AsyncMutex()
+        val guard = mutex.tryLock()!!
+        assertTrue(absent(mutex.tryLock()))
+        guard.dispose()
+        guard.dispose()
+        val next = mutex.tryLock()!!
+        guard.dispose()
+        assertTrue(absent(mutex.tryLock()))
+        next.dispose()
+    }
+
+    @Test
+    fun `fifo handoff reserves ownership before dispatch and skips cancellation`() {
+        val mutex = AsyncMutex()
+        val initial = mutex.tryLock()!!
+        val executor = ManualExecutor()
+        val order = ArrayList<Int>()
+        val first = startRaw(executor) { mutex.withLock { order.add(1) } }
+        val middle = startTask(executor) { mutex.withLock { order.add(2) } }
+        val last = startRaw(executor) { mutex.withLock { order.add(3) } }
+        executor.drain()
+        middle.job!!.cancel()
+        initial.dispose()
+        assertTrue(absent(mutex.tryLock()))
+        assertEquals(0L, order.size)
+        executor.drain()
+        first.get()
+        last.get()
+        assertEquals(2L, order.size)
+        assertEquals(1, order[0L])
+        assertEquals(3, order[1L])
+        assertTrue(middle.error!! is CancellationException)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `successful handoff survives cancellation before dispatch`() {
+        val mutex = AsyncMutex()
+        val initial = mutex.tryLock()!!
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                mutex.withLock {
+                    assertTrue(absent(mutex.tryLock()))
+                    probe.value = 42
+                }
+            }
+        executor.drain()
+        initial.dispose()
+        task.job!!.cancel()
+        executor.drain()
+        assertEquals(42, probe.value)
+        assertEquals(1, task.calls)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `ordinary and inferred suspend receiver blocks release on failure`() {
+        val mutex = AsyncMutex()
+        val channel = Channel<Int>(0L)
+        val executor = ManualExecutor()
+        val probe = Probe()
+        val task =
+            startTask(executor) {
+                assertEquals(42, mutex.withLock { 42 })
+                try {
+                    mutex.withLock {
+                        probe.guard = Some(this)
+                        channel.receive()
+                    }
+                } finally {
+                    probe.cleaned = true
+                }
+            }
+        executor.drain()
+        assertTrue(absent(mutex.tryLock()))
+        task.job!!.cancel()
+        executor.drain()
+        assertTrue(probe.cleaned)
+        assertTrue(task.error!! is CancellationException)
+        probe.guard!!.dispose()
+        mutex.tryLock()!!.dispose()
+
+        val error = IllegalStateException(Some("block failed"))
+        val throwing = startRaw(executor) { mutex.withLock<Unit> { throw error } }
+        executor.drain()
+        assertSame(error, throwing.error!!)
+        mutex.tryLock()!!.dispose()
+    }
+
+    @Test
+    fun `pre cancelled lock does not acquire or disturb the holder`() {
+        val mutex = AsyncMutex()
+        val holder = mutex.tryLock()!!
+        val executor = ManualExecutor()
+        val task =
+            startTask(executor) {
+                currentJobOrNone()!!.cancel()
+                mutex.lock()
+            }
+        executor.drain()
+        assertTrue(task.error!! is CancellationException)
+        assertTrue(absent(mutex.tryLock()))
+        holder.dispose()
+        mutex.tryLock()!!.dispose()
+    }
+}

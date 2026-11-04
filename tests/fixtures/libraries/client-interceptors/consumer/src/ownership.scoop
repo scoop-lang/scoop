@@ -49,8 +49,8 @@ internal fun extensionOwnership(trust: TrustStore, url: Url, mode: String) {
                 result
             }
         )
-    PlatformEventLoop().run suspend {
-        scope ->
+    eventLoop().run {
+        val scope = this;
         val client = HttpClient.open(scope, extensionConfig(trust, [interceptor]))
         val other = HttpClient.open(scope, extensionConfig(trust))
         state.client = Some(client);

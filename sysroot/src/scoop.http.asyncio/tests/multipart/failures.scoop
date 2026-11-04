@@ -8,9 +8,9 @@ import scoop.test.*
 private class MultipartSourceFailureTests {
     @Test
     fun `discard overflow closes the source and combines a cleanup failure`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ -> for (failClose in [false, true]) {
+        val loop = eventLoop()
+        loop.run {
+            for (failClose in [false, true]) {
                 val input = MessageTestSource("--b\r\n\r\nabcdef\r\n--b--".toByteArray())
                 input.failClose = failClose
                 val source = MultipartSource.takeOwnership(input, MultipartBoundary("b"))
@@ -41,9 +41,8 @@ private class MultipartSourceFailureTests {
 
     @Test
     fun `parse I/O and inconsistent progress failures retain their types`() {
-        val loop: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            _ ->
+        val loop = eventLoop()
+        loop.run {
             val bad = MessageTestSource("--b\r\n\r\ntruncated".toByteArray())
             val parsing = MultipartSource.takeOwnership(bad, MultipartBoundary("b"))
             val part = parsing.nextPart()!!
@@ -76,10 +75,10 @@ private class MultipartSourceFailureTests {
 
     @Test
     fun `construction cancellation and wrong loop checks preserve ownership and state`() {
-        val loop: EventLoop = PlatformEventLoop()
-        val other: EventLoop = PlatformEventLoop()
-        loop.run suspend {
-            scope ->
+        val loop = eventLoop()
+        val other: EventLoop = eventLoop()
+        loop.run {
+            val scope = this;
             val input = MessageTestSource("--b--".toByteArray())
             val boundary = MultipartBoundary("b")
             assertFailsWith<IllegalArgumentException> {

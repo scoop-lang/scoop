@@ -1,0 +1,91 @@
+package scoop.concurrent
+
+/** A condition associated with one mutex. Always test the protected predicate in a loop. */
+public class AsyncConditionVariable public constructor(public val mutex: AsyncMutex) {
+    private val waiters = WaitQueue<ConditionWaiter>()
+
+    /** Atomically releases the guard; reacquires that same guard before returning or throwing. */
+    public suspend fun await(guard: AsyncMutexGuard) {
+        ensureActive()
+        suspendCoroutine<Unit> {
+            continuation ->
+            val waiter = ConditionWaiter(guard, continuation)
+            val registration =
+                currentJobOrNone()?.invokeOnCancellation { error -> cancel(waiter, error) }
+            val notifications = WaitNotifications()
+            mutex.stateLock.withLock {
+                waiter.result.bind(registration, notifications)
+                if (waiter.stage == ConditionStage.Registering) {
+                    try {
+                        mutex.validate(guard)
+                    }
+                    catch (error: Throwable) {
+                        waiter.stage = ConditionStage.Finished
+                        waiter.result.fail(error, notifications)
+                        return@withLock
+                    }
+                    waiter.stage = ConditionStage.Waiting
+                    waiter.link = Some(waiters.append(waiter))
+                    mutex.releaseForCondition(guard, notifications)
+                }
+                Unit
+            }
+            notifications.deliver()
+        }
+    }
+
+    /** Selects the oldest waiter while holding this condition's mutex. */
+    public fun signal(guard: AsyncMutexGuard) {
+        val notifications = WaitNotifications()
+        mutex.stateLock.withLock {
+            mutex.validate(guard)
+            when (waiters.takeFirst()) {
+                case Some(waiter) -> select(waiter, None, notifications)
+                case None -> {}
+            }
+        }
+        notifications.deliver()
+    }
+
+    /** Selects all current waiters in registration order. Notifications are not saved. */
+    public fun broadcast(guard: AsyncMutexGuard) {
+        val notifications = WaitNotifications()
+        mutex.stateLock.withLock {
+            mutex.validate(guard)
+            while (!waiters.isEmpty)
+                select(waiters.takeFirst()!!, None, notifications)
+        }
+        notifications.deliver()
+    }
+
+    private fun select(
+        waiter: ConditionWaiter,
+        failure: Throwable?,
+        notifications: WaitNotifications
+    ) {
+        waiter.link = None
+        waiter.stage = ConditionStage.Acquiring
+        waiter.failure = failure
+        waiter.result.detachCancellation(notifications)
+        mutex.reacquire(waiter, notifications)
+    }
+
+    private fun cancel(waiter: ConditionWaiter, error: CancellationException) {
+        val notifications = WaitNotifications()
+        mutex.stateLock.withLock {
+            when (waiter.stage) {
+                case Registering -> {
+                    waiter.stage = ConditionStage.Finished
+                    waiter.result.fail(error, notifications)
+                }
+                case Waiting -> {
+                    waiters.remove(waiter.link!!)
+                    select(waiter, Some(error), notifications)
+                }
+                case Acquiring -> {}
+                case Finished -> {}
+            }
+        }
+        notifications.deliver()
+    }
+}

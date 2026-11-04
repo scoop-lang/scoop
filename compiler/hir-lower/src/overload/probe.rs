@@ -34,6 +34,10 @@ pub(super) enum CandidateProbeFailureKind {
         span: Span,
         reason: String,
     },
+    Context {
+        span: Span,
+        reason: String,
+    },
     Constraint(crate::call_resolution::constraints::ConstraintFailure),
     Expression {
         source_index: usize,
@@ -85,6 +89,25 @@ impl Lowerer {
             .as_ref()
             .expect("only shape-applicable candidates are probed");
         let mut state = self.probe_state();
+        if candidate.view.effects.is_suspend {
+            let before = state.diagnostics.len();
+            state.check_suspend_context(
+                &state.functions[candidate.function].name.clone(),
+                candidate.call_span,
+            );
+            if state.diagnostics.len() != before {
+                let reason = diagnostic_reason(&state, before);
+                return Err(Box::new(CandidateProbeFailure {
+                    candidate: candidate_index,
+                    state: Some(state),
+                    arguments: Vec::new(),
+                    kind: CandidateProbeFailureKind::Context {
+                        span: candidate.call_span,
+                        reason,
+                    },
+                }));
+            }
+        }
         let intrinsic_argument_expected = match arguments {
             OverloadArguments::Source(expressions) => {
                 let diagnostics_before = state.diagnostics.len();

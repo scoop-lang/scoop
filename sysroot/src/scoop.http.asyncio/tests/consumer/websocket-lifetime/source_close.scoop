@@ -6,9 +6,9 @@ import scoop.http.*
 import scoop.http.asyncio.*
 
 internal fun wsSourceClose() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsTestTransport()
         val session = AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
         val source = WsBlockedSource()
@@ -26,6 +26,7 @@ internal fun wsSourceClose() {
         source.started.await()
         val closing = scope.launch suspend { session.close() }
         try {
+            source.cancelled.await()
             wsCheck(source.cancelled.ready, "close did not cancel the suspended send source")
             wsCheck(
                 !closing.isCompleted && !session.isClosed,

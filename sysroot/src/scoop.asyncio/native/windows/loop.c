@@ -7,7 +7,6 @@ ScoopIoCreated scoop_io_loop_create(void) {
     if (!loop)
         return (ScoopIoCreated){NULL, scoop_io_errno(-ENOMEM)};
     InitializeSRWLock(&loop->mutex);
-    InitializeConditionVariable(&loop->work_ready);
     LARGE_INTEGER frequency;
     ScoopIoStatus failure = {0};
     if (!QueryPerformanceFrequency(&frequency)) {
@@ -76,8 +75,6 @@ ScoopIoStatus scoop_io_loop_poll(ScoopIoLoop *loop, bool wait) {
         scoop_io_fail_locked(loop, scoop_io_win32(GetLastError()));
     ScoopIoRequest *packets = loop->packets_head;
     loop->packets_head = loop->packets_tail = NULL;
-    ScoopIoWork *work = loop->finished_head;
-    loop->finished_head = loop->finished_tail = NULL;
     ScoopIoStatus status = loop->failure_reported ? (ScoopIoStatus){0} : loop->failure;
     loop->failure_reported = loop->failure.code != 0;
     ReleaseSRWLockExclusive(&loop->mutex);
@@ -86,7 +83,7 @@ ScoopIoStatus scoop_io_loop_poll(ScoopIoLoop *loop, bool wait) {
         packets->finish(packets, packets->count, packets->error);
         packets = next;
     }
-    scoop_io_work_poll(work);
+    scoop_io_work_poll(loop);
     return status;
 }
 
@@ -139,14 +136,13 @@ bool scoop_io_loop_idle(ScoopIoLoop *loop) {
     if (loop->requests)
         return false;
     AcquireSRWLockExclusive(&loop->mutex);
-    bool idle = !loop->head && !loop->packets_head && !loop->timers && !loop->work;
+    bool idle =
+        !loop->head && !loop->packets_head && !loop->timers && !loop->work && !loop->work_runners;
     if (idle && !loop->stopping) {
         loop->stopping = true;
-        loop->workers_stopping = true;
-        WakeAllConditionVariable(&loop->work_ready);
         scoop_io_collector_wake_locked(loop);
     }
-    idle = idle && !loop->collecting && !loop->workers;
+    idle = idle && !loop->collecting;
     ReleaseSRWLockExclusive(&loop->mutex);
     return idle;
 }

@@ -13,9 +13,9 @@ private class WsFailingSource(val error: Throwable): AsyncByteSource {
 }
 
 internal fun wsSourceFailure(cleanup: Boolean) {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsTestTransport()
         val sourceError = Throwable()
         val closeError = Throwable()
@@ -72,9 +72,9 @@ private class WsEofTransport: AsyncByteStream, AsyncCloseable {
 }
 
 internal fun wsEofObserver() {
-    val loop: EventLoop = PlatformEventLoop()
-    loop.run suspend {
-        scope ->
+    val loop = eventLoop()
+    loop.run {
+        val scope = this;
         val transport = WsEofTransport()
         val session = AsyncWebSocketSession.takeOwnership(transport, scope, HttpRole.Client)
         val received = WsFailure()

@@ -1,0 +1,46 @@
+package scoop.concurrent
+
+/** A fixed managed thread pool for ordinary blocking work, including GC-managed closures. */
+public class BlockingTaskPool public constructor(threads: Int): Closeable {
+    private val workers = WorkerGroup.create(threads)
+
+    /** Whether this pool has stopped accepting work. */
+    public val isShutdown: Boolean get() = workers.isShutdown
+    /** Whether accepted work has drained and workers have left their execution loops. */
+    public val isTerminated: Boolean get() = workers.isTerminated
+
+    /** Registers a disposable ordinary notification, called unlocked or immediately if terminated. */
+    public fun invokeOnTermination(handler: () -> Unit): Disposable = workers.onTermination(handler)
+
+    /** Queues one work item; rejects submissions after shutdown was requested. */
+    public fun submit(work: BlockingWork) {
+        workers.submit { work.run() }
+    }
+
+    /** Stops admission and lets all accepted work finish. Does not cancel running work. */
+    public fun requestShutdown() {
+        workers.requestShutdown()
+    }
+
+    /** Waits for workers to leave their work loops; cancellation only ends this wait. */
+    public suspend fun awaitTermination() {
+        workers.awaitTermination()
+    }
+
+    /** Joins the stopped workers. Shutdown must already have been requested. */
+    public fun join() {
+        workers.join()
+    }
+
+    /** Requests shutdown and joins from a thread outside this pool. */
+    public override fun close() {
+        workers.checkNotWorker()
+        requestShutdown()
+        join()
+    }
+
+    internal fun ensureOpen() {
+        workers.ensureOpen()
+    }
+    internal val isCurrentWorker: Boolean get() = workers.isCurrentWorker
+}
