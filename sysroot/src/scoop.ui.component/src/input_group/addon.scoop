@@ -76,7 +76,8 @@ public class InputGroupAddonBuilder internal constructor(private val align: Inpu
                     builder.invalid,
                     builder.variant,
                     builder.size,
-                    builder.group
+                    builder.group,
+                    builder.labelTarget
                 ),
                 builder.key
             )

@@ -220,3 +220,11 @@
 - UI 增加 ComponentScope.moveFocus，用于根菜单关闭并恢复入口后的 Tab 续行；OverlayFocusOptions 的 autoFocus=false 保留悬浮子菜单的关闭恢复，restoreTarget 使 Modal／FocusContained 菜单栏返回当前入口，沿用原有焦点会话和 revision。行缩进在测量时按逻辑方向解析，窄宽保留图标／快捷键的自然宽度并省略标题；修正同值高亮发布引起的持续刷新，loop=false 的菜单栏在首尾停留。
 - macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过。5 项 UI 配置／定位测试、5 项菜单模型／DSL 测试及 1 项 **72 阶段实窗测试**通过；实窗覆盖真实键鼠、两层子菜单、Tab 续行、关闭拒绝／重开、重排与实例保留、长列表显露、深色／RTL、三种焦点模式、打开及关闭后的停帧、禁用／零尺寸和卸载。原生测试等待真实系统焦点，执行时需要宿主应用在前台，不放宽焦点门槛。
 - Gallery 实查浅色 System、深色 Neutral、窄宽与 RTL、图标／缩进／快捷键、菜单栏完整动画和当前入口恢复；补齐 Breadcrumb 省略路径、ButtonGroup split action、右键保留主动作及菜单进入 AlertDialog 的组合，取消按钮焦点环完整。累计 **43／64**，P5 后续为 Select、Combobox、Command 与 NavigationMenu。清理一次性菜单窗口测试输出、日志及独立检查锁，保留共享缓存、生产库、Gallery 和已下载参考；没有重复全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+
+## P5b：Select
+
+- 交付类型化 Select、分组与禁用项、Default／Sm、placeholder／invalid、受控开关、FieldTarget、自定义内容和 ButtonGroup 连接表面。公共 ContentAligned 消费 LayoutMetrics.overlayAnchor；选中行与 trigger 对齐，缺失选择回退侧边定位，长列表初始显露后滚动不移动面板。
+- 候选复用菜单的真实 roving 焦点、typeahead、选择和关闭通路；支持拒绝 setter／veto、外部未知值、Tab 续行与动态候选。修复键盘导航后旧 hover 行残留高亮。退出中重开重新对齐当前选择；Portal 沿同一会话重新安排初始焦点，并继续尊重新的显式焦点意图。滚动按钮按需使用原生 deadline，离开／关闭／禁用／卸载停止。
+- macOS aarch64 release：UI、五套样式库、组件生产库和 Gallery 构建通过；7 项定位、4 项 Select 状态／DSL／样式和 5 项菜单模型测试通过。Select 41 阶段、菜单 72 阶段、模态弹层 44 阶段实窗回归通过，覆盖重开聚焦、动态删除、鼠标／键盘、滚动停止、卸载与原有 focus ring 裁剪修复。前台恢复后已完成此前被系统焦点限制阻断的验收。
+- Gallery 实查明暗 System／Neutral、RTL、窄宽、两种定位、长列表滚动、单行省略、自定义图标和连接处完整焦点环；修正深色 input 透明度的叠乘及局部 hover 覆盖，并定向复验。累计 **44／64**，后续继续 Combobox／Command／NavigationMenu。清理本轮实窗输出、日志与独立锁，保留共享缓存、生产库、Gallery 和下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

@@ -223,7 +223,8 @@ internal fun groupButtonProps(
         input.invalid,
         input.variant,
         input.size,
-        group
+        group,
+        input.labelTarget
     )
 }
 

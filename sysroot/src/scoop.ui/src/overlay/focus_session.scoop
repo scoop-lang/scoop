@@ -32,7 +32,7 @@ internal class OverlayFocusSession(
                 fallback = fallback
             )
         )
-    private val openingRevision = root.surface.focusRevision
+    private var openingRevision = root.surface.focusRevision
     val boundary: InputBoundary? =
         when (initial.mode) {
             case NonModal -> None
@@ -91,7 +91,8 @@ internal class OverlayFocusSession(
     }
     fun reopen() {
         closingRevision = None
-        initialPending = false
+        initialPending = true
+        openingRevision = root.surface.focusRevision
         replace(portal.options)
     }
     fun finish() {

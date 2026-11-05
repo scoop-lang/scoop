@@ -23,7 +23,7 @@ internal class MenuRowLayout(private val props: Props<MenuRowLayoutProps>): Elem
     private var size = Size(0.0, 0.0)
     private fun refresh() {
         val input = area!!.scope
-        props.value.highlight(input.activity.hasFocus || input.isHovered)
+        props.value.highlight(input.activity.hasFocus)
     }
     public override fun onMount(scope: ComponentScope) {
         val target = scope.createArea()

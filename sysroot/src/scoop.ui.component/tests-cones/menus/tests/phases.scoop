@@ -178,7 +178,8 @@ private fun menuUpdates(p: MenuProbe) {
             p.changed()
         }
         case 30 -> {
-            assertEquals(p.mountedBefore, p.mounts)
+            assertEquals(p.mountedBefore, p.mounts);
+            assertTrue(p.beta.hasFocus)
             p.slow = false;
             p.replace = true;
             p.alternate.value = true;

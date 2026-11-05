@@ -20,7 +20,8 @@ public class ButtonProps public constructor(
     public val invalid: Boolean = false,
     public val variant: ButtonVariant = ButtonVariant.Default,
     public val size: ButtonSize = ButtonSize.Default,
-    public val group: GroupPosition? = None
+    public val group: GroupPosition? = None,
+    public val labelTarget: FieldTarget? = None
 )
 
 public class Button public constructor(private val props: Props<ButtonProps>): Component {
@@ -62,7 +63,8 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
                 input.style,
                 visual,
                 ActionBehavior.Press(control, input.onClick, input.focus),
-                input.group
+                input.group,
+                input.labelTarget
             ),
             { current -> ActionInk(current) },
             [

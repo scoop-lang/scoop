@@ -62,6 +62,34 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
                 builder.matchAnchorWidth
             )
     }
+    public fun contentAligned(
+        anchor: LayoutAnchor,
+        configure: AnchoredPlacementBuilder.() -> Unit = {}
+    ): Unit {
+        val builder = AnchoredPlacementBuilder()
+        builder.alignment = OverlayAlignment.Center
+        builder.matchAnchorWidth = true
+        when (placement) {
+            case ContentAligned(_, side, alignment, gap, padding, matchWidth) -> {
+                builder.preferredSide = side
+                builder.alignment = alignment
+                builder.gap = gap
+                builder.viewportPadding = padding
+                builder.matchAnchorWidth = matchWidth
+            }
+            else -> {}
+        }
+        builder.configure()
+        placement =
+            OverlayPlacement.ContentAligned(
+                anchor,
+                builder.preferredSide,
+                builder.alignment,
+                builder.gap,
+                builder.viewportPadding,
+                builder.matchAnchorWidth
+            )
+    }
     public fun atPoint(point: Point, configure: PointPlacementBuilder.() -> Unit = {}): Unit {
         val builder = PointPlacementBuilder()
         when (placement) {

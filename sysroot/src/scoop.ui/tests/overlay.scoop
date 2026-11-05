@@ -99,6 +99,88 @@ private class OverlayPlacementTest {
     }
 
     @Test
+    fun `content alignment uses local selected geometry and keeps one bounded fallback`() {
+        val anchor = Rect(100.0, 150.0, 120.0, 32.0)
+        val plan =
+            planOverlay(
+                OverlayPlacement.ContentAligned(LayoutAnchor()),
+                Size(400.0, 400.0),
+                Some(anchor)
+            )
+        assertEquals(120.0, plan.constraints.minWidth)
+        assertEquals(Some(206.0), plan.constraints.maxHeight)
+        val aligned =
+            plan.layout(Size(120.0, 160.0), contentAnchor = Some(Rect(4.0, 60.0, 112.0, 28.0)))
+        assertEquals(Rect(100.0, 92.0, 120.0, 160.0), aligned.bounds)
+        assertEquals(None, aligned.side)
+        assertEquals(Rect(8.0, 8.0, 384.0, 384.0), aligned.available)
+        val fallback = plan.layout(Size(120.0, 160.0))
+        assertEquals(Some(OverlaySide.Bottom), fallback.side)
+        assertEquals(Rect(100.0, 186.0, 120.0, 160.0), fallback.bounds)
+        val edge =
+            plan.layout(Size(120.0, 160.0), contentAnchor = Some(Rect(4.0, 180.0, 112.0, 28.0)))
+        assertEquals(8.0, edge.bounds.y)
+        val rtl =
+            planOverlay(
+                OverlayPlacement.ContentAligned(LayoutAnchor(), alignment = OverlayAlignment.Start),
+                Size(400.0, 400.0),
+                Some(anchor),
+                LayoutDirection.Rtl
+            )
+        assertEquals(
+            104.0,
+            rtl.layout(
+                Size(120.0, 160.0),
+                contentAnchor = Some(Rect(4.0, 60.0, 112.0, 28.0))
+            ).bounds.x
+        )
+    }
+
+    @Test
+    fun `content anchor validation and builder copies preserve the placement contract`() {
+        val anchor = LayoutAnchor()
+        val original =
+            portalOptions {
+                contentAligned(anchor) {
+                    gap = 7.0;
+                    viewportPadding = 10.0
+                }
+            }
+        val copied = original.copy { contentAligned(anchor) { alignment = OverlayAlignment.End } }
+        when (copied.placement) {
+            case ContentAligned(value, side, alignment, gap, padding, match) -> {
+                assertTrue(value === anchor);
+                assertEquals(OverlaySide.Bottom, side)
+                assertEquals(OverlayAlignment.End, alignment);
+                assertEquals(7.0, gap)
+                assertEquals(10.0, padding);
+                assertTrue(match)
+            }
+            else -> fail(Some("expected content alignment"))
+        }
+        checkLayoutMetrics(
+            LayoutMetrics(Size(10.0, 10.0), overlayAnchor = Some(Rect(-10.0, 20.0, 5.0, 8.0))),
+            Constraints()
+        )
+        for (
+            rect in [
+                Rect(0.0, 0.0, -1.0, 2.0),
+                Rect(0.0 / 0.0, 0.0, 1.0, 1.0),
+                Rect(1.7e308, 0.0, 1.7e308, 1.0)
+            ]
+        )
+            assertFailsWith<IllegalArgumentException> {
+                checkLayoutMetrics(
+                    LayoutMetrics(Size(10.0, 10.0), overlayAnchor = Some(rect)),
+                    Constraints()
+                )
+            }
+        assertFailsWith<IllegalArgumentException> {
+            portalOptions { contentAligned(anchor) { gap = -1.0 } }
+        }
+    }
+
+    @Test
     fun `overlay configuration rejects invalid distances and references stay on their owner thread`() {
         val restore = FocusHandle()
         val pointerFocus =

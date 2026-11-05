@@ -219,7 +219,7 @@ OverlayFocusOptions 可用 restoreTarget 指定关闭时优先恢复的目标，
 
 Drawer 复用同一个 Portal，增加实际布局得到的拖动位置与 snap。Sheet 的侧边位移不等于 Drawer：后者有拖动阈值、释放速度、吸附、滚动接管与取消回弹。snap 使用明确的 `Fraction`／`Length` 值，不用一个 Double 同时猜比例和像素，更不解析 CSS 长度字符串。
 
-Select 的选中项对齐采用公共内容锚点：Popup 根布局在测量中提交选中行的局部矩形，Portal 按该矩形与外部 LayoutAnchor 的目标位置求平移，之后统一执行视口约束／碰撞。普通 popup 模式仍沿 Anchored。选中项可能虚拟化时只按需实现该项及可见范围，准备完成后再开放输入；没有选中项或该项不可用时使用普通侧边定位。两条定位方式共用最终 Popup 几何，不在 Select 里保存第二份窗口坐标或访问 UI internal 节点。
+Select 的选中项对齐采用公共内容锚点：Popup 根布局在测量中提交选中行的局部矩形，Portal 按该矩形与外部 LayoutAnchor 的目标位置求平移，之后统一执行视口约束／碰撞。普通 popup 模式仍沿 Anchored。选中项可能虚拟化时只按需实现该项及可见范围，准备完成后再开放输入；没有选中项或该项不可用时使用普通侧边定位。两条定位方式共用最终 Popup 几何，不在 Select 里保存第二份窗口坐标或访问 UI internal 节点。实际协议为 `LayoutMetrics.overlayAnchor: Rect?` 和 `OverlayPlacement.ContentAligned`；改变局部坐标的容器显式转换它。Select 在首次 Accepted 后保留打开时的局部滚动参考，手动滚动不带动面板位置；当前有限候选使用普通 ScrollViewport。
 
 关闭中复用 Presence：立即取消内部输入，保留绘图资源，Modal／FocusContained 的相应约束保留到成功移除；中途重开从当前进度返回。首次焦点、锚点、碰撞、拖动命中和最终恢复都不能先于成功场景。Backdrop 只需颜色／透明度；不把尚未交付的 backdrop blur 设为前置。
 
@@ -259,3 +259,8 @@ P4 模态家族使用 `dialog(open, content)`、`alertDialog(open, content)`、`
 P5 菜单家族共用 `MenuContent`／`MenuEntry` 和 `MenuOptions`。`menu { item(key, label, action); checkboxItem(key, label, checked); radioItem(key, label, value, selected); submenu(key, label, content); label(key, text); separator(key) }` 产生有序快照；显式 key 同级唯一，显示文字允许重复。菜单条目接收非交互的 content／icon，自己创建唯一的 Button，`shortcut` 只显示平台标签。单选构建器保留 `T: Equals<T>` 的领域值及 Binding，不以显示文字或 Any 代替。
 
 DropdownMenu 支持内置 trigger 或外部 anchor，group 可接入 ButtonGroup；ContextMenu 包装现有内容，通过右键、Menu 或 Shift+F10 打开，保留原内容的主动作；Menubar 以 `menu(key, trigger, content)` 组合多根菜单和横向 roving 导航。共同默认 NonModal、192 宽、700ms Unicode casefold typeahead，支持 OverlayHandle、关闭 veto、拒绝绑定、悬浮子菜单及 RTL。悬浮展开使用 `OverlayFocusOptions(autoFocus=false)` 保留关闭恢复，键盘展开正常进入首项。Tab 在整条菜单链实际关闭并恢复入口后，调用 `ComponentScope.moveFocus(reverse)` 继续原有焦点导航；退出重开撤销旧的续行意图。完整合同见组件规范 §33。
+
+
+## P5b：Select
+
+`select(value.binding(), choices)` 与 `select(value.binding()) { group(key, "Group") { item(choice) }; separator(key) }` 共用 SelectProps／Select，值类型要求 Equals，选择为 T?。可配置 open Binding、Default／Sm、ItemAligned／Popup、宽度与最大高度、scrollButtons、借用 ScrollState、trigger／popup 样式、字体与主题、Label 关联、真实焦点／模态策略、typeahead 和回调。未知选择保持原值并显示 unavailableText；选择提交只报告 setter 实际采纳的变化。valueContent 接收 SelectValue<T>，候选的 content／icon 为非交互展示插槽。ButtonGroup.item 可将 GroupPosition 直接交给 Select.group，连接表面和焦点环沿 Button 路径。完整合同见[组件规范第 34 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。

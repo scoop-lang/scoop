@@ -155,6 +155,8 @@ ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。�
 
 显式组件接收 `Props<ButtonProps>`，其中 content 是 ButtonContent.Label(LabelProps) 或 ButtonContent.Custom(View) 或 ButtonContent.Resolved((ActionContentStyle) -> View)，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String、StyledText 和显式 View 入口。StyledText 允许行内绑定，Custom 内容由普通布局、图标和文字组合，所有入口共享同一个 Button／Press，不克隆 View 或合并隐藏属性。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
 
+ButtonProps／ContentButtonBuilder 增加可选 labelTarget，使用同一 Press 输入区域和 FocusTarget 绑定 FieldTarget，标签只聚焦而不触发按钮动作。
+
 ButtonProps／ContentButtonBuilder 与 CheckboxProps／CheckboxBuilder 增加 invalid=false，受控及自有 Checkbox 入口使用相同字段。它只表示校验结果，仍可点击／聚焦；不会暗改 enabled 或 checked。Button、Checkbox、Input／Textarea 将 invalid 传入公共 InteractionVisual，统一使用主题 validation。选中的 Checkbox 保留 primary 边框，验证环仍显示；显式 marker.validation 或局部 Style 可覆盖。
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
@@ -862,7 +864,7 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 
 `menu { ... }` 用 MenuBuilder 收集 item／checkboxItem／radioItem／submenu／label／separator／add。radioItem 的领域值与 Binding 使用同一 `T: Equals<T>`，内部只封装读取与选择闭包，不把领域值转换成 Any 或字符串；只在 setter 实际采纳变化后通知 onValueChange。Checkbox 同样通知实际采纳值。所有动作读取当前 Props，禁用项不执行；Action／Radio 回调正常返回后才执行 closeOnSelect，异常沿正常 UI 路径传播。选择、悬浮焦点和 open 各自独立，重排保持 keyed 实例／当前焦点，缺失或禁用项不被错误激活。
 
-共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、8 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、6 圆角；inset 为起侧 28；焦点、hover 或子菜单打开使用 accent 配色，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
+共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、8 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、6 圆角；inset 为起侧 28；当前焦点或子菜单打开使用 accent 配色；指针进入／移动请求该行焦点，键盘导航后静止指针所在旧行不保留额外高亮，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
 
 `dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMenuBuilder.() -> Unit = {})` 构造 DropdownMenuProps／DropdownMenu。trigger 使用 PopupTriggerSpec，外部 anchor 可替代内置 trigger；至少有其一。默认 Bottom／Start、gap=4、viewportPadding=8、anchorVisibility=Close；可配置 handle、OverlayFocusOptions、dismiss、onOpenChange／onCloseRequest／onClosed。触发器是唯一 Button，支持 group: GroupPosition? 与 ButtonGroup 连接表面。普通激活／ArrowDown 进入首个有效项，ArrowUp 进入末项；没有有效项时沿 Portal 的默认焦点退路。非模态外部按下关闭并继续，Modal 消费且禁止 CloseAndContinue。拒绝 setter／veto 保持实际状态，外部赋值不伪造通知。
 
@@ -873,3 +875,16 @@ SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布
 `menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
 
 验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。
+
+
+## 34. Select
+
+`select<T: Equals<T>>(value: Binding<T?>, choices: Array<Choice<T>>, configure: SelectBuilder<T>.() -> Unit = {})` 以及省略 choices 的部件 DSL 构造 SelectProps／Select。SelectContent 保存带明确 key 的 SelectEntry.Item(SelectItem(choice, content?, icon?, focus, style))、Label(key, PanelContent)、Separator(key)；key 与候选值唯一。Builder.item、label、separator、group 组成有序候选，ChildrenBuilder 提供同名入口。显示文本只用于展示与 typeahead，不作为身份。选择、活动焦点与 open 各自独立；open 可借用外部 Binding，缺省为挂载内 State。未知或禁用的外部选择保留原值，不写回或自动改选；未知值显示 unavailableText，None 显示 placeholder。
+
+唯一的 Button trigger 支持 Default／Sm（32／28 高）、width、invalid、enabled、ButtonStyle、ThemeSource、fonts、FocusOptions、labelTarget、group 与自定义 valueContent／icon。默认最小自然宽 144、1 input 边框、8 圆角（Sm 为 10）、单行省略、14 正文、16 chevron；逻辑起／止 padding 为 10／8。Dark 底色与 hover 分别使用 input 原 alpha 的 30%／50%，局部 surface 与状态覆盖仍优先。焦点环、校验、禁用及父级连接表面沿已有 Button 合同。FieldTarget 标签只聚焦当前 trigger。
+
+默认 SelectPosition.ItemAligned 通过 UI ContentAligned 和 popup 根 LayoutMetrics.overlayAnchor 对齐打开时的可用选中行；无可用选择时退回 Anchored。SelectPosition.Popup 总是侧边定位。两者使用同一个 ScrollViewport、最终绘制及命中几何，不访问内部节点。面板匹配 trigger 宽度，受 maxHeight（默认 320）及视口限制，4 padding、8 圆角、popover 配色、1 ring 和浮层阴影。候选默认 28 高、14 字、6 圆角、逻辑末端 16 勾选标记；分组标签和分隔线沿菜单部件。打开时显露选中行，退出期间重开也按当次选择重新对齐；本次打开首次 Accepted 的局部滚动参考用于后续对齐；用户滚动不使面板跟随上下移动。长列表使用有限候选的普通滚动；溢出时默认显示上下 24 高的滚动按钮，点击或悬停按行滚动，窗口失焦／隐藏／禁用／到达边界／卸载停止计时。
+
+Enter／Space／ArrowDown 打开并聚焦可用选择，否则首项；ArrowUp 在没有可用选择时进入末项。打开后复用 roving 真实焦点及 typeahead，Up／Down／Home／End 跳过禁用项和装饰项，Enter／Space 提交。关闭时字符 typeahead 直接选择匹配项。提交读取最新 Props 和 Binding，通知实际被采纳的变化；setter 拒绝时保持打开，选择成功再请求关闭，关闭 veto 可保留当前面板。Escape／外部按下按 Portal 合同关闭和恢复，Tab／Shift+Tab 在实际 onClosed 后沿原方向继续；退出期间重开清除旧续行。可配置 mode、loop、typeahead、popupFocus、handle、onValueChange／onOpenChange／onCloseRequest／onClosed；外部赋值不伪造用户通知。ItemAligned 缺省无过渡，Popup 缺省 100ms 淡入缩放，显式 transition 与主题减少动画策略继续生效。
+
+验收覆盖受控／本地开关、未知与禁用选择、重复身份、分组、自定义正文、两种定位及窗口边缘／RTL、长列表初始显露和滚动稳定、真实键盘／鼠标／typeahead、拒绝更新和关闭、标签、退出重开、动态候选／主题／窄宽、卸载及静止停帧。

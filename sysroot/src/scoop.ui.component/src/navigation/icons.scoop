@@ -5,7 +5,7 @@ import scoop.ui.*
 import scoop.ui.component.frame as makeFrame
 
 internal enum NavigationGlyph {
-    Start, End, More
+    Start, End, More, Up, Down
 }
 
 internal class NavigationIconProps(val glyph: NavigationGlyph, val size: Double, val color: Color)
@@ -50,10 +50,20 @@ private class NavigationIcon(private val props: Props<NavigationIconProps>): Ele
                     for (x in [4.0, 12.0, 20.0])
                         canvas.drawCircle(Point(x, 12.0), 1.5, Paint(input.color))
                 } else {
-                    if (flip) {
-                        canvas.translate(24.0, 0.0);
-                        canvas.scale(-1.0, 1.0)
-                    }
+                    if (input.glyph == NavigationGlyph.Up || input.glyph == NavigationGlyph.Down) {
+                        canvas.translate(12.0, 12.0)
+                        canvas.rotate(
+                            if (input.glyph == NavigationGlyph.Up)
+                                -1.5707963267948966
+                            else
+                                1.5707963267948966
+                        )
+                        canvas.translate(-12.0, -12.0)
+                    } else
+                        if (flip) {
+                            canvas.translate(24.0, 0.0);
+                            canvas.scale(-1.0, 1.0)
+                        }
                     canvas.drawPath(chevron!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
                 }
             }

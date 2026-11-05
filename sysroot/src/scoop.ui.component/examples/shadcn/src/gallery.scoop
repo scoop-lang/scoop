@@ -212,6 +212,7 @@ internal class Gallery(
             case DropdownMenu -> menuExamples(model.menus, fonts, model, value)
             case ContextMenu -> menuExamples(model.menus, fonts, model, value)
             case Menubar -> menuExamples(model.menus, fonts, model, value)
+            case Select -> selectExamples(model.selects, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

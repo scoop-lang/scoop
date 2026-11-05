@@ -1,0 +1,289 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.select as makeSelect
+import scoop.ui.component.badge as makeBadge
+import scoop.ui.style.Insets
+
+internal class SelectExamplesModel {
+    val fruit = state<String?>(Some("blueberry"))
+    val long = state<Int?>(Some(42))
+    val plan = state<String?>(None)
+    val target = FieldTarget()
+    val popup = state(false)
+    val narrow = state(false)
+    val enabled = state(true)
+    val invalid = state(false)
+    val modal = state(false)
+    val reject = state(false)
+    val veto = state(false)
+    val result = state("Choose an option")
+}
+
+internal fun selectExamples(model: SelectExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        add(panelHeading("Select", fonts))
+        typography(
+            "Choose with the pointer, arrow keys or typeahead. The selected row opens in line with its trigger; scroll to browse more choices.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.popup.value)
+                    "Position: popup"
+                else
+                    "Position: selected item",
+                { model.popup.value = !model.popup.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.narrow.value)
+                    "Width: narrow"
+                else
+                    "Width: normal",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.enabled.value)
+                    "Disable"
+                else
+                    "Enable",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.invalid.value)
+                    "Clear invalid"
+                else
+                    "Show invalid",
+                { model.invalid.value = !model.invalid.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.modal.value)
+                    "Mode: Modal"
+                else
+                    "Mode: NonModal",
+                { model.modal.value = !model.modal.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        fieldLabel("Fruit", model.target) { this.fonts = Some(fonts) }
+        select(
+            binding(
+                { model.fruit.value },
+                {
+                    value -> if (!model.reject.value)
+                        model.fruit.value = value
+                }
+            )
+        ) {
+            labelTarget = Some(model.target);
+            this.fonts = Some(fonts)
+            width =
+                Some(
+                    if (model.narrow.value)
+                        140.0
+                    else
+                        260.0
+                )
+            position =
+                if (model.popup.value)
+                    SelectPosition.Popup
+                else
+                    SelectPosition.ItemAligned
+            enabled = model.enabled.value;
+            invalid = model.invalid.value
+            mode =
+                if (model.modal.value)
+                    OverlayMode.Modal
+                else
+                    OverlayMode.NonModal
+            placeholder = "Pick a fruit"
+            group(ViewKey.Text("fresh"), "Fresh fruit") {
+                for (fruit in ["apple", "banana", "blueberry"])
+                    item(
+                        Choice(
+                            ViewKey.Text(fruit),
+                            fruit,
+                            if (fruit == "blueberry")
+                                "Blueberry"
+                            else
+                                if (fruit == "banana")
+                                    "Banana"
+                                else
+                                    "Apple"
+                        )
+                    )
+            }
+            separator(ViewKey.Text("separator"))
+            group(ViewKey.Text("tropical"), "Tropical") {
+                item(Choice(ViewKey.Text("mango"), "mango", "Mango — unavailable", false))
+                item(
+                    Choice(
+                        ViewKey.Text("pineapple"),
+                        "pineapple",
+                        "Pineapple with a deliberately long label"
+                    )
+                )
+            }
+            onValueChange = { value -> model.result.value = f"Selected: ${value ?: "none"}" }
+            onCloseRequest = { _ -> !model.veto.value }
+        }
+        typography(model.result.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        wrap {
+            button("Clear value", { model.fruit.value = None }) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button("Unknown value", { model.fruit.value = Some("unavailable") }) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.reject.value)
+                    "Accept selection"
+                else
+                    "Reject selection",
+                { model.reject.value = !model.reject.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.veto.value)
+                    "Allow close"
+                else
+                    "Veto close",
+                { model.veto.value = !model.veto.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        typography("Long list", TypographyRole.H4) { this.fonts = Some(fonts) }
+        select(model.long.binding()) {
+            this.fonts = Some(fonts);
+            width =
+                Some(
+                    if (model.narrow.value)
+                        140.0
+                    else
+                        260.0
+                )
+            position =
+                if (model.popup.value)
+                    SelectPosition.Popup
+                else
+                    SelectPosition.ItemAligned
+            for (index in 0 ..< 80)
+                item(
+                    Choice(
+                        ViewKey.Number(index.toLong()),
+                        index,
+                        f"Workspace ${index + 1}",
+                        index != 10
+                    )
+                )
+        }
+        typography("Connected actions", TypographyRole.H4) { this.fonts = Some(fonts) }
+        buttonGroup {
+            this.fonts = Some(fonts)
+            item(
+                {
+                    position -> makeSelect(
+                        model.plan.binding(),
+                        [
+                            Choice(ViewKey.Text("personal"), "personal", "Personal"),
+                            Choice(ViewKey.Text("team"), "team", "Team")
+                        ]
+                    ) {
+                        group = Some(position);
+                        width = Some(180.0);
+                        this.fonts = Some(fonts);
+                        placeholder = "Choose a plan"
+                    }
+                }
+            )
+            button("Apply", { model.result.value = f"Applied: ${model.plan.value ?: "none"}" }) {
+                variant = ButtonVariant.Outline
+            }
+        }
+        typography("Small, disabled and custom content", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        wrap {
+            select(
+                model.plan.binding(),
+                [
+                    Choice(ViewKey.Text("personal"), "personal", "Personal"),
+                    Choice(ViewKey.Text("team"), "team", "Team")
+                ]
+            ) {
+                this.fonts = Some(fonts);
+                width = Some(180.0);
+                size = SelectSize.Sm;
+                placeholder = "Choose a plan"
+            }
+            select(
+                model.fruit.binding(),
+                [Choice(ViewKey.Text("blueberry"), "blueberry", "Blueberry")]
+            ) {
+                this.fonts = Some(fonts);
+                width = Some(180.0);
+                enabled = false
+            }
+            select(model.plan.binding()) {
+                this.fonts = Some(fonts);
+                width = Some(220.0)
+                valueContent =
+                    Some {
+                        value -> makeLabel(value.choice?.label ?: "Select workspace tier") {
+                            this.fonts = Some(fonts)
+                        }
+                    }
+                item(Choice(ViewKey.Text("personal"), "personal", "Personal")) {
+                    icon =
+                        Some(
+                            makeBadge("P") {
+                                variant = ButtonVariant.Secondary;
+                                this.fonts = Some(fonts)
+                            }
+                        )
+                }
+                item(Choice(ViewKey.Text("team"), "team", "Team")) {
+                    icon =
+                        Some(
+                            makeBadge("T") {
+                                variant = ButtonVariant.Secondary;
+                                this.fonts = Some(fonts)
+                            }
+                        )
+                }
+            }
+            spacing = 12.0;
+            lineSpacing = 12.0
+        }
+        spacing = 16.0;
+        alignment = CrossAlignment.Start;
+        padding = Insets.all(4.0)
+    }

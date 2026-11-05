@@ -323,11 +323,14 @@ UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈�
 public struct LayoutMetrics(
     val size: Size,
     val alphabeticBaseline: Option<Double> = None,
-    val ideographicBaseline: Option<Double> = None
+    val ideographicBaseline: Option<Double> = None,
+    val overlayAnchor: Option<Rect> = None
 )
 ```
 
 基线是相对元素顶边的有限有符号偏移，文本采用首行基线；None 表示元素没有该基线。外框裁剪不要求基线落在其高度范围内。空内容采用约束下限尺寸和两项 None。Component 原样透传子描述的尺寸与基线；容器可以根据子项偏移给出自己的基线，未定义时返回 None，不隐式扫描后代。框架不扩展成通用 alignment-line 系统。
+
+`overlayAnchor` 是本次测量返回的弹层内容局部矩形，用于第 7.6.2 节 ContentAligned。坐标与端点须有限、宽高非负；可以位于布局外。透明包装原样透传，改变子项位置或滚动坐标的容器必须明确转换后返回，否则为 None，不扫描后代或保存窗口坐标。
 
 MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics`、`placeChild(index, origin: Point)` 和 `skipChild(index)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项须成功测量，或在尚未测量时显式 skipChild 一次。skipChild 保留挂载与逻辑更新，本轮不调用该子树的 measure／scene、不复用旧尺寸或放置；同轮随后测量、放置或再次跳过均为状态错误。普通测量尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
 
@@ -578,11 +581,13 @@ SceneContext.overlayLayout 返回最近层的本帧值：bounds、available、an
 
 AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现；Hide 保留内容等待当前几何恢复；KeepVisible 使用有效包围盒并把位置限制在视口。没有当前几何时 Hide 等待，其余关闭。解绑／owner 退休使依赖层强制结束。AnchorUnavailable 请求把 Binding 置为 false；setter 未采纳也收尾当前呈现，直到实际 false→true 或重新挂载才重开，不能每帧重复请求。强制关闭不经过 veto，回调仍在纯求值退出后运行。
 
+`ContentAligned(anchor, preferredSide=Bottom, alignment=Center, gap=4, viewportPadding=8, matchAnchorWidth=true)` 使用与 Anchored 相同的一次有界测量。若弹层根返回 overlayAnchor，将其垂直中心与外部 anchor 中心对齐，横向按 alignment 对齐两矩形的逻辑边／中心，再将完整弹层收敛到视口留白内；此时 OverlayLayout.available 为完整留白视口，side 为 None。根未返回内容锚点时，沿同一次测量结果执行普通 Anchored 的侧边定位。PortalOptionsBuilder.contentAligned 提供对应真正成员，copy 保留其参数。局部锚点只影响此帧位置，不注册输入区域、不改变测量次数和焦点规则。
+
 #### 7.6.3 输入关闭策略与模态
 
 OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受原焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受原焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。退出期间重开保留同一内容及焦点会话，重新记录当前焦点意图序号，并在恢复输入的首个 Accepted 使用当前 initialFocus／autoFocus；重开之后的新显式焦点请求仍优先。
 
 退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 

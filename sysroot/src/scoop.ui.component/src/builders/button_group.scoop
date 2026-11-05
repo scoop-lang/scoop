@@ -87,7 +87,8 @@ public class ButtonGroupBuilder internal constructor() {
                         builder.invalid,
                         builder.variant,
                         builder.size,
-                        builder.group
+                        builder.group,
+                        builder.labelTarget
                     )
                 ),
                 builder.key

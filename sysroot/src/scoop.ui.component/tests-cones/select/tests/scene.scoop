@@ -1,0 +1,177 @@
+package scoop.tests.ui.select
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.select as makeSelect
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.StyleValue
+
+internal class SelectScene(private val p: SelectProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val version = p.version
+        val control =
+            if (p.shown)
+                makeSelect(
+                    binding(
+                        { p.selected.value },
+                        {
+                            next -> if (!p.reject)
+                                p.selected.value = next
+                        }
+                    )
+                ) {
+                    open = Some(p.open.binding());
+                    scroll = Some(p.scroll);
+                    handle = Some(p.layer)
+                    focus = FocusOptions(Some(p.trigger));
+                    labelTarget = Some(p.labelTarget);
+                    fonts = Some(p.fonts)
+                    position =
+                        if (p.popupMode)
+                            SelectPosition.Popup
+                        else
+                            SelectPosition.ItemAligned
+                    size =
+                        if (p.small)
+                            SelectSize.Sm
+                        else
+                            SelectSize.Default
+                    width =
+                        Some(
+                            if (p.narrow)
+                                150.0
+                            else
+                                220.0
+                        )
+                    onCloseRequest = { _ -> !p.veto };
+                    onClosed = { _ -> p.closed += 1 }
+                    if (p.slow)
+                        transition =
+                            StyleValue.Set(Some(AnimationSpec.Tween(Duration.milliseconds(600L))))
+                    onValueChange =
+                        {
+                            _ ->
+                            p.changes += 1;
+                            p.callbackVersion = version
+                        }
+                    label(ViewKey.Text("group"), "Available choices")
+                    for (
+                        index in 0L ..<
+                            if (p.long)
+                                80L
+                            else
+                                6L
+                    ) {
+                        if (p.omitted == Some(index.toInt()))
+                            continue
+                        val text =
+                            if (p.long)
+                                f"Choice ${index}"
+                            else
+                                ["Alpha", "Beta", "Disabled", "Delta", "Echo", "Zulu"][index]
+                        item(Choice(ViewKey.Number(index), index.toInt(), text, index != 2L)) {
+                            focus = FocusOptions(Some(p.items[index]))
+                            content =
+                                Some(observed(p, index, makeLabel(text) { fonts = Some(p.fonts) }))
+                        }
+                    }
+                }
+            else
+                empty()
+        val children =
+            [
+                button("Before", {}) {
+                    focus = FocusOptions(Some(p.before));
+                    fonts = Some(p.fonts)
+                },
+                observed(p, -1L, control),
+                button("After", {}) {
+                    focus = FocusOptions(Some(p.after));
+                    fonts = Some(p.fonts)
+                },
+                observed(
+                    p,
+                    -2L,
+                    fieldLabel("Choose a value", p.labelTarget) { fonts = Some(p.fonts) }
+                )
+            ]
+        return direction(
+            element(generation, { current -> SelectRootScene(p, current) }, children),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class Bounds(var rect: Rect)
+
+private fun observed(p: SelectProbe, index: Long, content: View): View =
+    element(index, { current -> SelectObservation(p, current) }, [content])
+
+private class SelectObservation(
+    private val p: SelectProbe,
+    private val props: Props<Long>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val captured = Bounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    geometry -> captured.rect = geometry.toWindow(local)
+                }
+            }
+        }
+        context.children()
+        val index = props.value
+        val overlay = context.overlayLayout
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                if (index == -1L)
+                    p.triggerBounds = captured.rect
+                else
+                    if (index == -2L)
+                        p.labelBounds = captured.rect
+                    else {
+                        p.rows[index] = captured.rect;
+                        p.popup = overlay!!.bounds;
+                        p.side = overlay!!.side
+                    }
+            }
+        }
+    }
+}
+
+private class SelectRootScene(private val p: SelectProbe, private val props: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val positions =
+            [Point(20.0, 20.0), Point(200.0, 250.0), Point(450.0, 250.0), Point(200.0, 205.0)]
+        for (index in 0L ..< 4L) {
+            context.measureChild(index, Constraints(maxWidth = Some(240.0)));
+            context.placeChild(index, positions[index])
+        }
+        return LayoutMetrics(constraints.constrain(Size(680.0, 540.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children();
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.Size
+import scoop.graphics.Rect
 
 /** Finite limits; None represents an unbounded maximum, without passing Infinity downstream. */
 public struct Constraints(
@@ -39,7 +40,8 @@ public struct Constraints(
 public struct LayoutMetrics(
     val size: Size,
     val alphabeticBaseline: Double? = None,
-    val ideographicBaseline: Double? = None
+    val ideographicBaseline: Double? = None,
+    val overlayAnchor: Rect? = None
 )
 
 private fun checkAxis(minimum: Double, maximum: Double?) {
@@ -84,6 +86,22 @@ internal fun checkLayoutSize(size: Size) {
 internal fun checkLayoutMetrics(metrics: LayoutMetrics, constraints: Constraints) {
     checkLayoutSize(metrics.size)
     requireUi(constraints.accepts(metrics.size), "measured size is outside its constraints")
+    when (metrics.overlayAnchor) {
+        case Some(rect) -> requireUi(
+            rect.x.isFinite() &&
+                rect.y.isFinite() &&
+                rect.width.isFinite() &&
+                rect.height.isFinite() &&
+                rect.width >=
+                0.0 &&
+                rect.height >=
+                0.0 &&
+                (rect.x + rect.width).isFinite() &&
+                (rect.y + rect.height).isFinite(),
+            "invalid overlay content anchor"
+        )
+        case None -> {}
+    }
     for (baseline in [metrics.alphabeticBaseline, metrics.ideographicBaseline]) {
         when (baseline) {
             case Some(value) -> requireUi(value.isFinite(), "non-finite layout baseline")

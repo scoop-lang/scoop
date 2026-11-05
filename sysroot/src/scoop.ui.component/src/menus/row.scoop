@@ -19,7 +19,8 @@ internal class MenuRowProps(
     val theme: Theme,
     val focus: FocusHandle?,
     val open: Binding<Boolean>,
-    val chain: MenuChain
+    val chain: MenuChain,
+    val selection: Boolean = false
 )
 
 internal class MenuRow(private val props: Props<MenuRowProps>): Component {
@@ -209,7 +210,16 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                                 3L
                             )
                         ) { shrink = 0.0 }
-                spacing = 6.0 * density
+                spacing =
+                    (
+                        if (input.selection)
+                            8.0
+                        else
+                            6.0
+                    ) *
+                        density
+                if (input.selection)
+                    logicalPadding = Some(LogicalInsets(end = 2.0 * density))
                 alignment = CrossAlignment.Center
                 if (item.inset && item.style.surface.padding == None)
                     logicalPadding = Some(LogicalInsets(start = 22.0 * density))

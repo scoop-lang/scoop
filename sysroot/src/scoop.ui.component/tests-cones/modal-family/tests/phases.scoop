@@ -106,6 +106,7 @@ internal fun modalFamilyStep(p: ModalFamilyProbe) {
         }
         case 14 -> {
             assertTrue(p.layer.isOpen);
+            assertTrue(p.first.hasFocus);
             assertEquals(p.savedFactories, p.factories)
             p.slow = false
             p.theme.current.value =

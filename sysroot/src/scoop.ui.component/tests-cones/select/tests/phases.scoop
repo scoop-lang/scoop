@@ -1,0 +1,272 @@
+package scoop.tests.ui.select
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun selectStep(p: SelectProbe) {
+    if (p.phase < 14)
+        selectionKeys(p)
+    else
+        if (p.phase < 23)
+            selectionScroll(p)
+        else
+            selectionUpdates(p)
+}
+
+private fun selectionKeys(p: SelectProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 490.0));
+            p.show()
+        }
+        case 1 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.items[1L].hasFocus);
+            assertEquals(None, p.side)
+            assertEquals(
+                p.triggerBounds.y + p.triggerBounds.height / 2.0,
+                p.rows[1L].y + p.rows[1L].height / 2.0
+            )
+            assertFalse(p.frames!!.snapshot().required);
+            p.key(125)
+        }
+        case 2 -> {
+            assertTrue(p.items[3L].hasFocus);
+            p.key(36, "\r")
+        }
+        case 3 -> {
+            assertEquals(Some(3), p.selected.value);
+            assertFalse(p.open.value);
+            assertTrue(p.trigger.hasFocus);
+            assertEquals(1, p.changes);
+            p.key(0, "a")
+        }
+        case 4 -> {
+            assertEquals(Some(0), p.selected.value);
+            assertFalse(p.open.value);
+            p.show(true)
+        }
+        case 5 -> {
+            assertTrue(p.items[0L].hasFocus);
+            p.key(119)
+        }
+        case 6 -> {
+            assertTrue(p.items[5L].hasFocus);
+            p.key(115)
+        }
+        case 7 -> {
+            assertTrue(p.items[0L].hasFocus);
+            p.key(48, "\t")
+        }
+        case 8 -> {
+            assertTrue(p.after.hasFocus);
+            p.selected.value = None;
+            p.show(true)
+        }
+        case 9 -> {
+            assertTrue(p.items[5L].hasFocus);
+            p.key(48, "\t", 1)
+        }
+        case 10 -> {
+            assertTrue(p.before.hasFocus);
+            p.selected.value = Some(99);
+            p.show()
+        }
+        case 11 -> {
+            assertTrue(p.items[0L].hasFocus);
+            assertEquals(Some(99), p.selected.value);
+            p.key(53)
+        }
+        case 12 -> {
+            p.selected.value = Some(2);
+            p.show()
+        }
+        case 13 -> {
+            assertTrue(p.items[0L].hasFocus);
+            assertEquals(Some(2), p.selected.value);
+            p.key(53);
+            p.long = true;
+            p.selected.value = Some(40);
+            p.changed()
+        }
+        else -> throw IllegalStateException(Some("unexpected select key phase"))
+    }
+}
+
+private fun selectionScroll(p: SelectProbe) {
+    when (p.phase) {
+        case 14 -> p.show()
+        case 15 -> {
+            assertTrue(p.items[40L].hasFocus);
+            assertTrue(p.scroll.offset.y > 0.0)
+            assertEquals(
+                p.triggerBounds.y + p.triggerBounds.height / 2.0,
+                p.rows[40L].y + p.rows[40L].height / 2.0
+            )
+            p.savedPopup = p.popup;
+            p.key(125)
+        }
+        case 16 -> {
+            assertTrue(p.items[41L].hasFocus);
+            p.scroll.scrollBy(Point(0.0, 400.0))
+        }
+        case 17 -> {
+            assertEquals(p.savedPopup, p.popup);
+            p.key(115)
+        }
+        case 18 -> {
+            assertTrue(p.items[0L].hasFocus);
+            assertEquals(p.savedPopup, p.popup)
+            assertTrue(
+                moveSurfacePointer(
+                    p.native!!,
+                    p.popup.x + p.popup.width / 2.0,
+                    p.popup.y + p.popup.height - 16.0
+                )
+            )
+        }
+        case 19 -> {
+            assertTrue(p.scroll.offset.y > 0.0);
+            assertEquals(p.savedPopup, p.popup);
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 490.0));
+        }
+        // Sample after the native pointer event has reached the input router.
+        case 20 -> p.savedOffset = p.scroll.offset.y
+        case 21 -> {
+            assertEquals(p.savedOffset, p.scroll.offset.y);
+            assertFalse(p.frames!!.snapshot().required);
+            p.key(53);
+            p.long = false;
+            p.popupMode = true;
+            p.selected.value = Some(0);
+            p.changed()
+        }
+        case 22 -> p.click(p.triggerBounds.x + 15.0, p.triggerBounds.y + 15.0)
+        else -> throw IllegalStateException(Some("unexpected select scroll phase"))
+    }
+}
+
+private fun selectionUpdates(p: SelectProbe) {
+    when (p.phase) {
+        case 23 -> {
+            assertTrue(p.open.value);
+            assertEquals(Some(OverlaySide.Bottom), p.side);
+            val row = p.rows[1L];
+            p.click(row.x + 4.0, row.y + row.height / 2.0)
+        }
+        case 24 -> {
+            assertEquals(Some(1), p.selected.value);
+            assertFalse(p.open.value);
+            p.veto = true;
+            p.show()
+        }
+        case 25 -> {
+            assertTrue(p.items[3L].requestFocus(FocusOrigin.Keyboard));
+            p.key(36, "\r")
+        }
+        case 26 -> {
+            assertEquals(Some(3), p.selected.value);
+            assertTrue(p.open.value);
+            p.key(53)
+        }
+        case 27 -> {
+            assertTrue(p.open.value);
+            p.veto = false;
+            p.key(53)
+        }
+        case 28 -> {
+            assertFalse(p.open.value);
+            p.reject = true;
+            p.show()
+        }
+        case 29 -> {
+            assertTrue(p.items[1L].requestFocus(FocusOrigin.Keyboard));
+            p.key(36, "\r")
+        }
+        case 30 -> {
+            assertEquals(Some(3), p.selected.value);
+            assertTrue(p.open.value);
+            p.reject = false;
+            p.rtl = true;
+            p.small = true;
+            p.narrow = true;
+            p.version = 2;
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark);
+            p.changed()
+        }
+        case 31 -> {
+            assertTrue(p.items[1L].hasFocus);
+            assertEquals(150.0, p.triggerBounds.width);
+            assertEquals(28.0, p.triggerBounds.height);
+            p.key(36, "\r")
+        }
+        case 32 -> {
+            assertEquals(Some(1), p.selected.value);
+            assertFalse(p.open.value);
+            assertEquals(2, p.callbackVersion);
+            p.before.requestFocus();
+            p.click(p.labelBounds.x + 5.0, p.labelBounds.y + 5.0)
+        }
+        case 33 -> {
+            assertTrue(p.trigger.hasFocus);
+            assertFalse(p.open.value);
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 490.0));
+            p.popupMode = false;
+            p.slow = true;
+            p.changed();
+            p.show();
+            p.delay = 700L
+        }
+        case 34 -> {
+            assertTrue(p.open.value);
+            p.savedClosed = p.closed;
+            p.key(48, "\t")
+        }
+        case 35 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.items[1L].isAttached);
+            p.selected.value = Some(4);
+            p.open.value = true;
+            p.changed();
+            p.delay = 700L
+        }
+        case 36 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.items[4L].hasFocus);
+            assertFalse(p.after.hasFocus);
+            assertEquals(p.savedClosed, p.closed);
+            assertEquals(
+                p.triggerBounds.y + p.triggerBounds.height / 2.0,
+                p.rows[4L].y + p.rows[4L].height / 2.0
+            );
+            p.omitted = Some(4);
+            p.changed()
+        }
+        case 37 -> {
+            assertEquals(Some(4), p.selected.value);
+            assertFalse(p.items[4L].isAttached);
+            assertTrue(p.items[0L].requestFocus(FocusOrigin.Keyboard));
+            p.key(125)
+        }
+        case 38 -> {
+            assertTrue(p.items[1L].hasFocus);
+            p.shown = false;
+            p.changed()
+        }
+        case 39 -> {
+            assertFalse(p.trigger.isAttached);
+            assertFalse(p.layer.isAttached);
+            assertFalse(p.labelTarget.isAttached)
+        }
+        case 40 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            p.native!!.requestDestroy()
+        }
+        else -> throw IllegalStateException(Some("unexpected select update phase"))
+    }
+}

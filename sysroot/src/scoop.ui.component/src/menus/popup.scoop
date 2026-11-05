@@ -213,7 +213,14 @@ internal class MenuLevel(private val props: Props<MenuLevelProps>): Component {
                 )
             }
         return element(
-            MenuNavigationProps(popup, { expanded.value = None }),
+            MenuNavigationProps(
+                popup.focus,
+                popup.options,
+                popup.chain,
+                popup.root,
+                Some(popup.handle),
+                { expanded.value = None }
+            ),
             { current -> MenuNavigation(current) },
             [
                 menuColumn {
@@ -225,29 +232,36 @@ internal class MenuLevel(private val props: Props<MenuLevelProps>): Component {
     }
 }
 
-private class MenuNavigationProps(val popup: MenuPopupProps, val navigated: () -> Unit)
+internal class MenuNavigationProps(
+    val focus: MenuFocus,
+    val options: MenuOptions,
+    val chain: MenuChain,
+    val root: Boolean = true,
+    val handle: OverlayHandle? = None,
+    val navigated: () -> Unit = {}
+)
 
-private class MenuNavigation(private val props: Props<MenuNavigationProps>): Element {
+internal class MenuNavigation(private val props: Props<MenuNavigationProps>): Element {
     private var navigation: KeyNavigation? = None
     private var search: Typeahead? = None
     private fun options(): NavigationOptions {
         val input = props.value
         return NavigationOptions(
-            Array<NavigationItem>(input.popup.focus.handles.size) {
-                index -> NavigationItem(input.popup.focus.handles[index])
+            Array<NavigationItem>(input.focus.handles.size) {
+                index -> NavigationItem(input.focus.handles[index])
             },
-            loop = input.popup.options.loop,
+            loop = input.options.loop,
             onNavigate = { _ -> props.value.navigated() }
         )
     }
     public override fun onMount(scope: ComponentScope) {
         navigation = Some(scope.keyNavigation(options()))
-        val input = props.value.popup
+        val input = props.value
         search =
             Some(
                 scope.typeahead(
                     input.focus,
-                    { props.value.popup.focus.current() },
+                    { props.value.focus.current() },
                     { key -> focusMatch(key) },
                     input.options.typeahead
                 )
@@ -261,7 +275,7 @@ private class MenuNavigation(private val props: Props<MenuNavigationProps>): Ele
                 }
             if (!menuKeyAllowed(key, true))
                 return@addDefaultAction
-            val input = props.value.popup
+            val input = props.value
             if (key.logicalKey == LogicalKey.Named(NamedKey.Tab)) {
                 context.consume()
                 input.chain.tab(key.modifiers.shift)
@@ -271,7 +285,7 @@ private class MenuNavigation(private val props: Props<MenuNavigationProps>): Ele
                     when (backwards) {
                         case Some(reverse) -> if (!input.root && reverse) {
                             context.consume();
-                            input.handle.requestClose()
+                            input.handle!!.requestClose()
                         } else
                             if (input.root)
                                 when (input.chain.horizontal) {
@@ -288,14 +302,14 @@ private class MenuNavigation(private val props: Props<MenuNavigationProps>): Ele
     }
     private fun focusMatch(key: ViewKey) {
         props.value.navigated()
-        props.value.popup.focus.handle(key).requestFocus(FocusOrigin.Keyboard)
+        props.value.focus.handle(key).requestFocus(FocusOrigin.Keyboard)
     }
     public override fun update() {
         navigation!!.options = options()
-        val input = props.value.popup
+        val input = props.value
         search!!.update(
             input.focus,
-            { props.value.popup.focus.current() },
+            { props.value.focus.current() },
             { key -> focusMatch(key) },
             Some(input.options.typeahead)
         )

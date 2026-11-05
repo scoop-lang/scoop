@@ -17,6 +17,19 @@ import scoop.ui.component.dialogFooter as makeDialogFooter
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun <T: Equals<T>> select(
+        value: Binding<T?>,
+        configure: SelectBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeSelect(value, [], configure))
+    }
+    public fun <T: Equals<T>> select(
+        value: Binding<T?>,
+        choices: Array<Choice<T>>,
+        configure: SelectBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeSelect(value, choices, configure))
+    }
     public fun dropdownMenu(
         open: Binding<Boolean>,
         content: MenuContent,

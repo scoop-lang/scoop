@@ -15,18 +15,22 @@ internal class ActionInkProps(
     val style: ButtonStyle,
     val visual: SurfaceVisual,
     val behavior: ActionBehavior,
-    val group: GroupPosition? = None
+    val group: GroupPosition? = None,
+    val labelTarget: FieldTarget? = None
 )
 
 private class ActionDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
 internal class ActionInk(private val props: Props<ActionInkProps>): Element {
+    private var scope: ComponentScope? = None
+    private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
     private var drawing: ActionDrawing? = None
     public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
@@ -39,6 +43,10 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element {
                 control.press.update(PressOptions(value.visual.interaction.enabled), action)
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
+                if (panelPresent(value.labelTarget) && !panelPresent(field))
+                    field =
+                        Some(scope!!.resource { FieldLink(scope!!, control.area, control.focus) })
+                field?.update(value.labelTarget, value.visual.interaction.enabled)
             }
             case Passive -> {}
         }

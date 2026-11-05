@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class SelectItemBuilder internal constructor() {
+    public var content: View? = None
+    public var icon: View? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var style: ButtonStyle = buttonStyle()
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+}
+
+public open class SelectContentBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<SelectEntry<T>>()
+    public fun item(choice: Choice<T>, configure: SelectItemBuilder.() -> Unit = {}) {
+        val b = SelectItemBuilder();
+        b.configure()
+        entries.add(SelectEntry.Item(SelectItem(choice, b.content, b.icon, b.focus, b.style)))
+    }
+    public fun label(key: ViewKey, text: String) {
+        label(key, PanelContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun label(key: ViewKey, content: PanelContent) {
+        entries.add(SelectEntry.Label(key, content))
+    }
+    public fun separator(key: ViewKey) {
+        entries.add(SelectEntry.Separator(key))
+    }
+    public fun group(key: ViewKey, text: String, configure: SelectContentBuilder<T>.() -> Unit) {
+        label(key, text);
+        this.configure()
+    }
+    internal fun content(): SelectContent<T> = SelectContent(entries.toArray())
+}
+
+public class SelectBuilder<T: Equals<T>> internal constructor(): SelectContentBuilder<T>() {
+    public var key: ViewKey = ViewKey.Position
+    public var open: Binding<Boolean>? = None
+    public var placeholder: String = "Select an option"
+    public var unavailableText: String = "Unavailable selection"
+    public var enabled: Boolean = true
+    public var invalid: Boolean = false
+    public var size: SelectSize = SelectSize.Default
+    public var position: SelectPosition = SelectPosition.ItemAligned
+    public var width: Double? = None
+    public var maxHeight: Double = 320.0
+    public var scrollButtons: Boolean = true
+    public var scroll: ScrollState? = None
+    public var style: ButtonStyle = buttonStyle()
+    public var popupStyle: StyleOverride = styleOverride()
+    public var theme: ThemeSource? = None
+    public var fonts: FontCollection? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var labelTarget: FieldTarget? = None
+    public var popupFocus: OverlayFocusOptions = OverlayFocusOptions()
+    public var mode: OverlayMode = OverlayMode.NonModal
+    public var loop: Boolean = true
+    public var typeahead: TypeaheadOptions? = None
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var handle: OverlayHandle? = None
+    public var group: GroupPosition? = None
+    public var valueContent: ((SelectValue<T>) -> View)? = None
+    public var icon: View? = None
+    public var onValueChange: (T?) -> Unit = {}
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
+    public var onClosed: (OverlayCloseReason) -> Unit = {}
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun popupStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        popupStyle = popupStyle.then(styleOverride(configure))
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun popupFocus(configure: OverlayFocusOptionsBuilder.() -> Unit) {
+        popupFocus = popupFocus.copy(configure)
+    }
+    internal fun snapshot(value: Binding<T?>): SelectProps<T> =
+        SelectProps(
+            value,
+            content(),
+            open,
+            placeholder,
+            unavailableText,
+            enabled,
+            invalid,
+            size,
+            position,
+            width,
+            maxHeight,
+            scrollButtons,
+            scroll,
+            style,
+            popupStyle,
+            theme,
+            fonts,
+            focus,
+            labelTarget,
+            popupFocus,
+            mode,
+            loop,
+            typeahead,
+            transition,
+            handle,
+            group,
+            valueContent,
+            icon,
+            onValueChange,
+            onOpenChange,
+            onCloseRequest,
+            onClosed
+        )
+}
+
+public fun <T: Equals<T>> select(
+    value: Binding<T?>,
+    configure: SelectBuilder<T>.() -> Unit = {}
+): View = makeSelect(value, [], configure)
+
+public fun <T: Equals<T>> select(
+    value: Binding<T?>,
+    choices: Array<Choice<T>>,
+    configure: SelectBuilder<T>.() -> Unit = {}
+): View = makeSelect(value, choices, configure)
+
+internal fun <T: Equals<T>> makeSelect(
+    value: Binding<T?>,
+    choices: Array<Choice<T>>,
+    configure: SelectBuilder<T>.() -> Unit
+): View {
+    val b = SelectBuilder<T>()
+    for (choice in choices)
+        b.item(choice)
+    b.configure()
+    return component(b.snapshot(value), { current -> Select(current) }, b.key)
+}

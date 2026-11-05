@@ -54,6 +54,14 @@ public enum OverlayPlacement {
         val viewportPadding: Double = 8.0,
         val matchAnchorWidth: Boolean = false
     ),
+    ContentAligned(
+        val anchor: LayoutAnchor,
+        val preferredSide: OverlaySide = OverlaySide.Bottom,
+        val alignment: OverlayAlignment = OverlayAlignment.Center,
+        val gap: Double = 4.0,
+        val viewportPadding: Double = 8.0,
+        val matchAnchorWidth: Boolean = true
+    ),
     AtPoint(
         val point: Point,
         val preferredSide: OverlaySide = OverlaySide.Bottom,
@@ -90,6 +98,10 @@ public class PortalOptions internal constructor(
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
             }
+            case ContentAligned(_, _, _, gap, padding, _) -> {
+                checkOverlayDistance(gap)
+                checkOverlayDistance(padding)
+            }
             case Anchored(_, _, _, gap, padding, _) -> {
                 checkOverlayDistance(gap)
                 checkOverlayDistance(padding)
@@ -121,6 +133,7 @@ internal val OverlayPlacement.anchor: LayoutAnchor? get() =
         case Viewport(_, _, _) -> None
         case AtPoint(_, _, _, _, _) -> None
         case Anchored(value, _, _, _, _, _) -> Some(value)
+        case ContentAligned(value, _, _, _, _, _) -> Some(value)
     }
 
 internal fun checkOverlayMutation() {
