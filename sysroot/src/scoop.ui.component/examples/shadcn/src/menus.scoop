@@ -1,0 +1,380 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.Insets
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.dropdownMenu as makeDropdown
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.typography as makeTypography
+import scoop.window.*
+
+internal class MenuExamplesModel {
+    val open = state(false)
+    val contextOpen = state(false)
+    val bar = state<ViewKey?>(None)
+    val path = state(false)
+    val split = state(false)
+    val checked = state(true)
+    val appearance = state("System")
+    val enabled = state(true)
+    val reject = state(false)
+    val veto = state(false)
+    val modal = state(false)
+    val narrow = state(false)
+    val confirmation = state(false)
+    val result = state("Choose an action")
+    val count = state(0)
+}
+
+internal fun exampleMenu(model: MenuExamplesModel, gallery: GalleryModel): MenuContent =
+    menu {
+        label(ViewKey.Text("label"), "Workspace", inset = true)
+        item(
+            ViewKey.Text("open"),
+            "Open project",
+            {
+                model.result.value = "Project opened";
+                model.count.value += 1
+            }
+        ) {
+            inset = true
+            shortcut =
+                Some(
+                    ShortcutChord(
+                        ShortcutKey.Logical(LogicalKey.Character("o")),
+                        ShortcutModifiers(primary = true)
+                    )
+                )
+        }
+        item(
+            ViewKey.Text("details"),
+            "Project details",
+            { model.result.value = "Project details selected" }
+        ) {
+            icon =
+                Some(
+                    element(
+                        PanelStatusIconProps(
+                            gallery.source.current.value.tokens.palette.popover.foreground
+                        ),
+                        { current -> PanelStatusIcon(current) }
+                    )
+                )
+        }
+        item(ViewKey.Text("disabled"), "Invite guests", {}) {
+            enabled = false;
+            inset = true
+        }
+        submenu(
+            ViewKey.Text("share"),
+            "Share",
+            menu {
+                item(
+                    ViewKey.Text("copy"),
+                    "Copy link",
+                    { model.result.value = "Copy link selected" }
+                )
+                submenu(
+                    ViewKey.Text("team"),
+                    "Team",
+                    menu {
+                        item(
+                            ViewKey.Text("design"),
+                            "Design team",
+                            { model.result.value = "Shared with Design" }
+                        )
+                        item(
+                            ViewKey.Text("engineering"),
+                            "Engineering",
+                            { model.result.value = "Shared with Engineering" }
+                        )
+                    }
+                )
+            }
+        ) { inset = true }
+        separator(ViewKey.Text("separator"))
+        checkboxItem(ViewKey.Text("checked"), "Show status bar", model.checked.binding())
+        label(ViewKey.Text("themes"), "Appearance")
+        for (name in ["System", "Light", "Dark"])
+            radioItem(ViewKey.Text(name), name, name, model.appearance.binding())
+        separator(ViewKey.Text("delete-separator"))
+        item(ViewKey.Text("delete"), "Delete project", { model.confirmation.value = true }) {
+            destructive = true
+        }
+    }
+
+internal fun menuExamples(
+    model: MenuExamplesModel,
+    fonts: FontCollection,
+    gallery: GalleryModel,
+    demo: Demo
+): View =
+    makeColumn {
+        add(panelHeading(demoTitle(demo), fonts))
+        typography(
+            "Use arrows, type to find a command, and press Enter. Escape closes one layer; Tab leaves the menu.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.enabled.value)
+                    "Disable menus"
+                else
+                    "Enable menus",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.modal.value)
+                    "Mode: Modal"
+                else
+                    "Mode: NonModal",
+                { model.modal.value = !model.modal.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.narrow.value)
+                    "Width: narrow"
+                else
+                    "Width: normal",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (gallery.reduced.value)
+                    "Motion: Reduced"
+                else
+                    "Motion: Full",
+                { gallery.toggleMotion() }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        if (demo == Demo.DropdownMenu) {
+            row {
+                button(
+                    if (model.reject.value)
+                        "Accept binding"
+                    else
+                        "Reject binding",
+                    { model.reject.value = !model.reject.value }
+                ) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                }
+                button(
+                    if (model.veto.value)
+                        "Allow close"
+                    else
+                        "Veto close",
+                    { model.veto.value = !model.veto.value }
+                ) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                }
+                spacing = 8.0
+            }
+            row {
+                dropdownMenu(
+                    binding(
+                        { model.open.value },
+                        {
+                            value -> if (!model.reject.value)
+                                model.open.value = value
+                        }
+                    ),
+                    exampleMenu(model, gallery)
+                ) {
+                    trigger("Open menu")
+                    this.fonts = Some(fonts)
+                    enabled = model.enabled.value
+                    width =
+                        if (model.narrow.value)
+                            144.0
+                        else
+                            224.0
+                    mode =
+                        if (model.modal.value)
+                            OverlayMode.Modal
+                        else
+                            OverlayMode.NonModal
+                    onCloseRequest = { _ -> !model.veto.value }
+                }
+                button("Outside action", { model.count.value += 1 }) { this.fonts = Some(fonts) }
+                spacing = 12.0
+            }
+            breadcrumb {
+                item("Home", { model.result.value = "Home" })
+                custom(
+                    makeDropdown(
+                        model.path.binding(),
+                        menu {
+                            item(
+                                ViewKey.Text("projects"),
+                                "Projects",
+                                { model.result.value = "Projects" }
+                            )
+                            item(
+                                ViewKey.Text("archive"),
+                                "Archive",
+                                { model.result.value = "Archive" }
+                            )
+                        }
+                    ) {
+                        trigger("…") {
+                            variant = ButtonVariant.Ghost;
+                            size = ButtonSize.IconSm
+                        };
+                        this.fonts = Some(fonts)
+                    }
+                )
+                current("Menus")
+                this.fonts = Some(fonts)
+            }
+            row {
+                buttonGroup {
+                    button("Save", { model.result.value = "Saved" }) {
+                        variant = ButtonVariant.Outline
+                    }
+                    item(
+                        {
+                            position -> makeDropdown(
+                                model.split.binding(),
+                                menu {
+                                    item(
+                                        ViewKey.Text("save"),
+                                        "Save a copy",
+                                        { model.result.value = "Copy saved" }
+                                    )
+                                    item(
+                                        ViewKey.Text("export"),
+                                        "Export…",
+                                        { model.result.value = "Export selected" }
+                                    )
+                                }
+                            ) {
+                                trigger("…") { size = ButtonSize.Icon };
+                                group = Some(position);
+                                this.fonts = Some(fonts)
+                            }
+                        }
+                    )
+                    this.fonts = Some(fonts)
+                }
+            }
+        } else
+            if (demo == Demo.ContextMenu) {
+                contextMenu(
+                    makeButton(
+                        "Right-click here · Shift+F10 when focused",
+                        { model.count.value += 1 }
+                    ) {
+                        this.fonts = Some(fonts);
+                        variant = ButtonVariant.Outline
+                        style { surface { padding = Some(Insets.all(32.0)) } }
+                    },
+                    exampleMenu(model, gallery)
+                ) {
+                    open = Some(model.contextOpen.binding())
+                    this.fonts = Some(fonts);
+                    enabled = model.enabled.value
+                    width =
+                        if (model.narrow.value)
+                            144.0
+                        else
+                            224.0
+                    mode =
+                        if (model.modal.value)
+                            OverlayMode.Modal
+                        else
+                            OverlayMode.NonModal
+                }
+                typography(
+                    "The normal click action remains separate from the context menu.",
+                    TypographyRole.Small
+                ) { this.fonts = Some(fonts) }
+            } else {
+                row {
+                    menubar(model.bar.binding()) {
+                        menu(ViewKey.Text("file"), "File", exampleMenu(model, gallery))
+                        menu(
+                            ViewKey.Text("edit"),
+                            "Edit",
+                            menu {
+                                item(ViewKey.Text("undo"), "Undo", { model.result.value = "Undo" })
+                                item(ViewKey.Text("redo"), "Redo", { model.result.value = "Redo" })
+                            }
+                        )
+                        menu(ViewKey.Text("disabled"), "Disabled", MenuContent([])) {
+                            enabled = false
+                        }
+                        menu(
+                            ViewKey.Text("view"),
+                            "View",
+                            menu {
+                                checkboxItem(
+                                    ViewKey.Text("status"),
+                                    "Status bar",
+                                    model.checked.binding()
+                                )
+                                for (name in ["System", "Light", "Dark"])
+                                    radioItem(
+                                        ViewKey.Text(name),
+                                        name,
+                                        name,
+                                        model.appearance.binding()
+                                    )
+                            }
+                        )
+                        this.fonts = Some(fonts);
+                        enabled = model.enabled.value
+                        width =
+                            if (model.narrow.value)
+                                144.0
+                            else
+                                224.0
+                        mode =
+                            if (model.modal.value)
+                                OverlayMode.Modal
+                            else
+                                OverlayMode.NonModal
+                    }
+                }
+            }
+        typography(f"${model.result.value} · Actions: ${model.count.value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        typography(
+            f"Status bar: ${model.checked.value} · Appearance choice: ${model.appearance.value}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        alertDialog(
+            model.confirmation.binding(),
+            makeTypography("This example only changes the local preview.", TypographyRole.P) {
+                this.fonts = Some(fonts)
+            }
+        ) {
+            title("Delete project?");
+            this.fonts = Some(fonts)
+            action(
+                "Delete",
+                {
+                    model.result.value = "Project deleted";
+                    model.confirmation.value = false
+                }
+            ) { variant = ButtonVariant.Destructive }
+        }
+        spacing = 16.0
+        alignment = CrossAlignment.Stretch
+    }

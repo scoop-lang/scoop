@@ -209,6 +209,9 @@ internal class Gallery(
             case Dialog -> dialogExamples(model.dialogs, fonts, model)
             case AlertDialog -> alertDialogExamples(model.confirmations, fonts, model)
             case Sheet -> sheetExamples(model.sheets, fonts, model)
+            case DropdownMenu -> menuExamples(model.menus, fonts, model, value)
+            case ContextMenu -> menuExamples(model.menus, fonts, model, value)
+            case Menubar -> menuExamples(model.menus, fonts, model, value)
         }
 
     private fun controlDemo(value: ControlDemo): View =

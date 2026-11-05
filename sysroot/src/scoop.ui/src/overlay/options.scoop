@@ -35,7 +35,9 @@ public enum OverlayMode {
 
 public struct OverlayFocusOptions(
     val initialFocus: FocusHandle? = None,
-    val restoreFocus: Boolean = true
+    val restoreFocus: Boolean = true,
+    val autoFocus: Boolean = true,
+    val restoreTarget: FocusHandle? = None
 )
 
 public enum OverlayPlacement {
@@ -73,6 +75,10 @@ public class PortalOptions internal constructor(
     public val onClosed: (OverlayCloseReason) -> Unit = { _ -> Unit }
 ) {
     init {
+        requireUi(
+            mode == OverlayMode.NonModal || (focus?.autoFocus ?: true),
+            "focus-constrained overlays require initial focus"
+        )
         requireUi(
             mode != OverlayMode.Modal || dismiss.outsidePress != OutsidePress.CloseAndContinue,
             "modal outside presses cannot continue to the background"

@@ -91,7 +91,15 @@ public open class PortalOptionsBuilder internal constructor(value: PortalOptions
     public fun focus(configure: OverlayFocusOptionsBuilder.() -> Unit = {}): Unit {
         val builder = OverlayFocusOptionsBuilder(focus ?: OverlayFocusOptions())
         builder.configure()
-        focus = Some(OverlayFocusOptions(builder.initialFocus, builder.restoreFocus))
+        focus =
+            Some(
+                OverlayFocusOptions(
+                    builder.initialFocus,
+                    builder.restoreFocus,
+                    builder.autoFocus,
+                    builder.restoreTarget
+                )
+            )
     }
     internal fun snapshot(): PortalOptions =
         PortalOptions(
@@ -148,6 +156,8 @@ public class OverlayDismissBuilder internal constructor(value: OverlayDismiss) {
 public class OverlayFocusOptionsBuilder internal constructor(value: OverlayFocusOptions) {
     public var initialFocus: FocusHandle? = value.initialFocus
     public var restoreFocus: Boolean = value.restoreFocus
+    public var autoFocus: Boolean = value.autoFocus
+    public var restoreTarget: FocusHandle? = value.restoreTarget
 }
 
 public class PointPlacementBuilder internal constructor() {
@@ -166,5 +176,10 @@ public fun OverlayFocusOptions.copy(
 ): OverlayFocusOptions {
     val builder = OverlayFocusOptionsBuilder(this)
     builder.configure()
-    return OverlayFocusOptions(builder.initialFocus, builder.restoreFocus)
+    return OverlayFocusOptions(
+        builder.initialFocus,
+        builder.restoreFocus,
+        builder.autoFocus,
+        builder.restoreTarget
+    )
 }

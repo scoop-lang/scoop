@@ -855,3 +855,21 @@ AlertDialog 不提供外部点击关闭或右上关闭按钮。额外配置 size
 SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布局按当前 LayoutDirection 转为物理侧，不重挂载内容。width: Double?=None 只控制 Start／End 的宽度，默认取视口 75% 与 384 中较小者；height: Double?=None 只控制 Top／Bottom 的高度，默认自然内容高度。垂直侧铺满视口高度，水平侧铺满视口宽度；明确主轴尺寸受视口约束。viewportPadding 默认 0，可显式保留边缘留白；所有尺寸有限且非负。
 
 默认面板采用 popover 配色、直角、内侧 1 边框与 floating 阴影；header／body／footer padding=16，header 标题／描述间距=2，footer 贴近底部，普通正文和 footer 的业务 View 保持原样。关闭按钮放在逻辑 End 上方。默认 200ms 淡入并从对应物理侧向内移动 40，遮罩只随同一 Presence 淡入；Reduced Motion 无动画。侧别、尺寸、主题与方向改变更新同一内容实例及输入变换，关闭恢复遵守 Portal。验收覆盖四边／RTL、可调宽高、滚动和固定操作区、嵌套 Dialog、拒绝关闭、退出重开与借用状态保留。
+
+## 33. DropdownMenu、ContextMenu 与 Menubar
+
+三个入口共享 `MenuContent(entries: Array<MenuEntry>)`、菜单行、roving KeyNavigation、Typeahead、Hover 通路和 Portal。MenuContent 在新快照入口检查同级显式 key 唯一，不以标题作为身份；相同标题合法，子菜单各有独立 key 空间。MenuEntry 为 Action(item, onSelect, closeOnSelect=true)、Checkbox(item, checked: Binding<Boolean>, closeOnSelect=false, onCheckedChange)、Radio(item, isSelected, onSelect, closeOnSelect=false)、Submenu(item, content)、Label(key, content: PanelContent, inset=false)、Separator(key)。MenuItemSpec 保存 key、label（同时作为搜索文字）、enabled=true、destructive=false、inset=false、可选 content／icon／shortcut、FocusOptions 和 ButtonStyle。自定义行正文／图标为非交互 View，唯一 Press 执行动作；Label、Separator 不成为焦点或候选。
+
+`menu { ... }` 用 MenuBuilder 收集 item／checkboxItem／radioItem／submenu／label／separator／add。radioItem 的领域值与 Binding 使用同一 `T: Equals<T>`，内部只封装读取与选择闭包，不把领域值转换成 Any 或字符串；只在 setter 实际采纳变化后通知 onValueChange。Checkbox 同样通知实际采纳值。所有动作读取当前 Props，禁用项不执行；Action／Radio 回调正常返回后才执行 closeOnSelect，异常沿正常 UI 路径传播。选择、悬浮焦点和 open 各自独立，重排保持 keyed 实例／当前焦点，缺失或禁用项不被错误激活。
+
+共同 MenuOptions 保存 width=192（有限非负逻辑长度）、mode=NonModal、loop=true、enabled=true、fonts／theme／style、transition=Inherit、typeahead=700ms 且默认 Unicode casefold 前缀匹配、submenuHover（open=100ms、close=150ms、transit=350ms、padding=6、focus=false）。面板使用 popover 配色、foreground 10% 的 1 边框、8 圆角、4 padding、floating 阴影和 100ms 淡入缩放位移；根／子菜单都受视口约束并滚动显露候选。行文字为 14／20、400，逻辑两侧 6、上下 4、间距 6、6 圆角；inset 为起侧 28；焦点、hover 或子菜单打开使用 accent 配色，destructive 使用 destructive 文字及明／暗 10%／20% 填色。Checkbox／Radio 的 16 check 位于逻辑 End；快捷键显示 window 对同一 ShortcutChord 的平台标签，不自行注册动作。图标、快捷键和指示符保留自然宽度，普通标题使用剩余空间并单行省略；快捷键保持单行及平台标签的 LTR 顺序，不因窄菜单换行。Label 为 12／16、500、muted 色。局部样式最终覆盖，字体尺度来自 Theme。
+
+`dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMenuBuilder.() -> Unit = {})` 构造 DropdownMenuProps／DropdownMenu。trigger 使用 PopupTriggerSpec，外部 anchor 可替代内置 trigger；至少有其一。默认 Bottom／Start、gap=4、viewportPadding=8、anchorVisibility=Close；可配置 handle、OverlayFocusOptions、dismiss、onOpenChange／onCloseRequest／onClosed。触发器是唯一 Button，支持 group: GroupPosition? 与 ButtonGroup 连接表面。普通激活／ArrowDown 进入首个有效项，ArrowUp 进入末项；没有有效项时沿 Portal 的默认焦点退路。非模态外部按下关闭并继续，Modal 消费且禁止 CloseAndContinue。拒绝 setter／veto 保持实际状态，外部赋值不伪造通知。
+
+菜单内 Up／Down／Home／End 导航跳过 disabled 和装饰项，Enter／Space 选择；loop 同时控制菜单行和 Menubar 入口的首尾循环，false 时在边界停留。typeahead 使用现有非编辑逻辑字符协议，不创建 TextEditorState。指针移动将焦点移到可用行，子菜单通过 Hover 延迟及已提交几何走廊打开；悬浮打开使用 autoFocus=false 的焦点会话，不主动移动至子菜单，指针进入后关闭仍按同一会话恢复父行；键盘逻辑 End 进入首项，逻辑 Start 退出子菜单并恢复其父行，RTL 对调左右。Escape 只关闭最内层。Tab／Shift+Tab 请求关闭整条菜单链，保存方向，在根 onClosed 后通过 ComponentScope.moveFocus 从恢复的入口继续；拒绝关闭时保持菜单，退出期间重开清除旧续行意图。所有层共享根关闭请求，不在多个层重复业务回调。
+
+`contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {})` 构造 ContextMenuProps／ContextMenu；open 可选，缺省为该挂载的本地 State，其他菜单选项及回调同上。右键 Press 使用原生事件的窗口逻辑坐标打开 AtPoint，消费此右键动作而不触发原内容主动作；没有有效已提交区域时不打开。Menu 键或 Shift+F10 在焦点所属内容的作用域打开，以已提交内容矩形逻辑起侧下角定位，不猜测未放置几何。包装区域提供 tabStop=false 的焦点退路，原内容的按钮／选择／编辑保留各自输入所有权；键盘打开不覆盖原后代焦点。
+
+`menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {})` 构造 MenubarProps／Menubar；menu(key, trigger, content) 添加 MenubarEntry。外部 None／缺失／禁用 key 保留原值且不打开对应层。trigger 共享横向 roving 导航；关闭时左右只移动焦点，打开时左右／hover 切换菜单，Down／Up 进入首／末项，子菜单方向键优先。切换设置新的菜单 key 并请求聚焦其入口；各根以 OverlayFocusOptions.restoreTarget 指定自己的入口，约束模式阻止提前聚焦时，Escape 后仍恢复当前入口，旧层恢复不得覆盖新意图。hover 切换只响应相应焦点模式允许的背景指针事件。默认横向 2 spacing、含边框的 4 padding、32 高、background 配色、1 border、8 圆角；trigger 为 24 高、6／2 padding、4 圆角的无边框表面，hover／打开使用 muted 配色。宽窄、明暗、RTL 和动态条目变化保留稳定 key。三个入口均有 ChildrenBuilder 真正成员 DSL。
+
+验收覆盖动作／勾选／单选、快捷键标签、重复 key 错误、类型化 DSL、真实 typeahead／roving／Tab 续行、右键及键盘菜单、多根切换、嵌套／悬浮通路、拒绝绑定／veto／最新回调、禁用／零尺寸／重排／卸载、长菜单滚动、主题／RTL、退出重开与静止停帧；Breadcrumb、InputGroup、ButtonGroup 和 Dialog 组合复用同一实现。

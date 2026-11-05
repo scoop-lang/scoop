@@ -1,0 +1,288 @@
+package scoop.tests.ui.menus
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.label as makeLabel
+
+internal class MenuScene(private val p: MenuProbe): Component {
+    private fun choices(): MenuContent {
+        val p = this.p
+        val version = p.version
+        val menu = MenuBuilderForTest(p, version)
+        return menu.content()
+    }
+    public override fun render(): View {
+        val p = this.p
+        return direction(
+            element(
+                p.generation.value,
+                { current -> MenuRootScene(p, current) },
+                [
+                    button("Before", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.before))
+                    },
+                    dropdownMenu(
+                        binding(
+                            {
+                                if (p.replace)
+                                    p.alternate.value
+                                else
+                                    p.open.value
+                            },
+                            {
+                                value -> if (!p.reject) {
+                                    if (p.replace)
+                                        p.alternate.value = value
+                                    else
+                                        p.open.value = value
+                                }
+                            }
+                        ),
+                        choices()
+                    ) {
+                        trigger("Menu") { focus = FocusOptions(Some(p.trigger)) }
+                        width = 220.0;
+                        fonts = Some(p.fonts);
+                        enabled = p.enabled;
+                        mode = p.mode
+                        handle = Some(p.layer)
+                        onOpenChange = { _ -> p.callbacks += 1 }
+                        onCloseRequest = { _ -> !p.veto }
+                        onClosed = { _ -> p.closed += 1 }
+                        if (p.slow)
+                            transition(Some(AnimationSpec.Tween(Duration.milliseconds(600L))))
+                    },
+                    button("After", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.after))
+                    },
+                    contextMenu(
+                        button("Context", { p.contextClicks += 1 }) {
+                            fonts = Some(p.fonts);
+                            focus = FocusOptions(Some(p.contextFocus))
+                        },
+                        menu {
+                            item(ViewKey.Text("context"), "Context action", { p.actions += 1 }) {
+                                focus = FocusOptions(Some(p.contextItem))
+                            }
+                        }
+                    ) {
+                        open = Some(p.contextOpen.binding());
+                        fonts = Some(p.fonts)
+                    },
+                    menubar(p.barOpen.binding()) {
+                        menu(
+                            ViewKey.Text("file"),
+                            observed(p, "File", 4),
+                            menu {
+                                item(ViewKey.Text("new"), "New", { p.actions += 1 }) {
+                                    focus = FocusOptions(Some(p.fileItem))
+                                }
+                            }
+                        ) { focus = FocusOptions(Some(p.file)) }
+                        menu(ViewKey.Text("disabled"), "Disabled", MenuContent([])) {
+                            enabled = false
+                        }
+                        menu(
+                            ViewKey.Text("edit"),
+                            observed(p, "Edit", 5),
+                            menu {
+                                item(ViewKey.Text("undo"), "Undo", { p.actions += 1 }) {
+                                    focus = FocusOptions(Some(p.editItem))
+                                }
+                            }
+                        ) { focus = FocusOptions(Some(p.edit)) }
+                        fonts = Some(p.fonts)
+                        mode = p.mode
+                        loop = p.loop
+                    }
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class MenuBuilderForTest(private val p: MenuProbe, private val version: Int) {
+    private fun action() {
+        p.actions += 1;
+        p.actionVersion = version
+    }
+    fun content(): MenuContent {
+        val p = this.p
+        val select = { action() }
+        return menu {
+            label(ViewKey.Text("label"), "Actions")
+            for (
+                name in if (p.reverse)
+                    ["Beta", "Alpha"]
+                else
+                    ["Alpha", "Beta"]
+            ) {
+                item(ViewKey.Text(name), name, select) {
+                    focus =
+                        FocusOptions(
+                            Some(
+                                if (name == "Alpha")
+                                    p.alpha
+                                else
+                                    p.beta
+                            )
+                        )
+                    if (name == "Beta")
+                        content = Some(component({ RetainedCaption(p) }))
+                }
+                if (name == "Alpha")
+                    item(ViewKey.Text("disabled"), "Blocked", { p.actions += 100 }) {
+                        enabled = false
+                    }
+            }
+            checkboxItem(
+                ViewKey.Text("check"),
+                "Check status",
+                p.checked.binding(),
+                { _ -> p.checkedCalls += 1 }
+            ) { focus = FocusOptions(Some(p.check)) }
+            radioItem(ViewKey.Text("list"), "List", 1, p.selected.binding()) {
+                focus = FocusOptions(Some(p.list))
+            }
+            radioItem(ViewKey.Text("grid"), "Grid", 2, p.selected.binding()) {
+                focus = FocusOptions(Some(p.grid))
+            }
+            submenu(
+                ViewKey.Text("share"),
+                "Share",
+                menu {
+                    item(ViewKey.Text("save"), "Save", select) {
+                        focus = FocusOptions(Some(p.save));
+                        content = Some(observed(p, "Save", 3))
+                    }
+                    submenu(
+                        ViewKey.Text("team"),
+                        "Team",
+                        menu {
+                            item(ViewKey.Text("deep"), "Deep action", select) {
+                                focus = FocusOptions(Some(p.deep))
+                            }
+                        }
+                    ) { focus = FocusOptions(Some(p.team)) }
+                }
+            ) {
+                focus = FocusOptions(Some(p.share));
+                content = Some(observed(p, "Share", 2))
+            }
+            if (p.long)
+                for (index in 0L ..< 30L)
+                    item(ViewKey.Number(index), f"Extra ${index}", {})
+            item(ViewKey.Text("zulu"), "Zulu", select) {
+                focus = FocusOptions(Some(p.zulu));
+                destructive = true
+            }
+        }
+    }
+}
+
+private class RetainedCaption(private val p: MenuProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View = observed(p, "Beta", 1)
+}
+
+private fun observed(p: MenuProbe, text: String, kind: Int): View =
+    element(
+        kind,
+        { current -> MenuObservation(p, current) },
+        [makeLabel(text) { fonts = Some(p.fonts) }]
+    )
+
+private class MenuObservation(private val p: MenuProbe, private val props: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0));
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val captured = MenuBounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    geometry -> captured.value = geometry.toWindow(local)
+                }
+            }
+        }
+        context.children()
+        val kind = props.value
+        val overlay = context.overlayLayout
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted) {
+                val bounds = captured.value
+                when (kind) {
+                    case 1 -> {
+                        p.betaBounds = bounds;
+                        p.popupBounds = overlay!!.bounds
+                    }
+                    case 2 -> p.shareBounds = bounds
+                    case 3 -> p.saveBounds = bounds
+                    case 4 -> p.fileBounds = bounds
+                    else -> p.editBounds = bounds
+                }
+            }
+        }
+    }
+}
+
+private class MenuBounds(var value: Rect)
+
+private class MenuRootScene(private val p: MenuProbe, private val props: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val positions =
+            [
+                Point(20.0, 20.0),
+                Point(20.0, 65.0),
+                Point(260.0, 65.0),
+                Point(20.0, 140.0),
+                Point(20.0, 225.0)
+            ]
+        for (index in 0L ..< 5L) {
+            context.measureChild(
+                index,
+                if (p.zero && index == 1L)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    Constraints(
+                        maxWidth =
+                            Some(
+                                if (index == 4L)
+                                    400.0
+                                else
+                                    180.0
+                            )
+                    )
+            )
+            context.placeChild(index, positions[index])
+        }
+        return LayoutMetrics(constraints.constrain(Size(680.0, 480.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

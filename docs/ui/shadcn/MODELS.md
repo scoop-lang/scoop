@@ -23,9 +23,9 @@ RadioGroup／ToggleGroup 的项描述在 Choice 之外保存各自的内容、�
 
 外部更新后的 selected 不在当前数据源中时，控件保留该值，显示调用方的值文字或明确的“不可用选项”文案；不在 render 中擅自清空 Binding。外部过滤、分页或请求未完成不代表用户撤销选择。数据源的 key／值对应关系在实际元数据接入边界检查，未变数据不每帧重新完整校验。
 
-菜单共享具体的 MenuEntry：Action、Checkbox、Radio、Submenu、Label、Separator。每种 entry 只携带自身需要的动作／Binding／子菜单；Label／Separator 不可激活。普通 Action 成功选择后关闭相应菜单链，Checkbox／Radio 默认保持打开并可显式配置 closeOnSelect。回调失败遵循既有 UI 异常路径，不能伪造成功选择。
+菜单共享具体的 MenuEntry：Action、Checkbox、Radio、Submenu、Label、Separator。MenuContent 是条目快照；同级显式 key 唯一，子级可重复父级 key。每种 entry 只携带自身需要的动作／Binding／子菜单；Label／Separator 不可激活。普通 Action 成功选择后关闭相应菜单链，Checkbox／Radio 默认保持打开并可显式配置 closeOnSelect；Checkbox 只在实际值变化后关闭，Radio 只在目标值确实选中后关闭。`radioItem<T: Equals<T>>` 把领域比较和写入保存在有类型的闭包中，不扩展统一值容器。回调失败遵循既有 UI 异常路径，不能伪造成功选择。
 
-DropdownMenu、ContextMenu、Menubar 共用菜单行、导航和子菜单开关逻辑；不同之处是打开方式和父级导航。父／子菜单使用已提交矩形和 Hover corridor，RTL 翻转展开方向。Right／Left 进入／退出子菜单，Escape 只关闭最内层；Tab 退出菜单链并按保存的焦点意图继续。显示快捷键不自动注册全局动作，应用注册同一个 ShortcutChord。
+DropdownMenu、ContextMenu、Menubar 共用菜单行、导航和子菜单开关逻辑；不同之处是打开方式和父级导航。父／子菜单使用已提交矩形和 Hover corridor，RTL 翻转展开方向。键盘打开子菜单后保持实际焦点，悬浮打开不主动抢走父行焦点；Right／Left 进入／退出子菜单，Escape 只关闭最内层。Tab 保存方向，请求根关闭，在根 onClosed 中从恢复的入口调用 moveFocus；拒绝关闭或退出中重开都清除该请求，不合成键盘事件。Menubar 的 Binding<ViewKey?> 是唯一打开值，缺失／禁用的外部 key 不被暗写。显示快捷键不自动注册全局动作，应用注册同一个 ShortcutChord。
 
 Popover 直接持有业务 `Binding<Boolean>`，编辑字段仍用各自 TextEditorState。打开会话与退出动画由 Portal 持有；组件不复制 open，不保存第二份焦点目标或窗口坐标。onOpenChange 仅在 setter 采纳新值后通知；onCloseRequest 可 veto，onClosed 仅在实际移除后通知。退出中重开保留同一内容实例，最终关闭再开创建新内容，外部编辑模型可继续保留草稿。
 

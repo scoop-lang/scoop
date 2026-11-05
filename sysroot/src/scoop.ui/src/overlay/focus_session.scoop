@@ -41,6 +41,7 @@ internal class OverlayFocusSession(
         }
     private var initialPending = true
     private var restoreOnClose = initial.focusOptions?.restoreFocus ?: false
+    private var restoreTarget = initial.focusOptions?.restoreTarget ?: None
     private var closingRevision: ULong? = None
     private var focusLeftBeforeClose = false
     var presented: OverlayFrame? = None
@@ -67,6 +68,7 @@ internal class OverlayFocusSession(
         if (isClosing)
             return
         restoreOnClose = options.focusOptions?.restoreFocus ?: false
+        restoreTarget = options.focusOptions?.restoreTarget ?: None
         group.options =
             FocusScopeOptions(
                 loop = constrained,
@@ -147,7 +149,11 @@ internal class OverlayFocusSession(
         if (!initialPending || isClosing || !wasPresented(frame) || !isCurrentFocus)
             return
         initialPending = false
-        if (openingRevision == root.surface.focusRevision)
+        if (
+            (portal.options.focusOptions?.autoFocus ?: false) &&
+                openingRevision ==
+                root.surface.focusRevision
+        )
             group.requestFocus()
     }
     fun restore() {
@@ -160,6 +166,10 @@ internal class OverlayFocusSession(
         )
             return
         val candidates = ArrayList<FocusHandle>()
+        when (restoreTarget) {
+            case Some(handle) -> candidates.add(handle)
+            case None -> {}
+        }
         when (saved) {
             case Some(handle) -> candidates.add(handle)
             case None -> {}
@@ -171,6 +181,10 @@ internal class OverlayFocusSession(
             if (!prior.finished)
                 break
             if (prior.restoreOnClose) {
+                when (prior.restoreTarget) {
+                    case Some(handle) -> candidates.add(handle)
+                    case None -> {}
+                }
                 when (prior.saved) {
                     case Some(handle) -> candidates.add(handle)
                     case None -> {}

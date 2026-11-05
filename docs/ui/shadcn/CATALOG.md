@@ -68,7 +68,7 @@
 | [Alert Dialog](https://ui.shadcn.com/docs/components/alert-dialog) | `alertDialog(open, content)`；action／cancel／media | 响应式尺寸、媒体、破坏性确认；默认聚焦取消，外部点击不关闭，Escape 走取消；提交中保持打开由应用决定 | P4 |
 | [Sheet](https://ui.shadcn.com/docs/components/sheet) | `sheet(open, content)`；header／footer／close | Top／Bottom／Start／End 侧边面板、不同宽高、滚动、模态与退出；RTL 下逻辑侧正确，区别于有拖动／snap 的 Drawer | P4 |
 | [Drawer](https://ui.shadcn.com/docs/components/drawer) | `drawer(open, content)`；swipeHandle／viewport／popup | 四方向拖动、垂直 snap points、嵌套、受控 snap、Modal／NonModal／FocusContained；滚动内容与拖动接管、取消回弹、窗口缩放重新定位 | P6 |
-| [Dropdown Menu](https://ui.shadcn.com/docs/components/dropdown-menu) | `dropdownMenu`；trigger／item／checkboxItem／radioGroup／sub／label／separator／shortcut | 动作、disabled、destructive、勾选／单选、子菜单；typeahead、roving 焦点、关闭策略、层间键盘与悬浮通路 | P5 |
+| [Dropdown Menu](https://ui.shadcn.com/docs/components/dropdown-menu) | `dropdownMenu`；trigger／item／checkboxItem／radioItem／submenu／label／separator／shortcut | 动作、disabled、destructive、勾选／单选、子菜单；typeahead、roving 焦点、关闭策略、层间键盘与悬浮通路 | P5 |
 | [Context Menu](https://ui.shadcn.com/docs/components/context-menu) | `contextMenu(content, menu)` | 共享菜单模型，以右键坐标或键盘菜单键／Shift+F10 打开；无可用几何不猜坐标；右键不触发内容主动作 | P5 |
 | [Menubar](https://ui.shadcn.com/docs/components/menubar) | `menubar`；menu／trigger／content | 多个共享菜单根、横向切换、纵向菜单、子菜单、checkbox／radio／快捷键；一次 Escape 关闭正确层，随后焦点回到正确入口 | P5 |
 | [Toast](https://ui.shadcn.com/docs/components/toast) | `toaster(state)`；ToastState.show／update／dismiss；title／description／action | Default／Success／Info／Warning／Error／Loading、六位置、堆叠／排队、动作／滑动关闭、定时暂停及异步状态更新；每窗口显式宿主，无全局总线 | P6 |

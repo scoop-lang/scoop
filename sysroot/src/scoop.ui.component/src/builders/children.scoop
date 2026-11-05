@@ -17,6 +17,23 @@ import scoop.ui.component.dialogFooter as makeDialogFooter
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun dropdownMenu(
+        open: Binding<Boolean>,
+        content: MenuContent,
+        configure: DropdownMenuBuilder.() -> Unit = {}
+    ) {
+        add(makeDropdownMenu(open, content, configure))
+    }
+    public fun contextMenu(
+        content: View,
+        menu: MenuContent,
+        configure: ContextMenuBuilder.() -> Unit = {}
+    ) {
+        add(makeContextMenu(content, menu, configure))
+    }
+    public fun menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {}) {
+        add(makeMenubar(open, configure))
+    }
     public fun dialog(
         open: Binding<Boolean>,
         content: View,

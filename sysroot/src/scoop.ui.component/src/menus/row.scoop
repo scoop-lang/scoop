@@ -1,0 +1,356 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.window.*
+import scoop.ui.component.row as menuRow
+import scoop.ui.component.label as menuLabel
+import scoop.ui.component.button as menuButton
+import scoop.ui.component.frame as menuFrame
+import scoop.ui.direction as menuDirection
+
+internal class MenuRowProps(
+    val entry: MenuEntry,
+    val options: MenuOptions,
+    val theme: Theme,
+    val focus: FocusHandle?,
+    val open: Binding<Boolean>,
+    val chain: MenuChain
+)
+
+internal class MenuRow(private val props: Props<MenuRowProps>): Component {
+    private val anchor = LayoutAnchor()
+    private val link = HoverPopupLink()
+    private val submenu = OverlayHandle()
+    private val candidates = MenuFocus()
+    private val keyboard = state(false)
+    private val highlighted = state(false)
+    private val window = state<Window?>(None)
+    private val open =
+        binding({ props.value.open.value }, { value -> props.value.open.value = value })
+    private val portalOpen =
+        binding(
+            { open.value },
+            {
+                value -> if (value)
+                    open.value = true
+                else
+                    link.dismiss { open.value = false }
+            }
+        )
+    public override fun onMount(scope: ComponentScope) {
+        window.value = Some(scope.nativeWindow)
+    }
+    private fun enter() {
+        if (!(menuItem(props.value.entry)?.enabled ?: false) || !props.value.options.enabled)
+            return
+        keyboard.value = true
+        open.value = true
+        candidates.edge(false)?.requestFocus(FocusOrigin.Keyboard)
+    }
+    private fun activate() {
+        val input = props.value
+        if (!input.options.enabled)
+            return
+        when (input.entry) {
+            case Submenu(_, _) -> enter()
+            else -> if (activateMenu(input.entry))
+                input.chain.close()
+        }
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = input.theme
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        when (input.entry) {
+            case Label(_, content, inset) -> return menuFrame(
+                panelCaption(
+                    content,
+                    theme.tokens.typography.body.copy {
+                        fontSize = 12.0 * density
+                        lineHeight = Some(16.0 / 12.0)
+                        weight = 500
+                        color = theme.tokens.palette.muted.foreground
+                    },
+                    input.options.fonts
+                )
+            ) {
+                logicalPadding =
+                    Some(
+                        LogicalInsets(
+                            (
+                                if (inset)
+                                    28.0
+                                else
+                                    6.0
+                            ) *
+                                density,
+                            4.0 * density,
+                            6.0 * density,
+                            4.0 * density
+                        )
+                    )
+                alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            }
+            case Separator(_) -> return panelFrame(
+                separator { thickness = 1.0 },
+                Insets(0.0, 4.0 * density, 0.0, 4.0 * density)
+            )
+            else -> {}
+        }
+        val item = menuItem(input.entry)!!
+        val active = highlighted.value || input.open.value
+        val color =
+            if (item.destructive)
+                theme.tokens.palette.destructive.background
+            else
+                if (active)
+                    theme.tokens.palette.accent.foreground
+                else
+                    theme.tokens.palette.popover.foreground
+        val base =
+            theme.tokens.typography.body.copy {
+                fontSize = 14.0 * density;
+                lineHeight = Some(20.0 / 14.0);
+                weight = 400;
+                this.color = color
+            }
+        val text = item.style.text?.resolve(base) ?: base
+        val isSub =
+            when (input.entry) {
+                case Submenu(_, _) -> true;
+                else -> false
+            }
+        val checked = menuChecked(input.entry)
+        val indicator =
+            when (input.entry) {
+                case Checkbox(_, _, _, _) -> true
+                case Radio(_, _, _, _) -> true
+                else -> false
+            }
+        val native = window.value
+        val child =
+            menuRow {
+                when (item.icon) {
+                    case Some(icon) -> this.item(panelSlot(icon, 0L)) { shrink = 0.0 }
+                    case None -> {}
+                }
+                this.item(
+                    panelSlot(
+                        item.content ?:
+                            menuLabel(
+                                styledText {
+                                    style = text;
+                                    this.text(item.label)
+                                }
+                            ) {
+                                fonts = input.options.fonts
+                                settings =
+                                    Some(
+                                        paragraphStyle {
+                                            maxLines = Some(1L);
+                                            ellipsis = "…"
+                                        }
+                                    )
+                            },
+                        1L
+                    )
+                ) { grow = 1.0 }
+                when (item.shortcut) {
+                    case Some(chord) -> when (native) {
+                        case Some(value) -> this.item(
+                            panelSlot(
+                                menuDirection(
+                                    menuLabel(
+                                        styledText {
+                                            style =
+                                                text.copy {
+                                                    fontSize = 12.0 * density
+                                                    this.color =
+                                                        if (active)
+                                                            text.color
+                                                        else
+                                                            theme.tokens.palette.muted.foreground
+                                                }
+                                            this.text(shortcutCaption(value.shortcutLabel(chord)))
+                                        }
+                                    ) {
+                                        fonts = input.options.fonts
+                                        settings = Some(paragraphStyle { maxLines = Some(1L) })
+                                    },
+                                    LayoutDirection.Ltr
+                                ),
+                                2L
+                            )
+                        ) { shrink = 0.0 }
+                        case None -> {}
+                    }
+                    case None -> {}
+                }
+                if (isSub)
+                    this.item(
+                        panelSlot(
+                            navigationIcon(NavigationGlyph.End, 16.0 * density, text.color),
+                            3L
+                        )
+                    ) { shrink = 0.0 }
+                else
+                    if (indicator)
+                        this.item(
+                            panelSlot(
+                                element(
+                                    MenuCheckProps(checked, 16.0 * density, text.color),
+                                    { current -> MenuCheck(current) }
+                                ),
+                                3L
+                            )
+                        ) { shrink = 0.0 }
+                spacing = 6.0 * density
+                alignment = CrossAlignment.Center
+                if (item.inset && item.style.surface.padding == None)
+                    logicalPadding = Some(LogicalInsets(start = 22.0 * density))
+            }
+        val action =
+            menuButton(child, { activate() }) {
+                enabled = input.options.enabled && item.enabled
+                focus = choiceFocus(item.focus, input.focus!!)
+                variant = ButtonVariant.Ghost
+                style = menuRowStyle(item.style, theme, item.destructive, active)
+                this.theme = input.options.theme
+            }
+        val popup =
+            when (input.entry) {
+                case Submenu(_, content) -> component(
+                    MenuPopupProps(
+                        portalOpen,
+                        content,
+                        input.options,
+                        OverlayPlacement.Anchored(
+                            anchor,
+                            OverlaySide.End,
+                            OverlayAlignment.Start,
+                            0.0,
+                            8.0
+                        ),
+                        submenu,
+                        candidates,
+                        input.chain,
+                        takeFocus = keyboard.value,
+                        link = Some(link),
+                        onClosed =
+                            {
+                                _ ->
+                                keyboard.value = false
+                                link.dismiss()
+                            }
+                    ),
+                    { current -> MenuPopup(current) }
+                )
+                else -> empty()
+            }
+        val hover = input.options.submenuHover
+        return element(
+            MenuRowLayoutProps(
+                anchor,
+                link,
+                open,
+                input.focus!!,
+                HoverOptions(
+                    hover.openDelay,
+                    hover.closeDelay,
+                    hover.transitDelay,
+                    hover.corridorPadding,
+                    (keyboard.value && input.open.value) || hover.focus,
+                    input.options.enabled && item.enabled && isSub && hover.enabled
+                ),
+                {
+                    value -> if (highlighted.value != value)
+                        highlighted.value = value
+                },
+                { enter() },
+                isSub,
+                { keyboard.value = false }
+            ),
+            { current -> MenuRowLayout(current) },
+            [action, popup]
+        )
+    }
+}
+
+internal fun menuRowStyle(
+    local: ButtonStyle,
+    theme: Theme,
+    destructive: Boolean,
+    active: Boolean
+): ButtonStyle {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val fill =
+        if (!active)
+            Color.Transparent
+        else
+            if (destructive)
+                theme.tokens.palette.destructive.background.withAlpha(
+                    if (theme.tokens.mode == ThemeMode.Dark)
+                        0.2
+                    else
+                        0.1
+                )
+            else
+                theme.tokens.palette.accent.background
+    return local.copy {
+        surface {
+            if (suggestedSize == None)
+                suggestedSize = Some(Size(0.0, 28.0 * density))
+            if (minimumSize == None)
+                minimumSize = Some(Size(0.0, 0.0))
+            if (padding == None)
+                padding = Some(Insets(6.0 * density, 4.0 * density, 6.0 * density, 4.0 * density))
+            if (focus == None)
+                focus = Some(OutlineStyle(Color.Transparent, 0.0, 0.0))
+            style =
+                styleOverride {
+                    background(Some(Paint(fill)));
+                    border(None)
+                    corners(Corners.all(6.0 * density));
+                    boxShadows([])
+                }.then(local.surface.style)
+        }
+    }
+}
+
+private class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
+
+private class MenuCheck(private val props: Props<MenuCheckProps>): Element {
+    private var glyph: Path? = None
+    public override fun onMount(scope: ComponentScope) {
+        // Lucide check (ISC), on its original 24-unit grid.
+        glyph =
+            Some(
+                scope.resource {
+                    path {
+                        moveTo(Point(20.0, 6.0));
+                        lineTo(Point(9.0, 17.0));
+                        lineTo(Point(4.0, 12.0))
+                    }
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val size = context.size
+        if (input.checked)
+            context.draw {
+                paint -> paint.canvas.withState {
+                    canvas ->
+                    canvas.scale(size.width / 24.0, size.height / 24.0)
+                    canvas.drawPath(glyph!!, Paint(input.color, PaintingStyle.Stroke, 2.0))
+                }
+            }
+    }
+}

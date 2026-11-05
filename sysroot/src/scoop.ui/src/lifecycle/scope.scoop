@@ -66,6 +66,12 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         root.checkThread()
         return active && root.isOpen
     }
+    /** Continues ordinary Tab navigation from the current focus within this owner. */
+    public fun moveFocus(reverse: Boolean = false): Boolean {
+        checkMounted()
+        checkFocusMutation()
+        return root.focus.moveFrom(node, reverse)
+    }
     private fun checkMounted() {
         if (!isMounted)
             throw IllegalStateException(Some("component is no longer mounted"))

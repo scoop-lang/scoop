@@ -33,6 +33,10 @@ pagination(page: Binding<Long>, pageCount: Long, configure: PaginationBuilder.()
 dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {}): View
 popover(open: Binding<Boolean>, content: View, configure: PopoverBuilder.() -> Unit = {}): View
 tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}): View
+menu(configure: MenuBuilder.() -> Unit): MenuContent
+dropdownMenu(open: Binding<Boolean>, content: MenuContent, configure: DropdownMenuBuilder.() -> Unit = {}): View
+contextMenu(content: View, menu: MenuContent, configure: ContextMenuBuilder.() -> Unit = {}): View
+menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit = {}): View
 toaster(state: ToastState, configure: ToasterBuilder.() -> Unit = {}): View
 messageScroller(source: TranscriptSource, state: MessageScrollState, configure: MessageScrollerBuilder.() -> Unit = {}): View
 questionnaire(state: QuestionnaireState, onSubmit: (QuestionnaireResult) -> Unit, configure: QuestionnaireBuilder.() -> Unit = {}): View
@@ -202,7 +206,7 @@ Breadcrumb 已实现：`breadcrumb { item("Home", navigate); current("Page") }` 
 | FocusContained | 同窗口焦点被约束在层内并循环 Tab；背景 pointer／wheel 仍可执行，背景默认聚焦不突破当前约束 |
 | Modal | 焦点约束加既有 InputBoundary；背景不能接收本窗口输入 |
 
-非模态层也使用现有 focusRevision 的保存／恢复条件；新的显式焦点意图优先，不能在 Escape 或外部点击后抢回刚刚取得的新焦点。FocusContained 只是焦点约束，不伪造一个会吞掉 pointer 的模态边界。嵌套关闭按从内到外收尾；窗口失活不强行激活 OS 窗口。
+OverlayFocusOptions 可用 restoreTarget 指定关闭时优先恢复的目标，不可用时继续原保存目标的退路；Menubar 用它返回当前菜单入口。非模态层也使用现有 focusRevision 的保存／恢复条件；新的显式焦点意图优先，不能在 Escape 或外部点击后抢回刚刚取得的新焦点。FocusContained 只是焦点约束，不伪造一个会吞掉 pointer 的模态边界。嵌套关闭按从内到外收尾；窗口失活不强行激活 OS 窗口。
 
 | 家族 | 默认关闭／焦点策略 |
 | --- | --- |
@@ -251,3 +255,7 @@ ScrollArea 沿用单一 ScrollState／ScrollViewport，增加 `style: StyleOverr
 
 
 P4 模态家族使用 `dialog(open, content)`、`alertDialog(open, content)`、`sheet(open, content)`。标题／说明／header／footer 和 trigger／close 都有类型化槽；DialogFooter 组合普通按钮并在窄宽反向纵排。AlertDialog 默认聚焦取消，action 保留应用动作与关闭决定；Sheet 的 Start／End 随 RTL 解析。滚动正文显式选择 scrollable，可借用 ScrollState，header／footer 保持固定。尺寸、样式和焦点细则见组件规范 §31–32。
+
+P5 菜单家族共用 `MenuContent`／`MenuEntry` 和 `MenuOptions`。`menu { item(key, label, action); checkboxItem(key, label, checked); radioItem(key, label, value, selected); submenu(key, label, content); label(key, text); separator(key) }` 产生有序快照；显式 key 同级唯一，显示文字允许重复。菜单条目接收非交互的 content／icon，自己创建唯一的 Button，`shortcut` 只显示平台标签。单选构建器保留 `T: Equals<T>` 的领域值及 Binding，不以显示文字或 Any 代替。
+
+DropdownMenu 支持内置 trigger 或外部 anchor，group 可接入 ButtonGroup；ContextMenu 包装现有内容，通过右键、Menu 或 Shift+F10 打开，保留原内容的主动作；Menubar 以 `menu(key, trigger, content)` 组合多根菜单和横向 roving 导航。共同默认 NonModal、192 宽、700ms Unicode casefold typeahead，支持 OverlayHandle、关闭 veto、拒绝绑定、悬浮子菜单及 RTL。悬浮展开使用 `OverlayFocusOptions(autoFocus=false)` 保留关闭恢复，键盘展开正常进入首项。Tab 在整条菜单链实际关闭并恢复入口后，调用 `ComponentScope.moveFocus(reverse)` 继续原有焦点导航；退出重开撤销旧的续行意图。完整合同见组件规范 §33。

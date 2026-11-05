@@ -412,6 +412,30 @@ internal class FocusController(private val root: UiRoot): Closeable {
             }
         return explicitFocus(scope, scope.options.fallback)
     }
+    fun moveFrom(owner: MountedNode, reverse: Boolean): Boolean {
+        val handle = capture() ?: return false
+        val target = handle.target ?: return false
+        if (!target.available || !withinFocusScope(target.node, owner))
+            return false
+        var cursor: MountedNode? = Some(target.node)
+        while (true) {
+            val node = cursor ?: return false
+            val group = node.focusScope
+            val atRoot =
+                when (node.parent) {
+                    case Some(_) -> false
+                    case None -> true
+                }
+            if (atRoot || (group?.available ?: false)) {
+                clearPending()
+                return beginSearch(
+                    FocusSearch.tab(node, reverse, atRoot || (group?.options?.loop ?: false)),
+                    FocusOrigin.Keyboard
+                )
+            }
+            cursor = node.parent
+        }
+    }
     fun tab(node: MountedNode, loop: Boolean, context: RoutedEventContext, event: InputEvent) {
         val key =
             when (event) {

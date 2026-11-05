@@ -131,3 +131,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `popover(open.binding(), content) { trigger("Open"); title("Details") }` 提供真实可编辑的锚点弹层。mode 选择 NonModal／FocusContained／Modal，focus 独立配置；非模态外部点击继续执行，FocusContained 保留背景 pointer／wheel 并约束焦点，Modal 阻挡背景输入。支持外部 anchor、嵌套内容、业务关闭 veto、拒绝绑定、定位翻转、退出重开和减少动态；`tests-cones/popover` 验证真实键盘、指针、编辑与生命周期。
 
 `dialog(open, content)`、`alertDialog(open, content)` 与 `sheet(open, content)` 提供同一 Portal 模态域中的表单、确认和四边侧板。共同配置保存在 ModalOptions，DSL 展开配置成员；支持原生输入、固定 header／footer、可借用 ScrollState 的滚动正文、嵌套焦点恢复、veto 与拒绝绑定。DialogFooter 在窄宽反向纵排；AlertDialog 默认聚焦取消，action 不替应用关闭；Sheet 的 Start／End 随 RTL 变化。`tests-cones/modal-family` 定向覆盖这些真实窗口行为。
+
+`menu { ... }` 构建显式 key 的 MenuContent，支持动作、勾选、类型化单选、嵌套子菜单、标签、分隔线和快捷键标签。`dropdownMenu(open, content)` 使用普通 trigger 或外部 anchor；`contextMenu(content, menu)` 包装原内容并提供右键／Shift+F10；`menubar(open) { menu(key, text, content) }` 提供横向入口导航。三者共用真实焦点、Unicode typeahead、Hover 通路及 Portal 生命周期，支持受控拒绝、关闭 veto、Tab 续行、RTL 和长菜单滚动。`tests-cones/menus` 覆盖原生窗口输入及保留行为。

@@ -1,6 +1,6 @@
 # shadcn 控件实施记录
 
-分支：`codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
+当前分支：`codex/shadcn-menus-and-selection`，承接 `codex/shadcn-components`。按 [设计](DESIGN.md) 的 P0–P9 顺序推进；本轮只在 macOS 验证，最终补 x86_64 Rosetta。每个独立变更验证后提交、推送并合并 `origin/main`。尚未完成的目录项不计为交付。
 
 ## P0a：完整配色与主题
 
@@ -213,3 +213,10 @@
 - 修订组件规范 §31，移除页脚动作排列和 AlertDialog 标题排列的多余矩形裁剪。正文已有的 16 内边距归入滚动内容，视口包含这段留白；控件自身的测量尺寸、位置与焦点环 outset 算法保持一致，环的边框宽度不重复计入外扩。
 - macOS aarch64 release：组件及模态／Gallery tests 静态检查、生产库和 Gallery 构建通过。既有 44 阶段模态实窗回归通过，新增实际 Canvas 裁剪后完整焦点环范围的断言，覆盖普通正文、窄宽页脚、滚动及 Sheet；原有焦点恢复、四边／RTL、零尺寸与卸载继续通过。Gallery 实查 System 浅色 AlertDialog 取消按钮、Sheet 普通输入及 System 深色长滚动输入，确认四边完整且滚动条不再覆盖输入框外环。
 - 本批是既有组件修复，目录仍为 **40／64**，后续继续 P5。清理本轮模态测试输出、日志和独立锁，保留共享构建缓存及继续使用的 Gallery。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P5a：DropdownMenu／ContextMenu／Menubar
+
+- 先补齐组件规范 §33，交付共享 MenuContent／MenuEntry、类型化勾选／单选、菜单行和三个入口的真实成员 DSL。复用 KeyNavigation、Typeahead、Hover、ScrollControl 与 Portal，覆盖嵌套子菜单、右键／键盘菜单、横向菜单栏、当前 Binding／回调和关闭策略；普通点击、选择值、活动焦点和打开状态各有明确归属。
+- UI 增加 ComponentScope.moveFocus，用于根菜单关闭并恢复入口后的 Tab 续行；OverlayFocusOptions 的 autoFocus=false 保留悬浮子菜单的关闭恢复，restoreTarget 使 Modal／FocusContained 菜单栏返回当前入口，沿用原有焦点会话和 revision。行缩进在测量时按逻辑方向解析，窄宽保留图标／快捷键的自然宽度并省略标题；修正同值高亮发布引起的持续刷新，loop=false 的菜单栏在首尾停留。
+- macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过。5 项 UI 配置／定位测试、5 项菜单模型／DSL 测试及 1 项 **72 阶段实窗测试**通过；实窗覆盖真实键鼠、两层子菜单、Tab 续行、关闭拒绝／重开、重排与实例保留、长列表显露、深色／RTL、三种焦点模式、打开及关闭后的停帧、禁用／零尺寸和卸载。原生测试等待真实系统焦点，执行时需要宿主应用在前台，不放宽焦点门槛。
+- Gallery 实查浅色 System、深色 Neutral、窄宽与 RTL、图标／缩进／快捷键、菜单栏完整动画和当前入口恢复；补齐 Breadcrumb 省略路径、ButtonGroup split action、右键保留主动作及菜单进入 AlertDialog 的组合，取消按钮焦点环完整。累计 **43／64**，P5 后续为 Select、Combobox、Command 与 NavigationMenu。清理一次性菜单窗口测试输出、日志及独立检查锁，保留共享缓存、生产库、Gallery 和已下载参考；没有重复全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

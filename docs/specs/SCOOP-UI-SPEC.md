@@ -375,6 +375,8 @@ ScrollViewport.paintCache 在逻辑阶段整体更新，默认 None，改变后�
 
 ### 7.3 输入与焦点接入
 
+`ComponentScope.moveFocus(reverse: Boolean = false): Boolean` 从本作用域内当前逻辑焦点继续一次 Tab／Shift+Tab 遍历。没有本作用域内的有效焦点时返回 false；有效时从目标最近的 FocusScope 开始，沿用其 loop、父级续行、roving、lazy 显露、唯一 pending 与 FocusOrigin.Keyboard。它不合成键盘事件，不激活 OS 窗口，也不跨越当前焦点域；返回 true 表示请求已被接受。只能在逻辑／输入／完成回调阶段调用。菜单在 Portal 的 onClosed（焦点域已释放且正常恢复已尝试）中消费保存的 Tab 方向；新焦点已离开原 owner 时不抢回焦点。
+
 Element 在 onMount 中通过 `scope.createArea(focusable, textInput, parent, handler)` 创建稳定的 Surface InputArea，作用域登记其生命周期。处理器使用 RoutedEventContext／InputEvent；传播和默认行为通过 area.scope 的 handler／captureHandler／defaultAction 设置。框架不将原始事件解释为 Button 的 onClick。
 
 ComponentScope.input 提供该挂载的稳定 InputScope，按需创建并沿逻辑挂载祖先连接；根挂载使用 SurfaceWindow.input。createArea 的 parent: InputArea? 缺省 None，连接本挂载的 input；显式父区域须属于同一挂载，允许通过该挂载自己的区域嵌套，不能穿过另一个挂载的 InputScope。未使用输入的子树不为此预建全部 scope。作用域退休时立即退出路由，资源仍按既有子先父次序关闭。
@@ -580,7 +582,7 @@ AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现�
 
 OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-OverlayFocusOptions 为 initialFocus=None、restoreFocus=true，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true、restoreTarget=None，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。NonModal 可显式设置 autoFocus=false，只跳过本次打开的初始聚焦，仍保留同一会话的关闭恢复；悬浮子菜单用它在指针进入后恢复父行，不另存焦点状态。autoFocus=false 不适用于两个约束模式，构造 PortalOptions 时报告参数错误。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。restoreTarget 可明确指定关闭时优先恢复的 FocusHandle；目标不可用时继续原保存目标及前驱会话的退路，所有候选仍受原焦点域、focusRevision 和已移到外部焦点的条件约束。它不主动切换焦点，也不绕过较新的显式焦点意图；进入退出阶段后恢复选项保持该次关闭快照。Menubar 用当前入口作为恢复目标，处理约束模式下不能提前聚焦其他入口的切换。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
 
 退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 

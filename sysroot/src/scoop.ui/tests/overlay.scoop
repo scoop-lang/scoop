@@ -100,6 +100,33 @@ private class OverlayPlacementTest {
 
     @Test
     fun `overlay configuration rejects invalid distances and references stay on their owner thread`() {
+        val restore = FocusHandle()
+        val pointerFocus =
+            overlayFocusOptions {
+                autoFocus = false;
+                restoreTarget = Some(restore)
+            }
+        assertFalse(pointerFocus.autoFocus)
+        assertTrue(pointerFocus.restoreFocus)
+        assertTrue(pointerFocus.copy { restoreFocus = false }.restoreTarget!! === restore)
+        val pointerPopup =
+            portalOptions {
+                focus {
+                    autoFocus = false;
+                    restoreTarget = Some(restore)
+                }
+            }
+        assertFalse(pointerPopup.focus!!.autoFocus)
+        val copy = pointerPopup.copy { focus { restoreFocus = false } }.focus!!
+        assertFalse(copy.autoFocus)
+        assertTrue(copy.restoreTarget!! === restore)
+        for (mode in [OverlayMode.FocusContained, OverlayMode.Modal])
+            assertFailsWith<IllegalArgumentException> {
+                portalOptions {
+                    this.mode = mode;
+                    focus = Some(pointerFocus)
+                }
+            }
         assertFailsWith<IllegalArgumentException> {
             portalOptions { this.placement = OverlayPlacement.Viewport(viewportPadding = -1.0) }
         }

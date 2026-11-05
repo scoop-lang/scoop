@@ -328,9 +328,9 @@ private class PanelPlus(private val props: Props<Color>): Element {
     }
 }
 
-private struct PanelStatusIconProps(val color: Color, val warning: Boolean = false)
+internal struct PanelStatusIconProps(val color: Color, val warning: Boolean = false)
 
-private class PanelStatusIcon(private val props: Props<PanelStatusIconProps>): Element {
+internal class PanelStatusIcon(private val props: Props<PanelStatusIconProps>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
         LayoutMetrics(constraints.constrain(Size(16.0, 16.0)))
     public override fun scene(context: SceneContext) {

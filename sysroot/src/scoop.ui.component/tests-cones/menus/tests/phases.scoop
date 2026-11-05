@@ -1,0 +1,416 @@
+package scoop.tests.ui.menus
+
+import scoop.surface.FocusOrigin
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun menuStep(p: MenuProbe) {
+    if (p.phase < 18)
+        menuKeyboard(p)
+    else
+        if (p.phase < 32)
+            menuUpdates(p)
+        else
+            if (p.phase < 45)
+                menuRoots(p)
+            else
+                menuFinal(p)
+}
+
+private fun menuKeyboard(p: MenuProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 440.0));
+            p.focusMenu()
+        }
+        case 1 -> {
+            assertTrue(p.open.value);
+            assertTrue(p.alpha.hasFocus);
+            p.key(125)
+        }
+        case 2 -> {
+            assertTrue(p.beta.hasFocus);
+            assertFalse(p.frames!!.snapshot().required);
+            p.key(8, "c")
+        }
+        case 3 -> {
+            assertTrue(p.check.hasFocus);
+            p.key(49, " ")
+        }
+        case 4 -> {
+            assertTrue(p.checked.value);
+            assertEquals(1, p.checkedCalls);
+            assertTrue(p.open.value);
+            p.key(125)
+        }
+        case 5 -> {
+            assertTrue(p.list.hasFocus);
+            p.key(125)
+        }
+        case 6 -> {
+            assertTrue(p.grid.hasFocus);
+            p.key(49, " ")
+        }
+        case 7 -> {
+            assertEquals(2, p.selected.value);
+            assertTrue(p.open.value);
+            p.share.requestFocus();
+            p.key(124)
+        }
+        case 8 -> {
+            assertTrue(p.save.hasFocus);
+            p.team.requestFocus();
+            p.key(124)
+        }
+        case 9 -> {
+            assertTrue(p.deep.hasFocus);
+            p.key(53)
+        }
+        case 10 -> {
+            assertFalse(p.deep.isAttached);
+            assertTrue(p.team.hasFocus);
+            p.key(53)
+        }
+        case 11 -> {
+            assertFalse(p.save.isAttached);
+            assertTrue(p.share.hasFocus);
+            p.key(6, "z")
+        }
+        case 12 -> {
+            assertTrue(p.zulu.hasFocus);
+            p.key(36, "\r")
+        }
+        case 13 -> {
+            assertFalse(p.open.value);
+            assertEquals(1, p.actions);
+            assertEquals(1, p.actionVersion);
+            assertTrue(p.trigger.hasFocus);
+            p.key(126)
+        }
+        case 14 -> {
+            assertTrue(p.zulu.hasFocus);
+            p.key(48, "\t")
+        }
+        case 15 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.after.hasFocus);
+            p.focusMenu()
+        }
+        case 16 -> {
+            assertTrue(p.alpha.hasFocus);
+            p.key(48, "\t", 1)
+        }
+        case 17 -> {
+            assertTrue(p.before.hasFocus);
+            p.focusMenu()
+        }
+        else -> throw IllegalStateException(Some("unexpected menu keyboard phase"))
+    }
+}
+
+private fun menuUpdates(p: MenuProbe) {
+    when (p.phase) {
+        case 18 -> {
+            p.beta.requestFocus();
+            p.mountedBefore = p.mounts;
+            p.version = 2;
+            p.reverse = true;
+            p.changed()
+        }
+        case 19 -> {
+            assertTrue(p.beta.hasFocus);
+            assertEquals(p.mountedBefore, p.mounts);
+            p.key(36, "\r")
+        }
+        case 20 -> {
+            assertFalse(p.open.value);
+            assertEquals(2, p.actions);
+            assertEquals(2, p.actionVersion);
+            p.reject = true;
+            p.focusMenu()
+        }
+        case 21 -> {
+            assertFalse(p.open.value);
+            p.reject = false;
+            p.focusMenu()
+        }
+        case 22 -> {
+            assertTrue(p.open.value);
+            p.veto = true;
+            p.key(53)
+        }
+        case 23 -> {
+            assertTrue(p.open.value);
+            p.veto = false;
+            p.reject = true;
+            p.key(53)
+        }
+        case 24 -> {
+            assertTrue(p.open.value);
+            p.reject = false;
+            p.mode = OverlayMode.Modal;
+            p.changed()
+        }
+        case 25 -> {
+            assertTrue(p.open.value);
+            assertFalse(p.after.requestFocus());
+            p.key(48, "\t")
+        }
+        case 26 -> {
+            assertFalse(p.open.value);
+            assertTrue(p.after.hasFocus);
+            p.mode = OverlayMode.NonModal;
+            p.changed();
+            p.focusMenu()
+        }
+        case 27 -> {
+            assertTrue(p.open.value);
+            p.slow = true;
+            p.mountedBefore = p.mounts;
+            p.changed()
+        }
+        case 28 -> p.layer.requestClose()
+        case 29 -> {
+            p.open.value = true;
+            p.changed()
+        }
+        case 30 -> {
+            assertEquals(p.mountedBefore, p.mounts)
+            p.slow = false;
+            p.replace = true;
+            p.alternate.value = true;
+            p.open.value = false
+            p.changed();
+            p.check.requestFocus();
+            p.key(49, " ")
+        }
+        case 31 -> {
+            assertTrue(p.alternate.value);
+            assertFalse(p.open.value);
+            assertFalse(p.checked.value);
+            p.alternate.value = false
+        }
+        else -> throw IllegalStateException(Some("unexpected menu update phase"))
+    }
+}
+
+private fun menuRoots(p: MenuProbe) {
+    when (p.phase) {
+        case 32 -> {
+            assertTrue(p.contextFocus.requestFocus());
+            assertTrue(moveSurfacePointer(p.native!!, 50.0, 150.0));
+            assertEquals(0, menuRightClick(p.native!!, 50.0, 150.0))
+        }
+        case 33 -> {
+            assertTrue(p.contextOpen.value);
+            assertEquals(0, p.contextClicks);
+            assertTrue(p.contextItem.hasFocus);
+            p.key(53)
+        }
+        case 34 -> {
+            assertFalse(p.contextOpen.value);
+            assertTrue(p.contextFocus.hasFocus);
+            p.key(109, "", 1)
+        }
+        case 35 -> {
+            assertTrue(p.contextOpen.value);
+            assertTrue(p.contextItem.hasFocus);
+            p.key(36, "\r")
+        }
+        case 36 -> {
+            assertFalse(p.contextOpen.value);
+            p.click(50.0, 150.0)
+        }
+        case 37 -> {
+            assertEquals(1, p.contextClicks);
+            p.file.requestFocus();
+            p.key(125)
+        }
+        case 38 -> {
+            assertEquals(Some(ViewKey.Text("file")), p.barOpen.value);
+            assertTrue(p.fileItem.hasFocus);
+            p.key(124)
+        }
+        case 39 -> {
+            assertEquals(Some(ViewKey.Text("edit")), p.barOpen.value);
+            assertTrue(p.editItem.hasFocus);
+            p.key(53)
+        }
+        case 40 -> {
+            assertEquals(None, p.barOpen.value);
+            assertTrue(p.edit.hasFocus);
+            p.key(123)
+        }
+        case 41 -> {
+            assertTrue(p.file.hasFocus);
+            p.key(36, "\r")
+        }
+        case 42 -> {
+            assertEquals(Some(ViewKey.Text("file")), p.barOpen.value)
+            assertTrue(
+                moveSurfacePointer(
+                    p.native!!,
+                    p.editBounds.x + p.editBounds.width / 2.0,
+                    p.editBounds.y + p.editBounds.height / 2.0
+                )
+            )
+        }
+        case 43 -> {
+            assertEquals(Some(ViewKey.Text("edit")), p.barOpen.value)
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 440.0));
+            p.key(48, "\t")
+        }
+        case 44 -> {
+            assertEquals(None, p.barOpen.value);
+            assertTrue(p.before.hasFocus)
+            p.enabled = false;
+            p.zero = true;
+            p.alternate.value = true;
+            p.changed()
+        }
+        else -> throw IllegalStateException(Some("unexpected menu root phase"))
+    }
+}
+
+private fun menuFinal(p: MenuProbe) {
+    when (p.phase) {
+        case 45 -> {
+            assertFalse(p.alpha.hasFocus)
+            p.alternate.value = false;
+            p.enabled = true;
+            p.zero = false;
+            p.rtl = true;
+            p.reverse = false
+            p.theme.current.value =
+                shadcnTheme(ThemeMode.Dark) {
+                    tokens { motion { preference = MotionPreference.Reduced } }
+                }
+            p.changed()
+        }
+        case 46 -> p.focusMenu()
+        case 47 -> {
+            assertTrue(p.alternate.value);
+            p.share.requestFocus();
+            p.key(123)
+        }
+        case 48 -> {
+            assertTrue(p.save.hasFocus);
+            p.key(124)
+        }
+        case 49 -> {
+            assertTrue(p.share.hasFocus);
+            p.long = true;
+            p.changed()
+        }
+        case 50 -> assertTrue(p.zulu.requestFocus())
+        case 51 -> {
+            assertTrue(p.zulu.isFocusActive);
+            assertTrue(p.popupBounds.height <= 464.0);
+            p.key(115)
+        }
+        case 52 -> {
+            assertTrue(p.alpha.hasFocus)
+            assertTrue(moveSurfacePointer(p.native!!, p.shareBounds.x + 4.0, p.shareBounds.y + 4.0))
+        }
+        case 53 -> {
+            assertTrue(p.save.isAttached);
+            assertFalse(p.save.hasFocus)
+            assertTrue(moveSurfacePointer(p.native!!, p.saveBounds.x + 4.0, p.saveBounds.y + 4.0))
+        }
+        case 54 -> {
+            assertTrue(p.save.hasFocus);
+            p.key(53)
+        }
+        case 55 -> {
+            assertFalse(p.save.isAttached);
+            assertTrue(p.share.hasFocus);
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 440.0))
+        }
+        case 56 -> assertTrue(
+            moveSurfacePointer(p.native!!, p.shareBounds.x + 4.0, p.shareBounds.y + 4.0)
+        )
+        case 57 -> {
+            assertTrue(p.save.isAttached);
+            assertFalse(p.save.hasFocus);
+            assertTrue(moveSurfacePointer(p.native!!, p.saveBounds.x + 4.0, p.saveBounds.y + 4.0))
+        }
+        case 58 -> {
+            assertTrue(p.save.hasFocus);
+            assertTrue(moveSurfacePointer(p.native!!, 650.0, 440.0))
+        }
+        case 59 -> {
+            assertFalse(p.save.isAttached);
+            assertTrue(p.share.hasFocus);
+            p.alternate.value = false
+        }
+        case 60 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            assertEquals(p.mounts, p.unmounts);
+            p.mode = OverlayMode.Modal;
+            p.changed();
+            assertTrue(p.file.requestFocus());
+            p.key(125)
+        }
+        case 61 -> {
+            assertTrue(p.fileItem.hasFocus);
+            p.key(123)
+        }
+        case 62 -> {
+            assertEquals(Some(ViewKey.Text("edit")), p.barOpen.value);
+            assertTrue(p.editItem.hasFocus);
+            p.key(53)
+        }
+        case 63 -> {
+            assertEquals(None, p.barOpen.value);
+            assertTrue(p.edit.hasFocus);
+            p.mode = OverlayMode.FocusContained;
+            p.changed();
+            p.key(125)
+        }
+        case 64 -> {
+            assertTrue(p.editItem.hasFocus);
+            p.key(124)
+        }
+        case 65 -> {
+            assertEquals(Some(ViewKey.Text("file")), p.barOpen.value);
+            assertTrue(p.fileItem.hasFocus);
+            p.key(53)
+        }
+        case 66 -> {
+            assertEquals(None, p.barOpen.value);
+            assertTrue(p.file.hasFocus);
+            p.loop = false;
+            p.changed();
+            p.key(125)
+        }
+        case 67 -> {
+            assertTrue(p.fileItem.hasFocus);
+            assertFalse(p.frames!!.snapshot().required);
+            p.key(124)
+        }
+        case 68 -> {
+            assertEquals(Some(ViewKey.Text("file")), p.barOpen.value);
+            assertTrue(p.fileItem.hasFocus);
+            p.key(123)
+        }
+        case 69 -> {
+            assertEquals(Some(ViewKey.Text("edit")), p.barOpen.value);
+            assertTrue(p.editItem.hasFocus);
+            p.key(123)
+        }
+        case 70 -> {
+            assertEquals(Some(ViewKey.Text("edit")), p.barOpen.value);
+            assertTrue(p.editItem.hasFocus);
+            p.key(53)
+        }
+        case 71 -> {
+            assertEquals(None, p.barOpen.value);
+            assertTrue(p.edit.hasFocus);
+            p.native!!.requestDestroy()
+        }
+        else -> throw IllegalStateException(Some("unexpected menu final phase"))
+    }
+}
