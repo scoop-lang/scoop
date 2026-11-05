@@ -53,9 +53,6 @@ public class Presence internal constructor(
         if (isClosed)
             throw IllegalStateException(Some("presence is no longer mounted"))
         this.options = options ?: this.options
-        if (desired == open)
-            return
-        desired = open
         val end =
             if (open)
                 PresencePhase.Present
@@ -66,12 +63,25 @@ public class Presence internal constructor(
                 1.0
             else
                 0.0
-        when (
+        val transition =
             if (open)
                 this.options.enter
             else
                 this.options.exit
-        ) {
+        if (desired == open) {
+            when (transition) {
+                case None -> if (
+                    phase == PresencePhase.Entering || phase == PresencePhase.Exiting
+                ) {
+                    motion.snapTo(value)
+                    setPhase(end)
+                }
+                case Some(_) -> {}
+            }
+            return
+        }
+        desired = open
+        when (transition) {
             case Some(spec) -> {
                 setPhase(
                     if (open)

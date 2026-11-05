@@ -431,6 +431,26 @@ public open class ChildrenBuilder internal constructor() {
         add(makeGrid(configure))
     }
 
+    public fun collapsible(
+        open: Binding<Boolean>,
+        content: View,
+        configure: CollapsibleBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeCollapsible(open, content, configure))
+    }
+    public fun <T: Equals<T>> accordion(
+        selected: Binding<T?>,
+        configure: AccordionBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeAccordion(selected, configure))
+    }
+    public fun <T: Equals<T>> accordion(
+        selected: Binding<Array<T>>,
+        configure: AccordionBuilder<T>.() -> Unit = {}
+    ): Unit {
+        add(makeAccordion(selected, configure))
+    }
+
     public fun direction(
         content: View,
         value: LayoutDirection,

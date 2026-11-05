@@ -1,0 +1,133 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.PI
+import scoop.math.min
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as makeRow
+
+/** Non-interactive content for the owning disclosure's single activation target. */
+public class TriggerSpec public constructor(
+    public val content: ButtonContent,
+    public val enabled: Boolean = true,
+    public val indicator: Boolean = true,
+    public val variant: ButtonVariant = ButtonVariant.Ghost,
+    public val style: ButtonStyle? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val fonts: FontCollection? = None
+)
+
+internal fun disclosureTrigger(
+    input: TriggerSpec,
+    enabled: Boolean,
+    fonts: FontCollection?,
+    theme: ThemeSource?,
+    presence: Presence?,
+    open: Boolean,
+    action: () -> Unit
+): View =
+    component(
+        ButtonProps(
+            ButtonContent.Resolved {
+                appearance ->
+                val content =
+                    when (input.content) {
+                        case Label(label) -> ButtonContent.Label(
+                            LabelProps(
+                                label.text,
+                                disclosureFonts(label.fonts, disclosureFonts(input.fonts, fonts)),
+                                label.settings,
+                                label.inlines,
+                                label.theme,
+                                label.baseStyle,
+                                label.underline
+                            )
+                        )
+                        else -> input.content
+                    }
+                makeRow {
+                    this.item(actionContent(content, appearance)) { this.grow = 1.0 }
+                    if (input.indicator)
+                        this.add(
+                            element(
+                                DisclosureArrowProps(
+                                    presence,
+                                    open,
+                                    appearance.iconSize,
+                                    appearance.text.color
+                                ),
+                                { current -> DisclosureArrow(current) }
+                            )
+                        )
+                    this.spacing = appearance.spacing
+                    this.alignment = CrossAlignment.Center
+                }
+            },
+            action,
+            enabled && input.enabled,
+            input.style ?: buttonStyle { this.kind = SurfaceKind.Plain },
+            theme,
+            input.focus,
+            variant = input.variant
+        ),
+        { current -> Button(current) }
+    )
+
+private class DisclosureArrowProps(
+    val presence: Presence?,
+    val open: Boolean,
+    val size: Double,
+    val color: Color
+)
+
+private class DisclosureArrow(private val props: Props<DisclosureArrowProps>): Element {
+    private var outline: Path? = None
+    public override fun onMount(scope: ComponentScope) {
+        // Lucide chevron-down (ISC), using its original 24-unit path; see LICENSE-LUCIDE.
+        outline =
+            Some(
+                scope.resource {
+                    path {
+                        this.moveTo(Point(6.0, 9.0))
+                        this.lineTo(Point(12.0, 15.0))
+                        this.lineTo(Point(18.0, 9.0))
+                    }
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val size = context.size
+        val side = min(size.width, size.height)
+        val angle = disclosureProgress(input.presence, input.open) * PI
+        context.draw {
+            paint -> paint.canvas.withState {
+                canvas ->
+                canvas.translate(size.width / 2.0, size.height / 2.0)
+                canvas.rotate(angle)
+                canvas.scale(side / 24.0, side / 24.0)
+                canvas.translate(-12.0, -12.0)
+                canvas.drawPath(
+                    outline!!,
+                    Paint(
+                        input.color,
+                        PaintingStyle.Stroke,
+                        2.0,
+                        cap = StrokeCap.Round,
+                        join = StrokeJoin.Round
+                    )
+                )
+            }
+        }
+    }
+}
+
+private fun disclosureFonts(primary: FontCollection?, fallback: FontCollection?): FontCollection? =
+    when (primary) {
+        case Some(_) -> primary
+        case None -> fallback
+    }

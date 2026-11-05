@@ -16,7 +16,8 @@ internal fun choiceLayout(
     style: StyleOverride,
     preferred: FocusHandle? = None,
     navigate: (FocusHandle) -> Unit = {},
-    fitCross: Boolean = true
+    fitCross: Boolean = true,
+    roving: Boolean = true
 ): View {
     val slots = Array<GroupSlot>(children.size) { _ -> GroupSlot() }
     val layout =
@@ -42,6 +43,7 @@ internal fun choiceLayout(
             else
                 NavigationLayout.Vertical,
             loop = loop,
+            roving = roving,
             preferredTab = preferred,
             onNavigate = navigate
         )

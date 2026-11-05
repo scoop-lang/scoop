@@ -1,0 +1,121 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class AccordionItemBuilder internal constructor() {
+    public var trigger: TriggerSpec? = None
+    public var retention: ContentRetention? = None
+    public var style: StyleOverride = styleOverride()
+    public fun trigger(text: String, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                makeTrigger(
+                    ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                    ButtonVariant.Link,
+                    configure
+                )
+            )
+    }
+    public fun trigger(text: StyledText, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                makeTrigger(
+                    ButtonContent.Label(LabelProps(LabelText.Styled(text))),
+                    ButtonVariant.Link,
+                    configure
+                )
+            )
+    }
+    public fun trigger(content: View, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger = Some(makeTrigger(ButtonContent.Custom(content), ButtonVariant.Link, configure))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+}
+
+public class AccordionBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<AccordionEntry<T>>()
+    public var enabled: Boolean = true
+    public var loop: Boolean = true
+    public var allowCollapse: Boolean = true
+    public var variant: AccordionVariant = AccordionVariant.Default
+    public var retention: ContentRetention = ContentRetention.Dispose
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var onOpenChange: (T, Boolean) -> Unit = { _, _ -> }
+    public var key: ViewKey = ViewKey.Position
+    public fun add(entry: AccordionEntry<T>) {
+        entries.add(entry)
+    }
+    public fun item(
+        choice: Choice<T>,
+        content: View,
+        configure: AccordionItemBuilder.() -> Unit = {}
+    ) {
+        val builder = AccordionItemBuilder()
+        builder.configure()
+        add(AccordionEntry(choice, content, builder.trigger, builder.retention, builder.style))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(selected: AccordionSelection<T>): AccordionProps<T> =
+        AccordionProps(
+            entries.toArray(),
+            selected,
+            enabled,
+            loop,
+            variant,
+            retention,
+            transition,
+            fonts,
+            theme,
+            style,
+            onOpenChange
+        )
+}
+
+public fun <T: Equals<T>> accordion(
+    selected: Binding<T?>,
+    configure: AccordionBuilder<T>.() -> Unit = {}
+): View = makeAccordion(selected, configure)
+
+public fun <T: Equals<T>> accordion(
+    selected: Binding<Array<T>>,
+    configure: AccordionBuilder<T>.() -> Unit = {}
+): View = makeAccordion(selected, configure)
+
+internal fun <T: Equals<T>> makeAccordion(
+    selected: Binding<T?>,
+    configure: AccordionBuilder<T>.() -> Unit
+): View {
+    val builder = AccordionBuilder<T>()
+    builder.configure()
+    return component(
+        builder.snapshot(AccordionSelection.Single(selected, builder.allowCollapse)),
+        { current -> Accordion(current) },
+        builder.key
+    )
+}
+
+internal fun <T: Equals<T>> makeAccordion(
+    selected: Binding<Array<T>>,
+    configure: AccordionBuilder<T>.() -> Unit
+): View {
+    val builder = AccordionBuilder<T>()
+    builder.configure()
+    return component(
+        builder.snapshot(AccordionSelection.Multiple(selected)),
+        { current -> Accordion(current) },
+        builder.key
+    )
+}

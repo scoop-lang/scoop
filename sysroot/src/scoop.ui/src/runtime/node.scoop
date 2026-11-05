@@ -33,16 +33,24 @@ internal class MountedNode(
     var dependencies: Array<StateSignal> = []
     var metrics: LayoutMetrics? = None
     var placements: Array<Point?> = []
+    private var framesAllowed = true
+    val localFrameEnabled: Boolean get() = framesAllowed
     private var participates = true
     val participatesInFrame: Boolean get() = participates
     var frameEnabled: Boolean = parent?.frameEnabled ?: true
 
+    fun setFrameEnabled(value: Boolean) {
+        if (framesAllowed == value)
+            return
+        framesAllowed = value
+        inheritFrameParticipation(parent?.frameEnabled ?: true)
+    }
     fun setFrameParticipation(value: Boolean) {
         participates = value
         inheritFrameParticipation(parent?.frameEnabled ?: true)
     }
     private fun inheritFrameParticipation(parentEnabled: Boolean) {
-        val next = participates && parentEnabled
+        val next = framesAllowed && participates && parentEnabled
         if (next == frameEnabled)
             return
         frameEnabled = next

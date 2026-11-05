@@ -288,7 +288,7 @@ UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 新描述中的事件处理器随逻辑更新替换。尚未提交新的画面时，保留最近已提交的几何与节点身份，派发使用节点最新的处理器。新节点在首次成功放置前不能命中；已卸载节点立即退出交互，不能为了等下一帧而继续接收事件。这里承诺几何对应最近提交的帧，不承诺处理器保留旧帧捕获的输入值。
 
-普通元素在每次实际呈现中测量其直接子项，LazyElement 则按第 7.8 节只准备和测量所需项；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
+普通元素在每次实际呈现中测量其直接子项，或用 skipChild 明确保留但跳过本轮不呈现的子树；LazyElement 则按第 7.8 节只准备和测量所需项；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
 
 所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。普通元素的子序列使用显式 `Array<View>`，按需元素使用 ItemSource；不把普通 lambda 的未使用表达式冒充 result builder。
 
@@ -329,11 +329,11 @@ public struct LayoutMetrics(
 
 基线是相对元素顶边的有限有符号偏移，文本采用首行基线；None 表示元素没有该基线。外框裁剪不要求基线落在其高度范围内。空内容采用约束下限尺寸和两项 None。Component 原样透传子描述的尺寸与基线；容器可以根据子项偏移给出自己的基线，未定义时返回 None，不隐式扫描后代。框架不扩展成通用 alignment-line 系统。
 
-MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics` 和 `placeChild(index, origin: Point)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项至少成功测量一次，尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
+MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics`、`placeChild(index, origin: Point)` 和 `skipChild(index)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项须成功测量，或在尚未测量时显式 skipChild 一次。skipChild 保留挂载与逻辑更新，本轮不调用该子树的 measure／scene、不复用旧尺寸或放置；同轮随后测量、放置或再次跳过均为状态错误。普通测量尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
 
 子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。普通 Element 的子树放置资格在 Accepted 帧后更新既有 AnimationGroup 的继承开关；未放置时不请求动画帧，重新放置沿原时间轴恢复，失败帧保持上次资格。没有子项放置时即使省略 children() 也执行此收尾，不新增独立时钟或可见性扫描。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
 
-根约束的最小值和最大值均为当前 FrameContext.size，使根填满窗口内容区。Component 将约束原样传给 render 返回的描述，并透明转交绘制；它本身不增加 padding 或对齐策略。子项数量和索引使用 Long，位置为有限 Point，允许显式负偏移。越界、遗漏或重复测量、未测量就放置、重复放置按状态／参数错误报告；测量后不放置是合法结果。
+根约束的最小值和最大值均为当前 FrameContext.size，使根填满窗口内容区。Component 将约束原样传给 render 返回的描述，并透明转交绘制；它本身不增加 padding 或对齐策略。子项数量和索引使用 Long，位置为有限 Point，允许显式负偏移。越界、既未测量也未显式跳过、跳过后又测量或放置、重复跳过、未测量就放置、重复放置按状态／参数错误报告；测量后不放置是合法结果。
 
 测量允许更新由本 Element 拥有的缓存，例如按宽度替换 TextLayout。创建、替换和失败清理必须由同一个所有者完成；不得把待关闭资源存入临时 View。文字 shaping 与断行由 graphics.text 完成，通用段落缓存及行内子项接入见第 7.5 节；Label 选择自己的输入、外观和裁剪策略。
 
@@ -432,6 +432,8 @@ FocusTarget 与 FocusScope 的待聚焦准入使用 InputScope.isInputAllowed：
 元素在 update 或输入处理中调用 animateTo／snapTo／pause 等现有操作，在 measure／scene／draw 中读取已采样的 value。Surface 的统一时间轴负责请求帧、同帧采样、完成回调及隐藏后的时间推进；UI 不另建 timer 或每组件帧循环。框架保证本次测量和绘制使用同一采样时点。需要动画结束后改变组件结构时，由完成回调写 State，排入下一轮逻辑更新。
 
 退出挂载时退休登记动画，停止其后续业务完成回调，并在资源清理阶段关闭。完成回调的挂载有效性遵守与输入相同的规则。Element 普通字段的变化若未经过 State 或 Animatable，应调用 scope.requestFrame；同一轮请求由 Surface 合并。
+
+ComponentScope.isFrameEnabled 是默认 true 的局部帧参与开关，只能在普通更新、输入或完成回调中修改，不能在 render／measure／scene／draw 中修改。false 立即停止此作用域及逻辑后代的动画帧请求和显式 requestFrame；不卸载、不取消逻辑更新、不隐藏当前绘图，也不替代 input.enabled。有效资格同时受祖先开关及 Accepted 放置状态约束，局部 true 不能绕过它们；再次启用沿既有时间轴采样，不另建时钟。折叠退出将该开关放在内容作用域，退出 Presence 的 owner 保留在外层。
 
 ### 7.5 公共文本接入
 
@@ -686,7 +688,7 @@ Drag 在普通传播中记录候选，不消费点击；仅在默认阶段达到
 
 `ComponentScope.presence(open=false, options=PresenceOptions())` 创建随 scope 关闭的 Presence。PresenceOptions 包含 enter／exit: AnimationSpec?=None，无 repeat 或动画编排图；update(open, options) 从当前 Animatable 值转向新目标，相同目标更新不重新开始。phase 为 Absent／Entering／Present／Exiting，isPresent 表示非 Absent，snapshot 为 PresenceSnapshot(phase, progress)，progress 在 0–1 内；phase 的读取通过普通 State 建立依赖，连续进度在 measure／scene 采样。
 
-Presence.update(open, options=None) 中省略的 options 保留当前配置。
+Presence.update(open, options=None) 中省略的 options 保留当前配置。相同目标不会重启动画；若正在 Entering／Exiting，而新配置把当前方向的动画改为 None，则立即采纳终值并收束到 Present／Absent。这使减少动态的热切换能够停止正在进行的过渡。
 
 Presence 只管理呈现值，资源、输入和子树由组合调用方管理，Portal 使用第 7.6 节的规则。默认无动画直接变化；动画复用 scope 的 Surface AnimationGroup、帧参与和 deadline，没有第二个时钟。关闭及 retarget 取消旧完成回调；隐藏窗口也能收束阶段，不留下周期定时器。owner 强制收尾幂等，底层时间轴已经关闭时直接结束内部阶段，不再采样。
 

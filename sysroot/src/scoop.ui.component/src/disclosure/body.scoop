@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+
+internal class DisclosureBodyProps(
+    val presence: Presence?,
+    val open: Boolean,
+    val shown: Boolean,
+    val enabled: Boolean
+)
+
+internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): Element {
+    private var scope: ComponentScope? = None
+    private var revision = 0UL
+    private var clipped = false
+    private var placed = false
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        scope.input.enabled = false
+    }
+    public override fun update() {
+        revision += 1UL
+        val input = props.value
+        if (!input.open || !input.enabled)
+            scope!!.input.enabled = false
+        scope!!.isFrameEnabled = input.open
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        placed = false
+        if (!input.shown) {
+            for (index in 0L ..< context.childCount)
+                context.skipChild(index)
+            return LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 0.0, 0.0)))
+        }
+        val child =
+            context.measureChild(
+                0L,
+                Constraints(minWidth = constraints.minWidth, maxWidth = constraints.maxWidth)
+            )
+        val progress = disclosureProgress(input.presence, input.open)
+        val size = constraints.constrain(Size(child.size.width, child.size.height * progress))
+        clipped = progress < 1.0 || size.width < child.size.width || size.height < child.size.height
+        placed = size.width > 0.0 && size.height > 0.0
+        if (placed)
+            context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        if (clipped)
+            context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+        val current = revision
+        val visible = placed
+        context.onFrameComplete {
+            frame -> if (
+                frame.submission ==
+                    FrameSubmission.Accepted &&
+                    scope!!.isMounted &&
+                    revision ==
+                    current
+            )
+                scope!!.input.enabled = visible && props.value.open && props.value.enabled
+        }
+    }
+}

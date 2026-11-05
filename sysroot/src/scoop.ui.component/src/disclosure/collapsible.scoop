@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum ContentRetention {
+    Dispose, KeepMounted
+}
+
+public class CollapsibleProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: View,
+    public val trigger: TriggerSpec? = None,
+    public val enabled: Boolean = true,
+    public val retention: ContentRetention = ContentRetention.Dispose,
+    public val spacing: Double = 8.0,
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(spacing, "collapsible spacing must be finite and nonnegative")
+    }
+}
+
+public class Collapsible public constructor(private val props: Props<CollapsibleProps>): Component {
+    private val themes = ThemeAccess()
+    private val motion = state<Presence?>(None)
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+        motion.value = Some(scope.presence(props.value.open.value))
+    }
+    private fun toggle() {
+        val input = props.value
+        if (!input.enabled || !(input.trigger?.enabled ?: false))
+            return
+        val previous = input.open.value
+        input.open.value = !previous
+        val accepted = input.open.value
+        if (accepted != previous)
+            props.value.onOpenChange(accepted)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val open = input.open.value
+        val presence = motion.value
+        val shown = open || (presence?.isPresent ?: false)
+        val transition =
+            theme.tokens.motion.resolve(
+                input.transition.resolve(
+                    Some(
+                        AnimationSpec.Tween(
+                            Duration.milliseconds(200L),
+                            Easing.cubicBezier(0.4, 0.0, 0.2, 1.0)
+                        )
+                    )
+                )
+            )
+        val trigger =
+            when (input.trigger) {
+                case Some(value) -> disclosureTrigger(
+                    value,
+                    input.enabled,
+                    input.fonts,
+                    input.theme,
+                    presence,
+                    open,
+                    { toggle() }
+                )
+                case None -> empty()
+            }
+        return panelFrame(
+            element(
+                DisclosureLayoutProps(
+                    presence,
+                    open,
+                    PresenceOptions(transition, transition),
+                    panelPresent(input.trigger),
+                    input.spacing
+                ),
+                { current -> DisclosureLayout(current) },
+                [
+                    trigger,
+                    element(
+                        DisclosureBodyProps(presence, open, shown, input.enabled),
+                        { current -> DisclosureBody(current) },
+                        if (shown || input.retention == ContentRetention.KeepMounted)
+                            [input.content]
+                        else
+                            []
+                    )
+                ]
+            ),
+            visual = input.style
+        )
+    }
+}
+
+public fun collapsible(
+    open: Binding<Boolean>,
+    content: View,
+    configure: CollapsibleBuilder.() -> Unit = {}
+): View = makeCollapsible(open, content, configure)
+
+internal fun disclosureProgress(presence: Presence?, open: Boolean): Double =
+    presence?.snapshot?.progress ?:
+        (
+            if (open)
+                1.0
+            else
+                0.0
+        )

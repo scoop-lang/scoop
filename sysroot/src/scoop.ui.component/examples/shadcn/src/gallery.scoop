@@ -198,6 +198,8 @@ internal class Gallery(
             case Field -> settingsExamples(model.settings, fonts, model.source.current.value)
             case Direction -> directionExamples(model.directions, fonts, model.source.current.value)
             case ScrollArea -> scrollExamples(model.scrolling, fonts, model.source.current.value)
+            case Collapsible -> collapsibleExamples(model.disclosures, fonts)
+            case Accordion -> accordionExamples(model.disclosures, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

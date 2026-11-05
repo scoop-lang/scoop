@@ -163,3 +163,11 @@
 - macOS aarch64 release：6 项布局／几何测试与 3 项真实窗口测试全部通过，包含明暗 shadcn 条几何、圆角与焦点环像素、指针／键盘指示、RTL 换侧与拖动取消、State 替换、禁用、零尺寸恢复、嵌套残量、显露、停帧和生命周期；既有 Direction／VirtualList 回归同时验证 Portal／文本方向、阅读位置、稳定 key 与实例保留。生产控件库、Gallery 构建及相关 Cone 格式／tests 类型检查通过。
 - 首轮窗口用例的零尺寸恢复失败定位为夹具只在 measure 读取尺寸开关，已改为显式 Props 并复验通过。手工复查 Light／System、Dark／System、Dark／Neutral 与 RTL；修正 Gallery 外层裁剪焦点环的留白，以及窄宽配置受父级下限约束的问题。
 - 本批完成 Direction、ScrollArea，目录累计 **29／64**；P3 后续继续 Collapsible、Accordion、Tabs、Breadcrumb、Pagination。未重建编译器或 LLVM，未重复全仓／全部控件测试；一次性窗口、三套本轮 native 测试输出和独立锁清理，生产／Gallery／控件测试产物、共享缓存与下载源保留。7 个 UI 库源码仍无反射描述及 requireClassInstance 直接引用。x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P3b：Collapsible 与 Accordion
+
+- 先补齐 UI／控件规范。Collapsible 使用受控 Boolean、单一 Button／Press 触发器、Lucide 箭头和 Presence 高度过渡；支持 Dispose／KeepMounted、退出中重开、独立程序入口、嵌套、Reduced 热切换与最新绑定／回调。Accordion 复用同一实现，提供 Single／Multiple、禁止全关、Default／Card、稳定 Choice key、普通 Tab 与只移动焦点的方向键导航。
+- KeepMounted 初始关闭仍挂载正文，关闭完成不测量、不放置，继续接收 Props／State 更新。新增 MeasureContext.skipChild 显式表达该布局选择，未测量且未跳过仍报错；同轮跳过后不能再测量或放置。ComponentScope.isFrameEnabled 复用现有 AnimationGroup，关闭内容立即停止其帧请求，退出 Presence 留在外层；输入和 IME 同时撤销，重新打开只在 Accepted 非零几何后恢复输入。
+- macOS aarch64 release：格式与相关 tests 静态检查、7 个生产 UI 库和 Gallery 构建通过；**7 项定向测试全部通过**。4 项纯逻辑测试覆盖选择、拒绝 setter、外部值保留及配置错误；35 步原生窗口测试覆盖工厂次数、局部状态、关闭 Props 更新、IME、退出重开、换绑、Reduced、零尺寸、窗口隐藏、keyed 编辑重排、禁用和停帧，并检查 skipChild 的错误边界。既有 Presence／交互所有权回归及包含 21 个场景的 UI 错误清理回归通过。
+- 首轮实窗发现普通 Element 的“所有子项须测量”与关闭 KeepMounted 的合同冲突，已先修订规范并增加显式跳过操作，再完整复验该窗口。基础库更新期间一次检查遇到并行发布的依赖产物变化，待发布结束后重新检查通过。未放宽生命周期、输入或停帧断言。
+- Gallery 新增两页，实查 Dispose／KeepMounted、加载内容、嵌套、独立触发、分隔线／卡片、键盘焦点环、System／Neutral、明暗和 RTL。API 与 README 同步。本批完成两项，累计 **31／64**，接下来继续 Tabs、Breadcrumb、Pagination；没有重建编译器／LLVM或扩大到全仓／全部控件测试。一次性窗口、三套本轮 native 输出与独立检查锁清理，共享缓存、生产库、Gallery 和下载源保留；Windows／Linux 未验证，x86_64 留在整体收尾。

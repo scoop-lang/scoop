@@ -735,3 +735,34 @@ FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本�
 `fieldSeparator()` 及 String／StyledText／View 内容重载提供分组间的水平线，可配置 fonts／theme、color、style、key。两段 Separator 均分内容以外的宽度，内容两侧间距 8；没有内容时为一条完整线。最小建议高度 20，较高内容自然增高，窄宽和零尺寸遵守约束；颜色默认 border，内容默认 muted.foreground。它不增加输入区域或焦点。
 
 验收包括纵排／横排／实际宽度切换、RTL、窄宽／零尺寸、单／多／重复／空错误、自定义错误与 required 说明、标签／目标换绑、choice card 内外点击仅激活一次、禁用与只读、标题／说明／错误更新保留实例和 IME、keyed 分组重排、嵌套 FieldSet／FieldGroup、静止停帧与卸载收尾。Gallery 提供带校验的设置表单组合 InputGroup、OTP、Checkbox／Radio／Switch 和 Slider；DatePicker 在 P7 接入同一表单。真实窗口行为验收不等于 OS accessibility 认证。
+
+
+## 24. Collapsible 与 Accordion
+
+### 24.1 触发器与受控 Collapsible
+
+`collapsible(open: Binding<Boolean>, content: View, configure: CollapsibleBuilder.() -> Unit = {})` 使用 CollapsibleProps／Collapsible。Props 为 open、content、trigger: TriggerSpec?=None、enabled=true、retention=ContentRetention.Dispose、spacing=8、transition: StyleValue<AnimationSpec?>=Inherit、onOpenChange: (Boolean) -> Unit={}、fonts／theme、style=styleOverride()；builder 同名并有 key。spacing 须有限非负。没有 trigger 时可用外部按钮或程序写入 binding。构造不读取 binding、不挂载内容、不调用回调。
+
+TriggerSpec 包含非交互的 ButtonContent、enabled=true、indicator=true、variant=Ghost、style: ButtonStyle?=None、focus=FocusOptions() 和 fonts=None。TriggerBuilder 配置这些字段，提供 style／focus 配置块。CollapsibleBuilder.trigger 的 String／StyledText／View 重载构造此描述；String／StyledText 使用原有 Label，View 直接组合。实际触发器只有一份 Button／Press／焦点登记，不能把另一个 Button 作为原始 trigger 内容。箭头位于逻辑 End，以同一 Presence 进度旋转，不建立第二个循环动画。调用方可以关闭 indicator 或使用自定义内容。
+
+触发时读取最新 Props 和 binding；禁用不写入，允许时取反当前值，写入后只按 setter 实际采纳的变化调用最新 onOpenChange。外部写入和换绑不回放用户通知，不另存一份业务 open。Space／Enter、指针取消、焦点指示及禁用沿用 Button。根 enabled=false 停用触发器和正文输入，但不更改受控 open 或隐式收起。增删 trigger 保留正文槽。
+
+### 24.2 折叠布局、保留与动画
+
+ContentRetention 为 Dispose／KeepMounted。Dispose 在初始关闭时不创建正文，开始退出时保留正文到 Presence.Absent 后卸载；KeepMounted 即使初始关闭也挂载正文，关闭完成后以 MeasureContext.skipChild 保留但不测量、不放置、不接收输入或 Tab，但继续接收 Props／State 更新。两种模式开始关闭就通过内容作用域撤销输入、指针候选、焦点和 IME，并关闭其帧资格；退出绘图继续由外层 Presence 驱动。不能提前 deactivate 正文或用反射检查其类型。关闭过程中重开复用正文并从当前进度返回；输入在新内容场景 Accepted 且有非零呈现区域后恢复，不恢复关闭前的焦点。最终卸载后重开则创建新实例。
+
+默认过渡为 200ms cubic-bezier(0.4, 0, 0.2, 1)，由 ThemeMotion 解析；显式 StyleValue.Set(None) 或 Reduced 立即达到终值，热切换 Reduced 也收束当前过渡。首次挂载直接呈现受控初值。动画只改变正文可见高度和 trigger／正文间距，不缩放文字；正文以可用宽度及无界高度每轮最多测量一次，取自然高度乘进度，最后服从父约束。正文自身更新或宽度变化重新测量；零尺寸不放置内容，恢复沿原挂载。过渡和约束溢出时绘制／命中共用裁剪，完全展开且未溢出时保留子控件向外的焦点环。关闭完成、不可见和卸载均不保留循环帧请求。保留挂载与像素缓存是两件事。
+
+style 仅装饰根，内容装饰可组合 Frame。默认有限宽度填满，未约束宽度从触发器和正文自然宽度取得；RTL 使用同一子树和逻辑排列，不反转模型。外层显示过渡与正文动画使用各自现有 scope AnimationGroup，不引入新调度器或按帧读取 binding。
+
+### 24.3 Accordion
+
+AccordionSelection<T: Equals<T>> 为 Single(Binding<T?>, allowCollapse=true)／Multiple(Binding<Array<T>>)。`accordion(selected: Binding<T?>) { ... }` 与 `accordion(selected: Binding<Array<T>>) { ... }` 构造同一 AccordionProps<T>／Accordion<T>；Single builder 另有 allowCollapse=true。Props 包含 entries、selected、enabled=true、loop=true、variant=AccordionVariant.Default、retention=Dispose、transition=Inherit、fonts／theme、style 和 onOpenChange: (T, Boolean) -> Unit={}。
+
+AccordionEntry<T> 包含 Choice<T>、必需 content、可选 TriggerSpec、可选 retention 和 style。builder 的 `item(choice, content) { trigger(...); ... }` 收集它们，item 的 trigger 默认使用 Choice.label 作为 heading，采用 Link 触发外观、逻辑 End 箭头和 hover 下划线。每项需显式且唯一的 key，value 也唯一；沿用 Choice 校验。根与项 enabled 共同决定交互。keyed 重排、标题／内容 Props 变化、绑定替换和主题／方向变化按普通描述匹配保留实例，不把 ViewKey 当作类型身份。
+
+Single 展开一项时写入它的 value；allowCollapse=false 只禁止用户关闭当前项，不替调用方选择初值，不改写外部 None、缺失或禁用值。Multiple 只切换目标值，保留其余值和顺序，选中不重复追加，取消移除该值的全部出现。缺失值不呈现面板但不清洗外部数组；disabled 项仍按外部值呈现，只停用交互。每项以 Boolean binding 适配同一 Collapsible 实现，不复制动画和内容保留状态机。onOpenChange 只报告用户实际改变的目标项；Single 隐式关闭的旧项不另发一次用户事件。
+
+所有可用 heading 默认参与普通 Tab；同一根用 KeyNavigation 的非 roving Vertical 规则处理 Up／Down／Home／End，跳过禁用或不可用项，loop 控制首尾环绕，只移动焦点，不改变展开值。Space／Enter 仍由各 heading 的唯一 Press 激活；正文编辑器的按键不被祖先截获。Default 各项间使用 border 分隔，最后一项不画底边；Card 每项使用 card 配色、完整圆角边框与 12 的间距。触发器纵向留白和正文尾部留白默认 10，按 body 字号／14 缩放。
+
+验收覆盖受控 setter 拒绝、换绑和最新回调；默认卸载／KeepMounted 的工厂次数、局部状态、Props 更新、重排与嵌套；关闭途中停止输入／IME／Spinner、重开与 Reduced 热切换、零尺寸、隐藏／恢复、静止和卸载；Single／Multiple、缺失值、禁止全关、禁用跳过、键盘只导航与激活分离；真实 Gallery 组合输入、按钮和加载内容。

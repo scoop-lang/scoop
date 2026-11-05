@@ -1,0 +1,250 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.accordion as makeAccordion
+import scoop.ui.component.collapsible as makeCollapsible
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class DisclosureExamplesModel {
+    val dispose = state(true)
+    val keep = state(true)
+    val nested = state(false)
+    val programmatic = state(false)
+    val enabled = state(true)
+    val busy = state(false)
+    val single = state<Int?>(Some(0))
+    val multiple = state<Array<Int>>([0])
+    val allowCollapse = state(true)
+    val cards = state(false)
+    val reverse = state(false)
+    val mounts = Array<State<Int>>(4L) { _ -> state(0) }
+}
+
+internal fun collapsibleExamples(model: DisclosureExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        this.add(panelHeading("Collapsible", fonts))
+        this.typography(
+            "Edit each draft and increment its counter, then close and reopen. Keep mounted retains both; Dispose starts a new body after the exit finishes.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button(
+                if (model.enabled.value)
+                    "Disable panels"
+                else
+                    "Enable panels",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.busy.value)
+                    "Stop loading"
+                else
+                    "Show loading",
+                { model.busy.value = !model.busy.value }
+            ) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.collapsible(model.dispose.binding(), disclosureDraft(model, 0L, fonts)) {
+            this.trigger("Dispose after exit")
+            this.fonts = Some(fonts)
+            this.enabled = model.enabled.value
+        }
+        this.typography(f"Body mounts: ${model.mounts[0L].value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        this.separator()
+        this.collapsible(
+            model.keep.binding(),
+            makeColumn {
+                this.add(disclosureDraft(model, 1L, fonts))
+                this.collapsible(
+                    model.nested.binding(),
+                    disclosureCaption("Nested content has its own open state.", fonts)
+                ) {
+                    this.trigger("Nested details")
+                    this.fonts = Some(fonts)
+                }
+                this.spacing = 12.0
+            }
+        ) {
+            this.trigger("Keep mounted")
+            this.retention = ContentRetention.KeepMounted
+            this.fonts = Some(fonts)
+            this.enabled = model.enabled.value
+        }
+        this.typography(f"Body mounts: ${model.mounts[1L].value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        this.separator()
+        this.button(
+            "Toggle content without a built-in trigger",
+            { model.programmatic.value = !model.programmatic.value }
+        ) {
+            this.fonts = Some(fonts)
+            this.variant = ButtonVariant.Outline
+        }
+        this.collapsible(
+            model.programmatic.binding(),
+            disclosureCaption("This panel is controlled by the separate button above.", fonts)
+        )
+        this.spacing = 12.0
+        this.padding = Insets.all(16.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+
+internal fun accordionExamples(model: DisclosureExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        this.add(panelHeading("Accordion", fonts))
+        this.typography(
+            "Tab visits each header. Up / Down and Home / End move focus; Space or Enter expands. Reorder the entries while editing to check retained drafts.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button(
+                if (model.cards.value)
+                    "Use dividers"
+                else
+                    "Use cards",
+                { model.cards.value = !model.cards.value }
+            ) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Reorder items", { model.reverse.value = !model.reverse.value }) {
+                this.fonts = Some(fonts)
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.button(
+            if (model.allowCollapse.value)
+                "Allow all closed: Yes"
+            else
+                "Allow all closed: No",
+            { model.allowCollapse.value = !model.allowCollapse.value }
+        ) {
+            this.fonts = Some(fonts);
+            this.variant = ButtonVariant.Outline
+        }
+        this.typography("Single selection", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.add(
+            makeAccordion(model.single.binding()) {
+                for (
+                    value in if (model.reverse.value)
+                        [1, 0, 2]
+                    else
+                        [0, 1, 2]
+                ) {
+                    this.item(
+                        Choice(
+                            ViewKey.Number(value.toLong()),
+                            value,
+                            when (value) {
+                                case 0 -> "Does it preserve my draft?";
+                                case 1 -> "Can I customize the content?";
+                                else -> "Disabled item"
+                            },
+                            value != 2
+                        ),
+                        if (value == 0)
+                            disclosureDraft(model, 2L, fonts)
+                        else
+                            disclosureCaption(
+                                "Any ordinary View can be used as content. The trigger owns its focus and activation.",
+                                fonts
+                            )
+                    )
+                }
+                this.allowCollapse = model.allowCollapse.value
+                this.variant =
+                    if (model.cards.value)
+                        AccordionVariant.Card
+                    else
+                        AccordionVariant.Default
+                this.retention = ContentRetention.KeepMounted
+                this.fonts = Some(fonts)
+            }
+        )
+        this.typography("Multiple selection", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.add(
+            makeAccordion(model.multiple.binding()) {
+                this.item(
+                    Choice(ViewKey.Number(0L), 0, "Independent panels"),
+                    disclosureDraft(model, 3L, fonts)
+                )
+                this.item(
+                    Choice(ViewKey.Number(1L), 1, "Nested disclosure"),
+                    makeCollapsible(
+                        model.nested.binding(),
+                        disclosureCaption(
+                            "Nested transitions use the same motion preference.",
+                            fonts
+                        )
+                    ) {
+                        this.trigger("More details")
+                        this.fonts = Some(fonts)
+                    }
+                )
+                this.variant =
+                    if (model.cards.value)
+                        AccordionVariant.Card
+                    else
+                        AccordionVariant.Default
+                this.retention = ContentRetention.KeepMounted
+                this.fonts = Some(fonts)
+            }
+        )
+        this.spacing = 16.0
+        this.padding = Insets.all(16.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+
+private fun disclosureCaption(text: String, fonts: FontCollection): View =
+    typography(text, TypographyRole.Muted) { this.fonts = Some(fonts) }
+
+private class DisclosureDraftProps(
+    val model: DisclosureExamplesModel,
+    val id: Long,
+    val fonts: FontCollection
+)
+
+private fun disclosureDraft(model: DisclosureExamplesModel, id: Long, fonts: FontCollection): View =
+    component(DisclosureDraftProps(model, id, fonts), { current -> DisclosureDraft(current) })
+
+private class DisclosureDraft(private val props: Props<DisclosureDraftProps>): Component {
+    private val text = TextEditorState("A locally owned draft")
+    private val clicks = state(0)
+    public override fun onMount(scope: ComponentScope) {
+        props.value.model.mounts[props.value.id].value += 1
+    }
+    public override fun render(): View {
+        val input = props.value
+        val count = clicks.value
+        return makeColumn {
+            this.input(this @DisclosureDraft.text) { this.fonts = Some(input.fonts) }
+            this.row {
+                this.button(f"Local count: ${count}", { this @DisclosureDraft.clicks.value += 1 }) {
+                    this.fonts = Some(input.fonts)
+                    this.variant = ButtonVariant.Secondary
+                }
+                if (input.model.busy.value)
+                    this.spinner()
+                this.spacing = 8.0
+                this.alignment = CrossAlignment.Center
+            }
+            this.spacing = 10.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}

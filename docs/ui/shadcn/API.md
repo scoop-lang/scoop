@@ -25,6 +25,8 @@ item(configure: ItemBuilder.() -> Unit = {}): View
 item(content: View, configure: ItemBuilder.() -> Unit = {}): View
 itemGroup(size: ItemSize = ItemSize.Default, configure: ItemGroupBuilder.() -> Unit): View
 collapsible(open: Binding<Boolean>, content: View, configure: CollapsibleBuilder.() -> Unit = {}): View
+accordion(selected: Binding<T?>, configure: AccordionBuilder<T>.() -> Unit = {}): View
+accordion(selected: Binding<Array<T>>, configure: AccordionBuilder<T>.() -> Unit = {}): View
 dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {}): View
 popover(open: Binding<Boolean>, anchor: LayoutAnchor, content: View, configure: PopoverBuilder.() -> Unit = {}): View
 tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}): View
@@ -180,6 +182,8 @@ Item 的 title／description、media／actions、header／footer 都可选；Str
 快捷键统一使用 window 的 ShortcutChord，显示与匹配共用同一值，Primary 不写死为 Command 或 Control。Escape 交给最内层可处理者；文本 composition 活跃时先结束组合，本次按键不继续关闭整个 Dialog。禁止从原始 key event 合成输入文字。
 
 折叠内容使用 `ContentRetention.Dispose／KeepMounted`：默认关闭完成后卸载；KeepMounted 保留同一个子树和状态，但不布局呈现、不接收输入、不参加 Tab。两种模式在开始关闭时都立即撤销内部激活、焦点／IME 和可见动画资格。再次打开按正常 Accepted 几何恢复。保留挂载不等于让不可见 Spinner 一直占用帧。
+
+Collapsible 的 `trigger(String／StyledText／View) { ... }` 构造一份 TriggerSpec，统一由 Button 处理激活、焦点和取消。默认 200ms 高度过渡由 ThemeMotion 解析；关闭途中重开保留当前实例和进度，Reduced 热切换立即收束。Accordion 的 `item(Choice(key, value, label), content) { ... }` 复用 Collapsible，提供 Default 分隔线／Card 外框、单选 `allowCollapse` 和多选；缺失外部值不被清洗。header 逐个参与 Tab，方向键只移动焦点。完整字段、错误和生命周期合同见 UI Component 规范 §24。
 
 ## 5. 弹层合同
 

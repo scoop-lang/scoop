@@ -1,0 +1,271 @@
+package scoop.tests.ui.disclosure
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.collapsible as makeCollapsible
+import scoop.ui.component.accordion as makeAccordion
+import scoop.ui.component.label as makeLabel
+import scoop.ui.component.input as makeInput
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class DisclosureScene(private val p: DisclosureProbe): Component {
+    public override fun render(): View {
+        val generation = p.generation.value
+        val p = this.p
+        val children: Array<View> =
+            if (p.gone)
+                []
+            else
+                [
+                    makeColumn {
+                        for (id in 0L ..< 2L) {
+                            val model =
+                                if (id == 0L && p.rebound)
+                                    p.alternate
+                                else
+                                    p.open[id]
+                            val rebound = p.rebound
+                            this.add(
+                                makeCollapsible(
+                                    binding(
+                                        { model.value },
+                                        {
+                                            value ->
+                                            p.requests += 1
+                                            if (!p.deny)
+                                                model.value = value
+                                        }
+                                    ),
+                                    disclosureContent(p, id, generation)
+                                ) {
+                                    this.trigger(
+                                        disclosureHeader(
+                                            p,
+                                            id,
+                                            if (id == 0L)
+                                                "Dispose"
+                                            else
+                                                "Keep mounted"
+                                        )
+                                    ) { this.focus = FocusOptions(Some(p.headers[id])) }
+                                    this.retention =
+                                        if (id == 0L)
+                                            ContentRetention.Dispose
+                                        else
+                                            ContentRetention.KeepMounted
+                                    this.enabled = p.enabled
+                                    this.fonts = Some(p.fonts)
+                                    this.transition(
+                                        Some(AnimationSpec.Tween(Duration.milliseconds(400L)))
+                                    )
+                                    this.onOpenChange =
+                                        {
+                                            _ -> if (rebound)
+                                                p.reboundCallbacks += 1
+                                            else
+                                                p.callbacks += 1
+                                        }
+                                }
+                            )
+                        }
+                        this.add(disclosureAccordion(p, generation))
+                        this.spacing = 12.0
+                        this.alignment = CrossAlignment.Stretch
+                    }
+                ]
+        return element(
+            generation,
+            { current -> DisclosureRoot(p, current) },
+            [element({ DisclosureStack() }, children), element({ UnmeasuredDisclosureContent() })]
+        )
+    }
+}
+
+private fun disclosureAccordion(p: DisclosureProbe, generation: Int): View {
+    val configure: AccordionBuilder<Int>.() -> Unit =
+        {
+            val order =
+                if (p.reorder)
+                    [1, 0, 2]
+                else
+                    [0, 1, 2]
+            for (value in order) {
+                val id = value.toLong() + 2L
+                this.item(
+                    Choice(ViewKey.Number(id), value, f"Item ${value}", value != 2),
+                    disclosureContent(p, id, generation)
+                ) {
+                    this.trigger(disclosureHeader(p, id, f"Item ${value}")) {
+                        this.focus = FocusOptions(Some(p.headers[id]))
+                    }
+                }
+            }
+            this.enabled = p.enabled
+            this.retention = ContentRetention.KeepMounted
+            this.allowCollapse = false
+            this.fonts = Some(p.fonts)
+            this.transition(None)
+            this.onOpenChange = { _, _ -> p.accordionCallbacks += 1 }
+        }
+    return if (p.multiple)
+        makeAccordion(p.many.binding(), configure)
+    else
+        makeAccordion(p.selected.binding(), configure)
+}
+
+internal class DisclosureRecord(val p: DisclosureProbe, val id: Long) {
+    val local = state(7)
+    val model = TextEditorState("draft")
+    val focus = FocusHandle()
+    var scope: ComponentScope? = None
+    var motion: Animatable<Double>? = None
+    var observed = -1
+    var version = -1
+    var measures = 0
+}
+
+private fun disclosureContent(p: DisclosureProbe, id: Long, generation: Int): View =
+    component(
+        generation,
+        {
+            current ->
+            p.factories[id] += 1
+            val record = DisclosureRecord(p, id)
+            p.records[id] = Some(record)
+            DisclosureContent(record, current)
+        }
+    )
+
+private class DisclosureContent(
+    private val record: DisclosureRecord,
+    private val props: Props<Int>
+): Component {
+    public override fun onMount(scope: ComponentScope) {
+        record.scope = Some(scope)
+        record.p.mounts[record.id] += 1
+        record.motion = Some(scope.animation(0.0))
+        record.motion!!.animateTo(1.0, AnimationSpec.Tween(Duration.seconds(1L)), Some(Repeat()))
+    }
+    public override fun onUnmount() {
+        record.p.unmounts[record.id] += 1
+    }
+    public override fun render(): View {
+        record.observed = record.local.value
+        record.version = props.value
+        return element(
+            props.value,
+            { _ -> DisclosureInk(record) },
+            [
+                makeInput(record.model) {
+                    this.fonts = Some(this @DisclosureContent.record.p.fonts)
+                    this.focus = FocusOptions(Some(this @DisclosureContent.record.focus))
+                }
+            ]
+        )
+    }
+}
+
+private class DisclosureInk(private val record: DisclosureRecord): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        record.measures += 1
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private fun disclosureHeader(p: DisclosureProbe, id: Long, text: String): View =
+    element(
+        id,
+        { current -> DisclosureBounds(p, current) },
+        [makeLabel(text) { this.fonts = Some(p.fonts) }]
+    )
+
+private class DisclosureBounds(
+    private val p: DisclosureProbe,
+    private val id: Props<Long>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, bounds).use {
+                    value -> p.bounds[id.value] = value.toWindow(bounds)
+                }
+            }
+        }
+        context.children()
+    }
+}
+
+private class DisclosureRoot(
+    private val p: DisclosureProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        if (context.childCount > 0L) {
+            context.measureChild(
+                0L,
+                if (p.zero)
+                    Constraints.tight(Size(0.0, 0.0))
+                else
+                    Constraints(maxWidth = Some(500.0))
+            )
+            context.placeChild(0L, Point(20.0, 20.0))
+        }
+        context.skipChild(1L)
+        if (!p.skipChecked) {
+            assertFailsWith<IllegalStateException> { context.skipChild(0L) }
+            assertFailsWith<IllegalStateException> { context.skipChild(1L) }
+            assertFailsWith<IllegalStateException> { context.measureChild(1L, Constraints()) }
+            assertFailsWith<IllegalStateException> { context.placeChild(1L, Point(0.0, 0.0)) }
+            p.skipChecked = true
+        }
+        return LayoutMetrics(constraints.constrain(Size(560.0, 680.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}
+
+private class DisclosureStack: Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        if (context.childCount == 0L)
+            return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+private class UnmeasuredDisclosureContent: Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        fail(Some("skipped child must not be measured"))
+    public override fun scene(context: SceneContext) {
+        fail(Some("skipped child must not be presented"))
+    }
+}

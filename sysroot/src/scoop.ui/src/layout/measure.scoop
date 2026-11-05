@@ -6,6 +6,7 @@ import scoop.time.TimeMark
 
 private class ChildMeasure(val node: MountedNode) {
     var measuring = false
+    var skipped = false
     var constraints: Constraints? = None
     var result: LayoutMetrics? = None
     var origin: Point? = None
@@ -41,6 +42,8 @@ public class MeasureContext internal constructor(
     public fun measureChild(index: Long, constraints: Constraints): LayoutMetrics {
         checkActive()
         val entry = entries[index]
+        if (entry.skipped)
+            throw IllegalStateException(Some("child was skipped for this layout"))
         if (entry.origin != None)
             throw IllegalStateException(Some("child was already placed"))
         if (entry.measuring)
@@ -51,10 +54,10 @@ public class MeasureContext internal constructor(
             case None -> {}
         }
         entry.result = None
+        entry.constraints = Some(constraints)
         entry.measuring = true
         try {
             val result = entry.node.measure(constraints, mark)
-            entry.constraints = Some(constraints)
             entry.result = Some(result)
             return result
         } finally {
@@ -75,12 +78,22 @@ public class MeasureContext internal constructor(
             throw IllegalStateException(Some("child was already placed"))
         entry.origin = Some(origin)
     }
+    /** Retains the mounted child without measuring or presenting it in this layout. */
+    public fun skipChild(index: Long) {
+        checkActive()
+        val entry = entries[index]
+        if (entry.skipped || entry.measuring || entry.constraints != None || entry.origin != None)
+            throw IllegalStateException(Some("child was already measured or skipped"))
+        entry.skipped = true
+        entry.node.metrics = None
+    }
     internal fun finish(): Array<Point?> {
         for (entry in entries) {
             when (entry.result) {
-                case None -> throw IllegalStateException(
-                    Some("every child must be measured successfully")
-                )
+                case None -> if (!entry.skipped)
+                    throw IllegalStateException(
+                        Some("every child must be measured or explicitly skipped")
+                    )
                 case Some(_) -> {}
             }
         }

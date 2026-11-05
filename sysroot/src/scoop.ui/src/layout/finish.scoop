@@ -4,6 +4,8 @@ package scoop.ui
 internal fun MountedNode.finishMeasurement() {
     if (!root.isOpen)
         throw UiLayoutEnded()
+    if (metrics == None)
+        return
     when (body) {
         case Portal(_) -> return
         case Lazy(_, items) -> {

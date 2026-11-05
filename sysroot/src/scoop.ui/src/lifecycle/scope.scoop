@@ -80,6 +80,17 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
         checkMounted()
         cleanup.add(action)
     }
+    /** Local frame-request eligibility; ancestor and submitted placement gates still apply. */
+    public var isFrameEnabled: Boolean
+    get() {
+        checkMounted()
+        return node.localFrameEnabled
+    }
+    set(value) {
+        checkMounted()
+        checkOverlayMutation()
+        node.setFrameEnabled(value)
+    }
     public fun requestFrame() {
         checkMounted()
         if (node.frameEnabled)

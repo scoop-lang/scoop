@@ -43,3 +43,5 @@ Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、
 Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group 和 Slider。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。DatePicker 在 P7 实现后接入。
 
 Direction 页面组合继承方向的文本、编号标签、方向键选择组和逻辑 Start 边框，以及局部 LTR 代码输入。顶部热切换保留文字、选区与点击计数。Scroll Area 页面提供垂直、水平、双轴及嵌套视口，可切换条可见性、宽度、禁用与内层残量策略；Focus viewport 和 Reveal last field 分别演示键盘翻页和自动显露，圆角视口与主题焦点环共用绘制／命中几何。
+
+Collapsible 页面比较 Dispose／KeepMounted 的局部草稿、计数与挂载次数，并提供嵌套内容、Spinner 和独立程序触发器。Accordion 页面提供单选／多选、禁止全关、Default／Card、禁用项及 keyed 重排；可在正文编辑时切换顺序，并用 Tab、方向键及 Space／Enter 检查导航与展开。顶部的主题、RTL 和减少动态设置同样生效。

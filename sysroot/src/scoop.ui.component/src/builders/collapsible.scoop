@@ -1,0 +1,106 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class TriggerBuilder internal constructor(
+    private val content: ButtonContent,
+    initialVariant: ButtonVariant
+) {
+    public var enabled: Boolean = true
+    public var indicator: Boolean = true
+    public var variant: ButtonVariant = initialVariant
+    public var style: ButtonStyle? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var fonts: FontCollection? = None
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = Some((style ?: buttonStyle { this.kind = SurfaceKind.Plain }).copy(configure))
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(): TriggerSpec =
+        TriggerSpec(content, enabled, indicator, variant, style, focus, fonts)
+}
+
+public class CollapsibleBuilder internal constructor() {
+    public var trigger: TriggerSpec? = None
+    public var enabled: Boolean = true
+    public var retention: ContentRetention = ContentRetention.Dispose
+    public var spacing: Double = 8.0
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onOpenChange: (Boolean) -> Unit = {}
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun trigger(text: String, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                makeTrigger(
+                    ButtonContent.Label(LabelProps(LabelText.Plain(text, None))),
+                    ButtonVariant.Ghost,
+                    configure
+                )
+            )
+    }
+    public fun trigger(text: StyledText, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger =
+            Some(
+                makeTrigger(
+                    ButtonContent.Label(LabelProps(LabelText.Styled(text))),
+                    ButtonVariant.Ghost,
+                    configure
+                )
+            )
+    }
+    public fun trigger(content: View, configure: TriggerBuilder.() -> Unit = {}) {
+        trigger = Some(makeTrigger(ButtonContent.Custom(content), ButtonVariant.Ghost, configure))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: View): CollapsibleProps =
+        CollapsibleProps(
+            open,
+            content,
+            trigger,
+            enabled,
+            retention,
+            spacing,
+            transition,
+            onOpenChange,
+            fonts,
+            theme,
+            style
+        )
+}
+
+internal fun makeTrigger(
+    content: ButtonContent,
+    variant: ButtonVariant,
+    configure: TriggerBuilder.() -> Unit
+): TriggerSpec {
+    val builder = TriggerBuilder(content, variant)
+    builder.configure()
+    return builder.snapshot()
+}
+
+internal fun makeCollapsible(
+    open: Binding<Boolean>,
+    content: View,
+    configure: CollapsibleBuilder.() -> Unit
+): View {
+    val builder = CollapsibleBuilder()
+    builder.configure()
+    return component(
+        builder.snapshot(open, content),
+        { current -> Collapsible(current) },
+        builder.key
+    )
+}
