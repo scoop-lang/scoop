@@ -191,3 +191,11 @@
 - 新增 Popover Props／DSL、普通 Button 触发器和外部 anchor、标题／描述、表单正文、可选焦点模式、关闭 veto 与实际绑定值通知。复用 Portal 定位、退出重开和嵌套生命周期；默认采用 Base Nova 的 288 宽、10 padding／spacing、8 圆角及 100ms 淡入缩放位移，支持 Reduced Motion、字体缩放及 System／Neutral 配色。
 - macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过；2 项 Portal 类型／DSL、2 项 Popover 元数据／错误、既有模态实窗和新增 32 阶段 Popover 实窗，共 **6 项定向测试通过**。覆盖三种模式、背景 pointer／wheel 与焦点隔离、拒绝绑定／veto、最新回调、Tab／Escape／Space、实例／局部状态及工厂次数、退出重开、新焦点优先、窄宽翻转、禁用恢复、嵌套显式／默认焦点和完整卸载。窄宽之后恢复窗口尺寸再测试横向嵌套，避免要求零宽目标获得焦点；未改变可见性合同。
 - Gallery 实查表单编辑／保存、嵌套层、三种模式、Reduced Motion、明暗 System／Neutral 和 RTL；鼠标打开嵌套层默认聚焦首项可选中文本，⌘A 与 Tab 到关闭按钮验证正常。临时诊断已删除。本批首次交付累计 **35／64**；P4 后续完成 Tooltip／HoverCard、共享箭头装饰及 Popover 接入，再完成 Dialog／AlertDialog／Sheet。一次性窗口、检查锁与本轮定向测试输出清理，保留共享缓存、生产库、Gallery 和下载参考；没有重建编译器或 LLVM，也未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+
+## P4b：Tooltip、HoverCard 与共享箭头
+
+- 先补齐控件规范 §29–30、Popover 箭头及 UI 的显式悬浮关闭规则。Tooltip／HoverCard 复用 Hover、Portal 和同一动画时钟；可选 Binding 直接读取当前模型，原触发器保留唯一 Press 与焦点，Tooltip 正文不可交互，HoverCard 正文支持按钮、选择文字和嵌套 Popover。Escape／触发激活关闭后，在 hover 与有效焦点都离开前抑制重开；非模态路由代理不再接受焦点，点击提示正文不夺走背景焦点。
+- 增加共享 PopupArrow，随实际物理侧、anchor 中心、边缘约束及面板动画绘制；Popover 接入可选箭头。Tooltip 采用 12 字号、12／6 padding、自然宽度及最大宽度换行；系统半透明前景色与背景先合成不透明底色，保持可见色阶并遮住后方内容。Gallery 补齐延迟／禁用／受控提示、四向换行、Follow 及嵌套详情示例。
+- macOS aarch64 release：格式、相关 tests 静态检查、生产库与 Gallery 构建通过；4 项组件测试、新增 37 阶段实窗、既有 32 阶段 Popover 和悬浮／受控退出回归，共 **7 项定向测试通过**。覆盖延迟取消与通路、焦点／触发激活、关闭抑制、拒绝绑定／换绑、最新回调、短文本收缩与长文本换行、实例／局部状态保留、RTL／主题切换、Reduced Motion、禁用／卸载和静止停帧。实窗发现并修正捕获事件订阅入口、短提示被撑宽及系统色透底问题。
+- Gallery 实查箭头四向、系统明暗与 Neutral 深色、RTL、长文换行、自定义 Kbd、原动作次数、HoverCard 正文动作、嵌套详情及逐层 Escape。累计 **37／64**，P4 后续为 Dialog／AlertDialog／Sheet；七个 UI 库源码仍无反射描述直接依赖。清理本轮独立锁、窗口与 native 输出，保留共享缓存和可复用产物；未重建编译器或 LLVM，未运行全仓／全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

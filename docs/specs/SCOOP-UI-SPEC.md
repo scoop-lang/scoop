@@ -580,7 +580,7 @@ AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现�
 
 OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-OverlayFocusOptions 为 initialFocus=None、restoreFocus=true，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理；NonModal 的路由代理不接受焦点，点击无交互正文不会通过代理取得焦点。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
 
 退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
@@ -706,7 +706,7 @@ keyboard 模式只处理允许的真实 logical 字符，保留 Shift 字符与 
 
 `ComponentScope.hover(trigger, open: Binding<Boolean>, options=HoverOptions())` 借用本挂载的 trigger，返回 Hover。setContent(areas) 接入同一逻辑 owner 后代的 portal 内容区域，形成悬浮组；update 接收当前 Binding 与配置，options=None 保留当前配置。选项为 openDelay=300ms、closeDelay=150ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true，时间非负、padding 有限且非负。
 
-组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。
+组内进入／焦点可以打开，离开安排关闭；触发区和内容间隙使用离开点、当前移动方向及已提交内容矩形构成有限通过区域，仅延迟关闭。通过期限从本次离开起算，移动不能无限延长；离开窗口、失焦、禁用、dismiss 或 owner 退休撤销等待。isPending 表示 owner deadline，isOpen 读取 Binding；关闭行为只清理自己的登记，dismiss 提交关闭状态。如果 dismiss 时组内仍有 hover／有效焦点，则抑制再次打开，直到两者都离开；更新 Props、移动鼠标或卸载内容不解除仍在触发区的抑制。之后重新进入遵守当前延迟，避免 Escape 关闭后立即重开。普通离开延迟不设置此抑制。
 
 观察通过 Surface.observePointer 和普通区域事件／activity 组合，只在打开或等待期间登记当前窗口观察；没有 OS 全局监听、捕获、常驻 timer 或独立命中树。失去有效内容几何时使用普通短延迟收束，不能根据未确认的 scene 位置继续延迟。
 

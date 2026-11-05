@@ -41,7 +41,8 @@ public class PopoverProps public constructor(
     public val onClosed: (OverlayCloseReason) -> Unit = {},
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val arrow: PopupArrow? = None
 ) {
     init {
         if (!panelPresent(trigger) && !panelPresent(anchor))

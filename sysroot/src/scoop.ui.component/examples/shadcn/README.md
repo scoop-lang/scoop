@@ -1,5 +1,7 @@
 # shadcn Gallery
 
+Tooltip 页展示原按钮动作、延迟、禁用按钮提示、四向箭头、长文换行及可拒绝的受控绑定；Hover Card 页展示可选文字、关注操作和嵌套 Popover。Popover 页可切换箭头，三页沿 Gallery 的 System／Neutral、明暗、RTL 与 Reduced Motion 配置。
+
 真实原生窗口，使用 `scoop.ui.style.shadcn` 与同一套 `scoop.ui.component`。
 当前展示 Button、Input、Checkbox 的普通、invalid、disabled 和真实焦点状态，以及 Button 的六种变体／八种尺寸、Badge 的展示与动作模式、Spinner 的运行与减少动态模式。内容页面包含 Card、Alert、Empty、横纵 Separator、图片 Aspect Ratio、Avatar、Skeleton、Progress、Typography、Kbd、Label、Button Group 和 Item。目录随控件批次扩充，尚不代表完整 64 项已交付。
 

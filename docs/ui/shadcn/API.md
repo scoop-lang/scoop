@@ -221,6 +221,8 @@ Select 的选中项对齐采用公共内容锚点：Popup 根布局在测量中�
 
 Popover 首次交付提供 `popover(open.binding(), content) { trigger("Open"); title("Details") }` 与对应 Props／Component。trigger 是普通 Button，或省略并提供公共 LayoutAnchor；mode 可选择全部三种模式，focus 独立配置。默认 Escape／外部关闭、包含 trigger 的内部判断、业务 veto、受控绑定和真实值通知沿 Portal；内容可组合编辑器、表单与嵌套 Popover。默认宽 288、padding／spacing 10、corner 8、100ms 淡入缩放和定位方向位移，随字体、主题和 Reduced Motion 调整。详细合同见组件规范 §28。
 
+Tooltip／HoverCard 已提供 `tooltip(trigger, "Hint")`、StyledText／View 提示正文，以及 `hoverCard(trigger, content)`。包装复用已有触发器，不增加 Press；可选 open Binding 直接驱动呈现，省略时使用局部短期状态。Tooltip 的正文不参与输入，HoverCard 正文可选择文字或操作控件；两者悬浮打开都不取走焦点。Escape 关闭后保持关闭到本次 hover／focus 离开，现有 Hover 继续承担延迟与有限跨间隙通路。`arrow = Some(PopupArrow())` 同时适用于 Popover／HoverCard，Tooltip 默认启用；箭头随定位翻转、RTL、主题和动画更新。详细字段见控件规范 §29–30。
+
 ## 6. OTP 与消息列表所需的局部适配
 
 OTP 的专用槽布局属于 component，但编辑命中、光标／选择、视觉导航与原生 caret 快照必须消费同一份排版结果。TextEditHost.measure(constraints, cells: TextEditCells? = None) 接入实际布局，借用的 TextEditLayout 默认适配现有 TextLayout，cells 模式提供固定槽。TextEditCells 只包含 count、cellSize、gaps 和明确方向；组件把分组和分隔内容测量成这些几何输入。几何以同一 TextDisplay、版本、约束和方向构造，提供完整的 caret、selection、hit-test 与导航结果；保留到 Accepted 后再替换输入使用结果。正文事务、过滤、撤销、IME／clipboard 继续由原宿主执行。

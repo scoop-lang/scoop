@@ -814,3 +814,19 @@ PopupTriggerSpec 保存 ButtonContent、enabled=true、variant=Outline、size=De
 内容以 Portal 呈现，默认非模态、明确初始／恢复焦点；初始 None 选第一个 Tab stop。NonModal／FocusContained 默认 Escape 与外部 CloseAndContinue，Modal 默认 CloseAndConsume，两者默认 includeAnchor=true，避免触发器按下先关再开；完整 dismiss 可覆盖；无效 Modal＋Continue 沿 Portal 报错。关闭请求先经过业务 veto，再提交绑定；拒绝 setter 不伪造关闭。enabled=false 禁用触发器和内容输入，不改变 open。Presence 默认 100ms，按真实定位边做 8 的短位移、0.95 到 1 缩放与淡入淡出；Reduced Motion 即时结束。退出立即停用内容输入，中途重开保留内容与进度；最终移除释放内容。焦点保存、恢复、嵌套关闭及三种模式沿 UI §7.6，不另建键盘或焦点处理器。
 
 默认内容宽 288、padding 与主体 spacing=10、corner=8、popover 配色、foreground 10% 的 1 边框及 floating 阴影；Header 的 title／description 间距 2，title 为 action，description 为 muted body。尺寸按字号缩放并服从父级／视口约束；局部 style 覆盖面板。所有文字槽和自定义正文可组合输入、表单与按钮。验收包含可编辑内容、普通／仅焦点约束／模态、Tab 与 Escape、外部继续／消费、veto／拒绝绑定、最新回调、退出重开／资源释放、锚点翻转与裁剪、RTL、明暗 System／Neutral、Reduced Motion 与窄窗口。
+
+Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: Paint?=None)` 是普通配置值，尺寸有限且非负，None paint 继承最终面板背景；没有背景时不画继承色箭头。箭头与面板共用进入／退出变换，依据实际翻转后的 OverlayLayout.side 与 anchor 中心定位，在圆角以内钳制；零尺寸或无可用边长时不画。箭头不新增输入或布局锚点，不改变正文实例、Tab 顺序或面板测量尺寸。尺寸按字体密度缩放，局部 paint 可以覆盖继承色。
+
+## 29. Tooltip
+
+`tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {})` 及 String／StyledText 正文重载、ChildrenBuilder 同名成员构造 TooltipProps／Tooltip。Props 的正文为 PanelContent；trigger 必需且保持原有交互。选项为 open: Binding<Boolean>?=None、side=Top、alignment=Center、gap=4、viewportPadding=8、maxWidth=320、openDelay=0ms、closeDelay=0ms、transitDelay=350ms、corridorPadding=6、focus=true、enabled=true、arrow=Some(PopupArrow())、handle=None、transition=Inherit、onOpenChange、onClosed、fonts／theme／style；builder 增加 key。尺寸与延迟使用相同有限非负校验。
+
+未提供 open 时仅持有一份局部短期打开 State；提供时直接读写当前 Binding，不镜像、不提前求值。实际值改变后通知 onOpenChange，拒绝 setter 不合成关闭或回调。包装器只有无激活动作的区域和 anchor，观察子内容的 hover／focus，已有 Button 保留唯一 Press、动作和焦点；不会检查、克隆或改写 View。提示不请求／恢复焦点，正文整棵输入子树停用，不加入 Tab，也不执行自定义正文的按钮动作；面板本身仍可参与悬浮通路。键盘焦点立即打开，鼠标遵守 openDelay；Escape、触发器按下／激活、离开窗口或失焦关闭并取消等待，显式关闭沿 Hover 的离开后再进入规则。关闭不消费原触发器的动作。
+
+默认 inverse 配色取 background.foreground／background.background；前景色先按其 alpha 与不透明 background.background 合成，作为不透明提示底色，避免系统半透明文字色透出后面的控件。12 字号、水平 padding=12、竖直=6、corner=6、自然宽度不超过 maxWidth，正文过长正常换行；自定义正文保留其样式。默认含箭头，100ms 淡入缩放位移，Reduced Motion 无动画。Portal 为 NonModal、focus=None、Escape／外部按下关闭且外部继续处理；退出重开保留正文实例。验收覆盖原触发动作只执行一次、延迟取消、Escape 抑制及重新进入、正文不可交互、拒绝绑定／换绑、定位／箭头翻转、禁用／失焦／卸载和静止停帧。
+
+## 30. HoverCard
+
+`hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
+
+面板默认 popover 配色、10 padding、8 圆角、foreground 10% 的 1 边框及 floating 阴影，100ms 动画与 Popover 相同。触发器可复用已有链接式 Button、头像或组合内容，包装不截取原动作。验收包含鼠标跨间隙进入正文、反向离开与有限通过期限、键盘入口、文字选择／正文动作、Escape、关闭后再次进入、当前回调与绑定、嵌套 Portal、明暗 System／Neutral、RTL 和 Reduced Motion。

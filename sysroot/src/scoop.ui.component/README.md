@@ -1,5 +1,7 @@
 # 自绘基础控件
 
+`tooltip(button("Save", save), "Save the current document")` 保留原按钮动作和焦点，提示正文不参与输入；`hoverCard(trigger, content)` 提供可选择文字和可操作正文的预览。两者支持延迟、可选受控 open、Escape 后保持关闭、定位与 Reduced Motion，复用既有 Hover／Portal。Tooltip 默认显示箭头，HoverCard／Popover 可通过 `arrow = Some(PopupArrow())` 开启；箭头跟随实际翻转后的边。定向窗口回归位于 `tests-cones/hover-popup`。
+
 `scoop.ui.component` 是普通 Scoop Cone。当前提供 Label／FieldLabel／SelectableStyledText、Typography／Kbd、Button／ButtonGroup／Badge／Spinner、Checkbox／Switch／Toggle／RadioGroup／ToggleGroup／Slider、Input／Textarea／InputGroup／InputOtp、Card／Alert／EmptyState、Item／ItemGroup／ItemSeparator、Collapsible／Accordion／Tabs／Breadcrumb／Pagination、Avatar／AvatarGroup、Skeleton／Progress、Separator／AspectRatio、ImageView／PathView、Row／Column／Flex／Wrap／Grid／Stack、Frame、Absolute、ScrollArea 和 VirtualList，使用公开的 Component／Element／LazyElement、ParagraphHost／TextEditHost、Theme／ThemePainter、InputArea 和 Surface 动画；UI 框架没有这些控件的特殊节点。
 
 `collapsible(open, content) { trigger("Details"); retention = ContentRetention.KeepMounted }` 以受控 Boolean 展开正文；默认 Dispose 在退出完成后卸载，KeepMounted 保留实例和状态，但关闭时不布局、接收输入或请求动画帧。`accordion(selected) { item(Choice(key, value, label), content) }` 支持可空单值／数组绑定；单选的 allowCollapse 控制是否允许全部关闭，variant 可选 Default／Card。header 普通 Tab、方向键焦点导航与 Space／Enter 激活分开处理；稳定 key 重排保留正文和编辑状态。两者复用 Presence，支持退出中重开、MotionPreference.Reduced 和每项自定义非交互 trigger 内容。`tests-cones/disclosure` 使用真实窗口覆盖绑定、生命周期、IME、键盘导航及关闭停帧。

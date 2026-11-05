@@ -1,0 +1,91 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+@Test
+private class HoverPopupTest {
+    @Test
+    fun `hover popup descriptions keep bindings lazy and builder snapshots independent`() {
+        val reads = state(0)
+        val open =
+            binding(
+                {
+                    reads.value += 1;
+                    false
+                },
+                { _ -> }
+            )
+        val handle = OverlayHandle()
+        val captured = ArrayList<TooltipBuilder>()
+        tooltip(empty(), "Hint") {
+            captured.add(this)
+            this.open = Some(open)
+            this.handle = Some(handle)
+            openDelay = Duration.milliseconds(80L)
+        }
+        val first = captured[0L].snapshot(empty(), PanelContent.Custom(empty()))
+        captured[0L].maxWidth = 100.0
+        captured[0L].openDelay = Duration.ZERO
+        assertEquals(320.0, first.maxWidth)
+        assertEquals(Duration.milliseconds(80L), first.openDelay)
+        assertEquals(OverlaySide.Top, first.side)
+        assertEquals(10.0, first.arrow!!.width)
+        val card = HoverCardProps(empty(), empty(), open = Some(open))
+        assertEquals(256.0, card.width)
+        assertEquals(Duration.milliseconds(600L), card.openDelay)
+        assertEquals(Duration.milliseconds(300L), card.closeDelay)
+        assertEquals(OverlaySide.Bottom, card.side)
+        assertFalse(panelPresent(card.arrow))
+        column {
+            tooltip(empty(), "Hint") { this.open = Some(open) }
+            tooltip(empty(), empty())
+            hoverCard(empty(), empty()) { this.open = Some(open) }
+        }
+        assertEquals(0, reads.value)
+        assertFalse(handle.isAttached)
+    }
+    @Test
+    fun `hover popup distances and delays reject invalid values without reading the model`() {
+        val content = PanelContent.Custom(empty())
+        assertFailsWith<IllegalArgumentException> {
+            TooltipProps(empty(), content, maxWidth = -1.0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TooltipProps(empty(), content, gap = Double.NaN)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            TooltipProps(empty(), content, openDelay = Duration.milliseconds(-1L))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            HoverCardProps(empty(), empty(), corridorPadding = Double.POSITIVE_INFINITY)
+        }
+        assertFailsWith<IllegalArgumentException> { HoverCardProps(empty(), empty(), width = -1.0) }
+        assertFailsWith<IllegalArgumentException> { PopupArrow(width = -1.0) }
+        assertFailsWith<IllegalArgumentException> { PopupArrow(height = Double.POSITIVE_INFINITY) }
+    }
+    @Test
+    fun `tooltip surface preserves the visible system shade while covering background content`() {
+        val palette = shadcnTheme().tokens.palette
+        val light =
+            palette.copy { background = ColorPair(Color.White, Color.Black.withAlpha(0.25)) }
+        val dark = palette.copy { background = ColorPair(Color.Black, Color.White.withAlpha(0.75)) }
+        assertEquals(Color(0.75, 0.75, 0.75), tooltipBackground(light))
+        assertEquals(Color(0.75, 0.75, 0.75), tooltipBackground(dark))
+        assertEquals(palette.background.foreground, tooltipBackground(palette))
+    }
+    @Test
+    fun `arrow paint inherits the resolved surface and explicit paint survives no background`() {
+        val paint = Paint(Color(0.2, 0.3, 0.4, 1.0))
+        assertFalse(panelPresent(popupArrowInk(None, 1.0, Some(paint))))
+        assertFalse(panelPresent(popupArrowInk(Some(PopupArrow()), 1.0, None)))
+        val scaled = popupArrowInk(Some(PopupArrow(paint = Some(paint))), 1.5, None)!!
+        assertEquals(15.0, scaled.width)
+        assertEquals(7.5, scaled.height)
+        assertEquals(12.0, scaled.inset)
+    }
+}

@@ -123,7 +123,15 @@ public class Popover public constructor(private val props: Props<PopoverProps>):
             portal(
                 binding({ props.value.open.value }, { value -> setOpen(value) }),
                 element(
-                    PopupMotionProps(input.enabled, 8.0 * density),
+                    PopupMotionProps(
+                        input.enabled,
+                        8.0 * density,
+                        popupArrowInk(
+                            input.arrow,
+                            density,
+                            input.style.background.resolve(Some(Paint(palette.popover.background)))
+                        )
+                    ),
                     { current -> PopupMotion(current) },
                     [panel]
                 )

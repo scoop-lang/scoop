@@ -24,15 +24,21 @@ internal class PopoverLayout(private val anchor: LayoutAnchor): Element {
     }
 }
 
-internal class PopupMotionProps(val enabled: Boolean, val distance: Double)
+internal class PopupMotionProps(
+    val enabled: Boolean,
+    val distance: Double,
+    val arrow: PopupArrowInk? = None
+)
 
 /** One published transform supplies drawing, hit testing and editor caret geometry. */
 internal class PopupMotion(private val props: Props<PopupMotionProps>): Element {
     private var area: InputArea? = None
+    private var arrow: Path? = None
     public override fun onMount(scope: ComponentScope) {
         val value = scope.createArea()
         area = Some(value)
         scope.routeChildren(value)
+        arrow = Some(scope.resource { popupArrowPath() })
     }
     public override fun update() {
         area!!.scope.enabled = props.value.enabled
@@ -68,6 +74,10 @@ internal class PopupMotion(private val props: Props<PopupMotionProps>): Element 
         context.translate(-pivot.x, -pivot.y)
         context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
         context.children()
+        when (props.value.arrow) {
+            case Some(ink) -> drawPopupArrow(context, arrow!!, ink)
+            case None -> {}
+        }
         context.restore()
     }
 }

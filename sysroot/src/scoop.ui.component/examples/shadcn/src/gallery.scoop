@@ -204,6 +204,8 @@ internal class Gallery(
             case Breadcrumb -> breadcrumbExamples(model.navigation, fonts)
             case Pagination -> paginationExamples(model.navigation, fonts)
             case Popover -> popoverExamples(model.popover, fonts, model)
+            case Tooltip -> tooltipExamples(model.hints, fonts)
+            case HoverCard -> hoverCardExamples(model.previews, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

@@ -1,0 +1,167 @@
+package scoop.tests.ui.hoverpopup
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class HoverPopupWindowTest {
+    @Test
+    fun `hover popups preserve trigger actions and honor focus deadlines and controlled models`() {
+        val p = HoverPopupProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertFalse(p.layer.isAttached)
+            assertFalse(p.trigger.isAttached)
+            assertFalse(p.content.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(f"hover popup phase=${p.phase}, mounts=${p.mounts}, unmounts=${p.unmounts}")
+            hoverPopupFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class HoverPopupProbe {
+    val theme =
+        ThemeSource(shadcnTheme { tokens { motion { preference = MotionPreference.Reduced } } })
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val mounted = state(true)
+    val external = state(false)
+    val other = state(false)
+    val trigger = FocusHandle()
+    val after = FocusHandle()
+    val content = FocusHandle()
+    val layer = OverlayHandle()
+    var card = false
+    var controlled = false
+    var second = false
+    var deny = false
+    var enabled = true
+    var focus = true
+    var rtl = false
+    var triggerX = 100.0
+    var openDelay = Duration.ZERO
+    var closeDelay = Duration.ZERO
+    var actions = 0
+    var contentActions = 0
+    var observed = 0
+    var changes = 0
+    var closes = 0
+    var version = 1
+    var callbackVersion = 0
+    var mounts = 0
+    var unmounts = 0
+    var savedMounts = 0
+    var savedChanges = 0
+    var longHint = false
+    var shortHeight = 0.0
+    var popupBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var contentBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var side: OverlaySide? = None
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var hold = 180L
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(90L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "") {
+        assertEquals(0, hoverPopupKey(native!!, code, text))
+    }
+    fun move(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+    }
+    fun overTrigger() {
+        move(triggerX + 70.0, 138.0)
+    }
+    fun outside() {
+        move(30.0, 350.0)
+    }
+    fun click(rect: Rect) {
+        val x = rect.x + rect.width / 2.0
+        val y = rect.y + rect.height / 2.0
+        move(x, y)
+        assertTrue(view!!.button(x, y, true))
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop hover popup test"
+                            position = Some(DesktopPosition(160.0, 100.0))
+                            size = LogicalSize(640.0, 400.0)
+                        }
+                    )
+                native = Some(window)
+                view = Some(observeWindow(window))
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { HoverPopupScene(this) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("hover popup timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    hold = 180L
+                    hoverPopupStep(this)
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 37)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 37
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(25L))
+        )
+    }
+}

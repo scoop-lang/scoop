@@ -45,6 +45,7 @@ public class Hover internal constructor(
     private val input = scope.input
     private val window = scope.nativeWindow
     private var closed = false
+    private var dismissed = false
     private var content: Array<InputArea> = []
     private var registrations: Array<Closeable> = []
     private var observation: Closeable? = None
@@ -151,7 +152,16 @@ public class Hover internal constructor(
             return
         }
         val focus = focused()
-        if (within() || focus) {
+        val inside = within()
+        if (dismissed) {
+            if (inside || focus) {
+                cancelWait()
+                stopObserving()
+                return
+            }
+            dismissed = false
+        }
+        if (inside || focus) {
             departure =
                 when (point) {
                     case Some(_) -> point;
@@ -276,6 +286,7 @@ public class Hover internal constructor(
     }
     public fun dismiss() {
         checkOverlayMutation()
+        dismissed = !isClosed && window.state == WindowState.Open && (within() || focused())
         cancelWait()
         stopObserving()
         departure = None

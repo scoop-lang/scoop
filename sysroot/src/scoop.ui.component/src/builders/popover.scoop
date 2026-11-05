@@ -37,6 +37,7 @@ public class PopoverBuilder internal constructor(): PanelBuilder() {
     public var handle: OverlayHandle? = None
     public var enabled: Boolean = true
     public var dismiss: OverlayDismiss? = None
+    public var arrow: PopupArrow? = None
     public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
     public var onOpenChange: (Boolean) -> Unit = {}
     public var onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true }
@@ -87,7 +88,8 @@ public class PopoverBuilder internal constructor(): PanelBuilder() {
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            arrow
         )
 }
 

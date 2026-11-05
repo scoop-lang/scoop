@@ -1,0 +1,176 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Tooltip public constructor(private val props: Props<TooltipProps>): Component {
+    private val popup = HoverPopup({ props.value.input })
+    public override fun onMount(scope: ComponentScope) {
+        popup.mount()
+    }
+    public override fun render(): View = popup.render()
+}
+
+public class HoverCard public constructor(private val props: Props<HoverCardProps>): Component {
+    private val popup = HoverPopup({ props.value.input })
+    public override fun onMount(scope: ComponentScope) {
+        popup.mount()
+    }
+    public override fun render(): View = popup.render()
+}
+
+/** Composition shared by the two hover families; Hover owns all input and deadline state. */
+private class HoverPopup(private val read: () -> HoverPopupInput) {
+    private val local = state(false)
+    private val anchor = LayoutAnchor()
+    private val link = HoverPopupLink()
+    private val themes = ThemeAccess()
+    private val bodyStyle = ActionTextStyle()
+    private val open = binding({ read().open?.value ?: local.value }, { next -> setOpen(next) })
+    private val portalOpen =
+        binding(
+            { open.value },
+            {
+                next -> if (next)
+                    setOpen(true)
+                else
+                    link.dismiss { setOpen(false) }
+            }
+        )
+    fun mount() {
+        themes.mount(read().theme)
+    }
+    private fun setOpen(next: Boolean) {
+        val input = read()
+        val previous = open.value
+        if (previous == next)
+            return
+        when (input.open) {
+            case Some(value) -> value.value = next
+            case None -> local.value = next
+        }
+        val accepted = open.value
+        if (previous != accepted)
+            read().onOpenChange(accepted)
+    }
+    fun render(): View {
+        val input = read()
+        val theme = themes.read(input.theme)
+        val palette = theme.tokens.palette
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val passive = input.kind == HoverPopupKind.Tooltip
+        val backgroundColor =
+            if (passive)
+                tooltipBackground(palette)
+            else
+                palette.popover.background
+        val foreground =
+            if (passive)
+                palette.background.background
+            else
+                palette.popover.foreground
+        val base =
+            if (passive)
+                theme.tokens.typography.body.copy {
+                    fontSize = 12.0 * density
+                    lineHeight = Some(16.0 / 12.0)
+                }
+            else
+                theme.tokens.typography.body
+        val text = bodyStyle.resolve(base, foreground, None)
+        val visual =
+            styleOverride {
+                background(Some(Paint(backgroundColor)))
+                corners(
+                    Corners.all(
+                        (
+                            if (passive)
+                                6.0
+                            else
+                                8.0
+                        ) *
+                            density
+                    )
+                )
+                if (!passive) {
+                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    boxShadows(theme.tokens.effects.floating)
+                }
+            }.then(input.style)
+        val panel =
+            panelFrame(
+                panelCaption(input.content, text, input.fonts),
+                if (passive)
+                    Insets(12.0 * density, 6.0 * density, 12.0 * density, 6.0 * density)
+                else
+                    Insets.all(10.0 * density),
+                visual,
+                if (passive)
+                    None
+                else
+                    Some(input.width * density)
+            )
+        val motion =
+            theme.tokens.motion.resolve(
+                input.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(100L))))
+            )
+        val content =
+            element(
+                HoverPopupContentProps(
+                    link,
+                    passive,
+                    if (passive)
+                        Some(input.width * density)
+                    else
+                        None
+                ),
+                { current -> HoverPopupContent(current) },
+                [panel]
+            )
+        val localAnchor = anchor
+        val currentInputs = read
+        val popup =
+            portal(
+                portalOpen,
+                element(
+                    PopupMotionProps(
+                        input.hover.enabled,
+                        8.0 * density,
+                        popupArrowInk(input.arrow, density, visual.background.resolve(None))
+                    ),
+                    { current -> PopupMotion(current) },
+                    [content]
+                )
+            ) {
+                placement =
+                    OverlayPlacement.Anchored(
+                        localAnchor,
+                        input.side,
+                        input.alignment,
+                        input.gap * density,
+                        input.viewportPadding * density
+                    )
+                handle = input.handle
+                dismiss = OverlayDismiss(true, OutsidePress.CloseAndContinue, true)
+                transition = PresenceOptions(motion, motion)
+                onClosed = { reason -> currentInputs().onClosed(reason) }
+            }
+        return element(
+            HoverPopupLayoutProps(anchor, link, open, input.hover, passive),
+            { current -> HoverPopupLayout(current) },
+            [input.trigger, popup]
+        )
+    }
+}
+
+/** System text colors can carry alpha; popup surfaces must cover the content behind them. */
+internal fun tooltipBackground(palette: ThemePalette): Color =
+    mixThemeColor(
+        palette.background.background.withAlpha(1.0),
+        palette.background.foreground.withAlpha(1.0),
+        palette.background.foreground.alpha
+    )

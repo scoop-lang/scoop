@@ -1,0 +1,258 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.kbd as makeKbd
+
+internal class HoverExamplesModel {
+    val delayed = state(false)
+    val enabled = state(true)
+    val open = state(false)
+    val reject = state(false)
+    val actions = state(0)
+    val changes = state(0)
+    val following = state(false)
+    val details = state(false)
+}
+
+internal fun tooltipExamples(model: HoverExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        add(panelHeading("Tooltip", fonts))
+        typography(
+            "Hints keep the original button action and keyboard focus. Escape dismisses a hint until you leave and return.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        row {
+            button(
+                if (model.delayed.value)
+                    "Delay: 400ms"
+                else
+                    "Delay: immediate",
+                { model.delayed.value = !model.delayed.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.enabled.value)
+                    "Disable hints"
+                else
+                    "Enable hints",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        row {
+            tooltip(
+                makeButton("Save", { model.actions.value += 1 }) { this.fonts = Some(fonts) },
+                "Save the current document"
+            ) {
+                this.fonts = Some(fonts)
+                enabled = model.enabled.value
+                openDelay =
+                    if (model.delayed.value)
+                        Duration.milliseconds(400L)
+                    else
+                        Duration.ZERO
+            }
+            tooltip(
+                makeButton("Shortcut", { model.actions.value += 1 }) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                },
+                makeKbd("⌘K") { this.fonts = Some(fonts) }
+            ) {
+                this.fonts = Some(fonts);
+                enabled = model.enabled.value
+            }
+            tooltip(
+                makeButton("Unavailable", {}) {
+                    this.fonts = Some(fonts);
+                    enabled = false
+                },
+                "This action is unavailable until a document is open."
+            ) {
+                this.fonts = Some(fonts);
+                enabled = model.enabled.value;
+                maxWidth = 200.0
+            }
+            spacing = 12.0
+        }
+        typography(f"Button actions: ${model.actions.value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        add(panelHeading("Placement and wrapping", fonts))
+        row {
+            for (
+                side in [OverlaySide.Top, OverlaySide.Bottom, OverlaySide.Start, OverlaySide.End]
+            ) {
+                tooltip(
+                    makeButton(hintSideName(side), {}) {
+                        this.fonts = Some(fonts);
+                        variant = ButtonVariant.Outline
+                    },
+                    "Long hints wrap within the chosen width and keep their arrow aligned with the trigger."
+                ) {
+                    this.side = side;
+                    maxWidth = 220.0;
+                    this.fonts = Some(fonts)
+                }
+            }
+            spacing = 12.0
+        }
+        add(panelHeading("Controlled hint", fonts))
+        row {
+            tooltip(
+                makeButton("Bound trigger", {}) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                },
+                "This hint follows the current binding."
+            ) {
+                this.fonts = Some(fonts)
+                open =
+                    Some(
+                        binding(
+                            { model.open.value },
+                            {
+                                next -> if (!model.reject.value)
+                                    model.open.value = next
+                            }
+                        )
+                    )
+                onOpenChange = { _ -> model.changes.value += 1 }
+            }
+            button("Show", { model.open.value = true }) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button("Close", { model.open.value = false }) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.reject.value)
+                    "Allow binding"
+                else
+                    "Reject binding",
+                { model.reject.value = !model.reject.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        typography(
+            f"Open: ${model.open.value} · accepted changes: ${model.changes.value}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        spacing = 20.0
+        alignment = CrossAlignment.Stretch
+    }
+
+internal fun hoverCardExamples(model: HoverExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        add(panelHeading("Hover Card", fonts))
+        typography(
+            "Move from the link into the preview. You can select text, follow the profile, or open its nested details without losing the card.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        row {
+            hoverCard(
+                makeButton("@scoop", { model.actions.value += 1 }) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Link
+                },
+                makeColumn {
+                    typography("Scoop", TypographyRole.Large) { this.fonts = Some(fonts) }
+                    typography(
+                        "A native language and UI toolkit. Explore the project and keep up with new components.",
+                        TypographyRole.Small
+                    ) { this.fonts = Some(fonts) }
+                    button(
+                        if (model.following.value)
+                            "Following"
+                        else
+                            "Follow",
+                        { model.following.value = !model.following.value }
+                    ) {
+                        this.fonts = Some(fonts)
+                        variant =
+                            if (model.following.value)
+                                ButtonVariant.Outline
+                            else
+                                ButtonVariant.Default
+                    }
+                    popover(
+                        model.details.binding(),
+                        makeColumn {
+                            typography(
+                                "Built with Scoop components, shared themes and native input.",
+                                TypographyRole.Small
+                            ) { this.fonts = Some(fonts) }
+                            button("Close details", { model.details.value = false }) {
+                                this.fonts = Some(fonts);
+                                variant = ButtonVariant.Outline
+                            }
+                            spacing = 8.0
+                        }
+                    ) {
+                        trigger("Project details") { size = ButtonSize.Sm }
+                        title("About the project")
+                        this.fonts = Some(fonts);
+                        side = OverlaySide.End;
+                        width = 240.0
+                    }
+                    spacing = 10.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                this.fonts = Some(fonts)
+                enabled = model.enabled.value
+                arrow = Some(PopupArrow())
+                gap = 12.0
+                onClosed = { _ -> model.details.value = false }
+            }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (model.enabled.value)
+                    "Disable preview"
+                else
+                    "Enable preview",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button("Outside action", { model.actions.value += 1 }) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        typography(
+            f"Actions: ${model.actions.value} · following: ${model.following.value}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        spacing = 20.0;
+        alignment = CrossAlignment.Stretch
+    }
+
+private fun hintSideName(side: OverlaySide): String =
+    when (side) {
+        case Top -> "Top"
+        case Bottom -> "Bottom"
+        case Start -> "Start"
+        case End -> "End"
+        case Left -> "Left"
+        case Right -> "Right"
+    }

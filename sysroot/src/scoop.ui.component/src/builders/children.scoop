@@ -13,6 +13,28 @@ import scoop.window.ShortcutLabel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun tooltip(trigger: View, text: String, configure: TooltipBuilder.() -> Unit = {}) {
+        add(
+            makeTooltip(
+                trigger,
+                PanelContent.Label(LabelProps(LabelText.Plain(text, None))),
+                configure
+            )
+        )
+    }
+    public fun tooltip(trigger: View, text: StyledText, configure: TooltipBuilder.() -> Unit = {}) {
+        add(makeTooltip(trigger, PanelContent.Label(LabelProps(LabelText.Styled(text))), configure))
+    }
+    public fun tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}) {
+        add(makeTooltip(trigger, PanelContent.Custom(content), configure))
+    }
+    public fun hoverCard(
+        trigger: View,
+        content: View,
+        configure: HoverCardBuilder.() -> Unit = {}
+    ) {
+        add(makeHoverCard(trigger, content, configure))
+    }
     public fun popover(
         open: Binding<Boolean>,
         content: View,

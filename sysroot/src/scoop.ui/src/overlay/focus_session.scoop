@@ -14,22 +14,22 @@ internal class OverlayFocusSession(
     private val saved = root.focus.capture()
     private val previousBoundary = root.surface.focusBoundary
     private val input = node.scope.input
-    private val proxy = node.scope.createArea(focusable = true)
-    private val fallbackTarget = node.scope.focusTarget(proxy, FocusOptions(tabStop = false))
-    private val fallback = fallbackTarget.handle
+    private val constrained = initial.mode != OverlayMode.NonModal
+    private val proxy = node.scope.createArea(focusable = constrained)
+    private val fallbackTarget: FocusTarget? =
+        if (constrained)
+            Some(node.scope.focusTarget(proxy, FocusOptions(tabStop = false)))
+        else
+            None
+    private val fallback = fallbackTarget?.handle
     private var dismissal: Closeable? = None
     private var finished = false
-    private val constrained = initial.mode != OverlayMode.NonModal
     val group =
         node.scope.focusScope(
             FocusScopeOptions(
                 loop = constrained,
                 defaultFocus = initial.focusOptions?.initialFocus ?: None,
-                fallback =
-                    if (constrained)
-                        Some(fallback)
-                    else
-                        None
+                fallback = fallback
             )
         )
     private val openingRevision = root.surface.focusRevision
@@ -71,11 +71,7 @@ internal class OverlayFocusSession(
             FocusScopeOptions(
                 loop = constrained,
                 defaultFocus = options.focusOptions?.initialFocus ?: None,
-                fallback =
-                    if (constrained)
-                        Some(fallback)
-                    else
-                        None
+                fallback = fallback
             )
     }
     fun place(context: FrameContext) {
@@ -104,7 +100,7 @@ internal class OverlayFocusSession(
         failure = cleanupUi(failure) { dismissal?.close() }
         dismissal = None
         failure = cleanupUi(failure) { group.close() }
-        failure = cleanupUi(failure) { fallbackTarget.close() }
+        failure = cleanupUi(failure) { fallbackTarget?.close() }
         failure = cleanupUi(failure) { proxy.close() }
         when (portal.focusSession) {
             case Some(current) -> if (current === this) {

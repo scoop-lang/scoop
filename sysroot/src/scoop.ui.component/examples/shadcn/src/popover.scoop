@@ -14,6 +14,7 @@ internal class PopoverExamplesModel {
     val side = state(OverlaySide.Bottom)
     val alignment = state(OverlayAlignment.Center)
     val enabled = state(true)
+    val arrow = state(false)
     val veto = state(false)
     val reject = state(false)
     val changes = state(0)
@@ -127,6 +128,18 @@ internal fun popoverExamples(
             spacing = 8.0
         }
         row {
+            button(
+                if (model.arrow.value)
+                    "Hide arrow"
+                else
+                    "Show arrow",
+                { model.arrow.value = !model.arrow.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+        }
+        row {
             popover(
                 binding(
                     { model.open.value },
@@ -192,6 +205,11 @@ internal fun popoverExamples(
                 side = model.side.value;
                 alignment = model.alignment.value
                 enabled = model.enabled.value
+                arrow =
+                    if (model.arrow.value)
+                        Some(PopupArrow())
+                    else
+                        None
                 focus = OverlayFocusOptions(Some(model.edit))
                 handle = Some(model.handle)
                 onOpenChange = { _ -> model.changes.value += 1 }

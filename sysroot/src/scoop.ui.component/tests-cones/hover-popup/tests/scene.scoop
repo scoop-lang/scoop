@@ -1,0 +1,199 @@
+package scoop.tests.ui.hoverpopup
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+
+internal class HoverPopupScene(private val p: HoverPopupProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val version = p.version
+        val source =
+            if (p.second)
+                p.other
+            else
+                p.external
+        val control =
+            if (p.controlled)
+                Some(
+                    binding(
+                        { source.value },
+                        {
+                            next -> if (!p.deny)
+                                source.value = next
+                        }
+                    )
+                )
+            else
+                None
+        val trigger =
+            button("Trigger", { p.actions += 1 }) {
+                fonts = Some(p.fonts)
+                focus = FocusOptions(Some(p.trigger))
+            }
+        val body = component({ HoverPopupBody(p) })
+        val popup =
+            if (!p.mounted.value)
+                empty()
+            else
+                if (p.card)
+                    hoverCard(trigger, body) {
+                        open = control
+                        side = OverlaySide.End
+                        gap = 40.0
+                        openDelay = p.openDelay;
+                        closeDelay = p.closeDelay
+                        focus = p.focus;
+                        enabled = p.enabled
+                        handle = Some(p.layer);
+                        fonts = Some(p.fonts)
+                        arrow = Some(PopupArrow())
+                        onOpenChange =
+                            {
+                                _ ->
+                                p.changes += 1;
+                                p.callbackVersion = version
+                            }
+                        onClosed = { _ -> p.closes += 1 }
+                    }
+                else
+                    tooltip(trigger, body) {
+                        open = control
+                        side = OverlaySide.End
+                        gap = 40.0
+                        openDelay = p.openDelay;
+                        closeDelay = p.closeDelay
+                        focus = p.focus;
+                        enabled = p.enabled
+                        handle = Some(p.layer);
+                        fonts = Some(p.fonts)
+                        onOpenChange =
+                            {
+                                _ ->
+                                p.changes += 1;
+                                p.callbackVersion = version
+                            }
+                        onClosed = { _ -> p.closes += 1 }
+                    }
+        return direction(
+            element(
+                generation,
+                { current -> HoverPopupRoot(p, current) },
+                [
+                    popup,
+                    button("After", {}) {
+                        fonts = Some(p.fonts)
+                        focus = FocusOptions(Some(p.after))
+                    }
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class HoverPopupBody(private val p: HoverPopupProbe): Component {
+    private val local = state(0)
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val local = this.local
+        p.observed = local.value
+        return column {
+            label(
+                if (p.longHint)
+                    "A longer hint wraps inside the maximum width while preserving its existing content instance and focus target across binding changes."
+                else
+                    "Hint"
+            ) {
+                fonts = Some(p.fonts)
+                if (!p.card)
+                    style { color = Some(Color.White) }
+            }
+            add(
+                element(
+                    { HoverPopupObservation(p) },
+                    [
+                        makeButton(
+                            f"Local ${local.value}",
+                            {
+                                local.value += 1;
+                                p.contentActions += 1
+                            }
+                        ) {
+                            fonts = Some(p.fonts)
+                            focus = FocusOptions(Some(p.content))
+                        }
+                    ]
+                )
+            )
+            spacing = 4.0
+            alignment = CrossAlignment.Stretch
+        }
+    }
+}
+
+private class SubmittedBounds(var value: Rect)
+
+private class HoverPopupObservation(private val p: HoverPopupProbe): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val bounds = SubmittedBounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    geometry -> bounds.value = geometry.toWindow(local)
+                }
+            }
+        }
+        val layout = context.overlayLayout!!
+        val committed = bounds.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                p.contentBounds = committed
+                p.popupBounds = layout.bounds
+                p.side = layout.side
+            }
+        }
+    }
+}
+
+private class HoverPopupRoot(
+    private val p: HoverPopupProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
+        context.placeChild(0L, Point(p.triggerX, 120.0))
+        context.measureChild(1L, Constraints.tight(Size(140.0, 36.0)))
+        context.placeChild(1L, Point(20.0, 330.0))
+        return LayoutMetrics(constraints.constrain(Size(640.0, 400.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}
