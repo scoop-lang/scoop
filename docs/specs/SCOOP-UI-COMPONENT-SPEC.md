@@ -938,3 +938,17 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 拖动复用 Drag 的主轴阈值、指针声明与取消，仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
 
 把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 4 像素命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。
+
+## 39. Carousel
+
+`carousel(source: ItemSource) { ... }` 与 `carousel { item(key, content) { ... } }` 创建 CarouselProps／Carousel。复用 ItemSource 的不可变快照约定，key 必须显式且唯一；普通有限轮播保留每个项目的唯一挂载实例，数据源变化更新描述，同 key 重排保留局部状态。CarouselItemSize 为 Fraction、Length 或 Content：Fraction 是视口内主轴长度的比例，并减去 `spacing * (1 - fraction)`，使等分项目及间距可以正好容纳；Length 是逻辑长度，Content 使用正文真实测量。比例必须有限且大于零，长度／间距／内缩非负有限。DSL 的 item 配置 size 与 style；外部 source 用 itemSize(index) 提供同一规则。
+
+根支持 orientation=Horizontal、selected: Binding<Long>?=None、initialIndex=0、loop=false、enabled=true、length=None、spacing=16、dragThreshold=4、projectionSeconds=0.15、autoplay=None、handle、theme、style、viewport、previous／next 及 onSelect(index, key)／onDragCancel(reason)。不受控时保留已选 key，删除它后夹取原索引；受控索引按当前 source 解释，越界仅夹取显示，不暗写应用状态。选择请求只通知 setter 实际采纳的索引／key，不因 resize、主题或方向变化假报选择。CarouselHandle 仅绑定一个活动挂载，提供 snapshot、position、snapPositions、previous／next／scrollTo(index, animated)，未挂载或无有效几何时返回 false；卸载解除绑定。
+
+主轴有限时填可用长度，无界时默认 320；length 可明确覆盖。默认两侧各为导航按钮保留 48 密度单位，按钮 32、圆形 Outline；窄宽保留合法零尺寸视口。viewport 默认各边 4 内缩，为正文焦点环提供绘制空间，内部裁剪与输入几何同变换；交叉轴取正文自然尺寸并遵守父约束。完全离屏项目继续逻辑更新，但暂停子树帧请求并退出输入／Tab 顺序；重新可见后在 Accepted 几何后恢复。横向按逻辑起点排列、RTL 对换物理方向，纵向向下为下一项。
+
+吸附由实际测量项目起点产生。非循环位置夹在 0 与内容末端减视口之间，重合的尾部锚点不产生无意义的上一／下一动作；不足一屏时两个方向都不可用。循环按实际总长和接缝间距移动同一批内容，每个 key 仅有一个交互实例；仅在移走任一项后余下环长仍可覆盖视口时启用，否则按非循环处理。内容、尺寸、方向或外部定位改变使旧拖动／动画目标失效，以当前选择重新定位；不清空项目状态。
+
+Drag 到达主轴阈值后声明原指针路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
+
+CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。

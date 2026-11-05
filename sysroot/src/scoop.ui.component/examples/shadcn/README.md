@@ -59,3 +59,5 @@ Dialog 页面编辑真实 profile 草稿，带固定操作区、滚动长正文�
 Dropdown Menu、Context Menu、Menubar 页面共用工作区命令、嵌套团队菜单、勾选和布局单选，提供禁用、模态切换、窄宽、拒绝绑定及关闭 veto。Dropdown Menu 同时展示 Breadcrumb 省略路径和 ButtonGroup split action，删除动作进入 AlertDialog；Context Menu 可在原按钮上右键或聚焦后按 Shift+F10，主动作计数保持独立。Menubar 支持左右／hover 切换、上下进入候选、嵌套方向导航和 Tab 退出续行。
 
 Select 页面包含分组单选、placeholder／未知值、禁用／校验、Default／Sm、选中行对齐与普通 popup、80 项长列表、hover 滚动、自定义候选／显示正文、Label 关联和 ButtonGroup 连接动作；宽度、方向、明暗和模态配置可直接切换。
+
+Carousel 页面提供横纵、单项／多项、循环、窄宽和自动播放。拖动正文或使用导航按钮切换，Tab 聚焦视口后可用主轴方向键、Home／End 和 PageUp／PageDown；第一项的草稿和其他项目的保存计数持续保留。自动播放在整组悬浮、焦点进入、拖动和窗口隐藏时暂停，离开后重新等待完整间隔；顶部明暗、System／Neutral、RTL 与减少动态配置同样适用。

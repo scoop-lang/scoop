@@ -19,9 +19,16 @@ import scoop.ui.component.combobox as appendCombobox
 import scoop.ui.component.navigationMenu as appendNavigationMenu
 import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
 import scoop.ui.component.resizable as appendResizable
+import scoop.ui.component.carousel as appendCarousel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun carousel(source: ItemSource, configure: CarouselBuilder.() -> Unit = {}) {
+        add(appendCarousel(source, configure))
+    }
+    public fun carousel(configure: CarouselBuilder.() -> Unit) {
+        add(appendCarousel(configure))
+    }
     public fun resizable(
         sizes: Binding<Array<ResizableSize>>,
         configure: ResizableBuilder.() -> Unit = {}

@@ -288,3 +288,8 @@ ComboboxBuilder 继承 InputBuilder；open、active、已选值与 TextEditorSta
 `resizable(sizes.binding()) { panel(ViewKey.Text("sidebar"), content) { minimum = 120.0; collapsible = true }; panel(ViewKey.Text("main"), main); handle(ViewKey.Text("sidebar")) { withHandle = Some(true) } }` 使用受控 `Array<ResizableSize>`，每项包含稳定 key、fraction 与 collapsed。面板自动配备相邻把手，可定制 FocusOptions、enabled 与局部 style；根提供横／纵、主轴长度、键盘步长、阈值、主题、裁剪及实际变化／提交／取消通知。
 
 min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，折叠项保留恢复比例。窗口变化只排版，相邻拖动保留总长；取消不覆盖外部新状态。正文保持挂载并按面板裁剪，根默认允许尺寸不足产生的明确 overflow。Tab、方向键、Home／End、Page 与 Enter／Escape 只作用于把手。详细合同见组件规范第 38 节。
+
+
+## P6b：Carousel
+
+`carousel(source) { selected = Some(index.binding()); itemSize = { _ -> CarouselItemSize.Fraction(0.5) }; loop = true }` 消费已有 ItemSource；`carousel { item(key, content) { size = CarouselItemSize.Content } }` 构造有限快照。根提供 viewport、previous／next、受控索引／选择通知、横纵、间距、拖动／吸附、显式自动播放、局部样式与主题。CarouselHandle 提供当前选择、方向可用性和定位命令。循环保留唯一内容实例，尺寸不足自动采用普通吸附；拖动取消不提交选择，文本子控件保持自己的按键行为。详见组件规范第 39 节。

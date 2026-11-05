@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.platform.concurrent.currentThreadId
+import scoop.ui.*
+
+public class CarouselHandle public constructor() {
+    private val thread = currentThreadId()
+    private var target: CarouselControl? = None
+    private val value = state(CarouselSnapshot())
+    private fun checkThread() {
+        if (currentThreadId() != thread)
+            throw IllegalStateException(Some("carousel handle used from another thread"))
+    }
+    public val isAttached: Boolean get() {
+        checkThread();
+        return target?.active ?: false
+    }
+    public val snapshot: CarouselSnapshot get() {
+        checkThread();
+        return value.value
+    }
+    public val position: Double get() {
+        checkThread();
+        return target?.position ?: 0.0
+    }
+    public val snapPositions: Array<Double> get() {
+        checkThread();
+        return target?.snaps ?: []
+    }
+    public fun scrollTo(index: Long, animated: Boolean = true): Boolean {
+        checkThread();
+        return target?.select(index, animated) ?: false
+    }
+    public fun previous(animated: Boolean = true): Boolean {
+        checkThread();
+        return target?.step(false, animated) ?: false
+    }
+    public fun next(animated: Boolean = true): Boolean {
+        checkThread();
+        return target?.step(true, animated) ?: false
+    }
+    internal fun bind(control: CarouselControl) {
+        checkThread()
+        when (target) {
+            case Some(old) -> requireComponent(
+                old === control || !old.active,
+                "carousel handle already has a target"
+            )
+            case None -> {}
+        }
+        target = Some(control);
+        publish(CarouselSnapshot())
+    }
+    internal fun unbind(control: CarouselControl) {
+        checkThread()
+        when (target) {
+            case Some(old) -> if (old === control) {
+                target = None;
+                publish(CarouselSnapshot())
+            }
+            case None -> {}
+        }
+    }
+    internal fun publish(snapshot: CarouselSnapshot) {
+        if (value.value != snapshot)
+            value.value = snapshot
+    }
+}

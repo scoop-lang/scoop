@@ -1,0 +1,168 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.carousel as makeCarousel
+import scoop.ui.component.column as carouselColumn
+import scoop.ui.component.frame as carouselFrame
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class CarouselExamplesModel {
+    val selected = state(0L)
+    val handle = CarouselHandle()
+    val vertical = state(false)
+    val loop = state(false)
+    val multiple = state(false)
+    val playing = state(false)
+    val narrow = state(false)
+    val changes = state(0)
+    val actions = state(0)
+    val note = TextEditorState("Edit this note, then drag to another slide.")
+}
+
+internal fun carouselExamples(model: CarouselExamplesModel, fonts: FontCollection): View =
+    carouselColumn {
+        add(panelHeading("Carousel", fonts))
+        typography(
+            "Drag a slide or use the arrow buttons. Tab to the viewport for arrows, Home / End and Page Up / Down.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.vertical.value)
+                    "Vertical"
+                else
+                    "Horizontal",
+                { model.vertical.value = !model.vertical.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.loop.value)
+                    "Loop: on"
+                else
+                    "Loop: off",
+                { model.loop.value = !model.loop.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.multiple.value)
+                    "Multiple items"
+                else
+                    "One item",
+                { model.multiple.value = !model.multiple.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.playing.value)
+                    "Pause autoplay"
+                else
+                    "Start autoplay",
+                { model.playing.value = !model.playing.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.narrow.value)
+                    "Use available width"
+                else
+                    "Narrow layout",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        item(
+            carouselFrame(
+                makeCarousel {
+                    for (number in 0L .. 3L) {
+                        item(
+                            ViewKey.Number(number),
+                            carouselColumn {
+                                typography(f"Slide ${number + 1L}", TypographyRole.H3) {
+                                    this.fonts = Some(fonts)
+                                }
+                                if (number == 0L)
+                                    textarea(model.note) { this.fonts = Some(fonts) }
+                                else {
+                                    typography(
+                                        "Each slide keeps its content while moving through the carousel.",
+                                        TypographyRole.Muted
+                                    ) { this.fonts = Some(fonts) }
+                                    button("Save this slide", { model.actions.value += 1 }) {
+                                        this.fonts = Some(fonts);
+                                        variant = ButtonVariant.Secondary
+                                    }
+                                }
+                                spacing = 12.0;
+                                padding = Insets.all(20.0);
+                                alignment = CrossAlignment.Stretch
+                            }
+                        ) {
+                            size =
+                                CarouselItemSize.Fraction(
+                                    if (model.multiple.value)
+                                        0.5
+                                    else
+                                        1.0
+                                )
+                            style =
+                                styleOverride {
+                                    border(Some(Border.all(1.0, Color(0.5, 0.5, 0.5, 0.25))));
+                                    corners(Corners.all(12.0))
+                                }
+                        }
+                    }
+                    selected = Some(model.selected.binding());
+                    handle = Some(model.handle)
+                    orientation =
+                        if (model.vertical.value)
+                            Orientation.Vertical
+                        else
+                            Orientation.Horizontal
+                    length =
+                        if (model.vertical.value)
+                            Some(620.0)
+                        else
+                            None
+                    loop = model.loop.value
+                    autoplay =
+                        if (model.playing.value)
+                            Some(CarouselAutoplay(Duration.seconds(3L)))
+                        else
+                            None
+                    onSelect = { _, _ -> model.changes.value += 1 }
+                }
+            ) {
+                width =
+                    if (model.narrow.value)
+                        Some(440.0)
+                    else
+                        None
+            }
+        ) { align = Some(CrossAlignment.Start) }
+        typography(
+            f"Slide ${model.selected.value + 1L} of 4 · ${model.changes.value} selections · ${
+                model.actions.value
+            } saved",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        typography(
+            "Autoplay pauses while you hover or focus the carousel. Editing and ordinary button clicks remain independent of dragging.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        spacing = 16.0;
+        alignment = CrossAlignment.Stretch
+    }

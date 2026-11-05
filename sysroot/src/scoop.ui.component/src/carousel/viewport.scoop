@@ -1,0 +1,209 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class CarouselViewport(private val props: Props<CarouselInput>): Element {
+    private var control: CarouselControl? = None
+    private var painter: StylePainter? = None
+    private var ring: ThemePainterCache? = None
+    public override fun onMount(scope: ComponentScope) {
+        val value = CarouselControl(scope, { props.value });
+        control = Some(value)
+        props.value.owner.control = Some(value)
+        painter = Some(scope.resource { StylePainter() });
+        ring = Some(scope.resource { ThemePainterCache() })
+    }
+    public override fun update() {
+        control!!.update();
+        ring!!.get(props.value.theme)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val horizontal = input.props.orientation == Orientation.Horizontal
+        val density = input.theme.tokens.typography.body.fontSize / 14.0
+        val padding = input.props.viewport.padding * density
+        val main =
+            (
+                if (horizontal)
+                    constraints.maxWidth
+                else
+                    constraints.maxHeight
+            ) ?:
+                0.0
+        val innerMain = lowerBound(0.0, main - padding * 2.0)
+        val maxCross =
+            if (horizontal)
+                constraints.maxHeight
+            else
+                constraints.maxWidth
+        val innerMaxCross =
+            when (maxCross) {
+                case Some(value) -> Some(lowerBound(0.0, value - padding * 2.0));
+                case None -> None
+            }
+        val spacing = input.props.spacing * density
+        var naturalCross = 0.0
+        val sizes = ArrayList<Double>()
+        for (index in 0L ..< context.childCount) {
+            val extent = carouselExtent(input.props.itemSize(index), innerMain, spacing)
+            val measured =
+                context.measureChild(
+                    index,
+                    if (horizontal)
+                        Constraints(extent ?: 0.0, extent, 0.0, innerMaxCross)
+                    else
+                        Constraints(0.0, innerMaxCross, extent ?: 0.0, extent)
+                )
+            naturalCross =
+                lowerBound(
+                    naturalCross,
+                    if (horizontal)
+                        measured.size.height
+                    else
+                        measured.size.width
+                )
+            sizes.add(
+                if (horizontal)
+                    measured.size.width
+                else
+                    measured.size.height
+            )
+        }
+        val extents = sizes.toArray()
+        val size =
+            constraints.constrain(resizableSize(main, naturalCross + padding * 2.0, horizontal))
+        val inner =
+            Rect(
+                upperBound(padding, size.width),
+                upperBound(padding, size.height),
+                lowerBound(0.0, size.width - padding * 2.0),
+                lowerBound(0.0, size.height - padding * 2.0)
+            )
+        val cross =
+            if (horizontal)
+                inner.height
+            else
+                inner.width
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(
+                index,
+                Constraints.tight(resizableSize(extents[index], cross, horizontal))
+            )
+            context.placeChild(index, Point(0.0, 0.0))
+        }
+        input.geometry =
+            Some(
+                CarouselGeometry(
+                    size,
+                    inner,
+                    carouselTrack(extents, innerMain, spacing, input.props.loop),
+                    input.keys,
+                    input.props.orientation,
+                    context.layoutDirection
+                )
+            )
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val shape = input.geometry!!
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        if (bounds.width > 0.0 && bounds.height > 0.0)
+            context.place(control!!.area, bounds)
+        painter!!.scene(context, input.props.viewport.style.resolve(style())) {
+            local ->
+            local.clipRect(bounds);
+            local.children()
+        }
+        if (control!!.area.isFocusVisible) {
+            val visual = SurfaceVisual(SurfaceKind.Plain, InteractionVisual(focusVisible = true))
+            val geometry =
+                input.theme.surfaceGeometry(
+                    bounds,
+                    visual,
+                    surfaceOptions {
+                        style {
+                            background(None);
+                            border(None);
+                            corners(Corners.all(0.0))
+                        }
+                        focus = Some(OutlineStyle(input.theme.tokens.palette.ring, 1.0, 1.0))
+                    },
+                    context.layoutDirection
+                )
+            context.draw {
+                paint -> ring!!.get(input.theme).drawSurface(paint.canvas, geometry, visual)
+            }
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                control!!.accept(shape)
+        }
+    }
+    public override fun onUnmount() {
+        control!!.retire()
+    }
+}
+
+internal class CarouselItemInput(val root: CarouselInput, val index: Long)
+
+internal class CarouselItemLayout(private val props: Props<CarouselItemInput>): Element {
+    private var scope: ComponentScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        scope.input.enabled = false
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0));
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val shape = input.root.geometry!!
+        val position =
+            carouselItemPosition(
+                shape.track,
+                input.index,
+                input.root.owner.control!!.visualPosition(shape)
+            )
+        val horizontal = shape.orientation == Orientation.Horizontal
+        val along =
+            if (horizontal)
+                logicalX(position, context.size.width, shape.inner.width, shape.direction)
+            else
+                position
+        context.translate(
+            shape.inner.x +
+                if (horizontal)
+                    along
+                else
+                    0.0,
+            shape.inner.y +
+                if (horizontal)
+                    0.0
+                else
+                    along
+        )
+        val visible =
+            position <
+                shape.track.viewport &&
+                position +
+                shape.track.extents[input.index] >
+                0.0 &&
+                context.size.width >
+                0.0 &&
+                context.size.height >
+                0.0
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted && scope!!.isMounted) {
+                scope!!.input.enabled = visible
+                scope!!.isFrameEnabled = visible
+            }
+        }
+        context.children()
+    }
+}

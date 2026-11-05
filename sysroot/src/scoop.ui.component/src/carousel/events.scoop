@@ -1,0 +1,129 @@
+package scoop.ui.component
+
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal fun carouselDrag(control: CarouselControl, event: DragEvent) {
+    when (event) {
+        case Started(sample) -> {
+            if (!control.available()) {
+                control.cancel(DragCancelReason.GeometryUnavailable);
+                return
+            }
+            control.motion.cancel()
+            control.gesture = Some(CarouselGesture(control.motion.value, control.geometry!!))
+            control.focus.handle.requestFocus(FocusOrigin.Pointer)
+            if (!control.active)
+                return
+            carouselDragged(control, sample)
+            control.publish();
+            control.refreshAutoplay()
+        }
+        case Moved(sample) -> carouselDragged(control, sample)
+        case Ended(sample) -> {
+            val gesture = control.gesture ?: return
+            carouselDragged(control, sample)
+            if (!control.active)
+                return
+            control.gesture = None
+            val sign = carouselDragSign(gesture.geometry)
+            val target =
+                carouselNearest(
+                    gesture.geometry.track,
+                    control.motion.value,
+                    sample.velocity * sign,
+                    control.read().props.projectionSeconds
+                )
+            when (target) {
+                case Some(value) -> control.select(value.index, true, Some(value.position));
+                case None -> {}
+            }
+            control.publish();
+            control.refreshAutoplay()
+        }
+        case Cancelled(_, reason) -> control.cancel(reason)
+    }
+}
+
+private fun carouselDragSign(shape: CarouselGeometry): Double =
+    if (shape.orientation == Orientation.Horizontal && shape.direction == LayoutDirection.Rtl)
+        1.0
+    else
+        -1.0
+
+private fun carouselDragged(control: CarouselControl, sample: DragSample) {
+    val gesture = control.gesture ?: return
+    val track = gesture.geometry.track
+    var next = gesture.origin + sample.displacement * carouselDragSign(gesture.geometry)
+    if (!next.isFinite())
+        return
+    if (track.looping)
+        next = carouselModulo(next, track.cycle)
+    else {
+        val bounded = min(max(0.0, next), track.maximum)
+        next =
+            bounded +
+                min(track.viewport / 3.0, abs(next - bounded) / 3.0) *
+                if (next < bounded)
+                    -1.0
+                else
+                    1.0
+    }
+    if (control.motion.value != next)
+        control.motion.snapTo(next)
+}
+
+internal fun carouselKeyboard(
+    control: CarouselControl,
+    context: RoutedEventContext,
+    event: KeyEvent
+) {
+    if (!control.active || !sliderKeyAllowed(event))
+        return
+    if (event.logicalKey == LogicalKey.Named(NamedKey.Escape)) {
+        when (control.gesture) {
+            case Some(_) -> {
+                context.consume();
+                control.cancel(DragCancelReason.Explicit)
+            };
+            case None -> {}
+        }
+        return
+    }
+    if (!control.area.isFocusActive || !control.available())
+        return
+    val shape = control.geometry!!
+    val command = resizableKey(shape.orientation, shape.direction, event.logicalKey) ?: return
+    when (command) {
+        case Minimum -> {
+            context.consume();
+            control.select(0L, true)
+        }
+        case Maximum -> {
+            context.consume();
+            control.select(shape.keys.size - 1L, true)
+        }
+        case Step(value) -> {
+            context.consume();
+            control.step(value > 0.0, true)
+        }
+        case Page(value) -> {
+            context.consume()
+            val target =
+                carouselNearest(
+                    shape.track,
+                    control.position - value * shape.track.viewport,
+                    0.0,
+                    0.0
+                )
+            when (target) {
+                case Some(selected) -> control.select(selected.index, true, Some(selected.position))
+                case None -> {}
+            }
+        }
+        case Toggle -> {}
+    }
+}

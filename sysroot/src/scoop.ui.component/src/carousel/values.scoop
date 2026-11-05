@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum CarouselItemSize {
+    Fraction(Double), Length(Double), Content
+}
+
+public class CarouselAutoplay public constructor(
+    public val interval: Duration,
+    public val pauseOnHover: Boolean = true,
+    public val pauseOnFocus: Boolean = true
+) {
+    init {
+        requireComponent(interval > Duration.ZERO, "carousel autoplay interval must be positive")
+    }
+}
+
+public class CarouselViewportOptions public constructor(
+    public val padding: Double = 4.0,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(padding, "invalid carousel viewport padding")
+    }
+}
+
+public class CarouselButtonOptions public constructor(
+    public val visible: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: ButtonStyle = buttonStyle(),
+    public val content: View? = None
+)
+
+public struct CarouselSnapshot(
+    val index: Long = -1L,
+    val key: ViewKey? = None,
+    val count: Long = 0L,
+    val canPrevious: Boolean = false,
+    val canNext: Boolean = false,
+    val looping: Boolean = false,
+    val dragging: Boolean = false
+)
+
+public class CarouselProps public constructor(
+    public val source: ItemSource,
+    public val selected: Binding<Long>? = None,
+    public val initialIndex: Long = 0L,
+    public val itemSize: (Long) -> CarouselItemSize = { _ -> CarouselItemSize.Fraction(1.0) },
+    public val orientation: Orientation = Orientation.Horizontal,
+    public val loop: Boolean = false,
+    public val enabled: Boolean = true,
+    public val length: Double? = None,
+    public val spacing: Double = 16.0,
+    public val dragThreshold: Double = 4.0,
+    public val projectionSeconds: Double = 0.15,
+    public val autoplay: CarouselAutoplay? = None,
+    public val handle: CarouselHandle? = None,
+    public val viewport: CarouselViewportOptions = CarouselViewportOptions(),
+    public val previous: CarouselButtonOptions = CarouselButtonOptions(),
+    public val next: CarouselButtonOptions = CarouselButtonOptions(),
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onSelect: (Long, ViewKey) -> Unit = { _, _ -> Unit },
+    public val onDragCancel: (DragCancelReason) -> Unit = {}
+) {
+    init {
+        requireComponent(source.count >= 0L, "negative carousel item count")
+        nonnegative(spacing, "invalid carousel spacing")
+        nonnegative(dragThreshold, "invalid carousel drag threshold")
+        nonnegative(projectionSeconds, "invalid carousel projection duration")
+        when (length) {
+            case Some(value) -> nonnegative(value, "invalid carousel length")
+            case None -> {}
+        }
+    }
+}
+
+internal fun carouselExtent(size: CarouselItemSize, viewport: Double, spacing: Double): Double? =
+    when (size) {
+        case Content -> None
+        case Length(value) -> {
+            nonnegative(value, "invalid carousel item length");
+            Some(value)
+        }
+        case Fraction(value) -> {
+            requireComponent(value.isFinite() && value > 0.0, "invalid carousel item fraction")
+            val extent = lowerBound(0.0, viewport * value - spacing * (1.0 - value))
+            nonnegative(extent, "carousel item extent overflow")
+            Some(extent)
+        }
+    }

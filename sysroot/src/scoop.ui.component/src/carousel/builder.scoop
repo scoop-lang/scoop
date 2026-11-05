@@ -1,0 +1,148 @@
+package scoop.ui.component
+
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class CarouselItemBuilder internal constructor() {
+    public var size: CarouselItemSize = CarouselItemSize.Fraction(1.0)
+    public var style: StyleOverride = styleOverride()
+}
+
+public class CarouselViewportBuilder internal constructor() {
+    public var padding: Double = 4.0
+    public var focus: FocusOptions = FocusOptions()
+    public var style: StyleOverride = styleOverride()
+    internal fun snapshot(): CarouselViewportOptions =
+        CarouselViewportOptions(padding, focus, style)
+}
+
+public class CarouselButtonBuilder internal constructor() {
+    public var visible: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var style: ButtonStyle = buttonStyle()
+    public var content: View? = None
+    internal fun snapshot(): CarouselButtonOptions =
+        CarouselButtonOptions(visible, focus, style, content)
+}
+
+public class CarouselBuilder internal constructor() {
+    public var selected: Binding<Long>? = None
+    public var initialIndex: Long = 0L
+    public var itemSize: (Long) -> CarouselItemSize = { _ -> CarouselItemSize.Fraction(1.0) }
+    public var orientation: Orientation = Orientation.Horizontal
+    public var loop: Boolean = false
+    public var enabled: Boolean = true
+    public var length: Double? = None
+    public var spacing: Double = 16.0
+    public var dragThreshold: Double = 4.0
+    public var projectionSeconds: Double = 0.15
+    public var autoplay: CarouselAutoplay? = None
+    public var handle: CarouselHandle? = None
+    public var viewport: CarouselViewportOptions = CarouselViewportOptions()
+    public var previous: CarouselButtonOptions = CarouselButtonOptions()
+    public var next: CarouselButtonOptions = CarouselButtonOptions()
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
+    public var onSelect: (Long, ViewKey) -> Unit = { _, _ -> Unit }
+    public var onDragCancel: (DragCancelReason) -> Unit = {}
+    public var key: ViewKey = ViewKey.Position
+    private val entries = ArrayList<CarouselEntry>()
+    public fun item(key: ViewKey, content: View, configure: CarouselItemBuilder.() -> Unit = {}) {
+        val builder = CarouselItemBuilder();
+        builder.configure()
+        carouselExtent(builder.size, 1.0, 0.0)
+        entries.add(CarouselEntry(key, content, builder.size, builder.style))
+    }
+    public fun viewport(configure: CarouselViewportBuilder.() -> Unit) {
+        val builder = CarouselViewportBuilder();
+        builder.configure();
+        viewport = builder.snapshot()
+    }
+    public fun previous(configure: CarouselButtonBuilder.() -> Unit) {
+        val builder = CarouselButtonBuilder();
+        builder.configure();
+        previous = builder.snapshot()
+    }
+    public fun next(configure: CarouselButtonBuilder.() -> Unit) {
+        val builder = CarouselButtonBuilder();
+        builder.configure();
+        next = builder.snapshot()
+    }
+    public fun transition(value: AnimationSpec?) {
+        transition = StyleValue.Set(value)
+    }
+    internal fun snapshot(source: ItemSource?): CarouselProps {
+        val published = entries.toArray()
+        val resolved = source ?: CarouselItems(published)
+        when (source) {
+            case Some(_) -> requireComponent(
+                entries.size == 0L,
+                "carousel cannot combine source and item entries"
+            )
+            case None -> {}
+        }
+        val sizes: (Long) -> CarouselItemSize =
+            when (source) {
+                case Some(_) -> itemSize
+                case None -> ({ index -> published[index].size })
+            }
+        return CarouselProps(
+            resolved,
+            selected,
+            initialIndex,
+            sizes,
+            orientation,
+            loop,
+            enabled,
+            length,
+            spacing,
+            dragThreshold,
+            projectionSeconds,
+            autoplay,
+            handle,
+            viewport,
+            previous,
+            next,
+            theme,
+            style,
+            transition,
+            onSelect,
+            onDragCancel
+        )
+    }
+}
+
+internal class CarouselEntry(
+    val key: ViewKey,
+    val content: View,
+    val size: CarouselItemSize,
+    val style: StyleOverride
+)
+
+private class CarouselItems(private val values: Array<CarouselEntry>): ItemSource {
+    public override val count: Long get() = values.size
+    public override fun keyAt(index: Long): ViewKey = values[index].key
+    public override fun indexOfKey(key: ViewKey): Long? {
+        for (index in 0L ..< count)
+            if (values[index].key == key)
+                return Some(index)
+        return None
+    }
+    public override fun build(index: Long): View {
+        val entry = values[index]
+        return frame(entry.content) { style = entry.style }
+    }
+}
+
+public fun carousel(source: ItemSource, configure: CarouselBuilder.() -> Unit = {}): View =
+    makeCarousel(Some(source), configure)
+
+public fun carousel(configure: CarouselBuilder.() -> Unit): View = makeCarousel(None, configure)
+
+internal fun makeCarousel(source: ItemSource?, configure: CarouselBuilder.() -> Unit): View {
+    val builder = CarouselBuilder();
+    builder.configure()
+    return component(builder.snapshot(source), { props -> Carousel(props) }, builder.key)
+}
