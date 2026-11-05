@@ -15,9 +15,43 @@ import scoop.ui.component.alertDialog as makeAlertDialog
 import scoop.ui.component.sheet as makeSheet
 import scoop.ui.component.dialogFooter as makeDialogFooter
 import scoop.ui.component.command as makeCommand
+import scoop.ui.component.combobox as appendCombobox
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun <T: Equals<T>> combobox(
+        value: Binding<T?>,
+        choices: ChoiceSource<T>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<Array<T>>,
+        choices: ChoiceSource<T>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<T?>,
+        choices: Array<Choice<T>>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+    public fun <T: Equals<T>> combobox(
+        value: Binding<Array<T>>,
+        choices: Array<Choice<T>>,
+        query: TextEditorState,
+        configure: ComboboxBuilder<T>.() -> Unit = {}
+    ) {
+        add(appendCombobox(value, choices, query, configure))
+    }
+
     public fun command(
         source: CommandSource,
         query: TextEditorState,

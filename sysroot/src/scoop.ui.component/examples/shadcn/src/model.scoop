@@ -11,7 +11,7 @@ import scoop.ui.text.TextEditorState
 import scoop.window.*
 
 internal enum Demo {
-    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle, InputOtp, RadioGroup, ToggleGroup, Slider, Textarea, InputGroup, Field, Direction, ScrollArea, Collapsible, Accordion, Tabs, Breadcrumb, Pagination, Popover, Tooltip, HoverCard, Dialog, AlertDialog, Sheet, DropdownMenu, ContextMenu, Menubar, Select, Command
+    Button, Input, Checkbox, Badge, Spinner, Card, Separator, AspectRatio, Alert, Empty, Avatar, Skeleton, Progress, Typography, Kbd, Label, ButtonGroup, Item, Switch, Toggle, InputOtp, RadioGroup, ToggleGroup, Slider, Textarea, InputGroup, Field, Direction, ScrollArea, Collapsible, Accordion, Tabs, Breadcrumb, Pagination, Popover, Tooltip, HoverCard, Dialog, AlertDialog, Sheet, DropdownMenu, ContextMenu, Menubar, Select, Command, Combobox
 }
 
 internal enum ControlDemo {
@@ -69,6 +69,7 @@ internal fun demoTitle(value: Demo): String =
         case Menubar -> "Menubar"
         case Select -> "Select"
         case Command -> "Command"
+        case Combobox -> "Combobox"
     }
 
 internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePalette)? = None) {
@@ -110,6 +111,7 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
     val menus = MenuExamplesModel()
     val selects = SelectExamplesModel()
     val commands = CommandExamplesModel()
+    val comboboxes = ComboboxExamplesModel()
     val mode = state(ThemeMode.Light)
     val direction = state(LayoutDirection.Ltr)
     val selected = state(Demo.Button)
@@ -270,7 +272,8 @@ internal class GalleryModel(private val systemPalette: ((ThemeMode) -> ThemePale
                 Demo.ContextMenu,
                 Demo.Menubar,
                 Demo.Select,
-                Demo.Command
+                Demo.Command,
+                Demo.Combobox
             ]
         )
             if (unicodeCasefold(demoTitle(entry)).contains(search))

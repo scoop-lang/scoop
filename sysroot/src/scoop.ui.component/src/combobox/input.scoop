@@ -1,0 +1,274 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+import scoop.ui.component.row as comboInputRow
+import scoop.ui.component.label as comboInputLabel
+import scoop.ui.component.wrap as comboWrap
+import scoop.ui.component.button as comboButton
+import scoop.ui.component.frame as comboFrame
+
+internal fun <T: Equals<T>> comboEditor(
+    control: ComboboxControl<T>,
+    theme: Theme,
+    popup: Boolean
+): View {
+    val input = control.props.value
+    val field = input.input
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val values = comboValues(input.selection)
+    val selected = !popup && !input.multiple && values.size > 0L
+    val label =
+        if (selected)
+            comboValueText(input, values[0L])
+        else
+            field.placeholder
+    val style =
+        field.style.copy {
+            if (selected)
+                placeholder { color = Some(theme.tokens.palette.background.foreground) }
+            if (!popup && input.multiple)
+                surface {
+                    suggestedSize = Some(Size(0.0, 0.0));
+                    minimumSize = Some(Size(0.0, 0.0));
+                    padding = Some(Insets(4.0 * d, 0.0, 4.0 * d, 0.0))
+                }
+        }
+    val editor =
+        component(
+            InputProps(
+                field.state,
+                label,
+                field.enabled,
+                field.readOnly,
+                field.invalid,
+                field.description,
+                field.fonts,
+                style,
+                field.theme,
+                field.focus.copy { handle = Some(control.editor) },
+                field.direction,
+                field.alignment,
+                field.paintCache,
+                field.caretBlink,
+                { query -> control.edited(query) },
+                field.onSubmit,
+                field.policy,
+                field.projection,
+                field.copy,
+                if (popup)
+                    None
+                else
+                    field.labelTarget,
+                field.group,
+                TextFieldChrome.Bare
+            ),
+            { current -> Input(current) }
+        )
+    return element(
+        control,
+        { current -> ComboEditorEvents(current) },
+        [editor],
+        ViewKey.Text("editor")
+    )
+}
+
+private fun <T: Equals<T>> comboChip(
+    control: ComboboxControl<T>,
+    chip: ComboChip<T>,
+    theme: Theme
+): View {
+    val input = control.props.value
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val text =
+        theme.tokens.typography.body.copy {
+            fontSize = 12.0 * d;
+            lineHeight = Some(16.0 / 12.0);
+            weight = 500;
+            color = theme.tokens.palette.background.foreground
+        }
+    val fonts = input.input.fonts
+    val direction = (control.owner?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+    val body =
+        comboInputRow {
+            this.item(
+                comboInputLabel(
+                    styledText {
+                        style = text;
+                        this.text(comboValueText(input, chip.value))
+                    }
+                ) {
+                    this.fonts = fonts;
+                    settings =
+                        Some(
+                            paragraphStyle {
+                                this.direction = direction;
+                                maxLines = Some(1L)
+                            }
+                        )
+                }
+            ) { grow = 1.0 }
+            this.item(
+                comboButton(modalCloseIcon(12.0 * d, text.color), { control.remove(chip.value) }) {
+                    enabled = input.mutable;
+                    variant = ButtonVariant.Ghost;
+                    size = ButtonSize.IconXs
+                    focus = FocusOptions(Some(chip.focus));
+                    this.theme = input.input.theme
+                }
+            ) { shrink = 0.0 }
+            spacing = 4.0 * d;
+            alignment = CrossAlignment.Center
+        }
+    return comboFrame(body) {
+        key = chip.key;
+        height = Some(21.0 * d);
+        logicalPadding = Some(LogicalInsets(6.0 * d, 0.0, 0.0, 0.0))
+        style =
+            styleOverride {
+                background(Some(Paint(theme.tokens.palette.muted.background)));
+                corners(Corners.all(4.0 * d))
+            }
+    }
+}
+
+internal fun <T: Equals<T>> comboField(
+    control: ComboboxControl<T>,
+    theme: Theme,
+    popup: Boolean
+): View {
+    val input = control.props.value
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val editor = comboEditor(control, theme, popup)
+    val body =
+        if (!popup && input.multiple)
+            comboWrap {
+                for (chip in control.chips)
+                    this.item(comboChip(control, chip, theme)) { shrink = 1.0 }
+                this.item(editor) {
+                    basis = FlexBasis.Fixed(64.0 * d);
+                    min = 0.0;
+                    grow = 1.0
+                }
+                spacing = 4.0 * d;
+                lineSpacing = 4.0 * d;
+                alignment = CrossAlignment.Center
+                padding = Insets(4.0 * d, 4.0 * d, 4.0 * d, 4.0 * d)
+            }
+        else
+            editor
+    val addons = ArrayList<InputGroupAddon>()
+    val hasValue = comboValues(input.selection).size > 0L || input.query.text.byteLength > 0L
+    if (input.showClear && hasValue) {
+        addons.add(
+            InputGroupAddon(
+                comboButton(
+                    modalCloseIcon(16.0 * d, theme.tokens.palette.muted.foreground),
+                    { control.clear() }
+                ) {
+                    enabled = input.mutable;
+                    variant = ButtonVariant.Ghost;
+                    size = ButtonSize.IconXs;
+                    this.theme = input.input.theme
+                },
+                InputGroupAlign.InlineEnd,
+                ViewKey.Text("clear"),
+                Some(Insets(0.0, 0.0, 2.0 * d, 0.0))
+            )
+        )
+    } else
+        if (!popup && input.showTrigger) {
+            addons.add(
+                InputGroupAddon(
+                    comboButton(
+                        navigationIcon(
+                            NavigationGlyph.Down,
+                            16.0 * d,
+                            theme.tokens.palette.muted.foreground
+                        ),
+                        { control.toggle() }
+                    ) {
+                        enabled = input.mutable;
+                        variant = ButtonVariant.Ghost;
+                        size = ButtonSize.IconXs;
+                        this.theme = input.input.theme
+                        focus = input.triggerFocus.copy { handle = Some(control.trigger) }
+                    },
+                    InputGroupAlign.InlineEnd,
+                    ViewKey.Text("trigger"),
+                    Some(Insets(0.0, 0.0, 2.0 * d, 0.0))
+                )
+            )
+        }
+    return component(
+        InputGroupProps(
+            InputGroupControl.Custom(body, control.editor),
+            addons.toArray(),
+            input.input.enabled,
+            input.input.invalid,
+            input.input.fonts,
+            input.input.theme,
+            input.input.style.surface
+        ),
+        { current -> InputGroup(current) }
+    )
+}
+
+internal fun <T: Equals<T>> comboTrigger(control: ComboboxControl<T>, theme: Theme): View {
+    val input = control.props.value
+    val values = comboValues(input.selection)
+    val text =
+        if (values.size == 0L)
+            input.input.placeholder
+        else
+            if (values.size == 1L)
+                comboValueText(input, values[0L])
+            else
+                f"${values.size} selected"
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val direction = (control.owner?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+    val content =
+        comboInputRow {
+            this.item(
+                comboInputLabel(text) {
+                    fonts = input.input.fonts;
+                    this.theme = input.input.theme
+                    settings =
+                        Some(
+                            paragraphStyle {
+                                this.direction = direction;
+                                maxLines = Some(1L);
+                                ellipsis = "…"
+                            }
+                        )
+                }
+            ) { grow = 1.0 }
+            this.item(
+                navigationIcon(
+                    NavigationGlyph.Down,
+                    16.0 * d,
+                    theme.tokens.palette.muted.foreground
+                )
+            ) { shrink = 0.0 }
+            spacing = 8.0 * d;
+            alignment = CrossAlignment.Center
+        }
+    return component(
+        ButtonProps(
+            ButtonContent.Custom(content),
+            { control.toggle() },
+            input.mutable,
+            input.triggerStyle,
+            input.input.theme,
+            input.triggerFocus.copy { handle = Some(control.trigger) },
+            input.input.invalid,
+            ButtonVariant.Outline,
+            ButtonSize.Default,
+            labelTarget = input.input.labelTarget
+        ),
+        { current -> Button(current) }
+    )
+}

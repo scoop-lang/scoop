@@ -1,0 +1,185 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as comboColumn
+import scoop.ui.text.TextEditorState
+
+internal class ComboboxExamplesModel {
+    val selected = state<String?>(None)
+    val multiple = state<Array<String>>(["Scoop", "Rust"])
+    val popup = state<String?>(Some("Scoop"))
+    val created = state<String?>(None)
+    val large = state<Long?>(None)
+    val query = TextEditorState()
+    val multiQuery = TextEditorState()
+    val popupQuery = TextEditorState()
+    val customQuery = TextEditorState()
+    val largeQuery = TextEditorState()
+    val enabled = state(true)
+    val invalid = state(false)
+    val narrow = state(false)
+    val auto = state(true)
+    val choices =
+        choiceItems<String> {
+            group(ViewKey.Text("native"), "Native languages") {
+                item(Choice(ViewKey.Text("scoop"), "Scoop", "Scoop")) {
+                    keywords = ["native", "原生"]
+                }
+                item(Choice(ViewKey.Text("rust"), "Rust", "Rust"))
+                item(Choice(ViewKey.Text("swift"), "Swift", "Swift", false))
+            }
+            separator(ViewKey.Text("divider"))
+            group(ViewKey.Text("web"), "Web and scripting") {
+                item(Choice(ViewKey.Text("typescript"), "TypeScript", "TypeScript"))
+                item(Choice(ViewKey.Text("python"), "Python", "Python"))
+                item(Choice(ViewKey.Text("chinese"), "中文脚本", "中文脚本")) { keywords = ["Chinese"] }
+            }
+        }
+}
+
+internal fun comboboxExamples(model: ComboboxExamplesModel, fonts: FontCollection): View =
+    comboColumn {
+        add(panelHeading("Combobox", fonts))
+        typography(
+            "Search and choose while the cursor stays in the input. Selection and search text are independent.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.enabled.value)
+                    "Disable"
+                else
+                    "Enable",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.invalid.value)
+                    "Clear invalid"
+                else
+                    "Show invalid",
+                { model.invalid.value = !model.invalid.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.narrow.value)
+                    "Width: narrow"
+                else
+                    "Width: normal",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.auto.value)
+                    "Auto highlight: on"
+                else
+                    "Auto highlight: off",
+                { model.auto.value = !model.auto.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        combobox(model.selected.binding(), model.choices, model.query) {
+            this.fonts = Some(fonts);
+            placeholder = "Choose a language";
+            showClear = true
+            enabled = model.enabled.value;
+            invalid = model.invalid.value;
+            autoHighlight = model.auto.value
+            width =
+                if (model.narrow.value)
+                    170.0
+                else
+                    320.0
+        }
+        typography(f"Selected: ${model.selected.value ?: "none"}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        typography("Multiple selections", TypographyRole.H4) { this.fonts = Some(fonts) }
+        combobox(model.multiple.binding(), model.choices, model.multiQuery) {
+            this.fonts = Some(fonts);
+            placeholder = "Add a language";
+            showClear = true;
+            autoHighlight = true
+            enabled = model.enabled.value;
+            invalid = model.invalid.value
+            width =
+                if (model.narrow.value)
+                    170.0
+                else
+                    360.0
+            valueText = Some({ value -> value })
+        }
+        typography(
+            "Use Backspace on an empty input to remove the last chip, or arrow left to reach its remove button.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        typography("Search inside the popup", TypographyRole.H4) { this.fonts = Some(fonts) }
+        combobox(model.popup.binding(), model.choices, model.popupQuery) {
+            this.fonts = Some(fonts);
+            inputPlacement = ComboboxInputPlacement.Popup
+            autoHighlight = true;
+            showClear = true;
+            placeholder = "Choose a language"
+            width = 260.0;
+            popupWidth = Some(320.0)
+        }
+        typography("Create an option", TypographyRole.H4) { this.fonts = Some(fonts) }
+        combobox(model.created.binding(), model.choices, model.customQuery) {
+            this.fonts = Some(fonts);
+            showClear = true;
+            autoHighlight = true;
+            width = 320.0
+            placeholder = "Find or create a language";
+            valueText = Some({ value -> value })
+            customChoice =
+                Some(
+                    {
+                        query -> Some(
+                            Choice(ViewKey.Text(f"custom:${query}"), query, f"Create “${query}”")
+                        )
+                    }
+                )
+        }
+        typography("Provided results · 10,000 choices", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        combobox(model.large.binding(), GalleryChoiceSource(), model.largeQuery) {
+            this.fonts = Some(fonts);
+            filter = ComboboxFilter.Provided;
+            autoHighlight = true
+            width = 360.0;
+            placeholder = "Choose a project";
+            showClear = true
+        }
+        spacing = 16.0
+    }
+
+private class GalleryChoiceSource: ChoiceSource<Long> {
+    public override val count: Long get() = 10000L
+    public override val choiceCount: Long get() = count
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> indexOfValue(index);
+            else -> None
+        }
+    public override fun indexOfValue(value: Long): Long? =
+        if (value >= 0L && value < count)
+            Some(value)
+        else
+            None
+    public override fun entryAt(index: Long): ChoiceEntry<Long> =
+        ChoiceEntry.Item(ChoiceItem(Choice(ViewKey.Number(index), index, f"Project ${index + 1L}")))
+}

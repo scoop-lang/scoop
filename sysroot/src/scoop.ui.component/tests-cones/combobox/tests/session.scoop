@@ -1,0 +1,181 @@
+package scoop.tests.ui.combobox
+
+import scoop.collections.HashMap
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class ComboboxWindowTest {
+    @Test
+    fun `combobox preserves native editing while selecting filtering removing chips and closing popups`() {
+        val p = ComboProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertFalse(p.editor.isAttached);
+            assertFalse(p.trigger.isAttached)
+            assertFalse(p.list.isAttached);
+            assertFalse(p.scroll.isAttached)
+            assertEquals(p.factories, p.disposed)
+        } catch (error: Throwable) {
+            println(f"combobox phase=${p.phase}, query=${p.query.text}")
+            comboboxFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class ComboProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val query = TextEditorState()
+    val active = state<ViewKey?>(None)
+    val single = state<Long?>(None)
+    val second = state<Long?>(Some(4L))
+    val values = state<Array<Long>>([])
+    val open = state(false)
+    val editor = FocusHandle()
+    val trigger = FocusHandle()
+    val after = FocusHandle()
+    val list = VirtualListHandle()
+    val scroll = ScrollState()
+    val rows = HashMap<Long, Rect>()
+    var reverse = false
+    var limit = 5L
+    var auto = true
+    var enabled = true
+    var reject = false
+    var veto = false
+    var prevent = false
+    var rebind = false
+    var long = false
+    var multi = false
+    var popup = false
+    var narrow = false
+    var zero = false
+    var actualWidth = 0.0
+    var actualHeight = 0.0
+    var shown = true
+    var calls = 0
+    var submissions = 0
+    var filters = 0
+    var preservedFactories = 0
+    var savedCalls = 0
+    var factories = 0
+    var disposed = 0
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(60L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        val characters =
+            if (text.byteLength > 0L)
+                text
+            else
+                when (code) {
+                    case 125 -> "\uf701";
+                    case 126 -> "\uf700"
+                    case 123 -> "\uf702";
+                    case 124 -> "\uf703"
+                    case 115 -> "\uf729";
+                    case 119 -> "\uf72b"
+                    case 117 -> "\uf728";
+                    case 51 -> "\u007f"
+                    else -> text
+                }
+        assertEquals(0, comboboxKey(native!!, code, characters, flags))
+    }
+    fun text(text: String, marked: Boolean = false) {
+        assertEquals(0, comboboxText(native!!, text, marked))
+    }
+    fun clickPoint(x: Double, y: Double) {
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun click(index: Long) {
+        val row = rows[index]!!
+        clickPoint(row.x + row.width / 2.0, row.y + row.height / 2.0)
+    }
+    fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    application.createWindow(
+                        windowAttributes {
+                            title = "Scoop Combobox test";
+                            position = Some(DesktopPosition(160.0, 100.0));
+                            size = LogicalSize(680.0, 540.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { ComboScene(this) });
+                window.requestFocus();
+                wait(application)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("combobox timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    comboStep(this);
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(180L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 51)
+                    wait(application)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 51;
+                application.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(application: ActiveApplication) {
+        application.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

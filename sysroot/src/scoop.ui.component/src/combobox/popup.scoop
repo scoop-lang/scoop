@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+/** Only inspect enough rows to fill the bounded viewport, even for a large provided source. */
+private fun <T: Equals<T>> comboListHeight(
+    source: ChoiceSource<T>,
+    limit: Double,
+    density: Double
+): Double {
+    var result = 0.0
+    for (index in 0L ..< source.count) {
+        if (result >= limit)
+            return limit
+        result += when (source.entryAt(index)) {
+            case Separator(_) -> 9.0 * density
+            else -> 28.0 * density
+        }
+    }
+    return upperBound(result, limit)
+}
+
+internal fun <T: Equals<T>> comboPopup(
+    control: ComboboxControl<T>,
+    source: ChoiceSource<T>,
+    theme: Theme
+): View {
+    val input = control.props.value
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val children = ArrayList<View>()
+    val popupInput = input.inputPlacement == ComboboxInputPlacement.Popup
+    if (popupInput)
+        children.add(panelFrame(comboField(control, theme, true), Insets.all(4.0 * d)))
+    val noResults = source.choiceCount == 0L
+    if (noResults)
+        children.add(
+            panelFrame(
+                panelCaption(
+                    input.empty,
+                    theme.tokens.typography.body.copy {
+                        fontSize = 14.0 * d;
+                        color = theme.tokens.palette.muted.foreground
+                    },
+                    input.input.fonts,
+                    true
+                ),
+                Insets(8.0 * d, 8.0 * d, 8.0 * d, 8.0 * d)
+            )
+        )
+    else
+        children.add(
+            virtualList(control.rows(source, theme), ItemExtent.Variable(28.0 * d)) {
+                state = Some(control.scroll);
+                handle = Some(control.list);
+                this.theme = input.input.theme
+                enabled = input.mutable && control.open.value;
+                focus = FocusOptions(tabStop = false)
+                scrollbars = ScrollbarVisibility.Hidden;
+                chain = ScrollChain.Contain
+                lineStep = 28.0 * d;
+                overscan = 28.0 * d
+            }
+        )
+    val height =
+        if (noResults)
+            input.maxHeight * d
+        else
+            comboListHeight(source, input.maxHeight * d, d)
+    val body =
+        element(
+            ComboPopupLayoutProps(height, popupInput, noResults),
+            { current -> ComboPopupLayout(current) },
+            children.toArray()
+        )
+    val ink = theme.tokens.palette
+    return panelFrame(
+        body,
+        Insets.all(4.0 * d),
+        styleOverride {
+            background(Some(Paint(ink.popover.background)))
+            border(Some(Border.all(1.0, ink.background.foreground.withAlpha(0.1))))
+            corners(Corners.all(8.0 * d));
+            boxShadows(theme.tokens.effects.floating)
+        }.then(input.popupStyle),
+        Some((input.popupWidth ?: input.width) * d)
+    )
+}
+
+private class ComboPopupLayoutProps(val height: Double, val hasInput: Boolean, val empty: Boolean)
+
+private class ComboPopupLayout(private val props: Props<ComboPopupLayoutProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val width = constraints.maxWidth ?: constraints.minWidth
+        var top = 0.0
+        var index = 0L
+        if (input.hasInput) {
+            top =
+                context.measureChild(
+                    0L,
+                    Constraints(width, Some(width), maxHeight = constraints.maxHeight)
+                ).size.height
+            context.placeChild(0L, Point(0.0, 0.0));
+            index = 1L
+        }
+        val height =
+            upperBound(
+                input.height,
+                lowerBound(0.0, (constraints.maxHeight ?: (top + input.height)) - top)
+            )
+        val list =
+            context.measureChild(
+                index,
+                if (input.empty)
+                    Constraints(width, Some(width), maxHeight = Some(height))
+                else
+                    Constraints.tight(Size(width, height))
+            )
+        context.placeChild(index, Point(0.0, top))
+        return LayoutMetrics(constraints.constrain(Size(width, top + list.size.height)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}

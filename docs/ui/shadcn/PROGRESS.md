@@ -235,3 +235,10 @@
 - 输入使用唯一 TextEditorState，公开 committedText 供候选控件观察；活动 key 与编辑焦点分离，支持首项高亮、禁用跳过、重排保留、外部绑定及 Up／Down／Home／End／Enter。原生 IME 先解释按键，仍在组合时不导航、不提交候选，也不因普通编辑默认动作间接提交 preedit；外层取消事件得到尊重。
 - macOS aarch64 release：5 项模型测试、41 阶段真实窗口测试通过，覆盖评分黄金值／Unicode、分组与非法数据、组合输入／取消／提交、筛选缓存、受控状态替换、5000 项虚拟化、零约束、RTL、禁用与卸载。重建受影响的 UI、五套 style、component 和 Gallery，静态检查通过。
 - Gallery 实查明暗 System／Neutral、窄宽长空提示、RTL、Dialog 内中文搜索／执行／焦点恢复、10,000 项末项导航和执行。修复单行省略文字显式方向覆盖 RTL 的问题并复看，焦点环完整。累计 **45／64**。清理一次性测试输出、日志、独立测试构建和锁，保留共享缓存、生产库、Gallery 及下载参考；未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P5d：Combobox
+
+- 完成类型化单／多选 Combobox、ChoiceSource／ChoiceContent 和分组 DSL；提供 Unicode 包含匹配、自定义过滤、直接消费外部结果及自定义候选。选择、已提交查询、活动 key 和开关分别受控，拒绝 setter 保留查询与弹窗，缺失领域值保留并允许自定义显示。候选与 Command 共用不抢焦点的 Press 行和 ActiveItems 路由。
+- Inline 输入支持展开／清空、可换行 chips 及删除和方向键；Popup 模式在面板内使用同一 TextEditorState。关闭列表时仍正确保护 IME 候选键，Tab／Escape／veto 和关闭恢复复用 Portal。Bare 输入不再重复承担独立控件高度，多选单行外框为 32；候选及芯片使用逻辑内缩。Gallery 主滚动内容增加内部留白，修复贴视口边缘的焦点环裁剪。
+- macOS aarch64 release：5 项模型测试、51 阶段真实窗口测试通过，覆盖 Unicode／分组、100 万项来源不枚举、选值拒绝与规范化、组合输入／中文提交、芯片删除和清空、5000 项虚拟化、缺失选值、受控替换、外层取消、窄宽／零尺寸、禁用及卸载。组件静态检查、生产库与 Gallery 构建通过；只重建实际变化的组件，复用现有编译器和基础库。
+- Gallery 实查浅色 System、深色 Neutral、RTL／窄宽、invalid、完整焦点环、Popup 搜索和关闭、自定义值及 10,000 项末项导航／选值。累计 **46／64**，P5 剩余 NavigationMenu。清理本轮实窗输出、日志、独立测试构建和锁，保留共享缓存、生产库、Gallery 及下载参考；未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

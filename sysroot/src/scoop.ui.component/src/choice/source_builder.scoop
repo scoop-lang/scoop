@@ -1,0 +1,67 @@
+package scoop.ui.component
+
+import scoop.graphics.text.StyledText
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ChoiceItemBuilder internal constructor() {
+    public var keywords: Array<String> = []
+    public var content: View? = None
+    public var icon: View? = None
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+}
+
+public class ChoiceContentBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<ChoiceEntry<T>>()
+    public fun add(entry: ChoiceEntry<T>) {
+        entries.add(entry)
+    }
+    public fun item(choice: Choice<T>, configure: ChoiceItemBuilder.() -> Unit = {}) {
+        val builder = ChoiceItemBuilder()
+        builder.configure()
+        entries.add(
+            ChoiceEntry.Item(
+                ChoiceItem(choice, builder.keywords, builder.content, builder.icon, builder.style)
+            )
+        )
+    }
+    public fun group(key: ViewKey, title: String, configure: ChoiceContentBuilder<T>.() -> Unit) {
+        group(key, PanelContent.Label(LabelProps(LabelText.Plain(title, None))), configure)
+    }
+    public fun group(
+        key: ViewKey,
+        title: StyledText,
+        configure: ChoiceContentBuilder<T>.() -> Unit
+    ) {
+        group(key, PanelContent.Label(LabelProps(LabelText.Styled(title))), configure)
+    }
+    public fun group(key: ViewKey, title: View, configure: ChoiceContentBuilder<T>.() -> Unit) {
+        group(key, PanelContent.Custom(title), configure)
+    }
+    public fun group(
+        key: ViewKey,
+        title: PanelContent,
+        configure: ChoiceContentBuilder<T>.() -> Unit
+    ) {
+        entries.add(ChoiceEntry.Label(key, title))
+        val group = ChoiceContentBuilder<T>()
+        group.configure()
+        for (entry in group.entries)
+            entries.add(entry)
+    }
+    public fun separator(key: ViewKey) {
+        entries.add(ChoiceEntry.Separator(key))
+    }
+    internal fun snapshot(): ChoiceContent<T> = ChoiceContent(entries.toArray())
+}
+
+public fun <T: Equals<T>> choiceItems(configure: ChoiceContentBuilder<T>.() -> Unit): ChoiceContent<
+    T
+> {
+    val builder = ChoiceContentBuilder<T>()
+    builder.configure()
+    return builder.snapshot()
+}

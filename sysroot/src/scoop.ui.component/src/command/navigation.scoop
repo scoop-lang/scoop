@@ -16,7 +16,8 @@ internal class CandidateNavigationProps(
     val loop: Boolean,
     val autoHighlight: Boolean,
     val reveal: (ViewKey) -> Boolean,
-    val select: (ViewKey) -> Unit
+    val select: (ViewKey) -> Unit,
+    val navigationEnabled: Boolean = true
 )
 
 internal class CandidateNavigation(private val props: Props<CandidateNavigationProps>): Element {
@@ -28,7 +29,11 @@ internal class CandidateNavigation(private val props: Props<CandidateNavigationP
         val input = props.value
         return ActiveItemOptions(
             loop = input.loop,
-            enabled = input.enabled && input.focus.hasFocus && !input.query.isComposing
+            enabled =
+                input.enabled &&
+                    input.navigationEnabled &&
+                    input.focus.hasFocus &&
+                    !input.query.isComposing
         )
     }
     public override fun onMount(scope: ComponentScope) {
@@ -53,7 +58,13 @@ internal class CandidateNavigation(private val props: Props<CandidateNavigationP
         }
         previous = Some(source)
         navigation!!.update(source, input.active, Some(options()))
-        if (input.enabled && input.autoHighlight && input.active.value == None) {
+        if (
+            input.enabled &&
+                input.navigationEnabled &&
+                input.autoHighlight &&
+                input.active.value ==
+                None
+        ) {
             for (index in 0L ..< source.count)
                 if (source.enabledAt(index)) {
                     navigation!!.setActive(Some(source.keyAt(index)))
@@ -92,6 +103,8 @@ internal class CandidateNavigation(private val props: Props<CandidateNavigationP
                 context.consume()
             return
         }
+        if (!input.navigationEnabled)
+            return
         if (key.logicalKey == LogicalKey.Named(NamedKey.Enter)) {
             context.consume()
             if (!key.isRepeat)

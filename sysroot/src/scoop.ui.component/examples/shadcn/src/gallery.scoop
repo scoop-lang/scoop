@@ -96,27 +96,29 @@ internal class Gallery(
                             }
                             this.item(
                                 makeScrollArea(
-                                    when (current) {
-                                        case Some(value) -> this @Gallery.demo(value)
-                                        case None -> makeColumn {
-                                            this.add(
-                                                this @Gallery.text(
-                                                    "No matching components",
-                                                    24.0,
-                                                    600
+                                    makeFrame(
+                                        when (current) {
+                                            case Some(value) -> this @Gallery.demo(value)
+                                            case None -> makeColumn {
+                                                this.add(
+                                                    this @Gallery.text(
+                                                        "No matching components",
+                                                        24.0,
+                                                        600
+                                                    )
                                                 )
-                                            )
-                                            this.add(
-                                                this @Gallery.text(
-                                                    "Try Card, Alert, Button, Input, or Empty.",
-                                                    14.0,
-                                                    400,
-                                                    true
+                                                this.add(
+                                                    this @Gallery.text(
+                                                        "Try Card, Alert, Button, Input, or Empty.",
+                                                        14.0,
+                                                        400,
+                                                        true
+                                                    )
                                                 )
-                                            )
-                                            this.spacing = 12.0
+                                                this.spacing = 12.0
+                                            }
                                         }
-                                    }
+                                    ) { padding = Some(Insets.all(6.0)) }
                                 )
                             ) {
                                 this.grow = 1.0;
@@ -214,6 +216,7 @@ internal class Gallery(
             case Menubar -> menuExamples(model.menus, fonts, model, value)
             case Select -> selectExamples(model.selects, fonts)
             case Command -> commandExamples(model.commands, fonts)
+            case Combobox -> comboboxExamples(model.comboboxes, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

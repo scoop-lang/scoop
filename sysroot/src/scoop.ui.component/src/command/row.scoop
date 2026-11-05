@@ -159,61 +159,9 @@ private class CommandRow(private val props: Props<CommandRowProps>): Component {
                 }.then(item.style)
             )
         return element(
-            CommandRowInkProps(item.key, enabled, input.highlight, input.select),
-            { current -> CommandRowInk(current) },
+            CandidateRowInkProps(item.key, enabled, input.highlight, input.select),
+            { current -> CandidateRowInk(current) },
             [decorated]
         )
-    }
-}
-
-private class CommandRowInkProps(
-    val key: ViewKey,
-    val enabled: Boolean,
-    val highlight: (ViewKey) -> Unit,
-    val select: (ViewKey) -> Unit
-)
-
-private class CommandRowInk(private val props: Props<CommandRowInkProps>): Element {
-    private var area: InputArea? = None
-    private var press: Press? = None
-    public override fun onMount(scope: ComponentScope) {
-        val area = scope.createArea(focusable = false)
-        this.area = Some(area)
-        scope.routeChildren(area)
-        press =
-            Some(
-                scope.press(area, PressOptions(props.value.enabled)) {
-                    props.value.select(props.value.key)
-                }
-            )
-        area.scope.addEventHandler {
-            context, event ->
-            if (!props.value.enabled || context.phase == RoutedPhase.Capture)
-                return@addEventHandler
-            when (event) {
-                case Pointer(InputPointerEvent.Moved(_)) -> props.value.highlight(props.value.key)
-                case Pointer(
-                    InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
-                ) -> props.value.highlight(props.value.key)
-                else -> {}
-            }
-        }
-    }
-    public override fun update() {
-        area!!.scope.enabled = props.value.enabled
-        press!!.update(PressOptions(props.value.enabled)) { props.value.select(props.value.key) }
-    }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        val measured = context.measureChild(0L, constraints)
-        context.placeChild(0L, Point(0.0, 0.0))
-        return measured
-    }
-    public override fun scene(context: SceneContext) {
-        if (!props.value.enabled)
-            context.saveLayer(0.5)
-        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        context.children()
-        if (!props.value.enabled)
-            context.restore()
     }
 }

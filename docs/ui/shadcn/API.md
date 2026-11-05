@@ -270,3 +270,9 @@ DropdownMenu 支持内置 trigger 或外部 anchor，group 可接入 ButtonGroup
 `command(commandItems { group(ViewKey.Text("actions"), "Actions") { item(ViewKey.Text("save"), "Save", onSave) } }, query)` 使用调用方的 TextEditorState 和显式条目 key。CommandBuilder 继承完整 InputBuilder，另有 active／filter／autoHighlight／loop、width／maxHeight、empty、图标、scroll／listHandle、panelStyle 和 onSelect。item 的 content／icon 非交互，快捷键标签使用 ShortcutChord；动作只在选择时调用，不注册全局命令。
 
 Ranked 按 cmdk 评分排序，Custom 可替换评分，Provided 原样消费 CommandSource 的候选和顺序。CommandSource 只供元数据，VirtualList 按需建立行；query 使用只读 TextEditorState.committedText，活动 key 通过 ActiveItems 导航和 scrollToItem 显露。没有候选的 Enter 不提交，composition 活跃时保留已提交查询的候选并先交 IME。Dialog 直接组合 `dialog(open, command(source, query) { focus = FocusOptions(Some(editorFocus)) }) { focus { initialFocus = Some(editorFocus) } }`，调用方在 onSelect 中决定是否关闭。详细合同见控件规范第 35 节。
+
+## P5d：Combobox
+
+`combobox(value, choices, query) { ... }` 为 `Binding<T?>` 和 `Binding<Array<T>>` 提供单／多选重载，`T: Equals<T>`；choices 接受 `ChoiceSource<T>` 或 `Array<Choice<T>>`，`choiceItems<T> { item(choice) { ... }; group(key, title) { ... }; separator(key) }` 构造分组快照。ChoiceSource 的 count 包括装饰行，choiceCount 只计选项，另提供 entryAt／indexOfKey／indexOfValue；Provided 模式不枚举全部来源来过滤，虚拟列表只创建需要的行。
+
+ComboboxBuilder 继承 InputBuilder；open、active、已选值与 TextEditorState 彼此独立。Contains 默认按 Unicode case-fold 后的 label／keywords 包含匹配，Custom 可替换，Provided 保留来源。customChoice 可返回一个新领域选项，valueText 负责不在当前来源中的选值显示；拒绝写入不会清 query 或关闭。autoHighlight 默认 false，clearQueryOnSelect 默认 true，closeOnSelect 默认单选 true／多选 false。Inline 使用含搜索、展开／清空与 chips 的 InputGroup；Popup 由按钮打开弹窗内输入。输入法、候选键、chip 删除与方向导航、Tab／Escape 及关闭恢复使用共享编辑／Portal 合同，详见 component spec 第 36 节。

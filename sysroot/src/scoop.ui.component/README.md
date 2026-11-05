@@ -135,3 +135,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `menu { ... }` 构建显式 key 的 MenuContent，支持动作、勾选、类型化单选、嵌套子菜单、标签、分隔线和快捷键标签。`dropdownMenu(open, content)` 使用普通 trigger 或外部 anchor；`contextMenu(content, menu)` 包装原内容并提供右键／Shift+F10；`menubar(open) { menu(key, text, content) }` 提供横向入口导航。三者共用真实焦点、Unicode typeahead、Hover 通路及 Portal 生命周期，支持受控拒绝、关闭 veto、Tab 续行、RTL 和长菜单滚动。`tests-cones/menus` 覆盖原生窗口输入及保留行为。
 
 Command 用 `command(source, query)` 构建带真实编辑器的命令搜索。`source` 可以是 `commandItems { group(key, "Actions") { item(key, "Save", onSave) }; separator(key) }` 的快照，或提供稳定索引的 CommandSource。默认按 cmdk 的模糊评分搜索标题和 keywords；`filter = CommandFilter.Provided` 保留调用方结果，`Custom` 替换评分。方向键只更新 active，焦点留在输入；输入法预编辑不参加搜索，Enter 只执行当前可用候选。列表按需挂载并滚动显露活动项，custom content／icon、disabled、ShortcutChord 标签、空结果、受控 active、样式／字体／RTL 都可组合；Dialog 示例直接复用现有 dialog 和输入 FocusHandle。评分代码的归属见 [LICENSE-CMDK](LICENSE-CMDK)。
+
+Combobox 提供单／多选、Unicode 包含搜索、外部候选、自定义项、分组、可清空输入和带删除／键盘导航的 chips；同一编辑模型可放在入口或弹窗中。`ChoiceSource<T>` 支持大列表的元数据和领域值定位，选择不会隐式改写查询，输入法组合文字不用于筛选或提交候选。

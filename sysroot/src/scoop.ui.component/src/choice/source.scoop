@@ -1,0 +1,91 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ChoiceItem<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val keywords: Array<String> = [],
+    public val content: View? = None,
+    public val icon: View? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public enum ChoiceEntry<T: Equals<T>> {
+    Item(ChoiceItem<T>), Label(ViewKey, PanelContent), Separator(ViewKey)
+}
+
+/** Immutable row metadata. Large sources implement key and domain-value lookup directly. */
+public interface ChoiceSource<T: Equals<T>>: NavigationSource {
+    public val choiceCount: Long
+    public fun entryAt(index: Long): ChoiceEntry<T>
+    public fun indexOfValue(value: T): Long?
+    public override fun keyAt(index: Long): ViewKey = choiceEntryKey(entryAt(index))
+    public override fun enabledAt(index: Long): Boolean =
+        choiceEntryItem(entryAt(index))?.choice?.enabled ?: false
+    public override fun searchTextAt(index: Long): String =
+        choiceEntryItem(entryAt(index))?.choice?.label ?: ""
+}
+
+public class ChoiceContent<T: Equals<T>> public constructor(
+    public val entries: Array<ChoiceEntry<T>>
+): ChoiceSource<T> {
+    private val indices = HashMap<ViewKey, Long>()
+    private val values = ArrayList<Choice<T>>()
+    init {
+        for (index in 0L ..< entries.size) {
+            val key = choiceEntryKey(entries[index])
+            requireComponent(key != ViewKey.Position, "choice entry requires an explicit key")
+            requireComponent(indices[key] == None, "duplicate choice entry key")
+            indices.put(key, index)
+            when (choiceEntryItem(entries[index])) {
+                case Some(item) -> {
+                    for (previous in values)
+                        requireComponent(
+                            previous.value != item.choice.value,
+                            "duplicate choice value"
+                        )
+                    values.add(item.choice)
+                }
+                case None -> {}
+            }
+        }
+    }
+    public override val count: Long get() = entries.size
+    public override val choiceCount: Long get() = values.size
+    public override fun entryAt(index: Long): ChoiceEntry<T> = entries[index]
+    public override fun indexOfKey(key: ViewKey): Long? = indices[key]
+    public override fun indexOfValue(value: T): Long? {
+        for (choice in values)
+            if (choice.value == value)
+                return indices[choice.key]
+        return None
+    }
+}
+
+public fun <T: Equals<T>> choiceSource(choices: Array<Choice<T>>): ChoiceContent<T> =
+    ChoiceContent(
+        Array<ChoiceEntry<T>>(choices.size) {
+            index -> ChoiceEntry.Item(ChoiceItem(choices[index]))
+        }
+    )
+
+internal fun <T: Equals<T>> choiceEntryKey(entry: ChoiceEntry<T>): ViewKey =
+    when (entry) {
+        case Item(item) -> item.choice.key
+        case Label(key, _) -> key
+        case Separator(key) -> key
+    }
+
+internal fun <T: Equals<T>> choiceEntryItem(entry: ChoiceEntry<T>): ChoiceItem<T>? =
+    when (entry) {
+        case Item(item) -> Some(item)
+        else -> None
+    }
+
+internal fun <T: Equals<T>> sourceChoice(source: ChoiceSource<T>, value: T): Choice<T>? =
+    when (source.indexOfValue(value)) {
+        case Some(index) -> choiceEntryItem(source.entryAt(index))?.choice
+        case None -> None
+    }
