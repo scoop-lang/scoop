@@ -293,3 +293,9 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 ## P6b：Carousel
 
 `carousel(source) { selected = Some(index.binding()); itemSize = { _ -> CarouselItemSize.Fraction(0.5) }; loop = true }` 消费已有 ItemSource；`carousel { item(key, content) { size = CarouselItemSize.Content } }` 构造有限快照。根提供 viewport、previous／next、受控索引／选择通知、横纵、间距、拖动／吸附、显式自动播放、局部样式与主题。CarouselHandle 提供当前选择、方向可用性和定位命令。循环保留唯一内容实例，尺寸不足自动采用普通吸附；拖动取消不提交选择，文本子控件保持自己的按键行为。详见组件规范第 39 节。
+
+## P6c：Drawer
+
+`drawer(open.binding(), content) { side = SheetSide.Bottom; swipeHandle { visible = true }; snapPoints = [DrawerSnapPoint.Length(240.0), DrawerSnapPoint.Fraction(1.0)] }` 共用 ModalOptions 的标题、描述、头尾、滚动、焦点与关闭回调。垂直吸附以实际面板高度计算，`snap` 可受控，默认在本挂载保存索引；`DrawerHandle.snapTo`、键盘和拖动均只通知实际采纳的变化。Start／End 随 RTL 解析，水平 Drawer 不接受垂直 snapPoints。
+
+根提供 mode、width／height、viewportGap、viewportStyle、swipeToClose、dragThreshold、projectionSeconds、swipeHandle、controller、parent 与拖动取消通知。把手独立聚焦，支持主轴方向键及 Home／End；正文保留自身编辑按键，滚动未到相应边缘时不接管拖动。`parent = Some(parentController)` 协调同窗口嵌套外观，实际焦点层级仍由嵌套 Portal 负责。关闭 veto、拒绝绑定和手势取消回到当前吸附位置；默认进入／退出动画及嵌套缩放遵守 Reduced Motion，详见组件规范第 40 节。

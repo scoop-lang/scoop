@@ -1,0 +1,212 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as drawerColumn
+import scoop.ui.component.drawer as makeDrawer
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class DrawerExamplesModel {
+    val open = state(false)
+    val nested = state(false)
+    val side = state(SheetSide.Bottom)
+    val snapping = state(false)
+    val snap = state(2L)
+    val only = state(false)
+    val nonModal = state(false)
+    val veto = state(false)
+    val note = TextEditorState("Ada Lovelace")
+    val layer = OverlayHandle()
+    val nestedLayer = OverlayHandle()
+    val controller = DrawerHandle()
+    val childController = DrawerHandle()
+    val changes = state(0)
+}
+
+internal fun drawerExamples(model: DrawerExamplesModel, fonts: FontCollection): View =
+    drawerColumn {
+        add(panelHeading("Drawer", fonts))
+        typography(
+            "Drag the inner edge or the content to dismiss. Vertical drawers can settle at several measured heights.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            for (side in [SheetSide.Bottom, SheetSide.Top, SheetSide.Start, SheetSide.End]) {
+                button(
+                    when (side) {
+                        case Bottom -> "Bottom";
+                        case Top -> "Top";
+                        case Start -> "Start";
+                        case End -> "End"
+                    },
+                    {
+                        model.side.value = side;
+                        model.open.value = true
+                    }
+                ) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                }
+            }
+            spacing = 8.0
+        }
+        wrap {
+            button(
+                if (model.snapping.value)
+                    "Snap points: on"
+                else
+                    "Snap points: off",
+                { model.snapping.value = !model.snapping.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.only.value)
+                    "Handle only"
+                else
+                    "Drag content or handle",
+                { model.only.value = !model.only.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.nonModal.value)
+                    "Non-modal"
+                else
+                    "Modal",
+                { model.nonModal.value = !model.nonModal.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.veto.value)
+                    "Dismiss blocked"
+                else
+                    "Dismiss allowed",
+                { model.veto.value = !model.veto.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            spacing = 8.0
+        }
+        add(
+            makeDrawer(
+                model.open.binding(),
+                drawerColumn {
+                    typography("Profile name", TypographyRole.Small) { this.fonts = Some(fonts) }
+                    input(model.note) { this.fonts = Some(fonts) }
+                    add(
+                        makeDrawer(
+                            model.nested.binding(),
+                            drawerColumn {
+                                typography(
+                                    "The parent stays mounted beneath this drawer.",
+                                    TypographyRole.Muted
+                                ) { this.fonts = Some(fonts) }
+                                button(
+                                    "Close nested drawer",
+                                    { model.nestedLayer.requestClose() }
+                                ) { this.fonts = Some(fonts) }
+                                spacing = 12.0;
+                                alignment = CrossAlignment.Stretch
+                            }
+                        ) {
+                            title("More options");
+                            description("Nested drawer");
+                            this.fonts = Some(fonts)
+                            trigger("Open nested drawer") { variant = ButtonVariant.Outline }
+                            parent = Some(model.controller);
+                            controller = Some(model.childController)
+                            handle = Some(model.nestedLayer);
+                            height = Some(320.0)
+                            swipeHandle { visible = true }
+                        }
+                    )
+                    if (
+                        model.snapping.value &&
+                            (
+                                model.side.value ==
+                                    SheetSide.Top ||
+                                    model.side.value ==
+                                    SheetSide.Bottom
+                            )
+                    ) {
+                        wrap {
+                            for (index in 0L .. 2L)
+                                button(
+                                    f"Height ${index + 1L}",
+                                    { model.controller.snapTo(index) }
+                                ) {
+                                    this.fonts = Some(fonts);
+                                    variant = ButtonVariant.Outline
+                                }
+                            spacing = 8.0
+                        }
+                    }
+                    for (index in 1 .. 6)
+                        typography(
+                            f"Setting ${index} · Your edits stay in the draft until you save.",
+                            TypographyRole.Muted
+                        ) { this.fonts = Some(fonts) }
+                    spacing = 16.0;
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                title("Profile settings");
+                description("Scroll the content; drag from its edge to close.")
+                this.fonts = Some(fonts);
+                side = model.side.value
+                handle = Some(model.layer);
+                controller = Some(model.controller)
+                scrollable = true
+                mode =
+                    if (model.nonModal.value)
+                        OverlayMode.NonModal
+                    else
+                        OverlayMode.Modal
+                snapPoints =
+                    if (model.snapping.value && (side == SheetSide.Top || side == SheetSide.Bottom))
+                        [
+                            DrawerSnapPoint.Length(240.0),
+                            DrawerSnapPoint.Fraction(0.65),
+                            DrawerSnapPoint.Fraction(1.0)
+                        ]
+                    else
+                        []
+                snap = Some(model.snap.binding())
+                swipeHandle {
+                    visible = true;
+                    only = model.only.value
+                }
+                onSnapChange = { _ -> model.changes.value += 1 }
+                onCloseRequest = { _ -> !model.veto.value }
+                footer(
+                    drawerColumn {
+                        if (model.veto.value)
+                            button("Allow dismissal", { model.veto.value = false }) {
+                                this.fonts = Some(fonts);
+                                variant = ButtonVariant.Outline
+                            }
+                        button("Save and close", { model.layer.requestClose() }) {
+                            this.fonts = Some(fonts)
+                        }
+                        spacing = 8.0;
+                        alignment = CrossAlignment.Stretch
+                    }
+                )
+            }
+        )
+        typography(
+            f"${model.changes.value} snap changes · Draft: ${model.note.text}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        spacing = 16.0;
+        alignment = CrossAlignment.Stretch
+    }

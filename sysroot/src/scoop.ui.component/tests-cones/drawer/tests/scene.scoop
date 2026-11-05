@@ -1,0 +1,286 @@
+package scoop.tests.ui.drawer
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.window.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.drawer as makeDrawer
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.label as makeLabel
+
+internal class DrawerScene(private val p: DrawerProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val revision = p.generation.value
+        val popup =
+            if (p.gone)
+                empty()
+            else
+                makeDrawer(
+                    binding(
+                        { p.open.value },
+                        {
+                            next -> if (!p.rejectClose)
+                                p.open.value = next
+                        }
+                    ),
+                    component({ DrawerBody(p) })
+                ) {
+                    trigger("Open drawer") { focus = FocusOptions(Some(p.trigger)) }
+                    header(observeDrawer(p, 0, label("Drawer header") { fonts = Some(p.fonts) }))
+                    fonts = Some(p.fonts);
+                    side = p.side;
+                    height = p.height;
+                    width = Some(220.0)
+                    controller = Some(p.controller);
+                    handle = Some(p.layer)
+                    snapPoints =
+                        if (p.snaps)
+                            [
+                                DrawerSnapPoint.Fraction(0.4),
+                                DrawerSnapPoint.Length(250.0),
+                                DrawerSnapPoint.Fraction(1.0)
+                            ]
+                        else
+                            []
+                    snap =
+                        Some(
+                            binding(
+                                { p.snap.value },
+                                {
+                                    next -> if (!p.reject)
+                                        p.snap.value = next
+                                }
+                            )
+                        )
+                    scrollable = true;
+                    scrollState = Some(p.scroll)
+                    focus = OverlayFocusOptions(Some(p.editor), restoreTarget = Some(p.trigger))
+                    enabled = p.enabled;
+                    mode = p.mode
+                    swipeHandle {
+                        visible = true;
+                        only = p.only;
+                        focus = FocusOptions(Some(p.grip))
+                    }
+                    projectionSeconds = 0.0
+                    transition(
+                        if (p.motion)
+                            Some(AnimationSpec.Tween(Duration.milliseconds(180L)))
+                        else
+                            None
+                    )
+                    onSnapChange = { _ -> p.selections += 1 }
+                    onDragCancel = { _ -> p.cancels += 1 }
+                    onCloseRequest = { _ -> !p.veto }
+                    footer(
+                        observeDrawer(
+                            p,
+                            3,
+                            makeButton("Close", { p.layer.requestClose() }) {
+                                fonts = Some(p.fonts)
+                            }
+                        )
+                    )
+                }
+        return direction(
+            element(
+                revision,
+                { current -> DrawerRoot(p, current) },
+                [
+                    makeButton("Background", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.background))
+                    },
+                    popup
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class DrawerBody(private val p: DrawerProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val revision = p.generation.value
+        return makeColumn {
+            add(
+                observeDrawer(
+                    p,
+                    1,
+                    makeButton("Body action", { p.clicks += 1 }) { fonts = Some(p.fonts) }
+                )
+            )
+            add(
+                observeDrawer(
+                    p,
+                    2,
+                    makeInput(p.text) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.editor))
+                    }
+                )
+            )
+            add(
+                makeDrawer(p.nestedOpen.binding(), component({ DrawerNestedBody(p) })) {
+                    title("Nested");
+                    fonts = Some(p.fonts);
+                    height = Some(300.0)
+                    parent = Some(p.controller);
+                    controller = Some(p.nestedController);
+                    handle = Some(p.nestedLayer)
+                    focus = OverlayFocusOptions(Some(p.nestedTarget));
+                    projectionSeconds = 0.0
+                    swipeHandle {
+                        visible = true;
+                        focus = FocusOptions(Some(p.nestedGrip))
+                    }
+                    transition(
+                        if (p.motion)
+                            Some(AnimationSpec.Tween(Duration.milliseconds(180L)))
+                        else
+                            None
+                    )
+                }
+            )
+            for (
+                index in 0 ..<
+                    (
+                        if (p.shortContent)
+                            0
+                        else
+                            16
+                    )
+            )
+                frame(makeLabel(f"Row ${index} · revision ${revision}") { fonts = Some(p.fonts) }) {
+                    height = Some(36.0)
+                }
+            spacing = 8.0;
+            alignment = CrossAlignment.Stretch
+        }
+    }
+}
+
+private class DrawerNestedBody(private val p: DrawerProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        return makeButton("Nested action", {}) {
+            fonts = Some(p.fonts);
+            focus = FocusOptions(Some(p.nestedTarget))
+        }
+    }
+}
+
+private fun observeDrawer(p: DrawerProbe, slot: Int, content: View): View =
+    element(
+        slot,
+        { current -> DrawerObservation(p, current) },
+        [content],
+        ViewKey.Number(slot.toLong())
+    )
+
+private class DrawerCapture(var bounds: Rect, var ring: Boolean = false)
+
+private class DrawerObservation(private val p: DrawerProbe, private val slot: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return child
+    }
+    public override fun scene(context: SceneContext) {
+        val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val captured = DrawerCapture(rect)
+        val outset =
+            p.theme.current.value.surfaceMetrics(SurfaceVisual(SurfaceKind.Action)).focusOutset
+        val ring = Rect(-outset, -outset, rect.width + 2.0 * outset, rect.height + 2.0 * outset)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, rect).use {
+                    value -> captured.bounds = value.toWindow(rect)
+                }
+                captureGeometry(paint.canvas, ring).use {
+                    value -> captured.ring = value.visibleBounds == Some(value.bounds)
+                }
+            }
+        }
+        val value = slot.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                when (value) {
+                    case 0 -> p.headerBounds = captured.bounds
+                    case 1 -> p.bodyBounds = captured.bounds
+                    case 2 -> {
+                        p.editorBounds = captured.bounds;
+                        p.editorRing = captured.ring
+                    }
+                    else -> {
+                        p.footerBounds = captured.bounds;
+                        p.footerRing = captured.ring
+                    }
+                }
+            }
+        }
+    }
+}
+
+private class DrawerRoot(private val p: DrawerProbe, private val revision: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Moved(point)) -> p.trace.add(
+                        f"phase ${p.phase}: move ${point.state.logicalPosition.x}, ${
+                            point.state.logicalPosition.y
+                        }"
+                    )
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Released, _)
+                    ) -> {
+                        if (p.blockedRelease)
+                            context.preventDefault()
+                    }
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints());
+        context.placeChild(0L, Point(420.0, 20.0))
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(640.0, 520.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val current = revision.value;
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = current
+        }
+    }
+}

@@ -1,0 +1,96 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class DrawerBuilder internal constructor(): DismissibleModalBuilder() {
+    public var side: SheetSide = SheetSide.Bottom
+    public var width: Double? = None
+    public var height: Double? = None
+    public var mode: OverlayMode = OverlayMode.Modal
+    public var snapPoints: Array<DrawerSnapPoint> = []
+    public var snap: Binding<Long>? = None
+    public var initialSnap: Long = 0L
+    public var swipeToClose: Boolean = true
+    public var dragThreshold: Double = 4.0
+    public var projectionSeconds: Double = 0.15
+    public var swipeHandle: DrawerSwipeHandleOptions = DrawerSwipeHandleOptions()
+    public var controller: DrawerHandle? = None
+    public var parent: DrawerHandle? = None
+    public var viewportGap: Double = 96.0
+    public var viewportStyle: StyleOverride = styleOverride()
+    public var onSnapChange: (Long) -> Unit = {}
+    public var onDragCancel: (DragCancelReason) -> Unit = {}
+    init {
+        viewportPadding = 0.0;
+        showCloseButton = false
+    }
+    public fun swipeHandle(configure: DrawerSwipeHandleBuilder.() -> Unit) {
+        val builder = DrawerSwipeHandleBuilder(swipeHandle)
+        builder.configure();
+        swipeHandle = builder.snapshot()
+    }
+    public fun viewport(configure: StyleOverrideBuilder.() -> Unit) {
+        viewportStyle = viewportStyle.then(styleOverride(configure))
+    }
+    internal fun snapshot(open: Binding<Boolean>, content: View): DrawerProps =
+        DrawerProps(
+            open,
+            content,
+            options(),
+            side,
+            width,
+            height,
+            footer,
+            showCloseButton,
+            close,
+            dismiss,
+            mode,
+            snapPoints,
+            snap,
+            initialSnap,
+            swipeToClose,
+            dragThreshold,
+            projectionSeconds,
+            swipeHandle,
+            controller,
+            parent,
+            viewportGap,
+            viewportStyle,
+            onSnapChange,
+            onDragCancel
+        )
+}
+
+public class DrawerSwipeHandleBuilder internal constructor(value: DrawerSwipeHandleOptions) {
+    public var visible: Boolean = value.visible
+    public var only: Boolean = value.only
+    public var focus: FocusOptions = value.focus
+    public var style: StyleOverride = value.style
+    public var content: View? = value.content
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.then(styleOverride(configure))
+    }
+    internal fun snapshot(): DrawerSwipeHandleOptions =
+        DrawerSwipeHandleOptions(visible, only, focus, style, content)
+}
+
+public fun drawer(
+    open: Binding<Boolean>,
+    content: View,
+    configure: DrawerBuilder.() -> Unit = {}
+): View {
+    val builder = DrawerBuilder();
+    builder.configure()
+    return component(builder.snapshot(open, content), { current -> Drawer(current) }, builder.key)
+}
+
+public class Drawer public constructor(private val props: Props<DrawerProps>): Component {
+    private val owner = DrawerOwner()
+    private val modal = ModalContent({ props.value.input(owner) })
+    public override fun onMount(scope: ComponentScope) {
+        owner.localSnap.value = props.value.initialSnap
+        modal.mount()
+    }
+    public override fun render(): View = modal.render()
+}

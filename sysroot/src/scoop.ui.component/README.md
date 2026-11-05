@@ -141,3 +141,5 @@ Combobox 提供单／多选、Unicode 包含搜索、外部候选、自定义项
 `navigationMenu(Some(open.binding())) { item(key, "Guides", content); link(key, "Home", navigate) }` 组合一级页面链接和普通内容面板，支持横／纵布局、列表或入口锚点、延迟悬浮、跨间隙移动、受控关闭及 RTL。面板中的 `navigationMenuLink`、表单和布局保持原有焦点和按键行为；应用负责实际路由。`tests-cones/navigation-menu` 验证真实指针、键盘、编辑、焦点恢复和动画收尾。
 
 `resizable(sizes) { panel(key, content) { minimum = 80.0; collapsible = true }; panel(other, editor); withHandle = true }` 使用受控 `Array<ResizableSize>` 描述比例与折叠状态，自动在相邻面板间放置键盘／拖动把手。min／max 是逻辑长度，折叠保留恢复比例，取消不覆盖外部新值，窗口缩放只重新布局；正文以稳定 key 保留挂载，零尺寸停止放置。横／纵、RTL、嵌套、主题与局部样式可组合，`tests-cones/resizable` 覆盖真实窗口拖动、焦点和状态生命周期。
+
+`drawer(open, content)` 复用 ModalOptions 与 Portal，提供四方向拖动、垂直 Fraction／Length 吸附、受控索引、可聚焦 swipeHandle、三种模态策略和显式 parent 嵌套。DrawerHandle 观察实际展开长度并请求吸附；滚动正文、关闭 veto、取消回弹、尺寸变化及停帧由 `tests-cones/drawer` 的定向实窗覆盖。仅使用现有桌面指针输入。

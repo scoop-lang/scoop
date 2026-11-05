@@ -1,0 +1,371 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class DrawerGesture(val origin: Double, val geometry: DrawerGeometry)
+
+internal class DrawerControl(val scope: ComponentScope, val read: () -> DrawerInput) {
+    val area =
+        scope.createArea(focusable = true) {
+            context,
+            event -> if (context.phase == RoutedPhase.Notification && active) {
+                when (event) {
+                    case FocusChanged(false) -> when (gesture) {
+                        case Some(_) -> cancel(DragCancelReason.Explicit)
+                        case None -> {}
+                    }
+                    else -> {}
+                }
+            }
+        }
+    val focus = scope.focusTarget(area, FocusOptions(tabStop = false))
+    val motion = scope.animation(0.0)
+    val stackMotion = scope.animation(0.0)
+    var geometry: DrawerGeometry? = None
+    var gesture: DrawerGesture? = None
+    var parent: DrawerControl? = None
+    val children = ArrayList<DrawerControl>()
+    var frontExtent = 0.0
+    private var handle: DrawerHandle? = None
+    private var scroll: ScrollState? = None
+    private var scrollSubscription: Closeable? = None
+    private var index = current()
+    private var observed = read().props.snap?.value
+    private var retired = false
+    private var progress = 0.0
+    private val drag =
+        scope.drag(
+            area,
+            dragOptions(),
+            { _ -> acceptsDrag() },
+            { event -> drawerDrag(this, event) }
+        )
+    val active: Boolean get() = !retired && scope.isMounted
+    val depth: Long get() {
+        var value = 0L
+        for (child in children)
+            if (child.active)
+                value = max(value, child.depth + 1L)
+        return value
+    }
+    val position: Double get() =
+        if (active)
+            motion.value
+        else
+            0.0
+    init {
+        scope.routeChildren(area)
+        area.scope.captureHandler =
+            {
+                _,
+                event -> when (event) {
+                    case Pointer(InputPointerEvent.Wheel(_, _, _, _)) -> cancel(
+                        DragCancelReason.Explicit
+                    )
+                    else -> {}
+                }
+            }
+        scope.resource {
+            area.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> drawerKeyboard(this, context, key, false)
+                    else -> {}
+                }
+            }
+        }
+    }
+    fun current(): Long {
+        val input = read()
+        return drawerIndex(
+            input.props.snap?.value ?: input.owner.localSnap.value,
+            max(1L, input.props.snapPoints.size)
+        )
+    }
+    private fun dragOptions(): DragOptions {
+        val side = read().props.side
+        return DragOptions(
+            if (side == SheetSide.Top || side == SheetSide.Bottom)
+                DragAxis.Vertical
+            else
+                DragAxis.Horizontal,
+            read().props.dragThreshold,
+            read().props.options.enabled && read().props.open.value
+        )
+    }
+    private fun matches(shape: DrawerGeometry): Boolean {
+        val input = read()
+        if (shape.side != drawerPhysicalSide(input.props.side, scope.layoutDirection))
+            return false
+        val snaps = drawerSnaps(input.props.snapPoints, shape.extent, input.density)
+        if (snaps.size != shape.snaps.size)
+            return false
+        for (at in 0L ..< snaps.size)
+            if (snaps[at] != shape.snaps[at])
+                return false
+        return true
+    }
+    fun available(): Boolean =
+        active &&
+            read().props.options.enabled &&
+            read().props.open.value &&
+            when (geometry) {
+                case Some(shape) -> shape.extent >
+                    0.0 &&
+                    shape.bounds.width >
+                    0.0 &&
+                    shape.bounds.height >
+                    0.0 &&
+                    matches(shape)
+                case None -> false
+            }
+    private fun acceptsDrag(): Boolean {
+        if (!available() || children.size > 0L || !area.scope.isInputAllowed)
+            return false
+        val input = read()
+        val onHandle = input.owner.handleArea?.scope?.isHovered ?: false
+        if (input.props.swipeHandle.only)
+            return onHandle
+        if (
+            onHandle ||
+                !(input.owner.bodyArea?.scope?.isHovered ?: false) ||
+                !input.props.options.scrollable
+        )
+            return true
+        return when (geometry!!.side) {
+            case Bottom -> input.scroll.offset.y <= 0.0
+            case Top -> input.scroll.offset.y >= input.scroll.maximum.y
+            else -> true
+        }
+    }
+    fun update() {
+        val input = read()
+        val sameHandle =
+            when ((handle, input.props.controller)) {
+                case(Some(old), Some(next)) -> old === next
+                case(None, None) -> true
+                else -> false
+            }
+        if (!sameHandle) {
+            handle?.unbind(this);
+            handle = input.props.controller;
+            handle?.bind(this)
+        }
+        val sameScroll =
+            when (scroll) {
+                case Some(old) -> old === input.scroll;
+                case None -> false
+            }
+        if (!sameScroll) {
+            scrollSubscription?.close();
+            scroll = Some(input.scroll)
+            scrollSubscription =
+                Some(
+                    input.scroll.observeIntent {
+                        _ -> if (active)
+                            cancel(DragCancelReason.Explicit)
+                    }
+                )
+        }
+        drawerUpdateParent(this)
+        if (!active)
+            return
+        area.scope.enabled = input.props.options.enabled
+        if (!active)
+            return
+        val selected = current()
+        if (
+            index !=
+                selected ||
+                observed !=
+                input.props.snap?.value ||
+                !input.props.options.enabled ||
+                !input.props.open.value
+        ) {
+            cancel(DragCancelReason.ConfigurationChanged)
+            if (!active)
+                return
+            index = selected;
+            observed = input.props.snap?.value
+            when (geometry) {
+                case Some(shape) -> if (matches(shape) && input.props.open.value)
+                    moveTo(anchor(shape), false)
+                case None -> {}
+            }
+        }
+        drag.update(dragOptions(), { _ -> acceptsDrag() }, { event -> drawerDrag(this, event) })
+        if (!active)
+            return
+        when (transition()) {
+            case None -> {
+                if (motion.state == AnimationState.Running)
+                    motion.snapTo(motion.target)
+                if (stackMotion.state == AnimationState.Running)
+                    stackMotion.snapTo(stackMotion.target)
+            }
+            case Some(_) -> {}
+        }
+        publish()
+    }
+    fun anchor(shape: DrawerGeometry): Double =
+        shape.snaps[drawerIndex(current(), shape.snaps.size)]
+    fun visualPosition(shape: DrawerGeometry): Double =
+        when (geometry) {
+            case Some(old) -> if (sameDrawerGeometry(old, shape))
+                motion.value
+            else
+                anchor(shape)
+            case None -> anchor(shape)
+        }
+    fun accept(shape: DrawerGeometry, presence: Double) {
+        if (!active || !matches(shape))
+            return
+        val changed =
+            when (geometry) {
+                case Some(old) -> !sameDrawerGeometry(old, shape);
+                case None -> true
+            }
+        if (changed) {
+            cancel(DragCancelReason.GeometryUnavailable)
+            if (!active)
+                return
+            geometry = Some(shape)
+            motion.snapTo(anchor(shape))
+        }
+        progress = presence;
+        index = current()
+        when (parent) {
+            case Some(value) -> if (value.frontExtent != shape.extent) {
+                value.frontExtent = shape.extent;
+                value.scope.requestFrame()
+            }
+            case None -> {}
+        }
+        publish()
+    }
+    fun select(request: Long, animated: Boolean): Boolean {
+        if (!available())
+            return false
+        val shape = geometry!!
+        if (request < 0L || request >= shape.snaps.size)
+            return false
+        cancel(DragCancelReason.Explicit)
+        if (!active)
+            return false
+        val before = current()
+        val input = read()
+        when (input.props.snap) {
+            case Some(binding) -> if (binding.value != request)
+                binding.value = request
+            case None -> input.owner.localSnap.value = request
+        }
+        if (!active)
+            return false
+        val accepted = current()
+        observed = read().props.snap?.value;
+        index = accepted
+        if (matches(shape))
+            moveTo(anchor(shape), animated)
+        publish()
+        if (before != accepted)
+            read().props.onSnapChange(accepted)
+        return before != accepted
+    }
+    fun transition(): AnimationSpec? {
+        val input = read()
+        return input.theme.tokens.motion.resolve(
+            input.props.options.transition.resolve(
+                Some(
+                    AnimationSpec.Tween(
+                        Duration.milliseconds(400L),
+                        Easing.cubicBezier(0.22, 1.0, 0.36, 1.0)
+                    )
+                )
+            )
+        )
+    }
+    fun moveTo(value: Double, animated: Boolean) {
+        if (!active)
+            return
+        val spec =
+            if (animated)
+                transition()
+            else
+                None
+        when (spec) {
+            case Some(animation) -> if (
+                motion.value !=
+                    value &&
+                    (motion.target != value || motion.state != AnimationState.Running)
+            )
+                motion.animateTo(value, animation)
+            else
+                if (motion.value == value && motion.state == AnimationState.Running)
+                    motion.snapTo(value)
+            case None -> if (motion.value != value || motion.state == AnimationState.Running)
+                motion.snapTo(value)
+        }
+    }
+    fun cancel(reason: DragCancelReason) {
+        when (gesture) {
+            case None -> {
+                drag.cancel();
+                return
+            }
+            case Some(_) -> {}
+        }
+        gesture = None;
+        drag.cancel()
+        if (active) {
+            when (geometry) {
+                case Some(shape) -> moveTo(anchor(shape), true);
+                case None -> {}
+            }
+            publish()
+        }
+        read().props.onDragCancel(reason)
+    }
+    fun close() {
+        if (!active)
+            return
+        read().overlay.requestClose()
+        if (active && read().props.open.value)
+            when (geometry) {
+                case Some(shape) -> moveTo(anchor(shape), true)
+                case None -> {}
+            }
+    }
+    fun publish() {
+        if (!active)
+            return
+        handle?.publish(
+            DrawerSnapshot(
+                current(),
+                geometry?.extent ?: 0.0,
+                max(0.0, position * progress),
+                when (gesture) {
+                    case Some(_) -> true;
+                    case None -> false
+                },
+                depth
+            )
+        )
+    }
+    fun retire() {
+        cancel(DragCancelReason.Closed)
+        retired = true
+        scrollSubscription?.close();
+        scrollSubscription = None
+        drawerDetachParent(this)
+        for (child in children.toArray())
+            child.parent = None
+        children.clear();
+        handle?.unbind(this)
+        read().owner.control = None
+    }
+}

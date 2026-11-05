@@ -219,6 +219,7 @@ internal class Gallery(
             case Combobox -> comboboxExamples(model.comboboxes, fonts)
             case NavigationMenu -> navigationMenuExamples(model.navigationMenus, fonts)
             case Carousel -> carouselExamples(model.carousels, fonts)
+            case Drawer -> drawerExamples(model.drawers, fonts)
             case Resizable -> resizableExamples(
                 model.resizables,
                 fonts,

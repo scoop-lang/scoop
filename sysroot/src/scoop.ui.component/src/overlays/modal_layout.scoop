@@ -138,6 +138,7 @@ internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Elemen
 
 internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): OverlaySide? =
     when (kind) {
+        case Drawer(props, _) -> Some(drawerPhysicalSide(props.side, direction))
         case Sheet(side) -> Some(
             when (side) {
                 case Top -> OverlaySide.Top

@@ -4,7 +4,12 @@ import scoop.graphics.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class ModalBodyProps(val options: ModalOptions, val theme: Theme)
+internal class ModalBodyProps(
+    val options: ModalOptions,
+    val theme: Theme,
+    val scrollState: ScrollState? = options.scrollState,
+    val fillHeight: Boolean = true
+)
 
 /** Reuses the eager viewport controller and retains the same body when scrolling is toggled. */
 internal class ModalBody(private val props: Props<ModalBodyProps>): Element {
@@ -15,7 +20,7 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element {
         val input = props.value
         val options = input.options
         return ScrollControlProps(
-            options.scrollState ?: local,
+            input.scrollState ?: local,
             ScrollAxes.Vertical,
             40.0,
             ScrollChain.Contain,
@@ -59,7 +64,7 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element {
             constraints.constrain(
                 Size(
                     content.width,
-                    if (scroll)
+                    if (scroll && props.value.fillHeight)
                         constraints.maxHeight ?: content.height
                     else
                         content.height

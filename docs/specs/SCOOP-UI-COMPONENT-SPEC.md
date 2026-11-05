@@ -952,3 +952,19 @@ Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 
 Drag 到达主轴阈值后声明原指针路径并取消子项 Press，未达阈值保留子项点击；释放用当前位置、速度和 snapTarget 投影到实际锚点。循环选择最近的相邻周期目标，完成后归一化坐标；非循环越界有有限阻力，释放吸附。Escape、失焦、禁用、几何失效、阻止默认释放及卸载结束手势，取消回到当前选择且不改写选择 Binding。正文按键保留自己的默认动作；仅视口自身焦点处理主轴方向键、Home／End 与 PageUp／PageDown（一屏），普通 Tab 和按钮 Press 独立。
 
 CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在可见、窗口活动、可继续前进、未拖动／未动画且未命中 pauseOnHover=true 或 pauseOnFocus=true 时预约一个原生 deadline；暂停取消预约，恢复后等待完整 interval，不补播隐藏期间的轮次。非循环抵达末尾、禁用、隐藏、零尺寸及卸载停止预约。位移只用本挂载的一条 Animatable，默认 300ms EaseOut 过渡，主题 Reduced Motion 或 transition(None) 立即定位；静止和暂停不持续请求帧。
+
+## 40. Drawer
+
+`drawer(open: Binding<Boolean>, content: View) { ... }` 创建 DrawerProps／Drawer。标题、说明、header／footer、trigger／close、字体、主题、滚动正文及关闭 veto 复用 ModalOptions 和 DismissibleModalBuilder；默认 side=Bottom、showCloseButton=false、viewportPadding=0。side 使用 SheetSide 的 Top／Bottom／Start／End，横向随 RTL 解析。mode 默认 Modal，也可显式选择 NonModal／FocusContained；只有 Modal 默认绘制遮罩，三种模式的指针、Tab、Escape、初始／恢复焦点、退出重开及 onClosed 均由同一 Portal 处理。swipe 关闭沿 OverlayHandle 的 Explicit 请求，不直接绕过业务 veto 或拒绝绑定。
+
+根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示，外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
+
+无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
+
+swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
+
+Drag 达到主轴阈值后才声明原指针路径，未达阈值保留正文点击。把手和非滚动头尾可直接拖动；从正文起步时，Bottom 要求滚动已到顶部，Top 要求已到底部，横向不接管纵向滚动。正文仍有可消费的主轴滚动时不抢手势；滚轮／外部 ScrollState 意图到来时取消已有拖动。释放使用实际可见长度、速度和 snapTarget 投影；swipeToClose 允许零位置作为关闭目标，否则只在现有锚点间吸附。超过最大展开长度时采用有限阻力。取消、失焦、几何失效、禁用、外部模型替换、阻止默认释放及卸载不提交 snap，回到当前有效模型；关闭被拒绝同样回弹。
+
+DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex、extent、visibleExtent、dragging、nestedDepth）和 `snapTo(index, animated=true)`。popup 完成退出或卸载后解除绑定，应用可以继续保留句柄。parent 显式关联同窗口内已挂载的父 DrawerHandle，用于嵌套外观与手势协调；不能自指、成环或跨窗口。焦点层级仍来自正常 Portal 嵌套，parent 不建立另一套模态或恢复会话。父面板按实际前层尺寸缩放，每层缩小 5%、向内露出 16 并略微压暗；子层拖动时逐渐还原父层。子层打开期间不启动父层拖动，子层关闭／重开和整体卸载正常解除关联。
+
+默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；仅验证现有桌面指针，不声称提供尚未交付的触屏后端。

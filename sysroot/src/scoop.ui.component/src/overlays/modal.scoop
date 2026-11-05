@@ -3,6 +3,7 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.surface.AnimationSpec
+import scoop.surface.Easing
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
@@ -33,7 +34,7 @@ public class Sheet public constructor(private val props: Props<SheetProps>): Com
 }
 
 /** The business binding and Portal own the session; this composition only supplies its content. */
-private class ModalContent(private val read: () -> ModalInput) {
+internal class ModalContent(private val read: () -> ModalInput) {
     private val themes = ThemeAccess()
     private val localHandle = OverlayHandle()
     private val cancelFocus = FocusHandle()
@@ -72,6 +73,7 @@ private class ModalContent(private val read: () -> ModalInput) {
         val sheet =
             when (input.kind) {
                 case Sheet(_) -> true;
+                case Drawer(_, _) -> true;
                 else -> false
             }
         val alert =
@@ -79,7 +81,17 @@ private class ModalContent(private val read: () -> ModalInput) {
                 case Alert(_) -> true;
                 else -> false
             }
-        val small = input.kind == ModalKind.Alert(AlertDialogSize.Sm)
+        val small =
+            when (input.kind) {
+                case Alert(AlertDialogSize.Sm) -> true
+                else -> false
+            }
+        val drawer =
+            when (input.kind) {
+                case Drawer(_, _) -> true;
+                else -> false
+            }
+        val overlayHandle = options.handle ?: localHandle
         val titleStyle =
             titles.resolve(
                 theme.tokens.typography.body.copy {
@@ -219,19 +231,41 @@ private class ModalContent(private val read: () -> ModalInput) {
                 modalButton(spec, { close() }, options)
             } else
                 empty()
-        val body =
+        val bodyScroll =
+            when (input.kind) {
+                case Drawer(_, owner) -> Some(options.scrollState ?: owner.scroll)
+                else -> options.scrollState
+            }
+        val bodyContent =
             element(
-                ModalBodyProps(options, theme),
+                ModalBodyProps(options, theme, bodyScroll, !drawer),
                 { current -> ModalBody(current) },
                 [input.content]
             )
+        val body =
+            when (input.kind) {
+                case Drawer(_, owner) -> element(
+                    owner,
+                    { current -> DrawerBodyMarker(current) },
+                    [bodyContent]
+                )
+                else -> bodyContent
+            }
+        val panelContent =
+            element(
+                ModalPanelProps(density, headerPresent),
+                { current -> ModalPanel(current) },
+                [header, body, footerView, closeView]
+            )
         val panel =
             panelFrame(
-                element(
-                    ModalPanelProps(density, headerPresent),
-                    { current -> ModalPanel(current) },
-                    [header, body, footerView, closeView]
-                ),
+                when (input.kind) {
+                    case Drawer(props, owner) -> drawerPanel(
+                        DrawerInput(props, theme, owner, overlayHandle),
+                        panelContent
+                    )
+                    else -> panelContent
+                },
                 visual =
                     styleOverride {
                         background(Some(Paint(palette.popover.background)))
@@ -244,12 +278,15 @@ private class ModalContent(private val read: () -> ModalInput) {
                             )
                         )
                         corners(
-                            Corners.all(
-                                if (sheet)
-                                    0.0
-                                else
-                                    12.0 * density
-                            )
+                            when (input.kind) {
+                                case Drawer(props, _) -> drawerCorners(props.side, 12.0 * density)
+                                else -> Corners.all(
+                                    if (sheet)
+                                        0.0
+                                    else
+                                        12.0 * density
+                                )
+                            }
                         )
                         if (sheet)
                             boxShadows(theme.tokens.effects.floating)
@@ -261,11 +298,18 @@ private class ModalContent(private val read: () -> ModalInput) {
                     Some(
                         AnimationSpec.Tween(
                             Duration.milliseconds(
-                                if (sheet)
-                                    200L
+                                if (drawer)
+                                    450L
                                 else
-                                    100L
-                            )
+                                    if (sheet)
+                                        200L
+                                    else
+                                        100L
+                            ),
+                            if (drawer)
+                                Easing.cubicBezier(0.22, 1.0, 0.36, 1.0)
+                            else
+                                Easing.Linear
                         )
                     )
                 )
@@ -276,22 +320,46 @@ private class ModalContent(private val read: () -> ModalInput) {
             else
                 options.focus
         val current = read
-        val overlayHandle = options.handle ?: localHandle
-        val popup =
-            portal(
-                binding({ read().open.value }, { next -> setOpen(next) }),
-                element(
+        val exitMotion =
+            if (drawer)
+                theme.tokens.motion.resolve(
+                    options.transition.resolve(
+                        Some(
+                            AnimationSpec.Tween(
+                                Duration.milliseconds(400L),
+                                Easing.cubicBezier(0.22, 1.0, 0.36, 1.0)
+                            )
+                        )
+                    )
+                )
+            else
+                motion
+        val surface =
+            when (input.kind) {
+                case Drawer(props, owner) -> element(
+                    DrawerInput(props, theme, owner, overlayHandle),
+                    { value -> DrawerSurface(value) },
+                    [panel]
+                )
+                else -> element(
                     ModalSurfaceProps(input, density),
                     { value -> ModalSurface(value) },
                     [panel]
                 )
-            ) {
+            }
+        val overlayMode =
+            when (input.kind) {
+                case Drawer(props, _) -> props.mode
+                else -> OverlayMode.Modal
+            }
+        val popup =
+            portal(binding({ read().open.value }, { next -> setOpen(next) }), surface) {
                 placement = OverlayPlacement.Viewport(viewportPadding = 0.0)
-                mode = OverlayMode.Modal
+                mode = overlayMode
                 handle = Some(overlayHandle)
                 focus = Some(overlayFocus)
                 dismiss = input.dismiss
-                transition = PresenceOptions(motion, motion)
+                transition = PresenceOptions(motion, exitMotion)
                 onCloseRequest = { reason -> current().options.onCloseRequest(reason) }
                 onClosed = { reason -> current().options.onClosed(reason) }
             }
@@ -344,14 +412,17 @@ private fun modalButton(
 
 private fun modalPanelBorder(kind: ModalKind, color: Color): Border =
     when (kind) {
-        case Sheet(side) -> {
-            val edge = BorderEdge(1.0, color)
-            when (side) {
-                case Top -> Border.Physical(BorderEdges(bottom = edge))
-                case Bottom -> Border.Physical(BorderEdges(top = edge))
-                case Start -> Border.Logical(end = edge)
-                case End -> Border.Logical(start = edge)
-            }
-        }
+        case Sheet(side) -> modalSideBorder(side, color)
+        case Drawer(props, _) -> modalSideBorder(props.side, color)
         else -> Border.all(1.0, color)
     }
+
+private fun modalSideBorder(side: SheetSide, color: Color): Border {
+    val edge = BorderEdge(1.0, color)
+    return when (side) {
+        case Top -> Border.Physical(BorderEdges(bottom = edge))
+        case Bottom -> Border.Physical(BorderEdges(top = edge))
+        case Start -> Border.Logical(end = edge)
+        case End -> Border.Logical(start = edge)
+    }
+}

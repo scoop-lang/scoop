@@ -563,7 +563,7 @@ Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受�
 
 transition 使用第 7.12 节的 Presence。进入／呈现阶段正常布局，退出阶段保留同一内容及绘制资源，立即禁用根输入资格、取消内部按下与 IME／焦点活动。退出不能通过提前 deactivate 子树破坏绘制资源。Presence 变为 Absent 后在逻辑更新中卸载内容；确认移除的 Accepted 帧后才通知 onClosed，至多一次。没有动画时直接走同一最终移除边界。
 
-退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，不重放原始 initialFocus。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
+退出中 open 再变为 true，从当前进度转向进入；保留子树、key 和编辑模型。已有区域保持禁用，直到新的 Accepted 场景才恢复，并按 §7.6.3 的当前焦点选项重新尝试初始聚焦；重开后的显式焦点请求仍优先。最终移除已确认后再次打开，则创建新的内容及模态会话。普通 Props 更新不能绕过 Binding 另开一份状态。
 
 owner 在窗口仍存活时退休，立即停止动画并收束内容，根保留屏障及完成通知到 Accepted 移除。根关闭先停用输入、停止动画及释放屏障，安全退出当前场景借用并卸载子树后直接通知，不等待未来帧。窗口隐藏／没有 drawable 时复用 Surface 时间轴的 owner deadline 推进，退出可以结束，模态屏障仍等实际画面移除。
 

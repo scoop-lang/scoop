@@ -6,7 +6,7 @@ import scoop.surface.AnimationSpec
 import scoop.ui.*
 import scoop.ui.style.*
 
-/** Shared immutable configuration for the three modal content families. */
+/** Shared immutable configuration for modal content families. */
 public class ModalOptions public constructor(
     public val trigger: PopupTriggerSpec? = None,
     public val title: PanelContent? = None,
@@ -41,7 +41,7 @@ public enum SheetSide {
 }
 
 internal enum ModalKind {
-    Dialog, Alert(AlertDialogSize), Sheet(SheetSide)
+    Dialog, Alert(AlertDialogSize), Sheet(SheetSide), Drawer(DrawerProps, DrawerOwner)
 }
 
 /** Only supplied values are captured here; reading a binding belongs to the mounted component. */

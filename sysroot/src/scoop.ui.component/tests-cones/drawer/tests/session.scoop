@@ -1,0 +1,235 @@
+package scoop.tests.ui.drawer
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.math.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+@Test
+private class DrawerWindowTest {
+    @Test
+    fun `native drawer combines measured snaps scroll arbitration nesting and focus retention`() {
+        val p = DrawerProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.mounts, p.unmounts)
+            assertEquals(1, p.clicks)
+            assertFalse(p.controller.isAttached);
+            assertFalse(p.nestedController.isAttached)
+            assertFalse(p.editor.isAttached);
+            assertFalse(p.scroll.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"drawer phase=${p.phase}, extent=${p.controller.snapshot.extent}, visible=${
+                    p.controller.snapshot.visibleExtent
+                }, cancels=${p.cancels}, mounts=${p.mounts}, unmounts=${p.unmounts}"
+            )
+            drawerFailure(error)
+            for (entry in p.trace)
+                println(entry)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class DrawerProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val open = state(false)
+    val nestedOpen = state(false)
+    val snap = state(2L)
+    val controller = DrawerHandle()
+    val nestedController = DrawerHandle()
+    val layer = OverlayHandle()
+    val nestedLayer = OverlayHandle()
+    val scroll = ScrollState()
+    val trigger = FocusHandle()
+    val background = FocusHandle()
+    val grip = FocusHandle()
+    val editor = FocusHandle()
+    val nestedTarget = FocusHandle()
+    val nestedGrip = FocusHandle()
+    val text = TextEditorState("Draft")
+    val trace = ArrayList<String>()
+    var side = SheetSide.Bottom
+    var mode = OverlayMode.Modal
+    var snaps = true
+    var height: Double? = Some(400.0)
+    var rtl = false
+    var reject = false
+    var rejectClose = false
+    var veto = false
+    var enabled = true
+    var only = false
+    var motion = false
+    var gone = false
+    var shortContent = false
+    var blockedRelease = false
+    var cancels = 0
+    var selections = 0
+    var clicks = 0
+    var mounts = 0
+    var unmounts = 0
+    var beforeMounts = 0
+    var bodyBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var headerBounds = bodyBounds
+    var editorBounds = bodyBounds
+    var footerBounds = bodyBounds
+    var editorRing = false
+    var footerRing = false
+    var from = Point(0.0, 0.0)
+    var last = from
+    var phase = 0
+    var rendered = -1
+    var hold = 140L
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = ready + Duration.seconds(70L)
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    var done = false
+    var finished = false
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun refresh() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "") {
+        assertEquals(0, drawerKey(native!!, code, text))
+    }
+    fun expect(index: Long, visible: Double) {
+        assertEquals(index, controller.snapshot.snapIndex)
+        assertTrue(
+            abs(controller.snapshot.visibleExtent - visible) < 1.0e-6,
+            Some(f"expected ${visible}, actual ${controller.snapshot.visibleExtent}")
+        )
+    }
+    fun move(point: Point) {
+        last = point;
+        trace.add(f"phase ${phase}: send ${point.x}, ${point.y}")
+        assertTrue(moveSurfacePointer(native!!, point.x, point.y))
+    }
+    fun start(rect: Rect) {
+        from = Point(rect.x + rect.width / 2.0, rect.y + rect.height / 2.0)
+        move(from);
+        assertTrue(view!!.button(from.x, from.y, true))
+    }
+    fun out(distance: Double) {
+        val vertical = side == SheetSide.Top || side == SheetSide.Bottom
+        val negative =
+            side ==
+                SheetSide.Top ||
+                (side == SheetSide.Start && !rtl) ||
+                (side == SheetSide.End && rtl)
+        val delta =
+            if (negative)
+                -distance
+            else
+                distance
+        move(
+            Point(
+                from.x +
+                    if (vertical)
+                        0.0
+                    else
+                        delta,
+                from.y +
+                    if (vertical)
+                        delta
+                    else
+                        0.0
+            )
+        )
+    }
+    fun release() {
+        assertTrue(view!!.button(last.x, last.y, false))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Window(_, WindowEvent.Pointer(PointerEvent.Moved(point))) -> trace.add(
+                f"phase ${phase}: native ${point.logicalPosition.x}, ${point.logicalPosition.y}"
+            )
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop drawer test";
+                            position = Some(DesktopPosition(180.0, 100.0));
+                            size = LogicalSize(640.0, 520.0)
+                        }
+                    )
+                native = Some(window);
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                host.attach(window, { DrawerScene(this) });
+                window.requestFocus()
+                ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                active.setControlFlow(ControlFlow.WaitUntil(ready))
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                val now = MonotonicTimeSource.markNow()
+                assertTrue(now < deadline, Some("drawer timeout"))
+                if (
+                    now >=
+                        ready &&
+                        native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        !editor.isPending &&
+                        !grip.isPending &&
+                        !trigger.isPending &&
+                        !background.isPending &&
+                        !nestedTarget.isPending &&
+                        !nestedGrip.isPending
+                ) {
+                    hold = 140L;
+                    advanceDrawer(this);
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (!done)
+                    active.setControlFlow(
+                        ControlFlow.WaitUntil(
+                            if (ready > now)
+                                ready
+                            else
+                                now + Duration.milliseconds(25L)
+                        )
+                    )
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = done;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}

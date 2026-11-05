@@ -1,0 +1,235 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class DrawerSurface(private val props: Props<DrawerInput>): Element {
+    private var control: DrawerControl? = None
+    private var geometry: DrawerGeometry? = None
+    private var painter: StylePainter? = None
+    public override fun onMount(scope: ComponentScope) {
+        val current = DrawerControl(scope, { props.value })
+        control = Some(current);
+        props.value.owner.control = Some(current)
+        painter = Some(scope.resource { StylePainter() })
+    }
+    public override fun update() {
+        control!!.update()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val scale = input.density
+        val size =
+            Size(
+                constraints.maxWidth ?: constraints.minWidth,
+                constraints.maxHeight ?: constraints.minHeight
+            )
+        val padding = input.props.options.viewportPadding * scale
+        val available =
+            Size(max(0.0, size.width - padding * 2.0), max(0.0, size.height - padding * 2.0))
+        val side = drawerPhysicalSide(input.props.side, context.layoutDirection)
+        val vertical = side == OverlaySide.Top || side == OverlaySide.Bottom
+        val width =
+            if (vertical)
+                available.width
+            else
+                min(
+                    available.width,
+                    (input.props.width ?: min(384.0, available.width * 0.75 / scale)) * scale
+                )
+        val maximum =
+            if (vertical)
+                min(
+                    available.height,
+                    when (input.props.height) {
+                        case Some(value) -> value * scale
+                        case None -> max(0.0, available.height - input.props.viewportGap * scale)
+                    }
+                )
+            else
+                available.height
+        val fixed = !vertical || input.props.height != None || input.props.snapPoints.size > 0L
+        val panel =
+            context.measureChild(
+                0L,
+                Constraints(
+                    width,
+                    Some(width),
+                    if (fixed)
+                        maximum
+                    else
+                        0.0,
+                    Some(maximum)
+                )
+            )
+        val x =
+            when (side) {
+                case Left -> min(padding, size.width)
+                case Right -> max(0.0, size.width - padding - panel.size.width)
+                else -> max(0.0, (size.width - panel.size.width) / 2.0)
+            }
+        val y =
+            when (side) {
+                case Top -> min(padding, size.height)
+                case Bottom -> max(0.0, size.height - padding - panel.size.height)
+                else -> max(0.0, (size.height - panel.size.height) / 2.0)
+            }
+        val extent =
+            if (vertical)
+                panel.size.height
+            else
+                panel.size.width
+        geometry =
+            Some(
+                DrawerGeometry(
+                    size,
+                    Rect(x, y, panel.size.width, panel.size.height),
+                    side,
+                    drawerSnaps(input.props.snapPoints, extent, scale)
+                )
+            )
+        context.placeChild(0L, Point(x, y))
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val current = control!!
+        val shape = geometry!!
+        val progress = context.overlayLayout!!.presence.progress
+        val visible = current.visualPosition(shape)
+        val anchor = current.anchor(shape)
+        val dragOpacity =
+            if (anchor > 0.0)
+                min(1.0, max(0.0, visible / anchor))
+            else
+                1.0
+        if (input.props.mode == OverlayMode.Modal) {
+            context.saveLayer(progress * dragOpacity)
+            when (input.props.options.backdrop) {
+                case Some(paint) -> context.draw {
+                    output -> output.canvas.drawRect(
+                        Rect(0.0, 0.0, shape.viewport.width, shape.viewport.height),
+                        paint
+                    )
+                }
+                case None -> {}
+            }
+            context.restore()
+        }
+        painter!!.scene(context, input.props.viewportStyle.resolve(style())) {
+            local ->
+            local.save()
+            val amount = drawerStackAmount(current)
+            val nestedVisible = visible + (shape.extent - visible) * min(1.0, amount)
+            val distance = (shape.extent - nestedVisible * progress) * shape.outward
+            local.translate(
+                if (shape.vertical)
+                    0.0
+                else
+                    distance,
+                if (shape.vertical)
+                    distance
+                else
+                    0.0
+            )
+            if (amount > 0.0 && shape.extent > 0.0) {
+                val zoom = max(0.5, 1.0 - amount * 0.05)
+                val target =
+                    shape.extent +
+                        (
+                            (
+                                if (current.frontExtent > 0.0)
+                                    current.frontExtent
+                                else
+                                    shape.extent
+                            ) -
+                                shape.extent
+                        ) *
+                        min(1.0, amount)
+                val mainScale = target / shape.extent * zoom
+                val bounds = shape.bounds
+                val anchorX =
+                    when (shape.side) {
+                        case Left -> bounds.x;
+                        case Right -> bounds.x + bounds.width;
+                        else -> bounds.x + bounds.width / 2.0
+                    }
+                val anchorY =
+                    when (shape.side) {
+                        case Top -> bounds.y;
+                        case Bottom -> bounds.y + bounds.height;
+                        else -> bounds.y + bounds.height / 2.0
+                    }
+                val peek = (16.0 * input.density * amount + target * (1.0 - zoom)) * -shape.outward
+                local.translate(
+                    anchorX +
+                        if (shape.vertical)
+                            0.0
+                        else
+                            peek,
+                    anchorY +
+                        if (shape.vertical)
+                            peek
+                        else
+                            0.0
+                )
+                local.scale(
+                    if (shape.vertical)
+                        zoom
+                    else
+                        mainScale,
+                    if (shape.vertical)
+                        mainScale
+                    else
+                        zoom
+                )
+                local.translate(-anchorX, -anchorY)
+            }
+            if (shape.bounds.width > 0.0 && shape.bounds.height > 0.0)
+                local.place(current.area, shape.bounds)
+            local.children()
+            if (amount > 0.0)
+                local.draw {
+                    output -> output.canvas.drawRoundRect(
+                        shape.bounds,
+                        12.0 * input.density,
+                        12.0 * input.density,
+                        Paint(Color.Black.withAlpha(min(0.3, amount * 0.05)))
+                    )
+                }
+            local.restore()
+        }
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                current.accept(shape, progress)
+        }
+    }
+    public override fun onUnmount() {
+        control!!.retire()
+    }
+}
+
+internal class DrawerBodyMarker(private val props: Props<DrawerOwner>): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val current = scope.createArea();
+        area = Some(current)
+        props.value.bodyArea = Some(current);
+        scope.routeChildren(current)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return child
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height));
+        context.children()
+    }
+    public override fun onUnmount() {
+        props.value.bodyArea = None
+    }
+}

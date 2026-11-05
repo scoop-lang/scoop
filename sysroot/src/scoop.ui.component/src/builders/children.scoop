@@ -20,9 +20,17 @@ import scoop.ui.component.navigationMenu as appendNavigationMenu
 import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
 import scoop.ui.component.resizable as appendResizable
 import scoop.ui.component.carousel as appendCarousel
+import scoop.ui.component.drawer as appendDrawer
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun drawer(
+        open: Binding<Boolean>,
+        content: View,
+        configure: DrawerBuilder.() -> Unit = {}
+    ) {
+        add(appendDrawer(open, content, configure))
+    }
     public fun carousel(source: ItemSource, configure: CarouselBuilder.() -> Unit = {}) {
         add(appendCarousel(source, configure))
     }
