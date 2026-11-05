@@ -228,7 +228,7 @@ private class ModalContent(private val read: () -> ModalInput) {
         val panel =
             panelFrame(
                 element(
-                    ModalPanelProps(density, headerPresent, panelPresent(footer)),
+                    ModalPanelProps(density, headerPresent),
                     { current -> ModalPanel(current) },
                     [header, body, footerView, closeView]
                 ),

@@ -840,7 +840,7 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，可通过 close 内容／样式替换或完全隐藏；调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
 
-默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
+默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。正文的 16 内边距属于滚动内容，视口包含这段留白，不能紧贴子控件外框裁掉焦点环；页脚动作排列及标题排列不额外裁剪各自的布局外框，溢出仍受面板和显式视口约束。焦点环按主题的 outset 向外绘制，不增加控件测量尺寸，也不重复叠加环的 border width。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
 
 `dialogFooter(configure: ChildrenBuilder.() -> Unit): View` 及 ChildrenBuilder 同名成员构造 DialogFooterProps／DialogFooter；子项为普通 View，保留 key 与输入归属。可用宽度足够时按逻辑顺序靠 End 排列，间距 8；不足以容纳自然宽度时反向纵排、占满可用宽度，符合窄屏取消／确认次序。它不注入或改写按钮动作。
 

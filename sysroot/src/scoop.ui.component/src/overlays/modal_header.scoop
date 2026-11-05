@@ -131,7 +131,7 @@ internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element 
         return LayoutMetrics(constraints.constrain(Size(width, height)))
     }
     public override fun scene(context: SceneContext) {
-        containerScene(context, true)
+        context.children()
     }
 }
 

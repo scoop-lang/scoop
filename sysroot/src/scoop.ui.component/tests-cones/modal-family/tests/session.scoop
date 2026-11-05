@@ -95,6 +95,9 @@ internal class ModalFamilyProbe {
     var bodyBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var footerBounds = Rect(0.0, 0.0, 0.0, 0.0)
     var actionBounds = Rect(0.0, 0.0, 0.0, 0.0)
+    var bodyRingVisible = false
+    var footerRingVisible = false
+    var actionRingVisible = false
     var savedFooter = Rect(0.0, 0.0, 0.0, 0.0)
     var phase = 0
     var rendered = -1

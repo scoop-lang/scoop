@@ -155,7 +155,7 @@ internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): Ove
         else -> None
     }
 
-internal class ModalPanelProps(val density: Double, val header: Boolean, val footer: Boolean)
+internal class ModalPanelProps(val density: Double, val header: Boolean)
 
 /** Header, body, footer and close keep stable slots across every size and visibility change. */
 internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
@@ -176,42 +176,15 @@ internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
                 0L,
                 Constraints(maxWidth = Some(headerWidth), maxHeight = Some(headerHeight))
             )
-        val firstGap =
+        val headerExtent =
             if (input.header)
-                padding
+                padding + header.size.height
             else
                 0.0
-        val lastGap =
-            if (input.footer)
-                padding
-            else
-                0.0
-        val bottom =
-            if (input.footer)
-                0.0
-            else
-                padding
-        val bodyHeight =
-            max(
-                0.0,
-                maximum -
-                    padding -
-                    header.size.height -
-                    firstGap -
-                    footer.size.height -
-                    lastGap -
-                    bottom
-            )
+        val bodyHeight = max(0.0, maximum - headerExtent - footer.size.height)
         val body =
-            context.measureChild(1L, Constraints(inner, Some(inner), maxHeight = Some(bodyHeight)))
-        val naturalHeight =
-            padding +
-                header.size.height +
-                firstGap +
-                body.size.height +
-                lastGap +
-                footer.size.height +
-                bottom
+            context.measureChild(1L, Constraints(width, Some(width), maxHeight = Some(bodyHeight)))
+        val naturalHeight = headerExtent + body.size.height + footer.size.height
         val size =
             constraints.constrain(Size(width, max(naturalHeight, close.size.height + padding)))
         val rtl = context.layoutDirection == LayoutDirection.Rtl
@@ -225,10 +198,7 @@ internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
                 min(padding, size.height)
             )
         )
-        context.placeChild(
-            1L,
-            Point(min(padding, width), min(size.height, padding + header.size.height + firstGap))
-        )
+        context.placeChild(1L, Point(0.0, min(size.height, headerExtent)))
         context.placeChild(2L, Point(0.0, max(0.0, size.height - footer.size.height)))
         val inset = 8.0 * input.density
         context.placeChild(

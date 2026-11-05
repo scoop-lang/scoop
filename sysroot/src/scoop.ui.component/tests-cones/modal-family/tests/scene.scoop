@@ -6,6 +6,7 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
+import scoop.ui.style.*
 import scoop.ui.component.button as makeButton
 import scoop.ui.component.column as makeColumn
 import scoop.ui.component.dialog as makeDialog
@@ -193,7 +194,7 @@ private fun observeModal(p: ModalFamilyProbe, slot: Int, content: View): View =
         key = ViewKey.Number(slot.toLong())
     )
 
-private class CapturedModalBounds(var value: Rect)
+private class CapturedModalBounds(var value: Rect, var ringVisible: Boolean = false)
 
 private class ModalFamilyObservation(
     private val p: ModalFamilyProbe,
@@ -207,11 +208,18 @@ private class ModalFamilyObservation(
     public override fun scene(context: SceneContext) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = CapturedModalBounds(local)
+        val outset =
+            p.theme.current.value.surfaceMetrics(SurfaceVisual(SurfaceKind.Action)).focusOutset
+        val ring = Rect(-outset, -outset, local.width + outset * 2.0, local.height + outset * 2.0)
         context.draw {
             paint -> @Unsafe
             {
                 captureGeometry(paint.canvas, local).use {
                     geometry -> captured.value = geometry.toWindow(local)
+                }
+                captureGeometry(paint.canvas, ring).use {
+                    geometry -> captured.ringVisible =
+                        geometry.visibleBounds == Some(geometry.bounds)
                 }
             }
         }
@@ -221,9 +229,18 @@ private class ModalFamilyObservation(
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 when (slot) {
-                    case 0 -> p.bodyBounds = bounds
-                    case 1 -> p.footerBounds = bounds
-                    else -> p.actionBounds = bounds
+                    case 0 -> {
+                        p.bodyBounds = bounds;
+                        p.bodyRingVisible = captured.ringVisible
+                    }
+                    case 1 -> {
+                        p.footerBounds = bounds;
+                        p.footerRingVisible = captured.ringVisible
+                    }
+                    else -> {
+                        p.actionBounds = bounds;
+                        p.actionRingVisible = captured.ringVisible
+                    }
                 }
             }
         }

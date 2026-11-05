@@ -16,6 +16,8 @@ internal fun modalFamilyStep(p: ModalFamilyProbe) {
         case 2 -> {
             assertTrue(p.layer.isOpen);
             assertTrue(p.first.hasFocus)
+            assertTrue(p.bodyRingVisible, Some("body viewport must include the outer focus ring"))
+            assertTrue(p.footerRingVisible, Some("footer row must not clip the outer focus ring"))
             assertEquals(1, p.factories);
             assertFalse(p.background.requestFocus())
             p.clickBackground()
@@ -59,6 +61,9 @@ internal fun modalFamilyStep(p: ModalFamilyProbe) {
             assertEquals(p.savedFactories, p.factories);
             assertEquals(1, p.observed)
             assertTrue(p.scroll.maximum.y > 200.0)
+            assertTrue(p.bodyRingVisible)
+            assertTrue(p.footerRingVisible)
+            assertTrue(p.actionRingVisible)
             assertTrue(p.footerBounds.y > p.actionBounds.y)
             p.savedFooter = p.footerBounds;
             p.scroll.scrollTo(Point(0.0, 200.0))
@@ -189,6 +194,7 @@ internal fun modalFamilyStep(p: ModalFamilyProbe) {
             assertTrue(p.layer.isOpen);
             assertEquals(272.0, p.bodyBounds.x)
             assertEquals(352.0, p.bodyBounds.width)
+            assertTrue(p.bodyRingVisible)
             p.savedFactories = p.factories;
             p.side = SheetSide.Start;
             p.sheetWidth = Some(280.0);

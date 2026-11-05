@@ -38,31 +38,35 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val scroll = props.value.options.scrollable
+        val padding = 16.0 * props.value.theme.tokens.typography.body.fontSize / 14.0
+        val insets = Size(padding * 2.0, padding * 2.0)
+        val inner = childConstraints(constraints, insets)
         val child =
             context.measureChild(
                 0L,
                 Constraints(
-                    constraints.minWidth,
-                    constraints.maxWidth,
+                    inner.minWidth,
+                    inner.maxWidth,
                     maxHeight =
                         if (scroll)
                             None
                         else
-                            constraints.maxHeight
+                            inner.maxHeight
                 )
             )
+        val content = Size(child.size.width + insets.width, child.size.height + insets.height)
         val size =
             constraints.constrain(
                 Size(
-                    child.size.width,
+                    content.width,
                     if (scroll)
-                        constraints.maxHeight ?: child.size.height
+                        constraints.maxHeight ?: content.height
                     else
-                        child.size.height
+                        content.height
                 )
             )
-        snapshot = Some(control!!.layout(size, child.size))
-        context.placeChild(0L, Point(0.0, 0.0))
+        snapshot = Some(control!!.layout(size, content))
+        context.placeChild(0L, Point(padding, padding))
         return LayoutMetrics(size)
     }
     public override fun scene(context: SceneContext) {
