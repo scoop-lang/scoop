@@ -31,13 +31,38 @@ def loader_path(name, source, executable):
     return Path(name)
 
 
-def darwin(root, binaries, llvm_lib, additional=None):
-    private = root / "libexec/llvm/lib"
+def install_relpath(private, destination, bin_root, llvm_root):
+    """Loader path as if the component roots were already merged into one install root."""
+    for component in (bin_root, llvm_root):
+        if destination.is_relative_to(component):
+            destination_rel = destination.parent.relative_to(component)
+            break
+    else:
+        raise ValueError(f"{destination} is outside the staged component roots")
+    return os.path.relpath(private.relative_to(llvm_root), destination_rel)
+
+
+def prefix_libraries(files, llvm_lib, private):
+    """Reuse the already staged LLVM prefix libraries as-is.
+
+    The full LLVM prefix is packaged under libexec/llvm; its libraries were
+    installed with relative loader paths, so they are mapped to their staged
+    location without copying or editing, and are not queued for processing.
+    """
+    if private.is_dir():
+        for staged in private.iterdir():
+            if staged.is_file() and not staged.is_symlink():
+                files.setdefault((llvm_lib / staged.name).resolve(), staged)
+
+
+def darwin(bin_root, llvm_root, binaries, llvm_lib, additional=None):
+    private = llvm_root / "libexec/llvm/lib"
     private.mkdir(parents=True, exist_ok=True)
-    files = {path.resolve(): root / "bin" / path.name for path in binaries}
+    files = {path.resolve(): bin_root / "bin" / path.name for path in binaries}
     files.update(additional or {})
     executable = binaries[0].parent
     queue = [(path, []) for path in files]
+    prefix_libraries(files, llvm_lib, private)
     libraries = {}
     edits = []
     while queue:
@@ -73,7 +98,7 @@ def darwin(root, binaries, llvm_lib, additional=None):
         has_private_dependencies = bool(arguments)
         for path in rpaths:
             arguments += ["-delete_rpath", path]
-        relative = "@loader_path/" + os.path.relpath(private, destination.parent)
+        relative = "@loader_path/" + install_relpath(private, destination, bin_root, llvm_root)
         if has_private_dependencies:
             arguments += ["-add_rpath", relative]
         if own_name is not None:
@@ -96,14 +121,15 @@ def linux_system(name):
     )
 
 
-def linux(root, binaries, llvm_lib, additional=None):
+def linux(bin_root, llvm_root, binaries, llvm_lib, additional=None):
     if shutil.which("patchelf") is None:
         raise ValueError("Linux packaging requires patchelf")
-    private = root / "libexec/llvm/lib"
+    private = llvm_root / "libexec/llvm/lib"
     private.mkdir(parents=True, exist_ok=True)
-    files = {path.resolve(): root / "bin" / path.name for path in binaries}
+    files = {path.resolve(): bin_root / "bin" / path.name for path in binaries}
     files.update(additional or {})
     queue = list(files)
+    prefix_libraries(files, llvm_lib, private)
     libraries = {}
     edits = []
     search = [str(llvm_lib)]
@@ -138,7 +164,7 @@ def linux(root, binaries, llvm_lib, additional=None):
                 queue.append(dependency)
             arguments += ["--replace-needed", name, dependency.name]
         destination = files[source]
-        relative = "$ORIGIN/" + os.path.relpath(private, destination.parent)
+        relative = "$ORIGIN/" + install_relpath(private, destination, bin_root, llvm_root)
         arguments += ["--set-rpath", relative]
         if destination.parent == private:
             arguments += ["--set-soname", destination.name]
@@ -180,12 +206,12 @@ def windows_system(name):
     }
 
 
-def windows(root, binaries, llvm_bin, additional=None):
+def windows(bin_root, llvm_root, binaries, llvm_bin, additional=None):
     """Put each executable's non-system PE dependencies beside that executable."""
     readobj = llvm_bin / "llvm-readobj.exe"
-    queue = [(path.resolve(), root / "bin") for path in binaries]
+    queue = [(path.resolve(), bin_root / "bin") for path in binaries]
     queue += [(source, destination.parent) for source, destination in (additional or {}).items()]
-    for directory in (root / "commands", root / "libexec/llvm/bin"):
+    for directory in (bin_root / "commands", llvm_root / "libexec/llvm/bin"):
         queue += [(path, path.parent) for path in directory.rglob("*.exe")]
     search = [Path(path) for path in os.get_exec_path() if path]
     search = list(dict.fromkeys([source.parent for source in (additional or {})] + search))

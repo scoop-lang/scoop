@@ -42,7 +42,7 @@ def run_script(name, arguments, environment):
     )
 
 
-def prepare_targets(args, targets, environment):
+def prepare_targets(args, targets, binaries, environment):
     sysroot = ROOT / "sysroot"
     for target in targets:
         facts = TARGETS[target]
@@ -143,7 +143,8 @@ def prepare_targets(args, targets, environment):
             [
                 "--target",
                 target,
-                "--runtime-only",
+                "--scoop",
+                binaries[0],
                 "--sysroot",
                 sysroot,
                 "--work-dir",
@@ -169,25 +170,36 @@ def relocate_markdown_links(root, revision):
         prefix = "../" * len(path.relative_to(root).parts)
         text = path.read_text(encoding="utf-8")
         updated = re.sub(
-            r"(?<=\]\()" + re.escape(prefix) + r"(?=(?:docs|scripts)/)", repository, text
+            r"(?<=\]\()" + re.escape(prefix) + r"(?=(?:docs|scripts|tests)/)", repository, text
         )
         if updated != text:
             path.write_text(updated, encoding="utf-8")
 
 
-def assemble(root, targets, binaries, args, release, extension):
-    sysroot = args.prepared_sysroot or ROOT / "sysroot"
-    host_system = host_definition(args.host)["system"]
+def stage_binaries(root, binaries, host_system):
     (root / "bin").mkdir(parents=True)
     for binary in binaries:
         name = "sco.exe" if host_system == "Windows" and binary.name == "scoop.exe" else binary.name
         shutil.copy2(binary, root / "bin" / name)
-    (root / "VERSION").write_text(
-        f"{args.version}\nrevision: {args.revision}\nhost: {args.host}\n", encoding="utf-8"
+
+
+def assemble_llvm(root, args, host_system):
+    """Stage the complete patched LLVM prefix (with development files) and the debugger."""
+    shutil.copytree(args.llvm_prefix, root / "libexec/llvm", symlinks=True)
+    return package_debugger.stage(
+        root,
+        args.llvm_prefix,
+        args.debugger_prefix,
+        args.debugger_python,
+        args.host,
+        args.python_license,
+        windows_compiler=args.mingw_ucrt / "bin/clang.exe" if host_system == "Windows" else None,
     )
-    (root / "tooling").mkdir()
-    shutil.copy2(extension, root / "tooling" / extension.name)
-    shutil.copytree(ROOT / "tooling/scoop-programming", root / "tooling/scoop-programming")
+
+
+def assemble_sources(root, args):
+    """Stage the target-independent source package: Cones, vendor inputs and headers."""
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
     for name in ("src", "include"):
         shutil.copytree(
             sysroot / name,
@@ -195,9 +207,6 @@ def assemble(root, targets, binaries, args, release, extension):
             ignore=shutil.ignore_patterns("target", "Cone.lock", "*.slib", "__pycache__"),
         )
     relocate_markdown_links(root, args.revision)
-    shutil.copytree(
-        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
-    )
     shutil.copytree(
         sysroot / "native/text_backend",
         root / "native/text_backend",
@@ -213,91 +222,88 @@ def assemble(root, targets, binaries, args, release, extension):
             shutil.copy2(version / "README.md", destination / VERSION / "README.md")
         else:
             shutil.copytree(vendor, destination)
+    shutil.copytree(sysroot / "share/scoop/examples", root / "share/scoop/examples")
+    package_licenses.collect_sources(root, sysroot)
+
+
+def assemble_libraries(root, target, args, order):
+    """Stage one target's prebuilt system libraries, native inputs and runtimes."""
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    source = sysroot / "lib" / target
+    destination = root / "lib" / target
+    destination.mkdir(parents=True)
+    for cone in order:
+        shutil.copy2(source / f"{cone}.slib", destination / f"{cone}.slib")
+    (destination / "include").mkdir()
+    for header in (
+        RUST_TEXT_HEADER,
+        "uriparser",
+        "pcre2.h",
+        "zstd.h",
+        "zstd_errors.h",
+        "zdict.h",
+        "zlib-ng.h",
+        "zconf-ng.h",
+        "zlib_name_mangling-ng.h",
+        "brotli",
+    ):
+        origin = source / "include" / header
+        output = destination / "include" / header
+        if origin.is_dir():
+            shutil.copytree(origin, output)
+        else:
+            shutil.copy2(origin, output)
+    shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
+    shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
+    shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
+    if TARGETS[target]["os"] in ("darwin", "windows"):
+        shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
+        shutil.copytree(source / "include/skia", destination / "include/skia")
+    for package in COMPRESSION_PACKAGES:
+        for library in package["libraries"]:
+            shutil.copy2(source / library, destination / library)
+    for variant in (
+        "runtime",
+        "runtime-stress",
+        "runtime-startup-stats",
+        "runtime-stress-startup-stats",
+    ):
+        shutil.copytree(source / variant, destination / variant)
+    for component, libraries in (
+        ("openssl", ("libcrypto.a", "libssl.a")),
+        ("nghttp2", ("libnghttp2.a",)),
+        ("unwind", ("libunwind.a",)),
+    ):
+        if component == "unwind" and TARGETS[target]["os"] == "darwin":
+            continue
+        shutil.copytree(source / component / "include", destination / component / "include")
+        (destination / component / "lib").mkdir()
+        for name in libraries:
+            shutil.copy2(source / component / "lib" / name, destination / component / "lib" / name)
+    if host_definition(args.host)["system"] == "Windows":
+        package_windows.install_toolchain(root, target, args)
+    package_licenses.collect_libraries(root, sysroot, target)
+
+
+def assemble_bin(root, targets, args, release, extension, orders, python_version, native):
+    """Stage the host command package, installation manifest and shared documents."""
+    sysroot = args.prepared_sysroot or ROOT / "sysroot"
+    host_system = host_definition(args.host)["system"]
+    (root / "VERSION").write_text(
+        f"{args.version}\nrevision: {args.revision}\nhost: {args.host}\n", encoding="utf-8"
+    )
+    (root / "tooling").mkdir()
+    shutil.copy2(extension, root / "tooling" / extension.name)
+    shutil.copytree(ROOT / "tooling/scoop-programming", root / "tooling/scoop-programming")
+    shutil.copytree(
+        sysroot / "commands", root / "commands", ignore=shutil.ignore_patterns(".gitkeep")
+    )
     cone_manifests = [
         tomllib.loads(path.read_text(encoding="utf-8"))
         for path in sorted((sysroot / "src").glob("*/Cone.toml"))
     ]
-    for target in targets:
-        source = sysroot / "lib" / target
-        destination = root / "lib" / target
-        destination.mkdir(parents=True)
-        (destination / "include").mkdir()
-        for header in (
-            RUST_TEXT_HEADER,
-            "uriparser",
-            "pcre2.h",
-            "zstd.h",
-            "zstd_errors.h",
-            "zdict.h",
-            "zlib-ng.h",
-            "zconf-ng.h",
-            "zlib_name_mangling-ng.h",
-            "brotli",
-        ):
-            origin = source / "include" / header
-            output = destination / "include" / header
-            if origin.is_dir():
-                shutil.copytree(origin, output)
-            else:
-                shutil.copy2(origin, output)
-        shutil.copy2(source / RUST_TEXT_LIBRARY, destination / RUST_TEXT_LIBRARY)
-        shutil.copy2(source / "liburiparser.a", destination / "liburiparser.a")
-        shutil.copy2(source / "libpcre2-8.a", destination / "libpcre2-8.a")
-        if TARGETS[target]["os"] in ("darwin", "windows"):
-            shutil.copy2(source / SKIA_LIBRARY, destination / SKIA_LIBRARY)
-            shutil.copytree(source / "include/skia", destination / "include/skia")
-        for package in COMPRESSION_PACKAGES:
-            for library in package["libraries"]:
-                shutil.copy2(source / library, destination / library)
-        for variant in (
-            "runtime",
-            "runtime-stress",
-            "runtime-startup-stats",
-            "runtime-stress-startup-stats",
-        ):
-            shutil.copytree(source / variant, destination / variant)
-        for component, libraries in (
-            ("openssl", ("libcrypto.a", "libssl.a")),
-            ("nghttp2", ("libnghttp2.a",)),
-            ("unwind", ("libunwind.a",)),
-        ):
-            if component == "unwind" and TARGETS[target]["os"] == "darwin":
-                continue
-            shutil.copytree(source / component / "include", destination / component / "include")
-            (destination / component / "lib").mkdir()
-            for name in libraries:
-                shutil.copy2(
-                    source / component / "lib" / name, destination / component / "lib" / name
-                )
-    debugger_files, python_version, python_license = package_debugger.stage(
-        root,
-        args.llvm_prefix,
-        args.debugger_prefix,
-        args.debugger_python,
-        args.host,
-        args.python_license,
-        windows_compiler=args.mingw_ucrt / "bin/clang.exe" if host_system == "Windows" else None,
-    )
-    if host_system == "Windows":
-        package_windows.install(root, targets, args)
-        native = package_native.windows(root, binaries, args.llvm_prefix / "bin", debugger_files)
-    else:
-        native = (package_native.darwin if host_system == "Darwin" else package_native.linux)(
-            root, binaries, args.llvm_prefix / "lib", debugger_files
-        )
-    package_licenses.collect(
-        root,
-        ROOT,
-        args.llvm_source,
-        args.host,
-        native,
-        targets,
-        sysroot=sysroot,
-        python_license=python_license,
-    )
     share = root / "share/scoop"
     share.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(sysroot / "share/scoop/examples", share / "examples")
     for name in ("README.md", "RELEASE-NOTES.md"):
         shutil.copy2(ROOT / "scripts/distribution" / name, share / name)
     installer = "post-install.ps1" if host_system == "Windows" else "post-install.sh"
@@ -359,9 +365,7 @@ def assemble(root, targets, binaries, args, release, extension):
         manifest += [
             f"{key} = {json.dumps(value)}" for key, value in release["targets"][target].items()
         ]
-        selection = args.work_dir / "cones" / target
-        selection.mkdir(parents=True, exist_ok=True)
-        order = cone_order(sysroot, selection, target)
+        order = orders[target]
         manifest.append(f"cones = {json.dumps(order)}")
         (plan / f"{target}.list").write_text("\n".join(order) + "\n", encoding="utf-8")
     for cone_manifest in cone_manifests:
@@ -372,6 +376,7 @@ def assemble(root, targets, binaries, args, release, extension):
             f"coordinate = {json.dumps(':'.join(cone[key] for key in ('group', 'name', 'version')))}",
         ]
     (share / "toolchain.toml").write_text("\n".join(manifest) + "\n", encoding="utf-8")
+    package_licenses.collect_bin(root, ROOT, args.host)
 
 
 def archive(directory, destination, *, arcname="."):
@@ -411,7 +416,7 @@ def main():
     parser.add_argument(
         "--prepared-sysroot",
         type=Path,
-        help="Use prepared native backends and runtime; system slibs are always built after installation",
+        help="Use a prepared sysroot (native backends, runtime and system slibs) as-is",
     )
     parser.add_argument(
         "--debugger-prefix",
@@ -594,13 +599,43 @@ def main():
     build_scoop_example.install(example, sysroot)
     targets = list(host_definition(args.host)["distribution_targets"])
     if args.prepared_sysroot is None:
-        prepare_targets(args, targets, environment)
-    args.output_dir.mkdir(parents=True, exist_ok=True)
+        prepare_targets(args, targets, binaries, environment)
+    orders = {}
+    for target in targets:
+        selection = args.work_dir / "cones" / target
+        selection.mkdir(parents=True, exist_ok=True)
+        orders[target] = cone_order(sysroot, selection, target)
+    output = args.output_dir / f"scoop-{args.version}"
+    output.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="assemble-", dir=args.work_dir) as temporary:
-        root = Path(temporary) / f"scoop-{args.version}-{args.host}"
-        assemble(root, targets, binaries, args, release, extension)
-        sources = Path(temporary) / f"scoop-{args.version}-llvm-sources"
-        vendor = sources / "vendor/llvm-project" / VERSION
+        base = Path(temporary)
+        llvm_root = base / "llvm"
+        debugger_files, python_version, python_license = assemble_llvm(llvm_root, args, host_system)
+        bin_root = base / "bin"
+        stage_binaries(bin_root, binaries, host_system)
+        if host_system == "Windows":
+            native = package_native.windows(
+                bin_root, llvm_root, binaries, args.llvm_prefix / "bin", debugger_files
+            )
+        else:
+            native = (package_native.darwin if host_system == "Darwin" else package_native.linux)(
+                bin_root, llvm_root, binaries, args.llvm_prefix / "lib", debugger_files
+            )
+        package_licenses.collect_llvm(
+            llvm_root, args.llvm_source, args.host, native, python_license
+        )
+        assemble_bin(bin_root, targets, args, release, extension, orders, python_version, native)
+        sources_root = base / "sources"
+        assemble_sources(sources_root, args)
+        archive(bin_root, output / f"scoop-{args.version}-bin-{args.host}.tar.xz")
+        archive(llvm_root, output / f"scoop-{args.version}-llvm-{args.host}.tar.xz")
+        archive(sources_root, output / f"scoop-{args.version}-sources.tar.xz")
+        for target in targets:
+            lib_root = base / f"lib-{target}"
+            assemble_libraries(lib_root, target, args, orders[target])
+            archive(lib_root, output / f"scoop-{args.version}-lib-{target}.tar.xz")
+        llvm_sources = base / f"scoop-{args.version}-llvm-sources"
+        vendor = llvm_sources / "vendor/llvm-project" / VERSION
         shutil.copytree(
             ROOT / "sysroot/vendor/llvm-project" / VERSION / "patches", vendor / "patches"
         )
@@ -613,8 +648,7 @@ def main():
         )
         shutil.copy2(args.llvm_archive, vendor / f"llvm-project-{VERSION}.src.tar.xz")
         shutil.copy2(args.llvm_source / "llvm/LICENSE.TXT", vendor / "LICENSE.TXT")
-        archive(sources, args.output_dir / f"{sources.name}.tar.xz", arcname=sources.name)
-        archive(root, args.output_dir / f"{root.name}.tar.xz")
+        archive(llvm_sources, output / f"{llvm_sources.name}.tar.xz", arcname=llvm_sources.name)
 
 
 if __name__ == "__main__":

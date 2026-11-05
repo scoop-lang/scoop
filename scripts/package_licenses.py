@@ -22,63 +22,43 @@ def license_files(directory):
     )
 
 
-def collect(root, repository, source, host, native, targets, *, sysroot=None, python_license=None):
-    sysroot = sysroot or repository / "sysroot"
-    destination = root / "share/licenses"
-    destination.mkdir(parents=True)
-    rows = [
-        "# Included component licenses",
-        "",
-        "| Component | Declared license | Documents |",
-        "| --- | --- | --- |",
-    ]
+class Collector:
+    """Write one component's license table and documents under share/licenses."""
 
-    def add(name, license_name, paths):
-        folder = destination / name
+    def __init__(self, root, component=None):
+        self.destination = root / "share/licenses"
+        if component is not None:
+            self.destination /= component
+        self.destination.mkdir(parents=True, exist_ok=True)
+        self.rows = [
+            "# Included component licenses",
+            "",
+            "| Component | Declared license | Documents |",
+            "| --- | --- | --- |",
+        ]
+
+    def add(self, name, license_name, paths):
+        folder = self.destination / name
         folder.mkdir()
         documents = []
         for path in paths:
             shutil.copy2(path, folder / path.name)
             documents.append(f"[{path.name}]({name}/{path.name})")
-        rows.append(
+        self.rows.append(
             f"| {name} | {license_name or 'Not declared'} | {', '.join(documents) or 'No separate document found'} |"
         )
 
-    own = license_files(repository)
-    add("Scoop", "See project license" if own else "Not yet selected by the maintainer", own)
-    add("LLVM", "Apache-2.0 WITH LLVM-exception", [source / "llvm/LICENSE.TXT"])
-    if host_definition(host)["system"] == "Windows":
-        for component in ("libcxx", "libcxxabi", "libunwind", "compiler-rt"):
-            add(component, "See included documents", [source / component / "LICENSE.TXT"])
-    if python_license is not None:
-        add("Python", "PSF-2.0 and included notices", [python_license])
-    for target in targets:
-        notices = sysroot / "lib" / target / NOTICE_DIRECTORY
-        add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
-        configuration = native_configuration(target)
-        if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
-            prefix = root / "lib" / target / "toolchain"
-            add(
-                "LLVM-MinGW-" + target,
-                "See included documents",
-                [
-                    prefix / "LICENSE.TXT",
-                    *license_files(llvm_mingw_license_root(prefix, configuration["arch"])),
-                ],
-            )
-    for vendor in (sysroot / "vendor").iterdir():
-        if vendor.is_dir() and vendor.name != "llvm-project":
-            license_root = vendor / "2.15" if vendor.name == "liburing" else vendor
-            add(vendor.name, "See included documents", license_files(license_root))
-            if vendor.name == "text_backend":
-                for package in json.loads((vendor / "packages.json").read_text()):
-                    name = package["name"] + "-" + package["version"]
-                    add(
-                        "text-" + name,
-                        package["license"],
-                        license_files(vendor / "licenses" / name),
-                    )
+    def finish(self):
+        (self.destination / "README.md").write_text("\n".join(self.rows) + "\n")
 
+
+def collect_bin(root, repository, host):
+    """Licenses of Scoop itself and the Rust dependencies of the host commands."""
+    collector = Collector(root)
+    own = license_files(repository)
+    collector.add(
+        "Scoop", "See project license" if own else "Not yet selected by the maintainer", own
+    )
     packages = {}
     dependencies = {}
     for workspace in (repository, repository / "tooling/scoop-example"):
@@ -120,13 +100,24 @@ def collect(root, repository, source, host, native, targets, *, sysroot=None, py
                 explicit = directory / package["license_file"]
                 if explicit not in paths:
                     paths.append(explicit)
-            add(f"{package['name']}-{package['version']}", package["license"], paths)
+            collector.add(f"{package['name']}-{package['version']}", package["license"], paths)
         queue.extend(
             dependency["pkg"]
             for dependency in dependencies[identity]
             if any(kind["kind"] != "dev" for kind in dependency["dep_kinds"])
         )
+    collector.finish()
 
+
+def collect_llvm(root, source, host, native, python_license=None):
+    """Licenses of the LLVM/LLDB toolchain package, including its Python runtime."""
+    collector = Collector(root, "llvm")
+    collector.add("LLVM", "Apache-2.0 WITH LLVM-exception", [source / "llvm/LICENSE.TXT"])
+    if host_definition(host)["system"] == "Windows":
+        for component in ("libcxx", "libcxxabi", "libunwind", "compiler-rt"):
+            collector.add(component, "See included documents", [source / component / "LICENSE.TXT"])
+    if python_license is not None:
+        collector.add("Python", "PSF-2.0 and included notices", [python_license])
     if any(path.name.startswith(("libstdc++", "libgcc_s")) for path in native):
         paths = [
             path
@@ -137,5 +128,42 @@ def collect(root, repository, source, host, native, targets, *, sysroot=None, py
             if path.is_file()
         ]
         # Debian copyright files cover the GCC runtime and its Runtime Library Exception.
-        add("GCC-runtime", "GPL with GCC Runtime Library Exception", paths[:1])
-    (destination / "README.md").write_text("\n".join(rows) + "\n")
+        collector.add("GCC-runtime", "GPL with GCC Runtime Library Exception", paths[:1])
+    collector.finish()
+
+
+def collect_sources(root, sysroot):
+    """Licenses of the vendored upstream inputs shipped with the source package."""
+    collector = Collector(root, "sources")
+    for vendor in (sysroot / "vendor").iterdir():
+        if vendor.is_dir() and vendor.name != "llvm-project":
+            license_root = vendor / "2.15" if vendor.name == "liburing" else vendor
+            collector.add(vendor.name, "See included documents", license_files(license_root))
+            if vendor.name == "text_backend":
+                for package in json.loads((vendor / "packages.json").read_text()):
+                    name = package["name"] + "-" + package["version"]
+                    collector.add(
+                        "text-" + name,
+                        package["license"],
+                        license_files(vendor / "licenses" / name),
+                    )
+    collector.finish()
+
+
+def collect_libraries(root, sysroot, target):
+    """Licenses of one target package's native and Rust-built components."""
+    collector = Collector(root, "lib-" + target)
+    notices = sysroot / "lib" / target / NOTICE_DIRECTORY
+    collector.add("Rust-std-" + target, "See included documents", sorted(notices.iterdir()))
+    configuration = native_configuration(target)
+    if configuration["native_environment"] in {"LlvmMingwMsvcrt", "LlvmMingwUcrt"}:
+        prefix = root / "lib" / target / "toolchain"
+        collector.add(
+            "LLVM-MinGW-" + target,
+            "See included documents",
+            [
+                prefix / "LICENSE.TXT",
+                *license_files(llvm_mingw_license_root(prefix, configuration["arch"])),
+            ],
+        )
+    collector.finish()

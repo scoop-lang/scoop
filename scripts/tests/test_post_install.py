@@ -22,14 +22,10 @@ printf '\0' >> "$SCOOP_TEST_COMMANDS"
 operation=$1
 output=''
 while [ "$#" -gt 0 ]; do
-    case "$1" in -o|--output-dir) output=$2; shift ;; esac
+    case "$1" in --output-dir) output=$2; shift ;; esac
     shift
 done
 case "$operation" in
-    build)
-        mkdir -p "$(dirname "$output")"
-        if [ ! -f "$output" ]; then printf 'library' > "$output"; fi
-        ;;
     doc)
         mkdir -p "$output"
         printf '<!doctype html><title>API documentation</title>' > "$output/index.html"
@@ -47,7 +43,8 @@ class PostInstallTests(unittest.TestCase):
         self.commands = self.root / "commands.log"
         self.environment = dict(os.environ, SCOOP_TEST_COMMANDS=str(self.commands))
 
-    def installation(self, targets=(GNU, MUSL)):
+    def installation(self, targets=(GNU, MUSL), installed=None):
+        (self.root / "VERSION").write_text("1.2.3\nrevision: abc123\nhost: test\n")
         plan = self.root / "share/scoop/install"
         plan.mkdir(parents=True)
         (plan / "targets.list").write_text("\n".join(targets) + "\n")
@@ -57,6 +54,11 @@ class PostInstallTests(unittest.TestCase):
             manifest = self.root / "src" / name / "Cone.toml"
             manifest.parent.mkdir(parents=True)
             manifest.write_text(f'[cone]\ngroup = "scoop"\nname = "{name}"\n')
+        for target in targets if installed is None else installed:
+            library = self.root / "lib" / target
+            library.mkdir(parents=True)
+            for name in ("scoop.core", "scoop.std"):
+                (library / f"{name}.slib").write_text("library")
         for name in ("post-install.sh", "post-install.ps1"):
             shutil.copy2(SCRIPTS / name, self.root / name)
         (self.root / "bin").mkdir()
@@ -89,59 +91,63 @@ class PostInstallTests(unittest.TestCase):
             if entry
         ]
 
-    def test_default_build_and_docs_can_be_repeated_and_extended(self):
+    def test_default_documentation_can_be_repeated_and_extended(self):
         self.installation()
         for arguments, target in (([], GNU), ([], GNU), (["--target", MUSL], MUSL)):
             result = self.run_install(*arguments)
             self.assertEqual(result.returncode, 0, result.stderr)
             commands = self.recorded()
-            self.assertEqual([command[1] for command in commands], ["build", "build", "doc"])
-            for name, command in zip(("scoop.core", "scoop.std"), commands[:2], strict=True):
-                self.assertIn(str(self.root / "src" / name), command)
-                self.assertIn(str(self.root / "lib" / target / (name + ".slib")), command)
-                self.assertIn("--release", command)
-                self.assertEqual(command[command.index("--target") + 1], target)
-                self.assertIn(str(self.root / "lib" / target / "unwind"), command)
-            self.assertNotIn("--unwind-prefix", commands[-1])
+            self.assertEqual([command[1] for command in commands], ["doc"])
+            command = commands[0]
+            self.assertEqual(command[command.index("--target") + 1], target)
+            self.assertIn("--no-deps", command)
+            self.assertIn("--deny-doc-warnings", command)
             for name in ("scoop.core", "scoop.std"):
-                self.assertIn(str(self.root / "src" / name / "Cone.toml"), commands[-1])
+                self.assertIn(str(self.root / "src" / name / "Cone.toml"), command)
             self.assertTrue((self.root / "docs" / target / "index.html").is_file())
         index = (self.root / "docs/index.html").read_text()
         self.assertIn(f"{GNU}/index.html", index)
         self.assertIn(f"{MUSL}/index.html", index)
 
-    def test_targets_jobs_and_native_options_preserve_arguments(self):
-        self.installation((DARWIN, GNU))
-        cc = self.root / "compiler's path/clang"
-        sdk = self.root / "native SDK"
+    def test_jobs_and_work_dir_preserve_arguments(self):
+        self.installation()
         work = self.root / "another work directory"
-        result = self.run_install(
-            "--all-targets", "--cc", cc, "--native-sysroot", sdk, "--jobs", "2", "--work-dir", work
-        )
+        result = self.run_install("--all-targets", "--jobs", "2", "--work-dir", work)
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.recorded()
-        self.assertEqual(len(commands), 6)
+        self.assertEqual(len(commands), 2)
         for command in commands:
-            self.assertEqual(command[command.index("--cc") + 1], str(cc))
-            self.assertEqual(command[command.index("--native-sysroot") + 1], str(sdk))
             self.assertEqual(command[command.index("--jobs") + 1], "2")
             self.assertEqual(command[command.index("--cache-dir") + 1], str(work / "cache"))
-        self.assertTrue(all("--unwind-prefix" not in command for command in commands[:3]))
         result = self.run_install("--target", GNU, "--target", GNU)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(len(self.recorded()), 3)
+        self.assertEqual(len(self.recorded()), 1)
 
-    def test_failed_library_or_documentation_stops_the_installation(self):
+    def test_all_targets_skips_targets_whose_package_is_not_installed(self):
+        self.installation(installed=(GNU,))
+        result = self.run_install("--all-targets")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("not installed; skipping", result.stderr)
+        commands = self.recorded()
+        self.assertEqual(len(commands), 1)
+        self.assertEqual(commands[0][commands[0].index("--target") + 1], GNU)
+
+    def test_missing_target_package_names_the_archive(self):
+        self.installation(installed=(GNU,))
+        result = self.run_install("--target", MUSL)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"scoop-1.2.3-lib-{MUSL}.tar.xz", result.stderr)
+        self.assertEqual(self.recorded(), [])
+
+    def test_failed_documentation_stops_the_installation(self):
         self.installation()
-        for operation, count in (("build", 1), ("doc", 3)):
-            with self.subTest(operation=operation):
-                self.environment["SCOOP_TEST_FAIL"] = operation
-                result = self.run_install()
-                self.assertEqual(result.returncode, 23, result.stderr)
-                self.assertEqual(len(self.recorded()), count)
-                self.assertFalse((self.root / "docs/index.html").exists())
+        self.environment["SCOOP_TEST_FAIL"] = "doc"
+        result = self.run_install()
+        self.assertEqual(result.returncode, 23, result.stderr)
+        self.assertEqual(len(self.recorded()), 1)
+        self.assertFalse((self.root / "docs/index.html").exists())
 
-    def test_invalid_selection_is_rejected_before_building(self):
+    def test_invalid_selection_is_rejected_before_documenting(self):
         self.installation()
         for arguments in (
             ["--target", DARWIN],
@@ -150,6 +156,8 @@ class PostInstallTests(unittest.TestCase):
             ["--jobs", "0"],
             ["--jobs", "bad"],
             ["--target"],
+            ["--cc", "clang"],
+            ["--native-sysroot", "sdk"],
             ["--unknown"],
         ):
             with self.subTest(arguments=arguments):
@@ -159,24 +167,28 @@ class PostInstallTests(unittest.TestCase):
         self.assertEqual(self.run_install("--help").returncode, 0)
 
     @unittest.skipUnless(shutil.which("pwsh"), "PowerShell is not installed")
-    def test_powershell_selects_windows_tools_and_propagates_failures(self):
+    def test_powershell_documents_and_propagates_failures(self):
         self.installation((MSVC, MINGW))
         result = self.run_install("--all-targets", powershell=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         commands = self.recorded()
-        self.assertEqual(len(commands), 6)
+        self.assertEqual(len(commands), 2)
         for command in commands:
             self.assertEqual(command[0], str(self.root / "bin/sco.exe"))
-            target = command[command.index("--target") + 1]
-            if target == MSVC:
-                self.assertIn(str(self.root / "libexec/llvm/bin/clang-cl.exe"), command)
-            else:
-                self.assertIn(str(self.root / "lib" / target / "toolchain/bin/clang.exe"), command)
-                self.assertIn(str(self.root / "lib" / target / "toolchain"), command)
-        self.environment["SCOOP_TEST_FAIL"] = "build"
+            self.assertEqual(command[1], "doc")
+            self.assertEqual(command[command.index("--sysroot") + 1], str(self.root))
+        self.environment["SCOOP_TEST_FAIL"] = "doc"
         result = self.run_install(powershell=True)
         self.assertEqual(result.returncode, 23, result.stderr)
         self.assertEqual(len(self.recorded()), 1)
+
+    @unittest.skipUnless(shutil.which("pwsh"), "PowerShell is not installed")
+    def test_powershell_missing_target_package_names_the_archive(self):
+        self.installation((MSVC, MINGW), installed=(MSVC,))
+        result = self.run_install("--target", MINGW, powershell=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(f"scoop-1.2.3-lib-{MINGW}.tar.xz", result.stderr)
+        self.assertEqual(self.recorded(), [])
 
 
 if __name__ == "__main__":
