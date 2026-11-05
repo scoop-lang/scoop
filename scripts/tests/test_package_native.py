@@ -80,7 +80,7 @@ class LinuxDependenciesTests(unittest.TestCase):
             )
             shutil.copy2(app, root / "bin/program")
             with patch.dict(os.environ, LD_LIBRARY_PATH=str(external)):
-                libraries = package_native.linux(root, [app], llvm)
+                libraries = package_native.linux(root, root, [app], llvm)
             self.assertEqual(set(libraries), {library, llvm / "librelease_support.so.1"})
             moved = work / "moved installation"
             root.rename(moved)
@@ -92,6 +92,115 @@ class LinuxDependenciesTests(unittest.TestCase):
             self.assertEqual(result, "42\n")
             self.assertTrue(library.is_file())
             self.assertTrue(app.is_file())
+
+    def test_staged_prefix_libraries_are_reused_without_copying(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary).resolve()
+            root, llvm = work / "installation", work / "llvm"
+            private = root / "libexec/llvm/lib"
+            for directory in (root / "bin", llvm, private):
+                directory.mkdir(parents=True)
+            compiler = os.environ.get("CC", "cc")
+            source = work / "support.c"
+            source.write_text("int support_value(void) { return 42; }\n")
+            subprocess.run(
+                [
+                    compiler,
+                    "-shared",
+                    "-fPIC",
+                    str(source),
+                    "-Wl,-soname,librelease_support.so.1",
+                    "-o",
+                    str(llvm / "librelease_support.so.1"),
+                ],
+                check=True,
+            )
+            shutil.copy2(llvm / "librelease_support.so.1", private / "librelease_support.so.1")
+            (llvm / "librelease_support.so").symlink_to("librelease_support.so.1")
+            source = work / "main.c"
+            source.write_text(
+                "#include <stdio.h>\nint support_value(void);\n"
+                'int main(void) { printf("%d\\n", support_value()); return 0; }\n'
+            )
+            app = work / "program"
+            subprocess.run(
+                [
+                    compiler,
+                    str(source),
+                    "-L" + str(llvm),
+                    "-lrelease_support",
+                    "-o",
+                    str(app),
+                ],
+                check=True,
+            )
+            staged = private / "librelease_support.so.1"
+            before = staged.stat()
+            shutil.copy2(app, root / "bin/program")
+            libraries = package_native.linux(root, root, [app], llvm)
+            self.assertEqual(libraries, [llvm / "librelease_support.so.1"])
+            self.assertEqual(staged.stat().st_ino, before.st_ino)
+            result = subprocess.check_output(
+                [root / "bin/program"], text=True, env=dict(os.environ, LD_LIBRARY_PATH="")
+            )
+            self.assertEqual(result, "42\n")
+
+
+@unittest.skipUnless(sys.platform == "darwin", "Mach-O install_name_tool")
+class DarwinDependenciesTests(unittest.TestCase):
+    def test_component_roots_relocate_as_one_install_root(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            work = Path(temporary).resolve()
+            bin_root, llvm_root, build = (work / name for name in ("bin", "llvm", "build"))
+            for directory in (bin_root / "bin", llvm_root / "libexec/llvm/lib", build):
+                directory.mkdir(parents=True)
+            compiler = os.environ.get("CC", "cc")
+            source = build / "support.c"
+            source.write_text("int support_value(void) { return 42; }\n")
+            library = build / "librelease_support.dylib"
+            subprocess.run(
+                [
+                    compiler,
+                    "-shared",
+                    "-fPIC",
+                    str(source),
+                    "-Wl,-install_name,@rpath/librelease_support.dylib",
+                    "-o",
+                    str(library),
+                ],
+                check=True,
+            )
+            source = build / "main.c"
+            source.write_text(
+                "#include <stdio.h>\nint support_value(void);\n"
+                'int main(void) { printf("%d\\n", support_value()); return 0; }\n'
+            )
+            app = build / "program"
+            subprocess.run(
+                [
+                    compiler,
+                    str(source),
+                    "-L" + str(build),
+                    "-lrelease_support",
+                    "-Wl,-rpath," + str(build),
+                    "-o",
+                    str(app),
+                ],
+                check=True,
+            )
+            staged = llvm_root / "libexec/llvm/lib" / library.name
+            shutil.copy2(library, staged)
+            shutil.copy2(app, bin_root / "bin" / app.name)
+            before = staged.stat()
+            libraries = package_native.darwin(bin_root, llvm_root, [app], build)
+            self.assertEqual(libraries, [library.resolve()])
+            self.assertEqual(staged.stat().st_ino, before.st_ino)
+            # Overlay both component packages into one install root.
+            installed = work / "installed"
+            shutil.copytree(bin_root, installed, dirs_exist_ok=True)
+            shutil.copytree(llvm_root, installed, dirs_exist_ok=True)
+            result = subprocess.check_output([installed / "bin/program"], text=True)
+            self.assertEqual(result, "42\n")
 
 
 class WindowsDependenciesTests(unittest.TestCase):
@@ -130,7 +239,7 @@ class WindowsDependenciesTests(unittest.TestCase):
                 )
 
             with patch.object(package_native, "output", side_effect=readobj) as calls:
-                libraries = package_native.windows(root, [app], llvm)
+                libraries = package_native.windows(root, root, [app], llvm)
             self.assertEqual(set(libraries), {llvm / "runtime.dll", llvm / "support.dll"})
             self.assertEqual(calls.call_count, 9)
             for directory in (root / "bin", root / "commands", root / "libexec/llvm/bin"):
@@ -153,7 +262,7 @@ class WindowsDependenciesTests(unittest.TestCase):
                 patch.object(package_native.os, "get_exec_path", return_value=[]),
                 self.assertRaisesRegex(ValueError, r"missing-scoop-test.dll of .*scoop.exe"),
             ):
-                package_native.windows(root, [app], root / "llvm")
+                package_native.windows(root, root, [app], root / "llvm")
 
     def test_vc_runtime_is_a_distributable_dependency(self):
         self.assertTrue(package_native.windows_system("KERNEL32.DLL"))
@@ -183,14 +292,14 @@ class WindowsDependenciesTests(unittest.TestCase):
                 patch.object(package_native, "output", side_effect=imports),
                 patch.object(package_native.os, "get_exec_path", return_value=[]),
             ):
-                package_native.windows(root, [], work / "llvm", native)
+                package_native.windows(root, root, [], work / "llvm", native)
                 for name in ("python", "extensions"):
                     self.assertEqual(
                         (root / name / "vcruntime140.dll").read_bytes(), b"same runtime"
                     )
                 (work / "extensions/vcruntime140.dll").write_bytes(b"different runtime")
                 with self.assertRaisesRegex(ValueError, "different host libraries"):
-                    package_native.windows(root, [], work / "llvm", native)
+                    package_native.windows(root, root, [], work / "llvm", native)
 
 
 if __name__ == "__main__":

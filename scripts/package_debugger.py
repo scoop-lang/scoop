@@ -144,7 +144,8 @@ def stage(root, llvm, debugger, python, host, license_file=None, *, windows_comp
         else:
             binary(source, output)
     resources = llvm / "lib/clang"
-    shutil.copytree(resources, private / "clang")
+    if not (private / "clang").is_dir():
+        shutil.copytree(resources, private / "clang")
     support = debugger / "share/lldb"
     if support.is_dir():
         shutil.copytree(support, root / "libexec/lldb/share/lldb")
