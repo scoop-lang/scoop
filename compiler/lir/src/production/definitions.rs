@@ -79,12 +79,7 @@ pub struct ObjectDefinitionPlanSurfaceV1 {
 }
 
 impl ObjectDefinitionPlanSurfaceV1 {
-    pub(crate) fn remove_codegen_records(
-        &mut self,
-        definitions: &BTreeSet<ObjectDefinitionPlanId>,
-        atoms: &BTreeSet<ObjectDefinitionAtomId>,
-    ) {
-        self.plans.retain(|plan| !definitions.contains(&plan.plan));
+    pub(crate) fn remove_codegen_atoms(&mut self, atoms: &BTreeSet<ObjectDefinitionAtomId>) {
         for plan in &mut self.plans {
             plan.associated_atoms.retain(|atom| !atoms.contains(atom));
         }

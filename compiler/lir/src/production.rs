@@ -33,8 +33,8 @@ pub use registration_production::*;
 mod stackmaps;
 pub use stackmaps::*;
 
-mod safepoint_registrations;
-pub use safepoint_registrations::*;
+mod safepoint_production;
+pub use safepoint_production::*;
 
 mod callable_registrations;
 pub use callable_registrations::*;

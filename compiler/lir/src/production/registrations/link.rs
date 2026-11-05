@@ -7,7 +7,7 @@ impl DecodedRegistrationIdentitySurfaceV1 {
         self,
         foundation: &ConeLirFoundation,
         identities: &mut ValidatedIdentityGraph,
-    ) -> Result<[Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 6], LinkDataError> {
+    ) -> Result<[Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 5], LinkDataError> {
         Ok([
             table(
                 self.static_storages,
@@ -30,12 +30,6 @@ impl DecodedRegistrationIdentitySurfaceV1 {
             table(
                 self.type_registrations,
                 PersistentSymbolKey::TypeRegistration,
-                foundation,
-                identities,
-            )?,
-            table(
-                self.safepoints,
-                PersistentSymbolKey::SafepointRegistration,
                 foundation,
                 identities,
             )?,

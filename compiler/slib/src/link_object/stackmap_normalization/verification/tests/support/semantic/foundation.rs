@@ -6,7 +6,7 @@ pub(super) fn foundation(
     safepoints: &[SafepointIdentity],
 ) -> (
     ConeLirFoundation,
-    Vec<RegistrationArtifacts>,
+    Vec<PersistentSafepointSiteId>,
     CallableRegistrationArtifacts,
     TypeRegistrationArtifacts,
     ImmortalRegistrationArtifacts,
@@ -35,7 +35,7 @@ pub(super) fn foundation(
     .unwrap();
     let registrations = safepoints
         .iter()
-        .map(|safepoint| registration_artifacts(safepoint.site_id()))
+        .map(|safepoint| safepoint.site_id())
         .collect::<Vec<_>>();
     let callable_registration = callable_registration_artifacts(body.id());
     let type_registration = type_registration_artifacts(exact_type("String"));
@@ -129,11 +129,6 @@ pub(super) fn foundation(
                     static_storage.layout_plan.clone(),
                     static_storage.scan_plan.clone(),
                 ])
-                .chain(
-                    registrations
-                        .iter()
-                        .map(|registration| registration.plan.clone()),
-                )
                 .collect(),
         )
         .unwrap();
@@ -164,11 +159,6 @@ pub(super) fn foundation(
                     .into_iter()
                     .flatten(),
                 )
-                .chain(
-                    registrations
-                        .iter()
-                        .map(|registration| registration.primary.clone()),
-                )
                 .collect(),
         )
         .unwrap();
@@ -191,7 +181,6 @@ pub(super) fn foundation(
                     static_storage.layout_symbol,
                     static_storage.scan_symbol,
                 ])
-                .chain(registrations.iter().map(|registration| registration.symbol))
                 .collect(),
         )
         .unwrap(),

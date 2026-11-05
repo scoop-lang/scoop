@@ -8,6 +8,8 @@ use scoop_wire::encode_runtime;
 
 use super::*;
 
+mod compact_gc;
+
 #[test]
 fn windows_roots_preserve_offsets_for_seh_reconstructed_registers() {
     let expected = semantic_plan(1);

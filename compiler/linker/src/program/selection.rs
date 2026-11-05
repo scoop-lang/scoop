@@ -6,6 +6,7 @@ use scoop_identity::{
 };
 
 mod reachable;
+mod safepoints;
 
 #[derive(Default)]
 pub(crate) struct SelectedMembers {
@@ -112,6 +113,7 @@ impl SelectedMembers {
             }
         }
         result.retain_reachable(closure, native_references)?;
+        result.check_safepoints(closure)?;
         Ok(result)
     }
 

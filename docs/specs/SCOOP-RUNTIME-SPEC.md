@@ -223,21 +223,21 @@ unit 由 `PersistentInitializationUnitId` 标识；diagnostic path 只用于显�
 
 ### 2.8 多 image 登记与启动 ABI
 
-runtime ABI contract 为 **33**，metadata ABI 为 **10**。contract 33 将 9.2 的 TaskContext 扩为 binding root 与 execution 两个 managed 字段；metadata 记录格式不变，compiler、runtime 与系统库机器正文须配套重建。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 9`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
+runtime ABI contract 为 **34**，metadata ABI 为 **11**。contract 34／metadata 11 将机器根保存为 callable 引用的紧凑 GC 表，取消独立 safepoint registration 和运行时 LLVM stackmap 解析；compiler、runtime、系统库及机器产物须配套重建。contract 33 将 9.2 的 TaskContext 扩为 binding root 与 execution 两个 managed 字段；metadata 记录格式不变，compiler、runtime 与系统库机器正文须配套重建。contract 32／metadata 10 新增 2.8.1 的 native-app descriptor 与可返回启动，compiler、runtime 和机器产物须配套重建。contract 31 增加 6.1 的浮点环境边界 leaf，静态 callback trampoline 与 runtime 必须配套重建；线程及 callback 的私有存储不改变 metadata 布局。contract 30 在 2.8 的程序启动入口增加 `enable_stack_trace` 参数，按 5.6 控制整个进程的栈诊断；对象和 metadata 布局不变。Windows UTF-16 启动入口同步传递该参数；compiler、runtime 与三个 Windows target 的系统库须一起重建。contract 29 增加 5.6 的 Managed 首次抛出准备与打印入口；准备返回经过可能搬迁后的原对象引用。contract 28 加入 5.6 的 intrinsic Throwable 固定前缀，派生类的实例布局与 GC 扫描一起变化，compiler、runtime、core 及派生异常所在库必须配套重建。contract 27 退役无消费者的 String join C 入口，详见第 6 节。contract 26 删除分配视图中的计数器指针，统一使用四指针前缀；生成代码直接从同一稳定线程状态的 offset 128 取得既有计数器。计数、原子发布和线程生命周期保持，所有编译器、runtime 与系统库机器正文须配套重建。contract 25 将分配计数改为 nursery 与直接旧代分配两个互斥域，生成代码每次只更新 nursery 的对象数和字节数；总量在读取时相加，所有机器正文与 runtime 配套重建。contract 24 删除生成分配视图的 occupied-line 指针，统一使用五指针布局；分配只发布精确大小和 starts，collector 独立形成存活 line。编译器、runtime 与所有系统库机器正文须配套重建。contract 23 允许生成代码依赖 3.1 的 mapping owner；支持 GC stress 的 runtime 保留 region 首 block，编译器、runtime 与系统库须配套重建。contract 22 将小对象精确大小放入现有 GC 字、移动 pin 索引字段并将 TLAB 视图减为六指针；生成分配、runtime 和全部机器产物须一起重建。contract 20／21 退役无生产消费者的标量、打印、专用装箱、Array clone 与 Context 生成操作 C 入口；所有 profile 复用相同 typed 布局与根计划。contract 19 增加 9.2 的线程 Context 根槽地址视图；contract 18 的初始化状态原子访问及 release／acquire 发布保持，不能把生成的快速读取与旧 runtime 的普通写入混用。contract 17 的脏卡组登记与 region prefix、contract 15 的接口查询入口保持；contract 16 的七指针 TLAB 视图由本版替换。对象、接口值、TD、初始化 cell、注册记录和扫描布局不变。metadata 9 删除 runtime 不消费的 body、descriptor、layout、scan、stackmap、gateway、source signature 与 image 内容指纹字段；实体 identity、实际地址、类型布局、扫描与 stackmap 合同保持。producer、公共头、runtime 和启动代码一起更新，旧产物与开发 sysroot 必须重建。带 prefix 的 descriptor 以 `{ u64 magic; u32 abi_version; u32 struct_size; }` 开头，`abi_version == 11`，size 与本节布局精确一致，reserved fields 为 0。公共 C 声明见 [scoop_runtime_metadata_v1.h](../../runtime/include/scoop_runtime_metadata_v1.h)。不保留空的兼容槽或以 bitcast 混用旧布局。
 
 | descriptor | magic | size（bytes） |
 | --- | --- | --- |
-| Image | `0x53434f4f50494d47` | 208 |
+| Image | `0x53434f4f50494d47` | 192 |
 | RootEntry | `0x53434f4f50454e54` | 128 |
 | NativeAppEntry | `0x53434f4f504e4150` | 128 |
 | StaticStorage | `0x53434f4f5053544f` | 200 |
 | ImmortalObject | `0x53434f4f50494d4d` | 152 |
 | InitializationUnit | `0x53434f4f50494e49` | 288 |
 | TypeRegistration | `0x53434f4f50545950` | 144 |
-| SafepointRegistration | `0x53434f4f50535054` | 168 |
-| CallableRegistration | `0x53434f4f5043414c` | 144 |
+| CallableGcMap | `0x53434f4f5047434d` | 32（固定头） |
+| CallableRegistration | `0x53434f4f5043414c` | 152 |
 
-六类 registration 在 prefix 后依次保存 `{ u32 linkage_kind; u32 reserved_zero; semantic_id[32]; odr_group_id[32]; odr_member_id[32]; }`，共 104 bytes。linkage 为 Strong=1 或 Odr=2；Strong 的 ODR 字段为 0，Odr 的 group/member 非零。semantic ID 的种类由 record kind 决定，分别为 static storage、immortal object、initialization unit、exact type、safepoint site 和 callable body。
+五类 registration 在 prefix 后依次保存 `{ u32 linkage_kind; u32 reserved_zero; semantic_id[32]; odr_group_id[32]; odr_member_id[32]; }`，共 104 bytes。linkage 为 Strong=1 或 Odr=2；Strong 的 ODR 字段为 0，Odr 的 group/member 非零。semantic ID 的种类由 record kind 决定，分别为 static storage、immortal object、initialization unit、exact type 和 callable body。
 
 各 registration 的其余字段按以下顺序排列：
 
@@ -247,12 +247,11 @@ runtime ABI contract 为 **33**，metadata ABI 为 **10**。contract 33 将 9.2 
 | ImmortalObject | `object_start, object_size:u64, required_alignment:u64, type_registration` |
 | InitializationUnit | `schedule_kind:u32, reserved_zero:u32, diagnostic_path:ByteSpan, cell, storage, failure_root, initializer_callable_id[32], ensure_callable_id[32], initializer_entry, ensure_entry, startup_gateway_callable_id[32], startup_gateway` |
 | TypeRegistration | `runtime_type_id:u64, reserved_zero:u64, descriptor` |
-| SafepointRegistration | `safepoint_id:u64, site_role:u32, root_pair_count:u32, owner_callable_id[32]` |
-| CallableRegistration | `entry, context_keys, context_key_count:u64` |
+| CallableRegistration | `entry, context_keys, context_key_count:u64, gc_map` |
 
 ByteSpan 的物理表示是 pointer 后接 `u64 length`；static relocation 是 `{ pointer_offset:u64, target:ImmortalObjectDescriptor pointer }`；Context key use 是 `{ exact_key[32], slot_cell:u64 pointer }`。擦除后的 callable function-pointer typedef 只用于地址身份，不能据此发起调用。
 
-Image 依次包含 prefix、canonical Cone record（group/name/version ByteSpan 与 ConeIdentity）、直接依赖 identity pointer/count，再按 storage、immortal、initialization、type、safepoint、callable 顺序保存六组 record pointer/count。每个 image 表只列出最终链接选中的 producer，普通 external ref 不重复登记。
+Image 依次包含 prefix、canonical Cone record（group/name/version ByteSpan 与 ConeIdentity）、直接依赖 identity pointer/count，再按 storage、immortal、initialization、type、callable 顺序保存五组 record pointer/count。每个 image 表只列出最终链接选中的 producer，普通 external ref 不重复登记。
 
 RootEntry 依次包含 prefix、owner ConeIdentity、main callable ID、gateway callable ID、failure-root descriptor pointer 与 gateway pointer。main 的源码签名为语言规范 12.4.4 的四种 ordinary 形态之一：无参数或单个 `Array<String>` 参数，返回 `Unit` 或 `Int`。完整签名及 gateway 的参数构造、调用和返回适配由编译器检查并生成，不在 runtime record 中保存其摘要。
 
@@ -288,15 +287,15 @@ root gateway 的返回值只表示调用状态：`0` 为成功，`1` 为失败�
 
 所有 image、类型、scan、静态根、初始化单元、callable 和 safepoint 必须在首个 managed initializer 前登记。runtime 验证当前加载边界的格式、引用、实际地址范围、唯一性和 GC 契约，复用编译与链接边界已完成且未变化的语义、布局和 ODR 结果；不重新检查继承图、boxed payload 与 parent 的布局等语言规则。
 
-Darwin 从 runtime 内部函数地址经 `dladdr` 取得所属 Mach-O header，接受承载 runtime 的 `MH_EXECUTE` 或 `MH_DYLIB`。slide 由该 header 的实际地址与其 `__TEXT` 段首地址计算，不能固定读取 dyld image 0，也不把可能变化的 image index 当作镜像身份。executable 与 dylib 共用段、代码及 stackmap 解析，仅登记自身模块的地址范围，不包含 host 或其他已加载 native 库；模块在 runtime 使用期间保持加载。该 self-image 能力不改变 GC metadata ABI，也不开放运行期新增 Scoop Cone 或卸载协议。
+Darwin 从 runtime 内部函数地址经 `dladdr` 取得所属 Mach-O header，接受承载 runtime 的 `MH_EXECUTE` 或 `MH_DYLIB`。slide 由该 header 的实际地址与其 `__TEXT` 段首地址计算，不能固定读取 dyld image 0，也不把可能变化的 image index 当作镜像身份。executable 与 dylib 共用 metadata 段与代码范围解析，仅登记自身模块的地址范围，不包含 host 或其他已加载 native 库；模块在 runtime 使用期间保持加载。该 self-image 能力不改变 GC metadata ABI，也不开放运行期新增 Scoop Cone 或卸载协议。
 
-登记建立完整 typed ID 与 record/address 的对应关系。runtime type ID 与 exact type、非零 SafepointId 与完整 site identity 都必须全程序一一对应；不同完整 identity 的固定宽度碰撞必须在使用前报错。不同 body ID 不得共用 callable entry；同一共享实体不得有多个实际地址。
+登记建立完整 typed ID 与 record/address 的对应关系。runtime type ID 与 exact type 必须全程序一一对应。完整 safepoint identity 与非零 SafepointId 的全程序碰撞由程序链接在物理实现选择后检查；runtime 不建立第二份 site identity 索引。不同 body ID 不得共用 callable entry；同一共享实体不得有多个实际地址。
 
 登记时检查 TD 的 parent、函数类型关系和 itable 的接口 TD 引用。登记完成后这些描述符及其关系在 runtime 生命周期内保持不变；生成代码的 `scoop_rt_itable_find`、`scoop_rt_itable_lookup` 与 `scoop_rt_is_instance` 直接消费有效对象／静态类型携带的 TD，不逐次查询登记表。find 的缺失结果为 null，保证存在表的 lookup 缺失仍报告错误，类型判断继续遵守完整子类型关系；分配、native root 等实际输入边界保留各自必要的类型与对象检查。
 
-callable 正文、EH、stackmap、callable/safepoint registration 与其 Context cells 必须来自同一被选实现。独立 helper 可来自不同 provider；所有共享 TD、storage、cell 和初始化状态仍唯一。没有 safepoint 的 Scoop body 也登记 callable；普通 native extern 和 runtime C body 按各自 ABI 消费。
+callable 正文、EH、紧凑 GC 表、callable registration 与其 Context cells 必须来自同一被选实现。独立 helper 可来自不同 provider；所有共享 TD、storage、cell 和初始化状态仍唯一。没有 safepoint 的 Scoop body 也登记 callable；普通 native extern 和 runtime C body 按各自 ABI 消费。
 
-非空 pointer/count span 的范围、乘加和对齐必须有效。既有 image/registration 空 span 使用类型正确的 addressable sentinel；`context_key_count == 0` 时 context_keys 为 null。descriptor、字符串、scan、template 与 relocation metadata 按不可变数据使用；callable entry 与 storage 分别按代码与可写存储发射。runtime 从平台装载段取得地址范围，不另查 VM region、`/proc/self/maps` 或审计读写／执行权限。Windows 从承载 runtime 的已加载 PE header 取得非 discardable section 的 RVA 与 VirtualSize，形成实际 metadata 地址范围；`.text` 提供托管代码区间，链接器合并后的 `.smap` 提供 stackmap 字节。stackmap 长度不包含文件对齐 padding，不重新打开 exe；没有 `.smap` 时返回空 stackmap image 集合，保留其余登记地址范围。
+非空 pointer/count span 的范围、乘加和对齐必须有效。既有 image/registration 空 span 使用类型正确的 addressable sentinel；`context_key_count == 0` 时 context_keys 为 null。descriptor、字符串、scan、template 与 relocation metadata 按不可变数据使用；callable entry 与 storage 分别按代码与可写存储发射。runtime 从平台装载段取得地址范围，不另查 VM region、`/proc/self/maps` 或审计读写／执行权限。Windows 从承载 runtime 的已加载 PE header 取得非 discardable section 的 RVA 与 VirtualSize，形成实际 metadata 地址范围；代码节提供托管代码区间，callable 的 GC 表按普通不可变 metadata 读取。代码范围的取得不依赖专用 stackmap 节，不重新打开 exe。
 
 storage 的 `allocation_extent == max(byte_size, 1)`。ZST storage 使用独立的 1-byte writable token、None scan 与 canonical 空 scan。不同 storage 的 allocation range 不重叠，只有同一 ODR member 的重复引用可指向同一存储。
 
@@ -315,7 +314,7 @@ eager startup gateway 继续使用独立的 `uint32_t(void)` C ABI，成功返�
 
 每次 init/root gateway 调用建立独立 native→managed boundary，开始为没有 managed frame 的 EntryPending；入口必须 poll 后才成为 ActiveManagedSegment。返回前完成全部 managed 异常处理，只把 GC-free status 及 root 成功时的整数输出交给 C；随后按 LIFO 恢复外层 mode/boundary。GC 仍扫描外层 frozen segment 和 native roots，不把 C coordinator 的 PC 当作 managed anchor。
 
-以下 RuntimeImageFingerprint 仅是 `.slib` 的编译期内容摘要，不是 runtime 字段。最终 linker 按已选定义建立实际 image 表，不重新计算或写入这一摘要。产物生产时对 canonical records 编码，不能 hash raw struct 或 ASLR 地址。编码为 little-endian u32/u64、32-byte ID 原字节、`u64 length + bytes` ByteSpan、`u64 count + elements` sequence、无 padding 的声明序 product 和 `u32 tag + payload` sum。record kind 按六张表顺序为 1..6；payload 先保存 linkage、semantic ID、ODR group/member，再保存下表的字段，不编码 descriptor prefix、padding 或 reserved fields。role 使用以下 u32 tag：
+以下 RuntimeImageFingerprint 仅是 `.slib` 的编译期内容摘要，不是 runtime 字段。最终 linker 按已选定义建立实际 image 表，不重新计算或写入这一摘要。产物生产时对 canonical records 编码，不能 hash raw struct 或 ASLR 地址。编码为 little-endian u32/u64、32-byte ID 原字节、`u64 length + bytes` ByteSpan、`u64 count + elements` sequence、无 padding 的声明序 product 和 `u32 tag + payload` sum。record kind 按五张表顺序为 1..5；payload 先保存 linkage、semantic ID、ODR group/member，再保存下表的字段，不编码 descriptor prefix、padding 或 reserved fields。role 使用以下 u32 tag：
 
 | role | tag |
 | --- | --- |
@@ -334,30 +333,35 @@ eager startup gateway 继续使用独立的 `uint32_t(void)` C ABI，成功返�
 | ImmortalObject | OwnImmortalAtom、object semantic ID、size、alignment、target exact type ID |
 | InitializationUnit | schedule、diagnostic-path ByteSpan、OwnInitializationCell、unit ID、storage ID、failure-root storage ID、CallableEntry、initializer body ID、CallableEntry、ensure body ID、gateway choice |
 | TypeRegistration | runtime type ID、TypeDescriptorAtom、exact type ID、descriptor fingerprint、layout fingerprint |
-| SafepointRegistration | safepoint ID、site role、root-pair count、owner callable ID、normalized stackmap fingerprint |
 | CallableRegistration | body definition fingerprint、OwnCallableEntry、body ID |
 
-scan kind 为 None=0 或 Recursive=1；scan choice 为 `Empty=0 | Program=1 { scan fingerprint }`；gateway choice 为 `None=0 | Unit=1 { UnitGateway role, body ID, fingerprint }`。static state 使用上述 1/2 tag，Encoded 内联 template ByteSpan 与 `{pointer offset, immortal semantic ID}` sequence。Context key、cell 初值及引用由所属 body 的对象内容指纹覆盖，进程 slot 和加载后的 cell 值不进入指纹。各表按 `(semantic ID, linkage, ODR group, ODR member)` byte 序排序；直接依赖 identity 排序去重。未知或 reserved tag 非法。
+scan kind 为 None=0 或 Recursive=1；scan choice 为 `Empty=0 | Program=1 { scan fingerprint }`；gateway choice 为 `None=0 | Unit=1 { UnitGateway role, body ID, fingerprint }`。static state 使用上述 1/2 tag，Encoded 内联 template ByteSpan 与 `{pointer offset, immortal semantic ID}` sequence。Context key、cell 初值、GC 表及其引用由所属 body 的对象内容指纹覆盖，进程 slot 和加载后的 cell 值不进入指纹。各表按 `(semantic ID, linkage, ODR group, ODR member)` byte 序排序；直接依赖 identity 排序去重。未知或 reserved tag 非法。
 
-`RuntimeImageFingerprint = SHA-256(ByteSpan("scoop-runtime-image-v2") || RuntimeAbiFingerprint || TargetProfileFingerprint || canonical Cone record || sorted direct dependencies || six canonical record sequences)`。两个输入 fingerprint 各为 32 bytes；canonical Cone record 依次编码 group、name、version ByteSpan 和 ConeIdentity。物理对象分片和 ASLR 地址不进入此编码；结果只进入产物摘要，不回填机器对象。body、descriptor、layout、scan 与 stackmap fingerprints 的产物规则见编译器与产物规范 2.6。
+`RuntimeImageFingerprint = SHA-256(ByteSpan("scoop-runtime-image-v3") || RuntimeAbiFingerprint || TargetProfileFingerprint || canonical Cone record || sorted direct dependencies || five canonical record sequences)`。两个输入 fingerprint 各为 32 bytes；canonical Cone record 依次编码 group、name、version ByteSpan 和 ConeIdentity。物理对象分片和 ASLR 地址不进入此编码；结果只进入产物摘要，不回填机器对象。body、descriptor、layout、scan 与 stackmap fingerprints 的产物规则见编译器与产物规范 2.6。
 
 `PersistentCallableBodyId = SHA-256(ByteSpan("scoop-callable-body-v2") || canonical(CallableBodyKey))`。key 的 u32 tag 与字段为 Strong=1 `{owner}`、Odr=2 `{member}`、RootGateway=3 `{root_cone, main_body_id}`、InitializationStartupGateway=4 `{unit_id}`、ReleaseHook=5 `{owner_exact_type_id}`。这些 body 的身份不能互换。身份与内容摘要由编译、链接过程生成；runtime 使用实际登记记录及引用，不重新生成摘要，也不以摘要非零断言替代实际索引和引用处理。
 
-stackmap 使用 LLVM v3 record。规范化内容依次为 `{format_version=3, site_id, safepoint_id:u64, owner_callable_id, site_role:u32, root_pair_count:u32, instruction_offset:u32, stack_size:u64, locations, live_outs}`。location tag 为 Register=1 `{size:u32, dwarf_register:u32}`、Direct=2 或 Indirect=3 `{size, dwarf_register, signed_offset_bits:u64}`、Constant=4 `{size, value_bits:u64}`；live-out 为 `{dwarf_register:u32, size:u32}`。保留原 sequence 顺序和数量，i32 offset/constant 符号扩展到 i64 bits，ConstantIndex 解析为 pool 中的 u64 Constant；reserved/flags/padding 为零。
+LLVM stackmap v3 只作为机器生产边界的输入。reader 保留实际函数重定位、instruction offset、stack size、完整 location／live-out 顺序及其格式检查。每对 root 是同一 8-byte、8-byte 对齐的 SP/FP Indirect 可写槽，前三项为 8-byte Constant；location 数为 `3 + 2 * root_pair_count`。物理根数来自实际 RS4GC／机器结果，可能与逻辑 leaf 数不同；invoke 和 native transition 的机器 gc-live 为零，仍保留其 site。
 
-`normalized_stackmap_fingerprint = SHA-256(ByteSpan("scoop-stackmap-record-v1") || canonical(record))`。该摘要仅用于编译期内容计算，不写入 runtime registration。runtime 直接使用已解析的记录。ASLR function address 不入 hash，但必须等于 owner callable entry；instruction offset 与 stack size 入 hash。site role 为 ManagedPoll=1、ManagedCall=2、ManagedInvoke=3、NativeSafeTransition=4、NativeBorrowedTransition=5。实际 record 与 registration 的 site、owner、role、root count 一致。
+机器生产边界核对实际 site 的 owner、role、root count 和 frame 合同，再物化紧凑表。完整 `PersistentSafepointSiteId`、owner／role／ordinal 与非零 `SafepointId` 映射继续保存在现有 LIR foundation；最终链接从中投影并检查所选 body 的实际 site，不比较不同优化候选的 site 全集。runtime 不重复身份、ODR 或 raw record／登记的 join。
 
-受支持目标要求 location 数为 `3 + 2 * root_pair_count`，前三项是 8-byte Constant，每对 root 为相同的 8-byte SP/FP Indirect 可写 slot。root count 是实际机器表示中的 relocation pair 数，不必等于源级逻辑 leaf 数；invoke 与 native transition 使用显式 root frame，gc-live 为零。
+每个 callable registration 的 offset 144 保存 `const ScoopCallableGcMapV1 *gc_map`。没有实际 site 时为 null；存在 site 时必须有非空表，零根 site 不能省略。表的 32-byte 头为 `{ prefix; u64 stack_size; u32 site_count; u32 layout_word_count; }`，后三字段 offset 为 16、24、28；prefix 的 struct_size 为 32。随后是 `site_count` 条 16-byte `{ u64 safepoint_id; u32 instruction_offset; u32 layout_word_offset; }`，再后是 `layout_word_count` 个 u32，末尾补零到 8-byte 边界。总大小为 `round_up_8(32 + 16 * site_count + 4 * layout_word_count)`，全部大小运算检查实际范围与溢出。
 
-stackmap 范围可以包含多个完整 v3 blob，必须解析到范围末尾。registration 与 raw record 完整对应，return PC 使用实际原始地址，不作减指令宽度、邻近符号或范围猜测。不同完整 site key 不能复用 SafepointId 或 return PC；同一 ODR site 的重复记录只在 owner、最终地址和实际 location/live-out 等 payload 全等时合并；这一比较用于合并实际重复记录，不建立记录指纹的镜像。
+site_count 非零，site 按 instruction_offset 严格递增，ID 非零；return PC 精确等于所属 callable entry 加 offset，不减指令宽度或查询邻近 PC。表不重复保存函数地址或 owner identity。最终对象中的 GC 表是同一 callable 的普通不可变附属 atom；原始 LLVM stackmap 段和逐 site registration 不进入发布产物。
 
-启动收集 site 时检查 ID、role、root count 并建立唯一的 site 索引；owner callable 的身份与归属只在该 site 的首条 raw record 合并时解析一次，同时检查 entry、root count 和目标 frame 布局。后续同一 ODR site 的 raw record 与已验证记录比较完整地址及规范化 payload，复用其 owner 与 frame 验证结果。所有 site 必须有 raw record，全部对应关系仍在任何 managed 执行前验证完毕；不增加持久的 owner 缓存或新的登记字段。此规则对全部 profile、预编译 Cone 和启动测量配置一致。
+每个布局为一个 u32 root_count 和紧随其后的 root_count 个 u32 位置。layout_word_offset 以布局区起点为基准、按 word 计数，必须指向布局的 count word。同一函数内完全相同的有序根序列共享布局，按 site 首次使用顺序放置；不合并序列内的重复槽。零根布局为单个零 word。root index 与相关诊断使用 u32，不截断根数。
 
-不可变 metadata 与 stackmap 的段放置、relocation 和 RELRO 由目标工具链与 loader 处理，runtime 直接使用装载结果。native DSO 不构成 Scoop logical image。String 使用实际声明的唯一 TD，`scoop_td_String` 与其地址相同。运行期不新增或卸载 Cone，Scoop runtime 也不执行 managed global destructor；native C／C++ 初始化／析构边界见第 7 章。
+位置编码为 `bit_pattern_u32(signed_byte_offset) | base`，SP tag 为 0、FP 为 1，bits 1、2 必须为零。解码以 `encoded & 1` 选择 frame profile 的实际 SP／FP，并把 `encoded & 0xfffffff8` 按位解释为 i32 偏移。该表示覆盖全部 8-byte 对齐的 i32 偏移；生产边界拒绝不对齐或不可表示的位置。例：SP+32 为 `0x20`，FP-16 为 `0xfffffff1`。不得从 Windows stack size 推导或改写 FP 偏移。
+
+启动沿已登记 callable 一次统计并分配 24-byte／site 的私有 PC 索引 `{ uintptr_t return_pc; const ScoopCallableGcMapV1 *map; const ScoopGcSiteV1 *site; }`。表头、完整范围、布局起点、编码与 frame 静态约束在读取边界检查；每个共享布局只验证一次，临时布局起点索引在该函数处理后释放。索引按实际 PC 排序，拒绝重复 PC 与代码范围之外的地址；根与帧大小直接引用不可变映像，不展开持久 record/root arrays。
+
+managed 执行前完成索引发布。扫栈对精确 PC 二分查找，以根下标 O(1) 读取四字节位置，并按 3.2 的实际线程 SP／FP、栈边界和对齐交付可改写槽位。GC 期间不分配、重建或复核静态索引。没有单独的预期 site 列表，不在启动时重放生产端的 site 完整性证明。
+
+不可变 metadata（含紧凑 GC 表）的段放置、relocation 和 RELRO 由目标工具链与 loader 处理，runtime 直接使用装载结果。native DSO 不构成 Scoop logical image。String 使用实际声明的唯一 TD，`scoop_td_String` 与其地址相同。运行期不新增或卸载 Cone，Scoop runtime 也不执行 managed global destructor；native C／C++ 初始化／析构边界见第 7 章。
 
 #### 2.8.1 native-app 的可返回启动
 
-本合同使用 runtime ABI contract 32、metadata ABI 10；native-app descriptor 的新增函数签名与 executable descriptor 不可混用，旧 runtime 与机器产物重建。
+本合同使用 runtime ABI contract 34、metadata ABI 11；native-app descriptor 的新增函数签名与 executable descriptor 不可混用，旧 runtime 与机器产物重建。
 
 native-app 使用独立 `ScoopNativeAppEntryDescriptorV1`，magic 为 `0x53434f4f504e4150`，物理大小 128 bytes；字段按顺序为 magic、ABI version、size、root Cone identity、source callable identity、gateway callable identity、failure-root descriptor 指针、gateway 指针。其 gateway 类型为 `uint32_t (*)(const void *host_api, void *out_app_api)`。reader 在 descriptor 边界验证一次，并将共用的 owner、callable 和失败根关系规范化为 registry 的 root view；后续 storage/unit 验证复用该 view。失败根与 executable 采用相同的 managed Throwable 根布局，但使用独立 storage role。generated gateway 建立入口 poll、typed Scoop ABI 调用和 catch，正常与异常出口均恢复 Context，状态 0 表示成功，非 0 表示异常已发布到失败根。
 
@@ -433,6 +437,8 @@ nursery 容量和 collection threshold 是收集触发条件，不是堆空间�
 
 ### 3.2 Safepoint 与机器根
 
+机器根按 2.8 的紧凑 GC 表发布，LLVM v3 仅在对象生产边界消费。运行时的 frame 访问直接读取已发布 PC 索引与定长根位置；以下 stackmap roots 均指这种实际机器根，静态记录不在每次扫描时重新解码建表。
+
 平台实现按实际职责分开：线程栈／VM／RSS 属于 OS services，ELF／Mach-O／PE 的 segment 与 metadata range 属于 object image parser，当前模块枚举与生命周期属于 OS／loader provider，纯 ISA helper 属于 arch，managed frame decoder／virtual unwind 属于 machine frame recovery，caller anchor／ManagedEntry 与返回值 shim 分别属于 procedure ABI 和对象汇编合同。构建只组合当前 target 已完整实现的组件；red-zone 等参数由实际 ABI／frame component 选择，不由 ISA 名称普遍推导。此职责划分不改变 GC、异常、对象布局或公共 runtime ABI。
 
 平台选择不能以对象格式、native environment 或 canonical triple 字符串替代 typed OS；ELF 不选择 Linux，COFF 不选择 Windows OS services，POSIX 也不是未实现 OS 的 fallback。只有实际 API 与生命周期合同相同且已有调用方时才提取公共 primitive 或 loader helper。runtime builder 为当前完整选择生成静态 `ScoopPlatformBundle` translation unit，引用各组件已有的具名 ops；不使用动态插件、运行时注册或每个 OS＋arch 一份的手写组合 profile。
@@ -461,7 +467,7 @@ SSA 接口在 safepoint 后由更新的 AS1 object 与原 AS0 metadata 分量重
 
 调用期间保活不要求返回后恢复已死的直接实参。编译器按实现规范 2.4 保留实际 AS1 实参在调用站点的精确 root，仅为后继仍使用的值生成恢复；必要的传参 spill 仍由机器 ABI／stackmap 决定。间接按值 storage、借用、异常出口以及分配后仍用于初始化或复制的输入遵守各自保活与重读规则，不能由源码调用后无使用推导其已死。省略恢复不允许缩短调用期间的对象存活期，也不改变 collector 对实际物理根的更新。
 
-接口聚合及其 object 分量若经相同输入与前驱得到同一个值，可以共享物理根；编译器在 RS4GC 之前完成这种标量合流归并，逻辑恢复和实际后继使用统一取得更新后的引用。不同路径的输入、重赋前的快照与独立对象仍各自保活。注册的 root-pair count 必须继续与最终机器 stackmap 精确一致，不能忽略数量差异或截断根记录。
+接口聚合及其 object 分量若经相同输入与前驱得到同一个值，可以共享物理根；编译器在 RS4GC 之前完成这种标量合流归并，逻辑恢复和实际后继使用统一取得更新后的引用。不同路径的输入、重赋前的快照与独立对象仍各自保活。生产记录中的 root-pair count 必须继续与最终机器 stackmap 精确一致，紧凑表保存对应的完整有序根位置，不能忽略数量差异或截断根记录。
 
 native 实际调用不得 unwind 穿越边界。通过 `FunPtr` 的间接调用与普通 C ABI extern 一样进入 NativeSafe，发布 caller roots 并在返回时完成握手；callee 可经合法 token 同步进入 managed callback。通过 `GCLeafFunPtr` 的间接调用与语言规范 13.4.1 的 `@GCLeaf` C 调用一样不构成 safepoint，也不建立 native transition 或专用于该调用的 caller roots；实参求值和调用前后的真实 safepoint 继续遵守正常根规则。静态 FunPtr 指向 Scoop NoGC callback 时，native 对它的同步调用只经过 C trampoline 的 ABI 与浮点环境适配，不建立 managed transition；该调用仍限于发起 native 调用的同一已登记线程，不因 callback 正文本身 NoGC 而成为 leaf outbound 调用。
 
@@ -983,11 +989,11 @@ JSON／CLI 的现有解析适配通过 platform 数值入口复用精确解析�
 
 启动先保存 2.8 的原始 argc/argv，建立运行时基础状态并验证全部 image/registration，再建立 GC、主线程与可执行 managed boundary。任何 managed initializer、Context 分配、argv 的 managed 构造或 main 之前必须完成相应登记；C coordinator 不提前构造未登记的 String 或 Array。
 
-实现规范 2.19 的最终链接选择可以删除不可达的完整 callable 和类型／shape 物理成员；启动只登记实际保留的类型、callable／safepoint，删除成员的 stackmap 与记录同时缺席。保留代码仍须满足完整的 owner、site、frame 与精确根合同，保留 TD 必须有同一 exact type 的登记，不能仅为减少启动工作而丢弃仍可执行代码或存活类型的记录。静态根、immortal 和初始化记录沿现有合同保留；此选择不增加对象字段、GC roots 或 runtime 测量代码。
+实现规范 2.19 的最终链接选择可以删除不可达的完整 callable 和类型／shape 物理成员；启动只登记实际保留的类型和 callable，删除成员的 GC 表与登记同时缺席。保留代码仍须满足完整的 owner、site、frame 与精确根合同，保留 TD 必须有同一 exact type 的登记，不能仅为减少启动工作而丢弃仍可执行代码或存活类型的记录。静态根、immortal 和初始化记录沿现有合同保留；此选择不增加对象字段、GC roots 或 runtime 测量代码。
 
 `--enable-startup-stats` 显式请求编入启动诊断，默认不编入；该构建开关独立于 profile 和 GC stress。runtime 的 C 生产配置以 `SCOOP_ENABLE_STARTUP_STATS=0/1` 控制预处理，关闭时不得生成计时、阶段状态、报告、诊断字符串和专用计数访问，也不能通过环境变量重新启用。编入后，每次启动在 `scoop_rt_run_program` 取得 platform／加载镜像范围前开始单调墙钟计时，在 eager 初始化完成、调用 root gateway 之前向 stderr 写一行 JSON：`scoop_startup:1`、`total_ns`、`phases_ns` 和 `counts`。七个互不重叠的阶段为 `loaded_images`、`collect_records`、`code_and_types`、`storage_and_units`、`stackmaps`、`runtime_init`、`eager_init`；阶段纳秒数之和等于 total。runtime_init 包含 String 绑定检查、registry 发布、线程／callback／GC 初始化与主线程 attach。时间不包含 runtime 入口之前的 dyld／CRT、root gateway 内的参数构造、main、shutdown 或诊断输出本身；前置阶段失败时不伪造完整启动记录。
 
-counts 直接读取本次已建立索引的数量：Cone `images`、有元数据的物理 `loaded_images`、`types`、`callables`、`safepoints`、合并后的 `stackmap_records`、不同地址的 `scan_programs`、`static_storages`、`static_roots`、`immortals`、`initialization_units`、`eager_units` 与 `context_keys`。不为诊断重新遍历或验证图；未编入时不存在这些诊断访问，正常登记所需索引保持原职责。该记录只供测量，既不是编译输入也不是 PGO profile，不参与程序合法性、对象／GC 布局或 ABI；进程总启动时间仍由外部测量。计时开启的运行须单独评估观测开销，不能与关闭诊断的吞吐样本混用。
+counts 直接读取本次已建立索引的数量：Cone `images`、有元数据的物理 `loaded_images`、`types`、`callables`、`safepoints`、PC 索引中的 `stackmap_records`（与 `safepoints` 同取索引数量）、不同地址的 `scan_programs`、`static_storages`、`static_roots`、`immortals`、`initialization_units`、`eager_units` 与 `context_keys`。不为诊断重新遍历或验证图；未编入时不存在这些诊断访问，正常登记所需索引保持原职责。该记录只供测量，既不是编译输入也不是 PGO profile，不参与程序合法性、对象／GC 布局或 ABI；进程总启动时间仍由外部测量。计时开启的运行须单独评估观测开销，不能与关闭诊断的吞吐样本混用。
 
 native C／C++ 的标准初始化／析构由目标 CRT／适用的 C++ 运行库负责；发生在 Scoop runtime 建立之前或 shutdown 完成之后的 native 初始化／析构不得调用 managed 代码或进入 Scoop runtime。它们不替代 Scoop 的 initialization unit、release hook 或 shutdown，也不由 Scoop 补调；立即终止进程的路径不保证执行 native 析构。C 源码的初始化／析构及 libc 退出清理接口不要求启用 C++ 模式，输入和链接合同见实现规范 2.8。
 

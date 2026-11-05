@@ -1,4 +1,4 @@
-//! Encode the six runtime tables from the newly produced registrations.
+//! Encode the five runtime tables from the newly produced registrations.
 
 use super::*;
 
@@ -28,7 +28,6 @@ where
         self.encode_immortal_objects(&mut records)?;
         self.encode_initializations(&mut records)?;
         self.encode_types(&mut records)?;
-        self.encode_safepoints(&mut records)?;
         self.encode_callables(&mut records)?;
         Ok(records)
     }
@@ -113,25 +112,6 @@ where
         Ok(())
     }
 
-    fn encode_safepoints(
-        &self,
-        output: &mut crate::RuntimeImageRecords,
-    ) -> Result<(), RuntimeEncodeError> {
-        let fingerprints = self.registrations.safepoints();
-        let plans = fingerprints.registrations().plan().registrations();
-        let records = plans.iter().zip(fingerprints.fingerprints());
-        for (plan, fingerprint) in records {
-            let mut encoder = RuntimeEncoder::new();
-            runtime_encode_safepoint_record_v1(
-                &mut encoder,
-                *plan,
-                fingerprint.stackmap().as_array(),
-            )?;
-            output.push(4, encoder.into_bytes());
-        }
-        Ok(())
-    }
-
     fn encode_callables(
         &self,
         output: &mut crate::RuntimeImageRecords,
@@ -150,7 +130,7 @@ where
                 *plan,
                 fingerprint.body_definition().as_array(),
             )?;
-            output.push(5, encoder.into_bytes());
+            output.push(4, encoder.into_bytes());
         }
         Ok(())
     }

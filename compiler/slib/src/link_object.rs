@@ -43,8 +43,11 @@ pub use odr_directory::*;
 mod stackmap_normalization;
 pub use stackmap_normalization::*;
 
-mod safepoint_registrations;
-pub use safepoint_registrations::*;
+mod compact_gc;
+pub use compact_gc::{CompactGcMapError, compact_callable_gc_object_v1};
+
+mod safepoint_production;
+pub use safepoint_production::*;
 
 mod callable_registrations;
 pub use callable_registrations::*;

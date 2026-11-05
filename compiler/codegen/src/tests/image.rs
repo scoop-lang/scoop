@@ -25,9 +25,6 @@ fn run_image_test(fixture: &str, expected: &str) {
         "runtime/src/image/allocation_ranges.c",
         "runtime/src/image/stackmaps.c",
         "runtime/src/gc_binding/stackmap.c",
-        "runtime/src/gc_binding/stackmap/parser.c",
-        "runtime/src/gc_binding/stackmap/records.c",
-        "runtime/src/gc_binding/stackmap/payload.c",
         "runtime/src/platform/frame/darwin_aarch64.c",
         "runtime/src/value_shape.c",
     ] {
@@ -78,6 +75,6 @@ fn runtime_resolves_static_roots_immortals_and_initialization_state() {
 }
 
 #[test]
-fn runtime_joins_complete_stackmaps_with_typed_sites_and_odr_bodies() {
-    run_image_test("image_stackmap_test", "image stackmap join tests passed\n");
+fn runtime_reads_shared_gc_layouts_and_rejects_invalid_maps() {
+    run_image_test("image_stackmap_test", "image compact GC map tests passed\n");
 }

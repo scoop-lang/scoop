@@ -14,12 +14,19 @@ pub struct ProgramLinkDefinition {
     pub role: StrongDefinitionRole,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProgramLinkSafepoint {
+    pub site: scoop_identity::PersistentSafepointSiteId,
+    pub id: scoop_identity::SafepointId,
+}
+
 pub struct ProgramLinkProduction {
     pub definitions: BTreeMap<ObjectDefinitionPlanId, ProgramLinkDefinition>,
+    pub safepoints: BTreeMap<scoop_identity::PersistentCallableBodyId, Vec<ProgramLinkSafepoint>>,
     pub image_symbol: PersistentSymbolRequest,
     pub trap_symbols: [PersistentSymbolRequest; 2],
     pub entry_symbol: Option<PersistentSymbolRequest>,
-    pub registrations: [Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 6],
+    pub registrations: [Vec<(ObjectDefinitionPlanId, PersistentSymbolRequest)>; 5],
 }
 
 impl DecodedConeProductionSectionV2 {
@@ -32,6 +39,7 @@ impl DecodedConeProductionSectionV2 {
         let trap_symbols = foundation.link_trap_symbols(trap_atoms)?;
         Ok(ProgramLinkProduction {
             definitions: foundation.link_definitions()?,
+            safepoints: foundation.link_safepoints(),
             image_symbol,
             trap_symbols,
             entry_symbol: self.entry_plan.link_symbol(identities)?,

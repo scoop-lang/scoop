@@ -12,8 +12,8 @@ use crate::{
     ConeIdentity, DecodedPersistentId, GeneratedBridgeAtomId, ObjectDefinitionAtomId, OdrMemberId,
     PersistentCallableBodyId, PersistentDispatchSlotId, PersistentDispatchTableId,
     PersistentExactTypeId, PersistentIdResolver, PersistentImmortalObjectId,
-    PersistentInitializationUnitId, PersistentLayoutId, PersistentSafepointSiteId,
-    PersistentScanId, PersistentStaticStorageId,
+    PersistentInitializationUnitId, PersistentLayoutId, PersistentScanId,
+    PersistentStaticStorageId,
 };
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -68,7 +68,6 @@ pub trait PersistentSymbolResolver<E>:
     + PersistentIdResolver<PersistentDispatchTableId, Error = E>
     + PersistentIdResolver<PersistentDispatchSlotId, Error = E>
     + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
-    + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
     + PersistentIdResolver<ConeIdentity, Error = E>
     + PersistentIdResolver<GeneratedBridgeAtomId, Error = E>
     + PersistentIdResolver<OdrMemberId, Error = E>
@@ -86,7 +85,6 @@ impl<T, E> PersistentSymbolResolver<E> for T where
         + PersistentIdResolver<PersistentDispatchTableId, Error = E>
         + PersistentIdResolver<PersistentDispatchSlotId, Error = E>
         + PersistentIdResolver<PersistentInitializationUnitId, Error = E>
-        + PersistentIdResolver<PersistentSafepointSiteId, Error = E>
         + PersistentIdResolver<ConeIdentity, Error = E>
         + PersistentIdResolver<GeneratedBridgeAtomId, Error = E>
         + PersistentIdResolver<OdrMemberId, Error = E>
@@ -109,7 +107,6 @@ pub enum DecodedPersistentSymbolKey {
     ImmortalRegistration(DecodedPersistentId<PersistentImmortalObjectId>),
     InitializationRegistration(DecodedPersistentId<PersistentInitializationUnitId>),
     TypeRegistration(DecodedPersistentId<PersistentExactTypeId>),
-    SafepointRegistration(DecodedPersistentId<PersistentSafepointSiteId>),
     CallableRegistration(DecodedPersistentId<PersistentCallableBodyId>),
     ImageDescriptor(DecodedPersistentId<ConeIdentity>),
     GeneratedBridge(DecodedPersistentId<GeneratedBridgeAtomId>),
@@ -136,7 +133,6 @@ impl DecodedPersistentSymbolKey {
             Self::ImmortalRegistration(_) => PersistentSymbolKind::ImmortalRegistration,
             Self::InitializationRegistration(_) => PersistentSymbolKind::InitializationRegistration,
             Self::TypeRegistration(_) => PersistentSymbolKind::TypeRegistration,
-            Self::SafepointRegistration(_) => PersistentSymbolKind::SafepointRegistration,
             Self::CallableRegistration(_) => PersistentSymbolKind::CallableRegistration,
             Self::ImageDescriptor(_) => PersistentSymbolKind::ImageDescriptor,
             Self::GeneratedBridge(_) => PersistentSymbolKind::GeneratedBridge,
@@ -159,7 +155,6 @@ impl DecodedPersistentSymbolKey {
             Self::DispatchTable(id) => id.as_array(),
             Self::DispatchSlot(id) => id.as_array(),
             Self::InitializationCell(id) | Self::InitializationRegistration(id) => id.as_array(),
-            Self::SafepointRegistration(id) => id.as_array(),
             Self::ImageDescriptor(id) => id.as_array(),
             Self::GeneratedBridge(id) => id.as_array(),
             Self::OdrMember(id) => id.as_array(),
@@ -201,9 +196,6 @@ impl DecodedPersistentSymbolKey {
             Self::TypeRegistration(id) => resolver
                 .resolve(id)
                 .map(PersistentSymbolKey::TypeRegistration),
-            Self::SafepointRegistration(id) => resolver
-                .resolve(id)
-                .map(PersistentSymbolKey::SafepointRegistration),
             Self::CallableRegistration(id) => resolver
                 .resolve(id)
                 .map(PersistentSymbolKey::CallableRegistration),
@@ -258,7 +250,6 @@ impl WireDecode for DecodedPersistentSymbolKey {
             12 => decode_id(decoder, Self::ImmortalRegistration),
             13 => decode_id(decoder, Self::InitializationRegistration),
             14 => decode_id(decoder, Self::TypeRegistration),
-            15 => decode_id(decoder, Self::SafepointRegistration),
             16 => decode_id(decoder, Self::CallableRegistration),
             17 => decode_id(decoder, Self::ImageDescriptor),
             18 => decode_id(decoder, Self::GeneratedBridge),

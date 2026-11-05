@@ -24,7 +24,7 @@ use scoop_lir::{
     ScoopAbiSignature, StatepointLiveSet, StaticStorageIdentity,
     StrongCallableRegistrationPlanSetV1, StrongImmortalObjectRegistrationPlanSetV1,
     StrongInitializationUnitRegistrationPlanSetV1, StrongRegistrationProductionSurfaceV1,
-    StrongSafepointRegistrationPlanSetV1, StrongStaticStorageRegistrationPlanSetV1,
+    StrongSafepointProductionPlanSetV1, StrongStaticStorageRegistrationPlanSetV1,
     StrongTypeRegistrationPlanSetV1, StructDefs, Terminator, TypeDescriptor,
     TypeDescriptorIdentity, TypeDescriptorRef, TypeInstanceShapeV1, VoidCallSignature,
     VtableRecord, WellKnownTypeDescriptors,
@@ -43,7 +43,7 @@ pub(crate) struct SemanticInputs {
     pub(crate) foundation: ConeLirFoundation,
     pub(crate) definitions: Vec<ObjectDefinitionPlanId>,
     pub(crate) digest_plan: DigestFinalizationPlanV1,
-    pub(crate) registration_plan: StrongSafepointRegistrationPlanSetV1,
+    pub(crate) registration_plan: StrongSafepointProductionPlanSetV1,
     pub(crate) callable_registration_plan: StrongCallableRegistrationPlanSetV1,
     pub(crate) type_registration_plan: StrongTypeRegistrationPlanSetV1,
     pub(crate) immortal_registration_plan: StrongImmortalObjectRegistrationPlanSetV1,
@@ -105,11 +105,6 @@ pub(crate) fn inputs() -> SemanticInputs {
             static_storage.layout_plan.id(),
             static_storage.scan_plan.id(),
         ])
-        .chain(
-            registrations
-                .iter()
-                .map(|registration| registration.plan.id()),
-        )
         .collect();
     let safepoint_ids = safepoints
         .iter()
@@ -154,7 +149,7 @@ fn registration_production_uses_the_closed_three_field_shape() {
 fn digest_plan(
     foundation: &ConeLirFoundation,
     body: scoop_identity::PersistentCallableBodyId,
-    registrations: &[RegistrationArtifacts],
+    registrations: &[PersistentSafepointSiteId],
     type_registration: &TypeRegistrationArtifacts,
     static_storage: &StaticStorageArtifacts,
 ) -> DigestFinalizationPlanV1 {
@@ -162,7 +157,7 @@ fn digest_plan(
     let mut image_inputs = Vec::new();
     let mut body_inputs = Vec::new();
     for registration in registrations {
-        let stackmap_key = DigestNodeKey::stackmap_record(registration.site);
+        let stackmap_key = DigestNodeKey::stackmap_record(*registration);
 
         let stackmap = DigestNodeV1::new(stackmap_key, Vec::new()).unwrap();
         body_inputs.push(DigestInputRefV1::from_node(&stackmap));

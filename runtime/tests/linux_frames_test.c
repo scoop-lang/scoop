@@ -8,10 +8,10 @@
 
 extern const ScoopManagedFrameOps scoop_sysv_amd64_managed_frame_ops;
 extern const ScoopThreadVmOps scoop_linux_thread_vm_ops;
-extern const uint8_t test_stackmaps_start[], test_stackmaps_end[];
-extern char __executable_start[], etext[];
 extern void *probe0(void *), *probe1(void *), *probe2(void *), *probe3(void *);
 extern void *outer(void *);
+
+#include "compact_frames.h"
 
 static ScoopStackMapIndex stackmaps;
 static uintptr_t boundary;
@@ -25,9 +25,8 @@ static void relocate(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
     assert(scoop_linux_thread_vm_ops.stack_bounds(&bounds, &error));
     unsigned depth = 0;
     for (;;) {
-        const ScoopStackMapRecord *record =
-            scoop_stackmap_lookup(&stackmaps, pc);
-        assert(record != NULL && record->root_count == 1);
+        const ScoopGcPcEntry *record = scoop_stackmap_lookup(&stackmaps, pc);
+        assert(record != NULL && scoop_gc_root_count(record) == 1);
         ScoopManagedAnchor anchor = {pc, sp, fp, NULL};
         ScoopManagedFrame frame;
         assert(ops->frame_from_anchor(&anchor, record, bounds, &frame, &error));
@@ -37,8 +36,7 @@ static void relocate(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
         *slot = &new_value;
         ++depth;
         bool has_next;
-        assert(ops->next_frame(&frame, boundary, bounds, &pc, &sp, &fp,
-                               &has_next, &error));
+        assert(ops->next_frame(&frame, boundary, bounds, &pc, &sp, &fp, &has_next, &error));
         if (!has_next) {
             break;
         }
@@ -47,47 +45,45 @@ static void relocate(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
     ++visits;
 }
 
-void scoop_rt_safepoint_impl(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
-    relocate(pc, sp, fp);
-}
-void scoop_rt_context_ensure_root_impl(uint64_t a, uintptr_t pc, uintptr_t sp,
-                           uintptr_t fp) {
+void scoop_rt_safepoint_impl(uintptr_t pc, uintptr_t sp, uintptr_t fp) { relocate(pc, sp, fp); }
+void scoop_rt_context_ensure_root_impl(uint64_t a, uintptr_t pc, uintptr_t sp, uintptr_t fp) {
     assert(a == 11);
     relocate(pc, sp, fp);
 }
 void scoop_rt_string_concat_impl(uint64_t a, uint64_t b, uintptr_t pc, uintptr_t sp,
-                             uintptr_t fp) {
+                                 uintptr_t fp) {
     assert(a == 11 && b == 22);
     relocate(pc, sp, fp);
 }
-void scoop_rt_context_push_impl(uint64_t a, uint64_t b, uint64_t c, uintptr_t pc,
-                               uintptr_t sp, uintptr_t fp) {
+void scoop_rt_context_push_impl(uint64_t a, uint64_t b, uint64_t c, uintptr_t pc, uintptr_t sp,
+                                uintptr_t fp) {
     assert(a == 11 && b == 22 && c == 33);
     relocate(pc, sp, fp);
 }
 
 static void reject_bad_roots(void) {
     const ScoopManagedFrameOps *ops = &scoop_sysv_amd64_managed_frame_ops;
-    ScoopStackMapLocation location = {SCOOP_STACKMAP_INDIRECT, 8, 7, 8, 0};
-    ScoopStackMapRootPair pair = {location, location};
-    ScoopStackMapRecord record = {
-        .stack_size = 24, .root_count = 1, .roots = &pair};
+    struct {
+        ScoopCallableGcMapV1 map;
+        ScoopGcSiteV1 site;
+        uint32_t roots[2];
+    } data = {.map = {.stack_size = 24, .site_count = 1, .layout_word_count = 2},
+              .site = {.safepoint_id = 1},
+              .roots = {1, 8}};
+    ScoopGcPcEntry record = {.map = &data.map, .site = &data.site};
     ScoopPlatformError error = {0};
     assert(ops->validate_record(&record, &error));
-    for (int32_t offset = 16; offset <= 24; offset += 8) {
-        pair.base.offset = pair.derived.offset = offset;
+    for (uint32_t offset = 16; offset <= 24; offset += 8) {
+        data.roots[1] = offset;
         assert(!ops->validate_record(&record, &error));
         assert(error.code == SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME);
     }
-    pair.base = pair.derived =
-        (ScoopStackMapLocation){SCOOP_STACKMAP_INDIRECT, 8, 6, -8, 0};
+    data.roots[1] = (uint32_t)-8 | 1;
     assert(ops->validate_record(&record, &error));
-    pair.derived.offset = -16;
+    data.roots[1] |= 2;
     assert(!ops->validate_record(&record, &error));
-    pair.base = pair.derived =
-        (ScoopStackMapLocation){SCOOP_STACKMAP_REGISTER, 8, 0, 0, 0};
-    assert(!ops->validate_record(&record, &error));
-    record.stack_size = 16;
+    assert(error.code == SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION);
+    data.map.stack_size = 16;
     assert(!ops->validate_record(&record, &error));
 }
 
@@ -102,24 +98,12 @@ static void *thread_bounds(void *unused) {
 }
 
 int main(void) {
-    ScoopStackMapImage image = {
-        .section = test_stackmaps_start,
-        .section_size = (size_t)(test_stackmaps_end - test_stackmaps_start),
-        .text_start = (uintptr_t)__executable_start,
-        .text_end = (uintptr_t)etext,
-    };
-    ScoopStackMapError parse_error;
-    if (!scoop_stackmap_build_index(&image, 1, &stackmaps, &parse_error)) {
-        fprintf(stderr, "stackmap error at %zu: %s\n",
-                parse_error.section_offset,
-                scoop_stackmap_error_message(parse_error.code));
-        abort();
-    }
+    init_probe_maps(&stackmaps);
     assert(stackmaps.record_count == 5);
     ScoopPlatformError error = {0};
     for (size_t i = 0; i < stackmaps.record_count; ++i) {
-        assert(scoop_sysv_amd64_managed_frame_ops.validate_record(
-            &stackmaps.records[i], &error));
+        assert(
+            scoop_sysv_amd64_managed_frame_ops.validate_record(&stackmaps.records[i], &error));
     }
     boundary = (uintptr_t)__builtin_frame_address(0);
     expected_depth = 1;
@@ -140,8 +124,7 @@ int main(void) {
     assert(page != 0);
     assert(scoop_linux_thread_vm_ops.reserve_read_write(page, page, &mapping, &error));
     *(volatile char *)mapping = 42;
-    assert(!scoop_linux_thread_vm_ops.protect_none((char *)mapping + 1, page,
-                                                   &error));
+    assert(!scoop_linux_thread_vm_ops.protect_none((char *)mapping + 1, page, &error));
     assert(scoop_linux_thread_vm_ops.protect_none(mapping, page, &error));
     assert(scoop_linux_thread_vm_ops.release_mapping(mapping, page, &error));
     scoop_stackmap_dispose_index(&stackmaps);

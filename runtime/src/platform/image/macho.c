@@ -12,8 +12,7 @@
 
 static bool slid_address(uint64_t address, intptr_t slide, uintptr_t *result) {
     uint64_t amount = slide < 0 ? (uint64_t)(-(slide + 1)) + 1 : (uint64_t)slide;
-    if ((slide < 0 && address < amount) ||
-        (slide >= 0 && address > UINTPTR_MAX - amount)) {
+    if ((slide < 0 && address < amount) || (slide >= 0 && address > UINTPTR_MAX - amount)) {
         return false;
     }
     *result = (uintptr_t)(slide < 0 ? address - amount : address + amount);
@@ -47,40 +46,22 @@ static bool append_segment(ScoopPlatformMetadataImages *images,
 }
 
 static bool read_sections(const struct segment_command_64 *segment, intptr_t slide,
-                          ScoopStackMapImage *image) {
-    uint64_t expected =
-        sizeof *segment + (uint64_t)segment->nsects * sizeof(struct section_64);
-    if (expected != segment->cmdsize) {
+                          ScoopPlatformCodeRange *image) {
+    uint64_t expected = sizeof *segment + (uint64_t)segment->nsects * sizeof(struct section_64);
+    if (expected != segment->cmdsize)
         return false;
-    }
     const struct section_64 *sections = (const struct section_64 *)(segment + 1);
     for (uint32_t index = 0; index < segment->nsects; index++) {
         const struct section_64 *section = &sections[index];
-        bool stackmaps = strncmp(section->segname, "__DATA_CONST", 16) == 0 &&
-                         strncmp(section->sectname, "__llvm_stackmaps", 16) == 0;
-        bool text = strncmp(section->segname, "__TEXT", 16) == 0 &&
-                    strncmp(section->sectname, "__text", 16) == 0;
-        if (!stackmaps && !text) {
+        if (strncmp(section->segname, "__TEXT", 16) != 0 ||
+            strncmp(section->sectname, "__text", 16) != 0)
             continue;
-        }
         uintptr_t address;
-        if (!slid_address(section->addr, slide, &address) ||
-            section->size > UINTPTR_MAX - address) {
+        if (image->text_start != 0 || !slid_address(section->addr, slide, &address) ||
+            section->size > UINTPTR_MAX - address)
             return false;
-        }
-        if (stackmaps) {
-            if (image->section != NULL || section->size > SIZE_MAX) {
-                return false;
-            }
-            image->section = (const uint8_t *)address;
-            image->section_size = (size_t)section->size;
-        } else {
-            if (image->text_start != 0) {
-                return false;
-            }
-            image->text_start = address;
-            image->text_end = address + (uintptr_t)section->size;
-        }
+        image->text_start = address;
+        image->text_end = address + (uintptr_t)section->size;
     }
     return true;
 }
@@ -93,7 +74,7 @@ static int compare_range(const void *left, const void *right) {
 
 static void macho_dispose_images(ScoopPlatformMetadataImages *images) {
     free((void *)images->ranges);
-    free((void *)images->images);
+    free((void *)images->code_ranges);
     *images = (ScoopPlatformMetadataImages){0};
 }
 
@@ -146,7 +127,8 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     const struct mach_header_64 *header = module.dli_fbase;
     if (header == NULL || header->magic != MH_MAGIC_64 ||
         (header->filetype != MH_EXECUTE && header->filetype != MH_DYLIB) ||
-        header->reserved != 0 || header->ncmds > header->sizeofcmds / sizeof(struct load_command)) {
+        header->reserved != 0 ||
+        header->ncmds > header->sizeofcmds / sizeof(struct load_command)) {
         return false;
     }
     uintptr_t cursor = (uintptr_t)(header + 1);
@@ -158,7 +140,7 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     if (!image_slide(header, &slide)) {
         return false;
     }
-    ScoopStackMapImage image = {0};
+    ScoopPlatformCodeRange image = {0};
     for (uint32_t index = 0; index < header->ncmds; index++) {
         if (limit - cursor < sizeof(struct load_command)) {
             return false;
@@ -170,8 +152,7 @@ static bool collect(ScoopPlatformMetadataImages *images) {
         }
         if (command->cmd == LC_SEGMENT_64) {
             const struct segment_command_64 *segment = (const void *)command;
-            if (command->cmdsize < sizeof *segment ||
-                !append_segment(images, segment, slide) ||
+            if (command->cmdsize < sizeof *segment || !append_segment(images, segment, slide) ||
                 !read_sections(segment, slide, &image)) {
                 return false;
             }
@@ -181,8 +162,7 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     if (cursor != limit || images->range_count == 0) {
         return false;
     }
-    qsort((void *)images->ranges, images->range_count, sizeof *images->ranges,
-          compare_range);
+    qsort((void *)images->ranges, images->range_count, sizeof *images->ranges, compare_range);
     for (size_t index = 1; index < images->range_count; index++) {
         if (images->ranges[index - 1].end > images->ranges[index].start) {
             return false;
@@ -192,19 +172,13 @@ static bool collect(ScoopPlatformMetadataImages *images) {
                                     image.text_end - image.text_start, 1)) {
         return false;
     }
-    if (image.section_size == 0) {
-        return true;
-    }
-    if (!scoop_image_range_contains(images, image.section, image.section_size, 8)) {
-        return false;
-    }
-    ScoopStackMapImage *owned = malloc(sizeof *owned);
+    ScoopPlatformCodeRange *owned = malloc(sizeof *owned);
     if (owned == NULL) {
         return false;
     }
     *owned = image;
-    images->images = owned;
-    images->count = 1;
+    images->code_ranges = owned;
+    images->code_range_count = 1;
     return true;
 }
 
