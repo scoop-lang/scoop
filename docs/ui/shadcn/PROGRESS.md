@@ -153,3 +153,13 @@
 - macOS aarch64 release：三个 Cone 的格式与 tests 静态检查通过，生产库、Gallery 应用及相关测试程序构建成功；**8 项定向测试通过**，包括 4 项 Field 组件测试、设置表单与 Gallery 搜索各 1 项、既有 FieldLabel 窗口回归，以及新的 40 阶段 Field 实窗用例。覆盖实际宽度阈值、RTL、可选槽、嵌套集合、keyed 状态／工厂次数、preedit／中文提交、标签换绑、choice card 内外点击各一次、键盘、只读／禁用、零尺寸恢复、卸载与停帧。
 - 手工复核发现并修正默认布局裁掉输入框焦点环、分隔文字占满宽度后两侧线条消失的问题，窗口测试补充外扩绘制区域与分隔内容居中的断言。System／Neutral、明暗／RTL、横纵／窄宽、单多错误、中文编辑和有效提交已实窗检查。另修正了零尺寸时将 FocusHandle 的“接受待处理请求”误当作“立即取得焦点”的测试预期，继续断言焦点清除、请求取消及恢复后不自动聚焦。221 个 Scoop 文件格式与 diff 检查通过。
 - 本批完成 Field，**P2 全部完成，目录累计 27／64**，随后进入 P3。复用共享缓存与现有 LLVM，未重建编译器或外部工具链，未重复全仓／全部控件测试；一次性检查锁和手工窗口清理，保留后续复用产物。7 个 UI 库源码仍无 typeInfo／TypeInfo／TypeRef／TypeShape／requireClassInstance 直接引用。x86_64 留在整体收尾，Windows／Linux 未验证。
+
+
+## P3a：Direction 与 Scroll Area
+
+- Direction 沿用框架的透明作用域，新增独立 Gallery 页面，组合继承方向、局部 LTR、逻辑 Start 边框／留白、混合文字和方向键选择组；热切换保持编辑值、选择与点击计数，没有平行方向实现。
+- ScrollArea 增加 style／focusOutline，复用 Theme 的表面与焦点环、StylePainter 和原有 ScrollViewport；圆角同时裁剪正文、条和命中，装饰不改变内容测量。修复按实际焦点直接画固定矩形及忽略 FocusVisibilityChanged 的问题，Automatic／Always／Never 正常控制指示。
+- 共用滚动控制器把竖条放在逻辑 End，双轴角落在同一侧让位；成功提交新方向后取消旧拖条。方向变化保留物理 offset 与实例，横向键盘按逻辑起终点处理，wheel／拖条／reveal 仍是物理坐标。Gallery 覆盖三种轴、嵌套残量、条可见性、宽度、禁用和焦点显露。
+- macOS aarch64 release：6 项布局／几何测试与 3 项真实窗口测试全部通过，包含明暗 shadcn 条几何、圆角与焦点环像素、指针／键盘指示、RTL 换侧与拖动取消、State 替换、禁用、零尺寸恢复、嵌套残量、显露、停帧和生命周期；既有 Direction／VirtualList 回归同时验证 Portal／文本方向、阅读位置、稳定 key 与实例保留。生产控件库、Gallery 构建及相关 Cone 格式／tests 类型检查通过。
+- 首轮窗口用例的零尺寸恢复失败定位为夹具只在 measure 读取尺寸开关，已改为显式 Props 并复验通过。手工复查 Light／System、Dark／System、Dark／Neutral 与 RTL；修正 Gallery 外层裁剪焦点环的留白，以及窄宽配置受父级下限约束的问题。
+- 本批完成 Direction、ScrollArea，目录累计 **29／64**；P3 后续继续 Collapsible、Accordion、Tabs、Breadcrumb、Pagination。未重建编译器或 LLVM，未重复全仓／全部控件测试；一次性窗口、三套本轮 native 测试输出和独立锁清理，生产／Gallery／控件测试产物、共享缓存与下载源保留。7 个 UI 库源码仍无反射描述及 requireClassInstance 直接引用。x86_64 留在整体收尾，Windows／Linux 未验证。

@@ -226,3 +226,10 @@ Sidebar 的宽／窄宿主改变、Tabs 的 Dispose 模式等遵守既有挂载�
 ### P2b 已实现入口
 
 `inputOtp(state, length)`、InputOtpProps 和 ChildrenBuilder.inputOtp 共享一个编辑宿主。group／slot／separator、Digits／Alphanumeric／Custom 策略、InputOtpStyle、onEdited／onComplete 的完整合同见[组件规范第 19 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。完成通知使用 TextEditHost.onCommitted；不从 render 推断完成，也不在回调里进行字符过滤。
+
+
+## P3a：Direction 与 Scroll Area
+
+Direction 沿用 `scoop.ui.direction(content, value, key)` 和 ChildrenBuilder.direction；局部覆盖、逻辑边、文本默认方向与键盘导航使用同一个继承值，热切换保留实例、编辑状态和焦点，不镜像绘图或反转数据。
+
+ScrollArea 沿用单一 ScrollState／ScrollViewport，增加 `style: StyleOverride`（默认空）和 `focusOutline: OutlineStyle?`（默认 None）。视口可配置圆角、边框、背景和效果，装饰不增加布局内边距，圆角裁剪同时影响绘制和命中；焦点环使用主题和 FocusVisibility。竖条在逻辑 End，双轴条在同一角落让位，方向变化不隐式更改物理滚动位置。普通滚动区始终挂载显式内容；大数据列表继续使用 VirtualList。

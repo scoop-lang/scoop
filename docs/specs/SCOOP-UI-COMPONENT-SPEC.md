@@ -276,9 +276,11 @@ AbsoluteAxis 的 Start(offset, size?)、End(offset, size?)、Center(offset, size
 
 ### 6.2 ScrollArea
 
-ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions 和可选 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
+ScrollAreaProps／scrollArea 接受一个 content View、可选外部 ScrollState、ScrollAxes（默认 Vertical）、可选 width／height、lineStep（默认 40 个逻辑单位）、ScrollChain（Chain／Contain，默认 Chain）、ScrollbarVisibility（Auto／Always／Hidden，默认 Auto）、ScrollbarOptions、enabled、FocusOptions、StyleOverride（默认空覆盖）、可选 focusOutline: OutlineStyle 和 ThemeSource。没有外部 State 时组件保留自己的实例；替换外部 State 更新同一视口登记，不更换内容实例。
 
 每个滚动轴须有有限的父最大约束或显式尺寸，最终尺寸服从父最小／最大限制。非滚动轴有界时填满，无界时从一次子项测量取得尺寸。内容沿滚动轴采用无界约束，沿已确定的交叉轴采用 tight 约束；每次 measure 回调测量一次内容，按最终测量结果以负 offset 平移呈现。视口对像素与命中使用同一个 clip，整个显式内容树保持挂载。普通滚动只请求位置帧，不把 offset 作为内容 Props 重建；绘制缓存和虚拟化另行接入。
+
+ScrollArea 的 style 配置视口背景、边框、圆角、阴影和内容效果；默认透明、无边框、无圆角。装饰不改变内容约束或增加内边距，边框覆盖视口边缘。圆角裁剪同时作用于正文、滚动条和命中；clipContent 不能取消视口裁剪。focusOutline 覆盖主题焦点环，环在视口裁剪之外绘制。enabled=false 停用输入，不额外降低整棵正文的透明度。
 
 ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记实际滚动路径，复用 UI 的焦点显露。行内目标的 FocusHandle、Tab 和组内键盘导航可显露已放置的离屏内容，嵌套视口按从内到外的成功帧顺序处理；滚动条和 Portal 不因逻辑祖先关系而被错误当作内容滚动。
 
@@ -286,9 +288,9 @@ ScrollArea 与 VirtualList 通过 ScrollViewport.present 的内容回调登记�
 
 Wheel 在视口 InputArea 的默认阶段使用 Surface.consumeScroll(lineStep, apply)，将内容位移取反为 offset，返回实际消费位移；子项到边界后只交接剩余原始单位。Contain 在本层消费后 preventDefault。新 wheel（包括零位移手势开始）先取消旧平滑滚动；系统 phase／momentum 沿用 Surface 路由。控件不另建惯性时钟。
 
-滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
+滚动条覆盖视口边缘，不改变内容测量；双轴条在角落各让出另一条的厚度。竖条位于继承 LayoutDirection 的 End（LTR 右、RTL 左），横条位于底部，并在对应侧让出竖条。方向热切换保留内容实例、焦点和物理 offset，不反转正文或隐式请求新的滚动位置；新方向的几何 Accepted 后取消尚未结束的旧条拖动。外观、最小 thumb 长度、轨道和可选箭头位置全部使用 Theme 的 ScrollbarGeometry／ThemePainter。拖动将实际 thumb travel 映射到完整范围，travel 为零时保持位置；点击轨道移动一页，可选箭头移动一个 lineStep。Auto 在零范围时隐藏，Always 画禁用外观，Hidden 不呈现。条的输入几何只在 Accepted 更新；提交后用 InputArea.pointerPosition 刷新子部件 hover，避免容器移动后沿用旧局部坐标。
 
-滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab 并显示主题焦点轮廓，PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
+滚动条 thumb 使用公共 Drag 的零阈值接管，坐标与 grab 比例来自已 Accepted 的 ScrollbarGeometry；track 和箭头仍是普通单次默认动作。条的按下消费默认聚焦，保留已聚焦子编辑器；终结通知和独立事件完成登记清理拖动，preventDefault 拦截释放也不会遗留按下状态。视口默认参与 Tab，焦点环遵守 FocusOptions.visibility；Automatic 的指针焦点不显示，真实键盘和程序聚焦显示，Always／Never 分别固定显示策略，指示变化单独请求重绘。ScrollArea 和 VirtualList 共用此合同。PageUp／PageDown／Home／End 只在事件 target 就是该视口且无修饰键时执行，包含真实 repeat，拒绝 synthetic；子项的文本或列表导航不会被祖先抢走。只有水平轴时，RTL 的 Home／End 对应物理最大／零偏移，PageDown／PageUp 对应向左／向右一页；有垂直轴时继续按自上而下解析。wheel、滚动条、reveal 和 ScrollState.offset 始终使用物理坐标。enabled=false 通过视口作用域停用其子树交互，程序定位仍可更新 State。
 
 ### 6.3 VirtualList
 

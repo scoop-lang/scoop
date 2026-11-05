@@ -7,6 +7,7 @@ import scoop.test.*
 import scoop.tests.surface.*
 import scoop.time.Duration
 import scoop.ui.*
+import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.style.macos.macosTheme
 import scoop.window.*
@@ -25,6 +26,7 @@ private class ScrollAreaTest {
             assertTrue(probe.finished)
             assertFalse(probe.outer.isAttached)
             assertFalse(probe.inner.isAttached)
+            assertFalse(probe.alternate.isAttached)
             assertEquals(1, probe.mounts)
             assertEquals(1, probe.unmounts)
             assertTrue(probe.view!!.restored())
@@ -39,6 +41,22 @@ private class ScrollAreaTest {
 }
 
 internal class AreaProbe {
+    val styled = state(false)
+    val direction = state(LayoutDirection.Ltr)
+    val visibility = state(FocusVisibility.Automatic)
+    val bars = state(ScrollbarVisibility.Auto)
+    val axes = state(ScrollAxes.Both)
+    val enabled = state(true)
+    val zero = state(false)
+    val replace = state(false)
+    val alternate = ScrollState(Point(30.0, 40.0))
+    val current: ScrollState get() =
+        if (replace.value)
+            alternate
+        else
+            outer
+    var ringPixel = -1L
+    var cornerPixel = -1L
     val outer = ScrollState()
     val inner = ScrollState()
     val outerFocus = FocusHandle()
@@ -102,7 +120,7 @@ internal class AreaProbe {
                 }
                 if (
                     phase <
-                        28 &&
+                        52 &&
                         !waiting &&
                         committed ==
                         generation.value &&
@@ -119,7 +137,7 @@ internal class AreaProbe {
                 )
             )
             case Window(_, WindowEvent.Destroyed) -> {
-                finished = phase == 28;
+                finished = phase == 52;
                 active.requestExit()
             }
             else -> {}
@@ -146,11 +164,19 @@ internal class AreaProbe {
         assertTrue(sendSurfaceKey(window!!, code, false))
     }
     fun bar(): ScrollbarGeometry {
-        val snapshot = outer.snapshot
+        val snapshot = current.snapshot
         val source = theme.current.value
         val thickness = source.scrollbarMetrics().thickness
         return source.scrollbarGeometry(
-            Rect(200.0 - thickness, 0.0, thickness, 120.0 - thickness),
+            Rect(
+                if (direction.value == LayoutDirection.Rtl)
+                    0.0
+                else
+                    200.0 - thickness,
+                0.0,
+                thickness,
+                120.0 - thickness
+            ),
             ScrollbarVisual(
                 Orientation.Vertical,
                 snapshot.offset.y / snapshot.maximum.y,

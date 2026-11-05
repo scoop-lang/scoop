@@ -41,3 +41,5 @@ Input 页面补充密码显隐、最多六位数字的编辑策略、只读复�
 Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、独立按钮、多行消息和显式自定义输入。可以移动 keyed addon、收窄宽度及切换错误／禁用／只读；点击 addon 文字聚焦编辑器，按钮各自激活。顶部配色、明暗和 RTL 设置同样适用。
 
 Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group 和 Slider。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。DatePicker 在 P7 实现后接入。
+
+Direction 页面组合继承方向的文本、编号标签、方向键选择组和逻辑 Start 边框，以及局部 LTR 代码输入。顶部热切换保留文字、选区与点击计数。Scroll Area 页面提供垂直、水平、双轴及嵌套视口，可切换条可见性、宽度、禁用与内层残量策略；Focus viewport 和 Reveal last field 分别演示键盘翻页和自动显露，圆角视口与主题焦点环共用绘制／命中几何。

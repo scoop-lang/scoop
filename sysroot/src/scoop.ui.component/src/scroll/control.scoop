@@ -17,7 +17,9 @@ internal class ScrollControlProps(
     val enabled: Boolean,
     val focus: FocusOptions,
     val paintCache: PaintCachePolicy,
-    val theme: Theme
+    val theme: Theme,
+    val style: StyleOverride = styleOverride(),
+    val focusOutline: OutlineStyle? = None
 )
 
 /** Shared input, range publication and themed bars for eager and lazy viewports. */
@@ -26,6 +28,7 @@ internal class ScrollControl(
     private val props: () -> ScrollControlProps
 ) {
     private val painters = scope.resource { ThemePainterCache() }
+    private val decoration = scope.resource { StylePainter() }
     val viewport = scope.scrollViewport(props().state)
     private val area =
         scope.createArea(focusable = true) { context, event -> handle(context, event) }
@@ -66,88 +69,59 @@ internal class ScrollControl(
         val size = snapshot.viewport
         val presentedDirection = context.layoutDirection
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted) {
+                if (direction != presentedDirection) {
+                    horizontal.cancel()
+                    vertical.cancel()
+                }
                 direction = presentedDirection
-        }
-        val bounds = Rect(0.0, 0.0, size.width, size.height)
-        context.place(area, bounds)
-        viewport.present(context, Some { content -> content.children() }, contentOrigin)
-        val painter = painters.get(value.theme)
-        val input = value
-        val thickness = value.theme.scrollbarMetrics(input.scrollbar).thickness
-        val barWidth = upperBound(thickness, size.width)
-        val barHeight = upperBound(thickness, size.height)
-        val hasX =
-            input.axes.horizontal &&
-                showScrollbar(input.scrollbars, snapshot.maximum.x) &&
-                barHeight >
-                0.0 &&
-                size.width >
-                0.0
-        val hasY =
-            input.axes.vertical &&
-                showScrollbar(input.scrollbars, snapshot.maximum.y) &&
-                barWidth >
-                0.0 &&
-                size.height >
-                0.0
-        horizontal.scene(
-            context,
-            snapshot,
-            if (hasX)
-                Some(
-                    Rect(
-                        0.0,
-                        size.height - barHeight,
-                        size.width -
-                            (
-                                if (hasY)
-                                    barWidth
-                                else
-                                    0.0
-                            ),
-                        barHeight
-                    )
-                )
-            else
-                None,
-            painter
-        )
-        vertical.scene(
-            context,
-            snapshot,
-            if (hasY)
-                Some(
-                    Rect(
-                        size.width - barWidth,
-                        0.0,
-                        barWidth,
-                        size.height -
-                            (
-                                if (hasX)
-                                    barHeight
-                                else
-                                    0.0
-                            )
-                    )
-                )
-            else
-                None,
-            painter
-        )
-        if (area.isFocusActive && size.width > 2.0 && size.height > 2.0) {
-            context.draw {
-                paint -> paint.canvas.drawRect(
-                    Rect(1.0, 1.0, size.width - 2.0, size.height - 2.0),
-                    Paint(value.theme.tokens.palette.ring, PaintingStyle.Stroke, 2.0)
-                )
             }
         }
+        val bounds = Rect(0.0, 0.0, size.width, size.height)
+        val visual =
+            SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(enabled = value.enabled, focusVisible = area.isFocusVisible)
+            )
+        val geometry =
+            value.theme.surfaceGeometry(
+                bounds,
+                visual,
+                scrollSurfaceOptions(value.style, value.focusOutline),
+                presentedDirection
+            )
+        val painter = painters.get(value.theme)
+        val bars =
+            ScrollBarsLayout(
+                snapshot,
+                value.axes,
+                value.scrollbars,
+                value.theme.scrollbarMetrics(value.scrollbar).thickness,
+                presentedDirection
+            )
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
+        }
+        decoration.scene(context, bounds, geometry.contentStyle) {
+            local ->
+            local.place(area, bounds)
+            viewport.present(local, Some { content -> content.children() }, contentOrigin)
+            horizontal.scene(local, snapshot, bars.horizontal, painter)
+            vertical.scene(local, snapshot, bars.vertical, painter)
+        }
+        context.draw {
+            paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Foreground)
+        }
     }
+
     private fun handle(context: RoutedEventContext, event: InputEvent) {
         if (context.phase == RoutedPhase.Notification) {
             when (event) {
                 case FocusChanged(_) -> {
+                    if (scope.isMounted)
+                        scope.requestFrame()
+                }
+                case FocusVisibilityChanged(_) -> {
                     if (scope.isMounted)
                         scope.requestFrame()
                 }

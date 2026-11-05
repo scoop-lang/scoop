@@ -24,7 +24,9 @@ public class ScrollAreaProps public constructor(
     public val enabled: Boolean = true,
     public val focus: FocusOptions = FocusOptions(),
     public val theme: ThemeSource? = None,
-    public val paintCache: PaintCachePolicy = PaintCachePolicy.None
+    public val paintCache: PaintCachePolicy = PaintCachePolicy.None,
+    public val style: StyleOverride = styleOverride(),
+    public val focusOutline: OutlineStyle? = None
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
@@ -63,6 +65,8 @@ internal class ScrollAreaInkProps(
             input.enabled,
             input.focus,
             input.paintCache,
-            theme
+            theme,
+            input.style,
+            input.focusOutline
         )
 }
