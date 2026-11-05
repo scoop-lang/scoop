@@ -5,9 +5,8 @@ use std::fmt;
 use scoop_identity::{
     DecodedPersistentId, LinkageClass, ObjectDefinitionPlanId, ObjectDefinitionPlanOwner,
     OdrGroupId, OdrMemberId, PersistentCallableBodyId, PersistentExactTypeId, PersistentId,
-    PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentSafepointSiteId,
-    PersistentStaticStorageId, PersistentSymbolKey, PersistentSymbolRequest,
-    StrongDefinitionEntityKind, StrongDefinitionRole,
+    PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentStaticStorageId,
+    PersistentSymbolKey, PersistentSymbolRequest, StrongDefinitionEntityKind, StrongDefinitionRole,
 };
 use scoop_wire::{Decoder, Encoder, WireDecode, WireEncode, WireError};
 
@@ -95,19 +94,10 @@ pub struct RegistrationIdentitySurfaceV1 {
     immortal_objects: Vec<RegistrationIdentityV1<PersistentImmortalObjectId>>,
     initialization_units: Vec<RegistrationIdentityV1<PersistentInitializationUnitId>>,
     type_registrations: Vec<RegistrationIdentityV1<PersistentExactTypeId>>,
-    safepoints: Vec<RegistrationIdentityV1<PersistentSafepointSiteId>>,
     callables: Vec<RegistrationIdentityV1<PersistentCallableBodyId>>,
 }
 
 impl RegistrationIdentitySurfaceV1 {
-    pub(crate) fn retain_safepoints(
-        &mut self,
-        retained: &std::collections::BTreeSet<PersistentSafepointSiteId>,
-    ) {
-        self.safepoints
-            .retain(|record| retained.contains(&record.semantic_id()));
-    }
-
     pub fn from_foundation(
         foundation: &ConeLirFoundation,
     ) -> Result<Self, RegistrationIdentityBuildError> {
@@ -155,9 +145,6 @@ impl RegistrationIdentitySurfaceV1 {
                 (RegistrationTableV1::Type, StrongDefinitionEntityKind::ExactType(id)) => {
                     surface.type_registrations.push(entry(id, plan, owner));
                 }
-                (RegistrationTableV1::Safepoint, StrongDefinitionEntityKind::SafepointSite(id)) => {
-                    surface.safepoints.push(entry(id, plan, owner));
-                }
                 (RegistrationTableV1::Callable, StrongDefinitionEntityKind::CallableBody(id)) => {
                     surface.callables.push(entry(id, plan, owner));
                 }
@@ -180,7 +167,6 @@ impl RegistrationIdentitySurfaceV1 {
             immortal_objects: Vec::new(),
             initialization_units: Vec::new(),
             type_registrations: Vec::new(),
-            safepoints: Vec::new(),
             callables: Vec::new(),
         }
     }
@@ -199,7 +185,6 @@ impl RegistrationIdentitySurfaceV1 {
             &mut self.initialization_units,
         )?;
         sort_unique(RegistrationTableV1::Type, &mut self.type_registrations)?;
-        sort_unique(RegistrationTableV1::Safepoint, &mut self.safepoints)?;
         sort_unique(RegistrationTableV1::Callable, &mut self.callables)
     }
 
@@ -219,10 +204,6 @@ impl RegistrationIdentitySurfaceV1 {
 
     pub fn type_registrations(&self) -> &[RegistrationIdentityV1<PersistentExactTypeId>] {
         &self.type_registrations
-    }
-
-    pub fn safepoints(&self) -> &[RegistrationIdentityV1<PersistentSafepointSiteId>] {
-        &self.safepoints
     }
 
     pub fn callables(&self) -> &[RegistrationIdentityV1<PersistentCallableBodyId>] {
@@ -272,15 +253,6 @@ impl RegistrationIdentitySurfaceV1 {
         })
     }
 
-    pub fn safepoint_symbol_requests(&self) -> impl Iterator<Item = PersistentSymbolRequest> + '_ {
-        self.safepoints.iter().map(|entry| {
-            registration_symbol(
-                PersistentSymbolKey::SafepointRegistration(entry.semantic_id()),
-                entry.owner(),
-            )
-        })
-    }
-
     pub fn callable_symbol_requests(&self) -> impl Iterator<Item = PersistentSymbolRequest> + '_ {
         self.callables.iter().map(|entry| {
             registration_symbol(
@@ -293,7 +265,7 @@ impl RegistrationIdentitySurfaceV1 {
 
 impl WireEncode for RegistrationIdentitySurfaceV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(6)?;
+        encoder.map(5)?;
         encoder.field(1)?;
         encode_array(encoder, &self.static_storages)?;
         encoder.field(2)?;
@@ -303,8 +275,6 @@ impl WireEncode for RegistrationIdentitySurfaceV1 {
         encoder.field(4)?;
         encode_array(encoder, &self.type_registrations)?;
         encoder.field(5)?;
-        encode_array(encoder, &self.safepoints)?;
-        encoder.field(6)?;
         encode_array(encoder, &self.callables)
     }
 }
@@ -315,13 +285,12 @@ pub struct DecodedRegistrationIdentitySurfaceV1 {
     immortal_objects: Vec<DecodedRegistrationIdentityV1<PersistentImmortalObjectId>>,
     initialization_units: Vec<DecodedRegistrationIdentityV1<PersistentInitializationUnitId>>,
     type_registrations: Vec<DecodedRegistrationIdentityV1<PersistentExactTypeId>>,
-    safepoints: Vec<DecodedRegistrationIdentityV1<PersistentSafepointSiteId>>,
     callables: Vec<DecodedRegistrationIdentityV1<PersistentCallableBodyId>>,
 }
 
 impl WireEncode for DecodedRegistrationIdentitySurfaceV1 {
     fn encode(&self, encoder: &mut Encoder) -> Result<(), scoop_wire::cbor::EncodeError> {
-        encoder.map(6)?;
+        encoder.map(5)?;
         encoder.field(1)?;
         encode_array(encoder, &self.static_storages)?;
         encoder.field(2)?;
@@ -331,22 +300,19 @@ impl WireEncode for DecodedRegistrationIdentitySurfaceV1 {
         encoder.field(4)?;
         encode_array(encoder, &self.type_registrations)?;
         encoder.field(5)?;
-        encode_array(encoder, &self.safepoints)?;
-        encoder.field(6)?;
         encode_array(encoder, &self.callables)
     }
 }
 
 impl WireDecode for DecodedRegistrationIdentitySurfaceV1 {
     fn decode(decoder: &mut Decoder<'_>) -> Result<Self, WireError> {
-        decoder.expect_map(6)?;
+        decoder.expect_map(5)?;
         Ok(Self {
             static_storages: decode_table(decoder, 1)?,
             immortal_objects: decode_table(decoder, 2)?,
             initialization_units: decode_table(decoder, 3)?,
             type_registrations: decode_table(decoder, 4)?,
-            safepoints: decode_table(decoder, 5)?,
-            callables: decode_table(decoder, 6)?,
+            callables: decode_table(decoder, 5)?,
         })
     }
 }
@@ -357,7 +323,6 @@ pub enum RegistrationTableV1 {
     ImmortalObject,
     InitializationUnit,
     Type,
-    Safepoint,
     Callable,
 }
 
@@ -450,7 +415,6 @@ fn registration_table(role: StrongDefinitionRole) -> Option<RegistrationTableV1>
             Some(RegistrationTableV1::InitializationUnit)
         }
         StrongDefinitionRole::TypeRegistration => Some(RegistrationTableV1::Type),
-        StrongDefinitionRole::SafepointRegistration => Some(RegistrationTableV1::Safepoint),
         StrongDefinitionRole::CallableRegistration => Some(RegistrationTableV1::Callable),
         _ => None,
     }

@@ -19,7 +19,7 @@ pub type StrongRegistrationProductionSurfaceV2 = StrongRegistrationProductionSur
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct StrongRegistrationProductionSurface<D, C, I> {
     pub(super) identities: RegistrationIdentitySurfaceV1,
-    pub(super) safepoints: StrongSafepointRegistrationPlanSetV1,
+    pub(super) safepoints: StrongSafepointProductionPlanSetV1,
     pub(super) callables: StrongCallableRegistrationPlanSetV1,
     pub(super) types: crate::StrongTypeRegistrationPlanSet<D, C>,
     pub(super) immortal_objects: StrongImmortalObjectRegistrationPlanSetV1,
@@ -31,15 +31,8 @@ impl<D, C, I> StrongRegistrationProductionSurface<D, C, I> {
     pub(crate) fn set_emitted_root_counts(
         &mut self,
         counts: &std::collections::BTreeMap<crate::SafepointId, u32>,
-    ) -> Result<(), StrongSafepointRegistrationPlanBuildError> {
+    ) -> Result<(), StrongSafepointProductionPlanBuildError> {
         self.safepoints.set_emitted_root_counts(counts)?;
-        let retained = self
-            .safepoints
-            .registrations()
-            .iter()
-            .map(|plan| plan.site())
-            .collect();
-        self.identities.retain_safepoints(&retained);
         Ok(())
     }
 
@@ -47,7 +40,7 @@ impl<D, C, I> StrongRegistrationProductionSurface<D, C, I> {
         &self.identities
     }
 
-    pub const fn safepoints(&self) -> &StrongSafepointRegistrationPlanSetV1 {
+    pub const fn safepoints(&self) -> &StrongSafepointProductionPlanSetV1 {
         &self.safepoints
     }
 
@@ -77,7 +70,7 @@ impl<D, C, I> StrongRegistrationProductionSurface<D, C, I> {
         StrongSafepointSemanticPlanSetV1::from_artifact(
             self.safepoints.producer(),
             self.safepoints
-                .registrations()
+                .sites()
                 .iter()
                 .map(|plan| {
                     StrongSafepointSemanticPlanV1::from_artifact(

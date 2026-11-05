@@ -11,23 +11,23 @@ extern const ScoopMetadataImageOps scoop_macho_metadata_image_ops;
 static uint64_t mutable_storage;
 static const uint64_t *const descriptor = &mutable_storage;
 static void managed_function(void) {}
-static const uintptr_t stackmap_words[] __attribute__((
-    used, aligned(8), section("__DATA_CONST,__llvm_stackmaps"))) = {(uintptr_t)managed_function};
+static const uintptr_t gc_words[] __attribute__((
+    used, aligned(8), section("__DATA_CONST,__scoop_gc"))) = {(uintptr_t)managed_function};
 
 void scoop_test_check_self(const void *outside_data, const void *outside_code) {
     ScoopPlatformMetadataImages images;
     ScoopPlatformError error = {0};
     assert(scoop_macho_metadata_image_ops.loaded_images(&images, &error));
-    assert(images.range_count != 0 && images.count == 1);
-    assert(scoop_image_range_contains(&images, &descriptor, sizeof descriptor, _Alignof(void *)));
+    assert(images.range_count != 0 && images.code_range_count == 1);
+    assert(
+        scoop_image_range_contains(&images, &descriptor, sizeof descriptor, _Alignof(void *)));
     assert(scoop_image_range_contains(&images, &mutable_storage, sizeof mutable_storage,
                                       _Alignof(uint64_t)));
     assert(scoop_image_range_contains(&images, (const void *)managed_function, 1, 1));
-    assert(images.images[0].section == (const uint8_t *)stackmap_words);
-    assert(images.images[0].section_size == sizeof stackmap_words);
-    assert(stackmap_words[0] == (uintptr_t)managed_function);
-    assert(images.images[0].text_start <= (uintptr_t)managed_function);
-    assert((uintptr_t)managed_function < images.images[0].text_end);
+    assert(scoop_image_range_contains(&images, gc_words, sizeof gc_words, 8));
+    assert(gc_words[0] == (uintptr_t)managed_function);
+    assert(images.code_ranges[0].text_start <= (uintptr_t)managed_function);
+    assert((uintptr_t)managed_function < images.code_ranges[0].text_end);
     if (outside_data != NULL)
         assert(!scoop_image_range_contains(&images, outside_data, 1, 1));
     if (outside_code != NULL)
@@ -35,7 +35,7 @@ void scoop_test_check_self(const void *outside_data, const void *outside_code) {
     for (size_t index = 1; index < images.range_count; ++index)
         assert(images.ranges[index - 1].end <= images.ranges[index].start);
     scoop_macho_metadata_image_ops.dispose_images(&images);
-    assert(images.ranges == NULL && images.images == NULL);
+    assert(images.ranges == NULL && images.code_ranges == NULL);
 }
 
 #ifndef SCOOP_TEST_DYLIB

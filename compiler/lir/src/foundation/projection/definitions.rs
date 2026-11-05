@@ -55,13 +55,6 @@ impl CanonicalLirFoundation {
                 StrongDefinitionRole::CallableRegistration,
                 Vec::new(),
             )?;
-            for safepoint in function.safepoints.iter() {
-                writer.define(
-                    StrongDefinitionEntity::safepoint_site(safepoint.site_id()),
-                    StrongDefinitionRole::SafepointRegistration,
-                    Vec::new(),
-                )?;
-            }
         }
         if let Some((owner, _)) = cstrings_by_owner.into_iter().next() {
             return Err(LirFoundationBuildError::CallableCStringOwnerMissing {
@@ -266,10 +259,6 @@ impl CanonicalLirFoundation {
             (
                 DefinitionAtomRole::RuntimeRecord,
                 ConeImageSupportRole::TypeRegistrations,
-            ),
-            (
-                DefinitionAtomRole::RuntimeRecord,
-                ConeImageSupportRole::Safepoints,
             ),
             (
                 DefinitionAtomRole::RuntimeRecord,

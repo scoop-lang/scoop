@@ -128,7 +128,6 @@ pub enum OdrMemberDiscriminator {
     InitializationUnit(PersistentInitializationUnitId),
     StructuralPath(StructuralDefinitionPath),
     CallableBody(PersistentCallableBodyId),
-    SafepointSite(crate::PersistentSafepointSiteId),
 }
 
 impl WireEncode for OdrMemberDiscriminator {
@@ -148,7 +147,6 @@ impl WireEncode for OdrMemberDiscriminator {
             Self::InitializationUnit(id) => encode_value_sum(encoder, 12, id),
             Self::StructuralPath(path) => encode_value_sum(encoder, 13, path),
             Self::CallableBody(id) => encode_value_sum(encoder, 14, id),
-            Self::SafepointSite(id) => encode_value_sum(encoder, 15, id),
         }
     }
 }
@@ -294,7 +292,6 @@ fn role_accepts_discriminator(role: OdrMemberRole, discriminator: &OdrMemberDisc
             | (
                 R::RegistrationRecord,
                 D::CallableBody(_)
-                    | D::SafepointSite(_)
                     | D::ExactType(_)
                     | D::StaticStorage(_)
                     | D::ImmortalObject(_)

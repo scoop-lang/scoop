@@ -8,7 +8,6 @@ impl ConeLirFoundation {
     pub(crate) fn without_codegen_records(
         &self,
         sites: &BTreeSet<PersistentSafepointSiteId>,
-        definitions: &BTreeSet<ObjectDefinitionPlanId>,
         atoms: &BTreeSet<ObjectDefinitionAtomId>,
     ) -> Self {
         if sites.is_empty() && atoms.is_empty() {
@@ -16,19 +15,6 @@ impl ConeLirFoundation {
         }
         let mut result = self.clone();
         let canonical = Rc::make_mut(&mut result.canonical);
-        let members = canonical
-            .definition_plans
-            .iter()
-            .filter_map(|plan| {
-                if !definitions.contains(&plan.id()) {
-                    return None;
-                }
-                match plan.key().owner() {
-                    ObjectDefinitionPlanOwner::Odr { member } => Some(member),
-                    ObjectDefinitionPlanOwner::Strong { .. } => None,
-                }
-            })
-            .collect::<BTreeSet<_>>();
         canonical
             .safepoint_sites
             .retain(|record| !sites.contains(&record.id()));
@@ -36,17 +22,8 @@ impl ConeLirFoundation {
             .safepoints
             .retain(|record| !sites.contains(&record.site()));
         canonical
-            .odr_members
-            .retain(|record| !members.contains(&record.id()));
-        canonical
-            .definition_plans
-            .retain(|record| !definitions.contains(&record.id()));
-        canonical
             .definition_atoms
             .retain(|record| !atoms.contains(&record.id()));
-        if !members.is_empty() {
-            result.definition_lookup = Rc::new(DefinitionLookup::new(canonical));
-        }
         if !atoms.is_empty() {
             result.atom_index = Rc::new(DefinitionAtomIndex::new(&canonical.definition_atoms));
         }
@@ -56,8 +33,6 @@ impl ConeLirFoundation {
             .iter()
             .copied()
             .filter(|request| match request.key() {
-                PersistentSymbolKey::SafepointRegistration(site) => !sites.contains(&site),
-                PersistentSymbolKey::OdrMember(member) => !members.contains(&member),
                 PersistentSymbolKey::DefinitionBoundaryStart(atom)
                 | PersistentSymbolKey::DefinitionBoundaryEnd(atom) => !atoms.contains(&atom),
                 _ => true,

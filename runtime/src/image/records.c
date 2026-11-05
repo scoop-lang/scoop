@@ -11,9 +11,8 @@ typedef struct RecordSpan {
     const char *name;
 } RecordSpan;
 
-static RecordSpan record_span(const ScoopImageDescriptorV1 *image,
-                              ScoopRecordKind kind) {
-#define RECORD_SPAN(field, count_field, tag, type, label)                              \
+static RecordSpan record_span(const ScoopImageDescriptorV1 *image, ScoopRecordKind kind) {
+#define RECORD_SPAN(field, count_field, tag, type, label)                                      \
     (RecordSpan) { image->field, image->count_field, tag, sizeof(type), label }
     switch (kind) {
     case SCOOP_RECORD_STORAGE:
@@ -32,10 +31,6 @@ static RecordSpan record_span(const ScoopImageDescriptorV1 *image,
         return RECORD_SPAN(type_registrations, type_registration_count,
                            SCOOP_TYPE_REGISTRATION_DESCRIPTOR_MAGIC_V1,
                            ScoopTypeRegistrationDescriptorV1, "type");
-    case SCOOP_RECORD_SITE:
-        return RECORD_SPAN(safepoints, safepoint_count,
-                           SCOOP_SAFEPOINT_REGISTRATION_DESCRIPTOR_MAGIC_V1,
-                           ScoopSafepointRegistrationDescriptorV1, "safepoint");
     case SCOOP_RECORD_CALLABLE:
         return RECORD_SPAN(callables, callable_count,
                            SCOOP_CALLABLE_REGISTRATION_DESCRIPTOR_MAGIC_V1,
@@ -94,8 +89,8 @@ static void collect_table(ScoopImageRegistry *registry, ScoopRecordKind kind) {
                 (const ScoopRegistrationIdentityV1 *)((const uint8_t *)record +
                                                       sizeof(ScoopDescriptorPrefixV1));
             check_identity(&check);
-            table->entries[table->count++] = (ScoopRegisteredRecord){
-                record, check.identity, registry->images[image]};
+            table->entries[table->count++] =
+                (ScoopRegisteredRecord){record, check.identity, registry->images[image]};
         }
     }
     qsort(table->entries, table->count, sizeof *table->entries, compare_records);
@@ -122,8 +117,7 @@ static void collect_table(ScoopImageRegistry *registry, ScoopRecordKind kind) {
         table->addresses[index] =
             (ScoopRecordAddress){(uintptr_t)table->entries[index].record, index};
     }
-    qsort(table->addresses, unique, sizeof *table->addresses,
-          scoop_record_address_compare);
+    qsort(table->addresses, unique, sizeof *table->addresses, scoop_record_address_compare);
 }
 
 typedef struct OdrMember {
@@ -153,8 +147,7 @@ static void check_members(const ScoopImageRegistry *registry) {
         for (size_t index = 0; index < table->count; index++) {
             if (table->entries[index].identity->linkage_kind ==
                 SCOOP_REGISTRATION_LINKAGE_ODR_V1) {
-                members[count++] =
-                    (OdrMember){(ScoopRecordKind)kind, &table->entries[index]};
+                members[count++] = (OdrMember){(ScoopRecordKind)kind, &table->entries[index]};
             }
         }
     }
@@ -164,8 +157,7 @@ static void check_members(const ScoopImageRegistry *registry) {
             ScoopMetadataCheck check = {.loaded = registry->loaded,
                                         .kind = "ODR member",
                                         .identity = members[index].entry->identity};
-            scoop_metadata_fatal(&check,
-                                 "group/member names different records or kinds");
+            scoop_metadata_fatal(&check, "group/member names different records or kinds");
         }
     }
     free(members);

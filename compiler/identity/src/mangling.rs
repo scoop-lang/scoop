@@ -6,7 +6,7 @@ use crate::{
     ConeIdentity, GeneratedBridgeAtomId, ObjectDefinitionAtomId, OdrMemberId,
     PersistentCallableBodyId, PersistentDispatchSlotId, PersistentDispatchTableId,
     PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId,
 };
 
 mod decode;
@@ -52,7 +52,6 @@ pub enum PersistentSymbolKind {
     ImmortalRegistration,
     InitializationRegistration,
     TypeRegistration,
-    SafepointRegistration,
     CallableRegistration,
     ImageDescriptor,
     GeneratedBridge,
@@ -79,7 +78,6 @@ impl PersistentSymbolKind {
             Self::ImmortalRegistration => 12,
             Self::InitializationRegistration => 13,
             Self::TypeRegistration => 14,
-            Self::SafepointRegistration => 15,
             Self::CallableRegistration => 16,
             Self::ImageDescriptor => 17,
             Self::GeneratedBridge => 18,
@@ -106,7 +104,6 @@ impl PersistentSymbolKind {
             Self::ImmortalRegistration => "ir",
             Self::InitializationRegistration => "nr",
             Self::TypeRegistration => "tr",
-            Self::SafepointRegistration => "sr",
             Self::CallableRegistration => "cr",
             Self::ImageDescriptor => "im",
             Self::GeneratedBridge => "br",
@@ -134,7 +131,6 @@ pub enum PersistentSymbolKey {
     ImmortalRegistration(PersistentImmortalObjectId),
     InitializationRegistration(PersistentInitializationUnitId),
     TypeRegistration(PersistentExactTypeId),
-    SafepointRegistration(PersistentSafepointSiteId),
     CallableRegistration(PersistentCallableBodyId),
     ImageDescriptor(ConeIdentity),
     GeneratedBridge(GeneratedBridgeAtomId),
@@ -161,7 +157,6 @@ impl PersistentSymbolKey {
             Self::ImmortalRegistration(_) => PersistentSymbolKind::ImmortalRegistration,
             Self::InitializationRegistration(_) => PersistentSymbolKind::InitializationRegistration,
             Self::TypeRegistration(_) => PersistentSymbolKind::TypeRegistration,
-            Self::SafepointRegistration(_) => PersistentSymbolKind::SafepointRegistration,
             Self::CallableRegistration(_) => PersistentSymbolKind::CallableRegistration,
             Self::ImageDescriptor(_) => PersistentSymbolKind::ImageDescriptor,
             Self::GeneratedBridge(_) => PersistentSymbolKind::GeneratedBridge,
@@ -184,7 +179,6 @@ impl PersistentSymbolKey {
             Self::DispatchTable(id) => id.as_array(),
             Self::DispatchSlot(id) => id.as_array(),
             Self::InitializationCell(id) | Self::InitializationRegistration(id) => id.as_array(),
-            Self::SafepointRegistration(id) => id.as_array(),
             Self::ImageDescriptor(id) => id.as_array(),
             Self::GeneratedBridge(id) => id.as_array(),
             Self::OdrMember(id) => id.as_array(),
@@ -415,7 +409,7 @@ mod tests {
         ConeIdentity, GeneratedBridgeAtomId, ObjectDefinitionAtomId, OdrMemberId,
         PersistentCallableBodyId, PersistentDispatchSlotId, PersistentDispatchTableId,
         PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-        PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
+        PersistentLayoutId, PersistentScanId, PersistentStaticStorageId,
     };
 
     #[test]
@@ -435,7 +429,6 @@ mod tests {
             PersistentSymbolKey::ImmortalRegistration(PersistentImmortalObjectId(bytes)),
             PersistentSymbolKey::InitializationRegistration(PersistentInitializationUnitId(bytes)),
             PersistentSymbolKey::TypeRegistration(PersistentExactTypeId(bytes)),
-            PersistentSymbolKey::SafepointRegistration(PersistentSafepointSiteId(bytes)),
             PersistentSymbolKey::CallableRegistration(PersistentCallableBodyId(bytes)),
             PersistentSymbolKey::ImageDescriptor(ConeIdentity::CORE),
             PersistentSymbolKey::GeneratedBridge(GeneratedBridgeAtomId(bytes)),
@@ -446,7 +439,14 @@ mod tests {
         ];
 
         for (index, key) in keys.into_iter().enumerate() {
-            let expected_tag = index as u64 + if index < 9 { 1 } else { 2 };
+            let expected_tag = index as u64
+                + if index < 9 {
+                    1
+                } else if index < 13 {
+                    2
+                } else {
+                    3
+                };
             assert_eq!(key.kind().tag(), expected_tag);
             let encoded = encode(&key).unwrap();
             assert_eq!(&encoded[..4], &[0xa2, 0x00, expected_tag as u8, 0x01]);

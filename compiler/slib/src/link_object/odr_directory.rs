@@ -127,11 +127,6 @@ impl CanonicalOdrMemberDirectoryV1 {
                     .into_iter()
                     .flatten()
             });
-        let safepoints = patch_set
-            .safepoints()
-            .fingerprints()
-            .iter()
-            .filter_map(|value| odr_registration(value.registration()));
         let types = patch_set
             .types()
             .fingerprints()
@@ -178,7 +173,6 @@ impl CanonicalOdrMemberDirectoryV1 {
         Self::from_members(
             physical,
             callables
-                .chain(safepoints)
                 .chain(types)
                 .chain(immortals)
                 .chain(shapes)

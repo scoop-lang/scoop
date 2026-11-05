@@ -21,14 +21,13 @@ static uint32_t root_gateway(int32_t argc, const char *const *argv, int32_t *exi
 static uint32_t gateway_b(void) { return 0; }
 
 static ScoopDescriptorPrefixV1 prefix(uint64_t magic, size_t size) {
-    return (ScoopDescriptorPrefixV1){
-        magic, SCOOP_RUNTIME_METADATA_ABI_VERSION_V1, (uint32_t)size};
+    return (ScoopDescriptorPrefixV1){magic, SCOOP_RUNTIME_METADATA_ABI_VERSION_V1,
+                                     (uint32_t)size};
 }
 
 static ScoopRegistrationIdentityV1 identity(uint8_t id) {
-    return (ScoopRegistrationIdentityV1){
-        .linkage_kind = SCOOP_REGISTRATION_LINKAGE_STRONG_V1,
-        .semantic_id = {{id}}};
+    return (ScoopRegistrationIdentityV1){.linkage_kind = SCOOP_REGISTRATION_LINKAGE_STRONG_V1,
+                                         .semantic_id = {{id}}};
 }
 
 static int range_order(const void *left, const void *right) {
@@ -45,8 +44,7 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
         .type_id = 1,
         .diagnostic_name = name,
         .instance_shape = {.instance_kind = SCOOP_TYPE_INSTANCE_INLINE_BYTES_V1,
-                           .inline_storage_kind =
-                               SCOOP_INLINE_STORAGE_INLINE_V1,
+                           .inline_storage_kind = SCOOP_INLINE_STORAGE_INLINE_V1,
                            .minimum_size = 24,
                            .instance_alignment = 8,
                            .inline_offset = 24,
@@ -54,8 +52,7 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
                            .inline_stride = 1,
                            .inline_alignment = 1}};
     data->type = (ScoopTypeRegistrationDescriptorV1){
-        .prefix = prefix(SCOOP_TYPE_REGISTRATION_DESCRIPTOR_MAGIC_V1,
-                         sizeof data->type),
+        .prefix = prefix(SCOOP_TYPE_REGISTRATION_DESCRIPTOR_MAGIC_V1, sizeof data->type),
         .registration = identity(1),
         .runtime_type_id = 1,
         .descriptor = td};
@@ -64,8 +61,7 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
     data->string_object.length = 3;
     memcpy(data->string_object.bytes, "abc", 3);
     data->immortals[0] = (ScoopImmortalObjectDescriptorV1){
-        .prefix = prefix(SCOOP_IMMORTAL_OBJECT_DESCRIPTOR_MAGIC_V1,
-                         sizeof data->immortals[0]),
+        .prefix = prefix(SCOOP_IMMORTAL_OBJECT_DESCRIPTOR_MAGIC_V1, sizeof data->immortals[0]),
         .registration = identity(1),
         .object_start = &data->string_object,
         .object_size = sizeof data->string_object,
@@ -74,16 +70,14 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
     data->immortal_table[0] = &data->immortals[0];
     data->reference_scan[0] = 1;
     for (size_t index = 0; index < STORAGE_COUNT; index++) {
-        bool reference = index == ROOT_FAILURE || index == FAILURE_A ||
-                         index == FAILURE_B || index == ENCODED_REF;
+        bool reference = index == ROOT_FAILURE || index == FAILURE_A || index == FAILURE_B ||
+                         index == ENCODED_REF;
         data->storages[index] = (ScoopStaticStorageDescriptorV1){
-            .prefix = prefix(SCOOP_STATIC_STORAGE_DESCRIPTOR_MAGIC_V1,
-                             sizeof data->storages[index]),
+            .prefix =
+                prefix(SCOOP_STATIC_STORAGE_DESCRIPTOR_MAGIC_V1, sizeof data->storages[index]),
             .registration = identity((uint8_t)(index + 1)),
-            .scan_kind = reference ? SCOOP_STATIC_SCAN_RECURSIVE_V1
-                                   : SCOOP_STATIC_SCAN_NONE_V1,
-            .initial_state_kind =
-                SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1,
+            .scan_kind = reference ? SCOOP_STATIC_SCAN_RECURSIVE_V1 : SCOOP_STATIC_SCAN_NONE_V1,
+            .initial_state_kind = SCOOP_STATIC_INITIAL_ZEROED_FOR_RUNTIME_UNIT_V1,
             .writable_base = &fixture->state->slots[index],
             .byte_size = 8,
             .allocation_extent = 8,
@@ -93,20 +87,17 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
             .initial_relocations = (const void *)data->empty};
         data->storage_table[index] = &data->storages[index];
     }
-    data->storages[ENCODED_REF].initial_state_kind =
-        SCOOP_STATIC_INITIAL_ENCODED_VALUE_V1;
+    data->storages[ENCODED_REF].initial_state_kind = SCOOP_STATIC_INITIAL_ENCODED_VALUE_V1;
     data->storages[ENCODED_REF].initial_template =
         (ScoopByteSpanV1){data->templates[ENCODED_REF], 8};
     data->storages[ENCODED_REF].initial_relocations = data->relocations;
     data->storages[ENCODED_REF].initial_relocation_count = 1;
-    data->relocations[0] =
-        (ScoopStaticImmortalRelocationV1){0, &data->immortals[0]};
+    data->relocations[0] = (ScoopStaticImmortalRelocationV1){0, &data->immortals[0]};
     fixture->state->slots[ENCODED_REF] = (uintptr_t)&data->string_object;
     data->storages[ZST_TOKEN].byte_size = 0;
     data->storages[ZST_TOKEN].allocation_extent = 1;
     data->storages[ZST_TOKEN].required_alignment = 1;
-    data->storages[ZST_TOKEN].initial_state_kind =
-        SCOOP_STATIC_INITIAL_ENCODED_VALUE_V1;
+    data->storages[ZST_TOKEN].initial_state_kind = SCOOP_STATIC_INITIAL_ENCODED_VALUE_V1;
     ScoopCallableAddressV1 bodies[] = {source,
                                        initialize_a,
                                        ensure_a,
@@ -147,10 +138,8 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
             .initializer_entry = index == 0 ? initialize_a : initialize_b,
             .ensure_entry = index == 0 ? ensure_a : ensure_b};
         if (eager) {
-            data->units[index].startup_gateway_callable_id.bytes[0] =
-                index == 0 ? 4 : 8;
-            data->units[index].startup_gateway =
-                index == 0 ? gateway_a : gateway_b;
+            data->units[index].startup_gateway_callable_id.bytes[0] = index == 0 ? 4 : 8;
+            data->units[index].startup_gateway = index == 0 ? gateway_a : gateway_b;
         }
         data->unit_table[index] = &data->units[index];
     }
@@ -158,15 +147,14 @@ static void setup_records(ScoopStorageFixture *fixture, bool both_eager) {
 
 void scoop_test_storage_setup(ScoopStorageFixture *fixture, bool both_eager) {
     fixture->page = (size_t)sysconf(_SC_PAGESIZE);
-    fixture->size = (sizeof(StorageMetadata) + fixture->page - 1) /
-                    fixture->page * fixture->page;
-    fixture->data = mmap(NULL, fixture->size + fixture->page,
-                         PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
-    fixture->state = mmap(NULL, fixture->page, PROT_READ | PROT_WRITE,
-                          MAP_PRIVATE | MAP_ANON, -1, 0);
+    fixture->size =
+        (sizeof(StorageMetadata) + fixture->page - 1) / fixture->page * fixture->page;
+    fixture->data = mmap(NULL, fixture->size + fixture->page, PROT_READ | PROT_WRITE,
+                         MAP_PRIVATE | MAP_ANON, -1, 0);
+    fixture->state =
+        mmap(NULL, fixture->page, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
     assert(fixture->data != MAP_FAILED && fixture->state != MAP_FAILED);
-    assert(mprotect((uint8_t *)fixture->data + fixture->size, fixture->page,
-                    PROT_NONE) == 0);
+    assert(mprotect((uint8_t *)fixture->data + fixture->size, fixture->page, PROT_NONE) == 0);
     fixture->ranges[0] = (ScoopPlatformImageRange){(uintptr_t)fixture->data,
                                                    (uintptr_t)fixture->data + fixture->size};
     fixture->ranges[1] = (ScoopPlatformImageRange){(uintptr_t)fixture->state,
@@ -175,8 +163,8 @@ void scoop_test_storage_setup(ScoopStorageFixture *fixture, bool both_eager) {
     strcpy(data->text, "test");
     setup_records(fixture, both_eager);
     qsort(fixture->ranges, 3, sizeof *fixture->ranges, range_order);
-    fixture->loaded = (ScoopPlatformMetadataImages){.ranges = fixture->ranges,
-                                                    .range_count = 3};
+    fixture->loaded =
+        (ScoopPlatformMetadataImages){.ranges = fixture->ranges, .range_count = 3};
     ScoopByteSpanV1 name = {(const uint8_t *)data->text, 4};
     data->image = (ScoopImageDescriptorV1){
         .prefix = prefix(SCOOP_IMAGE_DESCRIPTOR_MAGIC_V1, sizeof data->image),
@@ -191,12 +179,10 @@ void scoop_test_storage_setup(ScoopStorageFixture *fixture, bool both_eager) {
         .type_registrations = data->types,
         .type_registration_count = 1,
         .callables = data->callable_table,
-        .callable_count = 8,
-        .safepoints = (const void *)data->empty};
+        .callable_count = 8};
     data->input[0] = &data->image;
     data->root = (ScoopRootEntryDescriptorV1){
-        .prefix =
-            prefix(SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof data->root),
+        .prefix = prefix(SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof data->root),
         .owner_cone_identity = {{1}},
         .callable_id = {{1}},
         .gateway_callable_id = {{7}},

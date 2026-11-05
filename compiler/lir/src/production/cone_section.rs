@@ -217,7 +217,7 @@ pub use compile::{CompileInitializationUnit, CompileProduction};
 mod decoded;
 mod link;
 pub use decoded::*;
-pub use link::{ProgramLinkDefinition, ProgramLinkProduction};
+pub use link::{ProgramLinkDefinition, ProgramLinkProduction, ProgramLinkSafepoint};
 
 mod registrations;
 

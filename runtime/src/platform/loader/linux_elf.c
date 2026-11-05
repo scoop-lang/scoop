@@ -11,9 +11,6 @@ _Static_assert(sizeof(ElfW(Phdr)) == sizeof(Elf64_Phdr), "Linux ELF program head
 _Static_assert(_Alignof(ElfW(Phdr)) == _Alignof(Elf64_Phdr),
                "Linux ELF program header alignment");
 
-extern const uint8_t __scoop_stackmaps_start[] __attribute__((visibility("hidden")));
-extern const uint8_t __scoop_stackmaps_end[] __attribute__((visibility("hidden")));
-
 typedef struct LinuxElfImageQuery {
     ScoopPlatformMetadataImages *images;
     bool loaded;
@@ -41,8 +38,7 @@ static int collect_runtime_image(struct dl_phdr_info *info, size_t size, void *d
         if (header->p_type == PT_LOAD &&
             scoop_elf_loaded_segment_range(&view, header, &start, &end) && own_code >= start &&
             own_code < end) {
-            query->loaded = scoop_elf_metadata_images_from_view(
-                &view, __scoop_stackmaps_start, __scoop_stackmaps_end, query->images);
+            query->loaded = scoop_elf_metadata_images_from_view(&view, query->images);
             return 1;
         }
     }

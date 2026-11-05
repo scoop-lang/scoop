@@ -6,6 +6,8 @@
 
 extern void *probe0(void *), *probe1(void *), *probe2(void *), *probe3(void *), *outer(void *);
 
+#include "compact_frames.h"
+
 static ScoopStackMapIndex stackmaps;
 static const ScoopPlatformBundle *platform;
 static int before, after;
@@ -13,7 +15,7 @@ static _Thread_local uintptr_t boundary;
 static _Thread_local unsigned expected_depth, visits;
 
 /* The entry object also names runtime operations outside this ABI probe. */
-#define UNUSED_ENTRY(name)                                                                         \
+#define UNUSED_ENTRY(name)                                                                     \
     void name(void) { abort(); }
 UNUSED_ENTRY(scoop_rt_gc_collect_impl)
 UNUSED_ENTRY(scoop_rt_prepare_throwable_impl)
@@ -51,15 +53,15 @@ static void relocate(uintptr_t pc, uintptr_t sp, uintptr_t fp) {
     assert(platform->thread_vm->stack_bounds(&bounds, &error));
     unsigned depth = 0;
     for (;;) {
-        const ScoopStackMapRecord *record = scoop_stackmap_lookup(&stackmaps, pc);
-        assert(record != NULL && record->root_count == 1);
+        const ScoopGcPcEntry *record = scoop_stackmap_lookup(&stackmaps, pc);
+        assert(record != NULL && scoop_gc_root_count(record) == 1);
         ScoopManagedAnchor anchor = {pc, sp, fp, NULL};
         ScoopManagedFrame frame;
-        assert(
-            platform->managed_frames->frame_from_anchor(&anchor, record, bounds, &frame, &error));
-        if (record->safepoint_id == 5) {
-            assert(record->stack_size > 16384);
-            assert(fp != sp + record->stack_size - 8);
+        assert(platform->managed_frames->frame_from_anchor(&anchor, record, bounds, &frame,
+                                                           &error));
+        if (record->site->safepoint_id == 5) {
+            assert(record->map->stack_size > 16384);
+            assert(fp != sp + record->map->stack_size - 8);
         }
         void **slot;
         assert(platform->managed_frames->resolve_root(&frame, 0, &slot, &error));
@@ -83,13 +85,14 @@ void scoop_rt_context_ensure_root_impl(uint64_t a, uintptr_t pc, uintptr_t sp, u
     relocate(pc, sp, fp);
 }
 
-void scoop_rt_string_concat_impl(uint64_t a, uint64_t b, uintptr_t pc, uintptr_t sp, uintptr_t fp) {
+void scoop_rt_string_concat_impl(uint64_t a, uint64_t b, uintptr_t pc, uintptr_t sp,
+                                 uintptr_t fp) {
     assert(a == 11 && b == 22);
     relocate(pc, sp, fp);
 }
 
-uint64_t scoop_rt_context_push_impl(uint64_t a, uint64_t b, uint64_t c, uintptr_t pc, uintptr_t sp,
-                                    uintptr_t fp) {
+uint64_t scoop_rt_context_push_impl(uint64_t a, uint64_t b, uint64_t c, uintptr_t pc,
+                                    uintptr_t sp, uintptr_t fp) {
     assert(a == 11 && b == 22 && c == 33);
     relocate(pc, sp, fp);
     return UINT64_C(0x123456789abcdef0);
@@ -102,10 +105,14 @@ void touch_large(unsigned char *data) {
 
 static void reject_bad_roots(void) {
     const ScoopManagedFrameOps *ops = platform->managed_frames;
-    ScoopStackMapLocation location = {SCOOP_STACKMAP_INDIRECT, 8, 6, -8, 0};
-    ScoopStackMapRootPair pair = {location, location};
-    ScoopStackMapRecord record = {
-        .return_pc = 1, .stack_size = 256, .root_count = 1, .roots = &pair};
+    struct {
+        ScoopCallableGcMapV1 map;
+        ScoopGcSiteV1 site;
+        uint32_t roots[2];
+    } data = {.map = {.stack_size = 256, .site_count = 1, .layout_word_count = 2},
+              .site = {.safepoint_id = 1},
+              .roots = {1, (uint32_t)-8 | 1}};
+    ScoopGcPcEntry record = {.return_pc = 1, .map = &data.map, .site = &data.site};
     _Alignas(16) void *storage[34] = {0};
     ScoopPlatformStackBounds bounds = {(char *)storage, (char *)(storage + 34)};
     ScoopManagedAnchor anchor = {1, (uintptr_t)storage, (uintptr_t)(storage + 16), NULL};
@@ -115,20 +122,19 @@ static void reject_bad_roots(void) {
     assert(ops->frame_from_anchor(&anchor, &record, bounds, &frame, &error));
     void **slot;
     assert(ops->resolve_root(&frame, 0, &slot, &error) && slot == storage + 15);
-    for (size_t i = 0; i < 3; ++i) {
-        const int32_t offsets[] = {INT32_MIN, 128, -7};
-        pair.base.offset = pair.derived.offset = offsets[i];
+    for (size_t i = 0; i < 2; ++i) {
+        const int32_t offsets[] = {INT32_MIN, 128};
+        data.roots[1] = (uint32_t)offsets[i] | 1;
         assert(!ops->resolve_root(&frame, 0, &slot, &error));
         assert(error.code == SCOOP_PLATFORM_ROOT_OUTSIDE_FRAME);
     }
-    pair.base = pair.derived = (ScoopStackMapLocation){SCOOP_STACKMAP_INDIRECT, 8, 7, 256, 0};
+    data.roots[1] = 256;
     assert(!ops->validate_record(&record, &error));
-    pair.base.offset = pair.derived.offset = -8;
+    data.roots[1] = (uint32_t)-8;
     assert(!ops->validate_record(&record, &error));
-    pair.base = pair.derived = (ScoopStackMapLocation){SCOOP_STACKMAP_REGISTER, 8, 0, 0, 0};
+    data.roots[1] = 2;
     assert(!ops->validate_record(&record, &error));
-    pair.base = location;
-    assert(!ops->validate_record(&record, &error));
+    assert(error.code == SCOOP_PLATFORM_UNSUPPORTED_ROOT_LOCATION);
     anchor.stack_pointer += 8;
     assert(!ops->frame_from_anchor(&anchor, &record, bounds, &frame, &error));
 }
@@ -151,14 +157,9 @@ int wmain(void) {
     platform = scoop_platform_bundle();
     ScoopPlatformMetadataImages images;
     ScoopPlatformError error = {0};
-    ScoopStackMapError parse_error;
     assert(platform->metadata_images->loaded_images(&images, &error));
-    assert(images.count == 1);
-    if (!scoop_stackmap_build_index(images.images, images.count, &stackmaps, &parse_error)) {
-        fprintf(stderr, "stackmap: %s at %zu\n", scoop_stackmap_error_message(parse_error.code),
-                parse_error.section_offset);
-        abort();
-    }
+    assert(images.code_range_count == 1);
+    init_probe_maps(&stackmaps);
     assert(stackmaps.record_count == 5);
     for (size_t i = 0; i < stackmaps.record_count; ++i)
         assert(platform->managed_frames->validate_record(&stackmaps.records[i], &error));

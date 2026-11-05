@@ -420,8 +420,14 @@ fn validate_pe(profile: &ValidatedFinalLinkProfile, scratch: &Path) {
             .unwrap()
             .starts_with(b"Microsoft C/C++ MSF 7.00")
     );
-    let maps = pe.section_by_name(".smap").unwrap();
-    assert!(maps.data().unwrap().starts_with(b"SCOOPMAP"));
+    let maps = pe.section_by_name(".rdata").unwrap();
+    assert!(pe.section_by_name(".smap").is_none());
+    assert!(
+        maps.data()
+            .unwrap()
+            .windows(8)
+            .any(|bytes| bytes == b"SCOOPMAP")
+    );
     assert!(
         matches!(maps.flags(), object::SectionFlags::Coff { characteristics } if characteristics & object::pe::IMAGE_SCN_MEM_WRITE == 0)
     );

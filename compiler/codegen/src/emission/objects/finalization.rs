@@ -23,11 +23,7 @@ pub(super) fn finalize_production<'a, D, C, I>(
         .map(|(body, plan, constants)| (body, (plan, constants)))
         .collect::<BTreeMap<_, _>>();
     let mut counts = BTreeMap::new();
-    for registration in production
-        .registration_production()
-        .safepoints()
-        .registrations()
-    {
+    for registration in production.registration_production().safepoints().sites() {
         let (plan, _) = bodies
             .get(&registration.owner())
             .expect("every callable was prepared before finalizing production");

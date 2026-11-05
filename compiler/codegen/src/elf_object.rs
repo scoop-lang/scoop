@@ -112,7 +112,9 @@ impl<'a> ElfObject<'a> {
     ) -> Result<(), CodegenError> {
         if name.as_bytes().contains(&0)
             || name.is_empty()
-            || self.original_symbols.contains_key(name.as_bytes())
+            || self
+                .original_symbol(name)
+                .is_some_and(|symbol| !symbol.is_undefined())
             || !self.names.insert(name.to_owned())
         {
             return Err(CodegenError(format!(
@@ -131,15 +133,24 @@ impl<'a> ElfObject<'a> {
                 "ELF callable boundary section requires an extended symbol index".into(),
             ));
         }
-        let name_offset = u32::try_from(self.strings.len()).map_err(error)?;
-        self.strings.extend_from_slice(name.as_bytes());
-        self.strings.push(0);
-        self.symbols.extend_from_slice(&name_offset.to_le_bytes());
-        self.symbols.push(binding(linkage)? << 4 | elf::STT_OBJECT);
-        self.symbols.push(elf::STV_HIDDEN);
-        self.symbols.extend_from_slice(&index.to_le_bytes());
-        self.symbols.extend_from_slice(&value.to_le_bytes());
-        self.symbols.extend_from_slice(&0u64.to_le_bytes());
+        let existing = self.original_symbols.get(name.as_bytes()).copied();
+        let entry_offset = if let Some(symbol) = existing {
+            symbol.0 * 24
+        } else {
+            let name_offset = u32::try_from(self.strings.len()).map_err(error)?;
+            self.strings.extend_from_slice(name.as_bytes());
+            self.strings.push(0);
+            let offset = self.symbols.len();
+            self.symbols.extend_from_slice(&name_offset.to_le_bytes());
+            self.symbols.resize(offset + 24, 0);
+            offset
+        };
+        let entry = &mut self.symbols[entry_offset..entry_offset + 24];
+        entry[4] = binding(linkage)? << 4 | elf::STT_OBJECT;
+        entry[5] = elf::STV_HIDDEN;
+        entry[6..8].copy_from_slice(&index.to_le_bytes());
+        entry[8..16].copy_from_slice(&value.to_le_bytes());
+        entry[16..24].fill(0);
         Ok(())
     }
 

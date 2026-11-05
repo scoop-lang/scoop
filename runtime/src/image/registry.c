@@ -27,22 +27,22 @@ ScoopImageRegistry *scoop_image_collect(const ScoopPlatformMetadataImages *loade
                                         const ScoopRootEntryDescriptorV1 *root) {
     ScoopMetadataCheck check = root_check(loaded);
     scoop_metadata_prefix(&check, root, SCOOP_ROOT_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof *root);
-    if (scoop_digest_zero(&root->owner_cone_identity) || scoop_digest_zero(&root->callable_id) ||
-        scoop_digest_zero(&root->gateway_callable_id))
+    if (scoop_digest_zero(&root->owner_cone_identity) ||
+        scoop_digest_zero(&root->callable_id) || scoop_digest_zero(&root->gateway_callable_id))
         scoop_metadata_fatal(&check, "missing identity");
     return collect(
         loaded, images, image_count,
         (ScoopRootEntryView){root->owner_cone_identity, root->callable_id, root->failure_root});
 }
 
-ScoopImageRegistry *scoop_image_collect_native_app(const ScoopPlatformMetadataImages *loaded,
-                                                   const ScoopImageDescriptorV1 *const *images,
-                                                   uint64_t image_count,
-                                                   const ScoopNativeAppEntryDescriptorV1 *root) {
+ScoopImageRegistry *scoop_image_collect_native_app(
+    const ScoopPlatformMetadataImages *loaded, const ScoopImageDescriptorV1 *const *images,
+    uint64_t image_count, const ScoopNativeAppEntryDescriptorV1 *root) {
     ScoopMetadataCheck check = root_check(loaded);
-    scoop_metadata_prefix(&check, root, SCOOP_NATIVE_APP_ENTRY_DESCRIPTOR_MAGIC_V1, sizeof *root);
-    if (scoop_digest_zero(&root->owner_cone_identity) || scoop_digest_zero(&root->callable_id) ||
-        scoop_digest_zero(&root->gateway_callable_id))
+    scoop_metadata_prefix(&check, root, SCOOP_NATIVE_APP_ENTRY_DESCRIPTOR_MAGIC_V1,
+                          sizeof *root);
+    if (scoop_digest_zero(&root->owner_cone_identity) ||
+        scoop_digest_zero(&root->callable_id) || scoop_digest_zero(&root->gateway_callable_id))
         scoop_metadata_fatal(&check, "missing identity");
     return collect(
         loaded, images, image_count,
@@ -61,7 +61,6 @@ void scoop_image_registry_dispose(ScoopImageRegistry *registry) {
     free(registry->image_order);
     free(registry->type_addresses);
     free(registry->callable_addresses);
-    free(registry->site_ids);
     free(registry->immortal_addresses);
     free(registry->static_roots);
     free(registry->eager_units);

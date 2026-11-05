@@ -8,8 +8,7 @@ use crate::{
     ConeIdentity, GeneratedBridgeAtomId, ObjectDefinitionAtomId, ObjectDefinitionPlanId,
     OdrMemberId, PersistentCallableBodyId, PersistentDispatchSlotId, PersistentDispatchTableId,
     PersistentExactTypeId, PersistentImmortalObjectId, PersistentInitializationUnitId,
-    PersistentLayoutId, PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
-    PersistentSymbolKey,
+    PersistentLayoutId, PersistentScanId, PersistentStaticStorageId, PersistentSymbolKey,
 };
 
 mod decode;
@@ -31,7 +30,6 @@ pub enum StrongDefinitionEntityKind {
     DispatchTable(PersistentDispatchTableId),
     DispatchSlot(PersistentDispatchSlotId),
     InitializationUnit(PersistentInitializationUnitId),
-    SafepointSite(PersistentSafepointSiteId),
     ConeImage(ConeIdentity),
     GeneratedBridgeAtom(GeneratedBridgeAtomId),
     RootEntry(ConeIdentity),
@@ -78,10 +76,6 @@ impl StrongDefinitionEntity {
         Self(StrongDefinitionEntityKind::InitializationUnit(id))
     }
 
-    pub const fn safepoint_site(id: PersistentSafepointSiteId) -> Self {
-        Self(StrongDefinitionEntityKind::SafepointSite(id))
-    }
-
     pub const fn cone_image(id: ConeIdentity) -> Self {
         Self(StrongDefinitionEntityKind::ConeImage(id))
     }
@@ -123,7 +117,6 @@ impl WireEncode for StrongDefinitionEntity {
             StrongDefinitionEntityKind::DispatchTable(id) => encode_value_sum(encoder, 7, &id),
             StrongDefinitionEntityKind::DispatchSlot(id) => encode_value_sum(encoder, 8, &id),
             StrongDefinitionEntityKind::InitializationUnit(id) => encode_value_sum(encoder, 9, &id),
-            StrongDefinitionEntityKind::SafepointSite(id) => encode_value_sum(encoder, 10, &id),
             StrongDefinitionEntityKind::ConeImage(id) => encode_value_sum(encoder, 11, &id),
             StrongDefinitionEntityKind::GeneratedBridgeAtom(id) => {
                 encode_value_sum(encoder, 12, &id)
@@ -149,7 +142,6 @@ pub enum StrongDefinitionRole {
     ImmortalRegistration,
     InitializationRegistration,
     TypeRegistration,
-    SafepointRegistration,
     CallableRegistration,
     ImageDescriptor,
     GeneratedBridge,
@@ -173,7 +165,6 @@ impl WireEncode for StrongDefinitionRole {
             Self::ImmortalRegistration => 12,
             Self::InitializationRegistration => 13,
             Self::TypeRegistration => 14,
-            Self::SafepointRegistration => 15,
             Self::CallableRegistration => 16,
             Self::ImageDescriptor => 17,
             Self::GeneratedBridge => 18,
@@ -328,10 +319,6 @@ impl StrongDefinitionEntity {
                 Some(PersistentSymbolKey::TypeRegistration(id))
             }
             (
-                StrongDefinitionEntityKind::SafepointSite(id),
-                StrongDefinitionRole::SafepointRegistration,
-            ) => Some(PersistentSymbolKey::SafepointRegistration(id)),
-            (
                 StrongDefinitionEntityKind::CallableBody(id),
                 StrongDefinitionRole::CallableRegistration,
             ) => Some(PersistentSymbolKey::CallableRegistration(id)),
@@ -414,7 +401,6 @@ pub enum ConeImageSupportRole {
     ImmortalObjects,
     InitializationUnits,
     TypeRegistrations,
-    Safepoints,
     Callables,
     ArrayBoundsMessage,
     ArraySizeOverflowMessage,
@@ -431,7 +417,6 @@ impl WireEncode for ConeImageSupportRole {
             Self::ImmortalObjects => 6,
             Self::InitializationUnits => 7,
             Self::TypeRegistrations => 8,
-            Self::Safepoints => 9,
             Self::Callables => 10,
             Self::ArrayBoundsMessage => 11,
             Self::ArraySizeOverflowMessage => 12,
@@ -447,7 +432,6 @@ pub enum DefinitionAtomSubkey {
     ImmortalObject(PersistentImmortalObjectId),
     InitializationUnit(PersistentInitializationUnitId),
     ExactType(PersistentExactTypeId),
-    SafepointSite(PersistentSafepointSiteId),
     StructuralPath(StructuralDefinitionPath),
     ConeImageSupport(ConeImageSupportRole),
     BackendReadOnlyData,
@@ -462,7 +446,6 @@ impl WireEncode for DefinitionAtomSubkey {
             Self::ImmortalObject(id) => encode_value_sum(encoder, 4, id),
             Self::InitializationUnit(id) => encode_value_sum(encoder, 5, id),
             Self::ExactType(id) => encode_value_sum(encoder, 6, id),
-            Self::SafepointSite(id) => encode_value_sum(encoder, 7, id),
             Self::StructuralPath(path) => encode_value_sum(encoder, 8, path),
             Self::ConeImageSupport(role) => encode_value_sum(encoder, 9, role),
             Self::BackendReadOnlyData => encode_empty_sum(encoder, 10),
@@ -578,11 +561,10 @@ mod tests {
         ObjectDefinitionAtomId, ObjectDefinitionPlanId, OdrMemberId, PersistentCallableBodyId,
         PersistentDispatchSlotId, PersistentDispatchTableId, PersistentExactTypeId,
         PersistentImmortalObjectId, PersistentInitializationUnitId, PersistentLayoutId,
-        PersistentSafepointSiteId, PersistentScanId, PersistentStaticStorageId,
-        PersistentSymbolKey,
+        PersistentScanId, PersistentStaticStorageId, PersistentSymbolKey,
     };
 
-    const ALL_STRONG_ROLES: [StrongDefinitionRole; 18] = [
+    const ALL_STRONG_ROLES: [StrongDefinitionRole; 17] = [
         StrongDefinitionRole::CallableBody,
         StrongDefinitionRole::StaticStorage,
         StrongDefinitionRole::ImmortalObject,
@@ -596,7 +578,6 @@ mod tests {
         StrongDefinitionRole::ImmortalRegistration,
         StrongDefinitionRole::InitializationRegistration,
         StrongDefinitionRole::TypeRegistration,
-        StrongDefinitionRole::SafepointRegistration,
         StrongDefinitionRole::CallableRegistration,
         StrongDefinitionRole::ImageDescriptor,
         StrongDefinitionRole::GeneratedBridge,
@@ -615,7 +596,7 @@ mod tests {
             },
         ))
         .unwrap();
-        let cases: [(StrongDefinitionEntity, &[StrongDefinitionRole]); 13] = [
+        let cases: [(StrongDefinitionEntity, &[StrongDefinitionRole]); 12] = [
             (
                 StrongDefinitionEntity::callable_body(PersistentCallableBodyId(bytes)),
                 &[R::CallableBody, R::CallableRegistration],
@@ -651,10 +632,6 @@ mod tests {
             (
                 StrongDefinitionEntity::initialization_unit(PersistentInitializationUnitId(bytes)),
                 &[R::InitializationCell, R::InitializationRegistration],
-            ),
-            (
-                StrongDefinitionEntity::safepoint_site(PersistentSafepointSiteId(bytes)),
-                &[R::SafepointRegistration],
             ),
             (
                 StrongDefinitionEntity::cone_image(ConeIdentity::CORE),
@@ -716,7 +693,6 @@ mod tests {
         let table = PersistentDispatchTableId(bytes);
         let slot = PersistentDispatchSlotId(bytes);
         let initialization = PersistentInitializationUnitId(bytes);
-        let safepoint = PersistentSafepointSiteId(bytes);
         let bridge_key = GeneratedBridgeAtomKey::new(
             ConeIdentity::CORE,
             GeneratedBridgeAtomRoleKey::PrimaryEntry {
@@ -790,11 +766,6 @@ mod tests {
                 StrongDefinitionEntity::exact_type(exact),
                 R::TypeRegistration,
                 PersistentSymbolKey::TypeRegistration(exact),
-            ),
-            (
-                StrongDefinitionEntity::safepoint_site(safepoint),
-                R::SafepointRegistration,
-                PersistentSymbolKey::SafepointRegistration(safepoint),
             ),
             (
                 StrongDefinitionEntity::callable_body(callable),

@@ -22,7 +22,7 @@ static int compare_range(const void *left, const void *right) {
 
 static void pe_dispose_images(ScoopPlatformMetadataImages *images) {
     free((void *)images->ranges);
-    free((void *)images->images);
+    free((void *)images->code_ranges);
     *images = (ScoopPlatformMetadataImages){0};
 }
 
@@ -37,7 +37,8 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     if (dos->e_magic != IMAGE_DOS_SIGNATURE || dos->e_lfanew < (LONG)sizeof *dos)
         return false;
     const IMAGE_NT_HEADERS64 *pe = (const void *)(base + dos->e_lfanew);
-    if (pe->Signature != IMAGE_NT_SIGNATURE || pe->FileHeader.Machine != SCOOP_PE_IMAGE_MACHINE ||
+    if (pe->Signature != IMAGE_NT_SIGNATURE ||
+        pe->FileHeader.Machine != SCOOP_PE_IMAGE_MACHINE ||
         pe->FileHeader.SizeOfOptionalHeader < sizeof pe->OptionalHeader ||
         pe->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
         return false;
@@ -55,7 +56,7 @@ static bool collect(ScoopPlatformMetadataImages *images) {
     if (ranges == NULL)
         return false;
     images->ranges = ranges;
-    ScoopStackMapImage image = {0};
+    ScoopPlatformCodeRange image = {0};
     for (size_t index = 0; index < count; ++index) {
         const IMAGE_SECTION_HEADER *section = &sections[index];
         size_t offset = section->VirtualAddress, size = section->Misc.VirtualSize;
@@ -70,11 +71,6 @@ static bool collect(ScoopPlatformMetadataImages *images) {
                 return false;
             image.text_start = start;
             image.text_end = start + size;
-        } else if (memcmp(section->Name, ".smap\0\0\0", IMAGE_SIZEOF_SHORT_NAME) == 0) {
-            if (image.section != NULL)
-                return false;
-            image.section = (const void *)start;
-            image.section_size = size;
         }
     }
     qsort(ranges, images->range_count, sizeof *ranges, compare_range);
@@ -82,19 +78,16 @@ static bool collect(ScoopPlatformMetadataImages *images) {
         if (ranges[index - 1].end > ranges[index].start)
             return false;
     }
-    if (image.text_start == 0 || !scoop_image_range_contains(images, (const void *)image.text_start,
-                                                             image.text_end - image.text_start, 1))
+    if (image.text_start == 0 ||
+        !scoop_image_range_contains(images, (const void *)image.text_start,
+                                    image.text_end - image.text_start, 1))
         return false;
-    if (image.section_size == 0)
-        return true;
-    if (!scoop_image_range_contains(images, image.section, image.section_size, 8))
-        return false;
-    ScoopStackMapImage *owned = malloc(sizeof *owned);
+    ScoopPlatformCodeRange *owned = malloc(sizeof *owned);
     if (owned == NULL)
         return false;
     *owned = image;
-    images->images = owned;
-    images->count = 1;
+    images->code_ranges = owned;
+    images->code_range_count = 1;
     return true;
 }
 

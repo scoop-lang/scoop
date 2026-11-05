@@ -11,7 +11,6 @@ typedef enum ScoopRecordKind {
     SCOOP_RECORD_IMMORTAL,
     SCOOP_RECORD_UNIT,
     SCOOP_RECORD_TYPE,
-    SCOOP_RECORD_SITE,
     SCOOP_RECORD_CALLABLE,
     SCOOP_RECORD_KIND_COUNT
 } ScoopRecordKind;
@@ -55,7 +54,6 @@ typedef struct ScoopImageRegistry {
     ScoopRecordTable tables[SCOOP_RECORD_KIND_COUNT];
     ScoopRecordAddress *type_addresses;
     ScoopRecordAddress *callable_addresses;
-    ScoopRecordAddress *site_ids;
     ScoopRecordAddress *immortal_addresses;
     const ScoopStaticStorageDescriptorV1 **static_roots;
     size_t static_root_count;
@@ -92,7 +90,8 @@ const ScoopImmortalObjectDescriptorV1 *scoop_image_immortal(const ScoopImageRegi
 void scoop_image_stackmaps(ScoopImageRegistry *registry, const ScoopManagedFrameOps *frames);
 
 /* Published once after all loaded metadata has been resolved. Native boundaries
- * check incoming addresses; internal operations reuse the immutable metadata. */
+ * check incoming addresses; internal operations reuse the immutable metadata.
+ */
 void scoop_image_publish(const ScoopImageRegistry *registry);
 void scoop_image_unpublish(void);
 const ScoopImageRegistry *scoop_image_current(void);

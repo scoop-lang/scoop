@@ -142,15 +142,7 @@ fn is_root(role: StrongDefinitionRole) -> bool {
         | GeneratedBridge
         | RootEntryDescriptor
         | NativeAppEntryDescriptor => true,
-        CallableBody
-        | CallableRegistration
-        | SafepointRegistration
-        | TypeDescriptor
-        | TypeRegistration
-        | Layout
-        | ScanProgram
-        | DispatchTable
-        | DispatchSlot
-        | ImageDescriptor => false,
+        CallableBody | CallableRegistration | TypeDescriptor | TypeRegistration | Layout
+        | ScanProgram | DispatchTable | DispatchSlot | ImageDescriptor => false,
     }
 }

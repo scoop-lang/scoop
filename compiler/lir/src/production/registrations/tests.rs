@@ -5,7 +5,7 @@ use super::RegistrationIdentitySurfaceV1;
 use crate::{CanonicalLirFoundation, ConeLirFoundation};
 
 #[test]
-fn six_empty_tables_have_a_fixed_wire_shape() {
+fn five_empty_tables_have_a_fixed_wire_shape() {
     let foundation = empty_foundation();
     let surface = RegistrationIdentitySurfaceV1::from_foundation(&foundation).unwrap();
 
@@ -13,12 +13,8 @@ fn six_empty_tables_have_a_fixed_wire_shape() {
     assert!(surface.immortal_objects().is_empty());
     assert!(surface.initialization_units().is_empty());
     assert!(surface.type_registrations().is_empty());
-    assert!(surface.safepoints().is_empty());
     assert!(surface.callables().is_empty());
-    assert_eq!(
-        hex(&encode(&surface).unwrap()),
-        "a6018002800380048005800680"
-    );
+    assert_eq!(hex(&encode(&surface).unwrap()), "a501800280038004800580");
 }
 
 fn empty_foundation() -> ConeLirFoundation {

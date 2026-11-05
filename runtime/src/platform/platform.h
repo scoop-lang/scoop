@@ -20,9 +20,13 @@ typedef struct ScoopPlatformImageRange {
     uintptr_t end;
 } ScoopPlatformImageRange;
 
+typedef struct ScoopPlatformCodeRange {
+    uintptr_t text_start, text_end;
+} ScoopPlatformCodeRange;
+
 typedef struct ScoopPlatformMetadataImages {
-    const ScoopStackMapImage *images;
-    size_t count;
+    const ScoopPlatformCodeRange *code_ranges;
+    size_t code_range_count;
     const ScoopPlatformImageRange *ranges;
     size_t range_count;
 } ScoopPlatformMetadataImages;
@@ -41,7 +45,7 @@ typedef struct ScoopManagedFrame {
     uintptr_t return_pc;
     uintptr_t stack_pointer;
     uintptr_t frame_pointer;
-    const ScoopStackMapRecord *record;
+    const ScoopGcPcEntry *record;
 } ScoopManagedFrame;
 
 typedef enum ScoopPlatformErrorCode {
@@ -58,7 +62,7 @@ typedef enum ScoopPlatformErrorCode {
 typedef struct ScoopPlatformError {
     ScoopPlatformErrorCode code;
     uint64_t safepoint_id;
-    uint16_t root_index;
+    uint32_t root_index;
 } ScoopPlatformError;
 
 typedef struct ScoopMetadataImageOps {
@@ -80,11 +84,11 @@ typedef struct ScoopThreadVmOps {
 } ScoopThreadVmOps;
 
 typedef struct ScoopManagedFrameOps {
-    bool (*validate_record)(const ScoopStackMapRecord *record, ScoopPlatformError *error);
-    bool (*frame_from_anchor)(const ScoopManagedAnchor *anchor, const ScoopStackMapRecord *record,
+    bool (*validate_record)(const ScoopGcPcEntry *record, ScoopPlatformError *error);
+    bool (*frame_from_anchor)(const ScoopManagedAnchor *anchor, const ScoopGcPcEntry *record,
                               ScoopPlatformStackBounds bounds, ScoopManagedFrame *frame,
                               ScoopPlatformError *error);
-    bool (*resolve_root)(const ScoopManagedFrame *frame, uint16_t root_index, void ***slot,
+    bool (*resolve_root)(const ScoopManagedFrame *frame, uint32_t root_index, void ***slot,
                          ScoopPlatformError *error);
     bool (*next_frame)(const ScoopManagedFrame *frame, uintptr_t managed_boundary,
                        ScoopPlatformStackBounds bounds, uintptr_t *return_pc,

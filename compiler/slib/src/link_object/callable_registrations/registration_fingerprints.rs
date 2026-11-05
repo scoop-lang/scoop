@@ -9,7 +9,7 @@ use crate::link_object::{
     CallableDefinitionAbiV1, ObjectDefinitionFingerprintV1, RegistrationAbiV1,
 };
 
-const CALLABLE_REGISTRATION_RECORD_KIND: u32 = 6;
+const CALLABLE_REGISTRATION_RECORD_KIND: u32 = 5;
 const OWN_CALLABLE_ENTRY_ROLE: u32 = 8;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

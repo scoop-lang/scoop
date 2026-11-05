@@ -88,12 +88,6 @@ impl ScoopLirObjectPartitionV1 {
             .map(|plan| (plan.owner(), plan.definition_plan()))
             .collect::<BTreeMap<_, _>>();
         let mut callables = BTreeMap::<PersistentCallableBodyId, ObjectDefinitionPlanId>::new();
-        let site_owners = input
-            .module()
-            .callable_bodies()
-            .flat_map(|function| function.safepoints.iter())
-            .map(|site| (site.site_id(), site.owner()))
-            .collect::<BTreeMap<_, _>>();
         let mut body_registrations = BTreeMap::<_, Vec<_>>::new();
         for definition in producer_units.scoop_lir_definition_plans() {
             let plan = surface
@@ -122,21 +116,6 @@ impl ScoopLirObjectPartitionV1 {
                     };
                     body_registrations
                         .entry(body)
-                        .or_default()
-                        .push(*definition);
-                }
-                StrongDefinitionRole::SafepointRegistration => {
-                    let StrongDefinitionEntityKind::SafepointSite(site) = plan.owner().kind()
-                    else {
-                        return Err(ScoopLirObjectPartitionError::InvalidCallableDefinition(
-                            *definition,
-                        ));
-                    };
-                    let body = site_owners.get(&site).ok_or(
-                        ScoopLirObjectPartitionError::InvalidCallableDefinition(*definition),
-                    )?;
-                    body_registrations
-                        .entry(*body)
                         .or_default()
                         .push(*definition);
                 }

@@ -22,7 +22,7 @@ void scoop_gc_stackmaps_init(const ScoopStackMapIndex *index) {
     stackmaps = index;
 }
 
-const ScoopStackMapRecord *scoop_gc_stackmap_lookup(uintptr_t return_pc) {
+const ScoopGcPcEntry *scoop_gc_stackmap_lookup(uintptr_t return_pc) {
     if (stackmaps == NULL) {
         stack_roots_fatal("stack map lookup before initialization");
     }
@@ -52,7 +52,7 @@ static void visit_managed_segment(const ScoopThreadState *thread, ScoopManagedAn
     };
 
     for (;;) {
-        const ScoopStackMapRecord *record = scoop_gc_stackmap_lookup(cursor.return_pc);
+        const ScoopGcPcEntry *record = scoop_gc_stackmap_lookup(cursor.return_pc);
         if (record == NULL) {
             fprintf(stderr,
                     "scoop stackmap: no exact record for managed return PC "
@@ -67,7 +67,7 @@ static void visit_managed_segment(const ScoopThreadState *thread, ScoopManagedAn
                                                                 &error)) {
             managed_frame_fatal(error);
         }
-        for (uint16_t index = 0; index < record->root_count; index++) {
+        for (uint32_t index = 0; index < scoop_gc_root_count(record); index++) {
             void **slot = NULL;
             error = (ScoopPlatformError){0};
             if (!platform_bundle->managed_frames->resolve_root(&frame, index, &slot, &error) ||
@@ -83,8 +83,8 @@ static void visit_managed_segment(const ScoopThreadState *thread, ScoopManagedAn
         bool has_next = false;
         error = (ScoopPlatformError){0};
         if (!platform_bundle->managed_frames->next_frame(&frame, boundary, bounds, &return_pc,
-                                                         &stack_pointer, &frame_pointer, &has_next,
-                                                         &error)) {
+                                                         &stack_pointer, &frame_pointer,
+                                                         &has_next, &error)) {
             managed_frame_fatal(error);
         }
         if (!has_next) {

@@ -1,5 +1,7 @@
 # Scoop 实现路线图
 
+[紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现（2026-11-05）：机器对象生产时将 LLVM stackmap 转为 callable 引用的定长根表，函数内共享布局，runtime 直接读取根位置并建立轻量 PC 索引；取消独立逐 site 登记及启动 owner join，完整 typed 身份与所选定义冲突留在编译／Link 边界。Darwin AArch64 的 Counter／控件示例从 82.87／118.05 MiB 降至 49.81／66.70 MiB，全部实际 site、精确 PC、帧大小和有序根位置一致。配套 runtime contract 34／metadata ABI 11，旧系统库、产物与缓存需重建；平台验证与运行／构建测量见设计文档的验收记录。
+
 Coroutine executor 与异步同步原语改造进行中（2026-11-04，见[设计](coroutine-executors/DESIGN.md)与[实施进度](coroutine-executors/PROGRESS.md)）。lambda 的期望挂起性、对称重载规则、编译器执行协议、receiver scope、blocking 入口，以及[并发库](specs/SCOOP-CONCURRENT-SPEC.md)的 Channel／AsyncMutex／AsyncConditionVariable、MultiThreadExecutor、通用 managed BlockingTaskPool，I/O LoopExecutor、共享池 AsyncRuntime、原生阻塞任务和 TLS 迁移已完成 Darwin 本地验收；接下来审计 HTTP 等上层消费者，并集中运行 Linux／Windows 验证。每项实际验收结果单独记录，尚未完成的 API 不视为可用。
 
 原生基础调试及程序栈诊断已实现（2026-10-29，见 [设计](debugging/DESIGN.md) 与 [实施记录](debugging/IMPLEMENTATION.md)）：按实现规范 2.22 贯通共享源码记录、静态变量和 moving GC 后的位置，生成 dSYM／ELF 分离调试文件，迁移 map 消费者，并集成 LLDB、lldb-dap、VS Code 与发行打包。2.21 的 Throwable 首次抛出栈、重抛保留、printStackTrace 及 trap 栈打印已完成三目标定向验收。GNU／musl 实际 DAP 会话通过；macOS 本机 launch 的环境限制及其他验证边界记在实施记录中。完整 Scoop 求值与协程逻辑栈留待后续，较大 `.slib` 优化见[体积调查](slib-storage/FOLLOW_UP.md)。
@@ -917,6 +919,7 @@ iOS、Android、HarmonyOS 及 framework/JNI/Node-API 适配后置为独立设计
 - [String 字符扫描 API](program-performance/STRING-API.md)已统一为 O(n) 的 `charLength`／`getCharAt(idx)` 与 O(1) 的 `byteLength`，移除旧 `length`／`get`／下标；三目标内置库和调用点迁移及定向行为／编译失败／表示 ABI 验证完成，对象结构保持。
 - [启动阶段测量](program-performance/STARTUP-STATS.md)已通过 `--enable-startup-stats` 提供；默认预处理排除全部新增计时和报告，三目标默认程序的代码段与无测量基线逐字节相同。统计记录七阶段与已有索引数量，开关只改变 runtime／最终链接，作为注册与 stackmap 优化的指导，不提前引入 PGO。
 - [启动 owner 验证合并](program-performance/STARTUP-OWNER-JOIN.md)已按测量结果交付：首次 stackmap 合并时完成一次 owner 解析，重复 ODR 复用结果，全部必要检查仍在 managed 执行前完成。三个目标的代表启动降低约 2.7%～8.1%，完整文件与静态元数据不增长；全部 profile 默认，ABI 和预编译 Cone 保持。
+- [紧凑 GC 元数据](program-performance/GC-METADATA.md)已实现，采用 callable 引用的定长机器根表、函数内布局共享和轻量 PC 索引，替代独立逐 site 登记及上一项启动 owner join。Darwin ARM64 两个 UI 样本的完整文件实测减少 33.06／51.35 MiB；逐 site 核对机器根，定向 moving GC、运行和构建测量记录在设计中。UI 类型描述另行处理，native dead strip 后续再议。
 - [普通 managed poll 与有界叶函数](program-performance/ACTIVE-POLLS.md)已交付：普通 Full poll 仅一次 acquire 读取 phase，省去 TLS／mode／epoch，既有有界叶函数省入口；Gateway 保留首次激活及[本线程 relaxed 读取](program-performance/POLL-OWNER-READS.md)。三个目标动态调用内核降低约 16.5%／27.5%／39.5%，静态空间缩小，定向 GC／ABI 与编译成本已验证，所有 profile 默认。
 - [minor 局部块遍历与连续清卡跳过](program-performance/MINOR-BLOCKS.md)已交付：年轻块／新目标与可用 region 分别索引，保留原 block 大小和 ABI，连续清卡批量跳过。原始 trees 三目标耗时降低约 7.9%／12.0%／11.8%，仅每个 region 增加 8 B、全局增加 16 B；定向 GC、实际负载、默认产物消费与空间／构建成本已核对，所有 profile 默认。
 - [调用点内联评分](program-performance/CALL-SITE-INLINING.md)已交付：复用函数事实，以静态热度放大可消除的调用／适配／化简开销，按净增长、复杂度与 caller 规模计价；移除统一执行上限和跨 Cone 96 节点过滤。相同正文可在热／冷／常量调用点得到不同决策。三目标 dispatch 降低约 44%～59%，七程序代码与文件缩小，编译成本变化较小；无稳定收益及小幅退化一并记录。release 默认，三目标定向语义／GC／产物验证通过，按需报告 schema 2，ABI 与诊断代码生成边界保持。

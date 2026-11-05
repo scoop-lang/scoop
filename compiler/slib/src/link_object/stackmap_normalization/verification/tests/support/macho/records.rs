@@ -1,23 +1,5 @@
 use super::*;
 
-pub(super) fn push_registration(
-    bytes: &mut Vec<u8>,
-    registration: StrongSafepointRegistrationPlanV1,
-) {
-    push_u64(bytes, 0x5343_4f4f_5053_5054);
-    push_u32(bytes, scoop_lir::RUNTIME_METADATA_ABI_VERSION_V1);
-    push_u32(bytes, u32::try_from(SAFEPOINT_REGISTRATION_SIZE).unwrap());
-    push_u32(bytes, 1);
-    push_u32(bytes, 0);
-    bytes.extend_from_slice(registration.site().as_array());
-    bytes.extend_from_slice(&[0; 32]);
-    bytes.extend_from_slice(&[0; 32]);
-    push_u64(bytes, registration.safepoint().get());
-    push_u32(bytes, registration.role().tag());
-    push_u32(bytes, registration.root_pair_count());
-    bytes.extend_from_slice(registration.owner().as_array());
-}
-
 pub(super) fn push_callable_registration(
     bytes: &mut Vec<u8>,
     registration: StrongCallableRegistrationPlanV1,
@@ -33,6 +15,7 @@ pub(super) fn push_callable_registration(
     push_u64(bytes, 0);
     push_u64(bytes, 0);
     push_u64(bytes, registration.context_key_count());
+    push_u64(bytes, 0);
 }
 
 pub(super) fn push_type_registration(
