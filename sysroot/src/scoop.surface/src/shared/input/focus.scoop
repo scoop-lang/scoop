@@ -35,7 +35,7 @@ internal fun InputRouter.clearFocus() {
 internal fun InputRouter.reconcileFocus() {
     when (logicalFocus) {
         case Some(area) -> {
-            if (path(area.scope).size == 0L)
+            if (!allowsFocus(area.scope) || path(area.scope).size == 0L)
                 logicalFocus = None
         }
         case None -> {}
@@ -102,13 +102,17 @@ internal fun InputRouter.routeFocused(event: InputEvent) {
 private fun InputRouter.focusedPath(): Array<InputScope> =
     when (activeFocus) {
         case Some(area) -> {
-            val current = path(area.scope)
+            val current =
+                if (allowsFocus(area.scope))
+                    path(area.scope, focusRoot)
+                else
+                    []
             if (current.size == 0L)
-                path(inputRoot)
+                path(focusRoot, focusRoot)
             else
                 current
         }
-        case None -> path(inputRoot)
+        case None -> path(focusRoot, focusRoot)
     }
 
 internal fun InputRouter.notifyFocused(event: InputEvent) {

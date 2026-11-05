@@ -12,7 +12,8 @@ internal fun presenceScene(probe: InteractionProbe): View =
         [
             portal(probe.controlled, element({ PresenceContent(probe) })) {
                 handle = Some(probe.overlay)
-                modal { initialFocus = Some(probe.popupFocus) }
+                mode = OverlayMode.Modal
+                focus { initialFocus = Some(probe.popupFocus) }
                 dismiss {
                     escape = true;
                     outsidePress = OutsidePress.CloseAndConsume

@@ -125,3 +125,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `tabs(selected.binding()) { item(Choice(ViewKey.Text("account"), 0, "Account"), form) }` 提供 Default／Line、横纵与 RTL、Auto／Manual 激活。方向键导航跳过禁用项，Manual 用 Space／Enter 提交，普通 Tab 进入正文；拒绝 setter 不改变当前面板。默认 Dispose，`retention = ContentRetention.KeepMounted` 保留非活动正文的实例和逻辑更新，停用其布局、输入和动画帧。横纵／主题切换及 keyed 重排保留编辑器状态；`tests-cones/tabs` 覆盖实际键盘、IME、生命周期和停帧。
 
 `breadcrumb { item("Home", navigate); current("Page") }` 提供路径链接、当前项、分隔符、ellipsis 与 custom 内容槽，支持长项单行省略、换行和 RTL。当前项与默认省略号不登记输入，链接复用 Button；同 key 重排不重建正文。`pagination(page.binding(), pageCount)` 以 Long 页码驱动业务视图，自动范围由 `paginationItems` 计算，支持显式 item／ellipsis、compact、本地化文字和内容回调。外部越界页码保持原值，空数据停用导航，拒绝 setter 不产生通知；真实窗口验证在 `tests-cones/navigation`。
+
+`popover(open.binding(), content) { trigger("Open"); title("Details") }` 提供真实可编辑的锚点弹层。mode 选择 NonModal／FocusContained／Modal，focus 独立配置；非模态外部点击继续执行，FocusContained 保留背景 pointer／wheel 并约束焦点，Modal 阻挡背景输入。支持外部 anchor、嵌套内容、业务关闭 veto、拒绝绑定、定位翻转、退出重开和减少动态；`tests-cones/popover` 验证真实键盘、指针、编辑与生命周期。

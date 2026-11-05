@@ -27,6 +27,8 @@ RadioGroup／ToggleGroup 的项描述在 Choice 之外保存各自的内容、�
 
 DropdownMenu、ContextMenu、Menubar 共用菜单行、导航和子菜单开关逻辑；不同之处是打开方式和父级导航。父／子菜单使用已提交矩形和 Hover corridor，RTL 翻转展开方向。Right／Left 进入／退出子菜单，Escape 只关闭最内层；Tab 退出菜单链并按保存的焦点意图继续。显示快捷键不自动注册全局动作，应用注册同一个 ShortcutChord。
 
+Popover 直接持有业务 `Binding<Boolean>`，编辑字段仍用各自 TextEditorState。打开会话与退出动画由 Portal 持有；组件不复制 open，不保存第二份焦点目标或窗口坐标。onOpenChange 仅在 setter 采纳新值后通知；onCloseRequest 可 veto，onClosed 仅在实际移除后通知。退出中重开保留同一内容实例，最终关闭再开创建新内容，外部编辑模型可继续保留草稿。
+
 ## 2. 三态、范围与拖动
 
 CheckState 为 Unchecked／Checked／Indeterminate。用户激活规则为 Unchecked→Checked、Checked→Unchecked、Indeterminate→Checked；混合态通常由一组选项派生，不成为三次点击循环。它映射现有主题 CheckMark.Off／On／Mixed。Boolean 入口只能提供前两态，标签、指针和 Space 使用同一动作。

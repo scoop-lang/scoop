@@ -21,7 +21,7 @@ public class FocusTarget internal constructor(
 
     internal val active: Boolean get() =
         !closed && node.active && node.root.isOpen && !area.isClosed
-    internal val available: Boolean get() = active && area.scope.isInputAllowed
+    internal val available: Boolean get() = active && area.scope.isFocusAllowed
     internal val reachable: Boolean get() =
         available && (area.canFocus || node.root.focus.canReveal(this))
     internal val tabCandidate: Boolean get() = current.tabStop && reachable

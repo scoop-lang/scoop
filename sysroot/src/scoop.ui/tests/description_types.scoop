@@ -155,7 +155,7 @@ private class DescriptionTypeTest {
     }
 
     @Test
-    fun `empty direction and portal modal categories remain distinct from instance descriptions`() {
+    fun `empty direction and portal modes remain distinct from instance descriptions`() {
         val records = ReuseRecords()
         val open = state(true)
         val views =
@@ -170,8 +170,12 @@ private class DescriptionTypeTest {
                 ),
                 portal(open.binding(), empty()),
                 portal(open.binding(), empty()) {
-                    this.options { this.modal = Some(ModalOptions()) }
-                }
+                    this.options {
+                        this.mode = OverlayMode.Modal
+                        this.focus = Some(OverlayFocusOptions())
+                    }
+                },
+                portal(open.binding(), empty()) { this.mode = OverlayMode.FocusContained }
             ]
         for (left in 0L ..< views.size)
             for (right in 0L ..< views.size)
@@ -181,7 +185,10 @@ private class DescriptionTypeTest {
         assertTrue(
             views[6L].sameType(
                 portal(open.binding(), views[3L]) {
-                    this.options { this.modal = Some(ModalOptions()) }
+                    this.options {
+                        this.mode = OverlayMode.Modal
+                        this.focus = Some(OverlayFocusOptions())
+                    }
                 }
             )
         )

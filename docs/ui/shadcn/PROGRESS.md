@@ -184,3 +184,10 @@
 - 先补齐控件规范 §26–27。Breadcrumb 提供链接／当前项／省略号／自定义槽、Chevron 或自定义分隔符、长项省略、换行与 RTL；复用普通 Button 和 Wrap，重排及首项改变保持正文槽。Pagination 提供受控 Long 页码、自动边界／邻近范围、显式页码、缺口省略、本地化、compact 与内容／焦点配置；空数据和外部越界值不暗写模型，setter 实际采纳后才通知，不取业务数据。
 - macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过；4 项模型／样式／DSL 测试和 1 项 20 阶段原生窗口用例全部通过。覆盖空页、单页、缺口合并、Long 上界、错误配置、拒绝 setter／换绑／实际值通知、动态页数、真实 Tab／Space／Enter、keyed 焦点与自定义局部状态保留、窄宽／RTL／主题切换、逻辑禁用、未放置时等待焦点请求的取消、恢复和静止停帧／卸载。用例时序按真实键盘分发修正，并遵守既有 FocusHandle 等待放置的合同。
 - Gallery 增加可展开路径与实际页码驱动的数据视图，实查正常／禁用、空数据／外部页码、拒绝选择、局部回调、compact、本地化、明暗 System／Neutral 和 RTL；实窗发现的数字居中与窄宽示例约束已修正并复查。API、模型说明和 README 同步。P3 首次交付完成，累计 **34／64**；Breadcrumb 的 Dropdown 组合在 P5 接入。下一批进入 P4 弹层和焦点。未重建编译器／LLVM，未重复全仓或全部控件测试；一次性窗口、导航 native 输出与独立锁清理，共享缓存、生产库、Gallery 与下载源保留。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P4a：独立弹层焦点与 Popover
+
+- 先修订 Surface／UI／控件规范。InputBoundary 增加 FocusOnly，焦点和键盘约束独立于指针屏障；Portal 以 OverlayMode 区分三种模式，OverlayFocusOptions 取代 ModalOptions，所有调用方同步迁移。复用原 focusRevision、FocusScope、Accepted 帧和活动登记，不增加第二套焦点状态或反射依赖。非模态关闭前焦点已离开本层时不抢回焦点，背景非模态层不能越过现有焦点域。
+- 新增 Popover Props／DSL、普通 Button 触发器和外部 anchor、标题／描述、表单正文、可选焦点模式、关闭 veto 与实际绑定值通知。复用 Portal 定位、退出重开和嵌套生命周期；默认采用 Base Nova 的 288 宽、10 padding／spacing、8 圆角及 100ms 淡入缩放位移，支持 Reduced Motion、字体缩放及 System／Neutral 配色。
+- macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过；2 项 Portal 类型／DSL、2 项 Popover 元数据／错误、既有模态实窗和新增 32 阶段 Popover 实窗，共 **6 项定向测试通过**。覆盖三种模式、背景 pointer／wheel 与焦点隔离、拒绝绑定／veto、最新回调、Tab／Escape／Space、实例／局部状态及工厂次数、退出重开、新焦点优先、窄宽翻转、禁用恢复、嵌套显式／默认焦点和完整卸载。窄宽之后恢复窗口尺寸再测试横向嵌套，避免要求零宽目标获得焦点；未改变可见性合同。
+- Gallery 实查表单编辑／保存、嵌套层、三种模式、Reduced Motion、明暗 System／Neutral 和 RTL；鼠标打开嵌套层默认聚焦首项可选中文本，⌘A 与 Tab 到关闭按钮验证正常。临时诊断已删除。本批首次交付累计 **35／64**；P4 后续完成 Tooltip／HoverCard、共享箭头装饰及 Popover 接入，再完成 Dialog／AlertDialog／Sheet。一次性窗口、检查锁与本轮定向测试输出清理，保留共享缓存、生产库、Gallery 和下载参考；没有重建编译器或 LLVM，也未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

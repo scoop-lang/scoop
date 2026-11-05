@@ -25,10 +25,18 @@ public enum OutsidePress {
 
 public struct OverlayDismiss(
     val escape: Boolean = false,
-    val outsidePress: OutsidePress = OutsidePress.Ignore
+    val outsidePress: OutsidePress = OutsidePress.Ignore,
+    val includeAnchor: Boolean = false
 )
 
-public struct ModalOptions(val initialFocus: FocusHandle? = None, val restoreFocus: Boolean = true)
+public enum OverlayMode {
+    NonModal, FocusContained, Modal
+}
+
+public struct OverlayFocusOptions(
+    val initialFocus: FocusHandle? = None,
+    val restoreFocus: Boolean = true
+)
 
 public enum OverlayPlacement {
     Viewport(
@@ -57,7 +65,8 @@ public class PortalOptions internal constructor(
     public val placement: OverlayPlacement = OverlayPlacement.Viewport(),
     public val handle: OverlayHandle? = None,
     public val anchorVisibility: AnchorVisibility = AnchorVisibility.Close,
-    public val modal: ModalOptions? = None,
+    public val mode: OverlayMode = OverlayMode.NonModal,
+    public val focus: OverlayFocusOptions? = None,
     public val dismiss: OverlayDismiss = OverlayDismiss(),
     public val transition: PresenceOptions = PresenceOptions(),
     public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
@@ -65,7 +74,7 @@ public class PortalOptions internal constructor(
 ) {
     init {
         requireUi(
-            !isModal || dismiss.outsidePress != OutsidePress.CloseAndContinue,
+            mode != OverlayMode.Modal || dismiss.outsidePress != OutsidePress.CloseAndContinue,
             "modal outside presses cannot continue to the background"
         )
         when (placement) {
@@ -81,11 +90,11 @@ public class PortalOptions internal constructor(
             }
         }
     }
-    internal val isModal: Boolean get() =
-        when (modal) {
-            case Some(_) -> true
-            case None -> false
-        }
+    internal val focusOptions: OverlayFocusOptions? get() =
+        if (mode == OverlayMode.NonModal)
+            focus
+        else
+            Some(focus ?: OverlayFocusOptions())
 }
 
 /** Value geometry for the nearest portal in the current scene pass. */

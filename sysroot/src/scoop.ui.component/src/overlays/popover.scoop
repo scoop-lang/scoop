@@ -1,0 +1,157 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.TextAlignment
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as popupColumn
+
+public class Popover public constructor(private val props: Props<PopoverProps>): Component {
+    private val anchor = LayoutAnchor()
+    private val localHandle = OverlayHandle()
+    private val themes = ThemeAccess()
+    private val titles = ActionTextStyle()
+    private val descriptions = ActionTextStyle()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    private fun setOpen(value: Boolean) {
+        val input = props.value
+        val previous = input.open.value
+        if (previous == value)
+            return
+        input.open.value = value
+        val accepted = input.open.value
+        if (accepted != previous)
+            props.value.onOpenChange(accepted)
+    }
+    private fun toggle() {
+        val input = props.value
+        if (!input.enabled || !(input.trigger?.enabled ?: false))
+            return
+        if (input.open.value)
+            (input.handle ?: localHandle).requestClose()
+        else
+            setOpen(true)
+    }
+    public override fun render(): View {
+        val inputs = props
+        val input = inputs.value
+        val theme = themes.read(input.theme)
+        val palette = theme.tokens.palette
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val titleStyle =
+            titles.resolve(theme.tokens.typography.action, palette.popover.foreground, None)
+        val descriptionStyle =
+            descriptions.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
+        val content =
+            popupColumn {
+                if (panelPresent(input.title) || panelPresent(input.description))
+                    add(
+                        panelSlot(
+                            popupColumn {
+                                when (input.title) {
+                                    case Some(value) -> add(
+                                        panelSlot(panelCaption(value, titleStyle, input.fonts), 0L)
+                                    )
+                                    case None -> {}
+                                }
+                                when (input.description) {
+                                    case Some(value) -> add(
+                                        panelSlot(
+                                            panelCaption(value, descriptionStyle, input.fonts),
+                                            1L
+                                        )
+                                    )
+                                    case None -> {}
+                                }
+                                spacing = 2.0 * density
+                                alignment = CrossAlignment.Stretch
+                            },
+                            0L
+                        )
+                    )
+                add(panelSlot(input.content, 1L))
+                spacing = 10.0 * density
+                alignment = CrossAlignment.Stretch
+            }
+        val panel =
+            panelFrame(
+                content,
+                Insets.all(10.0 * density),
+                styleOverride {
+                    background(Some(Paint(palette.popover.background)))
+                    border(Some(Border.all(1.0, palette.background.foreground.withAlpha(0.1))))
+                    corners(Corners.all(8.0 * density))
+                    boxShadows(theme.tokens.effects.floating)
+                }.then(input.style),
+                Some(input.width * density)
+            )
+        val trigger =
+            when (input.trigger) {
+                case Some(value) -> component(
+                    ButtonProps(
+                        navigationLabel(
+                            value.content,
+                            if (panelPresent(value.fonts))
+                                value.fonts
+                            else
+                                input.fonts,
+                            TextAlignment.Center
+                        ),
+                        { toggle() },
+                        input.enabled && value.enabled,
+                        value.style,
+                        input.theme,
+                        value.focus,
+                        variant = value.variant,
+                        size = value.size
+                    ),
+                    { current -> Button(current) }
+                )
+                case None -> empty()
+            }
+        val motion =
+            theme.tokens.motion.resolve(
+                input.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(100L))))
+            )
+        val localAnchor = anchor
+        val overlayHandle = input.handle ?: localHandle
+        val popup =
+            portal(
+                binding({ props.value.open.value }, { value -> setOpen(value) }),
+                element(
+                    PopupMotionProps(input.enabled, 8.0 * density),
+                    { current -> PopupMotion(current) },
+                    [panel]
+                )
+            ) {
+                placement =
+                    OverlayPlacement.Anchored(
+                        input.anchor ?: localAnchor,
+                        input.side,
+                        input.alignment,
+                        input.gap * density,
+                        input.viewportPadding * density,
+                        input.matchAnchorWidth
+                    )
+                handle = Some(overlayHandle)
+                anchorVisibility = input.anchorVisibility
+                mode = input.mode
+                focus = Some(input.focus)
+                dismiss = input.dismissal
+                transition = PresenceOptions(motion, motion)
+                onCloseRequest = { reason -> inputs.value.onCloseRequest(reason) }
+                onClosed = { reason -> inputs.value.onClosed(reason) }
+            }
+        return element({ PopoverLayout(localAnchor) }, [trigger, popup])
+    }
+}
+
+public fun popover(
+    open: Binding<Boolean>,
+    content: View,
+    configure: PopoverBuilder.() -> Unit = {}
+): View = makePopover(open, content, configure)

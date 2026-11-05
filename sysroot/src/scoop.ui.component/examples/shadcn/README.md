@@ -49,3 +49,5 @@ Collapsible 页面比较 Dispose／KeepMounted 的局部草稿、计数与挂载
 Tabs 页面包含 Default 草稿表单和 Line 自定义图标／加载正文。可切换 Auto／Manual、横纵、Dispose／KeepMounted、禁用与顺序，清空外部选择，并观察局部计数和挂载次数。方向键导航、Space／Enter 选择和 Tab 进入正文沿同一焦点体系；主题、RTL、减少动态和布局变化保留已挂载草稿。
 
 Breadcrumb 页面提供长路径、Chevron／Slash 分隔符、窄宽换行、禁用、展开中间路径和非交互省略号。Pagination 页面用页码驱动三条记录，比较自动范围与显式页码／本地化文字，并提供空数据、单页、外部越界值、拒绝 setter、禁用和 compact 切换；两页沿顶部切换主题、配色及 RTL。
+
+Popover 页面在弹层中编辑和保存尺寸，包含嵌套弹层。可切换 NonModal／FocusContained／Modal、方向与对齐、关闭 veto、拒绝绑定及禁用；外部按钮计数用于观察继续／消费策略，关闭完成与绑定变化分别计数。顶部明暗、System／Neutral、RTL 与减少动态继续适用。

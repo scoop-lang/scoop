@@ -108,9 +108,10 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                     ) {
                         this.options {
                             this.handle = Some(this @FieldScene.probe.overlay)
-                            this.modal =
+                            this.mode = OverlayMode.Modal
+                            this.focus =
                                 Some(
-                                    ModalOptions(
+                                    OverlayFocusOptions(
                                         initialFocus = Some(this @FieldScene.probe.focus[3L])
                                     )
                                 )

@@ -1,0 +1,203 @@
+package scoop.tests.ui.popover
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.input as makeInput
+
+internal class PopoverScene(private val p: PopoverProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val version = p.version
+        return element(
+            generation,
+            { current -> PopoverRoot(p, current) },
+            [
+                button("Background", { p.actions += 1 }) {
+                    fonts = Some(p.fonts)
+                    focus = FocusOptions(Some(p.background))
+                },
+                popover(
+                    binding(
+                        { p.open.value },
+                        {
+                            value -> if (!p.deny)
+                                p.open.value = value
+                        }
+                    ),
+                    component(
+                        {
+                            p.factories += 1;
+                            PopoverBody(p)
+                        }
+                    )
+                ) {
+                    trigger("Open popover") { focus = FocusOptions(Some(p.trigger)) }
+                    title("Edit dimensions")
+                    description("An actual editor inside the popup")
+                    fonts = Some(p.fonts)
+                    mode = p.mode
+                    enabled = p.enabled
+                    handle = Some(p.layer)
+                    focus = OverlayFocusOptions(Some(p.edit))
+                    if (p.slow)
+                        transition(Some(AnimationSpec.Tween(Duration.milliseconds(400L))))
+                    onOpenChange =
+                        {
+                            _ ->
+                            p.callbacks += 1;
+                            p.callbackVersion = version
+                        }
+                    onCloseRequest = { _ -> !p.veto }
+                    onClosed = { _ -> p.closed += 1 }
+                },
+                button("After", {}) {
+                    fonts = Some(p.fonts);
+                    focus = FocusOptions(Some(p.after))
+                },
+                portal(
+                    p.backgroundOpen.binding(),
+                    button("Background popup", {}) {
+                        fonts = Some(p.fonts)
+                        focus = FocusOptions(Some(p.backgroundPopup))
+                    }
+                ) {
+                    placement = OverlayPlacement.AtPoint(Point(440.0, 20.0))
+                    focus = Some(OverlayFocusOptions(Some(p.backgroundPopup)))
+                    dismiss = OverlayDismiss(escape = true)
+                }
+            ]
+        )
+    }
+}
+
+private class PopoverBody(private val p: PopoverProbe): Component {
+    private val value = state(1)
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val value = this.value
+        p.observed = value.value
+        return element(
+            { PopupObservation(p) },
+            [
+                makeColumn {
+                    add(
+                        makeInput(p.editor) {
+                            fonts = Some(p.fonts)
+                            focus = FocusOptions(Some(p.edit))
+                            caretBlink = Duration.milliseconds(0L)
+                        }
+                    )
+                    button(f"Local ${value.value}", { value.value += 1 }) {
+                        fonts = Some(p.fonts)
+                        focus = FocusOptions(Some(p.local))
+                    }
+                    popover(p.innerOpen.binding(), component({ InnerContent(p) })) {
+                        trigger("Nested") {
+                            focus = FocusOptions(Some(p.innerTrigger), tabStop = false)
+                        }
+                        fonts = Some(p.fonts)
+                        focus =
+                            OverlayFocusOptions(
+                                if (p.innerExplicitFocus)
+                                    Some(p.inner)
+                                else
+                                    None
+                            )
+                        handle = Some(p.innerLayer)
+                        side = OverlaySide.End
+                        width = 160.0
+                    }
+                    spacing = 8.0
+                    alignment = CrossAlignment.Stretch
+                }
+            ]
+        )
+    }
+}
+
+private class InnerContent(private val p: PopoverProbe): Component {
+    public override fun onMount(scope: ComponentScope) {
+        p.innerMounts += 1
+    }
+    public override fun onUnmount() {
+        p.innerUnmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        return button("Inner action", {}) {
+            fonts = Some(p.fonts);
+            focus = FocusOptions(Some(p.inner))
+        }
+    }
+}
+
+private class PopupObservation(private val p: PopoverProbe): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val layout = context.overlayLayout!!
+        val side = layout.side
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+            {
+                p.side = side;
+                p.popupWidth = layout.bounds.width;
+                p.popupPhase = layout.presence.phase
+            }
+        }
+    }
+}
+
+private class PopoverRoot(private val p: PopoverProbe, private val props: Props<Int>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        p.rootInput = Some(scope.input)
+        scope.input.defaultAction =
+            {
+                _,
+                event -> when (event) {
+                    case Pointer(Wheel(_, _, _, _)) -> p.wheels += 1
+                    else -> {}
+                }
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
+        context.placeChild(0L, Point(20.0, 330.0))
+        context.measureChild(1L, Constraints(maxWidth = Some(200.0)))
+        context.placeChild(
+            1L,
+            Point(
+                20.0,
+                if (p.bottom)
+                    290.0
+                else
+                    20.0
+            )
+        )
+        context.measureChild(2L, Constraints.tight(Size(140.0, 36.0)))
+        context.placeChild(2L, Point(200.0, 330.0))
+        context.measureChild(3L, Constraints())
+        context.placeChild(3L, Point(0.0, 0.0))
+        return LayoutMetrics(constraints.constrain(Size(640.0, 400.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

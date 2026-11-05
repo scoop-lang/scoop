@@ -139,7 +139,13 @@ public class InputArea internal constructor(
     }
     public val canFocus: Boolean get() {
         owner.checkThread()
-        return !closed && focusable && owner.path(scope).size > 0L && visibleBounds != None
+        return !closed &&
+            focusable &&
+            owner.allowsFocus(scope) &&
+            owner.path(scope).size >
+            0L &&
+            visibleBounds !=
+            None
     }
     public var ignoreSelf: Boolean
     get() {

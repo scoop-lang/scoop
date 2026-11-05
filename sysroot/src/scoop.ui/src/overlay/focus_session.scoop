@@ -4,34 +4,45 @@ import scoop.graphics.Rect
 import scoop.surface.*
 
 /** Retains the boundary until a frame has removed this layer, even after its node retires. */
-internal class ModalSession(
+internal class OverlayFocusSession(
     private val portal: PortalInstance,
-    initial: ModalOptions,
-    private val previous: ModalSession?
+    initial: PortalOptions,
+    private val previous: OverlayFocusSession?
 ) {
     private val root = portal.root
     private val node = portal.node
     private val saved = root.focus.capture()
-    private val previousBoundary = root.surface.inputBoundary
+    private val previousBoundary = root.surface.focusBoundary
     private val input = node.scope.input
     private val proxy = node.scope.createArea(focusable = true)
     private val fallbackTarget = node.scope.focusTarget(proxy, FocusOptions(tabStop = false))
     private val fallback = fallbackTarget.handle
     private var dismissal: Closeable? = None
     private var finished = false
+    private val constrained = initial.mode != OverlayMode.NonModal
     val group =
         node.scope.focusScope(
             FocusScopeOptions(
-                loop = true,
-                defaultFocus = initial.initialFocus,
-                fallback = Some(fallback)
+                loop = constrained,
+                defaultFocus = initial.focusOptions?.initialFocus ?: None,
+                fallback =
+                    if (constrained)
+                        Some(fallback)
+                    else
+                        None
             )
         )
     private val openingRevision = root.surface.focusRevision
-    val boundary = InputBoundary(input)
+    val boundary: InputBoundary? =
+        when (initial.mode) {
+            case NonModal -> None
+            case FocusContained -> Some(InputBoundary(input, InputBoundaryMode.FocusOnly))
+            case Modal -> Some(InputBoundary(input))
+        }
     private var initialPending = true
-    private var restoreOnClose = initial.restoreFocus
+    private var restoreOnClose = initial.focusOptions?.restoreFocus ?: false
     private var closingRevision: ULong? = None
+    private var focusLeftBeforeClose = false
     var presented: OverlayFrame? = None
     val isClosing: Boolean get() = closingRevision != None
 
@@ -48,19 +59,23 @@ internal class ModalSession(
                     }
                 )
         } catch (error: Throwable) {
-            throwUi(cleanupUi(Some(error)) { boundary.close() })
+            throwUi(cleanupUi(Some(error)) { boundary?.close() })
             throw error
         }
     }
-    fun replace(options: ModalOptions) {
+    fun replace(options: PortalOptions) {
         if (isClosing)
             return
-        restoreOnClose = options.restoreFocus
+        restoreOnClose = options.focusOptions?.restoreFocus ?: false
         group.options =
             FocusScopeOptions(
-                loop = true,
-                defaultFocus = options.initialFocus,
-                fallback = Some(fallback)
+                loop = constrained,
+                defaultFocus = options.focusOptions?.initialFocus ?: None,
+                fallback =
+                    if (constrained)
+                        Some(fallback)
+                    else
+                        None
             )
     }
     fun place(context: FrameContext) {
@@ -69,6 +84,8 @@ internal class ModalSession(
     fun beginClose(revision: ULong) {
         if (isClosing)
             return
+        focusLeftBeforeClose =
+            !constrained && root.surface.input.activity.hasFocus && !input.activity.hasFocus
         closingRevision = Some(revision)
         initialPending = false
         if (!input.isClosed)
@@ -77,24 +94,21 @@ internal class ModalSession(
     fun reopen() {
         closingRevision = None
         initialPending = false
-        when (portal.options.modal) {
-            case Some(options) -> replace(options);
-            case None -> {}
-        }
+        replace(portal.options)
     }
     fun finish() {
         if (finished)
             return
         finished = true
-        var failure = cleanupUi(None) { boundary.close() }
+        var failure = cleanupUi(None) { boundary?.close() }
         failure = cleanupUi(failure) { dismissal?.close() }
         dismissal = None
         failure = cleanupUi(failure) { group.close() }
         failure = cleanupUi(failure) { fallbackTarget.close() }
         failure = cleanupUi(failure) { proxy.close() }
-        when (portal.modal) {
+        when (portal.focusSession) {
             case Some(current) -> if (current === this) {
-                portal.modal = None
+                portal.focusSession = None
                 portal.domain = containingModal(node.parent)
             }
             case None -> {}
@@ -106,15 +120,48 @@ internal class ModalSession(
             case Some(value) -> value === frame
             case None -> false
         }
+    val isModal: Boolean get() = portal.options.mode == OverlayMode.Modal
+    val inCurrentDomain: Boolean get() =
+        when (boundary) {
+            case Some(value) -> value.isCurrent
+            case None -> sameInputBoundary(previousBoundary, root.surface.focusBoundary) &&
+                withinCurrentFocusDomain()
+        }
+    private fun withinCurrentFocusDomain(): Boolean {
+        val boundary = root.surface.focusBoundary ?: return true
+        var cursor: InputScope? = Some(input)
+        while (true) {
+            val current = cursor ?: return false
+            if (current === boundary.input)
+                return true
+            cursor = current.parent
+        }
+    }
+    val acceptsFocus: Boolean get() =
+        when (portal.options.focusOptions) {
+            case Some(_) -> true
+            case None -> false
+        }
+    private val isCurrentFocus: Boolean get() =
+        when (root.overlays.currentFocus) {
+            case Some(value) -> value === this
+            case None -> false
+        }
     fun complete(frame: OverlayFrame) {
-        if (!initialPending || isClosing || !boundary.isCurrent || !wasPresented(frame))
+        if (!initialPending || isClosing || !wasPresented(frame) || !isCurrentFocus)
             return
         initialPending = false
         if (openingRevision == root.surface.focusRevision)
             group.requestFocus()
     }
     fun restore() {
-        if (!root.isOpen || !restoreOnClose || closingRevision != Some(root.surface.focusRevision))
+        if (
+            !root.isOpen ||
+                !restoreOnClose ||
+                focusLeftBeforeClose ||
+                closingRevision !=
+                Some(root.surface.focusRevision)
+        )
             return
         val candidates = ArrayList<FocusHandle>()
         when (saved) {
@@ -125,7 +172,7 @@ internal class ModalSession(
         var cursor = previous
         while (true) {
             val prior = cursor ?: break
-            if (!prior.boundary.isClosed)
+            if (!prior.finished)
                 break
             if (prior.restoreOnClose) {
                 when (prior.saved) {
@@ -136,19 +183,20 @@ internal class ModalSession(
             expected = prior.previousBoundary
             cursor = prior.previous
         }
-        if (!sameInputBoundary(expected, root.surface.inputBoundary))
+        if (!sameInputBoundary(expected, root.surface.focusBoundary))
             return
-        root.focus.restore(candidates.toArray(), root.overlays.currentModal?.group)
+        root.focus.restore(candidates.toArray(), root.overlays.currentFocus?.group)
     }
 }
 
-internal fun containingModal(owner: MountedNode?): ModalSession? {
+internal fun containingModal(owner: MountedNode?): OverlayFocusSession? {
     var cursor = owner
     while (true) {
         val node = cursor ?: return None
         when (node.body) {
-            case Portal(value) -> when (value.modal) {
-                case Some(modal) -> return Some(modal)
+            case Portal(value) -> when (value.focusSession) {
+                case Some(modal) -> if (value.options.mode == OverlayMode.Modal)
+                    return Some(modal)
                 case None -> {}
             }
             else -> {}
@@ -157,7 +205,7 @@ internal fun containingModal(owner: MountedNode?): ModalSession? {
     }
 }
 
-internal fun sameModal(left: ModalSession?, right: ModalSession?): Boolean =
+internal fun sameModal(left: OverlayFocusSession?, right: OverlayFocusSession?): Boolean =
     when ((left, right)) {
         case(Some(a), Some(b)) -> a === b
         case(None, None) -> true

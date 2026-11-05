@@ -1,0 +1,162 @@
+package scoop.tests.ui.popover
+
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.text.TextEditorState
+import scoop.surface.InputScope
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class PopoverWindowTest {
+    @Test
+    fun `popovers retain controlled focus sessions through dismissal and reopening`() {
+        val p = PopoverProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(p.factories, p.unmounts)
+            assertEquals(2, p.innerMounts)
+            assertEquals(2, p.innerUnmounts)
+            assertFalse(p.layer.isAttached)
+            assertFalse(p.innerLayer.isAttached)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"popover phase=${p.phase}, rendered=${p.rendered}, generation=${
+                    p.generation.value
+                }"
+            )
+            popoverFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class PopoverProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val open = state(false)
+    val innerOpen = state(false)
+    val backgroundOpen = state(false)
+    val backgroundPopup = FocusHandle()
+    val editor = TextEditorState("")
+    val trigger = FocusHandle()
+    val edit = FocusHandle()
+    val local = FocusHandle()
+    val after = FocusHandle()
+    val background = FocusHandle()
+    val inner = FocusHandle()
+    val innerTrigger = FocusHandle()
+    val layer = OverlayHandle()
+    val innerLayer = OverlayHandle()
+    var mode = OverlayMode.NonModal
+    var deny = false
+    var veto = false
+    var enabled = true
+    var slow = false
+    var bottom = false
+    var innerExplicitFocus = true
+    var version = 1
+    var callbackVersion = 0
+    var callbacks = 0
+    var closed = 0
+    var actions = 0
+    var wheels = 0
+    var observed = 0
+    var factories = 0
+    var unmounts = 0
+    var innerMounts = 0
+    var innerUnmounts = 0
+    var side: OverlaySide? = None
+    var popupWidth = 0.0
+    var popupPhase = PresencePhase.Absent
+    var rootInput: InputScope? = None
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, popoverKey(native!!, code, text, flags))
+    }
+    fun clickBackground() {
+        assertTrue(moveSurfacePointer(native!!, 40.0, 350.0))
+        assertTrue(view!!.button(40.0, 350.0, true))
+        assertTrue(view!!.button(40.0, 350.0, false))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop popover test"
+                            position = Some(DesktopPosition(160.0, 100.0))
+                            size = LogicalSize(640.0, 400.0)
+                        }
+                    )
+                native = Some(window)
+                view = Some(observeWindow(window))
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                frames = Some(observeFrames(window))
+                host.attach(window, { PopoverScene(this) })
+                window.requestFocus()
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("popover timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    popoverStep(this)
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(260L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 32)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 32
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}

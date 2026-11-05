@@ -6,7 +6,7 @@ import scoop.window.*
 internal fun dismissOverlayPress(
     root: UiRoot,
     sessions: ArrayList<PortalInstance>,
-    domain: ModalSession?,
+    domain: OverlayFocusSession?,
     press: InputPress
 ): Boolean {
     if (!root.isOpen)
@@ -20,7 +20,7 @@ internal fun dismissOverlayPress(
         val policy = portal.options.dismiss.outsidePress
         if (policy == OutsidePress.Ignore)
             continue
-        if (portal.containsInput(press.target))
+        if (portal.containsInput(press.target) || portal.containsAnchorInput(press.target))
             return false
         portal.requestClose(OverlayCloseReason.OutsidePress)
         return policy == OutsidePress.CloseAndConsume
@@ -31,7 +31,7 @@ internal fun dismissOverlayPress(
 internal fun dismissOverlayKey(
     root: UiRoot,
     sessions: ArrayList<PortalInstance>,
-    domain: ModalSession?,
+    domain: OverlayFocusSession?,
     context: RoutedEventContext,
     event: InputEvent
 ) {
@@ -64,7 +64,12 @@ internal fun dismissOverlayKey(
     while (index > 0L) {
         index -= 1L
         val portal = sessions[index]
-        if (portal.isOpen && sameModal(portal.domain, domain) && portal.options.dismiss.escape) {
+        if (
+            portal.isOpen &&
+                sameModal(portal.domain, domain) &&
+                portal.input.isFocusAllowed &&
+                portal.options.dismiss.escape
+        ) {
             context.consume()
             portal.requestClose(OverlayCloseReason.Escape)
             return
@@ -75,6 +80,21 @@ internal fun dismissOverlayKey(
 private fun PortalInstance.containsInput(target: InputScope): Boolean {
     if (target === input)
         return false
+    var cursor: InputScope? = Some(target)
+    while (true) {
+        val current = cursor ?: return false
+        if (current === input)
+            return true
+        cursor = current.parent
+    }
+}
+
+private fun PortalInstance.containsAnchorInput(target: InputScope): Boolean {
+    if (!options.dismiss.includeAnchor)
+        return false
+    val handle = anchor ?: return false
+    val owner = handle.owner ?: return false
+    val input = owner.scope.input
     var cursor: InputScope? = Some(target)
     while (true) {
         val current = cursor ?: return false

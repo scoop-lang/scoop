@@ -804,3 +804,13 @@ Link 使用同一个普通 Button／Press／FocusTarget，普通 Tab、Space／E
 动作读取最新 Props／binding。Previous 在 page<=1 时不可用，page>pageCount 时指向最后一页；Next 在 page>=pageCount 时不可用，page<1 时指向第一页；空数据、根 disabled 时两者不可用，计算避免溢出。数字或边缘动作只提交有效且不同的候选；setter 拒绝时不伪造选择，实际改变后通知 setter 采纳的 Long。外部值与 pageCount 更新不主动修正页码、不合成通知，控件不取数据。普通 Tab、Space／Enter 和指针走原 Button，禁用／卸载／隐藏取消在原层收尾。
 
 验收覆盖空数据、单页、首尾、缺口合并、Long 上界、显式条目错误、拒绝 setter／换绑／实际值通知、动态 pageCount、局部状态与焦点保留、RTL／窄宽／compact、明暗主题及真实应用页码驱动的数据视图。
+
+## 28. Popover
+
+`popover(open: Binding<Boolean>, content: View, configure: PopoverBuilder.() -> Unit = {})` 与 ChildrenBuilder 同名成员构造 PopoverProps／Popover。完整内容、受控 open 为必需参数。Props 包含 trigger: PopupTriggerSpec?=None、anchor: LayoutAnchor?=None、title／description: PanelContent?=None、width=288、side=Bottom、alignment=Center、gap=4、viewportPadding=8、matchAnchorWidth=false、anchorVisibility=Close、mode=NonModal、focus=OverlayFocusOptions()、handle=None、enabled=true、dismiss: OverlayDismiss?=None、transition: StyleValue<AnimationSpec?>=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme、style。必须提供 trigger 或外部 anchor；width／gap／viewportPadding 有限且非负。builder 增加 key，并继承 PanelBuilder 的 title／description／fonts／theme／style 配置。
+
+PopupTriggerSpec 保存 ButtonContent、enabled=true、variant=Outline、size=Default、style=buttonStyle()、focus=FocusOptions()、fonts=None。trigger(text／StyledText／View) 块配置上述按钮选项，View 是单个按钮的非交互正文。内置 trigger 沿用 Button 的 Press、Tab 与焦点合同，以最新 Props 切换绑定；setter 真实采纳不同值后才通知 onOpenChange。外部更新不合成通知。anchor=None 时用 trigger 的真实场景矩形；外部 anchor 使用公共 LayoutAnchor，触发器可省略，关闭不需要私有节点或自存窗口坐标。根布局固定 trigger／Portal 两槽，开闭不重建触发器。
+
+内容以 Portal 呈现，默认非模态、明确初始／恢复焦点；初始 None 选第一个 Tab stop。NonModal／FocusContained 默认 Escape 与外部 CloseAndContinue，Modal 默认 CloseAndConsume，两者默认 includeAnchor=true，避免触发器按下先关再开；完整 dismiss 可覆盖；无效 Modal＋Continue 沿 Portal 报错。关闭请求先经过业务 veto，再提交绑定；拒绝 setter 不伪造关闭。enabled=false 禁用触发器和内容输入，不改变 open。Presence 默认 100ms，按真实定位边做 8 的短位移、0.95 到 1 缩放与淡入淡出；Reduced Motion 即时结束。退出立即停用内容输入，中途重开保留内容与进度；最终移除释放内容。焦点保存、恢复、嵌套关闭及三种模式沿 UI §7.6，不另建键盘或焦点处理器。
+
+默认内容宽 288、padding 与主体 spacing=10、corner=8、popover 配色、foreground 10% 的 1 边框及 floating 阴影；Header 的 title／description 间距 2，title 为 action，description 为 muted body。尺寸按字号缩放并服从父级／视口约束；局部 style 覆盖面板。所有文字槽和自定义正文可组合输入、表单与按钮。验收包含可编辑内容、普通／仅焦点约束／模态、Tab 与 Escape、外部继续／消费、veto／拒绝绑定、最新回调、退出重开／资源释放、锚点翻转与裁剪、RTL、明暗 System／Neutral、Reduced Motion 与窄窗口。

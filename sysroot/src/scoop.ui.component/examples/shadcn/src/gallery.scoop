@@ -203,6 +203,7 @@ internal class Gallery(
             case Tabs -> tabsExamples(model, fonts)
             case Breadcrumb -> breadcrumbExamples(model.navigation, fonts)
             case Pagination -> paginationExamples(model.navigation, fonts)
+            case Popover -> popoverExamples(model.popover, fonts, model)
         }
 
     private fun controlDemo(value: ControlDemo): View =

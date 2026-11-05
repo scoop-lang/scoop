@@ -120,7 +120,8 @@ private fun failureModal(record: FailureRecord): Array<View> =
         portal(record.overlayOpen.binding(), element({ FailureModal(record) })) {
             this.options {
                 this.handle = Some(record.overlay)
-                this.modal = Some(ModalOptions())
+                this.mode = OverlayMode.Modal
+                this.focus = Some(OverlayFocusOptions())
                 this.onClosed = { reason -> record.overlayClosed(reason) }
             }
         }

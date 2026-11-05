@@ -13,6 +13,13 @@ import scoop.window.ShortcutLabel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun popover(
+        open: Binding<Boolean>,
+        content: View,
+        configure: PopoverBuilder.() -> Unit = {}
+    ) {
+        add(makePopover(open, content, configure))
+    }
     public fun breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}) {
         add(makeBreadcrumb(configure))
     }

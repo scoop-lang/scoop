@@ -42,6 +42,10 @@ public class SurfaceWindow internal constructor(
     }
     /** Records a deferred or rejected focus intent without changing the current target. */
     public fun reserveFocusRequest(): ULong = inputs.reserveFocusRequest()
+    public val focusBoundary: InputBoundary? get() {
+        host.checkThread()
+        return inputs.currentFocusBoundary
+    }
     public val inputBoundary: InputBoundary? get() {
         host.checkThread()
         return inputs.currentBoundary

@@ -1,0 +1,73 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.InputArea
+import scoop.ui.*
+
+/** The portal is a zero-sized sibling of the persistent trigger. */
+internal class PopoverLayout(private val anchor: LayoutAnchor): Element {
+    private var triggerSize = Size(0.0, 0.0)
+    public override fun onMount(scope: ComponentScope) {
+        scope.layoutAnchor(anchor)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val trigger = context.measureChild(0L, constraints)
+        triggerSize = trigger.size
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(0.0, 0.0))
+        return trigger
+    }
+    public override fun scene(context: SceneContext) {
+        context.anchor(anchor, Rect(0.0, 0.0, triggerSize.width, triggerSize.height))
+        context.children()
+    }
+}
+
+internal class PopupMotionProps(val enabled: Boolean, val distance: Double)
+
+/** One published transform supplies drawing, hit testing and editor caret geometry. */
+internal class PopupMotion(private val props: Props<PopupMotionProps>): Element {
+    private var area: InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        val value = scope.createArea()
+        area = Some(value)
+        scope.routeChildren(value)
+    }
+    public override fun update() {
+        area!!.scope.enabled = props.value.enabled
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val layout = context.overlayLayout!!
+        val progress = layout.presence.progress
+        val size = context.size
+        val offset = props.value.distance * (1.0 - progress)
+        val side = layout.side ?: OverlaySide.Bottom
+        val pivot =
+            when (side) {
+                case Top -> Point(size.width / 2.0, size.height)
+                case Bottom -> Point(size.width / 2.0, 0.0)
+                case Left -> Point(size.width, size.height / 2.0)
+                else -> Point(0.0, size.height / 2.0)
+            }
+        context.saveLayer(progress)
+        when (side) {
+            case Top -> context.translate(0.0, offset)
+            case Bottom -> context.translate(0.0, -offset)
+            case Left -> context.translate(offset, 0.0)
+            else -> context.translate(-offset, 0.0)
+        }
+        context.translate(pivot.x, pivot.y)
+        val zoom = 0.95 + 0.05 * progress
+        context.scale(zoom, zoom)
+        context.translate(-pivot.x, -pivot.y)
+        context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
+        context.children()
+        context.restore()
+    }
+}

@@ -52,7 +52,7 @@
 | 差距 | 具体原因与落点 | 使用批次 |
 | --- | --- | --- |
 | 焦点可见性（P0b 已交付） | 同一 Surface 聚焦入口记录来源，FocusOptions 提供指示策略；InteractionState 保留实际 focused，样式消费 focusVisible，延迟显露与模态恢复保留来源 | P0／P1，UI 焦点与样式视觉输入 |
-| 弹层焦点合同独立于屏障 | 现有 Portal 的初始／恢复焦点依附 ModalOptions；非模态 Popover 的恢复和 Drawer 的 FocusContained 模式需要同一焦点会话可独立使用 | P4，UI Portal／FocusScope |
+| 弹层焦点合同独立于屏障 | P4a 已把初始／恢复焦点迁移到 OverlayFocusOptions；NonModal／FocusContained／Modal 共用焦点会话，焦点边界独立于指针屏障 | P4，UI Portal／FocusScope |
 | Select 内容锚点定位 | 现有 Anchored 只围绕外框定位；选中项对齐 trigger 需要内容测量产生的定位点及统一碰撞处理 | P5，UI 定位协议与 Select 布局 |
 | OTP 固定槽几何 | 现有文本投影能映射正文，不能单凭插入空格保证任意字体下的等宽槽、间隙命中和 IME caret；补共享编辑宿主的实际几何适配 | P2，UI 文本宿主与 OTP Element |
 | 回合起点与末尾留白 | 现有 FollowEnd／restore 不包含新回合顶部定位、上一项 peek 和可收缩尾部空间；补 VirtualList 的逻辑末端留白及定位 margin | P8，component 虚拟布局／消息模型 |

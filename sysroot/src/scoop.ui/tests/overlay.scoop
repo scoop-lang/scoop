@@ -111,7 +111,10 @@ private class OverlayPlacementTest {
         assertFalse(
             portal(state(true).binding(), empty()).sameType(
                 portal(state(true).binding(), empty()) {
-                    this.options { this.modal = Some(ModalOptions()) }
+                    this.options {
+                        this.mode = OverlayMode.Modal
+                        this.focus = Some(OverlayFocusOptions())
+                    }
                 }
             )
         )

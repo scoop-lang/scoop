@@ -68,10 +68,15 @@ internal class ModalScene(private val probe: ModalProbe): Component {
             this.options {
                 this.placement = placement
                 this.handle = Some(this @ModalScene.probe.layers[index])
-                this.modal =
+                this.mode =
+                    if (modal)
+                        OverlayMode.Modal
+                    else
+                        OverlayMode.NonModal
+                this.focus =
                     if (modal)
                         Some(
-                            ModalOptions(
+                            OverlayFocusOptions(
                                 initialFocus =
                                     if (index == 0L)
                                         Some(this @ModalScene.probe.focus[3L])

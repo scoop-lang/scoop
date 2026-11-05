@@ -86,7 +86,8 @@ internal class FieldLabelScene(private val probe: FieldLabelProbe): Component {
                     }
                 ) {
                     this.options {
-                        this.modal = Some(ModalOptions(restoreFocus = false))
+                        this.mode = OverlayMode.Modal
+                        this.focus = Some(OverlayFocusOptions(restoreFocus = false))
                         this.placement = OverlayPlacement.AtPoint(Point(400.0, 330.0))
                     }
                 }

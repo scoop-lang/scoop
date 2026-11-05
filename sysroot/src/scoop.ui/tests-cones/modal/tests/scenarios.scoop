@@ -11,7 +11,8 @@ internal fun ModalProbe.advance(active: ActiveApplication) {
             expectFocus(0L)
             assertFailsWith<IllegalArgumentException> {
                 portalOptions {
-                    this.modal = Some(ModalOptions())
+                    this.mode = OverlayMode.Modal
+                    this.focus = Some(OverlayFocusOptions())
                     this.dismiss = OverlayDismiss(outsidePress = OutsidePress.CloseAndContinue)
                 }
             }

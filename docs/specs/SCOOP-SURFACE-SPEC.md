@@ -166,7 +166,7 @@ InputArea.toLocal(windowPoint)／toWindow(localRect) 使用同一成功帧几何
 
 InputScope.activity 返回该逻辑子树当前的 InputActivity，包含 hasFocus、hasPress、hasScrollRoute、hasTextInput 及 isEmpty；分别查询逻辑焦点、按钮序列起点、尚保留的滚动路由起点和文本输入会话的归属。它不把 hover 或普通鼠标移动算作活动，关闭后为空，查询使用 owner 线程。hasScrollRoute 包含接触 Ended 后等待可能惯性的候选；该候选直到 momentum 结束／取消、新滚动替换、路径失效或窗口终结才释放，每窗口至多一个，不等同于动画或持续帧需求。
 
-InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的模态。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
+InputActivity 另含 hasBoundary，表示子树内仍持有至少一个 InputBoundary 登记，包括非当前域和等待首帧的 AllInput／FocusOnly。observeActivity 跟踪这些登记的实际身份，增加、移除及逻辑归属变化都会通知；非当前域关闭不改变当前路由，但仍更新活动归属。边界所属条目在取得首个区域焦点前也必须保持可实现，避免缓存使模态屏障存在而内容永不呈现。真实条目删除仍按普通关闭规则退休。
 
 `InputScope.observeActivity(handler: () -> Unit): Closeable` 订阅实际归属改变，在当前输入派发及路由收尾后通知，可在回调中读取新 activity。同一子树内起点 A 移到 B 也通知，即使活动标记没有改变；没有归属改变的移动和重绘不通知。登记时不回调，不为每个 InputScope 自动建立观察者。关闭登记或所属 scope 后停止通知，调用方可以在回调中关闭登记、变更焦点或禁用节点；后续变化仍经同一收尾通路处理，不递归交付未稳定的路由状态。UI 按需子项用它维护交互固定，不复制一套焦点／指针／IME 状态。
 
@@ -200,15 +200,15 @@ InputScope.addDefaultAction(handler) 为该节点登记额外默认行为，返�
 
 ### 6.2 输入边界与按下预处理
 
-InputBoundary(input: InputScope) 在该窗口安装输入域，按建立顺序叠放，最新未关闭边界生效；同一 scope 同时只登记一个边界。它是显式 Closeable，提供 input、isClosed、isCurrent。SurfaceWindow.inputBoundary 返回当前边界或 None。域改变不改变逻辑 parent，也不重新发布几何；关闭非当前边界不改变现有输入域，关闭当前边界恢复前一个未关闭边界或窗口根。
+InputBoundary(input: InputScope, mode: InputBoundaryMode = AllInput) 在该窗口安装边界，按建立顺序叠放；同一 scope 同时只登记一个边界。AllInput 同时约束指针与焦点，FocusOnly 只约束焦点及键盘路由，背景 pointer／wheel 继续执行，其默认聚焦不得突破约束。两种模式共享登记与生命周期，不产生第二份焦点状态。它是显式 Closeable，提供 input、mode、isClosed、isCurrent；isCurrent 表示当前焦点边界。SurfaceWindow.inputBoundary 返回最新 AllInput，focusBoundary 返回属于当前指针域的最新任意模式（背景 FocusOnly 不覆盖模态域）；焦点目标必须同时属于当前指针域与焦点域。域改变不改变逻辑 parent，也不重新发布几何。关闭恢复前一个未关闭边界或窗口根。InputScope.isFocusAllowed 是同时满足两域的逻辑可用性；isInputAllowed 仍只表示指针输入域可用性。FocusOnly 的建立／关闭不取消背景指针序列，不改变冻结的指针路由。
 
-新域立即限制可接受目标。命中、程序化 focus、Keyboard／ModifiersChanged 的缺省目标和普通 capture／target／bubble／default 均停在当前 input；没有命中或焦点时从该域根接收输入，不能落回背景窗口根。路径中的区域只在域内要求已提交的可逆几何，域外的区域几何不再成为 portal 模态的前提；逻辑祖先的关闭／禁用仍使后代失效。InputScope.isInputAllowed 查询这种不依赖几何的逻辑准入，isEnabledInHierarchy 仍只查询关闭／启用状态。UI 的待聚焦请求也必须先满足当前域准入。
+新域立即限制可接受目标。命中和指针路由止于当前指针域根；程序化 focus、Keyboard／ModifiersChanged 的缺省目标与键盘 capture／target／bubble／default 止于当前焦点域根。没有命中或焦点时分别从相应域根接收输入，不越过相应约束回落背景窗口根。路径中的区域只在域内要求已提交的可逆几何，域外的区域几何不再成为 portal 模态的前提；逻辑祖先的关闭／禁用仍使后代失效。InputScope.isInputAllowed 查询这种不依赖几何的逻辑准入，isEnabledInHierarchy 仍只查询关闭／启用状态。UI 的待聚焦请求也必须先满足当前域准入。
 
-域切换结束旧按下路径，退出当前派发后向完整旧路径发送 InputCancelReason.BoundaryChanged；按键仍保持按下时使用空路径，直到全部释放，不能让剩余 Move／Up 或追加按钮落向新域。已失效焦点按普通规则退出并关闭旧 IME；终结通知和旧 IME 会话的队列收尾继续遵守原归属，不把它们当作新的背景用户输入。一次输入回调内安装边界后，后续域外传播与默认处理器立即跳过；冻结路径不会扩展成另一条新路径。
+指针域切换结束旧按下路径，退出当前派发后向完整旧路径发送 InputCancelReason.BoundaryChanged；按键仍保持按下时使用空路径，直到全部释放，不能让剩余 Move／Up 或追加按钮落向新域。已失效焦点按普通规则退出并关闭旧 IME；终结通知和旧 IME 会话的队列收尾继续遵守原归属，不把它们当作新的背景用户输入。一次输入回调内安装边界后，后续域外传播与默认处理器立即跳过；冻结路径不会扩展成另一条新路径。
 
-input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续阻止背景输入，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
+input 所属 scope 被关闭或禁用时，未关闭的 InputBoundary 继续保持其对应的输入／焦点约束，但不再向失效域根交付事件。该规则供 UI 在移除弹层的帧成功提交前保留屏障；调用方在适当提交边界显式 close。窗口输入路由关闭时结束全部边界，无需再等帧。
 
-InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前域根（无边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
+InputScope.beforePointerPress: (InputPress) -> Boolean 默认为 false，仅在当前指针域根（无 AllInput 边界时为窗口根）执行。InputPress 是只读值，包含 target、pointer、button 和 clickCount；target、路由及坐标先固定，预处理在本次首次按钮按下的传播与 hover 通知前运行。返回 true 消费整个按下序列，该次 Down 和后续 Move／Up 不交付目标；返回 false 沿原路径继续，不重新命中或合成事件。已有按钮序列中的追加按下不再次执行预处理。回调抛错也使尚未交付的序列保持空路径，再按原异常规则收尾。
 
 预处理用于窗口／模态域中的最上层弹层外部点击决策。它不是任意优先级过滤器链，不替换控件自己的 capture、默认动作或 onEventFinished；边界变化仍可使已固定目标失效，不能利用返回 false 穿透当前域。
 
@@ -218,7 +218,7 @@ ShortcutScope(input: InputScope, bindings: Array<ShortcutBinding>) 在指定输�
 
 HostShortcutScope(host: SurfaceHost, bindings: Array<ShortcutBinding> = []) 提供同一宿主各窗口共用的最后回退。每个宿主至多一个活动登记，关闭后可重新创建；可在 attach 窗口之前登记，后续附着窗口自动接入，关闭单个窗口不关闭宿主绑定。它提供与 ShortcutScope 相同的 enabled、bindings、isClosed 和 close；配置只在登记／整体更新时检查一次，不为每个窗口复制或重验集合。SurfaceHost.close 立即停用该登记，已进入 canExecute 的动作在执行前再次确认其仍有效。
 
-宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary 都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
+宿主回退沿窗口根的同一次默认阶段执行，读取当前绑定，不从原始 ApplicationEvent 再派发键盘。任何活动 InputBoundary（包括 FocusOnly）都阻止它，包括以窗口根自身为域的边界；窗口根的本地 ShortcutScope 仍属于域内行为。canExecute 中安装边界、关闭 scope／宿主或使原路径失效后不执行旧动作。宿主绑定只覆盖该 SurfaceHost 已附着的窗口，不接管未交付给应用或其他应用的系统组合键。
 
 ShortcutBinding 保存 window 的 ShortcutChord，以及 enabled、allowRepeat、canExecute 和 action。key／modifiers 的描述、构造检查、Primary 解析、匹配及标签均由 window 提供；Surface 不保存平台键位表。绑定更新以 chord.equivalentTo 检查重复，派发以 chord.matches 匹配事件；通用作用域和派发位于共享源码。
 

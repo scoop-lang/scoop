@@ -48,6 +48,13 @@ private fun InputRouter.invoke(
     val scope = delivery.scope
     if (!terminal && (closed || scope.closed || (!inactive && path(scope).size == 0L)))
         return
+    when (event) {
+        case Keyboard(_) -> {
+            if (!allowsFocus(scope))
+                return
+        }
+        else -> {}
+    }
     if (!terminal && !scrollDeliveryAllowed(flags.scroll))
         return
     val context =

@@ -251,7 +251,7 @@ fun portal(
 
 节点类型匹配同时区分 Component／Element／LazyElement 描述类别、具体实例静态类型 C／E 和输入类型 P，保留每个类型的完整泛型实参。内部描述通过普通泛型类型检查判断，例如 `other is ComponentDescription<P, C>`；ElementDescription 与 LazyDescription 同理。类型匹配仅返回判断结果，不能提前更新 Props、调用工厂或改变挂载状态。P 是描述类型的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
 
-Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值不是类型身份，Portal 的 modal 有无属于匹配条件。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
+Empty、Direction 和 Portal 保持独立描述类别；Direction 的方向值不是类型身份，Portal 的 OverlayMode 属于匹配条件。key／位置负责在直接父级下选择候选节点，不能替代类型检查。不比较展示名、函数值引用、描述对象引用、源码行号或分配地址，不另建类型 ID、注册表或 UI 专用 compiler／runtime 接口。
 
 Portal 是独立的描述类别，不创建用户 Component／Element 实例。相同位置／key 的 Portal 复用同一层会话，更新 open Binding、options 和唯一子描述；子内容按受控打开状态及 Presence 阶段匹配、挂载和释放。层显示位置不改变逻辑 parent，跨根不共享挂载或输入区域。相同 key 在退出中重开时保留子树；最终移除后的再次打开创建新的内容挂载。
 
@@ -550,7 +550,7 @@ SelectableTextOptions 包含 enabled、copy、clip、非负 dragThreshold 及活
 
 `portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {})` 在逻辑父级保留零内容占位，内容交给窗口层出口。open Binding 是期望打开状态的唯一来源；框架在普通逻辑更新中收集 getter 的 State 依赖，随后在纯求值之外同步呈现阶段。普通 Binding 的非 State 数据仍由调用方以 Props 更新通知。初始 false 不挂载内容、不安装模态屏障；容器只按约束下限测量 Portal 占位，不测量或重复呈现层内容。
 
-PortalOptions 包含 placement、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。modal 有无是挂载形状，改变时退休旧会话；其他选项可正常更新。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
+PortalOptions 包含 placement、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、`onCloseRequest(reason): Boolean = { _ -> true }`、`onClosed(reason): Unit = { _ -> Unit }`。配置通过 builder 及 copy 发布，归属在实际绑定时检查。mode 为 NonModal／FocusContained／Modal，是挂载形状，改变时退休旧会话；其他选项可正常更新。OverlayHandle 公开 isAttached、isOpen、lastCloseReason、`requestClose()`；一个 handle 不能同时绑定两个活动挂载，晚到清理不解除其新绑定。OverlayCloseReason 为 Explicit、Escape、OutsidePress、AnchorUnavailable、OwnerClosed。
 
 Escape、outside press 和 requestClose 先调用当前 onCloseRequest；接受后写 open=false，并读取 setter 实际采纳的值。拒绝或 setter 不采纳时保持打开，但不撤回既有输入消费。外部直接写 false 不经过 veto。关闭／退出中的请求合并；请求开始即保存焦点 revision，回调内的更新请求不能被后续退出过程重新记为恢复基线。回调可以同步替换内容或关闭根，回到框架后须检查当前实例。渲染、测量、scene、draw 期间不允许发出关闭请求或修改 Binding。
 
@@ -578,11 +578,11 @@ AnchorVisibility 的 Close 在 Accepted 后强制结束不可见锚点的呈现�
 
 #### 7.6.3 输入关闭策略与模态
 
-OverlayDismiss 为 escape=false、outsidePress=Ignore；另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
+OverlayDismiss 为 escape=false、outsidePress=Ignore、includeAnchor=false；includeAnchor=true 时 anchor 所属逻辑子树也算层内，供触发器自身切换而不重复外部关闭。另有 CloseAndConsume、CloseAndContinue。Escape 只匹配无修饰、真实、非重复 key-down，内层默认行为优先，一次只请求关闭当前域最上层允许 Escape 的层。外部按下依 InputScope 逻辑归属判断，子 Portal 仍属于父层内部；未命中模态域根视为外部。CloseAndContinue 继续预处理时冻结的目标，关闭后不重新命中；模态禁止 Continue。
 
-ModalOptions 为 initialFocus=None、restoreFocus=true。一次实际打开建立 InputBoundary、循环 FocusScope 和不可命中的焦点代理，保存原有效 FocusHandle、前驱域和焦点意图序号。新区域按已有首个 Accepted 几何规则取得焦点，先 initialFocus，再首个 Tab stop，再代理；较新的显式请求优先。后台模态不抢当前域焦点，程序请求不激活 OS 窗口。
+OverlayFocusOptions 为 initialFocus=None、restoreFocus=true，overlayFocusOptions 与 copy 使用 OverlayFocusOptionsBuilder 发布快照；PortalOptions.focus=None 时 NonModal 不主动聚焦或恢复，两个约束模式采用默认焦点选项。一次实际打开保存原有效 FocusHandle、前驱焦点会话与边界及焦点意图序号。NonModal 不安装边界，允许 Tab 离开；FocusContained 安装 FocusOnly 边界并循环 Tab，背景 pointer／wheel 仍可执行；Modal 安装 AllInput 边界并循环 Tab。约束模式提供不可命中的焦点代理。明确配置的初始焦点会话在首个 Accepted 几何后，先 initialFocus，再首个 Tab stop，约束模式最后用代理；较新的显式请求优先。同一域只由最上层焦点会话尝试初始聚焦，程序请求不激活 OS 窗口。
 
-退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前域尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
+退出期间保留屏障，背景不能收键盘、抢焦点或被点透；Discarded／Deferred 不提前释放。Accepted 移除时从内到外释放已退休层，只为原当前焦点会话尝试恢复，依保存 handle、前驱会话和有效目标查找；restoreFocus=false、域不匹配或新请求已推进 revision 时不恢复。FocusContained 同样保留焦点边界到 Accepted 移除，仍允许背景指针事件；NonModal 也依据同一 focusRevision 恢复；关闭前焦点已经离开本层时不恢复，外部 Continue 后的新焦点意图同样优先。每个完成的会话同时关闭自己的 FocusScope、代理及处理器，允许同一 Portal 随后重新打开。非模态退出停用自身输入，仍遵守 Consume／Continue，不引入整窗屏障。另一个原生窗口不受该同窗口模态隔离。
 
 ### 7.7 滚动状态与视口登记
 
@@ -820,9 +820,9 @@ native 呈现和窗口行为使用现有真实后端，不为测试单独搭一�
 
 ### 接收者配置与行内装配
 
-上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}): View` 以受控打开绑定及完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、modal=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、onCloseRequest={ _ -> true }、onClosed={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
+上述描述 API 遵守 [库 API 风格](SCOOP-API-STYLE.md)。`portal(open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}): View` 以受控打开绑定及完整内容为必需参数，PortalBuilder 继承 PortalOptionsBuilder 的 placement=Viewport()、handle=None、anchorVisibility=Close、mode=NonModal、focus=None、dismiss=OverlayDismiss()、transition=PresenceOptions()、onCloseRequest={ _ -> true }、onClosed={ _ -> Unit }，增加 key=Position。`options { ... }` 在当前配置上继续修改，`options(value: PortalOptions)` 完整替换上述选项字段而保留 key。`portalOptions(configure: PortalOptionsBuilder.() -> Unit = {})` 和 PortalOptions.copy 产生可独立使用的配置；PortalOptions 的长参数构造器内部化。
 
-PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。atPoint(point) 块配置 preferredSide=Bottom、alignment=Start、gap=0、viewportPadding=8，point 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore；modal 块从当前 Some 配置或 ModalOptions() 开始，None 赋值显式取消。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onCloseRequest／onClosed。
+PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewportPadding=8；anchored(anchor) 块配置 preferredSide=Bottom、alignment=Start、gap=4、viewportPadding=8、matchAnchorWidth=false。重复相同 placement 块基于当前值，切换种类从该种类默认值开始；anchored 的 anchor 始终取必需参数。atPoint(point) 块配置 preferredSide=Bottom、alignment=Start、gap=0、viewportPadding=8，point 始终取必需参数。dismiss 块配置 escape=false、outsidePress=Ignore、includeAnchor=false；focus 块从当前 Some 配置或 OverlayFocusOptions() 开始，None 赋值恢复相应模式的默认策略；mode 直接选择 OverlayMode。所有嵌套成员返回 Unit。校验在 PortalOptions 产生时沿用原合同，配置不打开弹层或调用 onCloseRequest／onClosed。
 
 `focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true、preferredTab=None、onNavigate={}，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 
