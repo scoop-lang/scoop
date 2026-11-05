@@ -1,0 +1,387 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.binding as modalBinding
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.dialog as makeDialog
+import scoop.ui.component.dialogFooter as makeFooter
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.kbd as makeKbd
+
+internal class ModalExamplesModel(initialScroll: Boolean = false) {
+    val open = state(false)
+    val nested = state(false)
+    val scrollable = state(initialScroll)
+    val showClose = state(true)
+    val reject = state(false)
+    val veto = state(false)
+    val compact = state(false)
+    val pending = state(false)
+    val wide = state(false)
+    val side = state(SheetSide.End)
+    val notifications = state(true)
+    val notificationsTarget = FieldTarget()
+    val changes = state(0)
+    val completed = state(0)
+    val saved = state("No changes saved")
+    val name = TextEditorState("Ada Lovelace")
+    val email = TextEditorState("ada@example.com")
+    val edit = FocusHandle()
+    val handle = OverlayHandle()
+    val scrolling = ScrollState()
+    fun binding(): Binding<Boolean> =
+        modalBinding(
+            { open.value },
+            {
+                next -> if (!reject.value)
+                    open.value = next
+            }
+        )
+}
+
+internal fun dialogExamples(
+    model: ModalExamplesModel,
+    fonts: FontCollection,
+    gallery: GalleryModel
+): View =
+    makeColumn {
+        add(panelHeading("Dialog", fonts))
+        typography(
+            "Edit a draft, open a nested dialog, and save from the fixed footer. Escape and the backdrop respect the current close policy.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        add(modalControls(model, fonts, gallery))
+        dialog(model.binding(), modalForm(model, fonts)) {
+            trigger("Edit profile")
+            title("Edit profile");
+            description("Make changes to your profile. Your draft stays available after closing.")
+            this.fonts = Some(fonts)
+            handle = Some(model.handle);
+            focus = OverlayFocusOptions(Some(model.edit))
+            scrollable = model.scrollable.value;
+            scrollState = Some(model.scrolling)
+            showCloseButton = model.showClose.value
+            footer(profileFooter(model, fonts))
+            onOpenChange = { _ -> model.changes.value += 1 }
+            onCloseRequest = { _ -> !model.veto.value }
+            onClosed = { _ -> model.nested.value = false }
+        }
+        typography(model.saved.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        typography(
+            f"Open: ${model.open.value} · accepted changes: ${model.changes.value}",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        spacing = 16.0
+    }
+
+internal fun alertDialogExamples(
+    model: ModalExamplesModel,
+    fonts: FontCollection,
+    gallery: GalleryModel
+): View =
+    makeColumn {
+        add(panelHeading("Alert Dialog", fonts))
+        typography(
+            "Cancel receives initial focus. Clicking the backdrop does nothing; confirming can keep the dialog open while an application operation is pending.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        row {
+            button(
+                if (model.compact.value)
+                    "Size: small"
+                else
+                    "Size: default",
+                { model.compact.value = !model.compact.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (gallery.reduced.value)
+                    "Motion: Reduced"
+                else
+                    "Motion: Full",
+                { gallery.toggleMotion() }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        alertDialog(
+            model.open.binding(),
+            makeColumn {
+                typography(
+                    if (model.pending.value)
+                        "A simulated request is pending. Complete it below to finish the operation."
+                    else
+                        "The project and its stored drafts will be removed.",
+                    TypographyRole.Muted
+                ) { this.fonts = Some(fonts) }
+                if (model.pending.value)
+                    button(
+                        "Complete request",
+                        {
+                            model.completed.value += 1;
+                            model.pending.value = false;
+                            model.open.value = false
+                        }
+                    ) { this.fonts = Some(fonts) }
+                spacing = 12.0
+            }
+        ) {
+            trigger("Delete project") { variant = ButtonVariant.Destructive }
+            title("Delete this project?");
+            description("This action cannot be undone.")
+            size =
+                if (model.compact.value)
+                    AlertDialogSize.Sm
+                else
+                    AlertDialogSize.Default
+            media(makeKbd("!") { this.fonts = Some(fonts) })
+            this.fonts = Some(fonts)
+            action(
+                if (model.pending.value)
+                    "Deleting…"
+                else
+                    "Delete",
+                { model.pending.value = true }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Destructive;
+                enabled = !model.pending.value
+            }
+            cancel("Keep project") { enabled = !model.pending.value }
+            onCloseRequest = { _ -> !model.pending.value }
+        }
+        typography(f"Completed operations: ${model.completed.value}", TypographyRole.Small) {
+            this.fonts = Some(fonts)
+        }
+        spacing = 16.0
+    }
+
+internal fun sheetExamples(
+    model: ModalExamplesModel,
+    fonts: FontCollection,
+    gallery: GalleryModel
+): View =
+    makeColumn {
+        add(panelHeading("Sheet", fonts))
+        typography(
+            "A modal side panel with a scrolling form and fixed actions. Start and End follow the current layout direction.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        row {
+            for (value in [SheetSide.Top, SheetSide.Bottom, SheetSide.Start, SheetSide.End]) {
+                button(sheetSideName(value), { model.side.value = value }) {
+                    this.fonts = Some(fonts)
+                    variant =
+                        if (model.side.value == value)
+                            ButtonVariant.Default
+                        else
+                            ButtonVariant.Outline
+                }
+            }
+            button(
+                if (model.wide.value)
+                    "Larger panel"
+                else
+                    "Default size",
+                { model.wide.value = !model.wide.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        add(modalControls(model, fonts, gallery))
+        sheet(model.binding(), modalForm(model, fonts)) {
+            trigger("Open settings")
+            title("Profile settings");
+            description("Changes remain in your draft until you save.")
+            this.fonts = Some(fonts);
+            side = model.side.value
+            width =
+                if (model.wide.value)
+                    Some(450.0)
+                else
+                    None
+            height =
+                Some(
+                    if (model.wide.value)
+                        420.0
+                    else
+                        300.0
+                )
+            handle = Some(model.handle);
+            focus = OverlayFocusOptions(Some(model.edit))
+            scrollable = model.scrollable.value;
+            scrollState = Some(model.scrolling)
+            showCloseButton = model.showClose.value
+            footer(
+                makeColumn {
+                    button("Save changes", { saveModalProfile(model) }) { this.fonts = Some(fonts) }
+                    button("Cancel", { model.handle.requestClose() }) {
+                        this.fonts = Some(fonts);
+                        variant = ButtonVariant.Outline
+                    }
+                    alignment = CrossAlignment.Stretch;
+                    spacing = 8.0
+                }
+            )
+            onOpenChange = { _ -> model.changes.value += 1 }
+            onCloseRequest = { _ -> !model.veto.value }
+            onClosed = { _ -> model.nested.value = false }
+        }
+        typography(model.saved.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        spacing = 16.0
+    }
+
+private fun modalControls(
+    model: ModalExamplesModel,
+    fonts: FontCollection,
+    gallery: GalleryModel
+): View =
+    makeColumn {
+        row {
+            button(
+                if (model.scrollable.value)
+                    "Long scrolling body"
+                else
+                    "Natural body height",
+                { model.scrollable.value = !model.scrollable.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.showClose.value)
+                    "Hide close button"
+                else
+                    "Show close button",
+                { model.showClose.value = !model.showClose.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (gallery.reduced.value)
+                    "Motion: Reduced"
+                else
+                    "Motion: Full",
+                { gallery.toggleMotion() }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        row {
+            button(
+                if (model.reject.value)
+                    "Accept binding"
+                else
+                    "Reject binding",
+                { model.reject.value = !model.reject.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            button(
+                if (model.veto.value)
+                    "Allow close"
+                else
+                    "Veto close",
+                { model.veto.value = !model.veto.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+            spacing = 8.0
+        }
+        spacing = 8.0
+    }
+
+private fun modalForm(model: ModalExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        if (model.veto.value)
+            button("Allow closing this dialog", { model.veto.value = false }) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Outline
+            }
+        typography("Name", TypographyRole.Small) { this.fonts = Some(fonts) }
+        add(
+            makeInput(model.name) {
+                this.fonts = Some(fonts);
+                focus = FocusOptions(Some(model.edit))
+            }
+        )
+        typography("Email", TypographyRole.Small) { this.fonts = Some(fonts) }
+        add(makeInput(model.email) { this.fonts = Some(fonts) })
+        row {
+            checkbox(model.notifications.binding()) {
+                labelTarget = Some(model.notificationsTarget)
+            }
+            fieldLabel("Email me about updates", model.notificationsTarget) {
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            alignment = CrossAlignment.Center
+        }
+        add(
+            makeDialog(
+                model.nested.binding(),
+                makeColumn {
+                    typography(
+                        "Nested dialogs use the same modal focus boundary. Escape returns to the button that opened this layer.",
+                        TypographyRole.Muted
+                    ) { this.fonts = Some(fonts) }
+                    button("Close details", { model.nested.value = false }) {
+                        this.fonts = Some(fonts)
+                    }
+                    spacing = 12.0
+                }
+            ) {
+                trigger("Profile details")
+                title("About this profile");
+                this.fonts = Some(fonts)
+            }
+        )
+        if (model.scrollable.value)
+            for (index in 1L ..< 13L) {
+                typography(
+                    f"Preference ${
+                        index
+                    }: keep your account settings, notification choices and saved drafts in one place.",
+                    TypographyRole.Muted
+                ) { this.fonts = Some(fonts) }
+            }
+        alignment = CrossAlignment.Stretch;
+        spacing = 12.0
+    }
+
+private fun profileFooter(model: ModalExamplesModel, fonts: FontCollection): View =
+    makeFooter {
+        button("Cancel", { model.handle.requestClose() }) {
+            this.fonts = Some(fonts);
+            variant = ButtonVariant.Outline
+        }
+        button("Save changes", { saveModalProfile(model) }) { this.fonts = Some(fonts) }
+    }
+
+private fun saveModalProfile(model: ModalExamplesModel) {
+    model.saved.value = f"Saved: ${model.name.text} · ${model.email.text}"
+    model.handle.requestClose()
+}
+
+private fun sheetSideName(side: SheetSide): String =
+    when (side) {
+        case Top -> "Top";
+        case Bottom -> "Bottom";
+        case Start -> "Start";
+        case End -> "End"
+    }

@@ -1,0 +1,171 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.min
+import scoop.math.max
+import scoop.ui.*
+
+internal class AlertHeaderProps(
+    val density: Double,
+    val small: Boolean,
+    val media: Boolean,
+    val title: Boolean,
+    val description: Boolean
+)
+
+/** The same media and text slots move between a compact stack and a wide two-column header. */
+internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val scale = input.density
+        val width = constraints.maxWidth ?: constraints.minWidth
+        val horizontal = !input.small && width >= 320.0 * scale
+        val media =
+            context.measureChild(
+                0L,
+                Constraints(
+                    maxWidth = Some(min(width, 40.0 * scale)),
+                    maxHeight = constraints.maxHeight
+                )
+            )
+        val mediaGap =
+            if (input.media)
+                (
+                    if (horizontal)
+                        16.0
+                    else
+                        8.0
+                ) *
+                    scale
+            else
+                0.0
+        val textWidth =
+            max(
+                0.0,
+                width -
+                    if (horizontal && input.media)
+                        media.size.width + mediaGap
+                    else
+                        0.0
+            )
+        val naturalTitle = context.measureChild(1L, Constraints(maxHeight = constraints.maxHeight))
+        val title =
+            context.measureChild(
+                1L,
+                Constraints(
+                    maxWidth = Some(min(textWidth, naturalTitle.size.width)),
+                    maxHeight = constraints.maxHeight
+                )
+            )
+        val naturalDescription =
+            context.measureChild(2L, Constraints(maxHeight = constraints.maxHeight))
+        val description =
+            context.measureChild(
+                2L,
+                Constraints(
+                    maxWidth = Some(min(textWidth, naturalDescription.size.width)),
+                    maxHeight = constraints.maxHeight
+                )
+            )
+        val gap =
+            if (input.title && input.description)
+                6.0 * scale
+            else
+                0.0
+        val textHeight = title.size.height + gap + description.size.height
+        val height =
+            if (horizontal)
+                max(media.size.height, textHeight)
+            else
+                media.size.height + mediaGap + textHeight
+        val rtl = context.layoutDirection == LayoutDirection.Rtl
+        val textStart =
+            if (horizontal && input.media)
+                media.size.width + mediaGap
+            else
+                0.0
+        val textY =
+            if (horizontal)
+                0.0
+            else
+                media.size.height + mediaGap
+        context.placeChild(
+            0L,
+            Point(
+                if (horizontal) {
+                    if (rtl)
+                        width - media.size.width
+                    else
+                        0.0
+                } else
+                    max(0.0, (width - media.size.width) / 2.0),
+                0.0
+            )
+        )
+        context.placeChild(
+            1L,
+            Point(
+                if (horizontal) {
+                    if (rtl)
+                        width - textStart - title.size.width
+                    else
+                        textStart
+                } else
+                    max(0.0, (width - title.size.width) / 2.0),
+                textY
+            )
+        )
+        context.placeChild(
+            2L,
+            Point(
+                if (horizontal) {
+                    if (rtl)
+                        width - textStart - description.size.width
+                    else
+                        textStart
+                } else
+                    max(0.0, (width - description.size.width) / 2.0),
+                textY + title.size.height + gap
+            )
+        )
+        return LayoutMetrics(constraints.constrain(Size(width, height)))
+    }
+    public override fun scene(context: SceneContext) {
+        containerScene(context, true)
+    }
+}
+
+private class ModalCloseIconProps(val size: Double, val color: Color)
+
+internal fun modalCloseIcon(size: Double, color: Color): View =
+    element(ModalCloseIconProps(size, color), { current -> ModalCloseIcon(current) })
+
+private class ModalCloseIcon(private val props: Props<ModalCloseIconProps>): Element {
+    private var shape: Path? = None
+    public override fun onMount(scope: ComponentScope) {
+        // Lucide x (ISC), on its original 24-unit grid.
+        shape =
+            Some(
+                scope.resource {
+                    path {
+                        moveTo(Point(18.0, 6.0));
+                        lineTo(Point(6.0, 18.0))
+                        moveTo(Point(6.0, 6.0));
+                        lineTo(Point(18.0, 18.0))
+                    }
+                }
+            )
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
+        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
+    public override fun scene(context: SceneContext) {
+        val size = context.size
+        context.draw {
+            paint -> paint.canvas.withState {
+                canvas ->
+                canvas.scale(size.width / 24.0, size.height / 24.0)
+                canvas.drawPath(shape!!, Paint(props.value.color, PaintingStyle.Stroke, 2.0))
+            }
+        }
+    }
+}

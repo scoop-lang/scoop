@@ -10,9 +10,37 @@ import scoop.ui.style.styled as makeStyled
 import scoop.ui.text.TextEditorState
 import scoop.window.ShortcutChord
 import scoop.window.ShortcutLabel
+import scoop.ui.component.dialog as makeDialog
+import scoop.ui.component.alertDialog as makeAlertDialog
+import scoop.ui.component.sheet as makeSheet
+import scoop.ui.component.dialogFooter as makeDialogFooter
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun dialog(
+        open: Binding<Boolean>,
+        content: View,
+        configure: DialogBuilder.() -> Unit = {}
+    ) {
+        add(makeDialog(open, content, configure))
+    }
+    public fun alertDialog(
+        open: Binding<Boolean>,
+        content: View,
+        configure: AlertDialogBuilder.() -> Unit = {}
+    ) {
+        add(makeAlertDialog(open, content, configure))
+    }
+    public fun sheet(
+        open: Binding<Boolean>,
+        content: View,
+        configure: SheetBuilder.() -> Unit = {}
+    ) {
+        add(makeSheet(open, content, configure))
+    }
+    public fun dialogFooter(configure: ChildrenBuilder.() -> Unit) {
+        add(makeDialogFooter(configure))
+    }
     public fun tooltip(trigger: View, text: String, configure: TooltipBuilder.() -> Unit = {}) {
         add(
             makeTooltip(

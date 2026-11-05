@@ -1,0 +1,252 @@
+package scoop.tests.ui.modalfamily
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.button as makeButton
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.dialog as makeDialog
+import scoop.ui.component.dialogFooter as makeFooter
+import scoop.ui.component.label as makeLabel
+
+internal class ModalFamilyScene(private val p: ModalFamilyProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val source =
+            if (p.second)
+                p.other
+            else
+                p.open
+        val open =
+            binding(
+                { source.value },
+                {
+                    next -> if (!p.deny)
+                        source.value = next
+                }
+            )
+        val body =
+            component(
+                {
+                    p.factories += 1;
+                    ModalFamilyBody(p)
+                }
+            )
+        val popup =
+            if (!p.mounted.value)
+                empty()
+            else
+                when (p.kind) {
+                    case 0 -> dialog(open, body) {
+                        configureModal(this, p)
+                        width = p.width
+                        footer(modalFooter(p))
+                    }
+                    case 1 -> alertDialog(open, body) {
+                        configureModal(this, p)
+                        cancel("Cancel") { focus = FocusOptions(Some(p.cancel)) }
+                        action(
+                            makeButton("Confirm", { p.actions += 1 }) {
+                                fonts = Some(p.fonts);
+                                focus = FocusOptions(Some(p.action))
+                                variant = ButtonVariant.Destructive
+                            }
+                        )
+                        media(makeLabel("!") { fonts = Some(p.fonts) })
+                    }
+                    else -> sheet(open, body) {
+                        configureModal(this, p)
+                        viewportPadding = 0.0
+                        side = p.side;
+                        width = p.sheetWidth;
+                        height = p.sheetHeight
+                        footer(modalFooter(p))
+                    }
+                }
+        return direction(
+            element(
+                generation,
+                { current -> ModalFamilyRoot(p, current) },
+                [
+                    makeButton("Background", { p.backgroundActions += 1 }) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.background))
+                    },
+                    popup
+                ]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private fun configureModal(builder: ModalBuilder, p: ModalFamilyProbe) {
+    val version = p.version
+    builder.trigger("Open modal") { focus = FocusOptions(Some(p.trigger)) }
+    builder.title("Modal family")
+    builder.fonts = Some(p.fonts)
+    builder.enabled = p.enabled
+    builder.handle = Some(p.layer)
+    builder.scrollable = p.scrollable
+    builder.scrollState = Some(p.scroll)
+    if (p.explicitFocus)
+        builder.focus = OverlayFocusOptions(Some(p.first))
+    if (p.slow)
+        builder.transition(Some(AnimationSpec.Tween(Duration.milliseconds(360L))))
+    builder.onOpenChange =
+        {
+            _ ->
+            p.changes += 1;
+            p.callbackVersion = version
+        }
+    builder.onCloseRequest = { _ -> !p.veto }
+    builder.onClosed = { _ -> p.closed += 1 }
+}
+
+private fun modalFooter(p: ModalFamilyProbe): View =
+    makeFooter {
+        add(
+            observeModal(
+                p,
+                1,
+                makeButton("Cancel changes", { p.layer.requestClose() }) {
+                    fonts = Some(p.fonts);
+                    focus = FocusOptions(Some(p.footer));
+                    variant = ButtonVariant.Outline
+                }
+            )
+        )
+        add(
+            observeModal(
+                p,
+                2,
+                makeButton("Save profile", { p.actions += 1 }) { fonts = Some(p.fonts) }
+            )
+        )
+    }
+
+private class ModalFamilyBody(private val p: ModalFamilyProbe): Component {
+    private val local = state(0)
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts += 1
+    }
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val local = this.local
+        p.observed = local.value
+        return makeColumn {
+            add(
+                observeModal(
+                    p,
+                    0,
+                    makeButton(f"Local ${local.value}", { local.value += 1 }) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.first))
+                    }
+                )
+            )
+            if (p.longContent)
+                for (index in 0L ..< 18L) {
+                    frame(makeLabel(f"Scrollable row ${index}") { fonts = Some(p.fonts) }) {
+                        height = Some(40.0);
+                        key = ViewKey.Number(index + 100L)
+                    }
+                }
+            add(
+                makeDialog(
+                    p.nestedOpen.binding(),
+                    makeButton("Nested content", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.nestedTarget))
+                    }
+                ) {
+                    trigger("Nested dialog") { focus = FocusOptions(Some(p.nestedTrigger)) }
+                    title("Nested");
+                    fonts = Some(p.fonts);
+                    handle = Some(p.nestedLayer)
+                    focus = OverlayFocusOptions(Some(p.nestedTarget))
+                    key = ViewKey.Number(1L)
+                }
+            )
+            spacing = 8.0;
+            alignment = CrossAlignment.Stretch
+        }
+    }
+}
+
+private fun observeModal(p: ModalFamilyProbe, slot: Int, content: View): View =
+    element(
+        slot,
+        { current -> ModalFamilyObservation(p, current) },
+        [content],
+        key = ViewKey.Number(slot.toLong())
+    )
+
+private class CapturedModalBounds(var value: Rect)
+
+private class ModalFamilyObservation(
+    private val p: ModalFamilyProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val captured = CapturedModalBounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    geometry -> captured.value = geometry.toWindow(local)
+                }
+            }
+        }
+        val bounds = captured.value
+        val slot = props.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                when (slot) {
+                    case 0 -> p.bodyBounds = bounds
+                    case 1 -> p.footerBounds = bounds
+                    else -> p.actionBounds = bounds
+                }
+            }
+        }
+    }
+}
+
+private class ModalFamilyRoot(
+    private val p: ModalFamilyProbe,
+    private val props: Props<Int>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
+        context.placeChild(0L, Point(20.0, 420.0))
+        context.measureChild(1L, Constraints(maxWidth = Some(180.0)))
+        context.placeChild(1L, Point(20.0, 20.0))
+        return LayoutMetrics(constraints.constrain(Size(640.0, 480.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        val generation = props.value
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rendered = generation
+        }
+    }
+}

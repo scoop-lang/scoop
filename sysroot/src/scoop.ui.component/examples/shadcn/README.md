@@ -53,3 +53,5 @@ Tabs 页面包含 Default 草稿表单和 Line 自定义图标／加载正文。
 Breadcrumb 页面提供长路径、Chevron／Slash 分隔符、窄宽换行、禁用、展开中间路径和非交互省略号。Pagination 页面用页码驱动三条记录，比较自动范围与显式页码／本地化文字，并提供空数据、单页、外部越界值、拒绝 setter、禁用和 compact 切换；两页沿顶部切换主题、配色及 RTL。
 
 Popover 页面在弹层中编辑和保存尺寸，包含嵌套弹层。可切换 NonModal／FocusContained／Modal、方向与对齐、关闭 veto、拒绝绑定及禁用；外部按钮计数用于观察继续／消费策略，关闭完成与绑定变化分别计数。顶部明暗、System／Neutral、RTL 与减少动态继续适用。
+
+Dialog 页面编辑真实 profile 草稿，带固定操作区、滚动长正文和嵌套详情，可隐藏关闭按钮、拒绝绑定或 veto 关闭。Alert Dialog 展示默认／小尺寸和媒体、默认取消焦点，以及确认后保持打开的模拟请求；Sheet 展示四边、可调主轴尺寸、RTL、滚动表单和固定操作区。顶部系统／Neutral 明暗配色及减少动态继续适用。

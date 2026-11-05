@@ -206,6 +206,9 @@ internal class Gallery(
             case Popover -> popoverExamples(model.popover, fonts, model)
             case Tooltip -> tooltipExamples(model.hints, fonts)
             case HoverCard -> hoverCardExamples(model.previews, fonts)
+            case Dialog -> dialogExamples(model.dialogs, fonts, model)
+            case AlertDialog -> alertDialogExamples(model.confirmations, fonts, model)
+            case Sheet -> sheetExamples(model.sheets, fonts, model)
         }
 
     private fun controlDemo(value: ControlDemo): View =

@@ -1,0 +1,357 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.column as modalColumn
+
+public class Dialog public constructor(private val props: Props<DialogProps>): Component {
+    private val modal = ModalContent({ props.value.input })
+    public override fun onMount(scope: ComponentScope) {
+        modal.mount()
+    }
+    public override fun render(): View = modal.render()
+}
+
+public class AlertDialog public constructor(private val props: Props<AlertDialogProps>): Component {
+    private val modal = ModalContent({ props.value.input })
+    public override fun onMount(scope: ComponentScope) {
+        modal.mount()
+    }
+    public override fun render(): View = modal.render()
+}
+
+public class Sheet public constructor(private val props: Props<SheetProps>): Component {
+    private val modal = ModalContent({ props.value.input })
+    public override fun onMount(scope: ComponentScope) {
+        modal.mount()
+    }
+    public override fun render(): View = modal.render()
+}
+
+/** The business binding and Portal own the session; this composition only supplies its content. */
+private class ModalContent(private val read: () -> ModalInput) {
+    private val themes = ThemeAccess()
+    private val localHandle = OverlayHandle()
+    private val cancelFocus = FocusHandle()
+    private val titles = ActionTextStyle()
+    private val descriptions = ActionTextStyle()
+    fun mount() {
+        themes.mount(read().options.theme)
+    }
+    private fun close() {
+        (read().options.handle ?: localHandle).requestClose()
+    }
+    private fun setOpen(next: Boolean) {
+        val previous = read().open.value
+        if (previous == next)
+            return
+        read().open.value = next
+        val accepted = read().open.value
+        if (previous != accepted)
+            read().options.onOpenChange(accepted)
+    }
+    private fun activate() {
+        val input = read()
+        if (!input.options.enabled || !(input.options.trigger?.enabled ?: false))
+            return
+        if (input.open.value)
+            close()
+        else
+            setOpen(true)
+    }
+    fun render(): View {
+        val input = read()
+        val options = input.options
+        val theme = themes.read(options.theme)
+        val palette = theme.tokens.palette
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val sheet =
+            when (input.kind) {
+                case Sheet(_) -> true;
+                else -> false
+            }
+        val alert =
+            when (input.kind) {
+                case Alert(_) -> true;
+                else -> false
+            }
+        val small = input.kind == ModalKind.Alert(AlertDialogSize.Sm)
+        val titleStyle =
+            titles.resolve(
+                theme.tokens.typography.body.copy {
+                    fontSize = 16.0 * density;
+                    weight = 500;
+                    lineHeight = Some(1.0)
+                },
+                palette.popover.foreground,
+                None
+            )
+        val descriptionStyle =
+            descriptions.resolve(theme.tokens.typography.body, palette.muted.foreground, None)
+        val headerPresent =
+            panelPresent(options.header) ||
+                panelPresent(options.title) ||
+                panelPresent(options.description) ||
+                panelPresent(input.media)
+        val header =
+            options.header ?:
+                if (!headerPresent)
+                    empty()
+                else
+                    if (alert) {
+                        val media =
+                            when (input.media) {
+                                case Some(view) -> frame(view) {
+                                    width = Some(40.0 * density);
+                                    height = Some(40.0 * density)
+                                    style {
+                                        background(Some(Paint(palette.muted.background)));
+                                        corners(Corners.all(6.0 * density))
+                                    }
+                                }
+                                case None -> empty()
+                            }
+                        element(
+                            AlertHeaderProps(
+                                density,
+                                small,
+                                panelPresent(input.media),
+                                panelPresent(options.title),
+                                panelPresent(options.description)
+                            ),
+                            { current -> AlertHeader(current) },
+                            [
+                                media,
+                                modalCaption(options.title, titleStyle, options.fonts, true),
+                                modalCaption(
+                                    options.description,
+                                    descriptionStyle,
+                                    options.fonts,
+                                    true
+                                )
+                            ]
+                        )
+                    } else
+                        modalColumn {
+                            when (options.title) {
+                                case Some(value) -> add(
+                                    panelSlot(panelCaption(value, titleStyle, options.fonts), 0L)
+                                )
+                                case None -> {}
+                            }
+                            when (options.description) {
+                                case Some(value) -> add(
+                                    panelSlot(
+                                        panelCaption(value, descriptionStyle, options.fonts),
+                                        1L
+                                    )
+                                )
+                                case None -> {}
+                            }
+                            spacing =
+                                if (sheet)
+                                    2.0 * density
+                                else
+                                    8.0 * density
+                            alignment = CrossAlignment.Stretch
+                        }
+        val cancelHandle =
+            when (input.cancel) {
+                case Some(value) -> value.focus.handle ?: cancelFocus
+                case None -> cancelFocus
+            }
+        val footer =
+            if (alert) {
+                val cancel = input.cancel!!
+                val focus = cancel.focus.copy { handle = Some(cancelHandle) }
+                val cancelView = modalButton(cancel, { close() }, options, Some(focus))
+                val actions =
+                    when (input.action) {
+                        case Some(view) -> [panelSlot(cancelView, 0L), panelSlot(view, 1L)]
+                        case None -> [panelSlot(cancelView, 0L)]
+                    }
+                Some(modalActions(actions, density, small))
+            } else
+                input.footer
+        val footerView =
+            when (footer) {
+                case Some(view) -> panelFrame(
+                    view,
+                    Insets.all(16.0 * density),
+                    styleOverride {
+                        if (!sheet) {
+                            background(
+                                Some(
+                                    Paint(
+                                        palette.muted.background.withAlpha(
+                                            palette.muted.background.alpha * 0.5
+                                        )
+                                    )
+                                )
+                            )
+                            border(Some(topBorder(palette.background.foreground.withAlpha(0.1))))
+                            corners(
+                                Corners.Logical(
+                                    bottomStart = Size(12.0 * density, 12.0 * density),
+                                    bottomEnd = Size(12.0 * density, 12.0 * density)
+                                )
+                            )
+                        }
+                    }
+                )
+                case None -> empty()
+            }
+        val closeView =
+            if (input.showClose) {
+                val spec =
+                    input.close ?:
+                        PopupTriggerSpec(
+                            ButtonContent.Custom(
+                                modalCloseIcon(16.0 * density, palette.popover.foreground)
+                            ),
+                            variant = ButtonVariant.Ghost,
+                            size = ButtonSize.IconSm
+                        )
+                modalButton(spec, { close() }, options)
+            } else
+                empty()
+        val body =
+            element(
+                ModalBodyProps(options, theme),
+                { current -> ModalBody(current) },
+                [input.content]
+            )
+        val panel =
+            panelFrame(
+                element(
+                    ModalPanelProps(density, headerPresent, panelPresent(footer)),
+                    { current -> ModalPanel(current) },
+                    [header, body, footerView, closeView]
+                ),
+                visual =
+                    styleOverride {
+                        background(Some(Paint(palette.popover.background)))
+                        border(
+                            Some(
+                                modalPanelBorder(
+                                    input.kind,
+                                    palette.background.foreground.withAlpha(0.1)
+                                )
+                            )
+                        )
+                        corners(
+                            Corners.all(
+                                if (sheet)
+                                    0.0
+                                else
+                                    12.0 * density
+                            )
+                        )
+                        if (sheet)
+                            boxShadows(theme.tokens.effects.floating)
+                    }.then(options.style)
+            )
+        val motion =
+            theme.tokens.motion.resolve(
+                options.transition.resolve(
+                    Some(
+                        AnimationSpec.Tween(
+                            Duration.milliseconds(
+                                if (sheet)
+                                    200L
+                                else
+                                    100L
+                            )
+                        )
+                    )
+                )
+            )
+        val overlayFocus =
+            if (alert && !panelPresent(options.focus.initialFocus))
+                options.focus.copy { initialFocus = Some(cancelHandle) }
+            else
+                options.focus
+        val current = read
+        val overlayHandle = options.handle ?: localHandle
+        val popup =
+            portal(
+                binding({ read().open.value }, { next -> setOpen(next) }),
+                element(
+                    ModalSurfaceProps(input, density),
+                    { value -> ModalSurface(value) },
+                    [panel]
+                )
+            ) {
+                placement = OverlayPlacement.Viewport(viewportPadding = 0.0)
+                mode = OverlayMode.Modal
+                handle = Some(overlayHandle)
+                focus = Some(overlayFocus)
+                dismiss = input.dismiss
+                transition = PresenceOptions(motion, motion)
+                onCloseRequest = { reason -> current().options.onCloseRequest(reason) }
+                onClosed = { reason -> current().options.onClosed(reason) }
+            }
+        val trigger =
+            when (options.trigger) {
+                case Some(spec) -> modalButton(spec, { activate() }, options)
+                case None -> empty()
+            }
+        return element({ ModalTriggerLayout() }, [trigger, popup])
+    }
+}
+
+private fun modalCaption(
+    content: PanelContent?,
+    style: TextStyle,
+    fonts: FontCollection?,
+    centered: Boolean = false
+): View =
+    when (content) {
+        case Some(value) -> panelCaption(value, style, fonts, centered);
+        case None -> empty()
+    }
+
+private fun modalButton(
+    input: PopupTriggerSpec,
+    action: () -> Unit,
+    options: ModalOptions,
+    focus: FocusOptions? = None
+): View =
+    component(
+        ButtonProps(
+            navigationLabel(
+                input.content,
+                if (panelPresent(input.fonts))
+                    input.fonts
+                else
+                    options.fonts,
+                TextAlignment.Center
+            ),
+            action,
+            input.enabled && options.enabled,
+            input.style,
+            options.theme,
+            focus ?: input.focus,
+            variant = input.variant,
+            size = input.size
+        ),
+        { current -> Button(current) }
+    )
+
+private fun modalPanelBorder(kind: ModalKind, color: Color): Border =
+    when (kind) {
+        case Sheet(side) -> {
+            val edge = BorderEdge(1.0, color)
+            when (side) {
+                case Top -> Border.Physical(BorderEdges(bottom = edge))
+                case Bottom -> Border.Physical(BorderEdges(top = edge))
+                case Start -> Border.Logical(end = edge)
+                case End -> Border.Logical(start = edge)
+            }
+        }
+        else -> Border.all(1.0, color)
+    }

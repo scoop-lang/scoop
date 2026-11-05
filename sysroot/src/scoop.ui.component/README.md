@@ -129,3 +129,5 @@ ScrollArea 和 VirtualList 均可设置 `paintCache = PaintCachePolicy.Tiles(til
 `breadcrumb { item("Home", navigate); current("Page") }` 提供路径链接、当前项、分隔符、ellipsis 与 custom 内容槽，支持长项单行省略、换行和 RTL。当前项与默认省略号不登记输入，链接复用 Button；同 key 重排不重建正文。`pagination(page.binding(), pageCount)` 以 Long 页码驱动业务视图，自动范围由 `paginationItems` 计算，支持显式 item／ellipsis、compact、本地化文字和内容回调。外部越界页码保持原值，空数据停用导航，拒绝 setter 不产生通知；真实窗口验证在 `tests-cones/navigation`。
 
 `popover(open.binding(), content) { trigger("Open"); title("Details") }` 提供真实可编辑的锚点弹层。mode 选择 NonModal／FocusContained／Modal，focus 独立配置；非模态外部点击继续执行，FocusContained 保留背景 pointer／wheel 并约束焦点，Modal 阻挡背景输入。支持外部 anchor、嵌套内容、业务关闭 veto、拒绝绑定、定位翻转、退出重开和减少动态；`tests-cones/popover` 验证真实键盘、指针、编辑与生命周期。
+
+`dialog(open, content)`、`alertDialog(open, content)` 与 `sheet(open, content)` 提供同一 Portal 模态域中的表单、确认和四边侧板。共同配置保存在 ModalOptions，DSL 展开配置成员；支持原生输入、固定 header／footer、可借用 ScrollState 的滚动正文、嵌套焦点恢复、veto 与拒绝绑定。DialogFooter 在窄宽反向纵排；AlertDialog 默认聚焦取消，action 不替应用关闭；Sheet 的 Start／End 随 RTL 变化。`tests-cones/modal-family` 定向覆盖这些真实窗口行为。

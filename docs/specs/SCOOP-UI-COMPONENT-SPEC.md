@@ -830,3 +830,28 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 `hoverCard(trigger: View, content: View, configure: HoverCardBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 HoverCardProps／HoverCard。与 Tooltip 共用可选受控 open、定位、Hover 延迟／通路、回调、字体／主题／样式及生命周期规则；默认 side=Bottom、width=256、openDelay=600ms、closeDelay=300ms、transitDelay=350ms、corridorPadding=6、focus=true、arrow=None，其他默认与 Tooltip 相同，不提供 maxWidth。正文是完整 View，可选择文字、按按钮或编辑；悬浮打开不主动取走焦点，点击进入正文后普通焦点与 Hover 组内保持规则生效。没有模态屏障或自动焦点恢复。
 
 面板默认 popover 配色、10 padding、8 圆角、foreground 10% 的 1 边框及 floating 阴影，100ms 动画与 Popover 相同。触发器可复用已有链接式 Button、头像或组合内容，包装不截取原动作。验收包含鼠标跨间隙进入正文、反向离开与有限通过期限、键盘入口、文字选择／正文动作、Escape、关闭后再次进入、当前回调与绑定、嵌套 Portal、明暗 System／Neutral、RTL 和 Reduced Motion。
+
+
+## 31. Dialog 与 AlertDialog
+
+`dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {})`、`alertDialog(open, content, configure: AlertDialogBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员分别构造 DialogProps／Dialog 与 AlertDialogProps／AlertDialog。两者使用普通 Portal 的 Modal 模式、Viewport 定位、同一焦点会话与 Presence；不另建窗口、挂载树或焦点管理器。业务 Binding 必需，描述构造不读取它；触发器、关闭按钮及 Portal 写入后，仅实际值改变才通知最新 onOpenChange，外部直接写入不合成控件回调。同类型配置变化及退出中重开遵守既有实例保留规则。
+
+共同配置在 Props.options: ModalOptions 中保存为不可变快照，三个 builder 直接展开同名配置成员。ModalOptions 的配置为 trigger: PopupTriggerSpec?=None、title／description: PanelContent?、header: View?=None、scrollable=false、scrollState: ScrollState?=None、focus=OverlayFocusOptions()、handle=None、enabled=true、viewportPadding=16、backdrop: Paint?=Some(Black 10%)、transition=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme／style；builder 继承 PanelBuilder 的标题便利成员并增加 trigger(String／StyledText／View, PopupTriggerBuilder block)、header(View)、focus block、transition(AnimationSpec?)，key 沿正常描述规则。外部普通 Button 也可直接写同一 Binding，不要求内置 trigger。trigger 的 View 必须是非交互内容，内置 Button 是唯一激活目标，不检查或克隆 View。
+
+Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，可通过 close 内容／样式替换或完全隐藏；调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
+
+默认面板采用 popover 配色、foreground 10% 的 1 边框、12 圆角、16 padding／区域间距，标题 16／500、描述 body／muted 色，header 自定义时替换标题和说明区域；关闭按钮为头部保留空间。footer 在面板底部，默认带顶边框、muted 50% 背景、16 padding 和下方圆角；正文滚动不移动 header／footer。scrollable=true 时复用 ScrollArea 的滚动控制与 ScrollViewport，正文占据可用的有限高度并可借用调用方 ScrollState，关闭不销毁借用状态；false 时正文按自然高度测量，并受可用高度与裁剪约束；切换 scrollable 保留同一正文与滚动 owner。视口过小时各区受有限非负约束，不产生负尺寸。100ms 淡入／缩放 95%→100%，遮罩只淡入不缩放，Reduced Motion 关闭动画。绘制、输入、编辑器光标与选区共用实际面板变换。
+
+`dialogFooter(configure: ChildrenBuilder.() -> Unit): View` 及 ChildrenBuilder 同名成员构造 DialogFooterProps／DialogFooter；子项为普通 View，保留 key 与输入归属。可用宽度足够时按逻辑顺序靠 End 排列，间距 8；不足以容纳自然宽度时反向纵排、占满可用宽度，符合窄屏取消／确认次序。它不注入或改写按钮动作。
+
+AlertDialog 不提供外部点击关闭或右上关闭按钮。额外配置 size: AlertDialogSize=Default（Default 最大宽度 384，Sm 为 320）、media: View?=None、action: View?=None、cancel: PopupTriggerSpec=Outline 的本地化可替换 “Cancel”。media 使用 40 方框、muted 背景和 6 圆角；较宽的 Default 将媒体与标题说明并列，窄宽和 Sm 居中纵排。footer 保留取消按钮，可选 action 是原样组合的真实业务 View；提供 action(String, onClick, ButtonBuilder block) 便利入口，但不自动关闭、提交或管理异步状态。应用在动作中决定是否写 open，提交期间可通过自身 enabled／onCloseRequest 控制继续打开。默认初始焦点为当前 cancel 的 FocusHandle（未提供时用本挂载自有 handle），明确 focus.initialFocus 可覆盖；Escape 走关闭／取消路径，绝不激活 action。取消与 Escape 都经过 onCloseRequest 和当前 Binding，拒绝时继续打开。Sm 的两项操作采用等宽两列；Default 使用响应式 DialogFooter，只有取消时保持普通单项布局。
+
+验收包括普通／受控拒绝／veto、外部点击不穿透、Enter／Space／Escape、默认取消与明确初始焦点、嵌套域及恢复、最新 Props／Binding、滚动正文和固定 footer、窄宽／零约束／RTL、退出重开保留局部状态、卸载与静止停帧。
+
+## 32. Sheet
+
+`sheet(open: Binding<Boolean>, content: View, configure: SheetBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员构造 SheetProps／Sheet。共享 Dialog 的受控状态、触发器、标题／描述／自定义 header、footer、关闭按钮、滚动正文、焦点、dismiss、回调、字体／主题／样式和模态生命周期；不提供拖动或 snap，那属于 Drawer。
+
+SheetSide 为 Top／Bottom／Start／End，默认 End；Start／End 在每次布局按当前 LayoutDirection 转为物理侧，不重挂载内容。width: Double?=None 只控制 Start／End 的宽度，默认取视口 75% 与 384 中较小者；height: Double?=None 只控制 Top／Bottom 的高度，默认自然内容高度。垂直侧铺满视口高度，水平侧铺满视口宽度；明确主轴尺寸受视口约束。viewportPadding 默认 0，可显式保留边缘留白；所有尺寸有限且非负。
+
+默认面板采用 popover 配色、直角、内侧 1 边框与 floating 阴影；header／body／footer padding=16，header 标题／描述间距=2，footer 贴近底部，普通正文和 footer 的业务 View 保持原样。关闭按钮放在逻辑 End 上方。默认 200ms 淡入并从对应物理侧向内移动 40，遮罩只随同一 Presence 淡入；Reduced Motion 无动画。侧别、尺寸、主题与方向改变更新同一内容实例及输入变换，关闭恢复遵守 Portal。验收覆盖四边／RTL、可调宽高、滚动和固定操作区、嵌套 Dialog、拒绝关闭、退出重开与借用状态保留。

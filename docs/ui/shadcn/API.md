@@ -248,3 +248,6 @@ Sidebar 的宽／窄宿主改变、Tabs 的 Dispose 模式等遵守既有挂载�
 Direction 沿用 `scoop.ui.direction(content, value, key)` 和 ChildrenBuilder.direction；局部覆盖、逻辑边、文本默认方向与键盘导航使用同一个继承值，热切换保留实例、编辑状态和焦点，不镜像绘图或反转数据。
 
 ScrollArea 沿用单一 ScrollState／ScrollViewport，增加 `style: StyleOverride`（默认空）和 `focusOutline: OutlineStyle?`（默认 None）。视口可配置圆角、边框、背景和效果，装饰不增加布局内边距，圆角裁剪同时影响绘制和命中；焦点环使用主题和 FocusVisibility。竖条在逻辑 End，双轴条在同一角落让位，方向变化不隐式更改物理滚动位置。普通滚动区始终挂载显式内容；大数据列表继续使用 VirtualList。
+
+
+P4 模态家族使用 `dialog(open, content)`、`alertDialog(open, content)`、`sheet(open, content)`。标题／说明／header／footer 和 trigger／close 都有类型化槽；DialogFooter 组合普通按钮并在窄宽反向纵排。AlertDialog 默认聚焦取消，action 保留应用动作与关闭决定；Sheet 的 Start／End 随 RTL 解析。滚动正文显式选择 scrollable，可借用 ScrollState，header／footer 保持固定。尺寸、样式和焦点细则见组件规范 §31–32。
