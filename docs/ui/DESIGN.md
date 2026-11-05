@@ -112,11 +112,11 @@ Element 可以单独成为自绘叶子，也可以接收显式 children 实现�
 
 state 就是普通 State class。成员属性委托的 getValue／setValue 执行读追踪和写失效，不扫描私有字段，不依赖属性名，也不按 hook 调用序号保存状态。闭包捕获组件 this 时保存 class 引用，符合现有语言规则。
 
-状态依赖通过现有同步 Context 收集，只围绕 Component.render 建立和替换订阅。首期写入即通知，包括同值写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
+状态依赖通过现有同步 Context 收集，只围绕 Component.render 维护订阅。成功 render 后保留交集关系，只添加和移除真实变化；来源用库内类型化序号索引，订阅保存可常数时间解除的登记。写入即通知，包括同值或同引用写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
 
 Element 的 Props 由框架更新。业务 State 依赖仍只在 render 收集，并通过 Props 传给自绘元素；measure／scene 的动画与字体读取另外登记实际布局或场景用途。普通交互字段只影响像素时调用 requestFrame，影响尺寸或放置时调用 requestLayout。Surface 仍是唯一动画采样与帧调度通路。
 
-component 和 element 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架复用实例、替换 Props，执行 Component.render 或 Element.update。
+component、element 和 lazyElement 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架总是替换当前 Props；显式且稳定的 InputComparison 可在输入等价、没有自身 State 失效或方向变化时跳过 render／update。任意用户输入默认保守更新。Element children、Lazy source／retention 和已排队后代分别处理；忽略回调变化的比较必须配合读取当前 Props 的稳定事件转发。
 
 匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 及 Portal 模态类别保持既有区别。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议仍为接口。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
 

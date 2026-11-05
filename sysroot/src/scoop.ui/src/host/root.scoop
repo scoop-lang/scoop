@@ -8,7 +8,7 @@ import scoop.window.Window
 private class SceneCompletion(val node: MountedNode, val action: (FrameCompletion) -> Unit)
 
 /** Owns one root; closing it leaves the caller's native window intact. */
-public class UiWindow internal constructor(private val root: UiRoot): Closeable {
+public class UiWindow internal constructor(internal val root: UiRoot): Closeable {
     public val nativeWindow: Window get() = root.window
     public val isClosed: Boolean get() {
         root.checkThread();

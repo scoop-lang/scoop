@@ -23,7 +23,7 @@ private class TextEditorStateTest {
             assertEquals(Utf8Selection(8L, 1L), editor.selection)
             assertFalse(editor.canUndo)
         }
-        assertEquals(1L, collector.collected().size)
+        assertEquals(1L, collector.sources.size)
         assertTrue(editor.replace(Utf8Range(1L, 5L), "中"))
         assertEquals("A中é界", editor.text)
         assertEquals(Utf8Selection(4L, 4L), editor.selection)

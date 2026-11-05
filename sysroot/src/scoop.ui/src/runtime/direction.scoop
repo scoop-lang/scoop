@@ -32,6 +32,8 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
     layoutDirection = next
     request(UiInvalidation.Layout)
     updated = Some(turn)
+    inputChanged = false
+    stateDirty = false
     when (body) {
         case Component(instance) -> rebuildComponent(instance, turn, true)
         case Element(instance) -> {
@@ -68,9 +70,18 @@ internal fun MountedNode.rebuildComponent(
 }
 
 internal fun MountedNode.replaceDependencies(collector: DependencyCollector) {
-    for (source in dependencies)
-        source.unsubscribe(this)
-    dependencies = collector.collected()
-    for (source in dependencies)
-        source.subscribe(this)
+    val next = collector.sources
+    val removed = ArrayList<StateSignalId>()
+    for (entry in dependencies) {
+        if (!next.containsKey(entry.key)) {
+            entry.value.close()
+            removed.add(entry.key)
+        }
+    }
+    for (id in removed)
+        dependencies.remove(id)
+    for (entry in next) {
+        if (!dependencies.containsKey(entry.key))
+            dependencies[entry.key] = entry.value.subscribe(this)
+    }
 }

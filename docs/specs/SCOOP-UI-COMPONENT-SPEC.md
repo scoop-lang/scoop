@@ -10,6 +10,8 @@ shadcn 控件扩展的批次与平台验收见 [shadcn 实施记录](../ui/shadc
 
 P2 中，内置元素的 update 按实际输入区分布局与场景变化；动画颜色、透明度、选择标记和焦点装饰在 scene 采样，尺寸及子放置保留在完整布局结果。普通 ScrollArea 在 scene 计算滚动快照与变换，虚拟列表的选项范围仍属于布局输入；需要再次收敛的可变 extent 显式请求布局。
 
+P3 中，Label／Button 的便利描述入口显式比较实际显示输入：普通文字按值比较，不可变样式／StyledText 及可观察主题来源采用明确身份，段落设置按字段比较；带不透明行内 View、Custom 或 Resolved 内容时保守求值。Button builder 的默认样式是共享的不可变值，显式样式仍按原优先级处理。Button 的点击通过稳定转发入口读取当前 Props，允许只换动作时跳过 render；hover、pressed、focus 和主题 State 的独立失效仍执行，包括 Link 下划线及交互前景色。
+
 
 ## 1. 定位与依赖
 

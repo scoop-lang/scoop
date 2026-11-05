@@ -65,3 +65,15 @@
 已通过 Surface 动画 13 项测试，以及 UI 组合、描述身份、完整布局结果、焦点和方向回归。111 个变更 Scoop 文件格式检查、相关生产／测试静态检查和另外 7 个调用方 Cone 检查通过；受 UI 语义指纹影响的 style、四套主题及 component 已重建对齐。23 个既有实窗 Cone 和 4 个独立计数／协议 Cone 全部通过，包含 Flow、控件布局、OTP、虚拟列表、保留项、Carousel、Select、模态组件族、Sidebar、InputGroup、Resizable、Disclosure、绘制缓存和 Slider。绘制缓存保持像素、输入和裁剪断言，并在最后一个 Accepted 帧后验证完整静止区间。
 
 新增实窗回归分为独立 Cone，避免同一进程重复创建 Application，也避免每次定向复验都编译整个普通测试集。拆分后的 UI 普通测试 97 项、component 普通测试 161 项整组通过；Grid／Frame 的深度计数继续符合 P1 的线性结果。本批仍不包含 P3 输入比较、P4 构造作用域或 P5 场景回调跳过。
+
+## P3：逻辑更新与订阅关系
+
+状态：已完成，2026-11-06；macOS aarch64 release。
+
+- Component／Element／LazyElement 描述提供稳定的 `InputComparison<P>`。当前 Props 始终先替换；自身 State 或方向变化强制求值，Element children 和 Lazy source／retention 独立处理，父级跳过不清除后代排队工作。默认输入仍保守更新，同引用 State 写回仍通知。
+- Label／Button 的便利入口比较实际显示输入；不透明 View 内容保持保守。Button 使用读取当前 Props 的稳定点击转发，builder 共享不可变默认样式；交互与主题 State 保留各自更新。
+- 依赖按 StateSignal 的类型化序号收集，成功 render 差量更新订阅。登记保存位置，解除时交换末项并清除引用；稳定关系复用原登记，失败 render 不发布半套依赖。
+
+29 个变更 Scoop 文件格式与相关静态检查通过，预编译 UI、style、四套主题及 component 已对齐。UI 普通测试 100 项、component 普通测试 162 项，以及 9 个实窗 Cone 全部通过：新增输入复用和 Button 回调／Link 悬停回归，既有 Lazy、方向、描述身份、错误清理、控件交互、Sidebar 和 Select。
+
+组合测试直接验证稳定登记身份、切换后仅移除失效关系和卸载后的引用清除；实窗覆盖 256 个共享 State 观察者、父子同轮更新、独立后代更新、同引用可变输入、Binding 换绑、规则替换、方向、children 重排和 Lazy source 替换。Button 仅换回调时没有新增布局阶段的主题尺寸查询，实际点击调用新动作；Link 悬停像素变化并正确恢复。新旧主题探针区分 measure 与 scene，保留场景几何对应绘制次数的精确断言及原有像素、焦点、资源与停帧检查。本批未改变场景查询策略，未重复无关平台或全量 fixture 验收。

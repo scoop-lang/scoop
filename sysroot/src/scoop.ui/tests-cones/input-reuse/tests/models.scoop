@@ -1,0 +1,165 @@
+package scoop.tests.ui.inputreuse
+
+import scoop.graphics.*
+import scoop.ui.*
+
+internal val unchanged = InputComparison<Unit> { _, _ -> true }
+
+internal val sameNumber = InputComparison<Long> { a, b -> a == b }
+
+internal val sameBinding = InputComparison<Binding<Int>> { a, b -> a === b }
+
+internal class DisplayInput(val number: Int, val action: () -> Unit)
+
+internal class MutableInput {
+    var number = 7
+}
+
+internal class RowRecord {
+    var renders = 0
+    var observed = 0
+    var unmounts = 0
+}
+
+internal class ReusedParent(
+    private val props: Props<DisplayInput>,
+    private val probe: InputProbe
+): Component {
+    public override fun render(): View {
+        probe.parentRenders += 1
+        probe.parentObserved = props.value.number + probe.local.value
+        return component({ ReusedLeaf(probe) }, comparison = Some(unchanged))
+    }
+    fun click() {
+        props.value.action()
+    }
+    init {
+        probe.parent = Some(this)
+    }
+}
+
+private class ReusedLeaf(private val probe: InputProbe): Component {
+    public override fun render(): View {
+        probe.leafRenders += 1
+        probe.leafObserved = probe.leafLocal.value
+        return empty()
+    }
+}
+
+internal class CurrentBinding(
+    private val props: Props<Binding<Int>>,
+    private val probe: InputProbe
+): Component {
+    init {
+        probe.binding = Some(this)
+    }
+    fun write(value: Int) {
+        props.value.value = value
+    }
+    public override fun render(): View {
+        probe.bindingRenders += 1
+        probe.bindingObserved = props.value.value
+        return empty()
+    }
+}
+
+internal class MutableChild(
+    private val props: Props<MutableInput>,
+    private val probe: InputProbe
+): Component {
+    public override fun render(): View {
+        probe.mutableObserved = props.value.number
+        return empty()
+    }
+}
+
+internal class ObservedRow(
+    private val props: Props<Long>,
+    private val probe: InputProbe
+): Component {
+    private val record = probe.rows[props.value]
+    public override fun render(): View {
+        record.renders += 1
+        record.observed =
+            if (props.value % 2L == 0L && probe.useAlternate.value)
+                probe.alternate.value
+            else
+                probe.shared.value
+        return empty()
+    }
+    public override fun onUnmount() {
+        record.unmounts += 1
+    }
+}
+
+internal class Extent(private val props: Props<Long>, private val probe: InputProbe): Element<
+    Unit
+> {
+    public override fun onMount(scope: ComponentScope) {
+        probe.itemMounts[props.value] += 1
+    }
+    public override fun onUnmount() {
+        probe.itemUnmounts[props.value] += 1
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(Size(props.value.toDouble(), 1.0)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {}
+}
+
+internal class OrderedLayout(private val probe: InputProbe): Element<Array<Long>> {
+    public override fun update(): UiInvalidation {
+        probe.orderUpdates += 1
+        return UiInvalidation.Layout
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Array<Long>
+    > {
+        val order =
+            Array<Long>(context.childCount) {
+                index ->
+                val child = context.measureChild(index, Constraints())
+                context.placeChild(index, Point(index.toDouble() * 5.0, 0.0))
+                child.size.width.toLong()
+            }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(30.0, 2.0))), order)
+    }
+    public override fun scene(context: SceneContext, measured: Array<Long>) {
+        probe.acceptedOrder = measured
+        context.children()
+    }
+}
+
+internal class CountingSource(public override val count: Long): ItemSource {
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun build(index: Long): View = empty()
+}
+
+internal class ReusedLazy(private val probe: InputProbe): LazyElement<Long> {
+    public override fun update(): UiInvalidation {
+        probe.lazyUpdates += 1
+        return UiInvalidation.Layout
+    }
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Long> {
+        for (index in 0L ..< context.itemCount) {
+            context.measureItem(index, Constraints())
+            context.placeItem(index, Point(0.0, 0.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(1.0, 1.0))), context.itemCount)
+    }
+    public override fun scene(context: SceneContext, measured: Long) {
+        probe.lazyCount = measured
+        context.children()
+    }
+}

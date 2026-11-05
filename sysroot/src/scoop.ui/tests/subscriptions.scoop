@@ -1,0 +1,65 @@
+package scoop.ui
+
+import scoop.test.*
+
+internal class SubscriptionSnapshot private constructor(
+    private val node: MountedNode,
+    private val entries: Array<(StateSignalId, StateSubscription)>
+) {
+    fun unchanged() {
+        assertEquals(entries.size, node.dependencies.size)
+        for ((id, subscription) in entries)
+            assertTrue(node.dependencies[id]!! === subscription)
+    }
+    fun removedOne() {
+        assertEquals(entries.size - 1L, node.dependencies.size)
+        var removed = 0
+        for ((id, subscription) in entries) {
+            when (node.dependencies[id]) {
+                case Some(current) -> assertTrue(current === subscription)
+                case None -> {
+                    removed += 1
+                    assertDetached(subscription)
+                }
+            }
+        }
+        assertEquals(1, removed)
+    }
+    fun closed() {
+        assertEquals(0L, node.dependencies.size)
+        for ((_, subscription) in entries)
+            assertDetached(subscription)
+    }
+    private fun assertDetached(subscription: StateSubscription) {
+        when (subscription.node) {
+            case Some(_) -> fail(Some("retired subscription still retains its node"))
+            case None -> {}
+        }
+        subscription.close()
+    }
+    companion object {
+        fun capture(window: UiWindow, component: Component): SubscriptionSnapshot {
+            val node = findNode(window.root.node!!, component)!!
+            val entries = ArrayList<(StateSignalId, StateSubscription)>()
+            for (entry in node.dependencies)
+                entries.add((entry.key, entry.value))
+            return SubscriptionSnapshot(node, entries.toArray())
+        }
+        private fun findNode(node: MountedNode, component: Component): MountedNode? {
+            when (node.body) {
+                case Component(instance) -> {
+                    if (instance.value === component)
+                        return Some(node)
+                }
+                else -> {}
+            }
+            for (child in node.children) {
+                when (val found = findNode(child, component)) {
+                    case Some(_) -> return found
+                    case None -> {}
+                }
+            }
+            return None
+        }
+    }
+}

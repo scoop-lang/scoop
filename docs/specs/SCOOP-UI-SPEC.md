@@ -90,7 +90,7 @@ public interface Element<L> {
 }
 ```
 
-Element 同样采用持久 class。measure／scene 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及每次 Props 或子描述更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
+Element 同样采用持久 class。measure／scene 是必需操作；叶子元素的 measure 不访问子项，容器通过公开 context 测量、放置和绘制其子项。update 在首次 onMount 成功后及需要求值的输入更新后同步执行，负责更新输入开关、处理器及动画目标；隐藏或没有 drawable 时也执行。第 4.1 节的显式输入比较可跳过 update，但 children 仍独立协调并在结构变化时失效布局。它不执行绘图，也不在其中重入布局。Element 不自行拥有或关闭子组件，子树继续由框架管理。
 
 同一描述值可被使用多次；每个出现位置分别挂载，不能按描述对象引用相等而合并挂载。描述不可变指保存的属性槽及子序列不可修改，不承诺其所引用的业务模型深度不可变。子序列以不可变 Array<View> 保存，允许复用该数组，不因重建描述而强制复制。
 
@@ -109,13 +109,15 @@ State 的持有者与 UI 订阅者分别确定。一个 State 可以在任何组
 一次 `render` 使用一个库内、同步的依赖收集作用域：
 
 1. State getter 将当前组件节点记入本次读取集合，同一 State 的重复读取只登记一次。
-2. 成功执行后，以本次集合替换该组件的旧订阅；不再读取的 State 不再使它失效。
+2. 成功执行后，仅解除不再读取的依赖并登记新依赖，保留交集中的原订阅关系。render 失败不发布半套关系，关闭时仍可解除旧订阅。
 3. setter 先保存新值，再将当前订阅者标记为 dirty；不在 setter 内递归调用 render。
 4. 组件卸载时解除所有订阅，并从待更新集合移除；共享 State 本身仍然可用。
 
 首期每次合法 setter 调用都发出变化通知，包括写回相同值。调度器合并同一轮更新，不为任意 T 引入隐式相等、深比较或接口约束。相等策略和专用集合增量通知以后由实际性能需求决定。
 
-同一同步业务操作中的多次写入分别立即生效，UI 工作在既有安全边界合并；这不提供跨挂起点的事务或状态快照。直接订阅粒度是实际读取的 State；父组件生成新的子描述时仍沿第 4 节更新子项，不承诺只执行直接订阅者的 render。
+同一同步业务操作中的多次写入分别立即生效，UI 工作在既有安全边界合并；这不提供跨挂起点的事务或状态快照。直接订阅粒度是实际读取的 State；父组件生成新的子描述时沿第 4 节替换输入，并按显式比较规则决定是否执行子项。State 写入始终通知，包括相等值或相同引用写回，不根据 Equals 自动抑制。
+
+依赖收集与差量对比使用 StateSignal 的库内类型化序号，不使用对象地址或新增 runtime 身份。每条订阅保存可常数时间解除的登记；稳定关系不反复拆建。通知只访问当前实际观察者，解除后清除节点和来源引用。
 
 普通 getter／函数调用中的间接 State 读取，同样归当前活动 render。render 之外的读取只是取值，不产生永久订阅。首期不自动建立 update／measure／scene／draw 阶段的独立依赖图；声明式自绘组件在 render 中读取 State，再通过 Element 的 Props 传入本次绘制数据。Element 自己在输入处理中修改的普通交互字段，通过 scope.requestFrame 显式请求呈现。Surface Animatable 的采样走第 7 节的帧通路，不需要先转换成 State。
 
@@ -207,7 +209,11 @@ class Screen: Component {
 
 `Props<P>` 由组件节点持有，不允许子组件替换父级输入。它是当前输入的入口，不是自动保存旧版本的快照。需要异步操作使用启动时的参数时，应先复制需要的值到局部 `val`；要在调用时读取最新输入的回调，则在回调体内访问 `props.value`。
 
-父组件产生新的子描述时，框架更新 Props 并执行对应的 render 或 update；初期不根据 P 的相等或引用身份跳过。每个节点在同一逻辑更新轮中至多执行一次；与该轮处理同时登记的新失效留到下一轮。只读输入本身不产生第二套可观察模型。
+父组件产生新的子描述时，框架总是先替换当前 Props。描述可显式提供 `InputComparison<P>(equivalent: (P, P) -> Boolean)`；只有前后描述持有同一个比较规则实例，且它确认输入等价、节点自身没有待处理的 State 失效、方向没有变化时，才跳过对应 render／update。比较规则缺省为 None，任意用户输入保守更新；更换规则实例也重新求值。每个节点在同一逻辑更新轮中至多执行一次；与该轮处理同时登记的新失效留到下一轮。只读输入本身不产生第二套可观察模型。
+
+比较器是同步纯输入判定，不创建订阅，不得写 State 或产生业务副作用。它须覆盖 render／update 实际消费的输入；普通可变对象不能仅凭引用相同视为不变。可观察模型仍依靠实际 State 读取失效；也可比较显式不可变快照或变化版本，不进行自动深比较或反射遍历。
+
+Element 的 children 始终独立协调，LazyElement 的 source／retention 继续独立更新；相同 Unit 输入不能屏蔽子项增删或重排。Component 跳过 render 时保留原子描述，但不取消后代已排队的独立状态更新。当前 Props 在跳过时仍可供事件读取；比较器若忽略回调变化，实际派发必须通过稳定转发入口读取当前 Props，不能向后代继续复制旧闭包。Binding 更换通常要求重新 render 以切换读取依赖，不能仅凭当前绑定值相等跳过。
 
 ### 4.2 可写绑定
 
@@ -229,18 +235,21 @@ Checkbox 与 Button 联动时，组合组件在 render 中读取 checked 的 Sta
 
 ```text
 fun <C : Component> component(
-    create: () -> C, key: ViewKey = ViewKey.Position
+    create: () -> C, key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<Unit>? = None
 ): View
 fun <P, C : Component> component(
-    props: P, create: (Props<P>) -> C, key: ViewKey = ViewKey.Position
+    props: P, create: (Props<P>) -> C, key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
 ): View
 fun <L, E : Element<L>> element(
     create: () -> E, children: Array<View> = [],
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position, comparison: InputComparison<Unit>? = None
 ): View
 fun <P, L, E : Element<L>> element(
     props: P, create: (Props<P>) -> E,
-    children: Array<View> = [], key: ViewKey = ViewKey.Position
+    children: Array<View> = [], key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
 ): View
 fun portal(
     open: Binding<Boolean>, content: View, configure: PortalBuilder.() -> Unit = {}
@@ -250,6 +259,8 @@ fun portal(
 `ViewKey` 是包含 Position、Text(String)、Number(Long) 的值类型。Position 表示采用同一父级子序列中的位置；另外两个分支是显式 key。
 
 `component`／`element`／`lazyElement` 本身只构造描述，不能立即调用 create。首次挂载才调用工厂，并保存其返回实例；之后匹配到同一节点时更新 Props 及子描述，复用实例。无 Props 的入口统一使用 Unit 输入。Element 的 children 由框架按同样规则挂载，空数组表示叶子。
+
+三类工厂的最后一个可选参数均为 `comparison: InputComparison<P>? = None`，无 Props 重载使用 `InputComparison<Unit>?`。Lazy 工厂在 source、Props、create、retention、key 之后接收该参数；比较只决定其 update，source／retention 的变更继续独立决定已实现子项及布局。
 
 节点类型匹配同时区分 Component／Element／LazyElement 描述类别、具体实例静态类型 C／E 和输入类型 P，保留每个类型的完整泛型实参。内部描述通过普通泛型类型检查判断，例如 `other is ComponentDescription<P, C>`；ElementDescription 与 LazyDescription 同理。类型匹配仅返回判断结果，不能提前更新 Props、调用工厂或改变挂载状态。P 是描述类型的组成部分，输入类型改变时重新挂载，不能把旧的 `Props<P>` 强转为另一类型。
 

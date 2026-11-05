@@ -13,7 +13,7 @@ public open class ContentButtonBuilder internal constructor() {
     public var size: ButtonSize = ButtonSize.Default
     public var group: GroupPosition? = None
     public var labelTarget: FieldTarget? = None
-    public var style: ButtonStyle = buttonStyle()
+    public var style: ButtonStyle = defaultButtonStyle
     public var theme: ThemeSource? = None
     public var key: ViewKey = ViewKey.Position
     public var focus: FocusOptions = FocusOptions()
@@ -89,7 +89,7 @@ internal fun makeStyledButton(
 }
 
 private fun buttonView(input: ButtonProps, key: ViewKey): View =
-    component(input, { props -> Button(props) }, key)
+    component(input, { props -> Button(props) }, key, Some(buttonComparison))
 
 internal fun makeContentButton(
     content: View,

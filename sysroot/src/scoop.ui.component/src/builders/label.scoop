@@ -54,4 +54,4 @@ internal fun makeStyledLabel(content: StyledText, configure: StyledLabelBuilder.
 }
 
 private fun labelView(input: LabelProps, key: ViewKey): View =
-    component(input, { props -> Label(props) }, key)
+    component(input, { props -> Label(props) }, key, Some(labelComparison))

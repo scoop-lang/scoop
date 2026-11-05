@@ -35,28 +35,34 @@ public fun portal(
 }
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
-public fun <C: Component> component(create: () -> C, key: ViewKey = ViewKey.Position): View =
-    component(Unit, { _ -> create() }, key)
+public fun <C: Component> component(
+    create: () -> C,
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<Unit>? = None
+): View = component(Unit, { _ -> create() }, key, comparison)
 
 public fun <P, C: Component> component(
     props: P,
     create: (Props<P>) -> C,
-    key: ViewKey = ViewKey.Position
-): View = View(key, ViewBody.Component(ComponentDescription(props, create)))
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
+): View = View(key, ViewBody.Component(ComponentDescription(props, create, comparison)))
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <L, E: Element<L>> element(
     create: () -> E,
     children: Array<View> = [],
-    key: ViewKey = ViewKey.Position
-): View = element(Unit, { _ -> create() }, children, key)
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<Unit>? = None
+): View = element(Unit, { _ -> create() }, children, key, comparison)
 
 public fun <P, L, E: Element<L>> element(
     props: P,
     create: (Props<P>) -> E,
     children: Array<View> = [],
-    key: ViewKey = ViewKey.Position
-): View = View(key, ViewBody.Element(ElementDescription(props, create), children))
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
+): View = View(key, ViewBody.Element(ElementDescription(props, create, comparison), children))
 
 internal enum ViewBody {
     Empty, Component(ComponentDescriptionBase), Element(ElementDescriptionBase, Array<View>),
@@ -84,14 +90,19 @@ public fun <L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
     create: () -> E,
     retention: ItemRetention = ItemRetention.Dispose,
-    key: ViewKey = ViewKey.Position
-): View = lazyElement(source, Unit, { _ -> create() }, retention, key)
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<Unit>? = None
+): View = lazyElement(source, Unit, { _ -> create() }, retention, key, comparison)
 
 public fun <P, L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
     props: P,
     create: (Props<P>) -> E,
     retention: ItemRetention = ItemRetention.Dispose,
-    key: ViewKey = ViewKey.Position
+    key: ViewKey = ViewKey.Position,
+    comparison: InputComparison<P>? = None
 ): View =
-    View(key, ViewBody.Lazy(LazyDescription(props, create), source, retentionLimit(retention)))
+    View(
+        key,
+        ViewBody.Lazy(LazyDescription(props, create, comparison), source, retentionLimit(retention))
+    )

@@ -190,17 +190,3 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
         }
     }
 }
-
-private fun sameLabelParagraph(a: ParagraphStyle?, b: ParagraphStyle?): Boolean =
-    when ((a, b)) {
-        case(None, None) -> true
-        case(Some(left), Some(right)) -> left.alignment ==
-            right.alignment &&
-            left.direction ==
-            right.direction &&
-            left.maxLines ==
-            right.maxLines &&
-            left.ellipsis ==
-            right.ellipsis
-        else -> false
-    }

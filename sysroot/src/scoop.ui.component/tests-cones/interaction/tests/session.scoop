@@ -99,6 +99,7 @@ private fun reportFailure(error: Throwable) {
 }
 
 internal class ControlProbe {
+    var inScene = false
     val buttonFocus = FocusHandle()
     val checkFocus = FocusHandle()
     val ownedFocus = FocusHandle()

@@ -192,7 +192,12 @@ private class ControlPanel(
     public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.draw { paint -> paint.canvas.clear(props.value.background) }
-        context.children()
+        probe.inScene = true
+        try {
+            context.children()
+        } finally {
+            probe.inScene = false
+        }
         context.draw {
             paint -> @Unsafe
             {

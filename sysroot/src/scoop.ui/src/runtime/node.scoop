@@ -1,5 +1,7 @@
 package scoop.ui
 
+import scoop.collections.HashMap
+
 internal enum NodeBody {
     Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance),
     Lazy(LazyInstance, LazyChildren), Direction
@@ -28,7 +30,9 @@ internal class MountedNode(
     var retired = false
     var queued = false
     var updated: UpdateTurn? = None
-    var dependencies: Array<StateSignal> = []
+    val dependencies = HashMap<StateSignalId, StateSubscription>()
+    var inputChanged = true
+    var stateDirty = false
     var layoutVersion = 0L
     var sceneVersion = 0L
     val frameInputs = NodeFrameInputs(this)
@@ -95,19 +99,31 @@ internal class MountedNode(
     }
 
     fun invalidate() {
-        if (active && root.isOpen && !queued) {
-            queued = true
-            root.enqueue(this)
+        if (active && root.isOpen) {
+            stateDirty = true
+            if (!queued) {
+                queued = true
+                root.enqueue(this)
+            }
         }
     }
     fun replace(next: View) {
         when ((body, next.body)) {
             case(Empty, Empty) -> {}
             case(Direction, Direction(_, _)) -> {}
-            case(Component(instance), Component(description)) -> instance.replace(description)
-            case(Element(instance), Element(description, _)) -> instance.replace(description)
+            case(Component(instance), Component(description)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
+            case(Element(instance), Element(description, _)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
             case(Portal(instance), Portal(_, open, options)) -> instance.replace(open, options)
-            case(Lazy(instance, _), Lazy(description, _, _)) -> instance.replace(description)
+            case(Lazy(instance, _), Lazy(description, _, _)) -> {
+                if (!instance.replace(description))
+                    inputChanged = true
+            }
             else -> throw IllegalStateException(Some("mismatched mounted view shape"))
         }
         view = next
@@ -118,6 +134,9 @@ internal class MountedNode(
         updated = Some(turn)
         val previousDirection = layoutDirection
         layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
+        val shouldUpdate = inputChanged || stateDirty || layoutDirection != previousDirection
+        inputChanged = false
+        stateDirty = false
         if (layoutDirection != previousDirection)
             request(UiInvalidation.Layout)
         when (body) {
@@ -139,7 +158,8 @@ internal class MountedNode(
                     Some("portal description was replaced by another shape")
                 )
             }
-            case Component(instance) -> rebuildComponent(instance, turn, false)
+            case Component(instance) -> if (shouldUpdate)
+                rebuildComponent(instance, turn, false)
             case Element(instance) -> {
                 when (view.body) {
                     case Element(_, descriptions) -> reconcile(descriptions, turn)
@@ -147,7 +167,7 @@ internal class MountedNode(
                         Some("element description was replaced by another shape")
                     )
                 }
-                if (active && root.isOpen && mounted)
+                if (shouldUpdate && active && root.isOpen && mounted)
                     request(instance.update())
             }
             case Lazy(instance, items) -> {
@@ -160,7 +180,7 @@ internal class MountedNode(
                 if (layoutDirection != previousDirection)
                     for (child in children)
                         child.refreshDirection(turn)
-                if (active && root.isOpen && mounted)
+                if (shouldUpdate && active && root.isOpen && mounted)
                     request(instance.update())
             }
         }
@@ -209,9 +229,9 @@ internal class MountedNode(
             }
         failure = cleanupUi(failure) { scope.deactivate() }
         failure = cleanupUi(failure) { frameInputs.close() }
-        for (source in dependencies)
-            source.unsubscribe(this)
-        dependencies = []
+        for (subscription in dependencies.values)
+            subscription.close()
+        dependencies.clear()
         for (child in children)
             failure = cleanupUi(failure) { child.deactivate() }
         throwUi(failure)

@@ -12,7 +12,7 @@ internal interface ElementDescriptionBase {
 
 internal interface ComponentInstance {
     val value: Component
-    fun replace(description: ComponentDescriptionBase)
+    fun replace(description: ComponentDescriptionBase): Boolean
 }
 
 internal interface ElementInstance {
@@ -21,7 +21,7 @@ internal interface ElementInstance {
     fun onMount(scope: ComponentScope)
     fun update(): UiInvalidation
     fun onUnmount()
-    fun replace(description: ElementDescriptionBase)
+    fun replace(description: ElementDescriptionBase): Boolean
 }
 
 internal interface LazyDescriptionBase {
@@ -35,16 +35,17 @@ internal interface LazyInstance {
     fun onMount(scope: ComponentScope)
     fun update(): UiInvalidation
     fun onUnmount()
-    fun replace(description: LazyDescriptionBase)
+    fun replace(description: LazyDescriptionBase): Boolean
 }
 
 internal class LazyDescription<P, L, E: LazyElement<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E
+    private val factory: (Props<P>) -> E,
+    val comparison: InputComparison<P>? = None
 ): LazyDescriptionBase {
     override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, L, E>
     override fun create(): LazyInstance {
-        val props = Props(input)
+        val props = Props(input, comparison)
         return TypedLazyInstance<P, L, E>(props, factory(props))
     }
 }
@@ -66,19 +67,21 @@ private class TypedLazyInstance<P, L, E: LazyElement<L>>(
     override fun onUnmount() {
         instance.onUnmount()
     }
-    override fun replace(description: LazyDescriptionBase) {
-        props.replace((description as LazyDescription<P, L, E>).input)
+    override fun replace(description: LazyDescriptionBase): Boolean {
+        val next = description as LazyDescription<P, L, E>
+        return props.replace(next.input, next.comparison)
     }
 }
 
 internal class ComponentDescription<P, C: Component>(
     val input: P,
-    private val factory: (Props<P>) -> C
+    private val factory: (Props<P>) -> C,
+    val comparison: InputComparison<P>? = None
 ): ComponentDescriptionBase {
     override fun sameType(other: ComponentDescriptionBase): Boolean =
         other is ComponentDescription<P, C>
     override fun create(): ComponentInstance {
-        val props = Props(input)
+        val props = Props(input, comparison)
         return TypedComponentInstance<P, C>(props, factory(props))
     }
 }
@@ -88,19 +91,21 @@ private class TypedComponentInstance<P, C: Component>(
     private val instance: C
 ): ComponentInstance {
     override val value: Component get() = instance
-    override fun replace(description: ComponentDescriptionBase) {
-        props.replace((description as ComponentDescription<P, C>).input)
+    override fun replace(description: ComponentDescriptionBase): Boolean {
+        val next = description as ComponentDescription<P, C>
+        return props.replace(next.input, next.comparison)
     }
 }
 
 internal class ElementDescription<P, L, E: Element<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E
+    private val factory: (Props<P>) -> E,
+    val comparison: InputComparison<P>? = None
 ): ElementDescriptionBase {
     override fun sameType(other: ElementDescriptionBase): Boolean =
         other is ElementDescription<P, L, E>
     override fun create(): ElementInstance {
-        val props = Props(input)
+        val props = Props(input, comparison)
         return TypedElementInstance<P, L, E>(props, factory(props))
     }
 }
@@ -122,7 +127,8 @@ private class TypedElementInstance<P, L, E: Element<L>>(
     override fun onUnmount() {
         instance.onUnmount()
     }
-    override fun replace(description: ElementDescriptionBase) {
-        props.replace((description as ElementDescription<P, L, E>).input)
+    override fun replace(description: ElementDescriptionBase): Boolean {
+        val next = description as ElementDescription<P, L, E>
+        return props.replace(next.input, next.comparison)
     }
 }

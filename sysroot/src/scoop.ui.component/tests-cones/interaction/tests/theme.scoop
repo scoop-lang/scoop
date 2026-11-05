@@ -29,7 +29,8 @@ internal class TraceTheme(
         options: SurfaceOptions,
         direction: LayoutDirection
     ): SurfaceGeometry {
-        surfaces += 1
+        if (probe.inScene)
+            surfaces += 1
         return base.surfaceGeometry(bounds, visual, options, direction)
     }
     public override fun checkboxMetrics(
@@ -42,7 +43,8 @@ internal class TraceTheme(
         options: CheckboxOptions,
         direction: LayoutDirection
     ): CheckboxGeometry {
-        checkboxes += 1
+        if (probe.inScene)
+            checkboxes += 1
         return base.checkboxGeometry(bounds, visual, options, direction)
     }
     public override fun radioMetrics(options: RadioOptions): RadioMetrics =

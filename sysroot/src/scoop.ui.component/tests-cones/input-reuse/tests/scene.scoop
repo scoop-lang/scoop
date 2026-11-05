@@ -1,0 +1,82 @@
+package scoop.tests.ui.componentinputreuse
+
+import scoop.graphics.*
+import scoop.graphics.native.withSkiaCanvas
+import scoop.surface.FrameSubmission
+import scoop.tests.graphics.readNativePixel
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.window.ActiveApplication
+
+internal class InputScene(
+    private val probe: ButtonInputProbe,
+    private val active: ActiveApplication
+): Component {
+    public override fun render(): View {
+        val version = probe.version.value
+        return element(
+            version,
+            { props -> InputPanel(props, probe, active) },
+            [
+                button("Link action", { probe.clicked = version }) { variant = ButtonVariant.Link },
+                label("Stable label")
+            ]
+        )
+    }
+}
+
+private class InputPanel(
+    private val props: Props<Int>,
+    private val probe: ButtonInputProbe,
+    private val active: ActiveApplication
+): Element<LayoutMetrics> {
+    public override fun onMount(scope: ComponentScope) {
+        probe.scope = Some(scope)
+    }
+    public override fun update(): UiInvalidation = UiInvalidation.Scene
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        LayoutMetrics
+    > {
+        val button = context.measureChild(0L, Constraints())
+        context.placeChild(0L, Point(20.0, 20.0))
+        context.measureChild(1L, Constraints())
+        context.placeChild(1L, Point(20.0, 90.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 160.0))), button)
+    }
+    public override fun scene(context: SceneContext, button: LayoutMetrics) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        probe.theme.inScene = true
+        try {
+            context.children()
+        } finally {
+            probe.theme.inScene = false
+        }
+        val pixels = MutableArray<Long>(128L) { _ -> 0L }
+        context.draw {
+            paint -> @Unsafe
+            {
+                paint.canvas.withSkiaCanvas {
+                    native -> @Unsafe
+                    {
+                        for (index in 0L ..< pixels.size)
+                            pixels[index] =
+                                readNativePixel(
+                                    native,
+                                    25.0 + (index % 16L).toDouble() * 6.0,
+                                    20.0 +
+                                        button.alphabeticBaseline!! -
+                                        3.0 +
+                                        (index / 16L).toDouble()
+                                )
+                    }
+                }
+            }
+        }
+        val sampled = pixels.toArray()
+        val version = props.value
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted && !probe.finished)
+                probe.accepted(active, version, sampled)
+        }
+    }
+}

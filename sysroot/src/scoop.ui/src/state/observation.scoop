@@ -1,40 +1,60 @@
 package scoop.ui
 
 import scoop.surface.AnimationReadObserver
+import scoop.collections.HashMap
+
+private val stateSequence = AtomicLong(0L)
+
+internal struct StateSignalId(val value: Long): Equals<StateSignalId>, Hash {
+    public override operator fun equals(other: StateSignalId): Boolean = value == other.value
+    public override fun hash(): Long = value.hash()
+}
 
 internal class StateSignal {
-    private val observers = ArrayList<MountedNode>()
-    fun subscribe(node: MountedNode) {
-        for (observer in observers)
-            if (observer === node)
-                return
-        observers.add(node)
+    val id = StateSignalId(stateSequence.fetchAdd(1L, MemoryOrder.Relaxed))
+    private val observers = ArrayList<StateSubscription>()
+
+    fun subscribe(node: MountedNode): StateSubscription {
+        val subscription = StateSubscription(Some(this), Some(node), observers.size)
+        observers.add(subscription)
+        return subscription
     }
-    fun unsubscribe(node: MountedNode) {
-        var index = 0L
-        while (index < observers.size) {
-            if (observers[index] === node) {
-                observers.removeAt(index)
-                return
-            }
-            index += 1L
+    fun remove(subscription: StateSubscription) {
+        val index = subscription.index
+        val last = observers.size - 1L
+        if (index != last) {
+            val moved = observers[last]
+            observers[index] = moved
+            moved.index = index
         }
+        observers.removeAt(last)
     }
     fun changed() {
         for (observer in observers.toArray())
-            observer.invalidate()
+            observer.node?.invalidate()
+    }
+}
+
+/** Closing a binding removes it without searching its source's other observers. */
+internal class StateSubscription(
+    private var source: StateSignal?,
+    var node: MountedNode?,
+    var index: Long
+): Closeable {
+    public override fun close() {
+        val owner = source ?: return
+        owner.remove(this)
+        source = None
+        node = None
+        index = -1L
     }
 }
 
 internal class DependencyCollector {
-    private val sources = ArrayList<StateSignal>()
+    val sources = HashMap<StateSignalId, StateSignal>()
     fun read(source: StateSignal) {
-        for (previous in sources)
-            if (previous === source)
-                return
-        sources.add(source)
+        sources[source.id] = source
     }
-    fun collected(): Array<StateSignal> = sources.toArray()
 }
 
 internal class UiEvaluation(

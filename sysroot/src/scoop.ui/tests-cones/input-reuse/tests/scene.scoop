@@ -1,0 +1,105 @@
+package scoop.tests.ui.inputreuse
+
+import scoop.graphics.*
+import scoop.surface.FrameSubmission
+import scoop.ui.*
+import scoop.window.ActiveApplication
+
+internal class InputScene(
+    private val probe: InputProbe,
+    private val application: ActiveApplication
+): Component {
+    public override fun render(): View {
+        val generation = probe.unrelated.value
+        val rule =
+            if (probe.newRule.value)
+                probe.secondRule
+            else
+                probe.firstRule
+        val items =
+            Array<View>(probe.items.value.size) {
+                index ->
+                val id = probe.items.value[index]
+                element(id, { props -> Extent(props, probe) }, key = ViewKey.Number(id))
+            }
+        val children = ArrayList<View>()
+        children.add(
+            component(
+                DisplayInput(10, { probe.clicked = generation }),
+                { props -> ReusedParent(props, probe) },
+                ViewKey.Text("parent"),
+                Some(rule)
+            )
+        )
+        children.add(
+            component(
+                if (probe.useSecond.value)
+                    probe.secondBinding
+                else
+                    probe.firstBinding,
+                { props -> CurrentBinding(props, probe) },
+                ViewKey.Text("binding"),
+                Some(sameBinding)
+            )
+        )
+        children.add(
+            component(
+                probe.mutable.value,
+                { props -> MutableChild(props, probe) },
+                ViewKey.Text("mutable")
+            )
+        )
+        children.add(
+            element({ OrderedLayout(probe) }, items, ViewKey.Text("items"), Some(unchanged))
+        )
+        children.add(
+            lazyElement(
+                probe.source.value,
+                { ReusedLazy(probe) },
+                key = ViewKey.Text("lazy"),
+                comparison = Some(unchanged)
+            )
+        )
+        if (probe.showRows.value)
+            for (index in 0L ..< probe.rows.size)
+                children.add(
+                    component(
+                        index,
+                        { props -> ObservedRow(props, probe) },
+                        ViewKey.Number(index),
+                        Some(sameNumber)
+                    )
+                )
+        return direction(
+            element(
+                { InputRoot(probe, application) },
+                children.toArray(),
+                comparison = Some(unchanged)
+            ),
+            probe.direction.value
+        )
+    }
+}
+
+private class InputRoot(
+    private val probe: InputProbe,
+    private val application: ActiveApplication
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        for (index in 0L ..< context.childCount) {
+            context.measureChild(index, Constraints())
+            context.placeChild(index, Point(10.0, 10.0 + index.toDouble() * 5.0))
+        }
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(200.0, 120.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.draw { paint -> paint.canvas.clear(Color.White) }
+        context.children()
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted && probe.logicDone)
+                probe.finish(application)
+        }
+    }
+}

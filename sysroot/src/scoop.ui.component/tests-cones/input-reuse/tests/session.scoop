@@ -1,0 +1,138 @@
+package scoop.tests.ui.componentinputreuse
+
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class ComponentInputReuseTest {
+    @Test
+    fun `callback only button updates skip work while link hover still changes pixels`() {
+        val probe = ButtonInputProbe()
+        val source = ThemeSource(probe.theme)
+        context(source) {
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+        }
+        probe.view?.close()
+        assertTrue(probe.finished)
+        assertEquals(2, probe.clicked)
+    }
+}
+
+internal class ButtonInputProbe {
+    val theme = InputTheme(shadcnTheme())
+    val version = state(0)
+    var clicked = -1
+    var scope: ComponentScope? = None
+    var view: ViewProbe? = None
+    var window: Window? = None
+    var baseline: Array<Long> = []
+    var baselineMetrics = 0
+    var frames = 0
+    var phase = 0
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                val native =
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Button input reuse"
+                            size = LogicalSize(260.0, 160.0)
+                            visible = false
+                        }
+                    )
+                window = Some(native)
+                view = Some(observeWindow(native))
+                host.attach(native, { InputScene(this, active) })
+                native.setVisible(true)
+                native.setWindowLevel(WindowLevel.AlwaysOnTop)
+                native.requestFocus()
+                assertTrue(moveSurfacePointer(native, 230.0, 140.0))
+            }
+            case NewEvents(StartCause.Deadline) -> fail(
+                Some(f"button input reuse deadline at ${phase}")
+            )
+            else -> {}
+        }
+    }
+    fun accepted(active: ActiveApplication, generation: Int, pixels: Array<Long>) {
+        frames += 1
+        when (phase) {
+            case 0 -> {
+                if (frames < 3)
+                    scope!!.requestFrame()
+                else {
+                    baseline = pixels
+                    baselineMetrics = theme.metrics
+                    phase = 1
+                    version.value = 1
+                }
+            }
+            case 1 -> if (generation == 1) {
+                assertEquals(baselineMetrics, theme.metrics)
+                phase = 2
+                assertTrue(moveSurfacePointer(window!!, 55.0, 38.0))
+                click()
+                assertTrue(
+                    active.proxy().post {
+                        _ ->
+                        assertEquals(1, clicked)
+                        scope!!.requestFrame()
+                    }
+                )
+            }
+            case 2 -> if (theme.hovered && clicked == 1) {
+                assertFalse(samePixels(baseline, pixels))
+                baselineMetrics = theme.metrics
+                phase = 3
+                version.value = 2
+            }
+            case 3 -> if (generation == 2) {
+                assertEquals(baselineMetrics, theme.metrics)
+                phase = 4
+                click()
+                assertTrue(
+                    active.proxy().post {
+                        _ ->
+                        assertEquals(2, clicked)
+                        phase = 5
+                        assertTrue(moveSurfacePointer(window!!, 230.0, 140.0))
+                        scope!!.requestFrame()
+                    }
+                )
+            }
+            case 5 -> {
+                if (!theme.hovered && samePixels(baseline, pixels)) {
+                    finished = true
+                    active.requestExit()
+                }
+            }
+            else -> {}
+        }
+    }
+    private fun click() {
+        assertTrue(view!!.button(55.0, 38.0, true))
+        assertTrue(view!!.button(55.0, 38.0, false))
+    }
+}
+
+private fun samePixels(a: Array<Long>, b: Array<Long>): Boolean {
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (a[index] != b[index])
+            return false
+    return true
+}

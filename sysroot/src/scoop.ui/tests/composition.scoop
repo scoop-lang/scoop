@@ -55,6 +55,7 @@ internal class CompositionProbe(val store: CompositionStore) {
     private var oldFirst: StatefulTile? = None
     private var oldSecond: StatefulTile? = None
     private var choice: BindingReader? = None
+    private var subscriptions: SubscriptionSnapshot? = None
 
     fun event(host: UiHost, application: ActiveApplication, event: ApplicationEvent) {
         when (event) {
@@ -122,11 +123,13 @@ internal class CompositionProbe(val store: CompositionStore) {
                 assertEquals("mount layout", log[1L])
                 assertEquals("mount 1", log[2L])
                 assertEquals("mount 2", log[3L])
+                subscriptions = Some(SubscriptionSnapshot.capture(first!!, tile(1L)))
                 snapshot()
                 tile(1L).local = 2
                 tile(1L).local = 3
             }
             case 1 -> {
+                subscriptions!!.unchanged()
                 assertEquals(sceneBefore, sceneRenders)
                 assertEquals(aBefore + 1, tile(1L).renders)
                 assertEquals(bBefore, tile(2L).renders)
@@ -136,6 +139,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                 model.version.value = 1
             }
             case 2 -> {
+                subscriptions!!.unchanged()
                 assertEquals(sceneBefore + 1, sceneRenders)
                 assertEquals(aBefore + 1, tile(1L).renders)
                 assertEquals(bBefore + 1, tile(2L).renders)
@@ -144,6 +148,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                 tile(1L).watchExtra = false
             }
             case 3 -> {
+                subscriptions!!.removedOne()
                 snapshot()
                 store.extra.value = 8
             }
@@ -181,6 +186,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                 model.items.value = [2L]
             }
             case 9 -> {
+                subscriptions!!.closed()
                 assertEquals(1, oldFirst!!.unmounts)
                 assertTrue(oldFirst!!.resource!!.image.isClosed)
                 assertFalse(oldFirst!!.scope!!.isMounted)

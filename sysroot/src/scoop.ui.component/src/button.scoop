@@ -28,11 +28,12 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
     private val control = state<PressControl?>(None)
     private val themes = ThemeAccess()
     private val text = ActionTextStyle()
+    private val click: () -> Unit = { props.value.onClick() }
     public override fun onMount(scope: ComponentScope) {
         themes.mount(props.value.theme)
         val area = scope.createArea(focusable = true)
         val focus = scope.focusTarget(area, props.value.focus)
-        val press = scope.press(area, PressOptions(props.value.enabled)) { props.value.onClick() }
+        val press = scope.press(area, PressOptions(props.value.enabled), click)
         scope.routeChildren(area)
         control.value = Some(PressControl(area, focus, press))
     }
@@ -62,7 +63,7 @@ public class Button public constructor(private val props: Props<ButtonProps>): C
                 input.variant,
                 input.style,
                 visual,
-                ActionBehavior.Press(control, input.onClick, input.focus),
+                ActionBehavior.Press(control, click, input.focus),
                 input.group,
                 input.labelTarget
             ),
