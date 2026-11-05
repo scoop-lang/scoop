@@ -1,0 +1,243 @@
+package scoop.tests.ui.command
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.command as makeCommand
+import scoop.ui.component.label as makeLabel
+
+internal class CommandScene(private val p: CommandProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val version = p.version
+        val body =
+            if (p.shown)
+                makeCommand(ProbeCommands(p), p.query) {
+                    fonts = Some(p.fonts);
+                    focus = FocusOptions(Some(p.editor));
+                    listHandle = Some(p.list);
+                    scroll = Some(p.scroll)
+                    active =
+                        Some(
+                            if (p.rebind)
+                                p.second.binding()
+                            else
+                                p.active.binding()
+                        )
+                    filter =
+                        if (p.long)
+                            CommandFilter.Provided
+                        else
+                            CommandFilter.Custom {
+                                item, query ->
+                                p.scores += 1;
+                                commandScore(item.label, query, item.keywords)
+                            }
+                    autoHighlight = p.auto;
+                    enabled = p.enabled;
+                    maxHeight = 160.0
+                    width =
+                        if (p.zero)
+                            0.0
+                        else
+                            if (p.narrow)
+                                160.0
+                            else
+                                340.0
+                    caretBlink = Duration.milliseconds(0L)
+                    onSelect =
+                        {
+                            _ ->
+                            p.calls += 1;
+                            p.reported = version
+                        }
+                    onSubmit = { _ -> p.submissions += 1 }
+                }
+            else
+                makeLabel("Unmounted") { fonts = Some(p.fonts) }
+        return direction(
+            element(
+                generation,
+                { current -> CommandRoot(p, current) },
+                [
+                    body,
+                    button("After", {}) {
+                        fonts = Some(p.fonts);
+                        focus = FocusOptions(Some(p.after))
+                    }
+                ]
+            ),
+            if (p.narrow)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class ProbeCommands(private val p: CommandProbe): CommandSource {
+    private val large = p.long
+    private val limit =
+        if (p.omit > 0L)
+            p.omit - 1L
+        else
+            5L
+    private val reversed = p.reverse
+    public override val count: Long get() =
+        if (large)
+            5000L
+        else
+            limit
+    public override val itemCount: Long get() = count
+    public override fun keyAt(index: Long): ViewKey =
+        ViewKey.Number(
+            if (large)
+                index
+            else
+                if (reversed)
+                    limit - index
+                else
+                    index + 1L
+        )
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(value) -> if (large) {
+                if (value >= 0L && value < count)
+                    Some(value)
+                else
+                    None
+            }
+            else
+                if (value >= 1L && value <= limit)
+                    Some(
+                        if (reversed)
+                            limit - value
+                        else
+                            value - 1L
+                    )
+                else
+                    None
+            else -> None
+        }
+    public override fun enabledAt(index: Long): Boolean =
+        large || keyAt(index) != ViewKey.Number(2L)
+    public override fun entryAt(index: Long): CommandEntry {
+        val key = keyAt(index)
+        val number =
+            when (key) {
+                case Number(value) -> value;
+                else -> 0L
+            }
+        val title =
+            if (large)
+                f"Command ${number}"
+            else
+                when (number) {
+                    case 1L -> "Calendar"
+                    case 2L -> "Disabled"
+                    case 3L -> "Settings"
+                    case 4L -> "设置编辑器"
+                    else -> "About"
+                }
+        return CommandEntry.Item(
+            CommandItem(
+                key,
+                title,
+                { p.selected = number },
+                enabledAt(index),
+                content = Some(component(number, { current -> ObservedCommand(p, current) }, key))
+            )
+        )
+    }
+}
+
+private class ObservedCommand(
+    private val p: CommandProbe,
+    private val props: Props<Long>
+): Component {
+    private val mounted = props.value
+    public override fun onMount(scope: ComponentScope) {
+        p.factories += 1
+    }
+    public override fun onUnmount() {
+        p.disposed += 1
+    }
+    public override fun render(): View =
+        element(
+            props.value,
+            { current -> CommandObservation(p, current) },
+            [observedLabel(p, f"Candidate ${props.value} / local ${mounted}")]
+        )
+}
+
+private class CapturedBounds(var value: Rect)
+
+private class CommandObservation(
+    private val p: CommandProbe,
+    private val props: Props<Long>
+): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        val local = Rect(0.0, 0.0, context.size.width, context.size.height)
+        val bounds = CapturedBounds(local)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, local).use {
+                    shape -> bounds.value = shape.toWindow(local)
+                }
+            }
+        }
+        context.children()
+        val index = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+                p.rows.put(index, bounds.value)
+        }
+    }
+}
+
+private class CommandRoot(private val p: CommandProbe, private val props: Props<Int>): Element {
+    private var measuredWidth = 0.0
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context,
+                _ -> if (p.prevent)
+                    context.preventDefault()
+            }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        measuredWidth =
+            context.measureChild(
+                0L,
+                Constraints(maxWidth = Some(400.0), maxHeight = Some(400.0))
+            ).size.width
+        context.placeChild(0L, Point(80.0, 80.0))
+        context.measureChild(1L, Constraints());
+        context.placeChild(1L, Point(500.0, 80.0))
+        return LayoutMetrics(constraints.constrain(Size(680.0, 540.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val generation = props.value
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted)
+            {
+                p.rendered = generation;
+                p.actualWidth = measuredWidth
+            }
+        }
+    }
+}
+
+private fun observedLabel(p: CommandProbe, text: String): View =
+    makeLabel(text) { fonts = Some(p.fonts) }

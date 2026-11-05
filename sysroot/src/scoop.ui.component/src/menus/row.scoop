@@ -332,9 +332,9 @@ internal fun menuRowStyle(
     }
 }
 
-private class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
+internal class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
 
-private class MenuCheck(private val props: Props<MenuCheckProps>): Element {
+internal class MenuCheck(private val props: Props<MenuCheckProps>): Element {
     private var glyph: Path? = None
     public override fun onMount(scope: ComponentScope) {
         // Lucide check (ISC), on its original 24-unit grid.

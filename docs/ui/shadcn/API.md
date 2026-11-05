@@ -264,3 +264,9 @@ DropdownMenu 支持内置 trigger 或外部 anchor，group 可接入 ButtonGroup
 ## P5b：Select
 
 `select(value.binding(), choices)` 与 `select(value.binding()) { group(key, "Group") { item(choice) }; separator(key) }` 共用 SelectProps／Select，值类型要求 Equals，选择为 T?。可配置 open Binding、Default／Sm、ItemAligned／Popup、宽度与最大高度、scrollButtons、借用 ScrollState、trigger／popup 样式、字体与主题、Label 关联、真实焦点／模态策略、typeahead 和回调。未知选择保持原值并显示 unavailableText；选择提交只报告 setter 实际采纳的变化。valueContent 接收 SelectValue<T>，候选的 content／icon 为非交互展示插槽。ButtonGroup.item 可将 GroupPosition 直接交给 Select.group，连接表面和焦点环沿 Button 路径。完整合同见[组件规范第 34 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。
+
+## P5c：Command
+
+`command(commandItems { group(ViewKey.Text("actions"), "Actions") { item(ViewKey.Text("save"), "Save", onSave) } }, query)` 使用调用方的 TextEditorState 和显式条目 key。CommandBuilder 继承完整 InputBuilder，另有 active／filter／autoHighlight／loop、width／maxHeight、empty、图标、scroll／listHandle、panelStyle 和 onSelect。item 的 content／icon 非交互，快捷键标签使用 ShortcutChord；动作只在选择时调用，不注册全局命令。
+
+Ranked 按 cmdk 评分排序，Custom 可替换评分，Provided 原样消费 CommandSource 的候选和顺序。CommandSource 只供元数据，VirtualList 按需建立行；query 使用只读 TextEditorState.committedText，活动 key 通过 ActiveItems 导航和 scrollToItem 显露。没有候选的 Enter 不提交，composition 活跃时保留已提交查询的候选并先交 IME。Dialog 直接组合 `dialog(open, command(source, query) { focus = FocusOptions(Some(editorFocus)) }) { focus { initialFocus = Some(editorFocus) } }`，调用方在 onSelect 中决定是否关闭。详细合同见控件规范第 35 节。

@@ -1,0 +1,151 @@
+package scoop.ui.component
+
+import scoop.charset.unicodeCasefold
+import scoop.collections.HashMap
+import scoop.math.pow
+import scoop.text.isBlank
+
+// Adapted from dip/cmdk's command-score.ts, Copyright (c) 2022 Paco Coursey.
+// MIT license: ../../LICENSE-CMDK. Indices below are Unicode scalars, not UTF-16 units.
+private class CommandScoreText(val folded: Array<Char>, val original: Array<Char>)
+
+private fun commandScoreText(text: String): CommandScoreText {
+    val lower = ArrayList<Char>()
+    val source = ArrayList<Char>()
+    for (character in text) {
+        for (folded in unicodeCasefold(character.toString())) {
+            lower.add(
+                if (commandSpace(folded))
+                    ' '
+                else
+                    folded
+            )
+            source.add(character)
+        }
+    }
+    return CommandScoreText(lower.toArray(), source.toArray())
+}
+
+private fun commandSpace(character: Char): Boolean =
+    character == '-' || character.toString().isBlank() || character.code == 65279
+
+private fun commandGap(character: Char): Boolean =
+    character ==
+        '\\' ||
+        character ==
+        '/' ||
+        character ==
+        '_' ||
+        character ==
+        '+' ||
+        character ==
+        '.' ||
+        character ==
+        '#' ||
+        character ==
+        '"' ||
+        character ==
+        '@' ||
+        character ==
+        '[' ||
+        character ==
+        '(' ||
+        character ==
+        '{' ||
+        character ==
+        '&'
+
+/** cmdk's finite fuzzy score, including aliases, word boundaries and adjacent transposition. */
+public fun commandScore(text: String, query: String, keywords: Array<String> = []): Double {
+    val combined = StringBuilder()
+    combined.append(text)
+    for (keyword in keywords) {
+        combined.append(" ");
+        combined.append(keyword)
+    }
+    return CommandScorer(commandScoreText(combined.toString()), commandScoreText(query)).score(
+        0L,
+        0L
+    )
+}
+
+private class CommandScorer(
+    private val text: CommandScoreText,
+    private val query: CommandScoreText
+) {
+    private val memo =
+        Array<HashMap<Long, Double>>(query.folded.size) { _ -> HashMap<Long, Double>() }
+    fun score(start: Long, part: Long): Double {
+        if (part >= query.folded.size)
+            return if (start == text.folded.size)
+                1.0
+            else
+                0.99
+        val cache = memo[part]
+        when (cache[start]) {
+            case Some(value) -> return value;
+            case None -> {}
+        }
+        var high = 0.0
+        for (index in start ..< text.folded.size) {
+            if (text.folded[index] != query.folded[part])
+                continue
+            var current = score(index + 1L, part + 1L)
+            if (current > high) {
+                if (index != start) {
+                    val gap = commandGap(text.original[index - 1L])
+                    val space = commandSpace(text.original[index - 1L])
+                    current *= if (gap)
+                        0.8
+                    else
+                        if (space)
+                            0.9
+                        else
+                            0.17
+                    if (start > 0L) {
+                        var skipped =
+                            if (!gap && !space)
+                                index - start
+                            else
+                                0L
+                        if (gap || space)
+                            for (at in start ..< index - 1L) {
+                                if (
+                                    (gap && commandGap(text.original[at])) ||
+                                        (!gap && commandSpace(text.original[at]))
+                                )
+                                    skipped += 1L
+                            }
+                        current *= pow(0.999, skipped.toDouble())
+                    }
+                }
+                if (text.original[index] != query.original[part])
+                    current *= 0.9999
+            }
+            if (
+                part +
+                    1L <
+                    query.folded.size &&
+                    index >
+                    0L &&
+                    (
+                        (current < 0.1 && text.folded[index - 1L] == query.folded[part + 1L]) ||
+                            (
+                                query.folded[part + 1L] ==
+                                    query.folded[part] &&
+                                    text.folded[index - 1L] !=
+                                    query.folded[part]
+                            )
+                    )
+            ) {
+                val transposed = score(index + 1L, part + 2L) * 0.1
+                if (transposed > current)
+                    current = transposed
+            }
+            if (current > high)
+                high = current
+        }
+        cache.put(start, high)
+        return high
+    }
+}

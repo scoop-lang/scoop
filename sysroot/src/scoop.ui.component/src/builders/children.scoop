@@ -14,9 +14,18 @@ import scoop.ui.component.dialog as makeDialog
 import scoop.ui.component.alertDialog as makeAlertDialog
 import scoop.ui.component.sheet as makeSheet
 import scoop.ui.component.dialogFooter as makeDialogFooter
+import scoop.ui.component.command as makeCommand
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun command(
+        source: CommandSource,
+        query: TextEditorState,
+        configure: CommandBuilder.() -> Unit = {}
+    ) {
+        add(makeCommand(source, query, configure))
+    }
+
     public fun <T: Equals<T>> select(
         value: Binding<T?>,
         configure: SelectBuilder<T>.() -> Unit = {}

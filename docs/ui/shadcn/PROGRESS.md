@@ -228,3 +228,10 @@
 - 候选复用菜单的真实 roving 焦点、typeahead、选择和关闭通路；支持拒绝 setter／veto、外部未知值、Tab 续行与动态候选。修复键盘导航后旧 hover 行残留高亮。退出中重开重新对齐当前选择；Portal 沿同一会话重新安排初始焦点，并继续尊重新的显式焦点意图。滚动按钮按需使用原生 deadline，离开／关闭／禁用／卸载停止。
 - macOS aarch64 release：UI、五套样式库、组件生产库和 Gallery 构建通过；7 项定位、4 项 Select 状态／DSL／样式和 5 项菜单模型测试通过。Select 41 阶段、菜单 72 阶段、模态弹层 44 阶段实窗回归通过，覆盖重开聚焦、动态删除、鼠标／键盘、滚动停止、卸载与原有 focus ring 裁剪修复。前台恢复后已完成此前被系统焦点限制阻断的验收。
 - Gallery 实查明暗 System／Neutral、RTL、窄宽、两种定位、长列表滚动、单行省略、自定义图标和连接处完整焦点环；修正深色 input 透明度的叠乘及局部 hover 覆盖，并定向复验。累计 **44／64**，后续继续 Combobox／Command／NavigationMenu。清理本轮实窗输出、日志与独立锁，保留共享缓存、生产库、Gallery 和下载参考；未重建编译器／LLVM，未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P5c：Command
+
+- 完成 Command／CommandSource／CommandContent 与条目、分组、分隔、图标、平台快捷键和空结果 DSL；复用 cmdk 的 MIT 评分规则，采用 Unicode 标量索引和展开映射，支持自定义评分及直接消费外部结果。Props／已提交 query 不变时复用筛选结果；VirtualList 只创建可见候选。
+- 输入使用唯一 TextEditorState，公开 committedText 供候选控件观察；活动 key 与编辑焦点分离，支持首项高亮、禁用跳过、重排保留、外部绑定及 Up／Down／Home／End／Enter。原生 IME 先解释按键，仍在组合时不导航、不提交候选，也不因普通编辑默认动作间接提交 preedit；外层取消事件得到尊重。
+- macOS aarch64 release：5 项模型测试、41 阶段真实窗口测试通过，覆盖评分黄金值／Unicode、分组与非法数据、组合输入／取消／提交、筛选缓存、受控状态替换、5000 项虚拟化、零约束、RTL、禁用与卸载。重建受影响的 UI、五套 style、component 和 Gallery，静态检查通过。
+- Gallery 实查明暗 System／Neutral、窄宽长空提示、RTL、Dialog 内中文搜索／执行／焦点恢复、10,000 项末项导航和执行。修复单行省略文字显式方向覆盖 RTL 的问题并复看，焦点环完整。累计 **45／64**。清理一次性测试输出、日志、独立测试构建和锁，保留共享缓存、生产库、Gallery 及下载参考；未运行全仓或全部控件测试。Windows／Linux 未验证，x86_64 留在整体收尾。

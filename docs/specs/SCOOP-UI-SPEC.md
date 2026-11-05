@@ -471,7 +471,7 @@ measure 在零最小值、段落最大宽度及无界高度下测量每个自然
 
 #### 7.5.1 公共纯文本编辑状态
 
-`scoop.ui.text.TextEditorState(text = "", selection: Utf8Selection? = None)` 是 owner 线程上的可观察纯文本模型，可以独立于挂载存在。初始选区缺省位于文档末尾；显式范围沿 Window 的 UTF-8 标量边界规则验证。内部只有一份规范 TextInputState，公开 inputState／text／selection／markedRange／revision／isComposing 和 anchor／cursor（TextPosition）读取同一 State；canUndo／canRedo 也参与普通依赖观察。没有另一份可写字符串 binding 或另建订阅系统。
+`scoop.ui.text.TextEditorState(text = "", selection: Utf8Selection? = None)` 是 owner 线程上的可观察纯文本模型，可以独立于挂载存在。初始选区缺省位于文档末尾；显式范围沿 Window 的 UTF-8 标量边界规则验证。内部只有一份规范 TextInputState，公开 inputState／text／selection／markedRange／revision／isComposing 和 anchor／cursor（TextPosition）读取同一 State；canUndo／canRedo 也参与普通依赖观察。只读 committedText 同样观察当前 State；存在 composition 时返回组合开始前的已提交基线，否则返回当前正文，供搜索候选等消费方忽略临时 preedit。没有另一份可写字符串 binding 或另建订阅系统。
 
 `setSelection(Utf8Selection)` 或 `setSelection(anchor: TextPosition, cursor: TextPosition)` 保留方向与 affinity；`replace(range, text)` 完成一次可撤销替换。两者先明确结束已有组合并保留其显示文本，再操作当前文档。`replaceAll(text, selection = None)` 是外部整体替换，清除组合和旧历史，缺省把选区收敛到新文档末尾。修改正文／选区／marked range 单调推进 revision；只改变 affinity 不改变原生文档修订。非法参数、错误线程以及 render／measure／scene／draw 中的修改在改变历史之前拒绝。
 

@@ -1,0 +1,184 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.Color
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.command as makeCommand
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.label as makeLabel
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.window.*
+
+internal class CommandExamplesModel {
+    val query = TextEditorState()
+    val dialogQuery = TextEditorState()
+    val providedQuery = TextEditorState()
+    val dialogFocus = FocusHandle()
+    val active = state<ViewKey?>(None)
+    val open = state(false)
+    val enabled = state(true)
+    val auto = state(true)
+    val narrow = state(false)
+    val result = state("No command selected")
+    val choices = commandExampleItems(this)
+}
+
+private fun commandExampleItems(model: CommandExamplesModel): CommandContent =
+    commandItems {
+        group(ViewKey.Text("suggestions"), "Suggestions") {
+            item(ViewKey.Text("calendar"), "Calendar", { model.result.value = "Opened calendar" }) {
+                keywords = ["date", "日历"]
+            }
+            item(
+                ViewKey.Text("search"),
+                "Search projects",
+                { model.result.value = "Searching projects" }
+            ) {
+                shortcut =
+                    Some(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character("p")),
+                            modifiers = ShortcutModifiers(primary = true)
+                        )
+                    )
+            }
+            item(ViewKey.Text("calculator"), "Calculator") { enabled = false }
+        }
+        separator(ViewKey.Text("separator"))
+        group(ViewKey.Text("settings"), "Settings") {
+            item(ViewKey.Text("profile"), "Profile", { model.result.value = "Opened profile" }) {
+                keywords = ["account", "user"]
+            }
+            item(ViewKey.Text("billing"), "Billing", { model.result.value = "Opened billing" })
+            item(
+                ViewKey.Text("preferences"),
+                "Preferences",
+                { model.result.value = "Opened preferences" }
+            ) {
+                keywords = ["settings", "设置"]
+                shortcut =
+                    Some(
+                        ShortcutChord(
+                            ShortcutKey.Logical(LogicalKey.Character(",")),
+                            modifiers = ShortcutModifiers(primary = true)
+                        )
+                    )
+            }
+            item(ViewKey.Text("editor"), "设置编辑器", { model.result.value = "已打开编辑器设置" }) {
+                keywords = ["editor"]
+            }
+        }
+    }
+
+internal fun commandExamples(model: CommandExamplesModel, fonts: FontCollection): View =
+    makeColumn {
+        add(panelHeading("Command", fonts))
+        typography(
+            "Search by words, initials or keywords. Arrow keys move the highlight while your cursor stays in the input.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.enabled.value)
+                    "Disable"
+                else
+                    "Enable",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.auto.value)
+                    "Auto highlight: on"
+                else
+                    "Auto highlight: off",
+                { model.auto.value = !model.auto.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.narrow.value)
+                    "Width: narrow"
+                else
+                    "Width: normal",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        command(model.choices, model.query) {
+            active = Some(model.active.binding());
+            this.fonts = Some(fonts)
+            width =
+                if (model.narrow.value)
+                    200.0
+                else
+                    400.0
+            enabled = model.enabled.value;
+            autoHighlight = model.auto.value
+            panelStyle { border(Some(Border.all(1.0, Color(0.5, 0.5, 0.5, 0.2)))) }
+            empty("No matching commands. Try “settings” or “设置”.")
+        }
+        typography(model.result.value, TypographyRole.Small) { this.fonts = Some(fonts) }
+        dialog(
+            model.open.binding(),
+            makeCommand(model.choices, model.dialogQuery) {
+                this.fonts = Some(fonts);
+                width = 360.0;
+                focus = FocusOptions(Some(model.dialogFocus))
+                onSelect = { _ -> model.open.value = false }
+            }
+        ) {
+            title("Run a command");
+            description("Choose an action or type to search.")
+            trigger("Open command dialog") { variant = ButtonVariant.Outline }
+            this.fonts = Some(fonts);
+            width = 420.0
+            focus { initialFocus = Some(model.dialogFocus) }
+        }
+        typography("Provided results · 10,000 commands", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        typography(
+            "This list keeps the caller’s order and does not filter locally. Home and End reveal candidates without moving input focus.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        command(ExampleCommandSource(model), model.providedQuery) {
+            this.fonts = Some(fonts);
+            filter = CommandFilter.Provided;
+            width = 400.0;
+            maxHeight = 160.0
+            placeholder = "Query supplied to your own search service"
+            panelStyle { border(Some(Border.all(1.0, Color(0.5, 0.5, 0.5, 0.2)))) }
+        }
+        spacing = 16.0
+    }
+
+private class ExampleCommandSource(private val model: CommandExamplesModel): CommandSource {
+    public override val count: Long get() = 10000L
+    public override val itemCount: Long get() = count
+    public override fun keyAt(index: Long): ViewKey = ViewKey.Number(index)
+    public override fun indexOfKey(key: ViewKey): Long? =
+        when (key) {
+            case Number(index) -> if (index >= 0L && index < count)
+                Some(index)
+            else
+                None
+            else -> None
+        }
+    public override fun entryAt(index: Long): CommandEntry =
+        CommandEntry.Item(
+            CommandItem(
+                ViewKey.Number(index),
+                f"Open project ${index + 1L}",
+                { model.result.value = f"Opened project ${index + 1L}" }
+            )
+        )
+}

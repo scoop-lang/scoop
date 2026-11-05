@@ -1,0 +1,196 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.FocusOrigin
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class Command public constructor(private val props: Props<CommandProps>): Component {
+    private val themes = ThemeAccess()
+    private val localActive = state<ViewKey?>(None)
+    private val ownFocus = FocusHandle()
+    private val ownScroll = ScrollState()
+    private val ownList = VirtualListHandle()
+    private var cached: CommandProps? = None
+    private var cachedQuery = ""
+    private var result: CommandSource? = None
+    private var rowSource: CommandRows? = None
+    private val active =
+        binding(
+            { (props.value.active ?: localActive.binding()).value },
+            { key -> (props.value.active ?: localActive.binding()).value = key }
+        )
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.input.theme)
+    }
+    private fun results(): CommandSource {
+        val input = props.value
+        val query = input.query.committedText
+        when (cached) {
+            case Some(previous) -> if (previous === input && query == cachedQuery)
+                return result!!
+            case None -> {}
+        }
+        val next = commandResults(input.source, query, input.filter)
+        cached = Some(input);
+        cachedQuery = query;
+        result = Some(next)
+        return next
+    }
+    private fun highlight(key: ViewKey) {
+        val input = props.value
+        if (!input.input.enabled || input.query.isComposing)
+            return
+        val source = results()
+        val index = source.indexOfKey(key) ?: return
+        if (source.enabledAt(index))
+            active.value = Some(key)
+    }
+    private fun select(key: ViewKey) {
+        val input = props.value
+        if (!input.input.enabled || input.query.isComposing)
+            return
+        val source = results()
+        val index = source.indexOfKey(key) ?: return
+        val item = commandItem(source.entryAt(index)) ?: return
+        if (!item.enabled)
+            return
+        val focus = input.input.focus.handle ?: ownFocus
+        if (!focus.hasFocus)
+            focus.requestFocus(FocusOrigin.Pointer)
+        item.onSelect()
+        props.value.onSelect(key)
+    }
+    private fun rows(source: CommandSource, input: CommandProps, theme: Theme): CommandRows {
+        when (rowSource) {
+            case Some(previous) -> if (
+                previous.source === source && previous.input === input && previous.theme === theme
+            )
+                return previous
+            case None -> {}
+        }
+        val next =
+            CommandRows(
+                source,
+                input,
+                theme,
+                active,
+                { key -> highlight(key) },
+                { key -> select(key) }
+            )
+        rowSource = Some(next)
+        return next
+    }
+    public override fun render(): View {
+        active.value
+        val input = props.value
+        val theme = themes.read(input.input.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val source = results()
+        val focus = input.input.focus.handle ?: ownFocus
+        val list = input.listHandle ?: ownList
+        val scrollState = input.scroll ?: ownScroll
+        val children = ArrayList<View>()
+        children.add(commandInput(input, focus, theme))
+        var height = 0.0
+        if (source.itemCount == 0L) {
+            children.add(
+                panelFrame(
+                    panelCaption(
+                        input.empty,
+                        theme.tokens.typography.body.copy {
+                            fontSize = 14.0 * density;
+                            color = theme.tokens.palette.muted.foreground
+                        },
+                        input.input.fonts,
+                        true
+                    ),
+                    Insets(8.0 * density, 24.0 * density, 8.0 * density, 24.0 * density)
+                )
+            )
+            height = input.maxHeight * density
+        } else {
+            val rows = rows(source, input, theme)
+            children.add(
+                virtualList(rows, ItemExtent.Variable(32.0 * density)) {
+                    state = Some(scrollState)
+                    handle = Some(list)
+                    this.theme = input.input.theme
+                    this.enabled = input.input.enabled
+                    this.focus = FocusOptions(tabStop = false)
+                    scrollbars = ScrollbarVisibility.Hidden
+                    lineStep = 32.0 * density
+                    chain = ScrollChain.Contain
+                    overscan = 32.0 * density
+                }
+            )
+            height = upperBound(input.maxHeight * density, source.count.toDouble() * 32.0 * density)
+        }
+        val body =
+            element(
+                CommandLayoutProps(input.width * density, height, source.itemCount == 0L),
+                { current -> CommandLayout(current) },
+                children.toArray()
+            )
+        return element(
+            CandidateNavigationProps(
+                { results() },
+                input.query,
+                active,
+                focus,
+                input.input.enabled,
+                input.loop,
+                input.autoHighlight,
+                { key -> (props.value.listHandle ?: ownList).scrollToItem(key) },
+                { key -> select(key) }
+            ),
+            { current -> CandidateNavigation(current) },
+            [
+                panelFrame(
+                    body,
+                    Insets.all(4.0 * density),
+                    styleOverride {
+                        background(Some(Paint(theme.tokens.palette.popover.background)))
+                        corners(Corners.all(12.0 * density))
+                    }.then(input.panelStyle),
+                    Some(input.width * density)
+                )
+            ]
+        )
+    }
+}
+
+private class CommandLayoutProps(val width: Double, val listHeight: Double, val empty: Boolean)
+
+private class CommandLayout(private val props: Props<CommandLayoutProps>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val width = constraints.constrain(Size(props.value.width, 0.0)).width
+        val head =
+            context.measureChild(
+                0L,
+                Constraints(width, Some(width), maxHeight = constraints.maxHeight)
+            )
+        val available =
+            when (constraints.maxHeight) {
+                case Some(height) -> lowerBound(0.0, height - head.size.height)
+                case None -> props.value.listHeight
+            }
+        val height = upperBound(props.value.listHeight, available)
+        val list =
+            context.measureChild(
+                1L,
+                if (props.value.empty)
+                    Constraints(width, Some(width), maxHeight = Some(height))
+                else
+                    Constraints.tight(Size(width, height))
+            )
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.placeChild(1L, Point(0.0, head.size.height))
+        return LayoutMetrics(
+            constraints.constrain(Size(width, head.size.height + list.size.height))
+        )
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
