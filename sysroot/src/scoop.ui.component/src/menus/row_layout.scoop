@@ -73,7 +73,7 @@ internal class MenuRowLayout(private val props: Props<MenuRowLayoutProps>): Elem
             }
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         hover!!.update(
             binding(
@@ -88,6 +88,7 @@ internal class MenuRowLayout(private val props: Props<MenuRowLayoutProps>): Elem
             Some(input.hover)
         )
         refresh()
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         props.value.link.unbind(hover!!)

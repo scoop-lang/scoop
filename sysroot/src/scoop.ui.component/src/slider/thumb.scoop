@@ -7,7 +7,8 @@ import scoop.ui.style.*
 
 internal class SliderThumbProps(val input: SliderInput, val index: Long, val pressed: Boolean)
 
-internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<SurfaceDrawing> {
+internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<Unit> {
+    private var previousSide: Double? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     private var field: FieldLink? = None
@@ -72,7 +73,7 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
             case None -> {}
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value.input
         val local = options()
         val slot = input.slots[props.value.index]
@@ -92,14 +93,27 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
         )
         refresh()
         painters!!.get(input.theme)
+        val side =
+            input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
+        val changed = previousSide != Some(side)
+        previousSide = Some(side)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        SurfaceDrawing
+        Unit
     > {
         val input = props.value.input
         val side =
             input.props.style.thumbSize ?: 12.0 * input.theme.tokens.typography.body.fontSize / 14.0
         val size = constraints.constrain(Size(side, side))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value.input
+        val size = context.size
         val base = motion!!.sample(visual())
         val ring =
             base.focusVisible ||
@@ -138,14 +152,8 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
                 1.0
             )
 
-        return LayoutResult(LayoutMetrics(size), SurfaceDrawing(geometry, sampled))
-    }
-    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
-        val shape = drawing.geometry
-        val visual = drawing.visual
-        val input = props.value.input
         context.draw {
-            paint -> painters!!.get(input.theme).drawSurface(paint.canvas, shape, visual)
+            paint -> painters!!.get(input.theme).drawSurface(paint.canvas, geometry, sampled)
         }
         if (context.size.width > 0.0 && context.size.height > 0.0)
             context.place(

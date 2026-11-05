@@ -206,11 +206,12 @@ internal class CounterInk(
                 }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         observed = props.value.count
         val target = 60.0 + props.value.count.toDouble() * 40.0
         if (width!!.target != target)
             width!!.animateTo(target, AnimationSpec.Tween(Duration.milliseconds(80L)))
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

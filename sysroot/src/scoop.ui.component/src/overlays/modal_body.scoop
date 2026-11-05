@@ -37,8 +37,9 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element<Scro
     public override fun onMount(scope: ComponentScope) {
         control = Some(ScrollControl(scope) { controls() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ScrollLayout

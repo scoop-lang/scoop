@@ -31,8 +31,9 @@ internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Elemen
         area = Some(target)
         scope.routeChildren(target)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.input.options.enabled
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Rect

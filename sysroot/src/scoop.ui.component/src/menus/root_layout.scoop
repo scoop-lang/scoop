@@ -116,8 +116,9 @@ internal class MenuRootLayout(private val props: Props<MenuRootLayoutProps>): El
                 }
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.updated()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

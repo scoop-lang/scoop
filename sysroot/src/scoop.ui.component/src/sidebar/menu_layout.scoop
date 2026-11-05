@@ -39,8 +39,9 @@ internal class SidebarRow(private val props: Props<SidebarRowInput>): Element<Do
         scope.routeChildren(area!!)
         hover = Some(scope.hover(area!!, open(), options()))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         hover!!.update(open(), Some(options()))
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Double

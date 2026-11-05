@@ -30,6 +30,7 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
     if (next == layoutDirection)
         return
     layoutDirection = next
+    request(UiInvalidation.Layout)
     updated = Some(turn)
     when (body) {
         case Component(instance) -> rebuildComponent(instance, turn, true)
@@ -37,13 +38,13 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                instance.update()
+                request(instance.update())
         }
         case Lazy(instance, _) -> {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                instance.update()
+                request(instance.update())
         }
         else -> for (child in children)
             child.refreshDirection(turn)

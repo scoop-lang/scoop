@@ -153,8 +153,9 @@ internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowI
     public override fun onMount(scope: ComponentScope) {
         record.mount(scope)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         record.input = props.value
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

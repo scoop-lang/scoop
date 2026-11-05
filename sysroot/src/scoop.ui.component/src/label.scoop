@@ -101,6 +101,7 @@ private class LabelInkProps(val content: StyledText, val input: LabelProps)
 
 private class LabelInk(private val props: Props<LabelInkProps>): Element<ParagraphMeasurement> {
     private var scope: ComponentScope? = None
+    private var previous: LabelInkProps? = None
     private var paragraph: ParagraphHost? = None
     private var ownedFonts: FontCollection? = None
     private var fonts: FontCollection? = None
@@ -108,7 +109,8 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
         this.scope = Some(scope)
         paragraph = Some(scope.resource { ParagraphHost() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
+        val previousFonts = fonts
         fonts =
             Some(
                 when (props.value.input.fonts) {
@@ -125,6 +127,30 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
                     }
                 }
             )
+        val value = props.value
+        val fontChanged =
+            when (previousFonts) {
+                case Some(old) -> old !== fonts!!
+                case None -> true
+            }
+        val changed =
+            fontChanged ||
+                when (previous) {
+                    case Some(old) -> old.content !==
+                        value.content ||
+                        !sameLabelParagraph(old.input.settings, value.input.settings) ||
+                        !(
+                            old.input.inlines ===
+                                value.input.inlines ||
+                                (old.input.inlines.size == 0L && value.input.inlines.size == 0L)
+                        )
+                    case None -> true
+                }
+        previous = Some(value)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement
@@ -164,3 +190,17 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
         }
     }
 }
+
+private fun sameLabelParagraph(a: ParagraphStyle?, b: ParagraphStyle?): Boolean =
+    when ((a, b)) {
+        case(None, None) -> true
+        case(Some(left), Some(right)) -> left.alignment ==
+            right.alignment &&
+            left.direction ==
+            right.direction &&
+            left.maxLines ==
+            right.maxLines &&
+            left.ellipsis ==
+            right.ellipsis
+        else -> false
+    }

@@ -104,8 +104,9 @@ internal class HoverPopupLayout(private val props: Props<HoverPopupLayoutProps>)
                 }
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         hover!!.update(props.value.open, Some(props.value.hover))
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         props.value.link.unbind(hover!!)
@@ -146,8 +147,9 @@ internal class HoverPopupContent(private val props: Props<HoverPopupContentProps
         scope.routeChildren(route)
         props.value.link.setContent(Some(hit))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         gate!!.scope.enabled = !props.value.passive
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         props.value.link.setContent(None)

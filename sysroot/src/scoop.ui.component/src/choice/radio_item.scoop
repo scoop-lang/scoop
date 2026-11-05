@@ -82,13 +82,14 @@ private class RadioInk(private val props: Props<RadioInkProps>): Element<Unit> {
         val control = props.value.control.value!!
         field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value.input
         val control = props.value.control.value!!
         control.press.update(PressOptions(input.enabled, false), input.activate)
         control.area.scope.enabled = input.enabled
         control.focus.options = input.focus
         field!!.update(input.labelTarget, input.enabled, input.activate)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -1,5 +1,7 @@
 package scoop.ui
 
+import scoop.surface.AnimationReadObserver
+
 internal class StateSignal {
     private val observers = ArrayList<MountedNode>()
     fun subscribe(node: MountedNode) {
@@ -37,7 +39,8 @@ internal class DependencyCollector {
 
 internal class UiEvaluation(
     val collector: DependencyCollector? = None,
-    val preparing: Boolean = false
+    val preparing: Boolean = false,
+    val frameReads: FrameReads? = None
 )
 
 context(evaluation: UiEvaluation)
@@ -56,17 +59,27 @@ internal fun currentEvaluation(): UiEvaluation? {
     }
 }
 
-internal fun <T> evaluateUi(collector: DependencyCollector?, block: () -> T): T {
-    val evaluation = UiEvaluation(collector)
+internal fun <T> evaluateUi(
+    collector: DependencyCollector?,
+    frameReads: FrameReads? = None,
+    block: () -> T
+): T {
+    val evaluation = UiEvaluation(collector, frameReads = frameReads)
+    val observer: AnimationReadObserver = frameReads ?: IgnoreAnimationReads
     context(evaluation) {
-        return block()
+        context(observer) {
+            return block()
+        }
     }
 }
 
 /** Item preparation is a lifecycle boundary, even when requested by a layout callback. */
 internal fun <T> prepareUi(block: () -> T): T {
     val evaluation = UiEvaluation(preparing = true)
+    val observer: AnimationReadObserver = IgnoreAnimationReads
     context(evaluation) {
-        return block()
+        context(observer) {
+            return block()
+        }
     }
 }

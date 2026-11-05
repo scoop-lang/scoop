@@ -59,7 +59,7 @@ View 采用不可变 class；Point、Size、Constraints 等小型数据继续采
 
 Component 负责声明式组合，返回 View。Element 负责实际测量、子项放置、绘制和输入接入。两者都由框架按挂载位置持有，并通过 ComponentScope 管理资源。
 
-Element 的必需操作是 `measure(context, constraints): LayoutResult<L>` 与 `scene(context, layout: L): Unit`，生命周期包括 onMount、update 和 onUnmount。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
+Element 的必需操作是 `measure(context, constraints): LayoutResult<L>` 与 `scene(context, layout: L): Unit`，生命周期包括 onMount、update 和 onUnmount；`update(): UiInvalidation` 报告 None／Scene／Layout，默认 Layout。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
 
 框架的 View 是封闭描述类型，当前包含 Empty／Component／Element／Portal／Lazy／Direction 六种形状，各自承担既有职责。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
 
@@ -114,7 +114,7 @@ state 就是普通 State class。成员属性委托的 getValue／setValue 执�
 
 状态依赖通过现有同步 Context 收集，只围绕 Component.render 建立和替换订阅。首期写入即通知，包括同值写回；依靠同轮合并控制重建次数。render／measure／scene／draw 不写 State；元素可以在输入处理和 update 中改变状态，更新排入下一轮。
 
-Element 的 Props 由框架更新。measure／scene／draw 的读取不另外建立依赖图；自绘组件在 render 中读取业务 State 并将数据传入 Props。元素自己的普通交互字段可以在输入处理中修改，随后显式 requestFrame。Surface 动画使用现有采样通路。
+Element 的 Props 由框架更新。业务 State 依赖仍只在 render 收集，并通过 Props 传给自绘元素；measure／scene 的动画与字体读取另外登记实际布局或场景用途。普通交互字段只影响像素时调用 requestFrame，影响尺寸或放置时调用 requestLayout。Surface 仍是唯一动画采样与帧调度通路。
 
 component 和 element 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架复用实例、替换 Props，执行 Component.render 或 Element.update。
 
@@ -154,7 +154,7 @@ Constraints 明确区分有限最大值与无界，最终尺寸是有限非负�
 
 SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入和子项呈现。元素通过 draw 提交只有 Canvas／size／time 的纯绘图块，通过 children 在背景和前景之间呈现已放置子项。draw 的 Canvas 状态独立于后续输入几何；影响整个子树的几何通过 SceneContext 设置。未放置子树不进入 scene，父子关系不自动裁剪或建立输入区域。
 
-文本内容、样式继承、shaping、TextLayout 和行内对象几何属于 graphics.text。公共 ParagraphHost 复用 Element 的协议管理段落缓存及行内子项接入，UI 核心不需要识别文本类型或提供特殊 TextNode。Label 每帧可以收到 measure，但内容、字体、宽度和行内 metrics 不变时复用布局。
+文本内容、样式继承、shaping、TextLayout 和行内对象几何属于 graphics.text。公共 ParagraphHost 复用 Element 的协议管理段落缓存及行内子项接入，UI 核心不需要识别文本类型或提供特殊 TextNode。Label 的有效完整结果跨帧复用；需要重新测量时，段落缓存仍按内容、字体、宽度和行内 metrics 复用原生排版。共享字体的 revision 由根在已请求帧入口统一检查，不为检查字体产生周期帧。
 
 ### 5.1 公共文本宿主与行内对象
 
@@ -180,7 +180,7 @@ scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas �
 
 scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable 登记为当前挂载的资源。元素调用 Surface 已有的 animateTo／snapTo／pause 等方法，在 measure／scene／draw 中读 value。UI 不提供平行的动画类型、timer 或帧时钟。
 
-每个真实帧由 Surface 先统一采样动画，UI 再测量、放置和绘制当前挂载树。当前每帧从根测量，昂贵计算由具体元素缓存，纯绘制动画也会进入 measure。整改 P1 先使结果可独立选择，P2 再区分布局与场景失效、登记动画的实际用途并复用有效布局。只改变绘制值的动画目前已经不重跑未失效的 Component.render，但尚不能据此声称零重复测量。
+每个真实帧由 Surface 先统一采样动画，UI 再检查已登记依赖并取得有效布局。节点按版本、约束和方向直接复用上一轮选中的完整结果；失效沿父级传播，路径外的兄弟仍可命中。动画在 measure 中读取时使布局依赖其 revision，在 scene／draw 中读取时只影响场景，读取布局时间的元素每个实际帧重新测量。ActionInk、Frame、选择标记等从 scene 取得当前像素数据；Progress、Spinner、caret 和颜色过渡可复用布局，Disclosure 高度、Sidebar 宽度等真实几何动画继续重新布局。
 
 ## 7. 逻辑更新独立于 drawable
 
@@ -240,7 +240,7 @@ Label 的文字元素委托公共 ParagraphHost，接受 String 或 StyledText �
 
 ## 9. 生命周期与宿主关闭
 
-Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame，以及直接复用 Surface 的 createArea／animation。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
+Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame／requestLayout，以及直接复用 Surface 的 createArea／animation。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
 
 长寿命资源在 onMount 中创建并登记。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
 

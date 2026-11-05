@@ -73,7 +73,7 @@ public class ScrollViewport internal constructor(
         if (cachePolicy == value)
             return
         cachePolicy = value
-        requestFrame()
+        node.request(UiInvalidation.Scene)
     }
     private fun checkOpen() {
         node.root.checkThread()
@@ -81,8 +81,13 @@ public class ScrollViewport internal constructor(
             throw IllegalStateException(Some("scroll viewport is no longer mounted"))
     }
     internal fun requestFrame() {
-        if (active && node.frameEnabled)
-            node.root.requestFrame()
+        if (active)
+            node.request(
+                if (node.frameInputs.usesLayout(this))
+                    UiInvalidation.Layout
+                else
+                    UiInvalidation.Scene
+            )
     }
     public fun layout(
         viewport: Size,
@@ -90,6 +95,7 @@ public class ScrollViewport internal constructor(
         adjustment: ScrollAdjustment? = None
     ): ScrollLayout {
         checkOpen()
+        observeScroll(this)
         var result = sample(viewport, content)
         when (adjustment) {
             case Some(value) -> {
@@ -218,6 +224,7 @@ public class ScrollViewport internal constructor(
         animation.snapTo(current.current.offset)
         animation.animateTo(target, value.spec)
         value.started = true
+        requestFrame()
     }
     internal fun cancelAnimation() {
         when (motion) {
@@ -235,6 +242,7 @@ public class ScrollViewport internal constructor(
         if (ready)
             current.request = ScrollRequest.Position(current.current.offset)
         current.changed()
+        requestFrame()
     }
     public override fun close() {
         node.root.checkThread()

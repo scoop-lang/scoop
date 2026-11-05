@@ -63,7 +63,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
         control = Some(ScrollControl(scope) { props.value.controls })
         focus = Some(scope.lazyFocus(control!!.viewport))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         itemEstimate(input.input.itemExtent)
         nonnegative(input.input.overscan, "invalid virtual overscan")
@@ -111,6 +111,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
             }
             case None -> {}
         }
+        return UiInvalidation.Layout
     }
     public override fun measure(
         context: LazyMeasureContext,
@@ -175,7 +176,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
                 if (sameRequest && frame.requestDone)
                     pending = None
                 if (frame.recheck)
-                    scope!!.requestFrame()
+                    scope!!.requestLayout()
             }
         }
     }

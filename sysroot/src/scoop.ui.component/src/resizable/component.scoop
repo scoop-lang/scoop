@@ -83,8 +83,9 @@ private class ResizableLayout(private val props: Props<ResizableInput>): Element
         props.value.owner.control = Some(ResizableControl(scope, { props.value }))
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.owner.control!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ResizableGeometry

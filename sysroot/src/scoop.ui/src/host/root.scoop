@@ -27,6 +27,7 @@ internal class UiRoot(
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
     val layouts = LayoutStore()
+    val frameDependencies = FrameDependencies()
     val focus = FocusController(this)
     val overlays = OverlayController(this)
     private val pending = ArrayList<MountedNode>()
@@ -63,11 +64,8 @@ internal class UiRoot(
         val turn = UpdateTurn()
         val work = pending.toArray().sortedBy<MountedNode, Long> { value -> value.depth }
         pending.clear()
-        var repaint = false
         for (value in work) {
             value.queued = false
-            if (value.active && value.frameEnabled)
-                repaint = true
         }
         for (value in work) {
             if (value.active && isOpen && !sameTurn(value.updated, turn)) {
@@ -75,8 +73,6 @@ internal class UiRoot(
                 value.mountPending()
             }
         }
-        if (isOpen && repaint)
-            requestFrame()
     }
     public override fun paint(frame: FrameContext) {
         if (!isOpen)
@@ -84,6 +80,7 @@ internal class UiRoot(
         val current = node ?: throw IllegalStateException(Some("UI root has not mounted"))
         focus.beginFrame()
         overlays.beginFrame()
+        frameDependencies.check(frame.time)
         layouts.begin()
         var success = false
         var failure: Throwable? = None
@@ -160,6 +157,7 @@ internal class UiRoot(
             case None -> {}
         }
         failure = cleanupUi(failure) { layouts.close() }
+        failure = cleanupUi(failure) { frameDependencies.close() }
         failure = cleanupUi(failure) { overlays.close() }
         host.detached(this)
         throwUi(failure)

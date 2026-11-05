@@ -128,7 +128,9 @@ SurfaceWindow 不可绘制时停止请求无效帧，但默认时间轴继续推
 
 SurfaceWindow 用 WindowDeadline 安排不参与帧驱动的有限动画最近完成时间；窗口整体不可绘制时适用于全部有限动画。有限重复与 spring 的结束时间按原解析计划计算，纳秒取整不提前结束；无法表示的期限在启动或恢复时拒绝。零时长完成回调同样在后续采样边界交付。无限重复的离屏动画不安排周期定时器，其他必要采样或恢复可见时直接采样当前进度。定时采样与真实帧使用同一时间轴及完成队列；取消、重新启动和关闭阻止旧完成回调，完成回调新建的工作留到下一轮。这个机制不把正常暂停变成离屏策略，也不推测内容布局矩形是否覆盖全部绘制效果。
 
-本期不引入可观察属性系统。应用明确更新状态／请求帧，动画仅失效实际变化所需的绘制或文本布局。
+动画提供同步读取登记，供 UI 区分布局与场景依赖：`Animatable<T>` 实现 `AnimationSource`，公开单调的 `revision: Long`；值、目标、速度或播放状态改变时修订版本，相同时间的重复采样不改变版本。读取 value／target／velocity／state 时，若当前 Context 绑定了 `AnimationReadObserver`，调用其 `read(source: AnimationSource)`。revision 自身不登记读取。无 observer 时仍是普通直接读取；observer 不启动动画、不订阅周期任务、不改变帧时间和完成队列。
+
+这只表达已有动画的读取用途，不提供通用可观察属性系统。UI 在 measure／scene 的同步调用边界安装 observer，依赖原 Surface 时间轴推进和请求帧。
 
 `AnimationTimeline.group(frameEnabled = true)` 创建同一时间轴拥有的 AnimationGroup。group.value 与 timeline.value 支持相同值类型；组拥有这些值，close 关闭其剩余动画，时间轴关闭同时关闭组。组的 isFrameEnabled 与每个值的 isFrameEnabled 相与，不覆盖值的显式设置；恢复组时按同一个当前时间采样，完成回调仍排队。组没有独立时钟或嵌套调度器，供 UI 将一个挂载作用域的动画与平滑滚动一起退出离屏帧需求。创建、读写与关闭均使用时间轴 owner 线程。
 

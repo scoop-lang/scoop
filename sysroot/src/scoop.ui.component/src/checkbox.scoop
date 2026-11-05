@@ -160,14 +160,17 @@ private class CheckboxInkProps(
     val activate: () -> Unit
 )
 
-private class CheckboxDrawing(val geometry: CheckboxGeometry, val visual: CheckboxVisual)
-
-private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<CheckboxDrawing> {
+private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<Rect> {
+    private var scope: ComponentScope? = None
+    private var previousMetrics: CheckboxMetrics? = None
+    private var previousPadding: Insets? = None
+    private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
     private var field: FieldLink? = None
     public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
         val control = props.value.control.value!!
         field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
         painters = Some(scope.resource { ThemePainterCache() })
@@ -182,7 +185,7 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<C
                 )
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         val control = value.control.value!!
         control.press.update(PressOptions(value.input.enabled, false), value.activate)
@@ -207,9 +210,23 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<C
                 None
         )
         painters!!.get(value.theme)
+        val metrics = value.theme.checkboxMetrics(value.options, scope!!.layoutDirection)
+        val changed =
+            previousMetrics !=
+                Some(metrics) ||
+                previousPadding !=
+                Some(value.padding) ||
+                !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousPadding = Some(value.padding)
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        CheckboxDrawing
+        Rect
     > {
         val value = props.value
         val metrics = value.theme.checkboxMetrics(value.options, context.layoutDirection)
@@ -234,6 +251,10 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<C
                 side,
                 side
             )
+        return LayoutResult(LayoutMetrics(size), bounds)
+    }
+    public override fun scene(context: SceneContext, bounds: Rect) {
+        val value = props.value
         val visual =
             CheckboxVisual(
                 when (value.checked) {
@@ -246,17 +267,8 @@ private class CheckboxInk(private val props: Props<CheckboxInkProps>): Element<C
             )
         val geometry =
             value.theme.checkboxGeometry(bounds, visual, value.options, context.layoutDirection)
-        val drawing = CheckboxDrawing(geometry, visual)
-        return LayoutResult(LayoutMetrics(size), drawing)
-    }
-    public override fun scene(context: SceneContext, drawing: CheckboxDrawing) {
-        val value = drawing
         context.draw {
-            paint -> painters!!.get(props.value.theme).drawCheckbox(
-                paint.canvas,
-                value.geometry,
-                value.visual
-            )
+            paint -> painters!!.get(props.value.theme).drawCheckbox(paint.canvas, geometry, visual)
         }
         context.place(
             props.value.control.value!!.area,

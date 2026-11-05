@@ -124,10 +124,11 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element<Un
                 }
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val next = 84.0 + (props.value.count % 5).toDouble() * 16.0
         if (extent!!.target != next)
             extent!!.animateTo(next, AnimationSpec.Spring())
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -63,11 +63,13 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         node.scope.resource {
             node.scope.input.observeActivity {
                 if (node.scope.isMounted)
-                    node.scope.requestFrame()
+                    node.scope.requestLayout()
             }
         }
     }
     fun replace(node: MountedNode, next: ItemSource, nextCapacity: Long, turn: UpdateTurn) {
+        if (capacity != nextCapacity || source !== next)
+            node.request(UiInvalidation.Layout)
         capacity = nextCapacity
         if (source === next) {
             trim(node)

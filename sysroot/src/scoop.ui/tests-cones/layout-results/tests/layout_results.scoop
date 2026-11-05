@@ -1,4 +1,6 @@
-package scoop.ui
+package scoop.tests.ui.layoutresults
+
+import scoop.ui.*
 
 import scoop.graphics.*
 import scoop.graphics.text.*

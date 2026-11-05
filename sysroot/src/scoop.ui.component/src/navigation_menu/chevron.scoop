@@ -38,7 +38,7 @@ internal class NavChevron(private val props: Props<NavChevronProps>): Element<Un
                 }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         changeProgress(
             progress!!,
             if (props.value.opened)
@@ -50,6 +50,7 @@ internal class NavChevron(private val props: Props<NavChevronProps>): Element<Un
             else
                 None
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -45,7 +45,7 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
         up = Some(SelectScrollButton(scope, { props.value }, false))
         down = Some(SelectScrollButton(scope, { props.value }, true))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val current = props.value.popup.open.value
         if (current && !opened)
             reference = None
@@ -53,6 +53,7 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
         control!!.update();
         up!!.update();
         down!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         SelectViewportLayout

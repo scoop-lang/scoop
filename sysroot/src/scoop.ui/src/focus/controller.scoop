@@ -31,6 +31,18 @@ private class PendingFocus(
             case Group(_, value) -> Some(value)
             case Search(value) -> Some(value)
         }
+    fun invalidateLayout() {
+        when (selected) {
+            case Some(target) -> target.node.invalidateLazyFocusLayout()
+            case None -> when (destination) {
+                case Target(target) -> target.node.invalidateLazyFocusLayout()
+                case Region(target, _) -> target.node.invalidateLazyFocusLayout()
+                case Group(scope, _) -> scope.node.invalidateLazyFocusLayout()
+                case Search(_) -> {}
+            }
+        }
+        search?.invalidatePendingLayout()
+    }
 }
 
 internal class FocusController(private val root: UiRoot): Closeable {
@@ -270,16 +282,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
         reveal: RevealAttempt,
         origin: FocusOrigin
     ): Boolean {
-        pending =
-            Some(
-                PendingFocus(
-                    destination,
-                    origin,
-                    root.surface.reserveFocusRequest(),
-                    selected,
-                    reveal
-                )
-            )
+        val value =
+            PendingFocus(destination, origin, root.surface.reserveFocusRequest(), selected, reveal)
+        pending = Some(value)
+        value.invalidateLayout()
         root.requestFrame()
         return true
     }
@@ -368,7 +374,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
                             clearPending();
                             return
                         }
-                        case Unavailable -> value.selected = None
+                        case Unavailable -> {
+                            value.invalidateLayout()
+                            value.selected = None
+                        }
                     }
                 }
                 case None -> {}
@@ -379,10 +388,12 @@ internal class FocusController(private val root: UiRoot): Closeable {
                     case Target(target) -> {
                         value.reveal.retainFor(target.node)
                         value.selected = Some(target)
+                        value.invalidateLayout()
                     }
                     case Item(visit) -> {
                         value.reveal.retainFor(visit.owner.node)
                         value.reveal.positionItem(visit.owner.viewport)
+                        value.invalidateLayout()
                         root.requestFrame()
                         return
                     }
@@ -461,8 +472,10 @@ internal class FocusController(private val root: UiRoot): Closeable {
         val previous = pending
         pending = None
         when (previous) {
-            case Some(_) -> if (root.isOpen)
+            case Some(value) -> if (root.isOpen) {
+                value.invalidateLayout()
                 root.requestFrame()
+            }
             case None -> {}
         }
     }
@@ -475,5 +488,21 @@ internal class FocusController(private val root: UiRoot): Closeable {
         var failure = cleanupUi(None) { previous?.close() }
         failure = cleanupUi(failure) { scene.close() }
         throwUi(failure)
+    }
+}
+
+/** Pending focus changes which lazy rows must be retained, even before native focus moves. */
+private fun MountedNode.invalidateLazyFocusLayout() {
+    var cursor: MountedNode? = Some(this)
+    while (true) {
+        val current = cursor ?: return
+        when (current.body) {
+            case Lazy(_, _) -> {
+                current.request(UiInvalidation.Layout)
+                return
+            }
+            else -> {}
+        }
+        cursor = current.parent
     }
 }

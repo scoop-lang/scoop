@@ -78,8 +78,9 @@ private class DirectionLeaf(private val record: DirectionRecord): Element<Unit> 
         record.mounts += 1
         record.local.value = 19
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         record.updates += 1
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

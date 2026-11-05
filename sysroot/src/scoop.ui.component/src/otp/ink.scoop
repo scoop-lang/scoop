@@ -63,7 +63,7 @@ internal class OtpInk(internal val props: Props<OtpInkProps>): Element<OtpDrawin
             policy = otpPolicy(input.pattern, input.length)
         )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         fonts = Some(resolveFonts())
         val input = props.value.input
         host!!.update(
@@ -88,6 +88,7 @@ internal class OtpInk(internal val props: Props<OtpInkProps>): Element<OtpDrawin
         )
         field!!.update(input.labelTarget, input.enabled)
         painters!!.get(props.value.theme)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         OtpDrawing

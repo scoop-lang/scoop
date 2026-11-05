@@ -85,6 +85,13 @@ internal fun MountedNode.reconcile(descriptions: Array<View>, turn: UpdateTurn) 
     }
     // All surviving and newly allocated nodes remain reachable if a callback fails.
     children = next.toArray()
+    var changed = previous.size != children.size
+    if (!changed)
+        for (position in 0L ..< children.size)
+            if (previous[position] !== children[position])
+                changed = true
+    if (changed)
+        request(UiInvalidation.Layout)
     index = 0L
     for (child in children) {
         child.replace(descriptions[index])

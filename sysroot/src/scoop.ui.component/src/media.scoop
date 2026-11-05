@@ -15,7 +15,7 @@ public class ImageViewProps public constructor(
 
 /** Borrows pixels from its caller and has no input or loading behavior. */
 public class ImageView public constructor(private val props: Props<ImageViewProps>): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         requireComponent(!input.image.isClosed, "image view requires an open image")
         checkContentSize(input.naturalSize)
@@ -23,6 +23,7 @@ public class ImageView public constructor(private val props: Props<ImageViewProp
             input.opacity.isFinite() && input.opacity >= 0.0 && input.opacity <= 1.0,
             "invalid image opacity"
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -68,7 +69,7 @@ public class PathViewProps public constructor(
 
 /** Fits an explicit view box; drawing, stroke and borrowed resource ownership stay in graphics. */
 public class PathView public constructor(private val props: Props<PathViewProps>): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         requireComponent(!input.path.isClosed, "path view requires an open path")
         checkContentSize(input.viewBox.size)
@@ -80,6 +81,7 @@ public class PathView public constructor(private val props: Props<PathViewProps>
             "invalid path view box"
         )
         checkContentSize(input.naturalSize ?: input.viewBox.size)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

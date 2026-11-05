@@ -135,9 +135,10 @@ private class FocusCell(
             assertFalse(probe.rootScope!!.isPending)
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.enabled
         focus!!.options = props.value.focus
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1

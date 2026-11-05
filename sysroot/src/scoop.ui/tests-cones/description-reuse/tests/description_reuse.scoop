@@ -1,4 +1,6 @@
-package scoop.ui
+package scoop.tests.ui.descriptionreuse
+
+import scoop.ui.*
 
 import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*

@@ -48,10 +48,11 @@ private class SidebarRail(private val props: Props<SidebarRailInput>): Element<U
             cursor = hover
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.props.enabled
         press!!.update(PressOptions(props.value.props.enabled)) { props.value.toggle() }
         refreshCursor()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

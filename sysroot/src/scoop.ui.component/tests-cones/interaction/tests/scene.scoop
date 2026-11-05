@@ -171,8 +171,9 @@ private class ControlPanel(
     private val props: Props<PanelProps>,
     private val probe: ControlProbe
 ): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.updates += 1
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

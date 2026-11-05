@@ -304,7 +304,7 @@ internal class MenuNavigation(private val props: Props<MenuNavigationProps>): El
         props.value.navigated()
         props.value.focus.handle(key).requestFocus(FocusOrigin.Keyboard)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         navigation!!.options = options()
         val input = props.value
         search!!.update(
@@ -313,6 +313,7 @@ internal class MenuNavigation(private val props: Props<MenuNavigationProps>): El
             { key -> focusMatch(key) },
             Some(input.options.typeahead)
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -368,8 +369,9 @@ private class MenuViewport(private val props: Props<MenuViewportProps>): Element
                 }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ScrollLayout

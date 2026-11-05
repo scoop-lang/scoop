@@ -242,7 +242,7 @@ internal class DrawingLeaf(
                 }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         updates += 1
         val input = props.value
         observed = input.count
@@ -266,6 +266,7 @@ internal class DrawingLeaf(
             assertTrue(path!!.contains(Point(2.0, 2.0)))
             probe.returnedFromClose = true
         }
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TimeMark

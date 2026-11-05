@@ -19,7 +19,7 @@ internal interface ElementInstance {
     val value: Any
     fun measure(context: MeasureContext, constraints: Constraints): ElementLayout
     fun onMount(scope: ComponentScope)
-    fun update()
+    fun update(): UiInvalidation
     fun onUnmount()
     fun replace(description: ElementDescriptionBase)
 }
@@ -33,7 +33,7 @@ internal interface LazyInstance {
     val value: Any
     fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout
     fun onMount(scope: ComponentScope)
-    fun update()
+    fun update(): UiInvalidation
     fun onUnmount()
     fun replace(description: LazyDescriptionBase)
 }
@@ -62,9 +62,7 @@ private class TypedLazyInstance<P, L, E: LazyElement<L>>(
     override fun onMount(scope: ComponentScope) {
         instance.onMount(scope)
     }
-    override fun update() {
-        instance.update()
-    }
+    override fun update(): UiInvalidation = instance.update()
     override fun onUnmount() {
         instance.onUnmount()
     }
@@ -120,9 +118,7 @@ private class TypedElementInstance<P, L, E: Element<L>>(
     override fun onMount(scope: ComponentScope) {
         instance.onMount(scope)
     }
-    override fun update() {
-        instance.update()
-    }
+    override fun update(): UiInvalidation = instance.update()
     override fun onUnmount() {
         instance.onUnmount()
     }

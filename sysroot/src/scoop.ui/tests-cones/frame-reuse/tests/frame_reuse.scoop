@@ -1,0 +1,212 @@
+package scoop.tests.ui.framereuse
+
+import scoop.ui.*
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.*
+import scoop.test.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class UiFrameReuseTest {
+    @Test
+    fun `scene changes reuse layouts while animation resources and constraints invalidate their paths`() {
+        FontCollection().use {
+            fonts ->
+            fonts.register(testSansBytes, "Frame Test")
+            val probe = FrameReuseProbe(fonts)
+            UiHost { host, active, event -> probe.event(host, active, event) }.use {
+                host -> Application().run(host)
+            }
+            assertTrue(probe.finished)
+            for (text in probe.texts)
+                assertFailsWith<IllegalStateException> { text.layout }
+            assertEquals(5, probe.roots)
+            assertEquals(2, probe.stable)
+            assertEquals(3, probe.moving)
+            assertEquals(1, probe.child)
+            assertEquals(1, probe.scrolls)
+            assertEquals(1, probe.scrollChildren)
+            println(
+                f"frame reuse: root=${probe.roots}, stable=${probe.stable}, moving=${
+                    probe.moving
+                }, child=${probe.child}, scroll=${probe.scrolls}"
+            )
+        }
+    }
+}
+
+internal class FrameReuseProbe(val fonts: FontCollection) {
+    val fill = state(Color.Black)
+    val scroll = ScrollState()
+    val fontsMeasured = MutableArray<Int>(2L) { _ -> 0 }
+    val texts = ArrayList<ParagraphMeasurement>()
+    var opacity: Animatable<Double>? = None
+    var offset: Animatable<Double>? = None
+    var rootScope: ComponentScope? = None
+    var movingScope: ComponentScope? = None
+    var movingArea: InputArea? = None
+    var extraY = 0.0
+    var stableWidth = 20.0
+    var roots = 0
+    var stable = 0
+    var moving = 0
+    var child = 0
+    var scrolls = 0
+    var scrollChildren = 0
+    var lastOpacity = 0.0
+    var lastColor = Color.Black
+    var phase = 0
+    var finished = false
+
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                host.attach(
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop frame invalidation"
+                            size = LogicalSize(240.0, 220.0)
+                        }
+                    ),
+                    { FrameReuseScene(this, active) }
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some(f"frame reuse timed out at ${phase}"))
+            else -> {}
+        }
+    }
+
+    fun accepted(active: ActiveApplication) {
+        when (phase) {
+            case 0 -> {
+                assertEquals(1, stable)
+                assertEquals(1, moving)
+                assertEquals(1, child)
+                phase = 1
+                opacity!!.snapTo(0.5)
+            }
+            case 1 -> {
+                assertEquals(0.5, lastOpacity)
+                assertEquals(1, roots)
+                assertEquals(1, stable)
+                phase = 2
+                offset!!.snapTo(30.0)
+            }
+            case 2 -> {
+                assertEquals(2, roots)
+                assertEquals(2, moving)
+                assertEquals(1, child)
+                assertEquals(40.0, movingArea!!.visibleBounds!!.x)
+                phase = 3
+                fonts.register(testSansBytes, "Extra Frame Test")
+                rootScope!!.requestFrame()
+            }
+            case 3 -> {
+                assertEquals(3, roots)
+                assertEquals(2, fontsMeasured[0L])
+                assertEquals(2, fontsMeasured[1L])
+                assertEquals(1, stable)
+                assertEquals(2, moving)
+                assertFailsWith<IllegalStateException> { texts[0L].layout }
+                assertFailsWith<IllegalStateException> { texts[1L].layout }
+                phase = 4
+                extraY = 5.0
+                movingScope!!.requestLayout()
+            }
+            case 4 -> {
+                assertEquals(4, roots)
+                assertEquals(3, moving)
+                assertEquals(1, child)
+                assertEquals(45.0, movingArea!!.visibleBounds!!.y)
+                phase = 5
+                fill.value = Color.White
+            }
+            case 5 -> {
+                assertEquals(Color.White, lastColor)
+                assertEquals(4, roots)
+                assertEquals(1, stable)
+                phase = 6
+                scroll.scrollTo(Point(0.0, 20.0))
+            }
+            case 6 -> {
+                assertEquals(Point(0.0, 20.0), scroll.snapshot.offset)
+                assertEquals(4, roots)
+                assertEquals(1, scrolls)
+                assertEquals(1, scrollChildren)
+                phase = 7
+                stableWidth = 25.0
+                rootScope!!.requestLayout()
+            }
+            case 7 -> {
+                assertEquals(5, roots)
+                assertEquals(2, stable)
+                assertEquals(2, fontsMeasured[0L])
+                assertEquals(2, fontsMeasured[1L])
+                finished = true
+                phase = 8
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+}
+
+private class FrameReuseScene(
+    private val probe: FrameReuseProbe,
+    private val active: ActiveApplication
+): Component {
+    public override fun render(): View =
+        element(
+            { FrameReuseRoot(probe, active) },
+            [
+                component({ FrameReuseColor(probe) }),
+                element({ FrameReuseMoving(probe) }, [element({ FrameReuseChild(probe) })]),
+                element({ FrameReuseText(probe, 0L) }),
+                element({ FrameReuseText(probe, 1L) }),
+                element({ FrameReuseScroll(probe) }, [element({ FrameReuseScrollChild(probe) })])
+            ]
+        )
+}
+
+private class FrameReuseRoot(
+    private val probe: FrameReuseProbe,
+    private val active: ActiveApplication
+): Element<Unit> {
+    public override fun onMount(scope: ComponentScope) {
+        probe.rootScope = Some(scope)
+        probe.opacity = Some(scope.animation(1.0))
+        probe.offset = Some(scope.animation(0.0))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.roots += 1
+        context.measureChild(0L, Constraints.tight(Size(probe.stableWidth, 20.0)))
+        context.placeChild(0L, Point(10.0, 10.0))
+        context.measureChild(1L, Constraints.tight(Size(100.0, 30.0)))
+        context.placeChild(1L, Point(10.0, 40.0))
+        for (index in 2L ..< 4L) {
+            context.measureChild(index, Constraints(maxWidth = Some(80.0)))
+            context.placeChild(index, Point(10.0, 80.0 + (index - 2L).toDouble() * 30.0))
+        }
+        context.measureChild(4L, Constraints.tight(Size(80.0, 40.0)))
+        context.placeChild(4L, Point(10.0, 150.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(240.0, 220.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+        context.onFrameComplete {
+            frame -> if (frame.submission == FrameSubmission.Accepted && !probe.finished)
+                probe.accepted(active)
+        }
+    }
+}

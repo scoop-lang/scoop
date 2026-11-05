@@ -22,7 +22,10 @@ internal class SwitchDrawing(
     val hit: Rect
 )
 
-internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<SwitchDrawing> {
+internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit> {
+    private var scope: ComponentScope? = None
+    private var previousMetrics: SurfaceMetrics? = None
+    private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
@@ -30,6 +33,7 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Swit
     private var content: StylePainter? = None
     private var field: FieldLink? = None
     public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
         val control = props.value.control.value!!
         field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
         painters = Some(scope.resource { ThemePainterCache() })
@@ -46,7 +50,7 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Swit
                 )
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         val control = value.control.value!!
         control.press.update(PressOptions(value.input.enabled, false), value.activate)
@@ -71,14 +75,39 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Swit
                 None
         )
         painters!!.get(value.theme)
+        val visual = SurfaceVisual(SurfaceKind.Plain, value.visual)
+        val metrics =
+            value.theme.surfaceMetrics(
+                visual,
+                switchOptions(
+                    value.input,
+                    value.theme,
+                    value.visual,
+                    if (value.checked)
+                        1.0
+                    else
+                        0.0
+                ),
+                scope!!.layoutDirection
+            )
+        val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        SwitchDrawing
+        Unit
     > {
         val value = props.value
-        val density = value.theme.tokens.typography.body.fontSize / 14.0
-        val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
-        val progress = selection!!.value
+        val visual = SurfaceVisual(SurfaceKind.Plain, value.visual)
+        val progress =
+            if (value.checked)
+                1.0
+            else
+                0.0
         val options = switchOptions(value.input, value.theme, visual.interaction, progress)
         val metrics = value.theme.surfaceMetrics(visual, options, context.layoutDirection)
         val size =
@@ -88,11 +117,20 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Swit
                     lowerBound(metrics.suggestedSize.height, metrics.minimumSize.height)
                 )
             )
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val density = input.theme.tokens.typography.body.fontSize / 14.0
+        val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(input.visual))
+        val progress = selection!!.value
+        val options = switchOptions(input.input, input.theme, visual.interaction, progress)
+        val size = context.size
         val bounds = Rect(0.0, 0.0, size.width, size.height)
-        val geometry = value.theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
+        val geometry = input.theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
         val thumbSide =
             (
-                if (value.input.size == SwitchSize.Sm)
+                if (input.input.size == SwitchSize.Sm)
                     12.0
                 else
                     16.0
@@ -103,17 +141,14 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Swit
                 geometry,
                 visual,
                 switchThumbBounds(geometry.content, thumbSide, progress, context.layoutDirection),
-                switchThumbStyle(value.input, value.theme, progress),
+                switchThumbStyle(input.input, input.theme, progress),
                 switchHitBounds(
                     bounds,
-                    value.input.style.hitInsets ?:
+                    input.input.style.hitInsets ?:
                         Insets(12.0 * density, 8.0 * density, 12.0 * density, 8.0 * density)
                 )
             )
 
-        return LayoutResult(LayoutMetrics(size), drawing)
-    }
-    public override fun scene(context: SceneContext, drawing: SwitchDrawing) {
         val value = drawing
         val painter = painters!!.get(props.value.theme)
         if (value.surface.opacity < 1.0)

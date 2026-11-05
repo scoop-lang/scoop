@@ -90,7 +90,7 @@ private class ActiveCanvas(
                     probe.navigation!!.handle(context, event)
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.navigation!!.update(props.value, probe.activeBinding)
         probe.search!!.update(
             props.value,
@@ -101,6 +101,7 @@ private class ActiveCanvas(
                 Unit
             }
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -92,7 +92,7 @@ private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Eleme
         press = Some(scope.press(input, PressOptions(false, false)) {})
         scope.routeChildren(input)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         when (previous) {
             case Some(old) -> if (
@@ -107,6 +107,7 @@ private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Eleme
             val current = props.value
             current.connection?.activate(scope!!, current.target)
         }
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

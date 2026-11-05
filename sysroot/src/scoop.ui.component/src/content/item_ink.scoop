@@ -70,18 +70,22 @@ internal fun itemOptions(
     }
 }
 
-internal class ItemInk(private val props: Props<ItemInkProps>): Element<SurfaceDrawing> {
+internal class ItemInk(private val props: Props<ItemInkProps>): Element<Unit> {
+    private var scope: ComponentScope? = None
+    private var previousMetrics: SurfaceMetrics? = None
+    private var previousTheme: Theme? = None
     private var input: InputScope? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
         input = Some(scope.input)
         motion = Some(InteractionMotion(scope, props.value.visual))
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         when (value.behavior) {
             case Passive -> input!!.enabled = value.input.enabled
@@ -100,12 +104,30 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element<SurfaceD
             )
         motion!!.update(value.visual, transition, transition)
         painters!!.get(value.theme)
+        val actionable =
+            when (value.behavior) {
+                case Passive -> false
+                case Press(_, _, _) -> true
+            }
+        val metrics =
+            value.theme.surfaceMetrics(
+                SurfaceVisual(SurfaceKind.Plain, value.visual),
+                itemOptions(value.input, value.theme, value.visual, actionable),
+                scope!!.layoutDirection
+            )
+        val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        SurfaceDrawing
+        Unit
     > {
         val value = props.value
-        val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
+        val visual = SurfaceVisual(SurfaceKind.Plain, value.visual)
         val actionable =
             when (value.behavior) {
                 case Passive -> false;
@@ -130,16 +152,24 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element<SurfaceD
                 context.layoutDirection
             )
         context.placeChild(0L, Point(surface.content.x, surface.content.y))
-        return LayoutResult(
-            offsetMetrics(child, size, surface.content.y),
-            SurfaceDrawing(surface, visual)
-        )
+        return LayoutResult(offsetMetrics(child, size, surface.content.y), Unit)
     }
-    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val value = props.value
-        val surface = drawing.geometry
+        val state = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
+        val actionable =
+            when (value.behavior) {
+                case Passive -> false
+                case Press(_, _, _) -> true
+            }
+        val surface =
+            value.theme.surfaceGeometry(
+                Rect(0.0, 0.0, context.size.width, context.size.height),
+                state,
+                itemOptions(value.input, value.theme, state.interaction, actionable),
+                context.layoutDirection
+            )
         val painter = painters!!.get(value.theme)
-        val state = drawing.visual
         if (surface.opacity < 1.0)
             context.saveLayer(surface.opacity)
         context.draw {

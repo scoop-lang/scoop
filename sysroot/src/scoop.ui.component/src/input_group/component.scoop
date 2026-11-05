@@ -87,8 +87,6 @@ internal fun inputGroupBlock(align: InputGroupAlign): Boolean =
 internal class InputGroupInk(internal val props: Props<InputGroupInput>): Element<Unit> {
     private var area: InputArea? = None
     private var painters: ThemePainterCache? = None
-    internal var geometry: SurfaceGeometry? = None
-    internal var sampled = SurfaceVisual()
 
     public override fun onMount(scope: ComponentScope) {
         area =
@@ -130,9 +128,10 @@ internal class InputGroupInk(internal val props: Props<InputGroupInput>): Elemen
         }
         painters = Some(scope.resource { ThemePainterCache() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.enabled
         painters!!.get(props.value.theme)
+        return UiInvalidation.Layout
     }
     internal fun visual(): SurfaceVisual =
         SurfaceVisual(
@@ -152,8 +151,14 @@ internal class InputGroupInk(internal val props: Props<InputGroupInput>): Elemen
         Unit
     > = LayoutResult(measureInputGroup(this, context, constraints), Unit)
     public override fun scene(context: SceneContext, measured: Unit) {
-        val shape = geometry!!
-        val visual = sampled
+        val visual = visual()
+        val shape =
+            props.value.theme.surfaceGeometry(
+                Rect(0.0, 0.0, context.size.width, context.size.height),
+                visual,
+                options(),
+                context.layoutDirection
+            )
         val painter = painters!!.get(props.value.theme)
         if (shape.opacity < 1.0)
             context.saveLayer(shape.opacity)

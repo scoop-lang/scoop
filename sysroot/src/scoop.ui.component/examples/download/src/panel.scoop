@@ -110,7 +110,7 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element<Unit
         target = props.value.snapshot.fraction ?: 0.0
         amount = Some(scope.animation(target))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value.snapshot
         val next = value.fraction ?: 0.0
         if (
@@ -121,12 +121,13 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element<Unit
             target = next
             if (amount!!.state == AnimationState.Running || amount!!.value != next)
                 amount!!.snapTo(next)
-            return
+            return UiInvalidation.Layout
         }
         if (next == target)
-            return
+            return UiInvalidation.Layout
         target = next
         amount!!.animateTo(next, AnimationSpec.Tween(Duration.milliseconds(100L)))
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -105,7 +105,7 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
             value.theme
         )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         fonts = Some(resolveFonts())
         val value = props.value
         val input = value.input
@@ -123,6 +123,7 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         horizontal!!.update()
         vertical!!.update()
         painters!!.get(value.theme)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextFieldDrawing

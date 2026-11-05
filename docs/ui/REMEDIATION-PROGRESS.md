@@ -49,3 +49,19 @@
 16 个关键实窗回归全部通过：自绘、段落、原生编辑／IME、Lazy、滚动、错误清理、Flow／控件布局、OTP、固定及可变虚拟列表、保留项、Carousel、Select、模态组件族和 Sidebar。覆盖最终布局的输入／焦点几何、动画停止、隐藏与恢复、拖动、菜单和资源生命周期。本批未重复运行无关全量验收。
 
 本批只提供帧内复用。跨帧失效、输入比较、构造作用域、静态场景与窗口错误隔离仍属于后续 P2～P6，不把本批结果当作它们的验收。
+
+
+## P2：跨帧布局与失效分类
+
+状态：已完成，2026-11-06；macOS aarch64 release。
+
+- `UiInvalidation.None／Scene／Layout` 与 `ComponentScope.requestLayout()` 区分像素更新和真实布局变化。根保留当前完整布局结果，未失效的节点直接复用；祖先布局变化不重测有效兄弟。
+- Surface 动画只增加同步读取登记与 revision，仍使用原时间轴。布局和场景分别保存实际读取；共享 FontCollection 在已请求帧入口检查一次 revision，不增加周期帧。
+- ActionInk、Frame、Checkbox／Radio／Switch、SliderThumb、ItemInk、InputGroup 和 ResizableHandle 将当前颜色、交互采样与绘制几何放到 scene。Progress、Spinner、Skeleton 和文本宿主按真实输入分类更新；普通 ScrollArea 的偏移在 scene 应用，虚拟列表继续按偏移重新选择布局。
+- 待聚焦开始、切换或结束时失效相关 Lazy 布局，保留项准备与淘汰不再依赖每帧全量测量。首个 Accepted 后才启动的滚动动画也按视口用途失效，闭合初始结果尚未读取动画时的复用遗漏；两个问题均由原有实窗回归检出并修复。
+
+定向结果：`UiFrameReuseTest` 覆盖纯颜色、布局动画、字体 revision、显式布局请求、滚动和约束变化；稳定子项只测量一次，变换后的输入位置与最终布局一致。`ComponentFrameReuseTest` 在 Spinner、Progress、Checkbox、Switch、滚动和编辑光标组合中观测到 23 个场景帧，初始稳定后新增 measure 为零，并验证 Spinner、Progress、Checkbox、Switch 和光标的实际像素发生变化。该帧数是本次实际观测，不作为固定性能指标。
+
+已通过 Surface 动画 13 项测试，以及 UI 组合、描述身份、完整布局结果、焦点和方向回归。111 个变更 Scoop 文件格式检查、相关生产／测试静态检查和另外 7 个调用方 Cone 检查通过；受 UI 语义指纹影响的 style、四套主题及 component 已重建对齐。23 个既有实窗 Cone 和 4 个独立计数／协议 Cone 全部通过，包含 Flow、控件布局、OTP、虚拟列表、保留项、Carousel、Select、模态组件族、Sidebar、InputGroup、Resizable、Disclosure、绘制缓存和 Slider。绘制缓存保持像素、输入和裁剪断言，并在最后一个 Accepted 帧后验证完整静止区间。
+
+新增实窗回归分为独立 Cone，避免同一进程重复创建 Application，也避免每次定向复验都编译整个普通测试集。拆分后的 UI 普通测试 97 项、component 普通测试 161 项整组通过；Grid／Frame 的深度计数继续符合 P1 的线性结果。本批仍不包含 P3 输入比较、P4 构造作用域或 P5 场景回调跳过。

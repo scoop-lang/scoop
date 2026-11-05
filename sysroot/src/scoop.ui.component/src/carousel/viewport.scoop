@@ -20,9 +20,10 @@ internal class CarouselViewport(private val props: Props<CarouselInput>): Elemen
         painter = Some(scope.resource { StylePainter() });
         ring = Some(scope.resource { ThemePainterCache() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update();
         ring!!.get(props.value.theme)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         CarouselLayoutResult
@@ -210,13 +211,14 @@ internal class CarouselItemLayout(private val props: Props<CarouselItemOwner>): 
         this.scope = Some(scope)
         scope.input.enabled = false
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         when (owner) {
             case Some(previous) -> previous.scope = None
             case None -> {}
         }
         owner = Some(props.value)
         props.value.scope = scope
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         when (owner) {

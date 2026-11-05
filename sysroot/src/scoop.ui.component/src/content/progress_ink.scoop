@@ -22,6 +22,7 @@ internal class ProgressInk(private val props: Props<ProgressInkProps>): Element<
     private var selection: Animatable<Double>? = None
     private var painter: StylePainter? = None
     private var previous: Double? = None
+    private var previousThickness: Double? = None
     private var visible = false
     public override fun onMount(scope: ComponentScope) {
         loop = Some(LoadingMotion(scope))
@@ -29,7 +30,7 @@ internal class ProgressInk(private val props: Props<ProgressInkProps>): Element<
         previous = props.value.position
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         loop!!.update(
             !panelPresent(input.position) && input.motion && input.color.alpha > 0.0,
@@ -48,6 +49,12 @@ internal class ProgressInk(private val props: Props<ProgressInkProps>): Element<
                 selection!!.snapTo(0.0)
         }
         previous = input.position
+        val changed = previousThickness != Some(input.thickness)
+        previousThickness = Some(input.thickness)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -191,7 +191,7 @@ private class EditField(
         if (index == 0L)
             assertTrue(probe.focus[0L].requestFocus())
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         host!!.update(
             probe.model(input.index),
@@ -202,6 +202,7 @@ private class EditField(
             { state -> probe.edited(state) },
             { _ -> probe.submits += 1 }
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextEditMeasurement

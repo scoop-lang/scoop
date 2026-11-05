@@ -85,7 +85,7 @@ public interface Element<L> {
     fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
     fun scene(context: SceneContext, layout: L): Unit
     fun onMount(scope: ComponentScope): Unit = Unit
-    fun update(): Unit = Unit
+    fun update(): UiInvalidation = UiInvalidation.Layout
     fun onUnmount(): Unit = Unit
 }
 ```
@@ -290,7 +290,7 @@ UI 逻辑提交与 surface 的呈现提交有不同的时机：
 
 新描述中的事件处理器随逻辑更新替换。尚未提交新的画面时，保留最近已提交的几何与节点身份，派发使用节点最新的处理器。新节点在首次成功放置前不能命中；已卸载节点立即退出交互，不能为了等下一帧而继续接收事件。这里承诺几何对应最近提交的帧，不承诺处理器保留旧帧捕获的输入值。
 
-普通元素在每次实际呈现中测量其直接子项，或用 skipChild 明确保留但跳过本轮不呈现的子树；LazyElement 则按第 7.8 节只准备和测量所需项；昂贵的文本／路径计算由实现它的 Element 按实际输入缓存。这样 Surface 动画可以直接参与本帧尺寸和位置计算，不要求 UI 为每个动画另外建立布局失效订阅。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
+普通元素在布局失效或约束变化时测量其直接子项，或用 skipChild 明确保留但跳过本轮不呈现的子树；LazyElement 则按第 7.8 节只准备和测量所需项。有效的完整结果跨帧复用。动画读取在 measure／scene 边界登记用途，Surface 仍统一采样和请求帧；仅用于场景的动画不使布局失效。逻辑更新仍按需执行，不因动画每帧采样而重新创建描述或重跑所有 Component.render。
 
 所有自绘元素共享所属窗口的 FrameContext 和渲染目标，不为每个元素创建窗口、renderer 或独立 Surface。窗口 resize／DPI 变化在下一帧进入相同的测量／绘制流程，不重建组件实例。普通元素的子序列使用显式 `Array<View>`，按需元素使用 ItemSource；不把普通 lambda 的未使用表达式冒充 result builder。
 
@@ -348,7 +348,13 @@ MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`meas
 
 成功返回把该结果释放责任转交框架；校验／组装失败时释放已返回的结果，返回前失败由元素清理本次新取得的资源。所选结果及同轮成功请求表保留需要的资源，不再引用时只调用一次 dispose。父结果不关闭共享子结果，独立的已接受编辑帧继续持有自己的段落／编辑布局。测量失败不关闭仍有持有者的旧结果。
 
-结果表保存在节点，当前轮次内以有效布局版本、Constraints、方向及本轮采样查找；不复制整棵子树，不按每个 context 重建独立缓存。下一轮仅保留当前选择，释放历史约束结果。本批仅启用帧内复用；跨帧失效与动画用途按 P2 交付，构造作用域按第 11 节的同一目标协议在 P4 迁移，不保留旧接口桥接。
+结果表保存在节点，当前轮次内以有效布局版本、Constraints、方向及本轮采样查找；不复制整棵子树，不按每个 context 重建独立缓存。下一轮仅保留当前选择，释放历史约束结果；未失效的当前选择可以直接命中。构造作用域按第 11 节的同一目标协议在 P4 迁移，不保留旧接口桥接。
+
+`UiInvalidation` 为 None／Scene／Layout。Element／LazyElement.update 默认返回 Layout；明确仅更新颜色、透明度或输入呈现时可返回 Scene，仅替换不影响输入资格的处理器可返回 None。返回 Scene 的实现必须从当前输入生成像素，不能继续使用布局数据里冻结的旧颜色。子项结构与方向变化独立使布局失效；布局失效保守沿父级传播，有效兄弟结果继续复用。
+
+`ComponentScope.requestLayout()` 显式使本节点及其祖先布局失效并请求帧；`requestFrame()` 只请求场景。measure 中读取动画的值／目标／速度／状态，会把该动画版本登记到这份布局结果；scene／draw 的读取只登记场景依赖。直接读取布局 context.time 的结果在下一次实际帧重新测量，读取场景时间只影响场景。登记不产生额外时钟或周期帧，只有 Surface 已请求的帧才检查变化。
+
+公共段落及编辑宿主自动登记实际使用的 FontCollection；每个已请求帧入口只读取每个共享集合的一次 revision，变化时失效实际使用它的布局。Image 的像素与固有尺寸不可变，更换对象通过 Props／update 或 requestLayout 失效；自定义可变尺寸资源由其通知调用 requestLayout。依赖只保留当前结果及当前场景的实际读取，卸载解除登记。
 
 最终选择 A→B→A 中的 A 时，必须使用其对应 data、子结果、段落与滚动快照。Lazy 每次试测保存独立项集合，所有已准备 key 在本轮复用，仅依据最终选择执行保留与卸载。未选中的试测不得发布输入、锚点或帧参与；呈现资格仍在 Accepted 后提交。
 
@@ -617,7 +623,7 @@ OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true�
 
 `observeIntent(handler: (ScrollIntent) -> Unit): Closeable` 登记线程内观察，通常经 `ComponentScope.resource` 管理；独立 close 后不再通知。ScrollIntent 为 `User(requestRevision)`、`Programmatic(requestRevision)`、`LayoutCorrection(requestRevision)`，并提供统一的 requestRevision 读取。前两种在实际请求时交付，即使已经到达边界；布局保持阅读锚点或范围收敛引起的位移在 Accepted 后交付 LayoutCorrection，不推进意图序号。仅尺寸改变、动画采样及一个新定位请求的首次呈现不伪造布局修正。登记和关闭遵守 owner 线程及纯度约束；同一次通知使用订阅快照，关闭立即生效，回调中的新请求依发生顺序继续交付。回调可以关闭挂载或发起更新的请求，旧动作不得随后覆盖它；通知异常不撤销已经生效的位置请求。
 
-`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 `layout(viewport, content): ScrollLayout` 与 `present(context, layout, content = None, contentOrigin = Point(0, 0))`：自绘容器在 measure 取得不可变滚动布局，随后在自己的 scene 显式选择它并登记提交。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext 和同一视口、同一绑定产生的 ScrollLayout；每个视口在一次场景中至多登记一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
+`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 `layout(viewport, content): ScrollLayout` 与 `present(context, layout, content = None, contentOrigin = Point(0, 0))`：自绘容器在使用偏移选择子项的 measure，或只施加滚动变换的 scene 中取得不可变滚动布局，并在自己的 scene 显式选择它并登记提交。位置请求使曾在 measure 使用该视口的节点布局失效；只在 scene 使用的视口保留已有子项布局。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext 和同一视口、同一绑定产生的 ScrollLayout；每个视口在一次场景中至多登记一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
 
 present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
@@ -625,7 +631,7 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 显露复用 ScrollState 的同一位置意图序号。由本次显露调整过的视口若收到更新的显式滚动／动画请求，或登记被关闭／换绑，则取消旧显露；不覆盖更新的用户位置意图。焦点请求或等待新位置发布可以要求必要的下一帧，隐藏／遮挡时仍依赖正常恢复，不启动定时轮询。ScrollState 的可观察发布与用户 onFrameComplete 动作保持原登记顺序；焦点依据的是同一 Accepted 帧的几何及 snapshot，不依赖这些用户回调先执行。
 
-`animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，布局采样、Accepted 发布；isAnimating 包括等待首布局的动画。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
+`animateTo(Point, AnimationSpec, origin = Programmatic)` 显式平滑滚动，缺省为 300 ms Tween；必须已有绑定，可在首个布局前排队。登记拥有 Surface 同一时间轴的 Animatable<Point>，按视口实际使用阶段采样、Accepted 发布；isAnimating 包括等待首布局的动画。首个 Accepted 后启动、重新定向或终止滚动动画时，按已登记的视口用途请求布局或场景，使未读过动画值的初始结果也能失效。终点按最新范围收敛，无剩余移动时撤销动画需求，边界请求仍登记意图。cancelAnimation、直接定位、reveal 与用户滚动在最后发布的 offset 停止旧动画，不在消费一份 wheel 残量时另外推进时间轴。cancelAnimation 只终止活动动画，不另生成定位通知。关闭登记立即停止动画并解绑；State 自身不拥有窗口或待关闭资源。
 
 布局容器可向 `ScrollViewport.layout(viewport, content, adjustment)` 提供 `ScrollAdjustment(requestRevision, offset)`，用于可变尺寸内容的阅读锚点或按 key 定位。`ScrollState.beginLayoutRequest(origin = Programmatic): ULong` 为这些尚需布局解析的主动定位登记一次新意图，停止旧动画并保留 Accepted 位置作为基点，返回该请求的序号；调用方在通知返回后检查它仍为最新，再保存待解析目标。ScrollState.requestRevision 是仅供比较的当前定位意图序号，读取不建立 State 订阅；scrollTo／scrollBy／reveal、beginLayoutRequest、动画定位及取消活动动画推进序号，范围发布不推进。hasPositionRequest 查询是否已经登记构造或主动位置请求，同样不建立订阅；默认零构造位置尚未登记显式请求，非零构造位置已登记请求。不得依赖序号的具体数值或增量。adjustment 只在序号仍匹配且没有活动平滑滚动时应用，按本帧范围收敛；布局仍不写 State，Accepted 后才发布。调整准备期间或布局之后的新请求优先，Discarded 不发布旧修正。`ScrollSnapshot.revealedOffset(rect, horizontal, vertical)` 以相同规则纯计算显露位置，供布局复用对齐和收敛算法，不改变 ScrollState。
 
@@ -635,7 +641,7 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 `ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
 
-`LazyElement<L>` 与 Element<L> 并列，公开 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`、`scene(SceneContext, L)`、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
+`LazyElement<L>` 与 Element<L> 并列，公开 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`、`scene(SceneContext, L)`、onMount(ComponentScope)、`update(): UiInvalidation` 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
 LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量，同一轮的相同有效约束复用完整结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
 
@@ -661,7 +667,7 @@ LazyFocus 提供 `requestFocus(key, edge = ItemFocusEdge.First)`、`cancelReques
 
 请求与普通 FocusHandle 共用 UiRoot 的唯一 pending 及 Surface.focusRevision，并通过该 viewport 的 ScrollState 登记一次新位置意图，取消旧动画。pendingItem 仅在尚需实现／初次定位条目时返回 key；容器据此使用自身 extent 和 ScrollAdjustment 显露整项。选出具体 FocusTarget 后 pendingItem 变为 None，isPending 可以继续为 true，后续目标显露复用第 7.7 节，避免整项定位反复覆盖行内目标的精确显露。
 
-LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
+LazyMeasureContext.pinnedItems 此时也包含这个尚未实现的目标索引；容器同样须测量并放置，取得普通挂载子树。只解析本次请求的 key，不预建全部条目。登记本身位于外层 lazy 条目中时，该外层条目也因待聚焦归属而固定，恢复内层布局；不会固定同列表中其他无关条目。已经选择具体目标后，由原有待聚焦归属继续固定其所属项。待聚焦开始、目标切换、完成或取消会使所涉 Lazy 容器及其布局依赖路径失效，使跨帧复用仍能准备或淘汰对应保留项；普通非惰性焦点变化只请求场景。条目目标只在 Accepted 的实际几何与滚动路径发布后选择并聚焦。Discarded 不兑现请求。
 
 较新的焦点、该 viewport 上较新的滚动、动画、换绑或关闭取消旧请求。source 替换按 key 跟随存活项；目标 key 被删除时在逻辑更新中取消，即使窗口隐藏也不继续保留旧请求。登记关闭和 owner 退休同样取消。隐藏／遮挡沿普通按需帧机制等待恢复，不轮询。按 key 请求本身不改变普通 Tab 顺序，键盘策略由第 7.8.2 节的显式配置控制。
 

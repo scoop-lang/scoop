@@ -20,19 +20,22 @@ internal class ActionInkProps(
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
-internal class ActionInk(private val props: Props<ActionInkProps>): Element<SurfaceDrawing> {
+internal class ActionInk(private val props: Props<ActionInkProps>): Element<SurfaceMetrics> {
     private var scope: ComponentScope? = None
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
+    private var previousMetrics: SurfaceMetrics? = None
+    private var previousIcon = false
+    private var previousTheme: Theme? = None
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         when (value.behavior) {
             case Press(owner, action, focus) -> {
@@ -54,24 +57,50 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
             specs.resolve(value.style.transition.resolve(specs.press))
         )
         painters!!.get(value.theme)
+        val metrics = metrics(value, scope!!.layoutDirection)
+        val icon = isIconAction(value.shape)
+        val changed =
+            previousMetrics !=
+                Some(metrics) ||
+                previousIcon !=
+                icon ||
+                !sameTheme(previousTheme, value.theme)
+        previousMetrics = Some(metrics)
+        previousIcon = icon
+        previousTheme = Some(value.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
+    private fun metrics(value: ActionInkProps, direction: LayoutDirection): SurfaceMetrics =
+        groupSurfaceMetrics(
+            value.theme.surfaceMetrics(
+                value.visual,
+                actionOptions(
+                    value.theme,
+                    value.shape,
+                    value.variant,
+                    value.style,
+                    value.visual.interaction
+                ),
+                direction
+            ),
+            value.group,
+            groupEndRadius(
+                value.theme,
+                value.style.states.apply(value.style.surface.style, value.visual.interaction)
+            ),
+            direction
+        )
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        SurfaceDrawing
+        SurfaceMetrics
     > {
         val value = props.value
-        val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
+        val visual = value.visual
         val options =
             actionOptions(value.theme, value.shape, value.variant, value.style, visual.interaction)
-        val metrics =
-            groupSurfaceMetrics(
-                value.theme.surfaceMetrics(visual, options, context.layoutDirection),
-                value.group,
-                groupEndRadius(
-                    value.theme,
-                    value.style.states.apply(value.style.surface.style, visual.interaction)
-                ),
-                context.layoutDirection
-            )
+        val metrics = metrics(value, context.layoutDirection)
         val inset = metrics.contentInsets.totals()
         val child = context.measureChild(0L, childConstraints(constraints, inset))
         var width =
@@ -98,19 +127,31 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
             )
         val connected =
             groupSurfaceGeometry(geometry, metrics, value.group, context.layoutDirection)
-        val drawing = SurfaceDrawing(connected, visual)
         val origin =
             Point(
                 connected.content.x + (connected.content.width - child.size.width) / 2.0,
                 connected.content.y + (connected.content.height - child.size.height) / 2.0
             )
         context.placeChild(0L, origin)
-        return LayoutResult(offsetMetrics(child, size, origin.y), drawing)
+        return LayoutResult(offsetMetrics(child, size, origin.y), metrics)
     }
-    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
+    public override fun scene(context: SceneContext, metrics: SurfaceMetrics) {
         val value = props.value
-        val visual = drawing.visual
-        val geometry = drawing.geometry
+        val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
+        val options =
+            actionOptions(value.theme, value.shape, value.variant, value.style, visual.interaction)
+        val geometry =
+            groupSurfaceGeometry(
+                value.theme.surfaceGeometry(
+                    Rect(0.0, 0.0, context.size.width, context.size.height),
+                    visual,
+                    options,
+                    context.layoutDirection
+                ),
+                metrics,
+                value.group,
+                context.layoutDirection
+            )
         val painter = painters!!.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)

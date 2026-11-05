@@ -36,6 +36,7 @@ public class SceneContext internal constructor(
     }
     public val time: TimeMark get() {
         checkActive()
+        observeFrameTime()
         return frame.time
     }
     public val overlayLayout: OverlayLayout? get() {
@@ -324,9 +325,12 @@ private fun NodeLayout.sceneElement(
                 paintCache = paintCache
             )
         try {
-            evaluateUi<Unit>(None) { value.scene(context) }
+            val reads = FrameReads(node, frame.time)
+            evaluateUi<Unit>(None, Some(reads)) { value.scene(context) }
             if (node.active && node.root.isOpen)
                 context.finish()
+            if (node.active && node.root.isOpen)
+                node.frameInputs.setScene(reads.finish())
             Unit
         } finally {
             context.end()

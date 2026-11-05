@@ -117,8 +117,9 @@ internal class CandidateNavigation(private val props: Props<CandidateNavigationP
         } else
             navigation!!.handle(context, event)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         reconcile()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

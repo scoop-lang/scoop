@@ -16,11 +16,12 @@ internal class TabIndicator(private val props: Props<TabIndicatorProps>): Elemen
     public override fun onMount(scope: ComponentScope) {
         presence = Some(scope.presence(props.value.selected))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         val motion = input.theme.tokens.motion
         val transition = motion.resolve(motion.selection)
         presence!!.update(input.selected, Some(PresenceOptions(transition, transition)))
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

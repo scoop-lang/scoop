@@ -22,12 +22,13 @@ internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): El
         this.scope = Some(scope)
         scope.input.enabled = false
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         revision += 1UL
         val input = props.value
         if (!input.open || !input.enabled)
             scope!!.input.enabled = false
         scope!!.isFrameEnabled = input.open
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         DisclosureBodyLayout

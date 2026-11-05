@@ -52,8 +52,9 @@ private class GroupTextInk(private val props: Props<GroupTextProps>): Element<Su
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         painters!!.get(props.value.theme)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         SurfaceGeometry

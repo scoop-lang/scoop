@@ -1,0 +1,239 @@
+package scoop.ui
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationReadObserver
+import scoop.surface.AnimationSource
+import scoop.time.TimeMark
+
+internal class AnimationRead(val source: AnimationSource, val revision: Long)
+
+/** Inputs of one completed layout or scene callback. */
+internal class FrameInputs(
+    val animations: Array<AnimationRead> = [],
+    val fonts: Array<FontWatch> = [],
+    val time: TimeMark? = None,
+    val scrolls: Array<ScrollViewport> = []
+) {
+    val dynamic: Boolean get() = animations.size > 0L || time != None
+    fun changed(mark: TimeMark): Boolean {
+        if (time != None && time != Some(mark))
+            return true
+        for (read in animations)
+            if (read.source.revision != read.revision)
+                return true
+        return false
+    }
+    fun uses(watch: FontWatch): Boolean {
+        for (font in fonts)
+            if (font === watch)
+                return true
+        return false
+    }
+}
+
+internal class FrameReads(
+    private val node: MountedNode,
+    private val mark: TimeMark
+): AnimationReadObserver {
+    private val animations = ArrayList<AnimationRead>()
+    private val fonts = ArrayList<FontWatch>()
+    private val scrolls = ArrayList<ScrollViewport>()
+    private var time = false
+    public override fun read(source: AnimationSource) {
+        for (previous in animations)
+            if (previous.source === source)
+                return
+        animations.add(AnimationRead(source, source.revision))
+    }
+    fun readTime() {
+        time = true
+    }
+    fun readScroll(value: ScrollViewport) {
+        for (previous in scrolls)
+            if (previous === value)
+                return
+        scrolls.add(value)
+    }
+    fun readFonts(value: FontCollection) {
+        val watch = node.root.frameDependencies.fonts(value)
+        for (previous in fonts)
+            if (previous === watch)
+                return
+        fonts.add(watch)
+    }
+    fun finish(): FrameInputs =
+        FrameInputs(
+            animations.toArray(),
+            fonts.toArray(),
+            if (time)
+                Some(mark)
+            else
+                None,
+            scrolls.toArray()
+        )
+}
+
+internal object IgnoreAnimationReads: AnimationReadObserver {
+    public override fun read(source: AnimationSource) {}
+}
+
+internal fun observeFrameTime() {
+    val evaluation = currentEvaluation() ?: return
+    evaluation.frameReads?.readTime()
+}
+
+internal fun observeFonts(fonts: FontCollection) {
+    val evaluation = currentEvaluation() ?: return
+    evaluation.frameReads?.readFonts(fonts)
+}
+
+internal fun observeScroll(viewport: ScrollViewport) {
+    val evaluation = currentEvaluation() ?: return
+    evaluation.frameReads?.readScroll(viewport)
+}
+
+/** One registration per node and shared font, removed without searching other readers. */
+internal class FontBinding(val owner: NodeFrameInputs, val watch: FontWatch, var layout: Boolean) {
+    var index = -1L
+    fun close() {
+        if (index < 0L)
+            return
+        val last = watch.readers.removeAt(watch.readers.size - 1L)
+        if (last !== this) {
+            watch.readers[index] = last
+            last.index = index
+        }
+        index = -1L
+    }
+}
+
+internal class FontWatch(val fonts: FontCollection) {
+    var revision = fonts.revision
+    val readers = ArrayList<FontBinding>()
+    fun bind(owner: NodeFrameInputs, layout: Boolean): FontBinding {
+        val value = FontBinding(owner, this, layout)
+        value.index = readers.size
+        readers.add(value)
+        return value
+    }
+    fun check() {
+        val next = fonts.revision
+        if (revision == next)
+            return
+        revision = next
+        for (reader in readers) {
+            if (reader.layout)
+                reader.owner.node.invalidateLayout()
+            else
+                reader.owner.node.invalidateScene()
+        }
+    }
+}
+
+internal class NodeFrameInputs(val node: MountedNode) {
+    var dynamicIndex = -1L
+    private var layout = FrameInputs()
+    private var scene = FrameInputs()
+    private val fonts = ArrayList<FontBinding>()
+    fun setLayout(value: FrameInputs) {
+        layout = value
+        refresh()
+    }
+    fun setScene(value: FrameInputs) {
+        scene = value
+        refresh()
+    }
+    fun usesLayout(viewport: ScrollViewport): Boolean {
+        for (scroll in layout.scrolls)
+            if (scroll === viewport)
+                return true
+        return false
+    }
+    private fun refresh() {
+        node.root.frameDependencies.dynamic(this, layout.dynamic || scene.dynamic)
+        var index = 0L
+        while (index < fonts.size) {
+            val binding = fonts[index]
+            if (!layout.uses(binding.watch) && !scene.uses(binding.watch)) {
+                binding.close()
+                fonts.removeAt(index)
+            } else {
+                binding.layout = layout.uses(binding.watch)
+                index += 1L
+            }
+        }
+        for (watch in layout.fonts)
+            bind(watch, true)
+        for (watch in scene.fonts)
+            bind(watch, layout.uses(watch))
+    }
+    private fun bind(watch: FontWatch, affectsLayout: Boolean) {
+        for (binding in fonts)
+            if (binding.watch === watch)
+                return
+        fonts.add(watch.bind(this, affectsLayout))
+    }
+    fun check(time: TimeMark) {
+        if (!node.active)
+            return
+        if (layout.changed(time))
+            node.invalidateLayout()
+        else
+            if (scene.changed(time))
+                node.invalidateScene()
+    }
+    fun close() {
+        node.root.frameDependencies.dynamic(this, false)
+        for (binding in fonts)
+            binding.close()
+        fonts.clear()
+        layout = FrameInputs()
+        scene = FrameInputs()
+    }
+}
+
+/** Checks only registered dependencies at an already requested frame; never schedules frames. */
+internal class FrameDependencies {
+    private val animated = ArrayList<NodeFrameInputs>()
+    private var collections = ArrayList<FontWatch>()
+    fun fonts(value: FontCollection): FontWatch {
+        for (watch in collections)
+            if (watch.fonts === value)
+                return watch
+        val watch = FontWatch(value)
+        collections.add(watch)
+        return watch
+    }
+    fun dynamic(value: NodeFrameInputs, enabled: Boolean) {
+        if (enabled) {
+            if (value.dynamicIndex < 0L) {
+                value.dynamicIndex = animated.size
+                animated.add(value)
+            }
+        } else
+            if (value.dynamicIndex >= 0L) {
+                val last = animated.removeAt(animated.size - 1L)
+                if (last !== value) {
+                    animated[value.dynamicIndex] = last
+                    last.dynamicIndex = value.dynamicIndex
+                }
+                value.dynamicIndex = -1L
+            }
+    }
+    fun check(time: TimeMark) {
+        val retained = ArrayList<FontWatch>()
+        for (watch in collections) {
+            if (watch.readers.size > 0L) {
+                retained.add(watch)
+                watch.check()
+            }
+        }
+        collections = retained
+        for (value in animated)
+            value.check(time)
+    }
+    fun close() {
+        animated.clear()
+        collections.clear()
+    }
+}

@@ -156,13 +156,14 @@ private class NavigationRowInk(
     private val record: NavigationRowRecord,
     private val props: Props<NavigationRowInput>
 ): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
                 case Some(area) -> area.scope.enabled =
                     record.id != 2L && index < props.value.parts.toLong()
                 case None -> {}
             }
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

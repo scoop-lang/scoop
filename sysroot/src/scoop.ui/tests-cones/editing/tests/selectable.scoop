@@ -61,7 +61,7 @@ private class SelectableTestElement(
         probe.displayTest.host = Some(value)
         probe.displayTest.mounts += 1
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val test = probe.displayTest
         val input = props.value
         val range =
@@ -89,6 +89,7 @@ private class SelectableTestElement(
             decorations = [TextRangeDecoration(range, underline = Some(Color(0.1, 0.3, 0.8)))],
             onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement

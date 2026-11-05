@@ -48,9 +48,10 @@ internal class StyleScene(private val probe: StyleProbe): Component {
 private class StylePanel(private val props: Props<Int>, private val probe: StyleProbe): Element<
     Unit
 > {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.updates += 1;
         probe.updatedGeneration = props.value
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -74,7 +74,7 @@ private class CachePanel(private val probe: CacheProbe, private val props: Props
         val ticket = probe.ticket
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
-                probe.committed = ticket
+                probe.accepted(ticket)
         }
     }
 }

@@ -30,6 +30,8 @@ internal class MountedNode(
     var updated: UpdateTurn? = None
     var dependencies: Array<StateSignal> = []
     var layoutVersion = 0L
+    var sceneVersion = 0L
+    val frameInputs = NodeFrameInputs(this)
     var layoutRound: LayoutRound? = None
     var currentLayout: NodeLayout? = None
     val layoutRequests = ArrayList<NodeLayout>()
@@ -71,8 +73,25 @@ internal class MountedNode(
 
     fun invalidateLayout() {
         layoutVersion += 1L
+        sceneVersion += 1L
         if (mounted)
             parent?.invalidateLayout()
+    }
+
+    fun invalidateScene() {
+        sceneVersion += 1L
+        if (mounted)
+            parent?.invalidateScene()
+    }
+
+    fun request(value: UiInvalidation) {
+        when (value) {
+            case None -> return
+            case Scene -> invalidateScene()
+            case Layout -> invalidateLayout()
+        }
+        if (active && root.isOpen && frameEnabled)
+            root.requestFrame()
     }
 
     fun invalidate() {
@@ -97,9 +116,10 @@ internal class MountedNode(
         if (!active || !root.isOpen)
             return
         updated = Some(turn)
-        invalidateLayout()
         val previousDirection = layoutDirection
         layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
+        if (layoutDirection != previousDirection)
+            request(UiInvalidation.Layout)
         when (body) {
             case Empty -> {}
             case Direction -> when (view.body) {
@@ -128,7 +148,7 @@ internal class MountedNode(
                     )
                 }
                 if (active && root.isOpen && mounted)
-                    instance.update()
+                    request(instance.update())
             }
             case Lazy(instance, items) -> {
                 when (view.body) {
@@ -141,7 +161,7 @@ internal class MountedNode(
                     for (child in children)
                         child.refreshDirection(turn)
                 if (active && root.isOpen && mounted)
-                    instance.update()
+                    request(instance.update())
             }
         }
     }
@@ -160,7 +180,9 @@ internal class MountedNode(
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
-                    case Element(instance) -> instance.update()
+                    case Element(instance) -> {
+                        instance.update()
+                    }
                     case Lazy(instance, items) -> {
                         items.mount(this)
                         instance.update()
@@ -186,6 +208,7 @@ internal class MountedNode(
                 }
             }
         failure = cleanupUi(failure) { scope.deactivate() }
+        failure = cleanupUi(failure) { frameInputs.close() }
         for (source in dependencies)
             source.unsubscribe(this)
         dependencies = []

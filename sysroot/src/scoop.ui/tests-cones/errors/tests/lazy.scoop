@@ -59,7 +59,7 @@ internal class LazyFailureContainer(private val record: FailureRecord): LazyElem
                 frame -> if (frame.submission == FrameSubmission.Accepted) {
                     assertTrue(record.lazyItems[0L].area!!.requestFocus())
                     record.lazySkip = true
-                    scope!!.requestFrame()
+                    scope!!.requestLayout()
                 }
             }
     }

@@ -104,8 +104,6 @@ internal fun measureInputGroup(
             options,
             context.layoutDirection
         )
-    ink.geometry = Some(geometry)
-    ink.sampled = visual
     val content = geometry.content
     val bodyY = content.y + top
     if (size.width <= 0.0 || size.height <= 0.0)

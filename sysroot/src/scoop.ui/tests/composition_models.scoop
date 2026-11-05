@@ -195,8 +195,9 @@ internal class CompositionLayout(private val probe: CompositionProbe): Element<U
     public override fun onUnmount() {
         probe.log.add("unmount layout")
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.updates += 1
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

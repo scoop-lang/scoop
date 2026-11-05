@@ -15,8 +15,9 @@ internal class DrawerSurface(private val props: Props<DrawerInput>): Element<Dra
         props.value.owner.control = Some(current)
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         DrawerGeometry

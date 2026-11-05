@@ -155,6 +155,28 @@ public class TextEditHost public constructor(
                 focus
         val blinkChanged = this.options.caretBlink != options.caretBlink
         val rebound = current !== state
+        val layoutChanged =
+            rebound ||
+                this.appearance.fonts !==
+                appearance.fonts ||
+                this.appearance.textStyle !==
+                appearance.textStyle ||
+                this.appearance.placeholderStyle !==
+                appearance.placeholderStyle ||
+                this.appearance.caretWidth !=
+                appearance.caretWidth ||
+                this.placeholder !=
+                placeholder ||
+                this.options.multiline !=
+                options.multiline ||
+                this.options.wrap !=
+                options.wrap ||
+                this.options.direction !=
+                options.direction ||
+                this.options.alignment !=
+                options.alignment ||
+                this.options.projection !==
+                options.projection
         val restart =
             rebound ||
                 this.options.readOnly !=
@@ -190,7 +212,10 @@ public class TextEditHost public constructor(
         if (restart)
             invalidate()
         editorInteraction(this, area.isFocusActive, visual.value.hovered && options.enabled)
-        scope.requestFrame()
+        if (layoutChanged)
+            scope.requestLayout()
+        else
+            scope.requestFrame()
     }
 
     public fun measure(
@@ -238,7 +263,7 @@ public class TextEditHost public constructor(
         caretVisible = true
         blink.cancel()
         if (!closed && scope.isMounted)
-            scope.requestFrame()
+            scope.requestLayout()
     }
     internal fun retireConnection() {
         if (!area.isClosed)

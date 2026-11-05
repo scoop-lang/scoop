@@ -1,5 +1,0 @@
-package scoop.ui.component
-
-import scoop.ui.style.*
-
-internal class SurfaceDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)

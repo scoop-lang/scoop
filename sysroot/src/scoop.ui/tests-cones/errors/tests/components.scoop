@@ -157,13 +157,14 @@ internal class FailureLeaf(
         area = Some(scope.createArea { _, _ -> Unit })
         motion = Some(scope.animation(0.0))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         if (
             record.mode ==
                 FailureMode.Update ||
                 (record.mode == FailureMode.LateUpdate && props.value)
         )
             throw record.primary
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

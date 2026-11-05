@@ -58,6 +58,7 @@ private class SpinnerInkProps(
 )
 
 private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element<Unit> {
+    private var previousSize: Double? = None
     private var motion: LoadingMotion? = None
     private var outline: Path? = None
     private var visible = false
@@ -71,12 +72,18 @@ private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element<Uni
                 }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         motion!!.update(
             value.running && value.color.alpha > 0.0 && panelPresent(value.motion),
             value.period
         )
+        val changed = previousSize != Some(value.size)
+        previousSize = Some(value.size)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

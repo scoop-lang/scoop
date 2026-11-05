@@ -39,8 +39,9 @@ internal class SelectRootLayout(private val props: Props<SelectRootProps>): Elem
             }
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.updated()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

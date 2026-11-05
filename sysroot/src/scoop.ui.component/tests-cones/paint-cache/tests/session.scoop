@@ -98,11 +98,23 @@ internal class CacheProbe(val fonts: FontCollection) {
                 quiet =
                     Some(
                         native.createDeadline {
+                            val observed = quietPasses
+                            val observedTicket = ticket
                             assertTrue(
                                 active.proxy().post {
                                     _ ->
+                                    if (
+                                        step !=
+                                            12 ||
+                                            ticket !=
+                                            observedTicket ||
+                                            quietPasses !=
+                                            observed
+                                    )
+                                        return@post
                                     assertEquals(quietPasses, passes)
                                     assertFalse(frames!!.snapshot().required)
+                                    assertTrue(frames!!.snapshot().paused)
                                     finishCase()
                                 }
                             )
@@ -168,6 +180,18 @@ internal class CacheProbe(val fonts: FontCollection) {
         paints = item.paints
         scenes = item.scenes
         eagerPaints = row(-1L).paints
+    }
+    fun startQuiet() {
+        quietPasses = passes
+        quiet!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+    }
+    fun accepted(value: Int) {
+        committed = value
+        // A frame already queued before native demand paused may still complete.
+        // Require a full quiet interval after the last Accepted frame; continuous
+        // rendering still reaches the test's application deadline.
+        if (step == 12)
+            startQuiet()
     }
     fun assertReuse(before: Int, after: Int) {
         if (cached)

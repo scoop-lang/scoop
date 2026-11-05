@@ -64,8 +64,9 @@ private class SliderLayout(private val props: Props<SliderInput>): Element<Slide
         track = Some(scope.resource { StylePainter() })
         fill = Some(scope.resource { StylePainter() })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         SliderGeometry

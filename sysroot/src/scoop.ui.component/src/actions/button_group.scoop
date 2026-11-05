@@ -129,8 +129,9 @@ internal class GroupSlotInk(private val props: Props<GroupSlot>): Element<Unit> 
     public override fun onMount(scope: ComponentScope) {
         input = Some(scope.input)
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.input = input
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -1,9 +1,7 @@
 package scoop.tests.ui.paintcache
 
 import scoop.graphics.*
-import scoop.platform.time.MonotonicTimeSource
 import scoop.test.*
-import scoop.time.Duration
 import scoop.ui.PaintCachePolicy
 
 internal fun advanceCache(probe: CacheProbe) {
@@ -128,8 +126,7 @@ internal fun advanceCache(probe: CacheProbe) {
             assertEquals(0xffffffL, probe.outside)
             probe.step = 12
             probe.waiting = true
-            probe.quietPasses = probe.passes
-            probe.quiet!!.schedule(MonotonicTimeSource.markNow() + Duration.milliseconds(120L))
+            probe.startQuiet()
         }
         else -> fail(Some("unexpected paint cache phase"))
     }

@@ -1,0 +1,121 @@
+package scoop.tests.ui.framereuse
+
+import scoop.ui.*
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.text.*
+
+internal class FrameReuseColor(private val probe: FrameReuseProbe): Component {
+    public override fun render(): View =
+        element(probe.fill.value, { props -> FrameReuseSolid(props, probe) })
+}
+
+private class FrameReuseSolid(
+    private val props: Props<Color>,
+    private val probe: FrameReuseProbe
+): Element<Unit> {
+    public override fun update(): UiInvalidation = UiInvalidation.Scene
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.stable += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        probe.lastColor = props.value
+        probe.lastOpacity = probe.opacity!!.value
+        val color = props.value.withAlpha(probe.lastOpacity)
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw { paint -> paint.canvas.drawRect(bounds, Paint(color)) }
+    }
+}
+
+internal class FrameReuseMoving(private val probe: FrameReuseProbe): Element<Unit> {
+    public override fun onMount(scope: ComponentScope) {
+        probe.movingScope = Some(scope)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.moving += 1
+        context.measureChild(0L, Constraints.tight(Size(20.0, 20.0)))
+        context.placeChild(0L, Point(probe.offset!!.value, probe.extraY))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 30.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.children()
+    }
+}
+
+internal class FrameReuseChild(private val probe: FrameReuseProbe): Element<Unit> {
+    public override fun onMount(scope: ComponentScope) {
+        probe.movingArea = Some(scope.createArea())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.child += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.place(probe.movingArea!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+    }
+}
+
+internal class FrameReuseText(private val probe: FrameReuseProbe, private val index: Long): Element<
+    ParagraphMeasurement
+> {
+    private var host: ParagraphHost? = None
+    private val content =
+        styledText {
+            text("Shared font")
+            style {
+                fontSize = 12.0;
+                families = ["Frame Test"]
+            }
+        }
+    public override fun onMount(scope: ComponentScope) {
+        host = Some(scope.resource { ParagraphHost() })
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        probe.fontsMeasured[index] += 1
+        val result = host!!.measure(context, constraints, probe.fonts, content)
+        probe.texts.add(result)
+        return LayoutResult(result.metrics, result, { result.close() })
+    }
+    public override fun scene(context: SceneContext, result: ParagraphMeasurement) {
+        host!!.scene(context, result)
+    }
+}
+
+internal class FrameReuseScroll(private val probe: FrameReuseProbe): Element<Unit> {
+    private var viewport: ScrollViewport? = None
+    public override fun onMount(scope: ComponentScope) {
+        viewport = Some(scope.scrollViewport(probe.scroll))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.scrolls += 1
+        context.measureChild(0L, Constraints.tight(Size(80.0, 180.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 40.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val layout = viewport!!.layout(context.size, Size(80.0, 180.0))
+        viewport!!.present(context, layout, Some { content -> content.children() })
+    }
+}
+
+internal class FrameReuseScrollChild(private val probe: FrameReuseProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        probe.scrollChildren += 1
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 180.0))), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {}
+}

@@ -3,27 +3,43 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-internal class ScrollAreaInk(private val props: Props<ScrollAreaInkProps>): Element<ScrollLayout> {
+internal class ScrollAreaInk(private val props: Props<ScrollAreaInkProps>): Element<Size> {
+    private var previous: ScrollAreaInkProps? = None
     private var control: ScrollControl? = None
 
     public override fun onMount(scope: ComponentScope) {
         control = Some(ScrollControl(scope) { props.value.controls })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         control!!.update()
+        val input = props.value.input
+        val changed =
+            when (previous) {
+                case Some(old) -> old.input.axes !=
+                    input.axes ||
+                    old.input.width !=
+                    input.width ||
+                    old.input.height !=
+                    input.height
+                case None -> true
+            }
+        previous = Some(props.value)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        ScrollLayout
+        Size
     > {
         val input = props.value.input
         val measure = ScrollMeasure(constraints, input.axes, input.width, input.height)
         val child = context.measureChild(0L, measure.contentConstraints)
         val size = measure.size(child.size)
-        val drawing = control!!.layout(size, child.size)
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutResult(LayoutMetrics(size), drawing)
+        return LayoutResult(LayoutMetrics(size), child.size)
     }
-    public override fun scene(context: SceneContext, drawing: ScrollLayout) {
-        control!!.scene(context, drawing)
+    public override fun scene(context: SceneContext, content: Size) {
+        control!!.scene(context, control!!.layout(context.size, content))
     }
 }

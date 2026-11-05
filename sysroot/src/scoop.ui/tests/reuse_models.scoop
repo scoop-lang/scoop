@@ -56,8 +56,9 @@ internal class ReuseComponent<A, B>(private val record: ReuseRecord): Component 
 }
 
 internal class ReuseElement<A, B>(private val record: ReuseRecord): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         record.updated()
+        return UiInvalidation.Layout
     }
     public override fun onMount(scope: ComponentScope) {
         record.mounted(scope)
@@ -74,8 +75,9 @@ internal class ReuseElement<A, B>(private val record: ReuseRecord): Element<Unit
 }
 
 internal class ReuseLazy<A, B>(private val record: ReuseRecord): LazyElement<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         record.updated()
+        return UiInvalidation.Layout
     }
     public override fun onMount(scope: ComponentScope) {
         record.mounted(scope)

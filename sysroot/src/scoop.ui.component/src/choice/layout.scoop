@@ -71,9 +71,10 @@ private class ChoiceNavigation(private val props: Props<ChoiceNavigationProps>):
         this.scope = Some(scope)
         navigation = Some(scope.keyNavigation(props.value.navigation))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         scope!!.input.enabled = props.value.enabled
         navigation!!.options = props.value.navigation
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

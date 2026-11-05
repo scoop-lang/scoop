@@ -11,11 +11,9 @@ internal class RadioIndicatorProps(
     val visual: RadioVisual
 )
 
-internal class RadioDrawing(val geometry: RadioGeometry, val visual: RadioVisual)
-
-internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): Element<
-    RadioDrawing
-> {
+internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): Element<Rect> {
+    private var previousMetrics: RadioMetrics? = None
+    private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
@@ -32,7 +30,7 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 )
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         val specs = input.theme.tokens.motion
         motion!!.update(
@@ -52,9 +50,17 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 None
         )
         painters!!.get(input.theme)
+        val metrics = input.theme.radioMetrics(input.options)
+        val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, input.theme)
+        previousMetrics = Some(metrics)
+        previousTheme = Some(input.theme)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        RadioDrawing
+        Rect
     > {
         val input = props.value
         val metrics = input.theme.radioMetrics(input.options)
@@ -66,18 +72,20 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 )
             )
         val side = upperBound(size.width, size.height)
+        return LayoutResult(
+            LayoutMetrics(size),
+            Rect((size.width - side) / 2.0, (size.height - side) / 2.0, side, side)
+        )
+    }
+    public override fun scene(context: SceneContext, bounds: Rect) {
+        val input = props.value
         val visual =
             RadioVisual(
                 input.visual.selected,
                 motion!!.sample(input.visual.interaction),
                 Some(selection!!.value)
             )
-        val resolved =
-            input.theme.radioGeometry(
-                Rect((size.width - side) / 2.0, (size.height - side) / 2.0, side, side),
-                visual,
-                input.options
-            )
+        val resolved = input.theme.radioGeometry(bounds, visual, input.options)
         // The item applies disabled opacity once to its indicator and arbitrary content together.
         val geometry =
             RadioGeometry(
@@ -92,13 +100,8 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 1.0
             )
 
-        return LayoutResult(LayoutMetrics(size), RadioDrawing(geometry, visual))
-    }
-    public override fun scene(context: SceneContext, drawing: RadioDrawing) {
-        val geometry = drawing.geometry
-        val sampled = drawing.visual
         context.draw {
-            paint -> painters!!.get(props.value.theme).drawRadio(paint.canvas, geometry, sampled)
+            paint -> painters!!.get(props.value.theme).drawRadio(paint.canvas, geometry, visual)
         }
     }
 }

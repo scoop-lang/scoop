@@ -6,9 +6,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element<
-    SurfaceDrawing
-> {
+internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element<Unit> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
@@ -104,31 +102,39 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
                 ownsCursor = false
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         focus!!.options = resizableHandle(input.root.props, input.index).focus
         if (!scope!!.isMounted)
-            return
+            return UiInvalidation.Layout
         area!!.scope.enabled = enabled()
         if (!scope!!.isMounted)
-            return
+            return UiInvalidation.Layout
         drag!!.update(
             options(),
             { _ -> props.value.root.owner.control!!.available(props.value.index) },
             { event -> receiveDrag(event) }
         )
         if (!scope!!.isMounted)
-            return
+            return UiInvalidation.Layout
         painters!!.get(input.root.theme)
         refreshCursor()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
-        SurfaceDrawing
+        Unit
     > {
         val input = props.value
         val theme = input.root.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
         val size = constraints.constrain(Size(density, density))
+        return LayoutResult(LayoutMetrics(size), Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val input = props.value
+        val theme = input.root.theme
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val size = context.size
         val visual =
             SurfaceVisual(
                 SurfaceKind.Plain,
@@ -157,15 +163,8 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
                 context.layoutDirection
             )
 
-        return LayoutResult(LayoutMetrics(size), SurfaceDrawing(geometry, visual))
-    }
-    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
-        val visual = drawing.visual
-        val input = props.value
-        val theme = input.root.theme
         val horizontal = input.root.props.orientation == Orientation.Horizontal
-        val density = theme.tokens.typography.body.fontSize / 14.0
-        val shape = drawing.geometry
+        val shape = geometry
         context.draw { paint -> painters!!.get(theme).drawSurface(paint.canvas, shape, visual) }
         if (
             resizableHandle(input.root.props, input.index).withHandle ?: input.root.props.withHandle

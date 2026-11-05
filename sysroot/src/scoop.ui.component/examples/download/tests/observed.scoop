@@ -107,9 +107,10 @@ private class DownloadObservedCanvas(
     private val index: Long,
     private val props: Props<DownloadSnapshot>
 ): Element<Unit> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].updates += 1
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

@@ -109,18 +109,34 @@ private class SkeletonInkProps(
 )
 
 private class SkeletonInk(private val props: Props<SkeletonInkProps>): Element<Unit> {
+    private var previous: SkeletonProps? = None
     private var motion: LoadingMotion? = None
     private var visible = false
     private val easing = Easing.cubicBezier(0.4, 0.0, 0.6, 1.0)
     public override fun onMount(scope: ComponentScope) {
         motion = Some(LoadingMotion(scope))
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val value = props.value
         motion!!.update(
             value.input.loading && value.input.animated && value.motion && value.color.alpha > 0.0,
             value.input.period
         )
+        val changed =
+            when (previous) {
+                case Some(old) -> old.width !=
+                    value.input.width ||
+                    old.height !=
+                    value.input.height ||
+                    old.loading !=
+                    value.input.loading
+                case None -> true
+            }
+        previous = Some(value.input)
+        return if (changed)
+            UiInvalidation.Layout
+        else
+            UiInvalidation.Scene
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

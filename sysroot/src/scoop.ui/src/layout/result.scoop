@@ -53,7 +53,8 @@ internal class NodeLayout(
     val round: LayoutRound,
     val metrics: LayoutMetrics,
     val children: Array<ChildLayout>,
-    val body: LayoutBody
+    val body: LayoutBody,
+    val inputs: FrameInputs = FrameInputs()
 ): Closeable {
     var selected: LayoutRound? = None
     private var closed = false
@@ -82,6 +83,10 @@ internal class LayoutStore: Closeable {
     fun touch(node: MountedNode) {
         node.layoutRound = Some(round)
         node.layoutRequests.clear()
+        when (node.currentLayout) {
+            case Some(value) -> node.layoutRequests.add(value)
+            case None -> {}
+        }
         touched.add(node)
     }
     fun add(result: NodeLayout) {
@@ -99,11 +104,15 @@ internal class LayoutStore: Closeable {
                     result.round !== round
             if (retained && result.node.active) {
                 keep.add(result)
-                if (success)
+                if (success) {
                     result.node.currentLayout = Some(result)
+                    result.node.frameInputs.setLayout(result.inputs)
+                }
             } else {
-                if (sameNodeLayout(result.node.currentLayout, result))
+                if (sameNodeLayout(result.node.currentLayout, result)) {
                     result.node.currentLayout = None
+                    result.node.frameInputs.setLayout(FrameInputs())
+                }
                 failure = cleanupUi(failure) { result.close() }
             }
         }

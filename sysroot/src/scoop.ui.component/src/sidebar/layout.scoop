@@ -44,7 +44,7 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<
         wasMobile = props.value.shown.mobile
         keys = Some(scope.resource { ShortcutScope(scope.input) })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         sidebarKeyBindings(keys!!, input.props, input.toggle)
         val animation = width!!
@@ -57,6 +57,7 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<
             if (animation.target != next)
                 animation.animateTo(next, motion!!)
         wasMobile = input.shown.mobile
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean
@@ -254,11 +255,12 @@ private class SidebarGate(private val props: Props<SidebarGateInput>): Element<B
         this.scope = Some(scope);
         scope.input.enabled = false
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         if (!input.enabled || !input.shown)
             scope!!.input.enabled = false
         scope!!.isFrameEnabled = input.enabled && input.shown
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean
@@ -305,8 +307,9 @@ private class SidebarKeys(private val props: Props<SidebarKeyInput>): Element<Un
     public override fun onMount(scope: ComponentScope) {
         keys = Some(scope.resource { ShortcutScope(scope.input) })
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         sidebarKeyBindings(keys!!, props.value.props, props.value.toggle)
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

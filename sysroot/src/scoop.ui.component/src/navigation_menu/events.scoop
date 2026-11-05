@@ -37,8 +37,9 @@ internal class NavPanelEvents(private val props: Props<NavPanelControl>): Elemen
                     }
             }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.update()
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -75,9 +76,10 @@ internal class NavPanelContent(private val props: Props<NavPanelControl>): Eleme
             }
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         focus!!.options =
             FocusScopeOptions(defaultFocus = props.value.props.value.panel.initialFocus)
+        return UiInvalidation.Layout
     }
     public override fun onUnmount() {
         props.value.link.setContent(None)

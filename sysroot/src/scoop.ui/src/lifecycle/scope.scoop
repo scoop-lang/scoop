@@ -99,8 +99,11 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
     }
     public fun requestFrame() {
         checkMounted()
-        if (node.frameEnabled)
-            root.requestFrame()
+        node.request(UiInvalidation.Scene)
+    }
+    public fun requestLayout() {
+        checkMounted()
+        node.request(UiInvalidation.Layout)
     }
     public fun createArea(
         focusable: Boolean = false,

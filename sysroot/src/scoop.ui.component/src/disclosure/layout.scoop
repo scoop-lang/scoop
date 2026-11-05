@@ -13,8 +13,9 @@ internal class DisclosureLayoutProps(
 
 /** The presentation owner stays outside the content's input and animation gate. */
 internal class DisclosureLayout(private val props: Props<DisclosureLayoutProps>): Element<Boolean> {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         props.value.presence?.update(props.value.open, Some(props.value.transition))
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean

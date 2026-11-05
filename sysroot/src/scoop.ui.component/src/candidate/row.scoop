@@ -38,9 +38,10 @@ internal class CandidateRowInk(private val props: Props<CandidateRowInkProps>): 
             }
         }
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         area!!.scope.enabled = props.value.enabled
         press!!.update(PressOptions(props.value.enabled)) { props.value.select(props.value.key) }
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit

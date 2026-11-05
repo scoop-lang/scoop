@@ -153,7 +153,7 @@ public class SelectableTextHost public constructor(
         }
         if (!closed) {
             refreshAdmission()
-            scope.requestFrame()
+            scope.requestLayout()
         }
     }
     internal fun refreshAdmission() {

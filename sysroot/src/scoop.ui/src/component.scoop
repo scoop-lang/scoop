@@ -1,5 +1,9 @@
 package scoop.ui
 
+public enum UiInvalidation {
+    None, Scene, Layout
+}
+
 /** A persistent instance that composes descriptions from its current inputs and state. */
 public interface Component {
     public fun render(): View
@@ -12,7 +16,7 @@ public interface Element<L> {
     public fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
     public fun scene(context: SceneContext, layout: L)
     public fun onMount(scope: ComponentScope) {}
-    public fun update() {}
+    public fun update(): UiInvalidation = UiInvalidation.Layout
     public fun onUnmount() {}
 }
 
@@ -21,7 +25,7 @@ public interface LazyElement<L> {
     public fun measure(context: LazyMeasureContext, constraints: Constraints): LayoutResult<L>
     public fun scene(context: SceneContext, layout: L)
     public fun onMount(scope: ComponentScope) {}
-    public fun update() {}
+    public fun update(): UiInvalidation = UiInvalidation.Layout
     public fun onUnmount() {}
 }
 

@@ -74,7 +74,7 @@ private class SelectableStyledTextInk(private val props: Props<SelectableStyledT
                 scope.resource { SelectableTextHost(scope, fonts(), input.content, input.options) }
             )
     }
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         val input = props.value
         host!!.update(
             fonts(),
@@ -85,6 +85,7 @@ private class SelectableStyledTextInk(private val props: Props<SelectableStyledT
             input.decorations,
             input.onSelectionChanged
         )
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         ParagraphMeasurement

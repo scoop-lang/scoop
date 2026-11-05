@@ -178,8 +178,9 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
 private class LayoutPanel(private val props: Props<Int>, private val probe: LayoutProbe): Element<
     Unit
 > {
-    public override fun update() {
+    public override fun update(): UiInvalidation {
         probe.updates += 1
+        return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
