@@ -6,6 +6,7 @@ import scoop.ui.style.InteractionVisual
 
 internal fun actionLineHeight(shape: ActionShape): Double? =
     when (shape) {
+        case Tab(_, _) -> Some(20.0 / 14.0)
         case Toggle(_, size, _) -> Some(
             20.0 /
                 (

@@ -1,0 +1,63 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class TabIndicatorProps(
+    val selected: Boolean,
+    val axis: FlexAxis,
+    val theme: Theme,
+    val enabled: Boolean
+)
+
+internal class TabIndicator(private val props: Props<TabIndicatorProps>): Element {
+    private var presence: Presence? = None
+    public override fun onMount(scope: ComponentScope) {
+        presence = Some(scope.presence(props.value.selected))
+    }
+    public override fun update() {
+        val input = props.value
+        val motion = input.theme.tokens.motion
+        val transition = motion.resolve(motion.selection)
+        presence!!.update(input.selected, Some(PresenceOptions(transition, transition)))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val input = props.value
+        val progress = presence!!.snapshot.progress
+        if (progress <= 0.0)
+            return
+        val density = input.theme.tokens.typography.action.fontSize / 14.0
+        val color = input.theme.tokens.palette.background.foreground
+        val opacity =
+            if (input.enabled)
+                1.0
+            else
+                input.theme.tokens.disabledOpacity
+        val bounds =
+            if (input.axis == FlexAxis.Horizontal)
+                Rect(0.0, context.size.height + 3.0 * density, context.size.width, 2.0 * density)
+            else
+                Rect(
+                    if (context.layoutDirection == LayoutDirection.Ltr)
+                        context.size.width + 3.0 * density
+                    else
+                        -5.0 * density,
+                    0.0,
+                    2.0 * density,
+                    context.size.height
+                )
+        context.draw {
+            paint -> paint.canvas.drawRect(
+                bounds,
+                Paint(color.withAlpha(color.alpha * progress * opacity))
+            )
+        }
+    }
+}

@@ -9,6 +9,10 @@ internal fun actionTextColor(
     variant: ButtonVariant,
     visual: SurfaceVisual
 ): Color {
+    when (shape) {
+        case Tab(_, selected) -> return tabTextColor(theme, selected, visual.interaction)
+        else -> {}
+    }
     val colors = theme.tokens.palette
     if (variant == ButtonVariant.Default)
         return theme.surfaceTextColor(visual)
@@ -37,6 +41,13 @@ internal fun actionOptions(
 ): SurfaceOptions {
     val size =
         when (shape) {
+            case Tab(tabVariant, selected) -> return tabOptions(
+                theme,
+                tabVariant,
+                selected,
+                style,
+                visual
+            )
             case Button(size) -> Some(size)
             case Badge -> None
             case Toggle(toggleVariant, size, selected) -> return toggleOptions(

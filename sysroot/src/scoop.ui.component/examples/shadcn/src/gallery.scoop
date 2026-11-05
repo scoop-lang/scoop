@@ -200,6 +200,7 @@ internal class Gallery(
             case ScrollArea -> scrollExamples(model.scrolling, fonts, model.source.current.value)
             case Collapsible -> collapsibleExamples(model.disclosures, fonts)
             case Accordion -> accordionExamples(model.disclosures, fonts)
+            case Tabs -> tabsExamples(model, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

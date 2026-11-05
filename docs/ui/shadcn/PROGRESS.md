@@ -171,3 +171,9 @@
 - macOS aarch64 release：格式与相关 tests 静态检查、7 个生产 UI 库和 Gallery 构建通过；**7 项定向测试全部通过**。4 项纯逻辑测试覆盖选择、拒绝 setter、外部值保留及配置错误；35 步原生窗口测试覆盖工厂次数、局部状态、关闭 Props 更新、IME、退出重开、换绑、Reduced、零尺寸、窗口隐藏、keyed 编辑重排、禁用和停帧，并检查 skipChild 的错误边界。既有 Presence／交互所有权回归及包含 21 个场景的 UI 错误清理回归通过。
 - 首轮实窗发现普通 Element 的“所有子项须测量”与关闭 KeepMounted 的合同冲突，已先修订规范并增加显式跳过操作，再完整复验该窗口。基础库更新期间一次检查遇到并行发布的依赖产物变化，待发布结束后重新检查通过。未放宽生命周期、输入或停帧断言。
 - Gallery 新增两页，实查 Dispose／KeepMounted、加载内容、嵌套、独立触发、分隔线／卡片、键盘焦点环、System／Neutral、明暗和 RTL。API 与 README 同步。本批完成两项，累计 **31／64**，接下来继续 Tabs、Breadcrumb、Pagination；没有重建编译器／LLVM或扩大到全仓／全部控件测试。一次性窗口、三套本轮 native 输出与独立检查锁清理，共享缓存、生产库、Gallery 和下载源保留；Windows／Linux 未验证，x86_64 留在整体收尾。
+
+## P3c：Tabs
+
+- 先补齐控件规范 §25，再实现受控 Tabs、真实成员 DSL、Default／Line、横纵／RTL、Auto／Manual、禁用与逐项内容／焦点／样式。复用 KeyNavigation、Press、ActionInk 与 DisclosureBody；固定列表和面板父级，不增加反射身份、选择镜像或生命周期体系。KeepMounted 的非活动正文继续逻辑更新，跳过布局、输入／IME 和帧请求；Dispose 在切换时卸载。
+- macOS aarch64 release：格式、相关 tests 静态检查、生产库及 Gallery 构建通过；4 项 Tabs 模型／样式测试、4 项既有 ActionVariantTest 和 1 项 36 阶段原生窗口用例全部通过。覆盖拒绝 setter／换绑／实际值通知、None／未知／禁用外部值、键盘与真实中文 IME、keyed 重排、轴／变体／主题切换、工厂次数和局部状态、隐藏正文更新与停帧、窄宽／零尺寸、窗口隐藏恢复和卸载。末次字体继承及禁用选中条调整经格式、类型检查、生产构建与 Gallery 复查。
+- Gallery 新增草稿表单、局部计数／挂载次数、自定义图标和加载内容；实查两种变体、Manual 焦点与选择分离、重排保留、禁用、明暗 System／Neutral 和 RTL。API 与 README 同步，累计 **32／64**；继续 Breadcrumb／Pagination。未重建编译器／LLVM，未重复全仓或全部控件测试；一次性窗口、Tabs 原生输出及独立锁清理，共享缓存与后续复用产物保留。七个 UI 库源码仍无反射描述及 requireClassInstance 直接依赖，Windows／Linux 未验证，x86_64 留在整体收尾。

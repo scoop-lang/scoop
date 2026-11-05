@@ -1,0 +1,257 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.row as makeRow
+import scoop.ui.component.typography as makeTypography
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+internal class TabsExamplesModel {
+    val selected = state<Int?>(Some(0))
+    val preview = state<Int?>(Some(0))
+    val manual = state(false)
+    val vertical = state(false)
+    val keep = state(true)
+    val reverse = state(false)
+    val enabled = state(true)
+    val busy = state(false)
+    val mounts = Array<State<Int>>(2L) { _ -> state(0) }
+}
+
+internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
+    val model = gallery.tabs
+    return makeColumn {
+        this.add(panelHeading("Tabs", fonts))
+        this.typography(
+            "Auto selects with arrow keys. Manual moves focus first; Space or Enter selects. Tab enters the selected panel. Edit the drafts, then switch, reorder or change layout.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button(
+                if (model.manual.value)
+                    "Activation: Manual"
+                else
+                    "Activation: Auto",
+                { model.manual.value = !model.manual.value }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.vertical.value)
+                    "Vertical"
+                else
+                    "Horizontal",
+                { model.vertical.value = !model.vertical.value }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Reorder tabs", { model.reverse.value = !model.reverse.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.row {
+            this.button(
+                if (model.keep.value)
+                    "Keep mounted"
+                else
+                    "Dispose inactive",
+                { model.keep.value = !model.keep.value }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.enabled.value)
+                    "Disable tabs"
+                else
+                    "Enable tabs",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (model.selected.value == None)
+                    "Select account"
+                else
+                    "Clear selection",
+                {
+                    model.selected.value =
+                        if (model.selected.value == None)
+                            Some(0)
+                        else
+                            None
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.typography("Default · local drafts", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.tabs(model.selected.binding()) {
+            for (
+                value in if (model.reverse.value)
+                    [1, 0, 2]
+                else
+                    [0, 1, 2]
+            ) {
+                this.item(
+                    Choice(
+                        ViewKey.Number(value.toLong()),
+                        value,
+                        ["Account", "Password", "Unavailable"][value.toLong()],
+                        value != 2
+                    ),
+                    if (value == 2)
+                        empty()
+                    else
+                        component(
+                            TabDraftProps(model, value.toLong(), fonts),
+                            { current -> TabDraft(current) }
+                        )
+                )
+            }
+            this.fonts = Some(fonts)
+            this.activation =
+                if (model.manual.value)
+                    TabActivation.Manual
+                else
+                    TabActivation.Auto
+            this.axis =
+                if (model.vertical.value)
+                    FlexAxis.Vertical
+                else
+                    FlexAxis.Horizontal
+            this.retention =
+                if (model.keep.value)
+                    ContentRetention.KeepMounted
+                else
+                    ContentRetention.Dispose
+            this.enabled = model.enabled.value
+            this.spacing = 16.0
+        }
+        this.typography(
+            f"Account mounts: ${model.mounts[0L].value}  ·  Password mounts: ${
+                model.mounts[1L].value
+            }",
+            TypographyRole.Small
+        ) { this.fonts = Some(fonts) }
+        this.separator()
+        this.typography("Line · custom icon and loading content", TypographyRole.H3) {
+            this.fonts = Some(fonts)
+        }
+        this.tabs(model.preview.binding()) {
+            this.item(
+                Choice(ViewKey.Text("preview"), 0, "Preview"),
+                makeColumn {
+                    this.typography("A preview of the current workspace.", TypographyRole.Muted) {
+                        this.fonts = Some(fonts)
+                    }
+                    if (model.busy.value)
+                        this.spinner()
+                    this.spacing = 12.0
+                }
+            ) {
+                this.trigger {
+                    appearance -> makeRow {
+                        this.add(visibilityIcon(appearance))
+                        this.label(
+                            styledText {
+                                this.style = appearance.text;
+                                this.text("Preview")
+                            }
+                        ) { this.fonts = Some(fonts) }
+                        this.spacing = appearance.spacing
+                        this.alignment = CrossAlignment.Center
+                    }
+                }
+            }
+            this.item(
+                Choice(ViewKey.Text("source"), 1, "Source"),
+                makeTypography(
+                    "Application data stays in your model; tabs control which view is visible.",
+                    TypographyRole.Muted
+                ) { this.fonts = Some(fonts) }
+            )
+            this.variant = TabsVariant.Line
+            this.activation =
+                if (model.manual.value)
+                    TabActivation.Manual
+                else
+                    TabActivation.Auto
+            this.axis =
+                if (model.vertical.value)
+                    FlexAxis.Vertical
+                else
+                    FlexAxis.Horizontal
+            this.retention =
+                if (model.keep.value)
+                    ContentRetention.KeepMounted
+                else
+                    ContentRetention.Dispose
+            this.enabled = model.enabled.value
+            this.fonts = Some(fonts)
+            this.spacing = 16.0
+        }
+        this.row {
+            this.button(
+                if (model.busy.value)
+                    "Stop loading"
+                else
+                    "Show loading",
+                { model.busy.value = !model.busy.value }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button(
+                if (gallery.reduced.value)
+                    "Motion: Reduced"
+                else
+                    "Motion: Full",
+                { gallery.toggleMotion() }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.spacing = 16.0
+        this.padding = Insets.all(16.0)
+        this.alignment = CrossAlignment.Stretch
+    }
+}
+
+private class TabDraftProps(val model: TabsExamplesModel, val id: Long, val fonts: FontCollection)
+
+private class TabDraft(private val props: Props<TabDraftProps>): Component {
+    private val editor = TextEditorState("A local draft")
+    private val count = state(0)
+    public override fun onMount(scope: ComponentScope) {
+        props.value.model.mounts[props.value.id].value += 1
+    }
+    public override fun render(): View {
+        val input = props.value
+        return makeColumn {
+            this.input(this @TabDraft.editor) { this.fonts = Some(input.fonts) }
+            this.button(
+                f"Local count: ${this @TabDraft.count.value}",
+                { this @TabDraft.count.value += 1 }
+            ) {
+                this.fonts = Some(input.fonts);
+                this.variant = ButtonVariant.Secondary
+            }
+            this.spacing = 12.0
+            this.alignment = CrossAlignment.Stretch
+        }
+    }
+}

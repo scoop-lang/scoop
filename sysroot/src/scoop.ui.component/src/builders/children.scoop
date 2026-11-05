@@ -13,6 +13,12 @@ import scoop.window.ShortcutLabel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun <T: Equals<T>> tabs(
+        selected: Binding<T?>,
+        configure: TabsBuilder<T>.() -> Unit = {}
+    ) {
+        add(makeTabs(selected, configure))
+    }
     private val entries = ArrayList<View>()
     internal val childCount: Long get() = entries.size
     public var key: ViewKey = ViewKey.Position

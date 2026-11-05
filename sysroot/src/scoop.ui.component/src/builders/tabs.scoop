@@ -1,0 +1,107 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class TabItemBuilder internal constructor() {
+    public var trigger: ButtonContent? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var retention: ContentRetention? = None
+    public var triggerStyle: ButtonStyle? = None
+    public var panelStyle: StyleOverride = styleOverride()
+    public fun trigger(text: String) {
+        trigger = Some(ButtonContent.Label(LabelProps(LabelText.Plain(text, None))))
+    }
+    public fun trigger(text: StyledText) {
+        trigger = Some(ButtonContent.Label(LabelProps(LabelText.Styled(text))))
+    }
+    public fun trigger(content: View) {
+        trigger = Some(ButtonContent.Custom(content))
+    }
+    public fun trigger(content: (ActionContentStyle) -> View) {
+        trigger = Some(ButtonContent.Resolved(content))
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    public fun triggerStyle(configure: ButtonStyleBuilder.() -> Unit) {
+        triggerStyle =
+            Some((triggerStyle ?: buttonStyle { this.kind = SurfaceKind.Plain }).copy(configure))
+    }
+    public fun panelStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        panelStyle = panelStyle.copy(configure)
+    }
+}
+
+public class TabsBuilder<T: Equals<T>> internal constructor() {
+    private val entries = ArrayList<TabEntry<T>>()
+    public var activation: TabActivation = TabActivation.Auto
+    public var axis: FlexAxis = FlexAxis.Horizontal
+    public var variant: TabsVariant = TabsVariant.Default
+    public var retention: ContentRetention = ContentRetention.Dispose
+    public var enabled: Boolean = true
+    public var loop: Boolean = true
+    public var spacing: Double = 8.0
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var listStyle: StyleOverride = styleOverride()
+    public var onValueChange: (T?) -> Unit = {}
+    public var key: ViewKey = ViewKey.Position
+    public fun add(entry: TabEntry<T>) {
+        entries.add(entry)
+    }
+    public fun item(choice: Choice<T>, content: View, configure: TabItemBuilder.() -> Unit = {}) {
+        val builder = TabItemBuilder()
+        builder.configure()
+        add(
+            TabEntry(
+                choice,
+                content,
+                builder.trigger,
+                builder.focus,
+                builder.retention,
+                builder.triggerStyle,
+                builder.panelStyle
+            )
+        )
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun listStyle(configure: StyleOverrideBuilder.() -> Unit) {
+        listStyle = listStyle.copy(configure)
+    }
+    internal fun snapshot(selected: Binding<T?>): TabsProps<T> =
+        TabsProps(
+            entries.toArray(),
+            selected,
+            activation,
+            axis,
+            variant,
+            retention,
+            enabled,
+            loop,
+            spacing,
+            fonts,
+            theme,
+            style,
+            listStyle,
+            onValueChange
+        )
+}
+
+public fun <T: Equals<T>> tabs(
+    selected: Binding<T?>,
+    configure: TabsBuilder<T>.() -> Unit = {}
+): View = makeTabs(selected, configure)
+
+internal fun <T: Equals<T>> makeTabs(
+    selected: Binding<T?>,
+    configure: TabsBuilder<T>.() -> Unit
+): View {
+    val builder = TabsBuilder<T>()
+    builder.configure()
+    return component(builder.snapshot(selected), { current -> Tabs(current) }, builder.key)
+}

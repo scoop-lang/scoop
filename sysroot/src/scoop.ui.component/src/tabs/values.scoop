@@ -1,0 +1,68 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum TabActivation {
+    Auto, Manual
+}
+
+public enum TabsVariant {
+    Default, Line
+}
+
+public class TabEntry<T: Equals<T>> public constructor(
+    public val choice: Choice<T>,
+    public val content: View,
+    public val trigger: ButtonContent? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val retention: ContentRetention? = None,
+    public val triggerStyle: ButtonStyle? = None,
+    public val panelStyle: StyleOverride = styleOverride()
+)
+
+public class TabsProps<T: Equals<T>> public constructor(
+    public val entries: Array<TabEntry<T>>,
+    public val selected: Binding<T?>,
+    public val activation: TabActivation = TabActivation.Auto,
+    public val axis: FlexAxis = FlexAxis.Horizontal,
+    public val variant: TabsVariant = TabsVariant.Default,
+    public val retention: ContentRetention = ContentRetention.Dispose,
+    public val enabled: Boolean = true,
+    public val loop: Boolean = true,
+    public val spacing: Double = 8.0,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val listStyle: StyleOverride = styleOverride(),
+    public val onValueChange: (T?) -> Unit = {}
+) {
+    init {
+        nonnegative(spacing, "tabs spacing must be finite and nonnegative")
+        validateChoices(Array<Choice<T>>(entries.size) { index -> entries[index].choice })
+    }
+}
+
+internal fun <T: Equals<T>> tabsIndex(entries: Array<TabEntry<T>>, selected: T?): Long? {
+    for (index in 0L ..< entries.size)
+        if (selected == Some(entries[index].choice.value))
+            return Some(index)
+    return None
+}
+
+internal fun <T: Equals<T>> selectTab(input: TabsProps<T>, key: ViewKey): Boolean {
+    if (!input.enabled)
+        return false
+    for (entry in input.entries) {
+        if (entry.choice.key != key || !entry.choice.enabled)
+            continue
+        val previous = input.selected.value
+        val desired = Some(entry.choice.value)
+        if (previous == desired)
+            return false
+        input.selected.value = desired
+        return input.selected.value != previous
+    }
+    return false
+}

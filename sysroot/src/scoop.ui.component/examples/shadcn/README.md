@@ -45,3 +45,5 @@ Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Inpu
 Direction 页面组合继承方向的文本、编号标签、方向键选择组和逻辑 Start 边框，以及局部 LTR 代码输入。顶部热切换保留文字、选区与点击计数。Scroll Area 页面提供垂直、水平、双轴及嵌套视口，可切换条可见性、宽度、禁用与内层残量策略；Focus viewport 和 Reveal last field 分别演示键盘翻页和自动显露，圆角视口与主题焦点环共用绘制／命中几何。
 
 Collapsible 页面比较 Dispose／KeepMounted 的局部草稿、计数与挂载次数，并提供嵌套内容、Spinner 和独立程序触发器。Accordion 页面提供单选／多选、禁止全关、Default／Card、禁用项及 keyed 重排；可在正文编辑时切换顺序，并用 Tab、方向键及 Space／Enter 检查导航与展开。顶部的主题、RTL 和减少动态设置同样生效。
+
+Tabs 页面包含 Default 草稿表单和 Line 自定义图标／加载正文。可切换 Auto／Manual、横纵、Dispose／KeepMounted、禁用与顺序，清空外部选择，并观察局部计数和挂载次数。方向键导航、Space／Enter 选择和 Tab 进入正文沿同一焦点体系；主题、RTL、减少动态和布局变化保留已挂载草稿。

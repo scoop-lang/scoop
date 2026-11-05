@@ -766,3 +766,19 @@ Single 展开一项时写入它的 value；allowCollapse=false 只禁止用户�
 所有可用 heading 默认参与普通 Tab；同一根用 KeyNavigation 的非 roving Vertical 规则处理 Up／Down／Home／End，跳过禁用或不可用项，loop 控制首尾环绕，只移动焦点，不改变展开值。Space／Enter 仍由各 heading 的唯一 Press 激活；正文编辑器的按键不被祖先截获。Default 各项间使用 border 分隔，最后一项不画底边；Card 每项使用 card 配色、完整圆角边框与 12 的间距。触发器纵向留白和正文尾部留白默认 10，按 body 字号／14 缩放。
 
 验收覆盖受控 setter 拒绝、换绑和最新回调；默认卸载／KeepMounted 的工厂次数、局部状态、Props 更新、重排与嵌套；关闭途中停止输入／IME／Spinner、重开与 Reduced 热切换、零尺寸、隐藏／恢复、静止和卸载；Single／Multiple、缺失值、禁止全关、禁用跳过、键盘只导航与激活分离；真实 Gallery 组合输入、按钮和加载内容。
+
+## 25. Tabs
+
+`tabs(selected: Binding<T?>, configure: TabsBuilder<T>.() -> Unit = {})` 构造 TabsProps<T>／Tabs<T>，T 遵守 Equals<T>。Props 包含 entries、selected、activation=TabActivation.Auto、axis=FlexAxis.Horizontal、variant=TabsVariant.Default、retention=ContentRetention.Dispose、enabled=true、loop=true、spacing=8、fonts／theme、style=styleOverride()、listStyle=styleOverride() 与 onValueChange: (T?) -> Unit={}；builder 同名并有 key。spacing 有限非负。
+
+TabEntry<T> 含 Choice<T>、必需 content、trigger: ButtonContent?=None、focus=FocusOptions()、retention: ContentRetention?=None、triggerStyle: ButtonStyle?=None 和 panelStyle=styleOverride()。`TabsBuilder.item(choice, content) { ... }` 收集 TabItemBuilder；trigger 的 String／StyledText／View／ActionContentStyle 回调重载设置非交互原始内容。缺省使用 Choice.label；内置 Label 未配置 fonts 时继承根字体，自定义 View 自行配置。一个 header 只有一份 Press／FocusTarget。显式 key 与 value 必须分别唯一，沿用 Choice 校验，不以 key 替代普通描述类型匹配。构造不读取 binding、不创建面板或触发动作。
+
+Auto 通过同一个 roving KeyNavigation 在沿 axis 的方向键、Home／End 导航被接受后选择目标；Horizontal 遵守当前 RTL，Vertical 使用 Up／Down，loop 控制首尾。Manual 只导航，Space／Enter 或指针激活才选择。普通 Tab 以当前可用选中项为入口，在组内已有焦点时保留该目标；组只有一个 Tab 停靠点，随后进入当前面板的普通可聚焦内容。disabled 与不可用 header 跳过，正文编辑器不被祖先导航截获。程序聚焦或外部 selected 更新不模拟导航，也不把焦点移入面板。
+
+选择动作按 key 读取最新 Props，禁用或值相同不写入。写入候选 Some(value) 后，只有实际值与旧值不同才调用最新 onValueChange，并传入 setter 实际采纳的可空值；拒绝 setter 保留原选择和面板，但不强制退回已移动的 header 焦点。None、缺失或 disabled 的外部值均不清洗、不自动选择第一项；缺失值不显示面板，已选 disabled 项仍显示对应面板并停用该项输入。根 enabled=false 同时停用 header 与面板输入，不改写选择。
+
+面板默认 Dispose，未选中不挂载，切换时立即卸载旧面板；KeepMounted 从初始状态保留全部面板实例，未选中时跳过布局、输入／IME、Tab 和动画帧请求，但继续接收逻辑更新。复用 §24 的内容门控，不另建生命周期协议。切换没有高度过渡；重新显示只在 Accepted 非零几何后恢复输入，不恢复旧面板焦点。每项可覆盖 retention；改为 Dispose 立即卸载未选中的保留内容。同父级稳定 key 的重排、标题／内容 Props、主题、横纵及 Default／Line 切换保留实例与编辑状态，类型变化仍按普通规则重新挂载。
+
+Horizontal 为 header 在上、面板在下，Vertical 为 header 在逻辑 Start、面板在 End；固定同一逻辑父级和两个槽，方向／轴变化只更新几何。列表按内容取宽，面板使用剩余可用宽度，spacing 分开两槽。Default 列表为 muted 背景、large 圆角、3 的 padding；header 默认高 26、横向 padding 6、14／20 medium 文字、medium 圆角；选中采用 background 色，Dark 使用 input 边框及 input／30 底色。Line 列表透明、项间距 4，选中条使用 foreground、厚 2，Horizontal 在下边、Vertical 在逻辑 End。尺寸按 action 字号／14 缩放。未选中文字为淡化 foreground（Dark 使用 muted.foreground），hover／选中恢复 foreground；pressed 具有可区分的反馈。hover／press 和焦点环复用 ActionInk／ThemePainter，选中条使用 ThemeMotion.selection，Reduced 热切换立即收束。局部 triggerStyle、panelStyle、listStyle、根 style 各作用于对应部分，不重叠登记输入。
+
+验收包含 Auto／Manual、横纵／RTL、Tab 入口、禁用跳过、拒绝 setter／换绑／实际值通知、None／未知／禁用外部值；Dispose／KeepMounted 的工厂次数、状态、关闭 Props 更新、IME 与停帧；keyed 重排、轴／变体／主题切换保留编辑；零尺寸与恢复、Reduced、卸载清理；真实 Gallery 中的表单与加载内容及 Default／Line 焦点外观。

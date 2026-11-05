@@ -21,11 +21,12 @@ public struct ActionContentStyle(
 )
 
 internal enum ActionShape {
-    Button(ButtonSize), Badge, Toggle(ToggleVariant, ToggleSize, Boolean)
+    Button(ButtonSize), Badge, Toggle(ToggleVariant, ToggleSize, Boolean), Tab(TabsVariant, Boolean)
 }
 
 internal fun actionFontScale(shape: ActionShape): Double =
     when (shape) {
+        case Tab(_, _) -> 1.0
         case Toggle(_, size, _) -> if (size == ToggleSize.Sm)
             12.8 / 14.0
         else
@@ -42,6 +43,7 @@ internal fun actionFontScale(shape: ActionShape): Double =
 
 internal fun actionIconSize(shape: ActionShape): Double =
     when (shape) {
+        case Tab(_, _) -> 16.0
         case Toggle(_, size, _) -> if (size == ToggleSize.Sm)
             14.0
         else
@@ -58,6 +60,7 @@ internal fun actionIconSize(shape: ActionShape): Double =
 
 internal fun actionSpacing(shape: ActionShape): Double =
     when (shape) {
+        case Tab(_, _) -> 6.0
         case Toggle(_, _, _) -> 4.0
         case Badge -> 4.0
         case Button(size) -> when (size) {
@@ -71,6 +74,7 @@ internal fun actionSpacing(shape: ActionShape): Double =
 
 internal fun isIconAction(shape: ActionShape): Boolean =
     when (shape) {
+        case Tab(_, _) -> false
         case Toggle(_, _, _) -> false
         case Badge -> false
         case Button(size) -> when (size) {
