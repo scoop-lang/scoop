@@ -21,18 +21,19 @@ private fun fieldControlColumn(input: FieldProps, part: FieldPart): Boolean =
         case Error -> input.controlPlacement == FieldControlPlacement.End
     }
 
-internal class FieldLayout(private val props: Props<FieldLayoutProps>): Element {
-    private var clipped = false
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class FieldLayout(private val props: Props<FieldLayoutProps>): Element<Boolean> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
         val result =
             if (fieldHorizontal(props.value.input, props.value.density, constraints.maxWidth))
                 fieldHorizontalLayout(props.value, context, constraints)
             else
                 fieldVerticalLayout(props.value, context, constraints)
-        clipped = result.clipped
-        return result.metrics
+        val clipped = result.clipped
+        return LayoutResult(result.metrics, clipped)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, clipped: Boolean) {
         containerScene(context, clipped)
     }
 }

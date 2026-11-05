@@ -70,13 +70,11 @@ internal fun itemOptions(
     }
 }
 
-internal class ItemInk(private val props: Props<ItemInkProps>): Element {
+internal class ItemInk(private val props: Props<ItemInkProps>): Element<SurfaceDrawing> {
     private var input: InputScope? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
-    private var geometry: SurfaceGeometry? = None
-    private var visual = SurfaceVisual(SurfaceKind.Plain)
     public override fun onMount(scope: ComponentScope) {
         input = Some(scope.input)
         motion = Some(InteractionMotion(scope, props.value.visual))
@@ -103,9 +101,11 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element {
         motion!!.update(value.visual, transition, transition)
         painters!!.get(value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SurfaceDrawing
+    > {
         val value = props.value
-        visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
+        val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
         val actionable =
             when (value.behavior) {
                 case Passive -> false;
@@ -129,15 +129,17 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element {
                 options,
                 context.layoutDirection
             )
-        geometry = Some(surface)
         context.placeChild(0L, Point(surface.content.x, surface.content.y))
-        return offsetMetrics(child, size, surface.content.y)
+        return LayoutResult(
+            offsetMetrics(child, size, surface.content.y),
+            SurfaceDrawing(surface, visual)
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
         val value = props.value
-        val surface = geometry!!
+        val surface = drawing.geometry
         val painter = painters!!.get(value.theme)
-        val state = visual
+        val state = drawing.visual
         if (surface.opacity < 1.0)
             context.saveLayer(surface.opacity)
         context.draw {

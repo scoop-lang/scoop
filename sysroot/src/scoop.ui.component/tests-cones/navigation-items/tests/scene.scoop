@@ -43,7 +43,7 @@ internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Comp
         )
 }
 
-private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
+private class NavigationPanel(private val probe: ItemNavigationProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -77,16 +77,18 @@ private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(40.0, 20.0)))
         context.measureChild(1L, Constraints.tight(Size(144.0, 76.0)))
         context.measureChild(2L, Constraints.tight(Size(40.0, 20.0)))
         context.placeChild(0L, Point(8.0, 8.0))
         context.placeChild(1L, Point(12.0, 40.0))
         context.placeChild(2L, Point(8.0, 135.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 220.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -97,19 +99,21 @@ private class NavigationPanel(private val probe: ItemNavigationProbe): Element {
     }
 }
 
-private class NavigationGroup(private val probe: ItemNavigationProbe): Element {
+private class NavigationGroup(private val probe: ItemNavigationProbe): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(probe.fallback), false, -1))
         probe.group = Some(scope.focusScope(FocusScopeOptions(fallback = Some(probe.fallback))))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(144.0, 48.0)))
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(144.0, 76.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(144.0, 76.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 56.0, 50.0, 14.0))
         context.children()
     }
@@ -118,7 +122,7 @@ private class NavigationGroup(private val probe: ItemNavigationProbe): Element {
 private class NavigationEdge(
     private val handle: FocusHandle,
     private val initial: Boolean
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         area = Some(scope.createArea(focusable = true))
@@ -126,9 +130,10 @@ private class NavigationEdge(
         if (initial)
             assertTrue(handle.requestFocus())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 20.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 0.0, 40.0, 20.0))
     }
 }

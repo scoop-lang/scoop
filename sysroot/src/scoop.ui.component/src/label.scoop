@@ -99,7 +99,7 @@ private class PlainLabel(
 
 private class LabelInkProps(val content: StyledText, val input: LabelProps)
 
-private class LabelInk(private val props: Props<LabelInkProps>): Element {
+private class LabelInk(private val props: Props<LabelInkProps>): Element<ParagraphMeasurement> {
     private var scope: ComponentScope? = None
     private var paragraph: ParagraphHost? = None
     private var ownedFonts: FontCollection? = None
@@ -126,23 +126,27 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element {
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
         val value = props.value
-        return paragraph!!.measure(
-            context,
-            constraints,
-            fonts!!,
-            value.content,
-            value.input.settings,
-            value.input.inlines
-        )
+        val measured =
+            paragraph!!.measure(
+                context,
+                constraints,
+                fonts!!,
+                value.content,
+                value.input.settings,
+                value.input.inlines
+            )
+        return LayoutResult(measured.metrics, measured, { measured.close() })
     }
-    public override fun scene(context: SceneContext) {
-        paragraph!!.scene(context)
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        paragraph!!.scene(context, measured)
         when (props.value.input.underline) {
             case Some(color) -> {
                 val boxes =
-                    paragraph!!.layout.selection(TextRange(0L, props.value.content.text.byteLength))
+                    measured.layout.selection(TextRange(0L, props.value.content.text.byteLength))
                 context.draw {
                     paint -> for (box in boxes)
                         paint.canvas.drawRect(

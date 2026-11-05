@@ -118,12 +118,13 @@ public class NavigationMenu public constructor(
     }
 }
 
-private class NavMenuBar(private val props: Props<LayoutAnchor>): Element {
-    private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+private class NavMenuBar(private val props: Props<LayoutAnchor>): Element<Rect> {
     public override fun onMount(scope: ComponentScope) {
         scope.layoutAnchor(props.value)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Rect
+    > {
         val result =
             context.measureChild(
                 0L,
@@ -135,11 +136,14 @@ private class NavMenuBar(private val props: Props<LayoutAnchor>): Element {
                 size.width - result.size.width
             else
                 0.0
-        bounds = Rect(x, 0.0, result.size.width, result.size.height)
+        val bounds = Rect(x, 0.0, result.size.width, result.size.height)
         context.placeChild(0L, Point(x, 0.0))
-        return LayoutMetrics(size, result.alphabeticBaseline, result.ideographicBaseline)
+        return LayoutResult(
+            LayoutMetrics(size, result.alphabeticBaseline, result.ideographicBaseline),
+            bounds
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, bounds: Rect) {
         context.anchor(props.value, bounds)
         context.children()
     }

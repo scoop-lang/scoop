@@ -148,8 +148,10 @@ internal class SelectPanel(private val props: Props<SelectPanelProps>): Componen
 private class SelectListProps(val content: MenuContent, val aligned: ViewKey?)
 
 /** Measures each finite candidate once and translates the selected row into list coordinates. */
-private class SelectList(private val props: Props<SelectListProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SelectList(private val props: Props<SelectListProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         var y = 0.0
         var width = constraints.minWidth
         var anchor: Rect? = None
@@ -163,9 +165,12 @@ private class SelectList(private val props: Props<SelectListProps>): Element {
             y += metrics.size.height;
             width = lowerBound(width, metrics.size.width)
         }
-        return LayoutMetrics(constraints.constrain(Size(width, y)), overlayAnchor = anchor)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, y)), overlayAnchor = anchor),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

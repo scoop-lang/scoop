@@ -1,5 +1,7 @@
 # Scoop 基础控件库规范
 
+2026-11-06 整改 P1：所有自绘及惰性元素沿 UI 规范的 Element<L>／LazyElement<L> 返回完整 LayoutResult<L>，scene 仅使用最终选中的布局数据。ActionInk、Frame、文字、滚动与虚拟列表等测量几何随结果保存；颜色等仅像素输入在 scene 采样。公开构造作用域与默认字体另按整改 P4 迁移，不增加兼容控件或第二套协议。当前实施状态见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
+
 日期：2026-11-04。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
 
 控件基础的布局、方向与公共交互演进按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述已实施批次的现行合同。

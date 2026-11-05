@@ -175,19 +175,23 @@ private fun navObserved(p: NavProbe, id: Long, content: View): View =
 
 private class Captured(var rect: Rect)
 
-private class NavObservation(private val p: NavProbe, private val props: Props<Long>): Element {
+private class NavObservation(private val p: NavProbe, private val props: Props<Long>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         p.factories += 1
     }
     public override fun onUnmount() {
         p.disposed += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = Captured(local)
         context.draw {
@@ -207,8 +211,7 @@ private class NavObservation(private val p: NavProbe, private val props: Props<L
     }
 }
 
-private class NavRoot(private val p: NavProbe, private val props: Props<Int>): Element {
-    private var measured = Size(0.0, 0.0)
+private class NavRoot(private val p: NavProbe, private val props: Props<Int>): Element<Size> {
     public override fun onMount(scope: ComponentScope) {
         scope.resource { scope.input.observePointer { event -> p.pointerObserved(event) } }
         scope.input.captureHandler =
@@ -218,8 +221,10 @@ private class NavRoot(private val p: NavProbe, private val props: Props<Int>): E
                     context.preventDefault()
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        measured =
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Size
+    > {
+        val measured =
             context.measureChild(
                 0L,
                 Constraints(
@@ -253,9 +258,9 @@ private class NavRoot(private val p: NavProbe, private val props: Props<Int>): E
         )
         context.measureChild(1L, Constraints());
         context.placeChild(1L, Point(560.0, 80.0))
-        return LayoutMetrics(constraints.constrain(Size(680.0, 540.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 540.0))), measured)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Size) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

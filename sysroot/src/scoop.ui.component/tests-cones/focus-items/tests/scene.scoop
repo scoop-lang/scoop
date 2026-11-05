@@ -66,11 +66,11 @@ private class FocusOuterSource(private val content: View): ItemSource {
             empty()
 }
 
-private class FocusOuterPanel(private val selected: Props<Long>): LazyElement {
+private class FocusOuterPanel(private val selected: Props<Long>): LazyElement<Unit> {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
-    ): LayoutMetrics {
+    ): LayoutResult<Unit> {
         context.measureItem(selected.value, constraints)
         context.placeItem(selected.value, Point(0.0, 0.0))
         for (index in context.pinnedItems)
@@ -78,25 +78,27 @@ private class FocusOuterPanel(private val selected: Props<Long>): LazyElement {
                 context.measureItem(index, constraints)
                 context.placeItem(index, Point(0.0, 0.0))
             }
-        return LayoutMetrics(constraints.constrain(Size(160.0, 72.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 72.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class ItemFocusPanel(private val probe: ItemFocusProbe): Element {
+private class ItemFocusPanel(private val probe: ItemFocusProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(40.0, 24.0)))
         context.placeChild(0L, Point(10.0, 10.0))
         context.measureChild(1L, Constraints.tight(Size(160.0, 72.0)))
         context.placeChild(1L, Point(17.0, 43.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 220.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -133,16 +135,17 @@ private class ItemFocusPanel(private val probe: ItemFocusProbe): Element {
     }
 }
 
-private class LeadTarget(private val probe: ItemFocusProbe): Element {
+private class LeadTarget(private val probe: ItemFocusProbe): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(probe.lead)))
         assertTrue(probe.lead.requestFocus())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 24.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 24.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, 40.0, 24.0)
         context.place(area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color.Black)) }

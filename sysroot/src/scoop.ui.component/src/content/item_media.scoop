@@ -47,12 +47,14 @@ internal fun itemMedia(
     )
 
 /** Translation changes painting and hit geometry without adding a layout gap. */
-private class ItemMedia(private val props: Props<ItemMediaProps>): Element {
+private class ItemMedia(private val props: Props<ItemMediaProps>): Element<Unit> {
     private var painter: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val child =
             context.measureChild(
@@ -63,9 +65,9 @@ private class ItemMedia(private val props: Props<ItemMediaProps>): Element {
                 }
             )
         context.placeChild(0L, Point(0.0, input.offset))
-        return offsetMetrics(child, child.size, input.offset)
+        return LayoutResult(offsetMetrics(child, child.size, input.offset), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         when (input.radius) {
             case Some(radius) -> painter!!.scene(

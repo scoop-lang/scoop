@@ -26,11 +26,13 @@ internal class VirtualReadingPosition(
 
 internal class VirtualListFrame(
     val props: VirtualListInkProps,
-    val snapshot: ScrollSnapshot,
+    val layout: ScrollLayout,
     val revision: ULong,
     val hasViewport: Boolean,
     val reading: VirtualReadingPosition,
     val request: ItemScrollRequest?,
     val requestDone: Boolean,
     val recheck: Boolean
-)
+) {
+    val snapshot: ScrollSnapshot get() = layout.snapshot
+}

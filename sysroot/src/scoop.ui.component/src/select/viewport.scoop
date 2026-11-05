@@ -5,18 +5,23 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 
+internal class SelectViewportLayout(
+    val scroll: ScrollLayout,
+    val reference: Point,
+    val padding: Double,
+    val arrows: Double
+)
+
 /** List clipping and scroll reveal use the same viewport that publishes the painted offset. */
-internal class SelectViewport(private val props: Props<SelectPanelProps>): Element {
+internal class SelectViewport(private val props: Props<SelectPanelProps>): Element<
+    SelectViewportLayout
+> {
     private var owner: ComponentScope? = None
     private var control: ScrollControl? = None
     private var up: SelectScrollButton? = None
     private var down: SelectScrollButton? = None
-    private var snapshot: ScrollSnapshot? = None
     private var reference: Point? = None
     private var opened = true
-    private var stagedReference = Point(0.0, 0.0)
-    private var padding = 0.0
-    private var arrows = 0.0
     public override fun onMount(scope: ComponentScope) {
         owner = Some(scope)
         control =
@@ -49,10 +54,12 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
         up!!.update();
         down!!.update()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SelectViewportLayout
+    > {
         val input = props.value
         val density = input.theme.tokens.typography.body.fontSize / 14.0
-        padding = upperBound(4.0 * density, (constraints.maxWidth ?: 8.0 * density) / 2.0)
+        val padding = upperBound(4.0 * density, (constraints.maxWidth ?: 8.0 * density) / 2.0)
         val height =
             upperBound(
                 input.popup.maxHeight * density,
@@ -77,7 +84,7 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
                 )
             )
         val room = lowerBound(0.0, total.height - padding * 2.0)
-        arrows =
+        val arrows =
             if (input.popup.scrollButtons && child.size.height > room)
                 upperBound(24.0 * density, room / 2.0)
             else
@@ -99,26 +106,30 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
                 case None -> None
             }
         val presented = control!!.layout(viewport, child.size, adjustment)
-        snapshot = Some(presented)
-        stagedReference = reference ?: presented.offset
+        val initial = reference ?: presented.snapshot.offset
         context.placeChild(0L, Point(0.0, 0.0))
         val anchor =
             when (child.overlayAnchor) {
                 case Some(rect) -> Some(
                     Rect(
                         rect.x + padding,
-                        rect.y + padding + arrows - stagedReference.y,
+                        rect.y + padding + arrows - initial.y,
                         rect.width,
                         rect.height
                     )
                 )
                 case None -> None
             }
-        return LayoutMetrics(total, overlayAnchor = anchor)
+        return LayoutResult(
+            LayoutMetrics(total, overlayAnchor = anchor),
+            SelectViewportLayout(presented, initial, padding, arrows)
+        )
     }
-    public override fun scene(context: SceneContext) {
-        val presented = snapshot!!
-        val initial = stagedReference
+    public override fun scene(context: SceneContext, layout: SelectViewportLayout) {
+        val presented = layout.scroll.snapshot
+        val initial = layout.reference
+        val padding = layout.padding
+        val arrows = layout.arrows
         context.onFrameComplete {
             frame -> if (
                 frame.submission ==
@@ -131,7 +142,7 @@ internal class SelectViewport(private val props: Props<SelectPanelProps>): Eleme
         }
         context.save();
         context.translate(padding, padding + arrows)
-        control!!.scene(context, presented)
+        control!!.scene(context, layout.scroll)
         context.restore()
         up!!.scene(
             context,

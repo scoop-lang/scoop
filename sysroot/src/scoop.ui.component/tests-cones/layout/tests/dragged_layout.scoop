@@ -6,7 +6,7 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class PaneSeparator(private val model: LayoutCombination): Element {
+internal class PaneSeparator(private val model: LayoutCombination): Element<Unit> {
     private var base = 0.0
     private var flow = LayoutDirection.Ltr
     public override fun onMount(scope: ComponentScope) {
@@ -52,9 +52,10 @@ internal class PaneSeparator(private val model: LayoutCombination): Element {
                 secondMin = 80.0
             ).first
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(8.0, 48.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(8.0, 48.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(model.separator!!, rect)
         context.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.2, 0.2, 0.2))) }
@@ -79,12 +80,13 @@ internal fun snappingStrip(model: LayoutCombination): View =
         }
     )
 
+private class SnappingLayout(val scroll: ScrollLayout, val anchors: Array<Double>)
+
 private class SnappingStrip(
     private val model: LayoutCombination,
     private val props: Props<Array<Double>>
-): Element {
+): Element<SnappingLayout> {
     private var area: InputArea? = None
-    private var anchors: Array<Double> = []
     private var base = 0.0
     public override fun onMount(scope: ComponentScope) {
         val region = scope.createArea()
@@ -130,7 +132,9 @@ private class SnappingStrip(
     private fun move(sample: DragSample) {
         model.scroll.scrollTo(Point(base - sample.displacement, 0.0), ScrollOrigin.User)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SnappingLayout
+    > {
         val positions = ArrayList<Double>()
         var x = 0.0
         for (index in 0L ..< context.childCount) {
@@ -142,15 +146,15 @@ private class SnappingStrip(
             if (index + 1L < context.childCount)
                 x += 10.0
         }
-        anchors = positions.toArray()
+        val anchors = positions.toArray()
         val viewport = constraints.constrain(Size(120.0, 48.0))
-        model.viewport!!.layout(viewport, Size(x, 48.0))
-        return LayoutMetrics(viewport)
+        val scroll = model.viewport!!.layout(viewport, Size(x, 48.0))
+        return LayoutResult(LayoutMetrics(viewport), SnappingLayout(scroll, anchors))
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: SnappingLayout) {
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
-        model.viewport!!.present(context, Some({ content -> content.children() }))
-        val actual = anchors
+        model.viewport!!.present(context, measured.scroll, Some({ content -> content.children() }))
+        val actual = measured.anchors
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted)
                 model.anchors = actual
@@ -161,16 +165,17 @@ private class SnappingStrip(
 private class SnapCard(
     private val model: LayoutCombination,
     private val props: Props<Long>
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         val region = scope.createArea()
         area = Some(region)
         scope.press(region) { model.cardClicks += 1 }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(100.0, 48.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 48.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         val color = Color(0.3 + props.value.toDouble() * 0.2, 0.6, 0.5)
         context.place(area!!, rect)

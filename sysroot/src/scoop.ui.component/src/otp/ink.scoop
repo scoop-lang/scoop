@@ -7,12 +7,11 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 
-internal class OtpInk(internal val props: Props<OtpInkProps>): Element {
+internal class OtpInk(internal val props: Props<OtpInkProps>): Element<OtpDrawing> {
     private var scope: ComponentScope? = None
     private var ownedFonts: FontCollection? = None
     private var fonts: FontCollection? = None
     internal var host: TextEditHost? = None
-    internal var drawing: OtpDrawing? = None
     private var field: FieldLink? = None
     private var painters: ThemePainterCache? = None
 
@@ -90,14 +89,14 @@ internal class OtpInk(internal val props: Props<OtpInkProps>): Element {
         field!!.update(input.labelTarget, input.enabled)
         painters!!.get(props.value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureOtp(this, context, constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        OtpDrawing
+    > = measureOtp(this, context, constraints)
+    public override fun scene(context: SceneContext, current: OtpDrawing) {
         val value = props.value
-        val current = drawing!!
         val painter = painters!!.get(value.theme)
         val adapter = host!!
-        val offset = adapter.scrollSnapshot.offset
+        val offset = current.editor.scrollSnapshot.offset
         if (!value.input.enabled)
             context.saveLayer(value.theme.tokens.disabledOpacity)
         context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
@@ -113,10 +112,10 @@ internal class OtpInk(internal val props: Props<OtpInkProps>): Element {
                     SurfaceLayer.Background
                 )
         }
-        adapter.scene(context)
+        adapter.scene(context, current.editor)
         context.withState<Unit> {
             content ->
-            val viewport = adapter.scrollSnapshot.viewport
+            val viewport = current.editor.scrollSnapshot.viewport
             content.clipRect(Rect(0.0, -current.origin.y, viewport.width, content.size.height))
             content.translate(-offset.x, -offset.y)
             content.children()

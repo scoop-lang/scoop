@@ -83,7 +83,11 @@ private class MeasureSample(val depth: Long, val useGrid: Boolean) {
             f"${kind} depth=${depth}: leaf=${leaf.calls}, leaf requests=${leaf.requests.size}, " +
                 f"probe calls=${total}, probe requests=${distinct}, elapsed=${elapsed}"
         )
-        assertTrue(leaf.calls >= leaf.requests.size)
+        for (counter in counters)
+            assertEquals(counter.requests.size, counter.calls)
+        assertEquals(leaf.requests.size, leaf.calls)
+        assertTrue(leaf.calls <= 3L)
+        assertTrue(total <= depth * 3L + 1L)
         if (!useGrid) {
             assertEquals(1L, leaf.calls)
             assertEquals(depth + 1L, total)
@@ -131,8 +135,10 @@ private class MeasureReuseScene(private val content: View): Component {
 private class MeasureReuseRoot(
     private val probe: MeasureReuseProbe,
     private val active: ActiveApplication
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             val sample = probe.samples[index]
             for (counter in sample.counters)
@@ -149,9 +155,9 @@ private class MeasureReuseRoot(
                 assertEquals(Some(12.0), measured.alphabeticBaseline)
             context.placeChild(index, Point(12.0, 12.0 + index.toDouble() * 24.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(260.0, 240.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 240.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         context.onFrameComplete {
             completion -> if (
@@ -166,18 +172,23 @@ private class MeasureReuseRoot(
     }
 }
 
-private class MeasureReuseLeaf(private val counter: MeasureRequestCount): Element {
+private class MeasureReuseLeaf(private val counter: MeasureRequestCount): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         counter.mounts += 1
     }
     public override fun onUnmount() {
         counter.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         counter.record(constraints)
-        return LayoutMetrics(constraints.constrain(Size(24.0, 16.0)), Some(12.0))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(24.0, 16.0)), Some(12.0)),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         counter.paints += 1
         assertEquals(Size(24.0, 16.0), context.size)
         context.draw {
@@ -186,20 +197,22 @@ private class MeasureReuseLeaf(private val counter: MeasureRequestCount): Elemen
     }
 }
 
-private class MeasureReuseContainer(private val counter: MeasureRequestCount): Element {
+private class MeasureReuseContainer(private val counter: MeasureRequestCount): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         counter.mounts += 1
     }
     public override fun onUnmount() {
         counter.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         counter.record(constraints)
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         counter.paints += 1
         assertEquals(Size(24.0, 16.0), context.size)
         context.children()

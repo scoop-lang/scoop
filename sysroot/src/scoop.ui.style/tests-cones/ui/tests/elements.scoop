@@ -45,12 +45,16 @@ internal class StyleScene(private val probe: StyleProbe): Component {
     }
 }
 
-private class StylePanel(private val props: Props<Int>, private val probe: StyleProbe): Element {
+private class StylePanel(private val props: Props<Int>, private val probe: StyleProbe): Element<
+    Unit
+> {
     public override fun update() {
         probe.updates += 1;
         probe.updatedGeneration = props.value
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         val metrics = context.measureChild(0L, Constraints.tight(Size(80.0, 40.0)))
         assertEquals(Size(80.0, 40.0), metrics.size)
@@ -59,9 +63,9 @@ private class StylePanel(private val props: Props<Int>, private val probe: Style
         context.placeChild(0L, Point(40.0, 40.0))
         context.measureChild(1L, Constraints.tight(Size(50.0, 40.0)))
         context.placeChild(1L, Point(180.0, 40.0))
-        return LayoutMetrics(constraints.constrain(Size(300.0, 160.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 160.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -103,7 +107,7 @@ internal class CounterProps(val count: Int, val activate: () -> Unit)
 internal class CounterInk(
     private val props: Props<CounterProps>,
     private val probe: StyleProbe
-): Element {
+): Element<Unit> {
     var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         probe.ink = Some(this)
@@ -138,9 +142,14 @@ internal class CounterInk(
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(80.0, 40.0)), Some(20.0), Some(28.0))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(80.0, 40.0)), Some(20.0), Some(28.0)),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val color =
             if (props.value.count == 7)
                 Color(1.0, 0.0, 0.0)
@@ -152,7 +161,7 @@ internal class CounterInk(
     }
 }
 
-internal class AnimatedInk(private val probe: StyleProbe): Element {
+internal class AnimatedInk(private val probe: StyleProbe): Element<Unit> {
     var painter: StylePainter? = None
     var sigma: Animatable<Double>? = None
     var unmounts = 0
@@ -164,9 +173,10 @@ internal class AnimatedInk(private val probe: StyleProbe): Element {
     public override fun onUnmount() {
         unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(50.0, 40.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(50.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val value = sigma!!.value
         painter!!.scene(
             context,

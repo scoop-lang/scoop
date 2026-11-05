@@ -15,10 +15,9 @@ internal class MenuRootLayoutProps(
     val updated: () -> Unit
 )
 
-internal class MenuRootLayout(private val props: Props<MenuRootLayoutProps>): Element {
+internal class MenuRootLayout(private val props: Props<MenuRootLayoutProps>): Element<Unit> {
     private var area: InputArea? = None
     private var fallback: FocusTarget? = None
-    private var size = Size(0.0, 0.0)
     public override fun onMount(scope: ComponentScope) {
         val target = scope.createArea(focusable = props.value.contextMenu)
         area = Some(target)
@@ -120,16 +119,17 @@ internal class MenuRootLayout(private val props: Props<MenuRootLayoutProps>): El
     public override fun update() {
         props.value.updated()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
-        size = result.size
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints())
         context.placeChild(1L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
-        val bounds = Rect(0.0, 0.0, size.width, size.height)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.anchor(props.value.anchor, bounds)
         context.place(area!!, bounds)
         context.children()

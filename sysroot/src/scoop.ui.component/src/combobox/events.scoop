@@ -120,7 +120,9 @@ internal fun <T: Equals<T>> comboKey(
     }
 }
 
-internal class ComboboxRoot<T: Equals<T>>(private val props: Props<ComboboxControl<T>>): Element {
+internal class ComboboxRoot<T: Equals<T>>(private val props: Props<ComboboxControl<T>>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         scope.layoutAnchor(props.value.anchor)
         scope.input.captureHandler = { context, event -> comboKey(props.value, context, event) }
@@ -128,14 +130,16 @@ internal class ComboboxRoot<T: Equals<T>>(private val props: Props<ComboboxContr
     public override fun update() {
         props.value.updated()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val control = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints());
         context.placeChild(1L, Point(0.0, 0.0))
-        return control
+        return LayoutResult(control, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.anchor(props.value.anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
     }
@@ -143,7 +147,7 @@ internal class ComboboxRoot<T: Equals<T>>(private val props: Props<ComboboxContr
 
 internal class ComboEditorEvents<T: Equals<T>>(
     private val props: Props<ComboboxControl<T>>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -160,12 +164,14 @@ internal class ComboEditorEvents<T: Equals<T>>(
                     }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0));
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

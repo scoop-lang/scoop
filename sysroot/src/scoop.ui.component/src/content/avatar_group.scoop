@@ -94,11 +94,13 @@ private class AvatarGroup(private val props: Props<AvatarGroupProps>): Component
 
 private struct AvatarGroupLayoutProps(val count: Long, val overlap: Double)
 
-private class AvatarGroupLayout(private val props: Props<AvatarGroupLayoutProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class AvatarGroupLayout(private val props: Props<AvatarGroupLayoutProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         if (input.count == 0L)
-            return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
         val children =
             Array<Size>(input.count) {
                 index -> context.measureChild(
@@ -132,9 +134,9 @@ private class AvatarGroupLayout(private val props: Props<AvatarGroupLayoutProps>
                 )
             )
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

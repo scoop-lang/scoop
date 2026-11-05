@@ -16,7 +16,11 @@ internal interface ComponentInstance {
 }
 
 internal interface ElementInstance {
-    val value: Element
+    val value: Any
+    fun measure(context: MeasureContext, constraints: Constraints): ElementLayout
+    fun onMount(scope: ComponentScope)
+    fun update()
+    fun onUnmount()
     fun replace(description: ElementDescriptionBase)
 }
 
@@ -26,28 +30,46 @@ internal interface LazyDescriptionBase {
 }
 
 internal interface LazyInstance {
-    val value: LazyElement
+    val value: Any
+    fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout
+    fun onMount(scope: ComponentScope)
+    fun update()
+    fun onUnmount()
     fun replace(description: LazyDescriptionBase)
 }
 
-internal class LazyDescription<P, E: LazyElement>(
+internal class LazyDescription<P, L, E: LazyElement<L>>(
     val input: P,
     private val factory: (Props<P>) -> E
 ): LazyDescriptionBase {
-    override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, E>
+    override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, L, E>
     override fun create(): LazyInstance {
         val props = Props(input)
-        return TypedLazyInstance<P, E>(props, factory(props))
+        return TypedLazyInstance<P, L, E>(props, factory(props))
     }
 }
 
-private class TypedLazyInstance<P, E: LazyElement>(
+private class TypedLazyInstance<P, L, E: LazyElement<L>>(
     private val props: Props<P>,
     private val instance: E
 ): LazyInstance {
-    override val value: LazyElement get() = instance
+    override val value: Any get() = instance
+    override fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout =
+        TypedElementLayout(
+            instance.measure(context, constraints),
+            { scene, layout -> instance.scene(scene, layout) }
+        )
+    override fun onMount(scope: ComponentScope) {
+        instance.onMount(scope)
+    }
+    override fun update() {
+        instance.update()
+    }
+    override fun onUnmount() {
+        instance.onUnmount()
+    }
     override fun replace(description: LazyDescriptionBase) {
-        props.replace((description as LazyDescription<P, E>).input)
+        props.replace((description as LazyDescription<P, L, E>).input)
     }
 }
 
@@ -73,24 +95,38 @@ private class TypedComponentInstance<P, C: Component>(
     }
 }
 
-internal class ElementDescription<P, E: Element>(
+internal class ElementDescription<P, L, E: Element<L>>(
     val input: P,
     private val factory: (Props<P>) -> E
 ): ElementDescriptionBase {
     override fun sameType(other: ElementDescriptionBase): Boolean =
-        other is ElementDescription<P, E>
+        other is ElementDescription<P, L, E>
     override fun create(): ElementInstance {
         val props = Props(input)
-        return TypedElementInstance<P, E>(props, factory(props))
+        return TypedElementInstance<P, L, E>(props, factory(props))
     }
 }
 
-private class TypedElementInstance<P, E: Element>(
+private class TypedElementInstance<P, L, E: Element<L>>(
     private val props: Props<P>,
     private val instance: E
 ): ElementInstance {
-    override val value: Element get() = instance
+    override val value: Any get() = instance
+    override fun measure(context: MeasureContext, constraints: Constraints): ElementLayout =
+        TypedElementLayout(
+            instance.measure(context, constraints),
+            { scene, layout -> instance.scene(scene, layout) }
+        )
+    override fun onMount(scope: ComponentScope) {
+        instance.onMount(scope)
+    }
+    override fun update() {
+        instance.update()
+    }
+    override fun onUnmount() {
+        instance.onUnmount()
+    }
     override fun replace(description: ElementDescriptionBase) {
-        props.replace((description as ElementDescription<P, E>).input)
+        props.replace((description as ElementDescription<P, L, E>).input)
     }
 }

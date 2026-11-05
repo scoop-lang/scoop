@@ -42,7 +42,6 @@ public class TextEditHost public constructor(
     internal var currentProjection = initialOptions.projection
     internal var content: StyledText? = None
     internal var hintContent: StyledText? = None
-    internal var measured: EditorMeasure? = None
     internal var staged: EditorFrame? = None
     internal var accepted: EditorFrame? = None
     internal var revealNeeded = false
@@ -82,16 +81,16 @@ public class TextEditHost public constructor(
         checkOpen();
         return visual.value
     }
-    /** Borrowed until the next measurement or close; callers must not close it. */
+    /** Borrowed from the last accepted frame; measurements carry their own layouts. */
     public val layout: TextEditLayout get() {
         checkOpen();
-        return currentLayout ?:
-            throw IllegalStateException(Some("text editor has not been measured"))
+        return accepted?.layout ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
     public val display: TextDisplay get() {
         checkOpen()
-        return currentDisplay ?:
-            throw IllegalStateException(Some("text editor has not been measured"))
+        return accepted?.display ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
     public fun caret(position: TextPosition): Rect? {
         checkOpen()
@@ -110,11 +109,11 @@ public class TextEditHost public constructor(
             case Allow -> true
             case Deny -> false
         }
-    /** The layout being presented, including offsets clamped for this measurement. */
+    /** The last accepted viewport and its clamped offsets. */
     public val scrollSnapshot: ScrollSnapshot get() {
         checkOpen()
-        return measured?.snapshot ?:
-            throw IllegalStateException(Some("text editor has not been measured"))
+        return accepted?.snapshot ?:
+            throw IllegalStateException(Some("text editor has no accepted layout"))
     }
 
     internal fun checkOpen() {
@@ -194,7 +193,10 @@ public class TextEditHost public constructor(
         scope.requestFrame()
     }
 
-    public fun measure(constraints: Constraints, cells: TextEditCells? = None): LayoutMetrics {
+    public fun measure(
+        constraints: Constraints,
+        cells: TextEditCells? = None
+    ): TextEditMeasurement {
         checkOpen()
         when (cells) {
             case Some(_) -> requireUi(
@@ -205,9 +207,9 @@ public class TextEditHost public constructor(
         }
         return editorMeasure(this, constraints, cells)
     }
-    public fun scene(context: SceneContext) {
+    public fun scene(context: SceneContext, measurement: TextEditMeasurement) {
         checkOpen()
-        editorScene(this, context)
+        editorScene(this, context, measurement)
     }
     public fun execute(command: TextEditCommand): Boolean {
         checkOpen()
@@ -319,8 +321,6 @@ public class TextEditHost public constructor(
         staged = None
         failure = cleanupUi(failure) { accepted?.close() }
         accepted = None
-        failure = cleanupUi(failure) { measured?.retained?.close() }
-        measured = None
         failure = cleanupUi(failure) { currentLayout?.release() }
         currentLayout = None
         for (glyph in glyphs)

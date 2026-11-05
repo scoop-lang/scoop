@@ -24,17 +24,6 @@ public class ParagraphHost public constructor(): Closeable {
             throw IllegalStateException(Some("paragraph host is closed"))
     }
 
-    /** Borrowed until replacement or close; callers must not close this layout. */
-    public val layout: TextLayout get() {
-        checkOpen()
-        return cache.layout
-    }
-
-    internal fun retainLayout(): RetainedParagraphLayout {
-        checkOpen()
-        return cache.retainLayout()
-    }
-
     public fun measure(
         context: MeasureContext,
         constraints: Constraints,
@@ -42,7 +31,7 @@ public class ParagraphHost public constructor(): Closeable {
         content: StyledText,
         settings: ParagraphStyle? = None,
         inlines: Array<InlineView> = []
-    ): LayoutMetrics {
+    ): ParagraphMeasurement {
         checkOpen()
         constraints.check()
         val ordered = orderedInlines(content, inlines)
@@ -72,21 +61,25 @@ public class ParagraphHost public constructor(): Closeable {
             }
             index += 1L
         }
-        return LayoutMetrics(
-            constraints.constrain(result.size),
-            Some(result.alphabeticBaseline),
-            Some(result.ideographicBaseline)
+        return ParagraphMeasurement(
+            LayoutMetrics(
+                constraints.constrain(result.size),
+                Some(result.alphabeticBaseline),
+                Some(result.ideographicBaseline)
+            ),
+            cache.retainLayout(),
+            cache.generation
         )
     }
 
-    public fun scene(context: SceneContext) {
+    public fun scene(context: SceneContext, measurement: ParagraphMeasurement) {
         checkOpen()
-        val layout = cache.layout
+        val layout = measurement.layout
         val bounds = layout.paintBounds
         context.drawLayer(
             paintKey,
             Rect(bounds.x - 1.0, bounds.y - 1.0, bounds.width + 2.0, bounds.height + 2.0),
-            cache.generation
+            measurement.generation
         ) { paint -> paint.canvas.drawText(layout) }
         context.children()
     }

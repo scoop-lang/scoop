@@ -9,8 +9,10 @@ internal class ResizablePanelInput(val root: ResizableInput, val index: Long) {
     val key: ViewKey get() = root.props.panels[index].key
 }
 
-internal class ResizablePanelLayout(private val props: Props<ResizablePanelInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class ResizablePanelLayout(private val props: Props<ResizablePanelInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val horizontal = input.root.props.orientation == Orientation.Horizontal
         val thickness =
@@ -100,24 +102,26 @@ internal class ResizablePanelLayout(private val props: Props<ResizablePanelInput
                     Point(0.0, extent)
             )
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-internal class ResizableContent(private val props: Props<StyleOverride>): Element {
+internal class ResizableContent(private val props: Props<StyleOverride>): Element<Unit> {
     private var painter: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         painter!!.scene(context, props.value.resolve(style())) {
             local -> containerScene(local, true)
         }

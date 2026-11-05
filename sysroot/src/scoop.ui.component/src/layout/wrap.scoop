@@ -42,8 +42,10 @@ private class WrapMeasuredLine(
     val cross: FlexCrossMetrics
 )
 
-private class WrapInk(private val props: Props<WrapProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class WrapInk(private val props: Props<WrapProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val layout = input.layout
         val vertical = input.axis == FlexAxis.Vertical
@@ -182,10 +184,10 @@ private class WrapInk(private val props: Props<WrapProps>): Element {
             }
             lineOrigin += line.cross.extent + input.lineSpacing
         }
-        return LayoutMetrics(size, alphabetic, ideographic)
+        return LayoutResult(LayoutMetrics(size, alphabetic, ideographic), Unit)
     }
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.layout.clip)
     }
 }

@@ -11,11 +11,13 @@ internal class DisclosureBodyProps(
     val enabled: Boolean
 )
 
-internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): Element {
+internal struct DisclosureBodyLayout(val clipped: Boolean, val placed: Boolean)
+
+internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): Element<
+    DisclosureBodyLayout
+> {
     private var scope: ComponentScope? = None
     private var revision = 0UL
-    private var clipped = false
-    private var placed = false
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         scope.input.enabled = false
@@ -27,13 +29,17 @@ internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): El
             scope!!.input.enabled = false
         scope!!.isFrameEnabled = input.open
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        DisclosureBodyLayout
+    > {
         val input = props.value
-        placed = false
         if (!input.shown) {
             for (index in 0L ..< context.childCount)
                 context.skipChild(index)
-            return LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 0.0, 0.0)))
+            return LayoutResult(
+                LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 0.0, 0.0))),
+                DisclosureBodyLayout(false, false)
+            )
         }
         val child =
             context.measureChild(
@@ -42,18 +48,19 @@ internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): El
             )
         val progress = disclosureProgress(input.presence, input.open)
         val size = constraints.constrain(Size(child.size.width, child.size.height * progress))
-        clipped = progress < 1.0 || size.width < child.size.width || size.height < child.size.height
-        placed = size.width > 0.0 && size.height > 0.0
+        val clipped =
+            progress < 1.0 || size.width < child.size.width || size.height < child.size.height
+        val placed = size.width > 0.0 && size.height > 0.0
         if (placed)
             context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), DisclosureBodyLayout(clipped, placed))
     }
-    public override fun scene(context: SceneContext) {
-        if (clipped)
+    public override fun scene(context: SceneContext, layout: DisclosureBodyLayout) {
+        if (layout.clipped)
             context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
         val current = revision
-        val visible = placed
+        val visible = layout.placed
         context.onFrameComplete {
             frame -> if (
                 frame.submission ==

@@ -12,7 +12,7 @@ private class SidebarRailInput(val props: SidebarProps, val theme: Theme, val to
 internal fun sidebarRail(input: SidebarProps, theme: Theme, toggle: () -> Unit): View =
     element(SidebarRailInput(input, theme, toggle), { current -> SidebarRail(current) })
 
-private class SidebarRail(private val props: Props<SidebarRailInput>): Element {
+private class SidebarRail(private val props: Props<SidebarRailInput>): Element<Unit> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var press: Press? = None
@@ -53,9 +53,14 @@ private class SidebarRail(private val props: Props<SidebarRailInput>): Element {
         press!!.update(PressOptions(props.value.props.enabled)) { props.value.toggle() }
         refreshCursor()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(16.0, constraints.maxHeight ?: 0.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(16.0, constraints.maxHeight ?: 0.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         context.place(area!!, Rect(0.0, 0.0, size.width, size.height))
         if (area!!.scope.isHovered && props.value.props.enabled) {

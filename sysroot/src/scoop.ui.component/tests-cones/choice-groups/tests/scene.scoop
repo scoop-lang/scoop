@@ -165,10 +165,9 @@ private class RadioWitness(
     }
 }
 
-private class ChoiceLayout(
-    private val p: ChoiceProbe,
-    private val generation: Props<Int>
-): Element {
+private class ChoiceLayout(private val p: ChoiceProbe, private val generation: Props<Int>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         assertFailsWith<IllegalArgumentException> {
             scope.keyNavigation(NavigationOptions([], preferredTab = Some(FocusHandle())))
@@ -179,7 +178,9 @@ private class ChoiceLayout(
         }
         assertEquals(0L, navigation.options.items.size)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val positions = [20.0, 60.0, 170.0, 300.0, 380.0, 430.0, 0.0, 0.0]
         for (index in 0L ..< context.childCount) {
             val limits =
@@ -201,9 +202,9 @@ private class ChoiceLayout(
             }
             context.placeChild(index, Point(20.0, positions[index]))
         }
-        return LayoutMetrics(constraints.constrain(Size(500.0, 500.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(500.0, 500.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val current = generation.value
         context.onFrameComplete {

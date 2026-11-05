@@ -23,12 +23,11 @@ internal fun sidebarOutside(input: SidebarProps, density: Double): Double =
 internal fun sidebarOnLeft(side: SidebarSide, direction: LayoutDirection): Boolean =
     (side == SidebarSide.Start) != (direction == LayoutDirection.Rtl)
 
-internal class SidebarHost(private val props: Props<SidebarHostInput>): Element {
+internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<Boolean> {
     private var scope: ComponentScope? = None
     private var width: Animatable<Double>? = None
     private var keys: ShortcutScope? = None
     private var wasMobile = false
-    private var nextMobile = false
     private fun target(): Double {
         val input = props.value
         val density = input.theme.tokens.typography.body.fontSize / 14.0
@@ -59,10 +58,12 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element 
                 animation.animateTo(next, motion!!)
         wasMobile = input.shown.mobile
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
         val input = props.value
         val density = input.theme.tokens.typography.body.fontSize / 14.0
-        nextMobile = sidebarIsMobile(input.props, constraints.maxWidth, density)
+        val nextMobile = sidebarIsMobile(input.props, constraints.maxWidth, density)
         val occupied =
             if (input.shown.mobile || nextMobile)
                 0.0
@@ -181,9 +182,9 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element 
             )
         } else
             context.skipChild(2L)
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), nextMobile)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, nextMobile: Boolean) {
         context.children([1L, 0L, 2L])
         val desired = nextMobile
         context.onFrameComplete {
@@ -199,14 +200,19 @@ internal class SidebarPaneInput(
     val density: Double
 )
 
-internal class SidebarPane(private val props: Props<SidebarPaneInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class SidebarPane(private val props: Props<SidebarPaneInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val outside = sidebarOutside(input.props, input.density)
         val width = constraints.maxWidth ?: constraints.minWidth
         if (width <= 0.0) {
             context.skipChild(0L)
-            return LayoutMetrics(constraints.constrain(Size(0.0, constraints.maxHeight ?: 0.0)))
+            return LayoutResult(
+                LayoutMetrics(constraints.constrain(Size(0.0, constraints.maxHeight ?: 0.0))),
+                Unit
+            )
         }
         val available = max(0.0, width - outside * 2.0)
         val full =
@@ -226,9 +232,12 @@ internal class SidebarPane(private val props: Props<SidebarPaneInput>): Element 
             else
                 0.0
         context.placeChild(0L, Point(outside + offset, outside))
-        return LayoutMetrics(constraints.constrain(Size(width, child.size.height + outside * 2.0)))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, child.size.height + outside * 2.0))),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
     }
@@ -239,9 +248,8 @@ internal class SidebarGateInput(val enabled: Boolean, val shown: Boolean)
 internal fun sidebarGate(content: View, enabled: Boolean, shown: Boolean): View =
     element(SidebarGateInput(enabled, shown), { current -> SidebarGate(current) }, [content])
 
-private class SidebarGate(private val props: Props<SidebarGateInput>): Element {
+private class SidebarGate(private val props: Props<SidebarGateInput>): Element<Boolean> {
     private var scope: ComponentScope? = None
-    private var placed = false
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope);
         scope.input.enabled = false
@@ -252,19 +260,20 @@ private class SidebarGate(private val props: Props<SidebarGateInput>): Element {
             scope!!.input.enabled = false
         scope!!.isFrameEnabled = input.enabled && input.shown
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        placed = false
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
         if (!props.value.shown) {
             context.skipChild(0L);
-            return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), false)
         }
         val child = context.measureChild(0L, constraints)
-        placed = child.size.width > 0.0 && child.size.height > 0.0
+        val placed = child.size.width > 0.0 && child.size.height > 0.0
         if (placed)
             context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, placed)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, placed: Boolean) {
         context.children()
         val visible = placed
         context.onFrameComplete {
@@ -291,7 +300,7 @@ private class SidebarKeyInput(val props: SidebarProps, val toggle: () -> Unit)
 internal fun sidebarKeys(content: View, input: SidebarProps, toggle: () -> Unit): View =
     element(SidebarKeyInput(input, toggle), { current -> SidebarKeys(current) }, [content])
 
-private class SidebarKeys(private val props: Props<SidebarKeyInput>): Element {
+private class SidebarKeys(private val props: Props<SidebarKeyInput>): Element<Unit> {
     private var keys: ShortcutScope? = None
     public override fun onMount(scope: ComponentScope) {
         keys = Some(scope.resource { ShortcutScope(scope.input) })
@@ -299,12 +308,14 @@ private class SidebarKeys(private val props: Props<SidebarKeyInput>): Element {
     public override fun update() {
         sidebarKeyBindings(keys!!, props.value.props, props.value.toggle)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

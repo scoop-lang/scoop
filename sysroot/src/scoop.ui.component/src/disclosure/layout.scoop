@@ -12,12 +12,13 @@ internal class DisclosureLayoutProps(
 )
 
 /** The presentation owner stays outside the content's input and animation gate. */
-internal class DisclosureLayout(private val props: Props<DisclosureLayoutProps>): Element {
-    private var clipped = false
+internal class DisclosureLayout(private val props: Props<DisclosureLayoutProps>): Element<Boolean> {
     public override fun update() {
         props.value.presence?.update(props.value.open, Some(props.value.transition))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Boolean
+    > {
         val input = props.value
         val child =
             Constraints(minWidth = constraints.maxWidth ?: 0.0, maxWidth = constraints.maxWidth)
@@ -32,16 +33,19 @@ internal class DisclosureLayout(private val props: Props<DisclosureLayoutProps>)
         val width = lowerBound(header.size.width, body.size.width)
         val height = header.size.height + gap + body.size.height
         val size = constraints.constrain(Size(width, height))
-        clipped = size.width < width || size.height < height
+        val clipped = size.width < width || size.height < height
         if (size.width > 0.0 && size.height > 0.0) {
             if (input.hasTrigger)
                 context.placeChild(0L, Point(0.0, 0.0))
             if (body.size.height > 0.0)
                 context.placeChild(1L, Point(0.0, header.size.height + gap))
         }
-        return LayoutMetrics(size, header.alphabeticBaseline, header.ideographicBaseline)
+        return LayoutResult(
+            LayoutMetrics(size, header.alphabeticBaseline, header.ideographicBaseline),
+            clipped
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, clipped: Boolean) {
         if (clipped)
             context.clipRect(Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()

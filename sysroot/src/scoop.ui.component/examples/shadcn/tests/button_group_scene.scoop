@@ -125,8 +125,10 @@ internal class ButtonGroupScene(private val probe: ButtonGroupProbe): Component 
 private class ButtonGroupTestLayout(
     private val probe: ButtonGroupProbe,
     private val generation: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             val first =
                 context.measureChild(
@@ -182,9 +184,9 @@ private class ButtonGroupTestLayout(
                 context.measureChild(4L, Constraints.tight(Size(100.0, 64.0))).size
             )
         }
-        return LayoutMetrics(constraints.constrain(Size(520.0, 280.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 280.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.painted.clear()
         context.draw {
             paint -> paint.canvas.drawRect(
@@ -203,18 +205,20 @@ private class ButtonGroupTestLayout(
 private class ButtonGroupChildMarker(
     private val probe: ButtonGroupProbe,
     private val index: Props<Long>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val id = index.value
         probe.mounts[id] += 1
         scope.onDispose { probe.disposals[id] += 1 }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.painted.add(index.value)
         context.children()
     }

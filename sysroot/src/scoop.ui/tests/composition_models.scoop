@@ -188,7 +188,7 @@ internal class CompositionScene(private val probe: CompositionProbe): Component 
     }
 }
 
-internal class CompositionLayout(private val probe: CompositionProbe): Element {
+internal class CompositionLayout(private val probe: CompositionProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         probe.log.add("mount layout")
     }
@@ -198,7 +198,9 @@ internal class CompositionLayout(private val probe: CompositionProbe): Element {
     public override fun update() {
         probe.updates += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         var index = 0L
         while (index < context.childCount) {
@@ -206,9 +208,9 @@ internal class CompositionLayout(private val probe: CompositionProbe): Element {
             context.placeChild(index, Point(0.0, 0.0))
             index += 1L
         }
-        return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.children()
     }

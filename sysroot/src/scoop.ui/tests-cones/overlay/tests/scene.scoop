@@ -98,7 +98,7 @@ private struct CanvasInput(
 private class OverlayCanvas(
     private val probe: OverlayProbe,
     private val props: Props<CanvasInput>
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         probe.rootScope = Some(scope)
@@ -123,16 +123,18 @@ private class OverlayCanvas(
         scope.focusTarget(region, FocusOptions(Some(probe.focus[3L])))
         scope.routeChildren(region)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             val placeholder =
                 context.measureChild(index, Constraints(7.0, Some(15.0), 9.0, Some(15.0)))
             assertEquals(Size(7.0, 9.0), placeholder.size)
             context.placeChild(index, Point(900.0, 900.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(320.0, 220.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 220.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         probe.passes += 1
         probe.order = ""
@@ -189,7 +191,7 @@ private struct LayerInput(val index: Long, val handle: OverlayHandle)
 private class OverlayBox(
     private val probe: OverlayProbe,
     private val props: Props<LayerInput>
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     private var measuredAt = -1
     public override fun onMount(scope: ComponentScope) {
@@ -225,7 +227,9 @@ private class OverlayBox(
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertTrue(measuredAt != probe.passes)
         measuredAt = probe.passes
         probe.measures[props.value.index] += 1
@@ -238,9 +242,9 @@ private class OverlayBox(
                 Size(30.0, 20.0)
             else
                 Size(80.0, 40.0)
-        return LayoutMetrics(constraints.constrain(desired))
+        return LayoutResult(LayoutMetrics(constraints.constrain(desired)), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val index = props.value.index
         assertEquals(measuredAt, probe.passes)
         probe.scenes[index] += 1

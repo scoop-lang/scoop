@@ -125,11 +125,15 @@ internal class FieldScene(private val probe: FieldProbe): Component {
     }
 }
 
-private class FieldPanel(private val probe: FieldProbe, private val props: Props<Int>): Element {
+private class FieldPanel(private val probe: FieldProbe, private val props: Props<Int>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.primaryMetrics = Some(context.measureChild(0L, Constraints(260.0, Some(260.0))))
         context.placeChild(0L, Point(30.0, 30.0))
         context.measureChild(1L, Constraints(360.0, Some(360.0)))
@@ -140,9 +144,9 @@ private class FieldPanel(private val probe: FieldProbe, private val props: Props
         context.placeChild(3L, Point(440.0, 130.0))
         context.measureChild(4L, Constraints())
         context.placeChild(4L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(760.0, 520.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(760.0, 520.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         probe.horizontal = None
         probe.vertical = None
@@ -159,15 +163,20 @@ private class FieldPanel(private val probe: FieldProbe, private val props: Props
     }
 }
 
-private class ScaledField: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ScaledField: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, Constraints(320.0, Some(320.0)))
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(
-            constraints.constrain(Size(child.size.width * 1.2, child.size.height * 1.2))
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(Size(child.size.width * 1.2, child.size.height * 1.2))
+            ),
+            Unit
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.scale(1.2, 1.2)
         context.children()
     }

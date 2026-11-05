@@ -120,8 +120,10 @@ private fun kbdCap(
         this.key = key
     }
 
-private class KbdSize(private val density: Props<Double>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class KbdSize(private val density: Props<Double>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val scale = density.value
         val natural = context.measureChild(0L, Constraints())
         val size =
@@ -144,9 +146,9 @@ private class KbdSize(private val density: Props<Double>): Element {
             )
         val top = (size.height - child.size.height) / 2.0
         context.placeChild(0L, Point((size.width - child.size.width) / 2.0, top))
-        return offsetMetrics(child, size, top)
+        return LayoutResult(offsetMetrics(child, size, top), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, true)
     }
 }

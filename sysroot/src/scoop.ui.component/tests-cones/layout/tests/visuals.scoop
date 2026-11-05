@@ -115,22 +115,26 @@ internal fun visualContract(generation: Int, probe: VisualProbe): View {
     )
 }
 
-private class VisualPanel(private val props: Props<Int>, private val probe: VisualProbe): Element {
+private class VisualPanel(private val props: Props<Int>, private val probe: VisualProbe): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         probe.mounts += 1
     }
     public override fun onUnmount() {
         probe.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< 3L) {
             val child = context.measureChild(index, Constraints.tight(Size(64.0, 64.0)))
             assertEquals(Size(64.0, 64.0), child.size)
             context.placeChild(index, Point(index.toDouble() * 72.0, 0.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(208.0, 64.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(208.0, 64.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rtl = context.layoutDirection == LayoutDirection.Rtl
         val replaced = props.value >= 4
         val leading =

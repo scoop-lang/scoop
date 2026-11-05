@@ -98,7 +98,7 @@ internal class SplitScene(private val p: SplitProbe): Component {
 private class SplitTestLayout(
     private val p: SplitProbe,
     private val generation: Props<Int>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -121,7 +121,9 @@ private class SplitTestLayout(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val length =
             if (p.narrow)
                 302.0
@@ -141,9 +143,9 @@ private class SplitTestLayout(
         context.placeChild(1L, Point(20.0, 70.0))
         context.measureChild(2L, Constraints.tight(Size(202.0, 80.0)));
         context.placeChild(2L, Point(20.0, 490.0))
-        return LayoutMetrics(constraints.constrain(Size(560.0, 610.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 610.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val current = generation.value
         context.onFrameComplete {
@@ -170,20 +172,22 @@ private fun splitTracked(p: SplitProbe, name: String, vertical: Boolean): View =
         ]
     )
 
-private class SplitTracked(private val props: Props<SplitTrackedInput>): Element {
+private class SplitTracked(private val props: Props<SplitTrackedInput>): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         props.value.probe.mounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val size = constraints.constrain(Size(40.0, 40.0))
         context.measureChild(
             0L,
             Constraints(maxWidth = Some(size.width), maxHeight = Some(size.height))
         )
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val input = props.value
         val size = context.size

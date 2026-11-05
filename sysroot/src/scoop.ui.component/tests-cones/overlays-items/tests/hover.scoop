@@ -18,7 +18,7 @@ internal fun hoverScene(probe: InteractionProbe): View =
         ]
     )
 
-private class HoverCanvas(private val probe: InteractionProbe): Element {
+private class HoverCanvas(private val probe: InteractionProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val area = scope.createArea(focusable = true)
         probe.hoverTrigger = Some(area)
@@ -71,12 +71,14 @@ private class HoverCanvas(private val probe: InteractionProbe): Element {
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints())
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(460.0, 300.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(150.0, 100.0, 40.0, 30.0)
         context.draw {
             paint ->
@@ -94,15 +96,16 @@ private class HoverCanvas(private val probe: InteractionProbe): Element {
     }
 }
 
-private class HoverContent(private val probe: InteractionProbe): Element {
+private class HoverContent(private val probe: InteractionProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val area = scope.createArea()
         probe.hoverContent = Some(area)
         probe.hover!!.setContent([area])
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(110.0, 80.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(110.0, 80.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(probe.hoverContent!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.3, 0.6, 0.3))) }

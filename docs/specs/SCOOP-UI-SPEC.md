@@ -81,9 +81,9 @@ fun main() {
 Component 负责组合描述。完全自绘及自定义子项布局通过普通公开接口 Element 实现，外部库不需要继承内部挂载节点或修改 View 的分支：
 
 ```kotlin
-public interface Element {
-    fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics
-    fun scene(context: SceneContext): Unit
+public interface Element<L> {
+    fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
+    fun scene(context: SceneContext, layout: L): Unit
     fun onMount(scope: ComponentScope): Unit = Unit
     fun update(): Unit = Unit
     fun onUnmount(): Unit = Unit
@@ -234,11 +234,11 @@ fun <C : Component> component(
 fun <P, C : Component> component(
     props: P, create: (Props<P>) -> C, key: ViewKey = ViewKey.Position
 ): View
-fun <E : Element> element(
+fun <L, E : Element<L>> element(
     create: () -> E, children: Array<View> = [],
     key: ViewKey = ViewKey.Position
 ): View
-fun <P, E : Element> element(
+fun <P, L, E : Element<L>> element(
     props: P, create: (Props<P>) -> E,
     children: Array<View> = [], key: ViewKey = ViewKey.Position
 ): View
@@ -317,7 +317,7 @@ UI 采用按需调度。一个根在逻辑工作队列为空、没有尚待呈�
 
 ### 7.1 测量及子项布局
 
-`Constraints` 按轴保存有限非负最小值和可选的有限最大值，最大值存在时不得小于最小值。缺少最大值表达无界，不把 Infinity 传给 graphics 或 graphics.text。`constrain(size: Size): Size` 将一个有限非负期望尺寸收敛到约束。Element.measure 返回 LayoutMetrics，其 size 必须满足收到的约束：
+`Constraints` 按轴保存有限非负最小值和可选的有限最大值，最大值存在时不得小于最小值。缺少最大值表达无界，不把 Infinity 传给 graphics 或 graphics.text。`constrain(size: Size): Size` 将一个有限非负期望尺寸收敛到约束。Element<L>.measure 返回 LayoutResult<L>，其中 metrics.size 必须满足收到的约束：
 
 公开字段为 minWidth、maxWidth、minHeight、maxHeight，默认最小值为 0.0，最大值为 None；`Constraints.tight(size)` 同时固定两轴。与 graphics 的几何值一样，在测量或 constrain 操作边界检查值的合法性。
 
@@ -334,7 +334,7 @@ public struct LayoutMetrics(
 
 `overlayAnchor` 是本次测量返回的弹层内容局部矩形，用于第 7.6.2 节 ContentAligned。坐标与端点须有限、宽高非负；可以位于布局外。透明包装原样透传，改变子项位置或滚动坐标的容器必须明确转换后返回，否则为 None，不扫描后代或保存窗口坐标。
 
-MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics`、`placeChild(index, origin: Point)` 和 `skipChild(index)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项须成功测量，或在尚未测量时显式 skipChild 一次。skipChild 保留挂载与逻辑更新，本轮不调用该子树的 measure／scene、不复用旧尺寸或放置；同轮随后测量、放置或再次跳过均为状态错误。普通测量尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 相邻的同约束请求复用最后成功结果与对应子树布局，不缓存历史结果来配合另一套 placements。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败清除本次结果，不能凭旧结果继续放置。
+MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`measureChild(index, constraints): LayoutMetrics`、`placeChild(index, origin: Point)` 和 `skipChild(index)`。Element 在自己的 measure 中决定子约束、位置和最终 LayoutMetrics。每个直接子项须成功测量，或在尚未测量时显式 skipChild 一次。skipChild 保留挂载与逻辑更新，本轮不调用该子树的 measure／scene、不复用旧尺寸或放置；同轮随后测量、放置或再次跳过均为状态错误。普通测量尚未放置时可以使用不同约束重新测量，最后一次结果生效；随后可以放置零次或一次，放置后再测量属于状态错误；没有放置表示此次布局不呈现该子树。每轮测量先清空旧放置，不能把上帧位置遗留给本帧未放置项。结果属于本次测量，不跨回调保存 context、子节点句柄或旧索引。 同一布局轮次中，同节点的相同有效约束请求复用完整结果，即使中间使用了其他约束或跨越多个父级测量回调。重新测量不重跑 render、替换 Props 或改变挂载身份；时间仍为同一帧采样。测量失败不缓存本次请求，也不能凭上一次请求继续放置；此前成功结果的既有持有关系不因失败被提前释放。
 
 子项保持描述中的逻辑顺序，框架根据父级放置累计绘制坐标。未放置的子树保留挂载、Props、State、订阅和资源，继续接收逻辑更新；该子树本帧不执行 scene，也不放置 InputArea。普通 Element 的子树放置资格在 Accepted 帧后更新既有 AnimationGroup 的继承开关；未放置时不请求动画帧，重新放置沿原时间轴恢复，失败帧保持上次资格。没有子项放置时即使省略 children() 也执行此收尾，不新增独立时钟或可见性扫描。祖先未放置时，后代在其内部测量中取得的位置也不会使它们单独呈现。该协议支持行内对象先测量、再根据段落结果选择放置，不要求多轮 intrinsic 协商。
 
@@ -342,9 +342,19 @@ MeasureContext 提供本帧 time、当前 layoutDirection、子项数量、`meas
 
 测量允许更新由本 Element 拥有的缓存，例如按宽度替换 TextLayout。创建、替换和失败清理必须由同一个所有者完成；不得把待关闭资源存入临时 View。文字 shaping 与断行由 graphics.text 完成，通用段落缓存及行内子项接入见第 7.5 节；Label 选择自己的输入、外观和裁剪策略。
 
+#### 7.1.1 完整布局结果与帧内复用
+
+`LayoutResult<L>(metrics: LayoutMetrics, data: L, dispose: () -> Unit = {})` 保存一次成功测量的不可变几何与类型化数据。框架同时保存该回调选择的直接子结果和放置，子结果通过引用共享；无需数据时使用 Unit。scene 显式接收被选中的 data，不能依赖试测覆盖的最近 drawing 字段。布局结果和 data 发布后不得改写；可变输入缓存可以保留，绘制颜色等仅像素值仍在 scene 采样。
+
+成功返回把该结果释放责任转交框架；校验／组装失败时释放已返回的结果，返回前失败由元素清理本次新取得的资源。所选结果及同轮成功请求表保留需要的资源，不再引用时只调用一次 dispose。父结果不关闭共享子结果，独立的已接受编辑帧继续持有自己的段落／编辑布局。测量失败不关闭仍有持有者的旧结果。
+
+结果表保存在节点，当前轮次内以有效布局版本、Constraints、方向及本轮采样查找；不复制整棵子树，不按每个 context 重建独立缓存。下一轮仅保留当前选择，释放历史约束结果。本批仅启用帧内复用；跨帧失效与动画用途按 P2 交付，构造作用域按第 11 节的同一目标协议在 P4 迁移，不保留旧接口桥接。
+
+最终选择 A→B→A 中的 A 时，必须使用其对应 data、子结果、段落与滚动快照。Lazy 每次试测保存独立项集合，所有已准备 key 在本轮复用，仅依据最终选择执行保留与卸载。未选中的试测不得发布输入、锚点或帧参与；呈现资格仍在 Accepted 后提交。
+
 ### 7.2 场景装配与纯绘制
 
-Element.scene 接收 `SceneContext`，提供本帧 time、最终 size、输入区域放置和子项呈现。它不暴露 Canvas。`concat／translate／scale／rotate`、`clipRect／clipPath`、`save／saveLayer／restore` 是影响本场景画面与输入的共同操作，交由 graphics 的同一 Canvas 状态维护，不另建坐标计算实现。原点为元素左上角，DPI 仍只由渲染目标根部施加一次。
+Element<L>.scene 接收 SceneContext 与最终选中的布局数据 L；context 提供本帧 time、最终 size、输入区域放置和子项呈现。它不暴露 Canvas。`concat／translate／scale／rotate`、`clipRect／clipPath`、`save／saveLayer／restore` 是影响本场景画面与输入的共同操作，交由 graphics 的同一 Canvas 状态维护，不另建坐标计算实现。原点为元素左上角，DPI 仍只由渲染目标根部施加一次。
 
 `SceneContext.draw(block: (PaintContext) -> Unit)` 提交并同步执行一个直接绘图块；块只负责像素和自身绘制缓存，不登记 InputArea、呈现子项或修改 State。PaintContext 提供 size、time 和隔离借用的 Canvas；块中增加的 transform／clip 仅影响该块的画面，退出后不影响场景中后续区域或子项。场景几何与绘制块的调用分开，省略一个绘图块不会省略已声明的区域。可缓存的有限图层使用第 7.2.1 节的独立入口。
 
@@ -444,6 +454,10 @@ ComponentScope.isFrameEnabled 是默认 true 的局部帧参与开关，只能�
 
 ### 7.5 公共文本接入
 
+整改 P1：ParagraphHost.measure 返回自有 ParagraphMeasurement（metrics、layout），其持有对应 TextLayout；scene(context, measurement) 显式消费这一份结果。元素把 measurement 保存在 LayoutResult.data 并以 dispose 关闭，不能继续从宿主读取另一约束的最近布局。SelectableTextHost 使用同一 ParagraphMeasurement；其 layout 查询改为最近 Accepted 的排版。
+
+TextEditHost.measure 返回自有 TextEditMeasurement，保存 metrics、layout、display、scrollSnapshot 及正文／提示文字持有者；scene(context, measurement) 只消费该结果。公开宿主 layout／display／scrollSnapshot 查询对应最近 Accepted 帧，尚无已接受帧时报告状态错误。测量期间的查询使用返回的 measurement；输入在正文变化时仍按既有投影与导航合同取得当前文本，不把试测几何发布为可交互位置。
+
 `scoop.ui.text` 是本 Cone 的公共子包，依赖 [scoop.graphics.text](SCOOP-GRAPHICS-TEXT-SPEC.md)，提供 InlineView、inlineChildren 和 ParagraphHost。它是自绘 Element 的复用能力，不是控件库或新的 View 分支；第三方控件与 Label 使用相同入口。
 
 InlineView 是不拥有资源的描述，保存 InlineKey、View、自然或固定 Size 的测量策略，以及对齐选择。默认采用子项 alphabetic baseline；调用方可选择 ideographic baseline，所选基线缺失时使用盒子底边，也可显式给出文本 InlineAlignment。固定尺寸不自动按段落宽度缩小。图片可由普通自绘 Element 包装成 View，沿同一协议接入。
@@ -455,19 +469,19 @@ InlineView 是不拥有资源的描述，保存 InlineKey、View、自然或固�
 ParagraphHost 是普通 Closeable 辅助对象，由使用它的 Element 在 onMount 中通过 scope.resource 登记。它不拥有子组件，也不自行调用工厂或创建输入区域。创建 Element 描述的 Component 或普通组合函数把 inlineChildren 的结果传入 element.children，并通过 Props 传入同一份内容和绑定；Element 的 measure／scene 分别委托给宿主：
 
 ```text
-ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): LayoutMetrics
-ParagraphHost.scene(context): Unit
+ParagraphHost.measure(context, constraints, fonts, content, settings, inlines): ParagraphMeasurement
+ParagraphHost.scene(context, measurement: ParagraphMeasurement): Unit
 ```
 
-measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。所有子项仍只测量一次，包括本次最终被截掉的对象。
+measure 在零最小值、段落最大宽度及无界高度下测量每个自然尺寸子项；固定尺寸子项使用相应 tight 约束。由 LayoutMetrics 和对齐选择生成完整 InlineMetrics，调用 graphics.text 排版，再按 key 对应的可见 box 放置子项。宽度无界时用 layoutUnwrapped；只有尺寸、基线及约束参与排版，子项不能要求先取得最终所在行的剩余宽度。每次宿主测量只对每个子项发出一次请求，包括本次最终被截掉的对象；相同有效请求可复用本轮已有结果。
 
-宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 draw 使用同一 TextLayout 先画文字，再调用 children 呈现已放置对象；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
+宿主返回受 Constraints 约束的段落尺寸及相对首行基线，文字原点为元素左上角。scene 通过 drawLayer 使用所选结果持有的 TextLayout 先画文字，再调用 children 呈现已放置对象；输入父关系取自逻辑挂载作用域，不由场景参数指定。没有可见对象时仍可正常绘制文字。宿主不隐式裁剪外框，调用方需要裁剪时在同一个 SceneContext 作用域内包住文字、子项和输入放置。对象在父段落中不可拆分，其自身超出测量框的绘制遵守普通 Element 的显式 clip 规则。
 
 内容或字体／样式变化重建 Paragraph，宽度和对象 metrics 改变时创建新 TextLayout；实际输入不变时复用缓存。子控件颜色等不改变 metrics 的更新不要求重排；尺寸／基线动画在 Surface 同帧采样后进入测量。关闭或替换文本缓存不卸载行内子项；只有正常的描述匹配、移除和宿主关闭改变挂载。
 
 缓存以不可变 StyledText 的对象身份、FontCollection 的身份及 revision、ParagraphStyle 的字段值识别段落输入；新的 StyledText 描述可以触发重建，不要求 UI 重新解析或比较文本层私有的规范化结果。相同段落的宽度和按逻辑 key 排列的 InlineMetrics 按值比较。只改变约束下限或父级放置不重排，仍按本次 Constraints 返回外框。调用方可复用内容描述；String 便利控件负责在自身输入不变时保留该描述。
 
-`ParagraphHost.layout` 借出最近一次成功测量的 TextLayout，以供自绘控件命中、caret、selection 或位置查询；首次测量前或关闭后访问报告状态错误。调用方不关闭该借用；下次替换或宿主关闭后旧布局资源失效。新 Paragraph／TextLayout 成功取得后才替换缓存；失败时释放新取得的资源并保留原缓存，随后仍遵守框架的回调失败与关闭规则。ParagraphHost 只能在创建它的 owner 线程使用，close 幂等；不关闭传入的字体来源。
+ParagraphMeasurement.layout 借出该测量持有的 TextLayout，供自绘控件的 caret、selection 和位置查询。测量快照独立持有排版：后续试测或宿主缓存替换不会关闭仍由结果持有的对象。元素在 LayoutResult.dispose 中关闭 measurement；调用方不另行关闭 layout。measurement 关闭后查询报告状态错误；宿主关闭只释放自己的缓存持有，独立结果按其所有者继续收尾。新 Paragraph／TextLayout 成功取得后才替换缓存，构造失败释放本次新资源并保留原缓存。ParagraphHost 只能在创建它的 owner 线程使用，close 幂等，不关闭传入的字体来源。
 
 所有内容查询、metrics 和 placement 通过文本库的 public API 取得。公共适配不读取 graphics.text 的 internal 缓存，不把无匹配 box 的对象悄悄移除出 children，也不需要基础控件库来实现。
 
@@ -495,7 +509,7 @@ maxLength 使用 scoop.charset 的 Unicode grapheme 分段，既有文本超过�
 
 #### 7.5.2 公共纯文本编辑宿主
 
-`TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回文本视口 metrics，`scene(context)` 呈现已测量内容。公开 state、area、focus、scroll、interaction 和最近测量的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
+`TextEditHost(scope, state, appearance, options = TextEditOptions())` 是普通 Closeable，由 Element 在 onMount 中通过 `scope.resource` 登记。宿主拥有输入区域、FocusTarget、ScrollState／ScrollViewport、正文与 placeholder 布局、一次性 caret／拖选 deadline；借用 FontCollection，不拥有子项。`update(state, appearance, options, focus, placeholder, onEdited, onSubmit)` 接收当前配置，`measure(constraints)` 返回自有 TextEditMeasurement，`scene(context, measurement)` 呈现所选结果。公开 state、area、focus、scroll、interaction 和最近 Accepted 的借用 layout，第三方 Element 使用与内置控件相同的入口。没有编辑内容时也使用真实空段落的行高与 caret，不用 placeholder 的字符作输入文档。
 
 TextEditOptions 包含 multiline=false、wrap=true、readOnly=false、enabled=true、tab=Navigate、submit=Enter、direction: TextDirection?=None、alignment=Start、paintCache=None、caretBlink=500ms、policy=textEditPolicy()、projection=textProjection() 和 copy=TextCopyPolicy.Default。direction 缺省时使用挂载的 LayoutDirection 转为文本方向，显式值保留独立 bidi 行为。TextTabBehavior 为 Navigate／Insert；TextSubmitKeys 为 None／Enter／PrimaryEnter。wrap 只作用于多行。单行模型的外部已提交正文不得含硬换行；粘贴和原生提交把硬换行转为空格，CRLF 作为一个换行。原生批次和活动 preedit 遵守第 7.5.1 节的事务顺序，宿主发布前只检查已提交基线；临时 preedit 可以包含换行。
 
@@ -505,7 +519,7 @@ update 最后可传 `onCommitted: (TextEditorState) -> Unit = {}`，只在宿主
 
 组合控件在 Component.render 中读取模型 inputState，并在需要交互外观时读取宿主 interaction，使用现有的 State 依赖收集。Element.update、measure 和 scene 的读取不建立订阅；在这些阶段把最新配置传给宿主不能替代 render 中的观察。未聚焦视图也按这一规则响应外部正文变化。
 
-`scrollSnapshot` 返回最近一次 measure 为本帧确定的 ScrollSnapshot；测量前访问拒绝。组合滚动条在 scene 使用它，与正文共享本帧 viewport、content 和收敛后的 offset。持久 scroll 的可观察 snapshot 仍遵守 ScrollState 的发布边界，不用旧的已发布尺寸拼凑本帧滚动条。
+TextEditMeasurement.scrollSnapshot 返回本次测量确定的 ScrollSnapshot。组合滚动条在 scene 使用所选 measurement 的快照，与正文共享 viewport、content 和 offset。TextEditHost.scrollSnapshot 与持久 ScrollState 的公开 snapshot 对应最近 Accepted 的结果；测量过程中不使用旧的已发布尺寸拼凑本帧滚动条。
 
 同一个 TextEditorState 只允许一个实际活动宿主。聚焦时登记、失焦时按实例解除；未活动视图通过普通 State 观察，不另建通用订阅器。外部模型修改立即使旧 caret 几何失效，并结束／重建旧原生连接，不回放 onEdited。宿主根据 restartTextInput 的实际会话归属决定是否等待旧 Disabled；新区域取得焦点后立即更换文档时，不能把尚未开启的首个连接标成旧会话。用户操作成功后，onEdited 只对正文变化通知；选择和组合仍通过模型读取。回调可以正常更新业务 State，同一个宿主的通知不递归重入。onSubmit 由提交策略触发，Enter 策略只匹配无修饰 Enter，PrimaryEnter 只匹配 Primary+Enter；Shift+Enter 在多行中换行。重复按下不重复提交。单行未匹配的 Enter 被消费，Insert 模式的 Tab 插入制表符，Backtab 和 Navigate 模式的 Tab 继续普通焦点导航。
 
@@ -595,13 +609,15 @@ OverlayFocusOptions 为 initialFocus=None、restoreFocus=true、autoFocus=true�
 
 ### 7.7 滚动状态与视口登记
 
+整改 P1：ScrollViewport.layout 返回不可变 ScrollLayout，其中 snapshot 为该请求的 ScrollSnapshot，内部保留本视口、绑定与请求 revision。present(context, layout, content=None, contentOrigin=Point(0,0)) 显式接收所选结果；不读取或消耗最近一次试测的可变槽。一个视口在同一场景中只呈现一次，跨帧可继续呈现有效结果；换绑后的旧结果不能发布到新状态，跨视口使用报告参数错误。内容坐标、clip 与 Accepted 发布沿原合同。
+
 `ScrollState(initialOffset: Point = Point(0, 0))` 是独立于挂载的 owner 线程状态。snapshot 返回最近 Accepted 的 `ScrollSnapshot(offset: Point, viewport: Size, content: Size)`，maximum 为每轴 max(0, content - viewport)；offset／viewport／content／maximum 是对应便利属性，hasSnapshot 区分首个 Accepted 前的零值，isAttached 和 isAnimating 查询当前绑定。render 读取这些属性建立普通 State 依赖，仅结果改变时通知。滚动容器不必在 render 读取 offset，偏移可直接请求场景帧而不重建内容。
 
 `scrollTo(Point, origin = Programmatic)`、`scrollBy(Point, origin = Programmatic)` 和 `reveal(Rect, horizontal = Nearest, vertical = Nearest, origin = Programmatic)` 更新位置意图，origin 的类型为 `ScrollOrigin.User／Programmatic`。请求立即生效并安排帧，但不提前改写可观察的 snapshot。ScrollAlignment 支持 Nearest／Start／Center／End，Rect 使用物理内容局部坐标；Nearest 对已完整可见或已包含视口的超大目标保持原位置。范围未建立前 offset／extent 为零，构造位置、绝对定位和 reveal 延迟到首个成功布局；scrollBy 在当前尚未呈现的位置请求上累加，活动动画则从最后 Accepted 位置接管。它返回本次按最近已知范围收敛的实际请求位移，供 wheel 计算残量；首个范围之前返回零，不把尚未呈现的位置作为画面快照。范围改变时位置收敛；State 脱离视口后保留最后结果供再次挂载。
 
 `observeIntent(handler: (ScrollIntent) -> Unit): Closeable` 登记线程内观察，通常经 `ComponentScope.resource` 管理；独立 close 后不再通知。ScrollIntent 为 `User(requestRevision)`、`Programmatic(requestRevision)`、`LayoutCorrection(requestRevision)`，并提供统一的 requestRevision 读取。前两种在实际请求时交付，即使已经到达边界；布局保持阅读锚点或范围收敛引起的位移在 Accepted 后交付 LayoutCorrection，不推进意图序号。仅尺寸改变、动画采样及一个新定位请求的首次呈现不伪造布局修正。登记和关闭遵守 owner 线程及纯度约束；同一次通知使用订阅快照，关闭立即生效，回调中的新请求依发生顺序继续交付。回调可以关闭挂载或发起更新的请求，旧动作不得随后覆盖它；通知异常不撤销已经生效的位置请求。
 
-`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 layout(viewport, content) 与 present(SceneContext)：自绘容器在 measure 取得本帧快照，随后在自己的 scene 登记提交。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext，每次 layout 结果只提交一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
+`ComponentScope.scrollViewport(state)` 返回挂载拥有的 ScrollViewport。同一 State 至多有一个活动绑定，可整体更新登记的 state；先检查新绑定，失败保持旧状态。登记公开 `layout(viewport, content): ScrollLayout` 与 `present(context, layout, content = None, contentOrigin = Point(0, 0))`：自绘容器在 measure 取得不可变滚动布局，随后在自己的 scene 显式选择它并登记提交。layout 不发布可观察状态，Accepted 才提交该帧实际呈现的范围和偏移，Discarded 保留旧结果。present 只接受本挂载的 SceneContext 和同一视口、同一绑定产生的 ScrollLayout；每个视口在一次场景中至多登记一次；关闭和绑定替换取消旧帧回调。布局后的新位置意图优先：仍发布实际 Accepted 帧，保留更新的请求并安排下一帧，不能用尚未绘制的新目标替代画面快照，也不能把旧位置写回更新的请求。
 
 present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `contentOrigin: Point = Point(0, 0)`。提供回调时，框架借出隔离的内容场景，按本次 snapshot 自动施加视口 clip 与 `contentOrigin - offset` 平移，并登记该内容的滚动显露边界；回调中的子项位置相对于 contentOrigin，不重复施加偏移。默认原点为零，普通内容沿用完整内容坐标；超长虚拟内容可以在 Double 中先减去附近原点，再把较小的局部位置交给图形后端，避免巨大正负变换相消时丢失精度。contentOrigin 必须有限，只影响场景坐标表达，不改变 snapshot、完整逻辑范围或显露计算。省略回调只登记原有布局提交，不把任意逻辑后代猜作滚动内容。回调外的滚动条／固定装饰保留原场景路径；普通 withState 和 children 继承边界，Portal 从层出口的新路径开始。
 
@@ -619,11 +635,11 @@ present 可接收可选的 `content: ((SceneContext) -> Unit)?`，以及 `conten
 
 `ItemSource` 提供一个数据快照的 `count: Long`、`keyAt(index): ViewKey`、`indexOfKey(key): Long?` 和 `build(index): View`。count 非负，key 不得为 Position，在同一 source 内唯一；查找函数只读取快照，访问时检查索引与双向映射，不扫描尚未请求的条目。改变数据、索引或条目输入时替换 source 对象；不把可变 source 的原地修改当成通知，也不读取全部内容作摘要。build 只在实际需要的条目节点中执行，遵循 Component.render 的纯度和 State 依赖规则。
 
-`LazyElement` 与 Element 并列，公开 measure(LazyMeasureContext, Constraints)、scene(SceneContext)、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
+`LazyElement<L>` 与 Element<L> 并列，公开 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`、`scene(SceneContext, L)`、onMount(ComponentScope)、update() 和 onUnmount()。`lazyElement(source, create, retention = ItemRetention.Dispose, key)` 及带 props 的重载创建描述，保留具体 class／Props 类型和普通 ViewKey 身份；create 不提前调用。它没有 eager children 数组。普通 Element／MeasureContext 的全部直接子项测量规则保持不变。
 
-LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量且相邻同约束复用最后结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
+LazyMeasureContext 公开 time、layoutDirection、itemCount、`measureItem(index, constraints)`、`placeItem(index, origin)` 和 `pinnedItems: Array<Long>`。每个本轮选中的索引至少成功测量一次，未放置时可重新测量，同一轮的相同有效约束复用完整结果；最多放置一次，放置后不能再测量；context 只在当前同步测量中有效，子项准备／测量期间拒绝重入同一个 context。scene 的 children() 按当前已实现项的 source 索引顺序呈现已放置项；children(order) 的索引是这个已实现子序列的位置，不是 source 索引。
 
-同一布局中，lazy 只暂存最后一次测量的选中集合与 placements；普通根或 portal 的最终测量结束后才检查 pinned 项、更新帧参与和执行 retention。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。每次新测量都替换该节点待收尾的集合；最终收尾仍沿现有关闭／卸载规则执行。
+LazyElement 的每份布局结果分别保存已测项、所选子结果和放置。普通根或 Portal 选择最终结果后才沿该结果检查 pinned 项、选择 retention 集合并收尾；帧参与资格仍等 Accepted 发布。A→B→A 直接选择 A 保存的集合，不能继续使用 B 的最后一次试测。中间探测准备过的同 key 挂载继续复用，不提前 trim，也不发布滚动修正、scene、锚点或 frame completion。失败布局不以临时测量撤销先前的交互归属。最终收尾仍沿现有关闭／卸载规则执行。
 
 measureItem 在框架控制的准备边界按稳定 key 取得条目挂载，再运行其 build／render、onMount 和 update，随后恢复普通纯测量。生命周期可以沿既有规则登记资源和写 State，其产生的其他失效留到下一逻辑更新轮，不递归 flush；build／render 和父子 measure 仍禁止 State 写入。每项使用普通挂载子树保存依赖、Props 与资源，滚动复用已实现项时不重跑其 build。真实 source 替换在逻辑更新阶段通过 indexOfKey 更新已实现项、退休删除项，再更新存活项；即使没有 drawable 也完成删除和输入取消。source.build 返回描述的 shape／key 改变时按普通子树规则替换。
 

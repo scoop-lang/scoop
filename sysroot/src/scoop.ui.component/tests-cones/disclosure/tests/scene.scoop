@@ -172,14 +172,16 @@ private class DisclosureContent(
     }
 }
 
-private class DisclosureInk(private val record: DisclosureRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class DisclosureInk(private val record: DisclosureRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         record.measures += 1
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -194,13 +196,15 @@ private fun disclosureHeader(p: DisclosureProbe, id: Long, text: String): View =
 private class DisclosureBounds(
     private val p: DisclosureProbe,
     private val id: Props<Long>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw {
             paint -> @Unsafe
@@ -217,8 +221,10 @@ private class DisclosureBounds(
 private class DisclosureRoot(
     private val p: DisclosureProbe,
     private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             context.measureChild(
                 0L,
@@ -237,9 +243,9 @@ private class DisclosureRoot(
             assertFailsWith<IllegalStateException> { context.placeChild(1L, Point(0.0, 0.0)) }
             p.skipChecked = true
         }
-        return LayoutMetrics(constraints.constrain(Size(560.0, 680.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 680.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val generation = props.value
         context.onFrameComplete {
@@ -249,23 +255,26 @@ private class DisclosureRoot(
     }
 }
 
-private class DisclosureStack: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class DisclosureStack: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount == 0L)
-            return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class UnmeasuredDisclosureContent: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        fail(Some("skipped child must not be measured"))
-    public override fun scene(context: SceneContext) {
+private class UnmeasuredDisclosureContent: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(fail(Some("skipped child must not be measured")), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         fail(Some("skipped child must not be presented"))
     }
 }

@@ -170,11 +170,13 @@ private class PanelProps(val generation: Int, val count: Int, val background: Co
 private class ControlPanel(
     private val props: Props<PanelProps>,
     private val probe: ControlProbe
-): Element {
+): Element<Unit> {
     public override fun update() {
         probe.updates += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         probe.buttonMetrics = Some(context.measureChild(0L, Constraints()))
         context.placeChild(0L, Point(20.0, 20.0))
@@ -184,9 +186,9 @@ private class ControlPanel(
         context.placeChild(2L, Point(140.0, 100.0))
         probe.labelMetrics = Some(context.measureChild(3L, Constraints()))
         context.placeChild(3L, Point(20.0, 180.0))
-        return LayoutMetrics(constraints.constrain(Size(360.0, 240.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(360.0, 240.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.draw { paint -> paint.canvas.clear(props.value.background) }
         context.children()

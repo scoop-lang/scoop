@@ -91,8 +91,10 @@ internal fun <T: Equals<T>> comboPopup(
 
 private class ComboPopupLayoutProps(val height: Double, val hasInput: Boolean, val empty: Boolean)
 
-private class ComboPopupLayout(private val props: Props<ComboPopupLayoutProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ComboPopupLayout(private val props: Props<ComboPopupLayoutProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val width = constraints.maxWidth ?: constraints.minWidth
         var top = 0.0
@@ -120,9 +122,12 @@ private class ComboPopupLayout(private val props: Props<ComboPopupLayoutProps>):
                     Constraints.tight(Size(width, height))
             )
         context.placeChild(index, Point(0.0, top))
-        return LayoutMetrics(constraints.constrain(Size(width, top + list.size.height)))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, top + list.size.height))),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

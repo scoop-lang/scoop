@@ -7,14 +7,19 @@ import scoop.ui.text.*
 
 internal class OtpSlotDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)
 
-internal class OtpDrawing(val slots: Array<OtpSlotDrawing>, val active: Long, val origin: Point)
+internal class OtpDrawing(
+    val slots: Array<OtpSlotDrawing>,
+    val active: Long,
+    val origin: Point,
+    val editor: TextEditMeasurement
+)
 
 /** Converts the public groups into one text geometry; separators remain ordinary children. */
 internal fun measureOtp(
     ink: OtpInk,
     context: MeasureContext,
     constraints: Constraints
-): LayoutMetrics {
+): LayoutResult<OtpDrawing> {
     val value = ink.props.value
     val input = value.input
     val theme = value.theme
@@ -84,63 +89,78 @@ internal fun measureOtp(
             upperBound(margin, size.height / 2.0) + (contentSize.height - viewport.height) / 2.0
         )
     val text = ink.host!!.measure(Constraints.tight(viewport), Some(plan))
-    val layout = ink.host!!.layout
-    val rects = layout.cellRects
-    val active = layout.cellIndex(input.state.cursor) ?: 0L
-    val slots = ArrayList<OtpSlotDrawing>()
-    for (index in 0L ..< rects.size) {
-        val position =
-            if (index < input.length - 1L)
-                positions[index]
-            else
-                GroupPosition(
-                    FlexAxis.Horizontal,
-                    index < input.length && positions[index].first,
-                    index == rects.size - 1L
+    try {
+        val layout = text.layout
+        val rects = layout.cellRects
+        val active = layout.cellIndex(input.state.cursor) ?: 0L
+        val slots = ArrayList<OtpSlotDrawing>()
+        for (index in 0L ..< rects.size) {
+            val position =
+                if (index < input.length - 1L)
+                    positions[index]
+                else
+                    GroupPosition(
+                        FlexAxis.Horizontal,
+                        index < input.length && positions[index].first,
+                        index == rects.size - 1L
+                    )
+            val visual =
+                SurfaceVisual(
+                    SurfaceKind.Plain,
+                    InteractionVisual(
+                        focusVisible =
+                            input.enabled && value.interaction.focusVisible && active == index,
+                        invalid = input.invalid || (index < invalid.size && invalid[index])
+                    )
                 )
-        val visual =
-            SurfaceVisual(
-                SurfaceKind.Plain,
-                InteractionVisual(
-                    focusVisible =
-                        input.enabled && value.interaction.focusVisible && active == index,
-                    invalid = input.invalid || (index < invalid.size && invalid[index])
+            val options = otpOptions(theme, input.style, visual.interaction)
+            val metrics =
+                groupSurfaceMetrics(
+                    theme.surfaceMetrics(visual, options, context.layoutDirection),
+                    Some(position),
+                    None,
+                    context.layoutDirection
+                )
+            val original =
+                theme.surfaceGeometry(rects[index], visual, options, context.layoutDirection)
+            slots.add(
+                OtpSlotDrawing(
+                    groupSurfaceGeometry(
+                        original,
+                        metrics,
+                        Some(position),
+                        context.layoutDirection
+                    ),
+                    visual
                 )
             )
-        val options = otpOptions(theme, input.style, visual.interaction)
-        val metrics =
-            groupSurfaceMetrics(
-                theme.surfaceMetrics(visual, options, context.layoutDirection),
-                Some(position),
-                None,
-                context.layoutDirection
-            )
-        val original = theme.surfaceGeometry(rects[index], visual, options, context.layoutDirection)
-        slots.add(
-            OtpSlotDrawing(
-                groupSurfaceGeometry(original, metrics, Some(position), context.layoutDirection),
-                visual
-            )
-        )
-    }
-    child = 0L
-    next = 0L
-    for (part in input.groups()) {
-        when (part) {
-            case Group(group) -> next += group.slots.size
-            case Separator(_) -> {
-                val previous = rects[next - 1L]
-                val extent = separators[child]
-                val x =
-                    if (context.layoutDirection == LayoutDirection.Ltr)
-                        previous.x + previous.width + gap
-                    else
-                        previous.x - gap - extent.width
-                context.placeChild(child, Point(x, (cellSize.height - extent.height) / 2.0))
-                child += 1L
+        }
+        child = 0L
+        next = 0L
+        for (part in input.groups()) {
+            when (part) {
+                case Group(group) -> next += group.slots.size
+                case Separator(_) -> {
+                    val previous = rects[next - 1L]
+                    val extent = separators[child]
+                    val x =
+                        if (context.layoutDirection == LayoutDirection.Ltr)
+                            previous.x + previous.width + gap
+                        else
+                            previous.x - gap - extent.width
+                    context.placeChild(child, Point(x, (cellSize.height - extent.height) / 2.0))
+                    child += 1L
+                }
             }
         }
+        val drawing = OtpDrawing(slots.toArray(), active, origin, text)
+        return LayoutResult(offsetMetrics(text.metrics, size, origin.y), drawing, { text.close() })
+    } catch (error: Throwable) {
+        try {
+            text.close()
+        } catch (cleanup: Throwable) {
+            throw ResourceUseException(error, cleanup)
+        }
+        throw error
     }
-    ink.drawing = Some(OtpDrawing(slots.toArray(), active, origin))
-    return offsetMetrics(text, size, origin.y)
 }

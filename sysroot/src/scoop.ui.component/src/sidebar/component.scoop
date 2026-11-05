@@ -177,8 +177,10 @@ internal fun sidebarTransition(input: SidebarProps, theme: Theme): AnimationSpec
 
 internal class SidebarPanelInput(val props: SidebarProps, val theme: Theme)
 
-internal class SidebarPanel(private val props: Props<SidebarPanelInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class SidebarPanel(private val props: Props<SidebarPanelInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val width = constraints.maxWidth ?: constraints.minWidth
         val header = context.measureChild(0L, Constraints(width, Some(width)))
         val footer = context.measureChild(2L, Constraints(width, Some(width)))
@@ -199,9 +201,9 @@ internal class SidebarPanel(private val props: Props<SidebarPanelInput>): Elemen
         context.placeChild(0L, Point(0.0, 0.0))
         context.placeChild(1L, Point(0.0, header.size.height))
         context.placeChild(2L, Point(0.0, max(0.0, size.height - footer.size.height)))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

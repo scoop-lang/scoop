@@ -61,13 +61,15 @@ private class ParagraphInput(
 private class SelfDrawnParagraph(
     private val props: Props<ParagraphInput>,
     private val probe: TextProbe
-): Element {
+): Element<ParagraphMeasurement> {
     private var host: ParagraphHost? = None
     public override fun onMount(scope: ComponentScope) {
         host = Some(scope.resource { ParagraphHost() })
         probe.paragraph = host
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
         val input = props.value
         val narrow = input.generation == 2
         val settings =
@@ -83,7 +85,7 @@ private class SelfDrawnParagraph(
                     else
                         None
             }
-        val metrics =
+        val measured =
             host!!.measure(
                 context,
                 Constraints(
@@ -100,17 +102,22 @@ private class SelfDrawnParagraph(
                 Some(settings),
                 input.inlines
             )
-        return LayoutMetrics(
-            constraints.constrain(Size(metrics.size.width + 40.0, metrics.size.height + 40.0)),
-            Some(metrics.alphabeticBaseline!! + 20.0),
-            Some(metrics.ideographicBaseline!! + 20.0)
+        val metrics = measured.metrics
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(Size(metrics.size.width + 40.0, metrics.size.height + 40.0)),
+                Some(metrics.alphabeticBaseline!! + 20.0),
+                Some(metrics.ideographicBaseline!! + 20.0)
+            ),
+            measured,
+            { measured.close() }
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.translate(20.0, 20.0)
-        host!!.scene(context)
-        probe.layout = Some(host!!.layout)
+        host!!.scene(context, measured)
+        probe.layout = Some(measured.layout)
         probe.paintedGeneration = props.value.generation
         probe.paints += 1
     }
@@ -147,7 +154,7 @@ internal class CounterInput(val count: Int, val green: Boolean, val click: () ->
 internal class CounterInk(
     private val props: Props<CounterInput>,
     private val probe: TextProbe
-): Element {
+): Element<Unit> {
     var scope: ComponentScope? = None
     var area: InputArea? = None
     var width: Animatable<Double>? = None
@@ -205,12 +212,15 @@ internal class CounterInk(
         if (width!!.target != target)
             width!!.animateTo(target, AnimationSpec.Tween(Duration.milliseconds(80L)))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(None, constraints.maxHeight)
-        size = constraints.constrain(Size(width!!.value, 32.0))
-        return LayoutMetrics(size, Some(24.0), Some(29.0))
+        val size = constraints.constrain(Size(width!!.value, 32.0))
+        return LayoutResult(LayoutMetrics(size, Some(24.0), Some(29.0)), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
+        size = context.size
         context.draw {
             paint ->
             @Unsafe
@@ -234,7 +244,7 @@ internal class CounterInk(
     }
 }
 
-internal class InlinePhoto(private val probe: TextProbe): Element {
+internal class InlinePhoto(private val probe: TextProbe): Element<Unit> {
     var image: Image? = None
     var origin = Point(0.0, 0.0)
     var unmounts = 0
@@ -251,11 +261,13 @@ internal class InlinePhoto(private val probe: TextProbe): Element {
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(Constraints.tight(Size(22.0, 28.0)), constraints)
-        return LayoutMetrics(constraints.constrain(Size(90.0, 70.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(90.0, 70.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             @Unsafe

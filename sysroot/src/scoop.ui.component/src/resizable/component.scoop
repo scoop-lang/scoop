@@ -75,9 +75,10 @@ public class Resizable public constructor(private val props: Props<ResizableProp
     }
 }
 
-private class ResizableLayout(private val props: Props<ResizableInput>): Element {
+private class ResizableLayout(private val props: Props<ResizableInput>): Element<
+    ResizableGeometry
+> {
     private var painter: StylePainter? = None
-    private var geometry: ResizableGeometry? = None
     public override fun onMount(scope: ComponentScope) {
         props.value.owner.control = Some(ResizableControl(scope, { props.value }))
         painter = Some(scope.resource { StylePainter() })
@@ -85,7 +86,9 @@ private class ResizableLayout(private val props: Props<ResizableInput>): Element
     public override fun update() {
         props.value.owner.control!!.update()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ResizableGeometry
+    > {
         val input = props.value
         val horizontal = input.props.orientation == Orientation.Horizontal
         val thickness = input.theme.tokens.typography.body.fontSize / 14.0
@@ -171,12 +174,10 @@ private class ResizableLayout(private val props: Props<ResizableInput>): Element
             )
             offset += extent
         }
-        geometry =
-            Some(ResizableGeometry(size, target, sizes, input.props, context.layoutDirection))
-        return LayoutMetrics(size)
+        val shape = ResizableGeometry(size, target, sizes, input.props, context.layoutDirection)
+        return LayoutResult(LayoutMetrics(size), shape)
     }
-    public override fun scene(context: SceneContext) {
-        val shape = geometry!!
+    public override fun scene(context: SceneContext, shape: ResizableGeometry) {
         painter!!.scene(context, props.value.props.style.resolve(style())) {
             local -> containerScene(local, props.value.props.clip)
         }

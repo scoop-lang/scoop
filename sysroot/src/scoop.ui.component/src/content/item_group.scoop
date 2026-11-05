@@ -31,20 +31,25 @@ public class ItemGroup public constructor(private val props: Props<ItemGroupProp
     }
 }
 
-private class ItemGroupLayout(private val props: Props<LinearProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureFlex(
-            context,
-            Constraints(
-                constraints.maxWidth ?: constraints.minWidth,
-                constraints.maxWidth,
-                constraints.minHeight,
-                constraints.maxHeight
+private class ItemGroupLayout(private val props: Props<LinearProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            measureFlex(
+                context,
+                Constraints(
+                    constraints.maxWidth ?: constraints.minWidth,
+                    constraints.maxWidth,
+                    constraints.minHeight,
+                    constraints.maxHeight
+                ),
+                props.value,
+                true
             ),
-            props.value,
-            true
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

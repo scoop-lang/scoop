@@ -55,7 +55,7 @@ internal class ReuseComponent<A, B>(private val record: ReuseRecord): Component 
     }
 }
 
-internal class ReuseElement<A, B>(private val record: ReuseRecord): Element {
+internal class ReuseElement<A, B>(private val record: ReuseRecord): Element<Unit> {
     public override fun update() {
         record.updated()
     }
@@ -65,14 +65,15 @@ internal class ReuseElement<A, B>(private val record: ReuseRecord): Element {
     public override fun onUnmount() {
         record.unmounted()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-internal class ReuseLazy<A, B>(private val record: ReuseRecord): LazyElement {
+internal class ReuseLazy<A, B>(private val record: ReuseRecord): LazyElement<Unit> {
     public override fun update() {
         record.updated()
     }
@@ -85,8 +86,8 @@ internal class ReuseLazy<A, B>(private val record: ReuseRecord): LazyElement {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
-    ): LayoutMetrics = LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-    public override fun scene(context: SceneContext) {
+    ): LayoutResult<Unit> = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -98,15 +99,17 @@ internal class ReuseEmptyItems: ItemSource {
     public override fun build(index: Long): View = throw IndexOutOfBoundsException()
 }
 
-internal class ReuseLayout: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class ReuseLayout: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints())
             context.placeChild(index, Point(0.0, 0.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

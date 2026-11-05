@@ -334,7 +334,7 @@ internal fun menuRowStyle(
 
 internal class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
 
-internal class MenuCheck(private val props: Props<MenuCheckProps>): Element {
+internal class MenuCheck(private val props: Props<MenuCheckProps>): Element<Unit> {
     private var glyph: Path? = None
     public override fun onMount(scope: ComponentScope) {
         // Lucide check (ISC), on its original 24-unit grid.
@@ -349,9 +349,14 @@ internal class MenuCheck(private val props: Props<MenuCheckProps>): Element {
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         if (input.checked)

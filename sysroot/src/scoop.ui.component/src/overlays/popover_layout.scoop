@@ -5,21 +5,21 @@ import scoop.surface.InputArea
 import scoop.ui.*
 
 /** The portal is a zero-sized sibling of the persistent trigger. */
-internal class PopoverLayout(private val anchor: LayoutAnchor): Element {
-    private var triggerSize = Size(0.0, 0.0)
+internal class PopoverLayout(private val anchor: LayoutAnchor): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.layoutAnchor(anchor)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val trigger = context.measureChild(0L, constraints)
-        triggerSize = trigger.size
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints())
         context.placeChild(1L, Point(0.0, 0.0))
-        return trigger
+        return LayoutResult(trigger, Unit)
     }
-    public override fun scene(context: SceneContext) {
-        context.anchor(anchor, Rect(0.0, 0.0, triggerSize.width, triggerSize.height))
+    public override fun scene(context: SceneContext, measured: Unit) {
+        context.anchor(anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
     }
 }
@@ -32,7 +32,7 @@ internal class PopupMotionProps(
 )
 
 /** One published transform supplies drawing, hit testing and editor caret geometry. */
-internal class PopupMotion(private val props: Props<PopupMotionProps>): Element {
+internal class PopupMotion(private val props: Props<PopupMotionProps>): Element<Unit> {
     private var area: InputArea? = None
     private var arrow: Path? = None
     public override fun onMount(scope: ComponentScope) {
@@ -44,12 +44,14 @@ internal class PopupMotion(private val props: Props<PopupMotionProps>): Element 
     public override fun update() {
         area!!.scope.enabled = props.value.enabled
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val layout = context.overlayLayout!!
         val progress = layout.presence.progress
         val size = context.size

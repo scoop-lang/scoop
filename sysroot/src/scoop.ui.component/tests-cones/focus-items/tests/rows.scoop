@@ -49,10 +49,11 @@ internal class FocusRow(probe: ItemFocusProbe, private val props: Props<FocusRow
 private class FocusRowInk(
     private val record: FocusRowRecord,
     private val height: Props<Double>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(160.0, height.value)))
-    public override fun scene(context: SceneContext) {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, height.value))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val extent =
             if (height.value <= 4.0)
                 0.0

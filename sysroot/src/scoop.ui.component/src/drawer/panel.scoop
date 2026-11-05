@@ -21,8 +21,10 @@ internal fun drawerPanel(input: DrawerInput, content: View): View =
         ]
     )
 
-internal class DrawerPanel(private val props: Props<DrawerInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class DrawerPanel(private val props: Props<DrawerInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val side = drawerPhysicalSide(input.props.side, context.layoutDirection)
         val vertical = side == OverlaySide.Top || side == OverlaySide.Bottom
@@ -30,7 +32,7 @@ internal class DrawerPanel(private val props: Props<DrawerInput>): Element {
             context.skipChild(1L)
             val panel = context.measureChild(0L, constraints)
             context.placeChild(0L, Point(0.0, 0.0));
-            return panel
+            return LayoutResult(panel, Unit)
         }
         val main =
             if (vertical)
@@ -105,14 +107,14 @@ internal class DrawerPanel(private val props: Props<DrawerInput>): Element {
                     0.0
             )
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element {
+internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element<Unit> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
@@ -159,7 +161,9 @@ internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element
         focus!!.options = input.props.swipeHandle.focus
         painter!!.get(input.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val size = constraints.constrain(Size(0.0, 0.0))
         val child =
             context.measureChild(
@@ -170,9 +174,9 @@ internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element
             0L,
             Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val density = input.density
         val vertical = input.props.side == SheetSide.Top || input.props.side == SheetSide.Bottom

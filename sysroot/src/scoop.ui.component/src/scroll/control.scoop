@@ -59,13 +59,10 @@ internal class ScrollControl(
         viewportSize: Size,
         contentSize: Size,
         adjustment: ScrollAdjustment? = None
-    ): ScrollSnapshot = viewport.layout(viewportSize, contentSize, adjustment)
-    fun scene(
-        context: SceneContext,
-        snapshot: ScrollSnapshot,
-        contentOrigin: Point = Point(0.0, 0.0)
-    ) {
+    ): ScrollLayout = viewport.layout(viewportSize, contentSize, adjustment)
+    fun scene(context: SceneContext, layout: ScrollLayout, contentOrigin: Point = Point(0.0, 0.0)) {
         val value = props()
+        val snapshot = layout.snapshot
         val size = snapshot.viewport
         val presentedDirection = context.layoutDirection
         context.onFrameComplete {
@@ -105,7 +102,7 @@ internal class ScrollControl(
         decoration.scene(context, bounds, geometry.contentStyle) {
             local ->
             local.place(area, bounds)
-            viewport.present(local, Some { content -> content.children() }, contentOrigin)
+            viewport.present(local, layout, Some { content -> content.children() }, contentOrigin)
             horizontal.scene(local, snapshot, bars.horizontal, painter)
             vertical.scene(local, snapshot, bars.vertical, painter)
         }

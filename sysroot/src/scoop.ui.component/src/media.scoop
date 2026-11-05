@@ -14,7 +14,7 @@ public class ImageViewProps public constructor(
 )
 
 /** Borrows pixels from its caller and has no input or loading behavior. */
-public class ImageView public constructor(private val props: Props<ImageViewProps>): Element {
+public class ImageView public constructor(private val props: Props<ImageViewProps>): Element<Unit> {
     public override fun update() {
         val input = props.value
         requireComponent(!input.image.isClosed, "image view requires an open image")
@@ -24,9 +24,10 @@ public class ImageView public constructor(private val props: Props<ImageViewProp
             "invalid image opacity"
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureContent(props.value.naturalSize, constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(measureContent(props.value.naturalSize, constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         val destination =
@@ -66,7 +67,7 @@ public class PathViewProps public constructor(
 )
 
 /** Fits an explicit view box; drawing, stroke and borrowed resource ownership stay in graphics. */
-public class PathView public constructor(private val props: Props<PathViewProps>): Element {
+public class PathView public constructor(private val props: Props<PathViewProps>): Element<Unit> {
     public override fun update() {
         val input = props.value
         requireComponent(!input.path.isClosed, "path view requires an open path")
@@ -80,11 +81,16 @@ public class PathView public constructor(private val props: Props<PathViewProps>
         )
         checkContentSize(input.naturalSize ?: input.viewBox.size)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
-        return measureContent(input.naturalSize ?: input.viewBox.size, constraints)
+        return LayoutResult(
+            measureContent(input.naturalSize ?: input.viewBox.size, constraints),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         val destination =

@@ -6,15 +6,15 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element {
+internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element<
+    SurfaceDrawing
+> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     private var drag: Drag? = None
     private var painters: ThemePainterCache? = None
     private var grip: StylePainter? = None
-    private var geometry: SurfaceGeometry? = None
-    private var visual = SurfaceVisual()
     private var ownsCursor = false
     private fun enabled(): Boolean =
         props.value.hasHandle &&
@@ -122,12 +122,14 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
         painters!!.get(input.root.theme)
         refreshCursor()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SurfaceDrawing
+    > {
         val input = props.value
         val theme = input.root.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
         val size = constraints.constrain(Size(density, density))
-        visual =
+        val visual =
             SurfaceVisual(
                 SurfaceKind.Plain,
                 InteractionVisual(
@@ -143,27 +145,27 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
                 border(None);
                 corners(Corners.all(0.0))
             }.then(resizableHandle(input.root.props, input.index).style)
-        geometry =
-            Some(
-                theme.surfaceGeometry(
-                    Rect(0.0, 0.0, size.width, size.height),
-                    visual,
-                    surfaceOptions {
-                        style = local;
-                        padding = Some(Insets());
-                        focus = Some(OutlineStyle(theme.tokens.palette.ring, density, density))
-                    },
-                    context.layoutDirection
-                )
+        val geometry =
+            theme.surfaceGeometry(
+                Rect(0.0, 0.0, size.width, size.height),
+                visual,
+                surfaceOptions {
+                    style = local;
+                    padding = Some(Insets());
+                    focus = Some(OutlineStyle(theme.tokens.palette.ring, density, density))
+                },
+                context.layoutDirection
             )
-        return LayoutMetrics(size)
+
+        return LayoutResult(LayoutMetrics(size), SurfaceDrawing(geometry, visual))
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
+        val visual = drawing.visual
         val input = props.value
         val theme = input.root.theme
         val horizontal = input.root.props.orientation == Orientation.Horizontal
         val density = theme.tokens.typography.body.fontSize / 14.0
-        val shape = geometry!!
+        val shape = drawing.geometry
         context.draw { paint -> painters!!.get(theme).drawSurface(paint.canvas, shape, visual) }
         if (
             resizableHandle(input.root.props, input.index).withHandle ?: input.root.props.withHandle

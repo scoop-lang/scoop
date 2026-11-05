@@ -106,13 +106,14 @@ internal class FailureRoot(private val record: FailureRecord): Component {
     }
 }
 
-private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element {
+private class FailurePortalAnchor(private val anchor: LayoutAnchor): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.layoutAnchor(anchor)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-    public override fun scene(context: SceneContext) {}
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
 private fun failureModal(record: FailureRecord): Array<View> =
@@ -127,15 +128,16 @@ private fun failureModal(record: FailureRecord): Array<View> =
         }
     ]
 
-private class FailureModal(private val record: FailureRecord): Element {
+private class FailureModal(private val record: FailureRecord): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         record.modalRoot = scope.input.parent!!.area
         if (record.mode == FailureMode.ModalMount)
             throw record.primary
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.onFrameComplete { _ -> record.overlay.requestClose() }
     }
 }
@@ -143,7 +145,7 @@ private class FailureModal(private val record: FailureRecord): Element {
 internal class FailureLeaf(
     private val props: Props<Boolean>,
     private val record: FailureRecord
-): Element {
+): Element<Unit> {
     private var resource: FailureImage? = None
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
@@ -163,7 +165,9 @@ internal class FailureLeaf(
         )
             throw record.primary
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (record.mode == FailureMode.Measure)
             throw record.primary
         if (record.mode != FailureMode.MissingMeasure) {
@@ -174,9 +178,9 @@ internal class FailureLeaf(
                 index += 1L
             }
         }
-        return LayoutMetrics(constraints.constrain(Size(80.0, 50.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 50.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (record.mode == FailureMode.FrameComplete) {
             context.onFrameComplete { _ -> throw record.primary }
             context.onFrameComplete { _ -> fail(Some("notification after a failed completion")) }

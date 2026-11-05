@@ -8,7 +8,7 @@ private class ChildMeasure(val node: MountedNode) {
     var measuring = false
     var skipped = false
     var constraints: Constraints? = None
-    var result: LayoutMetrics? = None
+    var result: NodeLayout? = None
     var origin: Point? = None
 }
 
@@ -50,7 +50,7 @@ public class MeasureContext internal constructor(
             throw IllegalStateException(Some("child measurement is reentrant"))
         when (entry.result) {
             case Some(result) -> if (entry.constraints == Some(constraints))
-                return result
+                return result.metrics
             case None -> {}
         }
         entry.result = None
@@ -59,7 +59,7 @@ public class MeasureContext internal constructor(
         try {
             val result = entry.node.measure(constraints, mark)
             entry.result = Some(result)
-            return result
+            return result.metrics
         } finally {
             entry.measuring = false
         }
@@ -85,9 +85,8 @@ public class MeasureContext internal constructor(
         if (entry.skipped || entry.measuring || entry.constraints != None || entry.origin != None)
             throw IllegalStateException(Some("child was already measured or skipped"))
         entry.skipped = true
-        entry.node.metrics = None
     }
-    internal fun finish(): Array<Point?> {
+    internal fun finish(): Array<ChildLayout> {
         for (entry in entries) {
             when (entry.result) {
                 case None -> if (!entry.skipped)
@@ -97,72 +96,141 @@ public class MeasureContext internal constructor(
                 case Some(_) -> {}
             }
         }
-        return Array<Point?>(entries.size) { index -> entries[index].origin }
+        return Array<ChildLayout>(entries.size) {
+            index ->
+            val entry = entries[index]
+            ChildLayout(entry.node, entry.result, entry.origin)
+        }
     }
     internal fun end() {
         active = false
     }
 }
 
-internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): LayoutMetrics {
+internal fun MountedNode.measure(constraints: Constraints, time: TimeMark): NodeLayout {
     if (!root.isOpen)
         throw UiLayoutEnded()
-    metrics = None
-    placements = []
-    when (body) {
-        case Lazy(_, items) -> items.beginMeasure()
-        else -> {}
-    }
     constraints.check()
+    val store = root.layouts
+    if (!sameLayoutRound(layoutRound, store.round))
+        store.touch(this)
+    for (previous in layoutRequests)
+        if (
+            previous.version ==
+                layoutVersion &&
+                previous.direction ==
+                layoutDirection &&
+                previous.constraints ==
+                constraints
+        )
+            return previous
     val result =
         when (body) {
-            case Empty -> {
-                placements = []
-                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
-            }
-            case Portal(_) -> {
-                placements = []
-                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight))
-            }
-            case Direction -> {
-                val child = children[0L].measure(constraints, time)
-                placements = [Some(Point(0.0, 0.0))]
-                child
-            }
-            case Component(_) -> {
-                val child = children[0L].measure(constraints, time)
-                placements = [Some(Point(0.0, 0.0))]
-                child
-            }
-            case Element(instance) -> {
-                val context = MeasureContext(this, children, time)
-                try {
-                    val measured =
-                        evaluateUi<LayoutMetrics>(None) {
-                            instance.value.measure(context, constraints)
-                        }
-                    checkLayoutMetrics(measured, constraints)
-                    placements = context.finish()
-                    measured
-                } finally {
-                    context.end()
-                }
-            }
-            case Lazy(instance, items) -> {
-                val context = LazyMeasureContext(this, items, time)
-                try {
-                    val measured =
-                        evaluateUi<LayoutMetrics>(None) {
-                            instance.value.measure(context, constraints)
-                        }
-                    checkLayoutMetrics(measured, constraints)
-                    context.finish()
-                    measured
-                } finally {
-                    context.end()
-                }
-            }
+            case Empty -> layoutResult(
+                constraints,
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight)),
+                [],
+                LayoutBody.Empty
+            )
+            case Portal(instance) -> layoutResult(
+                constraints,
+                LayoutMetrics(Size(constraints.minWidth, constraints.minHeight)),
+                [],
+                LayoutBody.Portal(instance)
+            )
+            case Direction -> transparentLayout(constraints, time)
+            case Component(_) -> transparentLayout(constraints, time)
+            case Element(instance) -> measureElement(instance, constraints, time)
+            case Lazy(instance, items) -> measureLazy(instance, items, constraints, time)
         }
-    metrics = Some(result)
+    store.add(result)
     return result
+}
+
+private fun MountedNode.layoutResult(
+    constraints: Constraints,
+    metrics: LayoutMetrics,
+    children: Array<ChildLayout>,
+    body: LayoutBody
+): NodeLayout =
+    NodeLayout(
+        this,
+        constraints,
+        layoutVersion,
+        layoutDirection,
+        root.layouts.round,
+        metrics,
+        children,
+        body
+    )
+
+private fun MountedNode.transparentLayout(constraints: Constraints, time: TimeMark): NodeLayout {
+    val child = children[0L]
+    val result = child.measure(constraints, time)
+    return layoutResult(
+        constraints,
+        result.metrics,
+        [ChildLayout(child, Some(result), Some(Point(0.0, 0.0)))],
+        LayoutBody.Transparent
+    )
+}
+
+private fun MountedNode.measureElement(
+    instance: ElementInstance,
+    constraints: Constraints,
+    time: TimeMark
+): NodeLayout {
+    val context = MeasureContext(this, children, time)
+    var result: ElementLayout? = None
+    try {
+        val measured = evaluateUi<ElementLayout>(None) { instance.measure(context, constraints) }
+        result = Some(measured)
+        checkLayoutMetrics(measured.metrics, constraints)
+        return layoutResult(
+            constraints,
+            measured.metrics,
+            context.finish(),
+            LayoutBody.Element(measured)
+        )
+    } catch (error: Throwable) {
+        val failed = result
+        throwUi(cleanupUi(Some(error)) { failed?.close() })
+        throw error
+    } finally {
+        context.end()
+    }
+}
+
+private fun MountedNode.measureLazy(
+    instance: LazyInstance,
+    items: LazyChildren,
+    constraints: Constraints,
+    time: TimeMark
+): NodeLayout {
+    val context = LazyMeasureContext(this, items, time)
+    var result: ElementLayout? = None
+    try {
+        val measured = evaluateUi<ElementLayout>(None) { instance.measure(context, constraints) }
+        result = Some(measured)
+        checkLayoutMetrics(measured.metrics, constraints)
+        val selected = context.finish()
+        val children =
+            Array<ChildLayout>(selected.size) {
+                index ->
+                val child = selected[index]
+                ChildLayout(child.entry.node, Some(child.result), child.origin)
+            }
+        return layoutResult(
+            constraints,
+            measured.metrics,
+            children,
+            LayoutBody.Lazy(measured, selected)
+        )
+    } catch (error: Throwable) {
+        val failed = result
+        throwUi(cleanupUi(Some(error)) { failed?.close() })
+        throw error
+    } finally {
+        context.end()
+    }
 }

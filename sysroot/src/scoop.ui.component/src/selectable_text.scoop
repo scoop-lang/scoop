@@ -48,9 +48,9 @@ internal fun makeSelectableStyledText(
     )
 }
 
-private class SelectableStyledTextInk(
-    private val props: Props<SelectableStyledTextProps>
-): Element {
+private class SelectableStyledTextInk(private val props: Props<SelectableStyledTextProps>): Element<
+    ParagraphMeasurement
+> {
     private var scope: ComponentScope? = None
     private var host: SelectableTextHost? = None
     private var ownedFonts: FontCollection? = None
@@ -86,11 +86,14 @@ private class SelectableStyledTextInk(
             input.onSelectionChanged
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
         val input = props.value
-        return host!!.measure(context, constraints, input.settings, input.inlines)
+        val measured = host!!.measure(context, constraints, input.settings, input.inlines)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
     }
-    public override fun scene(context: SceneContext) {
-        host!!.scene(context)
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        host!!.scene(context, measured)
     }
 }

@@ -19,16 +19,13 @@ internal class ActionInkProps(
     val labelTarget: FieldTarget? = None
 )
 
-private class ActionDrawing(val geometry: SurfaceGeometry, val visual: SurfaceVisual)
-
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
-internal class ActionInk(private val props: Props<ActionInkProps>): Element {
+internal class ActionInk(private val props: Props<ActionInkProps>): Element<SurfaceDrawing> {
     private var scope: ComponentScope? = None
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
-    private var drawing: ActionDrawing? = None
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         painters = Some(scope.resource { ThemePainterCache() })
@@ -58,7 +55,9 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element {
         )
         painters!!.get(value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SurfaceDrawing
+    > {
         val value = props.value
         val visual = SurfaceVisual(value.visual.kind, motion!!.sample(value.visual.interaction))
         val options =
@@ -99,19 +98,19 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element {
             )
         val connected =
             groupSurfaceGeometry(geometry, metrics, value.group, context.layoutDirection)
-        drawing = Some(ActionDrawing(connected, visual))
+        val drawing = SurfaceDrawing(connected, visual)
         val origin =
             Point(
                 connected.content.x + (connected.content.width - child.size.width) / 2.0,
                 connected.content.y + (connected.content.height - child.size.height) / 2.0
             )
         context.placeChild(0L, origin)
-        return offsetMetrics(child, size, origin.y)
+        return LayoutResult(offsetMetrics(child, size, origin.y), drawing)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, drawing: SurfaceDrawing) {
         val value = props.value
-        val visual = drawing!!.visual
-        val geometry = drawing!!.geometry
+        val visual = drawing.visual
+        val geometry = drawing.geometry
         val painter = painters!!.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)

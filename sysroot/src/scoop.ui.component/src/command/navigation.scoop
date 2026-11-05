@@ -20,7 +20,9 @@ internal class CandidateNavigationProps(
     val navigationEnabled: Boolean = true
 )
 
-internal class CandidateNavigation(private val props: Props<CandidateNavigationProps>): Element {
+internal class CandidateNavigation(private val props: Props<CandidateNavigationProps>): Element<
+    Unit
+> {
     private var navigation: ActiveItems? = None
     private var owner: ComponentScope? = None
     private var previous: NavigationSource? = None
@@ -118,12 +120,14 @@ internal class CandidateNavigation(private val props: Props<CandidateNavigationP
     public override fun update() {
         reconcile()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val active = props.value.active.value
         context.onFrameComplete {
             frame -> if (

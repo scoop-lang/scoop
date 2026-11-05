@@ -52,7 +52,7 @@ internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
 private class AbsoluteBox(
     private val probe: AbsoluteProbe,
     private val props: Props<Long>
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         val index = props.value
@@ -74,11 +74,13 @@ private class AbsoluteBox(
     public override fun onUnmount() {
         probe.unmounts[props.value] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures[props.value] += 1
-        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val index = props.value
         probe.scenes[index] += 1
         probe.order += f"${index}"
@@ -91,15 +93,17 @@ private class AbsoluteBox(
 private class AbsoluteCanvas(
     private val probe: AbsoluteProbe,
     private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured =
             context.measureChild(0L, Constraints(maxWidth = Some(200.0), maxHeight = Some(100.0)))
         assertEquals(Size(200.0, 100.0), measured.size)
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 180.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.order = ""
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }

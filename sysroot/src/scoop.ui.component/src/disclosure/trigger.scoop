@@ -82,7 +82,7 @@ private class DisclosureArrowProps(
     val color: Color
 )
 
-private class DisclosureArrow(private val props: Props<DisclosureArrowProps>): Element {
+private class DisclosureArrow(private val props: Props<DisclosureArrowProps>): Element<Unit> {
     private var outline: Path? = None
     public override fun onMount(scope: ComponentScope) {
         // Lucide chevron-down (ISC), using its original 24-unit path; see LICENSE-LUCIDE.
@@ -97,9 +97,14 @@ private class DisclosureArrow(private val props: Props<DisclosureArrowProps>): E
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         val side = min(size.width, size.height)

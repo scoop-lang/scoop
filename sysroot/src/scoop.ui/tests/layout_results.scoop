@@ -1,0 +1,282 @@
+package scoop.ui
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class UiLayoutResultTest {
+    @Test
+    fun `A B A restores complete shared layouts and only the selected lazy items`() {
+        val probe = LayoutResultProbe()
+        UiHost { host, active, event -> probe.event(host, active, event) }.use {
+            host -> Application().run(host)
+        }
+        assertTrue(probe.finished)
+        for (round in probe.rounds) {
+            for (record in round.records)
+                assertEquals(1, record.closes)
+            for (text in round.text)
+                assertFailsWith<IllegalStateException> { text.layout }
+            for (editor in round.editors)
+                assertFailsWith<IllegalStateException> { editor.layout }
+        }
+        for (item in probe.items) {
+            assertEquals(1, item.mounts)
+            assertEquals(1, item.unmounts)
+        }
+    }
+}
+
+internal class LayoutRecord(val width: Double, val index: Long = -1L) {
+    var closes = 0
+    fun close() {
+        closes += 1
+        assertEquals(1, closes)
+    }
+}
+
+internal class LayoutAudit {
+    val records = ArrayList<LayoutRecord>()
+    val parents = ArrayList<LayoutRecord>()
+    val text = ArrayList<ParagraphMeasurement>()
+    val editors = ArrayList<TextEditMeasurement>()
+    val rows = ArrayList<LayoutRecord>()
+    var fixedCalls = 0
+    var lazyCalls = 0
+    fun record(width: Double, index: Long = -1L): LayoutRecord {
+        val result = LayoutRecord(width, index)
+        records.add(result)
+        return result
+    }
+}
+
+internal class LayoutItemRecord(val index: Long) {
+    var mounts = 0
+    var unmounts = 0
+}
+
+internal class LayoutResultProbe {
+    val rounds = ArrayList<LayoutAudit>()
+    val items = ArrayList<LayoutItemRecord>()
+    var current: LayoutAudit? = None
+    val scroll = ScrollState(Point(18.0, 11.0))
+    var editor: TextEditHost? = None
+    var finished = false
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                active.setControlFlow(
+                    ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
+                )
+                host.attach(
+                    active.createWindow(
+                        windowAttributes {
+                            title = "Scoop complete layout results"
+                            size = LogicalSize(280.0, 260.0)
+                        }
+                    ),
+                    { LayoutResultScene(this, active) }
+                )
+            }
+            case NewEvents(StartCause.Deadline) -> fail(Some("layout result test timed out"))
+            else -> {}
+        }
+    }
+}
+
+private class LayoutResultScene(
+    private val probe: LayoutResultProbe,
+    private val active: ActiveApplication
+): Component {
+    public override fun render(): View =
+        element(
+            { LayoutResultRoot(probe, active) },
+            [
+                element(
+                    { LayoutResultParent(probe) },
+                    [
+                        element({ LayoutResultText(probe) }),
+                        element({ LayoutResultLeaf(probe) }),
+                        element({ LayoutResultEditor(probe) })
+                    ]
+                ),
+                lazyElement(LayoutResultSource(probe), { LayoutResultLazy(probe) })
+            ]
+        )
+}
+
+private class LayoutResultRoot(
+    private val probe: LayoutResultProbe,
+    private val active: ActiveApplication
+): Element<LayoutAudit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        LayoutAudit
+    > {
+        val audit = LayoutAudit()
+        probe.current = Some(audit)
+        probe.rounds.add(audit)
+        val a = Constraints.tight(Size(120.0, 100.0))
+        val first = context.measureChild(0L, a)
+        context.measureChild(0L, Constraints.tight(Size(60.0, 100.0)))
+        assertEquals(first, context.measureChild(0L, a))
+        assertEquals(2L, audit.parents.size)
+        assertFailsWith<IllegalArgumentException> {
+            context.measureChild(0L, Constraints.tight(Size(90.0, 100.0)))
+        }
+        assertEquals(first, context.measureChild(0L, a))
+        assertEquals(3L, audit.parents.size)
+        assertEquals(1, audit.fixedCalls)
+        assertEquals(3L, audit.text.size)
+        assertEquals(3L, audit.editors.size)
+        assertTrue(audit.text[0L].layout.lines.size < audit.text[1L].layout.lines.size)
+        context.placeChild(0L, Point(10.0, 10.0))
+        val lazyA = Constraints.tight(Size(160.0, 60.0))
+        val lazyFirst = context.measureChild(1L, lazyA)
+        context.measureChild(1L, Constraints.tight(Size(80.0, 60.0)))
+        assertEquals(lazyFirst, context.measureChild(1L, lazyA))
+        assertEquals(2, audit.lazyCalls)
+        assertEquals(3L, audit.rows.size)
+        context.placeChild(1L, Point(10.0, 130.0))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(280.0, 260.0))), audit)
+    }
+    public override fun scene(context: SceneContext, audit: LayoutAudit) {
+        context.children()
+        context.onFrameComplete {
+            completion -> if (
+                completion.submission == FrameSubmission.Accepted && !probe.finished
+            ) {
+                assertEquals(0, audit.parents[0L].closes)
+                assertEquals(1, audit.parents[1L].closes)
+                assertEquals(1, audit.parents[2L].closes)
+                assertFalse(audit.text[0L].layout.isClosed)
+                assertFailsWith<IllegalStateException> { audit.text[1L].layout }
+                assertFailsWith<IllegalStateException> { audit.text[2L].layout }
+                assertTrue(probe.editor!!.layout === audit.editors[0L].layout)
+                assertFailsWith<IllegalStateException> { audit.editors[1L].layout }
+                assertFailsWith<IllegalStateException> { audit.editors[2L].layout }
+                assertEquals(
+                    ScrollSnapshot(Point(18.0, 11.0), Size(120.0, 100.0), Size(240.0, 300.0)),
+                    probe.scroll.snapshot
+                )
+                for (row in audit.rows)
+                    assertEquals(
+                        if (row.index == 2L)
+                            1
+                        else
+                            0,
+                        row.closes
+                    )
+                probe.finished = true
+                active.requestExit()
+            }
+        }
+    }
+}
+
+private class LayoutParentData(val record: LayoutRecord, val scroll: ScrollLayout)
+
+private class LayoutResultParent(private val probe: LayoutResultProbe): Element<LayoutParentData> {
+    private var viewport: ScrollViewport? = None
+    public override fun onMount(scope: ComponentScope) {
+        viewport = Some(scope.scrollViewport(probe.scroll))
+    }
+
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        LayoutParentData
+    > {
+        val width = constraints.minWidth
+        context.measureChild(0L, Constraints(maxWidth = Some(width - 20.0)))
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.measureChild(1L, Constraints.tight(Size(12.0, 10.0)))
+        context.placeChild(1L, Point(width / 10.0, 82.0))
+        context.measureChild(2L, Constraints.tight(Size(width - 20.0, 20.0)))
+        context.placeChild(2L, Point(0.0, 60.0))
+        val record = probe.current!!.record(width)
+        probe.current!!.parents.add(record)
+        val scroll = viewport!!.layout(Size(width, 100.0), Size(width * 2.0, 300.0))
+        // An invalid result exercises ownership when framework validation fails.
+        val size =
+            Size(
+                if (width == 90.0)
+                    width + 1.0
+                else
+                    width,
+                100.0
+            )
+        return LayoutResult(
+            LayoutMetrics(size, Some(width / 10.0)),
+            LayoutParentData(record, scroll),
+            { record.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, data: LayoutParentData) {
+        val record = data.record
+        assertEquals(120.0, record.width)
+        assertEquals(Size(120.0, 100.0), context.size)
+        assertEquals(0, record.closes)
+        viewport!!.present(context, data.scroll)
+        context.children()
+    }
+}
+
+private class LayoutResultText(private val probe: LayoutResultProbe): Element<
+    ParagraphMeasurement
+> {
+    private var host: ParagraphHost? = None
+    private var fonts: FontCollection? = None
+    private val content =
+        styledText {
+            text("one two three four five six seven eight nine ten")
+            style { fontSize = 14.0 }
+        }
+    public override fun onMount(scope: ComponentScope) {
+        host = Some(scope.resource { ParagraphHost() })
+        fonts = Some(scope.resource { FontCollection() })
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured = host!!.measure(context, constraints, fonts!!, content)
+        probe.current!!.text.add(measured)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        assertTrue(measured === probe.current!!.text[0L])
+        assertFalse(measured.layout.isClosed)
+        host!!.scene(context, measured)
+    }
+}
+
+private class LayoutResultLeaf(private val probe: LayoutResultProbe): Element<LayoutRecord> {
+    private var area: scoop.surface.InputArea? = None
+    public override fun onMount(scope: ComponentScope) {
+        area = Some(scope.createArea())
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        LayoutRecord
+    > {
+        probe.current!!.fixedCalls += 1
+        val record = probe.current!!.record(12.0)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(12.0, 10.0))),
+            record,
+            { record.close() }
+        )
+    }
+    public override fun scene(context: SceneContext, record: LayoutRecord) {
+        assertEquals(0, record.closes)
+        context.place(area!!, Rect(0.0, 0.0, 12.0, 10.0))
+        context.onFrameComplete {
+            completion -> if (completion.submission == FrameSubmission.Accepted) {
+                assertEquals(22.0, area!!.visibleBounds!!.x)
+                assertEquals(92.0, area!!.visibleBounds!!.y)
+            }
+        }
+    }
+}

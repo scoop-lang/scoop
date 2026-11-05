@@ -13,7 +13,7 @@ internal class NavChevronProps(
     val vertical: Boolean
 )
 
-internal class NavChevron(private val props: Props<NavChevronProps>): Element {
+internal class NavChevron(private val props: Props<NavChevronProps>): Element<Unit> {
     private var progress: Animatable<Double>? = None
     private var chevron: Path? = None
     private var visible = false
@@ -51,9 +51,14 @@ internal class NavChevron(private val props: Props<NavChevronProps>): Element {
                 None
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         val turn =

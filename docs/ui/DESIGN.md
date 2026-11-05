@@ -59,7 +59,7 @@ View 采用不可变 class；Point、Size、Constraints 等小型数据继续采
 
 Component 负责声明式组合，返回 View。Element 负责实际测量、子项放置、绘制和输入接入。两者都由框架按挂载位置持有，并通过 ComponentScope 管理资源。
 
-Element 的必需操作是 `measure(context, constraints): LayoutMetrics` 与 `paint(context): Unit`，生命周期包括 onMount、update 和 onUnmount。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
+Element 的必需操作是 `measure(context, constraints): LayoutResult<L>` 与 `scene(context, layout: L): Unit`，生命周期包括 onMount、update 和 onUnmount。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
 
 框架的 View 是封闭描述类型，当前包含 Empty／Component／Element／Portal／Lazy／Direction 六种形状，各自承担既有职责。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
 
@@ -69,11 +69,11 @@ Element 的必需操作是 `measure(context, constraints): LayoutMetrics` 与 `p
 import scoop.graphics.*
 import scoop.ui.*
 
-class ColorTile(private val props: Props<Color>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(48.0, 48.0)))
+class ColorTile(private val props: Props<Color>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<Unit> =
+        LayoutResult(LayoutMetrics(constraints.constrain(Size(48.0, 48.0))), Unit)
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, layout: Unit) {
         context.draw {
             paint -> paint.canvas.drawRect(
                 Rect(0.0, 0.0, paint.size.width, paint.size.height),
@@ -148,9 +148,9 @@ Checkbox.checked 与 Button.enabled 的联动由一个共同 State 完成：Chec
 
 内部保留一棵持久树。Component 节点连接 render 返回的子描述；Element 节点持有自绘实例、子项、布局结果和资源作用域。该树同时表达身份与资源归属，不并行维护组件树、布局树、渲染树三套结构。
 
-Constraints 明确区分有限最大值与无界，最终尺寸是有限非负逻辑值。MeasureContext 让 Element 测量每个直接子项、取得尺寸和基线、给出子项位置，并返回自身 LayoutMetrics。Component 透传结果；单子项装饰和 Button 将子项基线加上实际偏移，没有基线时明确返回 None。
+Constraints 明确区分有限最大值与无界，最终尺寸是有限非负逻辑值。MeasureContext 让 Element 测量每个直接子项、取得尺寸和基线、给出子项位置，并将自身 LayoutMetrics 和不可变类型化数据包装为 LayoutResult。Component 透传结果；单子项装饰和 Button 将子项基线加上实际偏移，没有基线时明确返回 None。
 
-当前每个子项在放置前允许以不同约束重测，相邻同约束复用；可以放置零次或一次，也可以在未测量时显式 skipChild。完整布局结果与节点级结果复用按整改 P1 交付。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
+每个子项在放置前允许以不同约束重测，同一布局轮次中相同有效约束复用完整结果，跨回调和 A→B→A 也适用；可以放置零次或一次，也可以在未测量时显式 skipChild。元素的 scene 显式取得所选布局数据；子项结果通过引用共享，释放由框架统一收尾。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
 
 SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入和子项呈现。元素通过 draw 提交只有 Canvas／size／time 的纯绘图块，通过 children 在背景和前景之间呈现已放置子项。draw 的 Canvas 状态独立于后续输入几何；影响整个子树的几何通过 SceneContext 设置。未放置子树不进入 scene，父子关系不自动裁剪或建立输入区域。
 
@@ -160,7 +160,7 @@ SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入
 
 StyledText 由普通文字、带局部样式的 Span 和带 InlineKey 的行内对象组成。Span 共同参与段落排版，不分别生成 Label；行内图片和控件作为不可拆分盒子参与断行和行高。文本层只接收对象尺寸、基线与对齐，不持有组件。
 
-`scoop.ui.text` 的 InlineView 将对象 key 关联到普通 View，inlineChildren 生成正常 keyed 子描述。ParagraphHost 是 Element 登记的 Closeable 辅助对象，不是额外控件或挂载树。它先通过 measureChild 测量对象，再调用 Paragraph.layout，最后按同一 TextLayout 的 key／box 放置可见对象。
+`scoop.ui.text` 的 InlineView 将对象 key 关联到普通 View，inlineChildren 生成正常 keyed 子描述。ParagraphHost 是 Element 登记的 Closeable 辅助对象，不是额外控件或挂载树。它先通过 measureChild 测量对象，再调用 Paragraph.layout，最后按同一 TextLayout 的 key／box 放置可见对象。返回的 ParagraphMeasurement 独立持有排版，保存在元素的 LayoutResult 中并由 dispose 关闭；scene 显式接收所选 measurement。
 
 自然尺寸子项在段落最大宽度及无界高度内测量；固定尺寸使用显式 tight 约束。不根据最终行剩余宽度反复协商。默认基线取子项 alphabetic baseline，缺失时使用底边，调用方可选择 ideographic 或明确的其他对齐。
 

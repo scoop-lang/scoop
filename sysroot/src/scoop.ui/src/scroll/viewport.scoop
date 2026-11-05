@@ -3,7 +3,12 @@ package scoop.ui
 import scoop.graphics.*
 import scoop.surface.*
 
-internal class ScrollLayout(val binding: ULong, val revision: ULong, val snapshot: ScrollSnapshot)
+public class ScrollLayout internal constructor(
+    internal val owner: ScrollViewport,
+    internal val binding: ULong,
+    internal val revision: ULong,
+    public val snapshot: ScrollSnapshot
+)
 
 private class ScrollMotion(val target: Point, val spec: AnimationSpec) {
     var started = false
@@ -19,7 +24,6 @@ public class ScrollViewport internal constructor(
     private var closed = false
     private var ready = false
     private var binding = 0UL
-    private var staged: ScrollLayout? = None
     private var motion: ScrollMotion? = None
     private var cachePolicy = PaintCachePolicy.None
 
@@ -54,7 +58,6 @@ public class ScrollViewport internal constructor(
         current = value
         binding += 1UL
         ready = false
-        staged = None
         current.attach(this)
         requestFrame()
     }
@@ -85,7 +88,7 @@ public class ScrollViewport internal constructor(
         viewport: Size,
         content: Size,
         adjustment: ScrollAdjustment? = None
-    ): ScrollSnapshot {
+    ): ScrollLayout {
         checkOpen()
         var result = sample(viewport, content)
         when (adjustment) {
@@ -101,20 +104,20 @@ public class ScrollViewport internal constructor(
             }
             case None -> {}
         }
-        staged = Some(ScrollLayout(binding, current.revision, result))
-        return result
+        return ScrollLayout(this, binding, current.revision, result)
     }
     public fun present(
         context: SceneContext,
+        layout: ScrollLayout,
         content: ((SceneContext) -> Unit)? = None,
         contentOrigin: Point = Point(0.0, 0.0)
     ) {
         checkOpen()
         context.checkOwner(node)
         checkScrollPoint(contentOrigin)
-        val layout =
-            staged ?: throw IllegalStateException(Some("scroll viewport has not been laid out"))
-        staged = None
+        requireUi(layout.owner === this, "scroll layout belongs to a different viewport")
+        requireUi(layout.binding == binding, "scroll layout belongs to a previous binding")
+        context.presentScroll(this)
         context.onFrameComplete {
             frame -> if (
                 frame.submission == FrameSubmission.Accepted && active && layout.binding == binding
@@ -242,7 +245,6 @@ public class ScrollViewport internal constructor(
         if (ready)
             current.request = ScrollRequest.Position(current.current.offset)
         motion = None
-        staged = None
         animation.close()
         current.detach(this)
     }

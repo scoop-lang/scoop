@@ -235,13 +235,15 @@ internal class SidebarCapture(var bounds: Rect, var ring: Boolean = false)
 private class SidebarObservation(
     private val p: SidebarProbe,
     private val props: Props<Long>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         val capture = SidebarCapture(rect)
         val ring = Rect(-4.0, -4.0, rect.width + 8.0, rect.height + 8.0)
@@ -270,13 +272,15 @@ private class SidebarObservation(
 private class SidebarPresentationProbe(
     private val p: SidebarProbe,
     private val props: Props<SidebarPresentation>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children();
         val shown = props.value
         context.onFrameComplete {
@@ -286,13 +290,17 @@ private class SidebarPresentationProbe(
     }
 }
 
-private class SidebarRoot(private val p: SidebarProbe, private val revision: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SidebarRoot(private val p: SidebarProbe, private val revision: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children();
         val value = revision.value
         context.onFrameComplete {

@@ -80,12 +80,11 @@ private class FieldLabelInkProps(
     val enabled: Boolean
 )
 
-private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Element {
+private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Element<Unit> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var press: Press? = None
     private var previous: FieldLabelInkProps? = None
-    private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         val input = scope.createArea()
@@ -109,15 +108,16 @@ private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Eleme
             current.connection?.activate(scope!!, current.target)
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        bounds = Rect(0.0, 0.0, child.size.width, child.size.height)
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val enabled = props.value.enabled
-        context.place(area!!, bounds)
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
         if (!enabled)
             context.saveLayer(0.5)
         context.children()

@@ -6,14 +6,16 @@ import scoop.ui.style.*
 
 internal class EmptyFrameProps(val style: Style, val outlined: Boolean, val color: Color)
 
-internal class EmptyFrame(private val props: Props<EmptyFrameProps>): Element {
+internal class EmptyFrame(private val props: Props<EmptyFrameProps>): Element<Unit> {
     private var painter: StylePainter? = None
     private var border: EmptyBorderCache? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { StylePainter() })
         border = Some(scope.resource { EmptyBorderCache() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val metrics =
             context.measureChild(
                 0L,
@@ -25,9 +27,9 @@ internal class EmptyFrame(private val props: Props<EmptyFrameProps>): Element {
                 )
             )
         context.placeChild(0L, Point(0.0, 0.0))
-        return metrics
+        return LayoutResult(metrics, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         painter!!.scene(context, input.style) { content -> content.children() }

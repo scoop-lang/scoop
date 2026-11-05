@@ -118,8 +118,10 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
     }
 }
 
-private class RowPanel: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class RowPanel: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints())
@@ -128,22 +130,25 @@ private class RowPanel: Element {
             context.measureChild(index, Constraints.tight(Size(1.0, 1.0)))
             context.placeChild(index, Point(0.0, 0.0))
         }
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class RowInk(private val record: RowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        record.measure(constraints)
-    public override fun scene(context: SceneContext) {
+private class RowInk(private val record: RowRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(record.measure(constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.scene(context)
     }
 }
 
-internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowInput>): Element {
+internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowInput>): Element<
+    Unit
+> {
     private val record = RowRecord(probe, props.value.id)
     public override fun onMount(scope: ComponentScope) {
         record.mount(scope)
@@ -151,9 +156,10 @@ internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowI
     public override fun update() {
         record.input = props.value
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        record.measure(constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(record.measure(constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.scene(context)
     }
     public override fun onUnmount() {
@@ -161,10 +167,11 @@ internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowI
     }
 }
 
-private class DialogInk(private val record: RowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(80.0, 60.0)))
-    public override fun scene(context: SceneContext) {
+private class DialogInk(private val record: RowRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 60.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.dialogPaints += 1
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.8, 0.2, 0.3))) }

@@ -20,17 +20,19 @@ public fun styled(content: View, configure: StyledBuilder.() -> Unit = {}): View
     return component(StyledProps(content, builder.style), ::Styled, builder.key)
 }
 
-private class StyledInk(private val props: Props<Style>): Element {
+private class StyledInk(private val props: Props<Style>): Element<Unit> {
     private var painter: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         painter!!.scene(context, props.value) { content -> content.children() }
     }
 }

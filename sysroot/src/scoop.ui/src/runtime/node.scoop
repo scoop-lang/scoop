@@ -1,7 +1,5 @@
 package scoop.ui
 
-import scoop.graphics.Point
-
 internal enum NodeBody {
     Empty, Component(ComponentInstance), Element(ElementInstance), Portal(PortalInstance),
     Lazy(LazyInstance, LazyChildren), Direction
@@ -31,8 +29,10 @@ internal class MountedNode(
     var queued = false
     var updated: UpdateTurn? = None
     var dependencies: Array<StateSignal> = []
-    var metrics: LayoutMetrics? = None
-    var placements: Array<Point?> = []
+    var layoutVersion = 0L
+    var layoutRound: LayoutRound? = None
+    var currentLayout: NodeLayout? = None
+    val layoutRequests = ArrayList<NodeLayout>()
     private var framesAllowed = true
     val localFrameEnabled: Boolean get() = framesAllowed
     private var participates = true
@@ -69,6 +69,12 @@ internal class MountedNode(
         throwUi(failure)
     }
 
+    fun invalidateLayout() {
+        layoutVersion += 1L
+        if (mounted)
+            parent?.invalidateLayout()
+    }
+
     fun invalidate() {
         if (active && root.isOpen && !queued) {
             queued = true
@@ -91,6 +97,7 @@ internal class MountedNode(
         if (!active || !root.isOpen)
             return
         updated = Some(turn)
+        invalidateLayout()
         val previousDirection = layoutDirection
         layoutDirection = view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
         when (body) {
@@ -121,7 +128,7 @@ internal class MountedNode(
                     )
                 }
                 if (active && root.isOpen && mounted)
-                    instance.value.update()
+                    instance.update()
             }
             case Lazy(instance, items) -> {
                 when (view.body) {
@@ -134,7 +141,7 @@ internal class MountedNode(
                     for (child in children)
                         child.refreshDirection(turn)
                 if (active && root.isOpen && mounted)
-                    instance.value.update()
+                    instance.update()
             }
         }
     }
@@ -146,17 +153,17 @@ internal class MountedNode(
                 case Empty -> {}
                 case Direction -> {}
                 case Component(instance) -> instance.value.onMount(scope)
-                case Element(instance) -> instance.value.onMount(scope)
+                case Element(instance) -> instance.onMount(scope)
                 case Portal(instance) -> instance.mount(this)
-                case Lazy(instance, _) -> instance.value.onMount(scope)
+                case Lazy(instance, _) -> instance.onMount(scope)
             }
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
-                    case Element(instance) -> instance.value.update()
+                    case Element(instance) -> instance.update()
                     case Lazy(instance, items) -> {
                         items.mount(this)
-                        instance.value.update()
+                        instance.update()
                     }
                     else -> {}
                 }
@@ -203,17 +210,20 @@ internal class MountedNode(
                         case Empty -> {}
                         case Direction -> {}
                         case Component(instance) -> instance.value.onUnmount()
-                        case Element(instance) -> instance.value.onUnmount()
+                        case Element(instance) -> instance.onUnmount()
                         case Portal(_) -> {}
-                        case Lazy(instance, _) -> instance.value.onUnmount()
+                        case Lazy(instance, _) -> instance.onUnmount()
                     }
                 }
         }
         failure = cleanupUi(failure) { throwUi(scope.release()) }
         failure = cleanupUi(failure) { paintLayers.close() }
         failure = cleanupUi(failure) { releaseInstance(body) }
-        metrics = None
-        placements = []
+        failure = cleanupUi(failure) { currentLayout?.close() }
+        currentLayout = None
+        for (result in layoutRequests)
+            failure = cleanupUi(failure) { result.close() }
+        layoutRequests.clear()
         throwUi(failure)
     }
 }

@@ -155,7 +155,7 @@ private class NavigationRow(
 private class NavigationRowInk(
     private val record: NavigationRowRecord,
     private val props: Props<NavigationRowInput>
-): Element {
+): Element<Unit> {
     public override fun update() {
         for (index in 0L ..< record.areas.size)
             when (record.areas[index]) {
@@ -164,19 +164,24 @@ private class NavigationRowInk(
                 case None -> {}
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                Size(
-                    144.0,
-                    if (record.id == 3L)
-                        0.0
-                    else
-                        24.0
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    Size(
+                        144.0,
+                        if (record.id == 3L)
+                            0.0
+                        else
+                            24.0
+                    )
                 )
-            )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val height =
             if (record.id == 3L || size.height <= 4.0)

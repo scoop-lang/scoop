@@ -99,7 +99,7 @@ private class CellProps(
 private class FocusCell(
     private val probe: FocusProbe,
     private val props: Props<CellProps>
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     public override fun onMount(scope: ComponentScope) {
@@ -142,9 +142,10 @@ private class FocusCell(
     public override fun onUnmount() {
         probe.unmounts[props.value.index] += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(40.0, 40.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(40.0, 40.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.placed)
             return
         if (props.value.clipped)
@@ -162,14 +163,16 @@ private class PanelProps(val group: Boolean, val revision: Int)
 private class FocusPanel(
     private val probe: FocusProbe,
     private val props: Props<PanelProps>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         if (props.value.group)
             probe.group = Some(scope.focusScope())
         else
             probe.panelScope = Some(scope)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         var x = 0.0
         for (index in 0L ..< context.childCount) {
             val width =
@@ -181,9 +184,9 @@ private class FocusPanel(
             context.placeChild(index, Point(x, 0.0))
             x += width
         }
-        return LayoutMetrics(constraints.constrain(Size(x, 40.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(x, 40.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.group)
             context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()

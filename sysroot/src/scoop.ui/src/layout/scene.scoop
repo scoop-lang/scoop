@@ -10,18 +10,20 @@ import scoop.time.TimeMark
 internal class ScenePass {
     var presentedChildren = false
     val paintKeys = ArrayList<PaintKey>()
+    val scrolls = ArrayList<ScrollViewport>()
 }
 
 /** Geometry, input and child presentation share one frame state, separate from pixel blocks. */
 public class SceneContext internal constructor(
     private val node: MountedNode,
     private val frame: FrameContext,
-    private val extent: Size,
+    private val layout: NodeLayout,
     private val overlay: OverlayLayout? = None,
     private val pass: ScenePass = ScenePass(),
     private val scrollPath: Array<ScrollReveal> = [],
     private val paintCache: PaintCachePolicy = PaintCachePolicy.None
 ) {
+    private val extent = layout.metrics.size
     public val layoutDirection: LayoutDirection get() {
         checkActive();
         return node.layoutDirection
@@ -116,6 +118,13 @@ public class SceneContext internal constructor(
         checkActive()
         return withPath(scrollPath, paintCache, block)
     }
+    internal fun presentScroll(viewport: ScrollViewport) {
+        checkActive()
+        for (previous in pass.scrolls)
+            if (previous === viewport)
+                throw IllegalStateException(Some("scroll viewport was already presented"))
+        pass.scrolls.add(viewport)
+    }
     internal fun scrollContent(
         viewport: ScrollViewport,
         layout: ScrollLayout,
@@ -148,7 +157,7 @@ public class SceneContext internal constructor(
         try {
             return frame.withState {
                 childFrame ->
-                val child = SceneContext(node, childFrame, extent, overlay, pass, path, policy)
+                val child = SceneContext(node, childFrame, layout, overlay, pass, path, policy)
                 try {
                     block(child)
                 } finally {
@@ -214,7 +223,7 @@ public class SceneContext internal constructor(
         if (pass.presentedChildren)
             throw IllegalStateException(Some("children were already presented"))
         pass.presentedChildren = true
-        for (index in 0L ..< node.children.size)
+        for (index in 0L ..< layout.children.size)
             presentChild(index)
     }
     /** Presents a complete permutation without changing logical mount or input ownership. */
@@ -222,11 +231,11 @@ public class SceneContext internal constructor(
         checkActive()
         if (pass.presentedChildren)
             throw IllegalStateException(Some("children were already presented"))
-        requireUi(order.size == node.children.size, "child order must include every child")
-        val visited = MutableArray<Boolean>(node.children.size) { _ -> false }
+        requireUi(order.size == layout.children.size, "child order must include every child")
+        val visited = MutableArray<Boolean>(layout.children.size) { _ -> false }
         for (index in order) {
             requireUi(
-                index >= 0L && index < node.children.size,
+                index >= 0L && index < layout.children.size,
                 "child order index is out of bounds"
             )
             requireUi(!visited[index], "child order contains a duplicate index")
@@ -237,30 +246,30 @@ public class SceneContext internal constructor(
             presentChild(index)
     }
     private fun presentChild(index: Long) {
-        val child = node.children[index]
-        val placed = node.placements[index] != None
-        if (child.participatesInFrame != placed)
-            node.root.addCompletion(child) {
+        val child = layout.children[index]
+        val placed = child.origin != None
+        if (child.node.participatesInFrame != placed)
+            node.root.addCompletion(child.node) {
                 completion -> if (completion.submission == FrameSubmission.Accepted)
-                    child.setFrameParticipation(placed)
+                    child.node.setFrameParticipation(placed)
             }
-        when (node.placements[index]) {
-            case Some(origin) -> node.children[index].scene(
+        when (child.origin) {
+            case Some(origin) -> child.result!!.scene(
                 frame,
                 origin,
                 overlay,
                 scrollPath,
                 paintCache
             )
-            case None -> node.children[index].clearPaintSubtree()
+            case None -> child.node.clearPaintSubtree()
         }
     }
     internal fun finish() {
         if (!pass.presentedChildren) {
-            for (origin in node.placements)
-                if (origin != None)
+            for (child in layout.children)
+                if (child.origin != None)
                     throw IllegalStateException(Some("placed children must be presented"))
-            for (index in 0L ..< node.children.size)
+            for (index in 0L ..< layout.children.size)
                 presentChild(index)
         }
         node.paintLayers.retain(pass.paintKeys)
@@ -270,53 +279,53 @@ public class SceneContext internal constructor(
     }
 }
 
-internal fun MountedNode.scene(
+internal fun NodeLayout.scene(
     frame: FrameContext,
     origin: Point,
     overlay: OverlayLayout? = None,
     scrollPath: Array<ScrollReveal> = [],
     paintCache: PaintCachePolicy = PaintCachePolicy.None
 ) {
-    if (!active || !root.isOpen)
+    if (!node.active || !node.root.isOpen)
         return
     when (body) {
         case Empty -> {}
-        case Direction -> children[0L].scene(frame, origin, overlay, scrollPath, paintCache)
-        case Component(_) -> children[0L].scene(frame, origin, overlay, scrollPath, paintCache)
-        case Portal(instance) -> root.overlays.include(instance)
-        case Element(instance) -> sceneElement(frame, origin, overlay, scrollPath, paintCache) {
-            context -> instance.value.scene(context)
-        }
-        case Lazy(instance, _) -> sceneElement(frame, origin, overlay, scrollPath, paintCache) {
-            context -> instance.value.scene(context)
-        }
+        case Transparent -> children[0L].result!!.scene(
+            frame,
+            origin,
+            overlay,
+            scrollPath,
+            paintCache
+        )
+        case Portal(instance) -> node.root.overlays.include(instance)
+        case Element(value) -> sceneElement(frame, origin, overlay, scrollPath, paintCache, value)
+        case Lazy(value, _) -> sceneElement(frame, origin, overlay, scrollPath, paintCache, value)
     }
 }
 
-private fun MountedNode.sceneElement(
+private fun NodeLayout.sceneElement(
     frame: FrameContext,
     origin: Point,
     overlay: OverlayLayout?,
     scrollPath: Array<ScrollReveal>,
     paintCache: PaintCachePolicy,
-    draw: (SceneContext) -> Unit
+    value: ElementLayout
 ) {
     frame.withState {
         childFrame ->
         childFrame.canvas.translate(origin.x, origin.y)
-        val result = metrics ?: throw IllegalStateException(Some("element has not been measured"))
         val context =
             SceneContext(
-                this,
+                node,
                 childFrame,
-                result.size,
+                this,
                 overlay,
                 scrollPath = scrollPath,
                 paintCache = paintCache
             )
         try {
-            evaluateUi<Unit>(None) { draw(context) }
-            if (active && root.isOpen)
+            evaluateUi<Unit>(None) { value.scene(context) }
+            if (node.active && node.root.isOpen)
                 context.finish()
             Unit
         } finally {

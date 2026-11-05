@@ -239,14 +239,19 @@ internal class Showcase(
 private class Gallery(
     private val props: Props<scoop.ui.style.Theme>,
     private val fonts: FontCollection
-): Element {
+): Element<Unit> {
     private var painter: GalleryPainter? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { GalleryPainter(fonts) })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 1040.0, 300.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw { paint -> painter!!.paint(paint.canvas, props.value, paint.size.width) }
     }
 }

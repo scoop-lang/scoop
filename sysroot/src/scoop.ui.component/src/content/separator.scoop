@@ -55,10 +55,11 @@ internal fun separatorSize(input: SeparatorProps, constraints: Constraints): Siz
     )
 }
 
-private class SeparatorInk(private val props: Props<SeparatorInkProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(separatorSize(props.value.input, constraints))
-    public override fun scene(context: SceneContext) {
+private class SeparatorInk(private val props: Props<SeparatorInkProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(separatorSize(props.value.input, constraints)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val bounds = separatorLine(input.input, context.size)
         if (bounds.width > 0.0 && bounds.height > 0.0)

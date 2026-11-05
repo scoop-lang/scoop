@@ -129,8 +129,10 @@ private fun sidebarGroupDirection(content: PanelContent, direction: TextDirectio
         case Custom(_) -> content
     }
 
-private class SidebarGroupHeading(private val density: Props<Double>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SidebarGroupHeading(private val density: Props<Double>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val d = density.value
         val action =
             context.measureChild(
@@ -172,9 +174,9 @@ private class SidebarGroupHeading(private val density: Props<Double>): Element {
                 (size.height - action.size.height) / 2.0
             )
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -306,8 +308,10 @@ public class SidebarBadge public constructor(
     }
 }
 
-private class SidebarBadgeLayout(private val density: Props<Double>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SidebarBadgeLayout(private val density: Props<Double>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val d = density.value
         val natural = context.measureChild(0L, Constraints(maxHeight = Some(20.0 * d)))
         val size =
@@ -325,9 +329,9 @@ private class SidebarBadgeLayout(private val density: Props<Double>): Element {
             0L,
             Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

@@ -84,7 +84,7 @@ public class InputGroup public constructor(private val props: Props<InputGroupPr
 internal fun inputGroupBlock(align: InputGroupAlign): Boolean =
     align == InputGroupAlign.BlockStart || align == InputGroupAlign.BlockEnd
 
-internal class InputGroupInk(internal val props: Props<InputGroupInput>): Element {
+internal class InputGroupInk(internal val props: Props<InputGroupInput>): Element<Unit> {
     private var area: InputArea? = None
     private var painters: ThemePainterCache? = None
     internal var geometry: SurfaceGeometry? = None
@@ -148,9 +148,10 @@ internal class InputGroupInk(internal val props: Props<InputGroupInput>): Elemen
         val surface = props.value.props.surface
         return surface.copy { this.padding = Some(surface.padding ?: Insets()) }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureInputGroup(this, context, constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(measureInputGroup(this, context, constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val shape = geometry!!
         val visual = sampled
         val painter = painters!!.get(props.value.theme)

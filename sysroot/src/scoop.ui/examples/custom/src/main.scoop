@@ -30,7 +30,7 @@ internal class Counter: Component {
 
 private struct CounterInput(val count: Int, val increment: () -> Unit)
 
-private class CounterDrawing(private val props: Props<CounterInput>): Element {
+private class CounterDrawing(private val props: Props<CounterInput>): Element<Unit> {
     private var area: InputArea? = None
     private var extent: Animatable<Double>? = None
     private var outline: Path? = None
@@ -129,9 +129,10 @@ private class CounterDrawing(private val props: Props<CounterInput>): Element {
         if (extent!!.target != next)
             extent!!.animateTo(next, AnimationSpec.Spring())
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(extent!!.value + 64.0, 240.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(extent!!.value + 64.0, 240.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val width = extent!!.value
         val left = (context.size.width - width) / 2.0
         val top = (context.size.height - 84.0) / 2.0

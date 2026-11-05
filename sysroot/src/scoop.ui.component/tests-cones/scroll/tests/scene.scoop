@@ -52,7 +52,7 @@ private struct AreaPanelProps(val generation: Int, val zero: Boolean)
 private class AreaPanel(
     private val probe: AreaProbe,
     private val props: Props<AreaPanelProps>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.resource { probe.outer.observeIntent { event -> probe.outerIntents.add(event) } }
         scope.resource { probe.inner.observeIntent { event -> probe.innerIntents.add(event) } }
@@ -72,7 +72,9 @@ private class AreaPanel(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(
             0L,
             Constraints.tight(
@@ -83,9 +85,9 @@ private class AreaPanel(
             )
         )
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(320.0, 180.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(320.0, 180.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -139,29 +141,38 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
     }
 }
 
-private class ContentLayout(private val probe: AreaProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ContentLayout(private val probe: AreaProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(100.0, 60.0)))
         context.placeChild(0L, Point(40.0, 30.0))
         context.measureChild(1L, Constraints.tight(Size(50.0, 30.0)))
         context.placeChild(1L, Point(240.0, 400.0))
-        return LayoutMetrics(
-            constraints.constrain(
-                if (props.value == 3)
-                    Size(150.0, 80.0)
-                else
-                    Size(400.0, 600.0)
-            )
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (props.value == 3)
+                        Size(150.0, 80.0)
+                    else
+                        Size(400.0, 600.0)
+                )
+            ),
+            Unit
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.9, 0.9, 0.9))) }
         context.children()
     }
 }
 
-private class ContentInput(private val probe: AreaProbe, private val inner: Boolean): Element {
+private class ContentInput(private val probe: AreaProbe, private val inner: Boolean): Element<
+    Unit
+> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         val input = scope.createArea(focusable = true)
@@ -203,16 +214,21 @@ private class ContentInput(private val probe: AreaProbe, private val inner: Bool
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                if (inner)
-                    Size(100.0, 240.0)
-                else
-                    Size(50.0, 30.0)
-            )
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (inner)
+                        Size(100.0, 240.0)
+                    else
+                        Size(50.0, 30.0)
+                )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, rect)
         context.draw {

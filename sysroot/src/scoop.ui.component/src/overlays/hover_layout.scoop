@@ -63,10 +63,9 @@ internal class HoverPopupLayoutProps(
     val closeOnPress: Boolean
 )
 
-internal class HoverPopupLayout(private val props: Props<HoverPopupLayoutProps>): Element {
+internal class HoverPopupLayout(private val props: Props<HoverPopupLayoutProps>): Element<Unit> {
     private var area: InputArea? = None
     private var hover: Hover? = None
-    private var triggerSize = Size(0.0, 0.0)
     private val space = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)))
     private val enter = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)))
     public override fun onMount(scope: ComponentScope) {
@@ -111,16 +110,17 @@ internal class HoverPopupLayout(private val props: Props<HoverPopupLayoutProps>)
     public override fun onUnmount() {
         props.value.link.unbind(hover!!)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
-        triggerSize = result.size
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints())
         context.placeChild(1L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
-        val bounds = Rect(0.0, 0.0, triggerSize.width, triggerSize.height)
+    public override fun scene(context: SceneContext, measured: Unit) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.anchor(props.value.anchor, bounds)
         context.place(area!!, bounds)
         context.children()
@@ -134,7 +134,7 @@ internal class HoverPopupContentProps(
 )
 
 /** Keeps hover geometry live while a tooltip's complete content input subtree is disabled. */
-internal class HoverPopupContent(private val props: Props<HoverPopupContentProps>): Element {
+internal class HoverPopupContent(private val props: Props<HoverPopupContentProps>): Element<Unit> {
     private var area: InputArea? = None
     private var gate: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
@@ -152,7 +152,9 @@ internal class HoverPopupContent(private val props: Props<HoverPopupContentProps
     public override fun onUnmount() {
         props.value.link.setContent(None)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val limit = props.value.maxWidth
         val bounded =
             when (limit) {
@@ -173,9 +175,9 @@ internal class HoverPopupContent(private val props: Props<HoverPopupContentProps
             }
         val result = context.measureChild(0L, bounded)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, bounds)
         context.place(gate!!, bounds)

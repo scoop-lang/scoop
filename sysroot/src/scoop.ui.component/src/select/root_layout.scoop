@@ -14,7 +14,7 @@ internal class SelectRootProps(
     val updated: () -> Unit
 )
 
-internal class SelectRootLayout(private val props: Props<SelectRootProps>): Element {
+internal class SelectRootLayout(private val props: Props<SelectRootProps>): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.layoutAnchor(props.value.anchor)
         scope.input.addDefaultAction {
@@ -42,7 +42,9 @@ internal class SelectRootLayout(private val props: Props<SelectRootProps>): Elem
     public override fun update() {
         props.value.updated()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val limits =
             when (props.value.width) {
                 case Some(width) -> {
@@ -61,9 +63,9 @@ internal class SelectRootLayout(private val props: Props<SelectRootProps>): Elem
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints());
         context.placeChild(1L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.anchor(props.value.anchor, Rect(0.0, 0.0, context.size.width, context.size.height))
         context.children()
     }

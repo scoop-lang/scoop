@@ -97,7 +97,7 @@ internal class SliderScene(private val probe: SliderProbe): Component {
 private class SliderTestLayout(
     private val p: SliderProbe,
     private val generation: Props<Int>
-): Element {
+): Element<Unit> {
     private var scope: ComponentScope? = None
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
@@ -122,7 +122,9 @@ private class SliderTestLayout(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             val size =
                 if (index == 1L) {
@@ -163,9 +165,9 @@ private class SliderTestLayout(
                 )
             )
         }
-        return LayoutMetrics(constraints.constrain(Size(500.0, 420.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(500.0, 420.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val rejected = p.discard
         if (rejected) {

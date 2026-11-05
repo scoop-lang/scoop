@@ -72,8 +72,10 @@ public class Typography public constructor(private val props: Props<TypographyPr
 }
 
 /** A paragraph's inline limit is an upper bound, not the code token's preferred width. */
-private class InlineCodeWidth: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class InlineCodeWidth: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val natural = context.measureChild(0L, Constraints(maxHeight = constraints.maxHeight))
         val width = constraints.constrain(natural.size).width
         val child =
@@ -87,9 +89,9 @@ private class InlineCodeWidth: Element {
                 )
             )
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

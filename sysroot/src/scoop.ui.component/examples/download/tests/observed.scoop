@@ -106,19 +106,21 @@ private class DownloadObservedCanvas(
     private val probe: DownloadWindowProbe,
     private val index: Long,
     private val props: Props<DownloadSnapshot>
-): Element {
+): Element<Unit> {
     public override fun update() {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].updates += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].measures += 1
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         assertEquals(probe.owner, currentThreadId())
         context.children()
         probe.counts[index].paints += 1

@@ -30,7 +30,6 @@ public class SidebarMenu public constructor(private val props: Props<SidebarMenu
 internal class SidebarItemInput(val menu: SidebarMenuProps, val item: SidebarMenuItemProps)
 
 internal class SidebarRowSpace {
-    var trailing = 0.0;
     var highlighted = false
 }
 

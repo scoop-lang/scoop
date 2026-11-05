@@ -11,7 +11,7 @@ internal class TabIndicatorProps(
     val enabled: Boolean
 )
 
-internal class TabIndicator(private val props: Props<TabIndicatorProps>): Element {
+internal class TabIndicator(private val props: Props<TabIndicatorProps>): Element<Unit> {
     private var presence: Presence? = None
     public override fun onMount(scope: ComponentScope) {
         presence = Some(scope.presence(props.value.selected))
@@ -22,12 +22,14 @@ internal class TabIndicator(private val props: Props<TabIndicatorProps>): Elemen
         val transition = motion.resolve(motion.selection)
         presence!!.update(input.selected, Some(PresenceOptions(transition, transition)))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val input = props.value
         val progress = presence!!.snapshot.progress

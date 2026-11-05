@@ -40,7 +40,7 @@ private class RelationAnchor(
     private val probe: OverlayProbe,
     private val anchor: LayoutAnchor,
     private val cyclic: Boolean
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         if (cyclic) {
             assertFailsWith<IllegalStateException> { scope.layoutAnchor(anchor) }
@@ -49,9 +49,10 @@ private class RelationAnchor(
         } else
             scope.layoutAnchor(anchor)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-    public override fun scene(context: SceneContext) {}
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
 internal class ForeignRoot(private val probe: OverlayProbe): Component {

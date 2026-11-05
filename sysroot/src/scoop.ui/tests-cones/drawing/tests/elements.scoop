@@ -57,7 +57,7 @@ internal class DrawingChild(
 internal class DrawingPanel(
     private val props: Props<SceneInput>,
     private val probe: DrawingProbe
-): Element {
+): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         probe.mounts += 1
@@ -79,7 +79,9 @@ internal class DrawingPanel(
             )
         scope.routeChildren(area!!)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         probe.lastMeasure = Some(context)
         assertEquals(2L, context.childCount)
@@ -106,9 +108,12 @@ internal class DrawingPanel(
             assertFailsWith<IllegalStateException> { context.placeChild(0L, Point(0.0, 0.0)) }
         }
         context.placeChild(1L, Point(140.0, 40.0))
-        return LayoutMetrics(constraints.constrain(Size(240.0, 140.0)), Some(58.0), Some(64.0))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(240.0, 140.0)), Some(58.0), Some(64.0)),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         probe.lastScene = Some(context)
         val frameTime = context.time
@@ -186,12 +191,11 @@ internal class DrawingPanel(
 internal class DrawingLeaf(
     private val props: Props<LeafInput>,
     private val probe: DrawingProbe
-): Element {
+): Element<TimeMark> {
     var scope: ComponentScope? = None
     var path: Path? = None
     var area: InputArea? = None
     var width: Animatable<Double>? = None
-    private var measuredTime: TimeMark? = None
     var updates = 0
     var paints = 0
     var draws = 0
@@ -263,17 +267,18 @@ internal class DrawingLeaf(
             probe.returnedFromClose = true
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        measuredTime = Some(context.time)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TimeMark
+    > {
+        val measuredTime = context.time
         assertFailsWith<IllegalStateException> { probe.count.value += 1 }
-        return LayoutMetrics(
-            constraints.constrain(Size(width!!.value, 60.0)),
-            Some(18.0),
-            Some(24.0)
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width!!.value, 60.0)), Some(18.0), Some(24.0)),
+            measuredTime
         )
     }
-    public override fun scene(context: SceneContext) {
-        assertEquals(measuredTime, Some(context.time))
+    public override fun scene(context: SceneContext, measuredTime: TimeMark) {
+        assertEquals(measuredTime, context.time)
         assertFailsWith<IllegalStateException> { probe.count.value += 1 }
         paints += 1
         probe.sequence.add("child")
@@ -284,7 +289,7 @@ internal class DrawingLeaf(
                 paint ->
                 draws += 1
                 probe.lastCanvas = Some(paint.canvas)
-                assertEquals(measuredTime, Some(paint.time))
+                assertEquals(measuredTime, paint.time)
                 assertFailsWith<IllegalStateException> { probe.count.value += 1 }
                 assertFailsWith<IllegalStateException> { context.place(area!!, path!!) }
                 paint.canvas.drawPath(path!!, Paint(Color(0.2, 0.5, 0.8)))
@@ -311,10 +316,11 @@ internal class DrawingLeaf(
     }
 }
 
-internal class DrawingSibling(private val probe: DrawingProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(30.0, 30.0)))
-    public override fun scene(context: SceneContext) {
+internal class DrawingSibling(private val probe: DrawingProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(30.0, 30.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             probe.sequence.add("sibling")

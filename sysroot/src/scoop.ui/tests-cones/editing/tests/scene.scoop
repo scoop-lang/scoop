@@ -36,7 +36,9 @@ internal class EditScene(private val probe: EditProbe): Component {
     }
 }
 
-private class EditPanel(private val probe: EditProbe, private val props: Props<Int>): Element {
+private class EditPanel(private val probe: EditProbe, private val props: Props<Int>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
         scope.input.captureHandler =
@@ -75,7 +77,9 @@ private class EditPanel(private val probe: EditProbe, private val props: Props<I
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             val selectable = probe.displayTest.show && index == context.childCount - 1L
             context.measureChild(
@@ -104,9 +108,9 @@ private class EditPanel(private val probe: EditProbe, private val props: Props<I
                             Point(260.0, 30.0)
             )
         }
-        return LayoutMetrics(constraints.constrain(Size(520.0, 400.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 400.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.scale(probe.scale, probe.scale)
@@ -159,7 +163,7 @@ private class EditFieldProps(val index: Long, val options: TextEditOptions)
 private class EditField(
     private val probe: EditProbe,
     private val props: Props<EditFieldProps>
-): Element {
+): Element<TextEditMeasurement> {
     private var host: TextEditHost? = None
     public override fun onMount(scope: ComponentScope) {
         val index = props.value.index
@@ -199,10 +203,14 @@ private class EditField(
             { _ -> probe.submits += 1 }
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        host!!.measure(constraints)
-    public override fun scene(context: SceneContext) {
-        host!!.scene(context)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = host!!.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
+        host!!.scene(context, measured)
     }
     public override fun onUnmount() {
         probe.unmounts += 1

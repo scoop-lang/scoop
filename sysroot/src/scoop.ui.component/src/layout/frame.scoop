@@ -57,10 +57,9 @@ private enum FrameDrawing {
     Plain(Style), Themed(val theme: Theme, val geometry: SurfaceGeometry, val visual: SurfaceVisual)
 }
 
-private class FrameInk(private val props: Props<FrameInput>): Element {
+private class FrameInk(private val props: Props<FrameInput>): Element<FrameDrawing> {
     private var painters: ThemePainterCache? = None
     private var style: StylePainter? = None
-    private var drawing: FrameDrawing? = None
     public override fun onMount(scope: ComponentScope) {
         painters = Some(scope.resource { ThemePainterCache() })
         style = Some(scope.resource { StylePainter() })
@@ -71,7 +70,9 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
             case None -> painters!!.clear()
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        FrameDrawing
+    > {
         val input = props.value
         val value = input.value
         val effectivePadding: Insets? =
@@ -117,30 +118,31 @@ private class FrameInk(private val props: Props<FrameInput>): Element {
                 )
             )
         val bounds = Rect(0.0, 0.0, size.width, size.height)
-        val content =
+        val drawing =
             when (input.theme) {
                 case Some(theme) -> {
                     val geometry =
                         theme.surfaceGeometry(bounds, visual, options, context.layoutDirection)
-                    drawing = Some(FrameDrawing.Themed(theme, geometry, visual))
-                    geometry.content
+                    FrameDrawing.Themed(theme, geometry, visual)
                 }
-                case None -> {
-                    drawing = Some(FrameDrawing.Plain(value.style.resolve(style())))
-                    Rect(
-                        insets.left,
-                        insets.top,
-                        lowerBound(size.width - total.width, 0.0),
-                        lowerBound(size.height - total.height, 0.0)
-                    )
-                }
+                case None -> FrameDrawing.Plain(value.style.resolve(style()))
+            }
+        val content =
+            when (drawing) {
+                case Themed(_, geometry, _) -> geometry.content
+                case Plain(_) -> Rect(
+                    insets.left,
+                    insets.top,
+                    lowerBound(size.width - total.width, 0.0),
+                    lowerBound(size.height - total.height, 0.0)
+                )
             }
         val origin = alignedOrigin(content, child.size, value.alignment, context.layoutDirection)
         context.placeChild(0L, origin)
-        return offsetMetrics(child, size, origin.y)
+        return LayoutResult(offsetMetrics(child, size, origin.y), drawing)
     }
-    public override fun scene(context: SceneContext) {
-        when (drawing!!) {
+    public override fun scene(context: SceneContext, drawing: FrameDrawing) {
+        when (drawing) {
             case Plain(value) -> style!!.scene(context, value) { content -> content.children() }
             case Themed(theme, geometry, visual) -> {
                 val painter = painters!!.get(theme)

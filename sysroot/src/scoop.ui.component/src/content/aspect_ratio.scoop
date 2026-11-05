@@ -69,8 +69,12 @@ internal fun aspectSize(
     return result
 }
 
-public class AspectRatio public constructor(private val props: Props<AspectRatioProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+public class AspectRatio public constructor(private val props: Props<AspectRatioProps>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val natural =
             if (constraints.maxWidth == None && constraints.maxHeight == None)
                 context.measureChild(0L, Constraints()).size
@@ -79,9 +83,9 @@ public class AspectRatio public constructor(private val props: Props<AspectRatio
         val size = aspectSize(props.value.ratio, constraints, natural)
         val child = context.measureChild(0L, Constraints.tight(size))
         context.placeChild(0L, Point(0.0, 0.0))
-        return offsetMetrics(child, size, 0.0)
+        return LayoutResult(offsetMetrics(child, size, 0.0), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.clip)
     }
 }

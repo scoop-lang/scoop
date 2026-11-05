@@ -173,13 +173,17 @@ private fun choiceField(p: FieldProbe): View =
 private fun observeField(p: FieldProbe, index: Long, content: View): View =
     element(index, { current -> FieldBounds(p, current) }, [content])
 
-private class FieldBounds(private val p: FieldProbe, private val index: Props<Long>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FieldBounds(private val p: FieldProbe, private val index: Props<Long>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw {
             paint -> @Unsafe
@@ -200,8 +204,12 @@ private class FieldBounds(private val p: FieldProbe, private val index: Props<Lo
     }
 }
 
-private class FieldRoot(private val p: FieldProbe, private val generation: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FieldRoot(private val p: FieldProbe, private val generation: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             val measured =
                 context.measureChild(
@@ -214,9 +222,9 @@ private class FieldRoot(private val p: FieldProbe, private val generation: Props
             p.fieldSize = measured.size
             context.placeChild(0L, Point(20.0, 20.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(560.0, 580.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 580.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val current = generation.value
         val revision = p.model.revision

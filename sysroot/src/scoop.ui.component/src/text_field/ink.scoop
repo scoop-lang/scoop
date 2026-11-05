@@ -8,13 +8,14 @@ import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
 
-internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Element {
+internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Element<
+    TextFieldDrawing
+> {
     private var scope: ComponentScope? = None
     private var ownedFonts: FontCollection? = None
     internal var fonts: FontCollection? = None
     internal var host: TextEditHost? = None
     internal val lineHeight = TextFieldLineHeight()
-    internal var drawing: TextFieldDrawing? = None
     private var padding: InputArea? = None
     private var field: FieldLink? = None
     private var horizontal: ScrollBarControl? = None
@@ -123,11 +124,11 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         vertical!!.update()
         painters!!.get(value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureTextField(this, context, constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextFieldDrawing
+    > = measureTextField(this, context, constraints)
+    public override fun scene(context: SceneContext, current: TextFieldDrawing) {
         val value = props.value
-        val current = drawing!!
         val geometry = current.geometry
         val painter = painters!!.get(value.theme)
         if (geometry.opacity < 1.0)
@@ -145,9 +146,9 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {
             local ->
             local.translate(geometry.content.x, geometry.content.y)
-            host!!.scene(local)
-            horizontal!!.scene(local, host!!.scrollSnapshot, current.horizontal, painter)
-            vertical!!.scene(local, host!!.scrollSnapshot, current.vertical, painter)
+            host!!.scene(local, current.editor)
+            horizontal!!.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
+            vertical!!.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
         }
         if (value.input.chrome == TextFieldChrome.Framed)
             context.draw {

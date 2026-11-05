@@ -14,8 +14,10 @@ internal class AlertHeaderProps(
 )
 
 /** The same media and text slots move between a compact stack and a wide two-column header. */
-internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val scale = input.density
         val width = constraints.maxWidth ?: constraints.minWidth
@@ -128,9 +130,9 @@ internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element 
                 textY + title.size.height + gap
             )
         )
-        return LayoutMetrics(constraints.constrain(Size(width, height)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(width, height))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -140,7 +142,7 @@ private class ModalCloseIconProps(val size: Double, val color: Color)
 internal fun modalCloseIcon(size: Double, color: Color): View =
     element(ModalCloseIconProps(size, color), { current -> ModalCloseIcon(current) })
 
-private class ModalCloseIcon(private val props: Props<ModalCloseIconProps>): Element {
+private class ModalCloseIcon(private val props: Props<ModalCloseIconProps>): Element<Unit> {
     private var shape: Path? = None
     public override fun onMount(scope: ComponentScope) {
         // Lucide x (ISC), on its original 24-unit grid.
@@ -156,9 +158,14 @@ private class ModalCloseIcon(private val props: Props<ModalCloseIconProps>): Ele
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         context.draw {
             paint -> paint.canvas.withState {

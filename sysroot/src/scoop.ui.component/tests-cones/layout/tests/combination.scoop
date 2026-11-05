@@ -120,15 +120,17 @@ internal class CombinationScene(private val probe: LayoutProbe): Component {
 private class CombinationPanel(
     private val model: LayoutCombination,
     private val props: Props<Double>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(500.0, 48.0)))
         context.placeChild(0L, Point(20.0, 20.0))
         context.measureChild(1L, Constraints.tight(Size(120.0, 48.0)))
         context.placeChild(1L, Point(20.0, 150.0))
-        return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(600.0, 440.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
         val first = props.value
@@ -157,15 +159,16 @@ private class CounterArea(
     private val model: LayoutCombination,
     private val props: Props<Int>,
     private val action: () -> Unit
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val area = scope.createArea()
         model.counter = Some(area)
         scope.press(area, onPress = action)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(160.0, 48.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 48.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         val color =
             if (props.value == 0)
@@ -177,24 +180,26 @@ private class CounterArea(
     }
 }
 
-private class FixedAction(private val model: LayoutCombination): Element {
+private class FixedAction(private val model: LayoutCombination): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val area = scope.createArea()
         model.action = Some(area)
         scope.press(area) { model.actionClicks += 1 }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(Some(48.0), constraints.maxWidth)
-        return LayoutMetrics(constraints.constrain(Size(48.0, 48.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(48.0, 48.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(model.action!!, rect)
         context.draw { paint -> paint.canvas.drawRect(rect, Paint(Color(0.5, 0.6, 0.9))) }
     }
 }
 
-private class FlexibleEditor(private val probe: LayoutProbe): Element {
+private class FlexibleEditor(private val probe: LayoutProbe): Element<TextEditMeasurement> {
     public override fun onMount(scope: ComponentScope) {
         val model = probe.combination
         val style =
@@ -227,11 +232,15 @@ private class FlexibleEditor(private val probe: LayoutProbe): Element {
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        probe.combination.field!!.measure(constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        TextEditMeasurement
+    > {
+        val measured = probe.combination.field!!.measure(constraints)
+        return LayoutResult(measured.metrics, measured, { measured.close() })
+    }
+    public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
         val model = probe.combination
-        model.field!!.scene(context)
+        model.field!!.scene(context, measured)
         val width = context.size.width
         val flow = context.layoutDirection
         context.onFrameComplete {

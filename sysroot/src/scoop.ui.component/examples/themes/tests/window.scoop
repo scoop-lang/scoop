@@ -267,14 +267,16 @@ private class ObservedShowcase(private val probe: ShowcaseProbe): Component {
         )
 }
 
-private class ShowcaseCanvas(private val probe: ShowcaseProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ShowcaseCanvas(private val probe: ShowcaseProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         probe.paints += 1
         context.draw {

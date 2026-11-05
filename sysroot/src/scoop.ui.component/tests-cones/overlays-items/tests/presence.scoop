@@ -40,18 +40,20 @@ internal fun presenceScene(probe: InteractionProbe): View =
         ]
     )
 
-private class PresenceCanvas(private val probe: InteractionProbe): Element {
+private class PresenceCanvas(private val probe: InteractionProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         val area = scope.createArea(focusable = true)
         probe.background = Some(area)
         scope.focusTarget(area, FocusOptions(Some(probe.backgroundFocus)))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints())
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(460.0, 300.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(460.0, 300.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(probe.background!!, Rect(10.0, 230.0, 90.0, 35.0))
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -65,7 +67,7 @@ private class PresenceCanvas(private val probe: InteractionProbe): Element {
     }
 }
 
-private class PresenceContent(private val probe: InteractionProbe): Element {
+private class PresenceContent(private val probe: InteractionProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         probe.popupMounts += 1
         val area = scope.createArea(focusable = true)
@@ -75,9 +77,10 @@ private class PresenceContent(private val probe: InteractionProbe): Element {
     public override fun onUnmount() {
         probe.popupUnmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(160.0, 80.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, 80.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val value = context.overlayLayout!!.presence
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(probe.popup!!, bounds)

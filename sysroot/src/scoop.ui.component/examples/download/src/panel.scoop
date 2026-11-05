@@ -103,7 +103,7 @@ internal class DownloadPanel(
 
 private class ProgressInput(val snapshot: DownloadSnapshot, val colors: ThemePalette)
 
-private class ProgressBar(private val props: Props<ProgressInput>): Element {
+private class ProgressBar(private val props: Props<ProgressInput>): Element<Unit> {
     private var amount: Animatable<Double>? = None
     private var target = 0.0
     public override fun onMount(scope: ComponentScope) {
@@ -128,9 +128,14 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
         target = next
         amount!!.animateTo(next, AnimationSpec.Tween(Duration.milliseconds(100L)))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 360.0, 12.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(constraints.maxWidth ?: 360.0, 12.0))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             val value = props.value
@@ -141,7 +146,7 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
             when (value.snapshot.fraction) {
                 case Some(_) -> paint.canvas.drawRect(
                     Rect(0.0, 0.0, paint.size.width * amount!!.value, paint.size.height),
-                    Paint(value.colors.accent)
+                    Paint(value.colors.primary.background)
                 )
                 case None -> if (value.snapshot.phase == DownloadPhase.Running)
                     paint.canvas.drawRect(
@@ -151,7 +156,7 @@ private class ProgressBar(private val props: Props<ProgressInput>): Element {
                             paint.size.width * 0.3,
                             paint.size.height
                         ),
-                        Paint(value.colors.accent)
+                        Paint(value.colors.primary.background)
                     )
             }
         }

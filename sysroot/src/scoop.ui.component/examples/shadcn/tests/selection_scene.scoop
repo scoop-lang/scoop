@@ -122,8 +122,10 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
 private class SelectionLayout(
     private val probe: SelectionProbe,
     private val generation: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val points =
             [
                 Point(40.0, 40.0),
@@ -157,9 +159,9 @@ private class SelectionLayout(
             if (index < points.size)
                 context.placeChild(index, points[index])
         }
-        return LayoutMetrics(constraints.constrain(Size(700.0, 500.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(700.0, 500.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val current = generation.value
         context.onFrameComplete {

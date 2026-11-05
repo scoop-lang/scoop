@@ -6,11 +6,10 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 
-internal class SidebarRow(private val props: Props<SidebarRowInput>): Element {
+internal class SidebarRow(private val props: Props<SidebarRowInput>): Element<Double> {
     private var scope: ComponentScope? = None
     private var area: InputArea? = None
     private var hover: Hover? = None
-    private var rowHeight = 0.0
     private fun open(): Binding<Boolean> =
         binding(
             { props.value.space.highlighted },
@@ -43,21 +42,14 @@ internal class SidebarRow(private val props: Props<SidebarRowInput>): Element {
     public override fun update() {
         hover!!.update(open(), Some(options()))
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Double
+    > {
         val input = props.value
         val d = input.density
         val compact = input.input.menu.collapsed
-        rowHeight = sidebarRowHeight(input.input.item.size, compact) * d
-        val action =
-            context.measureChild(
-                1L,
-                Constraints(maxWidth = Some(20.0 * d), maxHeight = Some(20.0 * d))
-            )
-        input.space.trailing =
-            if (action.size.width > 0.0)
-                action.size.width + 4.0 * d
-            else
-                0.0
+        val rowHeight = sidebarRowHeight(input.input.item.size, compact) * d
+        val action = context.measureChild(1L, Constraints.tight(Size(20.0 * d, 20.0 * d)))
         val desiredWidth =
             if (compact)
                 Some(min(32.0 * d, constraints.maxWidth ?: 32.0 * d))
@@ -89,18 +81,25 @@ internal class SidebarRow(private val props: Props<SidebarRowInput>): Element {
             )
         )
         context.placeChild(2L, Point(0.0, rowHeight))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), rowHeight)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, rowHeight: Double) {
         context.place(area!!, Rect(0.0, 0.0, context.size.width, rowHeight))
         context.children()
     }
 }
 
-internal class SidebarCaption(private val props: Props<SidebarRowInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class SidebarCaption(private val props: Props<SidebarRowInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val d = input.density
+        val trailing =
+            if (!input.input.menu.collapsed && panelPresent(input.input.item.action))
+                24.0 * d
+            else
+                0.0
         val hasIcon = panelPresent(input.input.item.icon)
         val compact = input.input.menu.collapsed
         val badge =
@@ -127,7 +126,7 @@ internal class SidebarCaption(private val props: Props<SidebarRowInput>): Elemen
             if (compact)
                 0.0
             else
-                input.space.trailing +
+                trailing +
                     if (badge.size.width > 0.0)
                         badge.size.width + 8.0 * d
                     else
@@ -179,7 +178,7 @@ internal class SidebarCaption(private val props: Props<SidebarRowInput>): Elemen
             2L,
             Point(
                 logicalX(
-                    max(0.0, size.width - input.space.trailing - badge.size.width),
+                    max(0.0, size.width - trailing - badge.size.width),
                     badge.size.width,
                     size.width,
                     context.layoutDirection
@@ -187,20 +186,22 @@ internal class SidebarCaption(private val props: Props<SidebarRowInput>): Elemen
                 (size.height - badge.size.height) / 2.0
             )
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-internal class SidebarActionVisibility(private val props: Props<SidebarRowInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class SidebarActionVisibility(private val props: Props<SidebarRowInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val transparent = props.value.input.item.actionOnHover && !props.value.space.highlighted
         if (transparent)
             context.saveLayer(0.0)

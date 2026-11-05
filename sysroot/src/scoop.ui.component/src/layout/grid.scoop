@@ -11,8 +11,10 @@ public class Grid public constructor(private val props: Props<GridProps>): Compo
 
 private struct GridRequirement(val start: Long, val span: Long, val extent: Double)
 
-private class GridInk(private val props: Props<GridProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class GridInk(private val props: Props<GridProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val padding = input.logicalPadding?.resolve(context.layoutDirection) ?: input.padding
         val inset = padding.totals()
@@ -106,9 +108,9 @@ private class GridInk(private val props: Props<GridProps>): Element {
                 )
             )
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.clip)
     }
 }

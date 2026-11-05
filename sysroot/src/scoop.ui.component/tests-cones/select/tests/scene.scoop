@@ -119,13 +119,15 @@ private fun observed(p: SelectProbe, index: Long, content: View): View =
 private class SelectObservation(
     private val p: SelectProbe,
     private val props: Props<Long>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = Bounds(local)
         context.draw {
@@ -156,17 +158,21 @@ private class SelectObservation(
     }
 }
 
-private class SelectRootScene(private val p: SelectProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SelectRootScene(private val p: SelectProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val positions =
             [Point(20.0, 20.0), Point(200.0, 250.0), Point(450.0, 250.0), Point(200.0, 205.0)]
         for (index in 0L ..< 4L) {
             context.measureChild(index, Constraints(maxWidth = Some(240.0)));
             context.placeChild(index, positions[index])
         }
-        return LayoutMetrics(constraints.constrain(Size(680.0, 540.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 540.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children();
         val generation = props.value
         context.onFrameComplete {

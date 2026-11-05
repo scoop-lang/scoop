@@ -426,8 +426,10 @@ private class ObservedGallery(private val probe: GalleryProbe): Component {
     }
 }
 
-private class GalleryCanvas(private val probe: GalleryProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class GalleryCanvas(private val probe: GalleryProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
         if (probe.panelMode) {
@@ -447,9 +449,9 @@ private class GalleryCanvas(private val probe: GalleryProbe): Element {
         }
         if (probe.textMode)
             measureTypography(context)
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         probe.paints += 1
         context.draw {

@@ -34,7 +34,7 @@ internal class ListScene(private val probe: ListProbe): Component {
     }
 }
 
-private class ListPanel(private val probe: ListProbe): Element {
+private class ListPanel(private val probe: ListProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
         scope.input.captureHandler =
@@ -49,12 +49,14 @@ private class ListPanel(private val probe: ListProbe): Element {
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(160.0, 60.0)))
         context.placeChild(0L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(220.0, 120.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 120.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
         probe.passes += 1
@@ -137,12 +139,14 @@ private class ListRow(probe: ListProbe, private val props: Props<Long>): Compone
     }
 }
 
-private class ListRowInk(private val record: ListRowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ListRowInk(private val record: ListRowRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         record.direction = context.layoutDirection
-        return LayoutMetrics(constraints.constrain(Size(20.0, 20.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(20.0, 20.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)
         context.draw {

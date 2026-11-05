@@ -207,13 +207,17 @@ private fun observed(p: MenuProbe, text: String, kind: Int): View =
         [makeLabel(text) { fonts = Some(p.fonts) }]
     )
 
-private class MenuObservation(private val p: MenuProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class MenuObservation(private val p: MenuProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0));
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = MenuBounds(local)
         context.draw {
@@ -247,8 +251,12 @@ private class MenuObservation(private val p: MenuProbe, private val props: Props
 
 private class MenuBounds(var value: Rect)
 
-private class MenuRootScene(private val p: MenuProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class MenuRootScene(private val p: MenuProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val positions =
             [
                 Point(20.0, 20.0),
@@ -275,9 +283,9 @@ private class MenuRootScene(private val p: MenuProbe, private val props: Props<I
             )
             context.placeChild(index, positions[index])
         }
-        return LayoutMetrics(constraints.constrain(Size(680.0, 480.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 480.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

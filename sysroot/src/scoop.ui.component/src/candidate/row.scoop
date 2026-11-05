@@ -12,7 +12,7 @@ internal class CandidateRowInkProps(
     val select: (ViewKey) -> Unit
 )
 
-internal class CandidateRowInk(private val props: Props<CandidateRowInkProps>): Element {
+internal class CandidateRowInk(private val props: Props<CandidateRowInkProps>): Element<Unit> {
     private var area: InputArea? = None
     private var press: Press? = None
     public override fun onMount(scope: ComponentScope) {
@@ -42,12 +42,14 @@ internal class CandidateRowInk(private val props: Props<CandidateRowInkProps>): 
         area!!.scope.enabled = props.value.enabled
         press!!.update(PressOptions(props.value.enabled)) { props.value.select(props.value.key) }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         if (!props.value.enabled)
             context.saveLayer(0.5)
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))

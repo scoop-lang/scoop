@@ -14,12 +14,14 @@ internal class AvatarInkProps(
     val style: StyleOverride
 )
 
-internal class AvatarInk(private val props: Props<AvatarInkProps>): Element {
+internal class AvatarInk(private val props: Props<AvatarInkProps>): Element<Unit> {
     private var painter: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
         painter = Some(scope.resource { StylePainter() })
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val size = constraints.constrain(Size(input.side, input.side))
         val child =
@@ -34,9 +36,9 @@ internal class AvatarInk(private val props: Props<AvatarInkProps>): Element {
             0L,
             Point((size.width - child.size.width) / 2.0, (size.height - child.size.height) / 2.0)
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         val direction = context.layoutDirection
@@ -86,8 +88,10 @@ internal class AvatarInk(private val props: Props<AvatarInkProps>): Element {
     }
 }
 
-internal class AvatarLayout(private val props: Props<Boolean>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class AvatarLayout(private val props: Props<Boolean>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val face = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
         if (props.value) {
@@ -103,9 +107,9 @@ internal class AvatarLayout(private val props: Props<Boolean>): Element {
                 )
             )
         }
-        return face
+        return LayoutResult(face, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -113,13 +117,15 @@ internal class AvatarLayout(private val props: Props<Boolean>): Element {
 internal fun avatarRing(content: View, color: Color, key: ViewKey = ViewKey.Position): View =
     element(color, { current -> AvatarRing(current) }, [content], key)
 
-private class AvatarRing(private val props: Props<Color>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class AvatarRing(private val props: Props<Color>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val radius = min(size.width, size.height) / 2.0 + 1.0
         if (size.width > 0.0 && size.height > 0.0)

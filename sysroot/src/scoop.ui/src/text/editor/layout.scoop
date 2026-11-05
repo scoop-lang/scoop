@@ -8,15 +8,6 @@ import scoop.ui.*
 
 internal class EditorInputLayout(val layout: TextEditLayout, val display: TextDisplay)
 
-internal class EditorMeasure(
-    val retained: RetainedEditorLayout,
-    val snapshot: ScrollSnapshot,
-    val width: Double?,
-    val revision: Long,
-    val display: TextDisplay,
-    val cells: TextEditCells?
-)
-
 internal class EditorFrame(
     private val retained: RetainedEditorLayout,
     val snapshot: ScrollSnapshot,
@@ -135,7 +126,7 @@ internal fun editorMeasure(
     host: TextEditHost,
     constraints: Constraints,
     cells: TextEditCells?
-): LayoutMetrics {
+): TextEditMeasurement {
     constraints.check()
     val width = editorWidth(host, constraints.maxWidth)
     val text = editorLayout(host, width, cells)
@@ -162,21 +153,20 @@ internal fun editorMeasure(
         contentWidth = max(contentWidth, line.rect.x + line.rect.width)
     val content =
         Size(max(size.width, contentWidth + caretPadding), max(size.height, layout.size.height))
-    val snapshot = host.viewport.layout(size, content)
-    val previous = host.measured
-    host.measured =
-        Some(
-            EditorMeasure(
-                layout.retain(),
-                snapshot,
-                width,
-                host.current.revision,
-                text.display,
-                cells
-            )
-        )
-    previous?.retained?.close()
-    return LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline))
+    val scroll = host.viewport.layout(size, content)
+    return TextEditMeasurement(
+        LayoutMetrics(size, Some(layout.alphabeticBaseline), Some(layout.ideographicBaseline)),
+        layout.retain(),
+        scroll,
+        host.current.revision,
+        text.display,
+        cells,
+        when (hint) {
+            case Some(_) -> Some(host.hint.retainLayout());
+            case None -> None
+        },
+        host.hint.generation
+    )
 }
 
 /** Pointer geometry stays paired with the last successful frame, even after a failed resize. */
@@ -191,7 +181,7 @@ internal fun editorInputText(host: TextEditHost): EditorInputLayout {
                 frame.cells
             )
         }
-        case None -> return editorLayout(host, None, host.measured?.cells ?: None)
+        case None -> return editorLayout(host, None, None)
     }
 }
 
@@ -201,13 +191,11 @@ internal fun editorCaret(host: TextEditHost, text: EditorInputLayout): Rect? =
         host.appearance.caretWidth
     )
 
-internal fun editorScene(host: TextEditHost, context: SceneContext) {
-    val measure =
-        host.measured ?: throw IllegalStateException(Some("text editor has not been measured"))
+internal fun editorScene(host: TextEditHost, context: SceneContext, measure: TextEditMeasurement) {
     val frame =
         EditorFrame(
             measure.retained.layout.retain(),
-            measure.snapshot,
+            measure.scrollSnapshot,
             measure.revision,
             measure.display,
             measure.cells
@@ -232,6 +220,7 @@ internal fun editorScene(host: TextEditHost, context: SceneContext) {
             appearance.inactiveSelectionColor
     host.viewport.present(
         context,
+        measure.scroll,
         Some {
             content ->
             val snapshot = frame.snapshot
@@ -261,11 +250,11 @@ internal fun editorScene(host: TextEditHost, context: SceneContext) {
                     host.placeholder.byteLength >
                     0L
             ) {
-                val hint = host.hint.layout
+                val hint = measure.hint!!.layout
                 content.drawLayer(
                     host.hintKey,
                     editorInkBounds(hint.paintBounds),
-                    host.hint.generation
+                    measure.hintGeneration
                 ) { paint -> paint.canvas.drawText(hint) }
             }
             content.draw {

@@ -124,7 +124,7 @@ internal class GroupSlot {
     var input: InputScope? = None
 }
 
-internal class GroupSlotInk(private val props: Props<GroupSlot>): Element {
+internal class GroupSlotInk(private val props: Props<GroupSlot>): Element<Unit> {
     private var input: InputScope? = None
     public override fun onMount(scope: ComponentScope) {
         input = Some(scope.input)
@@ -132,12 +132,14 @@ internal class GroupSlotInk(private val props: Props<GroupSlot>): Element {
     public override fun update() {
         props.value.input = input
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -149,7 +151,7 @@ internal class GroupLayoutProps(
     val fitCross: Boolean = axis == FlexAxis.Vertical
 )
 
-internal class GroupLayout(private val props: Props<GroupLayoutProps>): Element {
+internal class GroupLayout(private val props: Props<GroupLayoutProps>): Element<Unit> {
     private var input: InputScope? = None
     public override fun onMount(scope: ComponentScope) {
         val route = scope.input
@@ -161,15 +163,20 @@ internal class GroupLayout(private val props: Props<GroupLayoutProps>): Element 
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureFlex(
-            context,
-            constraints,
-            props.value.layout,
-            props.value.axis == FlexAxis.Vertical,
-            fitCross = props.value.fitCross
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            measureFlex(
+                context,
+                constraints,
+                props.value.layout,
+                props.value.axis == FlexAxis.Vertical,
+                fitCross = props.value.fitCross
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         if (!this.input!!.activity.hasFocus) {
             context.children()

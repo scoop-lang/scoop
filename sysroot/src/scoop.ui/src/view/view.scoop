@@ -45,13 +45,13 @@ public fun <P, C: Component> component(
 ): View = View(key, ViewBody.Component(ComponentDescription(props, create)))
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
-public fun <E: Element> element(
+public fun <L, E: Element<L>> element(
     create: () -> E,
     children: Array<View> = [],
     key: ViewKey = ViewKey.Position
 ): View = element(Unit, { _ -> create() }, children, key)
 
-public fun <P, E: Element> element(
+public fun <P, L, E: Element<L>> element(
     props: P,
     create: (Props<P>) -> E,
     children: Array<View> = [],
@@ -80,14 +80,14 @@ internal fun View.sameType(other: View): Boolean =
     }
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
-public fun <E: LazyElement> lazyElement(
+public fun <L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
     create: () -> E,
     retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position
 ): View = lazyElement(source, Unit, { _ -> create() }, retention, key)
 
-public fun <P, E: LazyElement> lazyElement(
+public fun <P, L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
     props: P,
     create: (Props<P>) -> E,

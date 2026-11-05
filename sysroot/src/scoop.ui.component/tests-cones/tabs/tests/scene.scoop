@@ -133,25 +133,29 @@ private class TabContent(private val record: TabRecord, private val props: Props
     }
 }
 
-private class TabInk(private val record: TabRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class TabInk(private val record: TabRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         record.measures += 1
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
 
-private class TabBounds(private val p: TabsProbe, private val id: Props<Long>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class TabBounds(private val p: TabsProbe, private val id: Props<Long>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val measured = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return measured
+        return LayoutResult(measured, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw {
             paint -> @Unsafe
@@ -165,8 +169,10 @@ private class TabBounds(private val p: TabsProbe, private val id: Props<Long>): 
     }
 }
 
-private class TabsRoot(private val p: TabsProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class TabsRoot(private val p: TabsProbe, private val props: Props<Int>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             context.measureChild(
                 0L,
@@ -177,9 +183,9 @@ private class TabsRoot(private val p: TabsProbe, private val props: Props<Int>):
             )
             context.placeChild(0L, Point(20.0, 20.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(560.0, 400.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(560.0, 400.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

@@ -13,11 +13,16 @@ internal fun flexElement(layout: LinearProps, vertical: Boolean): View =
 
 private class LinearInput(val value: LinearProps, val vertical: Boolean)
 
-private class LinearInk(private val props: Props<LinearInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        measureFlex(context, constraints, props.value.value, props.value.vertical)
+private class LinearInk(private val props: Props<LinearInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            measureFlex(context, constraints, props.value.value, props.value.vertical),
+            Unit
+        )
 
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, props.value.value.clip)
     }
 }

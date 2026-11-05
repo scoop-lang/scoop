@@ -5,7 +5,11 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class CarouselViewport(private val props: Props<CarouselInput>): Element {
+internal class CarouselLayoutResult(val geometry: CarouselGeometry, val visible: Array<Boolean>)
+
+internal class CarouselViewport(private val props: Props<CarouselInput>): Element<
+    CarouselLayoutResult
+> {
     private var control: CarouselControl? = None
     private var painter: StylePainter? = None
     private var ring: ThemePainterCache? = None
@@ -20,7 +24,9 @@ internal class CarouselViewport(private val props: Props<CarouselInput>): Elemen
         control!!.update();
         ring!!.get(props.value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        CarouselLayoutResult
+    > {
         val input = props.value
         val horizontal = input.props.orientation == Orientation.Horizontal
         val density = input.theme.tokens.typography.body.fontSize / 14.0
@@ -87,29 +93,66 @@ internal class CarouselViewport(private val props: Props<CarouselInput>): Elemen
                 inner.height
             else
                 inner.width
+        val shape =
+            CarouselGeometry(
+                size,
+                inner,
+                carouselTrack(extents, innerMain, spacing, input.props.loop),
+                input.keys,
+                input.props.orientation,
+                context.layoutDirection
+            )
+        val offset = control!!.visualPosition(shape)
+        val visible = MutableArray<Boolean>(context.childCount) { _ -> false }
         for (index in 0L ..< context.childCount) {
-            context.measureChild(
-                index,
-                Constraints.tight(resizableSize(extents[index], cross, horizontal))
-            )
-            context.placeChild(index, Point(0.0, 0.0))
-        }
-        input.geometry =
-            Some(
-                CarouselGeometry(
-                    size,
-                    inner,
-                    carouselTrack(extents, innerMain, spacing, input.props.loop),
-                    input.keys,
-                    input.props.orientation,
-                    context.layoutDirection
+            val child =
+                context.measureChild(
+                    index,
+                    Constraints.tight(resizableSize(extents[index], cross, horizontal))
                 )
-            )
-        return LayoutMetrics(size)
+            val position = carouselItemPosition(shape.track, index, offset)
+            if (
+                position <
+                    shape.track.viewport &&
+                    position +
+                    extents[index] >
+                    0.0 &&
+                    child.size.width >
+                    0.0 &&
+                    child.size.height >
+                    0.0
+            ) {
+                visible[index] = true
+                val along =
+                    if (horizontal)
+                        logicalX(position, child.size.width, inner.width, shape.direction)
+                    else
+                        position
+                context.placeChild(
+                    index,
+                    Point(
+                        inner.x +
+                            if (horizontal)
+                                along
+                            else
+                                0.0,
+                        inner.y +
+                            if (horizontal)
+                                0.0
+                            else
+                                along
+                    )
+                )
+            }
+        }
+        return LayoutResult(
+            LayoutMetrics(size),
+            CarouselLayoutResult(shape, Array<Boolean>(visible.size) { index -> visible[index] })
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, layout: CarouselLayoutResult) {
         val input = props.value
-        val shape = input.geometry!!
+        val shape = layout.geometry
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         if (bounds.width > 0.0 && bounds.height > 0.0)
             context.place(control!!.area, bounds)
@@ -139,8 +182,15 @@ internal class CarouselViewport(private val props: Props<CarouselInput>): Elemen
             }
         }
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted)
+            frame -> if (frame.submission == FrameSubmission.Accepted) {
+                for (index in 0L ..< input.items.size)
+                    when (input.items[index].scope) {
+                        case Some(scope) -> if (scope.isMounted)
+                            scope.input.enabled = layout.visible[index]
+                        case None -> {}
+                    }
                 control!!.accept(shape)
+            }
         }
     }
     public override fun onUnmount() {
@@ -148,62 +198,40 @@ internal class CarouselViewport(private val props: Props<CarouselInput>): Elemen
     }
 }
 
-internal class CarouselItemInput(val root: CarouselInput, val index: Long)
+internal class CarouselItemOwner {
+    var scope: ComponentScope? = None
+}
 
-internal class CarouselItemLayout(private val props: Props<CarouselItemInput>): Element {
+/** The keyed scope follows only the final viewport placement. */
+internal class CarouselItemLayout(private val props: Props<CarouselItemOwner>): Element<Unit> {
     private var scope: ComponentScope? = None
+    private var owner: CarouselItemOwner? = None
     public override fun onMount(scope: ComponentScope) {
         this.scope = Some(scope)
         scope.input.enabled = false
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        val measured = context.measureChild(0L, constraints)
-        context.placeChild(0L, Point(0.0, 0.0));
-        return measured
-    }
-    public override fun scene(context: SceneContext) {
-        val input = props.value
-        val shape = input.root.geometry!!
-        val position =
-            carouselItemPosition(
-                shape.track,
-                input.index,
-                input.root.owner.control!!.visualPosition(shape)
-            )
-        val horizontal = shape.orientation == Orientation.Horizontal
-        val along =
-            if (horizontal)
-                logicalX(position, context.size.width, shape.inner.width, shape.direction)
-            else
-                position
-        context.translate(
-            shape.inner.x +
-                if (horizontal)
-                    along
-                else
-                    0.0,
-            shape.inner.y +
-                if (horizontal)
-                    0.0
-                else
-                    along
-        )
-        val visible =
-            position <
-                shape.track.viewport &&
-                position +
-                shape.track.extents[input.index] >
-                0.0 &&
-                context.size.width >
-                0.0 &&
-                context.size.height >
-                0.0
-        context.onFrameComplete {
-            result -> if (result.submission == FrameSubmission.Accepted && scope!!.isMounted) {
-                scope!!.input.enabled = visible
-                scope!!.isFrameEnabled = visible
-            }
+    public override fun update() {
+        when (owner) {
+            case Some(previous) -> previous.scope = None
+            case None -> {}
         }
+        owner = Some(props.value)
+        props.value.scope = scope
+    }
+    public override fun onUnmount() {
+        when (owner) {
+            case Some(previous) -> previous.scope = None
+            case None -> {}
+        }
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val child = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return LayoutResult(child, Unit)
+    }
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

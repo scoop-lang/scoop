@@ -57,8 +57,10 @@ public class FieldSeparator public constructor(
     }
 }
 
-private class FieldSeparatorLayout(private val props: Props<Double>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FieldSeparatorLayout(private val props: Props<Double>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val hasContent = context.childCount == 3L
         val gap = upperBound(8.0 * props.value, (constraints.maxWidth ?: 16.0 * props.value) / 2.0)
         val caption =
@@ -119,9 +121,12 @@ private class FieldSeparatorLayout(private val props: Props<Double>): Element {
                 )
             }
         }
-        return offsetMetrics(caption, size, (size.height - caption.size.height) / 2.0)
+        return LayoutResult(
+            offsetMetrics(caption, size, (size.height - caption.size.height) / 2.0),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, true)
     }
 }

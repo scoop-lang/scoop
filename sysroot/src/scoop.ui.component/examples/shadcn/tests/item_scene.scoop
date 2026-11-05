@@ -73,8 +73,10 @@ internal class ItemScene(private val probe: ItemProbe): Component {
 private class ItemTestLayout(
     private val probe: ItemProbe,
     private val generation: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             val size =
                 context.measureChild(
@@ -104,9 +106,9 @@ private class ItemTestLayout(
             context.placeChild(1L, Point(20.0, 220.0))
             context.placeChild(12L, Point(300.0, 220.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(520.0, 360.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(520.0, 360.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint -> paint.canvas.drawRect(
                 Rect(0.0, 0.0, 520.0, 360.0),
@@ -121,17 +123,19 @@ private class ItemTestLayout(
     }
 }
 
-private class ItemBodyMarker(private val props: Props<ItemProbe>): Element {
+private class ItemBodyMarker(private val props: Props<ItemProbe>): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         props.value.mounts += 1
         scope.onDispose { props.value.disposals += 1 }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

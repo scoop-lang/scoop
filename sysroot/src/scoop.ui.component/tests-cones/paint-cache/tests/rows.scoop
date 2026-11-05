@@ -5,7 +5,7 @@ import scoop.graphics.text.*
 import scoop.surface.*
 import scoop.test.*
 import scoop.ui.*
-import scoop.ui.text.ParagraphHost
+import scoop.ui.text.*
 import scoop.window.ElementState
 
 internal class PaintRowRecord(val mode: Int, val id: Long) {
@@ -33,7 +33,7 @@ private class PaintRowInk(
     private val probe: CacheProbe,
     private val record: PaintRowRecord,
     private val props: Props<Int>
-): Element {
+): Element<ParagraphMeasurement> {
     private var content = styledText()
     private var checkedContract = false
     public override fun onMount(scope: ComponentScope) {
@@ -67,21 +67,33 @@ private class PaintRowInk(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        record.text!!.measure(context, Constraints(maxWidth = Some(120.0)), probe.fonts, content)
-        return LayoutMetrics(
-            constraints.constrain(
-                Size(
-                    144.0,
-                    if (record.id < 0L)
-                        192.0
-                    else
-                        24.0
-                )
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
+        val measured =
+            record.text!!.measure(
+                context,
+                Constraints(maxWidth = Some(120.0)),
+                probe.fonts,
+                content
             )
+        return LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    Size(
+                        144.0,
+                        if (record.id < 0L)
+                            192.0
+                        else
+                            24.0
+                    )
+                )
+            ),
+            measured,
+            { measured.close() }
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
         record.scenes += 1
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(record.area!!, bounds)
@@ -111,7 +123,7 @@ private class PaintRowInk(
                 }
             }
         }
-        record.text!!.scene(context)
+        record.text!!.scene(context, measured)
         context.draw {
             paint ->
             record.foregrounds += 1

@@ -76,7 +76,7 @@ internal class RadioItem(private val props: Props<RadioItemProps>): Component {
 
 private class RadioInkProps(val input: RadioItemProps, val control: State<PressControl?>)
 
-private class RadioInk(private val props: Props<RadioInkProps>): Element {
+private class RadioInk(private val props: Props<RadioInkProps>): Element<Unit> {
     private var field: FieldLink? = None
     public override fun onMount(scope: ComponentScope) {
         val control = props.value.control.value!!
@@ -90,7 +90,9 @@ private class RadioInk(private val props: Props<RadioInkProps>): Element {
         control.focus.options = input.focus
         field!!.update(input.labelTarget, input.enabled, input.activate)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         val width = constraints.maxWidth ?: child.size.width
         val size = constraints.constrain(Size(width, child.size.height))
@@ -98,9 +100,12 @@ private class RadioInk(private val props: Props<RadioInkProps>): Element {
             0L,
             Point(logicalX(0.0, child.size.width, size.width, context.layoutDirection), 0.0)
         )
-        return LayoutMetrics(size, child.alphabeticBaseline, child.ideographicBaseline)
+        return LayoutResult(
+            LayoutMetrics(size, child.alphabeticBaseline, child.ideographicBaseline),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value.input
         if (!input.enabled)
             context.saveLayer(input.theme.tokens.disabledOpacity)

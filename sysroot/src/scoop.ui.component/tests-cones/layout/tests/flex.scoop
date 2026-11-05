@@ -37,29 +37,35 @@ internal fun flexContract(collection: FontCollection): View =
         }
     }
 
-private class FixedFlexCell: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FixedFlexCell: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         assertEquals(80.0, constraints.minWidth)
         assertEquals(Some(80.0), constraints.maxWidth)
-        return LayoutMetrics(constraints.constrain(Size(80.0, 28.0)), Some(20.0))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(80.0, 28.0)), Some(20.0)),
+            Unit
+        )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         assertEquals(80.0, context.size.width)
     }
 }
 
-private class FlexTextCell: Element {
-    private var height = 0.0
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class FlexTextCell: Element<Double> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Double
+    > {
         assertEquals(212.0, constraints.minWidth)
         assertEquals(Some(212.0), constraints.maxWidth)
         val metrics = context.measureChild(0L, constraints)
         assertTrue(metrics.size.height > 40.0)
-        height = metrics.size.height
+        val height = metrics.size.height
         context.placeChild(0L, Point(0.0, 0.0))
-        return metrics
+        return LayoutResult(metrics, height)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, height: Double) {
         assertEquals(Size(212.0, height), context.size)
         context.draw {
             paint -> assertEquals(388.0, windowBounds(paint.canvas, Rect(0.0, 0.0, 1.0, 1.0)).x)

@@ -241,7 +241,7 @@ internal class MenuNavigationProps(
     val navigated: () -> Unit = {}
 )
 
-internal class MenuNavigation(private val props: Props<MenuNavigationProps>): Element {
+internal class MenuNavigation(private val props: Props<MenuNavigationProps>): Element<Unit> {
     private var navigation: KeyNavigation? = None
     private var search: Typeahead? = None
     private fun options(): NavigationOptions {
@@ -314,12 +314,14 @@ internal class MenuNavigation(private val props: Props<MenuNavigationProps>): El
             Some(input.options.typeahead)
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -344,10 +346,9 @@ internal fun menuBackward(key: KeyEvent, direction: LayoutDirection): Boolean? =
 private class MenuViewportProps(val options: MenuOptions, val theme: Theme)
 
 /** Natural-height eager menu scrolling; focus reveal uses the existing ScrollViewport. */
-private class MenuViewport(private val props: Props<MenuViewportProps>): Element {
+private class MenuViewport(private val props: Props<MenuViewportProps>): Element<ScrollLayout> {
     private val scroll = ScrollState()
     private var control: ScrollControl? = None
-    private var snapshot: ScrollSnapshot? = None
     public override fun onMount(scope: ComponentScope) {
         control =
             Some(
@@ -370,15 +371,17 @@ private class MenuViewport(private val props: Props<MenuViewportProps>): Element
     public override fun update() {
         control!!.update()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
         val child =
             context.measureChild(0L, Constraints(constraints.minWidth, constraints.maxWidth))
         val size = constraints.constrain(child.size)
-        snapshot = Some(control!!.layout(size, child.size))
+        val layout = control!!.layout(size, child.size)
         context.placeChild(0L, Point(0.0, 0.0))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), layout)
     }
-    public override fun scene(context: SceneContext) {
-        control!!.scene(context, snapshot!!)
+    public override fun scene(context: SceneContext, layout: ScrollLayout) {
+        control!!.scene(context, layout)
     }
 }

@@ -37,15 +37,19 @@ private class ScrollObserver(private val probe: ScrollProbe): Component {
     }
 }
 
-private class ScrollPanel(private val probe: ScrollProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ScrollPanel(private val probe: ScrollProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints.tight(Size(100.0, 80.0)))
             context.placeChild(index, Point(10.0 + 120.0 * index.toDouble(), 10.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(300.0, 160.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(300.0, 160.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -57,12 +61,10 @@ private class ScrollPanel(private val probe: ScrollProbe, private val props: Pro
     }
 }
 
-private class FirstViewport(
-    private val probe: ScrollProbe,
-    private val props: Props<Int>
-): Element {
+private class FirstViewport(private val probe: ScrollProbe, private val props: Props<Int>): Element<
+    ScrollLayout
+> {
     private var viewport: ScrollViewport? = None
-    private var layout: ScrollSnapshot? = None
     public override fun onMount(scope: ComponentScope) {
         probe.scope = Some(scope)
         viewport = Some(scope.scrollViewport(probe.first))
@@ -81,7 +83,9 @@ private class FirstViewport(
             }
         }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
         val generation = props.value
         val content =
             if (generation == 1)
@@ -94,12 +98,12 @@ private class FirstViewport(
                         Size(0.0, 0.0)
                     else
                         Size(500.0, 500.0)
-        layout = Some(viewport!!.layout(Size(100.0, 80.0), content))
+        val layout = viewport!!.layout(Size(100.0, 80.0), content)
         assertFailsWith<IllegalStateException> { probe.first.scrollTo(Point(0.0, 0.0)) }
-        return LayoutMetrics(constraints.constrain(Size(100.0, 80.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 80.0))), layout)
     }
-    public override fun scene(context: SceneContext) {
-        val snapshot = layout!!
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
+        val snapshot = measured.snapshot
         val discard = probe.discardNext
         val late = probe.lateRequest
         val rebind = probe.rebind
@@ -118,8 +122,8 @@ private class FirstViewport(
                 }
             }
         }
-        viewport!!.present(context)
-        assertFailsWith<IllegalStateException> { viewport!!.present(context) }
+        viewport!!.present(context, measured)
+        assertFailsWith<IllegalStateException> { viewport!!.present(context, measured) }
         context.draw {
             paint -> paint.canvas.drawRect(Rect(0.0, 0.0, 100.0, 80.0), Paint(Color(0.2, 0.5, 0.8)))
         }
@@ -149,9 +153,8 @@ private class FirstViewport(
     }
 }
 
-private class SecondViewport(private val probe: ScrollProbe): Element {
+private class SecondViewport(private val probe: ScrollProbe): Element<ScrollLayout> {
     private var viewport: ScrollViewport? = None
-    private var layout: ScrollSnapshot? = None
     public override fun onMount(scope: ComponentScope) {
         viewport = Some(scope.scrollViewport(probe.second))
         scope.resource {
@@ -171,27 +174,31 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
         assertTrue(probe.second.isAnimating)
         assertEquals(Point(0.0, 0.0), probe.second.offset)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ScrollLayout
+    > {
         val moving = probe.second.isAnimating
         val adjustment =
             if (moving)
                 Some(ScrollAdjustment(probe.second.requestRevision, Point(99.0, 220.0)))
             else
                 probe.adjustment
-        val snapshot = viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0), adjustment)
+        val layout = viewport!!.layout(Size(100.0, 80.0), Size(200.0, 300.0), adjustment)
+        val snapshot = layout.snapshot
         if (probe.checkAnimationRange && moving) {
             assertTrue(snapshot.offset.x >= 14.99 && snapshot.offset.x <= 45.01)
             assertTrue(snapshot.offset.y >= 69.99 && snapshot.offset.y <= 150.01)
         }
         if (moving)
             assertFalse(snapshot.offset == Point(99.0, 220.0))
-        layout = Some(snapshot)
-        return LayoutMetrics(constraints.constrain(Size(100.0, 80.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(100.0, 80.0))), layout)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: ScrollLayout) {
         if (!probe.viewport!!.isClosed)
-            assertFailsWith<IllegalArgumentException> { probe.viewport!!.present(context) }
-        val snapshot = layout!!
+            assertFailsWith<IllegalArgumentException> {
+                probe.viewport!!.present(context, measured)
+            }
+        val snapshot = measured.snapshot
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 if (probe.secondLate) {
@@ -210,7 +217,7 @@ private class SecondViewport(private val probe: ScrollProbe): Element {
                 }
             }
         }
-        viewport!!.present(context)
+        viewport!!.present(context, measured)
         context.onFrameComplete {
             frame -> if (frame.submission == FrameSubmission.Accepted) {
                 probe.secondShown = snapshot.offset

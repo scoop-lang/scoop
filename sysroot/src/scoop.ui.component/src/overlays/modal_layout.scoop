@@ -6,15 +6,17 @@ import scoop.math.max
 import scoop.surface.InputArea
 import scoop.ui.*
 
-internal class ModalTriggerLayout: Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class ModalTriggerLayout: Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val trigger = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
         context.measureChild(1L, Constraints())
         context.placeChild(1L, Point(0.0, 0.0))
-        return trigger
+        return LayoutResult(trigger, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -22,9 +24,8 @@ internal class ModalTriggerLayout: Element {
 internal class ModalSurfaceProps(val input: ModalInput, val density: Double)
 
 /** The viewport paints the backdrop, while only the transformed panel participates in hit tests. */
-internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Element {
+internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Element<Rect> {
     private var area: InputArea? = None
-    private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
     public override fun onMount(scope: ComponentScope) {
         val target = scope.createArea()
         area = Some(target)
@@ -33,7 +34,9 @@ internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Elemen
     public override fun update() {
         area!!.scope.enabled = props.value.input.options.enabled
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Rect
+    > {
         val input = props.value.input
         val scale = props.value.density
         val size =
@@ -100,11 +103,11 @@ internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Elemen
                 case Some(OverlaySide.Bottom) -> max(0.0, size.height - padding - panel.size.height)
                 else -> max(0.0, (size.height - panel.size.height) / 2.0)
             }
-        bounds = Rect(x, y, panel.size.width, panel.size.height)
+        val bounds = Rect(x, y, panel.size.width, panel.size.height)
         context.placeChild(0L, Point(x, y))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), bounds)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, bounds: Rect) {
         val input = props.value.input
         val progress = context.overlayLayout!!.presence.progress
         val viewport = Rect(0.0, 0.0, context.size.width, context.size.height)
@@ -159,8 +162,10 @@ internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): Ove
 internal class ModalPanelProps(val density: Double, val header: Boolean, val contentPadding: Double)
 
 /** Header, body, footer and close keep stable slots across every size and visibility change. */
-internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+internal class ModalPanel(private val props: Props<ModalPanelProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value
         val padding = input.contentPadding * input.density
         val width = constraints.maxWidth ?: constraints.minWidth
@@ -212,9 +217,9 @@ internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
                 min(inset, size.height)
             )
         )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         containerScene(context, true)
     }
 }

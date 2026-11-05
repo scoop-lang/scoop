@@ -167,10 +167,15 @@ private class SidebarIconInput(val size: Double, val color: Color)
 internal fun sidebarIcon(size: Double, color: Color): View =
     element(SidebarIconInput(size, color), { current -> SidebarIcon(current) })
 
-private class SidebarIcon(private val props: Props<SidebarIconInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+private class SidebarIcon(private val props: Props<SidebarIconInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val rtl = context.layoutDirection == LayoutDirection.Rtl
         val size = context.size

@@ -14,7 +14,7 @@ internal class SwitchInkProps(
     val activate: () -> Unit
 )
 
-private class SwitchDrawing(
+internal class SwitchDrawing(
     val surface: SurfaceGeometry,
     val visual: SurfaceVisual,
     val thumb: Rect,
@@ -22,13 +22,12 @@ private class SwitchDrawing(
     val hit: Rect
 )
 
-internal class SwitchInk(private val props: Props<SwitchInkProps>): Element {
+internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<SwitchDrawing> {
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
     private var thumb: StylePainter? = None
     private var content: StylePainter? = None
-    private var drawing: SwitchDrawing? = None
     private var field: FieldLink? = None
     public override fun onMount(scope: ComponentScope) {
         val control = props.value.control.value!!
@@ -73,7 +72,9 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element {
         )
         painters!!.get(value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SwitchDrawing
+    > {
         val value = props.value
         val density = value.theme.tokens.typography.body.fontSize / 14.0
         val visual = SurfaceVisual(SurfaceKind.Plain, motion!!.sample(value.visual))
@@ -97,29 +98,23 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element {
                     16.0
             ) *
                 density
-        drawing =
-            Some(
-                SwitchDrawing(
-                    geometry,
-                    visual,
-                    switchThumbBounds(
-                        geometry.content,
-                        thumbSide,
-                        progress,
-                        context.layoutDirection
-                    ),
-                    switchThumbStyle(value.input, value.theme, progress),
-                    switchHitBounds(
-                        bounds,
-                        value.input.style.hitInsets ?:
-                            Insets(12.0 * density, 8.0 * density, 12.0 * density, 8.0 * density)
-                    )
+        val drawing =
+            SwitchDrawing(
+                geometry,
+                visual,
+                switchThumbBounds(geometry.content, thumbSide, progress, context.layoutDirection),
+                switchThumbStyle(value.input, value.theme, progress),
+                switchHitBounds(
+                    bounds,
+                    value.input.style.hitInsets ?:
+                        Insets(12.0 * density, 8.0 * density, 12.0 * density, 8.0 * density)
                 )
             )
-        return LayoutMetrics(size)
+
+        return LayoutResult(LayoutMetrics(size), drawing)
     }
-    public override fun scene(context: SceneContext) {
-        val value = drawing!!
+    public override fun scene(context: SceneContext, drawing: SwitchDrawing) {
+        val value = drawing
         val painter = painters!!.get(props.value.theme)
         if (value.surface.opacity < 1.0)
             context.saveLayer(value.surface.opacity)

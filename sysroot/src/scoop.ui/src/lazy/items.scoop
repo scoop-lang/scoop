@@ -5,6 +5,7 @@ import scoop.collections.HashSet
 import scoop.collections.contains
 import scoop.collections.sortedBy
 import scoop.time.TimeMark
+import scoop.surface.FrameSubmission
 
 private class LazyItemInput(val source: ItemSource, val index: Long)
 
@@ -29,7 +30,6 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
     private var total = itemCount(initial)
     private var entries: Array<LazyItemEntry> = []
     private val keyed = HashMap<ViewKey, LazyItemEntry>()
-    private var pending: HashMap<Long, LazyItemMeasure>? = None
     val count: Long get() = total
 
     fun keyAt(index: Long): ViewKey = checkedItemKey(source, total, index)
@@ -152,15 +152,10 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         }
         return result.toArray()
     }
-    fun beginMeasure() {
-        pending = None
-    }
-    fun stage(measured: HashMap<Long, LazyItemMeasure>) {
-        pending = Some(measured)
-    }
-    fun finish(node: MountedNode) {
-        val measured = pending ?: return
-        pending = None
+    fun finish(node: MountedNode, selection: Array<LazyLayoutItem>) {
+        val measured = HashMap<Long, LazyLayoutItem>()
+        for (item in selection)
+            measured.put(item.entry.index, item)
         when (node.lazyFocus) {
             case Some(focus) -> when (focus.pendingIndex()) {
                 case Some(index) -> if (!measured.containsKey(index))
@@ -172,30 +167,26 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
             case None -> {}
         }
         for (entry in entries) {
-            val selection = measured[entry.index]
-            val placed = selection?.placed ?: false
+            val result = measured[entry.index]
+            val placed = result?.placed ?: false
             if (entry.pinned && !placed)
                 throw IllegalStateException(Some("an interaction item must be measured and placed"))
             entry.selected =
-                when (selection) {
-                    case Some(_) -> true
+                when (result) {
+                    case Some(_) -> true;
                     case None -> false
                 }
-            entry.node.setFrameParticipation(placed)
+            if (entry.node.participatesInFrame != placed)
+                node.root.addCompletion(entry.node) {
+                    completion -> if (completion.submission == FrameSubmission.Accepted)
+                        entry.node.setFrameParticipation(placed)
+                }
+            if (!placed)
+                entry.node.clearPaintSubtree()
         }
         prepareUi<Unit> { trim(node) }
         if (!node.root.isOpen)
             throw UiLayoutEnded()
-        node.placements =
-            Array(entries.size) {
-                index -> when (measured[entries[index].index]) {
-                    case Some(selection) -> selection.origin
-                    case None -> None
-                }
-            }
-        for (entry in entries)
-            if (measured.containsKey(entry.index))
-                entry.node.finishMeasurement()
     }
     private fun trim(node: MountedNode) {
         val keep = ArrayList<LazyItemEntry>()

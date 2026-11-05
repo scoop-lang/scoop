@@ -108,7 +108,7 @@ private class SkeletonInkProps(
     val motion: Boolean
 )
 
-private class SkeletonInk(private val props: Props<SkeletonInkProps>): Element {
+private class SkeletonInk(private val props: Props<SkeletonInkProps>): Element<Unit> {
     private var motion: LoadingMotion? = None
     private var visible = false
     private val easing = Easing.cubicBezier(0.4, 0.0, 0.6, 1.0)
@@ -122,14 +122,16 @@ private class SkeletonInk(private val props: Props<SkeletonInkProps>): Element {
             value.input.period
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value.input
         val child = context.measureChild(0L, skeletonConstraints(input, constraints))
         if (!input.loading)
             context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val value = props.value
         val size = context.size
         if (value.input.loading) {

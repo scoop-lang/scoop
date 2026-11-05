@@ -86,7 +86,7 @@ private class FailureScene(private val probe: FailureProbe): Component {
     public override fun render(): View = element({ FailureInk(probe) })
 }
 
-private class FailureInk(private val probe: FailureProbe): Element {
+private class FailureInk(private val probe: FailureProbe): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.onDispose {
             probe.disposals += 1;
@@ -103,9 +103,10 @@ private class FailureInk(private val probe: FailureProbe): Element {
     public override fun onUnmount() {
         probe.unmounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(180.0, 100.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(180.0, 100.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.painter!!.scene(
             context,
             style {

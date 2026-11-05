@@ -175,11 +175,15 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
     }
 }
 
-private class LayoutPanel(private val props: Props<Int>, private val probe: LayoutProbe): Element {
+private class LayoutPanel(private val props: Props<Int>, private val probe: LayoutProbe): Element<
+    Unit
+> {
     public override fun update() {
         probe.updates += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         probe.measures += 1
         assertEquals(None, context.measureChild(0L, Constraints()).alphabeticBaseline)
         context.placeChild(0L, Point(20.0, 20.0))
@@ -219,9 +223,9 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
         context.placeChild(4L, Point(300.0, 110.0))
         context.measureChild(5L, Constraints.tight(Size(208.0, 64.0)))
         context.placeChild(5L, Point(360.0, 340.0))
-        return LayoutMetrics(constraints.constrain(Size(600.0, 440.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(600.0, 440.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.paints += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()
@@ -258,7 +262,9 @@ internal class Cell(private val props: Props<String>, private val probe: LayoutP
 
 internal class CellInput(val id: String, val count: Int, val click: () -> Unit)
 
-internal class CellInk(private val props: Props<CellInput>, private val owner: Cell): Element {
+internal class CellInk(private val props: Props<CellInput>, private val owner: Cell): Element<
+    Unit
+> {
     var area: InputArea? = None
     var bounds = Rect(0.0, 0.0, 0.0, 0.0)
     public override fun onMount(scope: ComponentScope) {
@@ -280,9 +286,16 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(32.0 + props.value.count.toDouble() * 8.0, 24.0)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(Size(32.0 + props.value.count.toDouble() * 8.0, 24.0))
+            ),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw {
             paint ->
@@ -301,10 +314,15 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
     }
 }
 
-private class BaselineBox(private val probe: LayoutProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(30.0, 20.0)), Some(12.0), Some(16.0))
-    public override fun scene(context: SceneContext) {
+private class BaselineBox(private val probe: LayoutProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(30.0, 20.0)), Some(12.0), Some(16.0)),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint ->
             val bounds = Rect(0.0, 0.0, paint.size.width, paint.size.height)
@@ -314,7 +332,9 @@ private class BaselineBox(private val probe: LayoutProbe): Element {
     }
 }
 
-private class StackBox(private val props: Props<String>, private val probe: LayoutProbe): Element {
+private class StackBox(private val props: Props<String>, private val probe: LayoutProbe): Element<
+    Unit
+> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         area =
@@ -336,16 +356,21 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                if (props.value == "front")
-                    Size(20.0, 20.0)
-                else
-                    Size(60.0, 50.0)
-            )
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (props.value == "front")
+                        Size(20.0, 20.0)
+                    else
+                        Size(60.0, 50.0)
+                )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.draw {
             paint -> paint.canvas.drawRect(
@@ -365,20 +390,22 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
 private class ButtonObserver(
     private val props: Props<Int>,
     private val probe: LayoutProbe
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val metrics = context.measureChild(0L, constraints)
         probe.buttonMetrics = Some(metrics)
         context.placeChild(0L, Point(0.0, 0.0))
-        return metrics
+        return LayoutResult(metrics, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.buttonPaints += 1;
         context.children()
     }
 }
 
-internal class InlineImage(private val probe: LayoutProbe): Element {
+internal class InlineImage(private val probe: LayoutProbe): Element<Unit> {
     var image: Image? = None
     var unmounts = 0
     var size = Size(0.0, 0.0)
@@ -400,11 +427,14 @@ internal class InlineImage(private val probe: LayoutProbe): Element {
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        size = constraints.constrain(Size(22.0, 28.0))
-        return LayoutMetrics(size)
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
+        val size = constraints.constrain(Size(22.0, 28.0))
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
+        size = context.size
         context.draw {
             paint -> paint.canvas.drawImage(
                 image!!,

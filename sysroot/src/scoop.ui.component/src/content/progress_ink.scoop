@@ -17,7 +17,7 @@ internal class ProgressInkProps(
     val period: Duration
 )
 
-internal class ProgressInk(private val props: Props<ProgressInkProps>): Element {
+internal class ProgressInk(private val props: Props<ProgressInkProps>): Element<Unit> {
     private var loop: LoadingMotion? = None
     private var selection: Animatable<Double>? = None
     private var painter: StylePainter? = None
@@ -49,11 +49,16 @@ internal class ProgressInk(private val props: Props<ProgressInkProps>): Element 
         }
         previous = input.position
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(Size(constraints.maxWidth ?: 0.0, props.value.thickness))
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(Size(constraints.maxWidth ?: 0.0, props.value.thickness))
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         val bounds = Rect(0.0, 0.0, size.width, size.height)

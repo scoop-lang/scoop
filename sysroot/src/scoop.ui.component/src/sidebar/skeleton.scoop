@@ -73,8 +73,10 @@ public class SidebarSkeleton public constructor(
 
 private class SidebarSkeletonInput(val props: SidebarSkeletonProps, val density: Double)
 
-private class SidebarSkeletonLayout(private val props: Props<SidebarSkeletonInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class SidebarSkeletonLayout(private val props: Props<SidebarSkeletonInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val input = props.value;
         val d = input.density
         val size = constraints.constrain(Size(constraints.maxWidth ?: 160.0 * d, 32.0 * d))
@@ -124,9 +126,9 @@ private class SidebarSkeletonLayout(private val props: Props<SidebarSkeletonInpu
                     8.0 * d
                 )
             )
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

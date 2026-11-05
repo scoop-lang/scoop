@@ -37,13 +37,13 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                instance.value.update()
+                instance.update()
         }
         case Lazy(instance, _) -> {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                instance.value.update()
+                instance.update()
         }
         else -> for (child in children)
             child.refreshDirection(turn)

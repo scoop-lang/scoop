@@ -356,15 +356,17 @@ private class FeedbackScene(private val probe: FeedbackProbe): Component {
 private class FeedbackCanvas(
     private val probe: FeedbackProbe,
     private val generation: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         for (index in 0L ..< context.childCount) {
             context.measureChild(index, Constraints.tight(Size(200.0, 32.0)))
             context.placeChild(index, Point(20.0, 20.0 + index.toDouble() * 50.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(260.0, 280.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(260.0, 280.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val background = probe.theme.current.value.tokens.palette.background.background
         context.draw { paint -> paint.canvas.clear(background) }
         context.children()

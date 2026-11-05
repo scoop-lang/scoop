@@ -179,13 +179,15 @@ private class CapturedBounds(var value: Rect)
 private class CommandObservation(
     private val p: CommandProbe,
     private val props: Props<Long>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val bounds = CapturedBounds(local)
         context.draw {
@@ -205,8 +207,9 @@ private class CommandObservation(
     }
 }
 
-private class CommandRoot(private val p: CommandProbe, private val props: Props<Int>): Element {
-    private var measuredWidth = 0.0
+private class CommandRoot(private val p: CommandProbe, private val props: Props<Int>): Element<
+    Double
+> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -215,8 +218,10 @@ private class CommandRoot(private val p: CommandProbe, private val props: Props<
                     context.preventDefault()
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
-        measuredWidth =
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Double
+    > {
+        val measuredWidth =
             context.measureChild(
                 0L,
                 Constraints(maxWidth = Some(400.0), maxHeight = Some(400.0))
@@ -224,9 +229,9 @@ private class CommandRoot(private val p: CommandProbe, private val props: Props<
         context.placeChild(0L, Point(80.0, 80.0))
         context.measureChild(1L, Constraints());
         context.placeChild(1L, Point(500.0, 80.0))
-        return LayoutMetrics(constraints.constrain(Size(680.0, 540.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(680.0, 540.0))), measuredWidth)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measuredWidth: Double) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

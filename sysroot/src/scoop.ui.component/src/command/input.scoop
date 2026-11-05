@@ -76,7 +76,7 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
 
 private class CommandSearchIconProps(val size: Double, val color: Color)
 
-private class CommandSearchIcon(private val props: Props<CommandSearchIconProps>): Element {
+private class CommandSearchIcon(private val props: Props<CommandSearchIconProps>): Element<Unit> {
     private var handle: Path? = None
     public override fun onMount(scope: ComponentScope) {
         // Lucide search, ISC; see ../../LICENSE-LUCIDE.
@@ -90,9 +90,14 @@ private class CommandSearchIcon(private val props: Props<CommandSearchIconProps>
                 }
             )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val value = props.value
         val size = context.size
         context.draw {

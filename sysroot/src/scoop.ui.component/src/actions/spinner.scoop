@@ -57,7 +57,7 @@ private class SpinnerInkProps(
     val motion: AnimationSpec?
 )
 
-private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element {
+private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element<Unit> {
     private var motion: LoadingMotion? = None
     private var outline: Path? = None
     private var visible = false
@@ -78,9 +78,14 @@ private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element {
             value.period
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size)))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(props.value.size, props.value.size))),
+            Unit
+        )
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val side = min(size.width, size.height)
         val angle = motion!!.phase.value * PI * 2.0

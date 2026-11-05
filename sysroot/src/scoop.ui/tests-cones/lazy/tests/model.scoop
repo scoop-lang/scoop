@@ -131,10 +131,11 @@ private class ProtocolRow(
     }
 }
 
-private class RowInk(private val record: RowRecord): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        record.measure(constraints)
-    public override fun scene(context: SceneContext) {
+private class RowInk(private val record: RowRecord): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(record.measure(constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.scene(context)
     }
 }
@@ -142,7 +143,7 @@ private class RowInk(private val record: RowRecord): Element {
 private class AlternateRow(
     private val probe: LazyProbe,
     private val props: Props<RowInput>
-): Element {
+): Element<Unit> {
     private val record = RowRecord(probe, props.value.id)
     public override fun onMount(scope: ComponentScope) {
         record.mount(scope)
@@ -150,9 +151,10 @@ private class AlternateRow(
     public override fun update() {
         record.input = props.value
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        record.measure(constraints)
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(record.measure(constraints), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         record.scene(context)
     }
     public override fun onUnmount() {

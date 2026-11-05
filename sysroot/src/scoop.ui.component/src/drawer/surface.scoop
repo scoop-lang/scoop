@@ -6,9 +6,8 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class DrawerSurface(private val props: Props<DrawerInput>): Element {
+internal class DrawerSurface(private val props: Props<DrawerInput>): Element<DrawerGeometry> {
     private var control: DrawerControl? = None
-    private var geometry: DrawerGeometry? = None
     private var painter: StylePainter? = None
     public override fun onMount(scope: ComponentScope) {
         val current = DrawerControl(scope, { props.value })
@@ -19,7 +18,9 @@ internal class DrawerSurface(private val props: Props<DrawerInput>): Element {
     public override fun update() {
         control!!.update()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        DrawerGeometry
+    > {
         val input = props.value
         val scale = input.density
         val size =
@@ -82,22 +83,19 @@ internal class DrawerSurface(private val props: Props<DrawerInput>): Element {
                 panel.size.height
             else
                 panel.size.width
-        geometry =
-            Some(
-                DrawerGeometry(
-                    size,
-                    Rect(x, y, panel.size.width, panel.size.height),
-                    side,
-                    drawerSnaps(input.props.snapPoints, extent, scale)
-                )
+        val geometry =
+            DrawerGeometry(
+                size,
+                Rect(x, y, panel.size.width, panel.size.height),
+                side,
+                drawerSnaps(input.props.snapPoints, extent, scale)
             )
         context.placeChild(0L, Point(x, y))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), geometry)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, shape: DrawerGeometry) {
         val input = props.value
         val current = control!!
-        val shape = geometry!!
         val progress = context.overlayLayout!!.presence.progress
         val visible = current.visualPosition(shape)
         val anchor = current.anchor(shape)
@@ -212,7 +210,7 @@ internal class DrawerSurface(private val props: Props<DrawerInput>): Element {
     }
 }
 
-internal class DrawerBodyMarker(private val props: Props<DrawerOwner>): Element {
+internal class DrawerBodyMarker(private val props: Props<DrawerOwner>): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         val current = scope.createArea();
@@ -220,12 +218,14 @@ internal class DrawerBodyMarker(private val props: Props<DrawerOwner>): Element 
         props.value.bodyArea = Some(current);
         scope.routeChildren(current)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height));
         context.children()
     }

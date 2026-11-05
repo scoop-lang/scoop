@@ -139,13 +139,15 @@ private class InnerContent(private val p: PopoverProbe): Component {
     }
 }
 
-private class PopupObservation(private val p: PopoverProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class PopupObservation(private val p: PopoverProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val layout = context.overlayLayout!!
         val side = layout.side
@@ -160,7 +162,9 @@ private class PopupObservation(private val p: PopoverProbe): Element {
     }
 }
 
-private class PopoverRoot(private val p: PopoverProbe, private val props: Props<Int>): Element {
+private class PopoverRoot(private val p: PopoverProbe, private val props: Props<Int>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         p.rootInput = Some(scope.input)
         scope.input.defaultAction =
@@ -172,7 +176,9 @@ private class PopoverRoot(private val p: PopoverProbe, private val props: Props<
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
         context.placeChild(0L, Point(20.0, 330.0))
         context.measureChild(1L, Constraints(maxWidth = Some(200.0)))
@@ -190,9 +196,9 @@ private class PopoverRoot(private val p: PopoverProbe, private val props: Props<
         context.placeChild(2L, Point(200.0, 330.0))
         context.measureChild(3L, Constraints())
         context.placeChild(3L, Point(0.0, 0.0))
-        return LayoutMetrics(constraints.constrain(Size(640.0, 400.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(640.0, 400.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

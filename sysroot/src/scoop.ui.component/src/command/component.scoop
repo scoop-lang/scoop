@@ -162,8 +162,10 @@ public class Command public constructor(private val props: Props<CommandProps>):
 
 private class CommandLayoutProps(val width: Double, val listHeight: Double, val empty: Boolean)
 
-private class CommandLayout(private val props: Props<CommandLayoutProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class CommandLayout(private val props: Props<CommandLayoutProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val width = constraints.constrain(Size(props.value.width, 0.0)).width
         val head =
             context.measureChild(
@@ -186,11 +188,12 @@ private class CommandLayout(private val props: Props<CommandLayoutProps>): Eleme
             )
         context.placeChild(0L, Point(0.0, 0.0))
         context.placeChild(1L, Point(0.0, head.size.height))
-        return LayoutMetrics(
-            constraints.constrain(Size(width, head.size.height + list.size.height))
+        return LayoutResult(
+            LayoutMetrics(constraints.constrain(Size(width, head.size.height + list.size.height))),
+            Unit
         )
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

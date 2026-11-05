@@ -145,19 +145,16 @@ private class UiTextCacheTest {
     }
 
     @Test
-    fun `public paragraph host has explicit owner and borrowed layout lifetime`() {
+    fun `public paragraph host has an explicit owner and idempotent close`() {
         val host = ParagraphHost()
         assertFalse(host.isClosed)
-        assertFailsWith<IllegalStateException> { host.layout }
         Thread.start {
             assertFailsWith<IllegalStateException> { host.isClosed }
-            assertFailsWith<IllegalStateException> { host.layout }
             assertFailsWith<IllegalStateException> { host.close() }
         }.use { thread -> thread.join() }
         host.close()
         host.close()
         assertTrue(host.isClosed)
-        assertFailsWith<IllegalStateException> { host.layout }
     }
 
     @Test

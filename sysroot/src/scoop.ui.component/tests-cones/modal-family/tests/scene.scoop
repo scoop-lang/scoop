@@ -199,13 +199,15 @@ private class CapturedModalBounds(var value: Rect, var ringVisible: Boolean = fa
 private class ModalFamilyObservation(
     private val p: ModalFamilyProbe,
     private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = CapturedModalBounds(local)
         val outset =
@@ -250,15 +252,17 @@ private class ModalFamilyObservation(
 private class ModalFamilyRoot(
     private val p: ModalFamilyProbe,
     private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
         context.placeChild(0L, Point(20.0, 420.0))
         context.measureChild(1L, Constraints(maxWidth = Some(180.0)))
         context.placeChild(1L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(640.0, 480.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(640.0, 480.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val generation = props.value
         context.children()
         context.onFrameComplete {

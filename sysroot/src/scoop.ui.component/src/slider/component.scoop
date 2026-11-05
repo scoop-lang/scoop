@@ -54,11 +54,10 @@ public class Slider public constructor(private val props: Props<SliderProps>): C
     }
 }
 
-private class SliderLayout(private val props: Props<SliderInput>): Element {
+private class SliderLayout(private val props: Props<SliderInput>): Element<SliderGeometry> {
     private var control: SliderControl? = None
     private var track: StylePainter? = None
     private var fill: StylePainter? = None
-    private var geometry: SliderGeometry? = None
     public override fun onMount(scope: ComponentScope) {
         control = Some(SliderControl(scope, { props.value }))
         props.value.owner.value = control
@@ -68,7 +67,9 @@ private class SliderLayout(private val props: Props<SliderInput>): Element {
     public override fun update() {
         control!!.update()
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SliderGeometry
+    > {
         val input = props.value
         val style = input.props.style
         val density = input.theme.tokens.typography.body.fontSize / 14.0
@@ -94,12 +95,10 @@ private class SliderLayout(private val props: Props<SliderInput>): Element {
             context.measureChild(index, Constraints.tight(Size(rect.width, rect.height)))
             context.placeChild(index, Point(rect.x, rect.y))
         }
-        geometry = Some(shape)
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), shape)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, shape: SliderGeometry) {
         val input = props.value
-        val shape = geometry!!
         if (!input.props.enabled)
             context.saveLayer(input.theme.tokens.disabledOpacity)
         track!!.scene(

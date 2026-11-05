@@ -10,10 +10,11 @@ import scoop.ui.component.*
 internal fun itemBox(width: Double, height: Double): View =
     element(Size(width, height), { current -> ItemTestBox(current) })
 
-private class ItemTestBox(private val props: Props<Size>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(props.value))
-    public override fun scene(context: SceneContext) {}
+private class ItemTestBox(private val props: Props<Size>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(props.value)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
 internal fun itemMeasurements(probe: ItemProbe): Array<View> {
@@ -93,13 +94,15 @@ internal fun itemMeasurements(probe: ItemProbe): Array<View> {
 private fun itemMeasured(content: View, record: (Rect) -> Unit): View =
     element(record, { current -> ItemGeometryMarker(current) }, [content])
 
-private class ItemGeometryMarker(private val record: Props<(Rect) -> Unit>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ItemGeometryMarker(private val record: Props<(Rect) -> Unit>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.draw {
             paint -> @Unsafe
             {

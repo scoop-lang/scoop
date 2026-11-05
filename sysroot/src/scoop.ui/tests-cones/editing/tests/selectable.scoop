@@ -53,7 +53,7 @@ internal fun selectableTestView(probe: EditProbe): View {
 private class SelectableTestElement(
     private val probe: EditProbe,
     private val props: Props<SelectionTestInput>
-): Element {
+): Element<ParagraphMeasurement> {
     private var host: SelectableTextHost? = None
     public override fun onMount(scope: ComponentScope) {
         val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
@@ -90,29 +90,33 @@ private class SelectableTestElement(
             onSelectionChanged = { _, _ -> test.selectionChanges += 1 }
         )
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        ParagraphMeasurement
+    > {
         val input = props.value
-        return host!!.measure(
-            context,
-            constraints,
-            Some(
-                paragraphStyle {
-                    maxLines = input.maxLines
-                    ellipsis = "…"
-                }
-            ),
-            input.inlines
-        )
+        val measured =
+            host!!.measure(
+                context,
+                constraints,
+                Some(
+                    paragraphStyle {
+                        maxLines = input.maxLines
+                        ellipsis = "…"
+                    }
+                ),
+                input.inlines
+            )
+        return LayoutResult(measured.metrics, measured, { measured.close() })
     }
-    public override fun scene(context: SceneContext) {
-        host!!.scene(context)
+    public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
+        host!!.scene(context, measured)
     }
     public override fun onUnmount() {
         probe.displayTest.unmounts += 1
     }
 }
 
-private class SelectableInline(private val probe: EditProbe): Element {
+private class SelectableInline(private val probe: EditProbe): Element<Unit> {
     private var area: InputArea? = None
     public override fun onMount(scope: ComponentScope) {
         val value = scope.createArea(focusable = true)
@@ -123,9 +127,10 @@ private class SelectableInline(private val probe: EditProbe): Element {
         assertFailsWith<IllegalArgumentException> { probe.scope!!.createArea(parent = Some(value)) }
         probe.displayTest.inlineMounts += 1
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(28.0, 18.0)), Some(14.0))
-    public override fun scene(context: SceneContext) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(28.0, 18.0)), Some(14.0)), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         context.place(area!!, bounds)
         context.draw { paint -> paint.canvas.drawRect(bounds, Paint(Color(0.1, 0.6, 0.3))) }

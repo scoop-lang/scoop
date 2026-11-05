@@ -172,8 +172,12 @@ private class TrackedAddon(
     }
 }
 
-private class AddonBox(private val probe: GroupProbe, private val props: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class AddonBox(private val probe: GroupProbe, private val props: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val size =
             constraints.constrain(
                 Size(
@@ -188,9 +192,9 @@ private class AddonBox(private val probe: GroupProbe, private val props: Props<I
             context.measureChild(0L, Constraints.tight(size))
             context.placeChild(0L, Point(0.0, 0.0))
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
         val id = props.value.toLong()
         context.draw {
@@ -208,8 +212,10 @@ private class AddonBox(private val probe: GroupProbe, private val props: Props<I
 private class GroupLayout(
     private val probe: GroupProbe,
     private val generation: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         if (context.childCount > 0L) {
             val limit =
                 if (probe.zero)
@@ -220,9 +226,9 @@ private class GroupLayout(
             probe.groupSize = measured.size
             context.placeChild(0L, Point(20.0, 20.0))
         }
-        return LayoutMetrics(constraints.constrain(Size(420.0, 300.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(420.0, 300.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val current = generation.value
         val revision = probe.model.revision

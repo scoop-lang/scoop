@@ -11,12 +11,14 @@ internal class RadioIndicatorProps(
     val visual: RadioVisual
 )
 
-internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): Element {
+internal class RadioDrawing(val geometry: RadioGeometry, val visual: RadioVisual)
+
+internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): Element<
+    RadioDrawing
+> {
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
-    private var geometry: RadioGeometry? = None
-    private var visual = RadioVisual()
     public override fun onMount(scope: ComponentScope) {
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
@@ -51,7 +53,9 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
         )
         painters!!.get(input.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        RadioDrawing
+    > {
         val input = props.value
         val metrics = input.theme.radioMetrics(input.options)
         val size =
@@ -62,7 +66,7 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 )
             )
         val side = upperBound(size.width, size.height)
-        visual =
+        val visual =
             RadioVisual(
                 input.visual.selected,
                 motion!!.sample(input.visual.interaction),
@@ -75,27 +79,26 @@ internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): El
                 input.options
             )
         // The item applies disabled opacity once to its indicator and arbitrary content together.
-        geometry =
-            Some(
-                RadioGeometry(
-                    resolved.bounds,
-                    resolved.outer,
-                    resolved.interior,
-                    resolved.dot,
-                    resolved.ring,
-                    resolved.style,
-                    resolved.dotColor,
-                    resolved.selection,
-                    1.0
-                )
+        val geometry =
+            RadioGeometry(
+                resolved.bounds,
+                resolved.outer,
+                resolved.interior,
+                resolved.dot,
+                resolved.ring,
+                resolved.style,
+                resolved.dotColor,
+                resolved.selection,
+                1.0
             )
-        return LayoutMetrics(size)
+
+        return LayoutResult(LayoutMetrics(size), RadioDrawing(geometry, visual))
     }
-    public override fun scene(context: SceneContext) {
-        val drawing = geometry!!
-        val sampled = visual
+    public override fun scene(context: SceneContext, drawing: RadioDrawing) {
+        val geometry = drawing.geometry
+        val sampled = drawing.visual
         context.draw {
-            paint -> painters!!.get(props.value.theme).drawRadio(paint.canvas, drawing, sampled)
+            paint -> painters!!.get(props.value.theme).drawRadio(paint.canvas, geometry, sampled)
         }
     }
 }

@@ -147,13 +147,15 @@ private class HoverPopupBody(private val p: HoverPopupProbe): Component {
 
 private class SubmittedBounds(var value: Rect)
 
-private class HoverPopupObservation(private val p: HoverPopupProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class HoverPopupObservation(private val p: HoverPopupProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val result = context.measureChild(0L, constraints)
         context.placeChild(0L, Point(0.0, 0.0))
-        return result
+        return LayoutResult(result, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val local = Rect(0.0, 0.0, context.size.width, context.size.height)
         val bounds = SubmittedBounds(local)
         context.draw {
@@ -180,15 +182,17 @@ private class HoverPopupObservation(private val p: HoverPopupProbe): Element {
 private class HoverPopupRoot(
     private val p: HoverPopupProbe,
     private val props: Props<Int>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(140.0, 36.0)))
         context.placeChild(0L, Point(p.triggerX, 120.0))
         context.measureChild(1L, Constraints.tight(Size(140.0, 36.0)))
         context.placeChild(1L, Point(20.0, 330.0))
-        return LayoutMetrics(constraints.constrain(Size(640.0, 400.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(640.0, 400.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val generation = props.value
         context.onFrameComplete {

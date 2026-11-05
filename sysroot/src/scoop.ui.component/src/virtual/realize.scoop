@@ -110,7 +110,8 @@ internal class VirtualListLayout(
                 cursor += 1L
             }
         }
-        val final = snapshot()
+        val layout = snapshot()
+        val final = layout.snapshot
         val range = geometry.range(geometry.logicalOffset(final.offset))
         val pinned = HashSet<Long>()
         for (at in context.pinnedItems)
@@ -153,7 +154,7 @@ internal class VirtualListLayout(
         val requestDone = requestActive && (destination == None || hasViewport)
         return VirtualListFrame(
             props,
-            final,
+            layout,
             revision,
             hasViewport,
             reading,
@@ -177,8 +178,8 @@ internal class VirtualListLayout(
         return true
     }
     private fun currentRange(): VirtualRange =
-        geometry.range(geometry.logicalOffset(snapshot().offset))
-    private fun snapshot(): ScrollSnapshot {
+        geometry.range(geometry.logicalOffset(snapshot().snapshot.offset))
+    private fun snapshot(): ScrollLayout {
         val base = control.layout(size, geometry.content)
         var adjustment: ScrollAdjustment? = None
         when (destination) {
@@ -187,7 +188,11 @@ internal class VirtualListLayout(
                     ScrollAdjustment(
                         revision,
                         when (request!!.position) {
-                            case Item(alignment) -> geometry.alignedOffset(base, at, alignment)
+                            case Item(alignment) -> geometry.alignedOffset(
+                                base.snapshot,
+                                at,
+                                alignment
+                            )
                             case Reading(inside) -> geometry.scrollOffset(
                                 index.prefix(at) + upperBound(inside, index.extent(at))
                             )

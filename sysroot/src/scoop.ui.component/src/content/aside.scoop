@@ -49,11 +49,16 @@ internal fun panelAside(
     )
 }
 
-private class PanelAside(private val props: Props<PanelAsideProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class PanelAside(private val props: Props<PanelAsideProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         when (props.value.shape) {
-            case Empty -> return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
-            case Both -> return paired(context, constraints)
+            case Empty -> return LayoutResult(
+                LayoutMetrics(constraints.constrain(Size(0.0, 0.0))),
+                Unit
+            )
+            case Both -> return LayoutResult(paired(context, constraints), Unit)
             else -> {
                 val child =
                     if (props.value.shape == PanelAsideShape.Action)
@@ -77,7 +82,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
                         y
                     )
                 )
-                return offsetMetrics(child, size, y)
+                return LayoutResult(offsetMetrics(child, size, y), Unit)
             }
         }
     }
@@ -140,7 +145,7 @@ private class PanelAside(private val props: Props<PanelAsideProps>): Element {
         )
         return offsetMetrics(content, size, contentY)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

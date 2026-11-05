@@ -203,13 +203,17 @@ private fun observeDrawer(p: DrawerProbe, slot: Int, content: View): View =
 
 private class DrawerCapture(var bounds: Rect, var ring: Boolean = false)
 
-private class DrawerObservation(private val p: DrawerProbe, private val slot: Props<Int>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class DrawerObservation(private val p: DrawerProbe, private val slot: Props<Int>): Element<
+    Unit
+> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val child = context.measureChild(0L, constraints);
         context.placeChild(0L, Point(0.0, 0.0));
-        return child
+        return LayoutResult(child, Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val rect = Rect(0.0, 0.0, context.size.width, context.size.height)
         val captured = DrawerCapture(rect)
         val outset =
@@ -247,7 +251,9 @@ private class DrawerObservation(private val p: DrawerProbe, private val slot: Pr
     }
 }
 
-private class DrawerRoot(private val p: DrawerProbe, private val revision: Props<Int>): Element {
+private class DrawerRoot(private val p: DrawerProbe, private val revision: Props<Int>): Element<
+    Unit
+> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -268,14 +274,16 @@ private class DrawerRoot(private val p: DrawerProbe, private val revision: Props
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints());
         context.placeChild(0L, Point(420.0, 20.0))
         context.measureChild(1L, Constraints());
         context.placeChild(1L, Point(20.0, 20.0))
-        return LayoutMetrics(constraints.constrain(Size(640.0, 520.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(640.0, 520.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val current = revision.value;
         context.children()
         context.onFrameComplete {

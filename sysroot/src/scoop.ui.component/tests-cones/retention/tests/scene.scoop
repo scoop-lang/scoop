@@ -21,13 +21,15 @@ internal class RetentionScene(private val probe: RetentionProbe): Component {
         )
 }
 
-private class RetentionPanel(private val probe: RetentionProbe): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class RetentionPanel(private val probe: RetentionProbe): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints.tight(Size(160.0, 24.0)))
         context.placeChild(0L, Point(16.0, 16.0))
-        return LayoutMetrics(constraints.constrain(Size(220.0, 160.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(220.0, 160.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         probe.passes += 1
         context.draw { paint -> paint.canvas.clear(Color.White) }
         context.children()

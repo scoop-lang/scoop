@@ -145,8 +145,10 @@ private class CarouselTile(
 private class CarouselTileLayout(
     private val p: CarouselProbe,
     private val key: Props<Long>
-): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val extent = [100.0, 140.0, 80.0, 160.0][key.value]
         val natural =
             if (p.vertical)
@@ -168,9 +170,9 @@ private class CarouselTileLayout(
         context.placeChild(0L, Point(8.0, 8.0))
         context.measureChild(1L, inner);
         context.placeChild(1L, Point(8.0, 48.0))
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }
@@ -178,7 +180,7 @@ private class CarouselTileLayout(
 private class CarouselTestLayout(
     private val p: CarouselProbe,
     private val revision: Props<Int>
-): Element {
+): Element<Unit> {
     public override fun onMount(scope: ComponentScope) {
         scope.input.captureHandler =
             {
@@ -193,7 +195,9 @@ private class CarouselTestLayout(
                 }
             }
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         context.measureChild(0L, Constraints());
         context.placeChild(0L, Point(20.0, 20.0))
         val main =
@@ -211,9 +215,9 @@ private class CarouselTestLayout(
                     Size(main, 220.0)
         context.measureChild(1L, Constraints.tight(size));
         context.placeChild(1L, Point(30.0, 90.0))
-        return LayoutMetrics(constraints.constrain(Size(540.0, 500.0)))
+        return LayoutResult(LayoutMetrics(constraints.constrain(Size(540.0, 500.0))), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
         val value = revision.value
         context.onFrameComplete {

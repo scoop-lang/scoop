@@ -43,11 +43,13 @@ internal fun modalActions(children: Array<View>, density: Double, balanced: Bool
 private class ModalActionsProps(val spacing: Double, val balanced: Boolean)
 
 /** Reflows the same child sequence; only placements change at the narrow boundary. */
-private class ModalActions(private val props: Props<ModalActionsProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class ModalActions(private val props: Props<ModalActionsProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val count = context.childCount
         if (count == 0L)
-            return LayoutMetrics(constraints.constrain(Size(0.0, 0.0)))
+            return LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
         val gap = props.value.spacing
         val natural =
             Array<LayoutMetrics>(count) { index -> context.measureChild(index, Constraints()) }
@@ -102,9 +104,9 @@ private class ModalActions(private val props: Props<ModalActionsProps>): Element
                 offset += child.height + gap
             }
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children()
     }
 }

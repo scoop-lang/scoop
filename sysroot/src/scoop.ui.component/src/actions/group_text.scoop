@@ -45,10 +45,9 @@ private class GroupTextProps(
     val endRadius: Double?
 )
 
-private class GroupTextInk(private val props: Props<GroupTextProps>): Element {
+private class GroupTextInk(private val props: Props<GroupTextProps>): Element<SurfaceGeometry> {
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
-    private var geometry: SurfaceGeometry? = None
     public override fun onMount(scope: ComponentScope) {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
@@ -56,7 +55,9 @@ private class GroupTextInk(private val props: Props<GroupTextProps>): Element {
     public override fun update() {
         painters!!.get(props.value.theme)
     }
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        SurfaceGeometry
+    > {
         val input = props.value
         val visual = SurfaceVisual(SurfaceKind.Plain)
         val metrics =
@@ -87,17 +88,15 @@ private class GroupTextInk(private val props: Props<GroupTextProps>): Element {
                 input.group,
                 context.layoutDirection
             )
-        geometry = Some(surface)
         val origin =
             Point(
                 surface.content.x + (surface.content.width - child.size.width) / 2.0,
                 surface.content.y + (surface.content.height - child.size.height) / 2.0
             )
         context.placeChild(0L, origin)
-        return offsetMetrics(child, size, origin.y)
+        return LayoutResult(offsetMetrics(child, size, origin.y), surface)
     }
-    public override fun scene(context: SceneContext) {
-        val surface = geometry!!
+    public override fun scene(context: SceneContext, surface: SurfaceGeometry) {
         val visual = SurfaceVisual(SurfaceKind.Plain)
         val painter = painters!!.get(props.value.theme)
         if (surface.opacity < 1.0)
@@ -121,17 +120,22 @@ internal fun groupSeparator(axis: FlexAxis, color: Color): View =
 
 private struct GroupSeparatorProps(val axis: FlexAxis, val color: Color)
 
-private class GroupSeparator(private val props: Props<GroupSeparatorProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(
-            constraints.constrain(
-                if (props.value.axis == FlexAxis.Horizontal)
-                    Size(1.0, constraints.minHeight)
-                else
-                    Size(constraints.minWidth, 1.0)
-            )
+private class GroupSeparator(private val props: Props<GroupSeparatorProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > =
+        LayoutResult(
+            LayoutMetrics(
+                constraints.constrain(
+                    if (props.value.axis == FlexAxis.Horizontal)
+                        Size(1.0, constraints.minHeight)
+                    else
+                        Size(constraints.minWidth, 1.0)
+                )
+            ),
+            Unit
         )
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         val input = props.value
         val size = context.size
         val line =

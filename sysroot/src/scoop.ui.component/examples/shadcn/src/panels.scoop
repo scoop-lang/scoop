@@ -308,10 +308,11 @@ internal fun separatorExamples(fonts: FontCollection): View =
         this.alignment = CrossAlignment.Stretch
     }
 
-private class PanelPlus(private val props: Props<Color>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(16.0, 16.0)))
-    public override fun scene(context: SceneContext) {
+private class PanelPlus(private val props: Props<Color>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val paint = Paint(props.value)
         context.draw {
@@ -330,10 +331,11 @@ private class PanelPlus(private val props: Props<Color>): Element {
 
 internal struct PanelStatusIconProps(val color: Color, val warning: Boolean = false)
 
-internal class PanelStatusIcon(private val props: Props<PanelStatusIconProps>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics =
-        LayoutMetrics(constraints.constrain(Size(16.0, 16.0)))
-    public override fun scene(context: SceneContext) {
+internal class PanelStatusIcon(private val props: Props<PanelStatusIconProps>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)
+    public override fun scene(context: SceneContext, measured: Unit) {
         val size = context.size
         val value = props.value
         val scale = min(size.width, size.height) / 16.0

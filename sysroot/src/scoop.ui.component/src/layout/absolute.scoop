@@ -62,8 +62,10 @@ public fun absolute(configure: AbsoluteBuilder.() -> Unit = {}): View = makeAbso
 
 private class AbsoluteInput(val value: AbsoluteProps, val order: Array<Long>)
 
-private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element {
-    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element<Unit> {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > {
         val value = props.value.value
         val size = absoluteSize(constraints, value.width, value.height)
         val padding = value.logicalPadding?.resolve(context.layoutDirection) ?: value.padding
@@ -93,9 +95,9 @@ private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element {
                 )
             )
         }
-        return LayoutMetrics(size)
+        return LayoutResult(LayoutMetrics(size), Unit)
     }
-    public override fun scene(context: SceneContext) {
+    public override fun scene(context: SceneContext, measured: Unit) {
         context.children(props.value.order)
     }
 }
