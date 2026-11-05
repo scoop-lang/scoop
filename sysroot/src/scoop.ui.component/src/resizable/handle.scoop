@@ -1,0 +1,200 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element {
+    private var scope: ComponentScope? = None
+    private var area: InputArea? = None
+    private var focus: FocusTarget? = None
+    private var drag: Drag? = None
+    private var painters: ThemePainterCache? = None
+    private var grip: StylePainter? = None
+    private var geometry: SurfaceGeometry? = None
+    private var visual = SurfaceVisual()
+    private var ownsCursor = false
+    private fun enabled(): Boolean =
+        props.value.hasHandle &&
+            props.value.root.props.enabled &&
+            resizableHandle(props.value.root.props, props.value.index).enabled
+    private fun options(): DragOptions =
+        DragOptions(
+            if (props.value.root.props.orientation == Orientation.Horizontal)
+                DragAxis.Horizontal
+            else
+                DragAxis.Vertical,
+            threshold = props.value.root.props.dragThreshold,
+            enabled = enabled()
+        )
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
+        focus =
+            Some(
+                scope.focusTarget(
+                    area!!,
+                    resizableHandle(props.value.root.props, props.value.index).focus
+                )
+            )
+        painters = Some(scope.resource { ThemePainterCache() })
+        grip = Some(scope.resource { StylePainter() })
+        drag =
+            Some(
+                scope.drag(
+                    area!!,
+                    options(),
+                    { _ -> props.value.root.owner.control!!.available(props.value.index) },
+                    { event -> receiveDrag(event) }
+                )
+            )
+        scope.resource {
+            area!!.scope.addDefaultAction {
+                context,
+                event -> when (event) {
+                    case Keyboard(key) -> {
+                        if (area!!.isFocusActive)
+                            props.value.root.owner.control!!.key(props.value.index, context, key)
+                    }
+                    case Pointer(
+                        InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
+                    ) -> {
+                        if (enabled())
+                            focus!!.handle.requestFocus(FocusOrigin.Pointer)
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+    private fun receiveDrag(event: DragEvent) {
+        props.value.root.owner.control!!.handle(props.value.index, drag!!, focus!!, event)
+        if (scope!!.isMounted) {
+            refreshCursor()
+            scope!!.requestFrame()
+        }
+    }
+    private fun notify(context: RoutedEventContext, event: InputEvent) {
+        if (context.phase != RoutedPhase.Notification || !scope!!.isMounted)
+            return
+        when (event) {
+            case FocusChanged(false) -> props.value.root.owner.control!!.lostFocus(props.value.key)
+            else -> {}
+        }
+        if (!scope!!.isMounted)
+            return
+        refreshCursor()
+        scope!!.requestFrame()
+    }
+    private fun refreshCursor() {
+        val active = enabled() && (area!!.scope.isHovered || (drag?.isDragging ?: false))
+        if (active) {
+            scope!!.nativeWindow.setCursorIcon(
+                if (props.value.root.props.orientation == Orientation.Horizontal)
+                    CursorIcon.ResizeHorizontal
+                else
+                    CursorIcon.ResizeVertical
+            )
+            ownsCursor = true
+        } else
+            if (ownsCursor) {
+                scope!!.nativeWindow.setCursorIcon(CursorIcon.Default)
+                ownsCursor = false
+            }
+    }
+    public override fun update() {
+        val input = props.value
+        focus!!.options = resizableHandle(input.root.props, input.index).focus
+        if (!scope!!.isMounted)
+            return
+        area!!.scope.enabled = enabled()
+        if (!scope!!.isMounted)
+            return
+        drag!!.update(
+            options(),
+            { _ -> props.value.root.owner.control!!.available(props.value.index) },
+            { event -> receiveDrag(event) }
+        )
+        if (!scope!!.isMounted)
+            return
+        painters!!.get(input.root.theme)
+        refreshCursor()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val theme = input.root.theme
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val size = constraints.constrain(Size(density, density))
+        visual =
+            SurfaceVisual(
+                SurfaceKind.Plain,
+                InteractionVisual(
+                    enabled(),
+                    area!!.scope.isHovered,
+                    drag!!.isDragging,
+                    area!!.isFocusVisible
+                )
+            )
+        val local =
+            styleOverride {
+                background(Some(Paint(theme.tokens.palette.border)))
+                border(None);
+                corners(Corners.all(0.0))
+            }.then(resizableHandle(input.root.props, input.index).style)
+        geometry =
+            Some(
+                theme.surfaceGeometry(
+                    Rect(0.0, 0.0, size.width, size.height),
+                    visual,
+                    surfaceOptions {
+                        style = local;
+                        padding = Some(Insets());
+                        focus = Some(OutlineStyle(theme.tokens.palette.ring, density, density))
+                    },
+                    context.layoutDirection
+                )
+            )
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        val input = props.value
+        val theme = input.root.theme
+        val horizontal = input.root.props.orientation == Orientation.Horizontal
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val shape = geometry!!
+        context.draw { paint -> painters!!.get(theme).drawSurface(paint.canvas, shape, visual) }
+        if (
+            resizableHandle(input.root.props, input.index).withHandle ?: input.root.props.withHandle
+        ) {
+            val size = resizableSize(4.0 * density, 24.0 * density, horizontal)
+            grip!!.scene(
+                context,
+                Rect(
+                    (context.size.width - size.width) / 2.0,
+                    (context.size.height - size.height) / 2.0,
+                    size.width,
+                    size.height
+                ),
+                style {
+                    background = Some(Paint(theme.tokens.palette.border));
+                    corners = Corners.all(8.0 * density)
+                }
+            ) { _ -> }
+        }
+        if (context.size.width > 0.0 && context.size.height > 0.0)
+            context.place(
+                area!!,
+                if (horizontal)
+                    Rect(-1.5 * density, 0.0, 4.0 * density, context.size.height)
+                else
+                    Rect(0.0, -1.5 * density, context.size.width, 4.0 * density)
+            )
+    }
+    public override fun onUnmount() {
+        props.value.root.owner.control!!.lostFocus(props.value.key)
+        if (ownsCursor && scope!!.isMounted)
+            scope!!.nativeWindow.setCursorIcon(CursorIcon.Default)
+    }
+}

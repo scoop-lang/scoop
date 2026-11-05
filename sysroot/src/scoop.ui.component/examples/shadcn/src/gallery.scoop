@@ -218,6 +218,11 @@ internal class Gallery(
             case Command -> commandExamples(model.commands, fonts)
             case Combobox -> comboboxExamples(model.comboboxes, fonts)
             case NavigationMenu -> navigationMenuExamples(model.navigationMenus, fonts)
+            case Resizable -> resizableExamples(
+                model.resizables,
+                fonts,
+                model.source.current.value.tokens.palette.border
+            )
         }
 
     private fun controlDemo(value: ControlDemo): View =

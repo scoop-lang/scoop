@@ -18,9 +18,16 @@ import scoop.ui.component.command as makeCommand
 import scoop.ui.component.combobox as appendCombobox
 import scoop.ui.component.navigationMenu as appendNavigationMenu
 import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
+import scoop.ui.component.resizable as appendResizable
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun resizable(
+        sizes: Binding<Array<ResizableSize>>,
+        configure: ResizableBuilder.() -> Unit = {}
+    ) {
+        add(appendResizable(sizes, configure))
+    }
     public fun navigationMenu(
         open: Binding<ViewKey?>? = None,
         configure: NavigationMenuBuilder.() -> Unit = {}

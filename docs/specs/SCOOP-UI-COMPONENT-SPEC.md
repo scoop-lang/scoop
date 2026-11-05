@@ -926,3 +926,15 @@ inputPlacement 默认 Inline：InputGroup 包含搜索输入和可选展开／�
 `navigationMenuLink(label, onNavigate) { ... }` 提供独立内容链接，label 接受 String／StyledText／非交互 View，builder 继承 ButtonBuilder，另有 active=false 和 inPanel=true。NavigationMenuLinkProps 保留 ButtonProps、active 与 inPanel。唯一 Button 执行 onNavigate，应用负责实际路由及面板内链接是否关闭根；一级 link 激活时关闭当前面板。active 表示当前页面，不等于焦点或展开状态。自定义正文可组合标题、说明、图标和分栏，普通 View 内容不被遍历或改写。
 
 Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 6；入口无外围边框，hover／focus 使用 muted，展开或 active 的静态背景为 muted 50%。面板内链接使用 8 padding、6 圆角和普通字重，保留完整焦点环。面板为 popover 配色、1 像素 foreground 10% 边线、8 圆角、4 padding 和 floating 阴影；焦点环的外绘制空间由内容留白承担。箭头宽 12，300ms 旋转；面板 350ms 进入、150ms 退出，淡入并从 90% 缩放到原尺寸；显式 transition 和主题 Reduced Motion 同时约束这些动画。方向热切换更新布局、侧边定位、段落和图标，不重挂载同 key 的入口。
+
+## 38. Resizable
+
+`resizable(sizes: Binding<Array<ResizableSize>>) { panel(key, content) { ... }; handle(afterKey) { ... } }` 创建 ResizableProps／Resizable。ResizableSize 为显式 key、fraction（有限 0..1）与 collapsed=false；展开项的 fraction 按相对权重分配，全部为零时等分。缺失项使用等权默认值，未知 key 保留，显示和窗口缩放不暗写 Binding。模型 key 唯一。折叠项保留最近展开时占全部面板实际长度的比例，恢复时用当前总长换算并受相邻面板约束；不允许折叠的面板忽略模型中的 collapsed，不改写模型。
+
+每个 ResizablePanelProps 保存唯一显式 key、普通 View 正文、minimum=0、maximum=None、collapsible=false、collapsedSize=0 和 style。尺寸为有限非负逻辑长度，maximum 不小于 minimum，可折叠项的 collapsedSize 不超过 minimum。面板之间自动生成一个把手，handle(afterKey) 覆盖其 withHandle／enabled／FocusOptions／style；afterKey 必须对应一个有后继的面板且不重复。根支持 orientation=Horizontal、enabled=true、withHandle=false、length=None、keyboardStep=10、dragThreshold=4、theme、style、clip=false、onSizesChange／onSizesCommit／onSizesCancel。有限父约束内默认占满主轴，未约束时取 length 或 320；交叉轴可用空间有限时铺满，否则取正文自然尺寸。
+
+分配复用 allocateFlex：折叠项使用 collapsedSize，展开项按比例和 min／max 分配剩余长度；分隔线占 1 主题密度单位。最小尺寸总和超出可用长度时保留明确 overflow，不产生负面板；所有项到达 maximum 后允许尾部空白。逻辑顺序和 key 稳定，横向 RTL 只转换放置坐标与拖动符号。正文按面板边界裁剪，零尺寸正文不放置但保留挂载；缩放、方向切换、重排和折叠恢复不替换正文实例。根仅在 clip=true 或明确 style.clipContent 时裁剪，焦点环向外绘制且不增加分隔线布局尺寸。
+
+拖动复用 Drag 的主轴阈值、指针声明与取消，仅通过 resizePair 转移相邻两项的实际长度，保留这对及其他面板总长。可折叠项的 collapsedSize 与 minimum 之间不作为持久尺寸，取距离目标最近的合法展开／折叠边界。写回展开项比例以复现实际分配，折叠项保留恢复比例，未知模型项不丢弃。onSizesChange 只报告 setter 实际采纳的变化；松开后整体有变化时调用一次 onSizesCommit。取消在 Binding 未被外部替换且配置兼容时恢复手势前模型，再通知 onSizesCancel(value, reason)；外部更新、相邻项／约束／方向变化、禁用、窗口尺寸变化、失焦、零几何、阻止默认释放及卸载都终止手势，不覆盖新的外部状态。
+
+把手保留普通 Tab 顺序，主轴方向键按物理方向调整（水平 RTL 对换），PageUp／PageDown 增／减十倍步长，Home／End 到达相邻约束端点。Enter 折叠／恢复相邻的第一个可折叠面板；Escape 取消当前拖动。一次有效键操作提交一次，拒绝 Binding 不假报提交。只有把手焦点处理这些键，正文编辑／按键保留自身默认行为。把手使用 1 像素 border 色分隔线、居中的 4 像素命中带，可选 4×24 圆角握柄（纵向布局旋转），可见焦点使用 ring 色 1 像素外环；光标为对应轴的系统 resize 光标，无持续动画或轮询。

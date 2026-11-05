@@ -1,0 +1,136 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+internal enum ResizableKey {
+    Minimum, Maximum, Step(Double), Page(Double), Toggle
+}
+
+internal fun resizableKey(
+    orientation: Orientation,
+    direction: LayoutDirection,
+    key: LogicalKey
+): ResizableKey? {
+    val horizontal = orientation == Orientation.Horizontal
+    val forward =
+        if (horizontal && direction == LayoutDirection.Rtl)
+            -1.0
+        else
+            1.0
+    return when (key) {
+        case Named(NamedKey.Home) -> Some(ResizableKey.Minimum)
+        case Named(NamedKey.End) -> Some(ResizableKey.Maximum)
+        case Named(NamedKey.PageUp) -> Some(ResizableKey.Page(1.0))
+        case Named(NamedKey.PageDown) -> Some(ResizableKey.Page(-1.0))
+        case Named(NamedKey.Enter) -> Some(ResizableKey.Toggle)
+        case Named(NamedKey.ArrowRight) -> if (horizontal)
+            Some(ResizableKey.Step(forward))
+        else
+            None
+        case Named(NamedKey.ArrowLeft) -> if (horizontal)
+            Some(ResizableKey.Step(-forward))
+        else
+            None
+        case Named(NamedKey.ArrowDown) -> if (!horizontal)
+            Some(ResizableKey.Step(1.0))
+        else
+            None
+        case Named(NamedKey.ArrowUp) -> if (!horizontal)
+            Some(ResizableKey.Step(-1.0))
+        else
+            None
+        else -> None
+    }
+}
+
+internal fun resizableKeyboard(
+    props: ResizableProps,
+    values: Array<ResizableSize>,
+    target: Double,
+    index: Long,
+    key: ResizableKey
+): Array<ResizableSize> {
+    val model = resizableValues(values)
+    val sizes = resizableAllocation(props.panels, model, target)
+    val total = sizes[index] + sizes[index + 1L]
+    val step = upperBound(total, props.keyboardStep)
+    val delta =
+        when (key) {
+            case Minimum -> -total
+            case Maximum -> total
+            case Step(sign) -> sign * step
+            case Page(sign) -> sign *
+                (
+                    if (step >= total / 10.0)
+                        total
+                    else
+                        step * 10.0
+                )
+            case Toggle -> {
+                val selected =
+                    if (props.panels[index].collapsible)
+                        index
+                    else
+                        index + 1L
+                val panel = props.panels[selected]
+                if (!panel.collapsible)
+                    return values
+                val value = model[panel.key] ?: ResizableSize(panel.key, 1.0)
+                if (value.collapsed && total == 0.0) {
+                    val restored = ArrayList<ResizableSize>()
+                    for (old in values)
+                        restored.add(
+                            if (old.key == panel.key)
+                                ResizableSize(old.key, old.fraction)
+                            else
+                                old
+                        )
+                    return restored.toArray()
+                }
+                var all = 0.0
+                for (size in sizes)
+                    all += size
+                val desired =
+                    if (value.collapsed)
+                        lowerBound(
+                            panel.minimum,
+                            if (value.fraction > 0.0)
+                                all * value.fraction
+                            else
+                                total / 2.0
+                        )
+                    else
+                        panel.collapsedSize;
+                (desired - sizes[selected]) *
+                    (
+                        if (selected == index)
+                            1.0
+                        else
+                            -1.0
+                    )
+            }
+        }
+    val pair =
+        resizablePair(
+            sizes[index],
+            sizes[index + 1L],
+            delta,
+            props.panels[index],
+            props.panels[index + 1L]
+        )
+    if (pair.first == sizes[index] && pair.second == sizes[index + 1L])
+        return values
+    val next =
+        Array<Double>(sizes.size) {
+            i -> if (i == index)
+                pair.first
+            else
+                if (i == index + 1L)
+                    pair.second
+                else
+                    sizes[i]
+        }
+    return resizableModel(props.panels, values, sizes, next)
+}

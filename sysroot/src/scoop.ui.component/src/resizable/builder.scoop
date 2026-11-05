@@ -1,0 +1,97 @@
+package scoop.ui.component
+
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class ResizablePanelBuilder internal constructor() {
+    public var minimum: Double = 0.0
+    public var maximum: Double? = None
+    public var collapsible: Boolean = false
+    public var collapsedSize: Double = 0.0
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(key: ViewKey, content: View): ResizablePanelProps =
+        ResizablePanelProps(key, content, minimum, maximum, collapsible, collapsedSize, style)
+}
+
+public class ResizableHandleBuilder internal constructor() {
+    public var withHandle: Boolean? = None
+    public var enabled: Boolean = true
+    public var focus: FocusOptions = FocusOptions()
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun focus(configure: FocusOptionsBuilder.() -> Unit) {
+        focus = focus.copy(configure)
+    }
+    internal fun snapshot(key: ViewKey): ResizableHandleOptions =
+        ResizableHandleOptions(key, withHandle, enabled, focus, style)
+}
+
+public class ResizableBuilder internal constructor() {
+    private val panels = ArrayList<ResizablePanelProps>()
+    private val handles = ArrayList<ResizableHandleOptions>()
+    public var orientation: Orientation = Orientation.Horizontal
+    public var enabled: Boolean = true
+    public var withHandle: Boolean = false
+    public var length: Double? = None
+    public var keyboardStep: Double = 10.0
+    public var dragThreshold: Double = 4.0
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var clip: Boolean = false
+    public var onSizesChange: (Array<ResizableSize>) -> Unit = {}
+    public var onSizesCommit: (Array<ResizableSize>) -> Unit = {}
+    public var onSizesCancel: (Array<ResizableSize>, DragCancelReason) -> Unit = { _, _ -> }
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun panel(
+        key: ViewKey,
+        content: View,
+        configure: ResizablePanelBuilder.() -> Unit = {}
+    ) {
+        val builder = ResizablePanelBuilder()
+        builder.configure()
+        add(builder.snapshot(key, content))
+    }
+    public fun add(panel: ResizablePanelProps) {
+        panels.add(panel)
+    }
+    public fun handle(afterKey: ViewKey, configure: ResizableHandleBuilder.() -> Unit = {}) {
+        val builder = ResizableHandleBuilder()
+        builder.configure()
+        handles.add(builder.snapshot(afterKey))
+    }
+    internal fun snapshot(sizes: Binding<Array<ResizableSize>>): ResizableProps =
+        ResizableProps(
+            sizes,
+            panels.toArray(),
+            handles.toArray(),
+            orientation,
+            enabled,
+            withHandle,
+            length,
+            keyboardStep,
+            dragThreshold,
+            theme,
+            style,
+            clip,
+            onSizesChange,
+            onSizesCommit,
+            onSizesCancel
+        )
+}
+
+public fun resizable(
+    sizes: Binding<Array<ResizableSize>>,
+    configure: ResizableBuilder.() -> Unit = {}
+): View {
+    val builder = ResizableBuilder()
+    builder.configure()
+    return component(builder.snapshot(sizes), { current -> Resizable(current) }, builder.key)
+}

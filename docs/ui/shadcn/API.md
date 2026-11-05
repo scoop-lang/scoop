@@ -282,3 +282,9 @@ ComboboxBuilder 继承 InputBuilder；open、active、已选值与 TextEditorSta
 `navigationMenu(Some(open.binding())) { item(key, "Guides", content); link(key, "Home", navigate) }` 使用唯一面板 key；省略 open 时由本挂载持有开关。Panel 的内容是普通 View，配置 width／initialFocus／panelStyle 和 PopupTriggerBuilder 的入口外观；Link 保留独立的 active 页面状态。`navigationMenuLink(textOrView, navigate)` 可在内容中组合标题、说明或图标，应用负责实际导航及正文链接的关闭选择。稳定 key、拒绝 Binding、禁用和未知 key 均沿用通常的受控合同。
 
 根提供 orientation、viewport、alignment、enabled／loop、hover、gap／viewportPadding、fonts／theme、style／popupStyle、transition 和开关／关闭通知。viewport=true 以整个入口列表为锚点，false 以当前触发器为锚点；横向下方、纵向逻辑末端。一级入口保留普通 Tab 和主轴方向导航，朝面板的方向键进入初始内容；悬浮不取焦点，内容中的编辑和 Tab 顺序保持原行为。Hover 共用延迟与有限走廊，Portal 负责定位、关闭拒绝和恢复；不同面板切换时立即移除旧面板，关闭时保留退出动画。详细合同见 component spec 第 37 节。
+
+## P6a：Resizable
+
+`resizable(sizes.binding()) { panel(ViewKey.Text("sidebar"), content) { minimum = 120.0; collapsible = true }; panel(ViewKey.Text("main"), main); handle(ViewKey.Text("sidebar")) { withHandle = Some(true) } }` 使用受控 `Array<ResizableSize>`，每项包含稳定 key、fraction 与 collapsed。面板自动配备相邻把手，可定制 FocusOptions、enabled 与局部 style；根提供横／纵、主轴长度、键盘步长、阈值、主题、裁剪及实际变化／提交／取消通知。
+
+min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，折叠项保留恢复比例。窗口变化只排版，相邻拖动保留总长；取消不覆盖外部新状态。正文保持挂载并按面板裁剪，根默认允许尺寸不足产生的明确 overflow。Tab、方向键、Home／End、Page 与 Enter／Escape 只作用于把手。详细合同见组件规范第 38 节。

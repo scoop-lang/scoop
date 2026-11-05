@@ -1,0 +1,192 @@
+package scoop.ui.component
+
+import scoop.math.abs
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+@Test
+private class ResizableModelTest {
+    @Test
+    fun `split sizes obey bounds preserve overflow and do not rewrite the model`() {
+        val panels = [splitTestPanel("a", 40.0, Some(100.0)), splitTestPanel("b", 60.0)]
+        val values = resizableValues([])
+        splitNear([100.0, 200.0], resizableAllocation(panels, values, 300.0))
+        splitNear([40.0, 60.0], resizableAllocation(panels, values, 25.0))
+        splitNear([40.0, 60.0], resizableAllocation(panels, values, 0.0))
+        assertEquals(0L, values.size)
+        splitNear(
+            [80.0, 90.0],
+            resizableAllocation(
+                [splitTestPanel("a", 0.0, Some(80.0)), splitTestPanel("b", 0.0, Some(90.0))],
+                values,
+                300.0
+            )
+        )
+        val zeros =
+            resizableValues(
+                [ResizableSize(ViewKey.Text("a"), 0.0), ResizableSize(ViewKey.Text("b"), 0.0)]
+            )
+        splitNear([100.0, 100.0], resizableAllocation(panels, zeros, 200.0))
+        val capped = [splitTestPanel("a", 0.0, Some(100.0)), splitTestPanel("b", 0.0)]
+        val uneven = [ResizableSize(ViewKey.Text("a"), 1.0), ResizableSize(ViewKey.Text("b"), 0.0)]
+        splitNear([100.0, 200.0], resizableAllocation(capped, resizableValues(uneven), 300.0))
+        val moved =
+            resizableKeyboard(
+                ResizableProps(state(uneven).binding(), capped),
+                uneven,
+                300.0,
+                0L,
+                ResizableKey.Step(-1.0)
+            )
+        splitNear([90.0, 210.0], resizableAllocation(capped, resizableValues(moved), 300.0))
+    }
+    @Test
+    fun `pair resizing keeps unrelated panels and remembers collapsed proportions`() {
+        val panels =
+            [
+                splitTestPanel("a", 60.0, Some(240.0), true),
+                splitTestPanel("b", 80.0),
+                splitTestPanel("c", 50.0)
+            ]
+        val model =
+            [
+                ResizableSize(ViewKey.Text("a"), 0.3),
+                ResizableSize(ViewKey.Text("b"), 0.4),
+                ResizableSize(ViewKey.Text("c"), 0.3),
+                ResizableSize(ViewKey.Text("absent"), 0.6, true)
+            ]
+        val pair = resizablePair(120.0, 160.0, -110.0, panels[0L], panels[1L])
+        assertEquals(SplitSizes(0.0, 280.0), pair)
+        val collapsed = resizableModel(panels, model, [120.0, 160.0, 120.0], [0.0, 280.0, 120.0])
+        assertTrue(collapsed[0L].collapsed);
+        assertEquals(0.3, collapsed[0L].fraction)
+        assertEquals(0.6, collapsed[3L].fraction);
+        assertTrue(collapsed[3L].collapsed)
+        splitNear(
+            [0.0, 280.0, 120.0],
+            resizableAllocation(panels, resizableValues(collapsed), 400.0)
+        )
+        splitNear(
+            [0.0, 560.0, 240.0],
+            resizableAllocation(panels, resizableValues(collapsed), 800.0)
+        )
+        val props = ResizableProps(state(collapsed).binding(), panels)
+        val restored = resizableKeyboard(props, collapsed, 400.0, 0L, ResizableKey.Toggle)
+        splitNear(
+            [120.0, 160.0, 120.0],
+            resizableAllocation(panels, resizableValues(restored), 400.0)
+        )
+        assertFalse(restored[0L].collapsed)
+        assertEquals(
+            SplitSizes(60.0, 220.0),
+            resizablePair(120.0, 160.0, -80.0, panels[0L], panels[1L])
+        )
+        assertEquals(
+            SplitSizes(120.0, 160.0),
+            resizablePair(120.0, 160.0, -200.0, panels[0L], splitTestPanel("b", 80.0, Some(160.0)))
+        )
+    }
+    @Test
+    fun `keyboard handles logical direction exact bounds and zero extent restoration`() {
+        val panels = [splitTestPanel("a", 40.0, None, true), splitTestPanel("b", 50.0)]
+        val initial = [ResizableSize(ViewKey.Text("a"), 0.5), ResizableSize(ViewKey.Text("b"), 0.5)]
+        val props = ResizableProps(state(initial).binding(), panels)
+        val left =
+            resizableKey(
+                Orientation.Horizontal,
+                LayoutDirection.Rtl,
+                LogicalKey.Named(NamedKey.ArrowLeft)
+            )!!
+        val moved = resizableKeyboard(props, initial, 200.0, 0L, left)
+        splitNear([110.0, 90.0], resizableAllocation(panels, resizableValues(moved), 200.0))
+        val folded = resizableKeyboard(props, moved, 200.0, 0L, ResizableKey.Toggle)
+        assertTrue(folded[0L].collapsed)
+        splitNear([0.0, 200.0], resizableAllocation(panels, resizableValues(folded), 200.0))
+        val maximum = resizableKeyboard(props, moved, 200.0, 0L, ResizableKey.Maximum)
+        splitNear([150.0, 50.0], resizableAllocation(panels, resizableValues(maximum), 200.0))
+        val minimum = resizableKeyboard(props, initial, 200.0, 0L, ResizableKey.Minimum)
+        splitNear([0.0, 200.0], resizableAllocation(panels, resizableValues(minimum), 200.0))
+        val all =
+            [
+                ResizableSize(ViewKey.Text("a"), 0.5, true),
+                ResizableSize(ViewKey.Text("b"), 0.5, true)
+            ]
+        val both = [panels[0L], splitTestPanel("b", 50.0, None, true)]
+        val reopened =
+            resizableKeyboard(
+                ResizableProps(state(all).binding(), both),
+                all,
+                200.0,
+                0L,
+                ResizableKey.Toggle
+            )
+        splitNear([200.0, 0.0], resizableAllocation(both, resizableValues(reopened), 200.0))
+        assertEquals(
+            None,
+            resizableKey(
+                Orientation.Vertical,
+                LayoutDirection.Ltr,
+                LogicalKey.Named(NamedKey.ArrowLeft)
+            )
+        )
+    }
+    @Test
+    fun `split DSL checks identities and local dimensions at their construction boundary`() {
+        val builder = ResizableBuilder()
+        builder.panel(ViewKey.Text("a"), empty()) {
+            minimum = 50.0;
+            collapsible = true
+        }
+        builder.panel(ViewKey.Text("b"), empty())
+        builder.handle(ViewKey.Text("a")) { withHandle = Some(true) }
+        val props = builder.snapshot(state<Array<ResizableSize>>([]).binding())
+        assertEquals(2L, props.panels.size)
+        assertEquals(Some(true), props.handles[0L].withHandle)
+        assertFailsWith<IllegalArgumentException> {
+            resizableValues([ResizableSize(ViewKey.Position, 0.5)])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            resizableValues([ResizableSize(ViewKey.Text("a"), 1.1)])
+        }
+        assertFailsWith<IllegalArgumentException> { splitTestPanel("a", 100.0, Some(50.0)) }
+        assertFailsWith<IllegalArgumentException> {
+            ResizablePanelProps(
+                ViewKey.Text("a"),
+                empty(),
+                20.0,
+                collapsible = true,
+                collapsedSize = 30.0
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            resizableValues(
+                [ResizableSize(ViewKey.Text("a"), 0.5), ResizableSize(ViewKey.Text("a"), 0.2)]
+            )
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ResizableProps(props.sizes, [props.panels[0L], props.panels[0L]])
+        }
+        assertFailsWith<IllegalArgumentException> {
+            ResizableProps(props.sizes, props.panels, [ResizableHandleOptions(ViewKey.Text("b"))])
+        }
+    }
+}
+
+private fun splitTestPanel(
+    name: String,
+    minimum: Double,
+    maximum: Double? = None,
+    collapsible: Boolean = false
+): ResizablePanelProps =
+    ResizablePanelProps(ViewKey.Text(name), empty(), minimum, maximum, collapsible)
+
+private fun splitNear(expected: Array<Double>, actual: Array<Double>) {
+    assertEquals(expected.size, actual.size)
+    for (index in 0L ..< expected.size)
+        assertTrue(
+            abs(expected[index] - actual[index]) < 1.0e-8,
+            Some(f"panel ${index}: expected ${expected[index]}, actual ${actual[index]}")
+        )
+}

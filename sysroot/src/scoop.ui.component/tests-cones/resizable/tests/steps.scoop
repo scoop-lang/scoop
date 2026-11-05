@@ -1,0 +1,212 @@
+package scoop.tests.ui.resizable
+
+import scoop.test.*
+import scoop.window.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun splitAdvance(p: SplitProbe) {
+    when (p.phase) {
+        case 0 -> assertTrue(p.lead.requestFocus())
+        case 1 -> p.key(48)
+        case 2 -> {
+            assertTrue(p.handles[0L].hasFocus);
+            p.key(124)
+        }
+        case 3 -> {
+            p.expect(110.0, 190.0, 100.0);
+            p.key(36)
+        }
+        case 4 -> {
+            assertTrue(p.sizes.value[0L].collapsed);
+            p.expect(0.0, 300.0, 100.0);
+            p.key(36)
+        }
+        case 5 -> {
+            p.expect(110.0, 190.0, 100.0);
+            p.key(119)
+        }
+        case 6 -> {
+            p.expect(220.0, 80.0, 100.0);
+            p.key(115)
+        }
+        case 7 -> {
+            p.expect(0.0, 300.0, 100.0);
+            p.key(36)
+        }
+        case 8 -> {
+            p.expect(220.0, 80.0, 100.0);
+            assertEquals(6, p.commits);
+            p.sizes.value = splitInitial()
+        }
+        case 9 -> assertTrue(p.editor.requestFocus())
+        case 10 -> {
+            splitEditorRight(p.native!!);
+            assertEquals(6, p.commits);
+            p.key(48)
+        }
+        case 11 -> {
+            assertTrue(p.handles[1L].hasFocus);
+            p.key(123)
+        }
+        case 12 -> {
+            p.expect(100.0, 190.0, 110.0);
+            p.sizes.value = splitInitial();
+            p.reject = true
+        }
+        case 13 -> {
+            assertTrue(p.handles[0L].requestFocus());
+            p.key(124)
+        }
+        case 14 -> {
+            p.expect(100.0, 200.0, 100.0);
+            assertEquals(7, p.commits);
+            p.reject = false
+        }
+        case 15 -> p.press(120.5, true)
+        case 16 -> p.move(150.5)
+        case 17 -> {
+            p.expect(130.0, 170.0, 100.0);
+            assertEquals(7, p.commits);
+            p.move(170.5)
+        }
+        case 18 -> {
+            p.expect(150.0, 150.0, 100.0);
+            p.press(170.5, false)
+        }
+        case 19 -> {
+            assertEquals(8, p.commits);
+            p.press(170.5, true)
+        }
+        case 20 -> p.move(140.5)
+        case 21 -> {
+            p.expect(120.0, 180.0, 100.0);
+            p.key(53)
+        }
+        case 22 -> {
+            p.expect(150.0, 150.0, 100.0);
+            assertEquals(1, p.cancels);
+            p.press(140.5, false);
+            p.press(170.5, true)
+        }
+        case 23 -> p.move(190.5)
+        case 24 -> {
+            p.expect(170.0, 130.0, 100.0)
+            p.sizes.value =
+                [
+                    ResizableSize(ViewKey.Text("a"), 0.2),
+                    ResizableSize(ViewKey.Text("b"), 0.55),
+                    ResizableSize(ViewKey.Text("c"), 0.25)
+                ]
+        }
+        case 25 -> {
+            p.expect(80.0, 220.0, 100.0);
+            assertEquals(2, p.cancels);
+            p.press(190.5, false);
+            p.sizes.value = splitInitial()
+        }
+        case 26 -> p.press(120.5, true)
+        case 27 -> p.move(150.5)
+        case 28 -> {
+            p.preventRelease = true;
+            p.press(150.5, false)
+        }
+        case 29 -> {
+            p.expect(100.0, 200.0, 100.0);
+            assertEquals(3, p.cancels);
+            p.press(120.5, true)
+        }
+        case 30 -> p.move(150.5)
+        case 31 -> p.enabled = false
+        case 32 -> {
+            p.expect(100.0, 200.0, 100.0);
+            assertEquals(4, p.cancels);
+            p.press(150.5, false);
+            p.enabled = true
+        }
+        case 33 -> p.press(120.5, true)
+        case 34 -> p.move(150.5)
+        case 35 -> p.narrow = true
+        case 36 -> {
+            p.expect(75.0, 150.0, 75.0);
+            assertEquals(5, p.cancels);
+            p.press(150.5, false);
+            p.narrow = false;
+            p.rtl = true
+        }
+        case 37 -> {
+            assertTrue(p.handles[0L].requestFocus());
+            p.key(123)
+        }
+        case 38 -> {
+            p.expect(110.0, 190.0, 100.0);
+            p.vertical = true;
+            p.sizes.value = splitInitial()
+        }
+        case 39 -> p.key(125)
+        case 40 -> {
+            p.expect(110.0, 190.0, 100.0);
+            p.key(126)
+        }
+        case 41 -> p.press(120.0, true, 170.5)
+        case 42 -> p.move(120.0, 200.5)
+        case 43 -> {
+            p.expect(130.0, 170.0, 100.0);
+            p.zero = true
+        }
+        case 44 -> {
+            assertEquals(6, p.cancels);
+            p.handles[0L].requestFocus();
+            p.press(120.0, false, 200.5);
+            p.vertical = false;
+            p.rtl = false
+        }
+        case 45 -> {
+            assertFalse(p.handles[0L].hasFocus);
+            assertFalse(p.handles[0L].isPending);
+            p.zero = false;
+            assertTrue(p.handles[2L].requestFocus())
+        }
+        case 46 -> {
+            p.expect(100.0, 200.0, 100.0);
+            p.key(124)
+        }
+        case 47 -> {
+            assertEquals(1, p.nestedCommits);
+            p.expect(100.0, 200.0, 100.0);
+            p.reordered = true
+        }
+        case 48 -> {
+            assertEquals(5, p.mounts);
+            assertEquals(0, p.unmounts);
+            p.reordered = false
+        }
+        case 49 -> {
+            p.beforeUnmount = p.sizes.value;
+            p.press(120.5, true)
+        }
+        case 50 -> p.move(150.5)
+        case 51 -> p.gone = true
+        case 52 -> {
+            assertEquals(7, p.cancels);
+            for (index in 0L ..< p.beforeUnmount.size)
+                assertEquals(p.beforeUnmount[index], p.sizes.value[index])
+            p.press(150.5, false);
+            p.gone = false;
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark)
+        }
+        case 53 -> {
+            assertEquals(8, p.mounts);
+            p.quiet = Some(p.frames!!.snapshot())
+        }
+        case 54 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        case 55 -> {
+            assertEquals(11, p.commits);
+            assertEquals(7, p.cancels)
+        }
+        case 56 -> p.native!!.requestDestroy()
+        else -> fail()
+    }
+}

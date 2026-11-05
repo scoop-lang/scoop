@@ -1,0 +1,128 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.ui.*
+import scoop.ui.style.*
+
+public struct ResizableSize(val key: ViewKey, val fraction: Double, val collapsed: Boolean = false)
+
+public class ResizablePanelProps public constructor(
+    public val key: ViewKey,
+    public val content: View,
+    public val minimum: Double = 0.0,
+    public val maximum: Double? = None,
+    public val collapsible: Boolean = false,
+    public val collapsedSize: Double = 0.0,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        requireComponent(key != ViewKey.Position, "resizable panel requires an explicit key")
+        nonnegative(minimum, "invalid panel minimum")
+        nonnegative(collapsedSize, "invalid collapsed panel size")
+        when (maximum) {
+            case Some(value) -> {
+                nonnegative(value, "invalid panel maximum")
+                requireComponent(value >= minimum, "panel maximum is less than minimum")
+            }
+            case None -> {}
+        }
+        requireComponent(
+            !collapsible || collapsedSize <= minimum,
+            "collapsed panel size exceeds its minimum"
+        )
+    }
+}
+
+public class ResizableHandleOptions public constructor(
+    public val afterKey: ViewKey,
+    public val withHandle: Boolean? = None,
+    public val enabled: Boolean = true,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: StyleOverride = styleOverride()
+)
+
+public class ResizableProps public constructor(
+    public val sizes: Binding<Array<ResizableSize>>,
+    public val panels: Array<ResizablePanelProps>,
+    public val handles: Array<ResizableHandleOptions> = [],
+    public val orientation: Orientation = Orientation.Horizontal,
+    public val enabled: Boolean = true,
+    public val withHandle: Boolean = false,
+    public val length: Double? = None,
+    public val keyboardStep: Double = 10.0,
+    public val dragThreshold: Double = 4.0,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val clip: Boolean = false,
+    public val onSizesChange: (Array<ResizableSize>) -> Unit = {},
+    public val onSizesCommit: (Array<ResizableSize>) -> Unit = {},
+    public val onSizesCancel: (Array<ResizableSize>, DragCancelReason) -> Unit = { _, _ -> }
+) {
+    init {
+        when (length) {
+            case Some(value) -> nonnegative(value, "invalid resizable length")
+            case None -> {}
+        }
+        requireComponent(
+            keyboardStep.isFinite() && keyboardStep > 0.0,
+            "resizable keyboard step must be finite and positive"
+        )
+        nonnegative(dragThreshold, "invalid resizable drag threshold")
+        val keys = HashMap<ViewKey, Long>()
+        for (index in 0L ..< panels.size) {
+            val key = panels[index].key
+            requireComponent(keys[key] == None, "duplicate resizable panel key")
+            keys[key] = index
+        }
+        val configured = HashMap<ViewKey, Boolean>()
+        for (handle in handles) {
+            val index = keys[handle.afterKey]
+            requireComponent(
+                index != None && index!! + 1L < panels.size,
+                "resizable handle requires an adjacent panel pair"
+            )
+            requireComponent(configured[handle.afterKey] == None, "duplicate resizable handle")
+            configured[handle.afterKey] = true
+        }
+    }
+}
+
+internal fun resizableHandle(input: ResizableProps, index: Long): ResizableHandleOptions {
+    val key = input.panels[index].key
+    for (handle in input.handles)
+        if (handle.afterKey == key)
+            return handle
+    return ResizableHandleOptions(key)
+}
+
+internal fun sameResizableSizes(a: Array<ResizableSize>, b: Array<ResizableSize>): Boolean {
+    if (a === b)
+        return true
+    if (a.size != b.size)
+        return false
+    for (index in 0L ..< a.size)
+        if (
+            a[index].key !=
+                b[index].key ||
+                a[index].fraction !=
+                b[index].fraction ||
+                a[index].collapsed !=
+                b[index].collapsed
+        )
+            return false
+    return true
+}
+
+internal fun resizableValues(input: Array<ResizableSize>): HashMap<ViewKey, ResizableSize> {
+    val values = HashMap<ViewKey, ResizableSize>()
+    for (value in input) {
+        requireComponent(value.key != ViewKey.Position, "resizable size requires an explicit key")
+        requireComponent(
+            value.fraction.isFinite() && value.fraction >= 0.0 && value.fraction <= 1.0,
+            "resizable fraction must be between zero and one"
+        )
+        requireComponent(values[value.key] == None, "duplicate resizable size key")
+        values[value.key] = value
+    }
+    return values
+}
