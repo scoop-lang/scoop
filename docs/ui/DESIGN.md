@@ -4,7 +4,9 @@
 
 弹层／同窗口模态、绝对定位、滚动与两种缓存、焦点导航、快捷键、事件路由及公共文本编辑已按 [基础能力设计](foundations/DESIGN.md) 完成 macOS 实施，交付与验证见 [基础交互实施记录](foundations/PROGRESS.md)。声明入口的接收者 DSL 已按 [迁移计划](DSL-MIGRATION.md) 完成，设计依据见 [DSL builder 设计建议](DSL-BUILDERS.md)。
 
-2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已完成范围、API、模型与分批规划，尚未实施：扩展现有 component 并新增独立 shadcn 主题，覆盖排除 Code Block／Native Select 后的 64 项。Windows／Linux native 和 accessibility 继续按独立工作推进。
+2026-11-04 的 [UI 跨平台抽象与控件基础补齐](component-foundations/DESIGN.md)已完成 macOS aarch64 实施与 x86_64 Rosetta 补验：整理了 window／surface 等公共平台合同，并补齐布局、交互、文本及视觉基础，交付范围见[实施记录](component-foundations/PROGRESS.md)。后续的 [shadcn 全套控件设计](shadcn/DESIGN.md)已实施到 Sidebar，实际交付见[组件实施记录](shadcn/PROGRESS.md)：扩展现有 component 并新增独立 shadcn 主题，目标覆盖排除 Code Block／Native Select 后的 64 项。Windows／Linux native 和 accessibility 继续按独立工作推进。
+
+2026-11-06 起先执行 [UI 框架与组件库整改方案](REMEDIATION-PLAN.md)，再继续新增组件。布局结果、失效和构造作用域的统一目标见 [UI 规范第 11 节](../specs/SCOOP-UI-SPEC.md#11-整改目标协议p0-合同按批次交付)，已完成范围见 [整改实施记录](REMEDIATION-PROGRESS.md)。本文件的原有验证不代表整改已经验收。
 
 ## 1. 分层目标
 
@@ -59,7 +61,7 @@ Component 负责声明式组合，返回 View。Element 负责实际测量、子
 
 Element 的必需操作是 `measure(context, constraints): LayoutMetrics` 与 `paint(context): Unit`，生命周期包括 onMount、update 和 onUnmount。LayoutMetrics 保存尺寸及可选的首行 alphabetic／ideographic baseline。update 在首次挂载后及 Props／子描述变化后执行，即使窗口隐藏也会执行，可以及时改变输入 enabled 或动画目标。
 
-框架的 View 仍可以是封闭描述类型，仅保存空内容、Component 和 Element 三种形状。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
+框架的 View 是封闭描述类型，当前包含 Empty／Component／Element／Portal／Lazy／Direction 六种形状，各自承担既有职责。扩展能力由公开 Element 协议提供：控件实现者不继承内部节点，也不向 View 增加一个 Label 或 Button 分支。
 
 例如，应用自己的颜色块完全不依赖控件库：
 
@@ -148,7 +150,7 @@ Checkbox.checked 与 Button.enabled 的联动由一个共同 State 完成：Chec
 
 Constraints 明确区分有限最大值与无界，最终尺寸是有限非负逻辑值。MeasureContext 让 Element 测量每个直接子项、取得尺寸和基线、给出子项位置，并返回自身 LayoutMetrics。Component 透传结果；单子项装饰和 Button 将子项基线加上实际偏移，没有基线时明确返回 None。
 
-首期每个子项每帧只测量一次，可以放置零次或一次。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
+当前每个子项在放置前允许以不同约束重测，相邻同约束复用；可以放置零次或一次，也可以在未测量时显式 skipChild。完整布局结果与节点级结果复用按整改 P1 交付。每轮清除旧放置；未放置子树保持挂载，但不绘制、不放置输入区域。这样行内对象可以先测量再参与断行，被省略号隐藏时仍保留状态；不需要为这一需求引入多轮 intrinsic 协商或 keep-alive 池。
 
 SceneContext 提供最终尺寸、统一时间、变换／clip／图层、输入和子项呈现。元素通过 draw 提交只有 Canvas／size／time 的纯绘图块，通过 children 在背景和前景之间呈现已放置子项。draw 的 Canvas 状态独立于后续输入几何；影响整个子树的几何通过 SceneContext 设置。未放置子树不进入 scene，父子关系不自动裁剪或建立输入区域。
 
@@ -178,7 +180,7 @@ scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas �
 
 scope.animation 将所属 SurfaceWindow.animations.value 创建的 Animatable 登记为当前挂载的资源。元素调用 Surface 已有的 animateTo／snapTo／pause 等方法，在 measure／scene／draw 中读 value。UI 不提供平行的动画类型、timer 或帧时钟。
 
-每个真实帧由 Surface 先统一采样动画，UI 再测量、放置和绘制当前挂载树。首期每帧遍历布局，昂贵计算由具体元素缓存，因此尺寸或位置动画自然进入同帧测量，无须额外的动画依赖图。只改变绘制值的动画不重跑未失效的 Component.render。
+每个真实帧由 Surface 先统一采样动画，UI 再测量、放置和绘制当前挂载树。当前每帧从根测量，昂贵计算由具体元素缓存，纯绘制动画也会进入 measure。整改 P1 先使结果可独立选择，P2 再区分布局与场景失效、登记动画的实际用途并复用有效布局。只改变绘制值的动画目前已经不重跑未失效的 Component.render，但尚不能据此声称零重复测量。
 
 ## 7. 逻辑更新独立于 drawable
 

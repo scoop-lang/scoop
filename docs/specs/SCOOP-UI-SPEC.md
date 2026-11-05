@@ -1,5 +1,7 @@
 # Scoop 自绘 UI 框架规范
 
+2026-11-06 整改：按 [UI 框架与组件库整改方案](../ui/REMEDIATION-PLAN.md)先整改现有实现，再继续扩展组件。第 11 节集中规定布局结果、失效及构造作用域的目标协议；P0 只完成合同与基线，尚未交付的目标不能作为当前 API 使用。各批完成时将合同并入对应现行章节并同步全部调用方，实际结果见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
+
 后续测量、方向、公共交互、portal 退出及文本策略的演进见 [控件基础设计](../ui/component-foundations/DESIGN.md)，按[控件基础实施记录](../ui/component-foundations/PROGRESS.md)逐批交付；下文描述对应批次的现行合同。
 
 日期：2026-11-03。状态：原有自绘框架、公共文本适配、独立基础控件／容器、主题展示及宿主／后台下载组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，详见 [UI 实施记录](../ui/PROGRESS.md)。新增场景与基础交互能力按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。本文件规定框架公开合同；公共文本能力另见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，基础控件另见 [控件库规范](SCOOP-UI-COMPONENT-SPEC.md)，取舍、内部组织及实施顺序见 [UI 设计](../ui/DESIGN.md)。现有底层库以 `scoop.surface` 命名，已实现的绘图、窗口呈现及输入合同见 [Surface 规范](SCOOP-SURFACE-SPEC.md)。
@@ -834,3 +836,49 @@ PortalOptionsBuilder 的 viewport 块配置 horizontal／vertical=Center、viewp
 `focusOptions(configure: FocusOptionsBuilder.() -> Unit = {})`、`focusScopeOptions(configure: FocusScopeOptionsBuilder.() -> Unit = {})` 与相应值的 copy 提供原有全部属性和默认值。FocusOptions／FocusScopeOptions 保留小型完整值构造；这不增加第二种挂载流程。`navigationOptions(configure: NavigationOptionsBuilder.() -> Unit = {})` 的 layout=Vertical、direction=None、loop=false、roving=true、preferredTab=None、onNavigate={}，使用 add(NavigationItem)、addAll(Array<NavigationItem>) 或 item(handle, row=0, column=0) 收集稳定 handle。结果 items 是独立数组；NavigationItem 保留小型值构造。注册 focusTarget／keyNavigation 和修改其当前 options 仍是明确的挂载操作。
 
 `inlineView(key: InlineKey, view: View, configure: InlineViewBuilder.() -> Unit = {}): InlineView` 配置 size=None 与 alignment=Baseline(Alphabetic)，替换原公开长参数构造。`inlineText(configure: InlineTextBuilder.() -> Unit = {}): InlineText` 同时发布 content: StyledText 与 inlines: Array<InlineView>，便于传给 Label／Button 或 ParagraphHost。InlineTextBuilder 的 style 从 textStyle() 开始，style 块按当前值修改；text(String)、add(TextSpan)、span(TextSpanBuilder.() -> Unit) 收集文本；inline(key, view, alternateText, configure: InlineViewBuilder.() -> Unit = {}) 同时追加文本占位和相应 View 描述。以已有 content／inlines 程序化组合仍沿原有验证入口，inlineText 在发布时检查 key 对应与重复，不能发布缺少 View 的占位。构造不测量、挂载、打开字体或读取 View 内容；发布后追加不改变已发布数组。graphics.text 只负责纯文本，不反向依赖 UI。
+
+## 11. 整改目标协议（P0 合同，按批次交付）
+
+本节统一 P1 的布局泛型与 P4 的构造作用域，避免为过渡接口保留桥接或平行实现。P0 不修改公开运行协议；以下签名与语义在相应批次完成实现、调用方及验收后成为现行合同。现有六种 View 职责、State 写入即通知、D0a receiver 边界和 Accepted 几何发布合同继续有效。
+
+### 11.1 类型化结果与构造协议
+
+目标公开协议为持有当前 ComponentScope 的抽象基类：`Component(scope)`、`Element<L>(scope)`、`LazyElement<L>(scope)`。Component 声明 `render(): View`；两个自绘基类分别声明 `measure(MeasureContext, Constraints): LayoutResult<L>` 与 `measure(LazyMeasureContext, Constraints): LayoutResult<L>`，共同声明 `scene(SceneContext, layout: L): Unit`。`onMount(): Unit`／`onUnmount(): Unit` 保留默认空实现；自绘基类的 `update(): UiInvalidation` 默认返回 Layout。UiInvalidation 为 None／Scene／Layout，后者包含场景失效。
+
+`LayoutResult<L>(metrics: LayoutMetrics, data: L, dispose: () -> Unit = {})` 是一次成功测量的自有结果。metrics 与 data 只读，data 使用具体的普通 struct／class；不需要数据的元素使用 Unit。成功返回转移释放责任，框架在结果不再被所选布局或本轮有效结果表引用时只调用一次 dispose。构造结果前失败，由测量实现释放本次新取得的资源；结果返回后校验或组装失败，由框架释放。释放失败按原有清理错误合并规则保留，不掩盖原始异常。
+
+工厂接收 `(Props<P>, ComponentScope) -> C`，无输入简写接收 `(ComponentScope) -> C`；Element／LazyElement 的描述同时保留输入 P、具体实例类型和布局类型 L。内部包装通过普通泛型把具体实例和它产生的 L 保存在同一类型化封装，再调用对应 scene；不借助反射、Any 字段还原或额外 View 分支。
+
+scope 在工厂运行前具有根、逻辑父级、方向与资源归属。构造期间取得的输入区域、控制器与资源立即登记到 scope，首次 render 可以直接使用；业务任务、聚焦和动画启动仍留在挂载通知或 Accepted 回调。实际实例保存私有单次挂载归属，不能重复用于另一次挂载，卸载也不重置该资格；不再维护全局实例表。工厂、首次 render 或 onMount 失败，先停止本次工作并清理已创建子项与资源，仅对成功完成 onMount 的实例执行业务 onUnmount。
+
+### 11.2 完整布局选择
+
+框架为每个成功结果保存本节点 metrics、类型化 data、直接子项选中的完整结果及其放置。子选择是不可变快照，分别表达显式跳过、已测量但未放置、已测量并放置。Component／Direction 透传一个选中结果，Empty／Portal 占位没有正文布局；Portal 出口独立选择其内容结果。
+
+measureChild／measureItem 继续向容器返回 LayoutMetrics，context 内部保存完整结果引用。放置选择最后一次成功请求的结果；A→B→A 必须选择原 A 的 data 和子结果，不能只恢复尺寸，也不能递归把成员字段改回旧值。place 后再测量、无成功结果就放置等状态错误沿现有边界报告；context 仅在当前同步回调有效。
+
+发布后的 data 与子选择不得通过别名改写。测量仍可维护输入相关缓存，但 scene 需要的几何、文字排版、裁剪和基线必须来自被选中的 data。像素颜色、透明度与仅绘制的动画值在 scene 采样；影响尺寸或位置的值属于布局输入。
+
+试测不发布焦点、命中、锚点、呈现资格或帧参与。最终选择后才处理 Lazy 保留与卸载：每次试测保存自己的已测项和放置，节点级 key 表复用本轮已构造的项；不按中间请求卸载后又重建，不枚举未请求的 ItemSource。隐藏项保留逻辑更新，恢复时按当前输入选择结果。帧参与与交互几何仍等待 Accepted；Discarded 保留上次已接受资格。
+
+### 11.3 结果表与资源持有
+
+P1 结果表属于根的一次布局轮次，保存在节点，跨不同 MeasureContext／LazyMeasureContext 回调复用。有效键为节点的布局输入版本、Constraints 值、方向及相关环境／动画采样。同一轮相同有效请求只计算一次，失败不缓存。节点内只保存真实发生的小型请求表，不要求 Constraints 的 Hash 或对象地址身份，不以任意配额限制合法布局。
+
+子树布局变化使依赖它的祖先结果失效。Lazy 的实际子项准备可以在布局期间发生，已准备项及其有效版本纳入本次结果；不能使同一父请求无条件重试。下一轮仅保留仍可能复用的当前选择，其余历史约束结果释放。完整结果之间共享子结果引用，不复制整棵放置树；多个父结果不分别关闭同一个子结果。
+
+段落结果持有对应不可变 TextLayout，复用 RetainedParagraphLayout 的持有语义。替换 ParagraphCache 不关闭仍被 A 结果、最终选择或已接受编辑帧持有的排版；新布局失败只释放本次新引用。编辑／可选择文字的独立已接受帧继续持有自己的布局，输入不能读取试测临时替换的“最近布局”。不扩展成通用资源租约体系。
+
+### 11.4 失效与跨帧边界
+
+逻辑更新负责当前 Props、必要的 render／reconcile／update；布局失效负责重新测量及其依赖的祖先；场景失效只负责场景或合成。`ComponentScope.requestLayout()` 使本节点及实际布局依赖路径失效并请求帧，`requestFrame()` 只请求场景。未知输入变化保守返回 Layout，仅替换事件处理器且不改变输入资格时允许 None。children 的增删、重排及已排队后代更新独立处理，不能被 Unit 输入或父级跳过掩盖。
+
+P2 复用未失效且约束、方向及布局依赖未变化的上一轮选中结果。初期失效沿布局依赖保守传播，路径外的有效兄弟可以命中。动画在实际读取阶段登记用途：布局阶段读取的值变化使布局失效，场景阶段读取仅使场景失效；两者都读取按布局处理。沿用 Surface 时间轴、完成回调与帧参与，不把逐帧值写入 State。
+
+字体、图像固有尺寸等可变资源使用实际通知或 revision。仅有 revision 的资源在已请求帧入口集中检查一次，失效实际依赖节点；不在每个节点扫描全部资源，也不为检查资源制造周期帧。P4 根默认字体由 scope 明确提供，显式控件字体优先；根只关闭自己创建的 fallback 集合，多个窗口借用的外部集合由调用方关闭。
+
+P5 场景缓存不能仅由尺寸相等推定有效。当前变换、clip、顺序、输入资格、焦点、锚点及 Portal 出口继续参与本帧组装。一次性帧完成回调不能作为跨帧记录重放；像素缓存、scene 跳过和几何复用分别验证。draw 保持直接绘图，drawLayer 保持有限独立记录与合成隔离，缓存开关不改变 Clear／Src 等混合结果。
+
+### 11.5 定向验收
+
+P0 在 release 下实测 Auto Grid 深度 1／3／6／10 与同深度 Frame 对照，记录调用数和不同约束数，源码推导不计作实测。P1 加入完整 A→B→A、段落持有、Lazy 最终选择及失败清理，并断言同节点同有效请求只计算一次。P2 以 Progress／Spinner／caret／纯颜色变化的零重复测量和 Disclosure／Sidebar／Resizable 的真实重排互为对照。其余更新、构造、场景和窗口矩阵按整改方案执行。普通 API 与组合测试属于各 Cone，只有必须由外部控制的帧／输入过程使用已有实窗组织；本轮 macOS 结果不代表 Windows／Linux 已通过。

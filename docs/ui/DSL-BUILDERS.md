@@ -4,6 +4,8 @@
 
 ## 1. 建议
 
+2026-11-06 补充：[UI 框架与组件库整改方案](REMEDIATION-PLAN.md)第 7 节规定后续易用性整改方向：保留 D0a，使用普通 View 函数和具名数据／动作参数减少外层 receiver 访问，并增加根默认字体。新增能力按该方案分批修订规范、实现和调用方；不放宽第 6 节的名称查找边界，不保留历史兼容接口。
+
 将 builder 作为 UI 的常用声明入口。一次 builder 调用同步收集属性和子 View，结束时生成现有的不可变 Props／View；框架继续使用同一 Component、Element、状态观察、key、挂载和测量／场景流程。所需新增代码主要位于控件库的构建入口，不需要改变底层渲染模型。
 
 这一层解决两个现有问题：Row／Column／Stack 目前需要显式组织 Array<View>；Input／Textarea／VirtualList 等入口有较长的命名参数列表。简单的 `label("Hello")` 仍适合直接使用，完整 Props 和 Component 构造入口继续服务自定义组合。

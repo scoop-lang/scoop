@@ -2,6 +2,8 @@
 
 日期：2026-11-04。状态：实施中，实际交付与验证范围见 [实施记录](PROGRESS.md)。承接已经完成 macOS 验收的 [UI 框架](../DESIGN.md)、[基础交互](../foundations/DESIGN.md)、[接收者 DSL](../DSL-MIGRATION.md)和[控件基础补齐](../component-foundations/DESIGN.md)。尚未在实施记录中闭合的类型、签名和批次仍是拟议合同，不表示仓库已经提供这些 API。
 
+2026-11-06 调整：新增组件暂缓，先按 [UI 框架与组件库整改方案](../REMEDIATION-PLAN.md)完成现有框架及控件迁移和验收。已提交进度仍到 Sidebar；未完成 Toast 不计为交付。整改结果见 [整改实施记录](../REMEDIATION-PROGRESS.md)，完成后继续本设计剩余项。
+
 ## 1. 交付目标与复刻基线
 
 在现有 `scoop.ui.component` 中交付完整控件集，新增独立的 `scoop.ui.style.shadcn` 主题。控件沿用同一份状态、布局、输入和文本实现；shadcn 的颜色、尺寸、部件外观与动效由主题和类型化控件样式表达。已有 Button、Checkbox、Input／Textarea、ScrollArea 等直接演进，不建立第二套同名控件库。
@@ -45,7 +47,7 @@
 
 ## 3. 已有能力与剩余工作
 
-现有 [组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)已经覆盖 Flex／Wrap／Grid、共享固定列宽、方向与图像、RangeSpec／resizePair／snapTarget；[UI 规范](../../specs/SCOOP-UI-SPEC.md)已有活动项导航、悬浮走廊、受控退出、文本策略／投影、滚动意图及阅读恢复。它们是直接实施控件的基础，不再开一轮笼统的“补齐基础设施”。
+现有 [组件规范](../../specs/SCOOP-UI-COMPONENT-SPEC.md)已经覆盖 Flex／Wrap／Grid、共享固定列宽、方向与图像、RangeSpec／resizePair／snapTarget；[UI 规范](../../specs/SCOOP-UI-SPEC.md)已有活动项导航、悬浮走廊、受控退出、文本策略／投影、滚动意图及阅读恢复。这些已交付能力继续作为控件基础；2026-11-06 的整改针对已复核的测量、更新、生命周期和错误隔离问题，范围与验收按整改方案闭合。
 
 以下差距必须随实际使用批次闭合，不能把现有近似能力当作完整支持：
 
