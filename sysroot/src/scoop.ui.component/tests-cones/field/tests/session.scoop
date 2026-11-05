@@ -1,0 +1,179 @@
+package scoop.tests.ui.field
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.tests.window.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.ui.text.*
+import scoop.window.*
+
+@Test
+private class FieldWindowTest {
+    @Test
+    fun `fields preserve editing through layout slots and keyed groups and route choice card activation once`() {
+        val p = FieldProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(1, p.editorMounts)
+            for (count in p.mounts)
+                assertEquals(1, count)
+            for (count in p.unmounts)
+                assertEquals(1, count)
+            assertFalse(p.focus.isAttached)
+            assertFalse(p.choiceFocus.isAttached)
+            for (target in p.targets)
+                assertFalse(target.isAttached)
+            assertFalse(p.fonts.isClosed)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(f"field phase=${p.phase}, rendered=${p.rendered}, text=${p.model.text}")
+            fieldFailure(error)
+            throw error
+        } finally {
+            host.close();
+            p.view?.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class FieldProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val model = TextEditorState("draft")
+    val focus = FocusHandle()
+    val choiceFocus = FocusHandle()
+    val targets = [FieldTarget(), FieldTarget(), FieldTarget()]
+    val generation = state(0)
+    val checked = state(false)
+    val bounds = MutableArray<Rect>(7L) { _ -> Rect(0.0, 0.0, 0.0, 0.0) }
+    var editorOutsetVisible = false
+    val mounts = MutableArray<Int>(2L) { _ -> 0 }
+    val unmounts = MutableArray<Int>(2L) { _ -> 0 }
+    var editorMounts = 0
+    var actions = 0
+    var rendered = -1
+    var revision = -1L
+    var enabled = true
+    var readonly = false
+    var captions = true
+    var errors = false
+    var customError = false
+    var required = false
+    var reorder = false
+    var rtl = false
+    var rebound = false
+    var zero = false
+    var gone = false
+    var orientation = FieldOrientation.Responsive
+    var descriptionPlacement = FieldDescriptionPlacement.WithHeading
+    var controlPlacement = FieldControlPlacement.End
+    var width = 500.0
+    var fieldSize = Size(0.0, 0.0)
+    var phase = 0
+    var finished = false
+    var native: Window? = None
+    var view: ViewProbe? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(50L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop field test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(560.0, 580.0)
+                        }
+                    )
+                native = Some(window);
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                view = Some(observeWindow(window));
+                frames = Some(observeFrames(window))
+                host.attach(window, { FieldScene(this) });
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("field timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        revision ==
+                        model.revision &&
+                        !focus.isPending &&
+                        !choiceFocus.isPending &&
+                        !frames!!.snapshot().required
+                )
+                    advance()
+                else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 40)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 40;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun advance() {
+        when (phase / 8) {
+            case 0 -> fieldBegin(this)
+            case 1 -> fieldEditing(this)
+            case 2 -> fieldChoices(this)
+            case 3 -> fieldConstraints(this)
+            case 4 -> fieldFinish(this)
+            else -> fail(Some("unexpected field phase"))
+        }
+        if (phase < 36)
+            generation.value += 1
+        phase += 1
+    }
+    fun click(index: Long) {
+        val b = bounds[index]
+        assertTrue(b.width > 0.0 && b.height > 0.0)
+        val x = b.x + b.width / 2.0
+        val y = b.y + b.height / 2.0
+        assertTrue(moveSurfacePointer(native!!, x, y))
+        assertTrue(view!!.button(x, y, true));
+        assertTrue(view!!.button(x, y, false))
+    }
+    fun text(value: String, marked: Boolean = false) {
+        assertEquals(0, fieldText(native!!, value, marked))
+    }
+    fun retained() {
+        assertEquals(1, editorMounts)
+        for (count in mounts)
+            assertEquals(1, count)
+        for (count in unmounts)
+            assertEquals(0, count)
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(150L))
+        )
+    }
+}

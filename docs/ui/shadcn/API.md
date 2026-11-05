@@ -149,6 +149,10 @@ Dialog、Collapsible 等 builder 的 `trigger(content) { ... }` 收集 TriggerSp
 
 FieldTarget 是为 Label 关联新增的窄句柄：包含稳定的焦点目标关联和所属控件当前的标签激活动作，不暴露组件实例。输入控件的 `labelTarget` Props 接入它，`fieldLabel(text, target)` 使用同一目标。文本输入／Slider／Select 的标签请求聚焦；Checkbox／Radio／Switch 的标签执行与自身相同的一次选择动作并聚焦。未挂载、禁用、隐藏、域外和旧绑定均不得被标签激活；替换 Props 更新当前动作。它不成为通用“按名字调用控件”的接口。
 
+Field 已实现：`field(control) { label("名称", target); description("说明"); errors = messages }` 固定保留控件槽，标题也可用无动作的 title。FieldOrientation.Vertical／Horizontal／Responsive 只改变实际测量与放置；Responsive 默认在内容宽度 448 处切换，按主题字号缩放。FieldControlPlacement.Start 配合 WithHeading 说明用于 Checkbox／Switch；requiredText 可本地化，invalid 和错误由业务明确传入，不生成另一份校验或禁用状态。FieldLabel 的 View 重载可包裹 choice card，内部控件消费动作后不会再触发外层标签。
+
+`fieldGroup`、`fieldContent` 收集普通子 View；`fieldSet(content) { legend(...); description(...) }` 保留固定正文槽。fieldTitle／fieldDescription／fieldLegend／fieldError／fieldSeparator 都提供独立入口和 String／StyledText／View 内容；fieldError 过滤空字符串并按首次出现去重，多条使用项目符号，自定义内容优先。完整 Props、布局和生命周期合同见[组件规范第 23 节](../../specs/SCOOP-UI-COMPONENT-SPEC.md)。
+
 ButtonGroup 和 InputGroup 不能通过检查不透明 View 来修改子组件样式：
 
 - ButtonGroup 的 button／input／separator／text 成员收集明确条目，render 按位置生成各条目的边角与接缝。`item({ position -> ... })` 用 `GroupPosition` 明确配置实际控件的 group，plain `add(View)` 保留调用方已完成的外观；group 成员创建独立嵌套组。根 fonts／theme 为未明确配置的内置条目提供默认值。它不增加激活行为，焦点项最后绘制但不改变 Tab 顺序；现行合同见控件规范第 16 节。

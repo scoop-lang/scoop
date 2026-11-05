@@ -35,14 +35,88 @@ public open class ChildrenBuilder internal constructor() {
         target: FieldTarget,
         configure: FieldLabelBuilder.() -> Unit = {}
     ): Unit {
-        add(makeFieldLabel(LabelText.Plain(text, None), target, configure))
+        add(makeFieldLabel(FieldLabelContent.Text(LabelText.Plain(text, None)), target, configure))
     }
     public fun fieldLabel(
         text: StyledText,
         target: FieldTarget,
         configure: FieldLabelBuilder.() -> Unit = {}
     ): Unit {
-        add(makeFieldLabel(LabelText.Styled(text), target, configure))
+        add(makeFieldLabel(FieldLabelContent.Text(LabelText.Styled(text)), target, configure))
+    }
+    public fun fieldLabel(
+        content: View,
+        target: FieldTarget,
+        configure: FieldLabelBuilder.() -> Unit = {}
+    ): Unit {
+        add(makeFieldLabel(FieldLabelContent.Custom(content), target, configure))
+    }
+
+    public fun field(control: View, configure: FieldBuilder.() -> Unit = {}) {
+        add(makeField(control, configure))
+    }
+    public fun fieldGroup(configure: FieldStackBuilder.() -> Unit = {}) {
+        add(makeFieldStack(FieldStackKind.Group, configure))
+    }
+    public fun fieldContent(configure: FieldStackBuilder.() -> Unit = {}) {
+        add(makeFieldStack(FieldStackKind.Content, configure))
+    }
+    public fun fieldSet(content: View, configure: FieldSetBuilder.() -> Unit = {}) {
+        add(makeFieldSet(content, configure))
+    }
+    public fun fieldTitle(content: String, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldPlain(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldTitle(content: StyledText, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldStyled(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldTitle(content: View, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(PanelContent.Custom(content), FieldTextRole.Title, configure))
+    }
+    public fun fieldDescription(content: String, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldPlain(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldDescription(content: StyledText, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(fieldStyled(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldDescription(content: View, configure: FieldTextBuilder.() -> Unit = {}) {
+        add(makeFieldText(PanelContent.Custom(content), FieldTextRole.Description, configure))
+    }
+    public fun fieldLegend(content: String, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(fieldPlain(content), configure))
+    }
+    public fun fieldLegend(content: StyledText, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(fieldStyled(content), configure))
+    }
+    public fun fieldLegend(content: View, configure: FieldLegendBuilder.() -> Unit = {}) {
+        add(makeFieldLegend(PanelContent.Custom(content), configure))
+    }
+    public fun fieldError(content: String, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(fieldPlain(content)), configure))
+    }
+    public fun fieldError(content: StyledText, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(fieldStyled(content)), configure))
+    }
+    public fun fieldError(content: View, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError([], Some(PanelContent.Custom(content)), configure))
+    }
+    public fun fieldSeparator(content: String, configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(Some(fieldPlain(content)), configure))
+    }
+    public fun fieldSeparator(
+        content: StyledText,
+        configure: FieldSeparatorBuilder.() -> Unit = {}
+    ) {
+        add(makeFieldSeparator(Some(fieldStyled(content)), configure))
+    }
+    public fun fieldSeparator(content: View, configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(Some(PanelContent.Custom(content)), configure))
+    }
+    public fun fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {}) {
+        add(makeFieldError(errors, None, configure))
+    }
+    public fun fieldSeparator(configure: FieldSeparatorBuilder.() -> Unit = {}) {
+        add(makeFieldSeparator(None, configure))
     }
 
     public fun imageView(

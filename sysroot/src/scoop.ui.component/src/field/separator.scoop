@@ -1,0 +1,165 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class FieldSeparatorProps public constructor(
+    public val content: PanelContent? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val color: Color? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+public class FieldSeparator public constructor(
+    private val props: Props<FieldSeparatorProps>
+): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val line = SeparatorProps(color = Some(input.color ?: theme.tokens.palette.border))
+        val children = ArrayList<View>()
+        children.add(component(line, { current -> Separator(current) }, ViewKey.Number(0L)))
+        when (input.content) {
+            case Some(value) -> {
+                children.add(component(line, { current -> Separator(current) }, ViewKey.Number(1L)))
+                children.add(
+                    panelSlot(
+                        makeRow {
+                            this.add(
+                                panelCaption(
+                                    value,
+                                    fieldTextStyle(FieldTextRole.Description, theme),
+                                    input.fonts
+                                )
+                            )
+                        },
+                        2L
+                    )
+                )
+            }
+            case None -> {}
+        }
+        return panelFrame(
+            element(
+                theme.tokens.typography.body.fontSize / 14.0,
+                { current -> FieldSeparatorLayout(current) },
+                children.toArray()
+            ),
+            visual = input.style
+        )
+    }
+}
+
+private class FieldSeparatorLayout(private val props: Props<Double>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val hasContent = context.childCount == 3L
+        val gap = upperBound(8.0 * props.value, (constraints.maxWidth ?: 16.0 * props.value) / 2.0)
+        val caption =
+            if (hasContent)
+                context.measureChild(
+                    2L,
+                    Constraints(
+                        maxWidth = insetMaximum(constraints.maxWidth, gap * 2.0),
+                        maxHeight = constraints.maxHeight
+                    )
+                )
+            else
+                LayoutMetrics(Size(0.0, 0.0))
+        val size =
+            constraints.constrain(
+                Size(
+                    constraints.maxWidth ?:
+                        (
+                            caption.size.width +
+                                if (hasContent)
+                                    gap * 2.0
+                                else
+                                    0.0
+                        ),
+                    lowerBound(20.0 * props.value, caption.size.height)
+                )
+            )
+        val lineWidth =
+            if (hasContent)
+                lowerBound((size.width - caption.size.width - gap * 2.0) / 2.0, 0.0)
+            else
+                size.width
+        val lineConstraints =
+            Constraints(
+                minWidth = lineWidth,
+                maxWidth = Some(lineWidth),
+                maxHeight = Some(size.height)
+            )
+        val first = context.measureChild(0L, lineConstraints)
+        val second =
+            if (hasContent)
+                context.measureChild(1L, lineConstraints)
+            else
+                first
+        if (size.width > 0.0 && size.height > 0.0) {
+            context.placeChild(0L, Point(0.0, (size.height - first.size.height) / 2.0))
+            if (hasContent) {
+                context.placeChild(
+                    1L,
+                    Point(size.width - lineWidth, (size.height - second.size.height) / 2.0)
+                )
+                context.placeChild(
+                    2L,
+                    Point(
+                        (size.width - caption.size.width) / 2.0,
+                        (size.height - caption.size.height) / 2.0
+                    )
+                )
+            }
+        }
+        return offsetMetrics(caption, size, (size.height - caption.size.height) / 2.0)
+    }
+    public override fun scene(context: SceneContext) {
+        containerScene(context, true)
+    }
+}
+
+public class FieldSeparatorBuilder internal constructor() {
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var color: Color? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+}
+
+public fun fieldSeparator(configure: FieldSeparatorBuilder.() -> Unit = {}): View =
+    makeFieldSeparator(None, configure)
+
+public fun fieldSeparator(text: String, configure: FieldSeparatorBuilder.() -> Unit = {}): View =
+    makeFieldSeparator(Some(fieldPlain(text)), configure)
+
+public fun fieldSeparator(
+    text: StyledText,
+    configure: FieldSeparatorBuilder.() -> Unit = {}
+): View = makeFieldSeparator(Some(fieldStyled(text)), configure)
+
+public fun fieldSeparator(content: View, configure: FieldSeparatorBuilder.() -> Unit = {}): View =
+    makeFieldSeparator(Some(PanelContent.Custom(content)), configure)
+
+internal fun makeFieldSeparator(
+    content: PanelContent?,
+    configure: FieldSeparatorBuilder.() -> Unit
+): View {
+    val builder = FieldSeparatorBuilder()
+    builder.configure()
+    return component(
+        FieldSeparatorProps(content, builder.fonts, builder.theme, builder.color, builder.style),
+        { current -> FieldSeparator(current) },
+        builder.key
+    )
+}

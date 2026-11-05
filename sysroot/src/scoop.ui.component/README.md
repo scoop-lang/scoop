@@ -45,6 +45,10 @@ Checkbox 可接收 `Binding<CheckState>`（Unchecked／Checked／Indeterminate�
 
 Input Group 内置输入使用 `chrome = TextFieldChrome.Bare`，移除内层外框、边框占位和禁用透明度，保留原文本宿主、padding、滚动条和编辑策略。外部组合也可显式使用 Bare；切换 chrome 保留选区、组合输入与撤销历史。自定义 `control(view, focus)` 必须让实际控件绑定该 FocusHandle，并自行选择 Bare；外层不遍历 View 或查找编辑器。`tests-cones/input-group` 覆盖真实窗口中的四向 addon、keyed 重排、IME、焦点换绑和资源收尾。
 
+`field(control) { label("名称", target); description("帮助"); errors = messages }` 组合标签、控件、说明与业务错误。Vertical／Horizontal／Responsive 按实际内容宽度布局，默认响应阈值为 448（随字号缩放）；切换布局和可选内容不会重建控件或断开输入法。required／requiredText 只显示必填说明；控件的 enabled／invalid 与 Field 的 invalid 由业务明确配置。error 自定义内容优先，errors 忽略空字符串并按首次出现去重，多条显示项目符号。
+
+fieldGroup／fieldContent 收集子项，fieldSet(content) 提供 legend／description；fieldTitle、fieldDescription、fieldLegend、fieldError 和 fieldSeparator 也可单独组合。FieldLabel 现可接受任意 View，用来将整个 choice card 关联到 Checkbox／Switch；点击卡片和直接点击控件均只激活一次。`tests-cones/field` 覆盖真实输入、可选槽和 keyed 重排、窄宽／零尺寸、标签与 choice card、焦点保留及卸载收尾。
+
 Button／Checkbox／Switch／Toggle 默认参与 Tab／Shift+Tab 遍历。`focus = FocusOptions(Some(handle), tabStop = true, order = 0)` 可提供外部 FocusHandle、Tab 资格及作用域内顺序；handle.requestFocus() 也可聚焦退出 Tab 的控件。禁用仍由原有 enabled 控制，布局和绘制顺序不决定 Tab 顺序；更换 handle 不重建区域或重置已有焦点。
 
 Label 的 String 入口接受可选 SpanStyle，只覆盖其中明确的字体、字号、颜色等属性；完整 StyledText 使用公共富文本模型。Button 的标签复用 Label 与主题 action 字体，其基线来自实际文字布局。外部 FontCollection 只借用，默认字体资源由挂载作用域管理。

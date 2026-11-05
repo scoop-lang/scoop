@@ -39,3 +39,5 @@ Slider 页面提供单个、两个和三个 thumb、连续范围、竖向和禁�
 Input 页面补充密码显隐、最多六位数字的编辑策略、只读复制和应用文件选择动作；文件示例明确选用样例文件，实际应用连接自己的选择器。Textarea 页面展示多行编辑、换行切换、水平／垂直滚动、Tab 插入／导航、⌘Enter 提交及只读／错误／禁用状态。
 
 Input Group 页面展示四种 addon 位置、文字前后缀、Kbd、Spinner、独立按钮、多行消息和显式自定义输入。可以移动 keyed addon、收窄宽度及切换错误／禁用／只读；点击 addon 文字聚焦编辑器，按钮各自激活。顶部配色、明暗和 RTL 设置同样适用。
+
+Field 页面提供带校验的设置表单，组合 FieldSet／FieldGroup、Input Group、六位 OTP、Textarea、Checkbox choice card、Switch、Radio Group 和 Slider。Save settings 首次显示业务错误并聚焦第一个无效输入，后续编辑更新错误，成功仅在示例内计数；Reset 恢复业务值。Layout 切换横／纵／响应式，Width 切换可用宽度；可同时检查 System／Neutral、明暗、RTL、只读和禁用。DatePicker 在 P7 实现后接入。

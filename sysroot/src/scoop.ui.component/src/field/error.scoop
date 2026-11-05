@@ -1,0 +1,116 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class FieldErrorProps public constructor(
+    public val errors: Array<String> = [],
+    public val content: PanelContent? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val textStyle: SpanStyle? = None,
+    public val style: StyleOverride = styleOverride()
+)
+
+internal fun fieldErrors(errors: Array<String>): Array<String> {
+    val result = ArrayList<String>()
+    for (error in errors) {
+        if (error.byteLength == 0L)
+            continue
+        var duplicate = false
+        for (existing in result)
+            if (existing == error)
+                duplicate = true
+        if (!duplicate)
+            result.add(error)
+    }
+    return result.toArray()
+}
+
+public class FieldError public constructor(private val props: Props<FieldErrorProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val base = fieldTextStyle(FieldTextRole.Error, theme)
+        val text = input.textStyle?.resolve(base) ?: base
+        when (input.content) {
+            case Some(content) -> return panelFrame(
+                panelCaption(content, text, input.fonts),
+                visual = input.style
+            )
+            case None -> {}
+        }
+        val errors = fieldErrors(input.errors)
+        if (errors.size == 0L)
+            return empty()
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val content =
+            makeColumn {
+                for (error in errors) {
+                    val caption = panelCaption(fieldPlain(error), text, input.fonts)
+                    if (errors.size == 1L)
+                        this.add(caption)
+                    else
+                        this.add(
+                            makeRow {
+                                this.add(
+                                    panelFrame(
+                                        panelCaption(fieldPlain("•"), text, input.fonts),
+                                        width = Some(8.0 * density)
+                                    )
+                                )
+                                this.item(caption) { this.grow = 1.0 }
+                                this.spacing = 8.0 * density
+                                this.alignment = CrossAlignment.Baseline
+                            }
+                        )
+                }
+                this.spacing = 4.0 * density
+                this.alignment = CrossAlignment.Stretch
+            }
+        return panelFrame(content, visual = input.style)
+    }
+}
+
+public class FieldErrorBuilder internal constructor(): FieldTextBuilder() {
+    public var content: PanelContent? = None
+    public fun content(text: String) {
+        content = Some(fieldPlain(text))
+    }
+    public fun content(text: StyledText) {
+        content = Some(fieldStyled(text))
+    }
+    public fun content(view: View) {
+        content = Some(PanelContent.Custom(view))
+    }
+    internal fun snapshot(errors: Array<String>): FieldErrorProps =
+        FieldErrorProps(errors, content, fonts, theme, textStyle, style)
+}
+
+public fun fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {}): View =
+    makeFieldError(errors, None, configure)
+
+public fun fieldError(text: String, configure: FieldErrorBuilder.() -> Unit = {}): View =
+    makeFieldError([], Some(fieldPlain(text)), configure)
+
+public fun fieldError(text: StyledText, configure: FieldErrorBuilder.() -> Unit = {}): View =
+    makeFieldError([], Some(fieldStyled(text)), configure)
+
+public fun fieldError(content: View, configure: FieldErrorBuilder.() -> Unit = {}): View =
+    makeFieldError([], Some(PanelContent.Custom(content)), configure)
+
+internal fun makeFieldError(
+    errors: Array<String>,
+    content: PanelContent?,
+    configure: FieldErrorBuilder.() -> Unit
+): View {
+    val builder = FieldErrorBuilder()
+    builder.content = content
+    builder.configure()
+    return component(builder.snapshot(errors), { current -> FieldError(current) }, builder.key)
+}

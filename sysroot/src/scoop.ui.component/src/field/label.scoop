@@ -6,8 +6,12 @@ import scoop.surface.InputArea
 import scoop.ui.*
 import scoop.ui.style.*
 
+public enum FieldLabelContent {
+    Text(LabelText), Custom(View)
+}
+
 public class FieldLabelProps public constructor(
-    public val text: LabelText,
+    public val content: FieldLabelContent,
     public val target: FieldTarget,
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
@@ -30,24 +34,33 @@ public class FieldLabel public constructor(private val props: Props<FieldLabelPr
                 this.weight = 500
                 this.color = theme.tokens.palette.background.foreground
             }
-        val content =
-            when (input.text) {
-                case Plain(value, local) -> LabelText.Styled(
-                    typographyContent(
-                        TypographyContent.Plain(value),
-                        local?.resolve(base) ?: base,
-                        input.textStyle
-                    )
-                )
-                case Styled(value) -> LabelText.Styled(
-                    typographyContent(TypographyContent.Styled(value), base, input.textStyle)
-                )
-            }
         val child =
-            component(
-                LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
-                { current -> Label(current) }
-            )
+            when (input.content) {
+                case Custom(view) -> view
+                case Text(value) -> {
+                    val content =
+                        when (value) {
+                            case Plain(value, local) -> LabelText.Styled(
+                                typographyContent(
+                                    TypographyContent.Plain(value),
+                                    local?.resolve(base) ?: base,
+                                    input.textStyle
+                                )
+                            )
+                            case Styled(value) -> LabelText.Styled(
+                                typographyContent(
+                                    TypographyContent.Styled(value),
+                                    base,
+                                    input.textStyle
+                                )
+                            )
+                        }
+                    component(
+                        LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
+                        { current -> Label(current) }
+                    )
+                }
+            }
         val decorated =
             frame(child) {
                 this.padding = Some(Insets())
@@ -141,31 +154,37 @@ public class FieldLabelBuilder internal constructor() {
     public fun style(configure: StyleOverrideBuilder.() -> Unit): Unit {
         style = style.copy(configure)
     }
-    internal fun snapshot(text: LabelText, target: FieldTarget): FieldLabelProps =
-        FieldLabelProps(text, target, fonts, theme, textStyle, settings, style)
+    internal fun snapshot(content: FieldLabelContent, target: FieldTarget): FieldLabelProps =
+        FieldLabelProps(content, target, fonts, theme, textStyle, settings, style)
 }
 
 public fun fieldLabel(
     text: String,
     target: FieldTarget,
     configure: FieldLabelBuilder.() -> Unit = {}
-): View = makeFieldLabel(LabelText.Plain(text, None), target, configure)
+): View = makeFieldLabel(FieldLabelContent.Text(LabelText.Plain(text, None)), target, configure)
 
 public fun fieldLabel(
     text: StyledText,
     target: FieldTarget,
     configure: FieldLabelBuilder.() -> Unit = {}
-): View = makeFieldLabel(LabelText.Styled(text), target, configure)
+): View = makeFieldLabel(FieldLabelContent.Text(LabelText.Styled(text)), target, configure)
+
+public fun fieldLabel(
+    content: View,
+    target: FieldTarget,
+    configure: FieldLabelBuilder.() -> Unit = {}
+): View = makeFieldLabel(FieldLabelContent.Custom(content), target, configure)
 
 internal fun makeFieldLabel(
-    text: LabelText,
+    content: FieldLabelContent,
     target: FieldTarget,
     configure: FieldLabelBuilder.() -> Unit
 ): View {
     val builder = FieldLabelBuilder()
     builder.configure()
     return component(
-        builder.snapshot(text, target),
+        builder.snapshot(content, target),
         { current -> FieldLabel(current) },
         builder.key
     )

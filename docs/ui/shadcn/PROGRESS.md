@@ -145,3 +145,11 @@
 - Gallery 补齐 Input 的密码显隐、数字策略、只读与应用文件选择动作，新增 Textarea 和 Input Group 页面。手工检查 System／Neutral、明暗、RTL、四向／窄宽 addon、错误／禁用外框、中文多行输入与提交、密码显隐、数字限长和样例文件动作；修正示例父布局拉伸窄宽及焦点环贴近裁剪边界的问题。API 与两份 README 已同步。
 - macOS aarch64 release：相关 Cone 先格式化与 tests 静态检查，生产库及 Gallery 应用／测试构建成功；**9 项定向测试全部通过**，包括 Input Group 4 项、文本样式 2 项、Gallery 搜索 1 项、既有 91 阶段文本编辑回归，以及新 48 阶段 Input Group 实窗测试。覆盖 preedit／中文提交、复制／撤销、掩码、只读、禁用、模型／句柄／回调替换、输入类型切换、自定义 Bare／Framed 切换、keyed 实例及局部状态保留、四向布局、窄宽／零尺寸、静止停帧与资源收尾。初轮另修正零建议宽度的测试预期，以及原生只读拒绝输入的返回值断言；未放宽生命周期或编辑行为断言。
 - 本批完成三项，目录累计 **26／64**，P2 下一项为 Field。为消费已合入主线的 runtime ABI 34／metadata ABI 11，对齐了五个宿主命令、runtime 和系统库；使用现有 LLVM 与外部依赖缓存，没有重建 LLVM 或图形工具链。一次性检查锁及手工窗口清理，保留共享缓存、定向回归／Gallery 产物与 `../scoop-dep` 参考。UI 库仍无 typeInfo／TypeInfo／TypeRef／TypeShape 直接引用；未运行全仓或全部控件测试，x86_64 留在整体收尾，Windows／Linux 未验证。
+
+## P2f：Field 家族与设置表单
+
+- 先补齐控件规范第 23 节，新增 Field、FieldSet、FieldGroup／FieldContent、标题／说明／legend／错误列表及带文字分隔线。Field 使用固定控件槽，横／纵／响应式和逻辑起止放置只改变测量与位置；标题、说明、错误和集合 legend 增删保持正文实例、选区与 IME。错误过滤空字符串并按首次出现去重，自定义内容优先；required 支持本地化说明，校验及控件状态继续由业务明确传入。
+- FieldLabel 增加 View 内容，用同一 FieldTarget 关联 choice card；内部 Checkbox 消费动作后外层不再激活，保持非 Tab 标签合同。Field／分组不新增焦点区域、输入模型、反射或类型身份。Gallery 增加可操作的设置表单，组合 Input Group、OTP、Textarea、Checkbox、Switch、Radio 和 Slider，提供提交校验、重置、宽度／布局／禁用／只读切换；DatePicker 留在 P7 接入。API 和两份 README 已同步。
+- macOS aarch64 release：三个 Cone 的格式与 tests 静态检查通过，生产库、Gallery 应用及相关测试程序构建成功；**8 项定向测试通过**，包括 4 项 Field 组件测试、设置表单与 Gallery 搜索各 1 项、既有 FieldLabel 窗口回归，以及新的 40 阶段 Field 实窗用例。覆盖实际宽度阈值、RTL、可选槽、嵌套集合、keyed 状态／工厂次数、preedit／中文提交、标签换绑、choice card 内外点击各一次、键盘、只读／禁用、零尺寸恢复、卸载与停帧。
+- 手工复核发现并修正默认布局裁掉输入框焦点环、分隔文字占满宽度后两侧线条消失的问题，窗口测试补充外扩绘制区域与分隔内容居中的断言。System／Neutral、明暗／RTL、横纵／窄宽、单多错误、中文编辑和有效提交已实窗检查。另修正了零尺寸时将 FocusHandle 的“接受待处理请求”误当作“立即取得焦点”的测试预期，继续断言焦点清除、请求取消及恢复后不自动聚焦。221 个 Scoop 文件格式与 diff 检查通过。
+- 本批完成 Field，**P2 全部完成，目录累计 27／64**，随后进入 P3。复用共享缓存与现有 LLVM，未重建编译器或外部工具链，未重复全仓／全部控件测试；一次性检查锁和手工窗口清理，保留后续复用产物。7 个 UI 库源码仍无 typeInfo／TypeInfo／TypeRef／TypeShape／requireClassInstance 直接引用。x86_64 留在整体收尾，Windows／Linux 未验证。

@@ -1,0 +1,33 @@
+package scoop.examples.ui.shadcn
+
+import scoop.test.*
+import scoop.ui.component.FieldOrientation
+
+@Test
+private class SettingsModelTest {
+    @Test
+    fun `settings validate on submit update errors with edits and reset business values`() {
+        val model = SettingsModel()
+        assertEquals(0L, model.emailErrors.size)
+        model.submit()
+        assertEquals(1L, model.emailErrors.size)
+        assertEquals(1L, model.codeErrors.size)
+        assertEquals(0, model.saved.value)
+        model.email.replaceAll("invalid")
+        assertEquals(2L, model.emailErrors.size)
+        model.email.replaceAll("you@example.com")
+        model.code.replaceAll("123456")
+        assertEquals(0L, model.emailErrors.size)
+        model.submit()
+        assertEquals(1, model.saved.value)
+        model.orientation.value = FieldOrientation.Vertical
+        model.updates.value = false
+        model.reset()
+        assertTrue(model.updates.value)
+        assertEquals("", model.email.text)
+        assertEquals("", model.code.text)
+        assertEquals(0L, model.emailErrors.size)
+        assertEquals(0, model.saved.value)
+        assertEquals(FieldOrientation.Vertical, model.orientation.value)
+    }
+}

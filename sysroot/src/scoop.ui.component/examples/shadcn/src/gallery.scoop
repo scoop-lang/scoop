@@ -195,6 +195,7 @@ internal class Gallery(
             case Slider -> sliderExamples(model, fonts)
             case Textarea -> textareaExamples(model.textFields, fonts)
             case InputGroup -> inputGroupExamples(model.inputGroups, fonts)
+            case Field -> settingsExamples(model.settings, fonts, model.source.current.value)
         }
 
     private fun controlDemo(value: ControlDemo): View =

@@ -577,7 +577,7 @@ ShortcutChord 在挂载后通过 ComponentScope.nativeWindow.shortcutLabel 取�
 
 `FieldTarget()` 是标签使用的稳定窄句柄；`isAttached` 表示存在尚未卸载的控件关联，`isEnabled` 表示该关联的当前 enabled 输入。它不暴露组件实例或任意调用入口，也不替代 FocusHandle。一个句柄同时只能关联一个已挂载控件；重复绑定报告普通参数错误。InputProps／TextareaProps／CheckboxProps／SwitchProps 及对应 builder 提供 `labelTarget: FieldTarget? = None`。控件作用域拥有关联，更新 Props 时更新目标及动作，替换或卸载解除旧关联；多个标签可以使用同一个目标。
 
-`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。builder 提供 fonts／theme、textStyle: TextStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
+`fieldLabel(text: String, target: FieldTarget, configure: FieldLabelBuilder.() -> Unit = {})` 及 StyledText／View 重载创建 FieldLabelProps／FieldLabel，ChildrenBuilder 有同名成员。Props 的 content 为 FieldLabelContent.Text(LabelText) 或 Custom(View)；builder 提供 fonts／theme、textStyle: SpanStyle?、settings: ParagraphStyle?、style: StyleOverride、key。文字使用现有 Label 排版，不可选择，不增加 Tab 停靠点。普通文字以当前 body 字体族、14／14、500 和 foreground 为基础，尺寸按 body 字号相对 14 缩放；StyledText 保留明确基础样式和片段，textStyle 覆盖基础样式。Custom 保留完整 View 及自身样式，标签只提供原有指针关联，可包裹含控件的 choice card；子控件消费的点击不再次触发标签动作。无关联或目标禁用时整体透明度为 0.5，局部装饰仍由 style 表达；原有 label 保持纯文本用途。
 
 标签的指针操作复用非聚焦区域上的 Press，正常取消拖出、取消序列和被子动作消费的点击。激活时检查标签与控件属于同一窗口、双方仍在当前输入域、控件 enabled 且实际区域可聚焦；未挂载、禁用、隐藏、未放置、域外或旧关联均不触发动作。Input／Textarea 只按 Pointer 来源请求焦点，保留文本、选区及只读语义；Checkbox／Switch 请求焦点后执行与自身相同的一次选择动作，读取最新 Binding。FocusOptions 被替换后使用当前 FocusTarget.handle；不合成键盘／指针事件。标签目标或实际关联在按下期间改变时取消该次点击，不把旧按压转交新控件。作用域收尾不关闭借用目标或向已退役控件发起请求。
 
@@ -713,3 +713,23 @@ SliderStyle 的 length／thickness／thumbSize／hitInsets 可覆盖默认 160�
 有限宽度填满父约束，无界宽度采用 surface.suggestedSize.width 或 240。顶部／底部区域按可用宽度测量，起始／末尾区域占用各自自然宽度，正文取得剩余宽度；高内容按实际尺寸扩展整组。Inline 默认水平内缩 8、垂直 0，Block 默认水平 10、垂直 8，均按字号缩放，可逐区覆盖。窄宽和紧高度下各区域受剩余空间约束，正文可以为零尺寸；整个组零尺寸时不发布子输入区域。边框、文字基线、裁剪与命中使用同一次测量结果，失败帧不替换成功几何。
 
 验收覆盖全部四个位置、RTL、窄宽／零尺寸、单行与多行、外部 handle／模型更新、正文与 keyed addon 的实例保留、真实中文 preedit／commit、复制／撤销、密码显隐、输入策略、只读／禁用／invalid、附加按钮动作与 Tab 顺序、标签、静止停帧及卸载收尾。Gallery 的文件输入示例接应用选择动作，不在本库增加文件对话框或文件解析。
+
+## 23. Field 与表单分组
+
+`field(control: View, configure: FieldBuilder.() -> Unit = {}): View` 和 ChildrenBuilder 成员构造 FieldProps／Field。control 必需且始终保留在同一直接父级的固定槽中；其余输入为 heading: FieldHeading?、description: PanelContent?、errors: Array<String>=[]、error: PanelContent?、orientation=Vertical、controlPlacement=End、descriptionPlacement=AfterControl、required=false、requiredText="Required"、invalid=false、breakpoint／controlWidth／spacing／contentSpacing=None、fonts／theme=None、padding=Insets()、style=styleOverride()；builder 另有 key。FieldHeading 为 Label(FieldLabelContent, FieldTarget) 或 Title(PanelContent)，label／title 成员选择一个标题，支持 String／StyledText／View；description／error 同样接受这些内容。required 只附加可本地化说明，不执行校验或创建提交规则。
+
+Field 不读取不透明 control 的属性或后代，不拥有编辑模型、选择绑定、控件工厂或校验状态。invalid 只决定自动标题与必填说明的错误色；error 自定义内容优先于 errors，错误数组忽略空字符串并按首次出现顺序去重，一条直接显示、多条显示带缩进的项目符号，空数组不产生错误槽。控件自身的 enabled／invalid、Field 的状态和业务错误由调用方明确传入；没有自动状态同步、通用 Form engine、类型反射或额外类型身份。FieldLabel 沿第 15 节关联目标并反映其 enabled；普通 title 没有激活动作。自定义标题／说明／错误 View 保留调用方样式与交互。
+
+FieldOrientation 为 Vertical／Horizontal／Responsive。Responsive 仅在本次有限可用内容宽度达到 breakpoint 时横排；默认阈值为 448，按主题 body 字号／14 缩放，无界宽度按纵排。FieldControlPlacement 为 Start／End，按逻辑方向决定控制槽在标题前／后；FieldDescriptionPlacement 为 AfterControl／WithHeading。纵排按标题与 control 的指定顺序排列说明及错误，错误总在最后；WithHeading 将说明紧随标题。横排把标题和 control 分列，说明依配置归列；End 的错误在 control 列，Start 的错误在标题列，适用于 Checkbox／Switch 与说明组合。RTL 只交换逻辑横向位置，不改变挂载、键盘顺序或输入方向的显式设置。
+
+默认主间距为 8、同列内容间距为 2，均按字号缩放。有限宽度填满父约束；横排先以 controlWidth 或扣除间距后可用宽度的 60% 为最大宽度测量 control，紧凑控件保持自然宽度，标题列取得实际余量；无界横排按内容自然宽度。controlWidth、breakpoint、间距及 padding 必须有限非负。正文每轮只测量一次，布局切换和标题／说明／错误增删不重新挂载它，也不丢失焦点、选区、preedit 或撤销历史。窄宽和有限高度遵守父约束，内容超出最终布局时裁剪；正常布局保留控件自身向外绘制的焦点环。零尺寸只测量、不放置子节点，Accepted 帧按既有规则撤销输入资格，恢复时沿同一实例继续。外框装饰复用 Frame／StyleOverride，Field 自身没有 Press 或焦点停靠点。
+
+`fieldTitle`、`fieldDescription`、`fieldLegend` 的 String／StyledText／View 入口构造 FieldTextProps／FieldText；普通字段文本使用 body 字号和 20／14 行高，Title／LegendLabel 字重 500，Description 为 muted.foreground，Error 为 destructive.background。Legend 默认字号 16、行高 24／16、字重 500，可选 FieldLegendVariant.Label；尺寸仍按字号缩放。FieldTextBuilder 配置 fonts／theme、textStyle: SpanStyle?、style 和 key，FieldLegendBuilder 另有 variant。自动标题与说明和这些独立入口使用同一解析函数；自定义 View 不被重写。
+
+`fieldError(errors: Array<String>, configure: FieldErrorBuilder.() -> Unit = {})` 及自定义内容重载使用 FieldErrorProps／FieldError，遵循上述错误数组和优先级规则；builder 支持 content、fonts／theme、textStyle、style、key。多条错误间距为 4、项目符号列与正文缩进共 16，按字号缩放；错误与普通说明不增加 Tab 停靠点，富交互内容由调用方显式提供。没有内容时尺寸为零。
+
+`fieldGroup { ... }` 与 `fieldContent { ... }` 使用同一 FieldStackProps／FieldStack，FieldStackKind.Group／Content 的默认间距分别为 20／2，按字号缩放。FieldStackBuilder 继承 ChildrenBuilder，提供 spacing、theme、padding、style、key；子项是普通 View，嵌套组或选择组的间距由调用方显式配置，不检查后代类型。`fieldSet(content: View) { legend(...); description(...) }` 使用 FieldSetProps／FieldSet，FieldSetBuilder 提供 legend: PanelContent?、variant=Legend、description、spacing、fonts／theme、padding、style、key，默认间距 16。legend／说明增删保留固定 content 槽；字段组和集合不建立另一套焦点域或禁用状态。
+
+`fieldSeparator()` 及 String／StyledText／View 内容重载提供分组间的水平线，可配置 fonts／theme、color、style、key。两段 Separator 均分内容以外的宽度，内容两侧间距 8；没有内容时为一条完整线。最小建议高度 20，较高内容自然增高，窄宽和零尺寸遵守约束；颜色默认 border，内容默认 muted.foreground。它不增加输入区域或焦点。
+
+验收包括纵排／横排／实际宽度切换、RTL、窄宽／零尺寸、单／多／重复／空错误、自定义错误与 required 说明、标签／目标换绑、choice card 内外点击仅激活一次、禁用与只读、标题／说明／错误更新保留实例和 IME、keyed 分组重排、嵌套 FieldSet／FieldGroup、静止停帧与卸载收尾。Gallery 提供带校验的设置表单组合 InputGroup、OTP、Checkbox／Radio／Switch 和 Slider；DatePicker 在 P7 接入同一表单。真实窗口行为验收不等于 OS accessibility 认证。

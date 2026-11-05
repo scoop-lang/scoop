@@ -1,0 +1,178 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum FieldStackKind {
+    Group, Content
+}
+
+public class FieldStackProps public constructor(
+    public val children: Array<View>,
+    public val kind: FieldStackKind = FieldStackKind.Group,
+    public val spacing: Double? = None,
+    public val theme: ThemeSource? = None,
+    public val padding: Insets = Insets(),
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        fieldLength(spacing);
+        padding.totals()
+    }
+}
+
+public class FieldStack public constructor(private val props: Props<FieldStackProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val density = themes.read(input.theme).tokens.typography.body.fontSize / 14.0
+        val content =
+            makeColumn {
+                this.addAll(input.children)
+                this.spacing =
+                    input.spacing ?:
+                        (
+                            if (input.kind == FieldStackKind.Group)
+                                20.0
+                            else
+                                2.0
+                        ) *
+                        density
+                this.alignment = CrossAlignment.Stretch
+            }
+        return panelFrame(content, input.padding, input.style)
+    }
+}
+
+public class FieldStackBuilder internal constructor(): ChildrenBuilder() {
+    public var spacing: Double? = None
+    public var theme: ThemeSource? = None
+    public var padding: Insets = Insets()
+    public var style: StyleOverride = styleOverride()
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(kind: FieldStackKind): FieldStackProps =
+        FieldStackProps(childrenSnapshot(), kind, spacing, theme, padding, style)
+}
+
+public fun fieldGroup(configure: FieldStackBuilder.() -> Unit = {}): View =
+    makeFieldStack(FieldStackKind.Group, configure)
+
+public fun fieldContent(configure: FieldStackBuilder.() -> Unit = {}): View =
+    makeFieldStack(FieldStackKind.Content, configure)
+
+internal fun makeFieldStack(kind: FieldStackKind, configure: FieldStackBuilder.() -> Unit): View {
+    val builder = FieldStackBuilder()
+    builder.configure()
+    return component(builder.snapshot(kind), { current -> FieldStack(current) }, builder.key)
+}
+
+public class FieldSetProps public constructor(
+    public val content: View,
+    public val legend: PanelContent? = None,
+    public val variant: FieldLegendVariant = FieldLegendVariant.Legend,
+    public val description: PanelContent? = None,
+    public val spacing: Double? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val padding: Insets = Insets(),
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        fieldLength(spacing);
+        padding.totals()
+    }
+}
+
+public class FieldSet public constructor(private val props: Props<FieldSetProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val content =
+            makeColumn {
+                when (input.legend) {
+                    case Some(value) -> this.add(
+                        panelSlot(
+                            panelCaption(
+                                value,
+                                fieldTextStyle(fieldLegendRole(input.variant), theme),
+                                input.fonts
+                            ),
+                            0L
+                        )
+                    )
+                    case None -> {}
+                }
+                when (input.description) {
+                    case Some(value) -> this.add(
+                        panelSlot(
+                            panelCaption(
+                                value,
+                                fieldTextStyle(FieldTextRole.Description, theme),
+                                input.fonts
+                            ),
+                            1L
+                        )
+                    )
+                    case None -> {}
+                }
+                this.add(panelSlot(input.content, 2L))
+                this.spacing = input.spacing ?: 16.0 * theme.tokens.typography.body.fontSize / 14.0
+                this.alignment = CrossAlignment.Stretch
+            }
+        return panelFrame(content, input.padding, input.style)
+    }
+}
+
+public class FieldSetBuilder internal constructor() {
+    public var legend: PanelContent? = None
+    public var description: PanelContent? = None
+    public var variant: FieldLegendVariant = FieldLegendVariant.Legend
+    public var spacing: Double? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var padding: Insets = Insets()
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun legend(text: String) {
+        legend = Some(fieldPlain(text))
+    }
+    public fun legend(text: StyledText) {
+        legend = Some(fieldStyled(text))
+    }
+    public fun legend(content: View) {
+        legend = Some(PanelContent.Custom(content))
+    }
+    public fun description(text: String) {
+        description = Some(fieldPlain(text))
+    }
+    public fun description(text: StyledText) {
+        description = Some(fieldStyled(text))
+    }
+    public fun description(content: View) {
+        description = Some(PanelContent.Custom(content))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(content: View): FieldSetProps =
+        FieldSetProps(content, legend, variant, description, spacing, fonts, theme, padding, style)
+}
+
+public fun fieldSet(content: View, configure: FieldSetBuilder.() -> Unit = {}): View =
+    makeFieldSet(content, configure)
+
+internal fun makeFieldSet(content: View, configure: FieldSetBuilder.() -> Unit): View {
+    val builder = FieldSetBuilder()
+    builder.configure()
+    return component(builder.snapshot(content), { current -> FieldSet(current) }, builder.key)
+}

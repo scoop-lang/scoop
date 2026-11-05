@@ -1,0 +1,230 @@
+package scoop.tests.ui.field
+
+import scoop.graphics.*
+import scoop.graphics.native.captureGeometry
+import scoop.surface.FrameSubmission
+import scoop.test.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.field as makeField
+import scoop.ui.component.fieldLabel as makeLabel
+import scoop.ui.component.fieldGroup as makeGroup
+import scoop.ui.component.fieldSet as makeSet
+import scoop.ui.component.label as makeTextLabel
+import scoop.ui.component.checkbox as makeCheckbox
+import scoop.ui.style.*
+
+internal class FieldScene(private val p: FieldProbe): Component {
+    public override fun render(): View {
+        val p = this.p
+        val generation = p.generation.value
+        val body =
+            makeSet(
+                makeGroup {
+                    for (
+                        id in if (p.reorder)
+                            [1, 0]
+                        else
+                            [0, 1]
+                    )
+                        this.add(
+                            component(
+                                id,
+                                { current -> TrackedField(p, current) },
+                                ViewKey.Number(id.toLong())
+                            )
+                        )
+                    this.fieldSeparator(
+                        observeField(p, 6L, makeTextLabel("or") { this.fonts = Some(p.fonts) })
+                    )
+                    this.fieldError(
+                        if (p.errors)
+                            ["One", "Two", "One", ""]
+                        else
+                            []
+                    ) { this.fonts = Some(p.fonts) }
+                }
+            ) {
+                if (p.captions) {
+                    this.legend("Account");
+                    this.description("Settings")
+                }
+                this.fonts = Some(p.fonts)
+            }
+        return direction(
+            element(
+                generation,
+                { current -> FieldRoot(p, current) },
+                if (p.gone)
+                    []
+                else
+                    [body]
+            ),
+            if (p.rtl)
+                LayoutDirection.Rtl
+            else
+                LayoutDirection.Ltr
+        )
+    }
+}
+
+private class TrackedField(private val p: FieldProbe, private val props: Props<Int>): Component {
+    private val original = props.value
+    private val local = state(original * 13)
+    public override fun onMount(scope: ComponentScope) {
+        p.mounts[original.toLong()] += 1
+    }
+    public override fun onUnmount() {
+        p.unmounts[original.toLong()] += 1
+    }
+    public override fun render(): View {
+        assertEquals(original, props.value);
+        assertEquals(original * 13, local.value)
+        return if (original == 0)
+            editorField(p)
+        else
+            choiceField(p)
+    }
+}
+
+private fun editorField(p: FieldProbe): View {
+    val target =
+        p.targets[
+            if (p.rebound)
+                1L
+            else
+                0L
+        ]
+    val control =
+        component(
+            InputProps(
+                p.model,
+                fonts = Some(p.fonts),
+                enabled = p.enabled,
+                readOnly = p.readonly,
+                invalid = p.errors,
+                caretBlink = Duration.milliseconds(0L),
+                focus = FocusOptions(Some(p.focus)),
+                labelTarget = Some(target)
+            ),
+            {
+                current ->
+                p.editorMounts += 1;
+                Input(current)
+            }
+        )
+    return makeField(observeField(p, 0L, control)) {
+        this.fonts = Some(p.fonts);
+        this.orientation = p.orientation
+        this.descriptionPlacement = p.descriptionPlacement;
+        this.controlPlacement = p.controlPlacement
+        if (p.captions) {
+            this.label(observeField(p, 1L, label("Name") { this.fonts = Some(p.fonts) }), target)
+            this.description(observeField(p, 2L, label("Help") { this.fonts = Some(p.fonts) }))
+        }
+        this.errors =
+            if (p.errors)
+                ["Required", "Use a name", "Required", ""]
+            else
+                []
+        if (p.customError)
+            this.error(observeField(p, 5L, label("Custom error") { this.fonts = Some(p.fonts) }))
+        this.required = p.required;
+        this.requiredText = "必填";
+        this.invalid = p.errors
+    }
+}
+
+private fun choiceField(p: FieldProbe): View =
+    makeLabel(
+        makeField(
+            observeField(
+                p,
+                3L,
+                makeCheckbox(
+                    binding(
+                        { p.checked.value },
+                        {
+                            value ->
+                            p.checked.value = value;
+                            p.actions += 1
+                        }
+                    )
+                ) {
+                    this.enabled = p.enabled;
+                    this.focus = FocusOptions(Some(p.choiceFocus));
+                    this.labelTarget = Some(p.targets[2L])
+                }
+            )
+        ) {
+            this.orientation = FieldOrientation.Horizontal;
+            this.controlPlacement = FieldControlPlacement.Start
+            this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            this.title(observeField(p, 4L, label("Updates") { this.fonts = Some(p.fonts) }))
+            this.description("Click card or checkbox");
+            this.fonts = Some(p.fonts)
+            this.padding = Insets.all(10.0)
+            this.style { this.border(Some(Border.all(1.0, Color(0.3, 0.3, 0.3)))) }
+        },
+        p.targets[2L]
+    )
+
+private fun observeField(p: FieldProbe, index: Long, content: View): View =
+    element(index, { current -> FieldBounds(p, current) }, [content])
+
+private class FieldBounds(private val p: FieldProbe, private val index: Props<Long>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val measured = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0))
+        return measured
+    }
+    public override fun scene(context: SceneContext) {
+        val bounds = Rect(0.0, 0.0, context.size.width, context.size.height)
+        context.draw {
+            paint -> @Unsafe
+            {
+                captureGeometry(paint.canvas, bounds).use {
+                    value -> p.bounds[index.value] = value.toWindow(bounds)
+                }
+                if (index.value == 0L)
+                    captureGeometry(
+                        paint.canvas,
+                        Rect(-3.0, -3.0, bounds.width + 6.0, bounds.height + 6.0)
+                    ).use {
+                        value -> p.editorOutsetVisible = value.visibleBounds == Some(value.bounds)
+                    }
+            }
+        }
+        context.children()
+    }
+}
+
+private class FieldRoot(private val p: FieldProbe, private val generation: Props<Int>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        if (context.childCount > 0L) {
+            val measured =
+                context.measureChild(
+                    0L,
+                    if (p.zero)
+                        Constraints.tight(Size(0.0, 0.0))
+                    else
+                        Constraints(maxWidth = Some(p.width))
+                )
+            p.fieldSize = measured.size
+            context.placeChild(0L, Point(20.0, 20.0))
+        }
+        return LayoutMetrics(constraints.constrain(Size(560.0, 580.0)))
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+        val current = generation.value
+        val revision = p.model.revision
+        context.onFrameComplete {
+            result -> if (result.submission == FrameSubmission.Accepted) {
+                p.rendered = current;
+                p.revision = revision
+            }
+        }
+    }
+}

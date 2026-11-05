@@ -1,0 +1,127 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal enum FieldPart {
+    Control, Heading, Description, Error
+}
+
+internal class FieldLayoutProps(
+    val input: FieldProps,
+    val density: Double,
+    val parts: Array<FieldPart>
+)
+
+public class Field public constructor(private val props: Props<FieldProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val children = ArrayList<View>()
+        val parts = ArrayList<FieldPart>()
+        children.add(panelSlot(input.control, 0L))
+        parts.add(FieldPart.Control)
+        if (panelPresent(input.heading) || input.required) {
+            children.add(panelSlot(fieldHeading(input, theme), 1L))
+            parts.add(FieldPart.Heading)
+        }
+        when (input.description) {
+            case Some(value) -> {
+                children.add(
+                    panelSlot(
+                        panelCaption(
+                            value,
+                            fieldTextStyle(FieldTextRole.Description, theme),
+                            input.fonts
+                        ),
+                        2L
+                    )
+                )
+                parts.add(FieldPart.Description)
+            }
+            case None -> {}
+        }
+        val errors = fieldErrors(input.errors)
+        if (panelPresent(input.error) || errors.size > 0L) {
+            children.add(
+                panelSlot(
+                    component(
+                        FieldErrorProps(errors, input.error, input.fonts, input.theme),
+                        { current -> FieldError(current) }
+                    ),
+                    3L
+                )
+            )
+            parts.add(FieldPart.Error)
+        }
+        return panelFrame(
+            element(
+                FieldLayoutProps(
+                    input,
+                    theme.tokens.typography.body.fontSize / 14.0,
+                    parts.toArray()
+                ),
+                { current -> FieldLayout(current) },
+                children.toArray()
+            ),
+            input.padding,
+            input.style
+        )
+    }
+}
+
+private fun fieldHeading(input: FieldProps, theme: Theme): View {
+    val base =
+        fieldTextStyle(FieldTextRole.Title, theme).copy {
+            if (input.invalid)
+                this.color = theme.tokens.palette.destructive.background
+        }
+    return makeRow {
+        when (input.heading) {
+            case Some(heading) -> {
+                val view =
+                    when (heading) {
+                        case Title(content) -> panelCaption(content, base, input.fonts)
+                        case Label(content, target) -> component(
+                            FieldLabelProps(
+                                content,
+                                target,
+                                input.fonts,
+                                input.theme,
+                                Some(
+                                    spanStyle {
+                                        this.color = Some(base.color);
+                                        this.lineHeight = Some(Some(20.0 / 14.0))
+                                    }
+                                )
+                            ),
+                            { current -> FieldLabel(current) }
+                        )
+                    }
+                this.add(panelSlot(view, 0L))
+            }
+            case None -> {}
+        }
+        if (input.required)
+            this.add(
+                panelSlot(
+                    panelCaption(
+                        fieldPlain(input.requiredText),
+                        fieldTextStyle(FieldTextRole.Description, theme).copy {
+                            if (input.invalid)
+                                this.color = theme.tokens.palette.destructive.background
+                        },
+                        input.fonts
+                    ),
+                    1L
+                )
+            )
+        this.alignment = CrossAlignment.Baseline
+        this.spacing = 8.0 * theme.tokens.typography.body.fontSize / 14.0
+    }
+}

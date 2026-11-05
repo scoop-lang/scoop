@@ -1,0 +1,153 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum FieldOrientation {
+    Vertical, Horizontal, Responsive
+}
+
+public enum FieldControlPlacement {
+    Start, End
+}
+
+public enum FieldDescriptionPlacement {
+    AfterControl, WithHeading
+}
+
+public enum FieldHeading {
+    Label(FieldLabelContent, FieldTarget), Title(PanelContent)
+}
+
+public class FieldProps public constructor(
+    public val control: View,
+    public val heading: FieldHeading? = None,
+    public val description: PanelContent? = None,
+    public val errors: Array<String> = [],
+    public val error: PanelContent? = None,
+    public val orientation: FieldOrientation = FieldOrientation.Vertical,
+    public val controlPlacement: FieldControlPlacement = FieldControlPlacement.End,
+    public val descriptionPlacement: FieldDescriptionPlacement =
+        FieldDescriptionPlacement.AfterControl,
+    public val required: Boolean = false,
+    public val requiredText: String = "Required",
+    public val invalid: Boolean = false,
+    public val breakpoint: Double? = None,
+    public val controlWidth: Double? = None,
+    public val spacing: Double? = None,
+    public val contentSpacing: Double? = None,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val padding: Insets = Insets(),
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        fieldLength(breakpoint);
+        fieldLength(controlWidth)
+        fieldLength(spacing);
+        fieldLength(contentSpacing)
+        padding.totals()
+    }
+}
+
+internal fun fieldLength(value: Double?) {
+    when (value) {
+        case Some(length) -> nonnegative(length, "invalid field length")
+        case None -> {}
+    }
+}
+
+public class FieldBuilder internal constructor() {
+    public var heading: FieldHeading? = None
+    public var description: PanelContent? = None
+    public var errors: Array<String> = []
+    public var error: PanelContent? = None
+    public var orientation: FieldOrientation = FieldOrientation.Vertical
+    public var controlPlacement: FieldControlPlacement = FieldControlPlacement.End
+    public var descriptionPlacement: FieldDescriptionPlacement =
+        FieldDescriptionPlacement.AfterControl
+    public var required: Boolean = false
+    public var requiredText: String = "Required"
+    public var invalid: Boolean = false
+    public var breakpoint: Double? = None
+    public var controlWidth: Double? = None
+    public var spacing: Double? = None
+    public var contentSpacing: Double? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var padding: Insets = Insets()
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun label(text: String, target: FieldTarget) {
+        heading =
+            Some(FieldHeading.Label(FieldLabelContent.Text(LabelText.Plain(text, None)), target))
+    }
+    public fun label(text: StyledText, target: FieldTarget) {
+        heading = Some(FieldHeading.Label(FieldLabelContent.Text(LabelText.Styled(text)), target))
+    }
+    public fun label(content: View, target: FieldTarget) {
+        heading = Some(FieldHeading.Label(FieldLabelContent.Custom(content), target))
+    }
+    public fun title(text: String) {
+        heading = Some(FieldHeading.Title(fieldPlain(text)))
+    }
+    public fun title(text: StyledText) {
+        heading = Some(FieldHeading.Title(fieldStyled(text)))
+    }
+    public fun title(content: View) {
+        heading = Some(FieldHeading.Title(PanelContent.Custom(content)))
+    }
+    public fun description(text: String) {
+        description = Some(fieldPlain(text))
+    }
+    public fun description(text: StyledText) {
+        description = Some(fieldStyled(text))
+    }
+    public fun description(content: View) {
+        description = Some(PanelContent.Custom(content))
+    }
+    public fun error(text: String) {
+        error = Some(fieldPlain(text))
+    }
+    public fun error(text: StyledText) {
+        error = Some(fieldStyled(text))
+    }
+    public fun error(content: View) {
+        error = Some(PanelContent.Custom(content))
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(control: View): FieldProps =
+        FieldProps(
+            control,
+            heading,
+            description,
+            errors,
+            error,
+            orientation,
+            controlPlacement,
+            descriptionPlacement,
+            required,
+            requiredText,
+            invalid,
+            breakpoint,
+            controlWidth,
+            spacing,
+            contentSpacing,
+            fonts,
+            theme,
+            padding,
+            style
+        )
+}
+
+public fun field(control: View, configure: FieldBuilder.() -> Unit = {}): View =
+    makeField(control, configure)
+
+internal fun makeField(control: View, configure: FieldBuilder.() -> Unit): View {
+    val builder = FieldBuilder()
+    builder.configure()
+    return component(builder.snapshot(control), { current -> Field(current) }, builder.key)
+}

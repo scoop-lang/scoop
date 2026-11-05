@@ -1,0 +1,253 @@
+package scoop.tests.ui.field
+
+import scoop.graphics.*
+import scoop.window.Utf8Selection
+import scoop.test.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun fieldBegin(p: FieldProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertEquals(500.0, p.fieldSize.width)
+            assertTrue(p.bounds[0L].x > p.bounds[1L].x)
+            assertEquals(p.bounds[1L].x, p.bounds[2L].x)
+            assertTrue(p.targets[0L].isAttached)
+            assertTrue(p.editorOutsetVisible)
+            assertEquals(20.0 + p.width / 2.0, p.bounds[6L].x + p.bounds[6L].width / 2.0)
+            p.click(1L)
+        }
+        case 1 -> {
+            assertTrue(p.focus.hasFocus);
+            p.model.setSelection(Utf8Selection(0L, 5L))
+        }
+        case 2 -> p.text("12")
+        case 3 -> {
+            assertEquals("12", p.model.text);
+            p.text("ni", true)
+        }
+        case 4 -> {
+            assertTrue(p.model.isComposing);
+            assertEquals("12ni", p.model.text)
+            p.width = 300.0;
+            p.rtl = true;
+            p.errors = true
+        }
+        case 5 -> {
+            p.retained();
+            assertTrue(p.model.isComposing);
+            assertTrue(p.focus.hasFocus)
+            assertTrue(p.bounds[0L].y > p.bounds[1L].y)
+            p.captions = false;
+            p.customError = true;
+            p.reorder = true;
+            p.width = 500.0
+        }
+        case 6 -> {
+            p.retained();
+            assertTrue(p.model.isComposing);
+            assertEquals("12ni", p.model.text)
+            p.captions = true;
+            p.required = true;
+            p.controlPlacement = FieldControlPlacement.Start
+            p.descriptionPlacement = FieldDescriptionPlacement.AfterControl
+        }
+        case 7 -> {
+            assertTrue(p.model.isComposing);
+            p.text("你")
+        }
+        else -> fail(Some("unexpected initial field phase"))
+    }
+}
+
+internal fun fieldEditing(p: FieldProbe) {
+    when (p.phase) {
+        case 8 -> {
+            assertEquals("12你", p.model.text);
+            assertFalse(p.model.isComposing);
+            p.retained()
+            assertTrue(p.bounds[0L].x > p.bounds[1L].x)
+            p.rtl = false;
+            p.reorder = false;
+            p.orientation = FieldOrientation.Vertical
+            p.controlPlacement = FieldControlPlacement.End;
+            p.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+        }
+        case 9 -> {
+            assertTrue(p.bounds[0L].y > p.bounds[2L].y);
+            p.readonly = true
+        }
+        case 10 -> assertEquals(1, fieldText(p.native!!, "X", false))
+        case 11 -> {
+            assertEquals("12你", p.model.text);
+            p.readonly = false;
+            p.rebound = true
+        }
+        case 12 -> {
+            assertFalse(p.targets[0L].isAttached);
+            assertTrue(p.targets[1L].isAttached)
+            assertTrue(p.choiceFocus.requestFocus());
+            p.click(1L)
+        }
+        case 13 -> {
+            assertTrue(p.focus.hasFocus);
+            p.zero = true
+        }
+        case 14 -> {
+            assertEquals(Size(0.0, 0.0), p.fieldSize);
+            assertFalse(p.focus.hasFocus)
+            assertTrue(p.focus.requestFocus())
+            assertFalse(p.focus.hasFocus)
+            p.focus.clearFocus()
+            assertFalse(p.focus.isPending)
+            p.zero = false;
+            p.width = 90.0
+        }
+        case 15 -> {
+            assertEquals(90.0, p.fieldSize.width);
+            assertFalse(p.focus.hasFocus)
+            p.retained();
+            p.width = 500.0
+        }
+        else -> fail(Some("unexpected editing field phase"))
+    }
+}
+
+internal fun fieldChoices(p: FieldProbe) {
+    when (p.phase) {
+        case 16 -> p.click(4L)
+        case 17 -> {
+            assertEquals(1, p.actions);
+            assertTrue(p.checked.value);
+            p.click(3L)
+        }
+        case 18 -> {
+            assertEquals(2, p.actions);
+            assertFalse(p.checked.value);
+            p.enabled = false
+        }
+        case 19 -> {
+            assertFalse(p.choiceFocus.hasFocus);
+            p.click(4L)
+        }
+        case 20 -> {
+            assertEquals(2, p.actions);
+            assertFalse(p.checked.value);
+            p.enabled = true;
+            p.readonly = true
+        }
+        case 21 -> p.click(4L)
+        case 22 -> {
+            assertEquals(3, p.actions);
+            assertTrue(p.checked.value);
+            assertTrue(p.choiceFocus.hasFocus)
+            assertEquals(0, fieldKey(p.native!!, 49, " "))
+        }
+        case 23 -> {
+            assertEquals(4, p.actions);
+            assertFalse(p.checked.value)
+            assertEquals(0, fieldKey(p.native!!, 48, "\t", 1))
+        }
+        else -> fail(Some("unexpected choice field phase"))
+    }
+}
+
+internal fun fieldConstraints(p: FieldProbe) {
+    when (p.phase) {
+        case 24 -> {
+            assertTrue(p.focus.hasFocus);
+            assertEquals("12你", p.model.text)
+            p.orientation = FieldOrientation.Horizontal;
+            p.descriptionPlacement = FieldDescriptionPlacement.AfterControl
+        }
+        case 25 -> {
+            assertTrue(p.bounds[0L].x > p.bounds[1L].x)
+            assertEquals(p.bounds[0L].x, p.bounds[2L].x);
+            assertEquals(p.bounds[0L].x, p.bounds[5L].x)
+            p.controlPlacement = FieldControlPlacement.Start;
+            p.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+        }
+        case 26 -> {
+            assertTrue(p.bounds[0L].x < p.bounds[1L].x)
+            assertEquals(p.bounds[1L].x, p.bounds[2L].x);
+            assertEquals(p.bounds[1L].x, p.bounds[5L].x)
+            p.rtl = true;
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark)
+        }
+        case 27 -> {
+            assertTrue(p.bounds[0L].x > p.bounds[1L].x);
+            assertTrue(p.editorOutsetVisible)
+            assertEquals(20.0 + p.width / 2.0, p.bounds[6L].x + p.bounds[6L].width / 2.0)
+            p.retained()
+            p.width = 60.0
+        }
+        case 28 -> {
+            assertEquals(60.0, p.fieldSize.width);
+            p.width = 500.0;
+            p.reorder = true
+        }
+        case 29 -> {
+            p.retained();
+            assertTrue(p.bounds[3L].y < p.bounds[0L].y);
+            assertTrue(p.focus.hasFocus)
+            p.rtl = false;
+            p.captions = false;
+            p.required = false;
+            p.errors = false;
+            p.customError = false
+        }
+        case 30 -> {
+            p.retained();
+            assertTrue(p.focus.hasFocus);
+            p.captions = true;
+            p.reorder = false
+        }
+        case 31 -> {
+            assertTrue(p.bounds[0L].y < p.bounds[3L].y);
+            p.retained()
+            p.orientation = FieldOrientation.Responsive;
+            p.controlPlacement = FieldControlPlacement.End;
+            p.width = 447.0
+        }
+        else -> fail(Some("unexpected constraint field phase"))
+    }
+}
+
+internal fun fieldFinish(p: FieldProbe) {
+    when (p.phase) {
+        case 32 -> {
+            assertTrue(p.bounds[0L].y > p.bounds[1L].y);
+            p.width = 448.0
+        }
+        case 33 -> {
+            assertEquals(p.bounds[0L].y, p.bounds[1L].y)
+            assertTrue(p.bounds[0L].x > p.bounds[1L].x);
+            p.retained()
+            p.readonly = false;
+            p.click(1L)
+        }
+        case 34 -> {
+            assertTrue(p.focus.hasFocus);
+            p.text("!")
+        }
+        case 35 -> {
+            assertEquals("12你!", p.model.text);
+            p.gone = true
+        }
+        case 36 -> {
+            assertFalse(p.focus.isAttached);
+            assertFalse(p.choiceFocus.isAttached)
+            for (target in p.targets)
+                assertFalse(target.isAttached)
+            for (count in p.unmounts)
+                assertEquals(1, count)
+            assertFalse(p.frames!!.snapshot().required)
+        }
+        case 37 -> p.quiet = Some(p.frames!!.snapshot())
+        case 38 -> assertEquals(p.quiet!!, p.frames!!.snapshot())
+        case 39 -> p.native!!.requestDestroy()
+        else -> fail(Some("unexpected final field phase"))
+    }
+}

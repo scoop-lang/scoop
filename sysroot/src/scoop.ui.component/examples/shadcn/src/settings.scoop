@@ -1,0 +1,281 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as makeColumn
+import scoop.ui.component.field as makeField
+import scoop.ui.component.fieldGroup as makeFieldGroup
+import scoop.ui.component.fieldSet as makeFieldSet
+import scoop.ui.component.fieldLabel as makeFieldLabel
+import scoop.ui.component.input as makeInput
+import scoop.ui.component.inputGroup as makeInputGroup
+import scoop.ui.component.inputOtp as makeOtp
+import scoop.ui.component.textarea as makeTextarea
+import scoop.ui.component.checkbox as makeCheckbox
+import scoop.ui.component.switchControl as makeSwitch
+import scoop.ui.component.radioGroup as makeRadioGroup
+import scoop.ui.component.slider as makeSlider
+import scoop.ui.style.*
+
+internal fun settingsExamples(model: SettingsModel, fonts: FontCollection, theme: Theme): View =
+    makeColumn {
+        this.add(panelHeading("Field", fonts))
+        this.typography("Profile settings", TypographyRole.H3) { this.fonts = Some(fonts) }
+        this.typography(
+            "Labels, help, errors and groups. Responsive fields follow their available width; edits stay in place.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        this.row {
+            this.button(
+                "Layout",
+                {
+                    model.orientation.value =
+                        when (model.orientation.value) {
+                            case Responsive -> FieldOrientation.Vertical
+                            case Vertical -> FieldOrientation.Horizontal
+                            case Horizontal -> FieldOrientation.Responsive
+                        }
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Width", { model.narrow.value = !model.narrow.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Enabled", { model.enabled.value = !model.enabled.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.button("Read only", { model.readonly.value = !model.readonly.value }) {
+                this.fonts = Some(fonts);
+                this.variant = ButtonVariant.Outline
+            }
+            this.spacing = 8.0
+        }
+        this.fieldDescription(
+            f"Layout: ${
+                when (model.orientation.value) {
+                    case Vertical -> "vertical"
+                    case Horizontal -> "horizontal"
+                    case Responsive -> "responsive"
+                }
+            } · ${
+                if (model.narrow.value)
+                    "narrow"
+                else
+                    "wide"
+            } · text ${
+                if (model.readonly.value)
+                    "read only"
+                else
+                    "editable"
+            }"
+        ) { this.fonts = Some(fonts) }
+        this.frame(
+            makeFieldGroup {
+                this.add(settingsAccount(model, fonts))
+                this.fieldSeparator("Preferences") { this.fonts = Some(fonts) }
+                this.add(settingsPreferences(model, fonts, theme))
+                this.fieldSeparator()
+                this.row {
+                    this.button("Save settings", { model.submit() }) {
+                        this.fonts = Some(fonts);
+                        this.enabled = model.enabled.value
+                    }
+                    this.button("Reset", { model.reset() }) {
+                        this.fonts = Some(fonts);
+                        this.variant = ButtonVariant.Outline
+                    }
+                    this.spacing = 8.0
+                }
+                this.fieldDescription(
+                    if (model.saved.value > 0)
+                        f"Settings accepted in this demo (${model.saved.value})."
+                    else
+                        "No settings submitted yet."
+                ) { this.fonts = Some(fonts) }
+            }
+        ) {
+            this.width =
+                Some(
+                    if (model.narrow.value)
+                        300.0
+                    else
+                        640.0
+                )
+            this.padding = Some(Insets.all(5.0))
+        }
+        this.spacing = 16.0
+        this.padding = Insets.all(12.0)
+        this.alignment = CrossAlignment.Start
+    }
+
+private fun settingsAccount(model: SettingsModel, fonts: FontCollection): View =
+    makeFieldSet(
+        makeFieldGroup {
+            this.field(
+                makeInput(model.name) {
+                    this.fonts = Some(fonts);
+                    this.enabled = model.enabled.value;
+                    this.readOnly = model.readonly.value
+                    this.labelTarget = Some(model.targets[0L])
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.label("Display name", model.targets[0L]);
+                this.description("Shown on your profile and contributions.")
+                this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            }
+            this.field(
+                makeInputGroup {
+                    this.fonts = Some(fonts);
+                    this.enabled = model.enabled.value;
+                    this.invalid = model.emailErrors.size > 0L
+                    this.input(model.email) {
+                        this.placeholder = "you@example.com";
+                        this.readOnly = model.readonly.value
+                        this.labelTarget = Some(model.targets[1L]);
+                        this.focus = FocusOptions(Some(model.emailFocus))
+                    }
+                    this.addon {
+                        this.text("@");
+                        this.key = ViewKey.Text("email-prefix")
+                    }
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.label("Email", model.targets[1L]);
+                this.required = true
+                this.description("Use your preferred contact address.")
+                this.errors = model.emailErrors;
+                this.invalid = model.emailErrors.size > 0L
+            }
+            this.field(
+                makeOtp(model.code, 6L) {
+                    this.fonts = Some(fonts);
+                    this.enabled = model.enabled.value;
+                    this.readOnly = model.readonly.value
+                    this.labelTarget = Some(model.targets[2L]);
+                    this.focus = FocusOptions(Some(model.codeFocus))
+                    this.invalid = model.codeErrors.size > 0L
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.label("Verification", model.targets[2L]);
+                this.required = true
+                this.description("Enter any six digits for this preview.")
+                this.errors = model.codeErrors;
+                this.invalid = model.codeErrors.size > 0L
+            }
+            this.field(
+                makeTextarea(model.bio) {
+                    this.fonts = Some(fonts);
+                    this.enabled = model.enabled.value;
+                    this.readOnly = model.readonly.value
+                    this.labelTarget = Some(model.targets[3L]);
+                    this.rows = 3L
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.label("Bio", model.targets[3L]);
+                this.description(
+                    "A short introduction. Multiline text and native composition are supported."
+                )
+                this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            }
+        }
+    ) {
+        this.fonts = Some(fonts);
+        this.legend("Account")
+        this.description("Required fields are checked when you save; errors update as you edit.")
+    }
+
+private fun settingsPreferences(model: SettingsModel, fonts: FontCollection, theme: Theme): View =
+    makeFieldSet(
+        makeFieldGroup {
+            this.add(
+                makeFieldLabel(
+                    makeField(
+                        makeCheckbox(model.updates.binding()) {
+                            this.enabled = model.enabled.value;
+                            this.labelTarget = Some(model.targets[4L])
+                        }
+                    ) {
+                        this.fonts = Some(fonts);
+                        this.orientation = FieldOrientation.Horizontal
+                        this.controlPlacement = FieldControlPlacement.Start
+                        this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+                        this.title("Product updates");
+                        this.description(
+                            "Click anywhere in this card, or use the checkbox directly."
+                        )
+                        this.padding = Insets.all(12.0)
+                        this.style {
+                            this.border(
+                                Some(
+                                    Border.all(
+                                        1.0,
+                                        if (model.updates.value)
+                                            theme.tokens.palette.primary.background
+                                        else
+                                            theme.tokens.palette.border
+                                    )
+                                )
+                            )
+                            this.corners(Corners.all(8.0))
+                        }
+                    },
+                    model.targets[4L]
+                )
+            )
+            this.field(
+                makeSwitch(model.privateProfile.binding()) {
+                    this.enabled = model.enabled.value;
+                    this.labelTarget = Some(model.targets[5L])
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = FieldOrientation.Horizontal
+                this.label("Private profile", model.targets[5L]);
+                this.description("Only invited teammates can see your activity.")
+                this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            }
+            this.field(
+                makeRadioGroup(model.plan.binding()) {
+                    this.fonts = Some(fonts);
+                    this.enabled = model.enabled.value
+                    this.item(Choice(ViewKey.Text("personal"), 0, "Personal"))
+                    this.item(Choice(ViewKey.Text("team"), 1, "Team"))
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.title("Workspace plan");
+                this.description("Choose the scope for these preferences.")
+                this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            }
+            this.field(
+                makeSlider(model.storage.binding(), RangeSpec(0.0, 100.0, Some(5.0))) {
+                    this.enabled = model.enabled.value
+                }
+            ) {
+                this.fonts = Some(fonts);
+                this.orientation = model.orientation.value
+                this.title(f"Storage budget · ${model.storage.value[0L]} GB")
+                this.description("Drag or use arrow keys to adjust in 5 GB steps.")
+                this.descriptionPlacement = FieldDescriptionPlacement.WithHeading
+            }
+        }
+    ) {
+        this.fonts = Some(fonts);
+        this.legend("Workspace preferences");
+        this.variant = FieldLegendVariant.Label
+    }

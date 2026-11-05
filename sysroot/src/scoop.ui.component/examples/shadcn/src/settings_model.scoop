@@ -1,0 +1,65 @@
+package scoop.examples.ui.shadcn
+
+import scoop.text.contains
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.text.TextEditorState
+
+internal class SettingsModel {
+    val name = TextEditorState("Scoop")
+    val email = TextEditorState()
+    val code = TextEditorState()
+    val bio = TextEditorState("Building something useful.")
+    val targets = Array<FieldTarget>(6L) { _ -> FieldTarget() }
+    val emailFocus = FocusHandle()
+    val codeFocus = FocusHandle()
+    val updates = state(true)
+    val privateProfile = state(false)
+    val plan = state<Int?>(Some(0))
+    val storage = state<Array<Double>>([40.0])
+    val attempted = state(false)
+    val saved = state(0)
+    val enabled = state(true)
+    val readonly = state(false)
+    val narrow = state(false)
+    val orientation = state(FieldOrientation.Responsive)
+    val emailErrors: Array<String> get() {
+        if (!attempted.value)
+            return []
+        if (email.text.byteLength == 0L)
+            return ["Email is required."]
+        val errors = ArrayList<String>()
+        if (!email.text.contains("@"))
+            errors.add("Include an @ sign.")
+        if (!email.text.contains("."))
+            errors.add("Include a domain such as example.com.")
+        return errors.toArray()
+    }
+    val codeErrors: Array<String> get() =
+        if (attempted.value && code.text.charLength != 6L)
+            ["Enter all six digits."]
+        else
+            []
+    fun submit() {
+        attempted.value = true
+        if (emailErrors.size > 0L)
+            emailFocus.requestFocus()
+        else
+            if (codeErrors.size > 0L)
+                codeFocus.requestFocus()
+            else
+                saved.value += 1
+    }
+    fun reset() {
+        name.replaceAll("Scoop");
+        email.replaceAll("");
+        code.replaceAll("")
+        bio.replaceAll("Building something useful.")
+        updates.value = true;
+        privateProfile.value = false;
+        plan.value = Some(0)
+        storage.value = [40.0];
+        attempted.value = false;
+        saved.value = 0
+    }
+}
