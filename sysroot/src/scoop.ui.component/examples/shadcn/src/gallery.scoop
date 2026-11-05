@@ -220,6 +220,7 @@ internal class Gallery(
             case NavigationMenu -> navigationMenuExamples(model.navigationMenus, fonts)
             case Carousel -> carouselExamples(model.carousels, fonts)
             case Drawer -> drawerExamples(model.drawers, fonts)
+            case Sidebar -> sidebarExamples(model.sidebars, fonts)
             case Resizable -> resizableExamples(
                 model.resizables,
                 fonts,

@@ -63,3 +63,6 @@ Select 页面包含分组单选、placeholder／未知值、禁用／校验、De
 Carousel 页面提供横纵、单项／多项、循环、窄宽和自动播放。拖动正文或使用导航按钮切换，Tab 聚焦视口后可用主轴方向键、Home／End 和 PageUp／PageDown；第一项的草稿和其他项目的保存计数持续保留。自动播放在整组悬浮、焦点进入、拖动和窗口隐藏时暂停，离开后重新等待完整间隔；顶部明暗、System／Neutral、RTL 与减少动态配置同样适用。
 
 Drawer 页面提供 Bottom／Top／Start／End、垂直吸附、只拖把手、非模态和关闭 veto。正文包含草稿输入、长内容滚动和嵌套 Drawer；可以拖动、通过可聚焦把手的主轴方向键／Home／End 切换高度，或按 Escape 取消拖动。默认 450／400ms 进入退出、嵌套缩放与顶部 Reduced Motion 设置联动；明暗、System／Neutral 与 RTL 同样适用。
+
+
+Sidebar 页面提供 Sidebar／Floating／Inset、Offcanvas／Icon／None、逻辑 Start／End、可点击 rail 和 Command+B。菜单包含独立项目动作、badge、可折叠子菜单、账号入口及 Skeleton；主区草稿使用外部编辑模型，宽窄布局切换后保留。窄布局使用 Drawer，可切换关闭拦截；明暗、System／Neutral、RTL 与减少动态沿顶部配置。

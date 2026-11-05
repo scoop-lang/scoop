@@ -1,0 +1,304 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.*
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+import scoop.ui.component.column as sidebarColumn
+import scoop.ui.component.sidebar as makeSidebar
+import scoop.ui.component.sidebarMenu as makeSidebarMenu
+import scoop.ui.component.sidebarGroup as makeSidebarGroup
+import scoop.ui.component.sidebarMenuBadge as makeSidebarBadge
+import scoop.ui.component.sidebarMenuAction as makeSidebarAction
+import scoop.ui.component.label as makeLabel
+
+internal class SidebarExamplesModel {
+    val open = state(true)
+    val variant = state(SidebarVariant.Inset)
+    val collapse = state(SidebarCollapse.Icon)
+    val side = state(SidebarSide.Start)
+    val narrow = state(false)
+    val loading = state(false)
+    val veto = state(false)
+    val section = state("Inbox")
+    val projects = state(true)
+    val count = state(0)
+    val search = TextEditorState()
+    val draft = TextEditorState("Plan the next release")
+}
+
+internal fun sidebarExamples(model: SidebarExamplesModel, fonts: FontCollection): View =
+    sidebarColumn {
+        add(panelHeading("Sidebar", fonts))
+        typography(
+            "A workspace with collapsible navigation. Try the rail, keyboard shortcut, and narrow layout.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            for (variant in [SidebarVariant.Sidebar, SidebarVariant.Floating, SidebarVariant.Inset])
+                button(
+                    when (variant) {
+                        case Sidebar -> "Sidebar";
+                        case Floating -> "Floating";
+                        case Inset -> "Inset"
+                    },
+                    { model.variant.value = variant }
+                ) {
+                    this.fonts = Some(fonts);
+                    this.variant = ButtonVariant.Outline
+                }
+            for (
+                collapse in [SidebarCollapse.Offcanvas, SidebarCollapse.Icon, SidebarCollapse.None]
+            )
+                button(
+                    when (collapse) {
+                        case Offcanvas -> "Offcanvas";
+                        case Icon -> "Icon";
+                        case None -> "Always open"
+                    },
+                    { model.collapse.value = collapse }
+                ) {
+                    this.fonts = Some(fonts);
+                    variant = ButtonVariant.Outline
+                }
+            spacing = 8.0
+        }
+        wrap {
+            button(
+                if (model.narrow.value)
+                    "Use wide layout"
+                else
+                    "Use narrow layout",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.side.value == SidebarSide.Start)
+                    "Move to end"
+                else
+                    "Move to start",
+                {
+                    model.side.value =
+                        if (model.side.value == SidebarSide.Start)
+                            SidebarSide.End
+                        else
+                            SidebarSide.Start
+                }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.loading.value)
+                    "Show navigation"
+                else
+                    "Show skeleton",
+                { model.loading.value = !model.loading.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            button(
+                if (model.veto.value)
+                    "Dismiss blocked"
+                else
+                    "Dismiss allowed",
+                { model.veto.value = !model.veto.value }
+            ) {
+                this.fonts = Some(fonts);
+                variant = ButtonVariant.Secondary
+            }
+            spacing = 8.0
+        }
+        frame(
+            makeSidebar(
+                model.open.binding(),
+                { shown -> sidebarExampleNavigation(model, fonts, shown) }
+            ) {
+                variant = model.variant.value;
+                collapsible = model.collapse.value;
+                side = model.side.value
+                breakpoint = 640.0;
+                rail = true;
+                this.fonts = Some(fonts)
+                onCloseRequest = { _ -> !model.veto.value }
+                header {
+                    shown -> sidebarColumn {
+                        sidebarTrigger(model.open.binding())
+                        if (!shown.collapsed) {
+                            typography("Project Atlas", TypographyRole.Small) {
+                                this.fonts = Some(fonts)
+                            }
+                            sidebarInput(model.search) {
+                                placeholder = "Search workspace";
+                                this.fonts = Some(fonts)
+                            }
+                        }
+                        spacing = 8.0;
+                        alignment = CrossAlignment.Stretch
+                    }
+                }
+                footer {
+                    shown -> makeSidebarMenu {
+                        collapsed = shown.collapsed;
+                        this.fonts = Some(fonts)
+                        item(
+                            ViewKey.Number(90L),
+                            "Ada Lovelace",
+                            { model.section.value = "Account" }
+                        ) { icon { appearance -> sidebarExampleIcon("A", fonts, appearance) } }
+                    }
+                }
+                inset(
+                    sidebarColumn {
+                        sidebarTrigger(model.open.binding())
+                        typography(model.section.value, TypographyRole.H3) {
+                            this.fonts = Some(fonts)
+                        }
+                        typography("Workspace draft", TypographyRole.Small) {
+                            this.fonts = Some(fonts)
+                        }
+                        input(model.draft) { this.fonts = Some(fonts) }
+                        typography(f"${model.count.value} project actions", TypographyRole.Muted) {
+                            this.fonts = Some(fonts)
+                        }
+                        typography(
+                            "Press Command+B to toggle navigation. Your draft remains in the application model.",
+                            TypographyRole.Muted
+                        ) { this.fonts = Some(fonts) }
+                        spacing = 16.0;
+                        padding = Insets.all(20.0);
+                        alignment = CrossAlignment.Stretch
+                    }
+                )
+            }
+        ) {
+            width =
+                Some(
+                    if (model.narrow.value)
+                        540.0
+                    else
+                        980.0
+                );
+            height = Some(440.0)
+            alignment = Alignment(AxisAlignment.Start, AxisAlignment.Start)
+            style {
+                background(Some(Paint(Color(0.5, 0.5, 0.5, 0.06))));
+                border(Some(Border.all(1.0, Color(0.5, 0.5, 0.5, 0.2))))
+            }
+        }
+        spacing = 20.0;
+        alignment = CrossAlignment.Start
+    }
+
+private fun sidebarExampleNavigation(
+    model: SidebarExamplesModel,
+    fonts: FontCollection,
+    shown: SidebarPresentation
+): View =
+    makeSidebarGroup(
+        sidebarColumn {
+            if (model.loading.value) {
+                for (index in 0L ..< 5L)
+                    sidebarMenuSkeleton {
+                        showIcon = true;
+                        collapsed = shown.collapsed;
+                        textFraction = 0.55 + index.toDouble() * 0.07
+                    }
+            } else
+                add(
+                    makeSidebarMenu {
+                        collapsed = shown.collapsed;
+                        this.fonts = Some(fonts)
+                        for (
+                            (key, title, iconText) in [
+                                (1L, "Inbox", "I"),
+                                (2L, "Projects", "P"),
+                                (3L, "Calendar", "C"),
+                                (4L, "Settings", "S")
+                            ]
+                        ) {
+                            item(
+                                ViewKey.Number(key),
+                                title,
+                                {
+                                    model.section.value = title
+                                    if (key == 2L)
+                                        model.projects.value = !model.projects.value
+                                }
+                            ) {
+                                active = model.section.value == title
+                                icon {
+                                    appearance -> sidebarExampleIcon(iconText, fonts, appearance)
+                                }
+                                if (key == 1L)
+                                    badge {
+                                        appearance -> makeSidebarBadge("12") {
+                                            this.fonts = Some(fonts);
+                                            color = Some(appearance.text.color)
+                                        }
+                                    }
+                                if (key == 2L) {
+                                    action(
+                                        makeSidebarAction(
+                                            makeLabel("+") { this.fonts = Some(fonts) },
+                                            { model.count.value += 1 }
+                                        )
+                                    )
+                                    actionOnHover = true
+                                    submenu(
+                                        model.projects.binding(),
+                                        makeSidebarMenu {
+                                            this.fonts = Some(fonts)
+                                            item(
+                                                ViewKey.Number(10L),
+                                                "Design system",
+                                                { model.section.value = "Design system" }
+                                            )
+                                            item(
+                                                ViewKey.Number(11L),
+                                                "Release planning",
+                                                { model.section.value = "Release planning" }
+                                            )
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        item(ViewKey.Number(5L), "Unavailable", {}) {
+                            enabled = false;
+                            icon { appearance -> sidebarExampleIcon("—", fonts, appearance) }
+                        }
+                        item(
+                            ViewKey.Number(6L),
+                            "Documentation",
+                            { model.section.value = "Documentation" }
+                        ) {
+                            variant = SidebarMenuVariant.Outline;
+                            icon { appearance -> sidebarExampleIcon("D", fonts, appearance) }
+                        }
+                    }
+                )
+            spacing = 0.0;
+            alignment = CrossAlignment.Stretch
+        }
+    ) {
+        label("Workspace");
+        collapsed = shown.collapsed;
+        this.fonts = Some(fonts)
+    }
+
+private fun sidebarExampleIcon(
+    text: String,
+    fonts: FontCollection,
+    appearance: ActionContentStyle
+): View =
+    makeLabel(text) {
+        this.fonts = Some(fonts)
+        style { color = Some(appearance.text.color) }
+        settings { maxLines = Some(1L) }
+    }

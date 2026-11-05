@@ -193,7 +193,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
             when (footer) {
                 case Some(view) -> panelFrame(
                     view,
-                    Insets.all(16.0 * density),
+                    Insets.all(options.contentPadding * density),
                     styleOverride {
                         if (!sheet) {
                             background(
@@ -238,7 +238,23 @@ internal class ModalContent(private val read: () -> ModalInput) {
             }
         val bodyContent =
             element(
-                ModalBodyProps(options, theme, bodyScroll, !drawer),
+                ModalBodyProps(
+                    options,
+                    theme,
+                    bodyScroll,
+                    when (input.kind) {
+                        case Drawer(value, _) ->
+                        value.side ==
+                            SheetSide.Start ||
+                            value.side ==
+                            SheetSide.End ||
+                            value.height !=
+                            None ||
+                            value.snapPoints.size >
+                            0L
+                        else -> true
+                    }
+                ),
                 { current -> ModalBody(current) },
                 [input.content]
             )
@@ -253,7 +269,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
             }
         val panelContent =
             element(
-                ModalPanelProps(density, headerPresent),
+                ModalPanelProps(density, headerPresent, options.contentPadding),
                 { current -> ModalPanel(current) },
                 [header, body, footerView, closeView]
             )

@@ -1,0 +1,34 @@
+package scoop.tests.ui.sidebar
+
+import scoop.test.*
+import scoop.tests.window.nativeEditorKey
+import scoop.window.Window
+import scoop.window.native.*
+
+internal fun sidebarNativeKey(window: Window, code: Int, text: String, flags: Int = 0) {
+    @Unsafe
+    {
+        val result =
+            window.acquireNativeWindow().use {
+                lease -> @Unsafe
+                {
+                    return@use when (lease.handle) {
+                        case AppKit(_, view) -> text.withUtf8Bytes {
+                            bytes,
+                            length -> @Unsafe
+                            {
+                                return@withUtf8Bytes nativeEditorKey(
+                                    view,
+                                    code,
+                                    bytes,
+                                    length,
+                                    flags
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        assertEquals(0, result)
+    }
+}

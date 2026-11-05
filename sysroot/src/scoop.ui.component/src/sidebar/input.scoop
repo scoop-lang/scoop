@@ -1,0 +1,63 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.text.TextEditorState
+
+public fun sidebarInput(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View {
+    val builder = InputBuilder();
+    builder.configure()
+    return component(builder.inputProps(state), { current -> SidebarInput(current) }, builder.key)
+}
+
+public class SidebarInput public constructor(private val props: Props<InputProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val d = theme.tokens.typography.body.fontSize / 14.0
+        val style =
+            input.style.copy {
+                surface {
+                    if (suggestedSize == None)
+                        suggestedSize = Some(Size(0.0, 32.0 * d))
+                    style =
+                        styleOverride {
+                            background(Some(Paint(theme.tokens.palette.background.background)));
+                            boxShadows([])
+                        }.then(input.style.surface.style)
+                }
+            }
+        return component(
+            InputProps(
+                input.state,
+                input.placeholder,
+                input.enabled,
+                input.readOnly,
+                input.invalid,
+                input.description,
+                input.fonts,
+                style,
+                input.theme,
+                input.focus,
+                input.direction,
+                input.alignment,
+                input.paintCache,
+                input.caretBlink,
+                input.onEdited,
+                input.onSubmit,
+                input.policy,
+                input.projection,
+                input.copy,
+                input.labelTarget,
+                input.group,
+                input.chrome
+            ),
+            { current -> Input(current) }
+        )
+    }
+}

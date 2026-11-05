@@ -299,3 +299,10 @@ min／max／collapsedSize 是逻辑长度；展开比例按剩余空间分配，
 `drawer(open.binding(), content) { side = SheetSide.Bottom; swipeHandle { visible = true }; snapPoints = [DrawerSnapPoint.Length(240.0), DrawerSnapPoint.Fraction(1.0)] }` 共用 ModalOptions 的标题、描述、头尾、滚动、焦点与关闭回调。垂直吸附以实际面板高度计算，`snap` 可受控，默认在本挂载保存索引；`DrawerHandle.snapTo`、键盘和拖动均只通知实际采纳的变化。Start／End 随 RTL 解析，水平 Drawer 不接受垂直 snapPoints。
 
 根提供 mode、width／height、viewportGap、viewportStyle、swipeToClose、dragThreshold、projectionSeconds、swipeHandle、controller、parent 与拖动取消通知。把手独立聚焦，支持主轴方向键及 Home／End；正文保留自身编辑按键，滚动未到相应边缘时不接管拖动。`parent = Some(parentController)` 协调同窗口嵌套外观，实际焦点层级仍由嵌套 Portal 负责。关闭 veto、拒绝绑定和手势取消回到当前吸附位置；默认进入／退出动画及嵌套缩放遵守 Reduced Motion，详见组件规范第 40 节。
+
+
+## P6d：Sidebar
+
+`sidebar(open.binding(), { shown -> navigation(shown.collapsed) }) { header(headerView); footer(accountView); inset(workspaceView) }` 组合导航与相邻主内容，提供 Sidebar／Floating／Inset、Start／End 和 Offcanvas／Icon／None。默认 Auto 按父级可用宽度在内联导航与普通 Drawer 之间切换，可显式指定 Desktop／Mobile；主内容保持同一槽位，导航跨宿主按普通挂载规则重建，业务编辑状态由外部模型保存。
+
+`sidebarGroup(content)`、`sidebarMenu { item(key, label, onClick) { icon(view); badge(view); action(view); submenu(open, view) } }` 提供分组、稳定 key、active／disabled、尺寸、独立动作和可折叠子菜单。icon／badge 的 ActionContentStyle 回调提供当前前景色与交互状态，`sidebarMenuBadge` 可用 color 接收该颜色；部件显式接收 collapsed；`sidebarMenuSkeleton` 使用明确 textFraction，`sidebarInput` 提供侧栏输入外观，`sidebarTrigger` 是受控普通按钮。rail 点击和作用域内默认 Primary+B 切换同一开关，窄布局关闭请求复用 Drawer 的焦点恢复／veto。公共 ModalOptions 新增 contentPadding=16，Sidebar 使用零弹层 padding 并由各内容部件保留焦点环留白。详细合同见组件规范第 41 节。

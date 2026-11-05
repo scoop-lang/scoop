@@ -838,7 +838,7 @@ Popover 另有 arrow: PopupArrow?=None。`PopupArrow(width=10, height=5, paint: 
 
 `dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {})`、`alertDialog(open, content, configure: AlertDialogBuilder.() -> Unit = {})` 及 ChildrenBuilder 同名成员分别构造 DialogProps／Dialog 与 AlertDialogProps／AlertDialog。两者使用普通 Portal 的 Modal 模式、Viewport 定位、同一焦点会话与 Presence；不另建窗口、挂载树或焦点管理器。业务 Binding 必需，描述构造不读取它；触发器、关闭按钮及 Portal 写入后，仅实际值改变才通知最新 onOpenChange，外部直接写入不合成控件回调。同类型配置变化及退出中重开遵守既有实例保留规则。
 
-共同配置在 Props.options: ModalOptions 中保存为不可变快照，三个 builder 直接展开同名配置成员。ModalOptions 的配置为 trigger: PopupTriggerSpec?=None、title／description: PanelContent?、header: View?=None、scrollable=false、scrollState: ScrollState?=None、focus=OverlayFocusOptions()、handle=None、enabled=true、viewportPadding=16、backdrop: Paint?=Some(Black 10%)、transition=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme／style；builder 继承 PanelBuilder 的标题便利成员并增加 trigger(String／StyledText／View, PopupTriggerBuilder block)、header(View)、focus block、transition(AnimationSpec?)，key 沿正常描述规则。外部普通 Button 也可直接写同一 Binding，不要求内置 trigger。trigger 的 View 必须是非交互内容，内置 Button 是唯一激活目标，不检查或克隆 View。
+共同配置在 Props.options: ModalOptions 中保存为不可变快照，三个 builder 直接展开同名配置成员。ModalOptions 的配置为 trigger: PopupTriggerSpec?=None、title／description: PanelContent?、header: View?=None、scrollable=false、scrollState: ScrollState?=None、focus=OverlayFocusOptions()、handle=None、enabled=true、viewportPadding=16、contentPadding=16、backdrop: Paint?=Some(Black 10%)、transition=Inherit、onOpenChange、onCloseRequest、onClosed、fonts／theme／style；builder 继承 PanelBuilder 的标题便利成员并增加 trigger(String／StyledText／View, PopupTriggerBuilder block)、header(View)、focus block、transition(AnimationSpec?)，key 沿正常描述规则。外部普通 Button 也可直接写同一 Binding，不要求内置 trigger。trigger 的 View 必须是非交互内容，内置 Button 是唯一激活目标，不检查或克隆 View。
 
 Dialog 额外配置 width=384、footer: View?=None、showCloseButton=true、close: PopupTriggerSpec?=None、dismiss=OverlayDismiss(escape=true, outsidePress=CloseAndConsume)。默认关闭按钮是右上逻辑 End 的 Ghost／IconSm X，可通过 close 内容／样式替换或完全隐藏；调用当前 OverlayHandle.requestClose，统一经过 veto 与受控 setter。Modal 禁止 CloseAndContinue。所有显式尺寸与 viewportPadding 有限且非负。关闭请求、失败帧屏障、嵌套域、初始／循环／恢复焦点和退出重开均沿 Portal 合同；Escape 一次只请求最上层，点击背景不穿透。
 
@@ -959,7 +959,7 @@ CarouselAutoplay(interval) 是显式配置，interval 必须大于零。只在�
 
 根另有 width／height、viewportGap=96、viewportStyle、snapPoints、snap: Binding<Long>?、initialSnap=0、swipeToClose=true、dragThreshold=4、projectionSeconds=0.15、swipeHandle、controller: DrawerHandle?、parent: DrawerHandle?、onSnapChange(index) 和 onDragCancel(reason)。尺寸、间距、阈值及投影时长有限非负。snapPoints 是垂直方向的 `Array<DrawerSnapPoint>`，Fraction 为面板最大高度的有限比例 `(0,1]`，Length 为有限正逻辑长度；水平方向不接受 snapPoints。保留声明索引，按实际高度夹取显示，重复位置不产生多余键盘步骤。不受控时在本 Drawer 挂载中保留索引；受控索引越界只夹取显示，外部替换不回放用户通知，只有 setter 实际采纳的变化才通知。
 
-无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
+无显式高度及 snapPoints 时，垂直面板按正文自然高度测量，上限为视口高度减 viewportGap；有 snapPoints 时使用该上限或明确 height，按可见高度位移吸附。横向默认宽为可用宽度的 75%、最大 384 密度单位，高度填满。固定高度或横向面板的滚动正文填满头尾之间的剩余空间，页脚位于面板底部；自然高度的垂直面板仍随短正文收缩。窗口缩放、方向／尺寸／吸附配置变化使旧手势失效，按当前模型重新定位，不重建同类型正文。默认 popup 使用 popover 配色、内侧 12 圆角和 1 像素边线；正文仍保留内部 16 留白保护焦点环，滚动位置复用 ScrollState。viewportStyle 只装饰外层视口，popup 外观使用公共 style。
 
 swipeHandle 通过 `swipeHandle { visible=true }` 配置，默认隐藏；可设 only、focus、style 和普通 View content。only=true 要求把手可见。默认握柄为主轴厚 4、交叉轴长 96 的 muted 圆角条，位于面板内侧的 12 单位区域，命中带至少 20；四个方向均有实际布局和命中。把手是独立焦点目标，主轴方向键按物理方向展开／收缩到下一个不同锚点，Home／End 到最小／最大吸附位置；正文编辑器保留自己的按键。Escape 在活动拖动中取消本次手势，其余由 Portal 关闭。
 
@@ -968,3 +968,22 @@ Drag 达到主轴阈值后才声明原指针路径，未达阈值保留正文点
 DrawerHandle 只绑定一个活动 popup，提供可观察 snapshot（snapIndex、extent、visibleExtent、dragging、nestedDepth）和 `snapTo(index, animated=true)`。popup 完成退出或卸载后解除绑定，应用可以继续保留句柄。parent 显式关联同窗口内已挂载的父 DrawerHandle，用于嵌套外观与手势协调；不能自指、成环或跨窗口。焦点层级仍来自正常 Portal 嵌套，parent 不建立另一套模态或恢复会话。父面板按实际前层尺寸缩放，每层缩小 5%、向内露出 16 并略微压暗；子层拖动时逐渐还原父层。子层打开期间不启动父层拖动，子层关闭／重开和整体卸载正常解除关联。
 
 默认进入 450ms、退出 400ms，位移从对应窗口外侧进入，采用 Nova 的缓出曲线；吸附／回弹与嵌套缩放使用本挂载 Animatable，Presence 继续承担退出生命周期。主题 Reduced Motion 或 transition(None) 同时关闭这些过渡。动画、手势和可见性结束后不保留持续帧请求；仅验证现有桌面指针，不声称提供尚未交付的触屏后端。
+
+
+## 41. Sidebar
+
+`sidebar(open: Binding<Boolean>, content: View) { ... }` 返回 Sidebar；另有 `(SidebarPresentation) -> View` 内容重载。SidebarContent 为 Custom(View)／Resolved(factory)，header／footer 也接受这两种明确内容。SidebarPresentation 只描述本次 mobile、collapsed（桌面 Icon 折叠）及 expanded，不保存业务值。SidebarProps 保存 open、content、header=None、footer=None、inset=None、variant=Sidebar、collapsible=Offcanvas、side=Start、layout=Auto、width=256、iconWidth=48、mobileWidth=288、breakpoint=768、rail=false、enabled=true、scrollState=None、focus=OverlayFocusOptions()、shortcut=Primary+B、transition=Inherit、onOpenChange={}、onCloseRequest={true}、onClosed={}、fonts=None、theme=None、style／insetStyle 空覆盖。SidebarVariant 为 Sidebar／Floating／Inset；SidebarCollapse 为 Offcanvas／Icon／None；SidebarSide 为 Start／End；SidebarLayout 为 Auto／Desktop／Mobile。长度有限且非负，并按正文密度缩放；None 始终使用展开的内联导航，忽略窄布局及折叠动作，不改写 open。
+
+Auto 按父级本次可用宽度与 breakpoint 判断窄布局，无界宽度采用桌面。实际布局成功后发布改变，后续帧切换宿主；不在测量或绘制中写 Binding。可选 inset 是相邻的主内容，拥有剩余宽度且在桌面／窄布局转换时保持同一父级和槽。未给 inset 时返回导航自身占用宽度。桌面 Sidebar 占 width；Icon 折叠为 iconWidth；Offcanvas 折叠为零并从逻辑侧退出。Floating／Inset 外侧留白 8，Floating 用 8 圆角、sidebar border 和小阴影；Inset 主内容背景为 background，8 外边距、12 圆角及小阴影，展开时贴导航一侧不留重复外边距。默认宽度过渡为 200ms linear，Reduced 立即就位。
+
+桌面折叠保留内容实例；Offcanvas 关闭立即停止内容输入／IME／Tab 和子树帧请求，退出画面仍可绘制，完全隐藏不测量或放置正文。Icon 模式保留真实菜单按钮及图标，隐藏标签、分组标题／动作、badge、菜单动作和子菜单；这些内容保留普通逻辑更新。恢复输入等待 Accepted 非零几何。切换窄宿主时导航依正常挂载规则卸载／重建，编辑模型、选择和业务开关由调用方提升；不进行任意子树迁移。窄布局使用同一 open 的模态 Drawer、mobileWidth、逻辑侧及原焦点／关闭合同，正文滚动与拖动由 Drawer 仲裁，头尾固定。
+
+SidebarBuilder 提供 header／footer／inset 成员和 content 重载；sidebarTrigger(open) 是 Ghost／IconSm 普通按钮，使用 Lucide panel-left 并随 RTL 翻转，可替换内容／焦点／样式。rail 是 16 宽、非 Tab stop 的侧边点击区域，悬浮显示 2 宽 sidebar border 和横向 resize cursor；点击切换开关，不承担拖动改变宽度。快捷键通过已有 ShortcutScope，在本 Sidebar 及 inset 的逻辑输入域工作；窄布局内容也注册同一动作。尊重 IME、内层消费、禁用、重复键和上层焦点域，不安装全局事件总线。按钮、rail、快捷键只通知 Binding 实际采纳的变化；窄层的快捷键及 Drawer 关闭请求先经 onCloseRequest。独立 sidebarTrigger 与外部直接写 open 一样，按调用方 Binding 的 setter 决定是否采纳，遵循 Portal 的普通规则。调用方可用 shortcut=None 禁用默认组合。
+
+`sidebarGroup(content) { label(...); action(...); collapsed=false }` 用 8 padding，标题高 32、12／500、sidebar 前景 70%，动作是单独真实 View；分组内容保留原样组合。`sidebarMenu { item(key, label, onClick) { ... } }` 提供 SidebarMenuProps／SidebarMenuItemProps；同级显式 key 唯一，稳定重排保留按钮／正文实例。menu 配置 collapsed=false、enabled=true、fonts／theme、style；item 支持 icon=None、content=None、active=false、enabled=true、variant=Default／Outline、size=Default／Sm／Lg、badge=None、action=None、actionOnHover=false、submenu=None、submenuOpen=None、focus、style。submenuOpen 存在时用现有 Collapsible KeepMounted，展开值由应用负责；没有绑定时显示提供的子菜单。普通导航保留 Tab，不加菜单角色或 roving 焦点，动作由当前 onClick 完成。按钮高 32／28／48，字号 14／12／14，水平 8 padding、8 图文间距、16 图标、6 圆角；Icon 折叠按钮 32 方形。icon／badge 接受普通 View 或 ActionContentStyle 内容回调，回调获得当前文字前景色、密度尺寸和交互状态；badge 在按钮内容内布局，action 保持独立。标签单行省略并继承布局方向，action／badge 的实测宽度为正文让位且动作不会触发主按钮。active 使用 sidebar accent 与 500 字重；Outline 增加背景和边框。悬浮显示的 action 在行悬浮或行内焦点时可见；折叠时退出输入。折叠菜单的 Tooltip 使用原标签，普通按钮保持唯一 Press 和焦点。
+
+`sidebarMenuBadge(text)` 提供高／最小宽 20 的 12／500 标签，可通过 color 覆盖文字颜色；`sidebarMenuAction(content, onClick)` 提供 20 方形 Ghost 动作；`sidebarSubmenu(content)` 提供逻辑起边 1 border、两侧 14 外距及内部水平 10／垂直 2 留白，collapsed 可隐藏；`sidebarMenuSkeleton { showIcon=false; collapsed=false; textFraction=0.7 }` 组合已有 Skeleton，行高 32、图标 16、文字高 16，比例明确在 [0,1]，不在 render 随机。`sidebarInput(state)` 沿用 Input，32 高、background 背景及无阴影。各部件有对应 Props／builder、fonts／theme 和必要局部样式，不建立 Provider 或选择镜像。
+
+ModalOptions／ModalBuilder 同时增加 contentPadding=16，统一控制 header、body、footer 的逻辑内边距，有限非负并随密度缩放；默认行为不变。Sidebar 的窄层使用 contentPadding=0，自己的组与头尾留白保护完整焦点环，避免重复添加 Dialog 内边距。
+
+验收覆盖三种变体／折叠、逻辑侧／RTL、窄宽 Drawer 及窗口缩放、受控拒绝／换绑／实际值通知、真实快捷键／Tab／文本编辑、滚动与关闭拦截、稳定 key、动作及子菜单、静态／动画停帧、宿主切换和卸载；不把桌面指针测试记为触屏验收。

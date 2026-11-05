@@ -156,13 +156,13 @@ internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): Ove
         else -> None
     }
 
-internal class ModalPanelProps(val density: Double, val header: Boolean)
+internal class ModalPanelProps(val density: Double, val header: Boolean, val contentPadding: Double)
 
 /** Header, body, footer and close keep stable slots across every size and visibility change. */
 internal class ModalPanel(private val props: Props<ModalPanelProps>): Element {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val input = props.value
-        val padding = 16.0 * input.density
+        val padding = input.contentPadding * input.density
         val width = constraints.maxWidth ?: constraints.minWidth
         val maximum = constraints.maxHeight ?: constraints.minHeight
         val inner = max(0.0, width - padding * 2.0)

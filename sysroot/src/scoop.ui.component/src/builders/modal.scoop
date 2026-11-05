@@ -15,6 +15,7 @@ public open class ModalBuilder internal constructor(): PanelBuilder() {
     public var handle: OverlayHandle? = None
     public var enabled: Boolean = true
     public var viewportPadding: Double = 16.0
+    public var contentPadding: Double = 16.0
     public var backdrop: Paint? = Some(Paint(Color.Black.withAlpha(0.1)))
     public var transition: StyleValue<AnimationSpec?> = StyleValue.Inherit
     public var onOpenChange: (Boolean) -> Unit = {}
@@ -66,7 +67,8 @@ public open class ModalBuilder internal constructor(): PanelBuilder() {
             onClosed,
             fonts,
             theme,
-            style
+            style,
+            contentPadding
         )
 }
 

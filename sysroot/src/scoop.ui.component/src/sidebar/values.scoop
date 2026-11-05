@@ -1,0 +1,126 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.surface.AnimationSpec
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.window.*
+
+public enum SidebarVariant {
+    Sidebar, Floating, Inset
+}
+
+public enum SidebarCollapse {
+    Offcanvas, Icon, None
+}
+
+public enum SidebarSide {
+    Start, End
+}
+
+public enum SidebarLayout {
+    Auto, Desktop, Mobile
+}
+
+public struct SidebarPresentation(
+    val mobile: Boolean,
+    val collapsed: Boolean,
+    val expanded: Boolean
+)
+
+public enum SidebarContent {
+    Custom(View), Resolved((SidebarPresentation) -> View)
+}
+
+public class SidebarProps public constructor(
+    public val open: Binding<Boolean>,
+    public val content: SidebarContent,
+    public val header: SidebarContent? = None,
+    public val footer: SidebarContent? = None,
+    public val inset: View? = None,
+    public val variant: SidebarVariant = SidebarVariant.Sidebar,
+    public val collapsible: SidebarCollapse = SidebarCollapse.Offcanvas,
+    public val side: SidebarSide = SidebarSide.Start,
+    public val layout: SidebarLayout = SidebarLayout.Auto,
+    public val width: Double = 256.0,
+    public val iconWidth: Double = 48.0,
+    public val mobileWidth: Double = 288.0,
+    public val breakpoint: Double = 768.0,
+    public val rail: Boolean = false,
+    public val enabled: Boolean = true,
+    public val scrollState: ScrollState? = None,
+    public val focus: OverlayFocusOptions = OverlayFocusOptions(),
+    public val shortcut: ShortcutChord? =
+        Some(
+            ShortcutChord(
+                ShortcutKey.Logical(LogicalKey.Character("b")),
+                ShortcutModifiers(primary = true)
+            )
+        ),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (Boolean) -> Unit = {},
+    public val onCloseRequest: (OverlayCloseReason) -> Boolean = { _ -> true },
+    public val onClosed: (OverlayCloseReason) -> Unit = {},
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val insetStyle: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(width, "invalid sidebar width")
+        nonnegative(iconWidth, "invalid sidebar icon width")
+        nonnegative(mobileWidth, "invalid sidebar mobile width")
+        nonnegative(breakpoint, "invalid sidebar breakpoint")
+    }
+}
+
+internal fun sidebarShortcut(): ShortcutChord =
+    ShortcutChord(ShortcutKey.Logical(LogicalKey.Character("b")), ShortcutModifiers(primary = true))
+
+internal fun sidebarIsMobile(input: SidebarProps, available: Double?, density: Double): Boolean =
+    input.collapsible !=
+        SidebarCollapse.None &&
+        when (input.layout) {
+            case Auto -> when (available) {
+                case Some(value) -> value < input.breakpoint * density;
+                case None -> false
+            }
+            case Desktop -> false
+            case Mobile -> true
+        }
+
+internal fun sidebarPresentation(input: SidebarProps, mobile: Boolean): SidebarPresentation {
+    val expanded = input.collapsible == SidebarCollapse.None || input.open.value
+    return SidebarPresentation(
+        mobile,
+        !mobile && !expanded && input.collapsible == SidebarCollapse.Icon,
+        expanded
+    )
+}
+
+internal fun sidebarWidth(input: SidebarProps, shown: SidebarPresentation): Double =
+    if (shown.mobile)
+        0.0
+    else
+        if (shown.expanded)
+            input.width
+        else
+            if (shown.collapsed)
+                input.iconWidth
+            else
+                0.0
+
+internal fun sidebarContent(content: SidebarContent, shown: SidebarPresentation): View =
+    when (content) {
+        case Custom(view) -> view
+        case Resolved(build) -> build(shown)
+    }
+
+internal fun sidebarWrite(open: Binding<Boolean>, next: Boolean, notify: (Boolean) -> Unit) {
+    val previous = open.value
+    if (next == previous)
+        return
+    open.value = next
+    if (open.value != previous)
+        notify(open.value)
+}

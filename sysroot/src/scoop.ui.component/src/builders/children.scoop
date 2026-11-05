@@ -21,9 +21,63 @@ import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
 import scoop.ui.component.resizable as appendResizable
 import scoop.ui.component.carousel as appendCarousel
 import scoop.ui.component.drawer as appendDrawer
+import scoop.ui.component.sidebar as appendSidebar
+import scoop.ui.component.sidebarTrigger as appendSidebarTrigger
+import scoop.ui.component.sidebarGroup as appendSidebarGroup
+import scoop.ui.component.sidebarMenu as appendSidebarMenu
+import scoop.ui.component.sidebarMenuAction as appendSidebarMenuAction
+import scoop.ui.component.sidebarMenuBadge as appendSidebarMenuBadge
+import scoop.ui.component.sidebarSubmenu as appendSidebarSubmenu
+import scoop.ui.component.sidebarMenuSkeleton as appendSidebarMenuSkeleton
+import scoop.ui.component.sidebarInput as appendSidebarInput
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun sidebar(
+        open: Binding<Boolean>,
+        content: View,
+        configure: SidebarBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebar(open, content, configure))
+    }
+    public fun sidebar(
+        open: Binding<Boolean>,
+        content: (SidebarPresentation) -> View,
+        configure: SidebarBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebar(open, content, configure))
+    }
+    public fun sidebarTrigger(
+        open: Binding<Boolean>,
+        configure: SidebarTriggerBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebarTrigger(open, configure))
+    }
+    public fun sidebarGroup(content: View, configure: SidebarGroupBuilder.() -> Unit = {}) {
+        add(appendSidebarGroup(content, configure))
+    }
+    public fun sidebarMenu(configure: SidebarMenuBuilder.() -> Unit) {
+        add(appendSidebarMenu(configure))
+    }
+    public fun sidebarMenuAction(
+        content: View,
+        onClick: () -> Unit,
+        configure: ContentButtonBuilder.() -> Unit = {}
+    ) {
+        add(appendSidebarMenuAction(content, onClick, configure))
+    }
+    public fun sidebarMenuBadge(text: String, configure: SidebarBadgeBuilder.() -> Unit = {}) {
+        add(appendSidebarMenuBadge(text, configure))
+    }
+    public fun sidebarSubmenu(content: View, configure: SidebarSubmenuBuilder.() -> Unit = {}) {
+        add(appendSidebarSubmenu(content, configure))
+    }
+    public fun sidebarMenuSkeleton(configure: SidebarSkeletonBuilder.() -> Unit = {}) {
+        add(appendSidebarMenuSkeleton(configure))
+    }
+    public fun sidebarInput(state: TextEditorState, configure: InputBuilder.() -> Unit = {}) {
+        add(appendSidebarInput(state, configure))
+    }
     public fun drawer(
         open: Binding<Boolean>,
         content: View,

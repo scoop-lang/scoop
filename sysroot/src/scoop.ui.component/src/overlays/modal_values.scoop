@@ -25,10 +25,12 @@ public class ModalOptions public constructor(
     public val onClosed: (OverlayCloseReason) -> Unit = {},
     public val fonts: FontCollection? = None,
     public val theme: ThemeSource? = None,
-    public val style: StyleOverride = styleOverride()
+    public val style: StyleOverride = styleOverride(),
+    public val contentPadding: Double = 16.0
 ) {
     init {
         nonnegative(viewportPadding, "invalid modal viewport padding")
+        nonnegative(contentPadding, "invalid modal content padding")
     }
 }
 

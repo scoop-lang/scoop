@@ -1,0 +1,211 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+
+internal class SidebarRow(private val props: Props<SidebarRowInput>): Element {
+    private var scope: ComponentScope? = None
+    private var area: InputArea? = None
+    private var hover: Hover? = None
+    private var rowHeight = 0.0
+    private fun open(): Binding<Boolean> =
+        binding(
+            { props.value.space.highlighted },
+            {
+                value -> if (scope!!.isMounted && props.value.space.highlighted != value) {
+                    props.value.space.highlighted = value;
+                    scope!!.requestFrame()
+                }
+            }
+        )
+    private fun options(): HoverOptions =
+        HoverOptions(
+            Duration.ZERO,
+            Duration.ZERO,
+            Duration.ZERO,
+            focus = true,
+            enabled =
+                props.value.input.menu.enabled &&
+                    props.value.input.item.enabled &&
+                    props.value.input.item.actionOnHover &&
+                    !props.value.input.menu.collapsed
+        )
+    public override fun onMount(scope: ComponentScope) {
+        this.scope = Some(scope)
+        area = Some(scope.createArea());
+        area!!.ignoreSelf = true;
+        scope.routeChildren(area!!)
+        hover = Some(scope.hover(area!!, open(), options()))
+    }
+    public override fun update() {
+        hover!!.update(open(), Some(options()))
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val d = input.density
+        val compact = input.input.menu.collapsed
+        rowHeight = sidebarRowHeight(input.input.item.size, compact) * d
+        val action =
+            context.measureChild(
+                1L,
+                Constraints(maxWidth = Some(20.0 * d), maxHeight = Some(20.0 * d))
+            )
+        input.space.trailing =
+            if (action.size.width > 0.0)
+                action.size.width + 4.0 * d
+            else
+                0.0
+        val desiredWidth =
+            if (compact)
+                Some(min(32.0 * d, constraints.maxWidth ?: 32.0 * d))
+            else
+                constraints.maxWidth
+        val main =
+            context.measureChild(
+                0L,
+                Constraints(desiredWidth ?: 0.0, desiredWidth, rowHeight, Some(rowHeight))
+            )
+        val width = constraints.constrain(Size(main.size.width, rowHeight)).width
+        val submenu = context.measureChild(2L, Constraints(width, Some(width)))
+        val size = constraints.constrain(Size(width, rowHeight + submenu.size.height))
+        context.placeChild(
+            0L,
+            Point(logicalX(0.0, main.size.width, width, context.layoutDirection), 0.0)
+        )
+        val end = width - 8.0 * d
+        context.placeChild(
+            1L,
+            Point(
+                logicalX(
+                    end - action.size.width,
+                    action.size.width,
+                    width,
+                    context.layoutDirection
+                ),
+                (rowHeight - action.size.height) / 2.0
+            )
+        )
+        context.placeChild(2L, Point(0.0, rowHeight))
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, rowHeight))
+        context.children()
+    }
+}
+
+internal class SidebarCaption(private val props: Props<SidebarRowInput>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val input = props.value
+        val d = input.density
+        val hasIcon = panelPresent(input.input.item.icon)
+        val compact = input.input.menu.collapsed
+        val badge =
+            context.measureChild(
+                2L,
+                Constraints(maxWidth = constraints.maxWidth, maxHeight = Some(20.0 * d))
+            )
+        val icon =
+            if (hasIcon)
+                context.measureChild(
+                    0L,
+                    Constraints(16.0 * d, Some(16.0 * d), 16.0 * d, Some(16.0 * d))
+                )
+            else {
+                context.skipChild(0L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+        val gap =
+            if (hasIcon && !compact)
+                8.0 * d
+            else
+                0.0
+        val tail =
+            if (compact)
+                0.0
+            else
+                input.space.trailing +
+                    if (badge.size.width > 0.0)
+                        badge.size.width + 8.0 * d
+                    else
+                        0.0
+        val maximum =
+            when (constraints.maxWidth) {
+                case Some(value) -> Some(max(0.0, value - icon.size.width - gap - tail))
+                case None -> None
+            }
+        val label =
+            if (compact) {
+                context.skipChild(1L);
+                LayoutMetrics(Size(0.0, 0.0))
+            }
+            else
+                context.measureChild(
+                    1L,
+                    Constraints(maxWidth = maximum, maxHeight = constraints.maxHeight)
+                )
+        val size =
+            constraints.constrain(
+                Size(
+                    constraints.maxWidth ?: (icon.size.width + gap + label.size.width + tail),
+                    max(badge.size.height, max(icon.size.height, label.size.height))
+                )
+            )
+        if (hasIcon)
+            context.placeChild(
+                0L,
+                Point(
+                    logicalX(0.0, icon.size.width, size.width, context.layoutDirection),
+                    (size.height - icon.size.height) / 2.0
+                )
+            )
+        if (!compact)
+            context.placeChild(
+                1L,
+                Point(
+                    logicalX(
+                        icon.size.width + gap,
+                        label.size.width,
+                        size.width,
+                        context.layoutDirection
+                    ),
+                    (size.height - label.size.height) / 2.0
+                )
+            )
+        context.placeChild(
+            2L,
+            Point(
+                logicalX(
+                    max(0.0, size.width - input.space.trailing - badge.size.width),
+                    badge.size.width,
+                    size.width,
+                    context.layoutDirection
+                ),
+                (size.height - badge.size.height) / 2.0
+            )
+        )
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+internal class SidebarActionVisibility(private val props: Props<SidebarRowInput>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val child = context.measureChild(0L, constraints);
+        context.placeChild(0L, Point(0.0, 0.0));
+        return child
+    }
+    public override fun scene(context: SceneContext) {
+        val transparent = props.value.input.item.actionOnHover && !props.value.space.highlighted
+        if (transparent)
+            context.saveLayer(0.0)
+        context.children()
+        if (transparent)
+            context.restore()
+    }
+}

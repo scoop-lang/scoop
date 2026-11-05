@@ -1,0 +1,207 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.math.*
+import scoop.surface.*
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.drawer as sidebarDrawer
+
+public class Sidebar public constructor(private val props: Props<SidebarProps>): Component {
+    private val themes = ThemeAccess()
+    private val mobile = state(false)
+    private val scroll = ScrollState()
+    private val layer = OverlayHandle()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    private fun toggle() {
+        val input = props.value
+        if (!input.enabled || input.collapsible == SidebarCollapse.None)
+            return
+        if (mobile.value && input.open.value)
+            layer.requestClose()
+        else
+            sidebarWrite(input.open, !input.open.value, { next -> props.value.onOpenChange(next) })
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.body.fontSize / 14.0
+        val narrow =
+            input.collapsible !=
+                SidebarCollapse.None &&
+                when (input.layout) {
+                    case Auto -> mobile.value
+                    case Desktop -> false
+                    case Mobile -> true
+                }
+        val shown = sidebarPresentation(input, narrow)
+        val palette = theme.tokens.palette.sidebar
+        val header = sidebarRegion(input.header, shown, density)
+        val footer = sidebarRegion(input.footer, shown, density)
+        val body = sidebarContent(input.content, shown)
+        val scroll = input.scrollState ?: this.scroll
+        val layer = this.layer
+        val current = props
+        val toggle = { toggle() }
+        val panel =
+            if (narrow) {
+                sidebarDrawer(input.open, sidebarKeys(body, input, toggle)) {
+                    side =
+                        if (input.side == SidebarSide.Start)
+                            SheetSide.Start
+                        else
+                            SheetSide.End
+                    width = Some(input.mobileWidth)
+                    contentPadding = 0.0
+                    scrollable = true;
+                    scrollState = Some(scroll)
+                    focus = input.focus;
+                    handle = Some(layer)
+                    enabled = input.enabled;
+                    fonts = input.fonts;
+                    this.theme = input.theme
+                    if (panelPresent(input.header))
+                        header(sidebarKeys(header, input, toggle))
+                    if (panelPresent(input.footer))
+                        footer(sidebarKeys(footer, input, toggle))
+                    transition = input.transition
+                    onOpenChange = { next -> current.value.onOpenChange(next) }
+                    onCloseRequest = { reason -> current.value.onCloseRequest(reason) }
+                    onClosed = { reason -> current.value.onClosed(reason) }
+                    style =
+                        styleOverride {
+                            background(Some(Paint(palette.background.background)))
+                            corners(Corners.all(0.0));
+                            border(None)
+                        }.then(input.style)
+                }
+            } else {
+                val content =
+                    element(
+                        SidebarPanelInput(input, theme),
+                        { value -> SidebarPanel(value) },
+                        [
+                            header,
+                            scrollArea(body) {
+                                state = Some(scroll)
+                                scrollbars = ScrollbarVisibility.Hidden
+                                focus = FocusOptions(tabStop = false)
+                                enabled = input.enabled;
+                                this.theme = input.theme
+                            },
+                            footer
+                        ]
+                    )
+                element(
+                    SidebarPaneInput(input, shown, density),
+                    { value -> SidebarPane(value) },
+                    [
+                        sidebarGate(
+                            panelFrame(content, visual = sidebarSurface(input, theme)),
+                            input.enabled && (shown.expanded || shown.collapsed),
+                            true
+                        )
+                    ]
+                )
+            }
+        val main =
+            panelFrame(
+                input.inset ?: empty(),
+                visual =
+                    styleOverride {
+                        background(Some(Paint(theme.tokens.palette.background.background)))
+                        if (!narrow && input.variant == SidebarVariant.Inset) {
+                            corners(Corners.all(12.0 * density));
+                            boxShadows(theme.tokens.effects.raised)
+                        }
+                    }.then(input.insetStyle)
+            )
+        return element(
+            SidebarHostInput(
+                input,
+                theme,
+                shown,
+                {
+                    value -> if (mobile.value != value)
+                        mobile.value = value
+                },
+                toggle
+            ),
+            { value -> SidebarHost(value) },
+            [panel, main, sidebarRail(input, theme, toggle)]
+        )
+    }
+}
+
+private fun sidebarRegion(
+    content: SidebarContent?,
+    shown: SidebarPresentation,
+    density: Double
+): View =
+    when (content) {
+        case Some(value) -> panelFrame(sidebarContent(value, shown), Insets.all(8.0 * density))
+        case None -> empty()
+    }
+
+private fun sidebarSurface(input: SidebarProps, theme: Theme): StyleOverride {
+    val density = theme.tokens.typography.body.fontSize / 14.0
+    val colors = theme.tokens.palette.sidebar
+    return styleOverride {
+        background(Some(Paint(colors.background.background)))
+        if (input.variant == SidebarVariant.Floating) {
+            corners(Corners.all(8.0 * density))
+            border(Some(Border.all(density, colors.border)))
+            boxShadows(theme.tokens.effects.raised)
+        } else {
+            corners(Corners.all(0.0))
+            if (input.variant == SidebarVariant.Sidebar)
+                border(
+                    Some(
+                        if (input.side == SidebarSide.Start)
+                            Border.Logical(end = BorderEdge(density, colors.border))
+                        else
+                            Border.Logical(start = BorderEdge(density, colors.border))
+                    )
+                )
+        }
+    }.then(input.style)
+}
+
+internal fun sidebarTransition(input: SidebarProps, theme: Theme): AnimationSpec? =
+    theme.tokens.motion.resolve(
+        input.transition.resolve(Some(AnimationSpec.Tween(Duration.milliseconds(200L))))
+    )
+
+internal class SidebarPanelInput(val props: SidebarProps, val theme: Theme)
+
+internal class SidebarPanel(private val props: Props<SidebarPanelInput>): Element {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val width = constraints.maxWidth ?: constraints.minWidth
+        val header = context.measureChild(0L, Constraints(width, Some(width)))
+        val footer = context.measureChild(2L, Constraints(width, Some(width)))
+        val height =
+            when (constraints.maxHeight) {
+                case Some(value) -> Some(max(0.0, value - header.size.height - footer.size.height))
+                case None -> None
+            }
+        val body = context.measureChild(1L, Constraints(width, Some(width), maxHeight = height))
+        val size =
+            constraints.constrain(
+                Size(
+                    width,
+                    constraints.maxHeight ?:
+                        (header.size.height + body.size.height + footer.size.height)
+                )
+            )
+        context.placeChild(0L, Point(0.0, 0.0))
+        context.placeChild(1L, Point(0.0, header.size.height))
+        context.placeChild(2L, Point(0.0, max(0.0, size.height - footer.size.height)))
+        return LayoutMetrics(size)
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}

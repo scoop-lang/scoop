@@ -1,0 +1,166 @@
+package scoop.ui.component
+
+import scoop.collections.HashMap
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public enum SidebarMenuVariant {
+    Default, Outline
+}
+
+public enum SidebarMenuSize {
+    Default, Sm, Lg
+}
+
+public enum SidebarAdornment {
+    Custom(View), Resolved((ActionContentStyle) -> View)
+}
+
+internal fun sidebarAdornment(content: SidebarAdornment?, style: ActionContentStyle): View =
+    when (content) {
+        case Some(SidebarAdornment.Custom(view)) -> view
+        case Some(SidebarAdornment.Resolved(build)) -> build(style)
+        case None -> empty()
+    }
+
+public class SidebarMenuItemProps public constructor(
+    public val key: ViewKey,
+    public val label: String,
+    public val onClick: () -> Unit,
+    public val icon: SidebarAdornment? = None,
+    public val content: View? = None,
+    public val active: Boolean = false,
+    public val enabled: Boolean = true,
+    public val variant: SidebarMenuVariant = SidebarMenuVariant.Default,
+    public val size: SidebarMenuSize = SidebarMenuSize.Default,
+    public val badge: SidebarAdornment? = None,
+    public val action: View? = None,
+    public val actionOnHover: Boolean = false,
+    public val submenu: View? = None,
+    public val submenuOpen: Binding<Boolean>? = None,
+    public val focus: FocusOptions = FocusOptions(),
+    public val style: ButtonStyle = buttonStyle()
+)
+
+public class SidebarMenuProps public constructor(
+    public val items: Array<SidebarMenuItemProps>,
+    public val collapsed: Boolean = false,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        val seen = HashMap<ViewKey, Boolean>()
+        for (item in items) {
+            requireComponent(item.key != ViewKey.Position, "sidebar menu requires explicit keys")
+            requireComponent(seen[item.key] == None, "duplicate sidebar menu key")
+            seen[item.key] = true
+        }
+    }
+}
+
+public class SidebarMenuItemBuilder internal constructor() {
+    public var icon: SidebarAdornment? = None
+    public var content: View? = None
+    public var active: Boolean = false
+    public var enabled: Boolean = true
+    public var variant: SidebarMenuVariant = SidebarMenuVariant.Default
+    public var size: SidebarMenuSize = SidebarMenuSize.Default
+    public var badge: SidebarAdornment? = None
+    public var action: View? = None
+    public var actionOnHover: Boolean = false
+    public var submenu: View? = None
+    public var submenuOpen: Binding<Boolean>? = None
+    public var focus: FocusOptions = FocusOptions()
+    public var style: ButtonStyle = buttonStyle()
+    public fun icon(value: View) {
+        icon = Some(SidebarAdornment.Custom(value))
+    }
+    public fun icon(build: (ActionContentStyle) -> View) {
+        icon = Some(SidebarAdornment.Resolved(build))
+    }
+    public fun content(value: View) {
+        content = Some(value)
+    }
+    public fun badge(value: View) {
+        badge = Some(SidebarAdornment.Custom(value))
+    }
+    public fun badge(build: (ActionContentStyle) -> View) {
+        badge = Some(SidebarAdornment.Resolved(build))
+    }
+    public fun action(value: View) {
+        action = Some(value)
+    }
+    public fun submenu(value: View) {
+        submenu = Some(value)
+    }
+    public fun submenu(open: Binding<Boolean>, content: View) {
+        submenuOpen = Some(open);
+        submenu = Some(content)
+    }
+    public fun style(configure: ButtonStyleBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    internal fun snapshot(key: ViewKey, label: String, click: () -> Unit): SidebarMenuItemProps =
+        SidebarMenuItemProps(
+            key,
+            label,
+            click,
+            icon,
+            content,
+            active,
+            enabled,
+            variant,
+            size,
+            badge,
+            action,
+            actionOnHover,
+            submenu,
+            submenuOpen,
+            focus,
+            style
+        )
+}
+
+public class SidebarMenuBuilder internal constructor() {
+    private val items = ArrayList<SidebarMenuItemProps>()
+    public var collapsed: Boolean = false
+    public var enabled: Boolean = true
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var style: StyleOverride = styleOverride()
+    public var key: ViewKey = ViewKey.Position
+    public fun add(item: SidebarMenuItemProps) {
+        items.add(item)
+    }
+    public fun item(
+        key: ViewKey,
+        label: String,
+        onClick: () -> Unit,
+        configure: SidebarMenuItemBuilder.() -> Unit = {}
+    ) {
+        val builder = SidebarMenuItemBuilder();
+        builder.configure();
+        add(builder.snapshot(key, label, onClick))
+    }
+    internal fun snapshot(): SidebarMenuProps =
+        SidebarMenuProps(items.toArray(), collapsed, enabled, fonts, theme, style)
+}
+
+public fun sidebarMenu(configure: SidebarMenuBuilder.() -> Unit): View {
+    val builder = SidebarMenuBuilder();
+    builder.configure()
+    return component(builder.snapshot(), { current -> SidebarMenu(current) }, builder.key)
+}
+
+internal fun sidebarRowHeight(size: SidebarMenuSize, collapsed: Boolean): Double =
+    if (collapsed)
+        32.0
+    else
+        when (size) {
+            case Default -> 32.0;
+            case Sm -> 28.0;
+            case Lg -> 48.0
+        }

@@ -43,7 +43,10 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element {
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
         val scroll = props.value.options.scrollable
-        val padding = 16.0 * props.value.theme.tokens.typography.body.fontSize / 14.0
+        val padding =
+            props.value.options.contentPadding *
+                props.value.theme.tokens.typography.body.fontSize /
+                14.0
         val insets = Size(padding * 2.0, padding * 2.0)
         val inner = childConstraints(constraints, insets)
         val child =
