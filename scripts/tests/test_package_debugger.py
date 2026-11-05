@@ -29,7 +29,7 @@ class DebuggerPackageTests(unittest.TestCase):
             (root / "bin").mkdir(parents=True)
             installed = root / "bin" / executable.name
             shutil.copy2(executable, installed)
-            package_native.darwin(root, [executable], Path(paths["prefix"]))
+            package_native.darwin(root, root, [executable], Path(paths["prefix"]))
             result = subprocess.run(
                 [installed, "-c", "print('relocated Python works')"],
                 env=dict(os.environ, PYTHONHOME=paths["prefix"]),

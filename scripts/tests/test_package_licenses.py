@@ -1,4 +1,4 @@
-"""Cover licenses for the standalone example reader and shared Cargo dependencies."""
+"""Cover licenses for each component package and shared Cargo dependencies."""
 
 import json
 import sys
@@ -12,18 +12,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import package_licenses
 
 
-class ExampleLicenseTests(unittest.TestCase):
-    def test_both_cargo_projects_keep_shared_feature_dependencies_without_dev_crates(self):
+class ComponentLicenseTests(unittest.TestCase):
+    def test_bin_licenses_keep_shared_feature_dependencies_without_dev_crates(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             repository = root / "repository"
-            (repository / "sysroot/vendor").mkdir(parents=True)
-            uring = repository / "sysroot/vendor/liburing/2.15"
-            uring.mkdir(parents=True)
-            (uring / "COPYING").write_text("liburing license")
-            source = root / "llvm-source"
-            (source / "llvm").mkdir(parents=True)
-            (source / "llvm/LICENSE.TXT").write_text("LLVM license")
+            repository.mkdir()
 
             def package(name, external=True):
                 directory = root / "crates" / name
@@ -89,15 +83,12 @@ class ExampleLicenseTests(unittest.TestCase):
                 "check_output",
                 side_effect=[json.dumps(main), json.dumps(example)],
             ) as metadata:
-                package_licenses.collect(
-                    installation, repository, source, "aarch64-apple-darwin", [], []
-                )
+                package_licenses.collect_bin(installation, repository, "aarch64-apple-darwin")
                 self.assertEqual(
                     [call.kwargs["cwd"] for call in metadata.call_args_list],
                     [repository, repository / "tooling/scoop-example"],
                 )
             licenses = installation / "share/licenses"
-            self.assertEqual((licenses / "liburing/COPYING").read_text(), "liburing license")
             for name in ("shared", "main-only", "example-only", "pubgrub"):
                 self.assertEqual(
                     (licenses / f"{name}-1.0.0/LICENSE").read_text(), f"{name} license"
@@ -105,6 +96,71 @@ class ExampleLicenseTests(unittest.TestCase):
             self.assertIn("| pubgrub-1.0.0 | MPL-2.0 |", (licenses / "README.md").read_text())
             self.assertFalse((licenses / "test-only-1.0.0").exists())
             self.assertEqual((licenses / "README.md").read_text().count("| shared-1.0.0 |"), 1)
+
+    def test_source_licenses_cover_vendor_inputs(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            sysroot = root / "sysroot"
+            uring = sysroot / "vendor/liburing/2.15"
+            uring.mkdir(parents=True)
+            (uring / "COPYING").write_text("liburing license")
+            backend = sysroot / "vendor/text_backend"
+            (backend / "licenses/encoding_rs-1.0.0").mkdir(parents=True)
+            (backend / "licenses/encoding_rs-1.0.0/COPYRIGHT").write_text("encoding_rs license")
+            (backend / "LICENSE").write_text("text backend license")
+            (backend / "packages.json").write_text(
+                json.dumps([{"name": "encoding_rs", "version": "1.0.0", "license": "MIT"}])
+            )
+            installation = root / "installation"
+            package_licenses.collect_sources(installation, sysroot)
+            licenses = installation / "share/licenses/sources"
+            self.assertEqual((licenses / "liburing/COPYING").read_text(), "liburing license")
+            self.assertEqual(
+                (licenses / "text-encoding_rs-1.0.0/COPYRIGHT").read_text(),
+                "encoding_rs license",
+            )
+            table = (licenses / "README.md").read_text()
+            self.assertIn("| liburing |", table)
+            self.assertIn("| text-encoding_rs-1.0.0 | MIT |", table)
+
+    def test_llvm_licenses_include_python_and_collected_gcc_runtime(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "llvm-source"
+            (source / "llvm").mkdir(parents=True)
+            (source / "llvm/LICENSE.TXT").write_text("LLVM license")
+            python = root / "python-LICENSE.txt"
+            python.write_text("PSF license")
+            installation = root / "installation"
+            package_licenses.collect_llvm(
+                installation,
+                source,
+                "x86_64-unknown-linux-gnu",
+                [root / "libstdc++.so.6"],
+                python,
+            )
+            licenses = installation / "share/licenses/llvm"
+            self.assertEqual((licenses / "LLVM/LICENSE.TXT").read_text(), "LLVM license")
+            self.assertEqual((licenses / "Python/python-LICENSE.txt").read_text(), "PSF license")
+            table = (licenses / "README.md").read_text()
+            self.assertIn("| LLVM | Apache-2.0 WITH LLVM-exception |", table)
+            self.assertIn("| GCC-runtime | GPL with GCC Runtime Library Exception |", table)
+
+    def test_library_licenses_cover_rust_standard_library(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target = "aarch64-apple-darwin"
+            notices = root / "sysroot/lib" / target / "rust-std"
+            notices.mkdir(parents=True)
+            (notices / "COPYRIGHT-library.txt").write_text("Rust license")
+            installation = root / "installation"
+            package_licenses.collect_libraries(installation, root / "sysroot", target)
+            licenses = installation / f"share/licenses/lib-{target}"
+            self.assertEqual(
+                (licenses / f"Rust-std-{target}/COPYRIGHT-library.txt").read_text(),
+                "Rust license",
+            )
+            self.assertIn(f"| Rust-std-{target} |", (licenses / "README.md").read_text())
 
 
 if __name__ == "__main__":
