@@ -124,5 +124,9 @@ public fun breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}): View =
 internal fun makeBreadcrumb(configure: BreadcrumbBuilder.() -> Unit): View {
     val builder = BreadcrumbBuilder();
     builder.configure()
-    return component(builder.snapshot(), { current -> Breadcrumb(current) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { current, mount -> Breadcrumb(current, scope = mount) },
+        builder.key
+    )
 }

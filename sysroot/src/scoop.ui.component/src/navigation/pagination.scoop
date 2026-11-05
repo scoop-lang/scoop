@@ -5,9 +5,12 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.component.row as makeRow
 
-public class Pagination public constructor(private val props: Props<PaginationProps>): Component {
+public class Pagination public constructor(
+    private val props: Props<PaginationProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun select(page: Long) {
@@ -64,7 +67,7 @@ public class Pagination public constructor(private val props: Props<PaginationPr
                                             ButtonVariant.Ghost,
                                     size = ButtonSize.Icon
                                 ),
-                                { current -> Button(current) },
+                                { current, mount -> Button(current, scope = mount) },
                                 ViewKey.Number(number)
                             )
                         )
@@ -157,7 +160,7 @@ public class Pagination public constructor(private val props: Props<PaginationPr
                     else
                         ButtonSize.Default
             ),
-            { current -> Button(current) },
+            { current, mount -> Button(current, scope = mount) },
             ViewKey.Text(
                 if (forward)
                     "next"

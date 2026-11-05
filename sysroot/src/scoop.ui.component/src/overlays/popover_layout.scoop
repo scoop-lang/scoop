@@ -5,8 +5,10 @@ import scoop.surface.InputArea
 import scoop.ui.*
 
 /** The portal is a zero-sized sibling of the persistent trigger. */
-internal class PopoverLayout(private val anchor: LayoutAnchor): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+internal class PopoverLayout(private val anchor: LayoutAnchor, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         scope.layoutAnchor(anchor)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -32,10 +34,13 @@ internal class PopupMotionProps(
 )
 
 /** One published transform supplies drawing, hit testing and editor caret geometry. */
-internal class PopupMotion(private val props: Props<PopupMotionProps>): Element<Unit> {
+internal class PopupMotion(
+    private val props: Props<PopupMotionProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var arrow: Path? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = scope.createArea()
         area = Some(value)
         scope.routeChildren(value)

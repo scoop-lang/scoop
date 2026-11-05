@@ -42,7 +42,7 @@ public class InputOtpBuilder internal constructor() {
     public fun separator() {
         parts.add {
             source -> InputOtpPart.Separator(
-                component(source, { current -> OtpSeparator(current) })
+                component(source, { current, mount -> OtpSeparator(current, scope = mount) })
             )
         }
     }
@@ -79,12 +79,19 @@ internal fun makeInputOtp(
 ): View {
     val builder = InputOtpBuilder()
     builder.configure()
-    return component(builder.snapshot(state, length), { props -> InputOtp(props) }, builder.key)
+    return component(
+        builder.snapshot(state, length),
+        { props, mount -> InputOtp(props, scope = mount) },
+        builder.key
+    )
 }
 
-private class OtpSeparator(private val source: Props<ThemeSource?>): Component {
+private class OtpSeparator(
+    private val source: Props<ThemeSource?>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(source.value)
     }
     public override fun render(): View {

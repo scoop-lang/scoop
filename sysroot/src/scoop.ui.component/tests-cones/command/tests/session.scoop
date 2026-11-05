@@ -132,7 +132,7 @@ internal class CommandProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { CommandScene(this) });
+                host.attach(window, { mount -> CommandScene(this, scope = mount) });
                 window.requestFocus();
                 wait(application)
             }

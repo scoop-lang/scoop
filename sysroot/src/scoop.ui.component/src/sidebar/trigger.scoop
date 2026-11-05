@@ -50,14 +50,15 @@ public fun sidebarTrigger(
             ),
             b.onOpenChange
         ),
-        { current -> SidebarTrigger(current) },
+        { current, mount -> SidebarTrigger(current, scope = mount) },
         b.key
     )
 }
 
 public class SidebarTrigger public constructor(
-    private val props: Props<SidebarTriggerProps>
-): Component {
+    private val props: Props<SidebarTriggerProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value;
         val b = input.button
@@ -79,7 +80,7 @@ public class SidebarTrigger public constructor(
                 b.group,
                 b.labelTarget
             ),
-            { current -> Button(current) }
+            { current, mount -> Button(current, scope = mount) }
         )
     }
 }
@@ -107,16 +108,17 @@ public fun sidebarMenuAction(
             b.group,
             b.labelTarget
         ),
-        { current -> SidebarMenuAction(current) },
+        { current, mount -> SidebarMenuAction(current, scope = mount) },
         b.key
     )
 }
 
 public class SidebarMenuAction public constructor(
-    private val props: Props<ButtonProps>
-): Component {
+    private val props: Props<ButtonProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -157,7 +159,7 @@ public class SidebarMenuAction public constructor(
                 b.group,
                 b.labelTarget
             ),
-            { current -> Button(current) }
+            { current, mount -> Button(current, scope = mount) }
         )
     }
 }
@@ -165,9 +167,15 @@ public class SidebarMenuAction public constructor(
 private class SidebarIconInput(val size: Double, val color: Color)
 
 internal fun sidebarIcon(size: Double, color: Color): View =
-    element(SidebarIconInput(size, color), { current -> SidebarIcon(current) })
+    element(
+        SidebarIconInput(size, color),
+        { current, mount -> SidebarIcon(current, scope = mount) }
+    )
 
-private class SidebarIcon(private val props: Props<SidebarIconInput>): Element<Unit> {
+private class SidebarIcon(
+    private val props: Props<SidebarIconInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =

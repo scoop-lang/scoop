@@ -7,13 +7,14 @@ import scoop.ui.style.*
 
 internal class CarouselLayoutResult(val geometry: CarouselGeometry, val visible: Array<Boolean>)
 
-internal class CarouselViewport(private val props: Props<CarouselInput>): Element<
-    CarouselLayoutResult
-> {
+internal class CarouselViewport(
+    private val props: Props<CarouselInput>,
+    scope: ComponentScope
+): Element<CarouselLayoutResult>(scope) {
     private var control: CarouselControl? = None
     private var painter: StylePainter? = None
     private var ring: ThemePainterCache? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = CarouselControl(scope, { props.value });
         control = Some(value)
         props.value.owner.control = Some(value)
@@ -204,11 +205,12 @@ internal class CarouselItemOwner {
 }
 
 /** The keyed scope follows only the final viewport placement. */
-internal class CarouselItemLayout(private val props: Props<CarouselItemOwner>): Element<Unit> {
-    private var scope: ComponentScope? = None
+internal class CarouselItemLayout(
+    private val props: Props<CarouselItemOwner>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var owner: CarouselItemOwner? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         scope.input.enabled = false
     }
     public override fun update(): UiInvalidation {
@@ -217,7 +219,7 @@ internal class CarouselItemLayout(private val props: Props<CarouselItemOwner>): 
             case None -> {}
         }
         owner = Some(props.value)
-        props.value.scope = scope
+        props.value.scope = Some(scope)
         return UiInvalidation.Layout
     }
     public override fun onUnmount() {

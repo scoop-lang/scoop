@@ -24,11 +24,14 @@ public class CardProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class Card public constructor(private val props: Props<CardProps>): Component {
+public class Card public constructor(
+    private val props: Props<CardProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -221,7 +224,7 @@ internal fun makeCard(content: View, configure: CardBuilder.() -> Unit): View {
             builder.theme,
             builder.style
         ),
-        { current -> Card(current) },
+        { current, mount -> Card(current, scope = mount) },
         builder.key
     )
 }

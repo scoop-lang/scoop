@@ -40,13 +40,13 @@ internal fun MountedNode.refreshDirection(turn: UpdateTurn) {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                request(instance.update())
+                request(updateInputs { instance.update() })
         }
         case Lazy(instance, _) -> {
             for (child in children)
                 child.refreshDirection(turn)
             if (mounted && active && root.isOpen)
-                request(instance.update())
+                request(updateInputs { instance.update() })
         }
         else -> for (child in children)
             child.refreshDirection(turn)
@@ -83,5 +83,19 @@ internal fun MountedNode.replaceDependencies(collector: DependencyCollector) {
     for (entry in next) {
         if (!dependencies.containsKey(entry.key))
             dependencies[entry.key] = entry.value.subscribe(this)
+    }
+}
+
+/** Only root-default font reads are observed here; update retains its ordinary mutation rules. */
+internal fun MountedNode.updateInputs(action: () -> UiInvalidation): UiInvalidation {
+    val collector = DependencyCollector()
+    scope.fontReads = Some(collector)
+    try {
+        val invalidation = action()
+        if (active && root.isOpen)
+            replaceDependencies(collector)
+        return invalidation
+    } finally {
+        scope.fontReads = None
     }
 }

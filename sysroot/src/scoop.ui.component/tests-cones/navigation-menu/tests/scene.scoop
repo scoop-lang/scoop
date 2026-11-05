@@ -12,7 +12,7 @@ import scoop.ui.component.label as makeLabel
 import scoop.ui.component.input as makeInput
 import scoop.ui.style.*
 
-internal class NavScene(private val p: NavProbe): Component {
+internal class NavScene(private val p: NavProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -151,7 +151,7 @@ internal class NavScene(private val p: NavProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> NavRoot(p, current) },
+                { current, mount -> NavRoot(p, current, scope = mount) },
                 [
                     navObserved(p, 0L, bar),
                     button("After", {}) {
@@ -171,14 +171,16 @@ internal class NavScene(private val p: NavProbe): Component {
 private fun navLabel(p: NavProbe, text: String): View = makeLabel(text) { fonts = Some(p.fonts) }
 
 private fun navObserved(p: NavProbe, id: Long, content: View): View =
-    element(id, { current -> NavObservation(p, current) }, [content])
+    element(id, { current, mount -> NavObservation(p, current, scope = mount) }, [content])
 
 private class Captured(var rect: Rect)
 
-private class NavObservation(private val p: NavProbe, private val props: Props<Long>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class NavObservation(
+    private val p: NavProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         p.factories += 1
     }
     public override fun onUnmount() {
@@ -211,8 +213,12 @@ private class NavObservation(private val p: NavProbe, private val props: Props<L
     }
 }
 
-private class NavRoot(private val p: NavProbe, private val props: Props<Int>): Element<Size> {
-    public override fun onMount(scope: ComponentScope) {
+private class NavRoot(
+    private val p: NavProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Size>(scope) {
+    public override fun onMount() {
         scope.resource { scope.input.observePointer { event -> p.pointerObserved(event) } }
         scope.input.captureHandler =
             {

@@ -6,10 +6,13 @@ import scoop.ui.style.*
 
 internal class EmptyFrameProps(val style: Style, val outlined: Boolean, val color: Color)
 
-internal class EmptyFrame(private val props: Props<EmptyFrameProps>): Element<Unit> {
+internal class EmptyFrame(
+    private val props: Props<EmptyFrameProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var painter: StylePainter? = None
     private var border: EmptyBorderCache? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
         border = Some(scope.resource { EmptyBorderCache() })
     }

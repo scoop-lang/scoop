@@ -58,7 +58,7 @@ public class TypographyTableBuilder internal constructor() {
         val tracks = typographyTableTracks(values, columns)
         return component(
             TypographyTableProps(values, tracks, fonts, theme),
-            { current -> TypographyTable(current) },
+            { current, mount -> TypographyTable(current, scope = mount) },
             key
         )
     }
@@ -124,9 +124,12 @@ private class TypographyTableProps(
     val theme: ThemeSource?
 )
 
-private class TypographyTable(private val props: Props<TypographyTableProps>): Component {
+private class TypographyTable(
+    private val props: Props<TypographyTableProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {

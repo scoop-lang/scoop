@@ -52,7 +52,7 @@ private class MeasureSample(val depth: Long, val useGrid: Boolean) {
     fun view(): View {
         val leaf = MeasureRequestCount()
         counters.add(leaf)
-        var content = element({ MeasureReuseLeaf(leaf) })
+        var content = element({ mount -> MeasureReuseLeaf(leaf, scope = mount) })
         for (_ in 0L ..< depth) {
             val child = content
             val counter = MeasureRequestCount()
@@ -62,7 +62,8 @@ private class MeasureSample(val depth: Long, val useGrid: Boolean) {
                     grid { item(child) }
                 else
                     frame(child)
-            content = element({ MeasureReuseContainer(counter) }, [container])
+            content =
+                element({ mount -> MeasureReuseContainer(counter, scope = mount) }, [container])
         }
         return content
     }
@@ -111,7 +112,11 @@ private class MeasureReuseProbe {
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(20L))
                 )
-                val view = element({ MeasureReuseRoot(this, active) }, children.toArray())
+                val view =
+                    element(
+                        { mount -> MeasureReuseRoot(this, active, scope = mount) },
+                        children.toArray()
+                    )
                 host.attach(
                     active.createWindow(
                         windowAttributes {
@@ -119,7 +124,7 @@ private class MeasureReuseProbe {
                             size = LogicalSize(260.0, 240.0)
                         }
                     ),
-                    { MeasureReuseScene(view) }
+                    { mount -> MeasureReuseScene(view, scope = mount) }
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some("measurement baseline timed out"))
@@ -128,14 +133,17 @@ private class MeasureReuseProbe {
     }
 }
 
-private class MeasureReuseScene(private val content: View): Component {
+private class MeasureReuseScene(private val content: View, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View = content
 }
 
 private class MeasureReuseRoot(
     private val probe: MeasureReuseProbe,
-    private val active: ActiveApplication
-): Element<Unit> {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -172,8 +180,11 @@ private class MeasureReuseRoot(
     }
 }
 
-private class MeasureReuseLeaf(private val counter: MeasureRequestCount): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class MeasureReuseLeaf(
+    private val counter: MeasureRequestCount,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         counter.mounts += 1
     }
     public override fun onUnmount() {
@@ -197,8 +208,11 @@ private class MeasureReuseLeaf(private val counter: MeasureRequestCount): Elemen
     }
 }
 
-private class MeasureReuseContainer(private val counter: MeasureRequestCount): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class MeasureReuseContainer(
+    private val counter: MeasureRequestCount,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         counter.mounts += 1
     }
     public override fun onUnmount() {

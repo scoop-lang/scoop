@@ -8,9 +8,9 @@ import scoop.ui.*
 
 internal fun presenceScene(probe: InteractionProbe): View =
     element(
-        { PresenceCanvas(probe) },
+        { mount -> PresenceCanvas(probe, scope = mount) },
         [
-            portal(probe.controlled, element({ PresenceContent(probe) })) {
+            portal(probe.controlled, element({ mount -> PresenceContent(probe, scope = mount) })) {
                 handle = Some(probe.overlay)
                 mode = OverlayMode.Modal
                 focus { initialFocus = Some(probe.popupFocus) }
@@ -40,8 +40,10 @@ internal fun presenceScene(probe: InteractionProbe): View =
         ]
     )
 
-private class PresenceCanvas(private val probe: InteractionProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class PresenceCanvas(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         val area = scope.createArea(focusable = true)
         probe.background = Some(area)
         scope.focusTarget(area, FocusOptions(Some(probe.backgroundFocus)))
@@ -67,8 +69,10 @@ private class PresenceCanvas(private val probe: InteractionProbe): Element<Unit>
     }
 }
 
-private class PresenceContent(private val probe: InteractionProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class PresenceContent(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         probe.popupMounts += 1
         val area = scope.createArea(focusable = true)
         probe.popup = Some(area)

@@ -7,23 +7,25 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.LogicalSize
 
-internal class RevealScene(private val probe: RevealProbe): Component {
+internal class RevealScene(private val probe: RevealProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val portalOpen = state(true)
     public override fun render(): View {
         val revision = probe.revision.value
         return element(
             revision,
-            { props -> RevealPanel(probe, props) },
+            { props, mount -> RevealPanel(probe, props, scope = mount) },
             [
                 tile(probe, 0L),
                 scrollArea(
                     element(
                         revision,
-                        { props -> OuterDocument(probe, props) },
+                        { props, mount -> OuterDocument(probe, props, scope = mount) },
                         [
                             scrollArea(
                                 element(
-                                    { InnerDocument(probe) },
+                                    { mount -> InnerDocument(probe, scope = mount) },
                                     [
                                         tile(probe, 4L),
                                         tile(probe, 1L),
@@ -62,12 +64,14 @@ internal class RevealScene(private val probe: RevealProbe): Component {
 }
 
 private fun tile(probe: RevealProbe, index: Long): View =
-    element({ RevealTile(probe, index) }, key = ViewKey.Number(index))
+    element({ mount -> RevealTile(probe, index, scope = mount) }, key = ViewKey.Number(index))
 
-private class RevealPanel(private val probe: RevealProbe, private val props: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class RevealPanel(
+    private val probe: RevealProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -126,9 +130,11 @@ private class RevealPanel(private val probe: RevealProbe, private val props: Pro
     }
 }
 
-private class OuterDocument(private val probe: RevealProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class OuterDocument(
+    private val probe: RevealProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -141,8 +147,10 @@ private class OuterDocument(private val probe: RevealProbe, private val props: P
     }
 }
 
-private class InnerDocument(private val probe: RevealProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class InnerDocument(private val probe: RevealProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         probe.group =
             Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[1L]))))
         scope.keyNavigation(
@@ -174,10 +182,14 @@ private class InnerDocument(private val probe: RevealProbe): Element<Unit> {
     }
 }
 
-private class RevealTile(private val probe: RevealProbe, private val index: Long): Element<Unit> {
+private class RevealTile(
+    private val probe: RevealProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var owner: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         owner = Some(scope)
         assertSame(probe.window!!, scope.nativeWindow)
         probe.mounts += 1

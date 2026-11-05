@@ -70,16 +70,16 @@ internal fun itemOptions(
     }
 }
 
-internal class ItemInk(private val props: Props<ItemInkProps>): Element<Unit> {
-    private var scope: ComponentScope? = None
+internal class ItemInk(private val props: Props<ItemInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var previousMetrics: SurfaceMetrics? = None
     private var previousTheme: Theme? = None
     private var input: InputScope? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         input = Some(scope.input)
         motion = Some(InteractionMotion(scope, props.value.visual))
         painters = Some(scope.resource { ThemePainterCache() })
@@ -90,7 +90,7 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element<Unit> {
         when (value.behavior) {
             case Passive -> input!!.enabled = value.input.enabled
             case Press(owner, action, focus) -> {
-                val control = owner.value!!
+                val control = owner
                 control.press.update(PressOptions(value.input.enabled), action)
                 control.area.scope.enabled = value.input.enabled
                 control.focus.options = focus
@@ -113,7 +113,7 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element<Unit> {
             value.theme.surfaceMetrics(
                 SurfaceVisual(SurfaceKind.Plain, value.visual),
                 itemOptions(value.input, value.theme, value.visual, actionable),
-                scope!!.layoutDirection
+                scope.layoutDirection
             )
         val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, value.theme)
         previousMetrics = Some(metrics)
@@ -177,7 +177,7 @@ internal class ItemInk(private val props: Props<ItemInkProps>): Element<Unit> {
         }
         when (value.behavior) {
             case Passive -> {}
-            case Press(owner, _, _) -> context.place(owner.value!!.area, surface.bounds)
+            case Press(owner, _, _) -> context.place(owner.area, surface.bounds)
         }
         content!!.scene(context, surface.bounds, surface.contentStyle) {
             children -> children.children()

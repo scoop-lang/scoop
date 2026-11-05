@@ -15,7 +15,9 @@ import scoop.ui.component.input as makeInput
 import scoop.ui.style.*
 import scoop.ui.text.TextEditorState
 
-internal class DisclosureScene(private val p: DisclosureProbe): Component {
+internal class DisclosureScene(private val p: DisclosureProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = p.generation.value
         val p = this.p
@@ -82,8 +84,11 @@ internal class DisclosureScene(private val p: DisclosureProbe): Component {
                 ]
         return element(
             generation,
-            { current -> DisclosureRoot(p, current) },
-            [element({ DisclosureStack() }, children), element({ UnmeasuredDisclosureContent() })]
+            { current, mount -> DisclosureRoot(p, current, scope = mount) },
+            [
+                element({ mount -> DisclosureStack(scope = mount) }, children),
+                element({ mount -> UnmeasuredDisclosureContent(scope = mount) })
+            ]
         )
     }
 }
@@ -135,19 +140,20 @@ private fun disclosureContent(p: DisclosureProbe, id: Long, generation: Int): Vi
     component(
         generation,
         {
-            current ->
+            current, mount ->
             p.factories[id] += 1
             val record = DisclosureRecord(p, id)
             p.records[id] = Some(record)
-            DisclosureContent(record, current)
+            DisclosureContent(record, current, scope = mount)
         }
     )
 
 private class DisclosureContent(
     private val record: DisclosureRecord,
-    private val props: Props<Int>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         record.scope = Some(scope)
         record.p.mounts[record.id] += 1
         record.motion = Some(scope.animation(0.0))
@@ -161,7 +167,7 @@ private class DisclosureContent(
         record.version = props.value
         return element(
             props.value,
-            { _ -> DisclosureInk(record) },
+            { _, mount -> DisclosureInk(record, scope = mount) },
             [
                 makeInput(record.model) {
                     this.fonts = Some(this @DisclosureContent.record.p.fonts)
@@ -172,7 +178,9 @@ private class DisclosureContent(
     }
 }
 
-private class DisclosureInk(private val record: DisclosureRecord): Element<Unit> {
+private class DisclosureInk(private val record: DisclosureRecord, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -189,14 +197,15 @@ private class DisclosureInk(private val record: DisclosureRecord): Element<Unit>
 private fun disclosureHeader(p: DisclosureProbe, id: Long, text: String): View =
     element(
         id,
-        { current -> DisclosureBounds(p, current) },
+        { current, mount -> DisclosureBounds(p, current, scope = mount) },
         [makeLabel(text) { this.fonts = Some(p.fonts) }]
     )
 
 private class DisclosureBounds(
     private val p: DisclosureProbe,
-    private val id: Props<Long>
-): Element<Unit> {
+    private val id: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -220,8 +229,9 @@ private class DisclosureBounds(
 
 private class DisclosureRoot(
     private val p: DisclosureProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -255,7 +265,7 @@ private class DisclosureRoot(
     }
 }
 
-private class DisclosureStack: Element<Unit> {
+private class DisclosureStack(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -270,7 +280,7 @@ private class DisclosureStack: Element<Unit> {
     }
 }
 
-private class UnmeasuredDisclosureContent: Element<Unit> {
+private class UnmeasuredDisclosureContent(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(fail(Some("skipped child must not be measured")), Unit)

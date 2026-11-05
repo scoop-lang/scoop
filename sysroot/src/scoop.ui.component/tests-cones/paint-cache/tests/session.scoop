@@ -122,7 +122,7 @@ internal class CacheProbe(val fonts: FontCollection) {
                     )
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { CacheScene(this) }))
+                ui = Some(host.attach(native, { mount -> CacheScene(this, scope = mount) }))
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

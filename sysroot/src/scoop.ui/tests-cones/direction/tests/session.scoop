@@ -69,7 +69,7 @@ internal class DirectionProbe {
                         }
                     )
                 window = Some(native)
-                ui = Some(host.attach(native, { DirectionRoot(this) }))
+                ui = Some(host.attach(native, { mount -> DirectionRoot(this, scope = mount) }))
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

@@ -63,7 +63,7 @@ private class ComponentFrameProbe {
                         }
                     )
                 window.requestFocus()
-                host.attach(window, { ComponentFrameScene(this, active) })
+                host.attach(window, { mount -> ComponentFrameScene(this, active, scope = mount) })
             }
             case NewEvents(StartCause.Deadline) -> fail(
                 Some(f"component frame reuse timed out at ${frames}")
@@ -116,10 +116,11 @@ private class ComponentFrameProbe {
 
 private class ComponentFrameScene(
     private val probe: ComponentFrameProbe,
-    private val active: ActiveApplication
-): Component {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
-        val content = element({ ComponentFrameContent(probe) })
+        val content = element({ mount -> ComponentFrameContent(probe, scope = mount) })
         val children =
             [
                 spinner(),
@@ -136,24 +137,31 @@ private class ComponentFrameScene(
                         width = Some(180.0),
                         height = Some(60.0)
                     ),
-                    { props -> ScrollArea(props) }
+                    { props, mount -> ScrollArea(props, scope = mount) }
                 ),
                 checkbox(probe.checked.binding()),
-                component(SwitchProps(probe.checked.binding()), { props -> Switch(props) }),
-                element({ ComponentFrameEditor(probe) })
+                component(
+                    SwitchProps(probe.checked.binding()),
+                    { props, mount -> Switch(props, scope = mount) }
+                ),
+                element({ mount -> ComponentFrameEditor(probe, scope = mount) })
             ]
         val counted =
             Array<View>(children.size) {
-                index -> element({ ComponentFrameCounter(probe, index) }, [children[index]])
+                index -> element(
+                    { mount -> ComponentFrameCounter(probe, index, scope = mount) },
+                    [children[index]]
+                )
             }
-        return element({ ComponentFrameRoot(probe, active) }, counted)
+        return element({ mount -> ComponentFrameRoot(probe, active, scope = mount) }, counted)
     }
 }
 
 private class ComponentFrameRoot(
     private val probe: ComponentFrameProbe,
-    private val active: ActiveApplication
-): Element<Array<Size>> {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Array<Size>>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Array<Size>
     > {
@@ -239,8 +247,9 @@ private fun framePixel(native: Ptr<Unit>, index: Long, size: Size, position: Poi
 
 private class ComponentFrameCounter(
     private val probe: ComponentFrameProbe,
-    private val index: Long
-): Element<Unit> {
+    private val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -254,7 +263,10 @@ private class ComponentFrameCounter(
     }
 }
 
-private class ComponentFrameContent(private val probe: ComponentFrameProbe): Element<Unit> {
+private class ComponentFrameContent(
+    private val probe: ComponentFrameProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -272,10 +284,11 @@ private class ComponentFrameContent(private val probe: ComponentFrameProbe): Ele
     }
 }
 
-private class ComponentFrameEditor(private val probe: ComponentFrameProbe): Element<
-    TextEditMeasurement
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class ComponentFrameEditor(
+    private val probe: ComponentFrameProbe,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    public override fun onMount() {
         val fonts = scope.resource { FontCollection() }
         probe.editor =
             Some(

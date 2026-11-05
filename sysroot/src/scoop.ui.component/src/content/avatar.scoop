@@ -27,10 +27,13 @@ public class AvatarProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class Avatar public constructor(private val props: Props<AvatarProps>): Component {
+public class Avatar public constructor(
+    private val props: Props<AvatarProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val captions = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -96,7 +99,7 @@ public class Avatar public constructor(private val props: Props<AvatarProps>): C
                         theme.tokens.mode,
                         input.style
                     ),
-                    { current -> AvatarInk(current) },
+                    { current, mount -> AvatarInk(current, scope = mount) },
                     [content]
                 ),
                 0L
@@ -108,7 +111,7 @@ public class Avatar public constructor(private val props: Props<AvatarProps>): C
         }
         return element(
             panelPresent(badge),
-            { current -> AvatarLayout(current) },
+            { current, mount -> AvatarLayout(current, scope = mount) },
             children.toArray()
         )
     }
@@ -177,5 +180,9 @@ public fun avatar(fallback: View, configure: AvatarBuilder.() -> Unit = {}): Vie
 internal fun makeAvatar(fallback: PanelContent, configure: AvatarBuilder.() -> Unit): View {
     val builder = AvatarBuilder()
     builder.configure()
-    return component(builder.snapshot(fallback), { current -> Avatar(current) }, builder.key)
+    return component(
+        builder.snapshot(fallback),
+        { current, mount -> Avatar(current, scope = mount) },
+        builder.key
+    )
 }

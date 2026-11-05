@@ -72,7 +72,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                                     this.visible = false
                                 }
                             ),
-                            { CompositionScene(this) }
+                            { mount -> CompositionScene(this, scope = mount) }
                         )
                     )
                 second =
@@ -84,7 +84,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                                     this.visible = false
                                 }
                             ),
-                            { CompositionMirror(this) }
+                            { mount -> CompositionMirror(this, scope = mount) }
                         )
                     )
                 postStep(application)
@@ -189,7 +189,7 @@ internal class CompositionProbe(val store: CompositionStore) {
                 subscriptions!!.closed()
                 assertEquals(1, oldFirst!!.unmounts)
                 assertTrue(oldFirst!!.resource!!.image.isClosed)
-                assertFalse(oldFirst!!.scope!!.isMounted)
+                assertFalse(oldFirst!!.scope.isMounted)
                 store.shared.value = 23
                 model.items.value = [1L, 2L]
             }

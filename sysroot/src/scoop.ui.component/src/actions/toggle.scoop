@@ -25,30 +25,25 @@ public class ToggleProps public constructor(
     public val group: GroupPosition? = None
 )
 
-public class Toggle public constructor(private val props: Props<ToggleProps>): Component {
-    private val control = state<PressControl?>(None)
+public class Toggle public constructor(
+    private val props: Props<ToggleProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(scope, PressOptions(props.value.enabled), props.value.focus, { activate() })
     private val themes = ThemeAccess()
     private val text = ActionTextStyle()
     private fun activate() {
         val binding = props.value.pressed
         binding.value = !binding.value
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, props.value.focus)
-        val press = scope.press(area, PressOptions(props.value.enabled)) { activate() }
-        scope.routeChildren(area)
-        control.value = Some(PressControl(area, focus, press))
     }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.theme)
-        val interaction =
-            when (control.value) {
-                case Some(value) -> value.press.interaction
-                case None -> InteractionState()
-            }
+        val interaction = control.press.interaction
         val visual =
             SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, input.invalid))
         val shape = ActionShape.Toggle(input.variant, input.size, input.pressed.value)
@@ -70,7 +65,7 @@ public class Toggle public constructor(private val props: Props<ToggleProps>): C
                 ActionBehavior.Press(control, { activate() }, input.focus),
                 input.group
             ),
-            { current -> ActionInk(current) },
+            { current, mount -> ActionInk(current, scope = mount) },
             [
                 actionContent(
                     input.content,

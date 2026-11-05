@@ -142,5 +142,5 @@ internal fun <T: Equals<T>> makeSelect(
     for (choice in choices)
         b.item(choice)
     b.configure()
-    return component(b.snapshot(value), { current -> Select(current) }, b.key)
+    return component(b.snapshot(value), { current, mount -> Select(current, scope = mount) }, b.key)
 }

@@ -42,14 +42,16 @@ internal fun itemMedia(
             else
                 None
         ),
-        { current -> ItemMedia(current) },
+        { current, mount -> ItemMedia(current, scope = mount) },
         [content]
     )
 
 /** Translation changes painting and hit geometry without adding a layout gap. */
-private class ItemMedia(private val props: Props<ItemMediaProps>): Element<Unit> {
+private class ItemMedia(private val props: Props<ItemMediaProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

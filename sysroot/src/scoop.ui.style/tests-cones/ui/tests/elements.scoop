@@ -9,7 +9,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class StyleScene(private val probe: StyleProbe): Component {
+internal class StyleScene(private val probe: StyleProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
@@ -30,14 +30,14 @@ internal class StyleScene(private val probe: StyleProbe): Component {
             }
         return element(
             generation,
-            { props -> StylePanel(props, probe) },
+            { props, mount -> StylePanel(props, probe, scope = mount) },
             [
-                styled(component({ StyleCounter(probe) })) {
+                styled(component({ mount -> StyleCounter(probe, scope = mount) })) {
                     this.style = style
                     this.key = ViewKey.Text("content")
                 },
                 if (probe.showAnimation.value)
-                    element({ AnimatedInk(probe) })
+                    element({ mount -> AnimatedInk(probe, scope = mount) })
                 else
                     empty()
             ]
@@ -45,9 +45,11 @@ internal class StyleScene(private val probe: StyleProbe): Component {
     }
 }
 
-private class StylePanel(private val props: Props<Int>, private val probe: StyleProbe): Element<
-    Unit
-> {
+private class StylePanel(
+    private val props: Props<Int>,
+    private val probe: StyleProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         probe.updates += 1;
         probe.updatedGeneration = props.value
@@ -86,11 +88,13 @@ private class StylePanel(private val props: Props<Int>, private val probe: Style
     }
 }
 
-internal class StyleCounter(private val probe: StyleProbe): Component {
+internal class StyleCounter(private val probe: StyleProbe, scope: ComponentScope): Component(
+    scope
+) {
     var count: Int by state(7)
     var mounts = 0
     var unmounts = 0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         mounts += 1;
         probe.counter = Some(this)
     }
@@ -99,7 +103,10 @@ internal class StyleCounter(private val probe: StyleProbe): Component {
     }
     public override fun render(): View {
         probe.counterRenders += 1
-        return element(CounterProps(count, { count += 1 }), { props -> CounterInk(props, probe) })
+        return element(
+            CounterProps(count, { count += 1 }),
+            { props, mount -> CounterInk(props, probe, scope = mount) }
+        )
     }
 }
 
@@ -107,10 +114,11 @@ internal class CounterProps(val count: Int, val activate: () -> Unit)
 
 internal class CounterInk(
     private val props: Props<CounterProps>,
-    private val probe: StyleProbe
-): Element<Unit> {
+    private val probe: StyleProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.ink = Some(this)
         area =
             Some(
@@ -162,11 +170,13 @@ internal class CounterInk(
     }
 }
 
-internal class AnimatedInk(private val probe: StyleProbe): Element<Unit> {
+internal class AnimatedInk(private val probe: StyleProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     var painter: StylePainter? = None
     var sigma: Animatable<Double>? = None
     var unmounts = 0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.animation = Some(this)
         painter = Some(scope.resource { StylePainter() })
         sigma = Some(scope.animation(0.0))

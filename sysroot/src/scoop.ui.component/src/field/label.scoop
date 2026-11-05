@@ -20,9 +20,12 @@ public class FieldLabelProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class FieldLabel public constructor(private val props: Props<FieldLabelProps>): Component {
+public class FieldLabel public constructor(
+    private val props: Props<FieldLabelProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -57,7 +60,7 @@ public class FieldLabel public constructor(private val props: Props<FieldLabelPr
                         }
                     component(
                         LabelProps(content, input.fonts, input.settings, baseStyle = Some(base)),
-                        { current -> Label(current) }
+                        { current, mount -> Label(current, scope = mount) }
                     )
                 }
             }
@@ -68,7 +71,7 @@ public class FieldLabel public constructor(private val props: Props<FieldLabelPr
             }
         return element(
             FieldLabelInkProps(input.target, input.target.connection, input.target.isEnabled),
-            { current -> FieldLabelInk(current) },
+            { current, mount -> FieldLabelInk(current, scope = mount) },
             [decorated]
         )
     }
@@ -80,13 +83,14 @@ private class FieldLabelInkProps(
     val enabled: Boolean
 )
 
-private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Element<Unit> {
-    private var scope: ComponentScope? = None
+private class FieldLabelInk(
+    private val props: Props<FieldLabelInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var press: Press? = None
     private var previous: FieldLabelInkProps? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         val input = scope.createArea()
         area = Some(input)
         press = Some(scope.press(input, PressOptions(false, false)) {})
@@ -105,7 +109,7 @@ private class FieldLabelInk(private val props: Props<FieldLabelInkProps>): Eleme
         area!!.scope.enabled = value.enabled
         press!!.update(PressOptions(value.enabled, false)) {
             val current = props.value
-            current.connection?.activate(scope!!, current.target)
+            current.connection?.activate(scope, current.target)
         }
         return UiInvalidation.Layout
     }
@@ -186,7 +190,7 @@ internal fun makeFieldLabel(
     builder.configure()
     return component(
         builder.snapshot(content, target),
-        { current -> FieldLabel(current) },
+        { current, mount -> FieldLabel(current, scope = mount) },
         builder.key
     )
 }

@@ -35,9 +35,12 @@ public class SkeletonProps public constructor(
     }
 }
 
-public class Skeleton public constructor(private val props: Props<SkeletonProps>): Component {
+public class Skeleton public constructor(
+    private val props: Props<SkeletonProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -52,7 +55,7 @@ public class Skeleton public constructor(private val props: Props<SkeletonProps>
                 theme.tokens.corners.small,
                 theme.tokens.motion.preference == MotionPreference.Full
             ),
-            { current -> SkeletonInk(current) },
+            { current, mount -> SkeletonInk(current, scope = mount) },
             [input.content]
         )
     }
@@ -96,7 +99,7 @@ internal fun makeSkeleton(
             builder.color,
             builder.theme
         ),
-        { current -> Skeleton(current) },
+        { current, mount -> Skeleton(current, scope = mount) },
         builder.key
     )
 }
@@ -108,12 +111,15 @@ private class SkeletonInkProps(
     val motion: Boolean
 )
 
-private class SkeletonInk(private val props: Props<SkeletonInkProps>): Element<Unit> {
+private class SkeletonInk(
+    private val props: Props<SkeletonInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var previous: SkeletonProps? = None
     private var motion: LoadingMotion? = None
     private var visible = false
     private val easing = Easing.cubicBezier(0.4, 0.0, 0.6, 1.0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         motion = Some(LoadingMotion(scope))
     }
     public override fun update(): UiInvalidation {

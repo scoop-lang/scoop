@@ -72,7 +72,7 @@ internal fun <T: Equals<T>> comboPopup(
     val body =
         element(
             ComboPopupLayoutProps(height, popupInput, noResults),
-            { current -> ComboPopupLayout(current) },
+            { current, mount -> ComboPopupLayout(current, scope = mount) },
             children.toArray()
         )
     val ink = theme.tokens.palette
@@ -91,7 +91,10 @@ internal fun <T: Equals<T>> comboPopup(
 
 private class ComboPopupLayoutProps(val height: Double, val hasInput: Boolean, val empty: Boolean)
 
-private class ComboPopupLayout(private val props: Props<ComboPopupLayoutProps>): Element<Unit> {
+private class ComboPopupLayout(
+    private val props: Props<ComboPopupLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

@@ -12,10 +12,11 @@ import scoop.ui.style.*
 
 internal class AvatarExamples(
     private val model: GalleryModel,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     private val images = state<Array<Image>>([])
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val first = scope.resource { avatarPortrait(false) }
         val second = scope.resource { avatarPortrait(true) }
         images.value = [first, second]

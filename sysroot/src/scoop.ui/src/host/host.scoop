@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.platform.concurrent.currentThreadId
+import scoop.graphics.text.FontCollection
 import scoop.surface.SurfaceHost
 import scoop.surface.HostShortcutScope
 import scoop.surface.ShortcutBinding
@@ -41,16 +42,24 @@ public class UiHost public constructor(
         return scope
     }
 
-    public fun <C: Component> attach(window: Window, create: () -> C): UiWindow {
+    public fun <C: Component> attach(
+        window: Window,
+        create: (ComponentScope) -> C,
+        fonts: FontCollection? = None
+    ): UiWindow {
         checkThread()
         if (closing)
             throw IllegalStateException(Some("UI host is closed"))
         return callback {
-            val root = UiRoot(this, window, component(create))
+            val root = UiRoot(this, window, component(create), fonts)
             roots.add(root)
-            val surface = surfaces.attach(window, root)
-            root.mount(surface)
-            UiWindow(root)
+            try {
+                val surface = surfaces.attach(window, root)
+                root.mount(surface)
+                UiWindow(root)
+            } catch (error: Throwable) {
+                throw cleanupUi(Some(error)) { root.closeSurface() }!!
+            }
         }
     }
     public override fun onEvent(application: ActiveApplication, event: ApplicationEvent) {
@@ -192,7 +201,11 @@ private fun removeRoot(values: ArrayList<UiRoot>, root: UiRoot) {
 }
 
 /** A single-window entry point with the same explicit root ownership as UiHost.use. */
-public fun <C: Component> runUiApplication(title: String, create: () -> C) {
+public fun <C: Component> runUiApplication(
+    title: String,
+    create: (ComponentScope) -> C,
+    fonts: FontCollection? = None
+) {
     val application =
         Application(applicationOptions { this.lastWindowPolicy = LastWindowPolicy.Exit })
     UiHost {
@@ -201,7 +214,8 @@ public fun <C: Component> runUiApplication(title: String, create: () -> C) {
         event -> when (event) {
             case Resumed -> host.attach(
                 active.createWindow(windowAttributes { this.title = title }),
-                create
+                create,
+                fonts
             )
             case Window(id, WindowEvent.CloseRequested) -> active.requestExit()
             else -> {}

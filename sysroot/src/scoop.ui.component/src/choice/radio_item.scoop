@@ -19,20 +19,22 @@ internal class RadioItemProps(
     val activate: () -> Unit
 )
 
-internal class RadioItem(private val props: Props<RadioItemProps>): Component {
-    private val control = state<PressControl?>(None)
+internal class RadioItem(
+    private val props: Props<RadioItemProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.enabled, false),
+            props.value.focus,
+            { props.value.activate() }
+        )
     private val text = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, props.value.focus)
-        val press =
-            scope.press(area, PressOptions(props.value.enabled, false)) { props.value.activate() }
-        scope.routeChildren(area)
-        control.value = Some(PressControl(area, focus, press))
-    }
+
     public override fun render(): View {
         val input = props.value
-        val interaction = control.value?.press?.interaction ?: InteractionState()
+        val interaction = control.press.interaction
         val visual = interaction.asVisual(input.enabled, input.invalid)
         val base =
             text.resolve(
@@ -44,7 +46,7 @@ internal class RadioItem(private val props: Props<RadioItemProps>): Component {
         val indicator =
             element(
                 RadioIndicatorProps(input.theme, input.marker, RadioVisual(input.selected, visual)),
-                { current -> RadioIndicator(current) }
+                { current, mount -> RadioIndicator(current, scope = mount) }
             )
         val content =
             when (input.content) {
@@ -59,7 +61,7 @@ internal class RadioItem(private val props: Props<RadioItemProps>): Component {
                                 input.fonts,
                                 baseStyle = Some(base)
                             ),
-                            { current -> Label(current) }
+                            { current, mount -> Label(current, scope = mount) }
                         )
                     val layout =
                         LinearProps(
@@ -67,24 +69,30 @@ internal class RadioItem(private val props: Props<RadioItemProps>): Component {
                             spacing = 8.0,
                             alignment = CrossAlignment.Center
                         )
-                    component(layout, { current -> Row(current) })
+                    component(layout, { current, mount -> Row(current, scope = mount) })
                 }
             }
-        return element(RadioInkProps(input, control), { current -> RadioInk(current) }, [content])
+        return element(
+            RadioInkProps(input, control),
+            { current, mount -> RadioInk(current, scope = mount) },
+            [content]
+        )
     }
 }
 
-private class RadioInkProps(val input: RadioItemProps, val control: State<PressControl?>)
+private class RadioInkProps(val input: RadioItemProps, val control: PressControl)
 
-private class RadioInk(private val props: Props<RadioInkProps>): Element<Unit> {
+private class RadioInk(private val props: Props<RadioInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var field: FieldLink? = None
-    public override fun onMount(scope: ComponentScope) {
-        val control = props.value.control.value!!
+    public override fun onMount() {
+        val control = props.value.control
         field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
     }
     public override fun update(): UiInvalidation {
         val input = props.value.input
-        val control = props.value.control.value!!
+        val control = props.value.control
         control.press.update(PressOptions(input.enabled, false), input.activate)
         control.area.scope.enabled = input.enabled
         control.focus.options = input.focus
@@ -114,7 +122,7 @@ private class RadioInk(private val props: Props<RadioInkProps>): Element<Unit> {
         if (!input.enabled)
             context.restore()
         context.place(
-            props.value.control.value!!.area,
+            props.value.control.area,
             Rect(0.0, 0.0, context.size.width, context.size.height)
         )
     }

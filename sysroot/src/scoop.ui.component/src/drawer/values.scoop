@@ -101,8 +101,8 @@ public class DrawerProps public constructor(
         )
 }
 
-internal class DrawerOwner {
-    val localSnap = state(0L)
+internal class DrawerOwner(initialSnap: Long) {
+    val localSnap = state(initialSnap)
     val scroll = ScrollState()
     var control: DrawerControl? = None
     var bodyArea: scoop.surface.InputArea? = None

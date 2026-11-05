@@ -7,7 +7,7 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class SplitScene(private val p: SplitProbe): Component {
+internal class SplitScene(private val p: SplitProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val current = p.generation.value
@@ -86,7 +86,11 @@ internal class SplitScene(private val p: SplitProbe): Component {
             }
         )
         return direction(
-            element(current, { value -> SplitTestLayout(p, value) }, children.toArray()),
+            element(
+                current,
+                { value, mount -> SplitTestLayout(p, value, scope = mount) },
+                children.toArray()
+            ),
             if (p.rtl)
                 LayoutDirection.Rtl
             else
@@ -97,9 +101,10 @@ internal class SplitScene(private val p: SplitProbe): Component {
 
 private class SplitTestLayout(
     private val p: SplitProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,
@@ -160,7 +165,7 @@ private class SplitTrackedInput(val probe: SplitProbe, val name: String, val ver
 private fun splitTracked(p: SplitProbe, name: String, vertical: Boolean): View =
     element(
         SplitTrackedInput(p, name, vertical),
-        { current -> SplitTracked(current) },
+        { current, mount -> SplitTracked(current, scope = mount) },
         [
             if (name == "b")
                 input(p.text) {
@@ -172,8 +177,11 @@ private fun splitTracked(p: SplitProbe, name: String, vertical: Boolean): View =
         ]
     )
 
-private class SplitTracked(private val props: Props<SplitTrackedInput>): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class SplitTracked(
+    private val props: Props<SplitTrackedInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         props.value.probe.mounts += 1
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

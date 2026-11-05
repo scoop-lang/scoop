@@ -10,17 +10,22 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class AreaScene(private val probe: AreaProbe): Component {
+internal class AreaScene(private val probe: AreaProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
         return direction(
             element(
                 AreaPanelProps(generation, probe.zero.value),
-                { props -> AreaPanel(probe, props) },
+                { props, mount -> AreaPanel(probe, props, scope = mount) },
                 [
                     if (generation < 4)
-                        scrollArea(component(generation, { props -> AreaContent(probe, props) })) {
+                        scrollArea(
+                            component(
+                                generation,
+                                { props, mount -> AreaContent(probe, props, scope = mount) }
+                            )
+                        ) {
                             this.state = Some(this @AreaScene.probe.current)
                             this.axes = this @AreaScene.probe.axes.value
                             this.enabled = this @AreaScene.probe.enabled.value
@@ -51,9 +56,10 @@ private struct AreaPanelProps(val generation: Int, val zero: Boolean)
 
 private class AreaPanel(
     private val probe: AreaProbe,
-    private val props: Props<AreaPanelProps>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<AreaPanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.resource { probe.outer.observeIntent { event -> probe.outerIntents.add(event) } }
         scope.resource { probe.inner.observeIntent { event -> probe.innerIntents.add(event) } }
         scope.input.captureHandler =
@@ -112,8 +118,12 @@ private class AreaPanel(
     }
 }
 
-private class AreaContent(private val probe: AreaProbe, private val props: Props<Int>): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class AreaContent(
+    private val probe: AreaProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         probe.mounts += 1
     }
     public override fun onUnmount() {
@@ -123,9 +133,9 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
         probe.contentRenders += 1
         return element(
             props.value,
-            { current -> ContentLayout(probe, current) },
+            { current, mount -> ContentLayout(probe, current, scope = mount) },
             [
-                scrollArea(element({ ContentInput(probe, true) })) {
+                scrollArea(element({ mount -> ContentInput(probe, true, scope = mount) })) {
                     this.state = Some(this @AreaContent.probe.inner)
                     this.lineStep = 10.0
                     this.chain =
@@ -135,15 +145,17 @@ private class AreaContent(private val probe: AreaProbe, private val props: Props
                             ScrollChain.Chain
                     this.theme = Some(this @AreaContent.probe.theme)
                 },
-                element({ ContentInput(probe, false) })
+                element({ mount -> ContentInput(probe, false, scope = mount) })
             ]
         )
     }
 }
 
-private class ContentLayout(private val probe: AreaProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class ContentLayout(
+    private val probe: AreaProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -170,11 +182,13 @@ private class ContentLayout(private val probe: AreaProbe, private val props: Pro
     }
 }
 
-private class ContentInput(private val probe: AreaProbe, private val inner: Boolean): Element<
-    Unit
-> {
+private class ContentInput(
+    private val probe: AreaProbe,
+    private val inner: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = scope.createArea(focusable = true)
         area = Some(input)
         if (inner)

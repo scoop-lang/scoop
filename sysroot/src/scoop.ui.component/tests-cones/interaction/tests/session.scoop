@@ -207,7 +207,7 @@ internal class ControlProbe {
                 native.requestFocus()
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                ui = Some(host.attach(native, { ControlScene(this) }))
+                ui = Some(host.attach(native, { mount -> ControlScene(this, scope = mount) }))
                 waitFor(active, 25000L)
             }
             case AboutToWait -> advance(active)

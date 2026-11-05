@@ -11,8 +11,10 @@ private class DescriptionTypeTest {
             ComponentDescription(
                 ReuseInput<Array<Int>>(1),
                 {
-                    props -> ReuseComponent<Int, Array<Int>>(
-                        records.create(0L, 1, { props.value.version })
+                    props,
+                    mount -> ReuseComponent<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -20,8 +22,10 @@ private class DescriptionTypeTest {
             ComponentDescription(
                 ReuseInput<Array<Int>>(2),
                 {
-                    props -> ReuseComponent<Int, Array<Int>>(
-                        records.create(0L, 2, { props.value.version })
+                    props,
+                    mount -> ReuseComponent<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -29,29 +33,43 @@ private class DescriptionTypeTest {
             [
                 ComponentDescription(
                     ReuseInput<Array<Long>>(2),
-                    { _ -> ReuseComponent<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseComponent<Int, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 ComponentDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseComponent<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseComponent<Long, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 ComponentDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseComponent<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseComponent<Int, Array<Long>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 )
             ]
         assertEquals(0L, records.values.size)
-        val instance = first.create()
         assertTrue(first.sameType(same))
         assertTrue(same.sameType(first))
         for (other in different) {
             assertFalse(first.sameType(other))
             assertFalse(other.sameType(first))
         }
-        assertUntouched(records)
-        instance.replace(same)
-        assertEquals(2, records.values[0L].read())
-        assertEquals(1L, records.values.size)
+        assertEquals(0L, records.values.size)
     }
 
     @Test
@@ -61,8 +79,10 @@ private class DescriptionTypeTest {
             ElementDescription(
                 ReuseInput<Array<Int>>(1),
                 {
-                    props -> ReuseElement<Int, Array<Int>>(
-                        records.create(0L, 1, { props.value.version })
+                    props,
+                    mount -> ReuseElement<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -70,8 +90,10 @@ private class DescriptionTypeTest {
             ElementDescription(
                 ReuseInput<Array<Int>>(2),
                 {
-                    props -> ReuseElement<Int, Array<Int>>(
-                        records.create(0L, 2, { props.value.version })
+                    props,
+                    mount -> ReuseElement<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -79,29 +101,43 @@ private class DescriptionTypeTest {
             [
                 ElementDescription(
                     ReuseInput<Array<Long>>(2),
-                    { _ -> ReuseElement<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseElement<Int, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 ElementDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseElement<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseElement<Long, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 ElementDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseElement<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseElement<Int, Array<Long>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 )
             ]
         assertEquals(0L, records.values.size)
-        val instance = first.create()
         assertTrue(first.sameType(same))
         assertTrue(same.sameType(first))
         for (other in different) {
             assertFalse(first.sameType(other))
             assertFalse(other.sameType(first))
         }
-        assertUntouched(records)
-        instance.replace(same)
-        assertEquals(2, records.values[0L].read())
-        assertEquals(1L, records.values.size)
+        assertEquals(0L, records.values.size)
     }
 
     @Test
@@ -111,8 +147,10 @@ private class DescriptionTypeTest {
             LazyDescription(
                 ReuseInput<Array<Int>>(1),
                 {
-                    props -> ReuseLazy<Int, Array<Int>>(
-                        records.create(0L, 1, { props.value.version })
+                    props,
+                    mount -> ReuseLazy<Int, Array<Int>>(
+                        records.create(0L, 1, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -120,8 +158,10 @@ private class DescriptionTypeTest {
             LazyDescription(
                 ReuseInput<Array<Int>>(2),
                 {
-                    props -> ReuseLazy<Int, Array<Int>>(
-                        records.create(0L, 2, { props.value.version })
+                    props,
+                    mount -> ReuseLazy<Int, Array<Int>>(
+                        records.create(0L, 2, { props.value.version }),
+                        scope = mount
                     )
                 }
             )
@@ -129,29 +169,43 @@ private class DescriptionTypeTest {
             [
                 LazyDescription(
                     ReuseInput<Array<Long>>(2),
-                    { _ -> ReuseLazy<Int, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseLazy<Int, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 LazyDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseLazy<Long, Array<Int>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseLazy<Long, Array<Int>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 ),
                 LazyDescription(
                     ReuseInput<Array<Int>>(2),
-                    { _ -> ReuseLazy<Int, Array<Long>>(records.create(0L, 2, { 2 })) }
+                    {
+                        _,
+                        mount -> ReuseLazy<Int, Array<Long>>(
+                            records.create(0L, 2, { 2 }),
+                            scope = mount
+                        )
+                    }
                 )
             ]
         assertEquals(0L, records.values.size)
-        val instance = first.create()
         assertTrue(first.sameType(same))
         assertTrue(same.sameType(first))
         for (other in different) {
             assertFalse(first.sameType(other))
             assertFalse(other.sameType(first))
         }
-        assertUntouched(records)
-        instance.replace(same)
-        assertEquals(2, records.values[0L].read())
-        assertEquals(1L, records.values.size)
+        assertEquals(0L, records.values.size)
     }
 
     @Test
@@ -162,11 +216,20 @@ private class DescriptionTypeTest {
             [
                 empty(),
                 direction(empty(), LayoutDirection.Ltr),
-                component({ ReuseComponent<Int, Int>(records.create(0L, 0, { 0 })) }),
-                element({ ReuseElement<Int, Int>(records.create(0L, 0, { 0 })) }),
+                component(
+                    {
+                        mount -> ReuseComponent<Int, Int>(
+                            records.create(0L, 0, { 0 }),
+                            scope = mount
+                        )
+                    }
+                ),
+                element(
+                    { mount -> ReuseElement<Int, Int>(records.create(0L, 0, { 0 }), scope = mount) }
+                ),
                 lazyElement(
                     ReuseEmptyItems(),
-                    { ReuseLazy<Int, Int>(records.create(0L, 0, { 0 })) }
+                    { mount -> ReuseLazy<Int, Int>(records.create(0L, 0, { 0 }), scope = mount) }
                 ),
                 portal(open.binding(), empty()),
                 portal(open.binding(), empty()) {
@@ -194,13 +257,4 @@ private class DescriptionTypeTest {
         )
         assertEquals(0L, records.values.size)
     }
-}
-
-private fun assertUntouched(records: ReuseRecords) {
-    assertEquals(1L, records.values.size)
-    val record = records.values[0L]
-    assertEquals(1, record.read())
-    assertEquals(0, record.mounts)
-    assertEquals(0, record.unmounts)
-    assertEquals(0, record.closes)
 }

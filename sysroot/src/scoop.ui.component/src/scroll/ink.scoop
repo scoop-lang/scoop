@@ -3,11 +3,14 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-internal class ScrollAreaInk(private val props: Props<ScrollAreaInkProps>): Element<Size> {
+internal class ScrollAreaInk(
+    private val props: Props<ScrollAreaInkProps>,
+    scope: ComponentScope
+): Element<Size>(scope) {
     private var previous: ScrollAreaInkProps? = None
     private var control: ScrollControl? = None
 
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         control = Some(ScrollControl(scope) { props.value.controls })
     }
     public override fun update(): UiInvalidation {

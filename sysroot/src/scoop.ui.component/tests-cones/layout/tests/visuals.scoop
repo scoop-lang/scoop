@@ -59,7 +59,7 @@ internal fun visualContract(generation: Int, probe: VisualProbe): View {
     val media =
         element(
             generation,
-            { props -> VisualPanel(props, probe) },
+            { props, mount -> VisualPanel(props, probe, scope = mount) },
             [
                 imageView(image, Size(40.0, 20.0)) {
                     fit = ContentFit.None
@@ -115,10 +115,12 @@ internal fun visualContract(generation: Int, probe: VisualProbe): View {
     )
 }
 
-private class VisualPanel(private val props: Props<Int>, private val probe: VisualProbe): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class VisualPanel(
+    private val props: Props<Int>,
+    private val probe: VisualProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.mounts += 1
     }
     public override fun onUnmount() {

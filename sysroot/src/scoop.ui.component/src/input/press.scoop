@@ -1,7 +1,18 @@
 package scoop.ui.component
 
-import scoop.surface.InputArea
 import scoop.ui.*
 
-/** Published once by the component mount, before its element mounts or updates. */
-internal class PressControl(val area: InputArea, val focus: FocusTarget, val press: Press)
+/** Creates the input resources before the owner's first render. */
+internal class PressControl(
+    scope: ComponentScope,
+    options: PressOptions,
+    focusOptions: FocusOptions,
+    onClick: () -> Unit
+) {
+    val area = scope.createArea(focusable = true)
+    val focus = scope.focusTarget(area, focusOptions)
+    val press = scope.press(area, options, onClick)
+    init {
+        scope.routeChildren(area)
+    }
+}

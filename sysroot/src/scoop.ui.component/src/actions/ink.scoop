@@ -5,7 +5,7 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 internal enum ActionBehavior {
-    Passive, Press(State<PressControl?>, () -> Unit, FocusOptions)
+    Passive, Press(PressControl, () -> Unit, FocusOptions)
 }
 
 internal class ActionInkProps(
@@ -20,8 +20,9 @@ internal class ActionInkProps(
 )
 
 /** Buttons and badges use one layout and surface renderer, with optional activation behavior. */
-internal class ActionInk(private val props: Props<ActionInkProps>): Element<SurfaceMetrics> {
-    private var scope: ComponentScope? = None
+internal class ActionInk(private val props: Props<ActionInkProps>, scope: ComponentScope): Element<
+    SurfaceMetrics
+>(scope) {
     private var field: FieldLink? = None
     private var motion: InteractionMotion? = None
     private var painters: ThemePainterCache? = None
@@ -29,8 +30,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
     private var previousMetrics: SurfaceMetrics? = None
     private var previousIcon = false
     private var previousTheme: Theme? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
@@ -39,13 +39,12 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
         val value = props.value
         when (value.behavior) {
             case Press(owner, action, focus) -> {
-                val control = owner.value!!
+                val control = owner
                 control.press.update(PressOptions(value.visual.interaction.enabled), action)
                 control.area.scope.enabled = value.visual.interaction.enabled
                 control.focus.options = focus
                 if (panelPresent(value.labelTarget) && !panelPresent(field))
-                    field =
-                        Some(scope!!.resource { FieldLink(scope!!, control.area, control.focus) })
+                    field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
                 field?.update(value.labelTarget, value.visual.interaction.enabled)
             }
             case Passive -> {}
@@ -57,7 +56,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
             specs.resolve(value.style.transition.resolve(specs.press))
         )
         painters!!.get(value.theme)
-        val metrics = metrics(value, scope!!.layoutDirection)
+        val metrics = metrics(value, scope.layoutDirection)
         val icon = isIconAction(value.shape)
         val changed =
             previousMetrics !=
@@ -159,7 +158,7 @@ internal class ActionInk(private val props: Props<ActionInkProps>): Element<Surf
             paint -> painter.drawSurface(paint.canvas, geometry, visual, SurfaceLayer.Background)
         }
         when (value.behavior) {
-            case Press(owner, _, _) -> context.place(owner.value!!.area, geometry.bounds)
+            case Press(owner, _, _) -> context.place(owner.area, geometry.bounds)
             case Passive -> {}
         }
         content!!.scene(context, geometry.bounds, geometry.contentStyle) {

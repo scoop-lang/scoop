@@ -69,9 +69,10 @@ internal fun aspectSize(
     return result
 }
 
-public class AspectRatio public constructor(private val props: Props<AspectRatioProps>): Element<
-    Unit
-> {
+public class AspectRatio public constructor(
+    private val props: Props<AspectRatioProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -110,7 +111,7 @@ internal fun makeAspectRatio(
     builder.configure()
     return element(
         AspectRatioProps(content, ratio, builder.clip),
-        { current -> AspectRatio(current) },
+        { current, mount -> AspectRatio(current, scope = mount) },
         [content],
         builder.key
     )

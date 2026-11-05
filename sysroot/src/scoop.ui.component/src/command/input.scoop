@@ -43,7 +43,7 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
                             16.0 * density,
                             theme.tokens.palette.muted.foreground
                         ),
-                        { current -> CommandSearchIcon(current) }
+                        { current, mount -> CommandSearchIcon(current, scope = mount) }
                     ),
                 key = ViewKey.Text("search")
             )
@@ -69,16 +69,19 @@ internal fun commandInput(input: CommandProps, focus: FocusHandle, theme: Theme)
                             }.then(field.style.surface.style)
                     }
             ),
-            { current -> InputGroup(current) }
+            { current, mount -> InputGroup(current, scope = mount) }
         )
     return panelFrame(group, Insets(16.0 * density, 16.0 * density, 16.0 * density, 4.0 * density))
 }
 
 private class CommandSearchIconProps(val size: Double, val color: Color)
 
-private class CommandSearchIcon(private val props: Props<CommandSearchIconProps>): Element<Unit> {
+private class CommandSearchIcon(
+    private val props: Props<CommandSearchIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var handle: Path? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         // Lucide search, ISC; see ../../LICENSE-LUCIDE.
         handle =
             Some(

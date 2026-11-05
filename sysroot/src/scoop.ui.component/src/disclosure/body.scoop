@@ -13,21 +13,20 @@ internal class DisclosureBodyProps(
 
 internal struct DisclosureBodyLayout(val clipped: Boolean, val placed: Boolean)
 
-internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): Element<
-    DisclosureBodyLayout
-> {
-    private var scope: ComponentScope? = None
+internal class DisclosureBody(
+    private val props: Props<DisclosureBodyProps>,
+    scope: ComponentScope
+): Element<DisclosureBodyLayout>(scope) {
     private var revision = 0UL
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         scope.input.enabled = false
     }
     public override fun update(): UiInvalidation {
         revision += 1UL
         val input = props.value
         if (!input.open || !input.enabled)
-            scope!!.input.enabled = false
-        scope!!.isFrameEnabled = input.open
+            scope.input.enabled = false
+        scope.isFrameEnabled = input.open
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -66,11 +65,11 @@ internal class DisclosureBody(private val props: Props<DisclosureBodyProps>): El
             frame -> if (
                 frame.submission ==
                     FrameSubmission.Accepted &&
-                    scope!!.isMounted &&
+                    scope.isMounted &&
                     revision ==
                     current
             )
-                scope!!.input.enabled = visible && props.value.open && props.value.enabled
+                scope.input.enabled = visible && props.value.open && props.value.enabled
         }
     }
 }

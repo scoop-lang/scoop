@@ -9,25 +9,34 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.component.column as modalColumn
 
-public class Dialog public constructor(private val props: Props<DialogProps>): Component {
+public class Dialog public constructor(
+    private val props: Props<DialogProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val modal = ModalContent({ props.value.input })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         modal.mount()
     }
     public override fun render(): View = modal.render()
 }
 
-public class AlertDialog public constructor(private val props: Props<AlertDialogProps>): Component {
+public class AlertDialog public constructor(
+    private val props: Props<AlertDialogProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val modal = ModalContent({ props.value.input })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         modal.mount()
     }
     public override fun render(): View = modal.render()
 }
 
-public class Sheet public constructor(private val props: Props<SheetProps>): Component {
+public class Sheet public constructor(
+    private val props: Props<SheetProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val modal = ModalContent({ props.value.input })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         modal.mount()
     }
     public override fun render(): View = modal.render()
@@ -135,7 +144,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                                 panelPresent(options.title),
                                 panelPresent(options.description)
                             ),
-                            { current -> AlertHeader(current) },
+                            { current, mount -> AlertHeader(current, scope = mount) },
                             [
                                 media,
                                 modalCaption(options.title, titleStyle, options.fonts, true),
@@ -255,14 +264,14 @@ internal class ModalContent(private val read: () -> ModalInput) {
                         else -> true
                     }
                 ),
-                { current -> ModalBody(current) },
+                { current, mount -> ModalBody(current, scope = mount) },
                 [input.content]
             )
         val body =
             when (input.kind) {
                 case Drawer(_, owner) -> element(
                     owner,
-                    { current -> DrawerBodyMarker(current) },
+                    { current, mount -> DrawerBodyMarker(current, scope = mount) },
                     [bodyContent]
                 )
                 else -> bodyContent
@@ -270,7 +279,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
         val panelContent =
             element(
                 ModalPanelProps(density, headerPresent, options.contentPadding),
-                { current -> ModalPanel(current) },
+                { current, mount -> ModalPanel(current, scope = mount) },
                 [header, body, footerView, closeView]
             )
         val panel =
@@ -354,12 +363,12 @@ internal class ModalContent(private val read: () -> ModalInput) {
             when (input.kind) {
                 case Drawer(props, owner) -> element(
                     DrawerInput(props, theme, owner, overlayHandle),
-                    { value -> DrawerSurface(value) },
+                    { value, mount -> DrawerSurface(value, scope = mount) },
                     [panel]
                 )
                 else -> element(
                     ModalSurfaceProps(input, density),
-                    { value -> ModalSurface(value) },
+                    { value, mount -> ModalSurface(value, scope = mount) },
                     [panel]
                 )
             }
@@ -384,7 +393,7 @@ internal class ModalContent(private val read: () -> ModalInput) {
                 case Some(spec) -> modalButton(spec, { activate() }, options)
                 case None -> empty()
             }
-        return element({ ModalTriggerLayout() }, [trigger, popup])
+        return element({ mount -> ModalTriggerLayout(scope = mount) }, [trigger, popup])
     }
 }
 
@@ -423,7 +432,7 @@ private fun modalButton(
             variant = input.variant,
             size = input.size
         ),
-        { current -> Button(current) }
+        { current, mount -> Button(current, scope = mount) }
     )
 
 private fun modalPanelBorder(kind: ModalKind, color: Color): Border =

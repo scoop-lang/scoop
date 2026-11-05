@@ -28,12 +28,14 @@ public class CollapsibleProps public constructor(
     }
 }
 
-public class Collapsible public constructor(private val props: Props<CollapsibleProps>): Component {
+public class Collapsible public constructor(
+    private val props: Props<CollapsibleProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    private val motion = state<Presence?>(None)
-    public override fun onMount(scope: ComponentScope) {
+    private val motion = scope.presence(props.value.open.value)
+    public override fun onMount() {
         themes.mount(props.value.theme)
-        motion.value = Some(scope.presence(props.value.open.value))
     }
     private fun toggle() {
         val input = props.value
@@ -49,8 +51,8 @@ public class Collapsible public constructor(private val props: Props<Collapsible
         val input = props.value
         val theme = themes.read(input.theme)
         val open = input.open.value
-        val presence = motion.value
-        val shown = open || (presence?.isPresent ?: false)
+        val presence = Some(motion)
+        val shown = open || motion.isPresent
         val transition =
             theme.tokens.motion.resolve(
                 input.transition.resolve(
@@ -84,12 +86,12 @@ public class Collapsible public constructor(private val props: Props<Collapsible
                     panelPresent(input.trigger),
                     input.spacing
                 ),
-                { current -> DisclosureLayout(current) },
+                { current, mount -> DisclosureLayout(current, scope = mount) },
                 [
                     trigger,
                     element(
                         DisclosureBodyProps(presence, open, shown, input.enabled),
-                        { current -> DisclosureBody(current) },
+                        { current, mount -> DisclosureBody(current, scope = mount) },
                         if (shown || input.retention == ContentRetention.KeepMounted)
                             [input.content]
                         else

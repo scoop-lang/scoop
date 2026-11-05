@@ -8,7 +8,10 @@ import scoop.ui.text.TextEditorState
 
 internal class ComboChip<T: Equals<T>>(val value: T, val key: ViewKey, val focus: FocusHandle)
 
-internal class ComboboxControl<T: Equals<T>>(val props: Props<ComboboxProps<T>>) {
+internal class ComboboxControl<T: Equals<T>>(
+    val props: Props<ComboboxProps<T>>,
+    val owner: ComponentScope
+) {
     val themes = ThemeAccess()
     val localOpen = state(false)
     val localActive = state<ViewKey?>(None)
@@ -18,7 +21,6 @@ internal class ComboboxControl<T: Equals<T>>(val props: Props<ComboboxProps<T>>)
     val ownLayer = OverlayHandle()
     val ownScroll = ScrollState()
     val ownList = VirtualListHandle()
-    var owner: ComponentScope? = None
     var chips: Array<ComboChip<T>> = []
     private var nextChip = 0L
     private var pendingTab: Boolean? = None
@@ -38,8 +40,7 @@ internal class ComboboxControl<T: Equals<T>>(val props: Props<ComboboxProps<T>>)
     val list: VirtualListHandle get() = props.value.listHandle ?: ownList
     val scroll: ScrollState get() = props.value.scroll ?: ownScroll
 
-    fun mount(scope: ComponentScope) {
-        owner = Some(scope)
+    fun mount() {
         themes.mount(props.value.input.theme)
     }
     fun results(): ChoiceSource<T> {
@@ -270,8 +271,8 @@ internal class ComboboxControl<T: Equals<T>>(val props: Props<ComboboxProps<T>>)
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (owner!!.isMounted)
-                owner!!.moveFocus(reverse);
+            case Some(reverse) -> if (owner.isMounted)
+                owner.moveFocus(reverse);
             case None -> {}
         }
         props.value.onClosed(reason)

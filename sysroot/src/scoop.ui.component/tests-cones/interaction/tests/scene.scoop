@@ -16,11 +16,13 @@ import scoop.window.ShortcutChord
 import scoop.window.ShortcutKey
 import scoop.window.ShortcutModifiers
 
-internal class ControlScene(private val probe: ControlProbe): Component {
+internal class ControlScene(private val probe: ControlProbe, scope: ComponentScope): Component(
+    scope
+) {
     var count: Int by state(7)
     var mounts = 0
     var unmounts = 0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         mounts += 1
         probe.scene = Some(this)
         probe.shortcuts =
@@ -95,7 +97,7 @@ internal class ControlScene(private val probe: ControlProbe): Component {
         val buttonStyle = buttonStyle { surface { style { this.corners(Corners.all(9.0)) } } }
         return element(
             PanelProps(generation, count, theme.tokens.palette.background.background),
-            { props -> ControlPanel(props, probe) },
+            { props, mount -> ControlPanel(props, probe, scope = mount) },
             [
                 styled(
                     component(
@@ -110,7 +112,10 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                                         Some(probe.fonts),
                                         baseStyle = Some(theme.tokens.typography.action)
                                     ),
-                                    { current -> CustomButtonContent(current, probe) }
+                                    {
+                                        current,
+                                        mount -> CustomButtonContent(current, probe, scope = mount)
+                                    }
                                 )
                             ),
                             { count += delta },
@@ -119,9 +124,9 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                             focus = FocusOptions(Some(probe.buttonFocus))
                         ),
                         {
-                            props ->
+                            props, mount ->
                             probe.buttonCreates += 1;
-                            Button(props)
+                            Button(props, scope = mount)
                         }
                     )
                 ) { this.style = effects },
@@ -141,9 +146,9 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                         focus = FocusOptions(Some(probe.checkFocus))
                     ),
                     {
-                        props ->
+                        props, mount ->
                         probe.checkCreates += 1;
-                        Checkbox(props)
+                        Checkbox(props, scope = mount)
                     }
                 ),
                 checkbox(initialChecked = false) {
@@ -155,9 +160,9 @@ internal class ControlScene(private val probe: ControlProbe): Component {
                         Some(probe.fonts)
                     ),
                     {
-                        props ->
+                        props, mount ->
                         probe.labelCreates += 1;
-                        Label(props)
+                        Label(props, scope = mount)
                     }
                 )
             ]
@@ -169,8 +174,9 @@ private class PanelProps(val generation: Int, val count: Int, val background: Co
 
 private class ControlPanel(
     private val props: Props<PanelProps>,
-    private val probe: ControlProbe
-): Element<Unit> {
+    private val probe: ControlProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         probe.updates += 1
         return UiInvalidation.Layout
@@ -216,12 +222,14 @@ private class ControlPanel(
 
 private class CustomButtonContent(
     private val props: Props<LabelProps>,
-    private val probe: ControlProbe
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val probe: ControlProbe,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         probe.contentMounts += 1
     }
-    public override fun render(): View = component(props.value, { current -> Label(current) })
+    public override fun render(): View =
+        component(props.value, { current, mount -> Label(current, scope = mount) })
     public override fun onUnmount() {
         probe.contentUnmounts += 1
     }

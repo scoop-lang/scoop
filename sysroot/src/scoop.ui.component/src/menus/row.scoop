@@ -23,14 +23,15 @@ internal class MenuRowProps(
     val selection: Boolean = false
 )
 
-internal class MenuRow(private val props: Props<MenuRowProps>): Component {
+internal class MenuRow(private val props: Props<MenuRowProps>, scope: ComponentScope): Component(
+    scope
+) {
     private val anchor = LayoutAnchor()
     private val link = HoverPopupLink()
     private val submenu = OverlayHandle()
     private val candidates = MenuFocus()
     private val keyboard = state(false)
     private val highlighted = state(false)
-    private val window = state<Window?>(None)
     private val open =
         binding({ props.value.open.value }, { value -> props.value.open.value = value })
     private val portalOpen =
@@ -43,9 +44,6 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                     link.dismiss { open.value = false }
             }
         )
-    public override fun onMount(scope: ComponentScope) {
-        window.value = Some(scope.nativeWindow)
-    }
     private fun enter() {
         if (!(menuItem(props.value.entry)?.enabled ?: false) || !props.value.options.enabled)
             return
@@ -133,7 +131,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                 case Radio(_, _, _, _) -> true
                 else -> false
             }
-        val native = window.value
+        val native = Some(scope.nativeWindow)
         val child =
             menuRow {
                 when (item.icon) {
@@ -205,7 +203,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                             panelSlot(
                                 element(
                                     MenuCheckProps(checked, 16.0 * density, text.color),
-                                    { current -> MenuCheck(current) }
+                                    { current, mount -> MenuCheck(current, scope = mount) }
                                 ),
                                 3L
                             )
@@ -258,7 +256,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                                 link.dismiss()
                             }
                     ),
-                    { current -> MenuPopup(current) }
+                    { current, mount -> MenuPopup(current, scope = mount) }
                 )
                 else -> empty()
             }
@@ -285,7 +283,7 @@ internal class MenuRow(private val props: Props<MenuRowProps>): Component {
                 isSub,
                 { keyboard.value = false }
             ),
-            { current -> MenuRowLayout(current) },
+            { current, mount -> MenuRowLayout(current, scope = mount) },
             [action, popup]
         )
     }
@@ -334,9 +332,11 @@ internal fun menuRowStyle(
 
 internal class MenuCheckProps(val checked: Boolean, val size: Double, val color: Color)
 
-internal class MenuCheck(private val props: Props<MenuCheckProps>): Element<Unit> {
+internal class MenuCheck(private val props: Props<MenuCheckProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var glyph: Path? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         // Lucide check (ISC), on its original 24-unit grid.
         glyph =
             Some(

@@ -15,16 +15,25 @@ internal class SliderInput(
     val values: Array<Double>,
     val theme: Theme,
     val slots: Array<SliderSlot>,
-    val active: State<Long?>,
-    val owner: State<SliderControl?>
+    val active: State<Long?>
 )
 
-public class Slider public constructor(private val props: Props<SliderProps>): Component {
+public class Slider public constructor(
+    private val props: Props<SliderProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val active = state<Long?>(None)
-    private val owner = state<SliderControl?>(None)
     private var slots: Array<SliderSlot> = []
-    public override fun onMount(scope: ComponentScope) {
+    private val control = SliderControl(scope, { currentInput() })
+    private fun currentInput(): SliderInput {
+        val input = props.value
+        return SliderInput(input, input.values.value, themes.read(input.theme), slots, active)
+    }
+    public override fun onUnmount() {
+        control.retire()
+    }
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -41,31 +50,33 @@ public class Slider public constructor(private val props: Props<SliderProps>): C
                         SliderSlot()
                 }
         }
-        val config = SliderInput(input, values, theme, slots, active, owner)
+        val config = SliderInput(input, values, theme, slots, active)
+        val control = this.control
         val children =
             Array<View>(values.size) {
                 index -> element(
-                    SliderThumbProps(config, index, active.value == Some(index)),
-                    { current -> SliderThumb(current) },
+                    SliderThumbProps(config, index, active.value == Some(index), control),
+                    { current, mount -> SliderThumb(current, scope = mount) },
                     key = ViewKey.Number(index)
                 )
             }
-        return element(config, { current -> SliderLayout(current) }, children)
+        return element(
+            config,
+            { current, mount -> SliderLayout(current, control, scope = mount) },
+            children
+        )
     }
 }
 
-private class SliderLayout(private val props: Props<SliderInput>): Element<SliderGeometry> {
-    private var control: SliderControl? = None
-    private var track: StylePainter? = None
-    private var fill: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
-        control = Some(SliderControl(scope, { props.value }))
-        props.value.owner.value = control
-        track = Some(scope.resource { StylePainter() })
-        fill = Some(scope.resource { StylePainter() })
-    }
+private class SliderLayout(
+    private val props: Props<SliderInput>,
+    private val control: SliderControl,
+    scope: ComponentScope
+): Element<SliderGeometry>(scope) {
+    private val track = scope.resource { StylePainter() }
+    private val fill = scope.resource { StylePainter() }
     public override fun update(): UiInvalidation {
-        control!!.update()
+        control.update()
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -102,13 +113,13 @@ private class SliderLayout(private val props: Props<SliderInput>): Element<Slide
         val input = props.value
         if (!input.props.enabled)
             context.saveLayer(input.theme.tokens.disabledOpacity)
-        track!!.scene(
+        track.scene(
             context,
             shape.track,
             sliderPartStyle(input.theme.tokens.palette.muted.background, input.props.style.track)
         ) { _ -> }
         if (shape.fill.width > 0.0 && shape.fill.height > 0.0)
-            fill!!.scene(
+            fill.scene(
                 context,
                 shape.fill,
                 sliderPartStyle(
@@ -133,16 +144,13 @@ private class SliderLayout(private val props: Props<SliderInput>): Element<Slide
             case Some(index) -> order.add(index);
             case None -> {}
         }
-        control!!.place(context, shape)
+        control.place(context, shape)
         context.children(order.toArray())
         if (!input.props.enabled)
             context.restore()
         context.onFrameComplete {
             result -> if (result.submission == FrameSubmission.Accepted)
-                control!!.accept(shape)
+                control.accept(shape)
         }
-    }
-    public override fun onUnmount() {
-        control!!.retire()
     }
 }

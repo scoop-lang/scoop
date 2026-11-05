@@ -91,7 +91,10 @@ internal class NavPanelControl(val props: Props<NavPanelInput>) {
     }
 }
 
-internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component {
+internal class NavMenuPanel(
+    private val props: Props<NavPanelInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val control = NavPanelControl(props)
     public override fun render(): View {
         val control = this.control
@@ -138,7 +141,7 @@ internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component 
                                         turn,
                                         root.orientation == FlexAxis.Vertical
                                     ),
-                                    { current -> NavChevron(current) }
+                                    { current, mount -> NavChevron(current, scope = mount) }
                                 )
                             ) { shrink = 0.0 }
                             spacing = 4.0 * d;
@@ -153,7 +156,7 @@ internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component 
                     variant = spec.variant,
                     size = spec.size
                 ),
-                { current -> Button(current) }
+                { current, mount -> Button(current, scope = mount) }
             )
         val palette = theme.tokens.palette
         val popup =
@@ -161,11 +164,11 @@ internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component 
                 control.portalOpen,
                 element(
                     PopupMotionProps(control.enabled, 0.0, minimumScale = 0.9),
-                    { current -> PopupMotion(current) },
+                    { current, mount -> PopupMotion(current, scope = mount) },
                     [
                         element(
                             control,
-                            { current -> NavPanelContent(current) },
+                            { current, mount -> NavPanelContent(current, scope = mount) },
                             [
                                 panelFrame(
                                     input.content,
@@ -228,7 +231,7 @@ internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component 
             }
         return element(
             control,
-            { current -> NavPanelEvents(current) },
+            { current, mount -> NavPanelEvents(current, scope = mount) },
             [
                 element(
                     HoverPopupLayoutProps(
@@ -238,7 +241,7 @@ internal class NavMenuPanel(private val props: Props<NavPanelInput>): Component 
                         control.hoverOptions(),
                         false
                     ),
-                    { current -> HoverPopupLayout(current) },
+                    { current, mount -> HoverPopupLayout(current, scope = mount) },
                     [trigger, popup]
                 )
             ]

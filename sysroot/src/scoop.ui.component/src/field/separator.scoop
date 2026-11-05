@@ -14,10 +14,11 @@ public class FieldSeparatorProps public constructor(
 )
 
 public class FieldSeparator public constructor(
-    private val props: Props<FieldSeparatorProps>
-): Component {
+    private val props: Props<FieldSeparatorProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -25,10 +26,22 @@ public class FieldSeparator public constructor(
         val theme = themes.read(input.theme)
         val line = SeparatorProps(color = Some(input.color ?: theme.tokens.palette.border))
         val children = ArrayList<View>()
-        children.add(component(line, { current -> Separator(current) }, ViewKey.Number(0L)))
+        children.add(
+            component(
+                line,
+                { current, mount -> Separator(current, scope = mount) },
+                ViewKey.Number(0L)
+            )
+        )
         when (input.content) {
             case Some(value) -> {
-                children.add(component(line, { current -> Separator(current) }, ViewKey.Number(1L)))
+                children.add(
+                    component(
+                        line,
+                        { current, mount -> Separator(current, scope = mount) },
+                        ViewKey.Number(1L)
+                    )
+                )
                 children.add(
                     panelSlot(
                         makeRow {
@@ -49,7 +62,7 @@ public class FieldSeparator public constructor(
         return panelFrame(
             element(
                 theme.tokens.typography.body.fontSize / 14.0,
-                { current -> FieldSeparatorLayout(current) },
+                { current, mount -> FieldSeparatorLayout(current, scope = mount) },
                 children.toArray()
             ),
             visual = input.style
@@ -57,7 +70,10 @@ public class FieldSeparator public constructor(
     }
 }
 
-private class FieldSeparatorLayout(private val props: Props<Double>): Element<Unit> {
+private class FieldSeparatorLayout(
+    private val props: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -164,7 +180,7 @@ internal fun makeFieldSeparator(
     builder.configure()
     return component(
         FieldSeparatorProps(content, builder.fonts, builder.theme, builder.color, builder.style),
-        { current -> FieldSeparator(current) },
+        { current, mount -> FieldSeparator(current, scope = mount) },
         builder.key
     )
 }

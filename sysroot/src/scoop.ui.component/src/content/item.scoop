@@ -40,40 +40,42 @@ public class ItemProps public constructor(
 )
 
 /** Action presence chooses one complete mount, just as it does for Badge. */
-public class Item public constructor(private val props: Props<ItemProps>): Component {
+public class Item public constructor(
+    private val props: Props<ItemProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value
         return when (input.onClick) {
             case Some(action) -> component(
                 ItemActionProps(input, action),
-                { current -> ItemAction(current) }
+                { current, mount -> ItemAction(current, scope = mount) }
             )
-            case None -> component(input, { current -> ItemDisplay(current) })
+            case None -> component(input, { current, mount -> ItemDisplay(current, scope = mount) })
         }
     }
 }
 
 private class ItemActionProps(val value: ItemProps, val action: () -> Unit)
 
-private class ItemAction(private val props: Props<ItemActionProps>): Component {
-    private val control = state<PressControl?>(None)
-    private val renderer = ItemRenderer()
-    public override fun onMount(scope: ComponentScope) {
-        val input = props.value.value
-        renderer.mount(scope, input.theme)
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, input.focus)
-        val press = scope.press(area, PressOptions(input.enabled)) { props.value.action() }
-        scope.routeChildren(area)
-        control.value = Some(PressControl(area, focus, press))
+private class ItemAction(
+    private val props: Props<ItemActionProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.value.enabled),
+            props.value.value.focus,
+            { props.value.action() }
+        )
+    private val renderer = ItemRenderer(scope)
+    public override fun onMount() {
+        renderer.mount(props.value.value.theme)
     }
     public override fun render(): View {
         val input = props.value
-        val interaction =
-            when (control.value) {
-                case Some(value) -> value.press.interaction
-                case None -> InteractionState()
-            }
+        val interaction = control.press.interaction
         return renderer.render(
             input.value,
             interaction,
@@ -82,10 +84,12 @@ private class ItemAction(private val props: Props<ItemActionProps>): Component {
     }
 }
 
-private class ItemDisplay(private val props: Props<ItemProps>): Component {
-    private val renderer = ItemRenderer()
-    public override fun onMount(scope: ComponentScope) {
-        renderer.mount(scope, props.value.theme)
+private class ItemDisplay(private val props: Props<ItemProps>, scope: ComponentScope): Component(
+    scope
+) {
+    private val renderer = ItemRenderer(scope)
+    public override fun onMount() {
+        renderer.mount(props.value.theme)
     }
     public override fun render(): View =
         renderer.render(props.value, InteractionState(), ActionBehavior.Passive)

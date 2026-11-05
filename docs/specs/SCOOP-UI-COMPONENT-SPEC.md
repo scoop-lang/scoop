@@ -1,6 +1,6 @@
 # Scoop 基础控件库规范
 
-2026-11-06 整改 P1：所有自绘及惰性元素沿 UI 规范的 Element<L>／LazyElement<L> 返回完整 LayoutResult<L>，scene 仅使用最终选中的布局数据。ActionInk、Frame、文字、滚动与虚拟列表等测量几何随结果保存；颜色等仅像素输入在 scene 采样。公开构造作用域与默认字体另按整改 P4 迁移，不增加兼容控件或第二套协议。当前实施状态见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
+2026-11-06 整改 P1：所有自绘及惰性元素沿 UI 规范的 Element<L>／LazyElement<L> 返回完整 LayoutResult<L>，scene 仅使用最终选中的布局数据。ActionInk、Frame、文字、滚动与虚拟列表等测量几何随结果保存；颜色等仅像素输入在 scene 采样。P4 将公开协议统一为持有构造作用域的抽象基类，并统一使用根默认字体，不增加兼容控件或第二套协议。当前实施状态见 [整改实施记录](../ui/REMEDIATION-PROGRESS.md)。
 
 日期：2026-11-04。状态：原有 Label／Button／Checkbox、Row／Column／Stack／Frame、完整主题展示及后台下载／宿主组合已完成 macOS aarch64 与 x86_64 Rosetta 验证，实际范围见 [UI 实施记录](../ui/PROGRESS.md)。新增场景协议迁移及基础交互按[本期实施记录](../ui/foundations/PROGRESS.md)分批验收。框架合同见 [UI 规范](SCOOP-UI-SPEC.md)，公共文本合同见 [文本排版规范](SCOOP-GRAPHICS-TEXT-SPEC.md)，主题绘图／几何见[主题规范](SCOOP-UI-THEME-SPEC.md)，分层与实施顺序见 [UI 设计](../ui/DESIGN.md)。
 
@@ -12,6 +12,8 @@ P2 中，内置元素的 update 按实际输入区分布局与场景变化；动
 
 P3 中，Label／Button 的便利描述入口显式比较实际显示输入：普通文字按值比较，不可变样式／StyledText 及可观察主题来源采用明确身份，段落设置按字段比较；带不透明行内 View、Custom 或 Resolved 内容时保守求值。Button builder 的默认样式是共享的不可变值，显式样式仍按原优先级处理。Button 的点击通过稳定转发入口读取当前 Props，允许只换动作时跳过 render；hover、pressed、focus 和主题 State 的独立失效仍执行，包括 Link 下划线及交互前景色。
 
+
+P4 中，Component／Element／LazyElement 均继承接收 scope 的公开抽象基类，工厂将本次 scope 交给构造器，onMount 不再接收参数。Button、选择控件、Command／Combobox 行、Sidebar 等在构造中建立必需的区域与控制器，移除仅用于 onMount 后发布资源的 State；业务状态和业务挂载通知继续保留。所有文字消费者以显式 FontCollection 优先，否则读取根默认字体，并随默认来源替换或实际 revision 更新布局。只关闭自己取得的资源，不关闭借用字体。
 
 ## 1. 定位与依赖
 
@@ -44,7 +46,7 @@ Absolute／ScrollArea／VirtualList、弹层、组内导航及 Input／Textarea 
 | VirtualList | 按需子项、固定／可变 extent、阅读锚点和按 key 定位 |
 | Frame | 单个子项的 padding、固定尺寸、对齐、背景和显式 clip |
 
-这些控件是普通的持久 Component class，构造器接收各自的 Props；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
+这些控件是普通的持久 Component 子类，构造器接收各自的 Props 和当前 ComponentScope；render 通过公开的 element 和 component 入口组织绘制元素及子控件。输入区域和布局策略可放在本库私有的 Element class 中，文本缓存复用公共 ParagraphHost；这些 class 仍只实现公开协议，不获得框架内部访问权。
 
 常用入口提供返回 View 的普通函数，保留具体组件类型并使用延迟工厂。最小调用形式为：
 
@@ -54,7 +56,7 @@ import scoop.ui.component.button
 import scoop.ui.component.column
 import scoop.ui.component.label
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
 
     public override fun render(): View =
@@ -130,11 +132,11 @@ ScrollAreaBuilder 的属性与 ScrollAreaProps 除 content 外的全部字段一
 
 Label 接受 String 加可选 SpanStyle 的便利输入，也接受公共 StyledText、字体来源、ParagraphStyle 和 `Array<InlineView>`。便利输入转换为相同的纯文本描述，不建立另一套排版路径。默认字体、字号和颜色来自当前 Theme 的公共 typography／语义参数；框架与控件库都不建立全局可变默认主题。调用方可以传入自己的字体及样式，其资源默认借用。
 
-显式组件接收 `Props<LabelProps>`。LabelProps 保存纯文本及可选 SpanStyle 覆盖，或完整 StyledText，另有可选 FontCollection、ParagraphStyle、主题来源和行内绑定；label 的 String／StyledText 重载构造相同的输入。Plain 以当前主题 TextStyle 为基础，仅覆盖明确的 SpanStyle 属性；完整 StyledText 保留调用者指定的内容模型。文字与实际已解析样式不变时保留规范化内容。字体为 None 时，挂载的 Label 自己创建一次系统 fallback 字体集合并登记到 scope；外部字体只借用，切换来源不关闭调用方资源。
+显式组件接收 `Props<LabelProps>`。LabelProps 保存纯文本及可选 SpanStyle 覆盖，或完整 StyledText，另有可选 FontCollection、ParagraphStyle、主题来源和行内绑定；label 的 String／StyledText 重载构造相同的输入。Plain 以当前主题 TextStyle 为基础，仅覆盖明确的 SpanStyle 属性；完整 StyledText 保留调用者指定的内容模型。文字与实际已解析样式不变时保留规范化内容。字体为 None 时读取 scope.defaultFonts；根统一拥有默认集合，Label 不另建 fallback 集合。外部字体只借用，切换来源不关闭调用方资源。
 
 LabelProps.baseStyle 可显式提供本轮完整 TextStyle，供 Button 等组合控件传入从当前主题解析的操作标签样式；Plain 的局部 SpanStyle 再覆盖它。显式 baseStyle 或完整 StyledText 已包含所需文字默认值时，不要求仅为排版建立环境主题来源。Button 对未明确指定子标签主题／基础样式的 Label 传入本轮 action 字体与表面文字颜色，保留标签自身 SpanStyle。
 
-Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在 onMount 中通过 ComponentScope 登记 ParagraphHost，在 measure／scene 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
+Label.render 使用 scoop.ui.text.inlineChildren 把行内对象绑定成普通 keyed children；自己的 Element 在构造时通过 ComponentScope 登记 ParagraphHost，在 measure／scene 中委托公共适配。字体混排、SpanStyle 继承和内容索引由 graphics.text 负责，Label 不复制这些算法。
 
 父约束给出有限最大宽度时按该宽度布局，无界时使用 layoutUnwrapped。最终 LayoutMetrics 的 size 遵守 Constraints，基线来自同一 TextLayout；绘制、对象放置及查询也使用这个结果，不另行估计文字宽度。换行、对齐、maxLines、ellipsis 和 Unicode 行为采用 graphics.text 合同。默认不裁剪超出外框的绘制，需要 clip 时显式包住整个文字与子项绘制作用域。
 
@@ -150,15 +152,15 @@ Label 的 settings 为 None 时通过 ParagraphHost 继承有效布局方向；�
 
 SelectableStyledTextProps／SelectableStyledText／selectableStyledText(content) 是公共 SelectableTextHost 的普通组件适配。receiver builder 提供 fonts、settings、inlines、options、focus、actions、decorations、onSelectionChanged 和 key；StyledText 保留全部样式及行内对象，通过 inlineChildren 构造相同的 keyed 子描述。它自己不复制文本选择、命中或剪贴板算法，也不持有额外编辑模型。
 
-未指定 fonts 时挂载创建一次 fallback FontCollection；外部字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
+未指定 fonts 时使用 scope.defaultFonts，并在 update 中读取当前集合；显式字体只借用。Element 的 update／measure／scene 委托同一宿主，焦点与范围动作遵守 UI 规范第 7.5.4 节。Label 继续保留原来的纯显示行为。
 
 ## 4. Button
 
-Button 的输入包括内容 View、onClick、enabled 及样式。组件在 onMount 创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
+Button 的输入包括内容 View、onClick、enabled 及样式。组件在构造时创建稳定 InputArea 并登记公共 Press，render 读取其 InteractionState 传给绘制 Element；文字入口组合 Label。scene 使用实际布局矩形或明确的 Path 放置同一个区域。
 
 ButtonProps、CheckboxProps 及便捷构造函数提供 focus: FocusOptions。所属 ComponentScope 将稳定 InputArea 登记为 FocusTarget，默认加入 Tab 顺序；外部可传 FocusHandle、tabStop、order 和 visibility。update 同步最新 focus 配置与原有 enabled，外部 handle 变更不重建区域，不复制 Surface 焦点状态。InteractionVisual.focusVisible 消费公共焦点指示；普通指针聚焦不画键盘焦点环，实际焦点与按键接收仍有效。Input／Textarea 沿 TextEditHost 的文本指示策略，局部 InteractionStyles.focused 也只按可见焦点应用。
 
-首次 Component.render 使用未交互外观；onMount 在子 Element 挂载前创建 area／focus／Press，并通过普通 State 发布这组挂载资源。后续 render 读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不能在首次 render 解引用尚未挂载的 Press。
+工厂将当前 ComponentScope 交给构造器，area／focus／Press 在首次 Component.render 前完成登记。首次和后续 render 都直接读取同一个 Press.interaction；Element.update／scene 借用已就绪资源，不再以可空 State 发布资源或额外触发一次 render。
 
 显式组件接收 `Props<ButtonProps>`，其中 content 是 ButtonContent.Label(LabelProps) 或 ButtonContent.Custom(View) 或 ButtonContent.Resolved((ActionContentStyle) -> View)，另有 onClick、enabled、ButtonStyle 和可选显式主题来源；button 提供 String、StyledText 和显式 View 入口。StyledText 允许行内绑定，Custom 内容由普通布局、图标和文字组合，所有入口共享同一个 Button／Press，不克隆 View 或合并隐藏属性。ButtonStyle 以 StyleOverride／SpanStyle 及可选尺寸／动画输入覆盖明确属性，未指定部分继续使用本轮主题；不再用一组固定默认背景颜色截断主题切换。默认点击区域为整个布局矩形，可根据主题几何与标签组合决定轮廓。
 
@@ -168,7 +170,7 @@ ButtonProps／ContentButtonBuilder 与 CheckboxProps／CheckboxBuilder 增加 in
 
 ButtonStyle 包含 SurfaceKind、SurfaceOptions、可选文字 SpanStyle、InteractionStyles 和动画覆盖。InteractionStyles 的局部覆盖在 enabled 时按 hovered、pressed、focused 的顺序组合；disabled 时只在基本样式上组合 disabled。组合使用 StyleOverride.then，仍继承本轮主题。SurfaceOptions 内的建议／最小尺寸、padding 和边框统一参与布局，实际尺寸取内容需求及主题建议／最小尺寸后再受父约束限制。
 
-Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，在 onMount 中调用 scope.routeChildren(area) 建立逻辑关系；scene 放置自己的区域并调用 children() 呈现子项。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
+Button 查询公共 SurfaceMetrics，根据标签和内缩确定布局，使用 SurfaceGeometry 的内容区域放置标签，并在 ThemePainter 的 Background／Foreground 两阶段间绘制内容。几何与绘制来自同一主题，不在控件中复制表面、焦点、阴影或滤镜实现。公共 Style 可继续装饰完整控件子树，动画采样由控件交给主题绘图。需要将子项输入纳入按钮冒泡路径时，在构造初始化中调用 scope.routeChildren(area) 建立逻辑关系；scene 放置自己的区域并调用 children() 呈现子项。控件外观变化不改变区域身份；单纯换色不重新创建组件或区域。
 
 Button 的 LayoutMetrics 将标签基线加上实际垂直放置偏移，使整个按钮可以和周围文字按基线对齐。没有对应标签基线时返回 None，不根据字号估算另一条基线。
 
@@ -232,7 +234,7 @@ import scoop.ui.component.button
 import scoop.ui.component.checkbox
 import scoop.ui.component.column
 
-class Form: Component {
+class Form(scope: ComponentScope): Component(scope) {
     private val checked: State<Boolean> = state(false)
 
     public override fun render(): View =
@@ -425,7 +427,7 @@ projection 默认为 textProjection()，copy 默认为 TextCopyPolicy.Default；
 
 Input 固定单行，Tab 导航，无修饰 Enter 调用 onSubmit。Textarea 默认四行、wrap=true、tab=Navigate、submit=PrimaryEnter；rows 为正整数，可明确选择 Insert Tab 或其他 TextSubmitKeys。编辑、Unicode 导航、组合、剪贴板、只读和候选框均委托同一 TextEditHost；不在组件内再映射原生按键或排版文字。
 
-组件 render 读取 model.inputState，并观察实际已挂载宿主的 interaction。内部只保存一个可观察的宿主挂载引用；Element 创建时登记，退休时解除对应实例，不复制 focus／hover 或另建文本订阅器。Host、字体、段落度量缓存及主题 painter 由 ComponentScope 管理；未传 fonts 时创建一次系统 fallback 字体集合，更换外部来源不关闭借用资源。
+绘制 Element 在构造时通过自己的 ComponentScope 创建 TextEditHost，保证编辑输入、滚动视口、布局失效和 scene 属于同一次挂载。组合组件在 render 中读取 model.inputState 与用于外观的交互 State；后者由宿主的真实 onInteractionChanged 通知更新，默认值不触发补渲染，也不发布宿主或作用域引用。默认字体在 render 中以显式 fonts 优先，否则读取 scope.defaultFonts；默认集合更换保留组件、宿主和编辑模型，再由 Element.update 更新外观。宿主、段落度量缓存及主题 painter 沿各自作用域释放，控件不关闭借用字体。OTP 采用相同的构造与借用合同。
 
 TextFieldStyle 包含 SurfaceOptions、正文／placeholder／description 的 SpanStyle、InteractionStyles、可选选择／非活动选择／caret／marked 颜色、caretWidth 和 ScrollbarOptions。表面使用 Theme 的 Plain 几何和 Background／Foreground 绘制阶段，padding、边框内缩及显式内容效果沿公共 Style 处理。默认选择取强调色的半透明值，caret／marked 取强调色。invalid 仅改变外观，正文合法性由业务决定：默认错误边框和状态环来自 tokens.validation，即使未聚焦也显示；description 使用 palette.destructive.background。明确的局部表面与 validation 覆盖仍优先，focus 只覆盖正常焦点外观，禁用说明使用 disabledText。没有内置验证器或提交阻断。正文区域（背景、文字、边框和状态环）整体应用 SurfaceGeometry.opacity，description 在此层之外。placeholder 始终使用 muted.foreground，再随正文区域合成；局部 placeholder 覆盖仍优先。
 

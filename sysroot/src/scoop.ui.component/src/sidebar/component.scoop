@@ -8,12 +8,15 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.component.drawer as sidebarDrawer
 
-public class Sidebar public constructor(private val props: Props<SidebarProps>): Component {
+public class Sidebar public constructor(
+    private val props: Props<SidebarProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val mobile = state(false)
     private val scroll = ScrollState()
     private val layer = OverlayHandle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun toggle() {
@@ -82,7 +85,7 @@ public class Sidebar public constructor(private val props: Props<SidebarProps>):
                 val content =
                     element(
                         SidebarPanelInput(input, theme),
-                        { value -> SidebarPanel(value) },
+                        { value, mount -> SidebarPanel(value, scope = mount) },
                         [
                             header,
                             scrollArea(body) {
@@ -97,7 +100,7 @@ public class Sidebar public constructor(private val props: Props<SidebarProps>):
                     )
                 element(
                     SidebarPaneInput(input, shown, density),
-                    { value -> SidebarPane(value) },
+                    { value, mount -> SidebarPane(value, scope = mount) },
                     [
                         sidebarGate(
                             panelFrame(content, visual = sidebarSurface(input, theme)),
@@ -130,7 +133,7 @@ public class Sidebar public constructor(private val props: Props<SidebarProps>):
                 },
                 toggle
             ),
-            { value -> SidebarHost(value) },
+            { value, mount -> SidebarHost(value, scope = mount) },
             [panel, main, sidebarRail(input, theme, toggle)]
         )
     }
@@ -177,7 +180,10 @@ internal fun sidebarTransition(input: SidebarProps, theme: Theme): AnimationSpec
 
 internal class SidebarPanelInput(val props: SidebarProps, val theme: Theme)
 
-internal class SidebarPanel(private val props: Props<SidebarPanelInput>): Element<Unit> {
+internal class SidebarPanel(
+    private val props: Props<SidebarPanelInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

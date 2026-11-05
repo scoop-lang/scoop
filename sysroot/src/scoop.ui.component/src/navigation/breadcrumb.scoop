@@ -7,9 +7,12 @@ import scoop.ui.style.*
 import scoop.ui.component.row as makeRow
 import scoop.ui.component.wrap as makeWrapped
 
-public class Breadcrumb public constructor(private val props: Props<BreadcrumbProps>): Component {
+public class Breadcrumb public constructor(
+    private val props: Props<BreadcrumbProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -23,7 +26,7 @@ public class Breadcrumb public constructor(private val props: Props<BreadcrumbPr
                     this.item(
                         component(
                             BreadcrumbRowProps(entry, index == 0L, input, theme),
-                            { current -> BreadcrumbRow(current) },
+                            { current, mount -> BreadcrumbRow(current, scope = mount) },
                             entry.key
                         )
                     ) { this.max = entry.maxWidth }
@@ -44,7 +47,10 @@ private class BreadcrumbRowProps(
     val theme: Theme
 )
 
-private class BreadcrumbRow(private val props: Props<BreadcrumbRowProps>): Component {
+private class BreadcrumbRow(
+    private val props: Props<BreadcrumbRowProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value
         val entry = input.entry
@@ -102,7 +108,7 @@ private class BreadcrumbRow(private val props: Props<BreadcrumbRowProps>): Compo
                         entry.focus,
                         variant = ButtonVariant.Ghost
                     ),
-                    { current -> Button(current) }
+                    { current, mount -> Button(current, scope = mount) }
                 )
                 case Current(content) -> actionContent(
                     navigationLabel(content, input.root.fonts),

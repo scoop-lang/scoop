@@ -64,7 +64,7 @@ internal fun makeVirtualList(
     builder.configure()
     return component(
         builder.snapshot(source, itemExtent),
-        { props -> VirtualList(props) },
+        { props, mount -> VirtualList(props, scope = mount) },
         builder.key
     )
 }

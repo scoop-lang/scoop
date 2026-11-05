@@ -11,11 +11,14 @@ import scoop.window.Utf8Selection
 
 internal val itemSelectionText = "Select this text"
 
-internal class ItemScene(private val probe: ItemProbe): Component {
+internal class ItemScene(private val probe: ItemProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val generation = probe.generation.value
         if (probe.gone)
-            return element(generation, { current -> ItemTestLayout(probe, current) })
+            return element(
+                generation,
+                { current, mount -> ItemTestLayout(probe, current, scope = mount) }
+            )
         val step = probe.step
         val text =
             typography(itemSelectionText, TypographyRole.Small) {
@@ -29,7 +32,8 @@ internal class ItemScene(private val probe: ItemProbe): Component {
                             Utf8Selection(a.byteOffset, c.byteOffset)
                     }
             }
-        val body = element(probe, { current -> ItemBodyMarker(current) }, [text])
+        val body =
+            element(probe, { current, mount -> ItemBodyMarker(current, scope = mount) }, [text])
         val active =
             item(body) {
                 this.fonts = Some(this @ItemScene.probe.fonts)
@@ -61,7 +65,11 @@ internal class ItemScene(private val probe: ItemProbe): Component {
         for (measurement in itemMeasurements(probe))
             children.add(measurement)
         return direction(
-            element(generation, { current -> ItemTestLayout(probe, current) }, children.toArray()),
+            element(
+                generation,
+                { current, mount -> ItemTestLayout(probe, current, scope = mount) },
+                children.toArray()
+            ),
             if (probe.rtl)
                 LayoutDirection.Rtl
             else
@@ -72,8 +80,9 @@ internal class ItemScene(private val probe: ItemProbe): Component {
 
 private class ItemTestLayout(
     private val probe: ItemProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -123,8 +132,10 @@ private class ItemTestLayout(
     }
 }
 
-private class ItemBodyMarker(private val props: Props<ItemProbe>): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class ItemBodyMarker(private val props: Props<ItemProbe>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         props.value.mounts += 1
         scope.onDispose { props.value.disposals += 1 }
     }

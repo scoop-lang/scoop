@@ -55,7 +55,7 @@ internal class ButtonInputProbe {
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
-                host.attach(native, { InputScene(this, active) })
+                host.attach(native, { mount -> InputScene(this, active, scope = mount) })
                 native.setVisible(true)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()

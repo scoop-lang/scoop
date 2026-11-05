@@ -87,7 +87,7 @@ internal fun measureTextField(
         else
             0.0
     val horizontal = bars && !input.options.wrap
-    val rowHeight = ink.lineHeight.measure(ink.fonts!!, value.text)
+    val rowHeight = ink.lineHeight.measure(ink.fonts, value.text)
     val naturalHeight =
         lowerBound(
             rowHeight *
@@ -127,7 +127,7 @@ internal fun measureTextField(
     val viewport = Size(content.width - right, content.height - bottom)
     if (context.childCount == 1L)
         context.placeChild(0L, Point(0.0, fieldHeight + gap))
-    val text = ink.host!!.measure(Constraints.tight(viewport))
+    val text = ink.host.measure(Constraints.tight(viewport))
     val snapshot = text.scrollSnapshot
     val drawing =
         TextFieldDrawing(

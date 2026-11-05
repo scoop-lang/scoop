@@ -102,7 +102,7 @@ internal fun <T: Equals<T>> makeAccordion(
     builder.configure()
     return component(
         builder.snapshot(AccordionSelection.Single(selected, builder.allowCollapse)),
-        { current -> Accordion(current) },
+        { current, mount -> Accordion(current, scope = mount) },
         builder.key
     )
 }
@@ -115,7 +115,7 @@ internal fun <T: Equals<T>> makeAccordion(
     builder.configure()
     return component(
         builder.snapshot(AccordionSelection.Multiple(selected)),
-        { current -> Accordion(current) },
+        { current, mount -> Accordion(current, scope = mount) },
         builder.key
     )
 }

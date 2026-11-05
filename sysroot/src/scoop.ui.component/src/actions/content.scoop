@@ -68,7 +68,7 @@ internal fun actionContent(content: ButtonContent, appearance: ActionContentStyl
                     else
                         label.underline
                 ),
-                { current -> Label(current) }
+                { current, mount -> Label(current, scope = mount) }
             )
         }
     }

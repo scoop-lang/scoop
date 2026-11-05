@@ -15,15 +15,21 @@ public class BadgeProps public constructor(
     public val focus: FocusOptions = FocusOptions()
 )
 
-public class Badge public constructor(private val props: Props<BadgeProps>): Component {
+public class Badge public constructor(
+    private val props: Props<BadgeProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value
         return when (input.onClick) {
             case Some(action) -> component(
                 BadgeActionInput(input, action),
-                { current -> BadgeAction(current) }
+                { current, mount -> BadgeAction(current, scope = mount) }
             )
-            case None -> component(input, { current -> BadgeDisplay(current) })
+            case None -> component(
+                input,
+                { current, mount -> BadgeDisplay(current, scope = mount) }
+            )
         }
     }
 }
@@ -44,26 +50,25 @@ public fun badge(
 
 private class BadgeActionInput(val value: BadgeProps, val action: () -> Unit)
 
-private class BadgeAction(private val props: Props<BadgeActionInput>): Component {
-    private val control = state<PressControl?>(None)
+private class BadgeAction(
+    private val props: Props<BadgeActionInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.value.enabled),
+            props.value.value.focus,
+            { props.value.action() }
+        )
     private val themes = ThemeAccess()
     private val text = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
-        val input = props.value.value
-        themes.mount(input.theme)
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, input.focus)
-        val press = scope.press(area, PressOptions(input.enabled)) { props.value.action() }
-        scope.routeChildren(area)
-        control.value = Some(PressControl(area, focus, press))
+    public override fun onMount() {
+        themes.mount(props.value.value.theme)
     }
     public override fun render(): View {
         val input = props.value
-        val interaction =
-            when (control.value) {
-                case Some(value) -> value.press.interaction
-                case None -> InteractionState()
-            }
+        val interaction = control.press.interaction
         return badgeContent(
             input.value,
             themes,
@@ -74,10 +79,12 @@ private class BadgeAction(private val props: Props<BadgeActionInput>): Component
     }
 }
 
-private class BadgeDisplay(private val props: Props<BadgeProps>): Component {
+private class BadgeDisplay(private val props: Props<BadgeProps>, scope: ComponentScope): Component(
+    scope
+) {
     private val themes = ThemeAccess()
     private val text = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View =
@@ -104,7 +111,7 @@ private fun badgeContent(
         )
     return element(
         ActionInkProps(theme, shape, input.variant, input.style, visual, behavior),
-        { current -> ActionInk(current) },
+        { current, mount -> ActionInk(current, scope = mount) },
         [
             actionContent(
                 input.content,

@@ -97,7 +97,7 @@ internal class StyleProbe {
                 native.requestFocus()
                 view = Some(observeWindow(native))
                 frames = Some(observeFrames(native))
-                ui = Some(host.attach(native, { StyleScene(this) }))
+                ui = Some(host.attach(native, { mount -> StyleScene(this, scope = mount) }))
                 waitFor(active, 25000L)
             }
             case AboutToWait -> advance(active)

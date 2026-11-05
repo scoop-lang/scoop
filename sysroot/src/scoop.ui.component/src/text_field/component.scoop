@@ -25,22 +25,17 @@ internal class TextFieldInput(
 )
 
 /** Shares composition while keeping the two public component identities distinct. */
-internal class TextFieldRenderer {
+internal class TextFieldRenderer(private val scope: ComponentScope) {
     private val themes = ThemeAccess()
-    private val mounted: State<TextEditHost?> = state(None)
     private val body = ActionTextStyle()
     private val hint = ActionTextStyle()
     private val description = ActionTextStyle()
-    fun mount(theme: ThemeSource?) {
-        themes.mount(theme)
-    }
+    private val visual = state(TextEditInteraction())
+    private val interactionChanged: (TextEditInteraction) -> Unit = { next -> visual.value = next }
     fun render(input: TextFieldInput): View {
         val snapshot = input.state.inputState
-        val interaction =
-            when (mounted.value) {
-                case Some(host) -> host.interaction
-                case None -> TextEditInteraction()
-            }
+        val interaction = visual.value
+        val fonts = input.fonts ?: scope.defaultFonts
         val visual =
             SurfaceVisual(
                 SurfaceKind.Plain,
@@ -89,7 +84,7 @@ internal class TextFieldRenderer {
                                     )
                                 )
                         ),
-                        { props -> Label(props) }
+                        { props, mount -> Label(props, scope = mount) }
                     )
                 ]
         return element(
@@ -100,9 +95,10 @@ internal class TextFieldRenderer {
                 textFieldOptions(input, theme, visual.interaction),
                 text,
                 placeholder,
-                mounted
+                interactionChanged,
+                fonts
             ),
-            { props -> TextFieldInk(props) },
+            { props, mount -> TextFieldInk(props, scope = mount) },
             children
         )
     }
@@ -115,5 +111,27 @@ internal class TextFieldInkProps(
     val surface: SurfaceOptions,
     val text: TextStyle,
     val placeholder: TextStyle,
-    val mounted: State<TextEditHost?>
+    val onInteractionChanged: (TextEditInteraction) -> Unit,
+    val fonts: FontCollection
 )
+
+internal fun textFieldAppearance(
+    input: TextFieldInput,
+    theme: Theme,
+    text: TextStyle,
+    placeholder: TextStyle,
+    fonts: FontCollection
+): TextEditAppearance {
+    val style = input.style
+    val palette = theme.tokens.palette
+    return TextEditAppearance(
+        fonts,
+        text,
+        placeholder,
+        style.selectionColor ?: palette.primary.background.withAlpha(0.30),
+        style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
+        style.caretColor ?: palette.primary.background,
+        style.markedColor ?: palette.primary.background,
+        style.caretWidth
+    )
+}

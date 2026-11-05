@@ -86,7 +86,7 @@ internal class LazyProbe {
                     )
                 window = Some(native)
                 frames = Some(observeFrames(native))
-                ui = Some(host.attach(native, { LazyScene(this) }))
+                ui = Some(host.attach(native, { mount -> LazyScene(this, scope = mount) }))
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

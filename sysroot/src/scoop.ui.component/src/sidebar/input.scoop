@@ -8,12 +8,19 @@ import scoop.ui.text.TextEditorState
 public fun sidebarInput(state: TextEditorState, configure: InputBuilder.() -> Unit = {}): View {
     val builder = InputBuilder();
     builder.configure()
-    return component(builder.inputProps(state), { current -> SidebarInput(current) }, builder.key)
+    return component(
+        builder.inputProps(state),
+        { current, mount -> SidebarInput(current, scope = mount) },
+        builder.key
+    )
 }
 
-public class SidebarInput public constructor(private val props: Props<InputProps>): Component {
+public class SidebarInput public constructor(
+    private val props: Props<InputProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -57,7 +64,7 @@ public class SidebarInput public constructor(private val props: Props<InputProps
                 input.group,
                 input.chrome
             ),
-            { current -> Input(current) }
+            { current, mount -> Input(current, scope = mount) }
         )
     }
 }

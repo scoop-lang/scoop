@@ -25,7 +25,7 @@ internal class CommandRows(
     public override fun build(index: Long): View =
         component(
             CommandRowProps(source.entryAt(index), input, theme, active, highlight, select),
-            { current -> CommandRow(current) }
+            { current, mount -> CommandRow(current, scope = mount) }
         )
 }
 
@@ -38,11 +38,10 @@ internal class CommandRowProps(
     val select: (ViewKey) -> Unit
 )
 
-private class CommandRow(private val props: Props<CommandRowProps>): Component {
-    private val owner = state<ComponentScope?>(None)
-    public override fun onMount(scope: ComponentScope) {
-        owner.value = Some(scope)
-    }
+private class CommandRow(
+    private val props: Props<CommandRowProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value
         val theme = input.theme
@@ -78,8 +77,8 @@ private class CommandRow(private val props: Props<CommandRowProps>): Component {
         val item = commandItem(input.entry)!!
         val active = input.active.value == Some(item.key)
         val enabled = input.input.input.enabled && item.enabled
-        val window = owner.value?.nativeWindow
-        val textDirection = (owner.value?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+        val window = Some(scope.nativeWindow)
+        val textDirection = scope.layoutDirection.textDirection()
         val body =
             commandRow {
                 when (item.icon) {
@@ -139,7 +138,7 @@ private class CommandRow(private val props: Props<CommandRowProps>): Component {
                         panelSlot(
                             element(
                                 MenuCheckProps(active, 16.0 * density, text.color),
-                                { current -> MenuCheck(current) }
+                                { current, mount -> MenuCheck(current, scope = mount) }
                             ),
                             2L
                         )
@@ -160,7 +159,7 @@ private class CommandRow(private val props: Props<CommandRowProps>): Component {
             )
         return element(
             CandidateRowInkProps(item.key, enabled, input.highlight, input.select),
-            { current -> CandidateRowInk(current) },
+            { current, mount -> CandidateRowInk(current, scope = mount) },
             [decorated]
         )
     }

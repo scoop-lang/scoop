@@ -6,7 +6,7 @@ import scoop.math.max
 import scoop.surface.InputArea
 import scoop.ui.*
 
-internal class ModalTriggerLayout: Element<Unit> {
+internal class ModalTriggerLayout(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -24,9 +24,12 @@ internal class ModalTriggerLayout: Element<Unit> {
 internal class ModalSurfaceProps(val input: ModalInput, val density: Double)
 
 /** The viewport paints the backdrop, while only the transformed panel participates in hit tests. */
-internal class ModalSurface(private val props: Props<ModalSurfaceProps>): Element<Rect> {
+internal class ModalSurface(
+    private val props: Props<ModalSurfaceProps>,
+    scope: ComponentScope
+): Element<Rect>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val target = scope.createArea()
         area = Some(target)
         scope.routeChildren(target)
@@ -163,7 +166,10 @@ internal fun modalPhysicalSide(kind: ModalKind, direction: LayoutDirection): Ove
 internal class ModalPanelProps(val density: Double, val header: Boolean, val contentPadding: Double)
 
 /** Header, body, footer and close keep stable slots across every size and visibility change. */
-internal class ModalPanel(private val props: Props<ModalPanelProps>): Element<Unit> {
+internal class ModalPanel(
+    private val props: Props<ModalPanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

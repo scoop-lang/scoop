@@ -1,6 +1,7 @@
 package scoop.ui
 
 import scoop.graphics.*
+import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
 
@@ -8,11 +9,26 @@ import scoop.window.Window
 public class ComponentScope internal constructor(private val node: MountedNode) {
     private val root: UiRoot get() = node.root
     private var active = true
+    internal var fontReads: DependencyCollector? = None
     private val managed = ArrayList<Closeable>()
     private val cleanup = ArrayList<() -> Unit>()
     private var route: InputScope? = None
     private var childRoute: InputScope? = None
     private var animationGroup: AnimationGroup? = None
+
+    /** The root owns its fallback collection; explicit application collections remain borrowed. */
+    public val defaultFonts: FontCollection get() {
+        checkMounted()
+        fontReads?.read(root.fonts.signal)
+        when (currentEvaluation()) {
+            case Some(evaluation) -> {
+                evaluation.collector?.read(root.fonts.signal)
+                evaluation.frameReads?.readDefaults(root.fonts)
+            }
+            case None -> {}
+        }
+        return root.fonts.value
+    }
 
     /** The borrowed native owner; the mount does not acquire or transfer its lifetime. */
     public val layoutDirection: LayoutDirection get() {
@@ -186,10 +202,8 @@ public class ComponentScope internal constructor(private val node: MountedNode) 
             case None -> {}
         }
         val items =
-            when (node.body) {
-                case Lazy(_, value) -> value
-                else -> throw IllegalArgumentException(Some("item focus requires a lazy element"))
-            }
+            node.lazyItems ?:
+                throw IllegalArgumentException(Some("item focus requires a lazy element"))
         val value = LazyFocus(node, viewport, items, options)
         node.lazyFocus = Some(value)
         managed.add(value)

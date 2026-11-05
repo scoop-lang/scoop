@@ -162,7 +162,7 @@ internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
                             PanelStatusIconProps(
                                 model.source.current.value.tokens.palette.background.foreground
                             ),
-                            { current -> PanelStatusIcon(current) }
+                            { current, mount -> PanelStatusIcon(current, scope = mount) }
                         )
                     )
                     this.action(panelActions(model, fonts))
@@ -190,7 +190,7 @@ internal fun alertExamples(model: GalleryModel, fonts: FontCollection): View =
                         model.source.current.value.tokens.palette.destructive.background,
                         true
                     ),
-                    { current -> PanelStatusIcon(current) }
+                    { current, mount -> PanelStatusIcon(current, scope = mount) }
                 )
             )
         }
@@ -224,7 +224,7 @@ internal fun emptyExamples(model: GalleryModel, fonts: FontCollection): View =
                     this.media(
                         element(
                             model.source.current.value.tokens.palette.background.foreground,
-                            { current -> PanelPlus(current) }
+                            { current, mount -> PanelPlus(current, scope = mount) }
                         )
                     )
                     this.mediaVariant =
@@ -308,7 +308,9 @@ internal fun separatorExamples(fonts: FontCollection): View =
         this.alignment = CrossAlignment.Stretch
     }
 
-private class PanelPlus(private val props: Props<Color>): Element<Unit> {
+private class PanelPlus(private val props: Props<Color>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)
@@ -331,7 +333,10 @@ private class PanelPlus(private val props: Props<Color>): Element<Unit> {
 
 internal struct PanelStatusIconProps(val color: Color, val warning: Boolean = false)
 
-internal class PanelStatusIcon(private val props: Props<PanelStatusIconProps>): Element<Unit> {
+internal class PanelStatusIcon(
+    private val props: Props<PanelStatusIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(16.0, 16.0))), Unit)

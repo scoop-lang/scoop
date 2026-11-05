@@ -9,7 +9,7 @@ internal class SwitchInkProps(
     val input: SwitchProps,
     val theme: Theme,
     val checked: Boolean,
-    val control: State<PressControl?>,
+    val control: PressControl,
     val visual: InteractionVisual,
     val activate: () -> Unit
 )
@@ -22,8 +22,9 @@ internal class SwitchDrawing(
     val hit: Rect
 )
 
-internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit> {
-    private var scope: ComponentScope? = None
+internal class SwitchInk(private val props: Props<SwitchInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var previousMetrics: SurfaceMetrics? = None
     private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
@@ -32,9 +33,8 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit
     private var thumb: StylePainter? = None
     private var content: StylePainter? = None
     private var field: FieldLink? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-        val control = props.value.control.value!!
+    public override fun onMount() {
+        val control = props.value.control
         field = Some(scope.resource { FieldLink(scope, control.area, control.focus) })
         painters = Some(scope.resource { ThemePainterCache() })
         thumb = Some(scope.resource { StylePainter() })
@@ -52,7 +52,7 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit
     }
     public override fun update(): UiInvalidation {
         val value = props.value
-        val control = value.control.value!!
+        val control = value.control
         control.press.update(PressOptions(value.input.enabled, false), value.activate)
         control.area.scope.enabled = value.input.enabled
         control.focus.options = value.input.focus
@@ -88,7 +88,7 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit
                     else
                         0.0
                 ),
-                scope!!.layoutDirection
+                scope.layoutDirection
             )
         val changed = previousMetrics != Some(metrics) || !sameTheme(previousTheme, value.theme)
         previousMetrics = Some(metrics)
@@ -174,6 +174,6 @@ internal class SwitchInk(private val props: Props<SwitchInkProps>): Element<Unit
         }
         if (value.surface.opacity < 1.0)
             context.restore()
-        context.place(props.value.control.value!!.area, value.hit)
+        context.place(props.value.control.area, value.hit)
     }
 }

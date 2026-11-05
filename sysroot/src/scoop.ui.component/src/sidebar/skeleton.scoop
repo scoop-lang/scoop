@@ -34,16 +34,17 @@ public fun sidebarMenuSkeleton(configure: SidebarSkeletonBuilder.() -> Unit = {}
     b.configure()
     return component(
         SidebarSkeletonProps(b.showIcon, b.collapsed, b.textFraction, b.theme, b.style),
-        { current -> SidebarSkeleton(current) },
+        { current, mount -> SidebarSkeleton(current, scope = mount) },
         b.key
     )
 }
 
 public class SidebarSkeleton public constructor(
-    private val props: Props<SidebarSkeletonProps>
-): Component {
+    private val props: Props<SidebarSkeletonProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -53,7 +54,7 @@ public class SidebarSkeleton public constructor(
         return panelFrame(
             element(
                 SidebarSkeletonInput(input, d),
-                { value -> SidebarSkeletonLayout(value) },
+                { value, mount -> SidebarSkeletonLayout(value, scope = mount) },
                 [
                     skeleton {
                         width = Some(16.0 * d);
@@ -73,7 +74,10 @@ public class SidebarSkeleton public constructor(
 
 private class SidebarSkeletonInput(val props: SidebarSkeletonProps, val density: Double)
 
-private class SidebarSkeletonLayout(private val props: Props<SidebarSkeletonInput>): Element<Unit> {
+private class SidebarSkeletonLayout(
+    private val props: Props<SidebarSkeletonInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

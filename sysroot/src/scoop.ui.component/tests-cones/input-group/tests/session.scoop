@@ -126,7 +126,7 @@ internal class GroupProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
-                host.attach(window, { GroupScene(this) })
+                host.attach(window, { mount -> GroupScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

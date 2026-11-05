@@ -8,7 +8,9 @@ import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.window.*
 
-internal class OverlayScene(private val probe: OverlayProbe): Component {
+internal class OverlayScene(private val probe: OverlayProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = probe.generation.value
         val main =
@@ -48,7 +50,7 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
                 probe.omitAnchor,
                 probe.discardHidden
             ),
-            { props -> OverlayCanvas(probe, props) },
+            { props, mount -> OverlayCanvas(probe, props, scope = mount) },
             children.toArray()
         )
     }
@@ -63,7 +65,11 @@ internal class OverlayScene(private val probe: OverlayProbe): Component {
     ): View =
         portal(
             probe.open[index].binding(),
-            element(LayerInput(index, handle), { props -> OverlayBox(probe, props) }, children)
+            element(
+                LayerInput(index, handle),
+                { props, mount -> OverlayBox(probe, props, scope = mount) },
+                children
+            )
         ) {
             this.options {
                 this.placement =
@@ -97,10 +103,11 @@ private struct CanvasInput(
 
 private class OverlayCanvas(
     private val probe: OverlayProbe,
-    private val props: Props<CanvasInput>
-): Element<Unit> {
+    private val props: Props<CanvasInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.rootScope = Some(scope)
         probe.anchorBinding = Some(scope.layoutAnchor(probe.anchor))
         assertFailsWith<IllegalArgumentException> { scope.layoutAnchor(probe.anchor) }
@@ -190,11 +197,12 @@ private struct LayerInput(val index: Long, val handle: OverlayHandle)
 
 private class OverlayBox(
     private val probe: OverlayProbe,
-    private val props: Props<LayerInput>
-): Element<Unit> {
+    private val props: Props<LayerInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var measuredAt = -1
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val index = props.value.index
         probe.mounts[index] += 1
         if (index == 0L)

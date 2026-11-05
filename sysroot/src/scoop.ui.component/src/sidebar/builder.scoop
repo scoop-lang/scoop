@@ -103,5 +103,9 @@ private fun makeSidebar(
 ): View {
     val builder = SidebarBuilder();
     builder.configure()
-    return component(builder.snapshot(open, content), { current -> Sidebar(current) }, builder.key)
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Sidebar(current, scope = mount) },
+        builder.key
+    )
 }

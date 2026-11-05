@@ -10,7 +10,7 @@ import scoop.ui.component.radioGroup as makeRadioGroup
 import scoop.ui.component.toggleGroup as makeToggleGroup
 import scoop.ui.style.*
 
-internal class ChoiceScene(private val p: ChoiceProbe): Component {
+internal class ChoiceScene(private val p: ChoiceProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val probe = p
         val generation = probe.generation.value
@@ -68,7 +68,15 @@ internal class ChoiceScene(private val p: ChoiceProbe): Component {
                                         }
                                     component(
                                         view,
-                                        { current -> RadioWitness(probe, index, current) }
+                                        {
+                                            current,
+                                            mount -> RadioWitness(
+                                                probe,
+                                                index,
+                                                current,
+                                                scope = mount
+                                            )
+                                        }
                                     )
                                 }
                         }
@@ -142,7 +150,11 @@ internal class ChoiceScene(private val p: ChoiceProbe): Component {
             )
         }
         return direction(
-            element(generation, { current -> ChoiceLayout(probe, current) }, children.toArray()),
+            element(
+                generation,
+                { current, mount -> ChoiceLayout(probe, current, scope = mount) },
+                children.toArray()
+            ),
             if (probe.rtl)
                 LayoutDirection.Rtl
             else
@@ -154,9 +166,10 @@ internal class ChoiceScene(private val p: ChoiceProbe): Component {
 private class RadioWitness(
     private val p: ChoiceProbe,
     private val index: Long,
-    private val props: Props<View>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<View>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         p.mounts[index] += 1
     }
     public override fun render(): View = props.value
@@ -165,10 +178,12 @@ private class RadioWitness(
     }
 }
 
-private class ChoiceLayout(private val p: ChoiceProbe, private val generation: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class ChoiceLayout(
+    private val p: ChoiceProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         assertFailsWith<IllegalArgumentException> {
             scope.keyNavigation(NavigationOptions([], preferredTab = Some(FocusHandle())))
         }

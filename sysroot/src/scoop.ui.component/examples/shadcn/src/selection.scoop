@@ -226,9 +226,12 @@ internal fun toggleExamples(model: SelectionExamplesModel, fonts: FontCollection
     }
 
 internal fun visibilityIcon(appearance: ActionContentStyle): View =
-    element(appearance, { current -> VisibilityIcon(current) })
+    element(appearance, { current, mount -> VisibilityIcon(current, scope = mount) })
 
-private class VisibilityIcon(private val props: Props<ActionContentStyle>): Element<Unit> {
+private class VisibilityIcon(
+    private val props: Props<ActionContentStyle>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =

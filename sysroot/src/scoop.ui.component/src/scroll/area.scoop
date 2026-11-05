@@ -30,17 +30,20 @@ public class ScrollAreaProps public constructor(
 )
 
 /** Keeps explicit content mounted while moving its scene inside one viewport clip. */
-public class ScrollArea public constructor(private val props: Props<ScrollAreaProps>): Component {
+public class ScrollArea public constructor(
+    private val props: Props<ScrollAreaProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val local = ScrollState()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
         val input = props.value
         return element(
             ScrollAreaInkProps(input, input.state ?: local, themes.read(input.theme)),
-            { value -> ScrollAreaInk(value) },
+            { value, mount -> ScrollAreaInk(value, scope = mount) },
             [input.content]
         )
     }

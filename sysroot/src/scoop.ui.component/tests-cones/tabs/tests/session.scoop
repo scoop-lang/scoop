@@ -104,7 +104,7 @@ internal class TabsProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
-                host.attach(window, { TabsScene(this) })
+                host.attach(window, { mount -> TabsScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

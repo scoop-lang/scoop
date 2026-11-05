@@ -25,11 +25,12 @@ public class AccordionProps<T: Equals<T>> public constructor(
 }
 
 public class Accordion<T: Equals<T>> public constructor(
-    private val props: Props<AccordionProps<T>>
-): Component {
+    private val props: Props<AccordionProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val handles = ChoiceHandles()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -119,7 +120,7 @@ public class Accordion<T: Equals<T>> public constructor(
                             input.fonts,
                             input.theme
                         ),
-                        { current -> Collapsible(current) }
+                        { current, mount -> Collapsible(current, scope = mount) }
                     ),
                     padding =
                         if (input.variant == AccordionVariant.Card)

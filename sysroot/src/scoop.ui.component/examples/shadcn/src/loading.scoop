@@ -39,7 +39,9 @@ internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View 
         }
         this.scrollArea(
             makeColumn {
-                this.skeleton(component({ LoadedSkeletonCard(model, fonts) })) {
+                this.skeleton(
+                    component({ mount -> LoadedSkeletonCard(model, fonts, scope = mount) })
+                ) {
                     this.loading = model.skeletonLoading.value
                     this.animated = model.skeletonAnimated.value
                     this.width = Some(model.loadingExtent.value)
@@ -92,10 +94,11 @@ internal fun skeletonExamples(model: GalleryModel, fonts: FontCollection): View 
 
 private class LoadedSkeletonCard(
     private val model: GalleryModel,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     private val count = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         model.skeletonCreates += 1
     }
     public override fun render(): View =

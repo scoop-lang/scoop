@@ -6,11 +6,11 @@ import scoop.surface.InputArea
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class CarouselOwner {
+internal class CarouselOwner(initialIndex: Long) {
     var group: InputArea? = None
     val key = state<ViewKey?>(None)
     val snapshot = state(CarouselSnapshot())
-    var fallback = 0L
+    var fallback = initialIndex
     var control: CarouselControl? = None
 }
 
@@ -24,15 +24,17 @@ internal class CarouselInput(
     val items = Array<CarouselItemOwner>(keys.size) { _ -> CarouselItemOwner() }
 }
 
-public class Carousel public constructor(private val props: Props<CarouselProps>): Component {
+public class Carousel public constructor(
+    private val props: Props<CarouselProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    private val owner = CarouselOwner()
+    private val owner = CarouselOwner(props.value.initialIndex)
     private var source: ItemSource? = None
     private var keys: Array<ViewKey> = []
     private var content: Array<View> = []
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme);
-        owner.fallback = props.value.initialIndex
     }
     public override fun render(): View {
         val value = props.value
@@ -64,7 +66,7 @@ public class Carousel public constructor(private val props: Props<CarouselProps>
             Array<View>(keys.size) {
                 index -> element(
                     input.items[index],
-                    { current -> CarouselItemLayout(current) },
+                    { current, mount -> CarouselItemLayout(current, scope = mount) },
                     [content[index]],
                     key = keys[index]
                 )
@@ -72,11 +74,11 @@ public class Carousel public constructor(private val props: Props<CarouselProps>
         val state = owner.snapshot.value
         return element(
             input,
-            { current -> CarouselLayout(current) },
+            { current, mount -> CarouselLayout(current, scope = mount) },
             [
                 element(
                     input,
-                    { current -> CarouselViewport(current) },
+                    { current, mount -> CarouselViewport(current, scope = mount) },
                     items,
                     key = ViewKey.Text("viewport")
                 ),
@@ -129,7 +131,7 @@ private fun carouselButton(input: CarouselInput, next: Boolean, available: Boole
             variant = ButtonVariant.Outline,
             size = ButtonSize.IconSm
         ),
-        { current -> Button(current) },
+        { current, mount -> Button(current, scope = mount) },
         key =
             ViewKey.Text(
                 if (next)
@@ -140,9 +142,12 @@ private fun carouselButton(input: CarouselInput, next: Boolean, available: Boole
     )
 }
 
-private class CarouselLayout(private val props: Props<CarouselInput>): Element<Unit> {
+private class CarouselLayout(
+    private val props: Props<CarouselInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
         val owner = props.value.owner
         val area = scope.createArea { _, _ -> owner.control?.refreshAutoplay() }

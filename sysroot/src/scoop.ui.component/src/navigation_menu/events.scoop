@@ -5,8 +5,11 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class NavPanelEvents(private val props: Props<NavPanelControl>): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+internal class NavPanelEvents(
+    private val props: Props<NavPanelControl>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context, event ->
@@ -54,10 +57,13 @@ internal class NavPanelEvents(private val props: Props<NavPanelControl>): Elemen
 }
 
 /** Focus and hover share the same real subtree; no extra focusable surface is introduced. */
-internal class NavPanelContent(private val props: Props<NavPanelControl>): Element<Unit> {
+internal class NavPanelContent(
+    private val props: Props<NavPanelControl>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var focus: FocusScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val area = scope.createArea()
         this.area = Some(area);
         scope.routeChildren(area)

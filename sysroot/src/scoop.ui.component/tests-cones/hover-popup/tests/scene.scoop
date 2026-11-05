@@ -7,7 +7,9 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.button as makeButton
 
-internal class HoverPopupScene(private val p: HoverPopupProbe): Component {
+internal class HoverPopupScene(private val p: HoverPopupProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -35,7 +37,7 @@ internal class HoverPopupScene(private val p: HoverPopupProbe): Component {
                 fonts = Some(p.fonts)
                 focus = FocusOptions(Some(p.trigger))
             }
-        val body = component({ HoverPopupBody(p) })
+        val body = component({ mount -> HoverPopupBody(p, scope = mount) })
         val popup =
             if (!p.mounted.value)
                 empty()
@@ -82,7 +84,7 @@ internal class HoverPopupScene(private val p: HoverPopupProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> HoverPopupRoot(p, current) },
+                { current, mount -> HoverPopupRoot(p, current, scope = mount) },
                 [
                     popup,
                     button("After", {}) {
@@ -99,9 +101,11 @@ internal class HoverPopupScene(private val p: HoverPopupProbe): Component {
     }
 }
 
-private class HoverPopupBody(private val p: HoverPopupProbe): Component {
+private class HoverPopupBody(private val p: HoverPopupProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val local = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -124,7 +128,7 @@ private class HoverPopupBody(private val p: HoverPopupProbe): Component {
             }
             add(
                 element(
-                    { HoverPopupObservation(p) },
+                    { mount -> HoverPopupObservation(p, scope = mount) },
                     [
                         makeButton(
                             f"Local ${local.value}",
@@ -147,7 +151,9 @@ private class HoverPopupBody(private val p: HoverPopupProbe): Component {
 
 private class SubmittedBounds(var value: Rect)
 
-private class HoverPopupObservation(private val p: HoverPopupProbe): Element<Unit> {
+private class HoverPopupObservation(private val p: HoverPopupProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -181,8 +187,9 @@ private class HoverPopupObservation(private val p: HoverPopupProbe): Element<Uni
 
 private class HoverPopupRoot(
     private val p: HoverPopupProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

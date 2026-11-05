@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.text.*
 import scoop.window.*
 
-internal class OtpScene(private val probe: OtpProbe): Component {
+internal class OtpScene(private val probe: OtpProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val generation = probe.generation.value
         val parts: Array<InputOtpPart> =
@@ -61,15 +61,19 @@ internal class OtpScene(private val probe: OtpProbe): Component {
                     component(
                         input,
                         {
-                            current ->
+                            current, mount ->
                             probe.mounts += 1;
-                            InputOtp(current)
+                            InputOtp(current, scope = mount)
                         }
                     ),
                     inputOtp(probe.model, 4L) { this.fonts = Some(this @OtpScene.probe.fonts) }
                 ]
         return direction(
-            element(generation, { current -> OtpTestLayout(probe, current) }, children),
+            element(
+                generation,
+                { current, mount -> OtpTestLayout(probe, current, scope = mount) },
+                children
+            ),
             if (probe.rtl)
                 LayoutDirection.Rtl
             else
@@ -80,12 +84,10 @@ internal class OtpScene(private val probe: OtpProbe): Component {
 
 private class OtpTestLayout(
     private val probe: OtpProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-    }
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {}
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -128,7 +130,7 @@ private class OtpTestLayout(
             } else {
                 assertTrue(discarded);
                 probe.discarded += 1;
-                scope!!.requestFrame()
+                scope.requestFrame()
             }
         }
     }

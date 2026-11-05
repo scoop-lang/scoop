@@ -7,10 +7,11 @@ import scoop.ui.style.*
 import scoop.ui.style.Theme
 
 public class NavigationMenuLink public constructor(
-    private val props: Props<NavigationMenuLinkProps>
-): Component {
+    private val props: Props<NavigationMenuLinkProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.button.theme)
     }
     public override fun render(): View {
@@ -31,7 +32,7 @@ public class NavigationMenuLink public constructor(
                 button.group,
                 button.labelTarget
             ),
-            { current -> Button(current) }
+            { current, mount -> Button(current, scope = mount) }
         )
     }
 }

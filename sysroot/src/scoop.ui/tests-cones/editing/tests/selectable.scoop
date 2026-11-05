@@ -41,10 +41,15 @@ private class SelectionTestInput(
 internal fun selectableTestView(probe: EditProbe): View {
     val test = probe.displayTest
     val inlines =
-        [inlineView(InlineKey.Text("badge"), element(0, { _ -> SelectableInline(probe) }))]
+        [
+            inlineView(
+                InlineKey.Text("badge"),
+                element(0, { _, mount -> SelectableInline(probe, scope = mount) })
+            )
+        ]
     return element(
         SelectionTestInput(test.content, inlines, test.maxLines, test.action, test.short),
-        { props -> SelectableTestElement(probe, props) },
+        { props, mount -> SelectableTestElement(probe, props, scope = mount) },
         inlineChildren(test.content, inlines),
         key = ViewKey.Text("selectable")
     )
@@ -52,10 +57,11 @@ internal fun selectableTestView(probe: EditProbe): View {
 
 private class SelectableTestElement(
     private val probe: EditProbe,
-    private val props: Props<SelectionTestInput>
-): Element<ParagraphMeasurement> {
+    private val props: Props<SelectionTestInput>,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private var host: SelectableTextHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = scope.resource { SelectableTextHost(scope, probe.fonts, props.value.content) }
         host = Some(value)
         probe.displayTest.host = Some(value)
@@ -117,9 +123,11 @@ private class SelectableTestElement(
     }
 }
 
-private class SelectableInline(private val probe: EditProbe): Element<Unit> {
+private class SelectableInline(private val probe: EditProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val value = scope.createArea(focusable = true)
         area = Some(value)
         probe.displayTest.inlineArea = Some(value)

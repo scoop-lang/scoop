@@ -6,11 +6,12 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 public class Combobox<T: Equals<T>> public constructor(
-    private val props: Props<ComboboxProps<T>>
-): Component {
-    private val control = ComboboxControl(props)
-    public override fun onMount(scope: ComponentScope) {
-        control.mount(scope)
+    private val props: Props<ComboboxProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control = ComboboxControl(props, scope)
+    public override fun onMount() {
+        control.mount()
     }
     public override fun render(): View {
         val control = this.control
@@ -46,7 +47,7 @@ public class Combobox<T: Equals<T>> public constructor(
                 ),
                 element(
                     PopupMotionProps(input.mutable, 8.0 * d),
-                    { current -> PopupMotion(current) },
+                    { current, mount -> PopupMotion(current, scope = mount) },
                     [comboPopup(control, source, theme)]
                 )
             ) {
@@ -93,8 +94,14 @@ public class Combobox<T: Equals<T>> public constructor(
                 { key -> control.select(key) },
                 navigationEnabled = control.open.value
             ),
-            { current -> CandidateNavigation(current) },
-            [element(control, { current -> ComboboxRoot(current) }, [field, popup])]
+            { current, mount -> CandidateNavigation(current, scope = mount) },
+            [
+                element(
+                    control,
+                    { current, mount -> ComboboxRoot(current, scope = mount) },
+                    [field, popup]
+                )
+            ]
         )
     }
 }

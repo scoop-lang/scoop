@@ -6,7 +6,10 @@ import scoop.ui.*
 internal class TabsLayoutProps(val axis: FlexAxis, val spacing: Double)
 
 /** Axis changes keep the list and panels under the same two logical parents. */
-internal class TabsLayout(private val props: Props<TabsLayoutProps>): Element<Boolean> {
+internal class TabsLayout(
+    private val props: Props<TabsLayoutProps>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean
     > {
@@ -67,7 +70,9 @@ internal class TabsLayout(private val props: Props<TabsLayoutProps>): Element<Bo
     }
 }
 
-internal class TabPanels(private val selected: Props<Long?>): Element<Unit> {
+internal class TabPanels(private val selected: Props<Long?>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

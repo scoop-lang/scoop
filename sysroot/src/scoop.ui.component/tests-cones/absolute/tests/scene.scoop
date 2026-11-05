@@ -10,12 +10,14 @@ import scoop.ui.component.*
 import scoop.ui.style.Insets
 import scoop.window.*
 
-internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
+internal class AbsoluteScene(private val probe: AbsoluteProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = probe.generation.value
         return element(
             generation,
-            { props -> AbsoluteCanvas(probe, props) },
+            { props, mount -> AbsoluteCanvas(probe, props, scope = mount) },
             [
                 absolute {
                     this.item(this @AbsoluteScene.box(0L)) {
@@ -46,15 +48,20 @@ internal class AbsoluteScene(private val probe: AbsoluteProbe): Component {
         )
     }
     private fun box(index: Long): View =
-        element(index, { props -> AbsoluteBox(probe, props) }, key = ViewKey.Number(index))
+        element(
+            index,
+            { props, mount -> AbsoluteBox(probe, props, scope = mount) },
+            key = ViewKey.Number(index)
+        )
 }
 
 private class AbsoluteBox(
     private val probe: AbsoluteProbe,
-    private val props: Props<Long>
-): Element<Unit> {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val index = props.value
         probe.mounts[index] += 1
         val region =
@@ -92,8 +99,9 @@ private class AbsoluteBox(
 
 private class AbsoluteCanvas(
     private val probe: AbsoluteProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

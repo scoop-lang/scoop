@@ -92,7 +92,7 @@ internal class DrawingProbe {
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
                 view = Some(observeWindow(native))
-                uiWindow = Some(host.attach(native, { DrawingScene(this) }))
+                uiWindow = Some(host.attach(native, { mount -> DrawingScene(this, scope = mount) }))
                 waitFor(application, 30000L)
             }
             case AboutToWait -> advance(application)
@@ -187,7 +187,7 @@ internal class DrawingProbe {
             case Unplaced -> {
                 if (!lastPlaced) {
                     assertEquals(unplacedPaints, leaf!!.paints)
-                    assertTrue(leaf!!.scope!!.isMounted)
+                    assertTrue(leaf!!.scope.isMounted)
                     assertFalse(leaf!!.area!!.hasFocus)
                     assertFalse(leaf!!.area!!.requestFocus())
                     assertFalse(leaf!!.path!!.isClosed)
@@ -228,7 +228,7 @@ internal class DrawingProbe {
                         application.proxy().post {
                             active ->
                             assertFalse(leaf!!.area!!.scope.enabled)
-                            assertTrue(leaf!!.scope!!.isMounted)
+                            assertTrue(leaf!!.scope.isMounted)
                             val before = paints
                             closeOnUpdate.value = true
                             assertTrue(

@@ -6,8 +6,10 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class ResizableHandle(private val props: Props<ResizablePanelInput>): Element<Unit> {
-    private var scope: ComponentScope? = None
+internal class ResizableHandle(
+    private val props: Props<ResizablePanelInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     private var drag: Drag? = None
@@ -27,8 +29,7 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
             threshold = props.value.root.props.dragThreshold,
             enabled = enabled()
         )
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
         focus =
             Some(
@@ -69,27 +70,27 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
     }
     private fun receiveDrag(event: DragEvent) {
         props.value.root.owner.control!!.handle(props.value.index, drag!!, focus!!, event)
-        if (scope!!.isMounted) {
+        if (scope.isMounted) {
             refreshCursor()
-            scope!!.requestFrame()
+            scope.requestFrame()
         }
     }
     private fun notify(context: RoutedEventContext, event: InputEvent) {
-        if (context.phase != RoutedPhase.Notification || !scope!!.isMounted)
+        if (context.phase != RoutedPhase.Notification || !scope.isMounted)
             return
         when (event) {
             case FocusChanged(false) -> props.value.root.owner.control!!.lostFocus(props.value.key)
             else -> {}
         }
-        if (!scope!!.isMounted)
+        if (!scope.isMounted)
             return
         refreshCursor()
-        scope!!.requestFrame()
+        scope.requestFrame()
     }
     private fun refreshCursor() {
         val active = enabled() && (area!!.scope.isHovered || (drag?.isDragging ?: false))
         if (active) {
-            scope!!.nativeWindow.setCursorIcon(
+            scope.nativeWindow.setCursorIcon(
                 if (props.value.root.props.orientation == Orientation.Horizontal)
                     CursorIcon.ResizeHorizontal
                 else
@@ -98,24 +99,24 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
             ownsCursor = true
         } else
             if (ownsCursor) {
-                scope!!.nativeWindow.setCursorIcon(CursorIcon.Default)
+                scope.nativeWindow.setCursorIcon(CursorIcon.Default)
                 ownsCursor = false
             }
     }
     public override fun update(): UiInvalidation {
         val input = props.value
         focus!!.options = resizableHandle(input.root.props, input.index).focus
-        if (!scope!!.isMounted)
+        if (!scope.isMounted)
             return UiInvalidation.Layout
         area!!.scope.enabled = enabled()
-        if (!scope!!.isMounted)
+        if (!scope.isMounted)
             return UiInvalidation.Layout
         drag!!.update(
             options(),
             { _ -> props.value.root.owner.control!!.available(props.value.index) },
             { event -> receiveDrag(event) }
         )
-        if (!scope!!.isMounted)
+        if (!scope.isMounted)
             return UiInvalidation.Layout
         painters!!.get(input.root.theme)
         refreshCursor()
@@ -195,7 +196,7 @@ internal class ResizableHandle(private val props: Props<ResizablePanelInput>): E
     }
     public override fun onUnmount() {
         props.value.root.owner.control!!.lostFocus(props.value.key)
-        if (ownsCursor && scope!!.isMounted)
-            scope!!.nativeWindow.setCursorIcon(CursorIcon.Default)
+        if (ownsCursor && scope.isMounted)
+            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
     }
 }

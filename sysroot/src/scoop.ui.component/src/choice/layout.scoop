@@ -26,7 +26,7 @@ internal fun choiceLayout(
                 index -> FlexItem(
                     element(
                         slots[index],
-                        { current -> GroupSlotInk(current) },
+                        { current, mount -> GroupSlotInk(current, scope = mount) },
                         [children[index]],
                         keys[index]
                     )
@@ -50,11 +50,11 @@ internal fun choiceLayout(
     return styled(
         element(
             ChoiceNavigationProps(options, enabled),
-            { current -> ChoiceNavigation(current) },
+            { current, mount -> ChoiceNavigation(current, scope = mount) },
             [
                 element(
                     GroupLayoutProps(layout, axis, slots, fitCross),
-                    { current -> GroupLayout(current) },
+                    { current, mount -> GroupLayout(current, scope = mount) },
                     layout.children
                 )
             ]
@@ -64,15 +64,16 @@ internal fun choiceLayout(
 
 private class ChoiceNavigationProps(val navigation: NavigationOptions, val enabled: Boolean)
 
-private class ChoiceNavigation(private val props: Props<ChoiceNavigationProps>): Element<Unit> {
+private class ChoiceNavigation(
+    private val props: Props<ChoiceNavigationProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var navigation: KeyNavigation? = None
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         navigation = Some(scope.keyNavigation(props.value.navigation))
     }
     public override fun update(): UiInvalidation {
-        scope!!.input.enabled = props.value.enabled
+        scope.input.enabled = props.value.enabled
         navigation!!.options = props.value.navigation
         return UiInvalidation.Layout
     }

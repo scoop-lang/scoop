@@ -76,8 +76,9 @@ private class TabsTest {
         val body =
             component(
                 {
+                    mount ->
                     mounts.value += 1;
-                    TabsTestBody()
+                    TabsTestBody(scope = mount)
                 }
             )
         val builder = TabsBuilder<Int>()
@@ -143,6 +144,6 @@ private class TabsTest {
     }
 }
 
-private class TabsTestBody: Component {
+private class TabsTestBody(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }

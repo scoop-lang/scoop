@@ -29,15 +29,15 @@ internal class LazyFailureSource(private val record: FailureRecord): ItemSource 
     public override fun build(index: Long): View {
         if (index == 1L && record.mode == FailureMode.LazyBuild)
             throw record.primary
-        return element({ LazyFailureItem(record, index) })
+        return element({ mount -> LazyFailureItem(record, index, scope = mount) })
     }
 }
 
-internal class LazyFailureContainer(private val record: FailureRecord): LazyElement<Unit> {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-    }
+internal class LazyFailureContainer(
+    private val record: FailureRecord,
+    scope: ComponentScope
+): LazyElement<Unit>(scope) {
+    public override fun onMount() {}
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
@@ -59,20 +59,24 @@ internal class LazyFailureContainer(private val record: FailureRecord): LazyElem
                 frame -> if (frame.submission == FrameSubmission.Accepted) {
                     assertTrue(record.lazyItems[0L].area!!.requestFocus())
                     record.lazySkip = true
-                    scope!!.requestLayout()
+                    scope.requestLayout()
                 }
             }
     }
 }
 
-internal class LazyFailureItem(private val record: FailureRecord, val index: Long): Element<Unit> {
+internal class LazyFailureItem(
+    private val record: FailureRecord,
+    val index: Long,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     var area: InputArea? = None
     var unmounts = 0
     private var resource: FailureImage? = None
     init {
         record.lazyItems.add(this)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         resource = Some(scope.resource { FailureImage(record, "lazy " + index.toString()) })
         area = Some(scope.createArea(focusable = true))
         if (index == 1L && record.mode == FailureMode.LazyMount)

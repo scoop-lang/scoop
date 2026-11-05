@@ -67,7 +67,7 @@ internal fun panelCaption(
                     input.baseStyle,
                 input.underline
             ),
-            { current -> Label(current) }
+            { current, mount -> Label(current, scope = mount) }
         )
     }
 

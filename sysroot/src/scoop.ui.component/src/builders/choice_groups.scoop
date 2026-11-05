@@ -75,7 +75,11 @@ internal fun <T: Equals<T>> makeRadioGroup(
 ): View {
     val builder = RadioGroupBuilder<T>()
     builder.configure()
-    return component(builder.snapshot(selected), { current -> RadioGroup(current) }, builder.key)
+    return component(
+        builder.snapshot(selected),
+        { current, mount -> RadioGroup(current, scope = mount) },
+        builder.key
+    )
 }
 
 public class ToggleGroupItemBuilder internal constructor() {
@@ -150,5 +154,9 @@ internal fun <T: Equals<T>> makeToggleGroup(
 ): View {
     val builder = ToggleGroupBuilder<T>()
     builder.configure()
-    return component(builder.snapshot(selected), { current -> ToggleGroup(current) }, builder.key)
+    return component(
+        builder.snapshot(selected),
+        { current, mount -> ToggleGroup(current, scope = mount) },
+        builder.key
+    )
 }

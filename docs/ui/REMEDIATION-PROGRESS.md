@@ -77,3 +77,16 @@
 29 个变更 Scoop 文件格式与相关静态检查通过，预编译 UI、style、四套主题及 component 已对齐。UI 普通测试 100 项、component 普通测试 162 项，以及 9 个实窗 Cone 全部通过：新增输入复用和 Button 回调／Link 悬停回归，既有 Lazy、方向、描述身份、错误清理、控件交互、Sidebar 和 Select。
 
 组合测试直接验证稳定登记身份、切换后仅移除失效关系和卸载后的引用清除；实窗覆盖 256 个共享 State 观察者、父子同轮更新、独立后代更新、同引用可变输入、Binding 换绑、规则替换、方向、children 重排和 Lazy source 替换。Button 仅换回调时没有新增布局阶段的主题尺寸查询，实际点击调用新动作；Link 悬停像素变化并正确恢复。新旧主题探针区分 measure 与 scene，保留场景几何对应绘制次数的精确断言及原有像素、焦点、资源与停帧检查。本批未改变场景查询策略，未重复无关平台或全量 fixture 验收。
+
+## P4：构造作用域与默认字体
+
+状态：已完成，2026-11-06；macOS aarch64 release。
+
+- Component／Element／LazyElement 改为持有 ComponentScope 的公开抽象基类，全部工厂接收本次 scope。输入区域、控制器和显示资源可以在构造中登记，onMount 保留为无参数的业务挂载通知；移除仅为挂载后发布 scope／control 而存在的 State。
+- 实际实例保存单次挂载归属，删除全局 ActiveInstances 表；重复返回同一个实例、返回其他作用域的实例，以及卸载后再次返回均在实例自身拒绝。构造失败释放已经取得的资源，不调用尚未完成挂载的业务卸载通知，原始错误与清理错误均保留。
+- UiHost.attach／runUiApplication 接受可选默认字体，UiWindow.defaultFonts 可以替换；ComponentScope.defaultFonts 供实际消费者读取。默认集合由根统一拥有，外部集合只借用；替换默认值及字体 revision 只使实际依赖者更新，显式覆盖保持独立。旧的自有 fallback 在后代资源退休后关闭。
+- Label、可选择文字、Input／Textarea／OTP 和已有组件／示例统一消费根默认字体。TextEditHost 在实际呈现的 Element 构造中取得，保留视口、输入和布局失效的同一归属；组合组件只通过真实交互通知保存外观值，不发布宿主引用或为默认交互值补渲染。
+
+359 个 Scoop 文件格式检查通过，UI、style、四套主题及 component 已重建对齐。受影响的 63 个 Cone 静态检查通过，其中 58 个调用方 Cone 包含 61 项生产／测试入口检查。UI 普通测试 100 项、component 普通测试 162 项通过；20 个相关实窗 Cone 已闭合，涵盖新增挂载／字体、错误清理与实例拒绝，既有描述、Lazy、编辑、控件交互、选择组、菜单、OTP、Command／Combobox／Select、Sidebar、Slider、Disclosure、Tabs、Carousel、Drawer 和帧复用。
+
+挂载测试包含 64 个 Component、64 个 Element 和 64 个 LazyElement，首轮只执行各自所需 render，193 个计数资源各释放一次，并验证构造期 LazyFocus。字体测试覆盖两个借用窗口、根来源替换、集合 revision、显式覆盖及持有布局的释放顺序。编辑回归检出并闭合一次宿主放在外层 Component 导致 ScrollViewport 归属错误的问题；修正后原生编辑、焦点、滚动、IME、隐藏恢复与纯绘制帧的断言均通过。未重建编译器、下载外部依赖或运行其他平台／全量 fixture。

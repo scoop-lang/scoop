@@ -63,12 +63,15 @@ internal class HoverPopupLayoutProps(
     val closeOnPress: Boolean
 )
 
-internal class HoverPopupLayout(private val props: Props<HoverPopupLayoutProps>): Element<Unit> {
+internal class HoverPopupLayout(
+    private val props: Props<HoverPopupLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var hover: Hover? = None
     private val space = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Space)))
     private val enter = ShortcutChord(ShortcutKey.Logical(LogicalKey.Named(NamedKey.Enter)))
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = props.value
         val target = scope.createArea()
         area = Some(target)
@@ -135,10 +138,13 @@ internal class HoverPopupContentProps(
 )
 
 /** Keeps hover geometry live while a tooltip's complete content input subtree is disabled. */
-internal class HoverPopupContent(private val props: Props<HoverPopupContentProps>): Element<Unit> {
+internal class HoverPopupContent(
+    private val props: Props<HoverPopupContentProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var gate: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val hit = scope.createArea()
         val route = scope.createArea(parent = Some(hit))
         route.ignoreSelf = true

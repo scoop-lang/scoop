@@ -12,8 +12,9 @@ import scoop.ui.style.*
 
 internal class Gallery(
     private val model: GalleryModel,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val palette = model.source.current.value.tokens.palette
         val entries = model.entries()
@@ -178,17 +179,20 @@ internal class Gallery(
             case Spinner -> spinnerExamples(model, fonts)
             case Card -> cardExamples(model, fonts)
             case Separator -> separatorExamples(fonts)
-            case AspectRatio -> component({ AspectExamples(fonts) })
+            case AspectRatio -> component({ mount -> AspectExamples(fonts, scope = mount) })
             case Alert -> alertExamples(model, fonts)
             case Empty -> emptyExamples(model, fonts)
-            case Avatar -> component({ AvatarExamples(model, fonts) })
+            case Avatar -> component({ mount -> AvatarExamples(model, fonts, scope = mount) })
             case Skeleton -> skeletonExamples(model, fonts)
             case Progress -> progressExamples(model, fonts)
             case Typography -> typographyExamples(model, fonts)
-            case Kbd -> component({ KbdExamples(model, fonts) })
+            case Kbd -> component({ mount -> KbdExamples(model, fonts, scope = mount) })
             case Label -> fieldLabelExamples(model.fields, fonts)
             case ButtonGroup -> buttonGroupExamples(model.groups, fonts)
-            case Item -> component(model.items, { _ -> ItemExamples(model.items, fonts) })
+            case Item -> component(
+                model.items,
+                { _, mount -> ItemExamples(model.items, fonts, scope = mount) }
+            )
             case Switch -> switchExamples(model, fonts)
             case Toggle -> toggleExamples(model.selection, fonts)
             case InputOtp -> otpExamples(model.otp, fonts)

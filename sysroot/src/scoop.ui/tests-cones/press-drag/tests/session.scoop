@@ -125,7 +125,7 @@ internal class GestureProbe {
                     )
                 window = Some(native)
                 view = Some(observeWindow(native))
-                host.attach(native, { GestureRoot(this) })
+                host.attach(native, { mount -> GestureRoot(this, scope = mount) })
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

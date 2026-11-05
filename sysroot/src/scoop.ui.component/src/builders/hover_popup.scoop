@@ -120,7 +120,7 @@ internal fun makeTooltip(
     builder.configure()
     return component(
         builder.snapshot(trigger, content),
-        { current -> Tooltip(current) },
+        { current, mount -> Tooltip(current, scope = mount) },
         builder.key
     )
 }
@@ -140,7 +140,7 @@ internal fun makeHoverCard(
     builder.configure()
     return component(
         builder.snapshot(trigger, content),
-        { current -> HoverCard(current) },
+        { current, mount -> HoverCard(current, scope = mount) },
         builder.key
     )
 }

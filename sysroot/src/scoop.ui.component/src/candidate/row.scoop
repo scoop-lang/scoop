@@ -12,10 +12,13 @@ internal class CandidateRowInkProps(
     val select: (ViewKey) -> Unit
 )
 
-internal class CandidateRowInk(private val props: Props<CandidateRowInkProps>): Element<Unit> {
+internal class CandidateRowInk(
+    private val props: Props<CandidateRowInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var press: Press? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val area = scope.createArea(focusable = false)
         this.area = Some(area)
         scope.routeChildren(area)

@@ -21,12 +21,13 @@ public class KbdProps public constructor(
     public val grouped: Boolean = false
 )
 
-public class Kbd public constructor(private val props: Props<KbdProps>): Component {
+public class Kbd public constructor(
+    private val props: Props<KbdProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    private val window = state<Window?>(None)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
-        window.value = Some(scope.nativeWindow)
     }
     public override fun render(): View {
         val input = props.value
@@ -47,7 +48,7 @@ public class Kbd public constructor(private val props: Props<KbdProps>): Compone
             }.then(input.style)
         val label =
             when (input.content) {
-                case Chord(value) -> when (window.value) {
+                case Chord(value) -> when (Some(scope.nativeWindow)) {
                     case Some(native) -> Some(native.shortcutLabel(value))
                     case None -> return empty()
                 }
@@ -114,13 +115,15 @@ private fun kbdCap(
     style: StyleOverride,
     key: ViewKey = ViewKey.Position
 ): View =
-    frame(element(density, { current -> KbdSize(current) }, [content])) {
+    frame(element(density, { current, mount -> KbdSize(current, scope = mount) }, [content])) {
         this.padding = Some(Insets())
         this.style = style
         this.key = key
     }
 
-private class KbdSize(private val density: Props<Double>): Element<Unit> {
+private class KbdSize(private val density: Props<Double>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -194,7 +197,11 @@ internal fun makeKbd(
 ): View {
     val builder = KbdBuilder()
     builder.configure()
-    return component(builder.snapshot(content, grouped), { current -> Kbd(current) }, builder.key)
+    return component(
+        builder.snapshot(content, grouped),
+        { current, mount -> Kbd(current, scope = mount) },
+        builder.key
+    )
 }
 
 public class KbdGroupBuilder internal constructor(): ChildrenBuilder() {

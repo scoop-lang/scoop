@@ -73,7 +73,11 @@ internal class RowRecord(probe: RetentionProbe, val id: Long) {
     }
 }
 
-internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowInput>): Component {
+internal class RetainedRow(
+    probe: RetentionProbe,
+    private val props: Props<RowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = RowRecord(probe, props.value.id)
     private val innerSource = MiniSource(record)
     public override fun render(): View {
@@ -81,11 +85,14 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
         record.observed = record.local.value
         record.renders += 1
         return element(
-            { RowPanel() },
+            { mount -> RowPanel(scope = mount) },
             [
-                element({ RowInk(record) }),
+                element({ mount -> RowInk(record, scope = mount) }),
                 if (record.openModal.value)
-                    portal(record.openModal.binding(), element({ DialogInk(record) })) {
+                    portal(
+                        record.openModal.binding(),
+                        element({ mount -> DialogInk(record, scope = mount) })
+                    ) {
                         this.options {
                             this.handle = Some(this @RetainedRow.record.overlay)
                             this.mode = OverlayMode.Modal
@@ -95,14 +102,14 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
                 else
                     empty(),
                 if (record.extra.value)
-                    element({ ExtraInk(record) })
+                    element({ mount -> ExtraInk(record, scope = mount) })
                 else
                     empty(),
                 if (record.id == 0L)
                     lazyElement(
                         innerSource,
                         record.innerIndex.value,
-                        { input -> MiniList(input) },
+                        { input, mount -> MiniList(input, scope = mount) },
                         retention = ItemRetention.KeepAlive(1L)
                     )
                 else
@@ -110,7 +117,7 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
             ]
         )
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mount(scope)
     }
     public override fun onUnmount() {
@@ -118,7 +125,7 @@ internal class RetainedRow(probe: RetentionProbe, private val props: Props<RowIn
     }
 }
 
-private class RowPanel: Element<Unit> {
+private class RowPanel(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -137,7 +144,7 @@ private class RowPanel: Element<Unit> {
     }
 }
 
-private class RowInk(private val record: RowRecord): Element<Unit> {
+private class RowInk(private val record: RowRecord, scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(record.measure(constraints), Unit)
@@ -146,11 +153,13 @@ private class RowInk(private val record: RowRecord): Element<Unit> {
     }
 }
 
-internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowInput>): Element<
-    Unit
-> {
+internal class AlternateRow(
+    probe: RetentionProbe,
+    private val props: Props<RowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private val record = RowRecord(probe, props.value.id)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mount(scope)
     }
     public override fun update(): UiInvalidation {
@@ -168,7 +177,9 @@ internal class AlternateRow(probe: RetentionProbe, private val props: Props<RowI
     }
 }
 
-private class DialogInk(private val record: RowRecord): Element<Unit> {
+private class DialogInk(private val record: RowRecord, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(80.0, 60.0))), Unit)

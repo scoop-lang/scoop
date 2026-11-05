@@ -6,10 +6,12 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class DrawerSurface(private val props: Props<DrawerInput>): Element<DrawerGeometry> {
+internal class DrawerSurface(private val props: Props<DrawerInput>, scope: ComponentScope): Element<
+    DrawerGeometry
+>(scope) {
     private var control: DrawerControl? = None
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val current = DrawerControl(scope, { props.value })
         control = Some(current);
         props.value.owner.control = Some(current)
@@ -211,9 +213,12 @@ internal class DrawerSurface(private val props: Props<DrawerInput>): Element<Dra
     }
 }
 
-internal class DrawerBodyMarker(private val props: Props<DrawerOwner>): Element<Unit> {
+internal class DrawerBodyMarker(
+    private val props: Props<DrawerOwner>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val current = scope.createArea();
         area = Some(current)
         props.value.bodyArea = Some(current);

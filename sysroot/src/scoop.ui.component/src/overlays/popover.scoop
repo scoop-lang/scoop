@@ -8,13 +8,16 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.component.column as popupColumn
 
-public class Popover public constructor(private val props: Props<PopoverProps>): Component {
+public class Popover public constructor(
+    private val props: Props<PopoverProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val anchor = LayoutAnchor()
     private val localHandle = OverlayHandle()
     private val themes = ThemeAccess()
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun setOpen(value: Boolean) {
@@ -109,7 +112,7 @@ public class Popover public constructor(private val props: Props<PopoverProps>):
                         variant = value.variant,
                         size = value.size
                     ),
-                    { current -> Button(current) }
+                    { current, mount -> Button(current, scope = mount) }
                 )
                 case None -> empty()
             }
@@ -132,7 +135,7 @@ public class Popover public constructor(private val props: Props<PopoverProps>):
                             input.style.background.resolve(Some(Paint(palette.popover.background)))
                         )
                     ),
-                    { current -> PopupMotion(current) },
+                    { current, mount -> PopupMotion(current, scope = mount) },
                     [panel]
                 )
             ) {
@@ -154,7 +157,7 @@ public class Popover public constructor(private val props: Props<PopoverProps>):
                 onCloseRequest = { reason -> inputs.value.onCloseRequest(reason) }
                 onClosed = { reason -> inputs.value.onClosed(reason) }
             }
-        return element({ PopoverLayout(localAnchor) }, [trigger, popup])
+        return element({ mount -> PopoverLayout(localAnchor, scope = mount) }, [trigger, popup])
     }
 }
 

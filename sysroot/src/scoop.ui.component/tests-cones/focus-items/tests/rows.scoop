@@ -16,12 +16,16 @@ internal class FocusRowRecord(val id: Long) {
     var disposals = 0
 }
 
-internal class FocusRow(probe: ItemFocusProbe, private val props: Props<FocusRowInput>): Component {
+internal class FocusRow(
+    probe: ItemFocusProbe,
+    private val props: Props<FocusRowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = FocusRowRecord(props.value.id)
     init {
         probe.rows.add(record)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounts += 1
         scope.onDispose { record.disposals += 1 }
         if (record.id != 5L)
@@ -34,7 +38,10 @@ internal class FocusRow(probe: ItemFocusProbe, private val props: Props<FocusRow
     }
     public override fun render(): View {
         record.index = props.value.index
-        return element(props.value.height, { height -> FocusRowInk(record, height) })
+        return element(
+            props.value.height,
+            { height, mount -> FocusRowInk(record, height, scope = mount) }
+        )
     }
     public override fun onUnmount() {
         record.unmounts += 1
@@ -48,8 +55,9 @@ internal class FocusRow(probe: ItemFocusProbe, private val props: Props<FocusRow
 
 private class FocusRowInk(
     private val record: FocusRowRecord,
-    private val height: Props<Double>
-): Element<Unit> {
+    private val height: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(Size(160.0, height.value))), Unit)

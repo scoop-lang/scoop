@@ -14,7 +14,7 @@ import scoop.ui.component.drawer as makeDrawer
 import scoop.ui.component.input as makeInput
 import scoop.ui.component.label as makeLabel
 
-internal class DrawerScene(private val p: DrawerProbe): Component {
+internal class DrawerScene(private val p: DrawerProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val revision = p.generation.value
@@ -30,7 +30,7 @@ internal class DrawerScene(private val p: DrawerProbe): Component {
                                 p.open.value = next
                         }
                     ),
-                    component({ DrawerBody(p) })
+                    component({ mount -> DrawerBody(p, scope = mount) })
                 ) {
                     trigger("Open drawer") { focus = FocusOptions(Some(p.trigger)) }
                     header(observeDrawer(p, 0, label("Drawer header") { fonts = Some(p.fonts) }))
@@ -92,7 +92,7 @@ internal class DrawerScene(private val p: DrawerProbe): Component {
         return direction(
             element(
                 revision,
-                { current -> DrawerRoot(p, current) },
+                { current, mount -> DrawerRoot(p, current, scope = mount) },
                 [
                     makeButton("Background", {}) {
                         fonts = Some(p.fonts);
@@ -109,8 +109,8 @@ internal class DrawerScene(private val p: DrawerProbe): Component {
     }
 }
 
-private class DrawerBody(private val p: DrawerProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class DrawerBody(private val p: DrawerProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -138,7 +138,10 @@ private class DrawerBody(private val p: DrawerProbe): Component {
                 )
             )
             add(
-                makeDrawer(p.nestedOpen.binding(), component({ DrawerNestedBody(p) })) {
+                makeDrawer(
+                    p.nestedOpen.binding(),
+                    component({ mount -> DrawerNestedBody(p, scope = mount) })
+                ) {
                     title("Nested");
                     fonts = Some(p.fonts);
                     height = Some(300.0)
@@ -177,8 +180,10 @@ private class DrawerBody(private val p: DrawerProbe): Component {
     }
 }
 
-private class DrawerNestedBody(private val p: DrawerProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class DrawerNestedBody(private val p: DrawerProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -196,16 +201,18 @@ private class DrawerNestedBody(private val p: DrawerProbe): Component {
 private fun observeDrawer(p: DrawerProbe, slot: Int, content: View): View =
     element(
         slot,
-        { current -> DrawerObservation(p, current) },
+        { current, mount -> DrawerObservation(p, current, scope = mount) },
         [content],
         ViewKey.Number(slot.toLong())
     )
 
 private class DrawerCapture(var bounds: Rect, var ring: Boolean = false)
 
-private class DrawerObservation(private val p: DrawerProbe, private val slot: Props<Int>): Element<
-    Unit
-> {
+private class DrawerObservation(
+    private val p: DrawerProbe,
+    private val slot: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -251,10 +258,12 @@ private class DrawerObservation(private val p: DrawerProbe, private val slot: Pr
     }
 }
 
-private class DrawerRoot(private val p: DrawerProbe, private val revision: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class DrawerRoot(
+    private val p: DrawerProbe,
+    private val revision: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,

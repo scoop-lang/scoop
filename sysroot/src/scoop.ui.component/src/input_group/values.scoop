@@ -101,5 +101,9 @@ public fun inputGroup(configure: InputGroupBuilder.() -> Unit): View = makeInput
 internal fun makeInputGroup(configure: InputGroupBuilder.() -> Unit): View {
     val builder = InputGroupBuilder()
     builder.configure()
-    return component(builder.snapshot(), { current -> InputGroup(current) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { current, mount -> InputGroup(current, scope = mount) },
+        builder.key
+    )
 }

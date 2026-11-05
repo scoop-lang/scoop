@@ -108,7 +108,7 @@ private class FeedbackProbe {
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { FeedbackScene(this) })
+                host.attach(window, { mount -> FeedbackScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active, 100L)
             }
@@ -311,8 +311,10 @@ private fun feedbackChannel(pixel: Long, channel: Int): Int =
             256L
     ).toInt()
 
-private class FeedbackScene(private val probe: FeedbackProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class FeedbackScene(private val probe: FeedbackProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
         scope.resource { scope.input.observePointer { event -> probe.pointer(event) } }
     }
     public override fun render(): View {
@@ -347,7 +349,7 @@ private class FeedbackScene(private val probe: FeedbackProbe): Component {
             ]
         return element(
             probe.generation.value,
-            { current -> FeedbackCanvas(probe, current) },
+            { current, mount -> FeedbackCanvas(probe, current, scope = mount) },
             children
         )
     }
@@ -355,8 +357,9 @@ private class FeedbackScene(private val probe: FeedbackProbe): Component {
 
 private class FeedbackCanvas(
     private val probe: FeedbackProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

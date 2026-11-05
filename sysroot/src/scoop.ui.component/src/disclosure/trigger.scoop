@@ -58,7 +58,7 @@ internal fun disclosureTrigger(
                                     appearance.iconSize,
                                     appearance.text.color
                                 ),
-                                { current -> DisclosureArrow(current) }
+                                { current, mount -> DisclosureArrow(current, scope = mount) }
                             )
                         )
                     this.spacing = appearance.spacing
@@ -72,7 +72,7 @@ internal fun disclosureTrigger(
             input.focus,
             variant = input.variant
         ),
-        { current -> Button(current) }
+        { current, mount -> Button(current, scope = mount) }
     )
 
 private class DisclosureArrowProps(
@@ -82,9 +82,12 @@ private class DisclosureArrowProps(
     val color: Color
 )
 
-private class DisclosureArrow(private val props: Props<DisclosureArrowProps>): Element<Unit> {
+private class DisclosureArrow(
+    private val props: Props<DisclosureArrowProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var outline: Path? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         // Lucide chevron-down (ISC), using its original 24-unit path; see LICENSE-LUCIDE.
         outline =
             Some(

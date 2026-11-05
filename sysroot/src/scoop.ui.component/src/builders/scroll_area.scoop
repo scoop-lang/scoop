@@ -55,5 +55,9 @@ public class ScrollAreaBuilder internal constructor() {
 internal fun makeScrollArea(content: View, configure: ScrollAreaBuilder.() -> Unit): View {
     val builder = ScrollAreaBuilder()
     builder.configure()
-    return component(builder.snapshot(content), { props -> ScrollArea(props) }, builder.key)
+    return component(
+        builder.snapshot(content),
+        { props, mount -> ScrollArea(props, scope = mount) },
+        builder.key
+    )
 }

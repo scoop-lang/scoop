@@ -84,4 +84,4 @@ internal fun makeContentToggle(
 }
 
 private fun toggleView(input: ToggleProps, key: ViewKey): View =
-    component(input, { current -> Toggle(current) }, key)
+    component(input, { current, mount -> Toggle(current, scope = mount) }, key)

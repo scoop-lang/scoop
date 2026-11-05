@@ -50,7 +50,7 @@ internal class DescriptionReuseProbe {
                                     this.visible = false
                                 }
                             ),
-                            { DescriptionReuseScene(this) }
+                            { mount -> DescriptionReuseScene(this, scope = mount) }
                         )
                     )
                 post(application)
@@ -144,7 +144,10 @@ internal class DescriptionReuseProbe {
     }
 }
 
-private class DescriptionReuseScene(private val probe: DescriptionReuseProbe): Component {
+private class DescriptionReuseScene(
+    private val probe: DescriptionReuseProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val version = probe.version.value
         val mode = probe.mode.value
@@ -155,7 +158,7 @@ private class DescriptionReuseScene(private val probe: DescriptionReuseProbe): C
             for (id in 6L ..< 9L)
                 children.add(child(id, ViewKey.Position, mode, version))
         }
-        return element({ ReuseLayout() }, children.toArray())
+        return element({ mount -> ReuseLayout(scope = mount) }, children.toArray())
     }
     private fun child(id: Long, key: ViewKey, mode: Int, version: Int): View =
         when (mode) {
@@ -191,8 +194,10 @@ private fun <P, A, B> reuseChild(
         case 0L -> component(
             input,
             {
-                props -> ReuseComponent<A, B>(
-                    records.create(id, input.version, { props.value.version })
+                props,
+                mount -> ReuseComponent<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
                 )
             },
             key
@@ -200,8 +205,10 @@ private fun <P, A, B> reuseChild(
         case 1L -> element(
             input,
             {
-                props -> ReuseElement<A, B>(
-                    records.create(id, input.version, { props.value.version })
+                props,
+                mount -> ReuseElement<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
                 )
             },
             key = key
@@ -210,7 +217,11 @@ private fun <P, A, B> reuseChild(
             ReuseEmptyItems(),
             input,
             {
-                props -> ReuseLazy<A, B>(records.create(id, input.version, { props.value.version }))
+                props,
+                mount -> ReuseLazy<A, B>(
+                    records.create(id, input.version, { props.value.version }),
+                    scope = mount
+                )
             },
             key = key
         )

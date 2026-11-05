@@ -6,17 +6,19 @@ import scoop.surface.*
 import scoop.time.Duration
 import scoop.ui.*
 
-internal class SidebarRow(private val props: Props<SidebarRowInput>): Element<Double> {
-    private var scope: ComponentScope? = None
+internal class SidebarRow(
+    private val props: Props<SidebarRowInput>,
+    scope: ComponentScope
+): Element<Double>(scope) {
     private var area: InputArea? = None
     private var hover: Hover? = None
     private fun open(): Binding<Boolean> =
         binding(
             { props.value.space.highlighted },
             {
-                value -> if (scope!!.isMounted && props.value.space.highlighted != value) {
+                value -> if (scope.isMounted && props.value.space.highlighted != value) {
                     props.value.space.highlighted = value;
-                    scope!!.requestFrame()
+                    scope.requestFrame()
                 }
             }
         )
@@ -32,8 +34,7 @@ internal class SidebarRow(private val props: Props<SidebarRowInput>): Element<Do
                     props.value.input.item.actionOnHover &&
                     !props.value.input.menu.collapsed
         )
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         area = Some(scope.createArea());
         area!!.ignoreSelf = true;
         scope.routeChildren(area!!)
@@ -90,7 +91,10 @@ internal class SidebarRow(private val props: Props<SidebarRowInput>): Element<Do
     }
 }
 
-internal class SidebarCaption(private val props: Props<SidebarRowInput>): Element<Unit> {
+internal class SidebarCaption(
+    private val props: Props<SidebarRowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -194,7 +198,10 @@ internal class SidebarCaption(private val props: Props<SidebarRowInput>): Elemen
     }
 }
 
-internal class SidebarActionVisibility(private val props: Props<SidebarRowInput>): Element<Unit> {
+internal class SidebarActionVisibility(
+    private val props: Props<SidebarRowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

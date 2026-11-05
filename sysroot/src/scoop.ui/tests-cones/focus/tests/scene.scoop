@@ -6,8 +6,8 @@ import scoop.test.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class FocusScene(private val probe: FocusProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+internal class FocusScene(private val probe: FocusProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         probe.rootScope =
             Some(scope.focusScope(FocusScopeOptions(defaultFocus = Some(probe.handles[3L]))))
         assertTrue(probe.rootScope!!.requestFocus())
@@ -46,7 +46,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
         views.add(
             element(
                 PanelProps(true, revision),
-                { props -> FocusPanel(probe, props) },
+                { props, mount -> FocusPanel(probe, props, scope = mount) },
                 [cell(2L), cell(3L)],
                 ViewKey.Text("group")
             )
@@ -58,7 +58,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
         views.add(cell(7L))
         return element(
             PanelProps(false, revision),
-            { props -> FocusPanel(probe, props) },
+            { props, mount -> FocusPanel(probe, props, scope = mount) },
             views.toArray()
         )
     }
@@ -83,7 +83,7 @@ internal class FocusScene(private val probe: FocusProbe): Component {
                 index != 6L || probe.showHidden,
                 index == 7L
             ),
-            { props -> FocusCell(probe, props) },
+            { props, mount -> FocusCell(probe, props, scope = mount) },
             key = ViewKey.Number(index)
         )
 }
@@ -98,11 +98,12 @@ private class CellProps(
 
 private class FocusCell(
     private val probe: FocusProbe,
-    private val props: Props<CellProps>
-): Element<Unit> {
+    private val props: Props<CellProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val input = props.value
         probe.mounts[input.index] += 1
         val region = scope.createArea(focusable = true)
@@ -163,9 +164,10 @@ private class PanelProps(val group: Boolean, val revision: Int)
 
 private class FocusPanel(
     private val probe: FocusProbe,
-    private val props: Props<PanelProps>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<PanelProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         if (props.value.group)
             probe.group = Some(scope.focusScope())
         else

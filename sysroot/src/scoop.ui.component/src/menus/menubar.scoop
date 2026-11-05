@@ -33,11 +33,14 @@ public class MenubarProps public constructor(
     }
 }
 
-public class Menubar public constructor(private val props: Props<MenubarProps>): Component {
+public class Menubar public constructor(
+    private val props: Props<MenubarProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val storage = ChoiceHandles()
     private var handles: Array<FocusHandle> = []
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.options.theme)
     }
     private fun setOpen(key: ViewKey?) {
@@ -156,7 +159,7 @@ public class Menubar public constructor(private val props: Props<MenubarProps>):
                                     select(key, FocusOrigin.Pointer)
                             }
                     ),
-                    { current -> MenubarMenu(current) }
+                    { current, mount -> MenubarMenu(current, scope = mount) }
                 )
             }
         val visual =
@@ -220,10 +223,13 @@ private fun menubarEnabled(input: MenubarProps, key: ViewKey): Boolean {
     return false
 }
 
-private class MenubarMenu(private val props: Props<MenuRootInput>): Component {
-    private val root = MenuRoot({ props.value })
-    public override fun onMount(scope: ComponentScope) {
-        root.mount(scope)
+private class MenubarMenu(
+    private val props: Props<MenuRootInput>,
+    scope: ComponentScope
+): Component(scope) {
+    private val root = MenuRoot(scope, { props.value })
+    public override fun onMount() {
+        root.mount()
     }
     public override fun render(): View = root.render()
 }
@@ -271,5 +277,9 @@ public fun menubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit
 internal fun makeMenubar(open: Binding<ViewKey?>, configure: MenubarBuilder.() -> Unit): View {
     val builder = MenubarBuilder()
     builder.configure()
-    return component(builder.snapshot(open), { current -> Menubar(current) }, builder.key)
+    return component(
+        builder.snapshot(open),
+        { current, mount -> Menubar(current, scope = mount) },
+        builder.key
+    )
 }

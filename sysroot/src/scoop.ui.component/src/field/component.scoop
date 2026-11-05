@@ -14,9 +14,12 @@ internal class FieldLayoutProps(
     val parts: Array<FieldPart>
 )
 
-public class Field public constructor(private val props: Props<FieldProps>): Component {
+public class Field public constructor(
+    private val props: Props<FieldProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -52,7 +55,7 @@ public class Field public constructor(private val props: Props<FieldProps>): Com
                 panelSlot(
                     component(
                         FieldErrorProps(errors, input.error, input.fonts, input.theme),
-                        { current -> FieldError(current) }
+                        { current, mount -> FieldError(current, scope = mount) }
                     ),
                     3L
                 )
@@ -66,7 +69,7 @@ public class Field public constructor(private val props: Props<FieldProps>): Com
                     theme.tokens.typography.body.fontSize / 14.0,
                     parts.toArray()
                 ),
-                { current -> FieldLayout(current) },
+                { current, mount -> FieldLayout(current, scope = mount) },
                 children.toArray()
             ),
             input.padding,
@@ -100,7 +103,7 @@ private fun fieldHeading(input: FieldProps, theme: Theme): View {
                                     }
                                 )
                             ),
-                            { current -> FieldLabel(current) }
+                            { current, mount -> FieldLabel(current, scope = mount) }
                         )
                     }
                 this.add(panelSlot(view, 0L))

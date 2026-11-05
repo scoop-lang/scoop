@@ -117,7 +117,7 @@ internal class FieldLabelProbe {
                     )
                 foreign = Some(other)
                 other.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(other, { ForeignField(this) })
+                host.attach(other, { mount -> ForeignField(this, scope = mount) })
                 val window =
                     active.createWindow(
                         windowAttributes {
@@ -130,7 +130,7 @@ internal class FieldLabelProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
-                host.attach(window, { FieldLabelScene(this) })
+                host.attach(window, { mount -> FieldLabelScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }
@@ -323,10 +323,12 @@ internal class FieldLabelProbe {
     }
 }
 
-private class ForeignField(private val probe: FieldLabelProbe): Component {
+private class ForeignField(private val probe: FieldLabelProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
         element(
-            { ForeignFieldReady(probe) },
+            { mount -> ForeignFieldReady(probe, scope = mount) },
             [
                 checkbox(probe.foreignChecked.binding()) {
                     this.labelTarget = Some(this @ForeignField.probe.foreignTarget)

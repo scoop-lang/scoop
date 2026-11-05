@@ -10,15 +10,19 @@ import scoop.window.setCursorIcon
 private class SidebarRailInput(val props: SidebarProps, val theme: Theme, val toggle: () -> Unit)
 
 internal fun sidebarRail(input: SidebarProps, theme: Theme, toggle: () -> Unit): View =
-    element(SidebarRailInput(input, theme, toggle), { current -> SidebarRail(current) })
+    element(
+        SidebarRailInput(input, theme, toggle),
+        { current, mount -> SidebarRail(current, scope = mount) }
+    )
 
-private class SidebarRail(private val props: Props<SidebarRailInput>): Element<Unit> {
-    private var scope: ComponentScope? = None
+private class SidebarRail(
+    private val props: Props<SidebarRailInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var press: Press? = None
     private var cursor = false
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         area =
             Some(
                 scope.createArea {
@@ -39,7 +43,7 @@ private class SidebarRail(private val props: Props<SidebarRailInput>): Element<U
     private fun refreshCursor() {
         val hover = props.value.props.enabled && area!!.scope.isHovered
         if (hover != cursor) {
-            scope!!.nativeWindow.setCursorIcon(
+            scope.nativeWindow.setCursorIcon(
                 if (hover)
                     CursorIcon.ResizeHorizontal
                 else
@@ -76,7 +80,7 @@ private class SidebarRail(private val props: Props<SidebarRailInput>): Element<U
         }
     }
     public override fun onUnmount() {
-        if (cursor && scope!!.isMounted)
-            scope!!.nativeWindow.setCursorIcon(CursorIcon.Default)
+        if (cursor && scope.isMounted)
+            scope.nativeWindow.setCursorIcon(CursorIcon.Default)
     }
 }

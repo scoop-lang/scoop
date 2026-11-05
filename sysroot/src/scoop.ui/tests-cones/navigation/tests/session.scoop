@@ -95,7 +95,7 @@ internal class NavigationProbe {
                 view = Some(observeWindow(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { NavigationScene(this) }))
+                ui = Some(host.attach(native, { mount -> NavigationScene(this, scope = mount) }))
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

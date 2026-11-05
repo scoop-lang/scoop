@@ -116,7 +116,7 @@ internal class OverlayProbe {
                 view = Some(observeWindow(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { OverlayScene(this) }))
+                ui = Some(host.attach(native, { mount -> OverlayScene(this, scope = mount) }))
                 val second =
                     active.createWindow(
                         windowAttributes {
@@ -125,7 +125,7 @@ internal class OverlayProbe {
                         }
                     )
                 foreign = Some(second)
-                host.attach(second, { ForeignRoot(this) })
+                host.attach(second, { mount -> ForeignRoot(this, scope = mount) })
                 waitFor(active, 30000L)
             }
             case AboutToWait -> {

@@ -100,5 +100,9 @@ internal fun makePopover(
 ): View {
     val builder = PopoverBuilder()
     builder.configure()
-    return component(builder.snapshot(open, content), { current -> Popover(current) }, builder.key)
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Popover(current, scope = mount) },
+        builder.key
+    )
 }

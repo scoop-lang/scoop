@@ -22,10 +22,11 @@ internal class ItemExamplesModel {
 
 internal class ItemExamples(
     private val model: ItemExamplesModel,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     private val image = state<Image?>(None)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         image.value = Some(scope.resource { avatarPortrait(false) })
     }
     public override fun render(): View {

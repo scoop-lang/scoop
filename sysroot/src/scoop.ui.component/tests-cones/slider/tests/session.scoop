@@ -108,7 +108,7 @@ internal class SliderProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { SliderScene(this) })
+                host.attach(window, { mount -> SliderScene(this, scope = mount) })
                 window.requestFocus();
                 wait(active)
             }

@@ -137,7 +137,7 @@ internal fun <T: Equals<T>> makeCombobox(
     builder.configure()
     return component(
         builder.snapshot(selection, source, query),
-        { current -> Combobox(current) },
+        { current, mount -> Combobox(current, scope = mount) },
         builder.key
     )
 }

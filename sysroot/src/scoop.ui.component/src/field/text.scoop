@@ -21,9 +21,12 @@ public class FieldTextProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class FieldText public constructor(private val props: Props<FieldTextProps>): Component {
+public class FieldText public constructor(
+    private val props: Props<FieldTextProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -129,7 +132,7 @@ internal fun makeFieldText(
     builder.configure()
     return component(
         builder.snapshot(content, role),
-        { current -> FieldText(current) },
+        { current, mount -> FieldText(current, scope = mount) },
         builder.key
     )
 }
@@ -142,7 +145,7 @@ internal fun makeFieldLegend(
     builder.configure()
     return component(
         builder.snapshot(content, fieldLegendRole(builder.variant)),
-        { current -> FieldText(current) },
+        { current, mount -> FieldText(current, scope = mount) },
         builder.key
     )
 }

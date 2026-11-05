@@ -14,12 +14,14 @@ import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
 
-internal class LayoutScene(private val probe: LayoutProbe): Component {
+internal class LayoutScene(private val probe: LayoutProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
         if (generation >= 10)
-            return component({ CombinationScene(probe) })
+            return component({ mount -> CombinationScene(probe, scope = mount) })
         val keys =
             if (generation == 0)
                 ["a", "b"]
@@ -29,14 +31,23 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
             Array<View>(keys.size) {
                 index -> component(
                     keys[index],
-                    { props -> Cell(props, probe) },
+                    { props, mount -> Cell(props, probe, scope = mount) },
                     ViewKey.Text(keys[index])
                 )
             }
         val themed = generation == 1 || generation == 5
         val front =
-            element("front", { props -> StackBox(props, probe) }, key = ViewKey.Text("front"))
-        val back = element("back", { props -> StackBox(props, probe) }, key = ViewKey.Text("back"))
+            element(
+                "front",
+                { props, mount -> StackBox(props, probe, scope = mount) },
+                key = ViewKey.Text("front")
+            )
+        val back =
+            element(
+                "back",
+                { props, mount -> StackBox(props, probe, scope = mount) },
+                key = ViewKey.Text("back")
+            )
         val text =
             if (generation >= 5)
                 probe.rtl
@@ -44,7 +55,7 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                 probe.text
         return element(
             generation,
-            { props -> LayoutPanel(props, probe) },
+            { props, mount -> LayoutPanel(props, probe, scope = mount) },
             [
                 frame(
                     if (probe.showRows.value)
@@ -74,7 +85,7 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                             )
                         }
                 },
-                frame(element({ BaselineBox(probe) })) {
+                frame(element({ mount -> BaselineBox(probe, scope = mount) })) {
                     this.width = Some(120.0)
                     this.height = Some(70.0)
                     this.padding = Some(Insets(6.0, 8.0, 10.0, 12.0))
@@ -117,7 +128,9 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                         [
                             inlineView(
                                 InlineKey.Text("image"),
-                                element({ InlineImage(this @LayoutScene.probe) })
+                                element(
+                                    { mount -> InlineImage(this @LayoutScene.probe, scope = mount) }
+                                )
                             ) {
                                 this.size =
                                     Some(
@@ -134,7 +147,14 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                 makeFrame(
                                     element(
                                         this @LayoutScene.probe.inlineClicks.value,
-                                        { props -> ButtonObserver(props, this @LayoutScene.probe) },
+                                        {
+                                            props,
+                                            mount -> ButtonObserver(
+                                                props,
+                                                this @LayoutScene.probe,
+                                                scope = mount
+                                            )
+                                        },
                                         [
                                             component(
                                                 ButtonProps(
@@ -154,9 +174,9 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
                                                     }
                                                 ),
                                                 {
-                                                    props ->
+                                                    props, mount ->
                                                     this @LayoutScene.probe.buttonCreates += 1;
-                                                    Button(props)
+                                                    Button(props, scope = mount)
                                                 }
                                             )
                                         ]
@@ -175,9 +195,11 @@ internal class LayoutScene(private val probe: LayoutProbe): Component {
     }
 }
 
-private class LayoutPanel(private val props: Props<Int>, private val probe: LayoutProbe): Element<
-    Unit
-> {
+private class LayoutPanel(
+    private val props: Props<Int>,
+    private val probe: LayoutProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         probe.updates += 1
         return UiInvalidation.Layout
@@ -246,7 +268,11 @@ private class LayoutPanel(private val props: Props<Int>, private val probe: Layo
     }
 }
 
-internal class Cell(private val props: Props<String>, private val probe: LayoutProbe): Component {
+internal class Cell(
+    private val props: Props<String>,
+    private val probe: LayoutProbe,
+    scope: ComponentScope
+): Component(scope) {
     val id: String get() = props.value
     var count: Int by state(0)
     var unmounts = 0
@@ -258,17 +284,22 @@ internal class Cell(private val props: Props<String>, private val probe: LayoutP
         unmounts += 1
     }
     public override fun render(): View =
-        element(CellInput(id, count, { count += 1 }), { props -> CellInk(props, this) })
+        element(
+            CellInput(id, count, { count += 1 }),
+            { props, mount -> CellInk(props, this, scope = mount) }
+        )
 }
 
 internal class CellInput(val id: String, val count: Int, val click: () -> Unit)
 
-internal class CellInk(private val props: Props<CellInput>, private val owner: Cell): Element<
-    Unit
-> {
+internal class CellInk(
+    private val props: Props<CellInput>,
+    private val owner: Cell,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     var area: InputArea? = None
     var bounds = Rect(0.0, 0.0, 0.0, 0.0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         owner.ink = Some(this)
         area =
             Some(
@@ -315,7 +346,9 @@ internal class CellInk(private val props: Props<CellInput>, private val owner: C
     }
 }
 
-private class BaselineBox(private val probe: LayoutProbe): Element<Unit> {
+private class BaselineBox(private val probe: LayoutProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =
@@ -333,11 +366,13 @@ private class BaselineBox(private val probe: LayoutProbe): Element<Unit> {
     }
 }
 
-private class StackBox(private val props: Props<String>, private val probe: LayoutProbe): Element<
-    Unit
-> {
+private class StackBox(
+    private val props: Props<String>,
+    private val probe: LayoutProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area =
             Some(
                 scope.createArea {
@@ -390,8 +425,9 @@ private class StackBox(private val props: Props<String>, private val probe: Layo
 
 private class ButtonObserver(
     private val props: Props<Int>,
-    private val probe: LayoutProbe
-): Element<Unit> {
+    private val probe: LayoutProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -406,11 +442,13 @@ private class ButtonObserver(
     }
 }
 
-internal class InlineImage(private val probe: LayoutProbe): Element<Unit> {
+internal class InlineImage(private val probe: LayoutProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     var image: Image? = None
     var unmounts = 0
     var size = Size(0.0, 0.0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.image = Some(this)
         probe.imageCreates += 1
         image =

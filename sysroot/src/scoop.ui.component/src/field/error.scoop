@@ -28,9 +28,12 @@ internal fun fieldErrors(errors: Array<String>): Array<String> {
     return result.toArray()
 }
 
-public class FieldError public constructor(private val props: Props<FieldErrorProps>): Component {
+public class FieldError public constructor(
+    private val props: Props<FieldErrorProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -112,5 +115,9 @@ internal fun makeFieldError(
     val builder = FieldErrorBuilder()
     builder.content = content
     builder.configure()
-    return component(builder.snapshot(errors), { current -> FieldError(current) }, builder.key)
+    return component(
+        builder.snapshot(errors),
+        { current, mount -> FieldError(current, scope = mount) },
+        builder.key
+    )
 }

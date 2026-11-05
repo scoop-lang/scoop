@@ -53,8 +53,9 @@ private class DisclosureTest {
         val content =
             component(
                 {
+                    mount ->
                     creations.value += 1;
-                    DisclosureTestContent()
+                    DisclosureTestContent(scope = mount)
                 }
             )
         val open = state(false)
@@ -103,6 +104,6 @@ private class DisclosureTest {
     }
 }
 
-private class DisclosureTestContent: Component {
+private class DisclosureTestContent(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }

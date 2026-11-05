@@ -8,7 +8,9 @@ import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
 import scoop.ui.style.*
 
-internal class NavigationScene(private val p: NavigationProbe): Component {
+internal class NavigationScene(private val p: NavigationProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -44,8 +46,9 @@ internal class NavigationScene(private val p: NavigationProbe): Component {
                             case 2 -> this.custom(
                                 component(
                                     {
+                                        mount ->
                                         p.factories += 1;
-                                        NavigationCounter(p)
+                                        NavigationCounter(p, scope = mount)
                                     }
                                 )
                             ) { this.key = ViewKey.Text("custom") }
@@ -87,7 +90,7 @@ internal class NavigationScene(private val p: NavigationProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> NavigationRoot(p, current) },
+                { current, mount -> NavigationRoot(p, current, scope = mount) },
                 [
                     if (p.gone)
                         empty()
@@ -103,7 +106,9 @@ internal class NavigationScene(private val p: NavigationProbe): Component {
     }
 }
 
-private class NavigationCounter(private val p: NavigationProbe): Component {
+private class NavigationCounter(private val p: NavigationProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val value = state(1)
     public override fun onUnmount() {
         p.unmounts += 1
@@ -122,8 +127,9 @@ private class NavigationCounter(private val p: NavigationProbe): Component {
 
 private class NavigationRoot(
     private val p: NavigationProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

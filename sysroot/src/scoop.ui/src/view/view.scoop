@@ -36,29 +36,29 @@ public fun portal(
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <C: Component> component(
-    create: () -> C,
+    create: (ComponentScope) -> C,
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<Unit>? = None
-): View = component(Unit, { _ -> create() }, key, comparison)
+): View = component(Unit, { _, scope -> create(scope) }, key, comparison)
 
 public fun <P, C: Component> component(
     props: P,
-    create: (Props<P>) -> C,
+    create: (Props<P>, ComponentScope) -> C,
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<P>? = None
 ): View = View(key, ViewBody.Component(ComponentDescription(props, create, comparison)))
 
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <L, E: Element<L>> element(
-    create: () -> E,
+    create: (ComponentScope) -> E,
     children: Array<View> = [],
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<Unit>? = None
-): View = element(Unit, { _ -> create() }, children, key, comparison)
+): View = element(Unit, { _, scope -> create(scope) }, children, key, comparison)
 
 public fun <P, L, E: Element<L>> element(
     props: P,
-    create: (Props<P>) -> E,
+    create: (Props<P>, ComponentScope) -> E,
     children: Array<View> = [],
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<P>? = None
@@ -88,16 +88,16 @@ internal fun View.sameType(other: View): Boolean =
 /** Factories retain a concrete class type and create a fresh instance for each new mount. */
 public fun <L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
-    create: () -> E,
+    create: (ComponentScope) -> E,
     retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<Unit>? = None
-): View = lazyElement(source, Unit, { _ -> create() }, retention, key, comparison)
+): View = lazyElement(source, Unit, { _, scope -> create(scope) }, retention, key, comparison)
 
 public fun <P, L, E: LazyElement<L>> lazyElement(
     source: ItemSource,
     props: P,
-    create: (Props<P>) -> E,
+    create: (Props<P>, ComponentScope) -> E,
     retention: ItemRetention = ItemRetention.Dispose,
     key: ViewKey = ViewKey.Position,
     comparison: InputComparison<P>? = None

@@ -13,16 +13,17 @@ internal class SelectViewportLayout(
 )
 
 /** List clipping and scroll reveal use the same viewport that publishes the painted offset. */
-internal class SelectViewport(private val props: Props<SelectPanelProps>): Element<
-    SelectViewportLayout
-> {
+internal class SelectViewport(
+    private val props: Props<SelectPanelProps>,
+    scope: ComponentScope
+): Element<SelectViewportLayout>(scope) {
     private var owner: ComponentScope? = None
     private var control: ScrollControl? = None
     private var up: SelectScrollButton? = None
     private var down: SelectScrollButton? = None
     private var reference: Point? = None
     private var opened = true
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         owner = Some(scope)
         control =
             Some(

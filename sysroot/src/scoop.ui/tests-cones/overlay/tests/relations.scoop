@@ -6,21 +6,30 @@ import scoop.ui.*
 
 internal fun relationProbes(probe: OverlayProbe): Array<View> =
     [
-        portal(state(true).binding(), element({ RelationAnchor(probe, probe.selfAnchor, true) })) {
+        portal(
+            state(true).binding(),
+            element({ mount -> RelationAnchor(probe, probe.selfAnchor, true, scope = mount) })
+        ) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.selfAnchor)
                 this.anchorVisibility = AnchorVisibility.Hide
             }
             this.key = ViewKey.Text("self")
         },
-        portal(state(true).binding(), element({ RelationAnchor(probe, probe.cycleA, false) })) {
+        portal(
+            state(true).binding(),
+            element({ mount -> RelationAnchor(probe, probe.cycleA, false, scope = mount) })
+        ) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.cycleB)
                 this.anchorVisibility = AnchorVisibility.Hide
             }
             this.key = ViewKey.Text("cycle-a")
         },
-        portal(state(true).binding(), element({ RelationAnchor(probe, probe.cycleB, true) })) {
+        portal(
+            state(true).binding(),
+            element({ mount -> RelationAnchor(probe, probe.cycleB, true, scope = mount) })
+        ) {
             this.options {
                 this.placement = OverlayPlacement.Anchored(probe.cycleA)
                 this.anchorVisibility = AnchorVisibility.Hide
@@ -39,9 +48,10 @@ internal fun relationProbes(probe: OverlayProbe): Array<View> =
 private class RelationAnchor(
     private val probe: OverlayProbe,
     private val anchor: LayoutAnchor,
-    private val cyclic: Boolean
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val cyclic: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         if (cyclic) {
             assertFailsWith<IllegalStateException> { scope.layoutAnchor(anchor) }
             assertFalse(anchor.isAttached)
@@ -55,9 +65,11 @@ private class RelationAnchor(
     public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
-internal class ForeignRoot(private val probe: OverlayProbe): Component {
+internal class ForeignRoot(private val probe: OverlayProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View = empty()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         assertFailsWith<IllegalArgumentException> { scope.layoutAnchor(probe.foreignAnchor) }
         assertFalse(probe.foreignAnchor.isAttached)
         probe.relationChecks += 1

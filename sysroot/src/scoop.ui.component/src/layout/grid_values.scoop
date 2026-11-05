@@ -104,5 +104,9 @@ public fun grid(configure: GridBuilder.() -> Unit = {}): View = makeGrid(configu
 internal fun makeGrid(configure: GridBuilder.() -> Unit): View {
     val builder = GridBuilder()
     builder.configure()
-    return component(builder.snapshot(), { props -> Grid(props) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { props, mount -> Grid(props, scope = mount) },
+        builder.key
+    )
 }

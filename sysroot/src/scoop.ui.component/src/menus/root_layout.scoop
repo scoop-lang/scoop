@@ -15,10 +15,13 @@ internal class MenuRootLayoutProps(
     val updated: () -> Unit
 )
 
-internal class MenuRootLayout(private val props: Props<MenuRootLayoutProps>): Element<Unit> {
+internal class MenuRootLayout(
+    private val props: Props<MenuRootLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var fallback: FocusTarget? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val target = scope.createArea(focusable = props.value.contextMenu)
         area = Some(target)
         if (props.value.contextMenu)

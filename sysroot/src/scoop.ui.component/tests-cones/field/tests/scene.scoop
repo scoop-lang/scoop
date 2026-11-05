@@ -15,7 +15,7 @@ import scoop.ui.component.label as makeTextLabel
 import scoop.ui.component.checkbox as makeCheckbox
 import scoop.ui.style.*
 
-internal class FieldScene(private val p: FieldProbe): Component {
+internal class FieldScene(private val p: FieldProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -31,7 +31,7 @@ internal class FieldScene(private val p: FieldProbe): Component {
                         this.add(
                             component(
                                 id,
-                                { current -> TrackedField(p, current) },
+                                { current, mount -> TrackedField(p, current, scope = mount) },
                                 ViewKey.Number(id.toLong())
                             )
                         )
@@ -55,7 +55,7 @@ internal class FieldScene(private val p: FieldProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> FieldRoot(p, current) },
+                { current, mount -> FieldRoot(p, current, scope = mount) },
                 if (p.gone)
                     []
                 else
@@ -69,10 +69,14 @@ internal class FieldScene(private val p: FieldProbe): Component {
     }
 }
 
-private class TrackedField(private val p: FieldProbe, private val props: Props<Int>): Component {
+private class TrackedField(
+    private val p: FieldProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
     private val original = props.value
     private val local = state(original * 13)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         p.mounts[original.toLong()] += 1
     }
     public override fun onUnmount() {
@@ -109,9 +113,9 @@ private fun editorField(p: FieldProbe): View {
                 labelTarget = Some(target)
             ),
             {
-                current ->
+                current, mount ->
                 p.editorMounts += 1;
-                Input(current)
+                Input(current, scope = mount)
             }
         )
     return makeField(observeField(p, 0L, control)) {
@@ -171,11 +175,13 @@ private fun choiceField(p: FieldProbe): View =
     )
 
 private fun observeField(p: FieldProbe, index: Long, content: View): View =
-    element(index, { current -> FieldBounds(p, current) }, [content])
+    element(index, { current, mount -> FieldBounds(p, current, scope = mount) }, [content])
 
-private class FieldBounds(private val p: FieldProbe, private val index: Props<Long>): Element<
-    Unit
-> {
+private class FieldBounds(
+    private val p: FieldProbe,
+    private val index: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -204,9 +210,11 @@ private class FieldBounds(private val p: FieldProbe, private val index: Props<Lo
     }
 }
 
-private class FieldRoot(private val p: FieldProbe, private val generation: Props<Int>): Element<
-    Unit
-> {
+private class FieldRoot(
+    private val p: FieldProbe,
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

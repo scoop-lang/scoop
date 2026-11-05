@@ -5,16 +5,23 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.ui.style.*
 
-internal class SliderThumbProps(val input: SliderInput, val index: Long, val pressed: Boolean)
+internal class SliderThumbProps(
+    val input: SliderInput,
+    val index: Long,
+    val pressed: Boolean,
+    val control: SliderControl
+)
 
-internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<Unit> {
+internal class SliderThumb(
+    private val props: Props<SliderThumbProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var previousSide: Double? = None
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     private var field: FieldLink? = None
     private var painters: ThemePainterCache? = None
     private var motion: InteractionMotion? = None
-    private var scope: ComponentScope? = None
     private fun options(): SliderThumbOptions {
         val input = props.value
         return if (input.input.props.thumbs.size == 0L)
@@ -22,8 +29,7 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
         else
             input.input.props.thumbs[input.index]
     }
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true) { context, event -> notify(context, event) })
         focus = Some(scope.focusTarget(area!!, options().focus))
         field = Some(scope.resource { FieldLink(scope, area!!, focus!!) })
@@ -35,7 +41,7 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
                 event -> when (event) {
                     case Keyboard(key) -> {
                         if (area!!.isFocusActive)
-                            props.value.input.owner.value!!.key(props.value.index, context, key)
+                            props.value.control.key(props.value.index, context, key)
                     }
                     else -> {}
                 }
@@ -58,14 +64,14 @@ internal class SliderThumb(private val props: Props<SliderThumbProps>): Element<
             specs.resolve(input.props.style.transition.resolve(specs.hover)),
             specs.resolve(input.props.style.transition.resolve(specs.press))
         )
-        if (scope!!.isMounted)
-            scope!!.requestFrame()
+        if (scope.isMounted)
+            scope.requestFrame()
     }
     private fun notify(context: RoutedEventContext, event: InputEvent) {
-        if (context.phase != RoutedPhase.Notification || !scope!!.isMounted)
+        if (context.phase != RoutedPhase.Notification || !scope.isMounted)
             return
         when (event) {
-            case FocusChanged(false) -> props.value.input.owner.value?.lostFocus(props.value.index)
+            case FocusChanged(false) -> props.value.control.lostFocus(props.value.index)
             else -> {}
         }
         when (motion) {

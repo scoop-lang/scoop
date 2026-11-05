@@ -82,14 +82,20 @@ public fun drawer(
 ): View {
     val builder = DrawerBuilder();
     builder.configure()
-    return component(builder.snapshot(open, content), { current -> Drawer(current) }, builder.key)
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Drawer(current, scope = mount) },
+        builder.key
+    )
 }
 
-public class Drawer public constructor(private val props: Props<DrawerProps>): Component {
-    private val owner = DrawerOwner()
+public class Drawer public constructor(
+    private val props: Props<DrawerProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val owner = DrawerOwner(props.value.initialSnap)
     private val modal = ModalContent({ props.value.input(owner) })
-    public override fun onMount(scope: ComponentScope) {
-        owner.localSnap.value = props.value.initialSnap
+    public override fun onMount() {
         modal.mount()
     }
     public override fun render(): View = modal.render()

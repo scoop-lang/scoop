@@ -22,10 +22,11 @@ internal class DownloadCounts {
 /** Observes the actual example subtree, without replacing its controls or progress painter. */
 internal class DownloadObservedRoot(
     private val probe: DownloadWindowProbe,
-    private val index: Long
-): Component {
+    private val index: Long,
+    scope: ComponentScope
+): Component(scope) {
     var clicks: Int by state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.counts[index].mounts += 1
         scope.onDispose { probe.counts[index].unmounts += 1 }
     }
@@ -50,6 +51,7 @@ internal class DownloadObservedRoot(
             if (index == 0L)
                 component(
                     {
+                        mount ->
                         probe.panelCreates += 1
                         val panel =
                             DownloadPanel(
@@ -60,7 +62,8 @@ internal class DownloadObservedRoot(
                                 probe.model,
                                 probe.server!!.request("/known"),
                                 probe.destination,
-                                probe.fonts
+                                probe.fonts,
+                                scope = mount
                             )
                         probe.panel = Some(panel)
                         panel
@@ -96,7 +99,7 @@ internal class DownloadObservedRoot(
                 }
         return element(
             snapshot,
-            { props -> DownloadObservedCanvas(probe, index, props) },
+            { props, mount -> DownloadObservedCanvas(probe, index, props, scope = mount) },
             [content]
         )
     }
@@ -105,8 +108,9 @@ internal class DownloadObservedRoot(
 private class DownloadObservedCanvas(
     private val probe: DownloadWindowProbe,
     private val index: Long,
-    private val props: Props<DownloadSnapshot>
-): Element<Unit> {
+    private val props: Props<DownloadSnapshot>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         assertEquals(probe.owner, currentThreadId())
         probe.counts[index].updates += 1

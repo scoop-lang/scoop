@@ -4,10 +4,10 @@ import scoop.surface.FrameSubmission
 import scoop.ui.*
 import scoop.ui.style.Orientation
 
-internal class VirtualListInk(private val props: Props<VirtualListInkProps>): LazyElement<
-    VirtualListFrame
-> {
-    private var scope: ComponentScope? = None
+internal class VirtualListInk(
+    private val props: Props<VirtualListInkProps>,
+    scope: ComponentScope
+): LazyElement<VirtualListFrame>(scope) {
     private var control: ScrollControl? = None
     private var focus: LazyFocus? = None
     private var handle: VirtualListHandle? = None
@@ -16,7 +16,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
     private var committed: VirtualReadingPosition? = None
     private var pending: ItemScrollRequest? = None
 
-    val active: Boolean get() = scope?.isMounted ?: false
+    val active: Boolean get() = scope.isMounted
     val scrollPending: Boolean get() =
         active && pending?.revision == Some(props.value.controls.state.requestRevision)
     val focusPending: Boolean get() = focus?.isPending ?: false
@@ -58,8 +58,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
         pending = Some(ItemScrollRequest(key, position, revision, source))
         return true
     }
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         control = Some(ScrollControl(scope) { props.value.controls })
         focus = Some(scope.lazyFocus(control!!.viewport))
     }
@@ -176,7 +175,7 @@ internal class VirtualListInk(private val props: Props<VirtualListInkProps>): La
                 if (sameRequest && frame.requestDone)
                     pending = None
                 if (frame.recheck)
-                    scope!!.requestLayout()
+                    scope.requestLayout()
             }
         }
     }

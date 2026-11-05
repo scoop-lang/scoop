@@ -7,18 +7,24 @@ import scoop.time.TimeMark
 
 internal class AnimationRead(val source: AnimationSource, val revision: Long)
 
+internal class DefaultFontRead(val source: RootFonts, val revision: Long)
+
 /** Inputs of one completed layout or scene callback. */
 internal class FrameInputs(
     val animations: Array<AnimationRead> = [],
     val fonts: Array<FontWatch> = [],
     val time: TimeMark? = None,
-    val scrolls: Array<ScrollViewport> = []
+    val scrolls: Array<ScrollViewport> = [],
+    val defaults: Array<DefaultFontRead> = []
 ) {
-    val dynamic: Boolean get() = animations.size > 0L || time != None
+    val dynamic: Boolean get() = animations.size > 0L || time != None || defaults.size > 0L
     fun changed(mark: TimeMark): Boolean {
         if (time != None && time != Some(mark))
             return true
         for (read in animations)
+            if (read.source.revision != read.revision)
+                return true
+        for (read in defaults)
             if (read.source.revision != read.revision)
                 return true
         return false
@@ -38,12 +44,19 @@ internal class FrameReads(
     private val animations = ArrayList<AnimationRead>()
     private val fonts = ArrayList<FontWatch>()
     private val scrolls = ArrayList<ScrollViewport>()
+    private val defaults = ArrayList<DefaultFontRead>()
     private var time = false
     public override fun read(source: AnimationSource) {
         for (previous in animations)
             if (previous.source === source)
                 return
         animations.add(AnimationRead(source, source.revision))
+    }
+    fun readDefaults(source: RootFonts) {
+        for (previous in defaults)
+            if (previous.source === source)
+                return
+        defaults.add(DefaultFontRead(source, source.revision))
     }
     fun readTime() {
         time = true
@@ -69,7 +82,8 @@ internal class FrameReads(
                 Some(mark)
             else
                 None,
-            scrolls.toArray()
+            scrolls.toArray(),
+            defaults.toArray()
         )
 }
 

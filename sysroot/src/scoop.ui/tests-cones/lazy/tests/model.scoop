@@ -48,9 +48,9 @@ internal class ProtocolSource(
                     0
             )
         return if (version == 3)
-            element(input, { props -> AlternateRow(probe, props) })
+            element(input, { props, mount -> AlternateRow(probe, props, scope = mount) })
         else
-            component(input, { props -> ProtocolRow(probe, props) })
+            component(input, { props, mount -> ProtocolRow(probe, props, scope = mount) })
     }
 }
 
@@ -113,17 +113,18 @@ internal class RowRecord(val probe: LazyProbe, val id: Long) {
 
 private class ProtocolRow(
     private val probe: LazyProbe,
-    private val props: Props<RowInput>
-): Component {
+    private val props: Props<RowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = RowRecord(probe, props.value.id)
     public override fun render(): View {
         record.input = props.value
         record.localValue = record.local.value
         record.renders += 1
         assertFailsWith<IllegalStateException> { record.local.value += 1 }
-        return element({ RowInk(record) })
+        return element({ mount -> RowInk(record, scope = mount) })
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mount(scope)
     }
     public override fun onUnmount() {
@@ -131,7 +132,7 @@ private class ProtocolRow(
     }
 }
 
-private class RowInk(private val record: RowRecord): Element<Unit> {
+private class RowInk(private val record: RowRecord, scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(record.measure(constraints), Unit)
@@ -142,10 +143,11 @@ private class RowInk(private val record: RowRecord): Element<Unit> {
 
 private class AlternateRow(
     private val probe: LazyProbe,
-    private val props: Props<RowInput>
-): Element<Unit> {
+    private val props: Props<RowInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private val record = RowRecord(probe, props.value.id)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mount(scope)
     }
     public override fun update(): UiInvalidation {

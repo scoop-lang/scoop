@@ -125,7 +125,7 @@ internal class PopoverProbe {
                 view = Some(observeWindow(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 frames = Some(observeFrames(window))
-                host.attach(window, { PopoverScene(this) })
+                host.attach(window, { mount -> PopoverScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

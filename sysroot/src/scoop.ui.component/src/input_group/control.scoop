@@ -62,7 +62,7 @@ internal fun inputGroupControlView(
                 labelTarget = value.labelTarget,
                 chrome = TextFieldChrome.Bare
             ),
-            { current -> Input(current) }
+            { current, mount -> Input(current, scope = mount) }
         )
         case Textarea(value) -> component(
             TextareaProps(
@@ -101,7 +101,7 @@ internal fun inputGroupControlView(
                 labelTarget = value.labelTarget,
                 chrome = TextFieldChrome.Bare
             ),
-            { current -> Textarea(current) }
+            { current, mount -> Textarea(current, scope = mount) }
         )
         case Custom(view, _) -> view
     }

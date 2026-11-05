@@ -8,7 +8,7 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.component.label as makeLabel
 
-internal class MenuScene(private val p: MenuProbe): Component {
+internal class MenuScene(private val p: MenuProbe, scope: ComponentScope): Component(scope) {
     private fun choices(): MenuContent {
         val p = this.p
         val version = p.version
@@ -20,7 +20,7 @@ internal class MenuScene(private val p: MenuProbe): Component {
         return direction(
             element(
                 p.generation.value,
-                { current -> MenuRootScene(p, current) },
+                { current, mount -> MenuRootScene(p, current, scope = mount) },
                 [
                     button("Before", {}) {
                         fonts = Some(p.fonts);
@@ -138,7 +138,7 @@ private class MenuBuilderForTest(private val p: MenuProbe, private val version: 
                             )
                         )
                     if (name == "Beta")
-                        content = Some(component({ RetainedCaption(p) }))
+                        content = Some(component({ mount -> RetainedCaption(p, scope = mount) }))
                 }
                 if (name == "Alpha")
                     item(ViewKey.Text("disabled"), "Blocked", { p.actions += 100 }) {
@@ -190,8 +190,8 @@ private class MenuBuilderForTest(private val p: MenuProbe, private val version: 
     }
 }
 
-private class RetainedCaption(private val p: MenuProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class RetainedCaption(private val p: MenuProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -203,13 +203,15 @@ private class RetainedCaption(private val p: MenuProbe): Component {
 private fun observed(p: MenuProbe, text: String, kind: Int): View =
     element(
         kind,
-        { current -> MenuObservation(p, current) },
+        { current, mount -> MenuObservation(p, current, scope = mount) },
         [makeLabel(text) { fonts = Some(p.fonts) }]
     )
 
-private class MenuObservation(private val p: MenuProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class MenuObservation(
+    private val p: MenuProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -251,9 +253,11 @@ private class MenuObservation(private val p: MenuProbe, private val props: Props
 
 private class MenuBounds(var value: Rect)
 
-private class MenuRootScene(private val p: MenuProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class MenuRootScene(
+    private val p: MenuProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

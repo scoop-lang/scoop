@@ -11,9 +11,12 @@ public class ItemGroupProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class ItemGroup public constructor(private val props: Props<ItemGroupProps>): Component {
+public class ItemGroup public constructor(
+    private val props: Props<ItemGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -25,13 +28,20 @@ public class ItemGroup public constructor(private val props: Props<ItemGroupProp
                 itemGroupGap(input.size) * density,
                 CrossAlignment.Stretch
             )
-        return styled(element(layout, { current -> ItemGroupLayout(current) }, input.children)) {
-            this.style = input.style.resolve(style())
-        }
+        return styled(
+            element(
+                layout,
+                { current, mount -> ItemGroupLayout(current, scope = mount) },
+                input.children
+            )
+        ) { this.style = input.style.resolve(style()) }
     }
 }
 
-private class ItemGroupLayout(private val props: Props<LinearProps>): Element<Unit> {
+private class ItemGroupLayout(
+    private val props: Props<LinearProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =
@@ -84,7 +94,11 @@ public fun itemGroup(
 internal fun makeItemGroup(size: ItemSize, configure: ItemGroupBuilder.() -> Unit): View {
     val builder = ItemGroupBuilder(size)
     builder.configure()
-    return component(builder.snapshot(), { current -> ItemGroup(current) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { current, mount -> ItemGroup(current, scope = mount) },
+        builder.key
+    )
 }
 
 public class ItemSeparatorProps public constructor(
@@ -93,10 +107,11 @@ public class ItemSeparatorProps public constructor(
 )
 
 public class ItemSeparator public constructor(
-    private val props: Props<ItemSeparatorProps>
-): Component {
+    private val props: Props<ItemSeparatorProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -105,7 +120,7 @@ public class ItemSeparator public constructor(
         return panelFrame(
             component(
                 SeparatorProps(color = input.color, theme = input.theme),
-                { current -> Separator(current) }
+                { current, mount -> Separator(current, scope = mount) }
             ),
             Insets(0.0, 8.0 * density, 0.0, 8.0 * density)
         )
@@ -126,7 +141,7 @@ internal fun makeItemSeparator(configure: ItemSeparatorBuilder.() -> Unit): View
     builder.configure()
     return component(
         ItemSeparatorProps(builder.color, builder.theme),
-        { current -> ItemSeparator(current) },
+        { current, mount -> ItemSeparator(current, scope = mount) },
         builder.key
     )
 }

@@ -10,8 +10,9 @@ import scoop.ui.component.row as selectRow
 import scoop.ui.component.label as selectLabel
 
 public class Select<T: Equals<T>> public constructor(
-    private val props: Props<SelectProps<T>>
-): Component {
+    private val props: Props<SelectProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     private val local = state(false)
     private val last = state(false)
     private val anchor = LayoutAnchor()
@@ -20,25 +21,20 @@ public class Select<T: Equals<T>> public constructor(
     private val candidates = MenuFocus()
     private val scroll = ScrollState()
     private val themes = ThemeAccess()
-    private var owner: ComponentScope? = None
-    private var search: Typeahead? = None
     private var pendingTab: Boolean? = None
     private val open =
         binding({ props.value.open?.value ?: local.value }, { value -> setOpen(value) })
     private val chain = MenuChain({ close() }, { reverse -> tab(reverse) })
 
-    public override fun onMount(scope: ComponentScope) {
-        owner = Some(scope)
+    private val search =
+        scope.typeahead(
+            candidates,
+            { selectedKey() },
+            { key -> selectChoice(props.value, key) },
+            searchOptions()
+        )
+    public override fun onMount() {
         themes.mount(props.value.theme)
-        search =
-            Some(
-                scope.typeahead(
-                    candidates,
-                    { selectedKey() },
-                    { key -> selectChoice(props.value, key) },
-                    searchOptions()
-                )
-            )
     }
     private fun searchOptions(): TypeaheadOptions {
         val value = props.value.typeahead
@@ -50,7 +46,7 @@ public class Select<T: Equals<T>> public constructor(
         )
     }
     private fun updated() {
-        search!!.update(
+        search.update(
             candidates,
             { selectedKey() },
             { key -> selectChoice(props.value, key) },
@@ -114,8 +110,8 @@ public class Select<T: Equals<T>> public constructor(
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (owner!!.isMounted)
-                owner!!.moveFocus(reverse)
+            case Some(reverse) -> if (scope.isMounted)
+                scope.moveFocus(reverse)
             case None -> {}
         }
         props.value.onClosed(reason)
@@ -171,7 +167,7 @@ public class Select<T: Equals<T>> public constructor(
                     group = input.group,
                     labelTarget = input.labelTarget
                 ),
-                { current -> Button(current) }
+                { current, mount -> Button(current, scope = mount) }
             )
         val focus =
             OverlayFocusOptions(
@@ -204,7 +200,7 @@ public class Select<T: Equals<T>> public constructor(
                     { reason -> props.value.onCloseRequest(reason) },
                     { reason -> closed(reason) }
                 ),
-                { current -> SelectPopup(current) }
+                { current, mount -> SelectPopup(current, scope = mount) }
             )
         return element(
             SelectRootProps(
@@ -215,7 +211,7 @@ public class Select<T: Equals<T>> public constructor(
                 { backwards -> show(backwards) },
                 { updated() }
             ),
-            { current -> SelectRootLayout(current) },
+            { current, mount -> SelectRootLayout(current, scope = mount) },
             [button, popup]
         )
     }

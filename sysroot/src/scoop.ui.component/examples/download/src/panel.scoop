@@ -19,12 +19,13 @@ internal class DownloadPanel(
     val model: DownloadModel,
     private val request: HttpRequest,
     private val destination: Path,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     var controller: DownloadController? = None
     var clicks: Int by state(0)
     private val themes = currentThemeSource()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         controller =
             Some(scope.resource { DownloadController(jobs, client, workers, proxy, model) })
     }
@@ -53,7 +54,7 @@ internal class DownloadPanel(
                 this.add(
                     element(
                         ProgressInput(value, theme.tokens.palette),
-                        { props -> ProgressBar(props) }
+                        { props, mount -> ProgressBar(props, scope = mount) }
                     )
                 )
                 this.row {
@@ -103,10 +104,12 @@ internal class DownloadPanel(
 
 private class ProgressInput(val snapshot: DownloadSnapshot, val colors: ThemePalette)
 
-private class ProgressBar(private val props: Props<ProgressInput>): Element<Unit> {
+private class ProgressBar(private val props: Props<ProgressInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var amount: Animatable<Double>? = None
     private var target = 0.0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         target = props.value.snapshot.fraction ?: 0.0
         amount = Some(scope.animation(target))
     }

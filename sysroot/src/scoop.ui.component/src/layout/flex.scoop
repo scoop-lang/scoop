@@ -3,17 +3,26 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-public class Flex public constructor(private val props: Props<FlexProps>): Component {
+public class Flex public constructor(
+    private val props: Props<FlexProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         flexElement(props.value.layout, props.value.axis == FlexAxis.Vertical)
 }
 
 internal fun flexElement(layout: LinearProps, vertical: Boolean): View =
-    element(LinearInput(layout, vertical), { props -> LinearInk(props) }, layout.children)
+    element(
+        LinearInput(layout, vertical),
+        { props, mount -> LinearInk(props, scope = mount) },
+        layout.children
+    )
 
 private class LinearInput(val value: LinearProps, val vertical: Boolean)
 
-private class LinearInk(private val props: Props<LinearInput>): Element<Unit> {
+private class LinearInk(private val props: Props<LinearInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =

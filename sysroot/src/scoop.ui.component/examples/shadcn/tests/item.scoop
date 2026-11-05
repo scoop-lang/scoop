@@ -121,7 +121,7 @@ internal class ItemProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
-                host.attach(window, { ItemScene(this) })
+                host.attach(window, { mount -> ItemScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

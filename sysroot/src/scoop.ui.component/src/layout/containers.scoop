@@ -3,11 +3,17 @@ package scoop.ui.component
 import scoop.graphics.*
 import scoop.ui.*
 
-public class Row public constructor(private val props: Props<LinearProps>): Component {
+public class Row public constructor(
+    private val props: Props<LinearProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View = flexElement(props.value, false)
 }
 
-public class Column public constructor(private val props: Props<LinearProps>): Component {
+public class Column public constructor(
+    private val props: Props<LinearProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View = flexElement(props.value, true)
 }
 
@@ -20,14 +26,23 @@ public class StackProps public constructor(
     public val alignment: Alignment = Alignment()
 )
 
-public class Stack public constructor(private val props: Props<StackProps>): Component {
+public class Stack public constructor(
+    private val props: Props<StackProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
-        element(props.value, { current -> StackInk(current) }, props.value.children)
+        element(
+            props.value,
+            { current, mount -> StackInk(current, scope = mount) },
+            props.value.children
+        )
 }
 
 public fun stack(configure: StackBuilder.() -> Unit = {}): View = makeStack(configure)
 
-private class StackInk(private val props: Props<StackProps>): Element<Unit> {
+private class StackInk(private val props: Props<StackProps>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

@@ -142,7 +142,7 @@ internal class MenuProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { MenuScene(this) });
+                host.attach(window, { mount -> MenuScene(this, scope = mount) });
                 window.requestFocus();
                 wait(active)
             }

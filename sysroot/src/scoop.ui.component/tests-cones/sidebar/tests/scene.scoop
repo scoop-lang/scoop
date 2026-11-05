@@ -14,7 +14,7 @@ import scoop.ui.component.sidebarMenu as makeMenu
 import scoop.ui.component.sidebarMenuAction as makeAction
 import scoop.ui.component.sidebarMenuBadge as makeBadge
 
-internal class SidebarScene(private val p: SidebarProbe): Component {
+internal class SidebarScene(private val p: SidebarProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val revision = p.generation.value
@@ -30,7 +30,12 @@ internal class SidebarScene(private val p: SidebarProbe): Component {
                                 p.open.value = next
                         }
                     ),
-                    { shown -> component(shown, { current -> SidebarNavigation(p, current) }) }
+                    {
+                        shown -> component(
+                            shown,
+                            { current, mount -> SidebarNavigation(p, current, scope = mount) }
+                        )
+                    }
                 ) {
                     variant = p.variant;
                     collapsible = p.collapse;
@@ -83,10 +88,14 @@ internal class SidebarScene(private val p: SidebarProbe): Component {
                             }
                         )
                     )
-                    inset(component(Unit, { _ -> SidebarWorkspace(p) }))
+                    inset(component(Unit, { _, mount -> SidebarWorkspace(p, scope = mount) }))
                 }
         return direction(
-            element(revision, { current -> SidebarRoot(p, current) }, [contents]),
+            element(
+                revision,
+                { current, mount -> SidebarRoot(p, current, scope = mount) },
+                [contents]
+            ),
             if (p.rtl)
                 LayoutDirection.Rtl
             else
@@ -97,9 +106,10 @@ internal class SidebarScene(private val p: SidebarProbe): Component {
 
 private class SidebarNavigation(
     private val p: SidebarProbe,
-    private val props: Props<SidebarPresentation>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<SidebarPresentation>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         p.navMounts += 1
     }
     public override fun onUnmount() {
@@ -188,14 +198,16 @@ private class SidebarNavigation(
             }
         return element(
             shown,
-            { current -> SidebarPresentationProbe(p, current) },
+            { current, mount -> SidebarPresentationProbe(p, current, scope = mount) },
             [observeSidebar(p, 0L, contents)]
         )
     }
 }
 
-private class SidebarWorkspace(private val p: SidebarProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class SidebarWorkspace(private val p: SidebarProbe, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun onMount() {
         p.mainMounts += 1
     }
     public override fun onUnmount() {
@@ -228,14 +240,15 @@ private class SidebarWorkspace(private val p: SidebarProbe): Component {
 }
 
 private fun observeSidebar(p: SidebarProbe, slot: Long, content: View): View =
-    element(slot, { current -> SidebarObservation(p, current) }, [content])
+    element(slot, { current, mount -> SidebarObservation(p, current, scope = mount) }, [content])
 
 internal class SidebarCapture(var bounds: Rect, var ring: Boolean = false)
 
 private class SidebarObservation(
     private val p: SidebarProbe,
-    private val props: Props<Long>
-): Element<Unit> {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -271,8 +284,9 @@ private class SidebarObservation(
 
 private class SidebarPresentationProbe(
     private val p: SidebarProbe,
-    private val props: Props<SidebarPresentation>
-): Element<Unit> {
+    private val props: Props<SidebarPresentation>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -290,9 +304,11 @@ private class SidebarPresentationProbe(
     }
 }
 
-private class SidebarRoot(private val p: SidebarProbe, private val revision: Props<Int>): Element<
-    Unit
-> {
+private class SidebarRoot(
+    private val p: SidebarProbe,
+    private val revision: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

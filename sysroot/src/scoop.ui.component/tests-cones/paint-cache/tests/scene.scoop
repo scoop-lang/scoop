@@ -7,14 +7,14 @@ import scoop.tests.graphics.readNativePixel
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class CacheScene(private val probe: CacheProbe): Component {
+internal class CacheScene(private val probe: CacheProbe, scope: ComponentScope): Component(scope) {
     private val sources = Array<ItemSource>(4L) { index -> PaintSource(probe, index.toInt()) }
     public override fun render(): View {
         val mode = probe.mode.value
         val policy = probe.policy.value
         return element(
             probe.placed.value,
-            { props -> CachePanel(probe, props) },
+            { props, mount -> CachePanel(probe, props, scope = mount) },
             [
                 virtualList(sources[mode.toLong()], ItemExtent.Fixed(24.0)) {
                     this.state = Some(this @CacheScene.probe.scroll)
@@ -39,10 +39,12 @@ internal class CacheScene(private val probe: CacheProbe): Component {
     }
 }
 
-private class CachePanel(private val probe: CacheProbe, private val props: Props<Boolean>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class CachePanel(
+    private val probe: CacheProbe,
+    private val props: Props<Boolean>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

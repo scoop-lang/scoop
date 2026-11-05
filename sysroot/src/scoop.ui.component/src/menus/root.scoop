@@ -7,18 +7,23 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 public class DropdownMenu public constructor(
-    private val props: Props<DropdownMenuProps>
-): Component {
-    private val root = MenuRoot({ dropdownInput(props.value) })
-    public override fun onMount(scope: ComponentScope) {
-        root.mount(scope)
+    private val props: Props<DropdownMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val root = MenuRoot(scope, { dropdownInput(props.value) })
+    public override fun onMount() {
+        root.mount()
     }
     public override fun render(): View = root.render()
 }
 
-public class ContextMenu public constructor(private val props: Props<ContextMenuProps>): Component {
+public class ContextMenu public constructor(
+    private val props: Props<ContextMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val root =
         MenuRoot(
+            scope,
             {
                 val value = props.value
                 MenuRootInput(
@@ -37,14 +42,14 @@ public class ContextMenu public constructor(private val props: Props<ContextMenu
                 )
             }
         )
-    public override fun onMount(scope: ComponentScope) {
-        root.mount(scope)
+    public override fun onMount() {
+        root.mount()
     }
     public override fun render(): View = root.render()
 }
 
 /** Root state is limited to optional uncontrolled open, opening position and a pending Tab. */
-internal class MenuRoot(private val read: () -> MenuRootInput) {
+internal class MenuRoot(private val scope: ComponentScope, private val read: () -> MenuRootInput) {
     private val local = state(false)
     private val anchor = LayoutAnchor()
     private val link = HoverPopupLink()
@@ -54,7 +59,6 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
     private val themes = ThemeAccess()
     private val last = state(false)
     private val point = state<Point?>(None)
-    private var scope: ComponentScope? = None
     private var pendingTab: Boolean? = None
     private val open = binding({ read().open?.value ?: local.value }, { value -> setOpen(value) })
     private val chain =
@@ -70,8 +74,7 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
                 }
             )
         )
-    fun mount(scope: ComponentScope) {
-        this.scope = Some(scope);
+    fun mount() {
         themes.mount(read().options.theme)
     }
     private fun setOpen(value: Boolean) {
@@ -101,8 +104,8 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
         val next = pendingTab
         pendingTab = None
         when (next) {
-            case Some(reverse) -> if (scope!!.isMounted)
-                scope!!.moveFocus(reverse);
+            case Some(reverse) -> if (scope.isMounted)
+                scope.moveFocus(reverse);
             case None -> {}
         }
         read().onClosed(reason)
@@ -154,7 +157,7 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
                         size = value.size,
                         group = group
                     ),
-                    { current -> Button(current) }
+                    { current, mount -> Button(current, scope = mount) }
                 )
                 case Anchor(_) -> empty()
                 case Context(view) -> view
@@ -205,7 +208,7 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
                     onCloseRequest = { reason -> read().onCloseRequest(reason) },
                     onClosed = { reason -> closed(reason) }
                 ),
-                { current -> MenuPopup(current) }
+                { current, mount -> MenuPopup(current, scope = mount) }
             )
         return element(
             MenuRootLayoutProps(
@@ -220,7 +223,7 @@ internal class MenuRoot(private val read: () -> MenuRootInput) {
                         pendingTab = None
                 }
             ),
-            { current -> MenuRootLayout(current) },
+            { current, mount -> MenuRootLayout(current, scope = mount) },
             [child, popup]
         )
     }

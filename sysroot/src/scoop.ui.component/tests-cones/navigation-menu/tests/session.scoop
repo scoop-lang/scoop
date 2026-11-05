@@ -141,7 +141,7 @@ internal class NavProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { NavScene(this) });
+                host.attach(window, { mount -> NavScene(this, scope = mount) });
                 window.requestFocus();
                 wait(app)
             }

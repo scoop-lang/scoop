@@ -24,11 +24,14 @@ public class EmptyStateProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class EmptyState public constructor(private val props: Props<EmptyStateProps>): Component {
+public class EmptyState public constructor(
+    private val props: Props<EmptyStateProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -123,7 +126,7 @@ public class EmptyState public constructor(private val props: Props<EmptyStatePr
             }
         return element(
             EmptyFrameProps(visual, outlined, colors.border),
-            { current -> EmptyFrame(current) },
+            { current, mount -> EmptyFrame(current, scope = mount) },
             [body]
         )
     }
@@ -168,7 +171,7 @@ internal fun makeEmptyState(content: View, configure: EmptyStateBuilder.() -> Un
             builder.theme,
             builder.style
         ),
-        { current -> EmptyState(current) },
+        { current, mount -> EmptyState(current, scope = mount) },
         builder.key
     )
 }

@@ -29,9 +29,16 @@ internal class StateSignal {
         }
         observers.removeAt(last)
     }
-    fun changed() {
-        for (observer in observers.toArray())
-            observer.node?.invalidate()
+    fun changed(invalidation: UiInvalidation = UiInvalidation.None) {
+        for (observer in observers.toArray()) {
+            when (observer.node) {
+                case Some(node) -> {
+                    node.request(invalidation)
+                    node.invalidate()
+                }
+                case None -> {}
+            }
+        }
     }
 }
 

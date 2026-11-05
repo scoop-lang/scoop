@@ -8,9 +8,12 @@ import scoop.ui.*
 
 internal fun hoverScene(probe: InteractionProbe): View =
     element(
-        { HoverCanvas(probe) },
+        { mount -> HoverCanvas(probe, scope = mount) },
         [
-            portal(probe.hoverOpen.binding(), element({ HoverContent(probe) })) {
+            portal(
+                probe.hoverOpen.binding(),
+                element({ mount -> HoverContent(probe, scope = mount) })
+            ) {
                 handle = Some(probe.hoverLayer)
                 atPoint(Point(220.0, 100.0)) { preferredSide = OverlaySide.Right }
                 onClosed = { _ -> probe.hoverClosed += 1 }
@@ -18,8 +21,10 @@ internal fun hoverScene(probe: InteractionProbe): View =
         ]
     )
 
-private class HoverCanvas(private val probe: InteractionProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class HoverCanvas(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         val area = scope.createArea(focusable = true)
         probe.hoverTrigger = Some(area)
         scope.focusTarget(area)
@@ -96,8 +101,10 @@ private class HoverCanvas(private val probe: InteractionProbe): Element<Unit> {
     }
 }
 
-private class HoverContent(private val probe: InteractionProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class HoverContent(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         val area = scope.createArea()
         probe.hoverContent = Some(area)
         probe.hover!!.setContent([area])

@@ -14,9 +14,11 @@ internal class AvatarInkProps(
     val style: StyleOverride
 )
 
-internal class AvatarInk(private val props: Props<AvatarInkProps>): Element<Unit> {
+internal class AvatarInk(private val props: Props<AvatarInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -88,7 +90,9 @@ internal class AvatarInk(private val props: Props<AvatarInkProps>): Element<Unit
     }
 }
 
-internal class AvatarLayout(private val props: Props<Boolean>): Element<Unit> {
+internal class AvatarLayout(private val props: Props<Boolean>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -115,9 +119,11 @@ internal class AvatarLayout(private val props: Props<Boolean>): Element<Unit> {
 }
 
 internal fun avatarRing(content: View, color: Color, key: ViewKey = ViewKey.Position): View =
-    element(color, { current -> AvatarRing(current) }, [content], key)
+    element(color, { current, mount -> AvatarRing(current, scope = mount) }, [content], key)
 
-private class AvatarRing(private val props: Props<Color>): Element<Unit> {
+private class AvatarRing(private val props: Props<Color>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

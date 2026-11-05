@@ -107,7 +107,8 @@ internal class ItemNavigationProbe {
                 frames = Some(observeFrames(native))
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { ItemNavigationScene(this) }))
+                ui =
+                    Some(host.attach(native, { mount -> ItemNavigationScene(this, scope = mount) }))
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

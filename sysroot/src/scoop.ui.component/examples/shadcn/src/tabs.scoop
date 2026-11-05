@@ -116,7 +116,7 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
                     else
                         component(
                             TabDraftProps(model, value.toLong(), fonts),
-                            { current -> TabDraft(current) }
+                            { current, mount -> TabDraft(current, scope = mount) }
                         )
                 )
             }
@@ -233,10 +233,12 @@ internal fun tabsExamples(gallery: GalleryModel, fonts: FontCollection): View {
 
 private class TabDraftProps(val model: TabsExamplesModel, val id: Long, val fonts: FontCollection)
 
-private class TabDraft(private val props: Props<TabDraftProps>): Component {
+private class TabDraft(private val props: Props<TabDraftProps>, scope: ComponentScope): Component(
+    scope
+) {
     private val editor = TextEditorState("A local draft")
     private val count = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         props.value.model.mounts[props.value.id].value += 1
     }
     public override fun render(): View {

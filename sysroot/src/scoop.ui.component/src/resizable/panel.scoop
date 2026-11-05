@@ -9,7 +9,10 @@ internal class ResizablePanelInput(val root: ResizableInput, val index: Long) {
     val key: ViewKey get() = root.props.panels[index].key
 }
 
-internal class ResizablePanelLayout(private val props: Props<ResizablePanelInput>): Element<Unit> {
+internal class ResizablePanelLayout(
+    private val props: Props<ResizablePanelInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -109,9 +112,12 @@ internal class ResizablePanelLayout(private val props: Props<ResizablePanelInput
     }
 }
 
-internal class ResizableContent(private val props: Props<StyleOverride>): Element<Unit> {
+internal class ResizableContent(
+    private val props: Props<StyleOverride>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { StylePainter() })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

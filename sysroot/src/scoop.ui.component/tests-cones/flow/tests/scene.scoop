@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 
-internal class FlowRoot(private val probe: FlowProbe): Component {
+internal class FlowRoot(private val probe: FlowProbe, scope: ComponentScope): Component(scope) {
     private val content = flowContent(probe)
     public override fun render(): View = direction(content, probe.desired.value)
 }
@@ -18,12 +18,12 @@ private fun flowContent(probe: FlowProbe): View {
     val cells =
         Array<View>(probe.records.size) {
             index -> element(
-                { FlowCell(probe.records[index], index == 5L) },
+                { mount -> FlowCell(probe.records[index], index == 5L, scope = mount) },
                 key = ViewKey.Number(index)
             )
         }
     return element(
-        { FlowPanel(probe) },
+        { mount -> FlowPanel(probe, scope = mount) },
         [
             wrap {
                 spacing = 4.0
@@ -93,7 +93,7 @@ private fun flowContent(probe: FlowProbe): View {
     )
 }
 
-private class FlowPanel(private val probe: FlowProbe): Element<Unit> {
+private class FlowPanel(private val probe: FlowProbe, scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -129,13 +129,15 @@ private class FlowPanel(private val probe: FlowProbe): Element<Unit> {
     }
 }
 
-private class FlowCell(private val record: FlowRecord, private val isText: Boolean): Element<
-    ParagraphMeasurement?
-> {
+private class FlowCell(
+    private val record: FlowRecord,
+    private val isText: Boolean,
+    scope: ComponentScope
+): Element<ParagraphMeasurement?>(scope) {
     private val content = styledText { text("Grid words wrap at the assigned width") }
     private var fonts: FontCollection? = None
     private var host: ParagraphHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.area = Some(scope.createArea())
         record.mounts += 1
         if (isText) {

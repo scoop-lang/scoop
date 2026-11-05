@@ -181,7 +181,7 @@ internal class GalleryProbe(
                 native = Some(window)
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 frames = Some(observeFrames(window))
-                host.attach(window, { ObservedGallery(this) })
+                host.attach(window, { mount -> ObservedGallery(this, scope = mount) })
                 window.requestFocus()
                 waitFor(active, 25000L)
             }
@@ -355,14 +355,17 @@ internal class GalleryProbe(
     }
 }
 
-private class ObservedGallery(private val probe: GalleryProbe): Component {
+private class ObservedGallery(private val probe: GalleryProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val children = ArrayList<View>()
         children.add(
             component(
                 {
+                    mount ->
                     probe.creates += 1
-                    Gallery(probe.model, probe.fonts)
+                    Gallery(probe.model, probe.fonts, scope = mount)
                 }
             )
         )
@@ -422,11 +425,13 @@ private class ObservedGallery(private val probe: GalleryProbe): Component {
         if (probe.textMode)
             for (child in typographyMeasurements(probe.fonts))
                 children.add(child)
-        return element({ GalleryCanvas(probe) }, children.toArray())
+        return element({ mount -> GalleryCanvas(probe, scope = mount) }, children.toArray())
     }
 }
 
-private class GalleryCanvas(private val probe: GalleryProbe): Element<Unit> {
+private class GalleryCanvas(private val probe: GalleryProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

@@ -181,7 +181,11 @@ public fun navigationMenu(
 ): View {
     val builder = NavigationMenuBuilder();
     builder.configure()
-    return component(builder.snapshot(open), { current -> NavigationMenu(current) }, builder.key)
+    return component(
+        builder.snapshot(open),
+        { current, mount -> NavigationMenu(current, scope = mount) },
+        builder.key
+    )
 }
 
 public fun navigationMenuLink(
@@ -213,7 +217,7 @@ private fun navMenuLink(
     builder.configure()
     return component(
         builder.snapshot(content, action),
-        { current -> NavigationMenuLink(current) },
+        { current, mount -> NavigationMenuLink(current, scope = mount) },
         builder.key
     )
 }

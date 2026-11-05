@@ -6,15 +6,19 @@ import scoop.graphics.*
 import scoop.graphics.text.*
 import scoop.ui.text.*
 
-internal class FrameReuseColor(private val probe: FrameReuseProbe): Component {
+internal class FrameReuseColor(
+    private val probe: FrameReuseProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
-        element(probe.fill.value, { props -> FrameReuseSolid(props, probe) })
+        element(probe.fill.value, { props, mount -> FrameReuseSolid(props, probe, scope = mount) })
 }
 
 private class FrameReuseSolid(
     private val props: Props<Color>,
-    private val probe: FrameReuseProbe
-): Element<Unit> {
+    private val probe: FrameReuseProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation = UiInvalidation.Scene
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
@@ -31,8 +35,10 @@ private class FrameReuseSolid(
     }
 }
 
-internal class FrameReuseMoving(private val probe: FrameReuseProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+internal class FrameReuseMoving(private val probe: FrameReuseProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         probe.movingScope = Some(scope)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -48,8 +54,10 @@ internal class FrameReuseMoving(private val probe: FrameReuseProbe): Element<Uni
     }
 }
 
-internal class FrameReuseChild(private val probe: FrameReuseProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+internal class FrameReuseChild(private val probe: FrameReuseProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         probe.movingArea = Some(scope.createArea())
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -63,9 +71,11 @@ internal class FrameReuseChild(private val probe: FrameReuseProbe): Element<Unit
     }
 }
 
-internal class FrameReuseText(private val probe: FrameReuseProbe, private val index: Long): Element<
-    ParagraphMeasurement
-> {
+internal class FrameReuseText(
+    private val probe: FrameReuseProbe,
+    private val index: Long,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private var host: ParagraphHost? = None
     private val content =
         styledText {
@@ -75,7 +85,7 @@ internal class FrameReuseText(private val probe: FrameReuseProbe, private val in
                 families = ["Frame Test"]
             }
         }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         host = Some(scope.resource { ParagraphHost() })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -91,9 +101,11 @@ internal class FrameReuseText(private val probe: FrameReuseProbe, private val in
     }
 }
 
-internal class FrameReuseScroll(private val probe: FrameReuseProbe): Element<Unit> {
+internal class FrameReuseScroll(private val probe: FrameReuseProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var viewport: ScrollViewport? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         viewport = Some(scope.scrollViewport(probe.scroll))
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -110,7 +122,10 @@ internal class FrameReuseScroll(private val probe: FrameReuseProbe): Element<Uni
     }
 }
 
-internal class FrameReuseScrollChild(private val probe: FrameReuseProbe): Element<Unit> {
+internal class FrameReuseScrollChild(
+    private val probe: FrameReuseProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

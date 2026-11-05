@@ -45,14 +45,17 @@ public class AbsoluteProps public constructor(
     }
 }
 
-public class Absolute public constructor(private val props: Props<AbsoluteProps>): Component {
+public class Absolute public constructor(
+    private val props: Props<AbsoluteProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val value = props.value
         val indices = Array<Long>(value.children.size) { index -> index }
         val order = indices.sortedBy<Long, Int> { index -> value.children[index].zIndex }
         return element(
             AbsoluteInput(value, order.toArray()),
-            { current -> AbsoluteInk(current) },
+            { current, mount -> AbsoluteInk(current, scope = mount) },
             Array<View>(value.children.size) { index -> value.children[index].view }
         )
     }
@@ -62,7 +65,9 @@ public fun absolute(configure: AbsoluteBuilder.() -> Unit = {}): View = makeAbso
 
 private class AbsoluteInput(val value: AbsoluteProps, val order: Array<Long>)
 
-private class AbsoluteInk(private val props: Props<AbsoluteInput>): Element<Unit> {
+private class AbsoluteInk(private val props: Props<AbsoluteInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

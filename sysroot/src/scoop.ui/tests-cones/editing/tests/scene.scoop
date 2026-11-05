@@ -7,7 +7,7 @@ import scoop.ui.*
 import scoop.ui.text.*
 import scoop.window.*
 
-internal class EditScene(private val probe: EditProbe): Component {
+internal class EditScene(private val probe: EditProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val revision = probe.revision.value
         val children = ArrayList<View>()
@@ -22,7 +22,7 @@ internal class EditScene(private val probe: EditProbe): Component {
             children.add(
                 element(
                     EditFieldProps(index, probe.options(index)),
-                    { props -> EditField(probe, props) },
+                    { props, mount -> EditField(probe, props, scope = mount) },
                     key = ViewKey.Number(index)
                 )
             )
@@ -30,16 +30,22 @@ internal class EditScene(private val probe: EditProbe): Component {
         if (probe.displayTest.show)
             children.add(selectableTestView(probe))
         return direction(
-            element(revision, { props -> EditPanel(probe, props) }, children.toArray()),
+            element(
+                revision,
+                { props, mount -> EditPanel(probe, props, scope = mount) },
+                children.toArray()
+            ),
             probe.systemIme.direction.value
         )
     }
 }
 
-private class EditPanel(private val probe: EditProbe, private val props: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class EditPanel(
+    private val probe: EditProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         scope.input.captureHandler =
             {
@@ -162,16 +168,23 @@ private class EditFieldProps(val index: Long, val options: TextEditOptions)
 
 private class EditField(
     private val probe: EditProbe,
-    private val props: Props<EditFieldProps>
-): Element<TextEditMeasurement> {
-    private var host: TextEditHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<EditFieldProps>,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
+    private val host =
+        scope.resource {
+            TextEditHost(
+                scope,
+                probe.model(props.value.index),
+                probe.appearance,
+                props.value.options,
+                { value -> probe.interactionChanged(props.value.index, value) }
+            )
+        }
+    public override fun onMount() {
         val index = props.value.index
-        val adapter =
-            scope.resource {
-                TextEditHost(scope, probe.model(index), probe.appearance, props.value.options)
-            }
-        host = Some(adapter)
+        val adapter = host
+        assertEquals(0, probe.interactionCounts[index])
         if (index == 0L)
             scope.resource {
                 adapter.area.scope.addEventHandler {
@@ -193,7 +206,7 @@ private class EditField(
     }
     public override fun update(): UiInvalidation {
         val input = props.value
-        host!!.update(
+        host.update(
             probe.model(input.index),
             probe.appearance,
             input.options,
@@ -207,11 +220,11 @@ private class EditField(
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         TextEditMeasurement
     > {
-        val measured = host!!.measure(constraints)
+        val measured = host.measure(constraints)
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: TextEditMeasurement) {
-        host!!.scene(context, measured)
+        host.scene(context, measured)
     }
     public override fun onUnmount() {
         probe.unmounts += 1

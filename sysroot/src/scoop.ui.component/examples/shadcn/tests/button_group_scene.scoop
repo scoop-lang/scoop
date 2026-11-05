@@ -10,11 +10,17 @@ import scoop.ui.component.button as makeButton
 import scoop.ui.component.input as makeInput
 import scoop.ui.style.*
 
-internal class ButtonGroupScene(private val probe: ButtonGroupProbe): Component {
+internal class ButtonGroupScene(
+    private val probe: ButtonGroupProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val generation = probe.generation.value
         if (probe.gone)
-            return element(generation, { current -> ButtonGroupTestLayout(probe, current) })
+            return element(
+                generation,
+                { current, mount -> ButtonGroupTestLayout(probe, current, scope = mount) }
+            )
         val entries =
             if (probe.reordered)
                 [2L, 1L, 0L]
@@ -81,7 +87,7 @@ internal class ButtonGroupScene(private val probe: ButtonGroupProbe): Component 
         return direction(
             element(
                 generation,
-                { current -> ButtonGroupTestLayout(probe, current) },
+                { current, mount -> ButtonGroupTestLayout(probe, current, scope = mount) },
                 [group, typed, nested, text, vertical]
             ),
             if (probe.rtl)
@@ -118,14 +124,19 @@ internal class ButtonGroupScene(private val probe: ButtonGroupProbe): Component 
                     this.group = Some(position)
                     this.style { surface { this.suggestedSize = Some(Size(80.0, 32.0)) } }
                 }
-        return element(index, { current -> ButtonGroupChildMarker(probe, current) }, [view])
+        return element(
+            index,
+            { current, mount -> ButtonGroupChildMarker(probe, current, scope = mount) },
+            [view]
+        )
     }
 }
 
 private class ButtonGroupTestLayout(
     private val probe: ButtonGroupProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -204,9 +215,10 @@ private class ButtonGroupTestLayout(
 
 private class ButtonGroupChildMarker(
     private val probe: ButtonGroupProbe,
-    private val index: Props<Long>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val index: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         val id = index.value
         probe.mounts[id] += 1
         scope.onDispose { probe.disposals[id] += 1 }

@@ -35,5 +35,9 @@ public class FrameBuilder internal constructor() {
 internal fun makeFrame(content: View, configure: FrameBuilder.() -> Unit): View {
     val builder = FrameBuilder()
     builder.configure()
-    return component(builder.snapshot(content), { props -> Frame(props) }, builder.key)
+    return component(
+        builder.snapshot(content),
+        { props, mount -> Frame(props, scope = mount) },
+        builder.key
+    )
 }

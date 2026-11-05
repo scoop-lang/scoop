@@ -7,12 +7,18 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 
-internal class FieldLabelScene(private val probe: FieldLabelProbe): Component {
+internal class FieldLabelScene(
+    private val probe: FieldLabelProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val generation = probe.generation.value
         probe.observedEnabled = probe.targets[2L].isEnabled
         if (probe.gone)
-            return element(generation, { current -> FieldLabelLayout(probe, current) })
+            return element(
+                generation,
+                { current, mount -> FieldLabelLayout(probe, current, scope = mount) }
+            )
         val alternate = probe.alternate
         val checked =
             binding(
@@ -93,7 +99,11 @@ internal class FieldLabelScene(private val probe: FieldLabelProbe): Component {
                 }
             ]
         return direction(
-            element(generation, { current -> FieldLabelLayout(probe, current) }, children),
+            element(
+                generation,
+                { current, mount -> FieldLabelLayout(probe, current, scope = mount) },
+                children
+            ),
             probe.direction
         )
     }
@@ -103,8 +113,9 @@ internal class FieldLabelScene(private val probe: FieldLabelProbe): Component {
 
 private class FieldLabelLayout(
     private val probe: FieldLabelProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -147,7 +158,10 @@ private class FieldLabelLayout(
     }
 }
 
-internal class ForeignFieldReady(private val probe: FieldLabelProbe): Element<Unit> {
+internal class ForeignFieldReady(
+    private val probe: FieldLabelProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

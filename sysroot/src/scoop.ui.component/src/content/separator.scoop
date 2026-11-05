@@ -20,9 +20,12 @@ public class SeparatorProps public constructor(
     }
 }
 
-public class Separator public constructor(private val props: Props<SeparatorProps>): Component {
+public class Separator public constructor(
+    private val props: Props<SeparatorProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -30,7 +33,7 @@ public class Separator public constructor(private val props: Props<SeparatorProp
         val theme = themes.read(input.theme)
         return element(
             SeparatorInkProps(input, input.color ?: theme.tokens.palette.border),
-            { current -> SeparatorInk(current) }
+            { current, mount -> SeparatorInk(current, scope = mount) }
         )
     }
 }
@@ -55,7 +58,10 @@ internal fun separatorSize(input: SeparatorProps, constraints: Constraints): Siz
     )
 }
 
-private class SeparatorInk(private val props: Props<SeparatorInkProps>): Element<Unit> {
+private class SeparatorInk(
+    private val props: Props<SeparatorInkProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(separatorSize(props.value.input, constraints)), Unit)
@@ -89,7 +95,7 @@ internal fun makeSeparator(configure: SeparatorBuilder.() -> Unit): View {
             builder.color,
             builder.theme
         ),
-        { current -> Separator(current) },
+        { current, mount -> Separator(current, scope = mount) },
         builder.key
     )
 }

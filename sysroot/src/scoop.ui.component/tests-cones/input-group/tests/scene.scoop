@@ -10,7 +10,7 @@ import scoop.ui.component.*
 import scoop.ui.style.Insets
 import scoop.ui.text.*
 
-internal class GroupScene(private val probe: GroupProbe): Component {
+internal class GroupScene(private val probe: GroupProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = probe
         val generation = p.generation.value
@@ -73,9 +73,9 @@ internal class GroupScene(private val probe: GroupProbe): Component {
                     component(
                         input,
                         {
-                            current ->
+                            current, mount ->
                             p.customMounts += 1
-                            Input(current)
+                            Input(current, scope = mount)
                         }
                     ),
                     p.focus[0L]
@@ -103,7 +103,7 @@ internal class GroupScene(private val probe: GroupProbe): Component {
                 }
             addons.add(
                 InputGroupAddon(
-                    component(id, { current -> TrackedAddon(p, current) }),
+                    component(id, { current, mount -> TrackedAddon(p, current, scope = mount) }),
                     align,
                     ViewKey.Number(id.toLong()),
                     Some(Insets())
@@ -124,14 +124,18 @@ internal class GroupScene(private val probe: GroupProbe): Component {
                             Some(p.fonts)
                         ),
                         {
-                            current ->
+                            current, mount ->
                             p.mounts += 1;
-                            InputGroup(current)
+                            InputGroup(current, scope = mount)
                         }
                     )
                 ]
         return direction(
-            element(generation, { current -> GroupLayout(p, current) }, children),
+            element(
+                generation,
+                { current, mount -> GroupLayout(p, current, scope = mount) },
+                children
+            ),
             if (p.rtl)
                 LayoutDirection.Rtl
             else
@@ -142,11 +146,12 @@ internal class GroupScene(private val probe: GroupProbe): Component {
 
 private class TrackedAddon(
     private val probe: GroupProbe,
-    private val props: Props<Int>
-): Component {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Component(scope) {
     private val original = props.value
     private val local = state(props.value * 11)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.addonMounts[original.toLong()] += 1
     }
     public override fun onUnmount() {
@@ -168,13 +173,15 @@ private class TrackedAddon(
                 ]
             else
                 []
-        return element(original, { current -> AddonBox(p, current) }, content)
+        return element(original, { current, mount -> AddonBox(p, current, scope = mount) }, content)
     }
 }
 
-private class AddonBox(private val probe: GroupProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class AddonBox(
+    private val probe: GroupProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -211,8 +218,9 @@ private class AddonBox(private val probe: GroupProbe, private val props: Props<I
 
 private class GroupLayout(
     private val probe: GroupProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

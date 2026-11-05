@@ -9,9 +9,11 @@ import scoop.ui.component.column as makeColumn
 import scoop.ui.component.imageView as makeImage
 
 /** The example owns its image; ImageView instances borrow it until unmount. */
-internal class AspectExamples(private val fonts: FontCollection): Component {
+internal class AspectExamples(private val fonts: FontCollection, scope: ComponentScope): Component(
+    scope
+) {
     private val artwork = state<Image?>(None)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         artwork.value = Some(scope.resource { panelArtwork() })
     }
     public override fun render(): View {

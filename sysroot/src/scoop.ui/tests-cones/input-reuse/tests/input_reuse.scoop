@@ -81,7 +81,7 @@ internal class InputProbe {
                         }
                     )
                 window = Some(native)
-                host.attach(native, { InputScene(this, active) })
+                host.attach(native, { mount -> InputScene(this, active, scope = mount) })
                 post(active)
             }
             case NewEvents(StartCause.Deadline) -> fail(Some(f"input reuse deadline at ${step}"))

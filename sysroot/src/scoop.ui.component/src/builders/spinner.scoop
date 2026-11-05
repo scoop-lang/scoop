@@ -19,7 +19,7 @@ internal fun makeSpinner(configure: SpinnerBuilder.() -> Unit): View {
     builder.configure()
     return component(
         SpinnerProps(builder.size, builder.color, builder.running, builder.period, builder.theme),
-        { current -> Spinner(current) },
+        { current, mount -> Spinner(current, scope = mount) },
         builder.key
     )
 }

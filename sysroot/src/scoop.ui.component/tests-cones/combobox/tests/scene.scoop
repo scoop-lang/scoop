@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.component.combobox as makeCombo
 import scoop.ui.component.label as makeLabel
 
-internal class ComboScene(private val p: ComboProbe): Component {
+internal class ComboScene(private val p: ComboProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -85,7 +85,7 @@ internal class ComboScene(private val p: ComboProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> ComboRoot(p, current) },
+                { current, mount -> ComboRoot(p, current, scope = mount) },
                 [
                     body,
                     button("After", {}) {
@@ -169,7 +169,7 @@ private class ProbeChoices(private val p: ComboProbe): ChoiceSource<Long> {
                     Some(
                         component(
                             number,
-                            { current -> ObservedChoice(p, current) },
+                            { current, mount -> ObservedChoice(p, current, scope = mount) },
                             ViewKey.Number(number)
                         )
                     )
@@ -178,9 +178,13 @@ private class ProbeChoices(private val p: ComboProbe): ChoiceSource<Long> {
     }
 }
 
-private class ObservedChoice(private val p: ComboProbe, private val props: Props<Long>): Component {
+private class ObservedChoice(
+    private val p: ComboProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
     private val mounted = props.value
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         p.factories += 1
     }
     public override fun onUnmount() {
@@ -189,16 +193,18 @@ private class ObservedChoice(private val p: ComboProbe, private val props: Props
     public override fun render(): View =
         element(
             props.value,
-            { current -> ChoiceObservation(p, current) },
+            { current, mount -> ChoiceObservation(p, current, scope = mount) },
             [comboObservedLabel(p, f"Candidate ${props.value} / local ${mounted}")]
         )
 }
 
 private class CapturedBounds(var value: Rect)
 
-private class ChoiceObservation(private val p: ComboProbe, private val props: Props<Long>): Element<
-    Unit
-> {
+private class ChoiceObservation(
+    private val p: ComboProbe,
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -226,8 +232,12 @@ private class ChoiceObservation(private val p: ComboProbe, private val props: Pr
     }
 }
 
-private class ComboRoot(private val p: ComboProbe, private val props: Props<Int>): Element<Size> {
-    public override fun onMount(scope: ComponentScope) {
+private class ComboRoot(
+    private val p: ComboProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Size>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,

@@ -8,89 +8,57 @@ import scoop.ui.style.*
 import scoop.ui.text.*
 import scoop.window.*
 
-internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Element<
-    TextFieldDrawing
-> {
-    private var scope: ComponentScope? = None
-    private var ownedFonts: FontCollection? = None
-    internal var fonts: FontCollection? = None
-    internal var host: TextEditHost? = None
+internal class TextFieldInk(
+    internal val props: Props<TextFieldInkProps>,
+    scope: ComponentScope
+): Element<TextFieldDrawing>(scope) {
+    internal val fonts: FontCollection get() = props.value.fonts
+    internal val host =
+        scope.resource {
+            val value = props.value
+            TextEditHost(
+                scope,
+                value.input.state,
+                textFieldAppearance(value.input, value.theme, value.text, value.placeholder, fonts),
+                value.input.options,
+                value.onInteractionChanged
+            )
+        }
     internal val lineHeight = TextFieldLineHeight()
-    private var padding: InputArea? = None
-    private var field: FieldLink? = None
-    private var horizontal: ScrollBarControl? = None
-    private var vertical: ScrollBarControl? = None
-    private var painters: ThemePainterCache? = None
-    private var content: StylePainter? = None
+    private val padding = scope.createArea()
+    private val field = scope.resource { FieldLink(scope, host.area, host.focus) }
+    private val horizontal =
+        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Horizontal)
+    private val vertical =
+        ScrollBarControl(scope, { scrollbarProps() }, host.area, Orientation.Vertical)
+    private val painters = scope.resource { ThemePainterCache() }
+    private val content = scope.resource { StylePainter() }
 
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-        fonts = Some(resolveFonts())
-        painters = Some(scope.resource { ThemePainterCache() })
-        content = Some(scope.resource { StylePainter() })
-        val value = props.value
-        val adapter =
-            scope.resource {
-                TextEditHost(scope, value.input.state, appearance(), value.input.options)
-            }
-        host = Some(adapter)
-        field = Some(scope.resource { FieldLink(scope, adapter.area, adapter.focus) })
-        value.mounted.value = Some(adapter)
-        val area = scope.createArea()
-        padding = Some(area)
-        area.scope.parent = Some(adapter.area.scope)
-        area.scope.defaultAction =
+    init {
+        scope.routeChildren(host.area)
+        padding.scope.parent = Some(host.area.scope)
+        padding.scope.defaultAction =
             {
                 context,
                 event -> when (event) {
                     case Pointer(
                         InputPointerEvent.Button(_, MouseButton.Left, ElementState.Pressed, _)
                     ) -> {
-                        adapter.focus.handle.requestFocus(FocusOrigin.Pointer)
+                        host.focus.handle.requestFocus(FocusOrigin.Pointer)
                         context.consume()
                     }
                     else -> {}
                 }
             }
-        horizontal =
-            Some(
-                ScrollBarControl(scope, { scrollbarProps() }, adapter.area, Orientation.Horizontal)
-            )
-        vertical =
-            Some(ScrollBarControl(scope, { scrollbarProps() }, adapter.area, Orientation.Vertical))
-        scope.routeChildren(adapter.area)
     }
-    private fun resolveFonts(): FontCollection =
-        when (props.value.input.fonts) {
-            case Some(value) -> value
-            case None -> when (ownedFonts) {
-                case Some(value) -> value
-                case None -> {
-                    val value = scope!!.resource { FontCollection() }
-                    ownedFonts = Some(value)
-                    value
-                }
-            }
-        }
     private fun appearance(): TextEditAppearance {
         val value = props.value
-        val style = value.input.style
-        val palette = value.theme.tokens.palette
-        return TextEditAppearance(
-            fonts!!,
-            value.text,
-            value.placeholder,
-            style.selectionColor ?: palette.primary.background.withAlpha(0.30),
-            style.inactiveSelectionColor ?: palette.muted.foreground.withAlpha(0.20),
-            style.caretColor ?: palette.primary.background,
-            style.markedColor ?: palette.primary.background,
-            style.caretWidth
-        )
+        return textFieldAppearance(value.input, value.theme, value.text, value.placeholder, fonts)
     }
     private fun scrollbarProps(): ScrollControlProps {
         val value = props.value
         return ScrollControlProps(
-            host!!.scroll,
+            host.scroll,
             if (value.input.options.wrap)
                 ScrollAxes.Vertical
             else
@@ -106,10 +74,9 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         )
     }
     public override fun update(): UiInvalidation {
-        fonts = Some(resolveFonts())
         val value = props.value
         val input = value.input
-        host!!.update(
+        host.update(
             input.state,
             appearance(),
             input.options,
@@ -118,11 +85,11 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
             input.onEdited,
             input.onSubmit
         )
-        field!!.update(input.labelTarget, input.options.enabled)
-        padding!!.scope.enabled = input.options.enabled
-        horizontal!!.update()
-        vertical!!.update()
-        painters!!.get(value.theme)
+        field.update(input.labelTarget, input.options.enabled)
+        padding.scope.enabled = input.options.enabled
+        horizontal.update()
+        vertical.update()
+        painters.get(value.theme)
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -131,7 +98,7 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
     public override fun scene(context: SceneContext, current: TextFieldDrawing) {
         val value = props.value
         val geometry = current.geometry
-        val painter = painters!!.get(value.theme)
+        val painter = painters.get(value.theme)
         if (geometry.opacity < 1.0)
             context.saveLayer(geometry.opacity)
         if (value.input.chrome == TextFieldChrome.Framed)
@@ -143,13 +110,13 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
                     SurfaceLayer.Background
                 )
             }
-        context.place(padding!!, geometry.bounds)
-        content!!.scene(context, geometry.bounds, geometry.contentStyle) {
+        context.place(padding, geometry.bounds)
+        content.scene(context, geometry.bounds, geometry.contentStyle) {
             local ->
             local.translate(geometry.content.x, geometry.content.y)
-            host!!.scene(local, current.editor)
-            horizontal!!.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
-            vertical!!.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
+            host.scene(local, current.editor)
+            horizontal.scene(local, current.editor.scrollSnapshot, current.horizontal, painter)
+            vertical.scene(local, current.editor.scrollSnapshot, current.vertical, painter)
         }
         if (value.input.chrome == TextFieldChrome.Framed)
             context.draw {
@@ -163,15 +130,5 @@ internal class TextFieldInk(internal val props: Props<TextFieldInkProps>): Eleme
         if (geometry.opacity < 1.0)
             context.restore()
         context.children()
-    }
-    public override fun onUnmount() {
-        when (props.value.mounted.value) {
-            case Some(value) -> when (host) {
-                case Some(owned) -> if (value === owned)
-                    props.value.mounted.value = None
-                case None -> {}
-            }
-            case None -> {}
-        }
     }
 }

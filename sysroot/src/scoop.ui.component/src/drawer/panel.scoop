@@ -10,18 +10,20 @@ import scoop.window.*
 internal fun drawerPanel(input: DrawerInput, content: View): View =
     element(
         input,
-        { current -> DrawerPanel(current) },
+        { current, mount -> DrawerPanel(current, scope = mount) },
         [
             content,
             element(
                 input,
-                { current -> DrawerSwipeHandle(current) },
+                { current, mount -> DrawerSwipeHandle(current, scope = mount) },
                 [input.props.swipeHandle.content ?: empty()]
             )
         ]
     )
 
-internal class DrawerPanel(private val props: Props<DrawerInput>): Element<Unit> {
+internal class DrawerPanel(private val props: Props<DrawerInput>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -114,13 +116,14 @@ internal class DrawerPanel(private val props: Props<DrawerInput>): Element<Unit>
     }
 }
 
-internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element<Unit> {
-    private var scope: ComponentScope? = None
+internal class DrawerSwipeHandle(
+    private val props: Props<DrawerInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var focus: FocusTarget? = None
     private var painter: ThemePainterCache? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         val current =
             scope.createArea(focusable = true) {
                 context,
@@ -156,7 +159,7 @@ internal class DrawerSwipeHandle(private val props: Props<DrawerInput>): Element
     public override fun update(): UiInvalidation {
         val input = props.value
         area!!.scope.enabled = input.props.options.enabled && input.props.swipeHandle.visible
-        if (!scope!!.isMounted)
+        if (!scope.isMounted)
             return UiInvalidation.Layout
         focus!!.options = input.props.swipeHandle.focus
         painter!!.get(input.theme)

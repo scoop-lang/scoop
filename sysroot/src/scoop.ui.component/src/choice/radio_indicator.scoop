@@ -11,13 +11,16 @@ internal class RadioIndicatorProps(
     val visual: RadioVisual
 )
 
-internal class RadioIndicator(private val props: Props<RadioIndicatorProps>): Element<Rect> {
+internal class RadioIndicator(
+    private val props: Props<RadioIndicatorProps>,
+    scope: ComponentScope
+): Element<Rect>(scope) {
     private var previousMetrics: RadioMetrics? = None
     private var previousTheme: Theme? = None
     private var motion: InteractionMotion? = None
     private var selection: Animatable<Double>? = None
     private var painters: ThemePainterCache? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painters = Some(scope.resource { ThemePainterCache() })
         motion = Some(InteractionMotion(scope, props.value.visual.interaction))
         selection =

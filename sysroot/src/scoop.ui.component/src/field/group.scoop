@@ -22,9 +22,12 @@ public class FieldStackProps public constructor(
     }
 }
 
-public class FieldStack public constructor(private val props: Props<FieldStackProps>): Component {
+public class FieldStack public constructor(
+    private val props: Props<FieldStackProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -69,7 +72,11 @@ public fun fieldContent(configure: FieldStackBuilder.() -> Unit = {}): View =
 internal fun makeFieldStack(kind: FieldStackKind, configure: FieldStackBuilder.() -> Unit): View {
     val builder = FieldStackBuilder()
     builder.configure()
-    return component(builder.snapshot(kind), { current -> FieldStack(current) }, builder.key)
+    return component(
+        builder.snapshot(kind),
+        { current, mount -> FieldStack(current, scope = mount) },
+        builder.key
+    )
 }
 
 public class FieldSetProps public constructor(
@@ -89,9 +96,12 @@ public class FieldSetProps public constructor(
     }
 }
 
-public class FieldSet public constructor(private val props: Props<FieldSetProps>): Component {
+public class FieldSet public constructor(
+    private val props: Props<FieldSetProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -174,5 +184,9 @@ public fun fieldSet(content: View, configure: FieldSetBuilder.() -> Unit = {}): 
 internal fun makeFieldSet(content: View, configure: FieldSetBuilder.() -> Unit): View {
     val builder = FieldSetBuilder()
     builder.configure()
-    return component(builder.snapshot(content), { current -> FieldSet(current) }, builder.key)
+    return component(
+        builder.snapshot(content),
+        { current, mount -> FieldSet(current, scope = mount) },
+        builder.key
+    )
 }

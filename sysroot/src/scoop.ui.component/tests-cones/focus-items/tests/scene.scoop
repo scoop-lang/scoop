@@ -7,7 +7,9 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.LogicalSize
 
-internal class ItemFocusScene(private val probe: ItemFocusProbe): Component {
+internal class ItemFocusScene(private val probe: ItemFocusProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val content =
             if (probe.show.value)
@@ -34,13 +36,13 @@ internal class ItemFocusScene(private val probe: ItemFocusProbe): Component {
             else
                 empty()
         return element(
-            { ItemFocusPanel(probe) },
+            { mount -> ItemFocusPanel(probe, scope = mount) },
             [
-                element({ LeadTarget(probe) }),
+                element({ mount -> LeadTarget(probe, scope = mount) }),
                 lazyElement(
                     FocusOuterSource(content),
                     probe.outer.value,
-                    { value -> FocusOuterPanel(value) },
+                    { value, mount -> FocusOuterPanel(value, scope = mount) },
                     retention = ItemRetention.KeepAlive(1L)
                 )
             ]
@@ -66,7 +68,10 @@ private class FocusOuterSource(private val content: View): ItemSource {
             empty()
 }
 
-private class FocusOuterPanel(private val selected: Props<Long>): LazyElement<Unit> {
+private class FocusOuterPanel(
+    private val selected: Props<Long>,
+    scope: ComponentScope
+): LazyElement<Unit>(scope) {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
@@ -85,8 +90,10 @@ private class FocusOuterPanel(private val selected: Props<Long>): LazyElement<Un
     }
 }
 
-private class ItemFocusPanel(private val probe: ItemFocusProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class ItemFocusPanel(private val probe: ItemFocusProbe, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -135,9 +142,11 @@ private class ItemFocusPanel(private val probe: ItemFocusProbe): Element<Unit> {
     }
 }
 
-private class LeadTarget(private val probe: ItemFocusProbe): Element<Unit> {
+private class LeadTarget(private val probe: ItemFocusProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(probe.lead)))
         assertTrue(probe.lead.requestFocus())
@@ -189,6 +198,9 @@ internal class FocusSource(
                     case 10L -> 37.0
                     else -> 24.0
                 }
-        return component(FocusRowInput(id, index, height), { props -> FocusRow(probe, props) })
+        return component(
+            FocusRowInput(id, index, height),
+            { props, mount -> FocusRow(probe, props, scope = mount) }
+        )
     }
 }

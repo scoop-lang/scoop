@@ -44,12 +44,15 @@ internal class ReuseRecords {
     }
 }
 
-internal class ReuseComponent<A, B>(private val record: ReuseRecord): Component {
+internal class ReuseComponent<A, B>(
+    private val record: ReuseRecord,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         record.updated()
         return empty()
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounted(scope)
     }
     public override fun onUnmount() {
@@ -57,12 +60,14 @@ internal class ReuseComponent<A, B>(private val record: ReuseRecord): Component 
     }
 }
 
-internal class ReuseElement<A, B>(private val record: ReuseRecord): Element<Unit> {
+internal class ReuseElement<A, B>(private val record: ReuseRecord, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun update(): UiInvalidation {
         record.updated()
         return UiInvalidation.Layout
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounted(scope)
     }
     public override fun onUnmount() {
@@ -76,12 +81,14 @@ internal class ReuseElement<A, B>(private val record: ReuseRecord): Element<Unit
     }
 }
 
-internal class ReuseLazy<A, B>(private val record: ReuseRecord): LazyElement<Unit> {
+internal class ReuseLazy<A, B>(private val record: ReuseRecord, scope: ComponentScope): LazyElement<
+    Unit
+>(scope) {
     public override fun update(): UiInvalidation {
         record.updated()
         return UiInvalidation.Layout
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounted(scope)
     }
     public override fun onUnmount() {
@@ -103,7 +110,7 @@ internal class ReuseEmptyItems: ItemSource {
     public override fun build(index: Long): View = throw IndexOutOfBoundsException()
 }
 
-internal class ReuseLayout: Element<Unit> {
+internal class ReuseLayout(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

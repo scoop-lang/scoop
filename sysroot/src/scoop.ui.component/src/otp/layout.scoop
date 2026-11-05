@@ -88,7 +88,7 @@ internal fun measureOtp(
             upperBound(margin, size.width / 2.0),
             upperBound(margin, size.height / 2.0) + (contentSize.height - viewport.height) / 2.0
         )
-    val text = ink.host!!.measure(Constraints.tight(viewport), Some(plan))
+    val text = ink.host.measure(Constraints.tight(viewport), Some(plan))
     try {
         val layout = text.layout
         val rects = layout.cellRects

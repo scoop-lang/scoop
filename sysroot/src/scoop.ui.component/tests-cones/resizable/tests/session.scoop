@@ -117,7 +117,7 @@ internal class SplitProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { SplitScene(this) });
+                host.attach(window, { mount -> SplitScene(this, scope = mount) });
                 window.requestFocus();
                 wait(active)
             }

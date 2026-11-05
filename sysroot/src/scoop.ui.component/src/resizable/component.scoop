@@ -26,12 +26,15 @@ internal class ResizableGeometry(
     val direction: LayoutDirection
 )
 
-public class Resizable public constructor(private val props: Props<ResizableProps>): Component {
+public class Resizable public constructor(
+    private val props: Props<ResizableProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val owner = ResizableOwner()
     private var checked: Array<ResizableSize>? = None
     private var model = HashMap<ViewKey, ResizableSize>()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -54,32 +57,37 @@ public class Resizable public constructor(private val props: Props<ResizableProp
                 val part = ResizablePanelInput(config, index)
                 element(
                     part,
-                    { current -> ResizablePanelLayout(current) },
+                    { current, mount -> ResizablePanelLayout(current, scope = mount) },
                     [
                         element(
                             panel.style,
-                            { current -> ResizableContent(current) },
+                            { current, mount -> ResizableContent(current, scope = mount) },
                             [panel.content],
                             key = ViewKey.Text("content")
                         ),
                         element(
                             part,
-                            { current -> ResizableHandle(current) },
+                            { current, mount -> ResizableHandle(current, scope = mount) },
                             key = ViewKey.Text("handle")
                         )
                     ],
                     key = panel.key
                 )
             }
-        return element(config, { current -> ResizableLayout(current) }, children)
+        return element(
+            config,
+            { current, mount -> ResizableLayout(current, scope = mount) },
+            children
+        )
     }
 }
 
-private class ResizableLayout(private val props: Props<ResizableInput>): Element<
-    ResizableGeometry
-> {
+private class ResizableLayout(
+    private val props: Props<ResizableInput>,
+    scope: ComponentScope
+): Element<ResizableGeometry>(scope) {
     private var painter: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         props.value.owner.control = Some(ResizableControl(scope, { props.value }))
         painter = Some(scope.resource { StylePainter() })
     }

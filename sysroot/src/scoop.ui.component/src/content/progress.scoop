@@ -43,11 +43,14 @@ internal fun progressPosition(value: Double?, minimum: Double, maximum: Double):
     }
 }
 
-public class Progress public constructor(private val props: Props<ProgressProps>): Component {
+public class Progress public constructor(
+    private val props: Props<ProgressProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val labels = ActionTextStyle()
     private val values = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -94,7 +97,7 @@ public class Progress public constructor(private val props: Props<ProgressProps>
                     theme.tokens.motion.preference == MotionPreference.Full,
                     input.period
                 ),
-                { current -> ProgressInk(current) }
+                { current, mount -> ProgressInk(current, scope = mount) }
             )
         return progressColumn {
             if (panelPresent(labelCaption) || panelPresent(valueCaption))
@@ -187,7 +190,7 @@ internal fun makeProgress(value: Double?, configure: ProgressBuilder.() -> Unit)
             builder.fonts,
             builder.theme
         ),
-        { current -> Progress(current) },
+        { current, mount -> Progress(current, scope = mount) },
         builder.key
     )
 }

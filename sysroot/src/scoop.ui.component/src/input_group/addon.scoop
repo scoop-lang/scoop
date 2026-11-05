@@ -100,7 +100,7 @@ public class InputGroupAddonBuilder internal constructor(private val align: Inpu
                     }
                     case Button(value, key) -> component(
                         groupButtonProps(value, None, fonts, theme),
-                        { current -> Button(current) },
+                        { current, mount -> Button(current, scope = mount) },
                         key
                     )
                     case Custom(view) -> view
@@ -109,7 +109,7 @@ public class InputGroupAddonBuilder internal constructor(private val align: Inpu
         return InputGroupAddon(
             component(
                 InputAddonBodyProps(children.toArray(), spacing, theme),
-                { current -> InputAddonBody(current) }
+                { current, mount -> InputAddonBody(current, scope = mount) }
             ),
             align,
             key,
@@ -125,9 +125,12 @@ private class InputAddonBodyProps(
     val theme: ThemeSource?
 )
 
-private class InputAddonBody(private val props: Props<InputAddonBodyProps>): Component {
+private class InputAddonBody(
+    private val props: Props<InputAddonBodyProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {

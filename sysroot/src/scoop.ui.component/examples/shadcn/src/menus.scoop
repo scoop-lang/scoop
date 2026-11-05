@@ -59,7 +59,7 @@ internal fun exampleMenu(model: MenuExamplesModel, gallery: GalleryModel): MenuC
                         PanelStatusIconProps(
                             gallery.source.current.value.tokens.palette.popover.foreground
                         ),
-                        { current -> PanelStatusIcon(current) }
+                        { current, mount -> PanelStatusIcon(current, scope = mount) }
                     )
                 )
         }

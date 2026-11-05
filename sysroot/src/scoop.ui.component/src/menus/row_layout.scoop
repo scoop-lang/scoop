@@ -17,14 +17,17 @@ internal class MenuRowLayoutProps(
     val pointerOpen: () -> Unit
 )
 
-internal class MenuRowLayout(private val props: Props<MenuRowLayoutProps>): Element<Unit> {
+internal class MenuRowLayout(
+    private val props: Props<MenuRowLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var hover: Hover? = None
     private fun refresh() {
         val input = area!!.scope
         props.value.highlight(input.activity.hasFocus)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val target = scope.createArea()
         area = Some(target)
         scope.routeChildren(target)

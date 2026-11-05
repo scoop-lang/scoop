@@ -94,7 +94,7 @@ internal class ButtonGroupProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
-                host.attach(window, { ButtonGroupScene(this) })
+                host.attach(window, { mount -> ButtonGroupScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

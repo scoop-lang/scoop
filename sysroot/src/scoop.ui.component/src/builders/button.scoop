@@ -89,7 +89,7 @@ internal fun makeStyledButton(
 }
 
 private fun buttonView(input: ButtonProps, key: ViewKey): View =
-    component(input, { props -> Button(props) }, key, Some(buttonComparison))
+    component(input, { props, mount -> Button(props, scope = mount) }, key, Some(buttonComparison))
 
 internal fun makeContentButton(
     content: View,

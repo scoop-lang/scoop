@@ -21,7 +21,10 @@ private fun fieldControlColumn(input: FieldProps, part: FieldPart): Boolean =
         case Error -> input.controlPlacement == FieldControlPlacement.End
     }
 
-internal class FieldLayout(private val props: Props<FieldLayoutProps>): Element<Boolean> {
+internal class FieldLayout(
+    private val props: Props<FieldLayoutProps>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Boolean
     > {

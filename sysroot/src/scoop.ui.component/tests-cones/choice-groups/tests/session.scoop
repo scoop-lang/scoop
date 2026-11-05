@@ -126,7 +126,7 @@ internal class ChoiceProbe {
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { ChoiceScene(this) })
+                host.attach(window, { mount -> ChoiceScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

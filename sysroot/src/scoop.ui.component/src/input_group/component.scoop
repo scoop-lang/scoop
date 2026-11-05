@@ -15,10 +15,13 @@ internal class InputGroupInput(
     val invalid: Boolean
 )
 
-public class InputGroup public constructor(private val props: Props<InputGroupProps>): Component {
+public class InputGroup public constructor(
+    private val props: Props<InputGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val ownFocus = FocusHandle()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -75,7 +78,7 @@ public class InputGroup public constructor(private val props: Props<InputGroupPr
         }
         return element(
             InputGroupInput(value, theme, focus, enabled, invalid),
-            { current -> InputGroupInk(current) },
+            { current, mount -> InputGroupInk(current, scope = mount) },
             children.toArray()
         )
     }
@@ -84,11 +87,14 @@ public class InputGroup public constructor(private val props: Props<InputGroupPr
 internal fun inputGroupBlock(align: InputGroupAlign): Boolean =
     align == InputGroupAlign.BlockStart || align == InputGroupAlign.BlockEnd
 
-internal class InputGroupInk(internal val props: Props<InputGroupInput>): Element<Unit> {
+internal class InputGroupInk(
+    internal val props: Props<InputGroupInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
     private var painters: ThemePainterCache? = None
 
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area =
             Some(
                 scope.createArea {

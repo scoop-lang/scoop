@@ -163,7 +163,11 @@ public fun dialog(
 ): View {
     val builder = DialogBuilder()
     builder.configure()
-    return component(builder.snapshot(open, content), { current -> Dialog(current) }, builder.key)
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Dialog(current, scope = mount) },
+        builder.key
+    )
 }
 
 public fun alertDialog(
@@ -175,7 +179,7 @@ public fun alertDialog(
     builder.configure()
     return component(
         builder.snapshot(open, content),
-        { current -> AlertDialog(current) },
+        { current, mount -> AlertDialog(current, scope = mount) },
         builder.key
     )
 }
@@ -187,5 +191,9 @@ public fun sheet(
 ): View {
     val builder = SheetBuilder()
     builder.configure()
-    return component(builder.snapshot(open, content), { current -> Sheet(current) }, builder.key)
+    return component(
+        builder.snapshot(open, content),
+        { current, mount -> Sheet(current, scope = mount) },
+        builder.key
+    )
 }

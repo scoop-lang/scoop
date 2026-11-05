@@ -12,7 +12,8 @@ public class TextEditHost public constructor(
     internal val scope: ComponentScope,
     initialState: TextEditorState,
     initialAppearance: TextEditAppearance,
-    initialOptions: TextEditOptions = TextEditOptions()
+    initialOptions: TextEditOptions = TextEditOptions(),
+    private val onInteractionChanged: (TextEditInteraction) -> Unit = { _ -> Unit }
 ): Closeable {
     private val thread = currentThreadId()
     internal val window = scope.nativeWindow
@@ -80,6 +81,12 @@ public class TextEditHost public constructor(
     public val interaction: TextEditInteraction get() {
         checkOpen();
         return visual.value
+    }
+    internal fun publishInteraction(value: TextEditInteraction) {
+        if (visual.value == value)
+            return
+        visual.value = value
+        onInteractionChanged(value)
     }
     /** Borrowed from the last accepted frame; measurements carry their own layouts. */
     public val layout: TextEditLayout get() {

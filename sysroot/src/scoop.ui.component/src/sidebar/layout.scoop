@@ -23,8 +23,10 @@ internal fun sidebarOutside(input: SidebarProps, density: Double): Double =
 internal fun sidebarOnLeft(side: SidebarSide, direction: LayoutDirection): Boolean =
     (side == SidebarSide.Start) != (direction == LayoutDirection.Rtl)
 
-internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<Boolean> {
-    private var scope: ComponentScope? = None
+internal class SidebarHost(
+    private val props: Props<SidebarHostInput>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
     private var width: Animatable<Double>? = None
     private var keys: ShortcutScope? = None
     private var wasMobile = false
@@ -38,8 +40,7 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<
             else
                 0.0
     }
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         width = Some(scope.animation(target()))
         wasMobile = props.value.shown.mobile
         keys = Some(scope.resource { ShortcutScope(scope.input) })
@@ -189,7 +190,7 @@ internal class SidebarHost(private val props: Props<SidebarHostInput>): Element<
         context.children([1L, 0L, 2L])
         val desired = nextMobile
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && scope!!.isMounted)
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
                 props.value.setMobile(desired)
         }
     }
@@ -201,7 +202,10 @@ internal class SidebarPaneInput(
     val density: Double
 )
 
-internal class SidebarPane(private val props: Props<SidebarPaneInput>): Element<Unit> {
+internal class SidebarPane(
+    private val props: Props<SidebarPaneInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -247,19 +251,24 @@ internal class SidebarPane(private val props: Props<SidebarPaneInput>): Element<
 internal class SidebarGateInput(val enabled: Boolean, val shown: Boolean)
 
 internal fun sidebarGate(content: View, enabled: Boolean, shown: Boolean): View =
-    element(SidebarGateInput(enabled, shown), { current -> SidebarGate(current) }, [content])
+    element(
+        SidebarGateInput(enabled, shown),
+        { current, mount -> SidebarGate(current, scope = mount) },
+        [content]
+    )
 
-private class SidebarGate(private val props: Props<SidebarGateInput>): Element<Boolean> {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope);
+private class SidebarGate(
+    private val props: Props<SidebarGateInput>,
+    scope: ComponentScope
+): Element<Boolean>(scope) {
+    public override fun onMount() {
         scope.input.enabled = false
     }
     public override fun update(): UiInvalidation {
         val input = props.value
         if (!input.enabled || !input.shown)
-            scope!!.input.enabled = false
-        scope!!.isFrameEnabled = input.enabled && input.shown
+            scope.input.enabled = false
+        scope.isFrameEnabled = input.enabled && input.shown
         return UiInvalidation.Layout
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -279,8 +288,8 @@ private class SidebarGate(private val props: Props<SidebarGateInput>): Element<B
         context.children()
         val visible = placed
         context.onFrameComplete {
-            frame -> if (frame.submission == FrameSubmission.Accepted && scope!!.isMounted)
-                scope!!.input.enabled = visible && props.value.enabled && props.value.shown
+            frame -> if (frame.submission == FrameSubmission.Accepted && scope.isMounted)
+                scope.input.enabled = visible && props.value.enabled && props.value.shown
         }
     }
 }
@@ -300,11 +309,18 @@ internal fun sidebarKeyBindings(scope: ShortcutScope, input: SidebarProps, toggl
 private class SidebarKeyInput(val props: SidebarProps, val toggle: () -> Unit)
 
 internal fun sidebarKeys(content: View, input: SidebarProps, toggle: () -> Unit): View =
-    element(SidebarKeyInput(input, toggle), { current -> SidebarKeys(current) }, [content])
+    element(
+        SidebarKeyInput(input, toggle),
+        { current, mount -> SidebarKeys(current, scope = mount) },
+        [content]
+    )
 
-private class SidebarKeys(private val props: Props<SidebarKeyInput>): Element<Unit> {
+private class SidebarKeys(
+    private val props: Props<SidebarKeyInput>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var keys: ShortcutScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         keys = Some(scope.resource { ShortcutScope(scope.input) })
     }
     public override fun update(): UiInvalidation {

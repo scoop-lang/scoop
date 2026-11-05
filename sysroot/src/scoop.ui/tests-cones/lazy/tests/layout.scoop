@@ -6,16 +6,23 @@ import scoop.surface.FrameSubmission
 import scoop.test.*
 import scoop.ui.*
 
-internal class LazyScene(private val probe: LazyProbe): Component {
+internal class LazyScene(private val probe: LazyProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         return element(
-            { ProbeContainer(probe) },
-            [lazyElement(probe.source!!.value, { ProtocolContainer(probe) })]
+            { mount -> ProbeContainer(probe, scope = mount) },
+            [
+                lazyElement(
+                    probe.source!!.value,
+                    { mount -> ProtocolContainer(probe, scope = mount) }
+                )
+            ]
         )
     }
 }
 
-private class ProbeContainer(private val probe: LazyProbe): Element<Unit> {
+private class ProbeContainer(private val probe: LazyProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -33,8 +40,10 @@ private class ProbeContainer(private val probe: LazyProbe): Element<Unit> {
     }
 }
 
-private class ProtocolContainer(private val probe: LazyProbe): LazyElement<Int> {
-    public override fun onMount(scope: ComponentScope) {
+private class ProtocolContainer(private val probe: LazyProbe, scope: ComponentScope): LazyElement<
+    Int
+>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(

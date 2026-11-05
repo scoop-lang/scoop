@@ -13,7 +13,9 @@ import scoop.ui.component.dialog as makeDialog
 import scoop.ui.component.dialogFooter as makeFooter
 import scoop.ui.component.label as makeLabel
 
-internal class ModalFamilyScene(private val p: ModalFamilyProbe): Component {
+internal class ModalFamilyScene(private val p: ModalFamilyProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -33,8 +35,9 @@ internal class ModalFamilyScene(private val p: ModalFamilyProbe): Component {
         val body =
             component(
                 {
+                    mount ->
                     p.factories += 1;
-                    ModalFamilyBody(p)
+                    ModalFamilyBody(p, scope = mount)
                 }
             )
         val popup =
@@ -71,7 +74,7 @@ internal class ModalFamilyScene(private val p: ModalFamilyProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> ModalFamilyRoot(p, current) },
+                { current, mount -> ModalFamilyRoot(p, current, scope = mount) },
                 [
                     makeButton("Background", { p.backgroundActions += 1 }) {
                         fonts = Some(p.fonts);
@@ -133,9 +136,11 @@ private fun modalFooter(p: ModalFamilyProbe): View =
         )
     }
 
-private class ModalFamilyBody(private val p: ModalFamilyProbe): Component {
+private class ModalFamilyBody(private val p: ModalFamilyProbe, scope: ComponentScope): Component(
+    scope
+) {
     private val local = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -189,7 +194,7 @@ private class ModalFamilyBody(private val p: ModalFamilyProbe): Component {
 private fun observeModal(p: ModalFamilyProbe, slot: Int, content: View): View =
     element(
         slot,
-        { current -> ModalFamilyObservation(p, current) },
+        { current, mount -> ModalFamilyObservation(p, current, scope = mount) },
         [content],
         key = ViewKey.Number(slot.toLong())
     )
@@ -198,8 +203,9 @@ private class CapturedModalBounds(var value: Rect, var ringVisible: Boolean = fa
 
 private class ModalFamilyObservation(
     private val p: ModalFamilyProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -251,8 +257,9 @@ private class ModalFamilyObservation(
 
 private class ModalFamilyRoot(
     private val p: ModalFamilyProbe,
-    private val props: Props<Int>
-): Element<Unit> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

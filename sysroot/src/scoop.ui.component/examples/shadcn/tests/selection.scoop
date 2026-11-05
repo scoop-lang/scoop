@@ -110,7 +110,7 @@ internal class SelectionProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
-                host.attach(window, { SelectionScene(this) })
+                host.attach(window, { mount -> SelectionScene(this, scope = mount) })
                 window.requestFocus();
                 wait(active)
             }

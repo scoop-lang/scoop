@@ -14,9 +14,9 @@ import scoop.window.TextInputEvent
 internal fun activeScene(probe: InteractionProbe): View =
     element(
         probe.source.value,
-        { props -> ActiveCanvas(probe, props) },
+        { props, mount -> ActiveCanvas(probe, props, scope = mount) },
         [
-            element({ ComboEditor(probe) }),
+            element({ mount -> ComboEditor(probe, scope = mount) }),
             portal(
                 probe.candidatesOpen.binding(),
                 virtualList(probe.source.value, ItemExtent.Fixed(24.0)) {
@@ -35,11 +35,10 @@ internal fun activeScene(probe: InteractionProbe): View =
 
 private class ActiveCanvas(
     private val probe: InteractionProbe,
-    private val props: Props<NavigationRows>
-): Element<Unit> {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    private val props: Props<NavigationRows>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.shortcuts =
             Some(
                 scope.resource {
@@ -138,8 +137,10 @@ private class ActiveCanvas(
     }
 }
 
-private class ComboEditor(private val probe: InteractionProbe): Element<TextEditMeasurement> {
-    public override fun onMount(scope: ComponentScope) {
+private class ComboEditor(private val probe: InteractionProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    public override fun onMount() {
         val text = probe.theme.current.value.tokens.typography.body
         val host =
             scope.resource {

@@ -12,10 +12,11 @@ public class DialogFooterProps public constructor(
 )
 
 public class DialogFooter public constructor(
-    private val props: Props<DialogFooterProps>
-): Component {
+    private val props: Props<DialogFooterProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -29,21 +30,24 @@ public fun dialogFooter(configure: ChildrenBuilder.() -> Unit): View {
     builder.configure()
     return component(
         DialogFooterProps(builder.childrenSnapshot()),
-        { current -> DialogFooter(current) }
+        { current, mount -> DialogFooter(current, scope = mount) }
     )
 }
 
 internal fun modalActions(children: Array<View>, density: Double, balanced: Boolean): View =
     element(
         ModalActionsProps(8.0 * density, balanced),
-        { current -> ModalActions(current) },
+        { current, mount -> ModalActions(current, scope = mount) },
         children
     )
 
 private class ModalActionsProps(val spacing: Double, val balanced: Boolean)
 
 /** Reflows the same child sequence; only placements change at the narrow boundary. */
-private class ModalActions(private val props: Props<ModalActionsProps>): Element<Unit> {
+private class ModalActions(
+    private val props: Props<ModalActionsProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

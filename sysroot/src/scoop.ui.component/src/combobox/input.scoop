@@ -66,11 +66,11 @@ internal fun <T: Equals<T>> comboEditor(
                 field.group,
                 TextFieldChrome.Bare
             ),
-            { current -> Input(current) }
+            { current, mount -> Input(current, scope = mount) }
         )
     return element(
         control,
-        { current -> ComboEditorEvents(current) },
+        { current, mount -> ComboEditorEvents(current, scope = mount) },
         [editor],
         ViewKey.Text("editor")
     )
@@ -91,7 +91,7 @@ private fun <T: Equals<T>> comboChip(
             color = theme.tokens.palette.background.foreground
         }
     val fonts = input.input.fonts
-    val direction = (control.owner?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+    val direction = control.owner.layoutDirection.textDirection()
     val body =
         comboInputRow {
             this.item(
@@ -213,7 +213,7 @@ internal fun <T: Equals<T>> comboField(
             input.input.theme,
             input.input.style.surface
         ),
-        { current -> InputGroup(current) }
+        { current, mount -> InputGroup(current, scope = mount) }
     )
 }
 
@@ -229,7 +229,7 @@ internal fun <T: Equals<T>> comboTrigger(control: ComboboxControl<T>, theme: The
             else
                 f"${values.size} selected"
     val d = theme.tokens.typography.body.fontSize / 14.0
-    val direction = (control.owner?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+    val direction = control.owner.layoutDirection.textDirection()
     val content =
         comboInputRow {
             this.item(
@@ -269,6 +269,6 @@ internal fun <T: Equals<T>> comboTrigger(control: ComboboxControl<T>, theme: The
             ButtonSize.Default,
             labelTarget = input.input.labelTarget
         ),
-        { current -> Button(current) }
+        { current, mount -> Button(current, scope = mount) }
     )
 }

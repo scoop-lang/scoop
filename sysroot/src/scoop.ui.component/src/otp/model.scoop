@@ -76,17 +76,18 @@ public class InputOtpProps public constructor(
             parts
 }
 
-public class InputOtp public constructor(private val props: Props<InputOtpProps>): Component {
+public class InputOtp public constructor(
+    private val props: Props<InputOtpProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val body = ActionTextStyle()
-    private val mounted: State<TextEditHost?> = state(None)
-    public override fun onMount(scope: ComponentScope) {
-        themes.mount(props.value.theme)
-    }
+    private val visual = state(TextEditInteraction())
+    private val interactionChanged: (TextEditInteraction) -> Unit = { next -> visual.value = next }
     public override fun render(): View {
         val input = props.value
         val snapshot = input.state.inputState
-        val interaction = mounted.value?.interaction ?: TextEditInteraction()
+        val interaction = visual.value
         val theme = themes.read(input.theme)
         val children = ArrayList<View>()
         for (part in input.parts)
@@ -104,9 +105,10 @@ public class InputOtp public constructor(private val props: Props<InputOtpProps>
                     theme.tokens.palette.background.foreground,
                     input.style.text
                 ),
-                mounted
+                interactionChanged,
+                input.fonts ?: scope.defaultFonts
             ),
-            { current -> OtpInk(current) },
+            { current, mount -> OtpInk(current, scope = mount) },
             children.toArray()
         )
     }
@@ -117,7 +119,8 @@ internal class OtpInkProps(
     val theme: Theme,
     val interaction: TextEditInteraction,
     val text: TextStyle,
-    val mounted: State<TextEditHost?>
+    val onInteractionChanged: (TextEditInteraction) -> Unit,
+    val fonts: FontCollection
 )
 
 public fun inputOtp(

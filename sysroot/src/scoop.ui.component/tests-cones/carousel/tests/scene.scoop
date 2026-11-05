@@ -7,7 +7,9 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 
-internal class CarouselScene(private val p: CarouselProbe): Component {
+internal class CarouselScene(private val p: CarouselProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val p = this.p
         val revision = p.generation.value
@@ -71,7 +73,7 @@ internal class CarouselScene(private val p: CarouselProbe): Component {
         val result =
             element(
                 revision,
-                { value -> CarouselTestLayout(p, value) },
+                { value, mount -> CarouselTestLayout(p, value, scope = mount) },
                 [
                     button("Before", {}) {
                         fonts = Some(p.fonts);
@@ -106,14 +108,15 @@ private class CarouselTestSource(
         return None
     }
     public override fun build(index: Long): View =
-        component(keys[index], { value -> CarouselTile(p, value) })
+        component(keys[index], { value, mount -> CarouselTile(p, value, scope = mount) })
 }
 
 private class CarouselTile(
     private val p: CarouselProbe,
-    private val props: Props<Long>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         p.mounts += 1
     }
     public override fun onUnmount() {
@@ -124,7 +127,7 @@ private class CarouselTile(
         val key = props.value
         return element(
             key,
-            { value -> CarouselTileLayout(p, value) },
+            { value, mount -> CarouselTileLayout(p, value, scope = mount) },
             [
                 button(f"Open ${key}", { p.clicks += 1 }) {
                     fonts = Some(p.fonts)
@@ -144,8 +147,9 @@ private class CarouselTile(
 
 private class CarouselTileLayout(
     private val p: CarouselProbe,
-    private val key: Props<Long>
-): Element<Unit> {
+    private val key: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -179,9 +183,10 @@ private class CarouselTileLayout(
 
 private class CarouselTestLayout(
     private val p: CarouselProbe,
-    private val revision: Props<Int>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val revision: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 _,

@@ -6,11 +6,12 @@ import scoop.ui.*
 import scoop.ui.style.*
 
 public class Tabs<T: Equals<T>> public constructor(
-    private val props: Props<TabsProps<T>>
-): Component {
+    private val props: Props<TabsProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun select(key: ViewKey) {
@@ -81,7 +82,7 @@ public class Tabs<T: Equals<T>> public constructor(
                         theme,
                         { select(key) }
                     ),
-                    { current -> TabControl(current) }
+                    { current, mount -> TabControl(current, scope = mount) }
                 )
             }
         val header =
@@ -124,7 +125,7 @@ public class Tabs<T: Equals<T>> public constructor(
                         active,
                         input.enabled && entry.choice.enabled
                     ),
-                    { current -> DisclosureBody(current) },
+                    { current, mount -> DisclosureBody(current, scope = mount) },
                     if (
                         active ||
                             (entry.retention ?: input.retention) ==
@@ -139,8 +140,15 @@ public class Tabs<T: Equals<T>> public constructor(
         return panelFrame(
             element(
                 TabsLayoutProps(input.axis, input.spacing),
-                { current -> TabsLayout(current) },
-                [header, element(selected, { current -> TabPanels(current) }, panels)]
+                { current, mount -> TabsLayout(current, scope = mount) },
+                [
+                    header,
+                    element(
+                        selected,
+                        { current, mount -> TabPanels(current, scope = mount) },
+                        panels
+                    )
+                ]
             ),
             visual = input.style
         )

@@ -187,7 +187,7 @@ internal class DrawerProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { DrawerScene(this) });
+                host.attach(window, { mount -> DrawerScene(this, scope = mount) });
                 window.requestFocus()
                 ready = MonotonicTimeSource.markNow() + Duration.milliseconds(hold)
                 active.setControlFlow(ControlFlow.WaitUntil(ready))

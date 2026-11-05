@@ -12,8 +12,7 @@ internal fun editorInteraction(host: TextEditHost, focused: Boolean, hovered: Bo
             hovered && host.options.enabled,
             host.area.isFocusVisible && host.options.enabled
         )
-    if (host.visual.value != next)
-        host.visual.value = next
+    host.publishInteraction(next)
 }
 
 internal fun editorHandle(host: TextEditHost, context: RoutedEventContext, event: InputEvent) {

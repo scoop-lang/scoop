@@ -13,9 +13,10 @@ import scoop.window.*
 
 internal class KbdExamples(
     private val model: GalleryModel,
-    private val fonts: FontCollection
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         model.shortcutScope =
             Some(
                 scope.resource {

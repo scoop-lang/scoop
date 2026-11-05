@@ -115,7 +115,7 @@ internal class CarouselProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { CarouselScene(this) });
+                host.attach(window, { mount -> CarouselScene(this, scope = mount) });
                 window.requestFocus()
                 next = MonotonicTimeSource.markNow() + waitAfter
                 active.setControlFlow(ControlFlow.WaitUntil(next))

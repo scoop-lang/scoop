@@ -22,7 +22,7 @@ internal class ComboboxRows<T: Equals<T>>(
     public override fun build(index: Long): View =
         component(
             ComboRowProps(source.entryAt(index), input, theme, active, highlight, select),
-            { current -> ComboRow(current) }
+            { current, mount -> ComboRow(current, scope = mount) }
         )
 }
 
@@ -35,11 +35,10 @@ private class ComboRowProps<T: Equals<T>>(
     val select: (ViewKey) -> Unit
 )
 
-private class ComboRow<T: Equals<T>>(private val props: Props<ComboRowProps<T>>): Component {
-    private val owner = state<ComponentScope?>(None)
-    public override fun onMount(scope: ComponentScope) {
-        owner.value = Some(scope)
-    }
+private class ComboRow<T: Equals<T>>(
+    private val props: Props<ComboRowProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val row = props.value
         val theme = row.theme
@@ -78,7 +77,7 @@ private class ComboRow<T: Equals<T>>(private val props: Props<ComboRowProps<T>>)
                 ink.accent.foreground
             else
                 ink.popover.foreground
-        val direction = (owner.value?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+        val direction = scope.layoutDirection.textDirection()
         val body =
             comboRow {
                 when (item.icon) {
@@ -111,7 +110,7 @@ private class ComboRow<T: Equals<T>>(private val props: Props<ComboRowProps<T>>)
                     panelSlot(
                         element(
                             MenuCheckProps(selected, 16.0 * d, color),
-                            { current -> MenuCheck(current) }
+                            { current, mount -> MenuCheck(current, scope = mount) }
                         ),
                         2L
                     )
@@ -121,12 +120,12 @@ private class ComboRow<T: Equals<T>>(private val props: Props<ComboRowProps<T>>)
             }
         return element(
             CandidateRowInkProps(item.choice.key, enabled, row.highlight, row.select),
-            { current -> CandidateRowInk(current) },
+            { current, mount -> CandidateRowInk(current, scope = mount) },
             [
                 panelFrame(
                     body,
                     LogicalInsets(6.0 * d, 4.0 * d, 8.0 * d, 4.0 * d).resolve(
-                        owner.value?.layoutDirection ?: LayoutDirection.Ltr
+                        scope.layoutDirection
                     ),
                     styleOverride {
                         if (active && enabled)

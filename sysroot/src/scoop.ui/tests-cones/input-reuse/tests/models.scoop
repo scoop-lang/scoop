@@ -23,12 +23,16 @@ internal class RowRecord {
 
 internal class ReusedParent(
     private val props: Props<DisplayInput>,
-    private val probe: InputProbe
-): Component {
+    private val probe: InputProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         probe.parentRenders += 1
         probe.parentObserved = props.value.number + probe.local.value
-        return component({ ReusedLeaf(probe) }, comparison = Some(unchanged))
+        return component(
+            { mount -> ReusedLeaf(probe, scope = mount) },
+            comparison = Some(unchanged)
+        )
     }
     fun click() {
         props.value.action()
@@ -38,7 +42,7 @@ internal class ReusedParent(
     }
 }
 
-private class ReusedLeaf(private val probe: InputProbe): Component {
+private class ReusedLeaf(private val probe: InputProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.leafRenders += 1
         probe.leafObserved = probe.leafLocal.value
@@ -48,8 +52,9 @@ private class ReusedLeaf(private val probe: InputProbe): Component {
 
 internal class CurrentBinding(
     private val props: Props<Binding<Int>>,
-    private val probe: InputProbe
-): Component {
+    private val probe: InputProbe,
+    scope: ComponentScope
+): Component(scope) {
     init {
         probe.binding = Some(this)
     }
@@ -65,8 +70,9 @@ internal class CurrentBinding(
 
 internal class MutableChild(
     private val props: Props<MutableInput>,
-    private val probe: InputProbe
-): Component {
+    private val probe: InputProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         probe.mutableObserved = props.value.number
         return empty()
@@ -75,8 +81,9 @@ internal class MutableChild(
 
 internal class ObservedRow(
     private val props: Props<Long>,
-    private val probe: InputProbe
-): Component {
+    private val probe: InputProbe,
+    scope: ComponentScope
+): Component(scope) {
     private val record = probe.rows[props.value]
     public override fun render(): View {
         record.renders += 1
@@ -92,10 +99,12 @@ internal class ObservedRow(
     }
 }
 
-internal class Extent(private val props: Props<Long>, private val probe: InputProbe): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+internal class Extent(
+    private val props: Props<Long>,
+    private val probe: InputProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.itemMounts[props.value] += 1
     }
     public override fun onUnmount() {
@@ -107,7 +116,9 @@ internal class Extent(private val props: Props<Long>, private val probe: InputPr
     public override fun scene(context: SceneContext, measured: Unit) {}
 }
 
-internal class OrderedLayout(private val probe: InputProbe): Element<Array<Long>> {
+internal class OrderedLayout(private val probe: InputProbe, scope: ComponentScope): Element<
+    Array<Long>
+>(scope) {
     public override fun update(): UiInvalidation {
         probe.orderUpdates += 1
         return UiInvalidation.Layout
@@ -143,7 +154,9 @@ internal class CountingSource(public override val count: Long): ItemSource {
     public override fun build(index: Long): View = empty()
 }
 
-internal class ReusedLazy(private val probe: InputProbe): LazyElement<Long> {
+internal class ReusedLazy(private val probe: InputProbe, scope: ComponentScope): LazyElement<Long>(
+    scope
+) {
     public override fun update(): UiInvalidation {
         probe.lazyUpdates += 1
         return UiInvalidation.Layout

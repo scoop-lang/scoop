@@ -29,7 +29,7 @@ public class TypographyListBuilder internal constructor() {
     internal fun build(): View =
         component(
             TypographyListProps(entries.toArray(), fonts, theme),
-            { current -> TypographyList(current) },
+            { current, mount -> TypographyList(current, scope = mount) },
             key
         )
 }
@@ -49,9 +49,12 @@ private class TypographyListProps(
     val theme: ThemeSource?
 )
 
-private class TypographyList(private val props: Props<TypographyListProps>): Component {
+private class TypographyList(
+    private val props: Props<TypographyListProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {

@@ -44,17 +44,25 @@ public class StackBuilder internal constructor(): ChildrenBuilder() {
 internal fun makeRow(configure: LinearBuilder.() -> Unit): View {
     val builder = LinearBuilder()
     builder.configure()
-    return component(builder.snapshot(), { props -> Row(props) }, builder.key)
+    return component(builder.snapshot(), { props, mount -> Row(props, scope = mount) }, builder.key)
 }
 
 internal fun makeColumn(configure: LinearBuilder.() -> Unit): View {
     val builder = LinearBuilder()
     builder.configure()
-    return component(builder.snapshot(), { props -> Column(props) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { props, mount -> Column(props, scope = mount) },
+        builder.key
+    )
 }
 
 internal fun makeStack(configure: StackBuilder.() -> Unit): View {
     val builder = StackBuilder()
     builder.configure()
-    return component(builder.snapshot(), { props -> Stack(props) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { props, mount -> Stack(props, scope = mount) },
+        builder.key
+    )
 }

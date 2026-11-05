@@ -7,26 +7,33 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.window.*
 
-internal class ScrollScene(private val probe: ScrollProbe): Component {
+internal class ScrollScene(private val probe: ScrollProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         probe.renders += 1
         val generation = probe.generation.value
         return element(
             generation,
-            { props -> ScrollPanel(probe, props) },
+            { props, mount -> ScrollPanel(probe, props, scope = mount) },
             [
                 if (generation < 5)
-                    element(generation, { props -> FirstViewport(probe, props) })
+                    element(
+                        generation,
+                        { props, mount -> FirstViewport(probe, props, scope = mount) }
+                    )
                 else
                     empty(),
-                element({ SecondViewport(probe) }),
-                component({ ScrollObserver(probe) })
+                element({ mount -> SecondViewport(probe, scope = mount) }),
+                component({ mount -> ScrollObserver(probe, scope = mount) })
             ]
         )
     }
 }
 
-private class ScrollObserver(private val probe: ScrollProbe): Component {
+private class ScrollObserver(private val probe: ScrollProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         probe.observations += 1
         probe.first.snapshot
@@ -37,9 +44,11 @@ private class ScrollObserver(private val probe: ScrollProbe): Component {
     }
 }
 
-private class ScrollPanel(private val probe: ScrollProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class ScrollPanel(
+    private val probe: ScrollProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -61,11 +70,13 @@ private class ScrollPanel(private val probe: ScrollProbe, private val props: Pro
     }
 }
 
-private class FirstViewport(private val probe: ScrollProbe, private val props: Props<Int>): Element<
-    ScrollLayout
-> {
+private class FirstViewport(
+    private val probe: ScrollProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<ScrollLayout>(scope) {
     private var viewport: ScrollViewport? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         viewport = Some(scope.scrollViewport(probe.first))
         probe.viewport = viewport
@@ -153,9 +164,11 @@ private class FirstViewport(private val probe: ScrollProbe, private val props: P
     }
 }
 
-private class SecondViewport(private val probe: ScrollProbe): Element<ScrollLayout> {
+private class SecondViewport(private val probe: ScrollProbe, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
     private var viewport: ScrollViewport? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         viewport = Some(scope.scrollViewport(probe.second))
         scope.resource {
             probe.second.observeIntent {

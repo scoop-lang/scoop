@@ -27,7 +27,7 @@ UI 框架提供构建完全自绘控件的能力，应用可以只使用框架�
 
 这是当前分层；基础字体、布局、StyledText／SpanStyle 和行内对象已在 graphics.text 实现，UI 接入及控件组合已按实施批次完成。`scoop.ui.text` 是 UI Cone 中的公共适配包，不是额外的库或控件集合。它复用 graphics.text 的段落算法，连接子项测量与放置，第三方自绘元素可以直接使用。
 
-Row／Column／Stack 的布局策略也放在控件库。框架提供约束、基线、子项测量和放置协议；文字换行由 graphics.text 处理，点击语义、默认字体、背景、边框和主题不进入框架。`empty` 只表示结构上的空内容。
+Row／Column／Stack 的布局策略也放在控件库。框架提供约束、基线、子项测量和放置协议；文字换行由 graphics.text 处理，根提供共享的默认 FontCollection；点击语义、背景、边框和主题保留在控件与样式库。`empty` 只表示结构上的空内容。
 
 ## 2. 保留 class 组件的使用方式
 
@@ -35,14 +35,14 @@ Row／Column／Stack 的布局策略也放在控件库。框架提供约束、�
 import scoop.ui.*
 import scoop.ui.component.button
 
-class Counter: Component {
+class Counter(scope: ComponentScope): Component(scope) {
     private var count: Int by state(0)
 
     public override fun render(): View = button(f"Count: ${this @Counter.count}", { count += 1 })
 }
 ```
 
-Component 是普通接口，Counter 是有持久身份的 class。挂载期间只初始化一次成员，状态变化后再次调用同一对象的 render。button 是控件库中的普通函数，最终通过公开框架能力实现。
+Component 是持有当前 ComponentScope 的普通抽象基类，Counter 是有持久身份的 class。挂载期间只初始化一次成员，状态变化后再次调用同一对象的 render。button 是控件库中的普通函数，最终通过公开框架能力实现。
 
 这里分别看挂载实例、状态、描述与内部节点：
 
@@ -69,7 +69,7 @@ Element 的必需操作是 `measure(context, constraints): LayoutResult<L>` 与 
 import scoop.graphics.*
 import scoop.ui.*
 
-class ColorTile(private val props: Props<Color>): Element<Unit> {
+class ColorTile(private val props: Props<Color>, scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<Unit> =
         LayoutResult(LayoutMetrics(constraints.constrain(Size(48.0, 48.0))), Unit)
 
@@ -83,7 +83,7 @@ class ColorTile(private val props: Props<Color>): Element<Unit> {
     }
 }
 
-class Indicator: Component {
+class Indicator(scope: ComponentScope): Component(scope) {
     private var active: Boolean by state(false)
 
     fun setActive(value: Boolean) {
@@ -104,6 +104,8 @@ class Indicator: Component {
 
 State 在 Indicator.render 中读取，新的颜色经 Props 更新到原 ColorTile。paint 直接使用 Surface 帧借用的 graphics Canvas，框架保留 ColorTile 的实例、布局和生命周期。创建闭包只在首次挂载时调用。
 
+工厂接收当前 ComponentScope；实例在构造中登记首次 render 所需的输入区域和资源，onMount() 保留业务启动通知。根以 scope.defaultFonts 提供共享默认字体，显式字体优先；更换默认集合保持节点身份，根在后代退休后只释放自有集合。
+
 Element 可以单独成为自绘叶子，也可以接收显式 children 实现容器。普通无状态组合函数仍返回 View；需要独立状态时使用 Component，需要测量和绘制时使用 Element，两者按实际需要组合。
 
 每个 Element 的绘制使用 FrameContext.withState 的独立子 Canvas，坐标与 clip 随同一份帧状态进入输入收集；子级结束后画布失效，并在正常及异常退出时恢复父级状态。底层 Canvas.withState 已接入真实 Skia／Metal，自绘框架无需访问 graphics 的内部句柄或维护第二套变换。
@@ -118,7 +120,7 @@ Element 的 Props 由框架更新。业务 State 依赖仍只在 render 收集�
 
 component、element 和 lazyElement 均为延迟工厂入口。变化输入使用 Props，双向修改使用 Binding，工厂捕获只适合一次性依赖。父级产生新的描述后，框架总是替换当前 Props；显式且稳定的 InputComparison 可在输入等价、没有自身 State 失效或方向变化时跳过 render／update。任意用户输入默认保守更新。Element children、Lazy source／retention 和已排队后代分别处理；忽略回调变化的比较必须配合读取当前 Props 的稳定事件转发。
 
-匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 及 Portal 模态类别保持既有区别。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议仍为接口。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
+匹配采用直接父级下的 key／位置，再通过普通泛型类型检查同时区分描述类别、C／E 和 P 的完整泛型实参，例如 `other is ComponentDescription<P, C>`；ElementDescription、LazyDescription 同理。判断不提前更新 Props、调用工厂或改变挂载。Empty、Direction、Portal 及 Portal 模态类别保持既有区别。工厂函数引用、描述对象引用、FQN 和地址都不作为类型身份，也不新增类型 ID 或注册表。工厂保留具体 class 静态类型是 API 使用约定，不通过反射诊断违反约定的调用；公开协议为持有构造作用域的抽象基类，实际实例自身保存单次挂载归属。类型或 key 改变时卸载并重建，同类型更换工厂闭包不重新创建实例。
 
 同一实例只能占据一个活动挂载位置，工厂为新挂载创建新实例。只检查当前活动的重复实例，不保留退休对象历史。key 在兄弟范围内生效，跨父级移动会重新挂载；条件退出即卸载，不增加全局 key 或 keep-alive 池。
 
@@ -170,7 +172,7 @@ Label 与第三方自绘 Element 使用相同宿主。文字光标、selection �
 
 ## 6. 输入和动画使用 Surface 的现有能力
 
-Element 在 onMount 中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
+Element 在构造中调用 scope.createArea，取得稳定的 Surface InputArea；scope 自动登记其卸载。事件使用 InputEvent／RoutedEventContext，逻辑祖先通过 InputScope 连接；焦点、caret、指针捕获序列及取消语义沿用 Surface。
 
 scene 时使用 context.place 放置 Rect／Path 命中区域，记录 Canvas 当时的变换和 clip。容器可将自己的已放置区域传给 children，成为子区域的输入父级。布局树本身不等于输入区域树，没有交互的 Label 和 Row 可以不创建区域。
 
@@ -242,7 +244,7 @@ Label 的文字元素委托公共 ParagraphHost，接受 String 或 StyledText �
 
 Component 与 Element 共用 ComponentScope 的资源登记方式：resource、onDispose、isMounted、requestFrame／requestLayout，以及直接复用 Surface 的 createArea／animation。每个挂载有自己的 scope，不给每个节点另建 Surface、窗口或时间轴。
 
-长寿命资源在 onMount 中创建并登记。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
+长寿命资源在构造中创建并登记，onMount 用于业务挂载通知。ParagraphHost 或路径缓存是普通 Closeable 对象，登记一次，在 measure 中更新并及时关闭旧值；临时 View／TextSpan 不取得 native 资源。外部 Image／Path／字体默认借用，不因传给控件而自动转移所有权。文本缓存不拥有行内组件，关闭旧布局不改变子组件挂载。
 
 卸载先取消业务交互、订阅和排队工作，再按子先父顺序退休区域／动画、调用已成功挂载实例的 onUnmount，并逆序释放登记资源。首次 onMount 失败仍清理已取得资源；清理失败继续处理剩余对象并按 ResourceUseException 汇总。
 

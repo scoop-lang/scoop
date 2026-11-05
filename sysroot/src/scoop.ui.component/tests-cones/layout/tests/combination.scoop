@@ -68,7 +68,9 @@ internal class LayoutCombination {
     }
 }
 
-internal class CombinationScene(private val probe: LayoutProbe): Component {
+internal class CombinationScene(private val probe: LayoutProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val hostProbe = probe
         val model = probe.combination
@@ -76,18 +78,22 @@ internal class CombinationScene(private val probe: LayoutProbe): Component {
         val flow = model.direction.value
         return element(
             first,
-            { props -> CombinationPanel(model, props) },
+            { props, mount -> CombinationPanel(model, props, scope = mount) },
             [
                 direction(
                     composeRow {
                         alignment = CrossAlignment.Stretch
                         item(
-                            component(Unit, { _ -> PaneCounter(model) }, ViewKey.Text("counter"))
+                            component(
+                                Unit,
+                                { _, mount -> PaneCounter(model, scope = mount) },
+                                ViewKey.Text("counter")
+                            )
                         ) {
                             basis = FlexBasis.Fixed(first)
                             shrink = 0.0
                         }
-                        item(element({ PaneSeparator(model) })) {
+                        item(element({ mount -> PaneSeparator(model, scope = mount) })) {
                             basis = FlexBasis.Fixed(8.0)
                             shrink = 0.0
                         }
@@ -95,11 +101,13 @@ internal class CombinationScene(private val probe: LayoutProbe): Component {
                             composeRow {
                                 spacing = 8.0
                                 alignment = CrossAlignment.Stretch
-                                item(element({ FixedAction(model) })) {
+                                item(element({ mount -> FixedAction(model, scope = mount) })) {
                                     basis = FlexBasis.Fixed(48.0)
                                     shrink = 0.0
                                 }
-                                item(element({ FlexibleEditor(hostProbe) })) {
+                                item(
+                                    element({ mount -> FlexibleEditor(hostProbe, scope = mount) })
+                                ) {
                                     basis = FlexBasis.Fixed(0.0)
                                     grow = 1.0
                                 }
@@ -119,8 +127,9 @@ internal class CombinationScene(private val probe: LayoutProbe): Component {
 
 private class CombinationPanel(
     private val model: LayoutCombination,
-    private val props: Props<Double>
-): Element<Unit> {
+    private val props: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -141,9 +150,11 @@ private class CombinationPanel(
     }
 }
 
-private class PaneCounter(private val model: LayoutCombination): Component {
+private class PaneCounter(private val model: LayoutCombination, scope: ComponentScope): Component(
+    scope
+) {
     private val count = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         model.counterMounts += 1
     }
     public override fun onUnmount() {
@@ -151,16 +162,20 @@ private class PaneCounter(private val model: LayoutCombination): Component {
     }
     public override fun render(): View {
         model.counterValue = count.value
-        return element(count.value, { props -> CounterArea(model, props, { count.value += 1 }) })
+        return element(
+            count.value,
+            { props, mount -> CounterArea(model, props, { count.value += 1 }, scope = mount) }
+        )
     }
 }
 
 private class CounterArea(
     private val model: LayoutCombination,
     private val props: Props<Int>,
-    private val action: () -> Unit
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val action: () -> Unit,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         val area = scope.createArea()
         model.counter = Some(area)
         scope.press(area, onPress = action)
@@ -180,8 +195,10 @@ private class CounterArea(
     }
 }
 
-private class FixedAction(private val model: LayoutCombination): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class FixedAction(private val model: LayoutCombination, scope: ComponentScope): Element<
+    Unit
+>(scope) {
+    public override fun onMount() {
         val area = scope.createArea()
         model.action = Some(area)
         scope.press(area) { model.actionClicks += 1 }
@@ -199,8 +216,10 @@ private class FixedAction(private val model: LayoutCombination): Element<Unit> {
     }
 }
 
-private class FlexibleEditor(private val probe: LayoutProbe): Element<TextEditMeasurement> {
-    public override fun onMount(scope: ComponentScope) {
+private class FlexibleEditor(private val probe: LayoutProbe, scope: ComponentScope): Element<
+    TextEditMeasurement
+>(scope) {
+    public override fun onMount() {
         val model = probe.combination
         val style =
             textStyle {

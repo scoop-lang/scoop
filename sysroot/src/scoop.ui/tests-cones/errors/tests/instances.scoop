@@ -1,0 +1,101 @@
+package scoop.tests.ui.errors
+
+import scoop.graphics.*
+import scoop.test.*
+import scoop.ui.*
+import scoop.window.Window
+import scoop.window.ActiveApplication
+
+internal fun reuseRetired(
+    host: UiHost,
+    active: ActiveApplication,
+    window: Window,
+    record: FailureRecord
+) {
+    val first = host.attach(window, { scope -> RetiredRoot(record, scope) })
+    record.retiredWindow = Some(first)
+    first.close()
+    assertTrue(active.proxy().post { _ -> Unit })
+}
+
+internal fun retryRetired(host: UiHost, record: FailureRecord) {
+    val first = record.retiredWindow ?: return
+    if (!first.isClosed)
+        return
+    record.retiredWindow = None
+    when (record.mode) {
+        case RetiredComponent -> assertFalse(record.retiredComponent!!.scope.isMounted)
+        case RetiredElement -> assertFalse(record.retiredElement!!.scope.isMounted)
+        case RetiredLazy -> assertFalse(record.retiredLazy!!.scope.isMounted)
+        else -> fail(Some("expected retired-instance scenario"))
+    }
+    host.attach(record.window!!, { scope -> RetiredRoot(record, scope) })
+}
+
+private class RetiredRoot(private val record: FailureRecord, scope: ComponentScope): Component(
+    scope
+) {
+    public override fun render(): View =
+        when (record.mode) {
+            case RetiredComponent -> component(
+                {
+                    scope -> when (record.retiredComponent) {
+                        case Some(value) -> value
+                        case None -> {
+                            val value = SmallComponent(scope)
+                            record.retiredComponent = Some(value)
+                            value
+                        }
+                    }
+                }
+            )
+            case RetiredElement -> element(
+                {
+                    scope -> when (record.retiredElement) {
+                        case Some(value) -> value
+                        case None -> {
+                            val value = SmallElement(scope)
+                            record.retiredElement = Some(value)
+                            value
+                        }
+                    }
+                }
+            )
+            case RetiredLazy -> lazyElement(
+                NoItems(),
+                {
+                    scope -> when (record.retiredLazy) {
+                        case Some(value) -> value
+                        case None -> {
+                            val value = SmallLazy(scope)
+                            record.retiredLazy = Some(value)
+                            value
+                        }
+                    }
+                }
+            )
+            else -> throw IllegalArgumentException()
+        }
+}
+
+internal class SmallElement(scope: ComponentScope): Element<Unit>(scope) {
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
+        Unit
+    > = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {}
+}
+
+internal class SmallLazy(scope: ComponentScope): LazyElement<Unit>(scope) {
+    public override fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<Unit> = LayoutResult(LayoutMetrics(constraints.constrain(Size(0.0, 0.0))), Unit)
+    public override fun scene(context: SceneContext, layout: Unit) {}
+}
+
+private class NoItems: ItemSource {
+    public override val count: Long get() = 0L
+    public override fun keyAt(index: Long): ViewKey = throw IndexOutOfBoundsException()
+    public override fun indexOfKey(key: ViewKey): Long? = None
+    public override fun build(index: Long): View = throw IndexOutOfBoundsException()
+}

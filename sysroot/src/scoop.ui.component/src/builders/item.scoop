@@ -23,7 +23,7 @@ public class ItemBuilder internal constructor(): PanelBuilder() {
         media = Some(content)
     }
     public fun media(image: Image): Unit {
-        media = Some(component(image, { current -> ItemImage(current) }))
+        media = Some(component(image, { current, mount -> ItemImage(current, scope = mount) }))
         mediaVariant = ItemMediaVariant.Image
     }
     public fun actions(content: View): Unit {
@@ -72,11 +72,15 @@ internal fun makeItem(content: View?, size: ItemSize, configure: ItemBuilder.() 
     val builder = ItemBuilder()
     builder.size = size
     builder.configure()
-    return component(builder.snapshot(content), { current -> Item(current) }, builder.key)
+    return component(
+        builder.snapshot(content),
+        { current, mount -> Item(current, scope = mount) },
+        builder.key
+    )
 }
 
 /** Image dimensions are read during rendering; builders retain only the borrowed reference. */
-private class ItemImage(private val props: Props<Image>): Component {
+private class ItemImage(private val props: Props<Image>, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val image = props.value
         return imageView(image, Size(image.width.toDouble(), image.height.toDouble())) {

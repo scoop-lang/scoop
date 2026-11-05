@@ -24,9 +24,12 @@ public class SpinnerProps public constructor(
     }
 }
 
-public class Spinner public constructor(private val props: Props<SpinnerProps>): Component {
+public class Spinner public constructor(
+    private val props: Props<SpinnerProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -42,7 +45,7 @@ public class Spinner public constructor(private val props: Props<SpinnerProps>):
                 input.period,
                 motion
             ),
-            { current -> SpinnerInk(current) }
+            { current, mount -> SpinnerInk(current, scope = mount) }
         )
     }
 }
@@ -57,12 +60,14 @@ private class SpinnerInkProps(
     val motion: AnimationSpec?
 )
 
-private class SpinnerInk(private val props: Props<SpinnerInkProps>): Element<Unit> {
+private class SpinnerInk(private val props: Props<SpinnerInkProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var previousSize: Double? = None
     private var motion: LoadingMotion? = None
     private var outline: Path? = None
     private var visible = false
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         motion = Some(LoadingMotion(scope))
         // Lucide loader-circle (ISC); see LICENSE-LUCIDE and the original 24-unit SVG.
         outline =

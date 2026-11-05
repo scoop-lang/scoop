@@ -124,7 +124,7 @@ internal fun makeDropdownMenu(
     builder.configure()
     return component(
         builder.snapshot(open, content),
-        { current -> DropdownMenu(current) },
+        { current, mount -> DropdownMenu(current, scope = mount) },
         builder.key
     )
 }
@@ -138,7 +138,7 @@ internal fun makeContextMenu(
     builder.configure()
     return component(
         builder.snapshot(content, menu),
-        { current -> ContextMenu(current) },
+        { current, mount -> ContextMenu(current, scope = mount) },
         builder.key
     )
 }

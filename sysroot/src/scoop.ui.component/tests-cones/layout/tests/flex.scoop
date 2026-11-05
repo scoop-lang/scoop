@@ -11,13 +11,13 @@ internal fun flexContract(collection: FontCollection): View =
     row {
         spacing = 8.0
         alignment = CrossAlignment.Baseline
-        item(element({ FixedFlexCell() })) {
+        item(element({ mount -> FixedFlexCell(scope = mount) })) {
             basis = FlexBasis.Fixed(80.0);
             shrink = 0.0
         }
         item(
             element(
-                { FlexTextCell() },
+                { mount -> FlexTextCell(scope = mount) },
                 [
                     makeLabel("One two three four five six seven eight nine ten eleven twelve") {
                         this.fonts = Some(collection)
@@ -37,7 +37,7 @@ internal fun flexContract(collection: FontCollection): View =
         }
     }
 
-private class FixedFlexCell: Element<Unit> {
+private class FixedFlexCell(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -53,7 +53,7 @@ private class FixedFlexCell: Element<Unit> {
     }
 }
 
-private class FlexTextCell: Element<Double> {
+private class FlexTextCell(scope: ComponentScope): Element<Double>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Double
     > {

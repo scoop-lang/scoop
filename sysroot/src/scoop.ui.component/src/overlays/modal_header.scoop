@@ -14,7 +14,10 @@ internal class AlertHeaderProps(
 )
 
 /** The same media and text slots move between a compact stack and a wide two-column header. */
-internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element<Unit> {
+internal class AlertHeader(
+    private val props: Props<AlertHeaderProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -140,11 +143,17 @@ internal class AlertHeader(private val props: Props<AlertHeaderProps>): Element<
 private class ModalCloseIconProps(val size: Double, val color: Color)
 
 internal fun modalCloseIcon(size: Double, color: Color): View =
-    element(ModalCloseIconProps(size, color), { current -> ModalCloseIcon(current) })
+    element(
+        ModalCloseIconProps(size, color),
+        { current, mount -> ModalCloseIcon(current, scope = mount) }
+    )
 
-private class ModalCloseIcon(private val props: Props<ModalCloseIconProps>): Element<Unit> {
+private class ModalCloseIcon(
+    private val props: Props<ModalCloseIconProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var shape: Path? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         // Lucide x (ISC), on its original 24-unit grid.
         shape =
             Some(

@@ -104,7 +104,7 @@ internal class DisclosureProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
-                host.attach(window, { DisclosureScene(this) })
+                host.attach(window, { mount -> DisclosureScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

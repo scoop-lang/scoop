@@ -25,11 +25,14 @@ internal class LayoutResultSource(private val probe: LayoutResultProbe): ItemSou
     public override fun build(index: Long): View {
         val record = LayoutItemRecord(index)
         probe.items.add(record)
-        return element({ LayoutResultItem(probe, record) })
+        return element({ mount -> LayoutResultItem(probe, record, scope = mount) })
     }
 }
 
-internal class LayoutResultLazy(private val probe: LayoutResultProbe): LazyElement<Long> {
+internal class LayoutResultLazy(
+    private val probe: LayoutResultProbe,
+    scope: ComponentScope
+): LazyElement<Long>(scope) {
     public override fun measure(
         context: LazyMeasureContext,
         constraints: Constraints
@@ -54,9 +57,10 @@ internal class LayoutResultLazy(private val probe: LayoutResultProbe): LazyEleme
 
 private class LayoutResultItem(
     private val probe: LayoutResultProbe,
-    private val item: LayoutItemRecord
-): Element<LayoutRecord> {
-    public override fun onMount(scope: ComponentScope) {
+    private val item: LayoutItemRecord,
+    scope: ComponentScope
+): Element<LayoutRecord>(scope) {
+    public override fun onMount() {
         item.mounts += 1
     }
     public override fun onUnmount() {
@@ -79,11 +83,12 @@ private class LayoutResultItem(
     }
 }
 
-internal class LayoutResultEditor(private val probe: LayoutResultProbe): Element<
-    TextEditMeasurement
-> {
+internal class LayoutResultEditor(
+    private val probe: LayoutResultProbe,
+    scope: ComponentScope
+): Element<TextEditMeasurement>(scope) {
     private var host: TextEditHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val fonts = scope.resource { FontCollection() }
         val text = textStyle { fontSize = 14.0 }
         val state = TextEditorState("alpha beta gamma delta epsilon")

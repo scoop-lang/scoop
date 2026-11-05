@@ -76,7 +76,7 @@ internal class FocusProbe {
                 window = Some(native)
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { FocusScene(this) }))
+                ui = Some(host.attach(native, { mount -> FocusScene(this, scope = mount) }))
                 active.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

@@ -102,7 +102,7 @@ internal class OtpProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
-                host.attach(window, { OtpScene(this) })
+                host.attach(window, { mount -> OtpScene(this, scope = mount) })
                 window.requestFocus();
                 wait(active)
             }

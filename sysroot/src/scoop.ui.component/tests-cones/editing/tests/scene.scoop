@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.ui.text.*
 
-internal class FieldScene(private val probe: FieldProbe): Component {
+internal class FieldScene(private val probe: FieldProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val generation = probe.version.value
         val callback = probe.callbackVersion
@@ -39,14 +39,14 @@ internal class FieldScene(private val probe: FieldProbe): Component {
             )
         return element(
             generation,
-            { current -> FieldPanel(probe, current) },
+            { current, mount -> FieldPanel(probe, current, scope = mount) },
             [
                 component(
                     props,
                     {
-                        current ->
+                        current, mount ->
                         probe.inputCreates += 1;
-                        Input(current)
+                        Input(current, scope = mount)
                     }
                 ),
                 component(
@@ -61,9 +61,9 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                         paintCache = PaintCachePolicy.Tiles(64, 0)
                     ),
                     {
-                        current ->
+                        current, mount ->
                         probe.textareaCreates += 1;
-                        Textarea(current)
+                        Textarea(current, scope = mount)
                     }
                 ),
                 input(probe.primary) {
@@ -94,7 +94,7 @@ internal class FieldScene(private val probe: FieldProbe): Component {
                             }
                         ),
                         element(
-                            { ScaledField() },
+                            { mount -> ScaledField(scope = mount) },
                             [
                                 input(probe.dialog) {
                                     this.placeholder = "Dialog text"
@@ -125,10 +125,12 @@ internal class FieldScene(private val probe: FieldProbe): Component {
     }
 }
 
-private class FieldPanel(private val probe: FieldProbe, private val props: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class FieldPanel(
+    private val probe: FieldProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -163,7 +165,7 @@ private class FieldPanel(private val probe: FieldProbe, private val props: Props
     }
 }
 
-private class ScaledField: Element<Unit> {
+private class ScaledField(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -201,14 +203,18 @@ internal class FieldItems(private val probe: FieldProbe): ItemSource {
             else -> None
         }
     public override fun build(index: Long): View =
-        component(probe.row(index), { props -> FieldRowComponent(probe, props) })
+        component(
+            probe.row(index),
+            { props, mount -> FieldRowComponent(probe, props, scope = mount) }
+        )
 }
 
 private class FieldRowComponent(
     private val probe: FieldProbe,
-    private val props: Props<FieldRow>
-): Component {
-    public override fun onMount(scope: ComponentScope) {
+    private val props: Props<FieldRow>,
+    scope: ComponentScope
+): Component(scope) {
+    public override fun onMount() {
         props.value.mounts += 1
     }
     public override fun onUnmount() {

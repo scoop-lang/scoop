@@ -15,23 +15,22 @@ internal class TabControlProps(
     val activate: () -> Unit
 )
 
-internal class TabControl(private val props: Props<TabControlProps>): Component {
-    private val control = state<PressControl?>(None)
+internal class TabControl(
+    private val props: Props<TabControlProps>,
+    scope: ComponentScope
+): Component(scope) {
+    private val control =
+        PressControl(
+            scope,
+            PressOptions(props.value.enabled),
+            props.value.focus,
+            { props.value.activate() }
+        )
     private val text = ActionTextStyle()
-    public override fun onMount(scope: ComponentScope) {
-        val area = scope.createArea(focusable = true)
-        val focus = scope.focusTarget(area, props.value.focus)
-        val press = scope.press(area, PressOptions(props.value.enabled)) { props.value.activate() }
-        scope.routeChildren(area)
-        control.value = Some(PressControl(area, focus, press))
-    }
+
     public override fun render(): View {
         val input = props.value
-        val interaction =
-            when (control.value) {
-                case Some(value) -> value.press.interaction;
-                case None -> InteractionState()
-            }
+        val interaction = control.press.interaction
         val visual = SurfaceVisual(input.style.kind, interaction.asVisual(input.enabled, false))
         val shape = ActionShape.Tab(input.variant, input.selected)
         val base =
@@ -49,7 +48,7 @@ internal class TabControl(private val props: Props<TabControlProps>): Component 
                 input.theme,
                 input.enabled
             ),
-            { current -> TabIndicator(current) },
+            { current, mount -> TabIndicator(current, scope = mount) },
             [
                 element(
                     ActionInkProps(
@@ -60,7 +59,7 @@ internal class TabControl(private val props: Props<TabControlProps>): Component 
                         visual,
                         ActionBehavior.Press(control, input.activate, input.focus)
                     ),
-                    { current -> ActionInk(current) },
+                    { current, mount -> ActionInk(current, scope = mount) },
                     [
                         actionContent(
                             input.content,

@@ -39,10 +39,11 @@ internal class NavMenuControl(val props: Props<NavigationMenuProps>) {
 }
 
 public class NavigationMenu public constructor(
-    private val props: Props<NavigationMenuProps>
-): Component {
+    private val props: Props<NavigationMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val control = NavMenuControl(props)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         control.themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -63,7 +64,7 @@ public class NavigationMenu public constructor(
                 when (input.entries[index]) {
                     case Panel(key, panel) -> component(
                         NavPanelInput(control, key, panel, focus),
-                        { current -> NavMenuPanel(current) }
+                        { current, mount -> NavMenuPanel(current, scope = mount) }
                     )
                     case Link(_, link) -> {
                         val button = link.button
@@ -91,14 +92,14 @@ public class NavigationMenu public constructor(
                                 link.active,
                                 false
                             ),
-                            { current -> NavigationMenuLink(current) }
+                            { current, mount -> NavigationMenuLink(current, scope = mount) }
                         )
                     }
                 }
             }
         return element(
             control.anchor,
-            { current -> NavMenuBar(current) },
+            { current, mount -> NavMenuBar(current, scope = mount) },
             [
                 choiceLayout(
                     children,
@@ -118,8 +119,10 @@ public class NavigationMenu public constructor(
     }
 }
 
-private class NavMenuBar(private val props: Props<LayoutAnchor>): Element<Rect> {
-    public override fun onMount(scope: ComponentScope) {
+private class NavMenuBar(private val props: Props<LayoutAnchor>, scope: ComponentScope): Element<
+    Rect
+>(scope) {
+    public override fun onMount() {
         scope.layoutAnchor(props.value)
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<

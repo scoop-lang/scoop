@@ -2,12 +2,12 @@ package scoop.ui
 
 internal interface ComponentDescriptionBase {
     fun sameType(other: ComponentDescriptionBase): Boolean
-    fun create(): ComponentInstance
+    fun create(scope: ComponentScope): ComponentInstance
 }
 
 internal interface ElementDescriptionBase {
     fun sameType(other: ElementDescriptionBase): Boolean
-    fun create(): ElementInstance
+    fun create(scope: ComponentScope): ElementInstance
 }
 
 internal interface ComponentInstance {
@@ -18,7 +18,7 @@ internal interface ComponentInstance {
 internal interface ElementInstance {
     val value: Any
     fun measure(context: MeasureContext, constraints: Constraints): ElementLayout
-    fun onMount(scope: ComponentScope)
+    fun onMount()
     fun update(): UiInvalidation
     fun onUnmount()
     fun replace(description: ElementDescriptionBase): Boolean
@@ -26,13 +26,13 @@ internal interface ElementInstance {
 
 internal interface LazyDescriptionBase {
     fun sameType(other: LazyDescriptionBase): Boolean
-    fun create(): LazyInstance
+    fun create(scope: ComponentScope): LazyInstance
 }
 
 internal interface LazyInstance {
     val value: Any
     fun measure(context: LazyMeasureContext, constraints: Constraints): ElementLayout
-    fun onMount(scope: ComponentScope)
+    fun onMount()
     fun update(): UiInvalidation
     fun onUnmount()
     fun replace(description: LazyDescriptionBase): Boolean
@@ -40,13 +40,15 @@ internal interface LazyInstance {
 
 internal class LazyDescription<P, L, E: LazyElement<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E,
+    private val factory: (Props<P>, ComponentScope) -> E,
     val comparison: InputComparison<P>? = None
 ): LazyDescriptionBase {
     override fun sameType(other: LazyDescriptionBase): Boolean = other is LazyDescription<P, L, E>
-    override fun create(): LazyInstance {
+    override fun create(scope: ComponentScope): LazyInstance {
         val props = Props(input, comparison)
-        return TypedLazyInstance<P, L, E>(props, factory(props))
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedLazyInstance<P, L, E>(props, instance)
     }
 }
 
@@ -60,8 +62,8 @@ private class TypedLazyInstance<P, L, E: LazyElement<L>>(
             instance.measure(context, constraints),
             { scene, layout -> instance.scene(scene, layout) }
         )
-    override fun onMount(scope: ComponentScope) {
-        instance.onMount(scope)
+    override fun onMount() {
+        instance.onMount()
     }
     override fun update(): UiInvalidation = instance.update()
     override fun onUnmount() {
@@ -75,14 +77,16 @@ private class TypedLazyInstance<P, L, E: LazyElement<L>>(
 
 internal class ComponentDescription<P, C: Component>(
     val input: P,
-    private val factory: (Props<P>) -> C,
+    private val factory: (Props<P>, ComponentScope) -> C,
     val comparison: InputComparison<P>? = None
 ): ComponentDescriptionBase {
     override fun sameType(other: ComponentDescriptionBase): Boolean =
         other is ComponentDescription<P, C>
-    override fun create(): ComponentInstance {
+    override fun create(scope: ComponentScope): ComponentInstance {
         val props = Props(input, comparison)
-        return TypedComponentInstance<P, C>(props, factory(props))
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedComponentInstance<P, C>(props, instance)
     }
 }
 
@@ -99,14 +103,16 @@ private class TypedComponentInstance<P, C: Component>(
 
 internal class ElementDescription<P, L, E: Element<L>>(
     val input: P,
-    private val factory: (Props<P>) -> E,
+    private val factory: (Props<P>, ComponentScope) -> E,
     val comparison: InputComparison<P>? = None
 ): ElementDescriptionBase {
     override fun sameType(other: ElementDescriptionBase): Boolean =
         other is ElementDescription<P, L, E>
-    override fun create(): ElementInstance {
+    override fun create(scope: ComponentScope): ElementInstance {
         val props = Props(input, comparison)
-        return TypedElementInstance<P, L, E>(props, factory(props))
+        val instance = factory(props, scope)
+        instance.claim(scope)
+        return TypedElementInstance<P, L, E>(props, instance)
     }
 }
 
@@ -120,8 +126,8 @@ private class TypedElementInstance<P, L, E: Element<L>>(
             instance.measure(context, constraints),
             { scene, layout -> instance.scene(scene, layout) }
         )
-    override fun onMount(scope: ComponentScope) {
-        instance.onMount(scope)
+    override fun onMount() {
+        instance.onMount()
     }
     override fun update(): UiInvalidation = instance.update()
     override fun onUnmount() {

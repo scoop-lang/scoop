@@ -220,12 +220,18 @@ private class DisclosureDraftProps(
 )
 
 private fun disclosureDraft(model: DisclosureExamplesModel, id: Long, fonts: FontCollection): View =
-    component(DisclosureDraftProps(model, id, fonts), { current -> DisclosureDraft(current) })
+    component(
+        DisclosureDraftProps(model, id, fonts),
+        { current, mount -> DisclosureDraft(current, scope = mount) }
+    )
 
-private class DisclosureDraft(private val props: Props<DisclosureDraftProps>): Component {
+private class DisclosureDraft(
+    private val props: Props<DisclosureDraftProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val text = TextEditorState("A locally owned draft")
     private val clicks = state(0)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         props.value.model.mounts[props.value.id].value += 1
     }
     public override fun render(): View {

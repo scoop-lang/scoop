@@ -14,8 +14,11 @@ internal class SelectRootProps(
     val updated: () -> Unit
 )
 
-internal class SelectRootLayout(private val props: Props<SelectRootProps>): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+internal class SelectRootLayout(
+    private val props: Props<SelectRootProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.layoutAnchor(props.value.anchor)
         scope.input.addDefaultAction {
             context, event ->

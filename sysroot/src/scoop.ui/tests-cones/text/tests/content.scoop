@@ -14,7 +14,7 @@ internal val actionKey = InlineKey.Number(7L)
 
 internal val imageKey = InlineKey.Text("picture")
 
-internal class TextScene(private val probe: TextProbe): Component {
+internal class TextScene(private val probe: TextProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         probe.rootRenders += 1
         val generation = probe.generation.value
@@ -28,7 +28,7 @@ internal class TextScene(private val probe: TextProbe): Component {
                 actionKey,
                 component(
                     generation,
-                    { props -> InlineCounter(props, probe) },
+                    { props, mount -> InlineCounter(props, probe, scope = mount) },
                     ViewKey.Number(
                         if (generation >= 5)
                             1L
@@ -38,7 +38,7 @@ internal class TextScene(private val probe: TextProbe): Component {
                 )
             )
         val photo =
-            inlineView(imageKey, element({ InlinePhoto(probe) })) {
+            inlineView(imageKey, element({ mount -> InlinePhoto(probe, scope = mount) })) {
                 this.size = Some(Size(22.0, 28.0))
                 this.alignment = InlineViewAlignment.Explicit(InlineAlignment.Middle)
             }
@@ -46,7 +46,7 @@ internal class TextScene(private val probe: TextProbe): Component {
         val inlines = [photo, action]
         return element(
             ParagraphInput(content, inlines, generation),
-            { props -> SelfDrawnParagraph(props, probe) },
+            { props, mount -> SelfDrawnParagraph(props, probe, scope = mount) },
             inlineChildren(content, inlines)
         )
     }
@@ -60,10 +60,11 @@ private class ParagraphInput(
 
 private class SelfDrawnParagraph(
     private val props: Props<ParagraphInput>,
-    private val probe: TextProbe
-): Element<ParagraphMeasurement> {
+    private val probe: TextProbe,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private var host: ParagraphHost? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         host = Some(scope.resource { ParagraphHost() })
         probe.paragraph = host
     }
@@ -125,8 +126,9 @@ private class SelfDrawnParagraph(
 
 internal class InlineCounter(
     private val props: Props<Int>,
-    private val probe: TextProbe
-): Component {
+    private val probe: TextProbe,
+    scope: ComponentScope
+): Component(scope) {
     var count: Int by state(0)
     var mounts = 0
     var unmounts = 0
@@ -134,7 +136,7 @@ internal class InlineCounter(
     init {
         probe.counters.add(this)
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         mounts += 1
     }
     public override fun onUnmount() {
@@ -144,7 +146,7 @@ internal class InlineCounter(
         renders += 1
         return element(
             CounterInput(count, props.value > 0, { count += 1 }),
-            { input -> CounterInk(input, probe) }
+            { input, mount -> CounterInk(input, probe, scope = mount) }
         )
     }
 }
@@ -153,9 +155,9 @@ internal class CounterInput(val count: Int, val green: Boolean, val click: () ->
 
 internal class CounterInk(
     private val props: Props<CounterInput>,
-    private val probe: TextProbe
-): Element<Unit> {
-    var scope: ComponentScope? = None
+    private val probe: TextProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     var area: InputArea? = None
     var width: Animatable<Double>? = None
     var origin = Point(0.0, 0.0)
@@ -163,8 +165,7 @@ internal class CounterInk(
     var paints = 0
     var observed = 0
     private var down = false
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         probe.inks.add(this)
         width = Some(scope.animation(60.0))
         area =
@@ -245,11 +246,13 @@ internal class CounterInk(
     }
 }
 
-internal class InlinePhoto(private val probe: TextProbe): Element<Unit> {
+internal class InlinePhoto(private val probe: TextProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     var image: Image? = None
     var origin = Point(0.0, 0.0)
     var unmounts = 0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         probe.photos.add(this)
         image =
             Some(

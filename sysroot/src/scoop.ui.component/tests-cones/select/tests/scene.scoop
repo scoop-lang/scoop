@@ -10,7 +10,7 @@ import scoop.ui.component.select as makeSelect
 import scoop.ui.component.label as makeLabel
 import scoop.ui.style.StyleValue
 
-internal class SelectScene(private val p: SelectProbe): Component {
+internal class SelectScene(private val p: SelectProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -102,7 +102,11 @@ internal class SelectScene(private val p: SelectProbe): Component {
                 )
             ]
         return direction(
-            element(generation, { current -> SelectRootScene(p, current) }, children),
+            element(
+                generation,
+                { current, mount -> SelectRootScene(p, current, scope = mount) },
+                children
+            ),
             if (p.rtl)
                 LayoutDirection.Rtl
             else
@@ -114,12 +118,13 @@ internal class SelectScene(private val p: SelectProbe): Component {
 private class Bounds(var rect: Rect)
 
 private fun observed(p: SelectProbe, index: Long, content: View): View =
-    element(index, { current -> SelectObservation(p, current) }, [content])
+    element(index, { current, mount -> SelectObservation(p, current, scope = mount) }, [content])
 
 private class SelectObservation(
     private val p: SelectProbe,
-    private val props: Props<Long>
-): Element<Unit> {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -158,9 +163,11 @@ private class SelectObservation(
     }
 }
 
-private class SelectRootScene(private val p: SelectProbe, private val props: Props<Int>): Element<
-    Unit
-> {
+private class SelectRootScene(
+    private val p: SelectProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

@@ -8,7 +8,9 @@ import scoop.ui.component.*
 import scoop.ui.style.*
 import scoop.window.*
 
-internal class SliderScene(private val probe: SliderProbe): Component {
+internal class SliderScene(private val probe: SliderProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val p = probe
         val current = p.generation.value
@@ -67,9 +69,9 @@ internal class SliderScene(private val probe: SliderProbe): Component {
                 component(
                     properties,
                     {
-                        current ->
+                        current, mount ->
                         p.mounts += 1;
-                        Slider(current)
+                        Slider(current, scope = mount)
                     }
                 )
             )
@@ -85,7 +87,11 @@ internal class SliderScene(private val probe: SliderProbe): Component {
             children.add(slider(p.values.binding(), p.range) { this.keyboardStep = Some(0.01) })
         }
         return direction(
-            element(current, { current -> SliderTestLayout(p, current) }, children.toArray()),
+            element(
+                current,
+                { current, mount -> SliderTestLayout(p, current, scope = mount) },
+                children.toArray()
+            ),
             if (p.rtl)
                 LayoutDirection.Rtl
             else
@@ -96,11 +102,10 @@ internal class SliderScene(private val probe: SliderProbe): Component {
 
 private class SliderTestLayout(
     private val p: SliderProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
-    private var scope: ComponentScope? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,
@@ -181,7 +186,7 @@ private class SliderTestLayout(
             else {
                 assertTrue(rejected);
                 p.discarded += 1;
-                scope!!.requestFrame()
+                scope.requestFrame()
             }
         }
     }

@@ -143,7 +143,7 @@ internal class ModalFamilyProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { ModalFamilyScene(this) })
+                host.attach(window, { mount -> ModalFamilyScene(this, scope = mount) })
                 window.requestFocus();
                 wait(active)
             }

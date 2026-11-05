@@ -8,14 +8,14 @@ import scoop.ui.component.*
 import scoop.ui.component.column as makeColumn
 import scoop.ui.component.input as makeInput
 
-internal class PopoverScene(private val p: PopoverProbe): Component {
+internal class PopoverScene(private val p: PopoverProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
         val version = p.version
         return element(
             generation,
-            { current -> PopoverRoot(p, current) },
+            { current, mount -> PopoverRoot(p, current, scope = mount) },
             [
                 button("Background", { p.actions += 1 }) {
                     fonts = Some(p.fonts)
@@ -31,8 +31,9 @@ internal class PopoverScene(private val p: PopoverProbe): Component {
                     ),
                     component(
                         {
+                            mount ->
                             p.factories += 1;
-                            PopoverBody(p)
+                            PopoverBody(p, scope = mount)
                         }
                     )
                 ) {
@@ -75,7 +76,7 @@ internal class PopoverScene(private val p: PopoverProbe): Component {
     }
 }
 
-private class PopoverBody(private val p: PopoverProbe): Component {
+private class PopoverBody(private val p: PopoverProbe, scope: ComponentScope): Component(scope) {
     private val value = state(1)
     public override fun onUnmount() {
         p.unmounts += 1
@@ -85,7 +86,7 @@ private class PopoverBody(private val p: PopoverProbe): Component {
         val value = this.value
         p.observed = value.value
         return element(
-            { PopupObservation(p) },
+            { mount -> PopupObservation(p, scope = mount) },
             [
                 makeColumn {
                     add(
@@ -99,7 +100,10 @@ private class PopoverBody(private val p: PopoverProbe): Component {
                         fonts = Some(p.fonts)
                         focus = FocusOptions(Some(p.local))
                     }
-                    popover(p.innerOpen.binding(), component({ InnerContent(p) })) {
+                    popover(
+                        p.innerOpen.binding(),
+                        component({ mount -> InnerContent(p, scope = mount) })
+                    ) {
                         trigger("Nested") {
                             focus = FocusOptions(Some(p.innerTrigger), tabStop = false)
                         }
@@ -123,8 +127,8 @@ private class PopoverBody(private val p: PopoverProbe): Component {
     }
 }
 
-private class InnerContent(private val p: PopoverProbe): Component {
-    public override fun onMount(scope: ComponentScope) {
+private class InnerContent(private val p: PopoverProbe, scope: ComponentScope): Component(scope) {
+    public override fun onMount() {
         p.innerMounts += 1
     }
     public override fun onUnmount() {
@@ -139,7 +143,9 @@ private class InnerContent(private val p: PopoverProbe): Component {
     }
 }
 
-private class PopupObservation(private val p: PopoverProbe): Element<Unit> {
+private class PopupObservation(private val p: PopoverProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -162,10 +168,12 @@ private class PopupObservation(private val p: PopoverProbe): Element<Unit> {
     }
 }
 
-private class PopoverRoot(private val p: PopoverProbe, private val props: Props<Int>): Element<
-    Unit
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class PopoverRoot(
+    private val p: PopoverProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         p.rootInput = Some(scope.input)
         scope.input.defaultAction =
             {

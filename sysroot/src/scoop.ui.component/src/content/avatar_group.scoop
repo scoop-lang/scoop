@@ -35,7 +35,10 @@ public class AvatarGroupBuilder internal constructor(private val size: AvatarSiz
         builder.configure()
         entries.add(
             AvatarGroupEntry(
-                component(builder.snapshot(fallback), { current -> Avatar(current) }),
+                component(
+                    builder.snapshot(fallback),
+                    { current, mount -> Avatar(current, scope = mount) }
+                ),
                 builder.key
             )
         )
@@ -44,7 +47,7 @@ public class AvatarGroupBuilder internal constructor(private val size: AvatarSiz
         nonnegative(overlap, "invalid avatar group overlap")
         return component(
             AvatarGroupProps(entries.toArray(), overlap),
-            { current -> AvatarGroup(current) },
+            { current, mount -> AvatarGroup(current, scope = mount) },
             key
         )
     }
@@ -63,9 +66,12 @@ internal fun makeAvatarGroup(size: AvatarSize, configure: AvatarGroupBuilder.() 
 
 private class AvatarGroupProps(val entries: Array<AvatarGroupEntry>, val overlap: Double)
 
-private class AvatarGroup(private val props: Props<AvatarGroupProps>): Component {
+private class AvatarGroup(
+    private val props: Props<AvatarGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(None)
     }
     public override fun render(): View {
@@ -86,7 +92,7 @@ private class AvatarGroup(private val props: Props<AvatarGroupProps>): Component
             }
         return element(
             AvatarGroupLayoutProps(input.entries.size, input.overlap),
-            { current -> AvatarGroupLayout(current) },
+            { current, mount -> AvatarGroupLayout(current, scope = mount) },
             children
         )
     }
@@ -94,7 +100,10 @@ private class AvatarGroup(private val props: Props<AvatarGroupProps>): Component
 
 private struct AvatarGroupLayoutProps(val count: Long, val overlap: Double)
 
-private class AvatarGroupLayout(private val props: Props<AvatarGroupLayoutProps>): Element<Unit> {
+private class AvatarGroupLayout(
+    private val props: Props<AvatarGroupLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

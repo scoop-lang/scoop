@@ -77,7 +77,7 @@ internal class FrameReuseProbe(val fonts: FontCollection) {
                             size = LogicalSize(240.0, 220.0)
                         }
                     ),
-                    { FrameReuseScene(this, active) }
+                    { mount -> FrameReuseScene(this, active, scope = mount) }
                 )
             }
             case NewEvents(StartCause.Deadline) -> fail(Some(f"frame reuse timed out at ${phase}"))
@@ -162,26 +162,34 @@ internal class FrameReuseProbe(val fonts: FontCollection) {
 
 private class FrameReuseScene(
     private val probe: FrameReuseProbe,
-    private val active: ActiveApplication
-): Component {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         element(
-            { FrameReuseRoot(probe, active) },
+            { mount -> FrameReuseRoot(probe, active, scope = mount) },
             [
-                component({ FrameReuseColor(probe) }),
-                element({ FrameReuseMoving(probe) }, [element({ FrameReuseChild(probe) })]),
-                element({ FrameReuseText(probe, 0L) }),
-                element({ FrameReuseText(probe, 1L) }),
-                element({ FrameReuseScroll(probe) }, [element({ FrameReuseScrollChild(probe) })])
+                component({ mount -> FrameReuseColor(probe, scope = mount) }),
+                element(
+                    { mount -> FrameReuseMoving(probe, scope = mount) },
+                    [element({ mount -> FrameReuseChild(probe, scope = mount) })]
+                ),
+                element({ mount -> FrameReuseText(probe, 0L, scope = mount) }),
+                element({ mount -> FrameReuseText(probe, 1L, scope = mount) }),
+                element(
+                    { mount -> FrameReuseScroll(probe, scope = mount) },
+                    [element({ mount -> FrameReuseScrollChild(probe, scope = mount) })]
+                )
             ]
         )
 }
 
 private class FrameReuseRoot(
     private val probe: FrameReuseProbe,
-    private val active: ActiveApplication
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.rootScope = Some(scope)
         probe.opacity = Some(scope.animation(1.0))
         probe.offset = Some(scope.animation(0.0))

@@ -7,11 +7,16 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.ui.style.*
 
-internal class SelectionScene(private val probe: SelectionProbe): Component {
+internal class SelectionScene(private val probe: SelectionProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         val generation = probe.generation.value
         if (probe.gone)
-            return element(generation, { current -> SelectionLayout(probe, current) })
+            return element(
+                generation,
+                { current, mount -> SelectionLayout(probe, current, scope = mount) }
+            )
         val index =
             if (probe.alternate)
                 1L
@@ -57,9 +62,9 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
                         labelTarget = Some(probe.targets[0L])
                     ),
                     {
-                        current ->
+                        current, mount ->
                         probe.checkMounts += 1;
-                        Checkbox(current)
+                        Checkbox(current, scope = mount)
                     }
                 ),
                 checkbox(probe.bool.binding()),
@@ -71,9 +76,9 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
                         labelTarget = Some(probe.targets[index + 1L])
                     ),
                     {
-                        current ->
+                        current, mount ->
                         probe.switchMounts += 1;
-                        Switch(current)
+                        Switch(current, scope = mount)
                     }
                 ),
                 fieldLabel("Original switch", probe.targets[1L]) {
@@ -92,9 +97,9 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
                         focus = FocusOptions(Some(probe.currentFocus(2L)))
                     ),
                     {
-                        current ->
+                        current, mount ->
                         probe.toggleMounts += 1;
-                        Toggle(current)
+                        Toggle(current, scope = mount)
                     }
                 ),
                 toggle(
@@ -113,7 +118,11 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
                 toggle(empty(), toggled) { this.size = ToggleSize.Lg }
             ]
         return direction(
-            element(generation, { current -> SelectionLayout(probe, current) }, children),
+            element(
+                generation,
+                { current, mount -> SelectionLayout(probe, current, scope = mount) },
+                children
+            ),
             probe.direction
         )
     }
@@ -121,8 +130,9 @@ internal class SelectionScene(private val probe: SelectionProbe): Component {
 
 private class SelectionLayout(
     private val probe: SelectionProbe,
-    private val generation: Props<Int>
-): Element<Unit> {
+    private val generation: Props<Int>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

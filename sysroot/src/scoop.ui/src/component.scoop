@@ -5,28 +5,43 @@ public enum UiInvalidation {
 }
 
 /** A persistent instance that composes descriptions from its current inputs and state. */
-public interface Component {
-    public fun render(): View
-    public fun onMount(scope: ComponentScope) {}
-    public fun onUnmount() {}
+public abstract class Component protected constructor(public val scope: ComponentScope) {
+    private val ownership = InstanceOwnership(scope)
+    internal fun claim(scope: ComponentScope) {
+        ownership.claim(scope)
+    }
+    public abstract fun render(): View
+    public open fun onMount() {}
+    public open fun onUnmount() {}
 }
 
 /** A persistent, self-drawn leaf or container using the same public child protocol. */
-public interface Element<L> {
-    public fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
-    public fun scene(context: SceneContext, layout: L)
-    public fun onMount(scope: ComponentScope) {}
-    public fun update(): UiInvalidation = UiInvalidation.Layout
-    public fun onUnmount() {}
+public abstract class Element<L> protected constructor(public val scope: ComponentScope) {
+    private val ownership = InstanceOwnership(scope)
+    internal fun claim(scope: ComponentScope) {
+        ownership.claim(scope)
+    }
+    public abstract fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<L>
+    public abstract fun scene(context: SceneContext, layout: L)
+    public open fun onMount() {}
+    public open fun update(): UiInvalidation = UiInvalidation.Layout
+    public open fun onUnmount() {}
 }
 
 /** A persistent container that asks the framework for only the items it needs. */
-public interface LazyElement<L> {
-    public fun measure(context: LazyMeasureContext, constraints: Constraints): LayoutResult<L>
-    public fun scene(context: SceneContext, layout: L)
-    public fun onMount(scope: ComponentScope) {}
-    public fun update(): UiInvalidation = UiInvalidation.Layout
-    public fun onUnmount() {}
+public abstract class LazyElement<L> protected constructor(public val scope: ComponentScope) {
+    private val ownership = InstanceOwnership(scope)
+    internal fun claim(scope: ComponentScope) {
+        ownership.claim(scope)
+    }
+    public abstract fun measure(
+        context: LazyMeasureContext,
+        constraints: Constraints
+    ): LayoutResult<L>
+    public abstract fun scene(context: SceneContext, layout: L)
+    public open fun onMount() {}
+    public open fun update(): UiInvalidation = UiInvalidation.Layout
+    public open fun onUnmount() {}
 }
 
 /** Replace this snapshot when its key mapping or item inputs change. */
@@ -35,4 +50,16 @@ public interface ItemSource {
     public fun keyAt(index: Long): ViewKey
     public fun indexOfKey(key: ViewKey): Long?
     public fun build(index: Long): View
+}
+
+/** Ownership is checked on the actual user instance, including after it has retired. */
+private class InstanceOwnership(private val scope: ComponentScope) {
+    private var claimed = false
+    fun claim(current: ComponentScope) {
+        if (claimed || scope !== current)
+            throw IllegalStateException(
+                Some("component or element instance belongs to another mount")
+            )
+        claimed = true
+    }
 }

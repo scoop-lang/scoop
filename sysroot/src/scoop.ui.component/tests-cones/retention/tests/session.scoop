@@ -95,7 +95,7 @@ internal class RetentionProbe {
                     )
                 native.setWindowLevel(WindowLevel.AlwaysOnTop)
                 native.requestFocus()
-                ui = Some(host.attach(native, { RetentionScene(this) }))
+                ui = Some(host.attach(native, { mount -> RetentionScene(this, scope = mount) }))
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(30L))
                 )

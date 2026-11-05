@@ -8,9 +8,11 @@ import scoop.ui.*
 import scoop.ui.component.*
 
 internal fun itemBox(width: Double, height: Double): View =
-    element(Size(width, height), { current -> ItemTestBox(current) })
+    element(Size(width, height), { current, mount -> ItemTestBox(current, scope = mount) })
 
-private class ItemTestBox(private val props: Props<Size>): Element<Unit> {
+private class ItemTestBox(private val props: Props<Size>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > = LayoutResult(LayoutMetrics(constraints.constrain(props.value)), Unit)
@@ -68,7 +70,7 @@ internal fun itemMeasurements(probe: ItemProbe): Array<View> {
                         )
                     )
             ),
-            { current -> Item(current) }
+            { current, mount -> Item(current, scope = mount) }
         ),
         item(itemBox(10.0, 20.0)) {
             this.media(itemBox(1.0, 1.0));
@@ -92,9 +94,12 @@ internal fun itemMeasurements(probe: ItemProbe): Array<View> {
 }
 
 private fun itemMeasured(content: View, record: (Rect) -> Unit): View =
-    element(record, { current -> ItemGeometryMarker(current) }, [content])
+    element(record, { current, mount -> ItemGeometryMarker(current, scope = mount) }, [content])
 
-private class ItemGeometryMarker(private val record: Props<(Rect) -> Unit>): Element<Unit> {
+private class ItemGeometryMarker(
+    private val record: Props<(Rect) -> Unit>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

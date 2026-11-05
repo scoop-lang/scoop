@@ -5,7 +5,10 @@ import scoop.surface.FocusOrigin
 import scoop.ui.*
 import scoop.ui.style.*
 
-public class Command public constructor(private val props: Props<CommandProps>): Component {
+public class Command public constructor(
+    private val props: Props<CommandProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val localActive = state<ViewKey?>(None)
     private val ownFocus = FocusHandle()
@@ -20,7 +23,7 @@ public class Command public constructor(private val props: Props<CommandProps>):
             { (props.value.active ?: localActive.binding()).value },
             { key -> (props.value.active ?: localActive.binding()).value = key }
         )
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.input.theme)
     }
     private fun results(): CommandSource {
@@ -129,7 +132,7 @@ public class Command public constructor(private val props: Props<CommandProps>):
         val body =
             element(
                 CommandLayoutProps(input.width * density, height, source.itemCount == 0L),
-                { current -> CommandLayout(current) },
+                { current, mount -> CommandLayout(current, scope = mount) },
                 children.toArray()
             )
         return element(
@@ -144,7 +147,7 @@ public class Command public constructor(private val props: Props<CommandProps>):
                 { key -> (props.value.listHandle ?: ownList).scrollToItem(key) },
                 { key -> select(key) }
             ),
-            { current -> CandidateNavigation(current) },
+            { current, mount -> CandidateNavigation(current, scope = mount) },
             [
                 panelFrame(
                     body,
@@ -162,7 +165,10 @@ public class Command public constructor(private val props: Props<CommandProps>):
 
 private class CommandLayoutProps(val width: Double, val listHeight: Double, val empty: Boolean)
 
-private class CommandLayout(private val props: Props<CommandLayoutProps>): Element<Unit> {
+private class CommandLayout(
+    private val props: Props<CommandLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

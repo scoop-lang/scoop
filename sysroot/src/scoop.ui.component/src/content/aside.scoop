@@ -44,12 +44,14 @@ internal fun panelAside(
                 PanelAsideShape.Empty
     return element(
         PanelAsideProps(shape, gap, minimumContent, alignment),
-        { current -> PanelAside(current) },
+        { current, mount -> PanelAside(current, scope = mount) },
         children.toArray()
     )
 }
 
-private class PanelAside(private val props: Props<PanelAsideProps>): Element<Unit> {
+private class PanelAside(private val props: Props<PanelAsideProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

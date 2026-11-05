@@ -9,7 +9,7 @@ import scoop.ui.component.*
 import scoop.ui.component.command as makeCommand
 import scoop.ui.component.label as makeLabel
 
-internal class CommandScene(private val p: CommandProbe): Component {
+internal class CommandScene(private val p: CommandProbe, scope: ComponentScope): Component(scope) {
     public override fun render(): View {
         val p = this.p
         val generation = p.generation.value
@@ -62,7 +62,7 @@ internal class CommandScene(private val p: CommandProbe): Component {
         return direction(
             element(
                 generation,
-                { current -> CommandRoot(p, current) },
+                { current, mount -> CommandRoot(p, current, scope = mount) },
                 [
                     body,
                     button("After", {}) {
@@ -149,7 +149,14 @@ private class ProbeCommands(private val p: CommandProbe): CommandSource {
                 title,
                 { p.selected = number },
                 enabledAt(index),
-                content = Some(component(number, { current -> ObservedCommand(p, current) }, key))
+                content =
+                    Some(
+                        component(
+                            number,
+                            { current, mount -> ObservedCommand(p, current, scope = mount) },
+                            key
+                        )
+                    )
             )
         )
     }
@@ -157,10 +164,11 @@ private class ProbeCommands(private val p: CommandProbe): CommandSource {
 
 private class ObservedCommand(
     private val p: CommandProbe,
-    private val props: Props<Long>
-): Component {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Component(scope) {
     private val mounted = props.value
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         p.factories += 1
     }
     public override fun onUnmount() {
@@ -169,7 +177,7 @@ private class ObservedCommand(
     public override fun render(): View =
         element(
             props.value,
-            { current -> CommandObservation(p, current) },
+            { current, mount -> CommandObservation(p, current, scope = mount) },
             [observedLabel(p, f"Candidate ${props.value} / local ${mounted}")]
         )
 }
@@ -178,8 +186,9 @@ private class CapturedBounds(var value: Rect)
 
 private class CommandObservation(
     private val p: CommandProbe,
-    private val props: Props<Long>
-): Element<Unit> {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -207,10 +216,12 @@ private class CommandObservation(
     }
 }
 
-private class CommandRoot(private val p: CommandProbe, private val props: Props<Int>): Element<
-    Double
-> {
-    public override fun onMount(scope: ComponentScope) {
+private class CommandRoot(
+    private val p: CommandProbe,
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<Double>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,

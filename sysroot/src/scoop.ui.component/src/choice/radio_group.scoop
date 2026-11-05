@@ -40,11 +40,12 @@ public class RadioGroupProps<T: Equals<T>> public constructor(
 }
 
 public class RadioGroup<T: Equals<T>> public constructor(
-    private val props: Props<RadioGroupProps<T>>
-): Component {
+    private val props: Props<RadioGroupProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     private fun select(key: ViewKey) {
@@ -93,7 +94,7 @@ public class RadioGroup<T: Equals<T>> public constructor(
                         theme,
                         { select(entry.choice.key) }
                     ),
-                    { current -> RadioItem(current) }
+                    { current, mount -> RadioItem(current, scope = mount) }
                 )
             }
         return choiceLayout(

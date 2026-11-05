@@ -6,22 +6,20 @@ import scoop.ui.component.column as itemColumn
 import scoop.ui.component.row as itemRow
 import scoop.ui.style.*
 
-internal class ItemRenderer {
+internal class ItemRenderer(private val scope: ComponentScope) {
     private val themes = ThemeAccess()
-    private val owner = state<ComponentScope?>(None)
     private val titles = ActionTextStyle()
     private val descriptions = ActionTextStyle()
     private val medium = spanStyle { this.weight = Some(500) }
     private val regular = spanStyle { this.weight = Some(400) }
-    fun mount(scope: ComponentScope, theme: ThemeSource?) {
+    fun mount(theme: ThemeSource?) {
         themes.mount(theme)
-        owner.value = Some(scope)
     }
     fun render(input: ItemProps, interaction: InteractionState, behavior: ActionBehavior): View {
         val theme = themes.read(input.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
         val gap = itemGap(input.size) * density
-        val direction = owner.value?.layoutDirection ?: LayoutDirection.Ltr
+        val direction = scope.layoutDirection
         val title =
             titles.resolve(
                 theme.tokens.typography.body,
@@ -135,7 +133,7 @@ internal class ItemRenderer {
             }
         return element(
             ItemInkProps(input, theme, interaction.asVisual(input.enabled), behavior),
-            { current -> ItemInk(current) },
+            { current, mount -> ItemInk(current, scope = mount) },
             [content]
         )
     }

@@ -100,7 +100,7 @@ internal fun makeCollapsible(
     builder.configure()
     return component(
         builder.snapshot(open, content),
-        { current -> Collapsible(current) },
+        { current, mount -> Collapsible(current, scope = mount) },
         builder.key
     )
 }

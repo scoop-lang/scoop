@@ -7,17 +7,23 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.style.*
 
-public class Tooltip public constructor(private val props: Props<TooltipProps>): Component {
+public class Tooltip public constructor(
+    private val props: Props<TooltipProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val popup = HoverPopup({ props.value.input })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         popup.mount()
     }
     public override fun render(): View = popup.render()
 }
 
-public class HoverCard public constructor(private val props: Props<HoverCardProps>): Component {
+public class HoverCard public constructor(
+    private val props: Props<HoverCardProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val popup = HoverPopup({ props.value.input })
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         popup.mount()
     }
     public override fun render(): View = popup.render()
@@ -128,7 +134,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
                     else
                         None
                 ),
-                { current -> HoverPopupContent(current) },
+                { current, mount -> HoverPopupContent(current, scope = mount) },
                 [panel]
             )
         val localAnchor = anchor
@@ -142,7 +148,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
                         8.0 * density,
                         popupArrowInk(input.arrow, density, visual.background.resolve(None))
                     ),
-                    { current -> PopupMotion(current) },
+                    { current, mount -> PopupMotion(current, scope = mount) },
                     [content]
                 )
             ) {
@@ -161,7 +167,7 @@ private class HoverPopup(private val read: () -> HoverPopupInput) {
             }
         return element(
             HoverPopupLayoutProps(anchor, link, open, input.hover, passive),
-            { current -> HoverPopupLayout(current) },
+            { current, mount -> HoverPopupLayout(current, scope = mount) },
             [input.trigger, popup]
         )
     }

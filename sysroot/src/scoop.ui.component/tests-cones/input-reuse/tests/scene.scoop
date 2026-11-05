@@ -10,13 +10,14 @@ import scoop.window.ActiveApplication
 
 internal class InputScene(
     private val probe: ButtonInputProbe,
-    private val active: ActiveApplication
-): Component {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val version = probe.version.value
         return element(
             version,
-            { props -> InputPanel(props, probe, active) },
+            { props, mount -> InputPanel(props, probe, active, scope = mount) },
             [
                 button("Link action", { probe.clicked = version }) { variant = ButtonVariant.Link },
                 label("Stable label")
@@ -28,9 +29,10 @@ internal class InputScene(
 private class InputPanel(
     private val props: Props<Int>,
     private val probe: ButtonInputProbe,
-    private val active: ActiveApplication
-): Element<LayoutMetrics> {
-    public override fun onMount(scope: ComponentScope) {
+    private val active: ActiveApplication,
+    scope: ComponentScope
+): Element<LayoutMetrics>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
     }
     public override fun update(): UiInvalidation = UiInvalidation.Scene

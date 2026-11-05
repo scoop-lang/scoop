@@ -33,7 +33,7 @@ internal fun groupText(
         }
     return element(
         GroupTextProps(theme, options, group, groupEndRadius(theme, style)),
-        { current -> GroupTextInk(current) },
+        { current, mount -> GroupTextInk(current, scope = mount) },
         [panelCaption(content, base, fonts)]
     )
 }
@@ -45,10 +45,13 @@ private class GroupTextProps(
     val endRadius: Double?
 )
 
-private class GroupTextInk(private val props: Props<GroupTextProps>): Element<SurfaceGeometry> {
+private class GroupTextInk(
+    private val props: Props<GroupTextProps>,
+    scope: ComponentScope
+): Element<SurfaceGeometry>(scope) {
     private var painters: ThemePainterCache? = None
     private var content: StylePainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painters = Some(scope.resource { ThemePainterCache() })
         content = Some(scope.resource { StylePainter() })
     }
@@ -117,11 +120,17 @@ private class GroupTextInk(private val props: Props<GroupTextProps>): Element<Su
 }
 
 internal fun groupSeparator(axis: FlexAxis, color: Color): View =
-    element(GroupSeparatorProps(axis, color), { current -> GroupSeparator(current) })
+    element(
+        GroupSeparatorProps(axis, color),
+        { current, mount -> GroupSeparator(current, scope = mount) }
+    )
 
 private struct GroupSeparatorProps(val axis: FlexAxis, val color: Color)
 
-private class GroupSeparator(private val props: Props<GroupSeparatorProps>): Element<Unit> {
+private class GroupSeparator(
+    private val props: Props<GroupSeparatorProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > =

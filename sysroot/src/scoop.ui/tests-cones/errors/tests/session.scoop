@@ -1,5 +1,6 @@
 package scoop.tests.ui.errors
 
+import scoop.graphics.text.FontCollection
 import scoop.platform.time.MonotonicTimeSource
 import scoop.surface.InputArea
 import scoop.test.*
@@ -15,6 +16,13 @@ internal class FailureRecord(val mode: FailureMode) {
     val trigger = state(false)
     val images = ArrayList<FailureImage>()
     val log = ArrayList<String>()
+    var factoryFonts: FontCollection? = None
+    var partialScope: ComponentScope? = None
+    var partialArea: InputArea? = None
+    var retiredWindow: UiWindow? = None
+    var retiredComponent: SmallComponent? = None
+    var retiredElement: SmallElement? = None
+    var retiredLazy: SmallLazy? = None
     var rootMounts = 0
     var rootUnmounts = 0
     var leafMounts = 0
@@ -89,6 +97,9 @@ internal class FailureHarness: ApplicationHandler {
             FailureRecord(FailureMode.Update),
             FailureRecord(FailureMode.DuplicateKey),
             FailureRecord(FailureMode.DuplicateInstance),
+            FailureRecord(FailureMode.RetiredComponent),
+            FailureRecord(FailureMode.RetiredElement),
+            FailureRecord(FailureMode.RetiredLazy),
             FailureRecord(FailureMode.PortalHandle),
             FailureRecord(FailureMode.PortalCycle),
             FailureRecord(FailureMode.ModalMount),
@@ -122,8 +133,12 @@ internal class FailureHarness: ApplicationHandler {
                     UiHost {
                         host,
                         active,
-                        _ -> if (resumed && !record.started)
-                            start(host, active, record)
+                        _ -> if (resumed) {
+                            if (!record.started)
+                                start(host, active, record)
+                            else
+                                retryRetired(host, record)
+                        }
                     }
                 )
             case Some(_) -> {}
@@ -167,8 +182,21 @@ internal class FailureHarness: ApplicationHandler {
             ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(8L))
         )
         when (record.mode) {
-            case Factory -> host.attach<FailureRoot>(native, { throw record.primary })
-            else -> host.attach(native, { FailureRoot(record) })
+            case Factory -> host.attach<FailureRoot>(
+                native,
+                {
+                    mount ->
+                    record.factoryFonts = Some(mount.defaultFonts)
+                    record.partialScope = Some(mount)
+                    record.partialArea = Some(mount.createArea(focusable = true))
+                    mount.resource { FailureImage(record, "factory") }
+                    throw record.primary
+                }
+            )
+            case RetiredComponent -> reuseRetired(host, application, native, record)
+            case RetiredElement -> reuseRetired(host, application, native, record)
+            case RetiredLazy -> reuseRetired(host, application, native, record)
+            else -> host.attach(native, { mount -> FailureRoot(record, scope = mount) })
         }
         if (record.mode == FailureMode.LateUpdate) {
             val second =
@@ -179,16 +207,25 @@ internal class FailureHarness: ApplicationHandler {
                     }
                 )
             record.second = Some(second)
-            host.attach(second, { SecondRoot(record) })
+            host.attach(second, { mount -> SecondRoot(record, scope = mount) })
             record.trigger.value = true
         }
     }
 }
 
 private fun verifyFailure(record: FailureRecord, error: Throwable) {
+    if (record.mode == FailureMode.Factory) {
+        assertTrue(record.factoryFonts!!.isClosed)
+        assertTrue(record.partialArea!!.isClosed)
+        assertFalse(record.partialScope!!.isMounted)
+        assertTrue(containsFailure(error, record.cleanupA))
+    }
     when (record.mode) {
         case DuplicateKey -> assertTrue(error is IllegalArgumentException)
         case DuplicateInstance -> assertTrue(error is IllegalStateException)
+        case RetiredComponent -> assertTrue(error is IllegalStateException)
+        case RetiredElement -> assertTrue(error is IllegalStateException)
+        case RetiredLazy -> assertTrue(error is IllegalStateException)
         case MissingMeasure -> assertTrue(error is IllegalStateException)
         case MissingPaint -> assertTrue(error is IllegalStateException)
         case PortalHandle -> assertTrue(error is IllegalArgumentException)

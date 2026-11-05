@@ -19,7 +19,11 @@ internal fun runGallery(model: GalleryModel) {
                                     this.size = LogicalSize(1120.0, 780.0)
                                 }
                             )
-                        host.attach(window, { Gallery(model, fonts) })
+                        host.attach(
+                            window,
+                            { mount -> Gallery(model, fonts, scope = mount) },
+                            fonts = Some(fonts)
+                        )
                         window.requestFocus()
                     }
                     case Window(_, WindowEvent.CloseRequested) -> active.requestExit()

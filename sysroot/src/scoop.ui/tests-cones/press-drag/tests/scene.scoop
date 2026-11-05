@@ -5,17 +5,24 @@ import scoop.surface.*
 import scoop.ui.*
 import scoop.window.*
 
-internal class GestureRoot(private val probe: GestureProbe): Component {
-    private val content = element({ GestureChild(probe) })
+internal class GestureRoot(private val probe: GestureProbe, scope: ComponentScope): Component(
+    scope
+) {
+    private val content = element({ mount -> GestureChild(probe, scope = mount) })
     public override fun render(): View =
-        element(probe.shift.value, { props -> GesturePanel(props, probe) }, [content])
+        element(
+            probe.shift.value,
+            { props, mount -> GesturePanel(props, probe, scope = mount) },
+            [content]
+        )
 }
 
 private class GesturePanel(
     private val props: Props<Double>,
-    private val probe: GestureProbe
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val probe: GestureProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         val area = scope.createArea()
         probe.parent = Some(area)
         probe.drag =
@@ -61,8 +68,10 @@ private class GesturePanel(
     }
 }
 
-private class GestureChild(private val probe: GestureProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class GestureChild(private val probe: GestureProbe, scope: ComponentScope): Element<Unit>(
+    scope
+) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         probe.area =
             Some(

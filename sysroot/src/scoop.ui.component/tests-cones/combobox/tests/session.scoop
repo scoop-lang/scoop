@@ -144,7 +144,7 @@ internal class ComboProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { ComboScene(this) });
+                host.attach(window, { mount -> ComboScene(this, scope = mount) });
                 window.requestFocus();
                 wait(application)
             }

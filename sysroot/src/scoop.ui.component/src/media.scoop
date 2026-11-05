@@ -14,7 +14,10 @@ public class ImageViewProps public constructor(
 )
 
 /** Borrows pixels from its caller and has no input or loading behavior. */
-public class ImageView public constructor(private val props: Props<ImageViewProps>): Element<Unit> {
+public class ImageView public constructor(
+    private val props: Props<ImageViewProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         val input = props.value
         requireComponent(!input.image.isClosed, "image view requires an open image")
@@ -68,7 +71,10 @@ public class PathViewProps public constructor(
 )
 
 /** Fits an explicit view box; drawing, stroke and borrowed resource ownership stay in graphics. */
-public class PathView public constructor(private val props: Props<PathViewProps>): Element<Unit> {
+public class PathView public constructor(
+    private val props: Props<PathViewProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun update(): UiInvalidation {
         val input = props.value
         requireComponent(!input.path.isClosed, "path view requires an open path")

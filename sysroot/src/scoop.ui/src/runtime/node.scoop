@@ -9,12 +9,7 @@ internal enum NodeBody {
 
 internal class UpdateTurn
 
-internal class MountedNode(
-    val root: UiRoot,
-    val parent: MountedNode?,
-    var view: View,
-    val body: NodeBody
-) {
+internal class MountedNode(val root: UiRoot, val parent: MountedNode?, var view: View) {
     val depth: Long = (parent?.depth ?: -1L) + 1L
     var layoutDirection: LayoutDirection =
         view.directionOverride ?: parent?.layoutDirection ?: LayoutDirection.Ltr
@@ -44,6 +39,13 @@ internal class MountedNode(
     private var participates = true
     val participatesInFrame: Boolean get() = participates
     var frameEnabled: Boolean = parent?.frameEnabled ?: true
+
+    val lazyItems: LazyChildren? =
+        when (view.body) {
+            case Lazy(_, source, capacity) -> Some(LazyChildren(source, capacity))
+            else -> None
+        }
+    val body: NodeBody = createBody(this, view)
 
     fun setFrameEnabled(value: Boolean) {
         if (framesAllowed == value)
@@ -168,7 +170,7 @@ internal class MountedNode(
                     )
                 }
                 if (shouldUpdate && active && root.isOpen && mounted)
-                    request(instance.update())
+                    request(updateInputs { instance.update() })
             }
             case Lazy(instance, items) -> {
                 when (view.body) {
@@ -181,7 +183,7 @@ internal class MountedNode(
                     for (child in children)
                         child.refreshDirection(turn)
                 if (shouldUpdate && active && root.isOpen && mounted)
-                    request(instance.update())
+                    request(updateInputs { instance.update() })
             }
         }
     }
@@ -192,20 +194,20 @@ internal class MountedNode(
             when (body) {
                 case Empty -> {}
                 case Direction -> {}
-                case Component(instance) -> instance.value.onMount(scope)
-                case Element(instance) -> instance.onMount(scope)
+                case Component(instance) -> instance.value.onMount()
+                case Element(instance) -> instance.onMount()
                 case Portal(instance) -> instance.mount(this)
-                case Lazy(instance, _) -> instance.onMount(scope)
+                case Lazy(instance, _) -> instance.onMount()
             }
             mounted = true
             if (active && root.isOpen) {
                 when (body) {
                     case Element(instance) -> {
-                        instance.update()
+                        updateInputs { instance.update() }
                     }
                     case Lazy(instance, items) -> {
                         items.mount(this)
-                        instance.update()
+                        updateInputs { instance.update() }
                     }
                     else -> {}
                 }

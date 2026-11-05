@@ -76,4 +76,4 @@ internal fun makeResolvedBadge(
 }
 
 private fun badgeView(input: BadgeProps, key: ViewKey): View =
-    component(input, { current -> Badge(current) }, key)
+    component(input, { current, mount -> Badge(current, scope = mount) }, key)

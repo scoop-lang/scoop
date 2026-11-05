@@ -21,10 +21,13 @@ public class LabelProps public constructor(
 )
 
 /** A normal component; text measurement and ownership belong to the public ParagraphHost. */
-public class Label public constructor(private val props: Props<LabelProps>): Component {
+public class Label public constructor(
+    private val props: Props<LabelProps>,
+    scope: ComponentScope
+): Component(scope) {
     private var plain: PlainLabel? = None
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         when (props.value.text) {
             case Plain(_, _) -> when (props.value.baseStyle) {
                 case None -> themes.mount(props.value.theme)
@@ -46,7 +49,7 @@ public class Label public constructor(private val props: Props<LabelProps>): Com
             }
         return element(
             LabelInkProps(content, input),
-            { current -> LabelInk(current) },
+            { current, mount -> LabelInk(current, scope = mount) },
             inlineChildren(content, input.inlines)
         )
     }
@@ -99,40 +102,17 @@ private class PlainLabel(
 
 private class LabelInkProps(val content: StyledText, val input: LabelProps)
 
-private class LabelInk(private val props: Props<LabelInkProps>): Element<ParagraphMeasurement> {
-    private var scope: ComponentScope? = None
+private class LabelInk(private val props: Props<LabelInkProps>, scope: ComponentScope): Element<
+    ParagraphMeasurement
+>(scope) {
     private var previous: LabelInkProps? = None
-    private var paragraph: ParagraphHost? = None
-    private var ownedFonts: FontCollection? = None
-    private var fonts: FontCollection? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
-        paragraph = Some(scope.resource { ParagraphHost() })
-    }
+    private val paragraph = scope.resource { ParagraphHost() }
+    private var fonts = props.value.input.fonts ?: scope.defaultFonts
     public override fun update(): UiInvalidation {
         val previousFonts = fonts
-        fonts =
-            Some(
-                when (props.value.input.fonts) {
-                    case Some(value) -> value
-                    case None -> {
-                        when (ownedFonts) {
-                            case Some(value) -> value
-                            case None -> {
-                                val value = scope!!.resource { FontCollection() }
-                                ownedFonts = Some(value)
-                                value
-                            }
-                        }
-                    }
-                }
-            )
+        fonts = props.value.input.fonts ?: scope.defaultFonts
         val value = props.value
-        val fontChanged =
-            when (previousFonts) {
-                case Some(old) -> old !== fonts!!
-                case None -> true
-            }
+        val fontChanged = previousFonts !== fonts
         val changed =
             fontChanged ||
                 when (previous) {
@@ -157,10 +137,10 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
     > {
         val value = props.value
         val measured =
-            paragraph!!.measure(
+            paragraph.measure(
                 context,
                 constraints,
-                fonts!!,
+                fonts,
                 value.content,
                 value.input.settings,
                 value.input.inlines
@@ -168,7 +148,7 @@ private class LabelInk(private val props: Props<LabelInkProps>): Element<Paragra
         return LayoutResult(measured.metrics, measured, { measured.close() })
     }
     public override fun scene(context: SceneContext, measured: ParagraphMeasurement) {
-        paragraph!!.scene(context, measured)
+        paragraph.scene(context, measured)
         when (props.value.input.underline) {
             case Some(color) -> {
                 val boxes =

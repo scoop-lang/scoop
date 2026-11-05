@@ -123,7 +123,7 @@ internal class SidebarProbe {
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { SidebarScene(this) });
+                host.attach(window, { mount -> SidebarScene(this, scope = mount) });
                 window.requestFocus()
                 next = MonotonicTimeSource.markNow() + waitAfter
                 active.setControlFlow(ControlFlow.WaitUntil(next))

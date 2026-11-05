@@ -27,16 +27,23 @@ internal class SelectPopupProps(
     val onClosed: (OverlayCloseReason) -> Unit
 )
 
-internal class SelectPopup(private val props: Props<SelectPopupProps>): Component {
+internal class SelectPopup(
+    private val props: Props<SelectPopupProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.options.theme)
     }
     public override fun render(): View {
         val input = props.value
         val theme = themes.read(input.options.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
-        val panel = component(SelectPanelProps(input, theme), { current -> SelectPanel(current) })
+        val panel =
+            component(
+                SelectPanelProps(input, theme),
+                { current, mount -> SelectPanel(current, scope = mount) }
+            )
         val motion =
             theme.tokens.motion.resolve(
                 input.transition.resolve(
@@ -51,7 +58,7 @@ internal class SelectPopup(private val props: Props<SelectPopupProps>): Componen
             input.open,
             element(
                 PopupMotionProps(input.options.enabled, 8.0 * density),
-                { current -> PopupMotion(current) },
+                { current, mount -> PopupMotion(current, scope = mount) },
                 [panel]
             )
         ) {
@@ -86,7 +93,10 @@ internal class SelectPopup(private val props: Props<SelectPopupProps>): Componen
 internal class SelectPanelProps(val popup: SelectPopupProps, val theme: Theme)
 
 /** Alignment follows the opening selection, including reopening a retained exit transition. */
-internal class SelectPanel(private val props: Props<SelectPanelProps>): Component {
+internal class SelectPanel(
+    private val props: Props<SelectPanelProps>,
+    scope: ComponentScope
+): Component(scope) {
     private var aligned = props.value.popup.selected
     private var opened = true
     public override fun render(): View {
@@ -113,23 +123,24 @@ internal class SelectPanel(private val props: Props<SelectPanelProps>): Componen
                         popup.chain,
                         true
                     ),
-                    { current -> MenuRow(current) },
+                    { current, mount -> MenuRow(current, scope = mount) },
                     menuKey(entry)
                 )
             }
         val list =
             element(
                 SelectListProps(popup.content, aligned),
-                { current -> SelectList(current) },
+                { current, mount -> SelectList(current, scope = mount) },
                 rows
             )
         val body =
             element(
                 MenuNavigationProps(popup.focus, popup.options, popup.chain),
-                { current -> MenuNavigation(current) },
+                { current, mount -> MenuNavigation(current, scope = mount) },
                 [list]
             )
-        val viewport = element(input, { current -> SelectViewport(current) }, [body])
+        val viewport =
+            element(input, { current, mount -> SelectViewport(current, scope = mount) }, [body])
         val theme = input.theme
         val density = theme.tokens.typography.body.fontSize / 14.0
         val decoration =
@@ -141,14 +152,19 @@ internal class SelectPanel(private val props: Props<SelectPanelProps>): Componen
                 corners(Corners.all(8.0 * density));
                 boxShadows(theme.tokens.effects.floating)
             }.then(popup.style).resolve(style())
-        return component(StyledProps(viewport, decoration), { current -> Styled(current) })
+        return component(
+            StyledProps(viewport, decoration),
+            { current, mount -> Styled(current, scope = mount) }
+        )
     }
 }
 
 private class SelectListProps(val content: MenuContent, val aligned: ViewKey?)
 
 /** Measures each finite candidate once and translates the selected row into list coordinates. */
-private class SelectList(private val props: Props<SelectListProps>): Element<Unit> {
+private class SelectList(private val props: Props<SelectListProps>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {

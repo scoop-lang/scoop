@@ -10,7 +10,9 @@ import scoop.surface.FrameSubmission
 private class LazyItemInput(val source: ItemSource, val index: Long)
 
 /** Reuses ordinary render dependencies and keyed child reconciliation. */
-private class LazyItem(private val props: Props<LazyItemInput>): Component {
+private class LazyItem(private val props: Props<LazyItemInput>, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View = props.value.source.build(props.value.index)
 }
 
@@ -211,7 +213,11 @@ internal class LazyChildren(initial: ItemSource, private var capacity: Long) {
         retain(node, keep.toArray())
     }
     private fun description(index: Long, key: ViewKey): View =
-        component(LazyItemInput(source, index), { props -> LazyItem(props) }, key)
+        component(
+            LazyItemInput(source, index),
+            { props, mount -> LazyItem(props, scope = mount) },
+            key
+        )
     private fun publishOrder(node: MountedNode) {
         entries = entries.sortedBy<LazyItemEntry, Long> { entry -> entry.index }.toArray()
         node.children = Array(entries.size) { index -> entries[index].node }

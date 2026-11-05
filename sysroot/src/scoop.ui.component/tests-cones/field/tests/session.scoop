@@ -109,7 +109,7 @@ internal class FieldProbe {
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
                 view = Some(observeWindow(window));
                 frames = Some(observeFrames(window))
-                host.attach(window, { FieldScene(this) });
+                host.attach(window, { mount -> FieldScene(this, scope = mount) });
                 window.requestFocus();
                 wait(active)
             }

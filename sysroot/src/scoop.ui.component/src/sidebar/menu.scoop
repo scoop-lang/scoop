@@ -6,7 +6,10 @@ import scoop.ui.*
 import scoop.ui.style.*
 import scoop.ui.component.column as sidebarColumn
 
-public class SidebarMenu public constructor(private val props: Props<SidebarMenuProps>): Component {
+public class SidebarMenu public constructor(
+    private val props: Props<SidebarMenuProps>,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View {
         val input = props.value
         return panelFrame(
@@ -15,7 +18,7 @@ public class SidebarMenu public constructor(private val props: Props<SidebarMenu
                     add(
                         component(
                             SidebarItemInput(input, item),
-                            { current -> SidebarMenuItem(current) },
+                            { current, mount -> SidebarMenuItem(current, scope = mount) },
                             item.key
                         )
                     )
@@ -39,13 +42,14 @@ internal class SidebarRowInput(
     val space: SidebarRowSpace
 )
 
-private class SidebarMenuItem(private val props: Props<SidebarItemInput>): Component {
+private class SidebarMenuItem(
+    private val props: Props<SidebarItemInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
     private val space = SidebarRowSpace()
-    private val owner = state<ComponentScope?>(None)
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.menu.theme)
-        owner.value = Some(scope)
     }
     public override fun render(): View {
         val input = props.value
@@ -53,7 +57,7 @@ private class SidebarMenuItem(private val props: Props<SidebarItemInput>): Compo
         val item = input.item
         val theme = themes.read(menu.theme)
         val density = theme.tokens.typography.body.fontSize / 14.0
-        val direction = (owner.value?.layoutDirection ?: LayoutDirection.Ltr).textDirection()
+        val direction = scope.layoutDirection.textDirection()
         val row = SidebarRowInput(input, density, space)
         val button =
             makeResolvedButton(
@@ -94,11 +98,11 @@ private class SidebarMenuItem(private val props: Props<SidebarItemInput>): Compo
                                     ),
                                     baseStyle = Some(text)
                                 ),
-                                { current -> Label(current) }
+                                { current, mount -> Label(current, scope = mount) }
                             )
                     element(
                         row,
-                        { current -> SidebarCaption(current) },
+                        { current, mount -> SidebarCaption(current, scope = mount) },
                         [
                             sidebarAdornment(item.icon, resolved),
                             label,
@@ -142,13 +146,13 @@ private class SidebarMenuItem(private val props: Props<SidebarItemInput>): Compo
             }
         return element(
             row,
-            { current -> SidebarRow(current) },
+            { current, mount -> SidebarRow(current, scope = mount) },
             [
                 main,
                 sidebarGate(
                     element(
                         row,
-                        { current -> SidebarActionVisibility(current) },
+                        { current, mount -> SidebarActionVisibility(current, scope = mount) },
                         [item.action ?: empty()]
                     ),
                     menu.enabled && item.enabled && !menu.collapsed,

@@ -96,7 +96,7 @@ internal fun makePagination(
     builder.configure()
     return component(
         builder.snapshot(page, pageCount),
-        { current -> Pagination(current) },
+        { current, mount -> Pagination(current, scope = mount) },
         builder.key
     )
 }

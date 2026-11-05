@@ -11,9 +11,12 @@ internal class TabIndicatorProps(
     val enabled: Boolean
 )
 
-internal class TabIndicator(private val props: Props<TabIndicatorProps>): Element<Unit> {
+internal class TabIndicator(
+    private val props: Props<TabIndicatorProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var presence: Presence? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         presence = Some(scope.presence(props.value.selected))
     }
     public override fun update(): UiInvalidation {

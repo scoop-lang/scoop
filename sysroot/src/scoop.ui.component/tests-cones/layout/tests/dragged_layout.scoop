@@ -6,10 +6,12 @@ import scoop.time.Duration
 import scoop.ui.*
 import scoop.ui.component.*
 
-internal class PaneSeparator(private val model: LayoutCombination): Element<Unit> {
+internal class PaneSeparator(private val model: LayoutCombination, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var base = 0.0
     private var flow = LayoutDirection.Ltr
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val area = scope.createArea()
         model.separator = Some(area)
         model.resize =
@@ -70,11 +72,11 @@ internal class PaneSeparator(private val model: LayoutCombination): Element<Unit
 internal fun snappingStrip(model: LayoutCombination): View =
     element(
         model.widths.value,
-        { props -> SnappingStrip(model, props) },
+        { props, mount -> SnappingStrip(model, props, scope = mount) },
         Array<View>(3L) {
             index -> element(
                 index,
-                { props -> SnapCard(model, props) },
+                { props, mount -> SnapCard(model, props, scope = mount) },
                 key = ViewKey.Number(index)
             )
         }
@@ -84,11 +86,12 @@ private class SnappingLayout(val scroll: ScrollLayout, val anchors: Array<Double
 
 private class SnappingStrip(
     private val model: LayoutCombination,
-    private val props: Props<Array<Double>>
-): Element<SnappingLayout> {
+    private val props: Props<Array<Double>>,
+    scope: ComponentScope
+): Element<SnappingLayout>(scope) {
     private var area: InputArea? = None
     private var base = 0.0
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val region = scope.createArea()
         area = Some(region)
         scope.routeChildren(region)
@@ -164,10 +167,11 @@ private class SnappingStrip(
 
 private class SnapCard(
     private val model: LayoutCombination,
-    private val props: Props<Long>
-): Element<Unit> {
+    private val props: Props<Long>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val region = scope.createArea()
         area = Some(region)
         scope.press(region) { model.cardClicks += 1 }

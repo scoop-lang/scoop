@@ -46,5 +46,9 @@ public class AbsoluteBuilder internal constructor() {
 internal fun makeAbsolute(configure: AbsoluteBuilder.() -> Unit): View {
     val builder = AbsoluteBuilder()
     builder.configure()
-    return component(builder.snapshot(), { props -> Absolute(props) }, builder.key)
+    return component(
+        builder.snapshot(),
+        { props, mount -> Absolute(props, scope = mount) },
+        builder.key
+    )
 }

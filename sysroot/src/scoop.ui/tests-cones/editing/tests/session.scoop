@@ -42,6 +42,9 @@ private class PublicTextEditHostTest {
                         assertTrue(probe.displayTest.host!!.isClosed)
                         for (host in probe.fields)
                             assertTrue(host!!.isClosed)
+                        assertTrue(probe.interactionCounts[0L] > 0)
+                        assertTrue(probe.interactionCounts[1L] > 0)
+                        assertEquals(0, probe.interactionCounts[2L])
                         for (focus in probe.focus)
                             assertFalse(focus.isAttached)
                         assertFalse(probe.frames!!.snapshot().required)
@@ -73,6 +76,8 @@ internal class EditProbe(val fonts: FontCollection) {
     val multiline = TextEditorState("one two\nthree")
     val focus = Array<FocusHandle>(3L) { _ -> FocusHandle() }
     val fields = MutableArray<TextEditHost?>(3L) { _ -> None }
+    val interactionCounts = MutableArray<Int>(3L) { _ -> 0 }
+    private val interactions = MutableArray<TextEditInteraction>(3L) { _ -> TextEditInteraction() }
     val revision = state(0)
     val appearance =
         TextEditAppearance(
@@ -153,6 +158,12 @@ internal class EditProbe(val fonts: FontCollection) {
         else
             primary
     fun field(index: Long): TextEditHost = fields[index]!!
+    fun interactionChanged(index: Long, value: TextEditInteraction) {
+        assertEquals(value, field(index).interaction)
+        assertFalse(interactions[index] == value)
+        interactions[index] = value
+        interactionCounts[index] += 1
+    }
     fun change() {
         revision.value += 1
     }
@@ -188,7 +199,7 @@ internal class EditProbe(val fonts: FontCollection) {
                             assertTrue(application.proxy().post { _ -> current() })
                         }
                     )
-                ui = Some(host.attach(native, { EditScene(this) }))
+                ui = Some(host.attach(native, { mount -> EditScene(this, scope = mount) }))
                 application.setControlFlow(
                     ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.seconds(40L))
                 )

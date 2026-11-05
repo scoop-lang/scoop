@@ -12,7 +12,9 @@ internal class ModalBodyProps(
 )
 
 /** Reuses the eager viewport controller and retains the same body when scrolling is toggled. */
-internal class ModalBody(private val props: Props<ModalBodyProps>): Element<ScrollLayout> {
+internal class ModalBody(private val props: Props<ModalBodyProps>, scope: ComponentScope): Element<
+    ScrollLayout
+>(scope) {
     private val local = ScrollState()
     private var control: ScrollControl? = None
     private fun controls(): ScrollControlProps {
@@ -34,7 +36,7 @@ internal class ModalBody(private val props: Props<ModalBodyProps>): Element<Scro
             input.theme
         )
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         control = Some(ScrollControl(scope) { controls() })
     }
     public override fun update(): UiInvalidation {

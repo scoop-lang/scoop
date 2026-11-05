@@ -2,6 +2,7 @@ package scoop.ui
 
 import scoop.collections.sortedBy
 import scoop.graphics.Point
+import scoop.graphics.text.FontCollection
 import scoop.surface.*
 import scoop.window.Window
 
@@ -10,6 +11,21 @@ private class SceneCompletion(val node: MountedNode, val action: (FrameCompletio
 /** Owns one root; closing it leaves the caller's native window intact. */
 public class UiWindow internal constructor(internal val root: UiRoot): Closeable {
     public val nativeWindow: Window get() = root.window
+    public var defaultFonts: FontCollection
+    get() {
+        checkOpen();
+        return root.fonts.value
+    }
+    set(value) {
+        checkOpen()
+        root.fonts.replace(value)
+        root.requestFrame()
+    }
+    private fun checkOpen() {
+        root.checkThread()
+        if (!root.isOpen)
+            throw IllegalStateException(Some("UI root is closed"))
+    }
     public val isClosed: Boolean get() {
         root.checkThread();
         return root.closed
@@ -22,7 +38,8 @@ public class UiWindow internal constructor(internal val root: UiRoot): Closeable
 internal class UiRoot(
     val host: UiHost,
     val window: Window,
-    private val initial: View
+    private val initial: View,
+    defaultFonts: FontCollection? = None
 ): SurfaceContent {
     private var attached: SurfaceWindow? = None
     internal var node: MountedNode? = None
@@ -37,6 +54,8 @@ internal class UiRoot(
     var closed = false
     val surface: SurfaceWindow get() =
         attached ?: throw IllegalStateException(Some("UI root is not attached"))
+
+    val fonts = RootFonts(defaultFonts)
 
     fun checkThread() {
         host.checkThread()
@@ -159,6 +178,7 @@ internal class UiRoot(
         failure = cleanupUi(failure) { layouts.close() }
         failure = cleanupUi(failure) { frameDependencies.close() }
         failure = cleanupUi(failure) { overlays.close() }
+        failure = cleanupUi(failure) { fonts.close() }
         host.detached(this)
         throwUi(failure)
     }

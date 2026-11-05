@@ -8,14 +8,17 @@ import scoop.ui.component.*
 import scoop.ui.style.Orientation
 import scoop.window.*
 
-internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Component {
+internal class ItemNavigationScene(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Component(scope) {
     public override fun render(): View =
         element(
-            { NavigationPanel(probe) },
+            { mount -> NavigationPanel(probe, scope = mount) },
             [
-                element({ NavigationEdge(probe.lead, true) }),
+                element({ mount -> NavigationEdge(probe.lead, true, scope = mount) }),
                 element(
-                    { NavigationGroup(probe) },
+                    { mount -> NavigationGroup(probe, scope = mount) },
                     [
                         virtualList(
                             probe.data!!.value,
@@ -38,13 +41,16 @@ internal class ItemNavigationScene(private val probe: ItemNavigationProbe): Comp
                         }
                     ]
                 ),
-                element({ NavigationEdge(probe.tail, false) })
+                element({ mount -> NavigationEdge(probe.tail, false, scope = mount) })
             ]
         )
 }
 
-private class NavigationPanel(private val probe: ItemNavigationProbe): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+private class NavigationPanel(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         scope.input.captureHandler =
             {
                 context,
@@ -99,9 +105,12 @@ private class NavigationPanel(private val probe: ItemNavigationProbe): Element<U
     }
 }
 
-private class NavigationGroup(private val probe: ItemNavigationProbe): Element<Unit> {
+private class NavigationGroup(
+    private val probe: ItemNavigationProbe,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(probe.fallback), false, -1))
         probe.group = Some(scope.focusScope(FocusScopeOptions(fallback = Some(probe.fallback))))
@@ -121,10 +130,11 @@ private class NavigationGroup(private val probe: ItemNavigationProbe): Element<U
 
 private class NavigationEdge(
     private val handle: FocusHandle,
-    private val initial: Boolean
-): Element<Unit> {
+    private val initial: Boolean,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var area: InputArea? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         area = Some(scope.createArea(focusable = true))
         scope.focusTarget(area!!, FocusOptions(Some(handle)))
         if (initial)

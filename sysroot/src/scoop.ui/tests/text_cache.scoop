@@ -7,7 +7,7 @@ import scoop.test.*
 import scoop.tests.textfonts.testSansBytes
 import scoop.ui.*
 
-private class UnbuiltInline: Component {
+private class UnbuiltInline(scope: ComponentScope): Component(scope) {
     public override fun render(): View = empty()
 }
 
@@ -20,7 +20,10 @@ private class UiTextCacheTest {
                 this.inlineObject(InlineKey.Text("a"), "A")
                 this.inlineObject(InlineKey.Number(1L), "B")
             }
-        val view = component<UnbuiltInline>({ throw IllegalStateException(Some("must stay lazy")) })
+        val view =
+            component<UnbuiltInline>(
+                { mount -> throw IllegalStateException(Some("must stay lazy")) }
+            )
         val first = inlineView(InlineKey.Text("a"), view)
         val second = inlineView(InlineKey.Number(1L), view)
         assertEquals(2L, inlineChildren(content, [second, first]).size)

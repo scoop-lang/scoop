@@ -129,7 +129,7 @@ internal class HoverPopupProbe {
                 view = Some(observeWindow(window))
                 frames = Some(observeFrames(window))
                 window.setWindowLevel(WindowLevel.AlwaysOnTop)
-                host.attach(window, { HoverPopupScene(this) })
+                host.attach(window, { mount -> HoverPopupScene(this, scope = mount) })
                 window.requestFocus()
                 wait(active)
             }

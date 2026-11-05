@@ -13,13 +13,14 @@ import scoop.window.*
 
 internal class Showcase(
     private val model: ShowcaseModel,
-    private val fonts: FontCollection
-): Component {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Component(scope) {
     private var count: Int by state(0)
     private val name = TextEditorState("Scoop")
     private val notes = TextEditorState()
     private val choices = Array<FocusHandle>(6L) { _ -> FocusHandle() }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         scope.keyNavigation(
             navigationOptions {
                 this.addAll(
@@ -127,7 +128,12 @@ internal class Showcase(
                     this.spacing = 10.0
                     this.alignment = CrossAlignment.Center
                 }
-                this.frame(element(theme, { props -> Gallery(props, this @Showcase.fonts) })) {
+                this.frame(
+                    element(
+                        theme,
+                        { props, mount -> Gallery(props, this @Showcase.fonts, scope = mount) }
+                    )
+                ) {
                     this.padding = Some(Insets.all(6.0))
                     this.surface = Some(SurfaceKind.Elevated)
                 }
@@ -238,10 +244,11 @@ internal class Showcase(
 
 private class Gallery(
     private val props: Props<scoop.ui.style.Theme>,
-    private val fonts: FontCollection
-): Element<Unit> {
+    private val fonts: FontCollection,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var painter: GalleryPainter? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         painter = Some(scope.resource { GalleryPainter(fonts) })
     }
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
@@ -274,7 +281,11 @@ fun main() {
                                 }
                             )
                         model.systemTheme(window.observedTheme)
-                        host.attach(window, { Showcase(model, fonts) })
+                        host.attach(
+                            window,
+                            { mount -> Showcase(model, fonts, scope = mount) },
+                            fonts = Some(fonts)
+                        )
                         window.requestFocus()
                     }
                     case Window(_, WindowEvent.ThemeChanged(value)) -> model.systemTheme(value)

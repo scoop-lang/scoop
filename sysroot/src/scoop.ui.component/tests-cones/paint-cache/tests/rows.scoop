@@ -20,23 +20,32 @@ internal class PaintRowRecord(val mode: Int, val id: Long) {
     var lastPosition: Point? = None
 }
 
-private class PaintRow(private val probe: CacheProbe, mode: Int, id: Long): Component {
+private class PaintRow(
+    private val probe: CacheProbe,
+    mode: Int,
+    id: Long,
+    scope: ComponentScope
+): Component(scope) {
     private val record = PaintRowRecord(mode, id)
     init {
         probe.rows.add(record)
     }
     public override fun render(): View =
-        element(record.local.value, { input -> PaintRowInk(probe, record, input) })
+        element(
+            record.local.value,
+            { input, mount -> PaintRowInk(probe, record, input, scope = mount) }
+        )
 }
 
 private class PaintRowInk(
     private val probe: CacheProbe,
     private val record: PaintRowRecord,
-    private val props: Props<Int>
-): Element<ParagraphMeasurement> {
+    private val props: Props<Int>,
+    scope: ComponentScope
+): Element<ParagraphMeasurement>(scope) {
     private var content = styledText()
     private var checkedContract = false
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.text = Some(scope.resource { ParagraphHost() })
         record.area =
             Some(
@@ -152,4 +161,4 @@ internal class PaintSource(private val probe: CacheProbe, private val mode: Int)
 }
 
 internal fun paintRow(probe: CacheProbe, mode: Int, id: Long): View =
-    component({ PaintRow(probe, mode, id) })
+    component({ mount -> PaintRow(probe, mode, id, scope = mount) })

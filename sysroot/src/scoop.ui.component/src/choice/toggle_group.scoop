@@ -33,11 +33,12 @@ public class ToggleGroupProps<T: Equals<T>> public constructor(
 }
 
 public class ToggleGroup<T: Equals<T>> public constructor(
-    private val props: Props<ToggleGroupProps<T>>
-): Component {
+    private val props: Props<ToggleGroupProps<T>>,
+    scope: ComponentScope
+): Component(scope) {
     private val handles = ChoiceHandles()
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -117,7 +118,7 @@ public class ToggleGroup<T: Equals<T>> public constructor(
                         else
                             None
                     ),
-                    { current -> Toggle(current) }
+                    { current, mount -> Toggle(current, scope = mount) }
                 )
             }
         return choiceLayout(

@@ -25,9 +25,12 @@ public class ButtonGroupProps public constructor(
     public val style: StyleOverride = styleOverride()
 )
 
-public class ButtonGroup public constructor(private val props: Props<ButtonGroupProps>): Component {
+public class ButtonGroup public constructor(
+    private val props: Props<ButtonGroupProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -47,7 +50,12 @@ public class ButtonGroup public constructor(private val props: Props<ButtonGroup
                     )
                 val child = groupContent(entry.content, position, !nested, value, theme)
                 FlexItem(
-                    element(slots[index], { current -> GroupSlotInk(current) }, [child], entry.key),
+                    element(
+                        slots[index],
+                        { current, mount -> GroupSlotInk(current, scope = mount) },
+                        [child],
+                        entry.key
+                    ),
                     entry.layout
                 )
             }
@@ -65,7 +73,7 @@ public class ButtonGroup public constructor(private val props: Props<ButtonGroup
         return styled(
             element(
                 GroupLayoutProps(layout, value.axis, slots),
-                { current -> GroupLayout(current) },
+                { current, mount -> GroupLayout(current, scope = mount) },
                 layout.children
             )
         ) { this.style = decoration }
@@ -96,11 +104,11 @@ private fun groupContent(
     return when (content) {
         case Button(value) -> component(
             groupButtonProps(value, group, props.fonts, props.theme),
-            { current -> Button(current) }
+            { current, mount -> Button(current, scope = mount) }
         )
         case Input(value) -> component(
             groupInputProps(value, group, props.fonts, props.theme),
-            { current -> Input(current) }
+            { current, mount -> Input(current, scope = mount) }
         )
         case Text(value, fonts, style) -> groupText(
             value,
@@ -124,9 +132,11 @@ internal class GroupSlot {
     var input: InputScope? = None
 }
 
-internal class GroupSlotInk(private val props: Props<GroupSlot>): Element<Unit> {
+internal class GroupSlotInk(private val props: Props<GroupSlot>, scope: ComponentScope): Element<
+    Unit
+>(scope) {
     private var input: InputScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         input = Some(scope.input)
     }
     public override fun update(): UiInvalidation {
@@ -152,9 +162,12 @@ internal class GroupLayoutProps(
     val fitCross: Boolean = axis == FlexAxis.Vertical
 )
 
-internal class GroupLayout(private val props: Props<GroupLayoutProps>): Element<Unit> {
+internal class GroupLayout(
+    private val props: Props<GroupLayoutProps>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     private var input: InputScope? = None
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         val route = scope.input
         input = Some(route)
         scope.resource {

@@ -97,5 +97,9 @@ internal fun makeSlider(
 ): View {
     val builder = SliderBuilder()
     builder.configure()
-    return component(builder.snapshot(values, range), { current -> Slider(current) }, builder.key)
+    return component(
+        builder.snapshot(values, range),
+        { current, mount -> Slider(current, scope = mount) },
+        builder.key
+    )
 }

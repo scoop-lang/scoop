@@ -7,11 +7,13 @@ import scoop.ui.*
 import scoop.ui.component.*
 import scoop.window.*
 
-internal class VariableScene(private val probe: VariableProbe): Component {
+internal class VariableScene(private val probe: VariableProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View =
         element(
             probe.width.value,
-            { props -> VariablePanel(probe, props) },
+            { props, mount -> VariablePanel(probe, props, scope = mount) },
             [
                 if (probe.show.value)
                     virtualList(probe.data!!.value, ItemExtent.Variable(20.0)) {
@@ -23,16 +25,17 @@ internal class VariableScene(private val probe: VariableProbe): Component {
                     }
                 else
                     empty(),
-                component({ ReadingObserver(probe) })
+                component({ mount -> ReadingObserver(probe, scope = mount) })
             ]
         )
 }
 
 private class VariablePanel(
     private val probe: VariableProbe,
-    private val width: Props<Double>
-): Element<Unit> {
-    public override fun onMount(scope: ComponentScope) {
+    private val width: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
+    public override fun onMount() {
         probe.scope = Some(scope)
         assertEquals(None, probe.handle.value.reading)
         scope.resource {
@@ -134,7 +137,10 @@ internal class VariableSource(
                 case 3L -> 30.0
                 else -> 20.0
             }
-        return component(VariableRowInput(id, height), { props -> VariableRow(probe, props) })
+        return component(
+            VariableRowInput(id, height),
+            { props, mount -> VariableRow(probe, props, scope = mount) }
+        )
     }
 }
 
@@ -150,8 +156,9 @@ internal class VariableRecord(val key: Long) {
 
 private class VariableRow(
     private val probe: VariableProbe,
-    private val props: Props<VariableRowInput>
-): Component {
+    private val props: Props<VariableRowInput>,
+    scope: ComponentScope
+): Component(scope) {
     private val record = VariableRecord(props.value.key)
     init {
         probe.rows.add(record)
@@ -163,9 +170,13 @@ private class VariableRow(
                 [imageView(probe.image, Size(160.0, height))]
             else
                 []
-        return element(height, { value -> VariableInk(record, value) }, children)
+        return element(
+            height,
+            { value, mount -> VariableInk(record, value, scope = mount) },
+            children
+        )
     }
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         record.mounts += 1
         record.area = Some(scope.createArea(focusable = true))
         scope.onDispose { record.disposed += 1 }
@@ -178,8 +189,9 @@ private class VariableRow(
 
 private class VariableInk(
     private val record: VariableRecord,
-    private val height: Props<Double>
-): Element<Unit> {
+    private val height: Props<Double>,
+    scope: ComponentScope
+): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -207,7 +219,9 @@ private class VariableInk(
     }
 }
 
-private class ReadingObserver(private val probe: VariableProbe): Component {
+private class ReadingObserver(private val probe: VariableProbe, scope: ComponentScope): Component(
+    scope
+) {
     public override fun render(): View {
         probe.readingRenders += 1
         probe.observed = probe.handle.value.reading

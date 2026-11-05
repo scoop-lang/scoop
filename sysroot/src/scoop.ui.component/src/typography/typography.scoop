@@ -27,9 +27,12 @@ public class TypographyProps public constructor(
     public val inlines: Array<InlineView> = []
 )
 
-public class Typography public constructor(private val props: Props<TypographyProps>): Component {
+public class Typography public constructor(
+    private val props: Props<TypographyProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         themes.mount(props.value.theme)
     }
     public override fun render(): View {
@@ -65,14 +68,14 @@ public class Typography public constructor(private val props: Props<TypographyPr
                 this.style = typographyDecoration(input.role, theme).then(input.style)
             }
         return if (input.role == TypographyRole.InlineCode)
-            element({ InlineCodeWidth() }, [framed])
+            element({ mount -> InlineCodeWidth(scope = mount) }, [framed])
         else
             framed
     }
 }
 
 /** A paragraph's inline limit is an upper bound, not the code token's preferred width. */
-private class InlineCodeWidth: Element<Unit> {
+private class InlineCodeWidth(scope: ComponentScope): Element<Unit>(scope) {
     public override fun measure(context: MeasureContext, constraints: Constraints): LayoutResult<
         Unit
     > {
@@ -144,7 +147,7 @@ internal fun makeTypography(
     builder.configure()
     return component(
         builder.snapshot(content, role),
-        { current -> Typography(current) },
+        { current, mount -> Typography(current, scope = mount) },
         builder.key
     )
 }
@@ -155,5 +158,9 @@ internal fun makeTypographyText(
 ): View {
     val builder = TypographyTextBuilder()
     builder.configure()
-    return component(builder.snapshotText(role), { current -> Typography(current) }, builder.key)
+    return component(
+        builder.snapshotText(role),
+        { current, mount -> Typography(current, scope = mount) },
+        builder.key
+    )
 }

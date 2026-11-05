@@ -29,9 +29,12 @@ public class FrameProps public constructor(
     }
 }
 
-public class Frame public constructor(private val props: Props<FrameProps>): Component {
+public class Frame public constructor(
+    private val props: Props<FrameProps>,
+    scope: ComponentScope
+): Component(scope) {
     private val themes = ThemeAccess()
-    public override fun onMount(scope: ComponentScope) {
+    public override fun onMount() {
         when (props.value.surface) {
             case Some(_) -> themes.mount(props.value.theme);
             case None -> {}
@@ -44,7 +47,11 @@ public class Frame public constructor(private val props: Props<FrameProps>): Com
                 case Some(_) -> Some(themes.read(value.theme));
                 case None -> None
             }
-        return element(FrameInput(value, theme), { current -> FrameInk(current) }, [value.content])
+        return element(
+            FrameInput(value, theme),
+            { current, mount -> FrameInk(current, scope = mount) },
+            [value.content]
+        )
     }
 }
 
@@ -95,14 +102,14 @@ private fun frameLayoutInputs(input: FrameInput, direction: LayoutDirection): Fr
     )
 }
 
-private class FrameInk(private val props: Props<FrameInput>): Element<Unit> {
-    private var scope: ComponentScope? = None
+private class FrameInk(private val props: Props<FrameInput>, scope: ComponentScope): Element<Unit>(
+    scope
+) {
     private var painters: ThemePainterCache? = None
     private var style: StylePainter? = None
     private var previous: FrameLayoutInputs? = None
     private var previousTheme: Theme? = None
-    public override fun onMount(scope: ComponentScope) {
-        this.scope = Some(scope)
+    public override fun onMount() {
         painters = Some(scope.resource { ThemePainterCache() })
         style = Some(scope.resource { StylePainter() })
     }
@@ -112,7 +119,7 @@ private class FrameInk(private val props: Props<FrameInput>): Element<Unit> {
             case Some(theme) -> painters!!.get(theme)
             case None -> painters!!.clear()
         }
-        val next = frameLayoutInputs(input, scope!!.layoutDirection)
+        val next = frameLayoutInputs(input, scope.layoutDirection)
         val themeChanged =
             when (input.theme) {
                 case Some(theme) -> !sameTheme(previousTheme, theme)
