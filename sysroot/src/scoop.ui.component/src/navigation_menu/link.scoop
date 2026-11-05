@@ -1,0 +1,101 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.Theme
+
+public class NavigationMenuLink public constructor(
+    private val props: Props<NavigationMenuLinkProps>
+): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.button.theme)
+    }
+    public override fun render(): View {
+        val input = props.value
+        val button = input.button
+        val theme = themes.read(button.theme)
+        return component(
+            ButtonProps(
+                button.content,
+                button.onClick,
+                button.enabled,
+                navMenuStyle(theme, button.style, input.active, input.inPanel, false),
+                button.theme,
+                button.focus,
+                button.invalid,
+                button.variant,
+                button.size,
+                button.group,
+                button.labelTarget
+            ),
+            { current -> Button(current) }
+        )
+    }
+}
+
+internal fun navMenuStyle(
+    theme: Theme,
+    local: ButtonStyle,
+    active: Boolean,
+    inPanel: Boolean,
+    trigger: Boolean
+): ButtonStyle {
+    val d = theme.tokens.typography.body.fontSize / 14.0
+    val palette = theme.tokens.palette
+    val hover = styleOverride { background(Some(Paint(palette.muted.background))) }
+    return local.copy {
+        surface {
+            if (suggestedSize == None)
+                suggestedSize = Some(Size(0.0, 36.0 * d))
+            if (minimumSize == None)
+                minimumSize = Some(Size(0.0, 0.0))
+            if (padding == None)
+                padding =
+                    Some(
+                        if (inPanel)
+                            Insets.all(8.0 * d)
+                        else
+                            Insets(10.0 * d, 6.0 * d, 10.0 * d, 6.0 * d)
+                    )
+            style =
+                styleOverride {
+                    border(None);
+                    boxShadows([]);
+                    corners(
+                        Corners.all(
+                            (
+                                if (inPanel)
+                                    6.0
+                                else
+                                    8.0
+                            ) *
+                                d
+                        )
+                    )
+                    if (active)
+                        background(Some(Paint(palette.muted.background.withAlpha(0.5))))
+                }.then(local.surface.style)
+        }
+        text =
+            Some(
+                (local.text ?: spanStyle()).copy {
+                    if (weight == None)
+                        weight =
+                            Some(
+                                if (trigger)
+                                    500
+                                else
+                                    400
+                            )
+                }
+            )
+        states {
+            hovered = hover.then(local.surface.style).then(local.states.hovered)
+            pressed = hover.then(local.surface.style).then(local.states.pressed)
+            focused = hover.then(local.surface.style).then(local.states.focused)
+        }
+    }
+}

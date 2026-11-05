@@ -914,3 +914,15 @@ ComboboxFilter.Contains 为默认，使用 Unicode case-fold 后的 label／keyw
 inputPlacement 默认 Inline：InputGroup 包含搜索输入和可选展开／清空按钮，多选 chips 与输入在同一表面内换行；单选在空 query 时用当前值文字作为输入的前景色提示，实际 query 仍为空。Popup 模式由普通按钮显示值，搜索输入放在弹窗内；labelTarget 关联当前可见入口。showTrigger 默认 true，width=240、maxHeight=252，popupWidth 可独立指定，尺寸有限非负。open／active／scroll／listHandle／OverlayHandle 均可借用；默认点击输入或实际已提交编辑可打开，程序改 query 不自行打开。enabled=false 或 readOnly 禁止打开和选择；禁用与卸载取消 Press／导航，不关闭借用模型。
 
 弹窗使用同一 Portal 锚定入口，默认 Bottom／Start、gap=4、viewportPadding=8，popover 配色、8 圆角、1 像素 foreground 10% 边框、floating 阴影和 100ms 动画，Reduced Motion 复用主题。Inline 不把焦点移入列表，Popup 初始聚焦搜索并在关闭后恢复入口；Tab 关闭后沿原方向移出，Escape／外点／veto／退出重开沿用 Portal，不保存第二套关闭会话。候选行正文 14、垂直 padding=4、逻辑开始 padding=6、末尾勾号宽 16；组标题 12、muted、padding 8／6，列表 padding=4，活动行 accent 背景／前景、disabled 整行 50% 透明度。chips 为 21 高、12 字号、muted 背景、4 圆角，换行间距 4，最小输入宽 64；芯片旁的 Bare 输入仅按正文与水平 4 的内缩测量，32 的默认建议高度由 InputGroup 外框承担，不能再叠加一份独立输入高度。表面完整复用 InputGroup 的焦点环与 invalid。RTL 解析布局与段落方向，按钮值文字单行省略。popupStyle／triggerStyle 及行 style 提供通常的局部外观覆盖。
+
+## 37. NavigationMenu
+
+`navigationMenu(open: Binding<ViewKey?>? = None) { ... }` 创建 NavigationMenuProps／NavigationMenu。builder 的 `item(key, label, content) { ... }` 接受 String／StyledText／非交互 View 触发内容，`link(key, label, onNavigate) { ... }` 添加一级链接；`add(entry)` 接收明确的 NavigationMenuEntry.Panel／Link。条目 key 必须显式且同级唯一，显示文字可重复。Panel 保存 PopupTriggerSpec、普通 View 正文、width=360、可选 initialFocus 和局部 panelStyle；Link 保存 NavigationMenuLinkProps。链接和内容面板没有命令菜单的勾选、单选、typeahead 或菜单项动作规则。
+
+根提供 orientation=Horizontal、viewport=true、alignment=Start、loop=true、enabled=true、fonts／theme、style、popupStyle、gap=8、viewportPadding=8、hover 和 transition。默认 HoverOptions 为打开／关闭各 50ms、跨间隙上限 350ms、走廊内扩 6；共用既有 Hover 和原生 deadline。viewport=true 时面板锚定整个入口列表，false 时锚定当前触发器；横向面板在下方，纵向面板在逻辑末端，并遵守 Portal 的翻转与可用空间约束。有效面板由唯一 open key 决定，缺失／禁用 key 不显示内容也不暗写借用 Binding；onOpenChange 只通知 setter 采纳的实际变化。
+
+列表保留内容自然宽度，在父级给予额外宽度时沿逻辑起点对齐，布局锚点取实际列表矩形。一级入口保留普通 Tab 顺序，主轴方向键及 Home／End 通过 KeyNavigation 跳过禁用项，循环由 loop 控制；有面板打开时切换入口会切换相应内容，链接入口关闭面板。横向 Down 或纵向逻辑末端方向键打开当前面板并聚焦 initialFocus 或首个可聚焦内容；Enter／Space 使用入口唯一 Press。悬浮打开不抢焦点，面板内的普通链接、表单和其他控件保持自身按键行为；Tab 可从触发器进入逻辑上的面板内容并继续移出。内容获得焦点后离开指针不会关闭，焦点和指针均离开后按 Hover 延迟关闭。程序打开但尚未进入悬浮或内容焦点会话时，不因指针原本在外面而自动关闭；hover.focus 可显式开启入口焦点触发，默认关闭。Escape／外点／受控关闭复用 Portal；onCloseRequest(key, reason) 可以拒绝关闭，onClosed(key, reason) 观察完整退出，关闭后的焦点按原非模态恢复规则处理。切换面板立即退去旧面板，防止旧内容在新内容上叠放；外部关闭保留正常退出过渡。禁用和卸载收尾 Hover、Press、动画及焦点，不清空应用模型。
+
+`navigationMenuLink(label, onNavigate) { ... }` 提供独立内容链接，label 接受 String／StyledText／非交互 View，builder 继承 ButtonBuilder，另有 active=false 和 inPanel=true。NavigationMenuLinkProps 保留 ButtonProps、active 与 inPanel。唯一 Button 执行 onNavigate，应用负责实际路由及面板内链接是否关闭根；一级 link 激活时关闭当前面板。active 表示当前页面，不等于焦点或展开状态。自定义正文可组合标题、说明、图标和分栏，普通 View 内容不被遍历或改写。
+
+Nova 入口建议高 36、正文 14／500、圆角 8、横向内缩 10／纵向 6；入口无外围边框，hover／focus 使用 muted，展开或 active 的静态背景为 muted 50%。面板内链接使用 8 padding、6 圆角和普通字重，保留完整焦点环。面板为 popover 配色、1 像素 foreground 10% 边线、8 圆角、4 padding 和 floating 阴影；焦点环的外绘制空间由内容留白承担。箭头宽 12，300ms 旋转；面板 350ms 进入、150ms 退出，淡入并从 90% 缩放到原尺寸；显式 transition 和主题 Reduced Motion 同时约束这些动画。方向热切换更新布局、侧边定位、段落和图标，不重挂载同 key 的入口。

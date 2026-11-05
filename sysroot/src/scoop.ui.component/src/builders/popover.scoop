@@ -5,7 +5,7 @@ import scoop.surface.AnimationSpec
 import scoop.ui.*
 import scoop.ui.style.*
 
-public class PopupTriggerBuilder internal constructor() {
+public open class PopupTriggerBuilder internal constructor() {
     public var enabled: Boolean = true
     public var variant: ButtonVariant = ButtonVariant.Outline
     public var size: ButtonSize = ButtonSize.Default

@@ -27,7 +27,8 @@ internal class PopoverLayout(private val anchor: LayoutAnchor): Element {
 internal class PopupMotionProps(
     val enabled: Boolean,
     val distance: Double,
-    val arrow: PopupArrowInk? = None
+    val arrow: PopupArrowInk? = None,
+    val minimumScale: Double = 0.95
 )
 
 /** One published transform supplies drawing, hit testing and editor caret geometry. */
@@ -69,7 +70,7 @@ internal class PopupMotion(private val props: Props<PopupMotionProps>): Element 
             else -> context.translate(-offset, 0.0)
         }
         context.translate(pivot.x, pivot.y)
-        val zoom = 0.95 + 0.05 * progress
+        val zoom = props.value.minimumScale + (1.0 - props.value.minimumScale) * progress
         context.scale(zoom, zoom)
         context.translate(-pivot.x, -pivot.y)
         context.place(area!!, Rect(0.0, 0.0, size.width, size.height))

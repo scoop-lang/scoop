@@ -1,0 +1,34 @@
+package scoop.tests.ui.navigationmenu
+
+import scoop.surface.PointerObservation
+import scoop.ui.OverlayCloseReason
+import scoop.window.PointerEvent
+
+internal fun NavProbe.pointerObserved(event: PointerObservation) {
+    val description =
+        when (event) {
+            case Pointer(PointerEvent.Moved(value)) -> f"move=${value.logicalPosition.x},${
+                value.logicalPosition.y
+            }"
+            case Pointer(PointerEvent.Entered(value)) -> f"enter=${value.logicalPosition.x},${
+                value.logicalPosition.y
+            }"
+            case Pointer(PointerEvent.Left(_)) -> "left"
+            case FocusLost -> "focus lost"
+            case Closed -> "window closed"
+            else -> "pointer"
+        }
+    trace += f"phase=${phase} ${description}\n"
+}
+
+internal fun NavProbe.closeRequested(reason: OverlayCloseReason) {
+    val description =
+        when (reason) {
+            case Explicit -> "explicit"
+            case Escape -> "escape"
+            case OutsidePress -> "outside press"
+            case AnchorUnavailable -> "anchor unavailable"
+            case OwnerClosed -> "owner closed"
+        }
+    trace += f"phase=${phase} close=${description}\n"
+}

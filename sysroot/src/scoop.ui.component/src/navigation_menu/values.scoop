@@ -1,0 +1,118 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.collections.HashMap
+import scoop.surface.AnimationSpec
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class NavigationMenuPanelProps public constructor(
+    public val trigger: PopupTriggerSpec,
+    public val content: View,
+    public val width: Double = 360.0,
+    public val initialFocus: FocusHandle? = None,
+    public val style: StyleOverride = styleOverride()
+) {
+    init {
+        nonnegative(width, "invalid navigation panel width")
+    }
+}
+
+public class NavigationMenuLinkProps public constructor(
+    public val button: ButtonProps,
+    public val active: Boolean = false,
+    public val inPanel: Boolean = true
+)
+
+public enum NavigationMenuEntry {
+    Panel(val key: ViewKey, val panel: NavigationMenuPanelProps),
+    Link(val key: ViewKey, val link: NavigationMenuLinkProps)
+}
+
+public class NavigationMenuProps public constructor(
+    public val entries: Array<NavigationMenuEntry>,
+    public val open: Binding<ViewKey?>? = None,
+    public val orientation: FlexAxis = FlexAxis.Horizontal,
+    public val viewport: Boolean = true,
+    public val alignment: OverlayAlignment = OverlayAlignment.Start,
+    public val loop: Boolean = true,
+    public val enabled: Boolean = true,
+    public val fonts: FontCollection? = None,
+    public val theme: ThemeSource? = None,
+    public val style: StyleOverride = styleOverride(),
+    public val popupStyle: StyleOverride = styleOverride(),
+    public val gap: Double = 8.0,
+    public val viewportPadding: Double = 8.0,
+    public val hover: HoverOptions =
+        HoverOptions(
+            openDelay = Duration.milliseconds(50L),
+            closeDelay = Duration.milliseconds(50L),
+            focus = false
+        ),
+    public val transition: StyleValue<AnimationSpec?> = StyleValue.Inherit,
+    public val onOpenChange: (ViewKey?) -> Unit = {},
+    public val onCloseRequest: (ViewKey, OverlayCloseReason) -> Boolean = { _, _ -> true },
+    public val onClosed: (ViewKey, OverlayCloseReason) -> Unit = { _, _ -> Unit }
+) {
+    init {
+        nonnegative(gap, "invalid navigation popup gap")
+        nonnegative(viewportPadding, "invalid navigation viewport padding")
+        val keys = HashMap<ViewKey, Boolean>()
+        for (entry in entries) {
+            val key = navMenuKey(entry)
+            requireComponent(key != ViewKey.Position, "navigation menu requires an explicit key")
+            requireComponent(keys[key] == None, "duplicate navigation menu key")
+            keys[key] = true
+        }
+    }
+}
+
+internal fun navigationMenuHover(): HoverOptions =
+    HoverOptions(
+        openDelay = Duration.milliseconds(50L),
+        closeDelay = Duration.milliseconds(50L),
+        focus = false
+    )
+
+internal fun navMenuKey(entry: NavigationMenuEntry): ViewKey =
+    when (entry) {
+        case Panel(key, _) -> key;
+        case Link(key, _) -> key
+    }
+
+internal fun navMenuFocus(entry: NavigationMenuEntry): FocusOptions =
+    when (entry) {
+        case Panel(_, panel) -> panel.trigger.focus;
+        case Link(_, link) -> link.button.focus
+    }
+
+internal fun navMenuEnabled(entry: NavigationMenuEntry): Boolean =
+    when (entry) {
+        case Panel(_, panel) -> panel.trigger.enabled;
+        case Link(_, link) -> link.button.enabled
+    }
+
+internal fun navMenuEntry(input: NavigationMenuProps, key: ViewKey): NavigationMenuEntry? {
+    for (entry in input.entries)
+        if (navMenuKey(entry) == key)
+            return Some(entry)
+    return None
+}
+
+internal fun navMenuPanel(input: NavigationMenuProps, key: ViewKey): Boolean =
+    input.enabled &&
+        when (navMenuEntry(input, key)) {
+            case Some(NavigationMenuEntry.Panel(_, panel)) -> panel.trigger.enabled
+            else -> false
+        }
+
+internal fun navMenuWrite(input: NavigationMenuProps, local: State<ViewKey?>, key: ViewKey?) {
+    val target = input.open ?: local.binding()
+    val previous = target.value
+    if (previous == key)
+        return
+    target.value = key
+    if (target.value != previous)
+        input.onOpenChange(target.value)
+}

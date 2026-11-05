@@ -1,0 +1,146 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.ui.*
+import scoop.ui.style.*
+
+internal class NavMenuControl(val props: Props<NavigationMenuProps>) {
+    val local = state<ViewKey?>(None)
+    val anchor = LayoutAnchor()
+    val themes = ThemeAccess()
+    val storage = ChoiceHandles()
+    var handles: Array<FocusHandle> = []
+    val open: ViewKey? get() =
+        when (props.value.open) {
+            case Some(value) -> value.value
+            case None -> local.value
+        }
+    fun setOpen(key: ViewKey?) {
+        if (key != None && !navMenuPanel(props.value, key!!))
+            return
+        navMenuWrite(props.value, local, key)
+    }
+    fun navigate(handle: FocusHandle) {
+        if (open == None)
+            return
+        val input = props.value
+        for (index in 0L ..< handles.size)
+            if (handles[index] === handle) {
+                val entry = input.entries[index]
+                setOpen(
+                    when (entry) {
+                        case Panel(key, _) -> Some(key)
+                        case Link(_, _) -> None
+                    }
+                )
+                return
+            }
+    }
+}
+
+public class NavigationMenu public constructor(
+    private val props: Props<NavigationMenuProps>
+): Component {
+    private val control = NavMenuControl(props)
+    public override fun onMount(scope: ComponentScope) {
+        control.themes.mount(props.value.theme)
+    }
+    public override fun render(): View {
+        val control = this.control
+        val input = props.value
+        control.themes.read(input.theme)
+        control.open
+        val keys = Array<ViewKey>(input.entries.size) { index -> navMenuKey(input.entries[index]) }
+        control.handles =
+            control.storage.resolve(
+                keys,
+                Array<FocusOptions>(keys.size) { index -> navMenuFocus(input.entries[index]) }
+            )
+        val children =
+            Array<View>(keys.size) {
+                index ->
+                val focus = control.handles[index]
+                when (input.entries[index]) {
+                    case Panel(key, panel) -> component(
+                        NavPanelInput(control, key, panel, focus),
+                        { current -> NavMenuPanel(current) }
+                    )
+                    case Link(_, link) -> {
+                        val button = link.button
+                        component(
+                            NavigationMenuLinkProps(
+                                ButtonProps(
+                                    navigationLabel(button.content, input.fonts),
+                                    {
+                                        control.setOpen(None);
+                                        button.onClick()
+                                    },
+                                    input.enabled && button.enabled,
+                                    button.style,
+                                    if (panelPresent(button.theme))
+                                        button.theme
+                                    else
+                                        input.theme,
+                                    choiceFocus(button.focus, focus),
+                                    button.invalid,
+                                    button.variant,
+                                    button.size,
+                                    button.group,
+                                    button.labelTarget
+                                ),
+                                link.active,
+                                false
+                            ),
+                            { current -> NavigationMenuLink(current) }
+                        )
+                    }
+                }
+            }
+        return element(
+            control.anchor,
+            { current -> NavMenuBar(current) },
+            [
+                choiceLayout(
+                    children,
+                    keys,
+                    control.handles,
+                    input.orientation,
+                    0.0,
+                    input.loop,
+                    input.enabled,
+                    input.style,
+                    navigate = { handle -> control.navigate(handle) },
+                    fitCross = input.orientation == FlexAxis.Vertical,
+                    roving = false
+                )
+            ]
+        )
+    }
+}
+
+private class NavMenuBar(private val props: Props<LayoutAnchor>): Element {
+    private var bounds = Rect(0.0, 0.0, 0.0, 0.0)
+    public override fun onMount(scope: ComponentScope) {
+        scope.layoutAnchor(props.value)
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result =
+            context.measureChild(
+                0L,
+                Constraints(maxWidth = constraints.maxWidth, maxHeight = constraints.maxHeight)
+            )
+        val size = constraints.constrain(result.size)
+        val x =
+            if (context.layoutDirection == LayoutDirection.Rtl)
+                size.width - result.size.width
+            else
+                0.0
+        bounds = Rect(x, 0.0, result.size.width, result.size.height)
+        context.placeChild(0L, Point(x, 0.0))
+        return LayoutMetrics(size, result.alphabeticBaseline, result.ideographicBaseline)
+    }
+    public override fun scene(context: SceneContext) {
+        context.anchor(props.value, bounds)
+        context.children()
+    }
+}

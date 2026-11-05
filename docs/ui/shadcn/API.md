@@ -276,3 +276,9 @@ Ranked 按 cmdk 评分排序，Custom 可替换评分，Provided 原样消费 Co
 `combobox(value, choices, query) { ... }` 为 `Binding<T?>` 和 `Binding<Array<T>>` 提供单／多选重载，`T: Equals<T>`；choices 接受 `ChoiceSource<T>` 或 `Array<Choice<T>>`，`choiceItems<T> { item(choice) { ... }; group(key, title) { ... }; separator(key) }` 构造分组快照。ChoiceSource 的 count 包括装饰行，choiceCount 只计选项，另提供 entryAt／indexOfKey／indexOfValue；Provided 模式不枚举全部来源来过滤，虚拟列表只创建需要的行。
 
 ComboboxBuilder 继承 InputBuilder；open、active、已选值与 TextEditorState 彼此独立。Contains 默认按 Unicode case-fold 后的 label／keywords 包含匹配，Custom 可替换，Provided 保留来源。customChoice 可返回一个新领域选项，valueText 负责不在当前来源中的选值显示；拒绝写入不会清 query 或关闭。autoHighlight 默认 false，clearQueryOnSelect 默认 true，closeOnSelect 默认单选 true／多选 false。Inline 使用含搜索、展开／清空与 chips 的 InputGroup；Popup 由按钮打开弹窗内输入。输入法、候选键、chip 删除与方向导航、Tab／Escape 及关闭恢复使用共享编辑／Portal 合同，详见 component spec 第 36 节。
+
+## P5e：NavigationMenu
+
+`navigationMenu(Some(open.binding())) { item(key, "Guides", content); link(key, "Home", navigate) }` 使用唯一面板 key；省略 open 时由本挂载持有开关。Panel 的内容是普通 View，配置 width／initialFocus／panelStyle 和 PopupTriggerBuilder 的入口外观；Link 保留独立的 active 页面状态。`navigationMenuLink(textOrView, navigate)` 可在内容中组合标题、说明或图标，应用负责实际导航及正文链接的关闭选择。稳定 key、拒绝 Binding、禁用和未知 key 均沿用通常的受控合同。
+
+根提供 orientation、viewport、alignment、enabled／loop、hover、gap／viewportPadding、fonts／theme、style／popupStyle、transition 和开关／关闭通知。viewport=true 以整个入口列表为锚点，false 以当前触发器为锚点；横向下方、纵向逻辑末端。一级入口保留普通 Tab 和主轴方向导航，朝面板的方向键进入初始内容；悬浮不取焦点，内容中的编辑和 Tab 顺序保持原行为。Hover 共用延迟与有限走廊，Portal 负责定位、关闭拒绝和恢复；不同面板切换时立即移除旧面板，关闭时保留退出动画。详细合同见 component spec 第 37 节。

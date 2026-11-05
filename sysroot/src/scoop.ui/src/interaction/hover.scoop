@@ -163,10 +163,13 @@ public class Hover internal constructor(
         }
         if (inside || focus) {
             departure =
-                when (point) {
-                    case Some(_) -> point;
-                    case None -> previous
-                }
+                if (inside)
+                    when (point) {
+                        case Some(_) -> point;
+                        case None -> previous
+                    }
+                else
+                    None
             transitEnd = None
             if (open.value)
                 cancelWait()

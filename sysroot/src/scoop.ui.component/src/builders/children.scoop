@@ -16,9 +16,38 @@ import scoop.ui.component.sheet as makeSheet
 import scoop.ui.component.dialogFooter as makeDialogFooter
 import scoop.ui.component.command as makeCommand
 import scoop.ui.component.combobox as appendCombobox
+import scoop.ui.component.navigationMenu as appendNavigationMenu
+import scoop.ui.component.navigationMenuLink as appendNavigationMenuLink
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun navigationMenu(
+        open: Binding<ViewKey?>? = None,
+        configure: NavigationMenuBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenu(open, configure))
+    }
+    public fun navigationMenuLink(
+        text: String,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(text, onNavigate, configure))
+    }
+    public fun navigationMenuLink(
+        text: StyledText,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(text, onNavigate, configure))
+    }
+    public fun navigationMenuLink(
+        content: View,
+        onNavigate: () -> Unit,
+        configure: NavigationMenuLinkBuilder.() -> Unit = {}
+    ) {
+        add(appendNavigationMenuLink(content, onNavigate, configure))
+    }
     public fun <T: Equals<T>> combobox(
         value: Binding<T?>,
         choices: ChoiceSource<T>,

@@ -1,0 +1,208 @@
+package scoop.examples.ui.shadcn
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.style.Insets
+import scoop.ui.*
+import scoop.ui.component.*
+import scoop.ui.component.column as navColumn
+import scoop.ui.component.row as navRow
+import scoop.ui.text.TextEditorState
+
+internal class NavigationMenuExamplesModel {
+    val open = state<ViewKey?>(None)
+    val page = state("Overview")
+    val vertical = state(false)
+    val viewport = state(true)
+    val enabled = state(true)
+    val narrow = state(false)
+    val query = TextEditorState()
+    val search = FocusHandle()
+    fun navigate(page: String) {
+        this.page.value = page;
+        open.value = None
+    }
+}
+
+private fun navExampleLink(
+    model: NavigationMenuExamplesModel,
+    fonts: FontCollection,
+    title: String,
+    description: String
+): View =
+    navigationMenuLink(
+        navColumn {
+            typography(title, TypographyRole.Small) { this.fonts = Some(fonts) }
+            typography(description, TypographyRole.Muted) { this.fonts = Some(fonts) }
+            spacing = 4.0;
+            alignment = CrossAlignment.Stretch
+        },
+        { model.navigate(title) }
+    ) {
+        this.fonts = Some(fonts);
+        active = model.page.value == title
+    }
+
+internal fun navigationMenuExamples(
+    model: NavigationMenuExamplesModel,
+    fonts: FontCollection
+): View {
+    val guides =
+        navRow {
+            this.item(
+                navColumn {
+                    add(
+                        navExampleLink(
+                            model,
+                            fonts,
+                            "Getting started",
+                            "Install Scoop and build a native application."
+                        )
+                    )
+                    add(
+                        navExampleLink(
+                            model,
+                            fonts,
+                            "Language guide",
+                            "Values, types, and reusable components."
+                        )
+                    )
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                grow = 1.0;
+                basis = FlexBasis.Fixed(0.0)
+            }
+            this.item(
+                navColumn {
+                    add(navExampleLink(model, fonts, "Examples", "Explore complete applications."))
+                    add(
+                        navExampleLink(
+                            model,
+                            fonts,
+                            "Component library",
+                            "Compose native controls and layouts."
+                        )
+                    )
+                    alignment = CrossAlignment.Stretch
+                }
+            ) {
+                grow = 1.0;
+                basis = FlexBasis.Fixed(0.0)
+            }
+            spacing = 4.0;
+            alignment = CrossAlignment.Stretch
+        }
+    val docs =
+        navColumn {
+            input(model.query) {
+                this.fonts = Some(fonts);
+                placeholder = "Search documentation";
+                focus = FocusOptions(Some(model.search))
+            }
+            navigationMenuLink("Language reference", { model.navigate("Language reference") }) {
+                this.fonts = Some(fonts)
+            }
+            navigationMenuLink("UI components", { model.navigate("UI components") }) {
+                this.fonts = Some(fonts)
+            }
+            navigationMenuLink("Runtime and GC", { model.navigate("Runtime and GC") }) {
+                this.fonts = Some(fonts)
+            }
+            spacing = 4.0;
+            alignment = CrossAlignment.Stretch;
+            padding = Insets.all(4.0)
+        }
+    return navColumn {
+        add(panelHeading("Navigation Menu", fonts))
+        typography(
+            "Browse destinations and rich panels with pointer or keyboard. Hover keeps the current focus; arrow down enters a panel.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        wrap {
+            button(
+                if (model.vertical.value)
+                    "Orientation: vertical"
+                else
+                    "Orientation: horizontal",
+                { model.vertical.value = !model.vertical.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.viewport.value)
+                    "Viewport: shared edge"
+                else
+                    "Viewport: trigger edge",
+                { model.viewport.value = !model.viewport.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.narrow.value)
+                    "Panel: narrow"
+                else
+                    "Panel: normal",
+                { model.narrow.value = !model.narrow.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            button(
+                if (model.enabled.value)
+                    "Disable"
+                else
+                    "Enable",
+                { model.enabled.value = !model.enabled.value }
+            ) {
+                variant = ButtonVariant.Outline;
+                this.fonts = Some(fonts)
+            }
+            spacing = 8.0;
+            lineSpacing = 8.0
+        }
+        navigationMenu(Some(model.open.binding())) {
+            this.fonts = Some(fonts)
+            orientation =
+                if (model.vertical.value)
+                    FlexAxis.Vertical
+                else
+                    FlexAxis.Horizontal
+            viewport = model.viewport.value;
+            enabled = model.enabled.value
+            item(ViewKey.Text("guides"), "Guides", guides) {
+                width =
+                    if (model.narrow.value)
+                        280.0
+                    else
+                        520.0
+            }
+            item(ViewKey.Text("docs"), "Documentation", docs) {
+                width =
+                    if (model.narrow.value)
+                        220.0
+                    else
+                        320.0;
+                initialFocus = Some(model.search)
+            }
+            link(ViewKey.Text("overview"), "Overview", { model.navigate("Overview") }) {
+                active = model.page.value == "Overview"
+            }
+            link(ViewKey.Text("releases"), "Releases", { model.navigate("Releases") })
+            link(ViewKey.Text("preview"), "Preview", {}) { enabled = false }
+        }
+        typography(f"Current page: ${model.page.value}", TypographyRole.H4) {
+            this.fonts = Some(fonts)
+        }
+        typography(
+            "The open panel is independent from the current page. Panel contents remain ordinary links, columns, and a native editor.",
+            TypographyRole.Muted
+        ) { this.fonts = Some(fonts) }
+        button("Open documentation", { model.open.value = Some(ViewKey.Text("docs")) }) {
+            variant = ButtonVariant.Outline;
+            this.fonts = Some(fonts)
+        }
+        spacing = 24.0
+    }
+}

@@ -217,6 +217,7 @@ internal class Gallery(
             case Select -> selectExamples(model.selects, fonts)
             case Command -> commandExamples(model.commands, fonts)
             case Combobox -> comboboxExamples(model.comboboxes, fonts)
+            case NavigationMenu -> navigationMenuExamples(model.navigationMenus, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

@@ -1,0 +1,94 @@
+package scoop.ui.component
+
+import scoop.graphics.*
+import scoop.surface.*
+import scoop.ui.*
+import scoop.window.*
+
+internal class NavPanelEvents(private val props: Props<NavPanelControl>): Element {
+    public override fun onMount(scope: ComponentScope) {
+        scope.input.captureHandler =
+            {
+                context, event ->
+                val control = props.value
+                if (
+                    !context.defaultPrevented &&
+                        control.enabled &&
+                        control.props.value.focus.hasFocus
+                )
+                    when (event) {
+                        case Keyboard(key) -> {
+                            if (menuKeyAllowed(key)) {
+                                val towards =
+                                    if (control.input.orientation == FlexAxis.Horizontal)
+                                        NamedKey.ArrowDown
+                                    else
+                                        if (scope.layoutDirection == LayoutDirection.Rtl)
+                                            NamedKey.ArrowLeft
+                                        else
+                                            NamedKey.ArrowRight
+                                if (key.logicalKey == LogicalKey.Named(towards)) {
+                                    context.consume();
+                                    control.show(true)
+                                }
+                            }
+                        }
+                        else -> {}
+                    }
+            }
+    }
+    public override fun update() {
+        props.value.update()
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0));
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.children()
+    }
+}
+
+/** Focus and hover share the same real subtree; no extra focusable surface is introduced. */
+internal class NavPanelContent(private val props: Props<NavPanelControl>): Element {
+    private var area: InputArea? = None
+    private var focus: FocusScope? = None
+    public override fun onMount(scope: ComponentScope) {
+        val area = scope.createArea()
+        this.area = Some(area);
+        scope.routeChildren(area)
+        focus =
+            Some(
+                scope.focusScope(
+                    FocusScopeOptions(defaultFocus = props.value.props.value.panel.initialFocus)
+                )
+            )
+        props.value.contentFocus = focus
+        props.value.link.setContent(Some(area))
+        scope.resource {
+            area.scope.observeActivity {
+                props.value.contentFocused.value =
+                    area.scope.activity.hasFocus && area.scope.isInputAllowed
+            }
+        }
+    }
+    public override fun update() {
+        focus!!.options =
+            FocusScopeOptions(defaultFocus = props.value.props.value.panel.initialFocus)
+    }
+    public override fun onUnmount() {
+        props.value.link.setContent(None)
+        props.value.contentFocus = None
+        props.value.contentFocused.value = false
+    }
+    public override fun measure(context: MeasureContext, constraints: Constraints): LayoutMetrics {
+        val result = context.measureChild(0L, constraints)
+        context.placeChild(0L, Point(0.0, 0.0));
+        return result
+    }
+    public override fun scene(context: SceneContext) {
+        context.place(area!!, Rect(0.0, 0.0, context.size.width, context.size.height))
+        context.children()
+    }
+}
