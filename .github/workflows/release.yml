@@ -211,19 +211,36 @@ jobs:
               ]
           subprocess.run(arguments, check=True)
           PY
-      - name: Install the archive and run a program
+      - name: Install the archives and run a program
         run: |
           python - <<'PY'
-          import os, subprocess, tarfile
+          import os, subprocess, tarfile, tomllib
           from pathlib import Path
-          archive = Path('tmp/dist', f'scoop-{os.environ["RELEASE_VERSION"]}-{os.environ["PACKAGE_HOST"]}.tar.xz')
+          version = os.environ['RELEASE_VERSION']
+          host = os.environ['PACKAGE_HOST']
+          dist = Path('tmp/dist', f'scoop-{version}')
           installed = Path('tmp/release smoke/install root').resolve()
           installed.mkdir(parents=True)
-          with tarfile.open(archive) as package:
-              if any(member.name.endswith('.slib') or member.name.startswith('./docs/') for member in package.getmembers()):
-                  raise SystemExit('Release archives must not contain slibs or generated API documentation')
+          for component in (f'bin-{host}', f'llvm-{host}', 'sources'):
+              with tarfile.open(dist / f'scoop-{version}-{component}.tar.xz') as package:
+                  names = package.getnames()
+                  if any(name.endswith('.slib') or name.startswith('./docs/') for name in names):
+                      raise SystemExit(f'{component} must not contain slibs or generated API documentation')
+                  package.extractall(installed, filter='data')
+          default_target = (installed / 'share/scoop/install/targets.list').read_text().splitlines()[0]
+          with tarfile.open(dist / f'scoop-{version}-lib-{default_target}.tar.xz') as package:
+              names = package.getnames()
+              if not any(name.endswith('.slib') for name in names):
+                  raise SystemExit('Target packages must contain the prebuilt system slibs')
+              if any(name.startswith('./docs/') for name in names):
+                  raise SystemExit('Target packages must not contain generated API documentation')
               package.extractall(installed, filter='data')
+          release = tomllib.loads(Path('scripts/release.toml').read_text())
           windows = os.name == 'nt'
+          llvm_config = installed / 'libexec/llvm/bin' / ('llvm-config.exe' if windows else 'llvm-config')
+          actual = subprocess.check_output([llvm_config, '--version'], text=True).strip()
+          if actual != release['llvm']:
+              raise SystemExit(f'Bundled LLVM mismatch: expected {release["llvm"]}, found {actual}')
           post_install = (
               ['pwsh', '-NoProfile', '-File', str(installed / 'post-install.ps1')]
               if windows else ['sh', str(installed / 'post-install.sh')]
@@ -241,19 +258,24 @@ jobs:
           if not (installed / 'docs/index.html').is_file():
               raise SystemExit('Post-install did not generate API documentation')
           PY
-      - name: Upload the host package
+      - name: Upload the host packages
         uses: actions/upload-artifact@v7
         with:
           name: scoop-release-${{ matrix.host }}
-          path: tmp/dist/scoop-${{ needs.version.outputs.version }}-${{ matrix.host }}.tar.xz
+          path: |
+            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-bin-${{ matrix.host }}.tar.xz
+            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-llvm-${{ matrix.host }}.tar.xz
+            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-lib-*.tar.xz
           compression-level: 0
           if-no-files-found: error
-      - name: Upload the shared LLVM source package
+      - name: Upload the shared source packages
         if: matrix.host == 'aarch64-apple-darwin'
         uses: actions/upload-artifact@v7
         with:
-          name: scoop-release-llvm-sources
-          path: tmp/dist/scoop-${{ needs.version.outputs.version }}-llvm-sources.tar.xz
+          name: scoop-release-sources
+          path: |
+            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-sources.tar.xz
+            tmp/dist/scoop-${{ needs.version.outputs.version }}/scoop-${{ needs.version.outputs.version }}-llvm-sources.tar.xz
           compression-level: 0
           if-no-files-found: error
 

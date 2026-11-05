@@ -1,4 +1,4 @@
-# Build the installed system libraries and their offline API documentation.
+# Generate the offline API documentation for the installed targets.
 $ErrorActionPreference = 'Stop'
 $scoopRoot = $PSScriptRoot
 $scoopPlan = Join-Path $scoopRoot 'share/scoop/install'
@@ -6,13 +6,11 @@ $scoopTargets = @()
 $scoopAllTargets = $false
 $scoopJobs = 6
 $scoopWork = Join-Path $scoopRoot 'build/post-install'
-$scoopCc = ''
-$scoopNativeSysroot = ''
 
 for ($scoopIndex = 0; $scoopIndex -lt $args.Count; $scoopIndex++) {
     $scoopOption = $args[$scoopIndex]
     switch ($scoopOption) {
-        { $_ -in '--target', '--jobs', '--work-dir', '--cc', '--native-sysroot' } {
+        { $_ -in '--target', '--jobs', '--work-dir' } {
             $scoopIndex++
             if ($scoopIndex -ge $args.Count -or [string]::IsNullOrEmpty($args[$scoopIndex])) {
                 throw "$scoopOption requires a value"
@@ -28,24 +26,20 @@ for ($scoopIndex = 0; $scoopIndex -lt $args.Count; $scoopIndex++) {
                     }
                 }
                 '--work-dir' { $scoopWork = $scoopValue }
-                '--cc' { $scoopCc = $scoopValue }
-                '--native-sysroot' { $scoopNativeSysroot = $scoopValue }
             }
         }
         '--all-targets' { $scoopAllTargets = $true }
         { $_ -in '--help', '-h' } {
             Write-Output @'
 Usage: & ./post-install.ps1 [options]
-Build release system libraries and offline API documentation after extraction.
+Generate offline API documentation for the installed targets.
 
-  --target TARGET        Prepare a bundled target (repeatable)
-  --all-targets          Prepare every bundled target; requires their SDKs
+  --target TARGET        Document an installed target (repeatable)
+  --all-targets          Document every installed target of this release
   --jobs N               Maximum parallel build jobs (default: 6)
   --work-dir PATH        Build cache and intermediates (default: build/post-install)
-  --cc PATH              C compiler for the selected targets
-  --native-sysroot PATH  Native SDK for the selected targets
 
-With no target option, prepare the package's default target.
+With no target option, document the release's default target.
 '@
             exit 0
         }
@@ -54,15 +48,25 @@ With no target option, prepare the package's default target.
 }
 
 $scoopAvailable = @(Get-Content -LiteralPath "$scoopPlan/targets.list")
+$scoopVersion = (Get-Content -LiteralPath "$scoopRoot/VERSION" -TotalCount 1)
+function ScoopInstalled([string]$Target) {
+    return Test-Path -LiteralPath "$scoopRoot/lib/$Target/scoop.core.slib"
+}
 if ($scoopAllTargets) {
     if ($scoopTargets.Count -ne 0) { throw '--target and --all-targets are mutually exclusive' }
-    $scoopTargets = $scoopAvailable
+    $scoopTargets = @($scoopAvailable | Where-Object { ScoopInstalled $_ })
+    if ($scoopTargets.Count -eq 0) {
+        throw "no target package is installed; extract a scoop-$scoopVersion-lib-<target>.tar.xz archive first"
+    }
 } elseif ($scoopTargets.Count -eq 0) {
     $scoopTargets = @($scoopAvailable[0])
 }
 foreach ($scoopTarget in $scoopTargets) {
     if ($scoopTarget -cnotin $scoopAvailable) {
-        throw "target $scoopTarget is not included in this installation"
+        throw "target $scoopTarget is not provided by this release"
+    }
+    if (-not (ScoopInstalled $scoopTarget)) {
+        throw "target $scoopTarget is not installed: extract scoop-$scoopVersion-lib-$scoopTarget.tar.xz into $scoopRoot first"
     }
 }
 
@@ -81,35 +85,7 @@ try {
     $env:TMP = $scoopScratch
     $env:TEMP = $scoopScratch
     foreach ($scoopTarget in $scoopTargets) {
-        $scoopTargetCc = $scoopCc
-        $scoopTargetSysroot = $scoopNativeSysroot
-        if ($scoopTarget -like '*-llvm-mingw-*') {
-            $scoopPrefix = Join-Path $scoopRoot "lib/$scoopTarget/toolchain"
-            if (-not $scoopTargetCc) { $scoopTargetCc = Join-Path $scoopPrefix 'bin/clang.exe' }
-            if (-not $scoopTargetSysroot) { $scoopTargetSysroot = $scoopPrefix }
-        } elseif (-not $scoopTargetCc) {
-            $scoopTargetCc = Join-Path $scoopRoot 'libexec/llvm/bin/clang-cl.exe'
-        }
-        $scoopNative = @('--cc', $scoopTargetCc)
-        if ($scoopTargetSysroot) { $scoopNative += @('--native-sysroot', $scoopTargetSysroot) }
         $scoopCones = @(Get-Content -LiteralPath "$scoopPlan/$scoopTarget.list")
-        [IO.Directory]::CreateDirectory("$scoopRoot/lib/$scoopTarget") | Out-Null
-        foreach ($scoopCone in $scoopCones) {
-            Write-Output "Building $scoopCone for $scoopTarget"
-            $scoopCommand = @(
-                'build', "$scoopRoot/src/$scoopCone",
-                '--release', '--jobs', $scoopJobs, '--target', $scoopTarget,
-                '--sysroot', $scoopRoot, '--scoopc', "$scoopRoot/bin/scoopc.exe",
-                '--cache-dir', "$scoopWork/cache",
-                '--target-dir', "$scoopWork/$scoopTarget/target/$scoopCone",
-                '--lockfile', "$scoopWork/$scoopTarget/locks/$scoopCone.lock",
-                '-o', "$scoopRoot/lib/$scoopTarget/$scoopCone.slib",
-                '--unwind-prefix', "$scoopRoot/lib/$scoopTarget/unwind"
-            ) + $scoopNative
-            & "$scoopRoot/bin/sco.exe" @scoopCommand
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        }
-
         Write-Output "Generating API documentation for $scoopTarget"
         $scoopCommand = @('doc') + @(
             foreach ($scoopCone in $scoopCones) { "$scoopRoot/src/$scoopCone/Cone.toml" }
@@ -118,7 +94,7 @@ try {
             '--sysroot', $scoopRoot, '--scoopc', "$scoopRoot/bin/scoopc.exe",
             '--no-deps', '--deny-doc-warnings', '--cache-dir', "$scoopWork/cache",
             '--target-dir', "$scoopWork/doc-target", '--output-dir', "$scoopRoot/docs/$scoopTarget"
-        ) + $scoopNative
+        )
         & "$scoopRoot/bin/sco.exe" @scoopCommand
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
@@ -138,7 +114,7 @@ try {
 All pages, source text, and search resources are included locally.</p><ul>
 '@ + "`n" + ($scoopLinks -join "`n") + "`n</ul></main></body></html>`n"
     Set-Content -LiteralPath "$scoopRoot/docs/index.html" -Value $scoopHtml -Encoding UTF8
-    Write-Output "System libraries and API documentation are ready in $scoopRoot"
+    Write-Output "API documentation is ready in $scoopRoot"
 } finally {
     $env:TMPDIR = $scoopPreviousTmpdir
     $env:TMP = $scoopPreviousTmp
