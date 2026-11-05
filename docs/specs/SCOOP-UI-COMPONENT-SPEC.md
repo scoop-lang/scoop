@@ -782,3 +782,25 @@ Auto 通过同一个 roving KeyNavigation 在沿 axis 的方向键、Home／End 
 Horizontal 为 header 在上、面板在下，Vertical 为 header 在逻辑 Start、面板在 End；固定同一逻辑父级和两个槽，方向／轴变化只更新几何。列表按内容取宽，面板使用剩余可用宽度，spacing 分开两槽。Default 列表为 muted 背景、large 圆角、3 的 padding；header 默认高 26、横向 padding 6、14／20 medium 文字、medium 圆角；选中采用 background 色，Dark 使用 input 边框及 input／30 底色。Line 列表透明、项间距 4，选中条使用 foreground、厚 2，Horizontal 在下边、Vertical 在逻辑 End。尺寸按 action 字号／14 缩放。未选中文字为淡化 foreground（Dark 使用 muted.foreground），hover／选中恢复 foreground；pressed 具有可区分的反馈。hover／press 和焦点环复用 ActionInk／ThemePainter，选中条使用 ThemeMotion.selection，Reduced 热切换立即收束。局部 triggerStyle、panelStyle、listStyle、根 style 各作用于对应部分，不重叠登记输入。
 
 验收包含 Auto／Manual、横纵／RTL、Tab 入口、禁用跳过、拒绝 setter／换绑／实际值通知、None／未知／禁用外部值；Dispose／KeepMounted 的工厂次数、状态、关闭 Props 更新、IME 与停帧；keyed 重排、轴／变体／主题切换保留编辑；零尺寸与恢复、Reduced、卸载清理；真实 Gallery 中的表单与加载内容及 Default／Line 焦点外观。
+
+## 26. Breadcrumb
+
+`breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {})` 与 ChildrenBuilder 成员构造 BreadcrumbProps／Breadcrumb。Props 为 entries=[]、separator: View?=None、spacing=6、lineSpacing=6、enabled=true、fonts／theme、style=styleOverride()。spacing／lineSpacing 有限非负，按 action 字号／14 缩放；根使用普通 Wrap，RTL 交换逻辑起止。separator 未配置时为 14 的 ChevronEnd，可配置任意非交互 View；首项不显示分隔符，分隔符与后项同组换行。
+
+BreadcrumbEntry 含 `content: BreadcrumbContent`、key=Position、enabled=true、focus=FocusOptions()、maxWidth: Double?=None、style: ButtonStyle?=None。BreadcrumbContent 为 Link(ButtonContent, onNavigate)、Current(ButtonContent)、Ellipsis、Custom(View)。builder 的 item(String／StyledText／View／ActionContentStyle 回调, onNavigate)、current(String／StyledText／View)、ellipsis()、custom(View) 收集条目，配置块设置其余字段；add 接收完整条目。maxWidth 有限非负，限制整项（含其前置分隔符）的逻辑宽度；内置 Label 默认单行省略，未指定字体时继承根 fonts。自定义正文自行遵守约束。
+
+Link 使用同一个普通 Button／Press／FocusTarget，普通 Tab、Space／Enter 与指针激活只调用最新 onNavigate；根与条目 enabled 共同控制。Current、Ellipsis、默认分隔符不登记输入、无跳转；Custom 保留调用方自己的行为，可放置 Dropdown trigger 等已有控件，根 enabled 不推断或改写不透明 Custom 的内部状态。没有内置 URL 打开或路由。相同父级、key 和描述类型按普通规则复用，重排及首项改变不改变正文槽；类型变化仍重新挂载。
+
+内置文字为 action 字号、20／14 行高、normal weight；链接默认 muted.foreground，hover／pressed 恢复 foreground，按下有轻微背景反馈，焦点环不影响布局；Current 为 foreground。Ellipsis 为 20 的容器和 16 的 MoreHorizontal 图标。所有预设尺寸按字号缩放，局部 ButtonStyle 可覆盖链接外观。验收覆盖普通／自定义分隔符、长项省略与换行、RTL、当前项无动作、最新回调、禁用、键盘与 keyed 重排；Dropdown 组合在菜单批次交付后接入同一 Custom 槽。
+
+## 27. Pagination
+
+`pagination(page: Binding<Long>, pageCount: Long, configure: PaginationBuilder.() -> Unit = {})` 与 ChildrenBuilder 成员构造 PaginationProps／Pagination。页码从 1 开始；pageCount 可以为 0，pageCount／siblings=1／boundaries=1 必须非负。`paginationItems(page, pageCount, siblings=1, boundaries=1): Array<PaginationItem>` 是实际控件和调用方共用的纯范围计算，PaginationItem 为 Page(Long)／Ellipsis。显示首尾 boundaries 项及当前页两侧 siblings 项，重叠去重；只缺一页时直接显示该页，多页缺口显示省略号。未知外部 page 只在计算窗口时夹到有效范围，不写回 binding；空数据没有页码。算术覆盖 Long 上界，不遍历被省略的页。
+
+其余 Props 为 items: Array<PaginationItem>?=None、enabled=true、showPrevious=true、showNext=true、compact=false、previousText="Previous"、nextText="Next"、pageLabel: (Long)->String、pageContent: ((Long, ActionContentStyle)->View)?=None、ellipsis: View?=None、fonts／theme、buttonStyle=buttonStyle()、style=styleOverride()、previousFocus／nextFocus=FocusOptions()、pageFocus: (Long)->FocusOptions、onValueChange: (Long)->Unit。None items 使用自动范围；Some 使用显式顺序，Page 必须在 1..pageCount 内且不重复。builder 另有 key，item(page)／ellipsis() 追加显式条目，ellipsis(View) 设置省略号正文；add 接收完整 PaginationItem。构造和 DSL 不读取 binding、不调用业务回调或内容工厂。
+
+数字按钮用 Ghost／Icon，实际有效选中页用 Outline；Previous／Next 用 Ghost／Default、逻辑方向的 Chevron 和可本地化文字，compact 只隐藏文字。缺省省略号是 32 的非交互容器及 16 的 MoreHorizontal 图标。列表间距 2，使用普通 Row／Button，有限宽度居中，无界宽度取内容宽度；父约束优先，不创建第二套键盘导航或命中。逐页 key 来自页码，边缘按钮有独立稳定 key；页码窗口变化保留仍存在的按钮实例和焦点。根 style 和 buttonStyle 分别作用于整体及按钮，预设尺寸按 action 字号缩放，RTL 镜像布局和方向图标。
+
+动作读取最新 Props／binding。Previous 在 page<=1 时不可用，page>pageCount 时指向最后一页；Next 在 page>=pageCount 时不可用，page<1 时指向第一页；空数据、根 disabled 时两者不可用，计算避免溢出。数字或边缘动作只提交有效且不同的候选；setter 拒绝时不伪造选择，实际改变后通知 setter 采纳的 Long。外部值与 pageCount 更新不主动修正页码、不合成通知，控件不取数据。普通 Tab、Space／Enter 和指针走原 Button，禁用／卸载／隐藏取消在原层收尾。
+
+验收覆盖空数据、单页、首尾、缺口合并、Long 上界、显式条目错误、拒绝 setter／换绑／实际值通知、动态 pageCount、局部状态与焦点保留、RTL／窄宽／compact、明暗主题及真实应用页码驱动的数据视图。

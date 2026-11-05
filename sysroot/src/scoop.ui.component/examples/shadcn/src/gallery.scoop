@@ -201,6 +201,8 @@ internal class Gallery(
             case Collapsible -> collapsibleExamples(model.disclosures, fonts)
             case Accordion -> accordionExamples(model.disclosures, fonts)
             case Tabs -> tabsExamples(model, fonts)
+            case Breadcrumb -> breadcrumbExamples(model.navigation, fonts)
+            case Pagination -> paginationExamples(model.navigation, fonts)
         }
 
     private fun controlDemo(value: ControlDemo): View =

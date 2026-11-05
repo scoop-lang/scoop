@@ -28,6 +28,8 @@ collapsible(open: Binding<Boolean>, content: View, configure: CollapsibleBuilder
 accordion(selected: Binding<T?>, configure: AccordionBuilder<T>.() -> Unit = {}): View
 accordion(selected: Binding<Array<T>>, configure: AccordionBuilder<T>.() -> Unit = {}): View
 tabs(selected: Binding<T?>, configure: TabsBuilder<T>.() -> Unit = {}): View
+breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}): View
+pagination(page: Binding<Long>, pageCount: Long, configure: PaginationBuilder.() -> Unit = {}): View
 dialog(open: Binding<Boolean>, content: View, configure: DialogBuilder.() -> Unit = {}): View
 popover(open: Binding<Boolean>, anchor: LayoutAnchor, content: View, configure: PopoverBuilder.() -> Unit = {}): View
 tooltip(trigger: View, content: View, configure: TooltipBuilder.() -> Unit = {}): View
@@ -187,6 +189,8 @@ Item 的 title／description、media／actions、header／footer 都可选；Str
 Collapsible 的 `trigger(String／StyledText／View) { ... }` 构造一份 TriggerSpec，统一由 Button 处理激活、焦点和取消。默认 200ms 高度过渡由 ThemeMotion 解析；关闭途中重开保留当前实例和进度，Reduced 热切换立即收束。Accordion 的 `item(Choice(key, value, label), content) { ... }` 复用 Collapsible，提供 Default 分隔线／Card 外框、单选 `allowCollapse` 和多选；缺失外部值不被清洗。header 逐个参与 Tab，方向键只移动焦点。完整字段、错误和生命周期合同见 UI Component 规范 §24。
 
 Tabs 已实现：`tabs(selected) { item(Choice(key, value, label), content) }` 使用相同的选择值与稳定 key，提供 Default／Line、横纵布局、Auto／Manual、逐项 focus／trigger／retention 和样式。header 为单一 roving Tab 入口；面板的父级与内容槽保持稳定，横纵、主题、变体及 keyed 重排不重建正文。KeepMounted 的非活动面板跳过布局、输入与帧请求，继续接收 Props 更新；Dispose 在切换时卸载。拒绝 setter、None、未知或禁用外部值不会被清洗，通知传入实际采纳值。完整合同见 UI Component 规范 §25。
+
+Breadcrumb 已实现：`breadcrumb { item("Home", navigate); current("Page") }` 使用普通链接动作、当前项、ellipsis 与 custom 槽；可替换分隔符、限制长项宽度，并按逻辑方向换行。custom 可接菜单触发器，内部启用状态由调用方配置。Pagination 已实现：`pagination(page, pageCount)` 自动生成首尾、邻近页及省略号，也可用 item／ellipsis 显式排列。compact、本地化边缘文字、页码内容和焦点均可配置；页码 Long 从 1 开始，外部越界值不被修正，控件不读取业务数据。完整合同见 UI Component 规范 §26–27。
 
 ## 5. 弹层合同
 

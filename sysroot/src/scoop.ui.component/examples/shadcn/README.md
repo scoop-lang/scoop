@@ -47,3 +47,5 @@ Direction 页面组合继承方向的文本、编号标签、方向键选择组�
 Collapsible 页面比较 Dispose／KeepMounted 的局部草稿、计数与挂载次数，并提供嵌套内容、Spinner 和独立程序触发器。Accordion 页面提供单选／多选、禁止全关、Default／Card、禁用项及 keyed 重排；可在正文编辑时切换顺序，并用 Tab、方向键及 Space／Enter 检查导航与展开。顶部的主题、RTL 和减少动态设置同样生效。
 
 Tabs 页面包含 Default 草稿表单和 Line 自定义图标／加载正文。可切换 Auto／Manual、横纵、Dispose／KeepMounted、禁用与顺序，清空外部选择，并观察局部计数和挂载次数。方向键导航、Space／Enter 选择和 Tab 进入正文沿同一焦点体系；主题、RTL、减少动态和布局变化保留已挂载草稿。
+
+Breadcrumb 页面提供长路径、Chevron／Slash 分隔符、窄宽换行、禁用、展开中间路径和非交互省略号。Pagination 页面用页码驱动三条记录，比较自动范围与显式页码／本地化文字，并提供空数据、单页、外部越界值、拒绝 setter、禁用和 compact 切换；两页沿顶部切换主题、配色及 RTL。

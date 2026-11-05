@@ -1,0 +1,102 @@
+package scoop.ui.component
+
+import scoop.graphics.text.FontCollection
+import scoop.ui.*
+import scoop.ui.style.*
+
+public class PaginationBuilder internal constructor() {
+    public var siblings: Long = 1L
+    public var boundaries: Long = 1L
+    public var items: Array<PaginationItem>? = None
+    public var enabled: Boolean = true
+    public var showPrevious: Boolean = true
+    public var showNext: Boolean = true
+    public var compact: Boolean = false
+    public var previousText: String = "Previous"
+    public var nextText: String = "Next"
+    public var pageLabel: (Long) -> String = { value -> f"${value}" }
+    public var pageContent: ((Long, ActionContentStyle) -> View)? = None
+    public var ellipsis: View? = None
+    public var fonts: FontCollection? = None
+    public var theme: ThemeSource? = None
+    public var buttonStyle: ButtonStyle = buttonStyle()
+    public var style: StyleOverride = styleOverride()
+    public var previousFocus: FocusOptions = FocusOptions()
+    public var nextFocus: FocusOptions = FocusOptions()
+    public var pageFocus: (Long) -> FocusOptions = { _ -> FocusOptions() }
+    public var onValueChange: (Long) -> Unit = {}
+    public var key: ViewKey = ViewKey.Position
+    public fun add(item: PaginationItem) {
+        val entries = ArrayList<PaginationItem>()
+        for (entry in items ?: [])
+            entries.add(entry)
+        entries.add(item);
+        items = Some(entries.toArray())
+    }
+    public fun item(page: Long) {
+        add(PaginationItem.Page(page))
+    }
+    public fun ellipsis() {
+        add(PaginationItem.Ellipsis)
+    }
+    public fun ellipsis(content: View) {
+        ellipsis = Some(content)
+    }
+    public fun buttonStyle(configure: ButtonStyleBuilder.() -> Unit) {
+        buttonStyle = buttonStyle.copy(configure)
+    }
+    public fun style(configure: StyleOverrideBuilder.() -> Unit) {
+        style = style.copy(configure)
+    }
+    public fun previousFocus(configure: FocusOptionsBuilder.() -> Unit) {
+        previousFocus = previousFocus.copy(configure)
+    }
+    public fun nextFocus(configure: FocusOptionsBuilder.() -> Unit) {
+        nextFocus = nextFocus.copy(configure)
+    }
+    internal fun snapshot(page: Binding<Long>, pageCount: Long): PaginationProps =
+        PaginationProps(
+            page,
+            pageCount,
+            siblings,
+            boundaries,
+            items,
+            enabled,
+            showPrevious,
+            showNext,
+            compact,
+            previousText,
+            nextText,
+            pageLabel,
+            pageContent,
+            ellipsis,
+            fonts,
+            theme,
+            buttonStyle,
+            style,
+            previousFocus,
+            nextFocus,
+            pageFocus,
+            onValueChange
+        )
+}
+
+public fun pagination(
+    page: Binding<Long>,
+    pageCount: Long,
+    configure: PaginationBuilder.() -> Unit = {}
+): View = makePagination(page, pageCount, configure)
+
+internal fun makePagination(
+    page: Binding<Long>,
+    pageCount: Long,
+    configure: PaginationBuilder.() -> Unit
+): View {
+    val builder = PaginationBuilder();
+    builder.configure()
+    return component(
+        builder.snapshot(page, pageCount),
+        { current -> Pagination(current) },
+        builder.key
+    )
+}

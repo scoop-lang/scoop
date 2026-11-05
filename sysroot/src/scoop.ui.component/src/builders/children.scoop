@@ -13,6 +13,16 @@ import scoop.window.ShortcutLabel
 
 /** Collects one ordered child sequence; members append exactly once. */
 public open class ChildrenBuilder internal constructor() {
+    public fun breadcrumb(configure: BreadcrumbBuilder.() -> Unit = {}) {
+        add(makeBreadcrumb(configure))
+    }
+    public fun pagination(
+        page: Binding<Long>,
+        pageCount: Long,
+        configure: PaginationBuilder.() -> Unit = {}
+    ) {
+        add(makePagination(page, pageCount, configure))
+    }
     public fun <T: Equals<T>> tabs(
         selected: Binding<T?>,
         configure: TabsBuilder<T>.() -> Unit = {}

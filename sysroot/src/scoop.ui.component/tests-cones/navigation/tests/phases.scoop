@@ -1,0 +1,149 @@
+package scoop.tests.ui.navigation
+
+import scoop.test.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+
+internal fun navigationStep(p: NavigationProbe) {
+    when (p.phase) {
+        case 0 -> {
+            assertTrue(p.pages[5L].requestFocus());
+            p.key(49, " ");
+            p.key(48, "\t")
+        }
+        case 1 -> {
+            assertTrue(p.pages[6L].hasFocus);
+            assertEquals(0, p.callbacks);
+            p.key(49, " ")
+        }
+        case 2 -> {
+            assertEquals(6L, p.page.value);
+            assertEquals(1, p.callbacks);
+            assertTrue(p.pages[6L].hasFocus)
+            p.deny = true;
+            assertTrue(p.next.requestFocus());
+            p.key(36, "\r")
+        }
+        case 3 -> {
+            assertEquals(6L, p.page.value);
+            assertEquals(1, p.callbacks)
+            p.deny = false;
+            p.rebound = true;
+            p.count = 3L;
+            p.compact = true;
+            p.changed()
+        }
+        case 4 -> {
+            assertTrue(p.next.hasFocus);
+            p.key(36, "\r")
+        }
+        case 5 -> {
+            assertEquals(3L, p.alternate.value);
+            assertEquals(6L, p.page.value);
+            assertEquals(1, p.alternateCallbacks)
+            assertFalse(p.next.requestFocus());
+            assertTrue(p.pages[3L].requestFocus())
+            p.alternate.value = 0L;
+            p.count = 0L;
+            p.changed()
+        }
+        case 6 -> {
+            assertEquals(0L, p.alternate.value);
+            assertFalse(p.next.requestFocus());
+            assertFalse(p.previous.requestFocus())
+            for (handle in p.pages)
+                assertFalse(handle.isAttached)
+            p.count = 10L;
+            p.alternate.value = 5L;
+            p.enabled = false;
+            p.changed()
+        }
+        case 7 -> {
+            assertFalse(p.pages[5L].requestFocus());
+            assertFalse(p.home.requestFocus())
+            p.enabled = true;
+            p.reverse = true;
+            p.rtl = true;
+            p.width = 180.0
+            p.theme.current.value = shadcnTheme(ThemeMode.Dark);
+            p.changed()
+        }
+        case 8 -> {
+            assertTrue(p.home.requestFocus());
+            p.key(49, " ")
+        }
+        case 9 -> {
+            assertEquals(1, p.actions);
+            p.version = 2;
+            p.reverse = false;
+            p.changed()
+        }
+        case 10 -> {
+            assertTrue(p.home.hasFocus);
+            p.key(49, " ");
+            p.key(48, "\t");
+            p.key(48, "\t");
+            p.key(49, " ")
+        }
+        case 11 -> {
+            assertEquals(3, p.actions);
+            assertTrue(p.custom.hasFocus);
+            assertEquals(2, p.observed);
+            assertEquals(1, p.factories)
+            p.reverse = true;
+            p.width = 600.0;
+            p.theme.current.value = shadcnTheme();
+            p.changed()
+        }
+        case 12 -> {
+            assertTrue(p.custom.hasFocus);
+            assertEquals(2, p.observed);
+            p.enabled = false;
+            p.changed()
+        }
+        case 13 -> {
+            assertTrue(p.custom.hasFocus);
+            assertFalse(p.home.requestFocus());
+            p.key(49, " ")
+        }
+        case 14 -> {
+            assertEquals(3, p.observed)
+            p.zero = true;
+            p.changed()
+        }
+        case 15 -> {
+            assertFalse(p.custom.hasFocus);
+            assertTrue(p.custom.requestFocus());
+            assertTrue(p.custom.isPending);
+            assertFalse(p.custom.hasFocus);
+            p.custom.clearFocus();
+            assertFalse(p.custom.isPending);
+            assertEquals(3, p.observed)
+            p.zero = false;
+            p.enabled = true;
+            p.changed()
+        }
+        case 16 -> {
+            assertFalse(p.custom.hasFocus);
+            assertEquals(1, p.factories)
+        }
+        case 17 -> {
+            assertFalse(p.frames!!.snapshot().required);
+            p.quiet = Some(p.frames!!.snapshot())
+        }
+        case 18 -> {
+            assertEquals(p.quiet!!.callbacks, p.frames!!.snapshot().callbacks)
+            assertEquals(p.quiet!!.presentations, p.frames!!.snapshot().presentations)
+            p.gone = true;
+            p.changed()
+        }
+        case 19 -> {
+            assertFalse(p.home.isAttached);
+            assertFalse(p.custom.isAttached);
+            assertFalse(p.next.isAttached)
+            assertEquals(1, p.unmounts);
+            p.native!!.requestDestroy()
+        }
+        else -> fail(Some("unexpected navigation phase"))
+    }
+}

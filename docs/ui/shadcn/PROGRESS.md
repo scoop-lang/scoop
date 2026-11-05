@@ -177,3 +177,10 @@
 - 先补齐控件规范 §25，再实现受控 Tabs、真实成员 DSL、Default／Line、横纵／RTL、Auto／Manual、禁用与逐项内容／焦点／样式。复用 KeyNavigation、Press、ActionInk 与 DisclosureBody；固定列表和面板父级，不增加反射身份、选择镜像或生命周期体系。KeepMounted 的非活动正文继续逻辑更新，跳过布局、输入／IME 和帧请求；Dispose 在切换时卸载。
 - macOS aarch64 release：格式、相关 tests 静态检查、生产库及 Gallery 构建通过；4 项 Tabs 模型／样式测试、4 项既有 ActionVariantTest 和 1 项 36 阶段原生窗口用例全部通过。覆盖拒绝 setter／换绑／实际值通知、None／未知／禁用外部值、键盘与真实中文 IME、keyed 重排、轴／变体／主题切换、工厂次数和局部状态、隐藏正文更新与停帧、窄宽／零尺寸、窗口隐藏恢复和卸载。末次字体继承及禁用选中条调整经格式、类型检查、生产构建与 Gallery 复查。
 - Gallery 新增草稿表单、局部计数／挂载次数、自定义图标和加载内容；实查两种变体、Manual 焦点与选择分离、重排保留、禁用、明暗 System／Neutral 和 RTL。API 与 README 同步，累计 **32／64**；继续 Breadcrumb／Pagination。未重建编译器／LLVM，未重复全仓或全部控件测试；一次性窗口、Tabs 原生输出及独立锁清理，共享缓存与后续复用产物保留。七个 UI 库源码仍无反射描述及 requireClassInstance 直接依赖，Windows／Linux 未验证，x86_64 留在整体收尾。
+
+
+## P3d：Breadcrumb 与 Pagination
+
+- 先补齐控件规范 §26–27。Breadcrumb 提供链接／当前项／省略号／自定义槽、Chevron 或自定义分隔符、长项省略、换行与 RTL；复用普通 Button 和 Wrap，重排及首项改变保持正文槽。Pagination 提供受控 Long 页码、自动边界／邻近范围、显式页码、缺口省略、本地化、compact 与内容／焦点配置；空数据和外部越界值不暗写模型，setter 实际采纳后才通知，不取业务数据。
+- macOS aarch64 release：格式、相关 tests 静态检查、生产库和 Gallery 构建通过；4 项模型／样式／DSL 测试和 1 项 20 阶段原生窗口用例全部通过。覆盖空页、单页、缺口合并、Long 上界、错误配置、拒绝 setter／换绑／实际值通知、动态页数、真实 Tab／Space／Enter、keyed 焦点与自定义局部状态保留、窄宽／RTL／主题切换、逻辑禁用、未放置时等待焦点请求的取消、恢复和静止停帧／卸载。用例时序按真实键盘分发修正，并遵守既有 FocusHandle 等待放置的合同。
+- Gallery 增加可展开路径与实际页码驱动的数据视图，实查正常／禁用、空数据／外部页码、拒绝选择、局部回调、compact、本地化、明暗 System／Neutral 和 RTL；实窗发现的数字居中与窄宽示例约束已修正并复查。API、模型说明和 README 同步。P3 首次交付完成，累计 **34／64**；Breadcrumb 的 Dropdown 组合在 P5 接入。下一批进入 P4 弹层和焦点。未重建编译器／LLVM，未重复全仓或全部控件测试；一次性窗口、导航 native 输出与独立锁清理，共享缓存、生产库、Gallery 与下载源保留。Windows／Linux 未验证，x86_64 留在整体收尾。

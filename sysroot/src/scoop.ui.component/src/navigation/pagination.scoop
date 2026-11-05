@@ -1,0 +1,169 @@
+package scoop.ui.component
+
+import scoop.graphics.text.*
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.component.row as makeRow
+
+public class Pagination public constructor(private val props: Props<PaginationProps>): Component {
+    private val themes = ThemeAccess()
+    public override fun onMount(scope: ComponentScope) {
+        themes.mount(props.value.theme)
+    }
+    private fun select(page: Long) {
+        if (selectPage(props.value, page))
+            props.value.onValueChange(props.value.page.value)
+    }
+    private fun move(forward: Boolean) {
+        val input = props.value
+        when (paginationNeighbor(input.page.value, input.pageCount, forward)) {
+            case Some(page) -> select(page);
+            case None -> {}
+        }
+    }
+    public override fun render(): View {
+        val input = props.value
+        val theme = themes.read(input.theme)
+        val density = theme.tokens.typography.action.fontSize / 14.0
+        val selected = input.page.value
+        val entries =
+            input.items ?:
+                paginationItems(selected, input.pageCount, input.siblings, input.boundaries)
+        val controls =
+            makeRow {
+                if (input.showPrevious)
+                    this.add(this @Pagination.edge(input, false))
+                for (index in 0L ..< entries.size) {
+                    when (entries[index]) {
+                        case Page(number) -> this.add(
+                            component(
+                                ButtonProps(
+                                    when (input.pageContent) {
+                                        case Some(build) -> ButtonContent.Resolved {
+                                            appearance -> build(number, appearance)
+                                        }
+                                        case None -> navigationLabel(
+                                            ButtonContent.Label(
+                                                LabelProps(
+                                                    LabelText.Plain(input.pageLabel(number), None)
+                                                )
+                                            ),
+                                            input.fonts,
+                                            TextAlignment.Center
+                                        )
+                                    },
+                                    { this @Pagination.select(number) },
+                                    input.enabled,
+                                    input.buttonStyle,
+                                    input.theme,
+                                    input.pageFocus(number),
+                                    variant =
+                                        if (selected == number)
+                                            ButtonVariant.Outline
+                                        else
+                                            ButtonVariant.Ghost,
+                                    size = ButtonSize.Icon
+                                ),
+                                { current -> Button(current) },
+                                ViewKey.Number(number)
+                            )
+                        )
+                        case Ellipsis -> this.add(
+                            panelFrame(
+                                input.ellipsis ?:
+                                    navigationEllipsis(
+                                        32.0 * density,
+                                        16.0 * density,
+                                        theme.tokens.palette.background.foreground
+                                    ),
+                                key = ViewKey.Text(f"gap-${index}")
+                            )
+                        )
+                    }
+                }
+                if (input.showNext)
+                    this.add(this @Pagination.edge(input, true))
+                this.spacing = 2.0 * density
+                this.alignment = CrossAlignment.Center
+            }
+        return panelFrame(
+            makeRow {
+                this.item(empty()) { this.grow = 1.0 }
+                this.add(controls)
+                this.item(empty()) { this.grow = 1.0 }
+                this.alignment = CrossAlignment.Center
+            },
+            visual = input.style
+        )
+    }
+    private fun edge(input: PaginationProps, forward: Boolean): View {
+        val available = paginationNeighbor(input.page.value, input.pageCount, forward) != None
+        return component(
+            ButtonProps(
+                ButtonContent.Resolved {
+                    appearance -> makeRow {
+                        if (!forward)
+                            this.add(
+                                navigationIcon(
+                                    NavigationGlyph.Start,
+                                    appearance.iconSize,
+                                    appearance.text.color
+                                )
+                            )
+                        if (!input.compact)
+                            this.add(
+                                actionContent(
+                                    navigationLabel(
+                                        ButtonContent.Label(
+                                            LabelProps(
+                                                LabelText.Plain(
+                                                    if (forward)
+                                                        input.nextText
+                                                    else
+                                                        input.previousText,
+                                                    None
+                                                )
+                                            )
+                                        ),
+                                        input.fonts
+                                    ),
+                                    appearance
+                                )
+                            )
+                        if (forward)
+                            this.add(
+                                navigationIcon(
+                                    NavigationGlyph.End,
+                                    appearance.iconSize,
+                                    appearance.text.color
+                                )
+                            )
+                        this.spacing = appearance.spacing
+                        this.alignment = CrossAlignment.Center
+                    }
+                },
+                { move(forward) },
+                input.enabled && available,
+                input.buttonStyle,
+                input.theme,
+                if (forward)
+                    input.nextFocus
+                else
+                    input.previousFocus,
+                variant = ButtonVariant.Ghost,
+                size =
+                    if (input.compact)
+                        ButtonSize.Icon
+                    else
+                        ButtonSize.Default
+            ),
+            { current -> Button(current) },
+            ViewKey.Text(
+                if (forward)
+                    "next"
+                else
+                    "previous"
+            )
+        )
+    }
+}

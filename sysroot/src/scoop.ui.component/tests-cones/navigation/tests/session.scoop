@@ -1,0 +1,142 @@
+package scoop.tests.ui.navigation
+
+import scoop.graphics.text.FontCollection
+import scoop.platform.time.MonotonicTimeSource
+import scoop.test.*
+import scoop.tests.surface.*
+import scoop.tests.textfonts.testSansBytes
+import scoop.time.Duration
+import scoop.ui.*
+import scoop.ui.style.*
+import scoop.ui.style.shadcn.shadcnTheme
+import scoop.window.*
+
+@Test
+private class NavigationWindowTest {
+    @Test
+    fun `navigation uses current bindings and retains keyed focus and custom content`() {
+        val p = NavigationProbe()
+        val host = UiHost { owner, active, event -> p.event(owner, active, event) }
+        try {
+            context(p.theme) {
+                host.use { owner -> Application().run(owner) }
+            }
+            assertTrue(p.finished)
+            assertEquals(1, p.callbacks);
+            assertEquals(1, p.alternateCallbacks)
+            assertEquals(3, p.actions);
+            assertEquals(1, p.factories);
+            assertEquals(1, p.unmounts)
+            assertFalse(p.frames!!.snapshot().attached)
+        } catch (error: Throwable) {
+            println(
+                f"navigation phase=${p.phase}, rendered=${p.rendered}, generation=${
+                    p.generation.value
+                }"
+            )
+            navigationFailure(error);
+            throw error
+        } finally {
+            host.close();
+            p.frames?.close();
+            p.fonts.close()
+        }
+    }
+}
+
+internal class NavigationProbe {
+    val theme = ThemeSource(shadcnTheme())
+    val fonts = FontCollection(false)
+    val generation = state(0)
+    val page = state(5L)
+    val alternate = state(2L)
+    val pages = Array<FocusHandle>(11L) { _ -> FocusHandle() }
+    val previous = FocusHandle()
+    val next = FocusHandle()
+    val home = FocusHandle()
+    val docs = FocusHandle()
+    val custom = FocusHandle()
+    var count = 10L
+    var deny = false
+    var rebound = false
+    var enabled = true
+    var compact = false
+    var reverse = false
+    var rtl = false
+    var zero = false
+    var gone = false
+    var width = 600.0
+    var version = 1
+    var actions = 0
+    var callbacks = 0
+    var alternateCallbacks = 0
+    var factories = 0
+    var unmounts = 0
+    var observed = 0
+    var phase = 0
+    var rendered = -1
+    var finished = false
+    var native: Window? = None
+    var frames: FrameProbe? = None
+    var quiet: FrameSnapshot? = None
+    var ready = MonotonicTimeSource.markNow()
+    val deadline = MonotonicTimeSource.markNow() + Duration.seconds(70L)
+    init {
+        for (family in theme.current.value.tokens.typography.body.families)
+            fonts.register(testSansBytes, family)
+    }
+    fun changed() {
+        generation.value += 1
+    }
+    fun key(code: Int, text: String = "", flags: Int = 0) {
+        assertEquals(0, navigationKey(native!!, code, text, flags))
+    }
+    fun event(host: UiHost, active: ActiveApplication, event: ApplicationEvent) {
+        when (event) {
+            case Resumed -> {
+                val window =
+                    active.createWindow(
+                        windowAttributes {
+                            this.title = "Scoop navigation test"
+                            this.position = Some(DesktopPosition(160.0, 100.0))
+                            this.size = LogicalSize(640.0, 320.0)
+                        }
+                    )
+                native = Some(window);
+                window.setWindowLevel(WindowLevel.AlwaysOnTop)
+                frames = Some(observeFrames(window))
+                host.attach(window, { NavigationScene(this) });
+                window.requestFocus();
+                wait(active)
+            }
+            case NewEvents(StartCause.Deadline) -> {
+                assertTrue(MonotonicTimeSource.markNow() < deadline, Some("navigation timeout"))
+                if (
+                    native!!.isFocused &&
+                        rendered >=
+                        generation.value &&
+                        MonotonicTimeSource.markNow() >=
+                        ready
+                ) {
+                    navigationStep(this);
+                    phase += 1
+                    ready = MonotonicTimeSource.markNow() + Duration.milliseconds(240L)
+                } else
+                    if (!native!!.isFocused)
+                        native!!.requestFocus()
+                if (phase < 20)
+                    wait(active)
+            }
+            case Window(_, WindowEvent.Destroyed) -> {
+                finished = phase == 20;
+                active.requestExit()
+            }
+            else -> {}
+        }
+    }
+    private fun wait(active: ActiveApplication) {
+        active.setControlFlow(
+            ControlFlow.WaitUntil(MonotonicTimeSource.markNow() + Duration.milliseconds(30L))
+        )
+    }
+}
